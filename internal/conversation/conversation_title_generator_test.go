@@ -3,9 +3,10 @@ package conversation
 import (
 	"context"
 	"fmt"
-	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 	"testing"
 	"time"
+
+	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"

@@ -3,12 +3,13 @@ package tools
 import (
 	"context"
 	"fmt"
-	memorymocks "github.com/inference-gateway/cli/tests/mocks/memory"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+
+	memorymocks "github.com/inference-gateway/cli/tests/mocks/memory"
 
 	yaml "gopkg.in/yaml.v3"
 

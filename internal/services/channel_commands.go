@@ -3,10 +3,11 @@ package services
 import (
 	"context"
 	"fmt"
-	channels "github.com/inference-gateway/cli/internal/services/channels"
 	"slices"
 	"strings"
 	"time"
+
+	channels "github.com/inference-gateway/cli/internal/services/channels"
 
 	uuid "github.com/google/uuid"
 	sdk "github.com/inference-gateway/sdk"

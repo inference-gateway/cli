@@ -3,8 +3,9 @@ package render
 import (
 	"encoding/json"
 	"fmt"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"io"
+
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 
 	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
 	guuid "github.com/google/uuid"

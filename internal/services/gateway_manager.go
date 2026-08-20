@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	"io"
 	"net/http"
 	"os"
@@ -17,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"

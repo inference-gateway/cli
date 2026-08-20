@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 	"sync"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	uuid "github.com/google/uuid"
 	cron "github.com/robfig/cron/v3"

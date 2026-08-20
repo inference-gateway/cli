@@ -3,9 +3,10 @@ package components
 import (
 	"context"
 	"fmt"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"time"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	key "charm.land/bubbles/v2/key"
 	spinner "charm.land/bubbles/v2/spinner"

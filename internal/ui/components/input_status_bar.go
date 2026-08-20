@@ -2,8 +2,9 @@ package components
 
 import (
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
@@ -91,7 +92,7 @@ func (isb *InputStatusBar) SetThemeService(themeService ui.ThemeService) {
 
 // statusBarState is the narrow slice of StateManager the input status bar reads.
 type statusBarState interface {
-	ui.AgentModeManager
+	agentdomain.AgentModeManager
 	AgentReadinessManager
 }
 

@@ -1,8 +1,9 @@
 package markdown
 
 import (
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	glamour "charm.land/glamour/v2"
 	ansi "charm.land/glamour/v2/ansi"

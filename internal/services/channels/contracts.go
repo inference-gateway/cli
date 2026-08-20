@@ -4,8 +4,9 @@ package channels
 
 import (
 	"context"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"time"
+
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )

@@ -1,9 +1,10 @@
 package app
 
 import (
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	tea "charm.land/bubbletea/v2"
 

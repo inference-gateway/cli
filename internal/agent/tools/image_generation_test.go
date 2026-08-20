@@ -3,8 +3,9 @@ package tools
 import (
 	"context"
 	"fmt"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
+
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
 	assert "github.com/stretchr/testify/assert"
 

@@ -1,10 +1,11 @@
 package githubscheduler
 
 import (
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 	"testing"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	config "github.com/inference-gateway/cli/config"
 	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"

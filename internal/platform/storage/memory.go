@@ -3,10 +3,11 @@ package storage
 import (
 	"context"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"slices"
 	"sync"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )

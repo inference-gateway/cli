@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )

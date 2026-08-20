@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	config "github.com/inference-gateway/cli/config"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"

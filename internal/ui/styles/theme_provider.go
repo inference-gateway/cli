@@ -2,6 +2,7 @@ package styles
 
 import (
 	"fmt"
+
 	ui "github.com/inference-gateway/cli/internal/ui"
 
 	"github.com/charmbracelet/x/exp/charmtone"

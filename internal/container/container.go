@@ -3,15 +3,16 @@ package container
 import (
 	"context"
 	"fmt"
-	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
-	scheduler "github.com/inference-gateway/cli/internal/scheduler"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
+	scheduler "github.com/inference-gateway/cli/internal/scheduler"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	sdk "github.com/inference-gateway/sdk"
 	mockgateway "github.com/inference-gateway/tokenless/gateway"

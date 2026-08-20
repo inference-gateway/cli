@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"

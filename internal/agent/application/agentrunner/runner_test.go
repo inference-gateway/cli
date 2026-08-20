@@ -2,9 +2,10 @@ package agentrunner
 
 import (
 	"context"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"os/exec"
 	"testing"
+
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 )
 
 func TestBuildArgs(t *testing.T) {

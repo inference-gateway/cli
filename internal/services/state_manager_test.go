@@ -1,9 +1,10 @@
 package services
 
 import (
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"testing"
 	"time"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"

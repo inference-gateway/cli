@@ -3,11 +3,12 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os/exec"
 	"regexp"
 	"strings"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	uuid "github.com/google/uuid"
 

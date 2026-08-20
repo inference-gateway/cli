@@ -2,11 +2,12 @@ package scheduler_test
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
-	"testing"
-	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"

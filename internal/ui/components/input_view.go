@@ -3,13 +3,14 @@ package components
 import (
 	"context"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"maps"
 	"os/exec"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	key "charm.land/bubbles/v2/key"
 	textarea "charm.land/bubbles/v2/textarea"
@@ -162,8 +163,8 @@ func (iv *InputView) SetThemeService(themeService ui.ThemeService) {
 // inputViewState is the narrow slice of StateManager the input view reads to
 // decide whether an approval/plan overlay is active.
 type inputViewState interface {
-	ui.ApprovalUIManager
-	ui.PlanApprovalUIManager
+	agentdomain.ApprovalUIManager
+	agentdomain.PlanApprovalUIManager
 }
 
 // SetStateManager sets the state manager for this input view

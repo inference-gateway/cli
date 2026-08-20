@@ -3,10 +3,11 @@ package chatcompletion
 import (
 	"encoding/json"
 	"errors"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"path/filepath"
 	"testing"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	sdk "github.com/inference-gateway/sdk"
 

@@ -2,11 +2,12 @@ package components
 
 import (
 	"fmt"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
@@ -46,8 +47,8 @@ func (argsAwareToolFormatter) RenderToolSummary(icon, toolName string, args map[
 	return fmt.Sprintf("%s %s() %s", icon, toolName, trailing)
 }
 
-func approvalStateWith(toolName, arguments string) *ui.ApprovalUIState {
-	return &ui.ApprovalUIState{
+func approvalStateWith(toolName, arguments string) *agentdomain.ApprovalUIState {
+	return &agentdomain.ApprovalUIState{
 		PendingToolCall: &sdk.ChatCompletionMessageToolCall{
 			ID: "call_1",
 			Function: sdk.ChatCompletionMessageToolCallFunction{
@@ -60,7 +61,7 @@ func approvalStateWith(toolName, arguments string) *ui.ApprovalUIState {
 
 // approvalStateManager returns a real ApplicationState primed with the given
 // pending approval (or none when s is nil).
-func approvalStateManager(s *ui.ApprovalUIState) *ui.ApplicationState {
+func approvalStateManager(s *agentdomain.ApprovalUIState) *ui.ApplicationState {
 	st := ui.NewApplicationState()
 	if s != nil {
 		st.SetupApprovalUIState(s.PendingToolCall, nil)

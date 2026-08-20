@@ -1,7 +1,5 @@
 package states
 
-import ()
-
 // StoppedState handles events in the Stopped state.
 //
 // The Stopped state is a terminal state reached when the agent stops execution

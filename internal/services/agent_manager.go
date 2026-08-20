@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 
 	client "github.com/inference-gateway/adk/client"
 	gotenv "github.com/subosito/gotenv"

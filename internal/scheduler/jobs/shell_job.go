@@ -3,10 +3,11 @@ package jobs
 import (
 	"context"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os/exec"
 	"syscall"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )

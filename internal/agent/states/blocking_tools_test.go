@@ -2,9 +2,10 @@ package states_test
 
 import (
 	"fmt"
-	states "github.com/inference-gateway/cli/internal/agent/states"
 	"strings"
 	"testing"
+
+	states "github.com/inference-gateway/cli/internal/agent/states"
 
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"

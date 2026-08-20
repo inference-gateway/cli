@@ -1,8 +1,9 @@
 package states_test
 
 import (
-	states "github.com/inference-gateway/cli/internal/agent/states"
 	"testing"
+
+	states "github.com/inference-gateway/cli/internal/agent/states"
 
 	assert "github.com/stretchr/testify/assert"
 )

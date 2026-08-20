@@ -1,10 +1,11 @@
 package components
 
 import (
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
 	"time"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )

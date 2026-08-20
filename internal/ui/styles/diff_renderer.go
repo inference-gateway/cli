@@ -2,9 +2,10 @@ package styles
 
 import (
 	"fmt"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"os"
 	"strings"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	chroma "github.com/alecthomas/chroma/v2"
 	chromastyles "github.com/alecthomas/chroma/v2/styles"

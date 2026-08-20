@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +15,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 
 	bot "github.com/go-telegram/bot"
 	models "github.com/go-telegram/bot/models"

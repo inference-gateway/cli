@@ -2,10 +2,11 @@ package services
 
 import (
 	"context"
-	channels "github.com/inference-gateway/cli/internal/services/channels"
-	channelmocks "github.com/inference-gateway/cli/tests/mocks/channels"
 	"strings"
 	"testing"
+
+	channels "github.com/inference-gateway/cli/internal/services/channels"
+	channelmocks "github.com/inference-gateway/cli/tests/mocks/channels"
 
 	uuid "github.com/google/uuid"
 	sdk "github.com/inference-gateway/sdk"

@@ -2,9 +2,10 @@ package agent
 
 import (
 	"context"
-	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"testing"
 	"time"
+
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )

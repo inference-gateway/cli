@@ -2,10 +2,11 @@ package components
 
 import (
 	"fmt"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
 	"time"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	lipgloss "charm.land/lipgloss/v2"
 	sdk "github.com/inference-gateway/sdk"

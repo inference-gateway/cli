@@ -3,11 +3,12 @@ package jobs
 import (
 	"context"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"sync"
 	"testing"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	adk "github.com/inference-gateway/adk/types"
 

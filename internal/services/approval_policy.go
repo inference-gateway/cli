@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"encoding/json"
-	ui "github.com/inference-gateway/cli/internal/ui"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -25,11 +24,11 @@ import (
 //  5. Other tools check configuration (per-tool or global require_approval setting)
 type StandardApprovalPolicy struct {
 	config       *config.Config
-	stateManager ui.AgentModeManager
+	stateManager agentdomain.AgentModeManager
 }
 
 // NewStandardApprovalPolicy creates a new standard approval policy
-func NewStandardApprovalPolicy(cfg *config.Config, stateManager ui.AgentModeManager) *StandardApprovalPolicy {
+func NewStandardApprovalPolicy(cfg *config.Config, stateManager agentdomain.AgentModeManager) *StandardApprovalPolicy {
 	return &StandardApprovalPolicy{
 		config:       cfg,
 		stateManager: stateManager,

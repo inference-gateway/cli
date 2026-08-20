@@ -2,8 +2,9 @@ package approvalcoord
 
 import (
 	"fmt"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"time"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
@@ -25,11 +26,11 @@ type planRepoUpdater interface {
 // needs: the plan-approval and user-question overlays, computer-use pause,
 // chat-session end, and mode switching. *services.StateManager satisfies it.
 type stateManager interface {
-	ui.PlanApprovalUIManager
-	ui.UserQuestionUIManager
-	ui.ComputerUsePauseManager
-	ui.ChatSessionManager
-	ui.AgentModeManager
+	agentdomain.PlanApprovalUIManager
+	agentdomain.UserQuestionUIManager
+	agentdomain.ComputerUsePauseManager
+	agentdomain.ChatSessionManager
+	agentdomain.AgentModeManager
 }
 
 // Service owns the UI side of "pause the assistant turn pending external

@@ -1,9 +1,10 @@
 package components
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	tea "charm.land/bubbletea/v2"
 

@@ -1,9 +1,10 @@
 package keybinding_test
 
 import (
+	"testing"
+
 	ui "github.com/inference-gateway/cli/internal/ui"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	"testing"
 
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"

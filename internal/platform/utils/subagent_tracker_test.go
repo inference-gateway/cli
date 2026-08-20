@@ -1,9 +1,10 @@
 package utils
 
 import (
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"sync"
 	"testing"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func TestSubagentTracker_AddSubagent(t *testing.T) {

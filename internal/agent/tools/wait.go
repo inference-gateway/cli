@@ -3,13 +3,14 @@ package tools
 import (
 	"context"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	fsnotify "github.com/fsnotify/fsnotify"
 	sdk "github.com/inference-gateway/sdk"

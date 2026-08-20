@@ -1,9 +1,10 @@
 package components
 
 import (
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -11,7 +12,7 @@ import (
 )
 
 // statusViewStateStub wraps the real ApplicationState to satisfy the status
-// view's statusViewState interface, which adds the ChatSessionManager methods
+// view's statusViewState interface, which adds the agentdomain.ChatSessionManager methods
 // (IsAgentBusy and an error-returning StartChatSession) that the wrapped
 // services.StateManager normally provides.
 type statusViewStateStub struct{ *ui.ApplicationState }

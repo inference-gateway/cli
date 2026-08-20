@@ -1,16 +1,17 @@
 package components
 
 import (
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-func questionStateForTest(questions ...agentdomain.UserQuestion) *ui.UserQuestionUIState {
+func questionStateForTest(questions ...agentdomain.UserQuestion) *agentdomain.UserQuestionUIState {
 	if len(questions) == 0 {
 		questions = []agentdomain.UserQuestion{
 			{
@@ -24,7 +25,7 @@ func questionStateForTest(questions ...agentdomain.UserQuestion) *ui.UserQuestio
 			},
 		}
 	}
-	return &ui.UserQuestionUIState{
+	return &agentdomain.UserQuestionUIState{
 		Questions:    questions,
 		ResponseChan: make(chan []agentdomain.UserQuestionAnswer, 1),
 	}
@@ -53,7 +54,7 @@ func drainQuestionForm(v *QuestionFormView, cmd tea.Cmd) {
 	drainQuestionForm(v, v.Forward(msg))
 }
 
-func newQuestionFormForTest(state *ui.UserQuestionUIState) (*QuestionFormView, *ui.ApplicationState) {
+func newQuestionFormForTest(state *agentdomain.UserQuestionUIState) (*QuestionFormView, *ui.ApplicationState) {
 	sm := ui.NewApplicationState()
 	sm.SetupUserQuestionUIState(state.Questions, state.ResponseChan)
 

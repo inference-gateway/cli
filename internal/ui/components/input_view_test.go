@@ -1,12 +1,13 @@
 package components
 
 import (
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	tea "charm.land/bubbletea/v2"
 	require "github.com/stretchr/testify/require"

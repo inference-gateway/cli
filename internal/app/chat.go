@@ -3,12 +3,13 @@ package app
 import (
 	"context"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"

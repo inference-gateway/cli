@@ -14,10 +14,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"io"
 	"os"
 	"os/exec"
+
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 )
 
 // ExecFunc matches exec.CommandContext. It is a type alias (not a defined type)

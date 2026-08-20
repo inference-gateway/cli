@@ -1,9 +1,10 @@
 package directexec_test
 
 import (
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	sdk "github.com/inference-gateway/sdk"
 

@@ -2,9 +2,10 @@ package tools
 
 import (
 	"context"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"strings"
 	"testing"
+
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
 	sdk "github.com/inference-gateway/sdk"
 	mcp "github.com/metoro-io/mcp-golang"

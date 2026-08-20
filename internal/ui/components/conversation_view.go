@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"hash/fnv"
 	"os"
 	"path/filepath"
@@ -12,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	spinner "charm.land/bubbles/v2/spinner"
 	viewport "charm.land/bubbles/v2/viewport"
@@ -106,7 +107,7 @@ type ConversationView struct {
 	markdownRenderer       *markdown.Renderer
 	rawFormat              bool
 	userScrolledUp         bool
-	stateManager           ui.PlanApprovalUIManager
+	stateManager           agentdomain.PlanApprovalUIManager
 	renderedContent        string
 
 	// renderCache memoizes per-entry rendered output keyed by conversation
@@ -202,7 +203,7 @@ func (cv *ConversationView) SetToolCallRenderer(renderer *ToolCallRenderer) {
 }
 
 // SetStateManager sets the state manager for accessing plan approval state
-func (cv *ConversationView) SetStateManager(stateManager ui.PlanApprovalUIManager) {
+func (cv *ConversationView) SetStateManager(stateManager agentdomain.PlanApprovalUIManager) {
 	cv.stateManager = stateManager
 }
 

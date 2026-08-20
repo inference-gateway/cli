@@ -2,9 +2,10 @@ package tools
 
 import (
 	"encoding/json"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 	"testing"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )

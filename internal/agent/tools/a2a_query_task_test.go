@@ -2,10 +2,11 @@ package tools
 
 import (
 	"context"
-	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"strings"
 	"testing"
 	"time"
+
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	adk "github.com/inference-gateway/adk/types"
 

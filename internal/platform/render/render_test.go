@@ -2,9 +2,10 @@ package render
 
 import (
 	"errors"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"strings"
 	"testing"
+
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 
 	sdk "github.com/inference-gateway/sdk"
 

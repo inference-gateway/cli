@@ -1,8 +1,9 @@
 package components
 
 import (
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"testing"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 

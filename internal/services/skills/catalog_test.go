@@ -2,11 +2,12 @@ package skills
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	require "github.com/stretchr/testify/require"
 

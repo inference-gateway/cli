@@ -2,11 +2,12 @@ package components
 
 import (
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"regexp"
 	"strings"
 	"testing"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	sdk "github.com/inference-gateway/sdk"
 

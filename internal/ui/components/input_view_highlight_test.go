@@ -1,9 +1,10 @@
 package components
 
 import (
+	"testing"
+
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	"testing"
 
 	require "github.com/stretchr/testify/require"
 

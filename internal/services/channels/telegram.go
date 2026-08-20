@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"html"
 	"io"
 	"net/http"
@@ -21,6 +20,8 @@ import (
 	"sync"
 	"text/tabwriter"
 	"time"
+
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 
 	bot "github.com/go-telegram/bot"
 	models "github.com/go-telegram/bot/models"

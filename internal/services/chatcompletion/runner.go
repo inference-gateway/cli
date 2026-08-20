@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
@@ -29,8 +30,8 @@ import (
 // chat-session lifecycle, tool-execution teardown, and the view transition on
 // completion. *services.StateManager satisfies it.
 type stateManager interface {
-	ui.ChatSessionManager
-	ui.ToolExecutionManager
+	agentdomain.ChatSessionManager
+	agentdomain.ToolExecutionManager
 	ui.ViewManager
 }
 
@@ -378,14 +379,14 @@ func (r *Runner) handleNoChatSession(msg agentdomain.ChatChunkEvent) tea.Cmd {
 	return nil
 }
 
-func (r *Runner) handleEmptyContent(chatSession *ui.ChatSession) tea.Cmd {
+func (r *Runner) handleEmptyContent(chatSession *agentdomain.ChatSession) tea.Cmd {
 	if chatSession != nil && chatSession.EventChannel != nil {
 		return r.listener.ListenForChatEvents(chatSession.EventChannel)
 	}
 	return nil
 }
 
-func (r *Runner) handleStatusUpdate(msg agentdomain.ChatChunkEvent, chatSession *ui.ChatSession) []tea.Cmd {
+func (r *Runner) handleStatusUpdate(msg agentdomain.ChatChunkEvent, chatSession *agentdomain.ChatSession) []tea.Cmd {
 	previousStatus := chatSession.Status
 	newStatus, shouldUpdateStatus := determineNewStatus(msg, previousStatus, chatSession.IsFirstChunk)
 	if !shouldUpdateStatus {

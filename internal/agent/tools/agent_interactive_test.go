@@ -2,8 +2,9 @@ package tools
 
 import (
 	"context"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"testing"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	config "github.com/inference-gateway/cli/config"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"

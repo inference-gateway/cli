@@ -3,10 +3,11 @@ package states_test
 import (
 	"context"
 	"errors"
-	states "github.com/inference-gateway/cli/internal/agent/states"
-	statesmocks "github.com/inference-gateway/cli/tests/mocks/states"
 	"sync"
 	"testing"
+
+	states "github.com/inference-gateway/cli/internal/agent/states"
+	statesmocks "github.com/inference-gateway/cli/tests/mocks/states"
 
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"

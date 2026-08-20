@@ -10,12 +10,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os/exec"
 	"slices"
 	"strconv"
 	"sync"
 	"time"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )

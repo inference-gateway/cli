@@ -2,9 +2,10 @@ package utils
 
 import (
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"sync"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // shellTracker implements the scheddomain.ShellTracker interface.

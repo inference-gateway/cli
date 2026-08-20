@@ -1,7 +1,5 @@
 package states
 
-import ()
-
 // ErrorState handles events in the Error state.
 //
 // The Error state is a terminal state reached when unrecoverable errors occur.

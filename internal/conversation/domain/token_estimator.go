@@ -2,9 +2,9 @@ package domain
 
 import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-)
 
-import sdk "github.com/inference-gateway/sdk"
+	sdk "github.com/inference-gateway/sdk"
+)
 
 // TokenEstimator provides token count estimation for LLM content
 type TokenEstimator interface {

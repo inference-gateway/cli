@@ -1,8 +1,9 @@
 package scheduler
 
 import (
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"sync"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // TaskRetentionService manages in-memory retention of completed/terminal A2A tasks

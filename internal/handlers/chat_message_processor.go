@@ -3,11 +3,12 @@ package handlers
 import (
 	"context"
 	"fmt"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"

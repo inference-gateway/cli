@@ -1,8 +1,9 @@
 package styles
 
 import (
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	lipgloss "charm.land/lipgloss/v2"
 )

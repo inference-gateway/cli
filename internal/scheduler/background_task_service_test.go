@@ -2,9 +2,10 @@ package scheduler
 
 import (
 	"context"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"testing"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"

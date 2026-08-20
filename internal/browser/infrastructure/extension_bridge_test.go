@@ -2,7 +2,6 @@ package infrastructure
 
 import (
 	"context"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"io"
 	"net/http"
 	"os"
@@ -11,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
 	websocket "github.com/gorilla/websocket"
 	sdk "github.com/inference-gateway/sdk"

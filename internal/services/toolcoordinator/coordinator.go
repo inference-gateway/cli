@@ -32,9 +32,9 @@ type toolApprovalRepoUpdater interface {
 // switching. *services.StateManager satisfies it.
 type stateManager interface {
 	agentdomain.EventBridgeManager
-	ui.ApprovalUIManager
-	ui.ChatSessionManager
-	ui.AgentModeManager
+	agentdomain.ApprovalUIManager
+	agentdomain.ChatSessionManager
+	agentdomain.AgentModeManager
 }
 
 // Coordinator handles the tool round-trip UI flow.

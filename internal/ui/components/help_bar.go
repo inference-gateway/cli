@@ -2,8 +2,9 @@ package components
 
 import (
 	"cmp"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"slices"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	help "charm.land/bubbles/v2/help"
 	key "charm.land/bubbles/v2/key"

@@ -3,8 +3,9 @@ package storage
 import (
 	"context"
 	"errors"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"

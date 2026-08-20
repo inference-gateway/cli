@@ -3,9 +3,10 @@ package services
 import (
 	"context"
 	"fmt"
-	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	"os/exec"
 	"strings"
+
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"

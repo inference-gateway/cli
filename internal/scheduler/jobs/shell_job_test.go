@@ -1,10 +1,11 @@
 package jobs
 
 import (
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os/exec"
 	"testing"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"

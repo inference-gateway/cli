@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	memory "github.com/inference-gateway/cli/internal/platform/memory"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	memory "github.com/inference-gateway/cli/internal/platform/memory"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -358,10 +358,10 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []convdomain.Conv
 // updates, and the session todo list (reminder gating). *services.StateManager
 // satisfies it.
 type stateManager interface {
-	ui.AgentModeManager
-	ui.ComputerUsePauseManager
-	ui.ChatSessionManager
-	ui.TodoManager
+	agentdomain.AgentModeManager
+	agentdomain.ComputerUsePauseManager
+	agentdomain.ChatSessionManager
+	agentdomain.TodoManager
 }
 
 func NewAgent(

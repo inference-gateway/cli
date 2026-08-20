@@ -1,10 +1,11 @@
 package a2acoord
 
 import (
-	ui "github.com/inference-gateway/cli/internal/ui"
-	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"testing"
 	"time"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	tea "charm.land/bubbletea/v2"
 	adk "github.com/inference-gateway/adk/types"

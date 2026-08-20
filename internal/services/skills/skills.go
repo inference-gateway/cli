@@ -9,12 +9,13 @@ package skills
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	yaml "gopkg.in/yaml.v3"
 

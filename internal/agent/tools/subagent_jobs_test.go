@@ -3,11 +3,12 @@ package tools
 import (
 	"context"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )

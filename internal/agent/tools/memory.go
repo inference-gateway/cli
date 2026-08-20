@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	memory "github.com/inference-gateway/cli/internal/platform/memory"
 
 	sdk "github.com/inference-gateway/sdk"
 	yaml "gopkg.in/yaml.v3"

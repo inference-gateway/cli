@@ -2,8 +2,9 @@ package utils
 
 import (
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"sync"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // subagentTracker implements scheddomain.SubagentTracker with a flat map guarded by

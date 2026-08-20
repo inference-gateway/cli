@@ -1,10 +1,11 @@
 package app
 
 import (
+	"testing"
+
 	ui "github.com/inference-gateway/cli/internal/ui"
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"

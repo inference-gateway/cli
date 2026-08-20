@@ -7,8 +7,9 @@
 package directexec
 
 import (
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"sync"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -21,9 +22,9 @@ import (
 // executor needs: the current agent mode, chat-session lookup, and
 // tool-execution session bookkeeping. *services.StateManager satisfies it.
 type stateManager interface {
-	ui.AgentModeManager
-	ui.ChatSessionManager
-	ui.ToolExecutionManager
+	agentdomain.AgentModeManager
+	agentdomain.ChatSessionManager
+	agentdomain.ToolExecutionManager
 }
 
 // Service is the concrete DirectExecutionService.

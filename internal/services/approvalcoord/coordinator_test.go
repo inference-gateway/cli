@@ -2,8 +2,9 @@ package approvalcoord
 
 import (
 	"errors"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"testing"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"

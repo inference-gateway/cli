@@ -1,8 +1,9 @@
 package states_test
 
 import (
-	states "github.com/inference-gateway/cli/internal/agent/states"
 	"testing"
+
+	states "github.com/inference-gateway/cli/internal/agent/states"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"

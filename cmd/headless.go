@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"regexp"
 	"runtime/debug"
 	"strings"
 	"time"
+
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	uuid "github.com/google/uuid"
 	sdk "github.com/inference-gateway/sdk"

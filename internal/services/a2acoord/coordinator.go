@@ -2,8 +2,9 @@ package a2acoord
 
 import (
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -16,7 +17,7 @@ import (
 // Service handles the UI side of A2A task lifecycle events.
 type Service struct {
 	conversationRepo     convdomain.ConversationRepository
-	stateManager         ui.ChatSessionManager
+	stateManager         agentdomain.ChatSessionManager
 	taskRetentionService scheddomain.TaskRetentionService
 	listener             ui.ChatEventListener
 }
@@ -24,7 +25,7 @@ type Service struct {
 // Options bundles the dependencies needed to construct a Service.
 type Options struct {
 	ConversationRepo     convdomain.ConversationRepository
-	StateManager         ui.ChatSessionManager
+	StateManager         agentdomain.ChatSessionManager
 	TaskRetentionService scheddomain.TaskRetentionService
 	Listener             ui.ChatEventListener
 }

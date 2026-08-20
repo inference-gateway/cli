@@ -3,10 +3,11 @@ package conversation
 import (
 	"context"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 	"sync"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	uuid "github.com/google/uuid"
 	sdk "github.com/inference-gateway/sdk"

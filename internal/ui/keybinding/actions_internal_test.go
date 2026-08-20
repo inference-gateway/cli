@@ -1,9 +1,10 @@
 package keybinding
 
 import (
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"testing"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	tea "charm.land/bubbletea/v2"
 

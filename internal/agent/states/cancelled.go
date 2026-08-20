@@ -1,7 +1,5 @@
 package states
 
-import ()
-
 // CancelledState handles events in the Cancelled state.
 //
 // The Cancelled state is a terminal state reached when the agent is cancelled by the user.

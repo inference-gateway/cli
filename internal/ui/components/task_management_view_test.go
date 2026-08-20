@@ -1,12 +1,13 @@
 package components
 
 import (
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	ui "github.com/inference-gateway/cli/internal/ui"
-	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"strings"
 	"testing"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"

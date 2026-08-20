@@ -3,15 +3,16 @@ package services
 import (
 	"context"
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	mcp "github.com/metoro-io/mcp-golang"
 

@@ -1,9 +1,10 @@
 package components
 
 import (
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"

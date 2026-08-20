@@ -2,8 +2,9 @@ package components
 
 import (
 	"fmt"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"time"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	progress "charm.land/bubbles/v2/progress"
 	spinner "charm.land/bubbles/v2/spinner"
@@ -40,7 +41,7 @@ type StatusView struct {
 // the approval/question overlays (to pause timers) plus retry status.
 type statusViewState interface {
 	approvalOverlayReader
-	ui.ChatSessionManager
+	agentdomain.ChatSessionManager
 }
 
 // SetStateManager wires the state manager so the spinner line can reflect
@@ -308,9 +309,9 @@ func (sv *StatusView) syncApprovalPause() {
 // approval, plan-approval, or user-question overlay is blocked on the user.
 // Shared by StatusView and ToolCallRenderer to pause their running timers.
 type approvalOverlayReader interface {
-	ui.ApprovalUIManager
-	ui.PlanApprovalUIManager
-	ui.UserQuestionUIManager
+	agentdomain.ApprovalUIManager
+	agentdomain.PlanApprovalUIManager
+	agentdomain.UserQuestionUIManager
 }
 
 // syncApprovalPause records when the UI becomes blocked on a user decision and,

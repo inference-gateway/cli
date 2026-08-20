@@ -2,7 +2,6 @@ package components
 
 import (
 	"fmt"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"io"
 	"strings"
 
@@ -121,14 +120,14 @@ type ToolsViewImpl struct {
 	height        int
 	cancelled     bool
 	toolService   agentdomain.ToolService
-	stateManager  ui.AgentModeManager
+	stateManager  agentdomain.AgentModeManager
 	styleProvider *styles.Provider
 }
 
 // NewToolsView creates the tools list view. Items are populated by Reset on
 // every entry because the tool set changes with the agent mode and with async
 // MCP tool registration.
-func NewToolsView(toolService agentdomain.ToolService, stateManager ui.AgentModeManager, styleProvider *styles.Provider) *ToolsViewImpl {
+func NewToolsView(toolService agentdomain.ToolService, stateManager agentdomain.AgentModeManager, styleProvider *styles.Provider) *ToolsViewImpl {
 	l := list.New(
 		nil,
 		newToolDelegate(styleProvider),

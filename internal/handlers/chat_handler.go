@@ -1,8 +1,9 @@
 package handlers
 
 import (
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -20,10 +21,10 @@ import (
 // and its sub-handlers need: chat-session lifecycle, view transitions, the
 // plan-approval overlay, and the todo list. *services.StateManager satisfies it.
 type stateManager interface {
-	ui.ChatSessionManager
+	agentdomain.ChatSessionManager
 	ui.ViewManager
-	ui.PlanApprovalUIManager
-	ui.TodoManager
+	agentdomain.PlanApprovalUIManager
+	agentdomain.TodoManager
 }
 
 type ChatHandler struct {

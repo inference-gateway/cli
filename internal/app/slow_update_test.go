@@ -1,9 +1,10 @@
 package app
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	zap "go.uber.org/zap"
 	zapcore "go.uber.org/zap/zapcore"

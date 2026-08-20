@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
-	channels "github.com/inference-gateway/cli/internal/services/channels"
-	channelmocks "github.com/inference-gateway/cli/tests/mocks/channels"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
+
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	channels "github.com/inference-gateway/cli/internal/services/channels"
+	channelmocks "github.com/inference-gateway/cli/tests/mocks/channels"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"

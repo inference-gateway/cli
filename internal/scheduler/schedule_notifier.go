@@ -3,10 +3,11 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"time"
+
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	channels "github.com/inference-gateway/cli/internal/services/channels"
-	"time"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )

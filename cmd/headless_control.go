@@ -4,10 +4,10 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"io"
 	"time"
+
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -33,13 +33,13 @@ const resumeContinuePrompt = "Please continue from where you left off."
 // flag anywhere else races that decision.
 type headlessControl struct {
 	agentService agentdomain.AgentService
-	pauseState   ui.ComputerUsePauseManager
+	pauseState   agentdomain.ComputerUsePauseManager
 	sessionID    string
 	approvals    chan ipc.ApprovalResponse
 	ctrlEvents   chan agentdomain.ChatEvent
 }
 
-func newHeadlessControl(agentService agentdomain.AgentService, pauseState ui.ComputerUsePauseManager, sessionID string) *headlessControl {
+func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentdomain.ComputerUsePauseManager, sessionID string) *headlessControl {
 	return &headlessControl{
 		agentService: agentService,
 		pauseState:   pauseState,

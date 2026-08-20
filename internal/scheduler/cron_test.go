@@ -3,12 +3,13 @@ package scheduler
 import (
 	"context"
 	"errors"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os/exec"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )

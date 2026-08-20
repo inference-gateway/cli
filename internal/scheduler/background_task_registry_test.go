@@ -2,8 +2,9 @@ package scheduler
 
 import (
 	"context"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"testing"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"

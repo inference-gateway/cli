@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	scheduler "github.com/inference-gateway/cli/internal/scheduler"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 	"time"
+
+	scheduler "github.com/inference-gateway/cli/internal/scheduler"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	uuid "github.com/google/uuid"
 	sdk "github.com/inference-gateway/sdk"

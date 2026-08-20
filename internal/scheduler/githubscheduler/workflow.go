@@ -3,8 +3,9 @@ package githubscheduler
 import (
 	"bytes"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
 	yaml "gopkg.in/yaml.v3"

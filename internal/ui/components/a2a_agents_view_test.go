@@ -2,8 +2,9 @@ package components
 
 import (
 	"errors"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"testing"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	tea "charm.land/bubbletea/v2"
 

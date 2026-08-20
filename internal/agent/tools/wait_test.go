@@ -2,13 +2,14 @@ package tools
 
 import (
 	"context"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	fsnotify "github.com/fsnotify/fsnotify"
 

@@ -20,10 +20,10 @@ type ApplicationState struct {
 	agentMode agentdomain.AgentMode
 
 	// Chat State
-	chatSession *ChatSession
+	chatSession *agentdomain.ChatSession
 
 	// Tool Execution State
-	toolExecution *ToolExecutionSession
+	toolExecution *agentdomain.ToolExecutionSession
 
 	// Message Queue
 	queuedMessages []convdomain.QueuedMessage
@@ -34,9 +34,9 @@ type ApplicationState struct {
 
 	// UI State
 	fileSelectionState  *FileSelectionState
-	approvalUIState     *ApprovalUIState
-	planApprovalUIState *PlanApprovalUIState
-	userQuestionUIState *UserQuestionUIState
+	approvalUIState     *agentdomain.ApprovalUIState
+	planApprovalUIState *agentdomain.PlanApprovalUIState
+	userQuestionUIState *agentdomain.UserQuestionUIState
 
 	// Todo State
 	todos []agentdomain.TodoItem
@@ -114,58 +114,11 @@ func (v ViewState) String() string {
 	}
 }
 
-// ChatSession represents an active chat session state
-type ChatSession struct {
-	RequestID    string
-	Status       agentdomain.ChatStatus
-	StartTime    time.Time
-	Model        string
-	EventChannel <-chan agentdomain.ChatEvent
-	IsFirstChunk bool
-	HasToolCalls bool
-	LastActivity time.Time
-	RetryStatus  *agentdomain.RetryStatus
-}
-
-// ToolExecutionSession represents an active tool execution session
-type ToolExecutionSession struct {
-	CurrentTool    *agentdomain.ToolCall
-	RemainingTools []agentdomain.ToolCall
-	TotalTools     int
-	CompletedTools int
-	Status         agentdomain.ToolExecutionStatus
-	StartTime      time.Time
-}
-
 // FileSelectionState represents the state of file selection UI
 type FileSelectionState struct {
 	Files         []string `json:"files"`
 	SearchQuery   string   `json:"search_query"`
 	SelectedIndex int      `json:"selected_index"`
-}
-
-// ApprovalUIState represents the state of approval UI
-type ApprovalUIState struct {
-	PendingToolCall *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call"`
-	ResponseChan    chan agentdomain.ApprovalAction    `json:"-"`
-}
-
-// PlanApprovalUIState represents the state of plan approval UI
-type PlanApprovalUIState struct {
-	SelectedIndex int                                 `json:"selected_index"`
-	PlanContent   string                              `json:"plan_content"`
-	PlanID        string                              `json:"plan_id"`
-	ResponseChan  chan agentdomain.PlanApprovalAction `json:"-"`
-}
-
-// UserQuestionUIState drives the interactive AskUserQuestion form. The agent
-// loop is blocked in the tool goroutine while the form is up; the
-// answer-in-progress state lives in the QuestionFormView's huh form.
-// ResponseChan delivers the final answers slice back to the blocked tool;
-// closing it without a send signals cancellation.
-type UserQuestionUIState struct {
-	Questions    []agentdomain.UserQuestion            `json:"questions"`
-	ResponseChan chan []agentdomain.UserQuestionAnswer `json:"-"`
 }
 
 // MessageEditState represents the state when editing a message
@@ -298,7 +251,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 // SetChatPending creates a minimal chat session to mark the agent as busy
 // before the actual chat starts. This prevents race conditions.
 func (s *ApplicationState) SetChatPending() {
-	s.chatSession = &ChatSession{
+	s.chatSession = &agentdomain.ChatSession{
 		RequestID:    "pending",
 		Status:       agentdomain.ChatStatusStarting,
 		StartTime:    time.Now(),
@@ -316,7 +269,7 @@ func (s *ApplicationState) StartChatSession(requestID, model string, eventChan <
 		s.EndChatSession()
 	}
 
-	s.chatSession = &ChatSession{
+	s.chatSession = &agentdomain.ChatSession{
 		RequestID:    requestID,
 		Status:       agentdomain.ChatStatusStarting,
 		StartTime:    time.Now(),
@@ -469,7 +422,7 @@ func (s *ApplicationState) TouchChatActivity() {
 }
 
 // GetChatSession returns the current chat session
-func (s *ApplicationState) GetChatSession() *ChatSession {
+func (s *ApplicationState) GetChatSession() *agentdomain.ChatSession {
 	return s.chatSession
 }
 
@@ -479,7 +432,7 @@ func (s *ApplicationState) StartToolExecution(tools []agentdomain.ToolCall) {
 		return
 	}
 
-	s.toolExecution = &ToolExecutionSession{
+	s.toolExecution = &agentdomain.ToolExecutionSession{
 		CurrentTool:    &tools[0],
 		RemainingTools: tools[1:],
 		TotalTools:     len(tools),
@@ -540,7 +493,7 @@ func (s *ApplicationState) EndToolExecution() {
 }
 
 // GetToolExecution returns the current tool execution session
-func (s *ApplicationState) GetToolExecution() *ToolExecutionSession {
+func (s *ApplicationState) GetToolExecution() *agentdomain.ToolExecutionSession {
 	return s.toolExecution
 }
 
@@ -605,14 +558,14 @@ func (s *ApplicationState) ClearFileSelectionState() {
 
 // SetupApprovalUIState initializes approval UI state with the pending tool call
 func (s *ApplicationState) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan agentdomain.ApprovalAction) {
-	s.approvalUIState = &ApprovalUIState{
+	s.approvalUIState = &agentdomain.ApprovalUIState{
 		PendingToolCall: toolCall,
 		ResponseChan:    responseChan,
 	}
 }
 
 // GetApprovalUIState returns the current approval UI state
-func (s *ApplicationState) GetApprovalUIState() *ApprovalUIState {
+func (s *ApplicationState) GetApprovalUIState() *agentdomain.ApprovalUIState {
 	return s.approvalUIState
 }
 
@@ -628,7 +581,7 @@ func (s *ApplicationState) ClearApprovalUIState() {
 
 // SetupPlanApprovalUIState initializes plan approval UI state
 func (s *ApplicationState) SetupPlanApprovalUIState(planContent, planID string, responseChan chan agentdomain.PlanApprovalAction) {
-	s.planApprovalUIState = &PlanApprovalUIState{
+	s.planApprovalUIState = &agentdomain.PlanApprovalUIState{
 		SelectedIndex: int(agentdomain.PlanApprovalAccept),
 		PlanContent:   planContent,
 		PlanID:        planID,
@@ -637,7 +590,7 @@ func (s *ApplicationState) SetupPlanApprovalUIState(planContent, planID string, 
 }
 
 // GetPlanApprovalUIState returns the current plan approval UI state
-func (s *ApplicationState) GetPlanApprovalUIState() *PlanApprovalUIState {
+func (s *ApplicationState) GetPlanApprovalUIState() *agentdomain.PlanApprovalUIState {
 	return s.planApprovalUIState
 }
 
@@ -661,14 +614,14 @@ func (s *ApplicationState) ClearPlanApprovalUIState() {
 // SetupUserQuestionUIState initializes the AskUserQuestion form state for the
 // given questions.
 func (s *ApplicationState) SetupUserQuestionUIState(questions []agentdomain.UserQuestion, responseChan chan []agentdomain.UserQuestionAnswer) {
-	s.userQuestionUIState = &UserQuestionUIState{
+	s.userQuestionUIState = &agentdomain.UserQuestionUIState{
 		Questions:    questions,
 		ResponseChan: responseChan,
 	}
 }
 
 // GetUserQuestionUIState returns the current AskUserQuestion form state, or nil.
-func (s *ApplicationState) GetUserQuestionUIState() *UserQuestionUIState {
+func (s *ApplicationState) GetUserQuestionUIState() *agentdomain.UserQuestionUIState {
 	return s.userQuestionUIState
 }
 

@@ -3,8 +3,6 @@ package tools
 import (
 	"cmp"
 	"fmt"
-	memory "github.com/inference-gateway/cli/internal/platform/memory"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -12,6 +10,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	memory "github.com/inference-gateway/cli/internal/platform/memory"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	sdk "github.com/inference-gateway/sdk"
 

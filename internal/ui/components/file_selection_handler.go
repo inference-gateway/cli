@@ -2,8 +2,9 @@ package components
 
 import (
 	"fmt"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"

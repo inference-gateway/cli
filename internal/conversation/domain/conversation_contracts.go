@@ -4,8 +4,9 @@ package domain
 
 import (
 	"context"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	sdk "github.com/inference-gateway/sdk"
 )

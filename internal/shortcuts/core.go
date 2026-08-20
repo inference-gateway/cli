@@ -4,10 +4,11 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"slices"
 	"strings"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	sdk "github.com/inference-gateway/sdk"
 

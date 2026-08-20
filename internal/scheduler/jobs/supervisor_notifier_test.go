@@ -2,10 +2,11 @@ package jobs
 
 import (
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"sync"
 	"testing"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	zap "go.uber.org/zap"
 	zapcore "go.uber.org/zap/zapcore"

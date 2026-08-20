@@ -3,11 +3,12 @@ package utils
 import (
 	"context"
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os/exec"
 	"sync"
 	"testing"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func createTestShell(id string, state scheddomain.ShellState) *scheddomain.BackgroundShell {

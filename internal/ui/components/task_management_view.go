@@ -2,11 +2,12 @@ package components
 
 import (
 	"fmt"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"slices"
 	"strings"
 	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	key "charm.land/bubbles/v2/key"
 	spinner "charm.land/bubbles/v2/spinner"

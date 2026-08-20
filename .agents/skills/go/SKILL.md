@@ -55,12 +55,15 @@ imports and interface bloat and add zero clarity in Go. No `utils/`, `helpers/`,
 or `common/` junk drawers; they signal unclear ownership. Packages don't import
 each other sideways - cycles mean wrong boundaries; the composition root wires them.
 
-> **In this repo:** code lives under `internal/` in a deliberate **domain** (pure
-> interfaces) / **infra** (adapters) / **services** (business logic) split, wired
-> by a DI container (`internal/container/container.go`). That *is* this project's
-> structure - follow it; don't "flatten `internal/`." spf13's transferable rules
-> still hold: name by purpose, no junk-drawer packages, wire at the composition
-> root (here, the container).
+> **In this repo:** code lives under `internal/` as DDD **bounded contexts**
+> (`agent`, `conversation`, `scheduler`, `browser`, `computer`, `audio`), each
+> with a pure `domain/` subpackage and, where needed, `application/` and
+> `infrastructure/` layers, plus a shared `internal/platform/` layer - all wired
+> by a DI container (`internal/container/container.go`). See AGENTS.md
+> "Architecture" for the map. That *is* this project's structure - follow it;
+> don't "flatten `internal/`." spf13's transferable rules still hold: name by
+> purpose, no junk-drawer packages, wire at the composition root (here, the
+> container).
 
 ## Interfaces: discovered, not designed
 
@@ -79,10 +82,11 @@ type UserFetcher interface {
 type Processor struct{ fetcher UserFetcher }
 ```
 
-> **In this repo:** domain contracts are centralized in
-> `internal/domain/interfaces.go` so counterfeiter can generate fakes from one
-> place - that's the established seam. Still prefer small interfaces; just declare
-> new ones there when they need a generated mock.
+> **In this repo:** each bounded context owns its contracts in its `domain/`
+> subpackage (e.g. `internal/agent/domain`, `internal/conversation/domain`), and
+> counterfeiter generates fakes from those files. Still prefer small interfaces;
+> declare new ones in the owning context's `domain/` when they need a generated
+> mock.
 
 ## Errors are values
 
@@ -153,7 +157,7 @@ func TestParse(t *testing.T) {
 
 > **In this repo:** fakes for domain interfaces are **counterfeiter-generated**
 > under `tests/mocks/`, not hand-written. Regenerate with `task mocks:generate`
-> (pre-commit runs it when `internal/domain/interfaces.go` changes); for a *new*
+> (pre-commit runs it when any `*/domain` package changes); for a *new*
 > domain interface, add a `counterfeiter` line under `mocks:generate` in
 > `Taskfile.yml`. Use the generated fakes - don't hand-roll rivals. Table tests,
 > `testdata`, and `go-cmp` still apply.

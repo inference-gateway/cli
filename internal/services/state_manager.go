@@ -2,9 +2,10 @@ package services
 
 import (
 	"encoding/json"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"sync"
 	"time"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -235,7 +236,7 @@ func (sm *StateManager) EndChatSession() {
 }
 
 // GetChatSession returns the current chat session (read-only)
-func (sm *StateManager) GetChatSession() *ui.ChatSession {
+func (sm *StateManager) GetChatSession() *agentdomain.ChatSession {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetChatSession()
@@ -324,7 +325,7 @@ func (sm *StateManager) EndToolExecution() {
 }
 
 // GetToolExecution returns the current tool execution session (read-only)
-func (sm *StateManager) GetToolExecution() *ui.ToolExecutionSession {
+func (sm *StateManager) GetToolExecution() *agentdomain.ToolExecutionSession {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetToolExecution()
@@ -412,7 +413,7 @@ func (sm *StateManager) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessage
 }
 
 // GetApprovalUIState returns the current approval UI state
-func (sm *StateManager) GetApprovalUIState() *ui.ApprovalUIState {
+func (sm *StateManager) GetApprovalUIState() *agentdomain.ApprovalUIState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -445,7 +446,7 @@ func (sm *StateManager) SetupPlanApprovalUIState(planContent, planID string, res
 }
 
 // GetPlanApprovalUIState returns the current plan approval UI state
-func (sm *StateManager) GetPlanApprovalUIState() *ui.PlanApprovalUIState {
+func (sm *StateManager) GetPlanApprovalUIState() *agentdomain.PlanApprovalUIState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -477,7 +478,7 @@ func (sm *StateManager) SetupUserQuestionUIState(questions []agentdomain.UserQue
 }
 
 // GetUserQuestionUIState returns the current AskUserQuestion form state
-func (sm *StateManager) GetUserQuestionUIState() *ui.UserQuestionUIState {
+func (sm *StateManager) GetUserQuestionUIState() *agentdomain.UserQuestionUIState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 

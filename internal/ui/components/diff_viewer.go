@@ -2,10 +2,11 @@ package components
 
 import (
 	"fmt"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"path/filepath"
 	"strings"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	key "charm.land/bubbles/v2/key"
 	viewport "charm.land/bubbles/v2/viewport"

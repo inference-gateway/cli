@@ -10,10 +10,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"io"
 	"strings"
 	"time"
+
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"

@@ -3,7 +3,6 @@ package components
 import (
 	"encoding/json"
 	"fmt"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -47,13 +46,13 @@ type ApprovalBoxView struct {
 	width            int
 	height           int
 	styleProvider    *styles.Provider
-	stateManager     ui.ApprovalUIManager
+	stateManager     agentdomain.ApprovalUIManager
 	toolFormatter    agentdomain.ToolFormatter
 	keyHintFormatter *hints.Formatter
 
 	// active is the approval state the form was built for; a mismatch with
 	// the StateManager (cleared externally) marks the form stale.
-	active *ui.ApprovalUIState
+	active *agentdomain.ApprovalUIState
 	form   *huh.Form
 	choice agentdomain.ApprovalAction
 
@@ -105,7 +104,7 @@ func (av *ApprovalBoxView) IsExpanded() bool {
 	return av.expanded
 }
 
-func NewApprovalBoxView(styleProvider *styles.Provider, stateManager ui.ApprovalUIManager, toolFormatter agentdomain.ToolFormatter) *ApprovalBoxView {
+func NewApprovalBoxView(styleProvider *styles.Provider, stateManager agentdomain.ApprovalUIManager, toolFormatter agentdomain.ToolFormatter) *ApprovalBoxView {
 	return &ApprovalBoxView{
 		width:         80,
 		styleProvider: styleProvider,
@@ -213,7 +212,7 @@ func (av *ApprovalBoxView) Forward(msg tea.Msg) tea.Cmd {
 // bordered box so the approval prompt is unmistakable and shows *what* is being
 // approved, instead of bare buttons floating above the input. The border uses the
 // accent colour to echo the focused input box directly below it.
-func (av *ApprovalBoxView) renderApprovalBox(state *ui.ApprovalUIState) string {
+func (av *ApprovalBoxView) renderApprovalBox(state *agentdomain.ApprovalUIState) string {
 	accentColor := av.styleProvider.GetThemeColor("accent")
 
 	title := av.styleProvider.RenderWithColorAndBold("Approval required", accentColor)

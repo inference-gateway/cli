@@ -2,7 +2,6 @@ package components
 
 import (
 	"fmt"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	"slices"
 	"strings"
 
@@ -36,11 +35,11 @@ type QuestionFormView struct {
 	width         int
 	height        int
 	styleProvider *styles.Provider
-	stateManager  ui.UserQuestionUIManager
+	stateManager  agentdomain.UserQuestionUIManager
 
 	// active is the state this form was built for; if the StateManager's
 	// state no longer matches (cancelled externally), the form is stale.
-	active  *ui.UserQuestionUIState
+	active  *agentdomain.UserQuestionUIState
 	idx     int
 	form    *huh.Form
 	answers []agentdomain.UserQuestionAnswer
@@ -51,7 +50,7 @@ type QuestionFormView struct {
 	other  string
 }
 
-func NewQuestionFormView(styleProvider *styles.Provider, stateManager ui.UserQuestionUIManager) *QuestionFormView {
+func NewQuestionFormView(styleProvider *styles.Provider, stateManager agentdomain.UserQuestionUIManager) *QuestionFormView {
 	return &QuestionFormView{
 		width:         80,
 		styleProvider: styleProvider,

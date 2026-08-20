@@ -159,7 +159,7 @@ type HelpBarComponent interface {
 type ApprovalComponent interface {
 	SetWidth(width int)
 	SetHeight(height int)
-	Render(toolExecution *ToolExecutionSession, selectedIndex int) string
+	Render(toolExecution *agentdomain.ToolExecutionSession, selectedIndex int) string
 }
 
 // DefaultTheme provides a concrete implementation of the Theme interface
