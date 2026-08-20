@@ -1,59 +1,60 @@
-package states
+package states_test
 
 import (
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
 )
 
-// TestExecutingToolsState_Handle covers the two ToolsCompletedEvent routes
+// TestExecutingToolsState_Handle covers the two states.ToolsCompletedEvent routes
 // (continue to PostToolExecution, or Stop=true → the Stopped terminal),
 // transition-failure propagation on both, and stray-event tolerance.
 func TestExecutingToolsState_Handle(t *testing.T) {
 	tests := []struct {
 		name            string
-		event           AgentEvent
+		event           states.AgentEvent
 		transitionErr   error
 		wantErr         bool
-		wantTransitions []AgentExecutionState
-		wantEvents      []AgentEvent
+		wantTransitions []states.AgentExecutionState
+		wantEvents      []states.AgentEvent
 	}{
 		{
 			name:            "completed tools continue to post tool execution",
-			event:           ToolsCompletedEvent{},
-			wantTransitions: []AgentExecutionState{StatePostToolExecution},
-			wantEvents:      []AgentEvent{MessageReceivedEvent{}},
+			event:           states.ToolsCompletedEvent{},
+			wantTransitions: []states.AgentExecutionState{states.StatePostToolExecution},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
 		},
 		{
 			name:            "stop signal terminates the loop",
-			event:           ToolsCompletedEvent{Stop: true},
-			wantTransitions: []AgentExecutionState{StateStopped},
+			event:           states.ToolsCompletedEvent{Stop: true},
+			wantTransitions: []states.AgentExecutionState{states.StateStopped},
 		},
 		{
 			name:            "transition failure is returned",
-			event:           ToolsCompletedEvent{},
+			event:           states.ToolsCompletedEvent{},
 			transitionErr:   errBoom,
 			wantErr:         true,
-			wantTransitions: []AgentExecutionState{StatePostToolExecution},
+			wantTransitions: []states.AgentExecutionState{states.StatePostToolExecution},
 		},
 		{
 			name:            "stop transition failure is returned",
-			event:           ToolsCompletedEvent{Stop: true},
+			event:           states.ToolsCompletedEvent{Stop: true},
 			transitionErr:   errBoom,
 			wantErr:         true,
-			wantTransitions: []AgentExecutionState{StateStopped},
+			wantTransitions: []states.AgentExecutionState{states.StateStopped},
 		},
 		{
 			name:  "stray event is a no-op",
-			event: MessageReceivedEvent{},
+			event: states.MessageReceivedEvent{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newStateFixture()
 			f.sm.TransitionReturns(tt.transitionErr)
-			s := NewExecutingToolsState(f.ctx)
-			assert.Equal(t, StateExecutingTools, s.Name())
+			s := states.NewExecutingToolsState(f.ctx)
+			assert.Equal(t, states.StateExecutingTools, s.Name())
 
 			err := s.Handle(tt.event)
 

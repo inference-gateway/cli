@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -38,9 +39,9 @@ type InputStatusBar struct {
 	conversationRepo       convdomain.ConversationRepository
 	toolService            agentdomain.ToolService
 	tokenEstimator         convdomain.TokenEstimator
-	backgroundShellService domain.BackgroundShellService
-	backgroundTaskService  domain.BackgroundTaskService
-	backgroundTaskRegistry domain.BackgroundTaskRegistry
+	backgroundShellService scheddomain.BackgroundShellService
+	backgroundTaskService  scheddomain.BackgroundTaskService
+	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	mcpStatus              *domain.MCPServerStatus
 	styleProvider          *styles.Provider
 	currentInputText       string
@@ -121,18 +122,18 @@ func (isb *InputStatusBar) SetTokenEstimator(estimator convdomain.TokenEstimator
 }
 
 // SetBackgroundShellService sets the background shell service
-func (isb *InputStatusBar) SetBackgroundShellService(service domain.BackgroundShellService) {
+func (isb *InputStatusBar) SetBackgroundShellService(service scheddomain.BackgroundShellService) {
 	isb.backgroundShellService = service
 }
 
 // SetBackgroundTaskService sets the background task service
-func (isb *InputStatusBar) SetBackgroundTaskService(service domain.BackgroundTaskService) {
+func (isb *InputStatusBar) SetBackgroundTaskService(service scheddomain.BackgroundTaskService) {
 	isb.backgroundTaskService = service
 }
 
 // SetBackgroundTaskRegistry sets the unified background task registry, the single
 // source for the live A2A/shell/subagent counts shown in the status line.
-func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry domain.BackgroundTaskRegistry) {
+func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry scheddomain.BackgroundTaskRegistry) {
 	isb.backgroundTaskRegistry = registry
 }
 
@@ -842,9 +843,9 @@ func (isb *InputStatusBar) getBackgroundJobsInfo() string {
 		return ""
 	}
 
-	a2a := isb.backgroundTaskRegistry.CountRunningJobs(domain.JobKindA2A)
-	shells := isb.backgroundTaskRegistry.CountRunningJobs(domain.JobKindShell)
-	subagents := isb.backgroundTaskRegistry.CountRunningJobs(domain.JobKindSubagent)
+	a2a := isb.backgroundTaskRegistry.CountRunningJobs(scheddomain.JobKindA2A)
+	shells := isb.backgroundTaskRegistry.CountRunningJobs(scheddomain.JobKindShell)
+	subagents := isb.backgroundTaskRegistry.CountRunningJobs(scheddomain.JobKindSubagent)
 
 	var segments []string
 	if a2a > 0 {

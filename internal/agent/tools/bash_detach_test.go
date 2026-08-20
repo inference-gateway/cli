@@ -2,13 +2,13 @@ package tools
 
 import (
 	"context"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"strings"
 	"testing"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // TestBashTool_DetachOnSignal is the regression guard for "ctrl+b didn't move the
@@ -16,7 +16,7 @@ import (
 // call DetachToBackground and return promptly (not run the command to completion).
 func TestBashTool_DetachOnSignal(t *testing.T) {
 	cfg := config.DefaultConfig()
-	fake := &domainmocks.FakeBackgroundShellService{}
+	fake := &schedmocks.FakeBackgroundShellService{}
 	fake.DetachToBackgroundReturns("shell-abc123", nil)
 	tool := NewBashTool(cfg, fake)
 
@@ -62,7 +62,7 @@ func TestBashTool_DetachOnSignal(t *testing.T) {
 // immediately detaches the command to the background, without needing a Ctrl+B signal.
 func TestBashTool_DetachedParam(t *testing.T) {
 	cfg := config.DefaultConfig()
-	fake := &domainmocks.FakeBackgroundShellService{}
+	fake := &schedmocks.FakeBackgroundShellService{}
 	fake.DetachToBackgroundReturns("shell-abc123", nil)
 	tool := NewBashTool(cfg, fake)
 

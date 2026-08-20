@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"net/http"
 	"slices"
 	"strings"
 	"time"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	migrations "github.com/inference-gateway/cli/internal/platform/storage/migrations"
 )
 
@@ -693,7 +693,7 @@ func decodeHistory(historyJSON, groupKey string) ([]string, error) {
 // ---------------------------------------------------------------------------
 
 // SaveJob creates or updates a scheduled job via UPSERT.
-func (s *D1Storage) SaveJob(ctx context.Context, job *domain.ScheduledJob) error {
+func (s *D1Storage) SaveJob(ctx context.Context, job *scheddomain.ScheduledJob) error {
 	_, err := s.exec(ctx, `
 	INSERT INTO scheduled_jobs(id, name, description, cron_expression, prompt, channel, recipient_id, model, run_once, created_at, updated_at, last_run, last_error)
 	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -719,7 +719,7 @@ func (s *D1Storage) SaveJob(ctx context.Context, job *domain.ScheduledJob) error
 }
 
 // LoadJob returns a job by ID.
-func (s *D1Storage) LoadJob(ctx context.Context, id string) (*domain.ScheduledJob, error) {
+func (s *D1Storage) LoadJob(ctx context.Context, id string) (*scheddomain.ScheduledJob, error) {
 	rows, err := s.queryRows(ctx, `
 	SELECT id, name, description, cron_expression, prompt, channel, recipient_id, model, run_once, created_at, updated_at, last_run, last_error
 	FROM scheduled_jobs WHERE id = ?
@@ -731,7 +731,7 @@ func (s *D1Storage) LoadJob(ctx context.Context, id string) (*domain.ScheduledJo
 		return nil, ErrJobNotFound
 	}
 	r := rows[0]
-	job := &domain.ScheduledJob{
+	job := &scheddomain.ScheduledJob{
 		ID:             asString(r["id"]),
 		Name:           asString(r["name"]),
 		Description:    asString(r["description"]),
@@ -752,7 +752,7 @@ func (s *D1Storage) LoadJob(ctx context.Context, id string) (*domain.ScheduledJo
 }
 
 // ListJobs returns all jobs sorted by CreatedAt ascending.
-func (s *D1Storage) ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error) {
+func (s *D1Storage) ListJobs(ctx context.Context) ([]*scheddomain.ScheduledJob, error) {
 	rows, err := s.queryRows(ctx, `
 	SELECT id, name, description, cron_expression, prompt, channel, recipient_id, model, run_once, created_at, updated_at, last_run, last_error
 	FROM scheduled_jobs ORDER BY created_at ASC
@@ -760,9 +760,9 @@ func (s *D1Storage) ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error
 	if err != nil {
 		return nil, fmt.Errorf("list scheduled jobs: %w", err)
 	}
-	var jobs []*domain.ScheduledJob
+	var jobs []*scheddomain.ScheduledJob
 	for _, r := range rows {
-		job := &domain.ScheduledJob{
+		job := &scheddomain.ScheduledJob{
 			ID:             asString(r["id"]),
 			Name:           asString(r["name"]),
 			Description:    asString(r["description"]),
@@ -801,7 +801,7 @@ func (s *D1Storage) DeleteJob(ctx context.Context, id string) error {
 // ---------------------------------------------------------------------------
 
 // SaveRun creates or updates a run record via UPSERT.
-func (s *D1Storage) SaveRun(ctx context.Context, run *domain.RunRecord) error {
+func (s *D1Storage) SaveRun(ctx context.Context, run *scheddomain.RunRecord) error {
 	_, err := s.exec(ctx, `
 	INSERT INTO scheduled_job_runs(session_id, job_id, status, error, started_at, finished_at)
 	VALUES (?, ?, ?, ?, ?, ?)
@@ -817,7 +817,7 @@ func (s *D1Storage) SaveRun(ctx context.Context, run *domain.RunRecord) error {
 }
 
 // ListRuns returns run records sorted by StartedAt descending.
-func (s *D1Storage) ListRuns(ctx context.Context, jobID string) ([]*domain.RunRecord, error) {
+func (s *D1Storage) ListRuns(ctx context.Context, jobID string) ([]*scheddomain.RunRecord, error) {
 	query := `
 	SELECT session_id, job_id, status, error, started_at, finished_at
 	FROM scheduled_job_runs`
@@ -832,12 +832,12 @@ func (s *D1Storage) ListRuns(ctx context.Context, jobID string) ([]*domain.RunRe
 	if err != nil {
 		return nil, fmt.Errorf("list runs: %w", err)
 	}
-	var runs []*domain.RunRecord
+	var runs []*scheddomain.RunRecord
 	for _, r := range rows {
-		run := &domain.RunRecord{
+		run := &scheddomain.RunRecord{
 			SessionID: asString(r["session_id"]),
 			JobID:     asString(r["job_id"]),
-			Status:    domain.RunStatus(asString(r["status"])),
+			Status:    scheddomain.RunStatus(asString(r["status"])),
 			Error:     asString(r["error"]),
 			StartedAt: asTime(r["started_at"]),
 		}

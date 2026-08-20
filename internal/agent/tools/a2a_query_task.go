@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
@@ -22,7 +22,7 @@ import (
 type A2AQueryTaskTool struct {
 	config    *config.Config
 	formatter agentinfra.CustomFormatter
-	liveness  domain.JobLivenessReporter
+	liveness  scheddomain.JobLivenessReporter
 }
 
 type A2AQueryTaskResult struct {
@@ -35,7 +35,7 @@ type A2AQueryTaskResult struct {
 	Duration  time.Duration `json:"duration"`
 }
 
-func NewA2AQueryTaskTool(cfg *config.Config, liveness domain.JobLivenessReporter) *A2AQueryTaskTool {
+func NewA2AQueryTaskTool(cfg *config.Config, liveness scheddomain.JobLivenessReporter) *A2AQueryTaskTool {
 	return &A2AQueryTaskTool{
 		config: cfg,
 		formatter: agentinfra.NewCustomFormatter("A2A_QueryTask", func(key string) bool {

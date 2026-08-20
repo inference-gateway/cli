@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	scheduler "github.com/inference-gateway/cli/internal/scheduler"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 	"time"
 
@@ -14,9 +16,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 )
 
 const (
@@ -29,10 +29,10 @@ const (
 
 // ScheduleToolResult is the structured payload returned to the LLM.
 type ScheduleToolResult struct {
-	Operation string                 `json:"operation"`
-	Job       *domain.ScheduledJob   `json:"job,omitempty"`
-	Jobs      []*domain.ScheduledJob `json:"jobs,omitempty"`
-	Message   string                 `json:"message,omitempty"`
+	Operation string                      `json:"operation"`
+	Job       *scheddomain.ScheduledJob   `json:"job,omitempty"`
+	Jobs      []*scheddomain.ScheduledJob `json:"jobs,omitempty"`
+	Message   string                      `json:"message,omitempty"`
 }
 
 // ScheduleTool lets the LLM create, inspect, and remove recurring jobs that
@@ -255,7 +255,7 @@ func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, stor
 		}
 	}
 	now := time.Now().UTC()
-	job := &domain.ScheduledJob{
+	job := &scheddomain.ScheduledJob{
 		ID:             uuid.New().String(),
 		Name:           optionalString(args, "name"),
 		Description:    optionalString(args, "description"),
@@ -517,7 +517,7 @@ func (t *ScheduleTool) formatScheduleData(data any) string {
 }
 
 // formatJobDetail renders one job's fields, omitting empty optionals.
-func formatJobDetail(out *strings.Builder, job *domain.ScheduledJob) {
+func formatJobDetail(out *strings.Builder, job *scheddomain.ScheduledJob) {
 	fmt.Fprintf(out, "Job: %s\n", job.ID)
 	fmt.Fprintf(out, "Cron: %s\n", job.CronExpression)
 	if job.Channel != "" {

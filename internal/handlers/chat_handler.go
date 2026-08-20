@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -38,9 +39,9 @@ type ChatHandler struct {
 	shortcutRegistry       *shortcuts.Registry
 	stateManager           stateManager
 	messageQueue           convdomain.MessageQueue
-	taskRetentionService   domain.TaskRetentionService
-	backgroundTaskService  domain.BackgroundTaskService
-	backgroundShellService domain.BackgroundShellService
+	taskRetentionService   scheddomain.TaskRetentionService
+	backgroundTaskService  scheddomain.BackgroundTaskService
+	backgroundShellService scheddomain.BackgroundShellService
 	agentManager           agentdomain.AgentManager
 	config                 *config.Config
 	a2aTaskCoordinator     ui.A2ATaskCoordinator
@@ -69,9 +70,9 @@ func NewChatHandler(
 	shortcutRegistry *shortcuts.Registry,
 	stateManager stateManager,
 	messageQueue convdomain.MessageQueue,
-	taskRetentionService domain.TaskRetentionService,
-	backgroundTaskService domain.BackgroundTaskService,
-	backgroundShellService domain.BackgroundShellService,
+	taskRetentionService scheddomain.TaskRetentionService,
+	backgroundTaskService scheddomain.BackgroundTaskService,
+	backgroundShellService scheddomain.BackgroundShellService,
 	agentManager agentdomain.AgentManager,
 	cfg *config.Config,
 	a2aTaskCoordinator ui.A2ATaskCoordinator,

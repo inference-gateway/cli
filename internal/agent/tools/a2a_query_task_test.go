@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"strings"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func TestA2AQueryTaskTool_Definition(t *testing.T) {
@@ -516,7 +516,7 @@ func TestA2AQueryTaskTool_PollingStateBlocking(t *testing.T) {
 				},
 			}
 
-			liveness := &mocks.FakeJobLivenessReporter{}
+			liveness := &schedmocks.FakeJobLivenessReporter{}
 			liveness.IsJobRunningCalls(func(id string) bool {
 				return tt.runningTaskID != "" && id == tt.runningTaskID
 			})

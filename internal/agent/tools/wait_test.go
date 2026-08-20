@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,8 +14,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // testWaitConfig returns a minimal config with Wait tool enabled.
@@ -536,12 +536,12 @@ func TestWaitTool_Execute_Cancellation(t *testing.T) {
 
 func TestWaitTool_Execute_ShellsWithShellService(t *testing.T) {
 	cfg := testWaitConfig()
-	fake := &domainmocks.FakeBackgroundShellService{}
+	fake := &schedmocks.FakeBackgroundShellService{}
 	exitZero := 0
-	fake.GetShellReturns(&domain.BackgroundShell{
+	fake.GetShellReturns(&scheddomain.BackgroundShell{
 		ShellID:  "test-shell-1",
 		Command:  "echo hello",
-		State:    domain.ShellStateCompleted,
+		State:    scheddomain.ShellStateCompleted,
 		ExitCode: &exitZero,
 	})
 	tool := NewWaitTool(cfg, fake)

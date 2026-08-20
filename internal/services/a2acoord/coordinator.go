@@ -2,6 +2,7 @@ package a2acoord
 
 import (
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,7 +18,7 @@ import (
 type Service struct {
 	conversationRepo     convdomain.ConversationRepository
 	stateManager         domain.ChatSessionManager
-	taskRetentionService domain.TaskRetentionService
+	taskRetentionService scheddomain.TaskRetentionService
 	listener             ui.ChatEventListener
 }
 
@@ -25,7 +26,7 @@ type Service struct {
 type Options struct {
 	ConversationRepo     convdomain.ConversationRepository
 	StateManager         domain.ChatSessionManager
-	TaskRetentionService domain.TaskRetentionService
+	TaskRetentionService scheddomain.TaskRetentionService
 	Listener             ui.ChatEventListener
 }
 
@@ -210,7 +211,7 @@ func (s *Service) retainTaskFromResult(result *agentdomain.ToolExecutionResult) 
 	}
 
 	if submitResult.Task != nil && s.taskRetentionService != nil {
-		s.taskRetentionService.AddTask(domain.TaskInfo{
+		s.taskRetentionService.AddTask(scheddomain.TaskInfo{
 			Task:        *submitResult.Task,
 			AgentURL:    submitResult.AgentURL,
 			StartedAt:   time.Now().Add(-result.Duration),

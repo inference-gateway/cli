@@ -1,6 +1,7 @@
-package states
+package states_test
 
 import (
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -19,21 +20,21 @@ func TestPostStreamState_Handle(t *testing.T) {
 		setup           func(f *stateFixture)
 		transitionErr   error
 		wantErr         bool
-		wantTransitions []AgentExecutionState
-		wantEvents      []AgentEvent
+		wantTransitions []states.AgentExecutionState
+		wantEvents      []states.AgentEvent
 		check           func(t *testing.T, f *stateFixture)
 	}{
 		{
 			name:            "queued messages return to checking queue",
 			setup:           func(f *stateFixture) { f.queue.IsEmptyReturns(false) },
-			wantTransitions: []AgentExecutionState{StateCheckingQueue},
-			wantEvents:      []AgentEvent{MessageReceivedEvent{}},
+			wantTransitions: []states.AgentExecutionState{states.StateCheckingQueue},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
 		},
 		{
 			name:            "tool calls route to evaluating tools",
 			setup:           func(f *stateFixture) { *f.ctx.CurrentToolCalls = makeTools(1) },
-			wantTransitions: []AgentExecutionState{StateEvaluatingTools},
-			wantEvents:      []AgentEvent{MessageReceivedEvent{}},
+			wantTransitions: []states.AgentExecutionState{states.StateEvaluatingTools},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
 		},
 		{
 			name: "no tools after a turn completes",
@@ -42,8 +43,8 @@ func TestPostStreamState_Handle(t *testing.T) {
 				f.ctx.AgentCtx.HasToolResults = true
 				f.sm.CanTransitionReturns(true)
 			},
-			wantTransitions: []AgentExecutionState{StateCompleting},
-			wantEvents:      []AgentEvent{CompletionRequestedEvent{}},
+			wantTransitions: []states.AgentExecutionState{states.StateCompleting},
+			wantEvents:      []states.AgentEvent{states.CompletionRequestedEvent{}},
 			check: func(t *testing.T, f *stateFixture) {
 				assert.False(t, f.ctx.AgentCtx.HasToolResults, "HasToolResults must be cleared")
 				require.Len(t, f.completeCalls, 1, "final chat completion must be published")
@@ -52,8 +53,8 @@ func TestPostStreamState_Handle(t *testing.T) {
 		},
 		{
 			name:            "no tools on turn zero continues the loop",
-			wantTransitions: []AgentExecutionState{StateStreamingLLM},
-			wantEvents:      []AgentEvent{StartStreamingEvent{}},
+			wantTransitions: []states.AgentExecutionState{states.StateStreamingLLM},
+			wantEvents:      []states.AgentEvent{states.StartStreamingEvent{}},
 		},
 		{
 			name: "transition failure is returned",
@@ -63,7 +64,7 @@ func TestPostStreamState_Handle(t *testing.T) {
 			},
 			transitionErr:   errBoom,
 			wantErr:         true,
-			wantTransitions: []AgentExecutionState{StateCompleting},
+			wantTransitions: []states.AgentExecutionState{states.StateCompleting},
 		},
 	}
 	for _, tt := range tests {
@@ -74,10 +75,10 @@ func TestPostStreamState_Handle(t *testing.T) {
 				tt.setup(f)
 			}
 			f.sm.TransitionReturns(tt.transitionErr)
-			s := NewPostStreamState(f.ctx)
-			assert.Equal(t, StatePostStream, s.Name())
+			s := states.NewPostStreamState(f.ctx)
+			assert.Equal(t, states.StatePostStream, s.Name())
 
-			err := s.Handle(MessageReceivedEvent{})
+			err := s.Handle(states.MessageReceivedEvent{})
 
 			if tt.wantErr {
 				assert.ErrorIs(t, err, errBoom)

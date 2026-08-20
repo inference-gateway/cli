@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"io"
 	"os"
 	"os/exec"
@@ -16,7 +17,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
@@ -39,11 +39,11 @@ type BashTool struct {
 	config                 *config.Config
 	enabled                bool
 	formatter              agentinfra.BaseFormatter
-	backgroundShellService domain.BackgroundShellService
+	backgroundShellService scheddomain.BackgroundShellService
 }
 
 // NewBashTool creates a new bash tool
-func NewBashTool(cfg *config.Config, backgroundShellService domain.BackgroundShellService) *BashTool {
+func NewBashTool(cfg *config.Config, backgroundShellService scheddomain.BackgroundShellService) *BashTool {
 	return &BashTool{
 		config:                 cfg,
 		enabled:                cfg.Tools.Enabled && cfg.Tools.Bash.Enabled,
@@ -289,7 +289,7 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 	detachChan, hasDetachChan := ctx.Value(agentdomain.BashDetachChannelKey).(<-chan struct{})
 
 	var outputBuilder strings.Builder
-	var outputBuffer domain.OutputRingBuffer
+	var outputBuffer scheddomain.OutputRingBuffer
 	var wg sync.WaitGroup
 	var outputMux sync.Mutex
 
@@ -364,7 +364,7 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 func (t *BashTool) readPipeWithBatching(
 	pipe io.ReadCloser,
 	callback agentdomain.BashOutputCallback,
-	outputBuffer domain.OutputRingBuffer,
+	outputBuffer scheddomain.OutputRingBuffer,
 	outputBuilder *strings.Builder,
 	outputMux *sync.Mutex,
 	detached *bool,

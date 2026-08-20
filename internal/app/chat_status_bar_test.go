@@ -1,6 +1,7 @@
 package app
 
 import (
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -32,7 +33,7 @@ func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplicati
 	statusBar.SetConfig(config.DefaultConfig())
 
 	if withJobs {
-		registry := &domainmocks.FakeBackgroundTaskRegistry{}
+		registry := &schedmocks.FakeBackgroundTaskRegistry{}
 		registry.CountRunningJobsReturns(1)
 		statusBar.SetBackgroundTaskRegistry(registry)
 	}

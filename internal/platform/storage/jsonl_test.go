@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +16,6 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func setupTestJsonlStorage(t *testing.T) (*JsonlStorage, string, func()) {
@@ -879,7 +879,7 @@ func TestJsonlStorage_SchedulesAreMachineGlobal(t *testing.T) {
 	b, err := NewJsonlStorage(JsonlStorageConfig{Path: filepath.Join(t.TempDir(), ".infer", "conversations")})
 	require.NoError(t, err)
 
-	job := &domain.ScheduledJob{ID: "global-job", CronExpression: "@every 1h", Prompt: "hi", CreatedAt: time.Now()}
+	job := &scheddomain.ScheduledJob{ID: "global-job", CronExpression: "@every 1h", Prompt: "hi", CreatedAt: time.Now()}
 	require.NoError(t, a.SaveJob(context.Background(), job))
 
 	jobs, err := b.ListJobs(context.Background())

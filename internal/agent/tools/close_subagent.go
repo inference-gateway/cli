@@ -3,13 +3,13 @@ package tools
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -18,8 +18,8 @@ import (
 // headless one it cancels the running subprocess. The subagent analogue of KillShell.
 type CloseSubagentTool struct {
 	config   *config.Config
-	tracker  domain.SubagentTracker
-	stopJob  domain.JobStopper
+	tracker  scheddomain.SubagentTracker
+	stopJob  scheddomain.JobStopper
 	killPane func(ctx context.Context, paneID string) error
 }
 
@@ -27,7 +27,7 @@ type CloseSubagentTool struct {
 // SubagentTracker. stopJob ends the supervised monitor of a closed interactive
 // subagent (may be nil, e.g. when the supervisor is unavailable, in which case
 // the tool falls back to killing the pane directly).
-func NewCloseSubagentTool(cfg *config.Config, tracker domain.SubagentTracker, stopJob domain.JobStopper) *CloseSubagentTool {
+func NewCloseSubagentTool(cfg *config.Config, tracker scheddomain.SubagentTracker, stopJob scheddomain.JobStopper) *CloseSubagentTool {
 	return &CloseSubagentTool{
 		config:   cfg,
 		tracker:  tracker,
@@ -82,7 +82,7 @@ func (t *CloseSubagentTool) Execute(ctx context.Context, args map[string]any) (*
 	}
 
 	logger.Debug("subagent close requested", "subagent_id", subagentID, "mode", s.Mode, "pane_id", s.PaneID)
-	if s.Mode == domain.SubagentModeInteractive {
+	if s.Mode == scheddomain.SubagentModeInteractive {
 		return t.closeInteractive(ctx, args, s), nil
 	}
 	return t.closeHeadless(args, s), nil
@@ -91,10 +91,10 @@ func (t *CloseSubagentTool) Execute(ctx context.Context, args map[string]any) (*
 // closeInteractive harvests a final tail of the pane, kills it, and untracks the
 // subagent. The harvested output is returned so the subagent's last work folds
 // back into the conversation.
-func (t *CloseSubagentTool) closeInteractive(ctx context.Context, args map[string]any, s *domain.SubagentState) *agentdomain.ToolExecutionResult {
+func (t *CloseSubagentTool) closeInteractive(ctx context.Context, args map[string]any, s *scheddomain.SubagentState) *agentdomain.ToolExecutionResult {
 	output := readSubagentResultMessage(s.SessionID)
 	if t.stopJob != nil {
-		_ = t.stopJob.WindJob(s.ID, domain.WindStop)
+		_ = t.stopJob.WindJob(s.ID, scheddomain.WindStop)
 	} else {
 		_ = t.killPane(ctx, s.PaneID)
 	}
@@ -117,7 +117,7 @@ func (t *CloseSubagentTool) closeInteractive(ctx context.Context, args map[strin
 // closeHeadless cancels a running headless subagent. The supervised
 // headlessSubagentJob delivers the cancellation outcome and removes it from
 // tracking on reap, so this does not remove it directly.
-func (t *CloseSubagentTool) closeHeadless(args map[string]any, s *domain.SubagentState) *agentdomain.ToolExecutionResult {
+func (t *CloseSubagentTool) closeHeadless(args map[string]any, s *scheddomain.SubagentState) *agentdomain.ToolExecutionResult {
 	if s.CancelFunc != nil {
 		s.CancelFunc()
 	}

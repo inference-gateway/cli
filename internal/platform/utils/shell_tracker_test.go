@@ -3,18 +3,17 @@ package utils
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os/exec"
 	"sync"
 	"testing"
 	"time"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-func createTestShell(id string, state domain.ShellState) *domain.BackgroundShell {
+func createTestShell(id string, state scheddomain.ShellState) *scheddomain.BackgroundShell {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &domain.BackgroundShell{
+	return &scheddomain.BackgroundShell{
 		ShellID:      id,
 		Command:      "echo test",
 		Cmd:          exec.CommandContext(ctx, "echo", "test"),
@@ -26,7 +25,7 @@ func createTestShell(id string, state domain.ShellState) *domain.BackgroundShell
 	}
 }
 
-func mustAddShell(t *testing.T, tracker *shellTracker, shell *domain.BackgroundShell) {
+func mustAddShell(t *testing.T, tracker *shellTracker, shell *scheddomain.BackgroundShell) {
 	t.Helper()
 	if err := tracker.Add(shell); err != nil {
 		t.Fatalf("Add(%s) failed: %v", shell.ShellID, err)
@@ -53,8 +52,8 @@ func TestShellTracker_Add(t *testing.T) {
 	tests := []struct {
 		name             string
 		maxConcurrent    int
-		preAdd           []*domain.BackgroundShell
-		add              *domain.BackgroundShell
+		preAdd           []*scheddomain.BackgroundShell
+		add              *scheddomain.BackgroundShell
 		wantErr          bool
 		wantCount        int
 		wantCountRunning int
@@ -62,7 +61,7 @@ func TestShellTracker_Add(t *testing.T) {
 		{
 			name:             "success",
 			maxConcurrent:    5,
-			add:              createTestShell("shell-123", domain.ShellStateRunning),
+			add:              createTestShell("shell-123", scheddomain.ShellStateRunning),
 			wantErr:          false,
 			wantCount:        1,
 			wantCountRunning: 1,
@@ -70,10 +69,10 @@ func TestShellTracker_Add(t *testing.T) {
 		{
 			name:          "duplicate ID rejected",
 			maxConcurrent: 5,
-			preAdd: []*domain.BackgroundShell{
-				createTestShell("shell-123", domain.ShellStateRunning),
+			preAdd: []*scheddomain.BackgroundShell{
+				createTestShell("shell-123", scheddomain.ShellStateRunning),
 			},
-			add:              createTestShell("shell-123", domain.ShellStateRunning),
+			add:              createTestShell("shell-123", scheddomain.ShellStateRunning),
 			wantErr:          true,
 			wantCount:        1,
 			wantCountRunning: 1,
@@ -81,12 +80,12 @@ func TestShellTracker_Add(t *testing.T) {
 		{
 			name:          "max concurrent limit rejects running shell",
 			maxConcurrent: 3,
-			preAdd: []*domain.BackgroundShell{
-				createTestShell("shell-0", domain.ShellStateRunning),
-				createTestShell("shell-1", domain.ShellStateRunning),
-				createTestShell("shell-2", domain.ShellStateRunning),
+			preAdd: []*scheddomain.BackgroundShell{
+				createTestShell("shell-0", scheddomain.ShellStateRunning),
+				createTestShell("shell-1", scheddomain.ShellStateRunning),
+				createTestShell("shell-2", scheddomain.ShellStateRunning),
 			},
-			add:              createTestShell("shell-4", domain.ShellStateRunning),
+			add:              createTestShell("shell-4", scheddomain.ShellStateRunning),
 			wantErr:          true,
 			wantCount:        3,
 			wantCountRunning: 3,
@@ -94,11 +93,11 @@ func TestShellTracker_Add(t *testing.T) {
 		{
 			name:          "max concurrent limit allows completed shell",
 			maxConcurrent: 2,
-			preAdd: []*domain.BackgroundShell{
-				createTestShell("shell-running-0", domain.ShellStateRunning),
-				createTestShell("shell-running-1", domain.ShellStateRunning),
+			preAdd: []*scheddomain.BackgroundShell{
+				createTestShell("shell-running-0", scheddomain.ShellStateRunning),
+				createTestShell("shell-running-1", scheddomain.ShellStateRunning),
 			},
-			add:              createTestShell("shell-completed", domain.ShellStateCompleted),
+			add:              createTestShell("shell-completed", scheddomain.ShellStateCompleted),
 			wantErr:          false,
 			wantCount:        3,
 			wantCountRunning: 2,
@@ -135,14 +134,14 @@ func TestShellTracker_Add(t *testing.T) {
 func TestShellTracker_Get(t *testing.T) {
 	tests := []struct {
 		name    string
-		preAdd  []*domain.BackgroundShell
+		preAdd  []*scheddomain.BackgroundShell
 		getID   string
 		wantNil bool
 		wantID  string
 	}{
 		{
 			name:   "found",
-			preAdd: []*domain.BackgroundShell{createTestShell("shell-123", domain.ShellStateRunning)},
+			preAdd: []*scheddomain.BackgroundShell{createTestShell("shell-123", scheddomain.ShellStateRunning)},
 			getID:  "shell-123",
 			wantID: "shell-123",
 		},
@@ -194,7 +193,7 @@ func TestShellTracker_GetAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tracker := NewShellTracker(5)
 			for i := 0; i < tt.numAdd; i++ {
-				mustAddShell(t, tracker, createTestShell(fmt.Sprintf("shell-%d", i), domain.ShellStateRunning))
+				mustAddShell(t, tracker, createTestShell(fmt.Sprintf("shell-%d", i), scheddomain.ShellStateRunning))
 			}
 
 			all := tracker.GetAll()
@@ -209,13 +208,13 @@ func TestShellTracker_GetAll(t *testing.T) {
 func TestShellTracker_Remove(t *testing.T) {
 	tests := []struct {
 		name     string
-		preAdd   []*domain.BackgroundShell
+		preAdd   []*scheddomain.BackgroundShell
 		removeID string
 		wantErr  bool
 	}{
 		{
 			name:     "success",
-			preAdd:   []*domain.BackgroundShell{createTestShell("shell-123", domain.ShellStateRunning)},
+			preAdd:   []*scheddomain.BackgroundShell{createTestShell("shell-123", scheddomain.ShellStateRunning)},
 			removeID: "shell-123",
 		},
 		{
@@ -259,7 +258,7 @@ func TestShellTracker_Remove(t *testing.T) {
 func TestShellTracker_Cleanup(t *testing.T) {
 	type shellSpec struct {
 		id           string
-		state        domain.ShellState
+		state        scheddomain.ShellState
 		startedAgo   time.Duration
 		completedAgo time.Duration
 	}
@@ -276,8 +275,8 @@ func TestShellTracker_Cleanup(t *testing.T) {
 		{
 			name: "removes old completed shells only",
 			shells: []shellSpec{
-				{id: "old-shell", state: domain.ShellStateCompleted, completedAgo: 2 * time.Hour},
-				{id: "recent-shell", state: domain.ShellStateCompleted, completedAgo: 5 * time.Minute},
+				{id: "old-shell", state: scheddomain.ShellStateCompleted, completedAgo: 2 * time.Hour},
+				{id: "recent-shell", state: scheddomain.ShellStateCompleted, completedAgo: 5 * time.Minute},
 			},
 			maxAge:        1 * time.Hour,
 			wantRemoved:   1,
@@ -288,7 +287,7 @@ func TestShellTracker_Cleanup(t *testing.T) {
 		{
 			name: "does not remove running shells",
 			shells: []shellSpec{
-				{id: "old-running", state: domain.ShellStateRunning, startedAgo: 2 * time.Hour},
+				{id: "old-running", state: scheddomain.ShellStateRunning, startedAgo: 2 * time.Hour},
 			},
 			maxAge:      1 * time.Hour,
 			wantRemoved: 0,
@@ -297,9 +296,9 @@ func TestShellTracker_Cleanup(t *testing.T) {
 		{
 			name: "removes all terminal states",
 			shells: []shellSpec{
-				{id: "completed", state: domain.ShellStateCompleted, completedAgo: 2 * time.Hour},
-				{id: "failed", state: domain.ShellStateFailed, completedAgo: 2 * time.Hour},
-				{id: "cancelled", state: domain.ShellStateCancelled, completedAgo: 2 * time.Hour},
+				{id: "completed", state: scheddomain.ShellStateCompleted, completedAgo: 2 * time.Hour},
+				{id: "failed", state: scheddomain.ShellStateFailed, completedAgo: 2 * time.Hour},
+				{id: "cancelled", state: scheddomain.ShellStateCancelled, completedAgo: 2 * time.Hour},
 			},
 			maxAge:      1 * time.Hour,
 			wantRemoved: 3,
@@ -350,11 +349,11 @@ func TestShellTracker_Cleanup(t *testing.T) {
 func TestCountRunning(t *testing.T) {
 	tracker := NewShellTracker(10)
 
-	mustAddShell(t, tracker, createTestShell("running-1", domain.ShellStateRunning))
-	mustAddShell(t, tracker, createTestShell("running-2", domain.ShellStateRunning))
-	mustAddShell(t, tracker, createTestShell("completed-1", domain.ShellStateCompleted))
-	mustAddShell(t, tracker, createTestShell("failed-1", domain.ShellStateFailed))
-	mustAddShell(t, tracker, createTestShell("cancelled-1", domain.ShellStateCancelled))
+	mustAddShell(t, tracker, createTestShell("running-1", scheddomain.ShellStateRunning))
+	mustAddShell(t, tracker, createTestShell("running-2", scheddomain.ShellStateRunning))
+	mustAddShell(t, tracker, createTestShell("completed-1", scheddomain.ShellStateCompleted))
+	mustAddShell(t, tracker, createTestShell("failed-1", scheddomain.ShellStateFailed))
+	mustAddShell(t, tracker, createTestShell("cancelled-1", scheddomain.ShellStateCancelled))
 
 	if tracker.Count() != 5 {
 		t.Errorf("Expected count=5, got %d", tracker.Count())
@@ -379,7 +378,7 @@ func TestConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 
 			for j := 0; j < operationsPerGoroutine; j++ {
-				shell := createTestShell(fmt.Sprintf("shell-%d-%d", id, j), domain.ShellStateRunning)
+				shell := createTestShell(fmt.Sprintf("shell-%d-%d", id, j), scheddomain.ShellStateRunning)
 				_ = tracker.Add(shell)
 			}
 		}(i)
@@ -431,7 +430,7 @@ func TestConcurrentAddRemove(t *testing.T) {
 			case <-done:
 				return
 			default:
-				shell := createTestShell(fmt.Sprintf("shell-%d", i), domain.ShellStateRunning)
+				shell := createTestShell(fmt.Sprintf("shell-%d", i), scheddomain.ShellStateRunning)
 				if err := tracker.Add(shell); err != nil {
 					t.Errorf("Add failed: %v", err)
 					return
@@ -473,13 +472,13 @@ func TestConcurrentAddRemove(t *testing.T) {
 
 func TestShellState_IsTerminal(t *testing.T) {
 	tests := []struct {
-		state      domain.ShellState
+		state      scheddomain.ShellState
 		isTerminal bool
 	}{
-		{domain.ShellStateRunning, false},
-		{domain.ShellStateCompleted, true},
-		{domain.ShellStateFailed, true},
-		{domain.ShellStateCancelled, true},
+		{scheddomain.ShellStateRunning, false},
+		{scheddomain.ShellStateCompleted, true},
+		{scheddomain.ShellStateFailed, true},
+		{scheddomain.ShellStateCancelled, true},
 	}
 
 	for _, tt := range tests {

@@ -1,6 +1,7 @@
-package states
+package states_test
 
 import (
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -9,14 +10,14 @@ import (
 )
 
 // TestCompletingState_IgnoresNonCompletionEvents verifies that the Completing
-// state finalizes only on CompletionRequestedEvent. A stray event (e.g. a
-// MessageReceivedEvent) must be a no-op so it cannot trigger completion or
+// state finalizes only on states.CompletionRequestedEvent. A stray event (e.g. a
+// states.MessageReceivedEvent) must be a no-op so it cannot trigger completion or
 // enqueue any follow-up event.
 func TestCompletingState_IgnoresNonCompletionEvents(t *testing.T) {
-	events := make(chan AgentEvent, 1)
-	s := NewCompletingState(&StateContext{Events: events})
+	events := make(chan states.AgentEvent, 1)
+	s := states.NewCompletingState(&states.StateContext{Events: events})
 
-	err := s.Handle(MessageReceivedEvent{})
+	err := s.Handle(states.MessageReceivedEvent{})
 
 	assert.NoError(t, err)
 	assert.Empty(t, events, "non-completion event must not enqueue any follow-up event")
@@ -33,35 +34,35 @@ func TestCompletingState_Complete(t *testing.T) {
 		setup           func(f *stateFixture)
 		transitionErr   error
 		wantErr         bool
-		wantTransitions []AgentExecutionState
-		wantEvents      []AgentEvent
+		wantTransitions []states.AgentExecutionState
+		wantEvents      []states.AgentEvent
 		wantHooks       []agentdomain.HookPoint
 		wantComplete    int
 		wantCancelled   int
 	}{
 		{
 			name:            "empty queue publishes completion and returns to idle",
-			wantTransitions: []AgentExecutionState{StateIdle},
+			wantTransitions: []states.AgentExecutionState{states.StateIdle},
 			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPostSession},
 			wantComplete:    1,
 		},
 		{
 			name:            "messages queued during completion restart the loop",
 			setup:           func(f *stateFixture) { f.queue.IsEmptyReturns(false) },
-			wantTransitions: []AgentExecutionState{StateCheckingQueue},
-			wantEvents:      []AgentEvent{MessageReceivedEvent{}},
+			wantTransitions: []states.AgentExecutionState{states.StateCheckingQueue},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
 		},
 		{
 			name:            "cancelled session publishes cancellation instead of completion",
 			setup:           func(f *stateFixture) { f.cancelSession() },
-			wantTransitions: []AgentExecutionState{StateIdle},
+			wantTransitions: []states.AgentExecutionState{states.StateIdle},
 			wantCancelled:   1,
 		},
 		{
 			name:            "transition failure is returned",
 			transitionErr:   errBoom,
 			wantErr:         true,
-			wantTransitions: []AgentExecutionState{StateIdle},
+			wantTransitions: []states.AgentExecutionState{states.StateIdle},
 			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPostSession},
 			wantComplete:    1,
 		},
@@ -74,10 +75,10 @@ func TestCompletingState_Complete(t *testing.T) {
 				tt.setup(f)
 			}
 			f.sm.TransitionReturns(tt.transitionErr)
-			s := NewCompletingState(f.ctx)
-			assert.Equal(t, StateCompleting, s.Name())
+			s := states.NewCompletingState(f.ctx)
+			assert.Equal(t, states.StateCompleting, s.Name())
 
-			err := s.Handle(CompletionRequestedEvent{})
+			err := s.Handle(states.CompletionRequestedEvent{})
 
 			if tt.wantErr {
 				assert.ErrorIs(t, err, errBoom)

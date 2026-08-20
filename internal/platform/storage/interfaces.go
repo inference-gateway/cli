@@ -3,11 +3,11 @@ package storage
 import (
 	"context"
 	"errors"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // SessionGroupEntry tracks the active session for a given group key plus a
@@ -75,13 +75,13 @@ type ConversationSummary = convdomain.ConversationSummary
 // internal/services/scheduler).
 type ScheduledJobStorage interface {
 	// SaveJob creates or updates a scheduled job.
-	SaveJob(ctx context.Context, job *domain.ScheduledJob) error
+	SaveJob(ctx context.Context, job *scheddomain.ScheduledJob) error
 
 	// LoadJob returns a job by ID. Returns ErrJobNotFound when the job does not exist.
-	LoadJob(ctx context.Context, id string) (*domain.ScheduledJob, error)
+	LoadJob(ctx context.Context, id string) (*scheddomain.ScheduledJob, error)
 
 	// ListJobs returns all jobs sorted by CreatedAt ascending.
-	ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error)
+	ListJobs(ctx context.Context) ([]*scheddomain.ScheduledJob, error)
 
 	// DeleteJob removes a job by ID. Returns ErrJobNotFound when the job does not exist.
 	DeleteJob(ctx context.Context, id string) error
@@ -94,11 +94,11 @@ var ErrJobNotFound = errors.New("scheduled job not found")
 // by SessionID (which doubles as the conversation ID of the agent run).
 type ScheduledRunStorage interface {
 	// SaveRun creates or updates a run record (upsert by SessionID).
-	SaveRun(ctx context.Context, run *domain.RunRecord) error
+	SaveRun(ctx context.Context, run *scheddomain.RunRecord) error
 
 	// ListRuns returns run records sorted by StartedAt descending. An empty
 	// jobID returns runs for all jobs.
-	ListRuns(ctx context.Context, jobID string) ([]*domain.RunRecord, error)
+	ListRuns(ctx context.Context, jobID string) ([]*scheddomain.RunRecord, error)
 
 	// PruneRuns deletes all but the newest keep run records (across all jobs).
 	PruneRuns(ctx context.Context, keep int) error

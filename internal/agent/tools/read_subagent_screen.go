@@ -3,13 +3,13 @@ package tools
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ReadSubagentScreenTool returns the raw terminal screen of an interactive
@@ -19,13 +19,13 @@ import (
 // (e.g. TUI testing), so it works regardless of the subagent's status. Read-only.
 type ReadSubagentScreenTool struct {
 	config  *config.Config
-	tracker domain.SubagentTracker
+	tracker scheddomain.SubagentTracker
 	capture func(ctx context.Context, paneID string, lines int) string
 }
 
 // NewReadSubagentScreenTool creates a new ReadSubagentScreen tool over the
 // session's SubagentTracker.
-func NewReadSubagentScreenTool(cfg *config.Config, tracker domain.SubagentTracker) *ReadSubagentScreenTool {
+func NewReadSubagentScreenTool(cfg *config.Config, tracker scheddomain.SubagentTracker) *ReadSubagentScreenTool {
 	return &ReadSubagentScreenTool{
 		config:  cfg,
 		tracker: tracker,
@@ -82,7 +82,7 @@ func (t *ReadSubagentScreenTool) Execute(ctx context.Context, args map[string]an
 		}, nil
 	}
 
-	if s.Mode != domain.SubagentModeInteractive || s.PaneID == "" {
+	if s.Mode != scheddomain.SubagentModeInteractive || s.PaneID == "" {
 		return &agentdomain.ToolExecutionResult{
 			ToolName:  "ReadSubagentScreen",
 			Arguments: args,

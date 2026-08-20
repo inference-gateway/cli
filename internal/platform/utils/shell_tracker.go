@@ -2,41 +2,40 @@ package utils
 
 import (
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"sync"
 	"time"
-
-	"github.com/inference-gateway/cli/internal/domain"
 )
 
-// shellTracker implements the domain.ShellTracker interface.
+// shellTracker implements the scheddomain.ShellTracker interface.
 type shellTracker struct {
-	shells        map[string]*domain.BackgroundShell
+	shells        map[string]*scheddomain.BackgroundShell
 	maxConcurrent int
 	mutex         sync.RWMutex
 }
 
 // NewShellTracker creates a new shell tracker with the specified maximum
 // concurrent shells. It returns the concrete type: callers that only need the
-// tracked-shell surface assign it to a domain.ShellTracker, while the shell
+// tracked-shell surface assign it to a scheddomain.ShellTracker, while the shell
 // housekeeping helpers (Cleanup/Count) stay reachable on the concrete for the
 // background-shell service and this package's own tests.
 func NewShellTracker(maxConcurrent int) *shellTracker {
 	return &shellTracker{
-		shells:        make(map[string]*domain.BackgroundShell),
+		shells:        make(map[string]*scheddomain.BackgroundShell),
 		maxConcurrent: maxConcurrent,
 	}
 }
 
 // Add adds a new shell to the tracker.
 // Returns an error if max concurrent limit is reached.
-func (st *shellTracker) Add(shell *domain.BackgroundShell) error {
+func (st *shellTracker) Add(shell *scheddomain.BackgroundShell) error {
 	st.mutex.Lock()
 	defer st.mutex.Unlock()
 
-	if shell.State == domain.ShellStateRunning {
+	if shell.State == scheddomain.ShellStateRunning {
 		runningCount := 0
 		for _, s := range st.shells {
-			if s.State == domain.ShellStateRunning {
+			if s.State == scheddomain.ShellStateRunning {
 				runningCount++
 			}
 		}
@@ -57,7 +56,7 @@ func (st *shellTracker) Add(shell *domain.BackgroundShell) error {
 
 // Get retrieves a shell by ID.
 // Returns nil if not found.
-func (st *shellTracker) Get(shellID string) *domain.BackgroundShell {
+func (st *shellTracker) Get(shellID string) *scheddomain.BackgroundShell {
 	st.mutex.RLock()
 	defer st.mutex.RUnlock()
 
@@ -65,11 +64,11 @@ func (st *shellTracker) Get(shellID string) *domain.BackgroundShell {
 }
 
 // GetAll returns all tracked shells.
-func (st *shellTracker) GetAll() []*domain.BackgroundShell {
+func (st *shellTracker) GetAll() []*scheddomain.BackgroundShell {
 	st.mutex.RLock()
 	defer st.mutex.RUnlock()
 
-	shells := make([]*domain.BackgroundShell, 0, len(st.shells))
+	shells := make([]*scheddomain.BackgroundShell, 0, len(st.shells))
 
 	for _, shell := range st.shells {
 		shells = append(shells, shell)
@@ -136,7 +135,7 @@ func (st *shellTracker) CountRunning() int {
 	count := 0
 
 	for _, shell := range st.shells {
-		if shell.State == domain.ShellStateRunning {
+		if shell.State == scheddomain.ShellStateRunning {
 			count++
 		}
 	}

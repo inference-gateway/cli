@@ -2,10 +2,10 @@ package tools
 
 import (
 	"context"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
@@ -30,9 +30,9 @@ func TestListSubagentsTool_Empty(t *testing.T) {
 
 func TestListSubagentsTool_ReportsLivePaneStatus(t *testing.T) {
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "s1", Label: "worker", Mode: domain.SubagentModeInteractive,
-		SessionID: "sess", PaneID: "%3", Status: domain.SubagentRunning,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "s1", Label: "worker", Mode: scheddomain.SubagentModeInteractive,
+		SessionID: "sess", PaneID: "%3", Status: scheddomain.SubagentRunning,
 	})
 	tool := NewListSubagentsTool(config.DefaultConfig(), tracker)
 	tool.paneState = func(ctx context.Context, paneID string) paneState {

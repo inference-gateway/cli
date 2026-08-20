@@ -1,8 +1,10 @@
-package states
+package states_test
 
 import (
 	"context"
 	"errors"
+	states "github.com/inference-gateway/cli/internal/agent/states"
+	statesmocks "github.com/inference-gateway/cli/tests/mocks/states"
 	"sync"
 	"testing"
 
@@ -23,16 +25,16 @@ type completeCall struct {
 	toolCalls []sdk.ChatCompletionMessageToolCall
 }
 
-// stateFixture wires a StateContext against the counterfeiter fakes
+// stateFixture wires a states.StateContext against the counterfeiter fakes
 // (FakeAgentStateMachine, FakeMessageQueue) with recording stubs for every
 // callback the state executors touch. Defaults: empty queue, live session
 // context, no tool calls, no approval required, DispatchHooks nil (the
 // executors' nil-guard path) unless recordHooks is called.
 type stateFixture struct {
-	ctx    *StateContext
-	sm     *FakeAgentStateMachine
+	ctx    *states.StateContext
+	sm     *statesmocks.FakeAgentStateMachine
 	queue  *convmocks.FakeMessageQueue
-	events chan AgentEvent
+	events chan states.AgentEvent
 
 	drainReturns  int
 	drainCalls    int
@@ -43,9 +45,9 @@ type stateFixture struct {
 
 func newStateFixture() *stateFixture {
 	f := &stateFixture{
-		sm:     &FakeAgentStateMachine{},
+		sm:     &statesmocks.FakeAgentStateMachine{},
 		queue:  &convmocks.FakeMessageQueue{},
-		events: make(chan AgentEvent, 16),
+		events: make(chan states.AgentEvent, 16),
 	}
 	f.queue.IsEmptyReturns(true)
 
@@ -56,9 +58,9 @@ func newStateFixture() *stateFixture {
 	idx := 0
 	results := []convdomain.ConversationEntry{}
 
-	f.ctx = &StateContext{
+	f.ctx = &states.StateContext{
 		StateMachine: f.sm,
-		AgentCtx: &AgentContext{
+		AgentCtx: &states.AgentContext{
 			Ctx:          context.Background(),
 			MessageQueue: f.queue,
 			Conversation: &conv,
@@ -112,7 +114,7 @@ func (f *stateFixture) cancelSession() {
 
 // assertTransitions asserts the exact sequence of Transition targets requested
 // on the fake state machine.
-func assertTransitions(t *testing.T, sm *FakeAgentStateMachine, want ...AgentExecutionState) {
+func assertTransitions(t *testing.T, sm *statesmocks.FakeAgentStateMachine, want ...states.AgentExecutionState) {
 	t.Helper()
 	require.Equal(t, len(want), sm.TransitionCallCount(), "unexpected number of transitions")
 	for i, target := range want {
@@ -123,9 +125,9 @@ func assertTransitions(t *testing.T, sm *FakeAgentStateMachine, want ...AgentExe
 
 // assertEvents drains the buffered events channel and asserts the emitted
 // events match want by type, in order.
-func assertEvents(t *testing.T, events chan AgentEvent, want ...AgentEvent) {
+func assertEvents(t *testing.T, events chan states.AgentEvent, want ...states.AgentEvent) {
 	t.Helper()
-	var got []AgentEvent
+	var got []states.AgentEvent
 drain:
 	for {
 		select {

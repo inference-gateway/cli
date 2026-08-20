@@ -24,6 +24,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 )
@@ -43,7 +44,7 @@ type AgentServiceImpl struct {
 	optimizer        convdomain.ConversationOptimizer
 	tokenizer        *conv.TokenizerService
 	approvalPolicy   agentdomain.ApprovalPolicy
-	bgRegistry       domain.BackgroundTaskRegistry
+	bgRegistry       scheddomain.BackgroundTaskRegistry
 	rolloverManager  *conv.SessionRolloverManager
 	reminderProvider agentdomain.SystemReminderProvider
 	hookProvider     agentdomain.HookCommandProvider
@@ -373,7 +374,7 @@ func NewAgent(
 	stateManager stateManager,
 	timeoutSeconds int,
 	optimizer convdomain.ConversationOptimizer,
-	bgRegistry domain.BackgroundTaskRegistry,
+	bgRegistry scheddomain.BackgroundTaskRegistry,
 	rolloverManager *conv.SessionRolloverManager,
 ) *AgentServiceImpl {
 	tokenizer := conv.NewTokenizerService(conv.DefaultTokenizerConfig())

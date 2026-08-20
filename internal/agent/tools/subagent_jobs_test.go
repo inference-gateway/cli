@@ -3,21 +3,21 @@ package tools
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // fastInteractiveJob builds an interactive subagent job with a fake pane inspector
 // and fast heuristic tunables for deterministic, quick tests.
-func fastInteractiveJob(inspect func() domain.PaneObservation) *interactiveSubagentJob {
+func fastInteractiveJob(inspect func() scheddomain.PaneObservation) *interactiveSubagentJob {
 	return &interactiveSubagentJob{
-		state:        &domain.SubagentState{ID: "s1", Label: "sub", SessionID: "sess", PaneID: "pane", StartedAt: time.Now()},
-		inspect:      func(_ context.Context, _, _ string) domain.PaneObservation { return inspect() },
+		state:        &scheddomain.SubagentState{ID: "s1", Label: "sub", SessionID: "sess", PaneID: "pane", StartedAt: time.Now()},
+		inspect:      func(_ context.Context, _, _ string) scheddomain.PaneObservation { return inspect() },
 		pollInterval: 5 * time.Millisecond,
 		grace:        0,
 		stableNeeded: 2,
@@ -28,7 +28,7 @@ func runJobCollecting(j *interactiveSubagentJob) (stop func(), notes func() []st
 	ctx, cancel := context.WithCancel(context.Background())
 	var mu sync.Mutex
 	var got []string
-	go j.Run(ctx, func(sig domain.JobSignal) {
+	go j.Run(ctx, func(sig scheddomain.JobSignal) {
 		mu.Lock()
 		got = append(got, sig.Note)
 		mu.Unlock()
@@ -53,8 +53,8 @@ func waitUntil(t *testing.T, cond func() bool, msg string) {
 }
 
 func TestInteractiveSubagentJob_HarvestEmitsCompletionOnce(t *testing.T) {
-	j := fastInteractiveJob(func() domain.PaneObservation {
-		return domain.PaneObservation{Harvested: "the subagent's real answer"}
+	j := fastInteractiveJob(func() scheddomain.PaneObservation {
+		return scheddomain.PaneObservation{Harvested: "the subagent's real answer"}
 	})
 	stop, notes := runJobCollecting(j)
 	defer stop()
@@ -76,8 +76,8 @@ func TestInteractiveSubagentJob_HarvestEmitsCompletionOnce(t *testing.T) {
 }
 
 func TestInteractiveSubagentJob_IdleFallbackEmits(t *testing.T) {
-	j := fastInteractiveJob(func() domain.PaneObservation {
-		return domain.PaneObservation{Screen: "frozen idle prompt"}
+	j := fastInteractiveJob(func() scheddomain.PaneObservation {
+		return scheddomain.PaneObservation{Screen: "frozen idle prompt"}
 	})
 	stop, notes := runJobCollecting(j)
 	defer stop()
@@ -94,12 +94,12 @@ func TestInteractiveSubagentJob_IdleFallbackEmits(t *testing.T) {
 func TestInteractiveSubagentJob_BusyPaneNotFalselyCompleted(t *testing.T) {
 	var n int
 	var mu sync.Mutex
-	j := fastInteractiveJob(func() domain.PaneObservation {
+	j := fastInteractiveJob(func() scheddomain.PaneObservation {
 		mu.Lock()
 		n++
 		s := fmt.Sprintf("Thinking... (%d.0s)", n)
 		mu.Unlock()
-		return domain.PaneObservation{Screen: s}
+		return scheddomain.PaneObservation{Screen: s}
 	})
 	stop, notes := runJobCollecting(j)
 	defer stop()
@@ -111,8 +111,8 @@ func TestInteractiveSubagentJob_BusyPaneNotFalselyCompleted(t *testing.T) {
 }
 
 func TestInteractiveSubagentJob_AwaitingApprovalEmittedOnce(t *testing.T) {
-	j := fastInteractiveJob(func() domain.PaneObservation {
-		return domain.PaneObservation{AwaitingApproval: true, ApprovalSummary: "Bash(rm -rf /tmp/x)"}
+	j := fastInteractiveJob(func() scheddomain.PaneObservation {
+		return scheddomain.PaneObservation{AwaitingApproval: true, ApprovalSummary: "Bash(rm -rf /tmp/x)"}
 	})
 	stop, notes := runJobCollecting(j)
 	defer stop()
@@ -129,11 +129,11 @@ func TestInteractiveSubagentJob_AwaitingApprovalEmittedOnce(t *testing.T) {
 }
 
 func TestInteractiveSubagentJob_PaneGoneReturns(t *testing.T) {
-	j := fastInteractiveJob(func() domain.PaneObservation {
-		return domain.PaneObservation{Gone: true}
+	j := fastInteractiveJob(func() scheddomain.PaneObservation {
+		return scheddomain.PaneObservation{Gone: true}
 	})
 	done := make(chan agentdomain.ToolExecutionResult, 1)
-	go func() { done <- j.Run(context.Background(), func(domain.JobSignal) {}) }()
+	go func() { done <- j.Run(context.Background(), func(scheddomain.JobSignal) {}) }()
 
 	select {
 	case res := <-done:

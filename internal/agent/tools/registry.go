@@ -3,6 +3,7 @@ package tools
 import (
 	"cmp"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -42,13 +43,13 @@ type Registry struct {
 	readFiles       map[string]fileReadSnapshot
 	readFilesMu     sync.Mutex
 	taskTracker     agentdomain.A2ATaskTracker
-	subagentTracker domain.SubagentTracker
-	jobSubmitter    domain.JobSubmitter
-	jobStopper      domain.JobStopper
-	jobLiveness     domain.JobLivenessReporter
+	subagentTracker scheddomain.SubagentTracker
+	jobSubmitter    scheddomain.JobSubmitter
+	jobStopper      scheddomain.JobStopper
+	jobLiveness     scheddomain.JobLivenessReporter
 	imageService    domain.ImageService
 	mcpManager      domain.MCPManager
-	shellService    domain.BackgroundShellService
+	shellService    scheddomain.BackgroundShellService
 	annotator       agentdomain.ImageAnnotator
 	frameSources    map[string]agentdomain.FrameSource
 	frameSourcesMu  sync.RWMutex
@@ -63,7 +64,7 @@ type Registry struct {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}
@@ -79,16 +80,16 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 		frameSources: make(map[string]agentdomain.FrameSource),
 		stores:       stores,
 	}
-	if st, ok := taskTracker.(domain.SubagentTracker); ok {
+	if st, ok := taskTracker.(scheddomain.SubagentTracker); ok {
 		registry.subagentTracker = st
 	}
-	if js, ok := taskTracker.(domain.JobSubmitter); ok {
+	if js, ok := taskTracker.(scheddomain.JobSubmitter); ok {
 		registry.jobSubmitter = js
 	}
-	if jst, ok := taskTracker.(domain.JobStopper); ok {
+	if jst, ok := taskTracker.(scheddomain.JobStopper); ok {
 		registry.jobStopper = jst
 	}
-	if lr, ok := taskTracker.(domain.JobLivenessReporter); ok {
+	if lr, ok := taskTracker.(scheddomain.JobLivenessReporter); ok {
 		registry.jobLiveness = lr
 	}
 
@@ -419,7 +420,7 @@ func (r *Registry) GetA2ATaskTracker() agentdomain.A2ATaskTracker {
 }
 
 // GetBackgroundShellService returns the background shell service instance
-func (r *Registry) GetBackgroundShellService() domain.BackgroundShellService {
+func (r *Registry) GetBackgroundShellService() scheddomain.BackgroundShellService {
 	return r.shellService
 }
 

@@ -2,15 +2,15 @@ package tools
 
 import (
 	"context"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 	"sync"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	agentrunner "github.com/inference-gateway/cli/internal/agent/application/agentrunner"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
-	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 )
 
 func newTestAgentTool(t *testing.T) *AgentTool {
@@ -191,7 +191,7 @@ func TestBuildChatPaneCommand_SlugifiesHistoryName(t *testing.T) {
 	if got := tool.buildChatPaneCommand(AgentTaskSpec{Label: "a/../../../tmp/pwned"}, "sess"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='a-tmp-pwned'") {
 		t.Fatalf("path separators/traversal must be sanitized out; cmd = %q", got)
 	}
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{}, "subagent-parent-uuid"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='"+domain.SubagentHistoryMemoryOnly+"'") {
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{}, "subagent-parent-uuid"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='"+scheddomain.SubagentHistoryMemoryOnly+"'") {
 		t.Fatalf("unlabeled subagent must use the memory-only sentinel, not the session id; cmd = %q", got)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"io"
 	"net/http"
 	"os"
@@ -19,7 +20,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
@@ -29,7 +29,7 @@ type A2ASubmitTaskTool struct {
 	config      *config.Config
 	formatter   agentinfra.CustomFormatter
 	taskTracker agentdomain.A2ATaskTracker
-	submitter   domain.JobSubmitter
+	submitter   scheddomain.JobSubmitter
 	client      client.A2AClient
 }
 
@@ -46,7 +46,7 @@ type A2ASubmitTaskResult struct {
 }
 
 // NewA2ASubmitTaskTool creates a new A2A task tool
-func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker agentdomain.A2ATaskTracker, submitter domain.JobSubmitter) *A2ASubmitTaskTool {
+func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker agentdomain.A2ATaskTracker, submitter scheddomain.JobSubmitter) *A2ASubmitTaskTool {
 	return &A2ASubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,
@@ -59,7 +59,7 @@ func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker agentdomain.A2ATaskTra
 }
 
 // NewA2ASubmitTaskToolWithClient creates a new A2A task tool with an injected client (for testing)
-func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker agentdomain.A2ATaskTracker, submitter domain.JobSubmitter, client client.A2AClient) *A2ASubmitTaskTool {
+func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker agentdomain.A2ATaskTracker, submitter scheddomain.JobSubmitter, client client.A2AClient) *A2ASubmitTaskTool {
 	return &A2ASubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,
@@ -298,7 +298,7 @@ func (t *A2ASubmitTaskTool) runA2APolling(
 	agentURL string,
 	taskID string,
 	state *agentdomain.TaskPollingState,
-	emit func(domain.JobSignal),
+	emit func(scheddomain.JobSignal),
 ) agentdomain.ToolExecutionResult {
 	if t.taskTracker != nil {
 		defer t.taskTracker.StopPolling(taskID)
@@ -417,7 +417,7 @@ func (t *A2ASubmitTaskTool) extractTextFromParts(parts []adk.Part) string {
 
 // emitStatusUpdate records the latest remote task state on the polling state
 // (read by the task view) and emits it as a non-terminal JobSignal for the UI.
-func (t *A2ASubmitTaskTool) emitStatusUpdate(state *agentdomain.TaskPollingState, taskID, agentURL string, currentTask adk.Task, emit func(domain.JobSignal)) {
+func (t *A2ASubmitTaskTool) emitStatusUpdate(state *agentdomain.TaskPollingState, taskID, agentURL string, currentTask adk.Task, emit func(scheddomain.JobSignal)) {
 	statusMessage := ""
 	if currentTask.Status.Message != nil {
 		statusMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
@@ -431,7 +431,7 @@ func (t *A2ASubmitTaskTool) emitStatusUpdate(state *agentdomain.TaskPollingState
 		note = fmt.Sprintf("A2A task on %s (%s): %s", agentURL, stateStr, statusMessage)
 	}
 	if emit != nil {
-		emit(domain.JobSignal{Note: note, State: stateStr})
+		emit(scheddomain.JobSignal{Note: note, State: stateStr})
 	}
 }
 

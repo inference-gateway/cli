@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,7 +18,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // JsonlStorage implements ConversationStorage using JSONL files
@@ -924,7 +924,7 @@ func (s *JsonlStorage) jobFilePath(id string) string {
 }
 
 // SaveJob writes the job to disk atomically as YAML.
-func (s *JsonlStorage) SaveJob(_ context.Context, job *domain.ScheduledJob) error {
+func (s *JsonlStorage) SaveJob(_ context.Context, job *scheddomain.ScheduledJob) error {
 	if job == nil {
 		return errors.New("job is nil")
 	}
@@ -952,7 +952,7 @@ func (s *JsonlStorage) SaveJob(_ context.Context, job *domain.ScheduledJob) erro
 }
 
 // LoadJob reads a single job by ID. Returns ErrJobNotFound if the file does not exist.
-func (s *JsonlStorage) LoadJob(_ context.Context, id string) (*domain.ScheduledJob, error) {
+func (s *JsonlStorage) LoadJob(_ context.Context, id string) (*scheddomain.ScheduledJob, error) {
 	if id == "" {
 		return nil, errors.New("job ID is required")
 	}
@@ -963,7 +963,7 @@ func (s *JsonlStorage) LoadJob(_ context.Context, id string) (*domain.ScheduledJ
 		}
 		return nil, fmt.Errorf("failed to read job %s: %w", id, err)
 	}
-	job := &domain.ScheduledJob{}
+	job := &scheddomain.ScheduledJob{}
 	if err := yaml.Unmarshal(data, job); err != nil {
 		return nil, fmt.Errorf("failed to parse job %s: %w", id, err)
 	}
@@ -971,7 +971,7 @@ func (s *JsonlStorage) LoadJob(_ context.Context, id string) (*domain.ScheduledJ
 }
 
 // ListJobs returns all jobs sorted by CreatedAt ascending.
-func (s *JsonlStorage) ListJobs(_ context.Context) ([]*domain.ScheduledJob, error) {
+func (s *JsonlStorage) ListJobs(_ context.Context) ([]*scheddomain.ScheduledJob, error) {
 	dir := s.schedulesDir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -980,7 +980,7 @@ func (s *JsonlStorage) ListJobs(_ context.Context) ([]*domain.ScheduledJob, erro
 		}
 		return nil, fmt.Errorf("failed to read schedules dir: %w", err)
 	}
-	var jobs []*domain.ScheduledJob
+	var jobs []*scheddomain.ScheduledJob
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
 			continue
@@ -992,7 +992,7 @@ func (s *JsonlStorage) ListJobs(_ context.Context) ([]*domain.ScheduledJob, erro
 		}
 		jobs = append(jobs, job)
 	}
-	slices.SortFunc(jobs, func(a, b *domain.ScheduledJob) int {
+	slices.SortFunc(jobs, func(a, b *scheddomain.ScheduledJob) int {
 		return a.CreatedAt.Compare(b.CreatedAt)
 	})
 	return jobs, nil
@@ -1027,7 +1027,7 @@ func (s *JsonlStorage) runFilePath(sessionID string) string {
 }
 
 // SaveRun writes the run record to disk atomically as YAML.
-func (s *JsonlStorage) SaveRun(_ context.Context, run *domain.RunRecord) error {
+func (s *JsonlStorage) SaveRun(_ context.Context, run *scheddomain.RunRecord) error {
 	if run == nil || run.SessionID == "" {
 		return errors.New("run session ID is required")
 	}
@@ -1052,7 +1052,7 @@ func (s *JsonlStorage) SaveRun(_ context.Context, run *domain.RunRecord) error {
 }
 
 // ListRuns returns run records sorted by StartedAt descending.
-func (s *JsonlStorage) ListRuns(_ context.Context, jobID string) ([]*domain.RunRecord, error) {
+func (s *JsonlStorage) ListRuns(_ context.Context, jobID string) ([]*scheddomain.RunRecord, error) {
 	entries, err := os.ReadDir(s.runsDir())
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -1060,7 +1060,7 @@ func (s *JsonlStorage) ListRuns(_ context.Context, jobID string) ([]*domain.RunR
 		}
 		return nil, fmt.Errorf("failed to read runs dir: %w", err)
 	}
-	var runs []*domain.RunRecord
+	var runs []*scheddomain.RunRecord
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
 			continue
@@ -1069,7 +1069,7 @@ func (s *JsonlStorage) ListRuns(_ context.Context, jobID string) ([]*domain.RunR
 		if err != nil {
 			continue
 		}
-		run := &domain.RunRecord{}
+		run := &scheddomain.RunRecord{}
 		if err := yaml.Unmarshal(data, run); err != nil {
 			continue
 		}
@@ -1078,7 +1078,7 @@ func (s *JsonlStorage) ListRuns(_ context.Context, jobID string) ([]*domain.RunR
 		}
 		runs = append(runs, run)
 	}
-	slices.SortFunc(runs, func(a, b *domain.RunRecord) int {
+	slices.SortFunc(runs, func(a, b *scheddomain.RunRecord) int {
 		return b.StartedAt.Compare(a.StartedAt)
 	})
 	return runs, nil

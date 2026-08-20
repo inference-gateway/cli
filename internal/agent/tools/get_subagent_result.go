@@ -3,12 +3,12 @@ package tools
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // GetSubagentResultTool returns the latest output of an interactive subagent by
@@ -16,12 +16,12 @@ import (
 // It is the subagent analogue of BashOutput.
 type GetSubagentResultTool struct {
 	config  *config.Config
-	tracker domain.SubagentTracker
+	tracker scheddomain.SubagentTracker
 }
 
 // NewGetSubagentResultTool creates a new GetSubagentResult tool over the
 // session's SubagentTracker.
-func NewGetSubagentResultTool(cfg *config.Config, tracker domain.SubagentTracker) *GetSubagentResultTool {
+func NewGetSubagentResultTool(cfg *config.Config, tracker scheddomain.SubagentTracker) *GetSubagentResultTool {
 	return &GetSubagentResultTool{config: cfg, tracker: tracker}
 }
 
@@ -65,7 +65,7 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 		}, nil
 	}
 
-	if s.Status == domain.SubagentRunning {
+	if s.Status == scheddomain.SubagentRunning {
 		return &agentdomain.ToolExecutionResult{
 			ToolName:  "GetSubagentResult",
 			Arguments: args,
@@ -77,7 +77,7 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 	// A completed interactive subagent: return its real last assistant message
 	// from the result file (its chat wrote it on turn completion). The pane is
 	// never scraped - its TUI chrome is noise - so output is "" if none was written.
-	if s.Mode == domain.SubagentModeInteractive {
+	if s.Mode == scheddomain.SubagentModeInteractive {
 		return &agentdomain.ToolExecutionResult{
 			ToolName:  "GetSubagentResult",
 			Arguments: args,

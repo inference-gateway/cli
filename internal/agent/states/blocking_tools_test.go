@@ -1,7 +1,8 @@
-package states
+package states_test
 
 import (
 	"fmt"
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	"strings"
 	"testing"
 
@@ -15,15 +16,15 @@ func requireAllApproval(*sdk.ChatCompletionMessageToolCall, bool) bool { return 
 // TestBlockingToolsState_GatedToolsAreRejected verifies that with no approver
 // reachable every gated tool is turned into a rejected "Blocked:" tool result
 // (appended to ToolResults, the conversation, and storage in tool-call order)
-// and the batch ends with LastToolFailed set and AllToolsProcessedEvent.
+// and the batch ends with LastToolFailed set and states.AllToolsProcessedEvent.
 func TestBlockingToolsState_GatedToolsAreRejected(t *testing.T) {
 	f := newStateFixture()
 	*f.ctx.CurrentToolCalls = makeTools(2)
 	f.ctx.ShouldRequireApproval = requireAllApproval
-	s := NewBlockingToolsState(f.ctx)
-	assert.Equal(t, StateBlockingTools, s.Name())
+	s := states.NewBlockingToolsState(f.ctx)
+	assert.Equal(t, states.StateBlockingTools, s.Name())
 
-	require.NoError(t, s.Handle(MessageReceivedEvent{}))
+	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
 	waitForAllToolsProcessed(t, f.events)
 	f.ctx.WaitGroup.Wait()
 
@@ -53,9 +54,9 @@ func TestBlockingToolsState_MixedBatchRunsNonGatedTools(t *testing.T) {
 	f.ctx.ShouldRequireApproval = func(tc *sdk.ChatCompletionMessageToolCall, _ bool) bool {
 		return tc.ID == "call-0"
 	}
-	s := NewBlockingToolsState(f.ctx)
+	s := states.NewBlockingToolsState(f.ctx)
 
-	require.NoError(t, s.Handle(MessageReceivedEvent{}))
+	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
 	waitForAllToolsProcessed(t, f.events)
 	f.ctx.WaitGroup.Wait()
 
@@ -79,15 +80,15 @@ func TestBlockingToolsState_MixedBatchRunsNonGatedTools(t *testing.T) {
 
 // TestBlockingToolsState_CancelledSessionSkipsBatch verifies a cancelled
 // session context skips the whole batch but still emits
-// AllToolsProcessedEvent so the loop can wind down.
+// states.AllToolsProcessedEvent so the loop can wind down.
 func TestBlockingToolsState_CancelledSessionSkipsBatch(t *testing.T) {
 	f := newStateFixture()
 	*f.ctx.CurrentToolCalls = makeTools(2)
 	f.ctx.ShouldRequireApproval = requireAllApproval
 	f.cancelSession()
-	s := NewBlockingToolsState(f.ctx)
+	s := states.NewBlockingToolsState(f.ctx)
 
-	require.NoError(t, s.Handle(MessageReceivedEvent{}))
+	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
 	waitForAllToolsProcessed(t, f.events)
 	f.ctx.WaitGroup.Wait()
 
@@ -96,18 +97,18 @@ func TestBlockingToolsState_CancelledSessionSkipsBatch(t *testing.T) {
 }
 
 // TestBlockingToolsState_AllProcessedRoutesToPostToolExecution verifies the
-// AllToolsProcessedEvent leg: transition to PostToolExecution and re-emit, or
+// states.AllToolsProcessedEvent leg: transition to PostToolExecution and re-emit, or
 // surface a failed transition.
 func TestBlockingToolsState_AllProcessedRoutesToPostToolExecution(t *testing.T) {
 	tests := []struct {
 		name          string
 		transitionErr error
 		wantErr       bool
-		wantEvents    []AgentEvent
+		wantEvents    []states.AgentEvent
 	}{
 		{
 			name:       "advances to post tool execution",
-			wantEvents: []AgentEvent{MessageReceivedEvent{}},
+			wantEvents: []states.AgentEvent{states.MessageReceivedEvent{}},
 		},
 		{
 			name:          "transition failure is returned",
@@ -119,16 +120,16 @@ func TestBlockingToolsState_AllProcessedRoutesToPostToolExecution(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			f := newStateFixture()
 			f.sm.TransitionReturns(tt.transitionErr)
-			s := NewBlockingToolsState(f.ctx)
+			s := states.NewBlockingToolsState(f.ctx)
 
-			err := s.Handle(AllToolsProcessedEvent{})
+			err := s.Handle(states.AllToolsProcessedEvent{})
 
 			if tt.wantErr {
 				assert.ErrorIs(t, err, errBoom)
 			} else {
 				assert.NoError(t, err)
 			}
-			assertTransitions(t, f.sm, StatePostToolExecution)
+			assertTransitions(t, f.sm, states.StatePostToolExecution)
 			assertEvents(t, f.events, tt.wantEvents...)
 		})
 	}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -91,7 +92,7 @@ func newInputRoutingTestApp(t *testing.T, view domain.ViewState, draft string) (
 	}
 
 	modelService := &convmocks.FakeModelService{}
-	inputView := components.NewInputViewWithName(modelService, t.TempDir(), domain.SubagentHistoryMemoryOnly, nil)
+	inputView := components.NewInputViewWithName(modelService, t.TempDir(), scheddomain.SubagentHistoryMemoryOnly, nil)
 	inputView.SetText(draft)
 	messageQueue := &convmocks.FakeMessageQueue{}
 	messageQueue.IsEmptyReturns(true)

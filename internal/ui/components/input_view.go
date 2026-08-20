@@ -3,6 +3,7 @@ package components
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"maps"
 	"os/exec"
 	"strings"
@@ -100,7 +101,7 @@ func NewInputViewWithName(modelService convdomain.ModelService, configDir, name 
 
 	var historyManager *history.HistoryManager
 	switch {
-	case name == domain.SubagentHistoryMemoryOnly:
+	case name == scheddomain.SubagentHistoryMemoryOnly:
 		historyManager = history.NewMemoryOnlyHistoryManager(maxInMemoryHistory)
 	case store != nil && name == "":
 		historyManager = history.NewHistoryManagerWithProvider(maxInMemoryHistory, history.NewStoreShellHistory(store))

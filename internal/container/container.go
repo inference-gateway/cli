@@ -3,6 +3,8 @@ package container
 import (
 	"context"
 	"fmt"
+	scheduler "github.com/inference-gateway/cli/internal/scheduler"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"net"
 	"net/http"
 	"os"
@@ -34,6 +36,8 @@ import (
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
+	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 	services "github.com/inference-gateway/cli/internal/services"
 	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
 	approvalcoord "github.com/inference-gateway/cli/internal/services/approvalcoord"
@@ -41,9 +45,7 @@ import (
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
 	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	githubissues "github.com/inference-gateway/cli/internal/services/githubissues"
-	githubscheduler "github.com/inference-gateway/cli/internal/services/githubscheduler"
 	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
-	jobs "github.com/inference-gateway/cli/internal/services/jobs"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -109,11 +111,11 @@ type ServiceContainer struct {
 	messageQueue           convdomain.MessageQueue
 	// backgroundTaskRegistry is the single unified tracker for both A2A
 	// tasks and background bash shells. The narrower agentdomain.A2ATaskTracker
-	// and domain.ShellTracker views are accessed via the same instance.
-	backgroundTaskRegistry domain.BackgroundTaskRegistry
+	// and scheddomain.ShellTracker views are accessed via the same instance.
+	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	jobSupervisor          *jobs.Supervisor
-	taskRetentionService   domain.TaskRetentionService
-	backgroundTaskService  domain.BackgroundTaskService
+	taskRetentionService   scheddomain.TaskRetentionService
+	backgroundTaskService  scheddomain.BackgroundTaskService
 	gatewayManager         GatewayManager
 	mockGateway            *http.Server
 	agentManager           agentdomain.AgentManager
@@ -123,8 +125,8 @@ type ServiceContainer struct {
 
 	// Background services
 	titleGenerator         *conversation.ConversationTitleGenerator
-	backgroundJobManager   *services.BackgroundJobManager
-	backgroundShellService *services.BackgroundShellService
+	backgroundJobManager   *scheduler.BackgroundJobManager
+	backgroundShellService *scheduler.BackgroundShellService
 	memoryBackend          domain.MemoryBackend
 	storage                storage.ConversationStorage
 	stores                 *storage.Stores
@@ -550,7 +552,7 @@ func (c *ServiceContainer) initializeStorageBackend(
 
 	titleClient := c.createRawSDKClient()
 	c.titleGenerator = conversation.NewConversationTitleGenerator(titleClient, stores.Conversations, c.config)
-	c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
+	c.backgroundJobManager = scheduler.NewBackgroundJobManager(c.titleGenerator, c.config)
 
 	persistentRepo.SetTitleGenerator(c.titleGenerator)
 	persistentRepo.SetA2ATaskTracker(c.backgroundTaskRegistry)
@@ -603,13 +605,13 @@ func (c *ServiceContainer) initializeStateManager() {
 func (c *ServiceContainer) initializeServices() {
 	if c.config.IsA2AToolsEnabled() {
 		maxTaskRetention := c.config.A2A.Task.CompletedTaskRetention
-		c.taskRetentionService = services.NewTaskRetentionService(maxTaskRetention)
+		c.taskRetentionService = scheduler.NewTaskRetentionService(maxTaskRetention)
 
 		if c.jobSupervisor != nil {
 			c.jobSupervisor.SetTaskRetention(c.taskRetentionService)
 		}
 
-		c.backgroundTaskService = services.NewBackgroundTaskService(c.backgroundTaskRegistry, c.jobSupervisor)
+		c.backgroundTaskService = scheduler.NewBackgroundTaskService(c.backgroundTaskRegistry, c.jobSupervisor)
 	}
 
 	c.initializeChatOrchestrationServices()
@@ -844,18 +846,18 @@ func (c *ServiceContainer) GetMessageQueue() convdomain.MessageQueue {
 // GetBackgroundTaskRegistry returns the unified background task registry
 // (the single tracker that owns both A2A tasks and background bash shells).
 // Callers that need only the narrower A2A or shell view can use the
-// returned value as a agentdomain.A2ATaskTracker or domain.ShellTracker.
-func (c *ServiceContainer) GetBackgroundTaskRegistry() domain.BackgroundTaskRegistry {
+// returned value as a agentdomain.A2ATaskTracker or scheddomain.ShellTracker.
+func (c *ServiceContainer) GetBackgroundTaskRegistry() scheddomain.BackgroundTaskRegistry {
 	return c.backgroundTaskRegistry
 }
 
 // GetTaskRetentionService returns the task retention service (may be nil if A2A is not enabled)
-func (c *ServiceContainer) GetTaskRetentionService() domain.TaskRetentionService {
+func (c *ServiceContainer) GetTaskRetentionService() scheddomain.TaskRetentionService {
 	return c.taskRetentionService
 }
 
 // GetBackgroundTaskService returns the background task service (may be nil if A2A is not enabled)
-func (c *ServiceContainer) GetBackgroundTaskService() domain.BackgroundTaskService {
+func (c *ServiceContainer) GetBackgroundTaskService() scheddomain.BackgroundTaskService {
 	return c.backgroundTaskService
 }
 
@@ -959,7 +961,7 @@ func (c *ServiceContainer) createRawSDKClient() sdk.Client {
 }
 
 // GetBackgroundJobManager returns the background job manager
-func (c *ServiceContainer) GetBackgroundJobManager() *services.BackgroundJobManager {
+func (c *ServiceContainer) GetBackgroundJobManager() *scheduler.BackgroundJobManager {
 	return c.backgroundJobManager
 }
 
@@ -983,10 +985,10 @@ func (c *ServiceContainer) GetGatewayManager() GatewayManager {
 }
 
 // BackgroundShellService returns the background shell service
-func (c *ServiceContainer) BackgroundShellService() *services.BackgroundShellService {
+func (c *ServiceContainer) BackgroundShellService() *scheduler.BackgroundShellService {
 	if c.backgroundShellService == nil {
 		c.ensureBackgroundTaskRegistry()
-		c.backgroundShellService = services.NewBackgroundShellService(
+		c.backgroundShellService = scheduler.NewBackgroundShellService(
 			c.backgroundTaskRegistry,
 			c.jobSupervisor,
 			c.config,
@@ -1005,13 +1007,13 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 		return
 	}
 	c.jobSupervisor = jobs.NewSupervisor(c.messageQueue, c.conversationRepo, c.uiNotifier)
-	c.jobSupervisor.SetRetentionCount(domain.JobKindShell, c.config.Tools.Bash.BackgroundShells.CompletedRetention)
-	c.jobSupervisor.SetRetentionCount(domain.JobKindSubagent, c.config.Tools.Agent.CompletedRetention)
-	c.jobSupervisor.SetRetentionCount(domain.JobKindA2A, c.config.A2A.Task.CompletedTaskRetention)
+	c.jobSupervisor.SetRetentionCount(scheddomain.JobKindShell, c.config.Tools.Bash.BackgroundShells.CompletedRetention)
+	c.jobSupervisor.SetRetentionCount(scheddomain.JobKindSubagent, c.config.Tools.Agent.CompletedRetention)
+	c.jobSupervisor.SetRetentionCount(scheddomain.JobKindA2A, c.config.A2A.Task.CompletedTaskRetention)
 	retention := time.Duration(c.config.Tools.Bash.BackgroundShells.RetentionMinutes) * time.Minute
 	c.jobSupervisor.Start(10*time.Minute, retention)
 	maxConcurrent := c.config.Tools.Bash.BackgroundShells.MaxConcurrent
-	c.backgroundTaskRegistry = services.NewBackgroundTaskRegistry(maxConcurrent, c.jobSupervisor)
+	c.backgroundTaskRegistry = scheduler.NewBackgroundTaskRegistry(maxConcurrent, c.jobSupervisor)
 }
 
 // Shutdown gracefully shuts down the service container and its resources

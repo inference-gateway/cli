@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"slices"
 	"strconv"
 	"time"
@@ -11,7 +12,6 @@ import (
 	redis "github.com/go-redis/redis/v8"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // RedisStorage implements ConversationStorage using Redis
@@ -497,7 +497,7 @@ func (s *RedisStorage) scheduledJobKey(id string) string {
 
 // SaveJob creates or updates a scheduled job. The configured conversation TTL
 // deliberately does not apply - a scheduled job must not silently expire.
-func (s *RedisStorage) SaveJob(ctx context.Context, job *domain.ScheduledJob) error {
+func (s *RedisStorage) SaveJob(ctx context.Context, job *scheddomain.ScheduledJob) error {
 	data, err := json.Marshal(job)
 	if err != nil {
 		return fmt.Errorf("marshal job %s: %w", job.ID, err)
@@ -506,7 +506,7 @@ func (s *RedisStorage) SaveJob(ctx context.Context, job *domain.ScheduledJob) er
 }
 
 // LoadJob returns a job by ID.
-func (s *RedisStorage) LoadJob(ctx context.Context, id string) (*domain.ScheduledJob, error) {
+func (s *RedisStorage) LoadJob(ctx context.Context, id string) (*scheddomain.ScheduledJob, error) {
 	data, err := s.client.Get(ctx, s.scheduledJobKey(id)).Bytes()
 	if err != nil {
 		if err == redis.Nil {
@@ -514,7 +514,7 @@ func (s *RedisStorage) LoadJob(ctx context.Context, id string) (*domain.Schedule
 		}
 		return nil, fmt.Errorf("get job %s: %w", id, err)
 	}
-	var job domain.ScheduledJob
+	var job scheddomain.ScheduledJob
 	if err := json.Unmarshal(data, &job); err != nil {
 		return nil, fmt.Errorf("unmarshal job %s: %w", id, err)
 	}
@@ -533,7 +533,7 @@ func (s *RedisStorage) scanKeys(ctx context.Context, pattern string) ([]string, 
 }
 
 // ListJobs returns all jobs sorted by CreatedAt ascending.
-func (s *RedisStorage) ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error) {
+func (s *RedisStorage) ListJobs(ctx context.Context) ([]*scheddomain.ScheduledJob, error) {
 	keys, err := s.scanKeys(ctx, redisScheduledJobsKey+":*")
 	if err != nil {
 		return nil, fmt.Errorf("list job keys: %w", err)
@@ -549,19 +549,19 @@ func (s *RedisStorage) ListJobs(ctx context.Context) ([]*domain.ScheduledJob, er
 	if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
 		return nil, fmt.Errorf("load jobs: %w", err)
 	}
-	var jobs []*domain.ScheduledJob
+	var jobs []*scheddomain.ScheduledJob
 	for _, cmd := range cmds {
 		data, err := cmd.Bytes()
 		if err != nil {
 			continue
 		}
-		var job domain.ScheduledJob
+		var job scheddomain.ScheduledJob
 		if err := json.Unmarshal(data, &job); err != nil {
 			continue
 		}
 		jobs = append(jobs, &job)
 	}
-	slices.SortFunc(jobs, func(a, b *domain.ScheduledJob) int {
+	slices.SortFunc(jobs, func(a, b *scheddomain.ScheduledJob) int {
 		return a.CreatedAt.Compare(b.CreatedAt)
 	})
 	return jobs, nil
@@ -592,7 +592,7 @@ func (s *RedisStorage) scheduledRunKey(sessionID string) string {
 
 // SaveRun creates or updates a run record. No TTL - retention is handled by
 // PruneRuns so records don't silently expire mid-run.
-func (s *RedisStorage) SaveRun(ctx context.Context, run *domain.RunRecord) error {
+func (s *RedisStorage) SaveRun(ctx context.Context, run *scheddomain.RunRecord) error {
 	data, err := json.Marshal(run)
 	if err != nil {
 		return fmt.Errorf("marshal run %s: %w", run.SessionID, err)
@@ -601,7 +601,7 @@ func (s *RedisStorage) SaveRun(ctx context.Context, run *domain.RunRecord) error
 }
 
 // ListRuns returns run records sorted by StartedAt descending.
-func (s *RedisStorage) ListRuns(ctx context.Context, jobID string) ([]*domain.RunRecord, error) {
+func (s *RedisStorage) ListRuns(ctx context.Context, jobID string) ([]*scheddomain.RunRecord, error) {
 	keys, err := s.scanKeys(ctx, redisScheduledRunsKey+":*")
 	if err != nil {
 		return nil, fmt.Errorf("list run keys: %w", err)
@@ -617,13 +617,13 @@ func (s *RedisStorage) ListRuns(ctx context.Context, jobID string) ([]*domain.Ru
 	if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
 		return nil, fmt.Errorf("load runs: %w", err)
 	}
-	var runs []*domain.RunRecord
+	var runs []*scheddomain.RunRecord
 	for _, cmd := range cmds {
 		data, err := cmd.Bytes()
 		if err != nil {
 			continue
 		}
-		var run domain.RunRecord
+		var run scheddomain.RunRecord
 		if err := json.Unmarshal(data, &run); err != nil {
 			continue
 		}
@@ -632,7 +632,7 @@ func (s *RedisStorage) ListRuns(ctx context.Context, jobID string) ([]*domain.Ru
 		}
 		runs = append(runs, &run)
 	}
-	slices.SortFunc(runs, func(a, b *domain.RunRecord) int {
+	slices.SortFunc(runs, func(a, b *scheddomain.RunRecord) int {
 		return b.StartedAt.Compare(a.StartedAt)
 	})
 	return runs, nil

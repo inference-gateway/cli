@@ -3,12 +3,12 @@ package storage
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"slices"
 	"sync"
 	"time"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // MemoryStorage implements ConversationStorage using in-memory storage
@@ -16,8 +16,8 @@ import (
 type MemoryStorage struct {
 	conversations map[string]conversationData
 	sessionGroups map[string]SessionGroupEntry
-	scheduledJobs map[string]*domain.ScheduledJob
-	scheduledRuns map[string]*domain.RunRecord
+	scheduledJobs map[string]*scheddomain.ScheduledJob
+	scheduledRuns map[string]*scheddomain.RunRecord
 	plans         map[string]*PlanRecord
 	shellHistory  []string
 	mutex         sync.RWMutex
@@ -217,11 +217,11 @@ func (m *MemoryStorage) Health(ctx context.Context) error {
 // ---------------------------------------------------------------------------
 
 // SaveJob creates or updates a scheduled job.
-func (m *MemoryStorage) SaveJob(ctx context.Context, job *domain.ScheduledJob) error {
+func (m *MemoryStorage) SaveJob(ctx context.Context, job *scheddomain.ScheduledJob) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if m.scheduledJobs == nil {
-		m.scheduledJobs = make(map[string]*domain.ScheduledJob)
+		m.scheduledJobs = make(map[string]*scheddomain.ScheduledJob)
 	}
 	cp := *job
 	m.scheduledJobs[job.ID] = &cp
@@ -229,7 +229,7 @@ func (m *MemoryStorage) SaveJob(ctx context.Context, job *domain.ScheduledJob) e
 }
 
 // LoadJob returns a copy of a job by ID, so callers can't mutate stored state.
-func (m *MemoryStorage) LoadJob(ctx context.Context, id string) (*domain.ScheduledJob, error) {
+func (m *MemoryStorage) LoadJob(ctx context.Context, id string) (*scheddomain.ScheduledJob, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	job, ok := m.scheduledJobs[id]
@@ -241,15 +241,15 @@ func (m *MemoryStorage) LoadJob(ctx context.Context, id string) (*domain.Schedul
 }
 
 // ListJobs returns copies of all jobs sorted by CreatedAt ascending.
-func (m *MemoryStorage) ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error) {
+func (m *MemoryStorage) ListJobs(ctx context.Context) ([]*scheddomain.ScheduledJob, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	var jobs []*domain.ScheduledJob
+	var jobs []*scheddomain.ScheduledJob
 	for _, job := range m.scheduledJobs {
 		cp := *job
 		jobs = append(jobs, &cp)
 	}
-	slices.SortFunc(jobs, func(a, b *domain.ScheduledJob) int {
+	slices.SortFunc(jobs, func(a, b *scheddomain.ScheduledJob) int {
 		return a.CreatedAt.Compare(b.CreatedAt)
 	})
 	return jobs, nil
@@ -271,11 +271,11 @@ func (m *MemoryStorage) DeleteJob(ctx context.Context, id string) error {
 // ---------------------------------------------------------------------------
 
 // SaveRun creates or updates a run record.
-func (m *MemoryStorage) SaveRun(ctx context.Context, run *domain.RunRecord) error {
+func (m *MemoryStorage) SaveRun(ctx context.Context, run *scheddomain.RunRecord) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if m.scheduledRuns == nil {
-		m.scheduledRuns = make(map[string]*domain.RunRecord)
+		m.scheduledRuns = make(map[string]*scheddomain.RunRecord)
 	}
 	cp := *run
 	m.scheduledRuns[run.SessionID] = &cp
@@ -283,10 +283,10 @@ func (m *MemoryStorage) SaveRun(ctx context.Context, run *domain.RunRecord) erro
 }
 
 // ListRuns returns copies of run records sorted by StartedAt descending.
-func (m *MemoryStorage) ListRuns(ctx context.Context, jobID string) ([]*domain.RunRecord, error) {
+func (m *MemoryStorage) ListRuns(ctx context.Context, jobID string) ([]*scheddomain.RunRecord, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	var runs []*domain.RunRecord
+	var runs []*scheddomain.RunRecord
 	for _, run := range m.scheduledRuns {
 		if jobID != "" && run.JobID != jobID {
 			continue
@@ -294,7 +294,7 @@ func (m *MemoryStorage) ListRuns(ctx context.Context, jobID string) ([]*domain.R
 		cp := *run
 		runs = append(runs, &cp)
 	}
-	slices.SortFunc(runs, func(a, b *domain.RunRecord) int {
+	slices.SortFunc(runs, func(a, b *scheddomain.RunRecord) int {
 		return b.StartedAt.Compare(a.StartedAt)
 	})
 	return runs, nil

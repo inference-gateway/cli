@@ -3,6 +3,7 @@ package chatcompletion
 import (
 	"encoding/json"
 	"errors"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,7 +12,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
@@ -28,13 +28,13 @@ func runnerWithMessages(entries []convdomain.ConversationEntry) *Runner {
 	return &Runner{conversationRepo: repo}
 }
 
-func readResultFile(t *testing.T, path string) domain.SubagentResultFile {
+func readResultFile(t *testing.T, path string) scheddomain.SubagentResultFile {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("expected a result file: %v", err)
 	}
-	var rf domain.SubagentResultFile
+	var rf scheddomain.SubagentResultFile
 	if err := json.Unmarshal(data, &rf); err != nil {
 		t.Fatalf("result file not valid JSON: %v", err)
 	}
@@ -46,7 +46,7 @@ func readResultFile(t *testing.T, path string) domain.SubagentResultFile {
 func TestRunner_writeSubagentResultFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "result.json")
-	t.Setenv(domain.EnvSubagentResultFile, path)
+	t.Setenv(scheddomain.EnvSubagentResultFile, path)
 
 	r := runnerWithMessages(assistantEntries("the answer"))
 	r.writeSubagentResultFile(agentdomain.ChatCompleteEvent{})
@@ -73,7 +73,7 @@ func TestRunner_writeSubagentResultFile(t *testing.T) {
 func TestRunner_writeSubagentResultFileError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "result.json")
-	t.Setenv(domain.EnvSubagentResultFile, path)
+	t.Setenv(scheddomain.EnvSubagentResultFile, path)
 
 	runnerWithMessages(assistantEntries("partial")).writeSubagentResultFileError(errors.New("boom"))
 	rf := readResultFile(t, path)
@@ -87,6 +87,6 @@ func TestRunner_writeSubagentResultFileError(t *testing.T) {
 
 // A normal chat (no env var) writes nothing.
 func TestRunner_writeSubagentResultFile_EnvUnset(t *testing.T) {
-	t.Setenv(domain.EnvSubagentResultFile, "")
+	t.Setenv(scheddomain.EnvSubagentResultFile, "")
 	runnerWithMessages(assistantEntries("x")).writeSubagentResultFile(agentdomain.ChatCompleteEvent{})
 }

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,9 +59,9 @@ type ChatApplication struct {
 	themeService           domain.ThemeService
 	toolRegistry           *tools.Registry
 	mcpManager             domain.MCPManager
-	taskRetentionService   domain.TaskRetentionService
-	backgroundTaskService  domain.BackgroundTaskService
-	backgroundTaskRegistry domain.BackgroundTaskRegistry
+	taskRetentionService   scheddomain.TaskRetentionService
+	backgroundTaskService  scheddomain.BackgroundTaskService
+	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 
 	// Chat orchestration services
 	a2aTaskCoordinator       ui.A2ATaskCoordinator
@@ -147,8 +148,8 @@ func NewChatApplication(
 	versionInfo domain.VersionInfo,
 	agentManager agentdomain.AgentManager,
 	agentService agentdomain.AgentService,
-	backgroundTaskService domain.BackgroundTaskService,
-	backgroundTaskRegistry domain.BackgroundTaskRegistry,
+	backgroundTaskService scheddomain.BackgroundTaskService,
+	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry,
 	conversationOptimizer convdomain.ConversationOptimizer,
 	conversationRepo convdomain.ConversationRepository,
 	fileService domain.FileService,
@@ -162,7 +163,7 @@ func NewChatApplication(
 	pricingService convdomain.PricingService,
 	sessionRolloverManager *conversation.SessionRolloverManager,
 	stateManager *services.StateManager,
-	taskRetentionService domain.TaskRetentionService,
+	taskRetentionService scheddomain.TaskRetentionService,
 	themeService domain.ThemeService,
 	toolService agentdomain.ToolService,
 	shortcutRegistry *shortcuts.Registry,
@@ -236,7 +237,7 @@ func NewChatApplication(
 		cv.SetAgentModelResolver(buildAgentModelResolver())
 	}
 
-	historyName := os.Getenv(domain.EnvSubagentHistoryName)
+	historyName := os.Getenv(scheddomain.EnvSubagentHistoryName)
 	app.inputView = factory.CreateInputViewWithName(app.modelService, configDir, historyName, shellHistoryStore)
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetThemeService(app.themeService)

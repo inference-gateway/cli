@@ -3,23 +3,23 @@ package tools
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	"github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	"github.com/inference-gateway/cli/internal/domain"
 )
 
 // BashOutputTool retrieves output from background bash shells
 type BashOutputTool struct {
 	config       *config.Config
-	shellService domain.BackgroundShellService
+	shellService scheddomain.BackgroundShellService
 	enabled      bool
 }
 
 // NewBashOutputTool creates a new BashOutput tool
-func NewBashOutputTool(cfg *config.Config, shellService domain.BackgroundShellService) *BashOutputTool {
+func NewBashOutputTool(cfg *config.Config, shellService scheddomain.BackgroundShellService) *BashOutputTool {
 	return &BashOutputTool{
 		config:       cfg,
 		shellService: shellService,
@@ -66,7 +66,7 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*age
 
 	var output string
 	var newOffset int64
-	var state domain.ShellState
+	var state scheddomain.ShellState
 	var err error
 
 	if filter != "" {
@@ -94,21 +94,21 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*age
 
 	var statusMsg string
 	switch state {
-	case domain.ShellStateRunning:
+	case scheddomain.ShellStateRunning:
 		statusMsg = "Shell is still running"
-	case domain.ShellStateCompleted:
+	case scheddomain.ShellStateCompleted:
 		exitCode := 0
 		if shell.ExitCode != nil {
 			exitCode = *shell.ExitCode
 		}
 		statusMsg = fmt.Sprintf("Shell completed with exit code %d", exitCode)
-	case domain.ShellStateFailed:
+	case scheddomain.ShellStateFailed:
 		exitCode := -1
 		if shell.ExitCode != nil {
 			exitCode = *shell.ExitCode
 		}
 		statusMsg = fmt.Sprintf("Shell failed with exit code %d", exitCode)
-	case domain.ShellStateCancelled:
+	case scheddomain.ShellStateCancelled:
 		statusMsg = "Shell was cancelled"
 	}
 
@@ -119,7 +119,7 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*age
 		"status":         statusMsg,
 		"output":         output,
 		"output_bytes":   newOffset,
-		"has_more":       state == domain.ShellStateRunning,
+		"has_more":       state == scheddomain.ShellStateRunning,
 		"filter_applied": filter != "",
 	}
 

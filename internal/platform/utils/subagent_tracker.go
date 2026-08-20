@@ -2,28 +2,27 @@ package utils
 
 import (
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"sync"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// subagentTracker implements domain.SubagentTracker with a flat map guarded by
+// subagentTracker implements scheddomain.SubagentTracker with a flat map guarded by
 // an RWMutex (modeled on shellTracker). Concurrency limits are enforced by the
 // Agent tool, so no max is kept here.
 type subagentTracker struct {
-	subagents map[string]*domain.SubagentState
+	subagents map[string]*scheddomain.SubagentState
 	mutex     sync.RWMutex
 }
 
 // NewSubagentTracker creates an empty subagent tracker.
-func NewSubagentTracker() domain.SubagentTracker {
+func NewSubagentTracker() scheddomain.SubagentTracker {
 	return &subagentTracker{
-		subagents: make(map[string]*domain.SubagentState),
+		subagents: make(map[string]*scheddomain.SubagentState),
 	}
 }
 
 // AddSubagent registers a running subagent. Returns an error if the ID exists.
-func (t *subagentTracker) AddSubagent(state *domain.SubagentState) error {
+func (t *subagentTracker) AddSubagent(state *scheddomain.SubagentState) error {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
@@ -41,7 +40,7 @@ func (t *subagentTracker) AddSubagent(state *domain.SubagentState) error {
 // is returned (not the live map entry) so callers can read mutable fields like
 // Status without racing SetSubagentStatus, which mutates the stored entry under
 // the lock.
-func (t *subagentTracker) GetSubagent(id string) *domain.SubagentState {
+func (t *subagentTracker) GetSubagent(id string) *scheddomain.SubagentState {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 
@@ -55,11 +54,11 @@ func (t *subagentTracker) GetSubagent(id string) *domain.SubagentState {
 
 // GetAllSubagents returns copies of all tracked subagents (see GetSubagent for
 // why copies).
-func (t *subagentTracker) GetAllSubagents() []*domain.SubagentState {
+func (t *subagentTracker) GetAllSubagents() []*scheddomain.SubagentState {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 
-	out := make([]*domain.SubagentState, 0, len(t.subagents))
+	out := make([]*scheddomain.SubagentState, 0, len(t.subagents))
 	for _, s := range t.subagents {
 		cp := *s
 		out = append(out, &cp)
@@ -81,7 +80,7 @@ func (t *subagentTracker) RemoveSubagent(id string) error {
 
 // SetSubagentStatus atomically updates a subagent's status under the tracker's
 // lock. Returns an error if the ID is not tracked.
-func (t *subagentTracker) SetSubagentStatus(id string, status domain.SubagentStatus) error {
+func (t *subagentTracker) SetSubagentStatus(id string, status scheddomain.SubagentStatus) error {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
@@ -100,7 +99,7 @@ func (t *subagentTracker) CountRunningSubagents() int {
 
 	count := 0
 	for _, s := range t.subagents {
-		if s.Status == domain.SubagentRunning {
+		if s.Status == scheddomain.SubagentRunning {
 			count++
 		}
 	}

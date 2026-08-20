@@ -2,6 +2,8 @@ package components
 
 import (
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"regexp"
 	"strings"
 	"testing"
@@ -203,12 +205,12 @@ func TestInputStatusBar_GetBackgroundJobsInfo(t *testing.T) {
 	})
 
 	t.Run("only non-zero kinds are shown", func(t *testing.T) {
-		reg := &domainmocks.FakeBackgroundTaskRegistry{}
-		reg.CountRunningJobsStub = func(kind domain.JobKind) int {
+		reg := &schedmocks.FakeBackgroundTaskRegistry{}
+		reg.CountRunningJobsStub = func(kind scheddomain.JobKind) int {
 			switch kind {
-			case domain.JobKindA2A:
+			case scheddomain.JobKindA2A:
 				return 2
-			case domain.JobKindSubagent:
+			case scheddomain.JobKindSubagent:
 				return 3
 			default:
 				return 0
@@ -225,7 +227,7 @@ func TestInputStatusBar_GetBackgroundJobsInfo(t *testing.T) {
 	})
 
 	t.Run("all zero yields nothing", func(t *testing.T) {
-		reg := &domainmocks.FakeBackgroundTaskRegistry{}
+		reg := &schedmocks.FakeBackgroundTaskRegistry{}
 		reg.CountRunningJobsReturns(0)
 		sb := &InputStatusBar{backgroundTaskRegistry: reg}
 		if got := sb.getBackgroundJobsInfo(); got != "" {
@@ -867,7 +869,7 @@ func newSelectableStatusBar(withJobs bool) *InputStatusBar {
 	}
 
 	if withJobs {
-		registry := &domainmocks.FakeBackgroundTaskRegistry{}
+		registry := &schedmocks.FakeBackgroundTaskRegistry{}
 		registry.CountRunningJobsReturns(2)
 		statusBar.backgroundTaskRegistry = registry
 	}
@@ -963,7 +965,7 @@ func TestInputStatusBar_SelectionClampsWhenIndicatorsDisappear(t *testing.T) {
 		t.Fatalf("precondition failed: expected task management selected, got %v", got)
 	}
 
-	registry := statusBar.backgroundTaskRegistry.(*domainmocks.FakeBackgroundTaskRegistry)
+	registry := statusBar.backgroundTaskRegistry.(*schedmocks.FakeBackgroundTaskRegistry)
 	registry.CountRunningJobsReturns(0)
 
 	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionThemeSelection {

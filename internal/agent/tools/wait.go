@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,7 +17,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -27,11 +27,11 @@ type WaitTool struct {
 	config       *config.Config
 	enabled      bool
 	formatter    agentinfra.BaseFormatter
-	shellService domain.BackgroundShellService
+	shellService scheddomain.BackgroundShellService
 }
 
 // NewWaitTool creates a new Wait tool.
-func NewWaitTool(cfg *config.Config, shellService domain.BackgroundShellService) *WaitTool {
+func NewWaitTool(cfg *config.Config, shellService scheddomain.BackgroundShellService) *WaitTool {
 	return &WaitTool{
 		config:       cfg,
 		enabled:      cfg.Tools.Enabled && cfg.Tools.Wait.Enabled,
@@ -416,7 +416,7 @@ func (t *WaitTool) waitShells(ctx context.Context, args map[string]any) map[stri
 	if len(targetIDs) == 0 && t.shellService != nil {
 		allShells := t.shellService.GetAllShells()
 		for _, s := range allShells {
-			if s.State == domain.ShellStateRunning {
+			if s.State == scheddomain.ShellStateRunning {
 				targetIDs = append(targetIDs, s.ShellID)
 			}
 		}

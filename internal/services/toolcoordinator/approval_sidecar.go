@@ -2,25 +2,24 @@ package toolcoordinator
 
 import (
 	"encoding/json"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"strings"
 
 	sdk "github.com/inference-gateway/sdk"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // writeSubagentApprovalSidecar records that this chat is blocked on a tool
 // approval, so a parent watching an interactive subagent can surface it and relay
-// the decision (see domain.EnvSubagentApprovalFile / ApproveSubagent). It is a
+// the decision (see scheddomain.EnvSubagentApprovalFile / ApproveSubagent). It is a
 // no-op unless this process is an interactive subagent (the env var is set only
 // by the Agent tool's buildChatPaneCommand), so top-level chats are unaffected.
 func writeSubagentApprovalSidecar(toolCall sdk.ChatCompletionMessageToolCall) {
-	path := os.Getenv(domain.EnvSubagentApprovalFile)
+	path := os.Getenv(scheddomain.EnvSubagentApprovalFile)
 	if path == "" {
 		return
 	}
-	data, err := json.Marshal(domain.SubagentApprovalFile{
+	data, err := json.Marshal(scheddomain.SubagentApprovalFile{
 		Awaiting: true,
 		Summary:  subagentApprovalSummary(toolCall),
 	})
@@ -37,7 +36,7 @@ func writeSubagentApprovalSidecar(toolCall sdk.ChatCompletionMessageToolCall) {
 // clearSubagentApprovalSidecar removes the approval sidecar once the prompt
 // resolves. No-op when not running as an interactive subagent.
 func clearSubagentApprovalSidecar() {
-	path := os.Getenv(domain.EnvSubagentApprovalFile)
+	path := os.Getenv(scheddomain.EnvSubagentApprovalFile)
 	if path == "" {
 		return
 	}

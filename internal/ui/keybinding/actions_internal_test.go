@@ -1,6 +1,7 @@
 package keybinding
 
 import (
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"testing"
 	"time"
 
@@ -245,7 +246,7 @@ func newTextareaEditTestCtx(t *testing.T) (*textareaEditTestCtx, *components.Inp
 	}
 
 	modelService := &convmocks.FakeModelService{}
-	input := components.NewInputViewWithName(modelService, t.TempDir(), domain.SubagentHistoryMemoryOnly, nil)
+	input := components.NewInputViewWithName(modelService, t.TempDir(), scheddomain.SubagentHistoryMemoryOnly, nil)
 	if _, cmd := input.Update(tea.FocusMsg{}); cmd != nil {
 		_ = cmd()
 	}

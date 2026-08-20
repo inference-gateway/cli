@@ -2,11 +2,11 @@ package agent
 
 import (
 	"context"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"testing"
 	"time"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // TestWaitForBackgroundTasks covers the headless completion boundary: a run
@@ -14,7 +14,7 @@ import (
 // the queue (or quiesces), and return immediately when nothing is pending.
 func TestWaitForBackgroundTasks(t *testing.T) {
 	t.Run("returns immediately when nothing pending", func(t *testing.T) {
-		registry := &mocks.FakeBackgroundTaskRegistry{}
+		registry := &schedmocks.FakeBackgroundTaskRegistry{}
 		registry.HasPendingReturns(false)
 		s := &AgentServiceImpl{bgRegistry: registry, messageQueue: &convmocks.FakeMessageQueue{}}
 
@@ -28,7 +28,7 @@ func TestWaitForBackgroundTasks(t *testing.T) {
 	})
 
 	t.Run("waits until queue receives a result", func(t *testing.T) {
-		registry := &mocks.FakeBackgroundTaskRegistry{}
+		registry := &schedmocks.FakeBackgroundTaskRegistry{}
 		registry.HasPendingReturns(true)
 		queue := &convmocks.FakeMessageQueue{}
 		queue.IsEmptyReturns(true)
@@ -52,7 +52,7 @@ func TestWaitForBackgroundTasks(t *testing.T) {
 	})
 
 	t.Run("cancellation unblocks", func(t *testing.T) {
-		registry := &mocks.FakeBackgroundTaskRegistry{}
+		registry := &schedmocks.FakeBackgroundTaskRegistry{}
 		registry.HasPendingReturns(true)
 		queue := &convmocks.FakeMessageQueue{}
 		queue.IsEmptyReturns(true)

@@ -7,6 +7,7 @@
 package directexec
 
 import (
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
@@ -31,7 +32,7 @@ type Service struct {
 	conversationRepo       convdomain.ConversationRepository
 	toolService            agentdomain.ToolService
 	stateManager           stateManager
-	backgroundShellService domain.BackgroundShellService
+	backgroundShellService scheddomain.BackgroundShellService
 	listener               ui.ChatEventListener
 
 	bashDetachChan     chan<- struct{}
@@ -47,7 +48,7 @@ type Options struct {
 	ConversationRepo       convdomain.ConversationRepository
 	ToolService            agentdomain.ToolService
 	StateManager           stateManager
-	BackgroundShellService domain.BackgroundShellService
+	BackgroundShellService scheddomain.BackgroundShellService
 	Listener               ui.ChatEventListener
 }
 

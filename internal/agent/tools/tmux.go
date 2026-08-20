@@ -2,15 +2,15 @@ package tools
 
 import (
 	"context"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os/exec"
 	"strings"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // NewPaneInspector returns a pane inspector (a func yielding a
-// domain.PaneObservation) backed by the subagent result file, the approval
+// scheddomain.PaneObservation) backed by the subagent result file, the approval
 // sidecar, and the tmux pane's liveness. The interactive subagent monitor
 // (interactiveSubagentJob) calls it to watch interactive subagents for completion
 // and pending approvals. It NEVER returns pane content as the delivered message -
@@ -18,9 +18,9 @@ import (
 // main conversation; only the result file's last assistant message is delivered.
 // The Screen snapshot it returns is used ONLY for the monitor's idle-by-stability
 // check, never delivered.
-func NewPaneInspector() func(ctx context.Context, paneID, sessionID string) domain.PaneObservation {
-	return func(ctx context.Context, paneID, sessionID string) domain.PaneObservation {
-		obs := domain.PaneObservation{Harvested: readSubagentResultMessage(sessionID)}
+func NewPaneInspector() func(ctx context.Context, paneID, sessionID string) scheddomain.PaneObservation {
+	return func(ctx context.Context, paneID, sessionID string) scheddomain.PaneObservation {
+		obs := scheddomain.PaneObservation{Harvested: readSubagentResultMessage(sessionID)}
 		if summary, awaiting := readSubagentApproval(sessionID); awaiting {
 			obs.AwaitingApproval = true
 			obs.ApprovalSummary = summary

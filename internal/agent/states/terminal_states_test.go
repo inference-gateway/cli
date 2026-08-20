@@ -1,6 +1,7 @@
-package states
+package states_test
 
 import (
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -13,12 +14,12 @@ import (
 func TestTerminalStates_IgnoreAllEvents(t *testing.T) {
 	tests := []struct {
 		name  string
-		build func(ctx *StateContext) StateHandler
-		want  AgentExecutionState
+		build func(ctx *states.StateContext) states.StateHandler
+		want  states.AgentExecutionState
 	}{
-		{"cancelled", NewCancelledState, StateCancelled},
-		{"error", NewErrorState, StateError},
-		{"stopped", NewStoppedState, StateStopped},
+		{"cancelled", states.NewCancelledState, states.StateCancelled},
+		{"error", states.NewErrorState, states.StateError},
+		{"stopped", states.NewStoppedState, states.StateStopped},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -26,11 +27,11 @@ func TestTerminalStates_IgnoreAllEvents(t *testing.T) {
 			s := tt.build(f.ctx)
 			assert.Equal(t, tt.want, s.Name())
 
-			for _, evt := range []AgentEvent{
-				MessageReceivedEvent{},
-				CompletionRequestedEvent{},
-				AllToolsProcessedEvent{},
-				ToolsCompletedEvent{},
+			for _, evt := range []states.AgentEvent{
+				states.MessageReceivedEvent{},
+				states.CompletionRequestedEvent{},
+				states.AllToolsProcessedEvent{},
+				states.ToolsCompletedEvent{},
 			} {
 				assert.NoError(t, s.Handle(evt), "event %T", evt)
 			}

@@ -10,7 +10,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
-	jobs "github.com/inference-gateway/cli/internal/services/jobs"
+	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
@@ -54,7 +54,7 @@ func TestA2AJob_PollsRemoteTaskToCompletion(t *testing.T) {
 	}
 }
 
-// TestA2AJob_RetainedTask covers the domain.TaskRetainer the supervisor calls on
+// TestA2AJob_RetainedTask covers the scheddomain.TaskRetainer the supervisor calls on
 // finish: completed/failed carry the full *adk.Task; canceled does not, so the task
 // is reconstructed from the polling state and reported state; input-required and
 // non-A2A results opt out. The asserted fields (state, ids, agent URL, started-at)

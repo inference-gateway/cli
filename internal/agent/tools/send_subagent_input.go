@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"strings"
 
@@ -10,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // allowedSubagentKeys is the set of named tmux keys SendSubagentInput may emit.
@@ -30,14 +30,14 @@ const allowedSubagentKeyList = "Enter, Escape, Tab, Space, BSpace, Up, Down, Lef
 // notified when the subagent finishes the resulting turn (no polling).
 type SendSubagentInputTool struct {
 	config    *config.Config
-	tracker   domain.SubagentTracker
+	tracker   scheddomain.SubagentTracker
 	sendKeys  func(ctx context.Context, paneID, text string, keys []string) error
 	paneState func(ctx context.Context, paneID string) paneState
 }
 
 // NewSendSubagentInputTool creates a new SendSubagentInput tool over the
 // session's SubagentTracker.
-func NewSendSubagentInputTool(cfg *config.Config, tracker domain.SubagentTracker) *SendSubagentInputTool {
+func NewSendSubagentInputTool(cfg *config.Config, tracker scheddomain.SubagentTracker) *SendSubagentInputTool {
 	return &SendSubagentInputTool{
 		config:    cfg,
 		tracker:   tracker,
@@ -93,7 +93,7 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 	if s == nil {
 		return t.fail(args, fmt.Sprintf("Subagent not found: %s (it may have been closed).", subagentID)), nil
 	}
-	if s.Mode != domain.SubagentModeInteractive || s.PaneID == "" {
+	if s.Mode != scheddomain.SubagentModeInteractive || s.PaneID == "" {
 		return t.fail(args, fmt.Sprintf("Subagent %s is headless and has no TUI to send input to. Only interactive (tmux-pane) subagents accept input.", labelOrSession(s.Label, s.SessionID))), nil
 	}
 	if t.paneState(ctx, s.PaneID) == paneGone {
@@ -116,9 +116,9 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 	}
 
 	rearmed := false
-	if submit && s.Status != domain.SubagentRunning {
+	if submit && s.Status != scheddomain.SubagentRunning {
 		_ = os.Remove(subagentResultFilePath(s.SessionID))
-		_ = t.tracker.SetSubagentStatus(s.ID, domain.SubagentRunning)
+		_ = t.tracker.SetSubagentStatus(s.ID, scheddomain.SubagentRunning)
 		rearmed = true
 	}
 

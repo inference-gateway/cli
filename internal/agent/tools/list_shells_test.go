@@ -2,11 +2,11 @@ package tools
 
 import (
 	"encoding/json"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 	"testing"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // freshListShellsData mirrors the Data map produced by ListShellsTool.Execute for a
@@ -22,7 +22,7 @@ func freshListShellsData() map[string]any {
 			{
 				"shell_id":    "shell-1",
 				"command":     "sleep 100",
-				"state":       domain.ShellStateRunning.String(),
+				"state":       scheddomain.ShellStateRunning.String(),
 				"started_at":  "12:00:00",
 				"elapsed":     "5s",
 				"output_size": int64(1234),
@@ -31,7 +31,7 @@ func freshListShellsData() map[string]any {
 			{
 				"shell_id":    "shell-2",
 				"command":     "echo done",
-				"state":       domain.ShellStateCompleted.String(),
+				"state":       scheddomain.ShellStateCompleted.String(),
 				"started_at":  "12:01:00",
 				"elapsed":     "1s",
 				"output_size": int64(56),

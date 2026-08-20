@@ -20,12 +20,12 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	scheduler "github.com/inference-gateway/cli/internal/scheduler"
+	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
+	heartbeat "github.com/inference-gateway/cli/internal/scheduler/heartbeat"
 	services "github.com/inference-gateway/cli/internal/services"
 	channels "github.com/inference-gateway/cli/internal/services/channels"
-	githubscheduler "github.com/inference-gateway/cli/internal/services/githubscheduler"
 	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
-	heartbeat "github.com/inference-gateway/cli/internal/services/heartbeat"
-	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 )
 
@@ -237,7 +237,7 @@ func startScheduler(ctx context.Context, cm *services.ChannelManagerService, cfg
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	notifier := services.NewScheduleNotifier(cm.GetChannel)
+	notifier := scheduler.NewScheduleNotifier(cm.GetChannel)
 	svc, err := scheduler.NewService(scheduler.Options{
 		Store:      stores.ScheduledJobs,
 		Runs:       stores.ScheduledRuns,

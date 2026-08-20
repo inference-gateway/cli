@@ -3,23 +3,23 @@ package tools
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ListShellsTool implements listing of background shells
 type ListShellsTool struct {
 	config                 *config.Config
 	enabled                bool
-	backgroundShellService domain.BackgroundShellService
+	backgroundShellService scheddomain.BackgroundShellService
 }
 
 // NewListShellsTool creates a new ListShells tool
-func NewListShellsTool(cfg *config.Config, shellService domain.BackgroundShellService) *ListShellsTool {
+func NewListShellsTool(cfg *config.Config, shellService scheddomain.BackgroundShellService) *ListShellsTool {
 	return &ListShellsTool{
 		config:                 cfg,
 		enabled:                cfg.Tools.Enabled && cfg.Tools.Bash.BackgroundShells.Enabled,
@@ -64,7 +64,7 @@ func (t *ListShellsTool) Execute(ctx context.Context, args map[string]any) (*age
 
 	shellInfos := make([]map[string]any, len(shells))
 	for i, shell := range shells {
-		info := domain.NewShellInfo(shell)
+		info := scheddomain.NewShellInfo(shell)
 		shellInfos[i] = map[string]any{
 			"shell_id":     info.ShellID,
 			"command":      info.Command,

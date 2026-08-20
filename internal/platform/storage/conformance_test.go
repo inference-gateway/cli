@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"testing"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // runConversationStorageConformance runs the same behavioural suite against any
@@ -339,7 +339,7 @@ func conformanceScheduledJobCRUD(t *testing.T, store ScheduledJobStorage) {
 
 	now := time.Now().UTC()
 
-	job := &domain.ScheduledJob{
+	job := &scheddomain.ScheduledJob{
 		ID:             "job-1",
 		Name:           "test-job",
 		Description:    "A test scheduled job",

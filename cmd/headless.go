@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"regexp"
 	"runtime/debug"
@@ -52,7 +53,7 @@ func startHeadlessScreenshotServer(cfg *config.Config, svc *container.ServiceCon
 // read from INFER_SUBAGENT_AGENT_MODE. Returns Standard when unset or
 // unrecognized, so top-level infer headless runs are unaffected.
 func inheritedSubagentMode() agentdomain.AgentMode {
-	if m, ok := agentdomain.ParseAgentMode(os.Getenv(domain.EnvSubagentAgentMode)); ok {
+	if m, ok := agentdomain.ParseAgentMode(os.Getenv(scheddomain.EnvSubagentAgentMode)); ok {
 		return m
 	}
 	return agentdomain.AgentModeStandard
@@ -177,7 +178,7 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 		cfg.Prompts.Agent.SystemPrompt = cfg.Prompts.Agent.SystemPromptRemote
 	}
 
-	cfg.Tools.Agent.Mode = domain.SubagentModeHeadless
+	cfg.Tools.Agent.Mode = scheddomain.SubagentModeHeadless
 
 	agentService := svc.GetAgentService()
 	conversationRepo := svc.GetConversationRepository()
@@ -395,7 +396,7 @@ func writeResultFile(path string, repo convdomain.ConversationRepository, sessio
 			}
 		}
 	}
-	rf := domain.SubagentResultFile{
+	rf := scheddomain.SubagentResultFile{
 		FinalAssistant: content,
 		Success:        runErr == nil,
 		SessionID:      sessionID,

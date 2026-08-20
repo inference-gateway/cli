@@ -3,23 +3,23 @@ package tools
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	"github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	"github.com/inference-gateway/cli/internal/domain"
 )
 
 // KillShellTool cancels a running background shell
 type KillShellTool struct {
 	config       *config.Config
-	shellService domain.BackgroundShellService
+	shellService scheddomain.BackgroundShellService
 	enabled      bool
 }
 
 // NewKillShellTool creates a new KillShell tool
-func NewKillShellTool(cfg *config.Config, shellService domain.BackgroundShellService) *KillShellTool {
+func NewKillShellTool(cfg *config.Config, shellService scheddomain.BackgroundShellService) *KillShellTool {
 	return &KillShellTool{
 		config:       cfg,
 		shellService: shellService,

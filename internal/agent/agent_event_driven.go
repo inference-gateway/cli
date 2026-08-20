@@ -11,9 +11,9 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // EventDrivenAgent manages agent execution using event-driven state machine
@@ -28,7 +28,7 @@ type EventDrivenAgent struct {
 	req            *agentdomain.AgentRequest
 	provider       string
 	model          string
-	registry       domain.BackgroundTaskRegistry
+	registry       scheddomain.BackgroundTaskRegistry
 
 	// Event channel
 	events chan states.AgentEvent
@@ -73,7 +73,7 @@ func NewEventDrivenAgent(
 	cancelChan <-chan struct{},
 	provider string,
 	model string,
-	registry domain.BackgroundTaskRegistry,
+	registry scheddomain.BackgroundTaskRegistry,
 ) *EventDrivenAgent {
 	stateMachine := NewAgentStateMachine()
 

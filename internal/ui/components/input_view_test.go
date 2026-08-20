@@ -1,6 +1,7 @@
 package components
 
 import (
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -66,7 +67,7 @@ func createInputViewWithTheme(modelService convdomain.ModelService) *InputView {
 func TestNewInputViewWithName_HistorySelection(t *testing.T) {
 	ms := createMockModelService()
 
-	iv := NewInputViewWithName(ms, "cfgdir", domain.SubagentHistoryMemoryOnly, nil)
+	iv := NewInputViewWithName(ms, "cfgdir", scheddomain.SubagentHistoryMemoryOnly, nil)
 	if got := iv.historyManager.GetShellHistoryFile(); got != "" {
 		t.Errorf("memory-only sentinel must have no history file, got %q", got)
 	}

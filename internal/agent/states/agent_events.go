@@ -8,7 +8,7 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // AgentEvent represents an event in the event-driven agent system
@@ -100,7 +100,7 @@ type StateContext struct {
 
 	// Request context
 	Request                *agentdomain.AgentRequest
-	BackgroundTaskRegistry domain.BackgroundTaskRegistry
+	BackgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	Provider               string
 	Model                  string
 

@@ -1,6 +1,7 @@
 package a2acoord
 
 import (
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"testing"
 	"time"
 
@@ -12,15 +13,14 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // newCoordinator wires a Service with fake dependencies.
-func newCoordinator() (*Service, *convmocks.FakeConversationRepository, *services.StateManager, *mocksdomain.FakeTaskRetentionService, *uimocks.FakeChatEventListener) {
+func newCoordinator() (*Service, *convmocks.FakeConversationRepository, *services.StateManager, *schedmocks.FakeTaskRetentionService, *uimocks.FakeChatEventListener) {
 	repo := &convmocks.FakeConversationRepository{}
 	state := services.NewStateManager(false)
-	retention := &mocksdomain.FakeTaskRetentionService{}
+	retention := &schedmocks.FakeTaskRetentionService{}
 	listener := &uimocks.FakeChatEventListener{}
 
 	svc := NewService(Options{

@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // sqlStore is the shared SQL implementation of ConversationStorage and
@@ -517,7 +517,7 @@ func decodeSessionHistory(historyJSON []byte, groupKey string) ([]string, error)
 // ---------------------------------------------------------------------------
 
 // SaveJob creates or updates a scheduled job via UPSERT.
-func (s *sqlStore) SaveJob(ctx context.Context, job *domain.ScheduledJob) error {
+func (s *sqlStore) SaveJob(ctx context.Context, job *scheddomain.ScheduledJob) error {
 	_, err := s.db.ExecContext(ctx, s.rebind(`
 		INSERT INTO scheduled_jobs(id, name, description, cron_expression, prompt, channel, recipient_id, model, run_once, created_at, updated_at, last_run, last_error)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -543,8 +543,8 @@ func (s *sqlStore) SaveJob(ctx context.Context, job *domain.ScheduledJob) error 
 }
 
 // LoadJob returns a job by ID. Returns ErrJobNotFound when the job does not exist.
-func (s *sqlStore) LoadJob(ctx context.Context, id string) (*domain.ScheduledJob, error) {
-	var job domain.ScheduledJob
+func (s *sqlStore) LoadJob(ctx context.Context, id string) (*scheddomain.ScheduledJob, error) {
+	var job scheddomain.ScheduledJob
 	var lastRun sql.NullTime
 
 	err := s.db.QueryRowContext(ctx, s.rebind(`
@@ -568,7 +568,7 @@ func (s *sqlStore) LoadJob(ctx context.Context, id string) (*domain.ScheduledJob
 }
 
 // ListJobs returns all jobs sorted by CreatedAt ascending.
-func (s *sqlStore) ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error) {
+func (s *sqlStore) ListJobs(ctx context.Context) ([]*scheddomain.ScheduledJob, error) {
 	rows, err := s.db.QueryContext(ctx, s.rebind(`
 		SELECT id, name, description, cron_expression, prompt, channel, recipient_id, model, run_once, created_at, updated_at, last_run, last_error
 		FROM scheduled_jobs ORDER BY created_at ASC
@@ -578,9 +578,9 @@ func (s *sqlStore) ListJobs(ctx context.Context) ([]*domain.ScheduledJob, error)
 	}
 	defer func() { _ = rows.Close() }()
 
-	var jobs []*domain.ScheduledJob
+	var jobs []*scheddomain.ScheduledJob
 	for rows.Next() {
-		var job domain.ScheduledJob
+		var job scheddomain.ScheduledJob
 		var lastRun sql.NullTime
 		if err := rows.Scan(
 			&job.ID, &job.Name, &job.Description, &job.CronExpression, &job.Prompt,
@@ -618,7 +618,7 @@ func (s *sqlStore) DeleteJob(ctx context.Context, id string) error {
 // ---------------------------------------------------------------------------
 
 // SaveRun creates or updates a run record via UPSERT.
-func (s *sqlStore) SaveRun(ctx context.Context, run *domain.RunRecord) error {
+func (s *sqlStore) SaveRun(ctx context.Context, run *scheddomain.RunRecord) error {
 	_, err := s.db.ExecContext(ctx, s.rebind(`
 		INSERT INTO scheduled_job_runs(session_id, job_id, status, error, started_at, finished_at)
 		VALUES (?, ?, ?, ?, ?, ?)
@@ -634,7 +634,7 @@ func (s *sqlStore) SaveRun(ctx context.Context, run *domain.RunRecord) error {
 }
 
 // ListRuns returns run records sorted by StartedAt descending.
-func (s *sqlStore) ListRuns(ctx context.Context, jobID string) ([]*domain.RunRecord, error) {
+func (s *sqlStore) ListRuns(ctx context.Context, jobID string) ([]*scheddomain.RunRecord, error) {
 	query := `
 		SELECT session_id, job_id, status, error, started_at, finished_at
 		FROM scheduled_job_runs`
@@ -651,15 +651,15 @@ func (s *sqlStore) ListRuns(ctx context.Context, jobID string) ([]*domain.RunRec
 	}
 	defer func() { _ = rows.Close() }()
 
-	var runs []*domain.RunRecord
+	var runs []*scheddomain.RunRecord
 	for rows.Next() {
-		var run domain.RunRecord
+		var run scheddomain.RunRecord
 		var status string
 		var finished sql.NullTime
 		if err := rows.Scan(&run.SessionID, &run.JobID, &status, &run.Error, &run.StartedAt, &finished); err != nil {
 			return nil, fmt.Errorf("scan run: %w", err)
 		}
-		run.Status = domain.RunStatus(status)
+		run.Status = scheddomain.RunStatus(status)
 		if finished.Valid {
 			run.FinishedAt = &finished.Time
 		}

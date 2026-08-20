@@ -1,6 +1,7 @@
-package states
+package states_test
 
 import (
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	"testing"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -23,7 +24,7 @@ func TestAnyToolFailed(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := AnyToolFailed(tt.results); got != tt.want {
+			if got := states.AnyToolFailed(tt.results); got != tt.want {
 				t.Fatalf("AnyToolFailed = %v, want %v", got, tt.want)
 			}
 		})
@@ -47,7 +48,7 @@ func TestAnyToolRejected(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := AnyToolRejected(tt.results); got != tt.want {
+			if got := states.AnyToolRejected(tt.results); got != tt.want {
 				t.Fatalf("AnyToolRejected = %v, want %v", got, tt.want)
 			}
 		})

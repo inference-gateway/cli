@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"strings"
 
@@ -10,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ApproveSubagentTool relays the user's approve/reject decision to an interactive
@@ -20,14 +20,14 @@ import (
 // always approval-gated so the human confirms the relay in the MAIN chat.
 type ApproveSubagentTool struct {
 	config    *config.Config
-	tracker   domain.SubagentTracker
+	tracker   scheddomain.SubagentTracker
 	sendKeys  func(ctx context.Context, paneID, text string, keys []string) error
 	paneState func(ctx context.Context, paneID string) paneState
 }
 
 // NewApproveSubagentTool creates a new ApproveSubagent tool over the session's
 // SubagentTracker.
-func NewApproveSubagentTool(cfg *config.Config, tracker domain.SubagentTracker) *ApproveSubagentTool {
+func NewApproveSubagentTool(cfg *config.Config, tracker scheddomain.SubagentTracker) *ApproveSubagentTool {
 	return &ApproveSubagentTool{
 		config:    cfg,
 		tracker:   tracker,
@@ -76,7 +76,7 @@ func (t *ApproveSubagentTool) Execute(ctx context.Context, args map[string]any) 
 	if s == nil {
 		return t.fail(args, fmt.Sprintf("Subagent not found: %s (it may have been closed).", subagentID)), nil
 	}
-	if s.Mode != domain.SubagentModeInteractive || s.PaneID == "" {
+	if s.Mode != scheddomain.SubagentModeInteractive || s.PaneID == "" {
 		return t.fail(args, fmt.Sprintf("Subagent %s is headless and has no approval prompt to answer.", labelOrSession(s.Label, s.SessionID))), nil
 	}
 	if t.paneState(ctx, s.PaneID) == paneGone {

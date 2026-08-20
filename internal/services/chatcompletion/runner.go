@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"strings"
 	"sync"
@@ -251,7 +252,7 @@ func (r *Runner) HandleChatComplete(msg agentdomain.ChatCompleteEvent) tea.Cmd {
 // is not populated (see publishChatComplete), but the assistant turn is already in
 // the repo by the time this runs (streaming appends it before emitting the event).
 func (r *Runner) writeSubagentResultFile(msg agentdomain.ChatCompleteEvent) {
-	path := os.Getenv(domain.EnvSubagentResultFile)
+	path := os.Getenv(scheddomain.EnvSubagentResultFile)
 	if path == "" || msg.Cancelled || len(msg.ToolCalls) > 0 {
 		return
 	}
@@ -259,17 +260,17 @@ func (r *Runner) writeSubagentResultFile(msg agentdomain.ChatCompleteEvent) {
 	if answer == "" {
 		return
 	}
-	r.writeSubagentResultFileAtomic(path, domain.SubagentResultFile{FinalAssistant: answer, Success: true})
+	r.writeSubagentResultFileAtomic(path, scheddomain.SubagentResultFile{FinalAssistant: answer, Success: true})
 }
 
 // writeSubagentResultFileError records a failed terminal turn for an interactive
 // subagent so the parent harvests the error rather than falling back to the pane.
 func (r *Runner) writeSubagentResultFileError(runErr error) {
-	path := os.Getenv(domain.EnvSubagentResultFile)
+	path := os.Getenv(scheddomain.EnvSubagentResultFile)
 	if path == "" {
 		return
 	}
-	rf := domain.SubagentResultFile{
+	rf := scheddomain.SubagentResultFile{
 		FinalAssistant: lastAssistantText(r.conversationRepo.GetMessages()), // partial text, may be ""
 		Success:        false,
 	}
@@ -281,7 +282,7 @@ func (r *Runner) writeSubagentResultFileError(runErr error) {
 
 // writeSubagentResultFileAtomic marshals rf and writes it to path via a temp file
 // and rename, so a polling parent never reads a half-written file.
-func (r *Runner) writeSubagentResultFileAtomic(path string, rf domain.SubagentResultFile) {
+func (r *Runner) writeSubagentResultFileAtomic(path string, rf scheddomain.SubagentResultFile) {
 	data, err := json.Marshal(rf)
 	if err != nil {
 		logger.Warn("subagent result file: marshal failed", "error", err)

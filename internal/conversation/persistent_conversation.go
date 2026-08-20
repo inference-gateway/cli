@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"strings"
 	"sync"
 	"time"
@@ -11,7 +12,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
@@ -27,7 +27,7 @@ type PersistentConversationRepository struct {
 	autoSave       bool
 	titleGenerator *ConversationTitleGenerator
 	autoSaveMutex  sync.Mutex
-	taskTracker    domain.A2AClearer
+	taskTracker    scheddomain.A2AClearer
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
@@ -58,7 +58,7 @@ func (r *PersistentConversationRepository) SetTitleGenerator(titleGenerator *Con
 }
 
 // SetA2ATaskTracker sets the task tracker for context ID persistence
-func (r *PersistentConversationRepository) SetA2ATaskTracker(taskTracker domain.A2AClearer) {
+func (r *PersistentConversationRepository) SetA2ATaskTracker(taskTracker scheddomain.A2AClearer) {
 	r.taskTracker = taskTracker
 }
 

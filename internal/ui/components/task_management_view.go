@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"slices"
 	"strings"
 	"time"
@@ -30,8 +31,8 @@ type TaskInfo struct {
 	agentdomain.TaskPollingState
 	Status      string
 	ElapsedTime time.Duration
-	TaskRef     *domain.TaskInfo
-	Kind        domain.JobKind
+	TaskRef     *scheddomain.TaskInfo
+	Kind        scheddomain.JobKind
 	Label       string
 	Detail      string
 	Output      string
@@ -49,9 +50,9 @@ type TaskManagerImpl struct {
 	styleProvider         *styles.Provider
 	done                  bool
 	cancelled             bool
-	taskRetentionService  domain.TaskRetentionService
-	backgroundTaskService domain.BackgroundTaskService
-	backgroundJobRegistry domain.BackgroundTaskRegistry
+	taskRetentionService  scheddomain.TaskRetentionService
+	backgroundTaskService scheddomain.BackgroundTaskService
+	backgroundJobRegistry scheddomain.BackgroundTaskRegistry
 	searchQuery           string
 	searchMode            bool
 	loading               bool
@@ -79,8 +80,8 @@ const (
 func NewTaskManager(
 	themeService domain.ThemeService,
 	styleProvider *styles.Provider,
-	taskRetentionService domain.TaskRetentionService,
-	backgroundTaskService domain.BackgroundTaskService,
+	taskRetentionService scheddomain.TaskRetentionService,
+	backgroundTaskService scheddomain.BackgroundTaskService,
 ) *TaskManagerImpl {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
@@ -179,12 +180,12 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 				Status:           displayStatus,
 				ElapsedTime:      elapsed,
 				TaskRef:          nil,
-				Kind:             domain.JobKindA2A,
+				Kind:             scheddomain.JobKindA2A,
 			}
 			activeTasks = append(activeTasks, taskInfo)
 		}
 
-		var retainedTaskInfos []domain.TaskInfo
+		var retainedTaskInfos []scheddomain.TaskInfo
 		if t.taskRetentionService != nil {
 			retainedTaskInfos = t.taskRetentionService.GetTasks()
 		}
@@ -205,18 +206,18 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 				Status:      t.mapTaskStatus(retainedTaskInfo.Task.Status.State),
 				ElapsedTime: elapsed,
 				TaskRef:     retainedTaskInfo,
-				Kind:        domain.JobKindA2A,
+				Kind:        scheddomain.JobKindA2A,
 			}
 			completedTasks = append(completedTasks, taskInfo)
 		}
 
 		if t.backgroundJobRegistry != nil {
 			for _, job := range t.backgroundJobRegistry.Snapshot() {
-				if job.Meta.Kind == domain.JobKindA2A {
+				if job.Meta.Kind == scheddomain.JobKindA2A {
 					continue
 				}
 				row := jobToTaskInfo(job)
-				if job.Status == domain.JobRunning {
+				if job.Status == scheddomain.JobRunning {
 					activeTasks = append(activeTasks, row)
 				} else {
 					completedTasks = append(completedTasks, row)
@@ -245,7 +246,7 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 // jobToTaskInfo adapts a supervised background job (shell or subagent) to a
 // task-view row. Elapsed runs to the completion time for finished jobs and to
 // now for running ones.
-func jobToTaskInfo(job domain.TrackedJob) TaskInfo {
+func jobToTaskInfo(job scheddomain.TrackedJob) TaskInfo {
 	label := job.Meta.Label
 	if label == "" {
 		label = job.Meta.ID
@@ -270,13 +271,13 @@ func jobToTaskInfo(job domain.TrackedJob) TaskInfo {
 
 // jobStatusLabel renders a supervised job's status with the same vocabulary the
 // A2A rows use (Running / Completed / Failed).
-func jobStatusLabel(s domain.JobStatus) string {
+func jobStatusLabel(s scheddomain.JobStatus) string {
 	switch s {
-	case domain.JobRunning:
+	case scheddomain.JobRunning:
 		return "Running"
-	case domain.JobCompleted:
+	case scheddomain.JobCompleted:
 		return "Completed"
-	case domain.JobFailed:
+	case scheddomain.JobFailed:
 		return "Failed"
 	default:
 		return string(s)
@@ -533,10 +534,10 @@ func (t *TaskManagerImpl) handleSearchInput(msg tea.KeyPressMsg) (tea.Model, tea
 // active A2A task (a live row, not a retained/terminal one) or a running shell
 // or subagent. Completed rows are not cancellable.
 func isCancellable(task TaskInfo) bool {
-	if normalizeKind(task.Kind) == domain.JobKindA2A {
+	if normalizeKind(task.Kind) == scheddomain.JobKindA2A {
 		return task.TaskRef == nil
 	}
-	return task.Status == jobStatusLabel(domain.JobRunning)
+	return task.Status == jobStatusLabel(scheddomain.JobRunning)
 }
 
 func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
@@ -564,13 +565,13 @@ func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
 // their supervised job down through the registry (a2aJob.Wind is a no-op, so
 // WindJob alone would never reach the remote agent).
 func (t *TaskManagerImpl) cancelTask(task TaskInfo) error {
-	if normalizeKind(task.Kind) == domain.JobKindA2A {
+	if normalizeKind(task.Kind) == scheddomain.JobKindA2A {
 		return t.backgroundTaskService.CancelBackgroundTask(task.TaskID)
 	}
 	if t.backgroundJobRegistry == nil {
 		return fmt.Errorf("background job registry not available")
 	}
-	return t.backgroundJobRegistry.WindJob(task.TaskID, domain.WindStop)
+	return t.backgroundJobRegistry.WindJob(task.TaskID, scheddomain.WindStop)
 }
 
 // mapTaskStatus maps task state to display status. Covers every
@@ -982,7 +983,7 @@ func (t *TaskManagerImpl) renderTaskList() string {
 // SetBackgroundTaskRegistry wires the unified registry so the view can show live
 // counts of every background-work kind (A2A tasks, shells, subagents), not just
 // the A2A tasks listed in the table below.
-func (t *TaskManagerImpl) SetBackgroundTaskRegistry(registry domain.BackgroundTaskRegistry) {
+func (t *TaskManagerImpl) SetBackgroundTaskRegistry(registry scheddomain.BackgroundTaskRegistry) {
 	t.backgroundJobRegistry = registry
 }
 
@@ -992,9 +993,9 @@ func (t *TaskManagerImpl) writeJobCountsSummary(b *strings.Builder) {
 	if t.backgroundJobRegistry == nil {
 		return
 	}
-	a2a := t.backgroundJobRegistry.CountRunningJobs(domain.JobKindA2A)
-	shells := t.backgroundJobRegistry.CountRunningJobs(domain.JobKindShell)
-	subagents := t.backgroundJobRegistry.CountRunningJobs(domain.JobKindSubagent)
+	a2a := t.backgroundJobRegistry.CountRunningJobs(scheddomain.JobKindA2A)
+	shells := t.backgroundJobRegistry.CountRunningJobs(scheddomain.JobKindShell)
+	subagents := t.backgroundJobRegistry.CountRunningJobs(scheddomain.JobKindSubagent)
 
 	dimColor := t.styleProvider.GetThemeColor("dim")
 	summary := fmt.Sprintf("Running: %d A2A · %d shells · %d subagents  (total %d)",
@@ -1057,7 +1058,7 @@ func (t *TaskManagerImpl) writeSearchInfo(b *strings.Builder) {
 // kind, so a new section header is emitted whenever the kind changes. The row
 // index stays global across sections so the ▶ selection highlight is correct.
 func (t *TaskManagerImpl) writeTaskSections(b *strings.Builder) {
-	prevKind := domain.JobKind("")
+	prevKind := scheddomain.JobKind("")
 	for i, task := range t.filteredTasks {
 		kind := normalizeKind(task.Kind)
 		if i == 0 || kind != prevKind {
@@ -1072,7 +1073,7 @@ func (t *TaskManagerImpl) writeTaskSections(b *strings.Builder) {
 }
 
 // writeSectionHeader writes a per-kind table title plus its column header.
-func (t *TaskManagerImpl) writeSectionHeader(b *strings.Builder, kind domain.JobKind) {
+func (t *TaskManagerImpl) writeSectionHeader(b *strings.Builder, kind scheddomain.JobKind) {
 	accentColor := t.styleProvider.GetThemeColor("accent")
 	title := t.styleProvider.RenderWithColor(sectionTitle(kind), accentColor)
 	fmt.Fprintf(b, "%s\n", title)
@@ -1087,11 +1088,11 @@ func (t *TaskManagerImpl) writeSectionHeader(b *strings.Builder, kind domain.Job
 // columnHeader returns the column labels for a kind's table. A2A keeps its
 // Context ID / Task ID / Agent layout; shells and subagents share a leaner
 // ID / Detail layout (Detail = command for shells, mode for subagents).
-func (t *TaskManagerImpl) columnHeader(kind domain.JobKind) string {
+func (t *TaskManagerImpl) columnHeader(kind scheddomain.JobKind) string {
 	switch kind {
-	case domain.JobKindShell:
+	case scheddomain.JobKindShell:
 		return fmt.Sprintf("  %-40s │ %-50s │ %-15s │ %-12s", "Shell ID", "Command", "Status", "Elapsed")
-	case domain.JobKindSubagent:
+	case scheddomain.JobKindSubagent:
 		return fmt.Sprintf("  %-40s │ %-50s │ %-15s │ %-12s", "Subagent", "Mode", "Status", "Elapsed")
 	default:
 		return fmt.Sprintf("  %-36s │ %-38s │ %-30s │ %-15s │ %-12s", "Context ID", "Task ID", "Agent", "Status", "Elapsed")
@@ -1102,7 +1103,7 @@ func (t *TaskManagerImpl) columnHeader(kind domain.JobKind) string {
 // layout. index is the global position in filteredTasks (drives selection).
 func (t *TaskManagerImpl) writeTaskRow(b *strings.Builder, task TaskInfo, index int) {
 	switch normalizeKind(task.Kind) {
-	case domain.JobKindShell, domain.JobKindSubagent:
+	case scheddomain.JobKindShell, scheddomain.JobKindSubagent:
 		t.writeJobRow(b, task, index)
 	default:
 		t.writeA2ARow(b, task, index)
@@ -1152,20 +1153,20 @@ func (t *TaskManagerImpl) writeJobRow(b *strings.Builder, task TaskInfo, index i
 
 // normalizeKind treats an unset kind as A2A (A2A rows sourced from the poller
 // before kinds were tagged).
-func normalizeKind(kind domain.JobKind) domain.JobKind {
+func normalizeKind(kind scheddomain.JobKind) scheddomain.JobKind {
 	if kind == "" {
-		return domain.JobKindA2A
+		return scheddomain.JobKindA2A
 	}
 	return kind
 }
 
 // kindRank orders rows so each kind forms one contiguous section: A2A, then
 // shells, then subagents.
-func kindRank(kind domain.JobKind) int {
+func kindRank(kind scheddomain.JobKind) int {
 	switch normalizeKind(kind) {
-	case domain.JobKindShell:
+	case scheddomain.JobKindShell:
 		return 1
-	case domain.JobKindSubagent:
+	case scheddomain.JobKindSubagent:
 		return 2
 	default:
 		return 0
@@ -1173,11 +1174,11 @@ func kindRank(kind domain.JobKind) int {
 }
 
 // sectionTitle is the heading shown above each kind's table.
-func sectionTitle(kind domain.JobKind) string {
+func sectionTitle(kind scheddomain.JobKind) string {
 	switch kind {
-	case domain.JobKindShell:
+	case scheddomain.JobKindShell:
 		return "Background Shells"
-	case domain.JobKindSubagent:
+	case scheddomain.JobKindSubagent:
 		return "Subagents"
 	default:
 		return "A2A Tasks"

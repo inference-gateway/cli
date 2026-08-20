@@ -1,27 +1,26 @@
 package utils
 
 import (
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"sync"
 	"testing"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestSubagentTracker_AddSubagent(t *testing.T) {
 	tests := []struct {
 		name    string
-		preAdd  *domain.SubagentState
-		add     *domain.SubagentState
+		preAdd  *scheddomain.SubagentState
+		add     *scheddomain.SubagentState
 		wantErr bool
 	}{
 		{
 			name: "success",
-			add:  &domain.SubagentState{ID: "a", Label: "one", Status: domain.SubagentRunning},
+			add:  &scheddomain.SubagentState{ID: "a", Label: "one", Status: scheddomain.SubagentRunning},
 		},
 		{
 			name:    "duplicate ID rejected",
-			preAdd:  &domain.SubagentState{ID: "a", Label: "one", Status: domain.SubagentRunning},
-			add:     &domain.SubagentState{ID: "a", Label: "one", Status: domain.SubagentRunning},
+			preAdd:  &scheddomain.SubagentState{ID: "a", Label: "one", Status: scheddomain.SubagentRunning},
+			add:     &scheddomain.SubagentState{ID: "a", Label: "one", Status: scheddomain.SubagentRunning},
 			wantErr: true,
 		},
 		{
@@ -66,7 +65,7 @@ func TestSubagentTracker_GetSubagent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tr := NewSubagentTracker()
-			if err := tr.AddSubagent(&domain.SubagentState{ID: "a", Label: "one", Status: domain.SubagentRunning}); err != nil {
+			if err := tr.AddSubagent(&scheddomain.SubagentState{ID: "a", Label: "one", Status: scheddomain.SubagentRunning}); err != nil {
 				t.Fatalf("AddSubagent: %v", err)
 			}
 
@@ -103,7 +102,7 @@ func TestSubagentTracker_RemoveSubagent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tr := NewSubagentTracker()
-			if err := tr.AddSubagent(&domain.SubagentState{ID: "a", Label: "one", Status: domain.SubagentRunning}); err != nil {
+			if err := tr.AddSubagent(&scheddomain.SubagentState{ID: "a", Label: "one", Status: scheddomain.SubagentRunning}); err != nil {
 				t.Fatalf("AddSubagent: %v", err)
 			}
 
@@ -121,9 +120,9 @@ func TestSubagentTracker_RemoveSubagent(t *testing.T) {
 
 func TestSubagentTracker_CountRunning(t *testing.T) {
 	tr := NewSubagentTracker()
-	_ = tr.AddSubagent(&domain.SubagentState{ID: "r1", Status: domain.SubagentRunning})
-	_ = tr.AddSubagent(&domain.SubagentState{ID: "r2", Status: domain.SubagentRunning})
-	_ = tr.AddSubagent(&domain.SubagentState{ID: "done", Status: domain.SubagentCompleted})
+	_ = tr.AddSubagent(&scheddomain.SubagentState{ID: "r1", Status: scheddomain.SubagentRunning})
+	_ = tr.AddSubagent(&scheddomain.SubagentState{ID: "r2", Status: scheddomain.SubagentRunning})
+	_ = tr.AddSubagent(&scheddomain.SubagentState{ID: "done", Status: scheddomain.SubagentCompleted})
 
 	if got := tr.CountRunningSubagents(); got != 2 {
 		t.Fatalf("CountRunningSubagents = %d, want 2", got)
@@ -141,7 +140,7 @@ func TestSubagentTracker_ConcurrentStatusReadWrite(t *testing.T) {
 	ids := make([]string, n)
 	for i := range ids {
 		ids[i] = string(rune('a' + i))
-		_ = tr.AddSubagent(&domain.SubagentState{ID: ids[i], Mode: domain.SubagentModeHeadless, Status: domain.SubagentRunning})
+		_ = tr.AddSubagent(&scheddomain.SubagentState{ID: ids[i], Mode: scheddomain.SubagentModeHeadless, Status: scheddomain.SubagentRunning})
 	}
 
 	var wg sync.WaitGroup
@@ -150,7 +149,7 @@ func TestSubagentTracker_ConcurrentStatusReadWrite(t *testing.T) {
 		go func(id string) {
 			defer wg.Done()
 			for range 200 {
-				_ = tr.SetSubagentStatus(id, domain.SubagentCompleted)
+				_ = tr.SetSubagentStatus(id, scheddomain.SubagentCompleted)
 			}
 		}(id)
 		go func(id string) {

@@ -271,8 +271,8 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/sdk/fake_client.go github.com/inference-gateway/sdk.Client
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain MessageQueue
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain A2ATaskTracker
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BackgroundTaskRegistry
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SubagentTracker
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain BackgroundTaskRegistry
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain SubagentTracker
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ApprovalPolicy
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/agent/states AgentStateMachine
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/agent/states StateHandler
@@ -281,7 +281,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain Channel
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ApprovalChannel
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain HistoryCleaner
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain TaskRetentionService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain TaskRetentionService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ChatEventListener
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui A2ATaskCoordinator
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ApprovalCoordinator
@@ -292,13 +292,13 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain SystemReminderProvider
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain HookCommandProvider
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MemoryBackend
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BackgroundJob
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain JobSubmitter
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain JobStopper
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain JobLivenessReporter
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain JobNotifier
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BackgroundShellService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BackgroundTaskService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain BackgroundJob
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain JobSubmitter
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain JobStopper
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain JobLivenessReporter
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain JobNotifier
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain BackgroundShellService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain BackgroundTaskService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/platform/storage ConversationStorage
       - mkdir -p tests/mocks/filewriter
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter FileWriter
@@ -308,7 +308,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/computer/infrastructure/display DisplayController
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/computer/infrastructure/display Provider
       - mkdir -p tests/mocks/services
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/services internal/services TitleGenerator
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain TitleGenerator
       - mkdir -p tests/mocks/shortcuts
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/shortcuts Shortcut
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/shortcuts PersistentConversationRepository
