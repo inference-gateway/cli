@@ -3,12 +3,13 @@ package computer
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -17,7 +18,7 @@ import (
 type KeyboardTypeTool struct {
 	config          *config.Config
 	enabled         bool
-	formatter       domain.BaseFormatter
+	formatter       agentinfra.BaseFormatter
 	rateLimiter     rateLimiter
 	displayProvider display.Provider
 }
@@ -27,7 +28,7 @@ func NewKeyboardTypeTool(cfg *config.Config, rateLimiter rateLimiter, displayPro
 	return &KeyboardTypeTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.Tools.KeyboardType.Enabled,
-		formatter:       domain.NewBaseFormatter("KeyboardType"),
+		formatter:       agentinfra.NewBaseFormatter("KeyboardType"),
 		rateLimiter:     rateLimiter,
 		displayProvider: displayProvider,
 	}
@@ -59,11 +60,11 @@ func (t *KeyboardTypeTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the keyboard type tool with given arguments
-func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if err := t.rateLimiter.CheckAndRecord("KeyboardType"); err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "KeyboardType",
 			Arguments: args,
 			Success:   false,
@@ -73,7 +74,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 	}
 
 	if err := acquireScreenLock(); err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "KeyboardType",
 			Arguments: args,
 			Success:   false,
@@ -86,7 +87,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 	keyCombo, hasKeyCombo := args["key_combo"].(string)
 
 	if !hasText && !hasKeyCombo {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "KeyboardType",
 			Arguments: args,
 			Success:   false,
@@ -96,7 +97,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 	}
 
 	if hasText && hasKeyCombo {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "KeyboardType",
 			Arguments: args,
 			Success:   false,
@@ -106,7 +107,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 	}
 
 	if t.displayProvider == nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "KeyboardType",
 			Arguments: args,
 			Success:   false,
@@ -117,7 +118,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 
 	controller, err := t.displayProvider.GetController()
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "KeyboardType",
 			Arguments: args,
 			Success:   false,
@@ -139,7 +140,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 	}
 
 	if execErr != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "KeyboardType",
 			Arguments: args,
 			Success:   false,
@@ -154,7 +155,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 		Method:   t.displayProvider.GetDisplayInfo().Name,
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "KeyboardType",
 		Arguments: args,
 		Success:   true,
@@ -200,11 +201,11 @@ func (t *KeyboardTypeTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *KeyboardTypeTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *KeyboardTypeTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)
@@ -212,7 +213,7 @@ func (t *KeyboardTypeTool) FormatResult(result *domain.ToolExecutionResult, form
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *KeyboardTypeTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *KeyboardTypeTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Keyboard input failed"
 	}
@@ -231,7 +232,7 @@ func (t *KeyboardTypeTool) FormatPreview(result *domain.ToolExecutionResult) str
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *KeyboardTypeTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *KeyboardTypeTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}

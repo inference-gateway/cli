@@ -2,11 +2,11 @@ package tools
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
 	mcp "github.com/metoro-io/mcp-golang"
@@ -171,9 +171,9 @@ func TestMCPTool_Execute_Success(t *testing.T) {
 	}
 
 	// Verify the data is MCPToolResult
-	mcpData, ok := result.Data.(*domain.MCPToolResult)
+	mcpData, ok := result.Data.(*agentdomain.MCPToolResult)
 	if !ok {
-		t.Fatal("Expected result.Data to be *domain.MCPToolResult")
+		t.Fatal("Expected result.Data to be *agentdomain.MCPToolResult")
 	}
 
 	if mcpData.ServerName != "test-server" {
@@ -255,9 +255,9 @@ func TestMCPTool_Execute_Error(t *testing.T) {
 	}
 
 	// Verify the error message is present
-	mcpData, ok := result.Data.(*domain.MCPToolResult)
+	mcpData, ok := result.Data.(*agentdomain.MCPToolResult)
 	if !ok {
-		t.Fatal("Expected result.Data to be *domain.MCPToolResult")
+		t.Fatal("Expected result.Data to be *agentdomain.MCPToolResult")
 	}
 
 	if mcpData.Error == "" {
@@ -562,5 +562,5 @@ func (e *testError) Error() string {
 	return e.msg
 }
 
-// Ensure MCPTool implements domain.Tool interface
-var _ domain.Tool = (*MCPTool)(nil)
+// Ensure MCPTool implements agentdomain.Tool interface
+var _ agentdomain.Tool = (*MCPTool)(nil)

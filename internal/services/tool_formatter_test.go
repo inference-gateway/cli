@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"regexp"
 	"strings"
@@ -14,7 +15,6 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -45,7 +45,7 @@ func cardTitle(s string) string {
 	return strings.SplitN(s, "\n", 2)[0]
 }
 
-// fakeTool is a configurable domain.Tool (and ResultBodyProvider) for formatter tests.
+// fakeTool is a configurable agentdomain.Tool (and ResultBodyProvider) for formatter tests.
 type fakeTool struct {
 	name         string
 	preview      string
@@ -56,34 +56,34 @@ type fakeTool struct {
 }
 
 func (t *fakeTool) Definition() sdk.ChatCompletionTool { return sdk.ChatCompletionTool{} }
-func (t *fakeTool) Execute(context.Context, map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *fakeTool) Execute(context.Context, map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	return nil, nil
 }
 func (t *fakeTool) Validate(map[string]any) error { return nil }
 func (t *fakeTool) IsEnabled() bool               { return true }
-func (t *fakeTool) FormatResult(_ *domain.ToolExecutionResult, ft domain.FormatterType) string {
-	if ft == domain.FormatterLLM {
+func (t *fakeTool) FormatResult(_ *agentdomain.ToolExecutionResult, ft agentdomain.FormatterType) string {
+	if ft == agentdomain.FormatterLLM {
 		return t.llm
 	}
 	return t.preview
 }
-func (t *fakeTool) FormatPreview(*domain.ToolExecutionResult) string { return t.preview }
-func (t *fakeTool) ShouldCollapseArg(string) bool                    { return false }
-func (t *fakeTool) ShouldAlwaysExpand() bool                         { return t.alwaysExpand }
+func (t *fakeTool) FormatPreview(*agentdomain.ToolExecutionResult) string { return t.preview }
+func (t *fakeTool) ShouldCollapseArg(string) bool                         { return false }
+func (t *fakeTool) ShouldAlwaysExpand() bool                              { return t.alwaysExpand }
 
 // FormatResultBody satisfies ResultBodyProvider; returns "" when hasBody is false so
 // resultBody falls back to FormatPreview (simulating summary-only tools).
-func (t *fakeTool) FormatResultBody(*domain.ToolExecutionResult) string {
+func (t *fakeTool) FormatResultBody(*agentdomain.ToolExecutionResult) string {
 	if !t.hasBody {
 		return ""
 	}
 	return t.body
 }
 
-type fakeRegistry struct{ tool domain.Tool }
+type fakeRegistry struct{ tool agentdomain.Tool }
 
-func (r *fakeRegistry) GetTool(string) (domain.Tool, error) { return r.tool, nil }
-func (r *fakeRegistry) ListAvailableTools() []string        { return nil }
+func (r *fakeRegistry) GetTool(string) (agentdomain.Tool, error) { return r.tool, nil }
+func (r *fakeRegistry) ListAvailableTools() []string             { return nil }
 
 type fakeHint struct{}
 
@@ -101,14 +101,14 @@ func newTestStyleProvider() *styles.Provider {
 	return styles.NewProvider(ts)
 }
 
-func newTestService(tool domain.Tool) *ToolFormatterService {
+func newTestService(tool agentdomain.Tool) *ToolFormatterService {
 	svc := NewToolFormatterService(&fakeRegistry{tool: tool}, newTestStyleProvider())
 	svc.SetHintFormatter(fakeHint{})
 	return svc
 }
 
-func bashResult(success bool, args map[string]any) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func bashResult(success bool, args map[string]any) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Bash",
 		Success:   success,
 		Duration:  19 * time.Millisecond,
@@ -172,7 +172,7 @@ func TestFormatToolResultForUI_SummaryFallsBackToPreview(t *testing.T) {
 	tool := &fakeTool{name: "Write", preview: "Created main.go (123 bytes)"}
 	svc := newTestService(tool)
 
-	res := &domain.ToolExecutionResult{ToolName: "Write", Success: true, Duration: 5 * time.Millisecond}
+	res := &agentdomain.ToolExecutionResult{ToolName: "Write", Success: true, Duration: 5 * time.Millisecond}
 	lines := strings.Split(stripCard(stripANSI(svc.FormatToolResultForUI(res, 80))), "\n")
 
 	if len(lines) != 4 {
@@ -201,7 +201,7 @@ func TestFormatToolResultForUI_RejectedShowsStatusAndHintOnly(t *testing.T) {
 	tool := &fakeTool{name: "Bash", preview: "Execution failed"}
 	svc := newTestService(tool)
 
-	res := &domain.ToolExecutionResult{
+	res := &agentdomain.ToolExecutionResult{
 		ToolName:  "Bash",
 		Success:   false,
 		Rejected:  true,
@@ -261,7 +261,7 @@ func TestFormatToolResultExpanded_BareErrorGetsHeader(t *testing.T) {
 	tool := &fakeTool{name: "ImageEdit", llm: "Image edit failed: API error (status code: 404)"}
 	svc := newTestService(tool)
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "ImageEdit",
 		Success:   false,
 		Duration:  45 * time.Millisecond,
@@ -282,7 +282,7 @@ func TestFormatToolResultExpanded_AlwaysExpandOmitsHint(t *testing.T) {
 	tool := &fakeTool{name: "Edit", llm: "Edit(file_path=x)\n└─ Result:\n   diff", alwaysExpand: true}
 	svc := newTestService(tool)
 
-	out := stripANSI(svc.FormatToolResultExpanded(&domain.ToolExecutionResult{ToolName: "Edit", Success: true}, 80))
+	out := stripANSI(svc.FormatToolResultExpanded(&agentdomain.ToolExecutionResult{ToolName: "Edit", Success: true}, 80))
 	if strings.Contains(out, "ctrl+o") {
 		t.Errorf("always-expand tool should not show a collapse hint: %q", out)
 	}
@@ -479,7 +479,7 @@ func TestFormatToolResultExpanded_EditRendersDiff(t *testing.T) {
 	tool := &fakeTool{name: "Edit", llm: "plain llm text"}
 	svc := newTestService(tool)
 
-	res := &domain.ToolExecutionResult{
+	res := &agentdomain.ToolExecutionResult{
 		ToolName: "Edit",
 		Success:  true,
 		Duration: 5 * time.Millisecond,
@@ -488,7 +488,7 @@ func TestFormatToolResultExpanded_EditRendersDiff(t *testing.T) {
 			"old_string": "alpha\nbeta\ngamma",
 			"new_string": "alpha\nBETA\ngamma",
 		},
-		Data: &domain.EditToolResult{FilePath: "/path/to/file.go", FileModified: true, StartLine: 50},
+		Data: &agentdomain.EditToolResult{FilePath: "/path/to/file.go", FileModified: true, StartLine: 50},
 	}
 	out := stripANSI(svc.FormatToolResultExpanded(res, 120))
 

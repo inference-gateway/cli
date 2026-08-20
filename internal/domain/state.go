@@ -2,7 +2,7 @@ package domain
 
 import (
 	"fmt"
-	"strings"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -15,7 +15,7 @@ type ApplicationState struct {
 	previousView ViewState
 
 	// Agent Mode
-	agentMode AgentMode
+	agentMode agentdomain.AgentMode
 
 	// Chat State
 	chatSession *ChatSession
@@ -37,7 +37,7 @@ type ApplicationState struct {
 	userQuestionUIState *UserQuestionUIState
 
 	// Todo State
-	todos []TodoItem
+	todos []agentdomain.TodoItem
 
 	// Agent Readiness State
 	agentReadiness *AgentReadinessState
@@ -79,58 +79,6 @@ const (
 	ViewStateA2AAgents
 )
 
-// AgentMode represents the operational mode of the agent
-type AgentMode int
-
-const (
-	// AgentModeStandard is the default mode with all configured tools and approval checks
-	AgentModeStandard AgentMode = iota
-	// AgentModePlan is a read-only mode for planning without execution
-	AgentModePlan
-	// AgentModeAutoAccept bypasses all approval checks (YOLO mode)
-	AgentModeAutoAccept
-	// AgentModeReadOnly is an Explore-like capability for subagents: only
-	// read/search tools are offered and approval is bypassed (the toolset is
-	// read-only by construction). It is a subagent capability selected by the
-	// Agent tool's `type` parameter, not a human shift+tab mode.
-	AgentModeReadOnly
-)
-
-// AllowedlistKey maps the agent mode to the bash allow-list mode key used in
-// config (tools.bash.mode.<key>.allow): AutoAccept -> "auto", Plan -> "plan",
-// Standard (and any unknown) -> "standard".
-func (m AgentMode) AllowedlistKey() string {
-	switch m {
-	case AgentModePlan:
-		return "plan"
-	case AgentModeAutoAccept:
-		return "auto"
-	case AgentModeReadOnly:
-		return "readonly"
-	default:
-		return "standard"
-	}
-}
-
-// ParseAgentMode is the inverse of AllowedlistKey: it maps a mode key
-// ("standard"/"plan"/"auto") back to an AgentMode. Matching is case-insensitive
-// and tolerant of surrounding whitespace. ok is false for an empty or
-// unrecognized key, in which case callers should keep AgentModeStandard.
-func ParseAgentMode(s string) (AgentMode, bool) {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "standard":
-		return AgentModeStandard, true
-	case "plan":
-		return AgentModePlan, true
-	case "auto":
-		return AgentModeAutoAccept, true
-	case "readonly":
-		return AgentModeReadOnly, true
-	default:
-		return AgentModeStandard, false
-	}
-}
-
 func (v ViewState) String() string {
 	switch v {
 	case ViewStateModelSelection:
@@ -164,37 +112,6 @@ func (v ViewState) String() string {
 	}
 }
 
-func (m AgentMode) String() string {
-	switch m {
-	case AgentModeStandard:
-		return "Standard"
-	case AgentModePlan:
-		return "Plan"
-	case AgentModeAutoAccept:
-		return "AutoAccept"
-	case AgentModeReadOnly:
-		return "ReadOnly"
-	default:
-		return "Unknown"
-	}
-}
-
-// DisplayName returns a user-friendly display name for the mode
-func (m AgentMode) DisplayName() string {
-	switch m {
-	case AgentModeStandard:
-		return "Standard"
-	case AgentModePlan:
-		return "Plan Mode"
-	case AgentModeAutoAccept:
-		return "Auto-Accept"
-	case AgentModeReadOnly:
-		return "Read-Only"
-	default:
-		return "Unknown"
-	}
-}
-
 // QueuedMessage represents a message in the input queue
 type QueuedMessage struct {
 	Message   sdk.Message
@@ -202,191 +119,27 @@ type QueuedMessage struct {
 	RequestID string
 }
 
-// RetryStatus tracks the current retry state for reconnection attempts.
-// A nil *RetryStatus means no retry is in progress.
-type RetryStatus struct {
-	Attempt     int
-	MaxAttempts int
-}
-
 // ChatSession represents an active chat session state
 type ChatSession struct {
 	RequestID    string
-	Status       ChatStatus
+	Status       agentdomain.ChatStatus
 	StartTime    time.Time
 	Model        string
-	EventChannel <-chan ChatEvent
+	EventChannel <-chan agentdomain.ChatEvent
 	IsFirstChunk bool
 	HasToolCalls bool
 	LastActivity time.Time
-	RetryStatus  *RetryStatus
-}
-
-// ChatStatus represents the current chat operation status
-type ChatStatus int
-
-const (
-	ChatStatusIdle ChatStatus = iota
-	ChatStatusStarting
-	ChatStatusThinking
-	ChatStatusGenerating
-	ChatStatusReceivingTools
-	ChatStatusWaitingTools
-	ChatStatusCompleted
-	ChatStatusError
-	ChatStatusCancelled
-)
-
-func (c ChatStatus) String() string {
-	switch c {
-	case ChatStatusIdle:
-		return "Idle"
-	case ChatStatusStarting:
-		return "Starting"
-	case ChatStatusThinking:
-		return "Thinking"
-	case ChatStatusGenerating:
-		return "Generating"
-	case ChatStatusReceivingTools:
-		return "ReceivingTools"
-	case ChatStatusWaitingTools:
-		return "WaitingTools"
-	case ChatStatusCompleted:
-		return "Completed"
-	case ChatStatusError:
-		return "Error"
-	case ChatStatusCancelled:
-		return "Cancelled"
-	default:
-		return "Unknown"
-	}
+	RetryStatus  *agentdomain.RetryStatus
 }
 
 // ToolExecutionSession represents an active tool execution session
 type ToolExecutionSession struct {
-	CurrentTool    *ToolCall
-	RemainingTools []ToolCall
+	CurrentTool    *agentdomain.ToolCall
+	RemainingTools []agentdomain.ToolCall
 	TotalTools     int
 	CompletedTools int
-	Status         ToolExecutionStatus
+	Status         agentdomain.ToolExecutionStatus
 	StartTime      time.Time
-}
-
-// ToolCall represents a tool call with proper typing
-type ToolCall struct {
-	ID        string               `json:"id"`
-	Name      string               `json:"name"`
-	Arguments map[string]any       `json:"arguments"`
-	Status    ToolCallStatus       `json:"status"`
-	Result    *ToolExecutionResult `json:"result,omitempty"`
-	StartTime time.Time            `json:"start_time"`
-	EndTime   *time.Time           `json:"end_time,omitempty"`
-}
-
-// ToolCallStatus represents the status of an individual tool call
-type ToolCallStatus int
-
-const (
-	ToolCallStatusPending ToolCallStatus = iota
-	ToolCallStatusWaitingApproval
-	ToolCallStatusExecuting
-	ToolCallStatusCompleted
-	ToolCallStatusFailed
-	ToolCallStatusCancelled
-	ToolCallStatusDenied
-)
-
-func (t ToolCallStatus) String() string {
-	switch t {
-	case ToolCallStatusPending:
-		return "Pending"
-	case ToolCallStatusWaitingApproval:
-		return "WaitingApproval"
-	case ToolCallStatusExecuting:
-		return "Executing"
-	case ToolCallStatusCompleted:
-		return "Completed"
-	case ToolCallStatusFailed:
-		return "Failed"
-	case ToolCallStatusCancelled:
-		return "Cancelled"
-	case ToolCallStatusDenied:
-		return "Denied"
-	default:
-		return "Unknown"
-	}
-}
-
-// ToolExecutionStatus represents the overall tool execution session status
-type ToolExecutionStatus int
-
-const (
-	ToolExecutionStatusIdle ToolExecutionStatus = iota
-	ToolExecutionStatusProcessing
-	ToolExecutionStatusExecuting
-	ToolExecutionStatusCompleted
-	ToolExecutionStatusFailed
-)
-
-func (t ToolExecutionStatus) String() string {
-	switch t {
-	case ToolExecutionStatusIdle:
-		return "Idle"
-	case ToolExecutionStatusProcessing:
-		return "Processing"
-	case ToolExecutionStatusExecuting:
-		return "Executing"
-	case ToolExecutionStatusCompleted:
-		return "Completed"
-	case ToolExecutionStatusFailed:
-		return "Failed"
-	default:
-		return "Unknown"
-	}
-}
-
-// ApprovalAction represents the user's choice for tool approval
-type ApprovalAction int
-
-const (
-	ApprovalApprove ApprovalAction = iota
-	ApprovalReject
-	ApprovalAutoAccept
-)
-
-func (a ApprovalAction) String() string {
-	switch a {
-	case ApprovalApprove:
-		return "Approve"
-	case ApprovalReject:
-		return "Reject"
-	case ApprovalAutoAccept:
-		return "Auto-Accept"
-	default:
-		return "Unknown"
-	}
-}
-
-// PlanApprovalAction represents the user's choice for plan approval
-type PlanApprovalAction int
-
-const (
-	PlanApprovalAccept PlanApprovalAction = iota
-	PlanApprovalReject
-	PlanApprovalAcceptStandard
-)
-
-func (a PlanApprovalAction) String() string {
-	switch a {
-	case PlanApprovalAccept:
-		return "Accept"
-	case PlanApprovalReject:
-		return "Reject"
-	case PlanApprovalAcceptStandard:
-		return "Approve Each Step"
-	default:
-		return "Unknown"
-	}
 }
 
 // FileSelectionState represents the state of file selection UI
@@ -399,15 +152,15 @@ type FileSelectionState struct {
 // ApprovalUIState represents the state of approval UI
 type ApprovalUIState struct {
 	PendingToolCall *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call"`
-	ResponseChan    chan ApprovalAction                `json:"-"`
+	ResponseChan    chan agentdomain.ApprovalAction    `json:"-"`
 }
 
 // PlanApprovalUIState represents the state of plan approval UI
 type PlanApprovalUIState struct {
-	SelectedIndex int                     `json:"selected_index"`
-	PlanContent   string                  `json:"plan_content"`
-	PlanID        string                  `json:"plan_id"`
-	ResponseChan  chan PlanApprovalAction `json:"-"`
+	SelectedIndex int                                 `json:"selected_index"`
+	PlanContent   string                              `json:"plan_content"`
+	PlanID        string                              `json:"plan_id"`
+	ResponseChan  chan agentdomain.PlanApprovalAction `json:"-"`
 }
 
 // UserQuestionUIState drives the interactive AskUserQuestion form. The agent
@@ -416,8 +169,8 @@ type PlanApprovalUIState struct {
 // ResponseChan delivers the final answers slice back to the blocked tool;
 // closing it without a send signals cancellation.
 type UserQuestionUIState struct {
-	Questions    []UserQuestion            `json:"questions"`
-	ResponseChan chan []UserQuestionAnswer `json:"-"`
+	Questions    []agentdomain.UserQuestion            `json:"questions"`
+	ResponseChan chan []agentdomain.UserQuestionAnswer `json:"-"`
 }
 
 // MessageEditState represents the state when editing a message
@@ -441,7 +194,7 @@ func NewApplicationState() *ApplicationState {
 	return &ApplicationState{
 		currentView:        ViewStateModelSelection,
 		previousView:       ViewStateModelSelection,
-		agentMode:          AgentModeStandard,
+		agentMode:          agentdomain.AgentModeStandard,
 		chatSession:        nil,
 		toolExecution:      nil,
 		queuedMessages:     make([]QueuedMessage, 0),
@@ -472,12 +225,12 @@ func (s *ApplicationState) TransitionToView(newView ViewState) error {
 }
 
 // GetAgentMode returns the current agent mode
-func (s *ApplicationState) GetAgentMode() AgentMode {
+func (s *ApplicationState) GetAgentMode() agentdomain.AgentMode {
 	return s.agentMode
 }
 
 // SetAgentMode sets the agent mode
-func (s *ApplicationState) SetAgentMode(mode AgentMode) {
+func (s *ApplicationState) SetAgentMode(mode agentdomain.AgentMode) {
 	s.agentMode = mode
 }
 
@@ -485,16 +238,16 @@ func (s *ApplicationState) SetAgentMode(mode AgentMode) {
 // deliberately three-way (Standard -> Plan -> AutoAccept); AgentModeReadOnly is a
 // subagent-only capability set by the Agent tool's `type` parameter, not a mode a
 // user can toggle their own chat into.
-func (s *ApplicationState) CycleAgentMode() AgentMode {
+func (s *ApplicationState) CycleAgentMode() agentdomain.AgentMode {
 	switch s.agentMode {
-	case AgentModeStandard:
-		s.agentMode = AgentModePlan
-	case AgentModePlan:
-		s.agentMode = AgentModeAutoAccept
-	case AgentModeAutoAccept:
-		s.agentMode = AgentModeStandard
+	case agentdomain.AgentModeStandard:
+		s.agentMode = agentdomain.AgentModePlan
+	case agentdomain.AgentModePlan:
+		s.agentMode = agentdomain.AgentModeAutoAccept
+	case agentdomain.AgentModeAutoAccept:
+		s.agentMode = agentdomain.AgentModeStandard
 	default:
-		s.agentMode = AgentModeStandard
+		s.agentMode = agentdomain.AgentModeStandard
 	}
 	return s.agentMode
 }
@@ -552,7 +305,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 func (s *ApplicationState) SetChatPending() {
 	s.chatSession = &ChatSession{
 		RequestID:    "pending",
-		Status:       ChatStatusStarting,
+		Status:       agentdomain.ChatStatusStarting,
 		StartTime:    time.Now(),
 		Model:        "",
 		EventChannel: nil,
@@ -563,14 +316,14 @@ func (s *ApplicationState) SetChatPending() {
 }
 
 // StartChatSession initializes a new chat session
-func (s *ApplicationState) StartChatSession(requestID, model string, eventChan <-chan ChatEvent) {
+func (s *ApplicationState) StartChatSession(requestID, model string, eventChan <-chan agentdomain.ChatEvent) {
 	if s.chatSession != nil {
 		s.EndChatSession()
 	}
 
 	s.chatSession = &ChatSession{
 		RequestID:    requestID,
-		Status:       ChatStatusStarting,
+		Status:       agentdomain.ChatStatusStarting,
 		StartTime:    time.Now(),
 		Model:        model,
 		EventChannel: eventChan,
@@ -611,7 +364,7 @@ func (s *ApplicationState) GetQueuedMessages() []QueuedMessage {
 }
 
 // UpdateChatStatus updates the chat session status
-func (s *ApplicationState) UpdateChatStatus(status ChatStatus) error {
+func (s *ApplicationState) UpdateChatStatus(status agentdomain.ChatStatus) error {
 	if s.chatSession == nil {
 		return fmt.Errorf("no active chat session")
 	}
@@ -627,50 +380,50 @@ func (s *ApplicationState) UpdateChatStatus(status ChatStatus) error {
 }
 
 // isValidChatStatusTransition validates chat status transitions
-func (s *ApplicationState) isValidChatStatusTransition(from, to ChatStatus) bool {
+func (s *ApplicationState) isValidChatStatusTransition(from, to agentdomain.ChatStatus) bool {
 	if from == to {
 		return true
 	}
 
-	validTransitions := map[ChatStatus][]ChatStatus{
-		ChatStatusIdle: {ChatStatusStarting},
-		ChatStatusStarting: {
-			ChatStatusThinking,
-			ChatStatusGenerating,
-			ChatStatusWaitingTools,
-			ChatStatusError,
-			ChatStatusCancelled,
+	validTransitions := map[agentdomain.ChatStatus][]agentdomain.ChatStatus{
+		agentdomain.ChatStatusIdle: {agentdomain.ChatStatusStarting},
+		agentdomain.ChatStatusStarting: {
+			agentdomain.ChatStatusThinking,
+			agentdomain.ChatStatusGenerating,
+			agentdomain.ChatStatusWaitingTools,
+			agentdomain.ChatStatusError,
+			agentdomain.ChatStatusCancelled,
 		},
-		ChatStatusThinking: {
-			ChatStatusGenerating,
-			ChatStatusReceivingTools,
-			ChatStatusWaitingTools,
-			ChatStatusCompleted,
-			ChatStatusError,
-			ChatStatusCancelled,
+		agentdomain.ChatStatusThinking: {
+			agentdomain.ChatStatusGenerating,
+			agentdomain.ChatStatusReceivingTools,
+			agentdomain.ChatStatusWaitingTools,
+			agentdomain.ChatStatusCompleted,
+			agentdomain.ChatStatusError,
+			agentdomain.ChatStatusCancelled,
 		},
-		ChatStatusGenerating: {
-			ChatStatusReceivingTools,
-			ChatStatusWaitingTools,
-			ChatStatusCompleted,
-			ChatStatusError,
-			ChatStatusCancelled,
+		agentdomain.ChatStatusGenerating: {
+			agentdomain.ChatStatusReceivingTools,
+			agentdomain.ChatStatusWaitingTools,
+			agentdomain.ChatStatusCompleted,
+			agentdomain.ChatStatusError,
+			agentdomain.ChatStatusCancelled,
 		},
-		ChatStatusReceivingTools: {
-			ChatStatusWaitingTools,
-			ChatStatusCompleted,
-			ChatStatusError,
-			ChatStatusCancelled,
+		agentdomain.ChatStatusReceivingTools: {
+			agentdomain.ChatStatusWaitingTools,
+			agentdomain.ChatStatusCompleted,
+			agentdomain.ChatStatusError,
+			agentdomain.ChatStatusCancelled,
 		},
-		ChatStatusWaitingTools: {
-			ChatStatusStarting,
-			ChatStatusCompleted,
-			ChatStatusError,
-			ChatStatusCancelled,
+		agentdomain.ChatStatusWaitingTools: {
+			agentdomain.ChatStatusStarting,
+			agentdomain.ChatStatusCompleted,
+			agentdomain.ChatStatusError,
+			agentdomain.ChatStatusCancelled,
 		},
-		ChatStatusCompleted: {ChatStatusIdle},
-		ChatStatusError:     {ChatStatusIdle},
-		ChatStatusCancelled: {ChatStatusIdle},
+		agentdomain.ChatStatusCompleted: {agentdomain.ChatStatusIdle},
+		agentdomain.ChatStatusError:     {agentdomain.ChatStatusIdle},
+		agentdomain.ChatStatusCancelled: {agentdomain.ChatStatusIdle},
 	}
 
 	allowed, exists := validTransitions[from]
@@ -692,7 +445,7 @@ func (s *ApplicationState) EndChatSession() {
 }
 
 // SetRetryStatus updates the retry status on the current chat session
-func (s *ApplicationState) SetRetryStatus(status *RetryStatus) {
+func (s *ApplicationState) SetRetryStatus(status *agentdomain.RetryStatus) {
 	if s.chatSession != nil {
 		s.chatSession.RetryStatus = status
 	}
@@ -701,7 +454,7 @@ func (s *ApplicationState) SetRetryStatus(status *RetryStatus) {
 // GetRetryStatus returns a copy of the current retry status, or nil when no
 // retry is in progress. Returning a copy keeps callers from sharing the
 // mutable pointer with the agent's streaming goroutine.
-func (s *ApplicationState) GetRetryStatus() *RetryStatus {
+func (s *ApplicationState) GetRetryStatus() *agentdomain.RetryStatus {
 	if s.chatSession == nil || s.chatSession.RetryStatus == nil {
 		return nil
 	}
@@ -726,7 +479,7 @@ func (s *ApplicationState) GetChatSession() *ChatSession {
 }
 
 // StartToolExecution initializes a new tool execution session
-func (s *ApplicationState) StartToolExecution(tools []ToolCall) {
+func (s *ApplicationState) StartToolExecution(tools []agentdomain.ToolCall) {
 	if len(tools) == 0 {
 		return
 	}
@@ -736,19 +489,19 @@ func (s *ApplicationState) StartToolExecution(tools []ToolCall) {
 		RemainingTools: tools[1:],
 		TotalTools:     len(tools),
 		CompletedTools: 0,
-		Status:         ToolExecutionStatusProcessing,
+		Status:         agentdomain.ToolExecutionStatusProcessing,
 		StartTime:      time.Now(),
 	}
 }
 
 // CompleteCurrentTool marks the current tool as completed and moves to next
-func (s *ApplicationState) CompleteCurrentTool(result *ToolExecutionResult) error {
+func (s *ApplicationState) CompleteCurrentTool(result *agentdomain.ToolExecutionResult) error {
 	if s.toolExecution == nil || s.toolExecution.CurrentTool == nil {
 		return fmt.Errorf("no current tool to complete")
 	}
 
 	now := time.Now()
-	s.toolExecution.CurrentTool.Status = ToolCallStatusCompleted
+	s.toolExecution.CurrentTool.Status = agentdomain.ToolCallStatusCompleted
 	s.toolExecution.CurrentTool.Result = result
 	s.toolExecution.CurrentTool.EndTime = &now
 	s.toolExecution.CompletedTools++
@@ -757,13 +510,13 @@ func (s *ApplicationState) CompleteCurrentTool(result *ToolExecutionResult) erro
 }
 
 // FailCurrentTool marks the current tool as failed and moves to next
-func (s *ApplicationState) FailCurrentTool(result *ToolExecutionResult) error {
+func (s *ApplicationState) FailCurrentTool(result *agentdomain.ToolExecutionResult) error {
 	if s.toolExecution == nil || s.toolExecution.CurrentTool == nil {
 		return fmt.Errorf("no current tool to fail")
 	}
 
 	now := time.Now()
-	s.toolExecution.CurrentTool.Status = ToolCallStatusFailed
+	s.toolExecution.CurrentTool.Status = agentdomain.ToolCallStatusFailed
 	s.toolExecution.CurrentTool.Result = result
 	s.toolExecution.CurrentTool.EndTime = &now
 	s.toolExecution.CompletedTools++
@@ -774,14 +527,14 @@ func (s *ApplicationState) FailCurrentTool(result *ToolExecutionResult) error {
 // moveToNextTool advances to the next tool in the queue
 func (s *ApplicationState) moveToNextTool() error {
 	if len(s.toolExecution.RemainingTools) == 0 {
-		s.toolExecution.Status = ToolExecutionStatusCompleted
+		s.toolExecution.Status = agentdomain.ToolExecutionStatusCompleted
 		return nil
 	}
 
 	s.toolExecution.CurrentTool = &s.toolExecution.RemainingTools[0]
 	s.toolExecution.RemainingTools = s.toolExecution.RemainingTools[1:]
-	s.toolExecution.Status = ToolExecutionStatusProcessing
-	s.toolExecution.CurrentTool.Status = ToolCallStatusPending
+	s.toolExecution.Status = agentdomain.ToolExecutionStatusProcessing
+	s.toolExecution.CurrentTool.Status = agentdomain.ToolCallStatusPending
 
 	return nil
 }
@@ -856,7 +609,7 @@ func (s *ApplicationState) ClearFileSelectionState() {
 // Approval State Management
 
 // SetupApprovalUIState initializes approval UI state with the pending tool call
-func (s *ApplicationState) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan ApprovalAction) {
+func (s *ApplicationState) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan agentdomain.ApprovalAction) {
 	s.approvalUIState = &ApprovalUIState{
 		PendingToolCall: toolCall,
 		ResponseChan:    responseChan,
@@ -879,9 +632,9 @@ func (s *ApplicationState) ClearApprovalUIState() {
 // Plan Approval State Management
 
 // SetupPlanApprovalUIState initializes plan approval UI state
-func (s *ApplicationState) SetupPlanApprovalUIState(planContent, planID string, responseChan chan PlanApprovalAction) {
+func (s *ApplicationState) SetupPlanApprovalUIState(planContent, planID string, responseChan chan agentdomain.PlanApprovalAction) {
 	s.planApprovalUIState = &PlanApprovalUIState{
-		SelectedIndex: int(PlanApprovalAccept),
+		SelectedIndex: int(agentdomain.PlanApprovalAccept),
 		PlanContent:   planContent,
 		PlanID:        planID,
 		ResponseChan:  responseChan,
@@ -912,7 +665,7 @@ func (s *ApplicationState) ClearPlanApprovalUIState() {
 
 // SetupUserQuestionUIState initializes the AskUserQuestion form state for the
 // given questions.
-func (s *ApplicationState) SetupUserQuestionUIState(questions []UserQuestion, responseChan chan []UserQuestionAnswer) {
+func (s *ApplicationState) SetupUserQuestionUIState(questions []agentdomain.UserQuestion, responseChan chan []agentdomain.UserQuestionAnswer) {
 	s.userQuestionUIState = &UserQuestionUIState{
 		Questions:    questions,
 		ResponseChan: responseChan,
@@ -937,12 +690,12 @@ func (s *ApplicationState) ClearUserQuestionUIState() {
 // Todo State Management
 
 // SetTodos sets the todo list
-func (s *ApplicationState) SetTodos(todos []TodoItem) {
+func (s *ApplicationState) SetTodos(todos []agentdomain.TodoItem) {
 	s.todos = todos
 }
 
 // GetTodos returns the current todo list
-func (s *ApplicationState) GetTodos() []TodoItem {
+func (s *ApplicationState) GetTodos() []agentdomain.TodoItem {
 	return s.todos
 }
 
@@ -1037,16 +790,16 @@ type AgentReadinessState struct {
 
 // AgentStatus represents the status of an individual A2A agent
 type AgentStatus struct {
-	Name        string     `json:"name"`
-	URL         string     `json:"url"`
-	Image       string     `json:"image"`
-	State       AgentState `json:"state"`
-	Message     string     `json:"message,omitempty"`
-	StartTime   time.Time  `json:"start_time"`
-	ReadyTime   *time.Time `json:"ready_time,omitempty"`
-	Error       string     `json:"error,omitempty"`
-	LayersDone  int        `json:"layers_done,omitempty"`
-	LayersTotal int        `json:"layers_total,omitempty"`
+	Name        string                 `json:"name"`
+	URL         string                 `json:"url"`
+	Image       string                 `json:"image"`
+	State       agentdomain.AgentState `json:"state"`
+	Message     string                 `json:"message,omitempty"`
+	StartTime   time.Time              `json:"start_time"`
+	ReadyTime   *time.Time             `json:"ready_time,omitempty"`
+	Error       string                 `json:"error,omitempty"`
+	LayersDone  int                    `json:"layers_done,omitempty"`
+	LayersTotal int                    `json:"layers_total,omitempty"`
 }
 
 // MCPServerStatus represents the status of MCP server connections
@@ -1054,57 +807,6 @@ type MCPServerStatus struct {
 	TotalServers     int `json:"total_servers"`
 	ConnectedServers int `json:"connected_servers"`
 	TotalTools       int `json:"total_tools"`
-}
-
-// AgentState represents the current state of an agent
-type AgentState int
-
-const (
-	AgentStateUnknown AgentState = iota
-	AgentStatePullingImage
-	AgentStateStarting
-	AgentStateWaitingReady
-	AgentStateReady
-	AgentStateFailed
-)
-
-func (a AgentState) String() string {
-	switch a {
-	case AgentStateUnknown:
-		return "Unknown"
-	case AgentStatePullingImage:
-		return "PullingImage"
-	case AgentStateStarting:
-		return "Starting"
-	case AgentStateWaitingReady:
-		return "WaitingReady"
-	case AgentStateReady:
-		return "Ready"
-	case AgentStateFailed:
-		return "Failed"
-	default:
-		return "Unknown"
-	}
-}
-
-// DisplayName returns a user-friendly display name for the agent state
-func (a AgentState) DisplayName() string {
-	switch a {
-	case AgentStateUnknown:
-		return "unknown"
-	case AgentStatePullingImage:
-		return "pulling image"
-	case AgentStateStarting:
-		return "starting"
-	case AgentStateWaitingReady:
-		return "waiting"
-	case AgentStateReady:
-		return "ready"
-	case AgentStateFailed:
-		return "failed"
-	default:
-		return "unknown"
-	}
 }
 
 // Agent Readiness State Management
@@ -1120,7 +822,7 @@ func (s *ApplicationState) InitializeAgentReadiness(totalAgents int) {
 }
 
 // UpdateAgentStatus updates the status of a specific agent
-func (s *ApplicationState) UpdateAgentStatus(name string, state AgentState, message string, url string, image string) {
+func (s *ApplicationState) UpdateAgentStatus(name string, state agentdomain.AgentState, message string, url string, image string) {
 	if s.agentReadiness == nil {
 		return
 	}
@@ -1140,7 +842,7 @@ func (s *ApplicationState) UpdateAgentStatus(name string, state AgentState, mess
 	agent.State = state
 	agent.Message = message
 
-	if oldState != AgentStateReady && state == AgentStateReady {
+	if oldState != agentdomain.AgentStateReady && state == agentdomain.AgentStateReady {
 		now := time.Now()
 		agent.ReadyTime = &now
 	}
@@ -1152,7 +854,7 @@ func (s *ApplicationState) UpdateAgentStatus(name string, state AgentState, mess
 func (s *ApplicationState) recountReadyAgents() {
 	ready := 0
 	for _, agent := range s.agentReadiness.Agents {
-		if agent.State == AgentStateReady {
+		if agent.State == agentdomain.AgentStateReady {
 			ready++
 		}
 	}
@@ -1184,7 +886,7 @@ func (s *ApplicationState) SetAgentError(name string, err error) {
 		s.agentReadiness.Agents[name] = agent
 	}
 
-	agent.State = AgentStateFailed
+	agent.State = agentdomain.AgentStateFailed
 	agent.Error = err.Error()
 	s.recountReadyAgents()
 }
@@ -1220,72 +922,4 @@ func (s *ApplicationState) RemoveAgent(name string) {
 	delete(s.agentReadiness.Agents, name)
 	s.agentReadiness.TotalAgents--
 	s.recountReadyAgents()
-}
-
-// AgentExecutionState represents the state of the agent execution loop
-// This is a more granular state than ChatStatus and is used for the state machine
-type AgentExecutionState int
-
-const (
-	// StateIdle indicates no active work
-	StateIdle AgentExecutionState = iota
-	// StateCheckingQueue indicates examining message queue
-	StateCheckingQueue
-	// StateStreamingLLM indicates waiting for LLM response
-	StateStreamingLLM
-	// StatePostStream indicates after stream, before tool evaluation
-	StatePostStream
-	// StateEvaluatingTools indicates categorizing tool calls
-	StateEvaluatingTools
-	// StateApprovingTools indicates waiting for user approvals (sequential)
-	StateApprovingTools
-	// StateBlockingTools indicates approval is required but no approver is
-	// reachable (approval_behaviour resolves to block), so the gated tool calls
-	// are rejected with a reason instead of being prompted or executed.
-	StateBlockingTools
-	// StateExecutingTools indicates running tools (parallel)
-	StateExecutingTools
-	// StatePostToolExecution indicates after all tools complete
-	StatePostToolExecution
-	// StateCompleting indicates finalizing loop
-	StateCompleting
-	// StateStopped indicates loop terminated
-	StateStopped
-	// StateCancelled indicates user cancelled
-	StateCancelled
-	// StateError indicates error occurred
-	StateError
-)
-
-func (s AgentExecutionState) String() string {
-	switch s {
-	case StateIdle:
-		return "Idle"
-	case StateCheckingQueue:
-		return "CheckingQueue"
-	case StateStreamingLLM:
-		return "StreamingLLM"
-	case StatePostStream:
-		return "PostStream"
-	case StateEvaluatingTools:
-		return "EvaluatingTools"
-	case StateApprovingTools:
-		return "ApprovingTools"
-	case StateBlockingTools:
-		return "BlockingTools"
-	case StateExecutingTools:
-		return "ExecutingTools"
-	case StatePostToolExecution:
-		return "PostToolExecution"
-	case StateCompleting:
-		return "Completing"
-	case StateStopped:
-		return "Stopped"
-	case StateCancelled:
-		return "Cancelled"
-	case StateError:
-		return "Error"
-	default:
-		return "Unknown"
-	}
 }

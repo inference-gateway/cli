@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -26,7 +27,7 @@ type BackgroundShellService struct {
 	shellTracker domain.ShellTracker
 	supervisor   *jobs.Supervisor
 	config       *config.Config
-	eventChannel chan<- domain.ChatEvent
+	eventChannel chan<- agentdomain.ChatEvent
 }
 
 // NewBackgroundShellService creates a new background shell service. supervisor
@@ -35,7 +36,7 @@ func NewBackgroundShellService(
 	tracker domain.ShellTracker,
 	supervisor *jobs.Supervisor,
 	cfg *config.Config,
-	eventChannel chan<- domain.ChatEvent,
+	eventChannel chan<- agentdomain.ChatEvent,
 ) *BackgroundShellService {
 	return &BackgroundShellService{
 		shellTracker: tracker,
@@ -78,7 +79,7 @@ func (s *BackgroundShellService) DetachToBackground(
 
 	if s.eventChannel != nil {
 		select {
-		case s.eventChannel <- domain.ShellDetachedEvent{
+		case s.eventChannel <- agentdomain.ShellDetachedEvent{
 			RequestID: "system",
 			Timestamp: time.Now(),
 			ShellID:   shellID,

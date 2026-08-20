@@ -3,13 +3,13 @@ package browser
 import (
 	"context"
 	"fmt"
-	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 )
 
 // BrowserClickTool clicks an element in the shared browser session
@@ -62,7 +62,7 @@ func (t *BrowserClickTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the browser click tool with given arguments
-func (t *BrowserClickTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *BrowserClickTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if err := t.checkRateLimit(); err != nil {

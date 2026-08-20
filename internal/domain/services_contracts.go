@@ -4,6 +4,7 @@ package domain
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
@@ -21,13 +22,13 @@ type FileService interface {
 // ImageService handles image operations including loading and encoding
 type ImageService interface {
 	// ReadImageFromFile reads an image from a file path and returns it as a base64 attachment
-	ReadImageFromFile(filePath string) (*ImageAttachment, error)
+	ReadImageFromFile(filePath string) (*agentdomain.ImageAttachment, error)
 	// ReadImageFromBinary reads an image from binary data and returns it as a base64 attachment
-	ReadImageFromBinary(imageData []byte, filename string) (*ImageAttachment, error)
+	ReadImageFromBinary(imageData []byte, filename string) (*agentdomain.ImageAttachment, error)
 	// ReadImageFromURL fetches an image from a URL and returns it as a base64 attachment
-	ReadImageFromURL(imageURL string) (*ImageAttachment, error)
+	ReadImageFromURL(imageURL string) (*agentdomain.ImageAttachment, error)
 	// CreateDataURL creates a data URL from an image attachment
-	CreateDataURL(attachment *ImageAttachment) string
+	CreateDataURL(attachment *agentdomain.ImageAttachment) string
 	// IsImageFile checks if a file is a supported image format
 	IsImageFile(filePath string) bool
 	// IsImageURL checks if a string is a valid image URL
@@ -55,19 +56,6 @@ type FileInfo struct {
 	Path  string
 	Size  int64
 	IsDir bool
-}
-
-// TaskPollingState is the data record for one in-flight A2A task that the task
-// view reads. Monitoring is owned by the job supervisor (a2aJob), which polls the
-// remote agent and updates LastKnownState here.
-type TaskPollingState struct {
-	TaskID          string
-	ContextID       string
-	AgentURL        string
-	TaskDescription string
-	IsPolling       bool
-	StartedAt       time.Time
-	LastKnownState  string
 }
 
 // TaskInfo wraps ADK Task with UI-specific metadata for completed/terminal tasks
@@ -105,37 +93,10 @@ type TaskRetentionService interface {
 // Only enabled when A2A is enabled - provides task cancellation and retrieval
 type BackgroundTaskService interface {
 	// GetBackgroundTasks returns all current background polling tasks
-	GetBackgroundTasks() []TaskPollingState
+	GetBackgroundTasks() []agentdomain.TaskPollingState
 
 	// CancelBackgroundTask cancels a background task by task ID
 	CancelBackgroundTask(taskID string) error
-}
-
-// A2ATaskTracker handles A2A task ID and context ID tracking within chat
-// sessions. Following A2A spec: supports multi-tenant with multiple
-// contexts per agent. This is one half of the BackgroundTaskRegistry; the
-// other half is ShellTracker (defined in shell.go). Code that only needs
-// the A2A surface can depend on this narrower interface.
-type A2ATaskTracker interface {
-	// Context management (contexts are server-generated and tracked here).
-	// Multiple contexts per agent enable multi-tenant/multi-session support.
-	RegisterContext(agentURL, contextID string)
-	GetLatestContextForAgent(agentURL string) string
-	HasContext(contextID string) bool
-
-	// Task management (tasks are server-generated and scoped to contexts per A2A spec)
-	AddTask(contextID, taskID string)
-	GetLatestTaskForContext(contextID string) string
-	RemoveTask(taskID string)
-
-	// Agent management
-	ClearAllAgents()
-
-	// Polling state management (one polling state per task)
-	StartPolling(taskID string, state *TaskPollingState)
-	StopPolling(taskID string)
-	GetPollingState(taskID string) *TaskPollingState
-	GetAllPollingTasks() []string
 }
 
 // A2AClearer is the one-method projection of the A2A tracker used by
@@ -161,7 +122,7 @@ type A2AClearer interface {
 // interface, or this full BackgroundTaskRegistry to access both plus the
 // HasPending() aggregator method.
 type BackgroundTaskRegistry interface {
-	A2ATaskTracker
+	agentdomain.A2ATaskTracker
 	ShellTracker
 	SubagentTracker
 
@@ -283,22 +244,6 @@ type GitHubSetupService interface {
 	WriteWorkflowFile(path, content string) error
 	GenerateStandardWorkflowContent() string
 	GenerateGithubActionWorkflowContent() string
-}
-
-// BashDetachChannelHolder manages the bash detach channel for background shell operations
-type BashDetachChannelHolder interface {
-	SetBashDetachChan(chan<- struct{})
-	GetBashDetachChan() chan<- struct{}
-	ClearBashDetachChan()
-}
-
-// UserQuestionBroker publishes an interactive clarifying-question request to the
-// TUI and blocks until the user answers or the context is cancelled. It is
-// injected into the AskUserQuestion tool's execution context only on the chat
-// path (where a TTY/event loop exists). Returns ok=false when the user dismisses
-// the form (the response channel is closed without a value) or on cancellation.
-type UserQuestionBroker interface {
-	AskUserQuestions(ctx context.Context, questions []UserQuestion) (answers []UserQuestionAnswer, ok bool, err error)
 }
 
 // ThemeService handles theme management
@@ -424,25 +369,6 @@ const (
 	ScrollToTop
 	ScrollToBottom
 )
-
-// SystemReminderProvider decides which system reminders are due for a given
-// ReminderQuery (hook point, per-run turn, cumulative session turn, max turns,
-// and the already-fired set). It is implemented by config from the user's
-// reminders list; the agent depends on this interface so reminder policy can be
-// faked in tests.
-type SystemReminderProvider interface {
-	RemindersDue(q ReminderQuery) []SystemReminder
-}
-
-// HookCommandProvider resolves which command hooks are due at a hook point. It
-// is the command-action sibling of SystemReminderProvider, implemented by config
-// from the user's hooks list. The provider only resolves the commands; the agent
-// runs them through the existing bash allow-list, so config stays free of
-// os/exec. The agent depends on this interface so the command set can be faked
-// in tests.
-type HookCommandProvider interface {
-	CommandsDue(hook HookPoint) []HookCommand
-}
 
 // MemoryBackend syncs the persistent memory directory with a remote. The local
 // backend is a no-op; the git backend pulls on run start and commits + pushes

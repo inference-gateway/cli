@@ -13,6 +13,7 @@ import (
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -165,7 +166,7 @@ func TestWaitTool_FormatPreview(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		result *domain.ToolExecutionResult
+		result *agentdomain.ToolExecutionResult
 		want   string
 	}{
 		{
@@ -175,7 +176,7 @@ func TestWaitTool_FormatPreview(t *testing.T) {
 		},
 		{
 			name: "condition met",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				Success:  true,
 				Duration: 5 * time.Second,
 				Data: map[string]any{
@@ -187,7 +188,7 @@ func TestWaitTool_FormatPreview(t *testing.T) {
 		},
 		{
 			name: "timeout",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				Success:  false,
 				Duration: 30 * time.Second,
 				Error:    "timed out",
@@ -216,7 +217,7 @@ func TestWaitTool_FormatForUI(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		result *domain.ToolExecutionResult
+		result *agentdomain.ToolExecutionResult
 		checks []string
 	}{
 		{
@@ -226,7 +227,7 @@ func TestWaitTool_FormatForUI(t *testing.T) {
 		},
 		{
 			name: "condition met",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				Success:  true,
 				Duration: 5 * time.Second,
 				Data: map[string]any{
@@ -242,7 +243,7 @@ func TestWaitTool_FormatForUI(t *testing.T) {
 		},
 		{
 			name: "timeout",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				Success:  false,
 				Duration: 30 * time.Second,
 				Error:    "timed out",
@@ -276,7 +277,7 @@ func TestWaitTool_FormatForLLM(t *testing.T) {
 	cfg := testWaitConfig()
 	tool := NewWaitTool(cfg, nil)
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		Success:  true,
 		Duration: 3 * time.Second,
 		Data: map[string]any{
@@ -450,7 +451,7 @@ func TestWaitTool_Execute_FileEvent(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "test-wait.txt")
 
 	type waitResult struct {
-		result *domain.ToolExecutionResult
+		result *agentdomain.ToolExecutionResult
 		err    error
 	}
 	done := make(chan waitResult, 1)
@@ -501,7 +502,7 @@ func TestWaitTool_Execute_Cancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	type waitResult struct {
-		result *domain.ToolExecutionResult
+		result *agentdomain.ToolExecutionResult
 		err    error
 	}
 	done := make(chan waitResult, 1)
@@ -598,7 +599,7 @@ func TestWaitTool_Execute_CommandCheckFailed(t *testing.T) {
 	cfg.Tools.Wait.CommandPollIntervalMs = 50
 	tool := NewWaitTool(cfg, nil)
 
-	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
+	ctx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeAutoAccept)
 	start := time.Now()
 	result, err := tool.Execute(ctx, map[string]any{
 		"condition":          "command",
@@ -641,7 +642,7 @@ func TestWaitTool_Execute_CommandPendingThenSuccess(t *testing.T) {
 		_ = os.WriteFile(marker, []byte("ok"), 0o600)
 	}()
 
-	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
+	ctx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeAutoAccept)
 	result, err := tool.Execute(ctx, map[string]any{
 		"condition":          "command",
 		"timeout_seconds":    float64(10),
@@ -683,7 +684,7 @@ func TestWaitTool_Execute_CommandModeFromContext(t *testing.T) {
 		t.Errorf("Execute() reason without mode = %q, want %q (standard allow-list)", reason, "not_allowed")
 	}
 
-	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
+	ctx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeAutoAccept)
 	result, err = tool.Execute(ctx, map[string]any{
 		"condition":       "command",
 		"timeout_seconds": float64(5),
@@ -701,7 +702,7 @@ func TestWaitTool_FormatForLLM_FailureKeepsDetails(t *testing.T) {
 	cfg := testWaitConfig()
 	tool := NewWaitTool(cfg, nil)
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		Success:  false,
 		Duration: 2 * time.Second,
 		Error:    "check command failed with exit code 1 (not in pending_exit_codes)",
@@ -756,7 +757,7 @@ func TestWaitTool_Execute_CommandPendingIncludeZero(t *testing.T) {
 	cfg.Tools.Wait.CommandPollIntervalMs = 50
 	tool := NewWaitTool(cfg, nil)
 
-	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
+	ctx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeAutoAccept)
 	start := time.Now()
 	result, err := tool.Execute(ctx, map[string]any{
 		"condition":          "command",

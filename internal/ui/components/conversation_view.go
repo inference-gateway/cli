@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"hash/fnv"
 	"os"
 	"path/filepath"
@@ -95,7 +96,7 @@ type ConversationView struct {
 	allToolsExpanded       bool
 	allThinkingExpanded    bool
 	defaultExpandedTools   map[string]bool
-	toolFormatter          domain.ToolFormatter
+	toolFormatter          agentdomain.ToolFormatter
 	lineFormatter          *formatting.ConversationLineFormatter
 	plainTextLines         []string
 	configPath             string
@@ -180,7 +181,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 }
 
 // SetToolFormatter sets the tool formatter for this conversation view
-func (cv *ConversationView) SetToolFormatter(formatter domain.ToolFormatter) {
+func (cv *ConversationView) SetToolFormatter(formatter agentdomain.ToolFormatter) {
 	cv.toolFormatter = formatter
 	cv.lineFormatter = formatting.NewConversationLineFormatter(cv.width, formatter)
 }
@@ -1262,30 +1263,30 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return cv.handlePlanApprovalSelectionChanged(msg, cmd)
 	case domain.UpdateHistoryEvent:
 		return cv.handleUpdateHistoryEvent(msg, cmd)
-	case domain.ToolCallPreviewEvent, domain.ToolCallUpdateEvent, domain.ToolCallReadyEvent,
-		domain.ToolExecutionProgressEvent, domain.BashOutputChunkEvent, domain.ChatCompleteEvent:
+	case agentdomain.ToolCallPreviewEvent, agentdomain.ToolCallUpdateEvent, agentdomain.ToolCallReadyEvent,
+		agentdomain.ToolExecutionProgressEvent, agentdomain.BashOutputChunkEvent, agentdomain.ChatCompleteEvent:
 		return cv.handleToolCallEvents(msg, cmd)
 	case domain.BashCommandCompletedEvent:
 		return cv.handleBashCommandCompletedEvent(msg, cmd)
-	case domain.ChatStartEvent:
+	case agentdomain.ChatStartEvent:
 		return cv.handleChatStartEvent(cmd)
 	case domain.StreamingContentEvent:
 		return cv.handleStreamingContentEvent(msg, cmd)
 	case domain.ScrollRequestEvent:
 		return cv.handleScrollRequestEvent(msg, cmd)
-	case domain.A2ATaskSubmittedEvent:
+	case agentdomain.A2ATaskSubmittedEvent:
 		return cv.handleA2ATaskSubmitted(msg, cmd)
-	case domain.A2ATaskStatusUpdateEvent:
+	case agentdomain.A2ATaskStatusUpdateEvent:
 		return cv.handleA2ATaskStatusUpdate(msg, cmd)
-	case domain.A2ATaskCompletedEvent:
+	case agentdomain.A2ATaskCompletedEvent:
 		return cv.handleA2ATaskCompleted(msg, cmd)
-	case domain.A2ATaskFailedEvent:
+	case agentdomain.A2ATaskFailedEvent:
 		return cv.handleA2ATaskFailed(msg, cmd)
-	case domain.SubagentSubmittedEvent:
+	case agentdomain.SubagentSubmittedEvent:
 		return cv.handleSubagentSubmitted(msg, cmd)
-	case domain.SubagentCompletedEvent:
+	case agentdomain.SubagentCompletedEvent:
 		return cv.handleSubagentTerminal(msg.SubagentID, msg.Label, "done", cmd)
-	case domain.SubagentFailedEvent:
+	case agentdomain.SubagentFailedEvent:
 		return cv.handleSubagentTerminal(msg.SubagentID, msg.Label, "failed", cmd)
 	case BackgroundTaskRemovalTickMsg:
 		return cv.handleRemoveBackgroundTask(msg, cmd)
@@ -1438,7 +1439,7 @@ func (cv *ConversationView) handleSpinnerTick(msg spinner.TickMsg, cmd tea.Cmd) 
 
 // handleA2ATaskSubmitted records a newly submitted A2A task so its live
 // progress can be rendered under the originating tool result.
-func (cv *ConversationView) handleA2ATaskSubmitted(msg domain.A2ATaskSubmittedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleA2ATaskSubmitted(msg agentdomain.A2ATaskSubmittedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if msg.TaskID == "" {
 		return cv, cmd
 	}
@@ -1483,7 +1484,7 @@ func (cv *ConversationView) handleA2ATaskSubmitted(msg domain.A2ATaskSubmittedEv
 }
 
 // handleA2ATaskStatusUpdate refreshes the live state/message for an in-flight task.
-func (cv *ConversationView) handleA2ATaskStatusUpdate(msg domain.A2ATaskStatusUpdateEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleA2ATaskStatusUpdate(msg agentdomain.A2ATaskStatusUpdateEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if msg.TaskID == "" {
 		return cv, cmd
 	}
@@ -1523,7 +1524,7 @@ func (cv *ConversationView) handleA2ATaskStatusUpdate(msg domain.A2ATaskStatusUp
 
 // handleA2ATaskCompleted marks a task as successfully completed, captures
 // the usage JSON from Task.metadata, and schedules auto-removal.
-func (cv *ConversationView) handleA2ATaskCompleted(msg domain.A2ATaskCompletedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleA2ATaskCompleted(msg agentdomain.A2ATaskCompletedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if msg.TaskID == "" {
 		return cv, cmd
 	}
@@ -1553,7 +1554,7 @@ func (cv *ConversationView) handleA2ATaskCompleted(msg domain.A2ATaskCompletedEv
 
 // handleA2ATaskFailed marks a task as failed, captures the error, and
 // schedules auto-removal.
-func (cv *ConversationView) handleA2ATaskFailed(msg domain.A2ATaskFailedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleA2ATaskFailed(msg agentdomain.A2ATaskFailedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if msg.TaskID == "" {
 		return cv, cmd
 	}
@@ -1598,7 +1599,7 @@ func (cv *ConversationView) handleRemoveBackgroundTask(msg BackgroundTaskRemoval
 
 // handleSubagentSubmitted records a newly dispatched subagent so its live
 // progress renders in the sticky tree under the Agent tool call.
-func (cv *ConversationView) handleSubagentSubmitted(msg domain.SubagentSubmittedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleSubagentSubmitted(msg agentdomain.SubagentSubmittedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if msg.SubagentID == "" {
 		return cv, cmd
 	}
@@ -2319,7 +2320,7 @@ func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
 	highlightBg := cv.styleProvider.GetThemeColor("selection_bg")
 
 	var acceptStyled, rejectStyled, standardStyled string
-	if selectedIndex == int(domain.PlanApprovalAccept) {
+	if selectedIndex == int(agentdomain.PlanApprovalAccept) {
 		acceptStyled = cv.styleProvider.RenderStyledText("[ "+acceptText+" ]", styles.StyleOptions{
 			Foreground: successColor,
 			Background: highlightBg,
@@ -2329,7 +2330,7 @@ func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
 		acceptStyled = cv.styleProvider.RenderWithColor("[ "+acceptText+" ]", successColor)
 	}
 
-	if selectedIndex == int(domain.PlanApprovalReject) {
+	if selectedIndex == int(agentdomain.PlanApprovalReject) {
 		rejectStyled = cv.styleProvider.RenderStyledText("[ "+rejectText+" ]", styles.StyleOptions{
 			Foreground: errorColor,
 			Background: highlightBg,
@@ -2339,7 +2340,7 @@ func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
 		rejectStyled = cv.styleProvider.RenderWithColor("[ "+rejectText+" ]", errorColor)
 	}
 
-	if selectedIndex == int(domain.PlanApprovalAcceptStandard) {
+	if selectedIndex == int(agentdomain.PlanApprovalAcceptStandard) {
 		standardStyled = cv.styleProvider.RenderStyledText("[ "+standardText+" ]", styles.StyleOptions{
 			Foreground: accentColor,
 			Background: highlightBg,
@@ -2482,37 +2483,37 @@ func (cv *ConversationView) renderApprovalHeader(toolName string, args map[strin
 // handleToolCallRendererEvents processes tool call renderer specific events
 func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cmd) tea.Cmd {
 	switch msg := msg.(type) {
-	case domain.ToolCallPreviewEvent:
+	case agentdomain.ToolCallPreviewEvent:
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
 		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
-	case domain.ToolCallUpdateEvent:
+	case agentdomain.ToolCallUpdateEvent:
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
 		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
-	case domain.ToolCallReadyEvent:
+	case agentdomain.ToolCallReadyEvent:
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
 		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
-	case domain.ToolExecutionProgressEvent:
+	case agentdomain.ToolExecutionProgressEvent:
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
 		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
-	case domain.BashOutputChunkEvent:
+	case agentdomain.BashOutputChunkEvent:
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
 		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
-	case domain.ChatCompleteEvent:
+	case agentdomain.ChatCompleteEvent:
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
 		if rendererCmd != nil {

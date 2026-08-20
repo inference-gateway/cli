@@ -3,13 +3,14 @@ package browser
 import (
 	"context"
 	"fmt"
-	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"net/url"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 )
 
 // BrowserNavigateTool opens a URL in the shared browser session
@@ -54,7 +55,7 @@ func (t *BrowserNavigateTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the browser navigate tool with given arguments
-func (t *BrowserNavigateTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *BrowserNavigateTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if err := t.checkRateLimit(); err != nil {

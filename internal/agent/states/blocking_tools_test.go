@@ -9,8 +9,6 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	sdk "github.com/inference-gateway/sdk"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func requireAllApproval(*sdk.ChatCompletionMessageToolCall, bool) bool { return true }
@@ -24,9 +22,9 @@ func TestBlockingToolsState_GatedToolsAreRejected(t *testing.T) {
 	*f.ctx.CurrentToolCalls = makeTools(2)
 	f.ctx.ShouldRequireApproval = requireAllApproval
 	s := NewBlockingToolsState(f.ctx)
-	assert.Equal(t, domain.StateBlockingTools, s.Name())
+	assert.Equal(t, StateBlockingTools, s.Name())
 
-	require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+	require.NoError(t, s.Handle(MessageReceivedEvent{}))
 	waitForAllToolsProcessed(t, f.events)
 	f.ctx.WaitGroup.Wait()
 
@@ -58,7 +56,7 @@ func TestBlockingToolsState_MixedBatchRunsNonGatedTools(t *testing.T) {
 	}
 	s := NewBlockingToolsState(f.ctx)
 
-	require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+	require.NoError(t, s.Handle(MessageReceivedEvent{}))
 	waitForAllToolsProcessed(t, f.events)
 	f.ctx.WaitGroup.Wait()
 
@@ -90,7 +88,7 @@ func TestBlockingToolsState_CancelledSessionSkipsBatch(t *testing.T) {
 	f.cancelSession()
 	s := NewBlockingToolsState(f.ctx)
 
-	require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+	require.NoError(t, s.Handle(MessageReceivedEvent{}))
 	waitForAllToolsProcessed(t, f.events)
 	f.ctx.WaitGroup.Wait()
 
@@ -106,11 +104,11 @@ func TestBlockingToolsState_AllProcessedRoutesToPostToolExecution(t *testing.T) 
 		name          string
 		transitionErr error
 		wantErr       bool
-		wantEvents    []domain.AgentEvent
+		wantEvents    []AgentEvent
 	}{
 		{
 			name:       "advances to post tool execution",
-			wantEvents: []domain.AgentEvent{domain.MessageReceivedEvent{}},
+			wantEvents: []AgentEvent{MessageReceivedEvent{}},
 		},
 		{
 			name:          "transition failure is returned",
@@ -124,14 +122,14 @@ func TestBlockingToolsState_AllProcessedRoutesToPostToolExecution(t *testing.T) 
 			f.sm.TransitionReturns(tt.transitionErr)
 			s := NewBlockingToolsState(f.ctx)
 
-			err := s.Handle(domain.AllToolsProcessedEvent{})
+			err := s.Handle(AllToolsProcessedEvent{})
 
 			if tt.wantErr {
 				assert.ErrorIs(t, err, errBoom)
 			} else {
 				assert.NoError(t, err)
 			}
-			assertTransitions(t, f.sm, domain.StatePostToolExecution)
+			assertTransitions(t, f.sm, StatePostToolExecution)
 			assertEvents(t, f.events, tt.wantEvents...)
 		})
 	}

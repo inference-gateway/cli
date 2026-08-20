@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"strings"
 	"time"
@@ -10,7 +11,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // BrowserTabsTool lists the browser's open tabs and marks the active one, so
@@ -51,7 +51,7 @@ func (t *BrowserTabsTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute lists the open tabs
-func (t *BrowserTabsTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *BrowserTabsTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if err := t.checkRateLimit(); err != nil {
@@ -62,7 +62,7 @@ func (t *BrowserTabsTool) Execute(ctx context.Context, args map[string]any) (*do
 	if err != nil {
 		return t.errorResult(args, start, err.Error()), nil
 	}
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  t.name,
 		Arguments: args,
 		Success:   true,
@@ -77,15 +77,15 @@ func (t *BrowserTabsTool) Validate(map[string]any) error {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *BrowserTabsTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
-	if formatType == domain.FormatterShort {
+func (t *BrowserTabsTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
+	if formatType == agentdomain.FormatterShort {
 		return t.FormatPreview(result)
 	}
 	return t.FormatForLLM(result)
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *BrowserTabsTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *BrowserTabsTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "BrowserTabs failed"
 	}
@@ -94,7 +94,7 @@ func (t *BrowserTabsTool) FormatPreview(result *domain.ToolExecutionResult) stri
 }
 
 // FormatForLLM formats the tab list for LLM consumption
-func (t *BrowserTabsTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *BrowserTabsTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}

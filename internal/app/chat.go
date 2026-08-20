@@ -14,6 +14,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -40,12 +41,12 @@ var actChatFocusAttachments = config.ActionID(config.NamespaceChat, "focus_attac
 type ChatApplication struct {
 	// Dependencies
 	config                 *config.Config
-	agentService           domain.AgentService
+	agentService           agentdomain.AgentService
 	conversationRepo       domain.ConversationRepository
 	conversationOptimizer  domain.ConversationOptimizer
 	sessionRolloverManager *services.SessionRolloverManager
 	modelService           domain.ModelService
-	toolService            domain.ToolService
+	toolService            agentdomain.ToolService
 	fileService            domain.FileService
 	imageService           domain.ImageService
 	skillsService          domain.SkillsService
@@ -143,8 +144,8 @@ func NewChatApplication(
 	models []string,
 	defaultModel string,
 	versionInfo domain.VersionInfo,
-	agentManager domain.AgentManager,
-	agentService domain.AgentService,
+	agentManager agentdomain.AgentManager,
+	agentService agentdomain.AgentService,
 	backgroundTaskService domain.BackgroundTaskService,
 	backgroundTaskRegistry domain.BackgroundTaskRegistry,
 	conversationOptimizer domain.ConversationOptimizer,
@@ -162,7 +163,7 @@ func NewChatApplication(
 	stateManager *services.StateManager,
 	taskRetentionService domain.TaskRetentionService,
 	themeService domain.ThemeService,
-	toolService domain.ToolService,
+	toolService agentdomain.ToolService,
 	shortcutRegistry *shortcuts.Registry,
 	toolRegistry *tools.Registry,
 	a2aTaskCoordinator ui.A2ATaskCoordinator,
@@ -512,9 +513,9 @@ func logSlowUpdate(start time.Time, msg tea.Msg) {
 // handleChatViewKeyPress instead.
 func (app *ChatApplication) forwardToOverlayForms(msg tea.Msg) []tea.Cmd {
 	switch msg.(type) {
-	case domain.UserQuestionRequestedEvent:
+	case agentdomain.UserQuestionRequestedEvent:
 		return []tea.Cmd{app.questionFormView.Begin()}
-	case domain.ToolApprovalRequestedEvent:
+	case agentdomain.ToolApprovalRequestedEvent:
 		return []tea.Cmd{app.approvalBoxView.Begin()}
 	case tea.KeyPressMsg:
 		return nil
@@ -542,60 +543,60 @@ func isDomainEvent(msg tea.Msg) bool {
 		return true
 
 	// Chat lifecycle
-	case domain.ChatStartEvent,
-		domain.ChatChunkEvent,
-		domain.ChatCompleteEvent,
-		domain.ChatErrorEvent,
-		domain.OptimizationStatusEvent,
+	case agentdomain.ChatStartEvent,
+		agentdomain.ChatChunkEvent,
+		agentdomain.ChatCompleteEvent,
+		agentdomain.ChatErrorEvent,
+		agentdomain.OptimizationStatusEvent,
 		domain.RolloverCompletedEvent:
 		return true
 
 	// Tool execution
-	case domain.ToolCallUpdateEvent,
-		domain.ToolCallReadyEvent,
+	case agentdomain.ToolCallUpdateEvent,
+		agentdomain.ToolCallReadyEvent,
 		domain.ToolExecutionStartedEvent,
-		domain.ToolExecutionProgressEvent,
+		agentdomain.ToolExecutionProgressEvent,
 		domain.ToolExecutionCompletedEvent:
 		return true
 
 	// Tool and plan approval
-	case domain.ToolApprovalRequestedEvent,
+	case agentdomain.ToolApprovalRequestedEvent,
 		domain.ToolApprovalResponseEvent,
-		domain.PlanApprovalRequestedEvent,
+		agentdomain.PlanApprovalRequestedEvent,
 		domain.PlanApprovalResponseEvent,
-		domain.UserQuestionRequestedEvent:
+		agentdomain.UserQuestionRequestedEvent:
 		return true
 
 	// Bash command execution
-	case domain.BashOutputChunkEvent,
+	case agentdomain.BashOutputChunkEvent,
 		domain.BashCommandCompletedEvent,
-		domain.BackgroundShellRequestEvent:
+		agentdomain.BackgroundShellRequestEvent:
 		return true
 
 	// A2A (Agent-to-Agent) task management
-	case domain.A2AToolCallExecutedEvent,
-		domain.A2ATaskSubmittedEvent,
-		domain.A2ATaskStatusUpdateEvent,
-		domain.A2ATaskCompletedEvent,
-		domain.A2ATaskFailedEvent,
-		domain.A2ATaskInputRequiredEvent:
+	case agentdomain.A2AToolCallExecutedEvent,
+		agentdomain.A2ATaskSubmittedEvent,
+		agentdomain.A2ATaskStatusUpdateEvent,
+		agentdomain.A2ATaskCompletedEvent,
+		agentdomain.A2ATaskFailedEvent,
+		agentdomain.A2ATaskInputRequiredEvent:
 		return true
 
-	case domain.SubagentSubmittedEvent,
-		domain.SubagentCompletedEvent,
-		domain.SubagentFailedEvent:
+	case agentdomain.SubagentSubmittedEvent,
+		agentdomain.SubagentCompletedEvent,
+		agentdomain.SubagentFailedEvent:
 		return true
 
-	case domain.MessageQueuedEvent,
-		domain.ToolCancelledEvent,
-		domain.TodoUpdateChatEvent,
+	case agentdomain.MessageQueuedEvent,
+		agentdomain.ToolCancelledEvent,
+		agentdomain.TodoUpdateChatEvent,
 		domain.AgentStatusUpdateEvent,
 		domain.DrainQueueEvent,
 		domain.DrainQueueRetryEvent,
-		domain.NavigateBackInTimeEvent,
-		domain.MessageHistoryRestoreEvent,
-		domain.ComputerUsePausedEvent,
-		domain.ComputerUseResumedEvent:
+		agentdomain.NavigateBackInTimeEvent,
+		agentdomain.MessageHistoryRestoreEvent,
+		agentdomain.ComputerUsePausedEvent,
+		agentdomain.ComputerUseResumedEvent:
 		return true
 	}
 
@@ -614,7 +615,7 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	case domain.TriggerHelpViewEvent:
 		return tea.Batch(app.handleHelpViewTrigger()...)
 
-	case domain.MessageHistoryRestoreEvent:
+	case agentdomain.MessageHistoryRestoreEvent:
 		return app.messageHistoryHandler.HandleRestore(m)
 
 	case tea.BackgroundColorMsg:
@@ -648,7 +649,7 @@ func (app *ChatApplication) handleMCPStatusUpdate(event domain.MCPServerStatusUp
 	if app.autocomplete != nil {
 		app.autocomplete.RefreshToolsList()
 		return func() tea.Msg {
-			return domain.RefreshAutocompleteEvent{}
+			return agentdomain.RefreshAutocompleteEvent{}
 		}
 	}
 
@@ -763,7 +764,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
-	if navEvent, ok := msg.(domain.NavigateBackInTimeEvent); ok {
+	if navEvent, ok := msg.(agentdomain.NavigateBackInTimeEvent); ok {
 		return app.handleNavigateBackInTime(navEvent)
 	}
 
@@ -782,7 +783,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return app.handleEditReady(editReadyEvent)
 	}
 
-	if editSubmitEvent, ok := msg.(domain.MessageEditSubmitEvent); ok {
+	if editSubmitEvent, ok := msg.(agentdomain.MessageEditSubmitEvent); ok {
 		if cmd := app.messageHistoryHandler.HandleEditSubmit(editSubmitEvent); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -2414,7 +2415,7 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 		cursor := app.inputView.GetCursor()
 		app.autocomplete.Update(text, cursor)
 
-	case domain.RefreshAutocompleteEvent:
+	case agentdomain.RefreshAutocompleteEvent:
 		text := app.inputView.GetInput()
 		cursor := app.inputView.GetCursor()
 		app.autocomplete.Update(text, cursor)
@@ -2432,7 +2433,7 @@ func (app *ChatApplication) GetConversationRepository() domain.ConversationRepos
 }
 
 // GetAgentService returns the agent service
-func (app *ChatApplication) GetAgentService() domain.AgentService {
+func (app *ChatApplication) GetAgentService() agentdomain.AgentService {
 	return app.agentService
 }
 
@@ -2527,7 +2528,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 		}
 
 		return func() tea.Msg {
-			return domain.MessageEditSubmitEvent{
+			return agentdomain.MessageEditSubmitEvent{
 				RequestID:     "message-edit-submit",
 				Timestamp:     time.Now(),
 				OriginalIndex: editState.OriginalMessageIndex,
@@ -2630,7 +2631,7 @@ func (app *ChatApplication) SetMouseEnabled(enabled bool) {
 // Message History Navigation Helpers
 
 // handleNavigateBackInTime initiates message history navigation mode
-func (app *ChatApplication) handleNavigateBackInTime(event domain.NavigateBackInTimeEvent) []tea.Cmd {
+func (app *ChatApplication) handleNavigateBackInTime(event agentdomain.NavigateBackInTimeEvent) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	iv, ok := app.inputView.(*components.InputView)
@@ -2750,7 +2751,7 @@ func (app *ChatApplication) handleMessageHistoryEnter(cv *components.Conversatio
 			cmds = append(cmds, cmd)
 		}
 	} else {
-		restoreEvent := domain.MessageHistoryRestoreEvent{
+		restoreEvent := agentdomain.MessageHistoryRestoreEvent{
 			RequestID:      "message-history-restore",
 			Timestamp:      time.Now(),
 			RestoreToIndex: selectedIndex,

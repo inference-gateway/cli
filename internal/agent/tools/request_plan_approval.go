@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"regexp"
 	"strings"
 	"time"
@@ -10,7 +12,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 )
 
@@ -28,7 +29,7 @@ var titleSlugRegex = regexp.MustCompile(`[^a-z0-9]+`)
 type RequestPlanApprovalTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter domain.BaseFormatter
+	formatter agentinfra.BaseFormatter
 	now       func() time.Time
 	planStore storage.PlanStorage
 }
@@ -40,7 +41,7 @@ func NewRequestPlanApprovalTool(cfg *config.Config, planStore storage.PlanStorag
 	return &RequestPlanApprovalTool{
 		config:    cfg,
 		enabled:   true,
-		formatter: domain.NewBaseFormatter("RequestPlanApproval"),
+		formatter: agentinfra.NewBaseFormatter("RequestPlanApproval"),
 		now:       time.Now,
 		planStore: planStore,
 	}
@@ -79,12 +80,12 @@ func (t *RequestPlanApprovalTool) Definition() sdk.ChatCompletionTool {
 // the plan to PlanStorage and returns the plan content plus an
 // infer://plans/<id> URI so downstream consumers can surface both to the user
 // and the LLM.
-func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := t.now()
 
 	title, plan, err := extractPlanArgs(args)
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "RequestPlanApproval",
 			Arguments: args,
 			Success:   false,
@@ -95,7 +96,7 @@ func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]a
 
 	planID, err := t.savePlanToStore(ctx, title, plan, start)
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "RequestPlanApproval",
 			Arguments: args,
 			Success:   false,
@@ -106,7 +107,7 @@ func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]a
 
 	planURI := fmt.Sprintf("infer://plans/%s", planID)
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "RequestPlanApproval",
 		Arguments: args,
 		Success:   true,
@@ -135,13 +136,13 @@ func (t *RequestPlanApprovalTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *RequestPlanApprovalTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *RequestPlanApprovalTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -149,7 +150,7 @@ func (t *RequestPlanApprovalTool) FormatResult(result *domain.ToolExecutionResul
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *RequestPlanApprovalTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *RequestPlanApprovalTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -165,7 +166,7 @@ func (t *RequestPlanApprovalTool) FormatPreview(result *domain.ToolExecutionResu
 }
 
 // FormatForUI formats the result for UI display
-func (t *RequestPlanApprovalTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *RequestPlanApprovalTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -178,7 +179,7 @@ func (t *RequestPlanApprovalTool) FormatForUI(result *domain.ToolExecutionResult
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *RequestPlanApprovalTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *RequestPlanApprovalTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -289,7 +290,7 @@ func (t *RequestPlanApprovalTool) savePlanToStore(ctx context.Context, title, pl
 
 // planURI safely extracts the infer://plans/<id> URI from a tool result.
 // Returns "" when the result has no URI.
-func planURI(result *domain.ToolExecutionResult) string {
+func planURI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || result.Data == nil {
 		return ""
 	}

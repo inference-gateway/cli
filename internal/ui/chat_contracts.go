@@ -2,6 +2,7 @@ package ui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
@@ -16,9 +17,9 @@ type ChatHandler interface {
 	HandleUserInputEvent(msg domain.UserInputEvent) tea.Cmd
 	HandleFileSelectionRequestEvent(msg domain.FileSelectionRequestEvent) tea.Cmd
 	HandleConversationSelectedEvent(msg domain.ConversationSelectedEvent) tea.Cmd
-	HandleToolApprovalRequestedEvent(msg domain.ToolApprovalRequestedEvent) tea.Cmd
+	HandleToolApprovalRequestedEvent(msg agentdomain.ToolApprovalRequestedEvent) tea.Cmd
 	HandleToolApprovalResponseEvent(msg domain.ToolApprovalResponseEvent) tea.Cmd
-	HandlePlanApprovalRequestedEvent(msg domain.PlanApprovalRequestedEvent) tea.Cmd
+	HandlePlanApprovalRequestedEvent(msg agentdomain.PlanApprovalRequestedEvent) tea.Cmd
 	HandlePlanApprovalResponseEvent(msg domain.PlanApprovalResponseEvent) tea.Cmd
 
 	// Command handlers
@@ -29,7 +30,7 @@ type ChatHandler interface {
 
 	// Event channel listeners
 	ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd
-	ListenForChatEvents(eventChan <-chan domain.ChatEvent) tea.Cmd
+	ListenForChatEvents(eventChan <-chan agentdomain.ChatEvent) tea.Cmd
 
 	// State management
 	GetActiveToolCallID() string
@@ -48,7 +49,7 @@ type ChatHandler interface {
 // chain channel reads back into the Bubble Tea event loop without each one
 // re-implementing the same closure.
 type ChatEventListener interface {
-	ListenForChatEvents(eventChan <-chan domain.ChatEvent) tea.Cmd
+	ListenForChatEvents(eventChan <-chan agentdomain.ChatEvent) tea.Cmd
 	ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd
 }
 
@@ -59,12 +60,12 @@ type ChatEventListener interface {
 // conversation repo, task retention, the chat state manager, and a chat
 // event listener.
 type A2ATaskCoordinator interface {
-	HandleTaskSubmitted(msg domain.A2ATaskSubmittedEvent) tea.Cmd
-	HandleTaskCompleted(msg domain.A2ATaskCompletedEvent) tea.Cmd
-	HandleTaskFailed(msg domain.A2ATaskFailedEvent) tea.Cmd
-	HandleTaskStatusUpdate(msg domain.A2ATaskStatusUpdateEvent) tea.Cmd
-	HandleTaskInputRequired(msg domain.A2ATaskInputRequiredEvent) tea.Cmd
-	HandleToolCallExecuted(msg domain.A2AToolCallExecutedEvent) tea.Cmd
+	HandleTaskSubmitted(msg agentdomain.A2ATaskSubmittedEvent) tea.Cmd
+	HandleTaskCompleted(msg agentdomain.A2ATaskCompletedEvent) tea.Cmd
+	HandleTaskFailed(msg agentdomain.A2ATaskFailedEvent) tea.Cmd
+	HandleTaskStatusUpdate(msg agentdomain.A2ATaskStatusUpdateEvent) tea.Cmd
+	HandleTaskInputRequired(msg agentdomain.A2ATaskInputRequiredEvent) tea.Cmd
+	HandleToolCallExecuted(msg agentdomain.A2AToolCallExecutedEvent) tea.Cmd
 }
 
 // ApprovalCoordinator owns the "pause the assistant turn pending external
@@ -76,11 +77,11 @@ type A2ATaskCoordinator interface {
 // ChatCompletionRunner.Start() after the cmds without ApprovalCoordinator
 // having to depend on the runner.
 type ApprovalCoordinator interface {
-	HandlePlanApprovalRequested(msg domain.PlanApprovalRequestedEvent) tea.Cmd
+	HandlePlanApprovalRequested(msg agentdomain.PlanApprovalRequestedEvent) tea.Cmd
 	HandlePlanApprovalResponse(msg domain.PlanApprovalResponseEvent) (cmd tea.Cmd, restart bool)
-	HandleUserQuestionRequested(msg domain.UserQuestionRequestedEvent) tea.Cmd
-	HandleComputerUsePaused(msg domain.ComputerUsePausedEvent) tea.Cmd
-	HandleComputerUseResumed(msg domain.ComputerUseResumedEvent) (cmd tea.Cmd, restart bool)
+	HandleUserQuestionRequested(msg agentdomain.UserQuestionRequestedEvent) tea.Cmd
+	HandleComputerUsePaused(msg agentdomain.ComputerUsePausedEvent) tea.Cmd
+	HandleComputerUseResumed(msg agentdomain.ComputerUseResumedEvent) (cmd tea.Cmd, restart bool)
 }
 
 // ChatCompletionRunner owns the LLM streaming lifecycle - initiating
@@ -93,12 +94,12 @@ type ApprovalCoordinator interface {
 // require backgrounding. In #529 commit 3 that holder is the orchestrator
 // itself; in commit 4 it becomes the DirectExecutionService.
 type ChatCompletionRunner interface {
-	Start(holder domain.BashDetachChannelHolder) tea.Cmd
-	HandleChatStart(msg domain.ChatStartEvent) tea.Cmd
-	HandleChatChunk(msg domain.ChatChunkEvent) tea.Cmd
-	HandleChatComplete(msg domain.ChatCompleteEvent) tea.Cmd
-	HandleChatError(msg domain.ChatErrorEvent) tea.Cmd
-	HandleOptimizationStatus(msg domain.OptimizationStatusEvent) tea.Cmd
+	Start(holder agentdomain.BashDetachChannelHolder) tea.Cmd
+	HandleChatStart(msg agentdomain.ChatStartEvent) tea.Cmd
+	HandleChatChunk(msg agentdomain.ChatChunkEvent) tea.Cmd
+	HandleChatComplete(msg agentdomain.ChatCompleteEvent) tea.Cmd
+	HandleChatError(msg agentdomain.ChatErrorEvent) tea.Cmd
+	HandleOptimizationStatus(msg agentdomain.OptimizationStatusEvent) tea.Cmd
 	SetPendingRestoration(originalModel string)
 }
 
@@ -111,14 +112,14 @@ type ToolExecutionCoordinator interface {
 	GetActiveToolCallID() string
 	SetActiveToolCallID(id string)
 
-	HandleToolCallUpdate(msg domain.ToolCallUpdateEvent) tea.Cmd
-	HandleToolCallReady(msg domain.ToolCallReadyEvent) tea.Cmd
-	HandleToolApprovalRequested(msg domain.ToolApprovalRequestedEvent) tea.Cmd
+	HandleToolCallUpdate(msg agentdomain.ToolCallUpdateEvent) tea.Cmd
+	HandleToolCallReady(msg agentdomain.ToolCallReadyEvent) tea.Cmd
+	HandleToolApprovalRequested(msg agentdomain.ToolApprovalRequestedEvent) tea.Cmd
 	HandleToolApprovalResponse(msg domain.ToolApprovalResponseEvent) tea.Cmd
 	HandleToolExecutionStarted(msg domain.ToolExecutionStartedEvent) tea.Cmd
-	HandleToolExecutionProgress(msg domain.ToolExecutionProgressEvent) tea.Cmd
+	HandleToolExecutionProgress(msg agentdomain.ToolExecutionProgressEvent) tea.Cmd
 	HandleToolExecutionCompleted(msg domain.ToolExecutionCompletedEvent) tea.Cmd
-	HandleToolCancelled(msg domain.ToolCancelledEvent) tea.Cmd
+	HandleToolCancelled(msg agentdomain.ToolCancelledEvent) tea.Cmd
 }
 
 // DirectExecutionService owns user-typed `!command` (bash) and `!!Tool(...)`
@@ -131,12 +132,12 @@ type ToolExecutionCoordinator interface {
 // request context (see WithChatHandler / GetChatHandler in
 // context_helpers.go).
 type DirectExecutionService interface {
-	domain.BashDetachChannelHolder
+	agentdomain.BashDetachChannelHolder
 
 	HandleBashCommand(commandText string) tea.Cmd
 	HandleToolCommand(commandText string) tea.Cmd
 	HandleBackgroundShellRequest() tea.Cmd
-	HandleBashOutputChunk(msg domain.BashOutputChunkEvent) tea.Cmd
+	HandleBashOutputChunk(msg agentdomain.BashOutputChunkEvent) tea.Cmd
 	HandleBashCommandCompleted(msg domain.BashCommandCompletedEvent) tea.Cmd
 
 	ParseToolCall(input string) (string, map[string]any, error)

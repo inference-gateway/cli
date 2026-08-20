@@ -3,6 +3,8 @@ package container
 import (
 	"context"
 	"fmt"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"net"
 	"net/http"
 	"os"
@@ -68,6 +70,12 @@ type GatewayManager interface {
 	EnsureStarted() error
 }
 
+// RetryNotifier, when set, receives a short human-readable notice for each
+// SDK-internal HTTP retry (e.g. "⏳ HTTP 502 - retrying in 10s (attempt 2)").
+// The headless agent points it at its stdout notification stream so remote
+// channels (Telegram) see progress during backoff; the chat TUI leaves it nil.
+var RetryNotifier func(message string)
+
 // ServiceContainer manages all application dependencies
 type ServiceContainer struct {
 	// Session
@@ -87,20 +95,20 @@ type ServiceContainer struct {
 	conversationOptimizer  domain.ConversationOptimizer
 	sessionRolloverManager *services.SessionRolloverManager
 	modelService           domain.ModelService
-	agent                  domain.AgentService
-	toolService            domain.ToolService
+	agent                  agentdomain.AgentService
+	toolService            agentdomain.ToolService
 	fileService            domain.FileService
 	imageService           domain.ImageService
-	imageAnnotator         domain.ImageAnnotator
+	imageAnnotator         agentdomain.ImageAnnotator
 	pricingService         domain.PricingService
 	telemetryRecorder      *telemetry.Recorder
-	a2aAgentService        domain.A2AAgentService
+	a2aAgentService        agentapp.A2AAgentService
 	skillsService          domain.SkillsService
 	githubIssueService     domain.GitHubIssueService
 	gitHubSetupService     domain.GitHubSetupService
 	messageQueue           domain.MessageQueue
 	// backgroundTaskRegistry is the single unified tracker for both A2A
-	// tasks and background bash shells. The narrower domain.A2ATaskTracker
+	// tasks and background bash shells. The narrower agentdomain.A2ATaskTracker
 	// and domain.ShellTracker views are accessed via the same instance.
 	backgroundTaskRegistry domain.BackgroundTaskRegistry
 	jobSupervisor          *jobs.Supervisor
@@ -108,7 +116,7 @@ type ServiceContainer struct {
 	backgroundTaskService  domain.BackgroundTaskService
 	gatewayManager         GatewayManager
 	mockGateway            *http.Server
-	agentManager           domain.AgentManager
+	agentManager           agentdomain.AgentManager
 
 	// Services
 	stateManager *services.StateManager
@@ -338,7 +346,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 
 	c.agentManager = services.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
 
-	c.agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
+	c.agentManager.SetStatusCallback(func(agentName string, state agentdomain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
 		c.uiNotifier.Notify(domain.AgentStatusUpdateEvent{
 			AgentName: agentName,
@@ -351,7 +359,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 
 	c.agentManager.SetPullProgressCallback(func(name string, done, total int) {
 		c.stateManager.UpdateAgentPullProgress(name, done, total)
-		c.uiNotifier.Notify(domain.AgentStatusUpdateEvent{AgentName: name, State: domain.AgentStatePullingImage})
+		c.uiNotifier.Notify(domain.AgentStatusUpdateEvent{AgentName: name, State: agentdomain.AgentStatePullingImage})
 	})
 
 	ctx := context.Background()
@@ -739,7 +747,7 @@ func (c *ServiceContainer) GetModelService() domain.ModelService {
 	return c.modelService
 }
 
-func (c *ServiceContainer) GetToolService() domain.ToolService {
+func (c *ServiceContainer) GetToolService() agentdomain.ToolService {
 	return c.toolService
 }
 
@@ -771,7 +779,7 @@ func (c *ServiceContainer) GetImageService() domain.ImageService {
 // createImageAnnotator builds the configured annotation engine: the local
 // llama.cpp subprocess by default, or a gateway side-call (title-generator
 // style).
-func (c *ServiceContainer) createImageAnnotator() domain.ImageAnnotator {
+func (c *ServiceContainer) createImageAnnotator() agentdomain.ImageAnnotator {
 	if !c.config.Vision.AnnotatorReady() {
 		return nil
 	}
@@ -821,11 +829,11 @@ func (c *ServiceContainer) GetStateManager() *services.StateManager {
 	return c.stateManager
 }
 
-func (c *ServiceContainer) GetAgentManager() domain.AgentManager {
+func (c *ServiceContainer) GetAgentManager() agentdomain.AgentManager {
 	return c.agentManager
 }
 
-func (c *ServiceContainer) GetAgentService() domain.AgentService {
+func (c *ServiceContainer) GetAgentService() agentdomain.AgentService {
 	return c.agent
 }
 
@@ -836,7 +844,7 @@ func (c *ServiceContainer) GetMessageQueue() domain.MessageQueue {
 // GetBackgroundTaskRegistry returns the unified background task registry
 // (the single tracker that owns both A2A tasks and background bash shells).
 // Callers that need only the narrower A2A or shell view can use the
-// returned value as a domain.A2ATaskTracker or domain.ShellTracker.
+// returned value as a agentdomain.A2ATaskTracker or domain.ShellTracker.
 func (c *ServiceContainer) GetBackgroundTaskRegistry() domain.BackgroundTaskRegistry {
 	return c.backgroundTaskRegistry
 }
@@ -902,7 +910,7 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 				"attempt", attempt,
 				"error", err.Error(),
 				"delay", delay.String())
-			if notify := domain.RetryNotifier; notify != nil {
+			if notify := RetryNotifier; notify != nil {
 				notify(fmt.Sprintf("⏳ %s - retrying in %s (attempt %d)", err.Error(), delay, attempt))
 			}
 			if originalOnRetry != nil {

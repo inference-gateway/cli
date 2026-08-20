@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 	"time"
@@ -457,7 +458,7 @@ func TestBuildConversationShowJSON_Empty(t *testing.T) {
 func TestToConversationShowEntry_Multimodal(t *testing.T) {
 	got := toConversationShowEntry(domain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User},
-		Images: []domain.ImageAttachment{
+		Images: []agentdomain.ImageAttachment{
 			{MimeType: "image/png", DisplayName: "screenshot.png"},
 		},
 		Time: time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC),

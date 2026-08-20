@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"image/jpeg"
 	"math"
 	"strings"
@@ -15,7 +17,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // Vision image limits of the annotator model class (long edge px, total px);
@@ -27,7 +28,7 @@ const (
 
 // frameSourceLookup is the narrow slice of the Registry the tool needs.
 type frameSourceLookup interface {
-	FrameSource(name string) (domain.FrameSource, bool)
+	FrameSource(name string) (agentdomain.FrameSource, bool)
 	FrameSourceNames() []string
 }
 
@@ -36,16 +37,16 @@ type frameSourceLookup interface {
 // image or as annotated text for models without vision.
 type GetLatestFrameTool struct {
 	config          *config.Config
-	formatter       domain.BaseFormatter
+	formatter       agentinfra.BaseFormatter
 	sources         frameSourceLookup
-	annotator       domain.ImageAnnotator
+	annotator       agentdomain.ImageAnnotator
 	lastCallMu      sync.Mutex
 	lastCallTimes   map[string]time.Time
 	minCallInterval time.Duration
 }
 
 // NewGetLatestFrameTool creates a new tool that reads from the frame sources
-func NewGetLatestFrameTool(cfg *config.Config, sources frameSourceLookup, annotator domain.ImageAnnotator) *GetLatestFrameTool {
+func NewGetLatestFrameTool(cfg *config.Config, sources frameSourceLookup, annotator agentdomain.ImageAnnotator) *GetLatestFrameTool {
 	minInterval := time.Duration(cfg.ComputerUse.Screenshot.CaptureInterval) * time.Second
 	if minInterval < 2*time.Second {
 		minInterval = 2 * time.Second
@@ -53,7 +54,7 @@ func NewGetLatestFrameTool(cfg *config.Config, sources frameSourceLookup, annota
 
 	return &GetLatestFrameTool{
 		config:          cfg,
-		formatter:       domain.NewBaseFormatter("GetLatestFrame"),
+		formatter:       agentinfra.NewBaseFormatter("GetLatestFrame"),
 		sources:         sources,
 		annotator:       annotator,
 		lastCallTimes:   make(map[string]time.Time),
@@ -99,10 +100,10 @@ func (t *GetLatestFrameTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute retrieves the latest frame from the requested source
-func (t *GetLatestFrameTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *GetLatestFrameTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
-	fail := func(msg string) (*domain.ToolExecutionResult, error) {
-		return &domain.ToolExecutionResult{
+	fail := func(msg string) (*agentdomain.ToolExecutionResult, error) {
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "GetLatestFrame",
 			Arguments: args,
 			Success:   false,
@@ -136,13 +137,13 @@ func (t *GetLatestFrameTool) Execute(ctx context.Context, args map[string]any) (
 	}
 	t.recordCall(sourceName)
 
-	attachment := domain.ImageAttachment{
+	attachment := agentdomain.ImageAttachment{
 		Data:        frame.Data,
 		MimeType:    "image/" + frame.Format,
 		DisplayName: "frame-" + sourceName,
 		SourcePath:  frame.Path,
 	}
-	result := domain.FrameToolResult{
+	result := agentdomain.FrameToolResult{
 		Source: sourceName,
 		Width:  frame.Width,
 		Height: frame.Height,
@@ -154,19 +155,19 @@ func (t *GetLatestFrameTool) Execute(ctx context.Context, args map[string]any) (
 		return t.annotatedResult(ctx, args, sourceName, attachment, result, start)
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "GetLatestFrame",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
 		Data:      result,
-		Images:    []domain.ImageAttachment{attachment},
+		Images:    []agentdomain.ImageAttachment{attachment},
 	}, nil
 }
 
 // resolveSource picks the frame source: explicit name, the only one
 // configured, or "screen" when several exist.
-func (t *GetLatestFrameTool) resolveSource(args map[string]any) (string, domain.FrameSource, string) {
+func (t *GetLatestFrameTool) resolveSource(args map[string]any) (string, agentdomain.FrameSource, string) {
 	names := t.sources.FrameSourceNames()
 	if len(names) == 0 {
 		return "", nil, "no frame sources available: enable computer_use screenshot streaming or configure vision.sources"
@@ -226,16 +227,16 @@ func (t *GetLatestFrameTool) wantAnnotated(args map[string]any) bool {
 // annotatedResult annotates the frame and builds a text-only result (the
 // annotation replaces the image). Annotation problems never fail the call:
 // they degrade to a regular frame with a note.
-func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[string]any, sourceName string, attachment domain.ImageAttachment, result domain.FrameToolResult, start time.Time) (*domain.ToolExecutionResult, error) {
-	degrade := func(note string) (*domain.ToolExecutionResult, error) {
+func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[string]any, sourceName string, attachment agentdomain.ImageAttachment, result agentdomain.FrameToolResult, start time.Time) (*agentdomain.ToolExecutionResult, error) {
+	degrade := func(note string) (*agentdomain.ToolExecutionResult, error) {
 		result.Note = note
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "GetLatestFrame",
 			Arguments: args,
 			Success:   true,
 			Duration:  time.Since(start),
 			Data:      result,
-			Images:    []domain.ImageAttachment{attachment},
+			Images:    []agentdomain.ImageAttachment{attachment},
 		}, nil
 	}
 
@@ -243,7 +244,7 @@ func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[strin
 		return degrade("annotation unavailable: set vision.annotator in config.yaml; returned the regular frame")
 	}
 
-	annotation, err := t.annotator.AnnotateImage(ctx, attachment, domain.AnnotateOptions{
+	annotation, err := t.annotator.AnnotateImage(ctx, attachment, agentdomain.AnnotateOptions{
 		Prompt: t.annotationPrompt(sourceName),
 		Width:  result.Width,
 		Height: result.Height,
@@ -254,7 +255,7 @@ func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[strin
 
 	result.Annotated = true
 	result.Annotation = annotation
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "GetLatestFrame",
 		Arguments: args,
 		Success:   true,
@@ -264,23 +265,23 @@ func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[strin
 }
 
 // parseRegion extracts the optional region argument (frame coordinate space).
-func parseRegion(args map[string]any) (domain.ScreenRegion, bool) {
+func parseRegion(args map[string]any) (agentdomain.ScreenRegion, bool) {
 	raw, ok := args["region"].(map[string]any)
 	if !ok {
-		return domain.ScreenRegion{}, false
+		return agentdomain.ScreenRegion{}, false
 	}
 	num := func(key string) int {
 		f, _ := raw[key].(float64)
 		return int(f)
 	}
-	return domain.ScreenRegion{X: num("x"), Y: num("y"), Width: num("width"), Height: num("height")}, true
+	return agentdomain.ScreenRegion{X: num("x"), Y: num("y"), Width: num("width"), Height: num("height")}, true
 }
 
 // regionResult re-captures a sub-region of the screen at native resolution.
 // Small UI (Dock icons, dense toolbars) is unreadable in the downscaled full
 // frame, so the annotator gets the crop at full detail; element coordinates
 // are translated back into the standard frame space before returning.
-func (t *GetLatestFrameTool) regionResult(ctx context.Context, args map[string]any, region domain.ScreenRegion, start time.Time, fail func(string) (*domain.ToolExecutionResult, error)) (*domain.ToolExecutionResult, error) {
+func (t *GetLatestFrameTool) regionResult(ctx context.Context, args map[string]any, region agentdomain.ScreenRegion, start time.Time, fail func(string) (*agentdomain.ToolExecutionResult, error)) (*agentdomain.ToolExecutionResult, error) {
 	displayProvider, err := display.DetectDisplay()
 	if err != nil {
 		return fail(fmt.Sprintf("no compatible display platform detected: %v", err))
@@ -332,12 +333,12 @@ func (t *GetLatestFrameTool) regionResult(ctx context.Context, args map[string]a
 	}
 	t.recordCall("screen-region")
 
-	attachment := domain.ImageAttachment{
+	attachment := agentdomain.ImageAttachment{
 		Data:        base64.StdEncoding.EncodeToString(buf.Bytes()),
 		MimeType:    "image/jpeg",
 		DisplayName: "frame-screen-region",
 	}
-	result := domain.FrameToolResult{
+	result := agentdomain.FrameToolResult{
 		Source: "screen",
 		Width:  frameW,
 		Height: frameH,
@@ -345,14 +346,14 @@ func (t *GetLatestFrameTool) regionResult(ctx context.Context, args map[string]a
 		Method: "region",
 		Region: &region,
 	}
-	success := func() (*domain.ToolExecutionResult, error) {
-		return &domain.ToolExecutionResult{
+	success := func() (*agentdomain.ToolExecutionResult, error) {
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "GetLatestFrame",
 			Arguments: args,
 			Success:   true,
 			Duration:  time.Since(start),
 			Data:      result,
-			Images:    []domain.ImageAttachment{attachment},
+			Images:    []agentdomain.ImageAttachment{attachment},
 		}, nil
 	}
 
@@ -361,7 +362,7 @@ func (t *GetLatestFrameTool) regionResult(ctx context.Context, args map[string]a
 		return success()
 	}
 
-	annotation, err := t.annotator.AnnotateImage(ctx, attachment, domain.AnnotateOptions{
+	annotation, err := t.annotator.AnnotateImage(ctx, attachment, agentdomain.AnnotateOptions{
 		Prompt: t.annotationPrompt("screen"),
 		Width:  cropW,
 		Height: cropH,
@@ -420,11 +421,11 @@ func (t *GetLatestFrameTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *GetLatestFrameTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *GetLatestFrameTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)
@@ -432,11 +433,11 @@ func (t *GetLatestFrameTool) FormatResult(result *domain.ToolExecutionResult, fo
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *GetLatestFrameTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *GetLatestFrameTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to get latest frame"
 	}
-	data, ok := result.Data.(domain.FrameToolResult)
+	data, ok := result.Data.(agentdomain.FrameToolResult)
 	if !ok {
 		return "Latest frame retrieved"
 	}
@@ -447,17 +448,17 @@ func (t *GetLatestFrameTool) FormatPreview(result *domain.ToolExecutionResult) s
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *GetLatestFrameTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *GetLatestFrameTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
-	data, ok := result.Data.(domain.FrameToolResult)
+	data, ok := result.Data.(agentdomain.FrameToolResult)
 	if !ok {
 		return "Latest frame retrieved successfully. Image is attached."
 	}
 
 	if data.Annotated {
-		text := domain.AnnotationText(data.Annotation)
+		text := agentdomain.AnnotationText(data.Annotation)
 		if data.Source == "screen" && len(data.Annotation.Elements) > 0 {
 			text += "\nTo interact: pass an element's center (x,y) to MouseClick."
 		}

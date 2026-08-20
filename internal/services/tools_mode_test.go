@@ -1,6 +1,8 @@
 package services
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"slices"
 	"testing"
 
@@ -8,12 +10,11 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
-func toolNamesForMode(svc *LLMToolService, mode domain.AgentMode) []string {
+func toolNamesForMode(svc *LLMToolService, mode agentdomain.AgentMode) []string {
 	defs := svc.ListToolsForMode(mode)
 	names := make([]string, 0, len(defs))
 	for _, d := range defs {
@@ -26,7 +27,7 @@ func TestListToolsForMode_ReadOnly(t *testing.T) {
 	cfg := config.DefaultConfig()
 	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
-	names := toolNamesForMode(svc, domain.AgentModeReadOnly)
+	names := toolNamesForMode(svc, agentdomain.AgentModeReadOnly)
 
 	for _, want := range []string{"Read", "Grep", "Tree"} {
 		if !slices.Contains(names, want) {
@@ -45,13 +46,13 @@ func TestListToolsForMode_AskUserQuestionPlanOnly(t *testing.T) {
 	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 
-	if !slices.Contains(toolNamesForMode(svc, domain.AgentModePlan), "AskUserQuestion") {
+	if !slices.Contains(toolNamesForMode(svc, agentdomain.AgentModePlan), "AskUserQuestion") {
 		t.Error("expected AskUserQuestion to be available in plan mode")
 	}
-	if slices.Contains(toolNamesForMode(svc, domain.AgentModeStandard), "AskUserQuestion") {
+	if slices.Contains(toolNamesForMode(svc, agentdomain.AgentModeStandard), "AskUserQuestion") {
 		t.Error("expected AskUserQuestion to be excluded from standard mode")
 	}
-	if slices.Contains(toolNamesForMode(svc, domain.AgentModeAutoAccept), "AskUserQuestion") {
+	if slices.Contains(toolNamesForMode(svc, agentdomain.AgentModeAutoAccept), "AskUserQuestion") {
 		t.Error("expected AskUserQuestion to be excluded from auto-accept mode")
 	}
 }
@@ -77,7 +78,7 @@ func TestListToolsHidesImageDecodeForVisionModels(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Vision.Annotator.Enabled = true
 	cfg.Vision.Annotator.Model = "openai/qwen3-vl-2b"
-	registry := tools.NewRegistry(cfg, &mocksdomain.FakeImageService{}, nil, nil, &mocksdomain.FakeImageAnnotator{}, nil, nil)
+	registry := tools.NewRegistry(cfg, &mocksdomain.FakeImageService{}, nil, nil, &agentdomainmocks.FakeImageAnnotator{}, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 
 	current := "anthropic/claude-haiku-4-5"

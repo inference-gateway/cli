@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"os/exec"
 	"strings"
@@ -543,14 +544,14 @@ func TestWriteSessionImage(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		img     domain.ImageAttachment
+		img     agentdomain.ImageAttachment
 		wantExt string
 	}{
-		{"jpeg", domain.ImageAttachment{Data: b64, MimeType: "image/jpeg", Filename: "photo.jpg"}, ".jpg"},
-		{"png", domain.ImageAttachment{Data: b64, MimeType: "image/png", Filename: "shot.png"}, ".png"},
-		{"gif", domain.ImageAttachment{Data: b64, MimeType: "image/gif"}, ".gif"},
-		{"webp", domain.ImageAttachment{Data: b64, MimeType: "image/webp"}, ".webp"},
-		{"default", domain.ImageAttachment{Data: b64, MimeType: "image/jpeg"}, ".jpg"},
+		{"jpeg", agentdomain.ImageAttachment{Data: b64, MimeType: "image/jpeg", Filename: "photo.jpg"}, ".jpg"},
+		{"png", agentdomain.ImageAttachment{Data: b64, MimeType: "image/png", Filename: "shot.png"}, ".png"},
+		{"gif", agentdomain.ImageAttachment{Data: b64, MimeType: "image/gif"}, ".gif"},
+		{"webp", agentdomain.ImageAttachment{Data: b64, MimeType: "image/webp"}, ".webp"},
+		{"default", agentdomain.ImageAttachment{Data: b64, MimeType: "image/jpeg"}, ".jpg"},
 	}
 
 	for _, tt := range tests {
@@ -591,7 +592,7 @@ func TestPruneSessionImages(t *testing.T) {
 	b64 := base64.StdEncoding.EncodeToString(imgData)
 
 	for i := 0; i < 7; i++ {
-		_, err := writeSessionImage(sessionID, domain.ImageAttachment{
+		_, err := writeSessionImage(sessionID, agentdomain.ImageAttachment{
 			Data:     b64,
 			MimeType: "image/jpeg",
 			Filename: "img.jpg",
@@ -633,7 +634,7 @@ func TestPruneSessionImages_ZeroRetention(t *testing.T) {
 	b64 := base64.StdEncoding.EncodeToString(imgData)
 
 	for i := 0; i < 3; i++ {
-		_, err := writeSessionImage(sessionID, domain.ImageAttachment{
+		_, err := writeSessionImage(sessionID, agentdomain.ImageAttachment{
 			Data:     b64,
 			MimeType: "image/jpeg",
 		})
@@ -688,7 +689,7 @@ func TestChannelManagerService_ImagePassedToAgent(t *testing.T) {
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "what is this?",
-			Images: []domain.ImageAttachment{
+			Images: []agentdomain.ImageAttachment{
 				{
 					Data:     base64.StdEncoding.EncodeToString([]byte("fake-image")),
 					MimeType: "image/jpeg",

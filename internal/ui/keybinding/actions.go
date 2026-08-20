@@ -2,6 +2,7 @@ package keybinding
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,7 +55,7 @@ func defaultActions() []*KeyAction {
 			chatSession := stateManager.GetChatSession()
 			return stateManager.GetPlanApprovalUIState() == nil &&
 				stateManager.GetApprovalUIState() == nil &&
-				(chatSession == nil || chatSession.Status == domain.ChatStatusIdle || chatSession.Status == domain.ChatStatusCompleted)
+				(chatSession == nil || chatSession.Status == agentdomain.ChatStatusIdle || chatSession.Status == agentdomain.ChatStatusCompleted)
 		},
 	}
 
@@ -141,7 +142,7 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	if planApprovalState != nil {
 		return func() tea.Msg {
 			return domain.PlanApprovalResponseEvent{
-				Action: domain.PlanApprovalReject,
+				Action: agentdomain.PlanApprovalReject,
 			}
 		}
 	}
@@ -150,7 +151,7 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	if approvalState != nil && approvalState.PendingToolCall != nil {
 		return func() tea.Msg {
 			return domain.ToolApprovalResponseEvent{
-				Action:   domain.ApprovalReject,
+				Action:   agentdomain.ApprovalReject,
 				ToolCall: *approvalState.PendingToolCall,
 			}
 		}
@@ -236,7 +237,7 @@ func handleToggleThinkingExpansion(app KeyHandlerContext, keyMsg tea.KeyPressMsg
 
 func handleBackgroundShell(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.BackgroundShellRequestEvent{}
+		return agentdomain.BackgroundShellRequestEvent{}
 	}
 }
 
@@ -255,7 +256,7 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState != nil {
-		action := domain.PlanApprovalAction(planApprovalState.SelectedIndex)
+		action := agentdomain.PlanApprovalAction(planApprovalState.SelectedIndex)
 		return func() tea.Msg {
 			return domain.PlanApprovalResponseEvent{
 				Action: action,
@@ -498,7 +499,7 @@ func handleCopy(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 
 func handleGoBackInTime(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.NavigateBackInTimeEvent{
+		return agentdomain.NavigateBackInTimeEvent{
 			RequestID: "navigate-back-in-time",
 			Timestamp: time.Now(),
 		}
@@ -573,7 +574,7 @@ func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) te
 	if planApprovalState != nil {
 		newIndex := planApprovalState.SelectedIndex - 1
 		if newIndex < 0 {
-			newIndex = int(domain.PlanApprovalAcceptStandard)
+			newIndex = int(agentdomain.PlanApprovalAcceptStandard)
 		}
 		stateManager.SetPlanApprovalSelectedIndex(newIndex)
 		return func() tea.Msg {
@@ -590,7 +591,7 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) t
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState != nil {
 		newIndex := planApprovalState.SelectedIndex + 1
-		if newIndex > int(domain.PlanApprovalAcceptStandard) {
+		if newIndex > int(agentdomain.PlanApprovalAcceptStandard) {
 			newIndex = 0
 		}
 		stateManager.SetPlanApprovalSelectedIndex(newIndex)
@@ -721,7 +722,7 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 				return domain.RestoreStatusStateEvent{}
 			},
 			func() tea.Msg {
-				return domain.RefreshAutocompleteEvent{}
+				return agentdomain.RefreshAutocompleteEvent{}
 			},
 		)
 	}
@@ -734,7 +735,7 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 			}
 		},
 		func() tea.Msg {
-			return domain.RefreshAutocompleteEvent{}
+			return agentdomain.RefreshAutocompleteEvent{}
 		},
 	)
 }
@@ -1130,7 +1131,7 @@ func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.C
 
 	newIndex := planApprovalState.SelectedIndex - 1
 	if newIndex < 0 {
-		newIndex = int(domain.PlanApprovalAcceptStandard)
+		newIndex = int(agentdomain.PlanApprovalAcceptStandard)
 	}
 	stateManager.SetPlanApprovalSelectedIndex(newIndex)
 
@@ -1147,7 +1148,7 @@ func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.
 	}
 
 	newIndex := planApprovalState.SelectedIndex + 1
-	if newIndex > int(domain.PlanApprovalAcceptStandard) {
+	if newIndex > int(agentdomain.PlanApprovalAcceptStandard) {
 		newIndex = 0
 	}
 	stateManager.SetPlanApprovalSelectedIndex(newIndex)
@@ -1165,9 +1166,9 @@ func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea
 			return nil
 		}
 
-		action := domain.PlanApprovalAction(planApprovalState.SelectedIndex)
-		if action == domain.PlanApprovalAccept || keyMsg.String() == "y" {
-			action = domain.PlanApprovalAccept
+		action := agentdomain.PlanApprovalAction(planApprovalState.SelectedIndex)
+		if action == agentdomain.PlanApprovalAccept || keyMsg.String() == "y" {
+			action = agentdomain.PlanApprovalAccept
 		}
 
 		return domain.PlanApprovalResponseEvent{
@@ -1179,7 +1180,7 @@ func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea
 func handlePlanApprovalReject(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.PlanApprovalResponseEvent{
-			Action: domain.PlanApprovalReject,
+			Action: agentdomain.PlanApprovalReject,
 		}
 	}
 }
@@ -1187,7 +1188,7 @@ func handlePlanApprovalReject(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea
 func handlePlanApprovalAcceptStandard(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.PlanApprovalResponseEvent{
-			Action: domain.PlanApprovalAcceptStandard,
+			Action: agentdomain.PlanApprovalAcceptStandard,
 		}
 	}
 }

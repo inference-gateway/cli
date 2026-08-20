@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"image"
 	"os"
 	"path/filepath"
@@ -41,7 +42,7 @@ func NewDirectoryFrameSource(name string, cfg config.VisionSourceConfig, images 
 }
 
 // GetLatestFrame returns the newest image file in the directory by mtime.
-func (d *DirectoryFrameSource) GetLatestFrame() (*domain.Frame, error) {
+func (d *DirectoryFrameSource) GetLatestFrame() (*agentdomain.Frame, error) {
 	entries, err := os.ReadDir(d.path)
 	if err != nil {
 		return nil, fmt.Errorf("reading frame source %q directory: %w", d.name, err)
@@ -73,7 +74,7 @@ func (d *DirectoryFrameSource) GetLatestFrame() (*domain.Frame, error) {
 	}
 
 	width, height := decodeImageDims(attachment.Data)
-	frame := &domain.Frame{
+	frame := &agentdomain.Frame{
 		ID:        newest.Name(),
 		Timestamp: newestTime,
 		Data:      attachment.Data,

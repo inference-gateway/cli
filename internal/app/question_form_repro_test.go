@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -21,10 +22,10 @@ func TestQuestionFormReproChain(t *testing.T) {
 	sm := services.NewStateManager(false)
 	coord := approvalcoord.NewService(approvalcoord.Options{StateManager: sm})
 
-	ch := make(chan []domain.UserQuestionAnswer, 1)
-	if cmd := coord.HandleUserQuestionRequested(domain.UserQuestionRequestedEvent{
-		Questions: []domain.UserQuestion{
-			{Header: "Backend", Question: "Which storage backend?", Options: []domain.UserQuestionOption{{Label: "sqlite"}, {Label: "postgres"}}},
+	ch := make(chan []agentdomain.UserQuestionAnswer, 1)
+	if cmd := coord.HandleUserQuestionRequested(agentdomain.UserQuestionRequestedEvent{
+		Questions: []agentdomain.UserQuestion{
+			{Header: "Backend", Question: "Which storage backend?", Options: []agentdomain.UserQuestionOption{{Label: "sqlite"}, {Label: "postgres"}}},
 		},
 		ResponseChan: ch,
 	}); cmd == nil {
@@ -119,10 +120,10 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 	c.GetStateManager().SetDimensions(120, 40)
 	_, _ = app.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	ch := make(chan []domain.UserQuestionAnswer, 1)
-	_, _ = app.Update(domain.UserQuestionRequestedEvent{
-		Questions: []domain.UserQuestion{
-			{Header: "Backend", Question: "Which storage backend?", Options: []domain.UserQuestionOption{{Label: "sqlite"}, {Label: "postgres"}}},
+	ch := make(chan []agentdomain.UserQuestionAnswer, 1)
+	_, _ = app.Update(agentdomain.UserQuestionRequestedEvent{
+		Questions: []agentdomain.UserQuestion{
+			{Header: "Backend", Question: "Which storage backend?", Options: []agentdomain.UserQuestionOption{{Label: "sqlite"}, {Label: "postgres"}}},
 		},
 		ResponseChan: ch,
 	})
@@ -137,10 +138,10 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 		t.Fatalf("form not present in rendered chat interface; got:\n%s", out)
 	}
 
-	_, _ = app.Update(domain.ToolExecutionProgressEvent{
+	_, _ = app.Update(agentdomain.ToolExecutionProgressEvent{
 		ToolCallID: "call_1", ToolName: "AskUserQuestion", Status: "running", Message: "Processing...",
 	})
-	_, _ = app.Update(domain.ToolCallUpdateEvent{ToolCallID: "call_1", ToolName: "AskUserQuestion"})
+	_, _ = app.Update(agentdomain.ToolCallUpdateEvent{ToolCallID: "call_1", ToolName: "AskUserQuestion"})
 
 	if st2 := c.GetStateManager().GetUserQuestionUIState(); st2 == nil {
 		t.Fatal("question state was cleared by a tool progress/update tick")

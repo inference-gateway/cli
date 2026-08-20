@@ -1,6 +1,7 @@
-package domain
+package infrastructure
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ import (
 // Result body and arguments, and is not wrapped in a card (LLM/headless stay plain).
 func TestFormatExpandedNativeTree(t *testing.T) {
 	f := NewBaseFormatter("Bash")
-	result := &ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "Bash",
 		Success:   true,
 		Duration:  120 * time.Millisecond,

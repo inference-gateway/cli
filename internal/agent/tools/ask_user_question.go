@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -10,7 +12,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -36,7 +37,7 @@ const (
 type AskUserQuestionTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter domain.BaseFormatter
+	formatter agentinfra.BaseFormatter
 }
 
 // NewAskUserQuestionTool creates a new AskUserQuestion tool.
@@ -44,7 +45,7 @@ func NewAskUserQuestionTool(cfg *config.Config) *AskUserQuestionTool {
 	return &AskUserQuestionTool{
 		config:    cfg,
 		enabled:   true,
-		formatter: domain.NewBaseFormatter("AskUserQuestion"),
+		formatter: agentinfra.NewBaseFormatter("AskUserQuestion"),
 	}
 }
 
@@ -121,7 +122,7 @@ func (t *AskUserQuestionTool) Definition() sdk.ChatCompletionTool {
 // tool blocks (in its own goroutine) until the user submits, dismisses, or the
 // session is cancelled. When no interactive user is reachable it returns a
 // graceful result telling the model to proceed with assumptions.
-func (t *AskUserQuestionTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *AskUserQuestionTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	questions, err := extractQuestions(args)
@@ -129,7 +130,7 @@ func (t *AskUserQuestionTool) Execute(ctx context.Context, args map[string]any) 
 		return t.failure(args, start, err.Error()), nil
 	}
 
-	broker := domain.GetUserQuestionBroker(ctx)
+	broker := agentdomain.GetUserQuestionBroker(ctx)
 	if broker == nil {
 		logger.Debug("AskUserQuestion: no interactive broker in context - degrading", "questions", len(questions))
 		return t.result(args, start, map[string]any{
@@ -171,8 +172,8 @@ func (t *AskUserQuestionTool) IsEnabled() bool {
 	return t.enabled
 }
 
-func (t *AskUserQuestionTool) result(args map[string]any, start time.Time, data map[string]any) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func (t *AskUserQuestionTool) result(args map[string]any, start time.Time, data map[string]any) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "AskUserQuestion",
 		Arguments: args,
 		Success:   true,
@@ -181,8 +182,8 @@ func (t *AskUserQuestionTool) result(args map[string]any, start time.Time, data 
 	}
 }
 
-func (t *AskUserQuestionTool) failure(args map[string]any, start time.Time, msg string) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func (t *AskUserQuestionTool) failure(args map[string]any, start time.Time, msg string) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "AskUserQuestion",
 		Arguments: args,
 		Success:   false,
@@ -192,13 +193,13 @@ func (t *AskUserQuestionTool) failure(args map[string]any, start time.Time, msg 
 }
 
 // FormatResult formats tool execution results for different contexts.
-func (t *AskUserQuestionTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *AskUserQuestionTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -206,7 +207,7 @@ func (t *AskUserQuestionTool) FormatResult(result *domain.ToolExecutionResult, f
 }
 
 // FormatPreview returns a short preview of the result for UI display.
-func (t *AskUserQuestionTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *AskUserQuestionTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -227,7 +228,7 @@ func (t *AskUserQuestionTool) FormatPreview(result *domain.ToolExecutionResult) 
 }
 
 // FormatForUI formats the result for UI display.
-func (t *AskUserQuestionTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *AskUserQuestionTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -236,7 +237,7 @@ func (t *AskUserQuestionTool) FormatForUI(result *domain.ToolExecutionResult) st
 }
 
 // FormatForLLM formats the result for LLM consumption.
-func (t *AskUserQuestionTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *AskUserQuestionTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -271,7 +272,7 @@ const (
 	flagFalse
 )
 
-func questionResultFlag(result *domain.ToolExecutionResult, key string) triState {
+func questionResultFlag(result *agentdomain.ToolExecutionResult, key string) triState {
 	data, ok := result.Data.(map[string]any)
 	if !ok {
 		return flagAbsent
@@ -286,7 +287,7 @@ func questionResultFlag(result *domain.ToolExecutionResult, key string) triState
 	return flagFalse
 }
 
-func questionResultMessage(result *domain.ToolExecutionResult) string {
+func questionResultMessage(result *agentdomain.ToolExecutionResult) string {
 	data, ok := result.Data.(map[string]any)
 	if !ok {
 		return ""
@@ -295,18 +296,18 @@ func questionResultMessage(result *domain.ToolExecutionResult) string {
 	return msg
 }
 
-func answerCount(result *domain.ToolExecutionResult) int {
+func answerCount(result *agentdomain.ToolExecutionResult) int {
 	data, ok := result.Data.(map[string]any)
 	if !ok {
 		return 0
 	}
-	answers, _ := data["answers"].([]domain.UserQuestionAnswer)
+	answers, _ := data["answers"].([]agentdomain.UserQuestionAnswer)
 	return len(answers)
 }
 
 // extractQuestions parses and validates the `questions` argument into the
 // domain type. Shared by Validate and Execute so both apply identical rules.
-func extractQuestions(args map[string]any) ([]domain.UserQuestion, error) {
+func extractQuestions(args map[string]any) ([]agentdomain.UserQuestion, error) {
 	rawQuestions, ok := args["questions"].([]any)
 	if !ok {
 		return nil, fmt.Errorf("questions parameter is required and must be an array")
@@ -315,7 +316,7 @@ func extractQuestions(args map[string]any) ([]domain.UserQuestion, error) {
 		return nil, fmt.Errorf("questions must contain between %d and %d items, got %d", minQuestions, maxQuestions, len(rawQuestions))
 	}
 
-	questions := make([]domain.UserQuestion, 0, len(rawQuestions))
+	questions := make([]agentdomain.UserQuestion, 0, len(rawQuestions))
 	for i, raw := range rawQuestions {
 		q, err := extractQuestion(raw, i)
 		if err != nil {
@@ -326,33 +327,33 @@ func extractQuestions(args map[string]any) ([]domain.UserQuestion, error) {
 	return questions, nil
 }
 
-func extractQuestion(raw any, idx int) (domain.UserQuestion, error) {
+func extractQuestion(raw any, idx int) (agentdomain.UserQuestion, error) {
 	qMap, ok := raw.(map[string]any)
 	if !ok {
-		return domain.UserQuestion{}, fmt.Errorf("question %d must be an object", idx+1)
+		return agentdomain.UserQuestion{}, fmt.Errorf("question %d must be an object", idx+1)
 	}
 
 	header, ok := qMap["header"].(string)
 	if !ok || strings.TrimSpace(header) == "" {
-		return domain.UserQuestion{}, fmt.Errorf("question %d: header is required and must be a non-empty string", idx+1)
+		return agentdomain.UserQuestion{}, fmt.Errorf("question %d: header is required and must be a non-empty string", idx+1)
 	}
 	if utf8.RuneCountInString(header) > maxQuestionHeader {
-		return domain.UserQuestion{}, fmt.Errorf("question %d: header must be at most %d characters", idx+1, maxQuestionHeader)
+		return agentdomain.UserQuestion{}, fmt.Errorf("question %d: header must be at most %d characters", idx+1, maxQuestionHeader)
 	}
 
 	questionText, ok := qMap["question"].(string)
 	if !ok || strings.TrimSpace(questionText) == "" {
-		return domain.UserQuestion{}, fmt.Errorf("question %d: question text is required and must be a non-empty string", idx+1)
+		return agentdomain.UserQuestion{}, fmt.Errorf("question %d: question text is required and must be a non-empty string", idx+1)
 	}
 
 	options, err := extractOptions(qMap["options"], idx)
 	if err != nil {
-		return domain.UserQuestion{}, err
+		return agentdomain.UserQuestion{}, err
 	}
 
 	multiSelect, _ := qMap["multiSelect"].(bool)
 
-	return domain.UserQuestion{
+	return agentdomain.UserQuestion{
 		Header:      strings.TrimSpace(header),
 		Question:    strings.TrimSpace(questionText),
 		Options:     options,
@@ -360,7 +361,7 @@ func extractQuestion(raw any, idx int) (domain.UserQuestion, error) {
 	}, nil
 }
 
-func extractOptions(raw any, qIdx int) ([]domain.UserQuestionOption, error) {
+func extractOptions(raw any, qIdx int) ([]agentdomain.UserQuestionOption, error) {
 	rawOptions, ok := raw.([]any)
 	if !ok {
 		return nil, fmt.Errorf("question %d: options is required and must be an array", qIdx+1)
@@ -369,7 +370,7 @@ func extractOptions(raw any, qIdx int) ([]domain.UserQuestionOption, error) {
 		return nil, fmt.Errorf("question %d: options must contain between %d and %d items, got %d", qIdx+1, minOptions, maxOptions, len(rawOptions))
 	}
 
-	options := make([]domain.UserQuestionOption, 0, len(rawOptions))
+	options := make([]agentdomain.UserQuestionOption, 0, len(rawOptions))
 	for j, rawOpt := range rawOptions {
 		optMap, ok := rawOpt.(map[string]any)
 		if !ok {
@@ -380,7 +381,7 @@ func extractOptions(raw any, qIdx int) ([]domain.UserQuestionOption, error) {
 			return nil, fmt.Errorf("question %d, option %d: label is required and must be a non-empty string", qIdx+1, j+1)
 		}
 		description, _ := optMap["description"].(string)
-		options = append(options, domain.UserQuestionOption{
+		options = append(options, agentdomain.UserQuestionOption{
 			Label:       strings.TrimSpace(label),
 			Description: strings.TrimSpace(description),
 		})
@@ -391,7 +392,7 @@ func extractOptions(raw any, qIdx int) ([]domain.UserQuestionOption, error) {
 // formatAnswersForLLM renders the collected answers as one line per question:
 //
 //	[Header] question -> label1, label2; Other: "free text"
-func formatAnswersForLLM(answers []domain.UserQuestionAnswer) string {
+func formatAnswersForLLM(answers []agentdomain.UserQuestionAnswer) string {
 	if len(answers) == 0 {
 		return "The user provided no answers."
 	}
@@ -405,7 +406,7 @@ func formatAnswersForLLM(answers []domain.UserQuestionAnswer) string {
 	return b.String()
 }
 
-func formatAnswerValue(a domain.UserQuestionAnswer) string {
+func formatAnswerValue(a agentdomain.UserQuestionAnswer) string {
 	parts := make([]string, 0, 2)
 	if len(a.SelectedLabels) > 0 {
 		parts = append(parts, strings.Join(a.SelectedLabels, ", "))

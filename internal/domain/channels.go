@@ -4,6 +4,7 @@ package domain
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 )
 
@@ -48,12 +49,12 @@ type ChannelCommand struct {
 
 // InboundMessage represents a message received from an external channel
 type InboundMessage struct {
-	ChannelName string            `json:"channel_name"`
-	SenderID    string            `json:"sender_id"`
-	Content     string            `json:"content"`
-	Images      []ImageAttachment `json:"images,omitempty"`
-	Timestamp   time.Time         `json:"timestamp"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
+	ChannelName string                        `json:"channel_name"`
+	SenderID    string                        `json:"sender_id"`
+	Content     string                        `json:"content"`
+	Images      []agentdomain.ImageAttachment `json:"images,omitempty"`
+	Timestamp   time.Time                     `json:"timestamp"`
+	Metadata    map[string]string             `json:"metadata,omitempty"`
 }
 
 // OutboundMessage represents a response to send back through a channel

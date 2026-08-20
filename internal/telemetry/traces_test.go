@@ -3,13 +3,12 @@ package telemetry
 import (
 	"context"
 	"errors"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // TestLoadTraceTree_EndToEnd records a real session -> LLM turn -> failing
@@ -24,7 +23,7 @@ func TestLoadTraceTree_EndToEnd(t *testing.T) {
 
 	endSession := rec.StartSession("standard")
 	turnCtx, turnSpan := rec.StartLLMTurnSpan(rec.SpanContext(context.Background()), "openai/gpt-4o")
-	toolCtx := domain.WithToolCallID(turnCtx, "call_abc123")
+	toolCtx := agentdomain.WithToolCallID(turnCtx, "call_abc123")
 	toolCtx, toolSpan := rec.startToolSpan(toolCtx, "Bash")
 	SetSpanError(toolCtx, errors.New("boom"))
 	toolSpan.End()

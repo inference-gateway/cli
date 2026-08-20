@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
@@ -12,7 +13,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
@@ -20,7 +20,7 @@ import (
 // modeChangeSvc builds an agent service backed by the real default reminders
 // config (which carries the on_mode_change entry) and a fake state manager
 // reporting the given live mode.
-func modeChangeSvc(enabled bool, liveMode domain.AgentMode) *AgentServiceImpl {
+func modeChangeSvc(enabled bool, liveMode agentdomain.AgentMode) *AgentServiceImpl {
 	sm := services.NewStateManager(false)
 	sm.SetAgentMode(liveMode)
 	cfg := &config.Config{Reminders: *config.DefaultRemindersConfig()}
@@ -47,25 +47,25 @@ func TestModeChangeReminder_NoInjectionCases(t *testing.T) {
 		name                string
 		svc                 func() *AgentServiceImpl
 		initialConv         []sdk.Message
-		hook                domain.HookPoint
+		hook                agentdomain.HookPoint
 		dispatches          int
 		wantBufEmpty        bool
 		wantModeInitialized *bool
-		wantLastMode        *domain.AgentMode
+		wantLastMode        *agentdomain.AgentMode
 	}{
 		{
 			name:                "first turn seeds without injecting",
-			svc:                 func() *AgentServiceImpl { return modeChangeSvc(true, domain.AgentModePlan) },
-			hook:                domain.HookPreStream,
+			svc:                 func() *AgentServiceImpl { return modeChangeSvc(true, agentdomain.AgentModePlan) },
+			hook:                agentdomain.HookPreStream,
 			dispatches:          1,
 			wantBufEmpty:        true,
 			wantModeInitialized: ptr(true),
-			wantLastMode:        ptr(domain.AgentModePlan),
+			wantLastMode:        ptr(agentdomain.AgentModePlan),
 		},
 		{
 			name:       "same mode across turns injects nothing",
-			svc:        func() *AgentServiceImpl { return modeChangeSvc(true, domain.AgentModeStandard) },
-			hook:       domain.HookPreStream,
+			svc:        func() *AgentServiceImpl { return modeChangeSvc(true, agentdomain.AgentModeStandard) },
+			hook:       agentdomain.HookPreStream,
 			dispatches: 3,
 		},
 		{
@@ -73,7 +73,7 @@ func TestModeChangeReminder_NoInjectionCases(t *testing.T) {
 			svc: func() *AgentServiceImpl {
 				return &AgentServiceImpl{config: &config.Config{Reminders: *config.DefaultRemindersConfig()}}
 			},
-			hook:                domain.HookPreStream,
+			hook:                agentdomain.HookPreStream,
 			dispatches:          1,
 			wantBufEmpty:        true,
 			wantModeInitialized: ptr(false),
@@ -81,42 +81,42 @@ func TestModeChangeReminder_NoInjectionCases(t *testing.T) {
 		{
 			name: "skips while awaiting tool results without advancing tracking",
 			svc: func() *AgentServiceImpl {
-				svc := modeChangeSvc(true, domain.AgentModePlan)
+				svc := modeChangeSvc(true, agentdomain.AgentModePlan)
 				svc.modeInitialized = true
-				svc.lastStreamedMode = domain.AgentModeStandard
+				svc.lastStreamedMode = agentdomain.AgentModeStandard
 				return svc
 			},
 			initialConv: []sdk.Message{
 				{Role: sdk.User, Content: sdk.NewMessageContent("go")},
 				{Role: sdk.Assistant, ToolCalls: &toolCalls},
 			},
-			hook:         domain.HookPreStream,
+			hook:         agentdomain.HookPreStream,
 			dispatches:   1,
-			wantLastMode: ptr(domain.AgentModeStandard),
+			wantLastMode: ptr(agentdomain.AgentModeStandard),
 		},
 		{
 			name: "disabled reminders gate the mode-change entry too",
 			svc: func() *AgentServiceImpl {
-				svc := modeChangeSvc(false, domain.AgentModePlan)
+				svc := modeChangeSvc(false, agentdomain.AgentModePlan)
 				svc.modeInitialized = true
-				svc.lastStreamedMode = domain.AgentModeAutoAccept
+				svc.lastStreamedMode = agentdomain.AgentModeAutoAccept
 				return svc
 			},
-			hook:         domain.HookPreStream,
+			hook:         agentdomain.HookPreStream,
 			dispatches:   1,
 			wantBufEmpty: true,
 		},
 		{
 			name: "other hooks never fire a pending change",
 			svc: func() *AgentServiceImpl {
-				svc := modeChangeSvc(true, domain.AgentModePlan)
+				svc := modeChangeSvc(true, agentdomain.AgentModePlan)
 				svc.modeInitialized = true
-				svc.lastStreamedMode = domain.AgentModeStandard
+				svc.lastStreamedMode = agentdomain.AgentModeStandard
 				return svc
 			},
-			hook:         domain.HookPostStream,
+			hook:         agentdomain.HookPostStream,
 			dispatches:   1,
-			wantLastMode: ptr(domain.AgentModeStandard),
+			wantLastMode: ptr(agentdomain.AgentModeStandard),
 		},
 	}
 
@@ -156,13 +156,13 @@ func ptr[T any](v T) *T { return &v }
 // hidden user message carrying the formatted new-mode guidance and emits a
 // system_reminder stream event tagged with the reminder name.
 func TestModeChangeReminder_AutoToPlanInjectsAndEmits(t *testing.T) {
-	svc := modeChangeSvc(true, domain.AgentModePlan)
+	svc := modeChangeSvc(true, agentdomain.AgentModePlan)
 	svc.modeInitialized = true
-	svc.lastStreamedMode = domain.AgentModeAutoAccept
+	svc.lastStreamedMode = agentdomain.AgentModeAutoAccept
 	buf := withDebugStreamWriter(t)
 
 	conv := []sdk.Message{}
-	svc.injectDueReminders(newReminderAgentCtx(&conv, 5, 0), domain.HookPreStream)
+	svc.injectDueReminders(newReminderAgentCtx(&conv, 5, 0), agentdomain.HookPreStream)
 
 	require.Len(t, conv, 1, "exactly one reminder must be appended")
 	assert.Equal(t, sdk.User, conv[0].Role, "reminder is a hidden user message")
@@ -181,22 +181,22 @@ func TestModeChangeReminder_AutoToPlanInjectsAndEmits(t *testing.T) {
 	assert.Equal(t, config.DefaultModeChangeReminderName, event["name"])
 	assert.EqualValues(t, 5, event["turn"])
 
-	assert.Equal(t, domain.AgentModePlan, svc.lastStreamedMode, "lastStreamedMode advances to the new mode")
+	assert.Equal(t, agentdomain.AgentModePlan, svc.lastStreamedMode, "lastStreamedMode advances to the new mode")
 }
 
 // The persisted ConversationEntry must be flagged Hidden so the mode-change
 // reminder never surfaces as a visible user message in history.
 func TestModeChangeReminder_PersistsHiddenViaRepo(t *testing.T) {
-	svc := modeChangeSvc(true, domain.AgentModePlan)
+	svc := modeChangeSvc(true, agentdomain.AgentModePlan)
 	svc.modeInitialized = true
-	svc.lastStreamedMode = domain.AgentModeStandard
+	svc.lastStreamedMode = agentdomain.AgentModeStandard
 	repo := &domainmocks.FakeConversationRepository{}
 	repo.AddMessageReturns(nil)
 	svc.conversationRepo = repo
 	withDebugStreamWriter(t)
 
 	conv := []sdk.Message{}
-	svc.injectDueReminders(newReminderAgentCtx(&conv, 2, 0), domain.HookPreStream)
+	svc.injectDueReminders(newReminderAgentCtx(&conv, 2, 0), agentdomain.HookPreStream)
 
 	require.Equal(t, 1, repo.AddMessageCallCount(), "reminder must be persisted once")
 	entry := repo.AddMessageArgsForCall(0)
@@ -215,14 +215,14 @@ func TestModeChangeReminder_BaselineAdvancesAfterChange(t *testing.T) {
 	conv := []sdk.Message{}
 	ctx := newReminderAgentCtx(&conv, 1, 0)
 
-	sm.SetAgentMode(domain.AgentModeAutoAccept)
-	svc.injectDueReminders(ctx, domain.HookPreStream)
+	sm.SetAgentMode(agentdomain.AgentModeAutoAccept)
+	svc.injectDueReminders(ctx, agentdomain.HookPreStream)
 	require.Empty(t, conv, "turn 1 seeds")
 
-	sm.SetAgentMode(domain.AgentModePlan)
-	svc.injectDueReminders(ctx, domain.HookPreStream)
+	sm.SetAgentMode(agentdomain.AgentModePlan)
+	svc.injectDueReminders(ctx, agentdomain.HookPreStream)
 	require.Len(t, conv, 1, "Auto -> Plan injects once")
 
-	svc.injectDueReminders(ctx, domain.HookPreStream)
+	svc.injectDueReminders(ctx, agentdomain.HookPreStream)
 	require.Len(t, conv, 1, "must not re-inject once the new mode is the baseline")
 }

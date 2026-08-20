@@ -7,9 +7,11 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	components "github.com/inference-gateway/cli/internal/ui/components"
@@ -158,7 +160,7 @@ func TestStatusBarEnterOpensThemeSelection(t *testing.T) {
 // indicator renders in tests.
 type toolStatsEstimator struct{}
 
-func (toolStatsEstimator) GetToolStats(domain.ToolService, domain.AgentMode) (int, int) {
+func (toolStatsEstimator) GetToolStats(agentdomain.ToolService, agentdomain.AgentMode) (int, int) {
 	return 8017, 25
 }
 
@@ -171,7 +173,7 @@ func (toolStatsEstimator) EffectiveContextTokens(lastInputTokens int, _ []sdk.Me
 func TestStatusBarEnterOpensToolsList(t *testing.T) {
 	app, stateManager := newStatusBarTestApp(t, false, false)
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)
-	statusBar.SetToolService(&domainmocks.FakeToolService{})
+	statusBar.SetToolService(&agentdomainmocks.FakeToolService{})
 	statusBar.SetTokenEstimator(toolStatsEstimator{})
 
 	app.handleChatView(domain.FocusStatusBarEvent{})
@@ -195,7 +197,7 @@ func TestStatusBarEnterOpensA2AAgents(t *testing.T) {
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)
 	barStateManager := services.NewStateManager(false)
 	barStateManager.InitializeAgentReadiness(1)
-	barStateManager.UpdateAgentStatus("agent", domain.AgentStateReady, "", "", "")
+	barStateManager.UpdateAgentStatus("agent", agentdomain.AgentStateReady, "", "", "")
 	statusBar.SetStateManager(barStateManager)
 
 	app.handleChatView(domain.FocusStatusBarEvent{})

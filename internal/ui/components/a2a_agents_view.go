@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"io"
 	"maps"
 	"slices"
@@ -134,7 +135,7 @@ func (m *A2AAgentsViewImpl) agentItems() ([]list.Item, int, int) {
 			name:   status.Name,
 			url:    status.URL,
 			state:  status.State.DisplayName(),
-			failed: status.State == domain.AgentStateFailed,
+			failed: status.State == agentdomain.AgentStateFailed,
 		}
 		if item.name == "" {
 			item.name = name
@@ -145,7 +146,7 @@ func (m *A2AAgentsViewImpl) agentItems() ([]list.Item, int, int) {
 			item.detail = status.Message
 		}
 		item.detail = strings.Join(strings.Fields(item.detail), " ")
-		if status.State == domain.AgentStatePullingImage && status.LayersTotal > 0 {
+		if status.State == agentdomain.AgentStatePullingImage && status.LayersTotal > 0 {
 			item.detail = fmt.Sprintf("%s (%d/%d layers)", item.detail, status.LayersDone, status.LayersTotal)
 		}
 		items = append(items, item)

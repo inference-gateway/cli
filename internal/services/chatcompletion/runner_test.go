@@ -1,6 +1,8 @@
 package chatcompletion
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"strings"
 	"testing"
 	"time"
@@ -15,10 +17,10 @@ import (
 
 // newRunnerForTest wires a Runner with the in-memory conversation repository
 // and counterfeiter fakes for everything else.
-func newRunnerForTest() (*Runner, *services.InMemoryConversationRepository, *services.StateManager, *mocksdomain.FakeAgentService, *mocksdomain.FakeModelService) {
+func newRunnerForTest() (*Runner, *services.InMemoryConversationRepository, *services.StateManager, *agentdomainmocks.FakeAgentService, *mocksdomain.FakeModelService) {
 	repo := services.NewInMemoryConversationRepository(nil, nil)
 	state := services.NewStateManager(false)
-	agent := &mocksdomain.FakeAgentService{}
+	agent := &agentdomainmocks.FakeAgentService{}
 	model := &mocksdomain.FakeModelService{}
 	listener := &uimocks.FakeChatEventListener{}
 
@@ -306,7 +308,7 @@ func TestRunner_Start(t *testing.T) {
 			t.Fatalf("expected non-nil cmd")
 		}
 		msg := cmd()
-		errEvt, ok := msg.(domain.ChatErrorEvent)
+		errEvt, ok := msg.(agentdomain.ChatErrorEvent)
 		if !ok {
 			t.Fatalf("expected ChatErrorEvent, got %T", msg)
 		}
@@ -325,9 +327,9 @@ func TestRunner_Start(t *testing.T) {
 func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
 	t.Run("first chunk emits SetStatusEvent Thinking...", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
 
-		cmds := runner.handleStatusUpdate(domain.ChatChunkEvent{
+		cmds := runner.handleStatusUpdate(agentdomain.ChatChunkEvent{
 			RequestID:        "req-1",
 			ReasoningContent: "thinking...",
 		}, state.GetChatSession())
@@ -346,13 +348,13 @@ func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
 
 	t.Run("later turn (IsFirstChunk false) emits UpdateStatusEvent Thinking...", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
 
 		session := state.GetChatSession()
 		session.IsFirstChunk = false
-		_ = state.UpdateChatStatus(domain.ChatStatusStarting)
+		_ = state.UpdateChatStatus(agentdomain.ChatStatusStarting)
 
-		cmds := runner.handleStatusUpdate(domain.ChatChunkEvent{
+		cmds := runner.handleStatusUpdate(agentdomain.ChatChunkEvent{
 			RequestID:        "req-1",
 			ReasoningContent: "thinking...",
 		}, session)
@@ -373,11 +375,11 @@ func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
 func TestRunner_HandleChatComplete(t *testing.T) {
 	t.Run("non-cancelled, no tool calls: updates status to Completed and returns non-nil cmd", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
-		_ = state.UpdateChatStatus(domain.ChatStatusGenerating)
+		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
+		_ = state.UpdateChatStatus(agentdomain.ChatStatusGenerating)
 		_ = state.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "tc"}})
 
-		cmd := runner.HandleChatComplete(domain.ChatCompleteEvent{
+		cmd := runner.HandleChatComplete(agentdomain.ChatCompleteEvent{
 			RequestID: "req-1",
 			Timestamp: time.Now(),
 		})
@@ -385,7 +387,7 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 		if cmd == nil {
 			t.Fatalf("expected non-nil cmd")
 		}
-		if s := state.GetChatSession(); s == nil || s.Status != domain.ChatStatusCompleted {
+		if s := state.GetChatSession(); s == nil || s.Status != agentdomain.ChatStatusCompleted {
 			t.Errorf("expected chat status Completed, got %+v", s)
 		}
 		if state.GetToolExecution() != nil {
@@ -395,10 +397,10 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 
 	t.Run("cancelled: tears down session and updates status to Cancelled", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
 		_ = state.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "tc"}})
 
-		cmd := runner.HandleChatComplete(domain.ChatCompleteEvent{
+		cmd := runner.HandleChatComplete(agentdomain.ChatCompleteEvent{
 			RequestID: "req-1",
 			Cancelled: true,
 		})
@@ -421,9 +423,9 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 
 	t.Run("with tool calls: transitions to WaitingTools to prevent false stall detection", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
 
-		_ = runner.HandleChatComplete(domain.ChatCompleteEvent{
+		_ = runner.HandleChatComplete(agentdomain.ChatCompleteEvent{
 			RequestID: "req-1",
 			ToolCalls: []sdk.ChatCompletionMessageToolCall{{
 				ID:   "tc-1",
@@ -434,7 +436,7 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 			}},
 		})
 
-		if s := state.GetChatSession(); s == nil || s.Status != domain.ChatStatusWaitingTools {
+		if s := state.GetChatSession(); s == nil || s.Status != agentdomain.ChatStatusWaitingTools {
 			t.Errorf("expected chat status WaitingTools, got %+v", s)
 		}
 	})
@@ -446,7 +448,7 @@ func TestRunner_SetPendingRestoration_RestoresOnComplete(t *testing.T) {
 
 		runner.SetPendingRestoration("gpt-4")
 
-		_ = runner.HandleChatComplete(domain.ChatCompleteEvent{RequestID: "r"})
+		_ = runner.HandleChatComplete(agentdomain.ChatCompleteEvent{RequestID: "r"})
 
 		if model.SelectModelCallCount() != 1 {
 			t.Fatalf("expected SelectModel called once, got %d", model.SelectModelCallCount())
@@ -457,7 +459,7 @@ func TestRunner_SetPendingRestoration_RestoresOnComplete(t *testing.T) {
 
 		// Second completion should NOT restore again - the pending value
 		// is cleared after the first restoration.
-		_ = runner.HandleChatComplete(domain.ChatCompleteEvent{RequestID: "r"})
+		_ = runner.HandleChatComplete(agentdomain.ChatCompleteEvent{RequestID: "r"})
 		if model.SelectModelCallCount() != 1 {
 			t.Errorf("expected SelectModel still 1 after second complete, got %d", model.SelectModelCallCount())
 		}

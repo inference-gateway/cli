@@ -16,15 +16,15 @@ func TestMemoryStorage_SaveAndLoadConversation(t *testing.T) {
 	conversationID := "test-conv-1"
 	entries := []domain.ConversationEntry{
 		{
-			Message: domain.Message{
-				Role:    domain.RoleUser,
+			Message: sdk.Message{
+				Role:    sdk.User,
 				Content: sdk.NewMessageContent("Hello"),
 			},
 			Time: time.Now(),
 		},
 		{
-			Message: domain.Message{
-				Role:    domain.RoleAssistant,
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
 				Content: sdk.NewMessageContent("Hi there!"),
 			},
 			Time: time.Now(),
@@ -77,8 +77,8 @@ func TestMemoryStorage_ListConversations(t *testing.T) {
 	for i, convID := range conversations {
 		entries := []domain.ConversationEntry{
 			{
-				Message: domain.Message{
-					Role:    domain.RoleUser,
+				Message: sdk.Message{
+					Role:    sdk.User,
 					Content: sdk.NewMessageContent("Test message"),
 				},
 				Time: time.Now(),
@@ -124,8 +124,8 @@ func TestMemoryStorage_DeleteConversation(t *testing.T) {
 	conversationID := "test-conv-delete"
 	entries := []domain.ConversationEntry{
 		{
-			Message: domain.Message{
-				Role:    domain.RoleUser,
+			Message: sdk.Message{
+				Role:    sdk.User,
 				Content: sdk.NewMessageContent("Hello"),
 			},
 			Time: time.Now(),
@@ -162,8 +162,8 @@ func TestMemoryStorage_UpdateMetadata(t *testing.T) {
 	conversationID := "test-conv-update"
 	entries := []domain.ConversationEntry{
 		{
-			Message: domain.Message{
-				Role:    domain.RoleUser,
+			Message: sdk.Message{
+				Role:    sdk.User,
 				Content: sdk.NewMessageContent("Hello"),
 			},
 			Time: time.Now(),
@@ -221,8 +221,8 @@ func TestMemoryStorage_Close(t *testing.T) {
 	conversationID := "test-conv-close"
 	entries := []domain.ConversationEntry{
 		{
-			Message: domain.Message{
-				Role:    domain.RoleUser,
+			Message: sdk.Message{
+				Role:    sdk.User,
 				Content: sdk.NewMessageContent("Hello"),
 			},
 			Time: time.Now(),

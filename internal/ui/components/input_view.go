@@ -14,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
@@ -50,7 +51,7 @@ type InputView struct {
 	savedCursor          int
 	themeService         domain.ThemeService
 	styleProvider        *styles.Provider
-	imageAttachments     []domain.ImageAttachment
+	imageAttachments     []agentdomain.ImageAttachment
 	messageQueue         domain.MessageQueue
 	historySuggestion    string
 	historySuggestions   []string
@@ -121,7 +122,7 @@ func NewInputViewWithName(modelService domain.ModelService, configDir, name stri
 		modelService:      modelService,
 		historyManager:    historyManager,
 		themeService:      nil,
-		imageAttachments:  []domain.ImageAttachment{},
+		imageAttachments:  []agentdomain.ImageAttachment{},
 		focused:           true,
 		gitBranchCacheTTL: 5 * time.Second,
 		resolveGitBranch:  gitCurrentBranch,
@@ -263,7 +264,7 @@ func (iv *InputView) GetInput() string {
 
 func (iv *InputView) ClearInput() {
 	iv.ta.Reset()
-	iv.imageAttachments = []domain.ImageAttachment{}
+	iv.imageAttachments = []agentdomain.ImageAttachment{}
 	iv.historyManager.ResetNavigation()
 }
 
@@ -946,7 +947,7 @@ func (iv *InputView) IsDisabled() bool {
 }
 
 // AddImageAttachment adds an image attachment to the pending list
-func (iv *InputView) AddImageAttachment(image domain.ImageAttachment) {
+func (iv *InputView) AddImageAttachment(image agentdomain.ImageAttachment) {
 	image.DisplayName = fmt.Sprintf("Image %d", len(iv.imageAttachments)+1)
 	iv.imageAttachments = append(iv.imageAttachments, image)
 
@@ -959,13 +960,13 @@ func (iv *InputView) AddImageAttachment(image domain.ImageAttachment) {
 }
 
 // GetImageAttachments returns the list of pending image attachments
-func (iv *InputView) GetImageAttachments() []domain.ImageAttachment {
+func (iv *InputView) GetImageAttachments() []agentdomain.ImageAttachment {
 	return iv.imageAttachments
 }
 
 // ClearImageAttachments clears all pending image attachments
 func (iv *InputView) ClearImageAttachments() {
-	iv.imageAttachments = []domain.ImageAttachment{}
+	iv.imageAttachments = []agentdomain.ImageAttachment{}
 }
 
 // GetHistoryManager returns the history manager for external use

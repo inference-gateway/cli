@@ -3,12 +3,12 @@ package vlm
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // GatewayAnnotator annotates images with a one-off side-call to a
@@ -26,7 +26,7 @@ func NewGatewayAnnotator(client sdk.Client, cfg *config.Config) *GatewayAnnotato
 
 // AnnotateImage sends the image to the configured vision model and parses the
 // JSON reply.
-func (a *GatewayAnnotator) AnnotateImage(ctx context.Context, img domain.ImageAttachment, opts domain.AnnotateOptions) (*domain.ImageAnnotation, error) {
+func (a *GatewayAnnotator) AnnotateImage(ctx context.Context, img agentdomain.ImageAttachment, opts agentdomain.AnnotateOptions) (*agentdomain.ImageAnnotation, error) {
 	if a.client == nil {
 		return nil, fmt.Errorf("AI client not available")
 	}

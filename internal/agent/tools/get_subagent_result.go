@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -47,7 +48,7 @@ func (t *GetSubagentResultTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute returns the latest output of the named subagent.
-func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
@@ -55,7 +56,7 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 	subagentID, _ := args["subagent_id"].(string)
 	s := t.tracker.GetSubagent(subagentID)
 	if s == nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "GetSubagentResult",
 			Arguments: args,
 			Success:   false,
@@ -64,7 +65,7 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 	}
 
 	if s.Status == domain.SubagentRunning {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "GetSubagentResult",
 			Arguments: args,
 			Success:   false,
@@ -76,7 +77,7 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 	// from the result file (its chat wrote it on turn completion). The pane is
 	// never scraped - its TUI chrome is noise - so output is "" if none was written.
 	if s.Mode == domain.SubagentModeInteractive {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "GetSubagentResult",
 			Arguments: args,
 			Success:   true,
@@ -91,7 +92,7 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 		}, nil
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "GetSubagentResult",
 		Arguments: args,
 		Success:   true,
@@ -119,9 +120,9 @@ func (t *GetSubagentResultTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts.
-func (t *GetSubagentResultTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *GetSubagentResultTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)
@@ -129,7 +130,7 @@ func (t *GetSubagentResultTool) FormatResult(result *domain.ToolExecutionResult,
 }
 
 // FormatPreview returns a short preview of the result for UI display.
-func (t *GetSubagentResultTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *GetSubagentResultTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to get subagent result"
 	}
@@ -146,7 +147,7 @@ func (t *GetSubagentResultTool) FormatPreview(result *domain.ToolExecutionResult
 }
 
 // FormatForLLM formats the result for LLM consumption.
-func (t *GetSubagentResultTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *GetSubagentResultTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}

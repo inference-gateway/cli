@@ -3,23 +3,22 @@ package domain
 
 import (
 	"context"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	"sync"
-
-	"github.com/inference-gateway/cli/internal/domain"
 )
 
 type FakeA2AAgentService struct {
-	GetAgentCardsStub        func(context.Context) ([]*domain.CachedAgentCard, error)
+	GetAgentCardsStub        func(context.Context) ([]*agentapp.CachedAgentCard, error)
 	getAgentCardsMutex       sync.RWMutex
 	getAgentCardsArgsForCall []struct {
 		arg1 context.Context
 	}
 	getAgentCardsReturns struct {
-		result1 []*domain.CachedAgentCard
+		result1 []*agentapp.CachedAgentCard
 		result2 error
 	}
 	getAgentCardsReturnsOnCall map[int]struct {
-		result1 []*domain.CachedAgentCard
+		result1 []*agentapp.CachedAgentCard
 		result2 error
 	}
 	GetConfiguredAgentsStub        func() []string
@@ -36,7 +35,7 @@ type FakeA2AAgentService struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeA2AAgentService) GetAgentCards(arg1 context.Context) ([]*domain.CachedAgentCard, error) {
+func (fake *FakeA2AAgentService) GetAgentCards(arg1 context.Context) ([]*agentapp.CachedAgentCard, error) {
 	fake.getAgentCardsMutex.Lock()
 	ret, specificReturn := fake.getAgentCardsReturnsOnCall[len(fake.getAgentCardsArgsForCall)]
 	fake.getAgentCardsArgsForCall = append(fake.getAgentCardsArgsForCall, struct {
@@ -61,7 +60,7 @@ func (fake *FakeA2AAgentService) GetAgentCardsCallCount() int {
 	return len(fake.getAgentCardsArgsForCall)
 }
 
-func (fake *FakeA2AAgentService) GetAgentCardsCalls(stub func(context.Context) ([]*domain.CachedAgentCard, error)) {
+func (fake *FakeA2AAgentService) GetAgentCardsCalls(stub func(context.Context) ([]*agentapp.CachedAgentCard, error)) {
 	fake.getAgentCardsMutex.Lock()
 	defer fake.getAgentCardsMutex.Unlock()
 	fake.GetAgentCardsStub = stub
@@ -74,28 +73,28 @@ func (fake *FakeA2AAgentService) GetAgentCardsArgsForCall(i int) context.Context
 	return argsForCall.arg1
 }
 
-func (fake *FakeA2AAgentService) GetAgentCardsReturns(result1 []*domain.CachedAgentCard, result2 error) {
+func (fake *FakeA2AAgentService) GetAgentCardsReturns(result1 []*agentapp.CachedAgentCard, result2 error) {
 	fake.getAgentCardsMutex.Lock()
 	defer fake.getAgentCardsMutex.Unlock()
 	fake.GetAgentCardsStub = nil
 	fake.getAgentCardsReturns = struct {
-		result1 []*domain.CachedAgentCard
+		result1 []*agentapp.CachedAgentCard
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeA2AAgentService) GetAgentCardsReturnsOnCall(i int, result1 []*domain.CachedAgentCard, result2 error) {
+func (fake *FakeA2AAgentService) GetAgentCardsReturnsOnCall(i int, result1 []*agentapp.CachedAgentCard, result2 error) {
 	fake.getAgentCardsMutex.Lock()
 	defer fake.getAgentCardsMutex.Unlock()
 	fake.GetAgentCardsStub = nil
 	if fake.getAgentCardsReturnsOnCall == nil {
 		fake.getAgentCardsReturnsOnCall = make(map[int]struct {
-			result1 []*domain.CachedAgentCard
+			result1 []*agentapp.CachedAgentCard
 			result2 error
 		})
 	}
 	fake.getAgentCardsReturnsOnCall[i] = struct {
-		result1 []*domain.CachedAgentCard
+		result1 []*agentapp.CachedAgentCard
 		result2 error
 	}{result1, result2}
 }
@@ -175,4 +174,4 @@ func (fake *FakeA2AAgentService) recordInvocation(key string, args []interface{}
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ domain.A2AAgentService = new(FakeA2AAgentService)
+var _ agentapp.A2AAgentService = new(FakeA2AAgentService)

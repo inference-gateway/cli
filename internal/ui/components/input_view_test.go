@@ -14,6 +14,7 @@ import (
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	history "github.com/inference-gateway/cli/internal/ui/history"
@@ -42,7 +43,7 @@ func createInputViewWithTheme(modelService domain.ModelService) *InputView {
 		modelService:     modelService,
 		historyManager:   history.NewMemoryOnlyHistoryManager(5),
 		themeService:     nil,
-		imageAttachments: []domain.ImageAttachment{},
+		imageAttachments: []agentdomain.ImageAttachment{},
 	}
 
 	fakeTheme := &uimocks.FakeTheme{}
@@ -209,8 +210,8 @@ func TestInputView_ClearInput(t *testing.T) {
 func TestInputView_AddImageAttachmentTokenHasNoIssueRef(t *testing.T) {
 	iv := NewInputView(createMockModelService())
 
-	iv.AddImageAttachment(domain.ImageAttachment{})
-	iv.AddImageAttachment(domain.ImageAttachment{})
+	iv.AddImageAttachment(agentdomain.ImageAttachment{})
+	iv.AddImageAttachment(agentdomain.ImageAttachment{})
 
 	input := iv.GetInput()
 
@@ -799,12 +800,12 @@ func TestInputView_ToolExecutionCompletedRefetchesPROnBash(t *testing.T) {
 	iv := newInputViewWithPR(t, "main", "123")
 
 	_, cmd := iv.Update(domain.ToolExecutionCompletedEvent{
-		Results: []*domain.ToolExecutionResult{{ToolName: "Read"}, {ToolName: "Bash"}},
+		Results: []*agentdomain.ToolExecutionResult{{ToolName: "Read"}, {ToolName: "Bash"}},
 	})
 	require.NotNil(t, cmd, "a Bash tool result must trigger an async PR refetch")
 
 	_, cmd = iv.Update(domain.ToolExecutionCompletedEvent{
-		Results: []*domain.ToolExecutionResult{{ToolName: "Read"}},
+		Results: []*agentdomain.ToolExecutionResult{{ToolName: "Read"}},
 	})
 	require.Nil(t, cmd, "non-Bash tool results must not refetch")
 }

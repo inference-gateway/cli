@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"strings"
 	"time"
 
@@ -19,7 +21,7 @@ import (
 
 type A2AQueryTaskTool struct {
 	config    *config.Config
-	formatter domain.CustomFormatter
+	formatter agentinfra.CustomFormatter
 	liveness  domain.JobLivenessReporter
 }
 
@@ -36,7 +38,7 @@ type A2AQueryTaskResult struct {
 func NewA2AQueryTaskTool(cfg *config.Config, liveness domain.JobLivenessReporter) *A2AQueryTaskTool {
 	return &A2AQueryTaskTool{
 		config: cfg,
-		formatter: domain.NewCustomFormatter("A2A_QueryTask", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter("A2A_QueryTask", func(key string) bool {
 			return key == "metadata"
 		}),
 		liveness: liveness,
@@ -72,11 +74,11 @@ func (t *A2AQueryTaskTool) Definition() sdk.ChatCompletionTool {
 	}
 }
 
-func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	startTime := time.Now()
 
 	if !t.IsEnabled() {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "A2A_QueryTask",
 			Arguments: args,
 			Success:   false,
@@ -139,7 +141,7 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*d
 
 	result.Message = fmt.Sprintf("Task %s is %s", taskID, task.Status.State)
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "A2A_QueryTask",
 		Arguments: args,
 		Success:   true,
@@ -156,8 +158,8 @@ func (t *A2AQueryTaskTool) buildPollingBlockedError(agentURL string) string {
 	return fmt.Sprintf("Cannot query task manually - background polling is active for agent %s. The A2A_SubmitTask tool is already polling for updates automatically. Please wait for the polling to complete.", agentURL)
 }
 
-func (t *A2AQueryTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
-	return &domain.ToolExecutionResult{
+func (t *A2AQueryTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*agentdomain.ToolExecutionResult, error) {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "A2A_QueryTask",
 		Arguments: args,
 		Success:   false,
@@ -183,20 +185,20 @@ func (t *A2AQueryTaskTool) Validate(args map[string]any) error {
 	return nil
 }
 
-func (t *A2AQueryTaskTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *A2AQueryTaskTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
 	}
 }
 
-func (t *A2AQueryTaskTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *A2AQueryTaskTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -255,7 +257,7 @@ func (t *A2AQueryTaskTool) FormatForLLM(result *domain.ToolExecutionResult) stri
 	return t.formatter.FormatExpanded(result, body.String())
 }
 
-func (t *A2AQueryTaskTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *A2AQueryTaskTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -271,7 +273,7 @@ func (t *A2AQueryTaskTool) FormatForUI(result *domain.ToolExecutionResult) strin
 	return output.String()
 }
 
-func (t *A2AQueryTaskTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *A2AQueryTaskTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}

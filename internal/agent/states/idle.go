@@ -1,7 +1,6 @@
 package states
 
 import (
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -10,24 +9,24 @@ import (
 // The Idle state is the initial and final resting state of the agent.
 // When a MessageReceivedEvent arrives, it transitions to CheckingQueue to begin processing.
 type IdleState struct {
-	ctx *domain.StateContext
+	ctx *StateContext
 }
 
 // NewIdleState creates a new Idle state handler
-func NewIdleState(ctx *domain.StateContext) domain.StateHandler {
+func NewIdleState(ctx *StateContext) StateHandler {
 	return &IdleState{ctx: ctx}
 }
 
 // Name returns the state this handler manages
-func (s *IdleState) Name() domain.AgentExecutionState {
-	return domain.StateIdle
+func (s *IdleState) Name() AgentExecutionState {
+	return StateIdle
 }
 
 // Handle processes events in Idle state
-func (s *IdleState) Handle(event domain.AgentEvent) error {
+func (s *IdleState) Handle(event AgentEvent) error {
 	switch event.(type) {
-	case domain.MessageReceivedEvent:
-		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateCheckingQueue); err != nil {
+	case MessageReceivedEvent:
+		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateCheckingQueue); err != nil {
 			logger.Error("failed to transition to checking queue", "error", err)
 			return err
 		}

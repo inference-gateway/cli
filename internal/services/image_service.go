@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -21,7 +22,6 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 )
 
@@ -168,7 +168,7 @@ func (s *ImageService) CreateImageVariation(ctx context.Context, model, imagePat
 // saveImage writes image bytes to a timestamped PNG under the session's
 // artifacts dir.
 func (s *ImageService) saveImage(ctx context.Context, data []byte) (string, error) {
-	dir := s.config.SessionArtifactsDir(domain.GetSessionID(ctx))
+	dir := s.config.SessionArtifactsDir(agentdomain.GetSessionID(ctx))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create %s: %w", dir, err)
 	}
@@ -199,7 +199,7 @@ func (s *ImageService) imageBytes(img sdk.Image) ([]byte, error) {
 }
 
 // ReadImageFromFile reads an image from a file path and returns it as a base64 attachment
-func (s *ImageService) ReadImageFromFile(filePath string) (*domain.ImageAttachment, error) {
+func (s *ImageService) ReadImageFromFile(filePath string) (*agentdomain.ImageAttachment, error) {
 	filePath = s.normalizeFilePath(filePath)
 
 	imageData, err := os.ReadFile(filePath)
@@ -217,7 +217,7 @@ func (s *ImageService) ReadImageFromFile(filePath string) (*domain.ImageAttachme
 }
 
 // ReadImageFromBinary reads an image from binary data and returns it as a base64 attachment
-func (s *ImageService) ReadImageFromBinary(imageData []byte, filename string) (*domain.ImageAttachment, error) {
+func (s *ImageService) ReadImageFromBinary(imageData []byte, filename string) (*agentdomain.ImageAttachment, error) {
 	_, format, err := image.DecodeConfig(bytes.NewReader(imageData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect image format: %w", err)
@@ -226,7 +226,7 @@ func (s *ImageService) ReadImageFromBinary(imageData []byte, filename string) (*
 	base64Data := base64.StdEncoding.EncodeToString(imageData)
 	mimeType := fmt.Sprintf("image/%s", format)
 
-	return &domain.ImageAttachment{
+	return &agentdomain.ImageAttachment{
 		Data:     base64Data,
 		MimeType: mimeType,
 		Filename: filename,
@@ -246,7 +246,7 @@ func (s *ImageService) normalizeFilePath(filePath string) string {
 }
 
 // CreateDataURL creates a data URL from an image attachment
-func (s *ImageService) CreateDataURL(attachment *domain.ImageAttachment) string {
+func (s *ImageService) CreateDataURL(attachment *agentdomain.ImageAttachment) string {
 	return fmt.Sprintf("data:%s;base64,%s", attachment.MimeType, attachment.Data)
 }
 
@@ -267,7 +267,7 @@ func (s *ImageService) IsImageFile(filePath string) bool {
 }
 
 // ReadImageFromURL fetches an image from a URL and returns it as a base64 attachment
-func (s *ImageService) ReadImageFromURL(imageURL string) (*domain.ImageAttachment, error) {
+func (s *ImageService) ReadImageFromURL(imageURL string) (*agentdomain.ImageAttachment, error) {
 	timeout := time.Duration(s.config.Image.Timeout) * time.Second
 	client := &http.Client{
 		Timeout: timeout,

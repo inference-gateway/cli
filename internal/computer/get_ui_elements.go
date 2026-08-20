@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"math"
 
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -69,7 +69,7 @@ func (t *GetUIElementsTool) Validate(args map[string]any) error {
 }
 
 // Execute executes the GetUIElements tool
-func (t *GetUIElementsTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *GetUIElementsTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	target, _ := args["target"].(string)
 	if target == "" {
 		target = "frontmost"
@@ -103,11 +103,11 @@ func (t *GetUIElementsTool) Execute(ctx context.Context, args map[string]any) (*
 	if len(elements) >= 200 {
 		summary = "first " + summary
 	}
-	annotation := &domain.ImageAnnotation{Summary: summary, Elements: elements}
-	message := domain.AnnotationText(annotation) +
+	annotation := &agentdomain.ImageAnnotation{Summary: summary, Elements: elements}
+	message := agentdomain.AnnotationText(annotation) +
 		"\nPress an element by its title with PressUIElement, or click its center coordinate with MouseClick."
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName: "GetUIElements",
 		Success:  true,
 		Data: map[string]any{
@@ -122,7 +122,7 @@ func (t *GetUIElementsTool) Execute(ctx context.Context, args map[string]any) (*
 // the frame coordinate space (the same space GetLatestFrame images and
 // MouseClick coordinates use), mutating elements in place. Returns the frame
 // dimensions.
-func (t *GetUIElementsTool) scaleToFrameSpace(ctx context.Context, elements []domain.AnnotatedElement) (int, int, error) {
+func (t *GetUIElementsTool) scaleToFrameSpace(ctx context.Context, elements []agentdomain.AnnotatedElement) (int, int, error) {
 	displayProvider, err := display.DetectDisplay()
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to detect display: %w", err)
@@ -153,8 +153,8 @@ func (t *GetUIElementsTool) scaleToFrameSpace(ctx context.Context, elements []do
 // axDegradeResult builds the graceful-degradation result shared by the AX
 // tools: a successful result whose message steers the model to the vision
 // pipeline instead of failing hard.
-func axDegradeResult(toolName, message string) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func axDegradeResult(toolName, message string) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName: toolName,
 		Success:  true,
 		Data:     map[string]any{"message": message},
@@ -167,7 +167,7 @@ func (t *GetUIElementsTool) IsEnabled() bool {
 }
 
 // FormatPreview formats the result for display preview
-func (t *GetUIElementsTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *GetUIElementsTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to get UI elements"
 	}
@@ -182,13 +182,13 @@ func (t *GetUIElementsTool) FormatPreview(result *domain.ToolExecutionResult) st
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *GetUIElementsTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *GetUIElementsTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	return axMessageForLLM(result, "Successfully retrieved UI elements")
 }
 
 // axMessageForLLM extracts the message from a Data map result, shared by the
 // AX tools.
-func axMessageForLLM(result *domain.ToolExecutionResult, fallback string) string {
+func axMessageForLLM(result *agentdomain.ToolExecutionResult, fallback string) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
@@ -211,11 +211,11 @@ func (t *GetUIElementsTool) ShouldAlwaysExpand() bool {
 }
 
 // FormatResult formats the result based on the requested format type
-func (t *GetUIElementsTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *GetUIElementsTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)

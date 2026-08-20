@@ -2,11 +2,11 @@ package formatting
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"slices"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 	wordwrap "github.com/muesli/reflow/wordwrap"
 )
@@ -77,7 +77,7 @@ func TruncateText(text string, maxLength int) string {
 }
 
 // ExtractTextFromContent extracts text from potentially multimodal message content
-func ExtractTextFromContent(content sdk.MessageContent, images []domain.ImageAttachment) string {
+func ExtractTextFromContent(content sdk.MessageContent, images []agentdomain.ImageAttachment) string {
 	simpleStr, err := content.AsMessageContent0()
 	if err == nil {
 		return simpleStr

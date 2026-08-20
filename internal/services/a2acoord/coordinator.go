@@ -2,6 +2,7 @@ package a2acoord
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -39,44 +40,44 @@ func NewService(opts Options) *Service {
 
 // HandleTaskSubmitted emits a working status indicating an A2A task was
 // submitted to a remote agent and continues listening on the chat channel.
-func (s *Service) HandleTaskSubmitted(msg domain.A2ATaskSubmittedEvent) tea.Cmd {
+func (s *Service) HandleTaskSubmitted(msg agentdomain.A2ATaskSubmittedEvent) tea.Cmd {
 	return tea.Sequence(s.taskSubmittedCmds(msg)...)
 }
 
 // HandleTaskCompleted retains the terminal task, emits the formatted result
 // as streaming content, refreshes history, and signals completion.
-func (s *Service) HandleTaskCompleted(msg domain.A2ATaskCompletedEvent) tea.Cmd {
+func (s *Service) HandleTaskCompleted(msg agentdomain.A2ATaskCompletedEvent) tea.Cmd {
 	return tea.Sequence(s.taskCompletedCmds(msg)...)
 }
 
 // HandleTaskFailed produces an error-content event with whatever result the
 // agent returned plus the error message.
-func (s *Service) HandleTaskFailed(msg domain.A2ATaskFailedEvent) tea.Cmd {
+func (s *Service) HandleTaskFailed(msg agentdomain.A2ATaskFailedEvent) tea.Cmd {
 	return tea.Sequence(s.taskFailedCmds(msg)...)
 }
 
 // HandleTaskStatusUpdate emits a working-status update for an in-flight A2A
 // task and keeps the listener pumping.
-func (s *Service) HandleTaskStatusUpdate(msg domain.A2ATaskStatusUpdateEvent) tea.Cmd {
+func (s *Service) HandleTaskStatusUpdate(msg agentdomain.A2ATaskStatusUpdateEvent) tea.Cmd {
 	return tea.Sequence(s.taskStatusUpdateCmds(msg)...)
 }
 
 // HandleTaskInputRequired surfaces a warning that the remote agent is waiting
 // on user input before it can continue.
-func (s *Service) HandleTaskInputRequired(msg domain.A2ATaskInputRequiredEvent) tea.Cmd {
+func (s *Service) HandleTaskInputRequired(msg agentdomain.A2ATaskInputRequiredEvent) tea.Cmd {
 	return tea.Sequence(s.taskInputRequiredCmds(msg)...)
 }
 
 // HandleToolCallExecuted reports that a tool was executed on the remote
 // gateway as part of an A2A round-trip.
-func (s *Service) HandleToolCallExecuted(msg domain.A2AToolCallExecutedEvent) tea.Cmd {
+func (s *Service) HandleToolCallExecuted(msg agentdomain.A2AToolCallExecutedEvent) tea.Cmd {
 	return tea.Sequence(s.toolCallExecutedCmds(msg)...)
 }
 
 // taskSubmittedCmds builds the ordered list of tea.Cmds for a task-submitted
 // event without sequencing. Exposed (unexported) for direct testability of
 // individual cmd outputs.
-func (s *Service) taskSubmittedCmds(msg domain.A2ATaskSubmittedEvent) []tea.Cmd {
+func (s *Service) taskSubmittedCmds(msg agentdomain.A2ATaskSubmittedEvent) []tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return domain.SetStatusEvent{
@@ -89,7 +90,7 @@ func (s *Service) taskSubmittedCmds(msg domain.A2ATaskSubmittedEvent) []tea.Cmd 
 	return s.appendChatListenerCmd(cmds)
 }
 
-func (s *Service) taskCompletedCmds(msg domain.A2ATaskCompletedEvent) []tea.Cmd {
+func (s *Service) taskCompletedCmds(msg agentdomain.A2ATaskCompletedEvent) []tea.Cmd {
 	taskResult := s.retainTaskFromResult(&msg.Result)
 	if taskResult == "" {
 		taskResult = s.conversationRepo.FormatToolResultForLLM(&msg.Result)
@@ -120,7 +121,7 @@ func (s *Service) taskCompletedCmds(msg domain.A2ATaskCompletedEvent) []tea.Cmd 
 	return s.appendChatListenerCmd(cmds)
 }
 
-func (s *Service) taskFailedCmds(msg domain.A2ATaskFailedEvent) []tea.Cmd {
+func (s *Service) taskFailedCmds(msg agentdomain.A2ATaskFailedEvent) []tea.Cmd {
 	taskResult := s.retainTaskFromResult(&msg.Result)
 
 	var errorContent string
@@ -156,7 +157,7 @@ func (s *Service) taskFailedCmds(msg domain.A2ATaskFailedEvent) []tea.Cmd {
 	return s.appendChatListenerCmd(cmds)
 }
 
-func (s *Service) taskStatusUpdateCmds(msg domain.A2ATaskStatusUpdateEvent) []tea.Cmd {
+func (s *Service) taskStatusUpdateCmds(msg agentdomain.A2ATaskStatusUpdateEvent) []tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return domain.UpdateStatusEvent{
@@ -168,7 +169,7 @@ func (s *Service) taskStatusUpdateCmds(msg domain.A2ATaskStatusUpdateEvent) []te
 	return s.appendChatListenerCmd(cmds)
 }
 
-func (s *Service) taskInputRequiredCmds(msg domain.A2ATaskInputRequiredEvent) []tea.Cmd {
+func (s *Service) taskInputRequiredCmds(msg agentdomain.A2ATaskInputRequiredEvent) []tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return domain.SetStatusEvent{
@@ -181,7 +182,7 @@ func (s *Service) taskInputRequiredCmds(msg domain.A2ATaskInputRequiredEvent) []
 	return s.appendChatListenerCmd(cmds)
 }
 
-func (s *Service) toolCallExecutedCmds(msg domain.A2AToolCallExecutedEvent) []tea.Cmd {
+func (s *Service) toolCallExecutedCmds(msg agentdomain.A2AToolCallExecutedEvent) []tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return domain.SetStatusEvent{
@@ -197,7 +198,7 @@ func (s *Service) toolCallExecutedCmds(msg domain.A2AToolCallExecutedEvent) []te
 // retainTaskFromResult pulls the submitted A2A task out of a tool result, hands
 // it to the retention service when present, and returns the formatted task
 // result body (empty string if the result was not an A2A submit result).
-func (s *Service) retainTaskFromResult(result *domain.ToolExecutionResult) string {
+func (s *Service) retainTaskFromResult(result *agentdomain.ToolExecutionResult) string {
 	if result.Data == nil {
 		return ""
 	}

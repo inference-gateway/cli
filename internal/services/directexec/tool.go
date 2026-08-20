@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// directQuestionBroker implements domain.UserQuestionBroker for `!!` direct
+// directQuestionBroker implements agentdomain.UserQuestionBroker for `!!` direct
 // tool execution. It publishes the question request onto the per-invocation
 // event channel and blocks until the user submits (answers arrive on the
 // response channel) or dismisses the form (the channel is closed without a
@@ -23,10 +24,10 @@ type directQuestionBroker struct {
 	requestID string
 }
 
-func (b *directQuestionBroker) AskUserQuestions(ctx context.Context, questions []domain.UserQuestion) ([]domain.UserQuestionAnswer, bool, error) {
-	responseChan := make(chan []domain.UserQuestionAnswer, 1)
+func (b *directQuestionBroker) AskUserQuestions(ctx context.Context, questions []agentdomain.UserQuestion) ([]agentdomain.UserQuestionAnswer, bool, error) {
+	responseChan := make(chan []agentdomain.UserQuestionAnswer, 1)
 
-	b.events <- domain.UserQuestionRequestedEvent{
+	b.events <- agentdomain.UserQuestionRequestedEvent{
 		RequestID:    b.requestID,
 		Timestamp:    time.Now(),
 		Questions:    questions,
@@ -146,8 +147,8 @@ func (s *Service) executeToolCommand(commandText, toolName, argsJSON string) tea
 			}
 		},
 		func() tea.Msg {
-			return domain.ToolExecutionProgressEvent{
-				BaseChatEvent: domain.BaseChatEvent{
+			return agentdomain.ToolExecutionProgressEvent{
+				BaseChatEvent: agentdomain.BaseChatEvent{
 					RequestID: toolCallID,
 					Timestamp: time.Now(),
 				},
@@ -176,8 +177,8 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 			s.setToolEventChannel(nil)
 		}()
 
-		eventChan <- domain.ToolExecutionProgressEvent{
-			BaseChatEvent: domain.BaseChatEvent{
+		eventChan <- agentdomain.ToolExecutionProgressEvent{
+			BaseChatEvent: agentdomain.BaseChatEvent{
 				RequestID: toolCallID,
 				Timestamp: time.Now(),
 			},
@@ -192,17 +193,17 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 			Arguments: argsJSON,
 		}
 
-		ctx := domain.WithToolApproved(context.Background())
-		ctx = domain.WithDirectExecution(ctx)
-		ctx = domain.WithUserQuestionBroker(ctx, &directQuestionBroker{events: eventChan, requestID: toolCallID})
+		ctx := agentdomain.WithToolApproved(context.Background())
+		ctx = agentdomain.WithDirectExecution(ctx)
+		ctx = agentdomain.WithUserQuestionBroker(ctx, &directQuestionBroker{events: eventChan, requestID: toolCallID})
 		result, err := s.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 		if err != nil {
 			eventChan <- domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to execute tool: %v", err),
 				Sticky: false,
 			}
-			eventChan <- domain.ToolExecutionProgressEvent{
-				BaseChatEvent: domain.BaseChatEvent{
+			eventChan <- agentdomain.ToolExecutionProgressEvent{
+				BaseChatEvent: agentdomain.BaseChatEvent{
 					RequestID: toolCallID,
 					Timestamp: time.Now(),
 				},
@@ -249,10 +250,10 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 			message = "Execution failed"
 		}
 
-		var images []domain.ImageAttachment
+		var images []agentdomain.ImageAttachment
 		if result != nil && len(result.Images) > 0 {
 			for _, img := range result.Images {
-				images = append(images, domain.ImageAttachment{
+				images = append(images, agentdomain.ImageAttachment{
 					Data:        img.Data,
 					MimeType:    img.MimeType,
 					DisplayName: img.DisplayName,
@@ -260,8 +261,8 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 			}
 		}
 
-		eventChan <- domain.ToolExecutionProgressEvent{
-			BaseChatEvent: domain.BaseChatEvent{
+		eventChan <- agentdomain.ToolExecutionProgressEvent{
+			BaseChatEvent: agentdomain.BaseChatEvent{
 				RequestID: toolCallID,
 				Timestamp: time.Now(),
 			},
@@ -284,7 +285,7 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 
 		// Clear ToolCallRenderer previews now that the tool entry is in
 		// conversation history.
-		eventChan <- domain.ChatCompleteEvent{
+		eventChan <- agentdomain.ChatCompleteEvent{
 			RequestID: toolCallID,
 			Timestamp: time.Now(),
 			Message:   "",

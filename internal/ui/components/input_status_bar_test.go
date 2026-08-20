@@ -2,6 +2,8 @@ package components
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"regexp"
 	"strings"
 	"testing"
@@ -24,7 +26,7 @@ type stubTokenEstimator struct {
 	toolCount  int
 }
 
-func (s *stubTokenEstimator) GetToolStats(domain.ToolService, domain.AgentMode) (int, int) {
+func (s *stubTokenEstimator) GetToolStats(agentdomain.ToolService, agentdomain.AgentMode) (int, int) {
 	return s.toolTokens, s.toolCount
 }
 
@@ -46,7 +48,7 @@ func readinessStateManager(r *domain.AgentReadinessState) *domain.ApplicationSta
 	if r != nil {
 		st.InitializeAgentReadiness(r.TotalAgents)
 		for i := 0; i < r.ReadyAgents; i++ {
-			st.UpdateAgentStatus(fmt.Sprintf("agent-%d", i), domain.AgentStateReady, "", "", "")
+			st.UpdateAgentStatus(fmt.Sprintf("agent-%d", i), agentdomain.AgentStateReady, "", "", "")
 		}
 	}
 	return st
@@ -79,7 +81,7 @@ func TestInputStatusBar_MasterToggle(t *testing.T) {
 			themeService.GetCurrentThemeNameReturns("tokyo-night")
 
 			stateManager := domain.NewApplicationState()
-			stateManager.SetAgentMode(domain.AgentModeStandard)
+			stateManager.SetAgentMode(agentdomain.AgentModeStandard)
 
 			cfg := config.DefaultConfig()
 			cfg.Chat.StatusBar.Enabled = tt.enabled
@@ -248,7 +250,7 @@ func TestInputStatusBar_BuildThemeIndicator(t *testing.T) {
 }
 
 func TestInputStatusBar_BuildEffortIndicator(t *testing.T) {
-	agent := &domainmocks.FakeAgentService{}
+	agent := &agentdomainmocks.FakeAgentService{}
 	agent.GetReasoningEffortReturns("xhigh")
 	anthropicModels := &domainmocks.FakeModelService{}
 	anthropicModels.GetCurrentModelReturns("anthropic/claude-opus-4-8")
@@ -907,7 +909,7 @@ func TestInputStatusBar_FocusRequiresActionableIndicator(t *testing.T) {
 
 func TestInputStatusBar_SelectionCyclesActionableIndicators(t *testing.T) {
 	statusBar := newSelectableStatusBar(true)
-	statusBar.toolService = &domainmocks.FakeToolService{}
+	statusBar.toolService = &agentdomainmocks.FakeToolService{}
 	statusBar.tokenEstimator = &stubTokenEstimator{toolTokens: 8017, toolCount: 25}
 	statusBar.stateManager = readinessStateManager(&domain.AgentReadinessState{TotalAgents: 1, ReadyAgents: 1})
 	if !statusBar.Focus() {
@@ -1075,7 +1077,7 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 			setup: func() *domain.ApplicationState {
 				st := domain.NewApplicationState()
 				st.InitializeAgentReadiness(1)
-				st.UpdateAgentStatus("agent-a", domain.AgentStatePullingImage, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStatePullingImage, "", "", "")
 				return st
 			},
 			want: "",
@@ -1085,7 +1087,7 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 			setup: func() *domain.ApplicationState {
 				st := domain.NewApplicationState()
 				st.InitializeAgentReadiness(1)
-				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
 				return st
 			},
 			want: "#9ece6a",
@@ -1095,8 +1097,8 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 			setup: func() *domain.ApplicationState {
 				st := domain.NewApplicationState()
 				st.InitializeAgentReadiness(2)
-				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
-				st.UpdateAgentStatus("agent-b", domain.AgentStateFailed, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-b", agentdomain.AgentStateFailed, "", "", "")
 				return st
 			},
 			want: "#f7768e",
@@ -1106,8 +1108,8 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 			setup: func() *domain.ApplicationState {
 				st := domain.NewApplicationState()
 				st.InitializeAgentReadiness(1)
-				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
-				st.UpdateAgentStatus("agent-a", domain.AgentStateFailed, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateFailed, "", "", "")
 				return st
 			},
 			want: "#f7768e",
@@ -1117,9 +1119,9 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 			setup: func() *domain.ApplicationState {
 				st := domain.NewApplicationState()
 				st.InitializeAgentReadiness(1)
-				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
-				st.UpdateAgentStatus("agent-a", domain.AgentStateFailed, "", "", "")
-				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateFailed, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
 				return st
 			},
 			want: "#9ece6a",
@@ -1144,17 +1146,17 @@ func TestInputStatusBar_A2AIndicatorCountsDown(t *testing.T) {
 	st.InitializeAgentReadiness(1)
 	statusBar := &InputStatusBar{stateManager: st}
 
-	st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+	st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
 	if got := statusBar.buildA2AAgentsIndicator(); got != "A2A: 1/1" {
 		t.Fatalf("after ready: got %q, want %q", got, "A2A: 1/1")
 	}
 
-	st.UpdateAgentStatus("agent-a", domain.AgentStateFailed, "", "", "")
+	st.UpdateAgentStatus("agent-a", agentdomain.AgentStateFailed, "", "", "")
 	if got := statusBar.buildA2AAgentsIndicator(); got != "A2A: 0/1" {
 		t.Fatalf("after failure: got %q, want %q", got, "A2A: 0/1")
 	}
 
-	st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+	st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
 	if got := statusBar.buildA2AAgentsIndicator(); got != "A2A: 1/1" {
 		t.Fatalf("after recovery: got %q, want %q", got, "A2A: 1/1")
 	}

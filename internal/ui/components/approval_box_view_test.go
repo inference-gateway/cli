@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,7 +19,7 @@ import (
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
-// argsAwareToolFormatter is a domain.ToolFormatter whose FormatToolCall renders
+// argsAwareToolFormatter is a agentdomain.ToolFormatter whose FormatToolCall renders
 // the file_path argument, so the approval-box summary tests can assert that the
 // pending call's arguments reach the box (the package's other stubToolFormatter
 // ignores args, which would defeat these assertions).
@@ -30,14 +31,16 @@ func (argsAwareToolFormatter) FormatToolCall(toolName string, args map[string]an
 	}
 	return fmt.Sprintf("%s()", toolName)
 }
-func (argsAwareToolFormatter) FormatToolResultForUI(*domain.ToolExecutionResult, int) string {
+func (argsAwareToolFormatter) FormatToolResultForUI(*agentdomain.ToolExecutionResult, int) string {
 	return ""
 }
-func (argsAwareToolFormatter) FormatToolResultExpanded(*domain.ToolExecutionResult, int) string {
+func (argsAwareToolFormatter) FormatToolResultExpanded(*agentdomain.ToolExecutionResult, int) string {
 	return ""
 }
-func (argsAwareToolFormatter) FormatToolResultForLLM(*domain.ToolExecutionResult) string { return "" }
-func (argsAwareToolFormatter) ShouldAlwaysExpandTool(string) bool                        { return false }
+func (argsAwareToolFormatter) FormatToolResultForLLM(*agentdomain.ToolExecutionResult) string {
+	return ""
+}
+func (argsAwareToolFormatter) ShouldAlwaysExpandTool(string) bool { return false }
 func (argsAwareToolFormatter) RenderToolSummary(icon, toolName string, args map[string]any, trailing string, _ int) string {
 	if p, ok := args["file_path"]; ok {
 		return fmt.Sprintf("%s %s(file_path=%v) %s", icon, toolName, p, trailing)
@@ -150,7 +153,7 @@ func TestApprovalBox_SummaryRendering(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			sm := approvalStateManager(approvalStateWith(tc.toolName, tc.arguments))
-			var formatter domain.ToolFormatter = argsAwareToolFormatter{}
+			var formatter agentdomain.ToolFormatter = argsAwareToolFormatter{}
 			if tc.nilFormatter {
 				formatter = nil
 			}
@@ -185,7 +188,7 @@ func TestApprovalBox_SelectEmitsResponseEvent(t *testing.T) {
 	for cmd != nil {
 		msg := cmd()
 		if ev, ok := msg.(domain.ToolApprovalResponseEvent); ok {
-			if ev.Action != domain.ApprovalReject {
+			if ev.Action != agentdomain.ApprovalReject {
 				t.Errorf("expected Reject after one right arrow, got %v", ev.Action)
 			}
 			if ev.ToolCall.ID != "call_1" {
@@ -348,7 +351,7 @@ func TestApprovalBox_DiffRendering(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			sm := approvalStateManager(approvalStateWith(tc.toolName, tc.arguments))
-			var formatter domain.ToolFormatter = argsAwareToolFormatter{}
+			var formatter agentdomain.ToolFormatter = argsAwareToolFormatter{}
 			if tc.nilFormatter {
 				formatter = nil
 			}

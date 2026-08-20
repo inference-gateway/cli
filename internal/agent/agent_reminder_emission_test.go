@@ -3,6 +3,9 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/states"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -11,14 +14,12 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // remindersConfig builds a Config whose SystemReminders drive the agent's
-// reminder injection (the config value implements domain.SystemReminderProvider).
+// reminder injection (the config value implements agentdomain.SystemReminderProvider).
 func remindersConfig(enabled bool, reminders ...config.ReminderConfig) *config.Config {
 	return &config.Config{
 		Reminders: config.RemindersConfig{
@@ -38,23 +39,23 @@ func withDebugStreamWriter(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
-func newReminderAgentCtx(conv *[]sdk.Message, turns, maxTurns int) *domain.AgentContext {
-	return &domain.AgentContext{Conversation: conv, Turns: turns, MaxTurns: maxTurns}
+func newReminderAgentCtx(conv *[]sdk.Message, turns, maxTurns int) *states.AgentContext {
+	return &states.AgentContext{Conversation: conv, Turns: turns, MaxTurns: maxTurns}
 }
 
-func reminder(name, text string, hook domain.HookPoint, trigger config.ReminderTrigger, interval int) config.ReminderConfig {
+func reminder(name, text string, hook agentdomain.HookPoint, trigger config.ReminderTrigger, interval int) config.ReminderConfig {
 	return config.ReminderConfig{Name: name, Text: text, Hook: hook, Trigger: trigger, Interval: interval}
 }
 
 func TestInjectDueReminders_AppendsHiddenMessageAndEmits(t *testing.T) {
-	cfg := remindersConfig(true, reminder("todo", "remember to push", domain.HookPreStream, config.ReminderTriggerInterval, 2))
+	cfg := remindersConfig(true, reminder("todo", "remember to push", agentdomain.HookPreStream, config.ReminderTriggerInterval, 2))
 	svc := &AgentServiceImpl{config: cfg}
 	svc.sessionTurns.Store(4)
 	buf := withDebugStreamWriter(t)
 
 	conv := []sdk.Message{}
 	agentCtx := newReminderAgentCtx(&conv, 4, 0)
-	svc.injectDueReminders(agentCtx, domain.HookPreStream)
+	svc.injectDueReminders(agentCtx, agentdomain.HookPreStream)
 
 	require.Len(t, conv, 1, "reminder must be appended to conversation")
 	assert.Equal(t, sdk.User, conv[0].Role)
@@ -80,7 +81,7 @@ func TestInjectDueReminders_InjectionGating(t *testing.T) {
 		name         string
 		cfg          *config.Config
 		initialConv  []sdk.Message
-		hook         domain.HookPoint
+		hook         agentdomain.HookPoint
 		turns        int
 		debugOn      bool
 		wantConvLen  int
@@ -88,8 +89,8 @@ func TestInjectDueReminders_InjectionGating(t *testing.T) {
 	}{
 		{
 			name:         "no-op when disabled",
-			cfg:          remindersConfig(false, reminder("todo", "ignored", domain.HookPreStream, config.ReminderTriggerInterval, 2)),
-			hook:         domain.HookPreStream,
+			cfg:          remindersConfig(false, reminder("todo", "ignored", agentdomain.HookPreStream, config.ReminderTriggerInterval, 2)),
+			hook:         agentdomain.HookPreStream,
 			turns:        4,
 			debugOn:      true,
 			wantConvLen:  0,
@@ -97,8 +98,8 @@ func TestInjectDueReminders_InjectionGating(t *testing.T) {
 		},
 		{
 			name:        "no-op on wrong hook",
-			cfg:         remindersConfig(true, reminder("todo", "x", domain.HookPostTool, config.ReminderTriggerAlways, 0)),
-			hook:        domain.HookPreStream,
+			cfg:         remindersConfig(true, reminder("todo", "x", agentdomain.HookPostTool, config.ReminderTriggerAlways, 0)),
+			hook:        agentdomain.HookPreStream,
 			turns:       1,
 			debugOn:     true,
 			wantConvLen: 0,
@@ -106,30 +107,30 @@ func TestInjectDueReminders_InjectionGating(t *testing.T) {
 		{
 			name: "stacking injects all reminders on the hook",
 			cfg: remindersConfig(true,
-				reminder("todo", "t", domain.HookPreStream, config.ReminderTriggerAlways, 0),
-				reminder("memory", "m", domain.HookPreStream, config.ReminderTriggerAlways, 0),
+				reminder("todo", "t", agentdomain.HookPreStream, config.ReminderTriggerAlways, 0),
+				reminder("memory", "m", agentdomain.HookPreStream, config.ReminderTriggerAlways, 0),
 			),
-			hook:        domain.HookPreStream,
+			hook:        agentdomain.HookPreStream,
 			turns:       1,
 			debugOn:     true,
 			wantConvLen: 2,
 		},
 		{
 			name: "skips while awaiting tool results",
-			cfg:  remindersConfig(true, reminder("note", "n", domain.HookPreTool, config.ReminderTriggerAlways, 0)),
+			cfg:  remindersConfig(true, reminder("note", "n", agentdomain.HookPreTool, config.ReminderTriggerAlways, 0)),
 			initialConv: []sdk.Message{
 				{Role: sdk.User, Content: sdk.NewMessageContent("do it")},
 				{Role: sdk.Assistant, ToolCalls: &toolCalls},
 			},
-			hook:        domain.HookPreTool,
+			hook:        agentdomain.HookPreTool,
 			turns:       1,
 			debugOn:     true,
 			wantConvLen: 2,
 		},
 		{
 			name:         "debug gate off appends but does not stream",
-			cfg:          remindersConfig(true, reminder("todo", "x", domain.HookPreStream, config.ReminderTriggerAlways, 0)),
-			hook:         domain.HookPreStream,
+			cfg:          remindersConfig(true, reminder("todo", "x", agentdomain.HookPreStream, config.ReminderTriggerAlways, 0)),
+			hook:         agentdomain.HookPreStream,
 			turns:        1,
 			debugOn:      false,
 			wantConvLen:  1,
@@ -161,17 +162,17 @@ func TestInjectDueReminders_InjectionGating(t *testing.T) {
 // A `once` reminder fires the first time its hook dispatches and is suppressed
 // afterwards via the session-scoped fired-set on the service.
 func TestInjectDueReminders_OnceSuppressedAfterFiring(t *testing.T) {
-	cfg := remindersConfig(true, reminder("memory", "load memory", domain.HookPreSession, config.ReminderTriggerOnce, 0))
+	cfg := remindersConfig(true, reminder("memory", "load memory", agentdomain.HookPreSession, config.ReminderTriggerOnce, 0))
 	svc := &AgentServiceImpl{config: cfg}
 
 	conv := []sdk.Message{}
 	agentCtx := newReminderAgentCtx(&conv, 1, 0)
 
-	svc.injectDueReminders(agentCtx, domain.HookPreSession)
+	svc.injectDueReminders(agentCtx, agentdomain.HookPreSession)
 	require.Len(t, conv, 1, "once reminder fires the first time")
 
 	agentCtx.Turns = 2
-	svc.injectDueReminders(agentCtx, domain.HookPreSession)
+	svc.injectDueReminders(agentCtx, agentdomain.HookPreSession)
 	require.Len(t, conv, 1, "once reminder must not fire again")
 }
 
@@ -181,7 +182,7 @@ func TestInjectDueReminders_OnceSuppressedAfterFiring(t *testing.T) {
 func TestInjectDueReminders_WiredProviderQuery(t *testing.T) {
 	tests := []struct {
 		name            string
-		providerReturns []domain.SystemReminder
+		providerReturns []agentdomain.SystemReminder
 		turns           int
 		maxTurns        int
 		sessionTurns    int64
@@ -190,7 +191,7 @@ func TestInjectDueReminders_WiredProviderQuery(t *testing.T) {
 	}{
 		{
 			name:            "query fields and returned reminder injected",
-			providerReturns: []domain.SystemReminder{{Name: "fake", Text: "from provider"}},
+			providerReturns: []agentdomain.SystemReminder{{Name: "fake", Text: "from provider"}},
 			turns:           7,
 			maxTurns:        12,
 			sessionTurns:    9,
@@ -205,7 +206,7 @@ func TestInjectDueReminders_WiredProviderQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fake := &domainmocks.FakeSystemReminderProvider{}
+			fake := &agentdomainmocks.FakeSystemReminderProvider{}
 			fake.RemindersDueReturns(tt.providerReturns)
 			svc := &AgentServiceImpl{reminderProvider: fake}
 			svc.sessionTurns.Store(tt.sessionTurns)
@@ -213,11 +214,11 @@ func TestInjectDueReminders_WiredProviderQuery(t *testing.T) {
 			conv := []sdk.Message{}
 			agentCtx := newReminderAgentCtx(&conv, tt.turns, tt.maxTurns)
 			agentCtx.LastToolFailed = tt.lastToolFailed
-			svc.injectDueReminders(agentCtx, domain.HookPostTool)
+			svc.injectDueReminders(agentCtx, agentdomain.HookPostTool)
 
 			require.Equal(t, 1, fake.RemindersDueCallCount())
 			q := fake.RemindersDueArgsForCall(0)
-			assert.Equal(t, domain.HookPostTool, q.Hook)
+			assert.Equal(t, agentdomain.HookPostTool, q.Hook)
 			assert.Equal(t, tt.turns, q.Turn, "per-request turn comes from AgentContext.Turns")
 			assert.Equal(t, int(tt.sessionTurns), q.SessionTurn, "session turn comes from the cumulative counter")
 			assert.Equal(t, tt.maxTurns, q.MaxTurns)
@@ -236,7 +237,7 @@ func TestInjectDueReminders_WiredProviderQuery(t *testing.T) {
 // cumulative conversational turn even though each user message runs as a fresh
 // AgentContext whose per-request Turns resets to 1.
 func TestInjectDueReminders_IntervalCountsAcrossSeparateRequests(t *testing.T) {
-	cfg := remindersConfig(true, reminder("todo", "nudge", domain.HookPreStream, config.ReminderTriggerInterval, 4))
+	cfg := remindersConfig(true, reminder("todo", "nudge", agentdomain.HookPreStream, config.ReminderTriggerInterval, 4))
 	svc := &AgentServiceImpl{config: cfg}
 
 	var firedAt []int
@@ -244,7 +245,7 @@ func TestInjectDueReminders_IntervalCountsAcrossSeparateRequests(t *testing.T) {
 		conv := []sdk.Message{}
 		agentCtx := newReminderAgentCtx(&conv, 1, 50)
 		svc.sessionTurns.Add(1)
-		svc.injectDueReminders(agentCtx, domain.HookPreStream)
+		svc.injectDueReminders(agentCtx, agentdomain.HookPreStream)
 		if len(conv) > 0 {
 			firedAt = append(firedAt, int(svc.sessionTurns.Load()))
 		}
@@ -260,10 +261,10 @@ func TestInjectDueReminders_IntervalCountsAcrossSeparateRequests(t *testing.T) {
 func TestInjectDueReminders_StalledTodosContinuation(t *testing.T) {
 	cfg := remindersConfig(true, config.ReminderConfig{
 		Name: "todo-continuation", Text: "continue your todos: {todo_list}",
-		Hook: domain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Threshold: 3,
+		Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Threshold: 3,
 	})
 	sm := services.NewStateManager(false)
-	sm.SetTodos([]domain.TodoItem{
+	sm.SetTodos([]agentdomain.TodoItem{
 		{ID: "1", Content: "done thing", Status: "completed"},
 		{ID: "2", Content: "open thing", Status: "pending"},
 	})
@@ -274,7 +275,7 @@ func TestInjectDueReminders_StalledTodosContinuation(t *testing.T) {
 
 	conv := []sdk.Message{}
 	agentCtx := newReminderAgentCtx(&conv, 2, 50)
-	svc.injectDueReminders(agentCtx, domain.HookPostStream)
+	svc.injectDueReminders(agentCtx, agentdomain.HookPostStream)
 
 	require.Len(t, conv, 1, "stalled run with incomplete todos must inject the continuation nudge")
 	content, _ := conv[0].Content.AsMessageContent0()
@@ -285,7 +286,7 @@ func TestInjectDueReminders_StalledTodosContinuation(t *testing.T) {
 	svc.trackStreamOutcome("stop", true)
 	conv = nil
 	agentCtx = newReminderAgentCtx(&conv, 3, 50)
-	svc.injectDueReminders(agentCtx, domain.HookPostStream)
+	svc.injectDueReminders(agentCtx, agentdomain.HookPostStream)
 	assert.Empty(t, conv, "tool-calling turn must not trigger the continuation nudge")
 }
 
@@ -295,22 +296,22 @@ func TestInjectDueReminders_TruncationTakesPriority(t *testing.T) {
 	cfg := remindersConfig(true,
 		config.ReminderConfig{
 			Name: "todo-continuation", Text: "continue todos",
-			Hook: domain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Threshold: 3,
+			Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Threshold: 3,
 		},
 		config.ReminderConfig{
 			Name: "truncation-continuation", Text: "you were truncated, continue",
-			Hook: domain.HookPostStream, Trigger: config.ReminderTriggerOnTruncation,
+			Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnTruncation,
 		},
 	)
 	sm := services.NewStateManager(false)
-	sm.SetTodos([]domain.TodoItem{{ID: "1", Content: "open", Status: "pending"}})
+	sm.SetTodos([]agentdomain.TodoItem{{ID: "1", Content: "open", Status: "pending"}})
 	svc := &AgentServiceImpl{config: cfg, stateManager: sm}
 
 	svc.trackStreamOutcome("length", false)
 
 	conv := []sdk.Message{}
 	agentCtx := newReminderAgentCtx(&conv, 2, 50)
-	svc.injectDueReminders(agentCtx, domain.HookPostStream)
+	svc.injectDueReminders(agentCtx, agentdomain.HookPostStream)
 
 	require.Len(t, conv, 1)
 	content, _ := conv[0].Content.AsMessageContent0()

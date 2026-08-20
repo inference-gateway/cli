@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"slices"
 	"strings"
 	"sync"
@@ -26,7 +27,7 @@ func NewRegistry() *Registry {
 }
 
 // LoadCustomShortcuts loads user-defined shortcuts from the specified base directory
-func (r *Registry) LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService, toolService domain.ToolService) error {
+func (r *Registry) LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService, toolService agentdomain.ToolService) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"io"
 	"time"
 
@@ -29,20 +30,20 @@ const resumeContinuePrompt = "Please continue from where you left off."
 // goroutine that decides whether an ended stream restarts, and clearing the
 // flag anywhere else races that decision.
 type headlessControl struct {
-	agentService domain.AgentService
+	agentService agentdomain.AgentService
 	pauseState   domain.ComputerUsePauseManager
 	sessionID    string
 	approvals    chan domain.ApprovalResponse
-	ctrlEvents   chan domain.ChatEvent
+	ctrlEvents   chan agentdomain.ChatEvent
 }
 
-func newHeadlessControl(agentService domain.AgentService, pauseState domain.ComputerUsePauseManager, sessionID string) *headlessControl {
+func newHeadlessControl(agentService agentdomain.AgentService, pauseState domain.ComputerUsePauseManager, sessionID string) *headlessControl {
 	return &headlessControl{
 		agentService: agentService,
 		pauseState:   pauseState,
 		sessionID:    sessionID,
 		approvals:    make(chan domain.ApprovalResponse, 4),
-		ctrlEvents:   make(chan domain.ChatEvent, 4),
+		ctrlEvents:   make(chan agentdomain.ChatEvent, 4),
 	}
 }
 
@@ -69,9 +70,9 @@ func (c *headlessControl) dispatchLine(line []byte) {
 	case "pause":
 		_ = c.agentService.CancelRequest(c.sessionID)
 		c.pauseState.SetComputerUsePaused(true, c.sessionID)
-		c.ctrlEvents <- domain.ComputerUsePausedEvent{RequestID: c.sessionID, Timestamp: time.Now()}
+		c.ctrlEvents <- agentdomain.ComputerUsePausedEvent{RequestID: c.sessionID, Timestamp: time.Now()}
 	case "resume":
-		c.ctrlEvents <- domain.ComputerUseResumedEvent{RequestID: c.sessionID, Timestamp: time.Now()}
+		c.ctrlEvents <- agentdomain.ComputerUseResumedEvent{RequestID: c.sessionID, Timestamp: time.Now()}
 	default:
 		logger.Warn("ignoring unknown computer_use_control action", "action", ctrl.Action)
 	}
@@ -82,11 +83,11 @@ func (c *headlessControl) dispatchLine(line []byte) {
 // while paused, the pump waits for the resume control event and continues
 // with the stream that resume() returns — the headless mirror of chat mode's
 // restart-on-resume. The pump goroutine owns closing the returned channel.
-func (c *headlessControl) pumpEvents(stream <-chan domain.ChatEvent, resume func() (<-chan domain.ChatEvent, error)) <-chan domain.ChatEvent {
-	merged := make(chan domain.ChatEvent)
+func (c *headlessControl) pumpEvents(stream <-chan agentdomain.ChatEvent, resume func() (<-chan agentdomain.ChatEvent, error)) <-chan agentdomain.ChatEvent {
+	merged := make(chan agentdomain.ChatEvent)
 	go func() {
 		defer close(merged)
-		ctrlEvents := (<-chan domain.ChatEvent)(c.ctrlEvents)
+		ctrlEvents := (<-chan agentdomain.ChatEvent)(c.ctrlEvents)
 		pendingResume := false
 		for {
 			select {
@@ -123,11 +124,11 @@ func (c *headlessControl) pumpEvents(stream <-chan domain.ChatEvent, resume func
 // preceding pause cannot restart a normally-completed run; counting it also
 // clears the paused state, un-blocking RunWithStream's paused fail-fast for
 // the restart.
-func (c *headlessControl) noteControlEvent(ev domain.ChatEvent, pendingResume bool) bool {
+func (c *headlessControl) noteControlEvent(ev agentdomain.ChatEvent, pendingResume bool) bool {
 	switch ev.(type) {
-	case domain.ComputerUsePausedEvent:
+	case agentdomain.ComputerUsePausedEvent:
 		return false
-	case domain.ComputerUseResumedEvent:
+	case agentdomain.ComputerUseResumedEvent:
 		if c.pauseState.IsComputerUsePaused() {
 			c.pauseState.ClearComputerUsePauseState()
 			return true
@@ -140,7 +141,7 @@ func (c *headlessControl) noteControlEvent(ev domain.ChatEvent, pendingResume bo
 // pump decides whether the ended stream should resume, so a resume that
 // raced the cancelled stream's close is not lost. Returns the updated
 // pending-resume flag.
-func (c *headlessControl) drainControlEvents(merged chan<- domain.ChatEvent, ctrlEvents <-chan domain.ChatEvent, pendingResume bool) bool {
+func (c *headlessControl) drainControlEvents(merged chan<- agentdomain.ChatEvent, ctrlEvents <-chan agentdomain.ChatEvent, pendingResume bool) bool {
 	for {
 		select {
 		case ev, ok := <-ctrlEvents:
@@ -158,7 +159,7 @@ func (c *headlessControl) drainControlEvents(merged chan<- domain.ChatEvent, ctr
 // awaitResume forwards control events while the session is paused and returns
 // the resumed run's stream, or nil when rendering should end: not paused,
 // stdin EOF, or the resumed run failing to start.
-func (c *headlessControl) awaitResume(merged chan<- domain.ChatEvent, ctrlEvents <-chan domain.ChatEvent, resume func() (<-chan domain.ChatEvent, error)) <-chan domain.ChatEvent {
+func (c *headlessControl) awaitResume(merged chan<- agentdomain.ChatEvent, ctrlEvents <-chan agentdomain.ChatEvent, resume func() (<-chan agentdomain.ChatEvent, error)) <-chan agentdomain.ChatEvent {
 	if ctrlEvents == nil || !c.pauseState.IsComputerUsePaused() {
 		return nil
 	}
@@ -173,10 +174,10 @@ func (c *headlessControl) awaitResume(merged chan<- domain.ChatEvent, ctrlEvents
 
 // startResume starts the resumed run, surfacing a failure to start as an
 // error event so hosts see it instead of a silent end of stream.
-func (c *headlessControl) startResume(merged chan<- domain.ChatEvent, resume func() (<-chan domain.ChatEvent, error)) <-chan domain.ChatEvent {
+func (c *headlessControl) startResume(merged chan<- agentdomain.ChatEvent, resume func() (<-chan agentdomain.ChatEvent, error)) <-chan agentdomain.ChatEvent {
 	next, err := resume()
 	if err != nil {
-		merged <- domain.ChatErrorEvent{RequestID: c.sessionID, Timestamp: time.Now(), Error: err}
+		merged <- agentdomain.ChatErrorEvent{RequestID: c.sessionID, Timestamp: time.Now(), Error: err}
 		return nil
 	}
 	return next
@@ -184,7 +185,7 @@ func (c *headlessControl) startResume(merged chan<- domain.ChatEvent, resume fun
 
 // resumeHeadlessRun appends the hidden continue message the chat coordinator
 // uses on resume and starts a new agent run over the full conversation.
-func resumeHeadlessRun(ctx context.Context, agentService domain.AgentService, repo domain.ConversationRepository, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) {
+func resumeHeadlessRun(ctx context.Context, agentService agentdomain.AgentService, repo domain.ConversationRepository, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) {
 	entry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,

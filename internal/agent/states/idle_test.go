@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // TestIdleState_Handle drives the Idle executor through its three paths: a
@@ -15,28 +13,28 @@ import (
 func TestIdleState_Handle(t *testing.T) {
 	tests := []struct {
 		name            string
-		event           domain.AgentEvent
+		event           AgentEvent
 		transitionErr   error
 		wantErr         bool
-		wantTransitions []domain.AgentExecutionState
-		wantEvents      []domain.AgentEvent
+		wantTransitions []AgentExecutionState
+		wantEvents      []AgentEvent
 	}{
 		{
 			name:            "message received starts the loop",
-			event:           domain.MessageReceivedEvent{},
-			wantTransitions: []domain.AgentExecutionState{domain.StateCheckingQueue},
-			wantEvents:      []domain.AgentEvent{domain.MessageReceivedEvent{}},
+			event:           MessageReceivedEvent{},
+			wantTransitions: []AgentExecutionState{StateCheckingQueue},
+			wantEvents:      []AgentEvent{MessageReceivedEvent{}},
 		},
 		{
 			name:            "transition failure is returned and nothing is emitted",
-			event:           domain.MessageReceivedEvent{},
+			event:           MessageReceivedEvent{},
 			transitionErr:   errBoom,
 			wantErr:         true,
-			wantTransitions: []domain.AgentExecutionState{domain.StateCheckingQueue},
+			wantTransitions: []AgentExecutionState{StateCheckingQueue},
 		},
 		{
 			name:  "stray event is a no-op",
-			event: domain.CompletionRequestedEvent{},
+			event: CompletionRequestedEvent{},
 		},
 	}
 	for _, tt := range tests {
@@ -44,7 +42,7 @@ func TestIdleState_Handle(t *testing.T) {
 			f := newStateFixture()
 			f.sm.TransitionReturns(tt.transitionErr)
 			s := NewIdleState(f.ctx)
-			assert.Equal(t, domain.StateIdle, s.Name())
+			assert.Equal(t, StateIdle, s.Name())
 
 			err := s.Handle(tt.event)
 

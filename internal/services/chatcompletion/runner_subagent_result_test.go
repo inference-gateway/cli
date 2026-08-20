@@ -3,6 +3,7 @@ package chatcompletion
 import (
 	"encoding/json"
 	"errors"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"testing"
@@ -47,23 +48,23 @@ func TestRunner_writeSubagentResultFile(t *testing.T) {
 	t.Setenv(domain.EnvSubagentResultFile, path)
 
 	r := runnerWithMessages(assistantEntries("the answer"))
-	r.writeSubagentResultFile(domain.ChatCompleteEvent{})
+	r.writeSubagentResultFile(agentdomain.ChatCompleteEvent{})
 	if rf := readResultFile(t, path); rf.FinalAssistant != "the answer" || !rf.Success {
 		t.Fatalf("unexpected result file: %+v", rf)
 	}
 
 	// Gated: pending tool calls, a cancelled turn, and an empty last message must
 	// NOT write (the turn isn't a final answer).
-	mustNotWrite := func(name string, rr *Runner, msg domain.ChatCompleteEvent) {
+	mustNotWrite := func(name string, rr *Runner, msg agentdomain.ChatCompleteEvent) {
 		_ = os.Remove(path)
 		rr.writeSubagentResultFile(msg)
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("%s: result file must not be written", name)
 		}
 	}
-	mustNotWrite("pending tool calls", r, domain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{{ID: "t"}}})
-	mustNotWrite("cancelled", r, domain.ChatCompleteEvent{Cancelled: true})
-	mustNotWrite("empty answer", runnerWithMessages(assistantEntries("   ")), domain.ChatCompleteEvent{})
+	mustNotWrite("pending tool calls", r, agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{{ID: "t"}}})
+	mustNotWrite("cancelled", r, agentdomain.ChatCompleteEvent{Cancelled: true})
+	mustNotWrite("empty answer", runnerWithMessages(assistantEntries("   ")), agentdomain.ChatCompleteEvent{})
 }
 
 // An errored turn writes a failure result so the parent harvests the error rather
@@ -86,5 +87,5 @@ func TestRunner_writeSubagentResultFileError(t *testing.T) {
 // A normal chat (no env var) writes nothing.
 func TestRunner_writeSubagentResultFile_EnvUnset(t *testing.T) {
 	t.Setenv(domain.EnvSubagentResultFile, "")
-	runnerWithMessages(assistantEntries("x")).writeSubagentResultFile(domain.ChatCompleteEvent{})
+	runnerWithMessages(assistantEntries("x")).writeSubagentResultFile(agentdomain.ChatCompleteEvent{})
 }

@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"os"
 	"path/filepath"
 	"strings"
@@ -399,11 +401,11 @@ func TestBuildToolsInfo(t *testing.T) {
 		name         string
 		noService    bool
 		tools        []sdk.ChatCompletionTool
-		stateMode    *domain.AgentMode
+		stateMode    *agentdomain.AgentMode
 		wantEmpty    bool
 		wantContains []string
 		wantAbsent   []string
-		wantModeArg  *domain.AgentMode
+		wantModeArg  *agentdomain.AgentMode
 	}{
 		{
 			name:      "nil service returns empty",
@@ -438,20 +440,20 @@ func TestBuildToolsInfo(t *testing.T) {
 		{
 			name:        "defaults to standard mode without state manager",
 			tools:       []sdk.ChatCompletionTool{toolDef("Read", "Read a file.")},
-			wantModeArg: ptr(domain.AgentModeStandard),
+			wantModeArg: ptr(agentdomain.AgentModeStandard),
 		},
 		{
 			name:        "uses current agent mode from state manager",
 			tools:       []sdk.ChatCompletionTool{toolDef("Read", "Read a file.")},
-			stateMode:   ptr(domain.AgentModePlan),
-			wantModeArg: ptr(domain.AgentModePlan),
+			stateMode:   ptr(agentdomain.AgentModePlan),
+			wantModeArg: ptr(agentdomain.AgentModePlan),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &AgentServiceImpl{}
-			fake := &domainmocks.FakeToolService{}
+			fake := &agentdomainmocks.FakeToolService{}
 			if !tt.noService {
 				fake.ListToolsForModeReturns(tt.tools)
 				s.toolService = fake

@@ -2,12 +2,12 @@ package tools
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 )
@@ -145,7 +145,7 @@ func TestA2AQueryAgentTool_FormatResult(t *testing.T) {
 		Duration:  time.Second,
 	}
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName: "A2A_QueryAgent",
 		Success:  true,
 		Data:     queryResult,
@@ -153,22 +153,22 @@ func TestA2AQueryAgentTool_FormatResult(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		formatType domain.FormatterType
+		formatType agentdomain.FormatterType
 		contains   []string
 	}{
 		{
 			name:       "LLM format",
-			formatType: domain.FormatterLLM,
+			formatType: agentdomain.FormatterLLM,
 			contains:   []string{"QueryAgent()", "✓ Success", "Result:", "agent_name", "test-agent", "query", "card"},
 		},
 		{
 			name:       "UI format",
-			formatType: domain.FormatterUI,
+			formatType: agentdomain.FormatterUI,
 			contains:   []string{"QueryAgent()", "✓ A2A QueryAgent", "QueryAgent sent successfully"},
 		},
 		{
 			name:       "Short format",
-			formatType: domain.FormatterShort,
+			formatType: agentdomain.FormatterShort,
 			contains:   []string{"QueryAgent sent successfully"},
 		},
 	}
@@ -192,7 +192,7 @@ func TestA2AQueryAgentTool_FormatPreview(t *testing.T) {
 		Message: "QueryAgent sent successfully",
 	}
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName: "A2A_QueryAgent",
 		Success:  true,
 		Data:     queryResult,

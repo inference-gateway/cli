@@ -3,20 +3,20 @@ package computer
 import (
 	"context"
 	"errors"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"strings"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // fakeSourceLookup is a hand-rolled frameSourceLookup over a plain map.
-type fakeSourceLookup map[string]domain.FrameSource
+type fakeSourceLookup map[string]agentdomain.FrameSource
 
-func (f fakeSourceLookup) FrameSource(name string) (domain.FrameSource, bool) {
+func (f fakeSourceLookup) FrameSource(name string) (agentdomain.FrameSource, bool) {
 	src, ok := f[name]
 	return src, ok
 }
@@ -29,8 +29,8 @@ func (f fakeSourceLookup) FrameSourceNames() []string {
 	return names
 }
 
-func frameFixture() *domain.Frame {
-	return &domain.Frame{ID: "f1", Data: "aW1n", Width: 1024, Height: 768, Format: "jpeg", Method: "x11", Path: "/tmp/f1.jpeg"}
+func frameFixture() *agentdomain.Frame {
+	return &agentdomain.Frame{ID: "f1", Data: "aW1n", Width: 1024, Height: 768, Format: "jpeg", Method: "x11", Path: "/tmp/f1.jpeg"}
 }
 
 func newFrameTestConfig() *config.Config {
@@ -42,14 +42,14 @@ func newFrameTestConfig() *config.Config {
 func TestGetLatestFrameIsEnabled(t *testing.T) {
 	cfg := newFrameTestConfig()
 	assert.False(t, NewGetLatestFrameTool(cfg, fakeSourceLookup{}, nil).IsEnabled())
-	assert.True(t, NewGetLatestFrameTool(cfg, fakeSourceLookup{"screen": &domainmocks.FakeFrameSource{}}, nil).IsEnabled())
+	assert.True(t, NewGetLatestFrameTool(cfg, fakeSourceLookup{"screen": &agentdomainmocks.FakeFrameSource{}}, nil).IsEnabled())
 }
 
 func TestGetLatestFrameSourceResolution(t *testing.T) {
-	screen := &domainmocks.FakeFrameSource{}
+	screen := &agentdomainmocks.FakeFrameSource{}
 	screen.GetLatestFrameReturns(frameFixture(), nil)
-	cam := &domainmocks.FakeFrameSource{}
-	cam.GetLatestFrameReturns(&domain.Frame{ID: "c1", Data: "aW1n", Width: 640, Height: 480, Format: "png", Method: "directory"}, nil)
+	cam := &agentdomainmocks.FakeFrameSource{}
+	cam.GetLatestFrameReturns(&agentdomain.Frame{ID: "c1", Data: "aW1n", Width: 640, Height: 480, Format: "png", Method: "directory"}, nil)
 
 	tests := []struct {
 		name       string
@@ -72,7 +72,7 @@ func TestGetLatestFrameSourceResolution(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tt.wantOK, result.Success)
 			if tt.wantOK {
-				data := result.Data.(domain.FrameToolResult)
+				data := result.Data.(agentdomain.FrameToolResult)
 				assert.Equal(t, tt.wantSource, data.Source)
 				assert.Len(t, result.Images, 1)
 			} else {
@@ -83,9 +83,9 @@ func TestGetLatestFrameSourceResolution(t *testing.T) {
 }
 
 func TestGetLatestFrameRateLimitPerSource(t *testing.T) {
-	screen := &domainmocks.FakeFrameSource{}
+	screen := &agentdomainmocks.FakeFrameSource{}
 	screen.GetLatestFrameReturns(frameFixture(), nil)
-	cam := &domainmocks.FakeFrameSource{}
+	cam := &agentdomainmocks.FakeFrameSource{}
 	cam.GetLatestFrameReturns(frameFixture(), nil)
 
 	tool := NewGetLatestFrameTool(newFrameTestConfig(), fakeSourceLookup{"screen": screen, "cam": cam}, nil)
@@ -102,9 +102,9 @@ func TestGetLatestFrameRateLimitPerSource(t *testing.T) {
 }
 
 func TestGetLatestFrameFormatMatrix(t *testing.T) {
-	annotation := &domain.ImageAnnotation{
+	annotation := &agentdomain.ImageAnnotation{
 		Summary:  "Login form",
-		Elements: []domain.AnnotatedElement{{Index: 1, Label: "button", Text: "Sign in", BBox: [4]int{470, 402, 554, 438}}},
+		Elements: []agentdomain.AnnotatedElement{{Index: 1, Label: "button", Text: "Sign in", BBox: [4]int{470, 402, 554, 438}}},
 	}
 
 	tests := []struct {
@@ -128,9 +128,9 @@ func TestGetLatestFrameFormatMatrix(t *testing.T) {
 			cfg := newFrameTestConfig()
 			ctx := context.Background()
 
-			var annotator domain.ImageAnnotator
+			var annotator agentdomain.ImageAnnotator
 			if tt.annotator {
-				fake := &domainmocks.FakeImageAnnotator{}
+				fake := &agentdomainmocks.FakeImageAnnotator{}
 				if tt.annotatorErr != nil {
 					fake.AnnotateImageReturns(nil, tt.annotatorErr)
 				} else {
@@ -139,7 +139,7 @@ func TestGetLatestFrameFormatMatrix(t *testing.T) {
 				annotator = fake
 			}
 
-			screen := &domainmocks.FakeFrameSource{}
+			screen := &agentdomainmocks.FakeFrameSource{}
 			screen.GetLatestFrameReturns(frameFixture(), nil)
 			tool := NewGetLatestFrameTool(cfg, fakeSourceLookup{"screen": screen}, annotator)
 
@@ -147,7 +147,7 @@ func TestGetLatestFrameFormatMatrix(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, result.Success, "annotation problems must never fail the call: %s", result.Error)
 
-			data := result.Data.(domain.FrameToolResult)
+			data := result.Data.(agentdomain.FrameToolResult)
 			assert.Equal(t, tt.wantAnnotated, data.Annotated)
 			assert.Len(t, result.Images, tt.wantImages)
 			if tt.wantNoteSub != "" {
@@ -159,26 +159,26 @@ func TestGetLatestFrameFormatMatrix(t *testing.T) {
 
 func TestGetLatestFrameAnnotatedRender(t *testing.T) {
 	cfg := newFrameTestConfig()
-	annotation := &domain.ImageAnnotation{
+	annotation := &agentdomain.ImageAnnotation{
 		Summary:  "Login form",
-		Elements: []domain.AnnotatedElement{{Index: 1, Label: "button", Text: "Sign in", BBox: [4]int{470, 402, 554, 438}}},
+		Elements: []agentdomain.AnnotatedElement{{Index: 1, Label: "button", Text: "Sign in", BBox: [4]int{470, 402, 554, 438}}},
 	}
 	tool := NewGetLatestFrameTool(cfg, fakeSourceLookup{}, nil)
 
-	screenResult := &domain.ToolExecutionResult{
+	screenResult := &agentdomain.ToolExecutionResult{
 		ToolName: "GetLatestFrame",
 		Success:  true,
-		Data:     domain.FrameToolResult{Source: "screen", Annotated: true, Annotation: annotation},
+		Data:     agentdomain.FrameToolResult{Source: "screen", Annotated: true, Annotation: annotation},
 	}
 	text := tool.FormatForLLM(screenResult)
 	assert.Contains(t, text, "Frame summary: Login form")
 	assert.Contains(t, text, `1. button "Sign in" - center (512,420) bbox [470,402,554,438]`)
 	assert.Contains(t, text, "MouseClick", "screen source should carry the interaction hint")
 
-	camResult := &domain.ToolExecutionResult{
+	camResult := &agentdomain.ToolExecutionResult{
 		ToolName: "GetLatestFrame",
 		Success:  true,
-		Data:     domain.FrameToolResult{Source: "cam", Annotated: true, Annotation: annotation},
+		Data:     agentdomain.FrameToolResult{Source: "cam", Annotated: true, Annotation: annotation},
 	}
 	assert.NotContains(t, tool.FormatForLLM(camResult), "MouseClick", "non-screen sources get no interaction hint")
 }
@@ -197,10 +197,10 @@ func TestGetLatestFramePerSourcePromptOverride(t *testing.T) {
 	cfg.Vision.Sources = map[string]config.VisionSourceConfig{
 		"cam": {Type: "directory", Path: "/frames", Prompt: "look for forklifts"},
 	}
-	fake := &domainmocks.FakeImageAnnotator{}
-	fake.AnnotateImageReturns(&domain.ImageAnnotation{Summary: "ok"}, nil)
+	fake := &agentdomainmocks.FakeImageAnnotator{}
+	fake.AnnotateImageReturns(&agentdomain.ImageAnnotation{Summary: "ok"}, nil)
 
-	cam := &domainmocks.FakeFrameSource{}
+	cam := &agentdomainmocks.FakeFrameSource{}
 	cam.GetLatestFrameReturns(frameFixture(), nil)
 	tool := NewGetLatestFrameTool(cfg, fakeSourceLookup{"cam": cam}, fake)
 

@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 	"time"
@@ -24,19 +25,19 @@ type stubToolFormatter struct{}
 func (s *stubToolFormatter) FormatToolCall(toolName string, _ map[string]any) string {
 	return toolName + "()"
 }
-func (s *stubToolFormatter) FormatToolResultForUI(result *domain.ToolExecutionResult, _ int) string {
+func (s *stubToolFormatter) FormatToolResultForUI(result *agentdomain.ToolExecutionResult, _ int) string {
 	if result == nil {
 		return ""
 	}
 	return "Tool: " + result.ToolName
 }
-func (s *stubToolFormatter) FormatToolResultExpanded(result *domain.ToolExecutionResult, _ int) string {
+func (s *stubToolFormatter) FormatToolResultExpanded(result *agentdomain.ToolExecutionResult, _ int) string {
 	if result == nil {
 		return ""
 	}
 	return "Tool: " + result.ToolName
 }
-func (s *stubToolFormatter) FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
+func (s *stubToolFormatter) FormatToolResultForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return ""
 	}
@@ -236,12 +237,12 @@ func TestConversationView_DefaultExpandedDiffTools(t *testing.T) {
 	cv.SetConversation([]domain.ConversationEntry{
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
-			ToolExecution: &domain.ToolExecutionResult{ToolName: "Edit"},
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Edit"},
 			Time:          time.Now(),
 		},
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("ran")},
-			ToolExecution: &domain.ToolExecutionResult{ToolName: "Bash"},
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Bash"},
 			Time:          time.Now(),
 		},
 	})
@@ -272,7 +273,7 @@ func TestConversationView_ToggleAllCollapsesDefaultExpanded(t *testing.T) {
 	cv.SetConversation([]domain.ConversationEntry{
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
-			ToolExecution: &domain.ToolExecutionResult{ToolName: "MultiEdit"},
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "MultiEdit"},
 			Time:          time.Now(),
 		},
 	})
@@ -301,12 +302,12 @@ func TestConversationView_ToggleAllExpandsCollapsedAmongExpanded(t *testing.T) {
 	cv.SetConversation([]domain.ConversationEntry{
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
-			ToolExecution: &domain.ToolExecutionResult{ToolName: "Edit"}, // default-expanded
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Edit"}, // default-expanded
 			Time:          time.Now(),
 		},
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("rejected")},
-			ToolExecution: &domain.ToolExecutionResult{ToolName: "Write", Rejected: true}, // collapsed
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Write", Rejected: true}, // collapsed
 			Time:          time.Now(),
 		},
 	})
@@ -400,7 +401,7 @@ func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
 		{
 			name: "submitted creates entry",
 			events: func(cv *ConversationView) {
-				cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+				cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 					TaskID:    "task-1",
 					AgentName: "weather-agent",
 				}, nil)
@@ -412,7 +413,7 @@ func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
 		{
 			name: "submitted captures agent url",
 			events: func(cv *ConversationView) {
-				cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+				cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 					TaskID:   "task-1",
 					AgentURL: "http://localhost:8081",
 				}, nil)
@@ -423,7 +424,7 @@ func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
 		{
 			name: "status update captures agent url",
 			events: func(cv *ConversationView) {
-				cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
+				cv.handleA2ATaskStatusUpdate(agentdomain.A2ATaskStatusUpdateEvent{
 					TaskID:   "task-1",
 					AgentURL: "http://localhost:8081",
 					Status:   "TASK_STATE_WORKING",
@@ -434,11 +435,11 @@ func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
 		{
 			name: "status update changes state",
 			events: func(cv *ConversationView) {
-				cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+				cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 					TaskID:    "task-1",
 					AgentName: "weather-agent",
 				}, nil)
-				cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
+				cv.handleA2ATaskStatusUpdate(agentdomain.A2ATaskStatusUpdateEvent{
 					TaskID:  "task-1",
 					Status:  "working",
 					Message: "fetching forecast",
@@ -451,14 +452,14 @@ func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
 		{
 			name: "failed captures error",
 			events: func(cv *ConversationView) {
-				cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+				cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 					TaskID:    "task-1",
 					AgentName: "weather-agent",
 				}, nil)
-				cv.handleA2ATaskFailed(domain.A2ATaskFailedEvent{
+				cv.handleA2ATaskFailed(agentdomain.A2ATaskFailedEvent{
 					TaskID: "task-1",
 					Error:  "connection refused",
-					Result: domain.ToolExecutionResult{
+					Result: agentdomain.ToolExecutionResult{
 						ToolName: "A2A_SubmitTask",
 						Success:  false,
 					},
@@ -504,7 +505,7 @@ func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
 func TestBackgroundTaskDisplay_CompletedCapturesUsage(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+	cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 		TaskID:    "task-1",
 		AgentName: "weather-agent",
 	}, nil)
@@ -523,9 +524,9 @@ func TestBackgroundTaskDisplay_CompletedCapturesUsage(t *testing.T) {
 			},
 		},
 	}
-	cv.handleA2ATaskCompleted(domain.A2ATaskCompletedEvent{
+	cv.handleA2ATaskCompleted(agentdomain.A2ATaskCompletedEvent{
 		TaskID: "task-1",
-		Result: domain.ToolExecutionResult{
+		Result: agentdomain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  true,
 			Data:     resultData,
@@ -550,7 +551,7 @@ func TestBackgroundTaskDisplay_CompletedCapturesUsage(t *testing.T) {
 func TestBackgroundTaskDisplay_CompletedCapturesExecutionStats(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+	cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 		TaskID:    "task-1",
 		AgentName: "browser-agent",
 	}, nil)
@@ -575,9 +576,9 @@ func TestBackgroundTaskDisplay_CompletedCapturesExecutionStats(t *testing.T) {
 			},
 		},
 	}
-	cv.handleA2ATaskCompleted(domain.A2ATaskCompletedEvent{
+	cv.handleA2ATaskCompleted(agentdomain.A2ATaskCompletedEvent{
 		TaskID: "task-1",
-		Result: domain.ToolExecutionResult{
+		Result: agentdomain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  true,
 			Data:     resultData,
@@ -866,7 +867,7 @@ func TestBackgroundTaskDisplay_BarNotInsideConversationViewport(t *testing.T) {
 			Content: sdk.NewMessageContent("Task delegated"),
 		},
 		Time: time.Now(),
-		ToolExecution: &domain.ToolExecutionResult{
+		ToolExecution: &agentdomain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  true,
 			Data: map[string]any{
@@ -1105,7 +1106,7 @@ func TestBackgroundTaskDisplay_SubmittedPopulatesStartedAtFromTimestamp(t *testi
 	cv := NewConversationView(createMockStyleProvider())
 
 	ts := time.Now().Add(-2 * time.Second)
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+	cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 		TaskID:    "task-1",
 		AgentURL:  "http://localhost:8081",
 		Timestamp: ts,
@@ -1124,7 +1125,7 @@ func TestBackgroundTaskDisplay_SubmittedFallsBackToNowWhenTimestampZero(t *testi
 	cv := NewConversationView(createMockStyleProvider())
 
 	before := time.Now()
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+	cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 		TaskID: "task-1",
 	}, nil)
 	after := time.Now()
@@ -1147,7 +1148,7 @@ func TestBackgroundTaskDisplay_AgentModelResolverPopulatesOnSubmit(t *testing.T)
 		return ""
 	})
 
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+	cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 		TaskID:   "task-1",
 		AgentURL: "http://localhost:8081",
 	}, nil)
@@ -1170,12 +1171,12 @@ func TestBackgroundTaskDisplay_AgentModelResolverPopulatesOnLateStatusUpdate(t *
 		return ""
 	})
 
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{TaskID: "task-1"}, nil)
+	cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{TaskID: "task-1"}, nil)
 	if got := cv.backgroundTasks["task-1"].Model; got != "" {
 		t.Errorf("expected empty Model before AgentURL is known, got %q", got)
 	}
 
-	cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
+	cv.handleA2ATaskStatusUpdate(agentdomain.A2ATaskStatusUpdateEvent{
 		TaskID:   "task-1",
 		AgentURL: "http://localhost:8081",
 		Status:   "TASK_STATE_WORKING",
@@ -1427,14 +1428,14 @@ func TestConversationView_RenderCache(t *testing.T) {
 type heightFormatter struct{ collapsed, expanded int }
 
 func (heightFormatter) FormatToolCall(name string, _ map[string]any) string { return name + "()" }
-func (f heightFormatter) FormatToolResultForUI(_ *domain.ToolExecutionResult, _ int) string {
+func (f heightFormatter) FormatToolResultForUI(_ *agentdomain.ToolExecutionResult, _ int) string {
 	return strings.TrimRight(strings.Repeat("c\n", f.collapsed), "\n")
 }
-func (f heightFormatter) FormatToolResultExpanded(_ *domain.ToolExecutionResult, _ int) string {
+func (f heightFormatter) FormatToolResultExpanded(_ *agentdomain.ToolExecutionResult, _ int) string {
 	return strings.TrimRight(strings.Repeat("e\n", f.expanded), "\n")
 }
-func (heightFormatter) FormatToolResultForLLM(_ *domain.ToolExecutionResult) string { return "" }
-func (heightFormatter) ShouldAlwaysExpandTool(string) bool                          { return false }
+func (heightFormatter) FormatToolResultForLLM(_ *agentdomain.ToolExecutionResult) string { return "" }
+func (heightFormatter) ShouldAlwaysExpandTool(string) bool                               { return false }
 func (heightFormatter) RenderToolSummary(icon, name string, _ map[string]any, trailing string, _ int) string {
 	return strings.TrimSpace(icon + " " + name + "() " + trailing)
 }
@@ -1449,7 +1450,7 @@ func scrollTestView(t *testing.T) *ConversationView {
 	for i := 0; i < 6; i++ {
 		conv = append(conv, domain.ConversationEntry{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("x")},
-			ToolExecution: &domain.ToolExecutionResult{ToolName: "Bash"},
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Bash"},
 			Time:          time.Now(),
 		})
 	}

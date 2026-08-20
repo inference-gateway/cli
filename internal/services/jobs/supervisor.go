@@ -12,6 +12,7 @@ package jobs
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"slices"
 	"sync"
 	"time"
@@ -182,11 +183,11 @@ func (s *Supervisor) Submit(job domain.BackgroundJob) {
 func (s *Supervisor) monitor(ctx context.Context, sj *supervised) {
 	defer s.wg.Done()
 
-	result := func() (r domain.ToolExecutionResult) {
+	result := func() (r agentdomain.ToolExecutionResult) {
 		defer func() {
 			if p := recover(); p != nil {
 				logger.Error("background job panicked", "id", sj.meta.ID, "kind", sj.meta.Kind, "panic", p)
-				r = domain.ToolExecutionResult{Success: false, Error: fmt.Sprintf("job panicked: %v", p)}
+				r = agentdomain.ToolExecutionResult{Success: false, Error: fmt.Sprintf("job panicked: %v", p)}
 			}
 		}()
 		return sj.job.Run(ctx, func(sig domain.JobSignal) { s.onSignal(sj, sig) })
@@ -217,7 +218,7 @@ func (s *Supervisor) onSignal(sj *supervised, sig domain.JobSignal) {
 // (terminal) so the task view can show it; Cleanup reaps it after the retention
 // window. enqueue pushes a DrainQueueEvent so the agent picks up the note, and a
 // BackgroundTasksChangedEvent refreshes the task view's status.
-func (s *Supervisor) finish(sj *supervised, result domain.ToolExecutionResult) {
+func (s *Supervisor) finish(sj *supervised, result agentdomain.ToolExecutionResult) {
 	now := time.Now()
 	status := domain.JobCompleted
 	if !result.Success {
@@ -310,7 +311,7 @@ func terminalTime(sj *supervised) time.Time {
 // agent will read on its next turn: a uniform "[Kind verb: label]" header plus a
 // body the job formats itself (JobNotifier) or, by default, the domain-formatted
 // tool result.
-func (s *Supervisor) formatResult(job domain.BackgroundJob, meta domain.JobMeta, result *domain.ToolExecutionResult) string {
+func (s *Supervisor) formatResult(job domain.BackgroundJob, meta domain.JobMeta, result *agentdomain.ToolExecutionResult) string {
 	var body string
 	switch n := asNotifier(job); {
 	case n != nil:
@@ -469,11 +470,11 @@ func (s *Supervisor) Snapshot() []domain.TrackedJob {
 // the task view and HasPending source A2A liveness from the supervisor (the
 // single source of truth) instead of the parallel A2ATaskTracker polling set.
 // Only running jobs are returned; terminal A2A tasks live in the retention view.
-func (s *Supervisor) A2APollingStates() []domain.TaskPollingState {
+func (s *Supervisor) A2APollingStates() []agentdomain.TaskPollingState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	out := make([]domain.TaskPollingState, 0)
+	out := make([]agentdomain.TaskPollingState, 0)
 	for _, sj := range s.jobs {
 		if sj.meta.Kind != domain.JobKindA2A || sj.status != domain.JobRunning {
 			continue

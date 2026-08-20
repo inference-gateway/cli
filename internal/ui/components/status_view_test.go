@@ -8,6 +8,7 @@ import (
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -19,7 +20,7 @@ type statusViewStateStub struct{ *domain.ApplicationState }
 
 func (statusViewStateStub) IsAgentBusy() bool { return false }
 
-func (s statusViewStateStub) StartChatSession(requestID, model string, eventChan <-chan domain.ChatEvent) error {
+func (s statusViewStateStub) StartChatSession(requestID, model string, eventChan <-chan agentdomain.ChatEvent) error {
 	s.ApplicationState.StartChatSession(requestID, model, eventChan)
 	return nil
 }

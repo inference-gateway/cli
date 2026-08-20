@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"errors"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"strings"
 	"testing"
 	"time"
@@ -94,9 +96,9 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockFile := &mocks.FakeFileService{}
-			mockAgent := &mocks.FakeAgentService{}
+			mockAgent := &agentdomainmocks.FakeAgentService{}
 			mockModel := &mocks.FakeModelService{}
-			mockTool := &mocks.FakeToolService{}
+			mockTool := &agentdomainmocks.FakeToolService{}
 
 			if tt.setupMocks != nil {
 				tt.setupMocks(mockFile)
@@ -440,15 +442,15 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 
 			for i := 0; i < tt.existingMessages; i++ {
 				entry := domain.ConversationEntry{
-					Message: domain.Message{
-						Role:    domain.RoleUser,
+					Message: sdk.Message{
+						Role:    sdk.User,
 						Content: sdk.NewMessageContent("test message"),
 					},
 				}
 				_ = conversationRepo.AddMessage(entry)
 			}
 
-			mockAgent := &mocks.FakeAgentService{}
+			mockAgent := &agentdomainmocks.FakeAgentService{}
 			mockModel := &mocks.FakeModelService{}
 			stateManager := services.NewStateManager(false)
 
@@ -695,7 +697,7 @@ func TestChatMessageProcessor_confirmCatalogInstall(t *testing.T) {
 }
 
 func TestApprovedInstall(t *testing.T) {
-	require.True(t, approvedInstall([]domain.UserQuestionAnswer{{SelectedLabels: []string{"Install"}}}))
-	require.False(t, approvedInstall([]domain.UserQuestionAnswer{{SelectedLabels: []string{"Skip"}}}))
+	require.True(t, approvedInstall([]agentdomain.UserQuestionAnswer{{SelectedLabels: []string{"Install"}}}))
+	require.False(t, approvedInstall([]agentdomain.UserQuestionAnswer{{SelectedLabels: []string{"Skip"}}}))
 	require.False(t, approvedInstall(nil))
 }

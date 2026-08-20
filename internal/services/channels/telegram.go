@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"html"
 	"io"
 	"net/http"
@@ -237,7 +238,7 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 				if data, filePath, err := fetchTelegramFile(ctx, b, fileID); err != nil {
 					logger.Error("failed to download photo", "error", err)
 				} else {
-					msg.Images = append(msg.Images, domain.ImageAttachment{
+					msg.Images = append(msg.Images, agentdomain.ImageAttachment{
 						Data:        base64.StdEncoding.EncodeToString(data),
 						MimeType:    mimeFromPath(filePath),
 						Filename:    filepath.Base(filePath),

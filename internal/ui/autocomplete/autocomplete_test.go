@@ -1,6 +1,8 @@
 package autocomplete_test
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -91,7 +93,7 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockToolService := &domainmocks.FakeToolService{}
+	mockToolService := &agentdomainmocks.FakeToolService{}
 
 	readDesc := "Read files"
 	writeDesc := "Write files"
@@ -239,9 +241,9 @@ func TestAutocomplete_ToolsRespectAgentMode(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockToolService := &domainmocks.FakeToolService{}
-	mockToolService.ListToolsForModeStub = func(mode domain.AgentMode) []sdk.ChatCompletionTool {
-		if mode == domain.AgentModePlan {
+	mockToolService := &agentdomainmocks.FakeToolService{}
+	mockToolService.ListToolsForModeStub = func(mode agentdomain.AgentMode) []sdk.ChatCompletionTool {
+		if mode == agentdomain.AgentModePlan {
 			return []sdk.ChatCompletionTool{
 				{Type: sdk.Function, Function: sdk.FunctionObject{Name: "AskUserQuestion"}},
 			}
@@ -262,14 +264,14 @@ func TestAutocomplete_ToolsRespectAgentMode(t *testing.T) {
 	ac.SetStateManager(sm)
 
 	// Standard mode: AskUserQuestion is plan-only, so it must not autocomplete.
-	sm.SetAgentMode(domain.AgentModeStandard)
+	sm.SetAgentMode(agentdomain.AgentModeStandard)
 	ac.Update("!!AskUser", 9)
 	if ac.IsVisible() {
 		t.Error("AskUserQuestion should not autocomplete in standard mode")
 	}
 
 	// Plan mode: it appears.
-	sm.SetAgentMode(domain.AgentModePlan)
+	sm.SetAgentMode(agentdomain.AgentModePlan)
 	ac.Update("!!AskUser", 9)
 	if !ac.IsVisible() {
 		t.Error("AskUserQuestion should autocomplete in plan mode")
@@ -610,7 +612,7 @@ func TestAutocomplete_ToolsAllOptionalSchema(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockToolService := &domainmocks.FakeToolService{}
+	mockToolService := &agentdomainmocks.FakeToolService{}
 
 	agentDesc := "Spawn local subagents in parallel"
 

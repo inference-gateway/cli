@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
@@ -50,7 +51,7 @@ func (t *KillShellTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute cancels a background shell
-func (t *KillShellTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *KillShellTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
@@ -59,7 +60,7 @@ func (t *KillShellTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	shell := t.shellService.GetShell(shellID)
 	if shell == nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName: "KillShell",
 			Success:  false,
 			Error:    fmt.Sprintf("Shell not found: %s", shellID),
@@ -67,7 +68,7 @@ func (t *KillShellTool) Execute(ctx context.Context, args map[string]any) (*doma
 	}
 
 	if err := t.shellService.CancelShell(shellID); err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName: "KillShell",
 			Success:  false,
 			Error:    fmt.Sprintf("Failed to cancel shell: %v", err),
@@ -80,7 +81,7 @@ func (t *KillShellTool) Execute(ctx context.Context, args map[string]any) (*doma
 		"message":  fmt.Sprintf("Shell %s cancelled successfully", shellID),
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName: "KillShell",
 		Success:  true,
 		Data:     result,
@@ -103,13 +104,13 @@ func (t *KillShellTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *KillShellTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *KillShellTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -117,7 +118,7 @@ func (t *KillShellTool) FormatResult(result *domain.ToolExecutionResult, formatT
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *KillShellTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *KillShellTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to kill shell"
 	}
@@ -132,12 +133,12 @@ func (t *KillShellTool) FormatPreview(result *domain.ToolExecutionResult) string
 }
 
 // FormatForUI formats the result for UI display
-func (t *KillShellTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *KillShellTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	return t.FormatForLLM(result)
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *KillShellTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *KillShellTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}

@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 	"unsafe"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/ebitengine/purego/objc"
 
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -249,7 +249,7 @@ func forEachChild(el uintptr, fn func(child uintptr) bool) {
 
 // appendPressable appends el as an annotated element when it is a pressable,
 // titled, positioned control; otherwise it is a no-op.
-func appendPressable(el uintptr, out *[]domain.AnnotatedElement) {
+func appendPressable(el uintptr, out *[]agentdomain.AnnotatedElement) {
 	if !isPressable(el) {
 		return
 	}
@@ -265,7 +265,7 @@ func appendPressable(el uintptr, out *[]domain.AnnotatedElement) {
 	if role == "" {
 		role = "AXUnknown"
 	}
-	*out = append(*out, domain.AnnotatedElement{
+	*out = append(*out, agentdomain.AnnotatedElement{
 		Index: len(*out) + 1,
 		Label: normalizeAXRole(role),
 		Text:  title,
@@ -273,7 +273,7 @@ func appendPressable(el uintptr, out *[]domain.AnnotatedElement) {
 	})
 }
 
-func walkCollect(el uintptr, depth, maxDepth int, out *[]domain.AnnotatedElement) {
+func walkCollect(el uintptr, depth, maxDepth int, out *[]agentdomain.AnnotatedElement) {
 	if el == 0 || depth > maxDepth || len(*out) >= axMaxElements {
 		return
 	}
@@ -380,7 +380,7 @@ type axProvider struct{}
 
 var _ display.AXProvider = (*axProvider)(nil)
 
-func (axProvider) ListElements(_ context.Context, target string) ([]domain.AnnotatedElement, error) {
+func (axProvider) ListElements(_ context.Context, target string) ([]agentdomain.AnnotatedElement, error) {
 	if err := axEnsureLoaded(); err != nil {
 		return nil, err
 	}
@@ -396,7 +396,7 @@ func (axProvider) ListElements(_ context.Context, target string) ([]domain.Annot
 	}
 	defer cfRelease(root)
 
-	var elements []domain.AnnotatedElement
+	var elements []agentdomain.AnnotatedElement
 	walkCollect(root, 0, maxDepth, &elements)
 	return elements, nil
 }

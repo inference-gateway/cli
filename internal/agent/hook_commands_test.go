@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"os"
 	"strings"
 	"testing"
@@ -12,10 +14,7 @@ import (
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 )
 
@@ -63,10 +62,10 @@ func TestRunCommandHooks_RunsAllowListedCommand(t *testing.T) {
 	buf := withDebugStreamWriter(t)
 	cfg := allowCfg("echo hook-ran")
 	provider := hooksProvider(true, config.HookCommandConfig{
-		Name: "echoer", Hook: domain.HookPostSession, Command: "echo hook-ran", Timeout: 5,
+		Name: "echoer", Hook: agentdomain.HookPostSession, Command: "echo hook-ran", Timeout: 5,
 	})
 
-	RunCommandHooks(context.Background(), cfg, provider, "standard", domain.HookPostSession, 1, "sess-1")
+	RunCommandHooks(context.Background(), cfg, provider, "standard", agentdomain.HookPostSession, 1, "sess-1")
 
 	events := parseEvents(t, buf)
 	require.Len(t, events, 1)
@@ -84,14 +83,14 @@ func TestRunCommandHooks_RunsAllowListedCommand(t *testing.T) {
 // proves the runner queries the provider with the dispatched hook point.
 func TestRunCommandHooks_SkipsOffListCommand(t *testing.T) {
 	buf := withDebugStreamWriter(t)
-	fake := &domainmocks.FakeHookCommandProvider{}
-	fake.CommandsDueReturns([]domain.HookCommand{{Name: "fmt", Command: "gofmt -w ."}})
+	fake := &agentdomainmocks.FakeHookCommandProvider{}
+	fake.CommandsDueReturns([]agentdomain.HookCommand{{Name: "fmt", Command: "gofmt -w ."}})
 	cfg := allowCfg() // empty allow-list -> gofmt is off-list
 
-	RunCommandHooks(context.Background(), cfg, fake, "standard", domain.HookPostSession, 2, "sess")
+	RunCommandHooks(context.Background(), cfg, fake, "standard", agentdomain.HookPostSession, 2, "sess")
 
 	require.Equal(t, 1, fake.CommandsDueCallCount())
-	assert.Equal(t, domain.HookPostSession, fake.CommandsDueArgsForCall(0))
+	assert.Equal(t, agentdomain.HookPostSession, fake.CommandsDueArgsForCall(0))
 
 	events := parseEvents(t, buf)
 	require.Len(t, events, 1)
@@ -120,7 +119,7 @@ func TestRunCommandHooks_PluginHookGatedByAllowList(t *testing.T) {
 
 	provider := plugins.NewPluginHookCommandProvider(cfg)
 	require.NotNil(t, provider)
-	RunCommandHooks(context.Background(), cfg, provider, "standard", domain.HookPostSession, 1, "s")
+	RunCommandHooks(context.Background(), cfg, provider, "standard", agentdomain.HookPostSession, 1, "s")
 
 	events := parseEvents(t, buf)
 	require.Len(t, events, 2)
@@ -134,17 +133,17 @@ func TestRunCommandHooks_PluginHookGatedByAllowList(t *testing.T) {
 func TestRunCommandHooks_NoOpWhenDisabled(t *testing.T) {
 	buf := withDebugStreamWriter(t)
 	provider := hooksProvider(false, config.HookCommandConfig{
-		Name: "x", Hook: domain.HookPostSession, Command: "echo x", Timeout: 5,
+		Name: "x", Hook: agentdomain.HookPostSession, Command: "echo x", Timeout: 5,
 	})
 
-	RunCommandHooks(context.Background(), allowCfg("echo x"), provider, "standard", domain.HookPostSession, 1, "s")
+	RunCommandHooks(context.Background(), allowCfg("echo x"), provider, "standard", agentdomain.HookPostSession, 1, "s")
 
 	assert.Empty(t, parseEvents(t, buf), "a disabled hooks config must run nothing")
 }
 
 func TestRunCommandHooks_NilSafe(t *testing.T) {
 	buf := withDebugStreamWriter(t)
-	RunCommandHooks(context.Background(), nil, nil, "standard", domain.HookPostSession, 1, "s")
+	RunCommandHooks(context.Background(), nil, nil, "standard", agentdomain.HookPostSession, 1, "s")
 	assert.Empty(t, parseEvents(t, buf))
 }
 
@@ -153,8 +152,8 @@ func TestRunCommandHooks_NilSafe(t *testing.T) {
 func TestRunHookCommand_HonorsTimeout(t *testing.T) {
 	buf := withDebugStreamWriter(t)
 	start := time.Now()
-	runHookCommand(context.Background(), domain.HookPostSession, 1, "s",
-		domain.HookCommand{Name: "slow", Command: "sleep 5", Timeout: 100 * time.Millisecond})
+	runHookCommand(context.Background(), agentdomain.HookPostSession, 1, "s",
+		agentdomain.HookCommand{Name: "slow", Command: "sleep 5", Timeout: 100 * time.Millisecond})
 
 	if elapsed := time.Since(start); elapsed > 3*time.Second {
 		t.Fatalf("timeout not honored, runHookCommand took %v", elapsed)

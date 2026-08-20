@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os/exec"
 	"strings"
 	"sync"
@@ -56,7 +57,7 @@ func (s *Service) HandleBashCommand(commandText string) tea.Cmd {
 // HandleBashOutputChunk is invoked after a bash output chunk reaches the UI.
 // It keeps the bash event channel pumping until the command completes; if no
 // bash channel is active, it falls back to the chat event channel.
-func (s *Service) HandleBashOutputChunk(_ domain.BashOutputChunkEvent) tea.Cmd {
+func (s *Service) HandleBashOutputChunk(_ agentdomain.BashOutputChunkEvent) tea.Cmd {
 	if bashEventChan := s.PendingBashChannel(); bashEventChan != nil {
 		return s.listener.ListenForEvents(bashEventChan)
 	}
@@ -202,8 +203,8 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 			Arguments: fmt.Sprintf(`{"command": "%s"}`, strings.ReplaceAll(command, `"`, `\"`)),
 		}
 
-		eventChan <- domain.ToolExecutionProgressEvent{
-			BaseChatEvent: domain.BaseChatEvent{
+		eventChan <- agentdomain.ToolExecutionProgressEvent{
+			BaseChatEvent: agentdomain.BaseChatEvent{
 				RequestID: toolCallID,
 				Timestamp: time.Now(),
 			},
@@ -215,8 +216,8 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 		}
 
 		bashCallback := func(line string) {
-			eventChan <- domain.BashOutputChunkEvent{
-				BaseChatEvent: domain.BaseChatEvent{
+			eventChan <- agentdomain.BashOutputChunkEvent{
+				BaseChatEvent: agentdomain.BaseChatEvent{
 					RequestID: toolCallID,
 					Timestamp: time.Now(),
 				},
@@ -226,10 +227,10 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 			}
 		}
 
-		ctx := domain.WithToolApproved(context.Background())
-		ctx = domain.WithBashOutputCallback(ctx, bashCallback)
-		ctx = domain.WithBashDetachChannel(ctx, detachChan)
-		ctx = domain.WithDirectExecution(ctx)
+		ctx := agentdomain.WithToolApproved(context.Background())
+		ctx = agentdomain.WithBashOutputCallback(ctx, bashCallback)
+		ctx = agentdomain.WithBashDetachChannel(ctx, detachChan)
+		ctx = agentdomain.WithDirectExecution(ctx)
 		result, err := s.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
@@ -249,8 +250,8 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 			message = "Execution failed"
 		}
 
-		eventChan <- domain.ToolExecutionProgressEvent{
-			BaseChatEvent: domain.BaseChatEvent{
+		eventChan <- agentdomain.ToolExecutionProgressEvent{
+			BaseChatEvent: agentdomain.BaseChatEvent{
 				RequestID: toolCallID,
 				Timestamp: time.Now(),
 			},
@@ -320,7 +321,7 @@ func (s *Service) executeBashCommandInBackground(commandText, command string) te
 	_ = s.conversationRepo.AddMessage(userEntry)
 
 	go func() {
-		ctx := domain.WithToolApproved(context.Background())
+		ctx := agentdomain.WithToolApproved(context.Background())
 
 		cmd := exec.CommandContext(ctx, "bash", "-c", command)
 

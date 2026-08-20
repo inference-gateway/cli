@@ -3,6 +3,7 @@ package components
 import (
 	"strings"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -38,17 +39,17 @@ func (mi *ModeIndicator) Render() string {
 	}
 
 	agentMode := mi.stateManager.GetAgentMode()
-	if agentMode == domain.AgentModeStandard {
+	if agentMode == agentdomain.AgentModeStandard {
 		return ""
 	}
 
 	var modeText string
 	switch agentMode {
-	case domain.AgentModePlan:
+	case agentdomain.AgentModePlan:
 		modeText = "▶ PLAN"
-	case domain.AgentModeAutoAccept:
+	case agentdomain.AgentModeAutoAccept:
 		modeText = "▸ AUTO"
-	case domain.AgentModeReadOnly:
+	case agentdomain.AgentModeReadOnly:
 		modeText = "▸ READ-ONLY"
 	}
 

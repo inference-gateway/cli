@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -64,7 +64,7 @@ func (t *PressUIElementTool) Validate(args map[string]any) error {
 }
 
 // Execute executes the PressUIElement tool
-func (t *PressUIElementTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *PressUIElementTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	label, _ := args["label"].(string)
 	target, _ := args["target"].(string)
 	if target == "" {
@@ -92,7 +92,7 @@ func (t *PressUIElementTool) Execute(ctx context.Context, args map[string]any) (
 		return nil, err
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName: "PressUIElement",
 		Success:  true,
 		Data: map[string]any{
@@ -109,7 +109,7 @@ func (t *PressUIElementTool) IsEnabled() bool {
 }
 
 // FormatPreview formats the result for display preview
-func (t *PressUIElementTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *PressUIElementTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to press UI element"
 	}
@@ -122,7 +122,7 @@ func (t *PressUIElementTool) FormatPreview(result *domain.ToolExecutionResult) s
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *PressUIElementTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *PressUIElementTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	return axMessageForLLM(result, "Successfully pressed UI element")
 }
 
@@ -137,11 +137,11 @@ func (t *PressUIElementTool) ShouldAlwaysExpand() bool {
 }
 
 // FormatResult formats the result based on the requested format type
-func (t *PressUIElementTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *PressUIElementTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)

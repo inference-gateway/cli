@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -348,7 +350,7 @@ func (s *AgentServiceImpl) buildBashAllowInfo() string {
 		return ""
 	}
 
-	mode := domain.AgentModeStandard
+	mode := agentdomain.AgentModeStandard
 	if s.stateManager != nil {
 		mode = s.stateManager.GetAgentMode()
 	}
@@ -411,7 +413,7 @@ func (s *AgentServiceImpl) buildToolsInfo() string {
 		return ""
 	}
 
-	mode := domain.AgentModeStandard
+	mode := agentdomain.AgentModeStandard
 	if s.stateManager != nil {
 		mode = s.stateManager.GetAgentMode()
 	}
@@ -449,22 +451,22 @@ func (s *AgentServiceImpl) getSystemPromptForMode() string {
 
 	mode := s.stateManager.GetAgentMode()
 	switch mode {
-	case domain.AgentModePlan:
+	case agentdomain.AgentModePlan:
 		if prompts.SystemPromptPlan != "" {
 			return prompts.SystemPromptPlan
 		}
 		return prompts.SystemPrompt
 
-	case domain.AgentModeAutoAccept:
+	case agentdomain.AgentModeAutoAccept:
 		if prompts.SystemPromptAuto != "" {
 			return prompts.SystemPromptAuto
 		}
 		return prompts.SystemPrompt
 
-	case domain.AgentModeStandard:
+	case agentdomain.AgentModeStandard:
 		return prompts.SystemPrompt
 
-	case domain.AgentModeReadOnly:
+	case agentdomain.AgentModeReadOnly:
 		return prompts.SystemPrompt
 
 	default:
@@ -975,7 +977,7 @@ func (s *AgentServiceImpl) compactProjectTree() string {
 		logger.Debug("failed to build project tree context", "error", err)
 		return ""
 	}
-	if data, ok := execResult.Data.(*domain.TreeToolResult); ok {
+	if data, ok := execResult.Data.(*agentdomain.TreeToolResult); ok {
 		return data.Output
 	}
 	return ""
@@ -1049,7 +1051,7 @@ func getRecentCommits(count int) []string {
 }
 
 // validateRequest validates the agent request
-func (s *AgentServiceImpl) validateRequest(req *domain.AgentRequest) error {
+func (s *AgentServiceImpl) validateRequest(req *agentdomain.AgentRequest) error {
 	if req == nil {
 		return fmt.Errorf("request is nil")
 	}
@@ -1085,20 +1087,20 @@ func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 // agents flow every loop point through this single seam. The mode key and
 // session id are resolved here (from the live chat mode / request context) and
 // handed to the shared, allow-list-gated command runner.
-func (s *AgentServiceImpl) dispatchHooks(agentCtx *domain.AgentContext, hook domain.HookPoint) {
-	if hook == domain.HookPreSession && s.memoryBackend != nil {
+func (s *AgentServiceImpl) dispatchHooks(agentCtx *states.AgentContext, hook agentdomain.HookPoint) {
+	if hook == agentdomain.HookPreSession && s.memoryBackend != nil {
 		_ = s.memoryBackend.SyncIn(agentCtx.Ctx)
 	}
 
 	s.injectDueReminders(agentCtx, hook)
 
-	modeKey := domain.AgentModeStandard.AllowedlistKey()
+	modeKey := agentdomain.AgentModeStandard.AllowedlistKey()
 	if s.stateManager != nil {
 		modeKey = s.stateManager.GetAgentMode().AllowedlistKey()
 	}
 	sessionID := ""
 	if agentCtx.Ctx != nil {
-		sessionID = domain.GetSessionID(agentCtx.Ctx)
+		sessionID = agentdomain.GetSessionID(agentCtx.Ctx)
 	}
 	RunCommandHooks(agentCtx.Ctx, s.config, s.hookProvider, modeKey, hook, agentCtx.Turns, sessionID)
 }
@@ -1150,7 +1152,7 @@ func (s *AgentServiceImpl) waitForBackgroundTasks(ctx context.Context) {
 // repository. Called at the top of every headless turn after the first - chat
 // rollover is owned by the UI (chat_message_processor), and the first turn is
 // handled by the headless command before the run starts.
-func (s *AgentServiceImpl) maybeRolloverSession(agentCtx *domain.AgentContext, req *domain.AgentRequest) {
+func (s *AgentServiceImpl) maybeRolloverSession(agentCtx *states.AgentContext, req *agentdomain.AgentRequest) {
 	newID, fired := s.rolloverManager.MaybeRollover(agentCtx.Ctx, req.Model, req.GroupKey)
 	if !fired {
 		return
@@ -1177,8 +1179,8 @@ func (s *AgentServiceImpl) trackStreamOutcome(finishReason string, hadToolCalls 
 
 // incompleteTodoItems filters the session todo list down to items not yet
 // completed, for the {todo_list} template of the stalled-todos nudge.
-func incompleteTodoItems(todos []domain.TodoItem) []domain.TodoItem {
-	var incomplete []domain.TodoItem
+func incompleteTodoItems(todos []agentdomain.TodoItem) []agentdomain.TodoItem {
+	var incomplete []agentdomain.TodoItem
 	for _, t := range todos {
 		if t.Status != "completed" {
 			incomplete = append(incomplete, t)
@@ -1211,7 +1213,7 @@ func conversationAwaitsToolResults(conv []sdk.Message) bool {
 // across the whole chat session and `once` fires once per session. The mutex
 // guards the fired-set because the streaming goroutine (pre_session/pre_stream)
 // and the event-loop goroutine (the other points) can both reach here.
-func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hook domain.HookPoint) {
+func (s *AgentServiceImpl) injectDueReminders(agentCtx *states.AgentContext, hook agentdomain.HookPoint) {
 	provider := s.reminderProvider
 	if provider == nil && s.config != nil {
 		provider = s.config.Reminders
@@ -1230,7 +1232,7 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 		s.firedReminders = make(map[string]bool)
 	}
 
-	q := domain.ReminderQuery{
+	q := agentdomain.ReminderQuery{
 		Hook:        hook,
 		Turn:        agentCtx.Turns,
 		SessionTurn: int(s.sessionTurns.Load()),
@@ -1241,23 +1243,23 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 	if s.stateManager != nil {
 		q.TodoCount = len(s.stateManager.GetTodos())
 	}
-	if hook == domain.HookPostStream && s.stalledStrikes > 0 {
+	if hook == agentdomain.HookPostStream && s.stalledStrikes > 0 {
 		q.FinishReason = s.lastFinishReason
 		q.StalledStrikes = s.stalledStrikes
 		if s.lastFinishReason != string(sdk.Length) && s.stateManager != nil {
 			q.IncompleteTodos = incompleteTodoItems(s.stateManager.GetTodos())
 		}
 	}
-	if hook == domain.HookPostTool {
+	if hook == agentdomain.HookPostTool {
 		if name, n := s.takeRepeatedFailure(); name != "" {
 			q.RepeatedFailures = n
 			q.FailedTool = name
 		}
 	}
-	if hook == domain.HookPreStream {
+	if hook == agentdomain.HookPreStream {
 		q.ModeChanged, q.PrevMode, q.Mode = s.modeChangeSinceLastStream()
 	}
-	InjectDueReminders(provider, q, func(r domain.SystemReminder) {
+	InjectDueReminders(provider, q, func(r agentdomain.SystemReminder) {
 		if r.AppendToToolResult {
 			s.appendToLastToolMessage(agentCtx, r)
 		} else {
@@ -1273,7 +1275,7 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *domain.AgentContext, hoo
 // the tagged system_reminder stream event, and marks the name in q.Fired.
 // Callers own provider resolution, the awaiting-tool-results guard, query
 // construction, and locking.
-func InjectDueReminders(provider domain.SystemReminderProvider, q domain.ReminderQuery, deliver func(domain.SystemReminder)) {
+func InjectDueReminders(provider agentdomain.SystemReminderProvider, q agentdomain.ReminderQuery, deliver func(agentdomain.SystemReminder)) {
 	for _, r := range provider.RemindersDue(q) {
 		deliver(r)
 		logger.Debug("system reminder injected",
@@ -1297,7 +1299,7 @@ func InjectDueReminders(provider domain.SystemReminderProvider, q domain.Reminde
 // in the conversation (for on_repeated_failure reminders that require
 // tool_call/tool pairing). If no tool message is found, it falls back to
 // appending a standalone user message.
-func (s *AgentServiceImpl) appendToLastToolMessage(agentCtx *domain.AgentContext, r domain.SystemReminder) {
+func (s *AgentServiceImpl) appendToLastToolMessage(agentCtx *states.AgentContext, r agentdomain.SystemReminder) {
 	conv := *agentCtx.Conversation
 	for i := len(conv) - 1; i >= 0; i-- {
 		if conv[i].Role == sdk.Tool {
@@ -1315,7 +1317,7 @@ func (s *AgentServiceImpl) appendToLastToolMessage(agentCtx *domain.AgentContext
 
 // injectReminderAsUserMessage appends a reminder as a hidden user message,
 // persisting it when a conversation repo is wired in.
-func (s *AgentServiceImpl) injectReminderAsUserMessage(agentCtx *domain.AgentContext, r domain.SystemReminder) {
+func (s *AgentServiceImpl) injectReminderAsUserMessage(agentCtx *states.AgentContext, r agentdomain.SystemReminder) {
 	msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}
 	*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
 
@@ -1332,9 +1334,9 @@ func (s *AgentServiceImpl) injectReminderAsUserMessage(agentCtx *domain.AgentCon
 // call seeds the baseline without reporting a change; a nil stateManager (the
 // headless path has no mid-session mode) never reports a change. The result
 // drives the on_mode_change reminder trigger via ReminderQuery.
-func (s *AgentServiceImpl) modeChangeSinceLastStream() (changed bool, prev, cur domain.AgentMode) {
+func (s *AgentServiceImpl) modeChangeSinceLastStream() (changed bool, prev, cur agentdomain.AgentMode) {
 	if s.stateManager == nil {
-		return false, domain.AgentModeStandard, domain.AgentModeStandard
+		return false, agentdomain.AgentModeStandard, agentdomain.AgentModeStandard
 	}
 	cur = s.stateManager.GetAgentMode()
 

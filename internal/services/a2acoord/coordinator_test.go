@@ -1,6 +1,7 @@
 package a2acoord
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
@@ -48,11 +49,11 @@ func runCmds(cmds []tea.Cmd) []tea.Msg {
 func TestService_HandleTaskSubmitted(t *testing.T) {
 	t.Run("emits working status with agent name and pumps listener when session active", func(t *testing.T) {
 		svc, _, state, _, listener := newCoordinator()
-		eventChan := make(chan domain.ChatEvent, 1)
+		eventChan := make(chan agentdomain.ChatEvent, 1)
 		_ = state.StartChatSession("req-1", "", eventChan)
 		listener.ListenForChatEventsReturns(func() tea.Msg { return nil })
 
-		cmds := svc.taskSubmittedCmds(domain.A2ATaskSubmittedEvent{
+		cmds := svc.taskSubmittedCmds(agentdomain.A2ATaskSubmittedEvent{
 			RequestID: "req-1",
 			AgentName: "weather-agent",
 		})
@@ -84,7 +85,7 @@ func TestService_HandleTaskSubmitted(t *testing.T) {
 	t.Run("omits listener cmd when no active chat session", func(t *testing.T) {
 		svc, _, _, _, listener := newCoordinator()
 
-		cmds := svc.taskSubmittedCmds(domain.A2ATaskSubmittedEvent{AgentName: "foo"})
+		cmds := svc.taskSubmittedCmds(agentdomain.A2ATaskSubmittedEvent{AgentName: "foo"})
 
 		if len(cmds) != 1 {
 			t.Fatalf("expected exactly one cmd (no listener), got %d", len(cmds))
@@ -101,9 +102,9 @@ func TestService_HandleTaskCompleted(t *testing.T) {
 		repo.GetMessagesReturns(nil)
 		task := &adk.Task{ID: "task-1"}
 
-		event := domain.A2ATaskCompletedEvent{
+		event := agentdomain.A2ATaskCompletedEvent{
 			RequestID: "req-1",
-			Result: domain.ToolExecutionResult{
+			Result: agentdomain.ToolExecutionResult{
 				Data: tools.A2ASubmitTaskResult{
 					TaskResult: "all done",
 					AgentURL:   "https://agent.example",
@@ -141,7 +142,7 @@ func TestService_HandleTaskCompleted(t *testing.T) {
 		svc, repo, _, retention, _ := newCoordinator()
 		repo.FormatToolResultForLLMReturns("[formatted-result-text]")
 
-		event := domain.A2ATaskCompletedEvent{Result: domain.ToolExecutionResult{Data: "unrelated"}}
+		event := agentdomain.A2ATaskCompletedEvent{Result: agentdomain.ToolExecutionResult{Data: "unrelated"}}
 
 		cmds := svc.taskCompletedCmds(event)
 
@@ -169,9 +170,9 @@ func TestService_HandleTaskFailed(t *testing.T) {
 	t.Run("formats error with task result when present", func(t *testing.T) {
 		svc, _, _, _, _ := newCoordinator()
 
-		cmds := svc.taskFailedCmds(domain.A2ATaskFailedEvent{
+		cmds := svc.taskFailedCmds(agentdomain.A2ATaskFailedEvent{
 			Error: "boom",
-			Result: domain.ToolExecutionResult{
+			Result: agentdomain.ToolExecutionResult{
 				Data: tools.A2ASubmitTaskResult{TaskResult: "partial output"},
 			},
 		})
@@ -193,9 +194,9 @@ func TestService_HandleTaskFailed(t *testing.T) {
 		svc, repo, _, _, _ := newCoordinator()
 		repo.FormatToolResultForLLMReturns("formatted body")
 
-		cmds := svc.taskFailedCmds(domain.A2ATaskFailedEvent{
+		cmds := svc.taskFailedCmds(agentdomain.A2ATaskFailedEvent{
 			Error:  "timeout",
-			Result: domain.ToolExecutionResult{Data: nil},
+			Result: agentdomain.ToolExecutionResult{Data: nil},
 		})
 
 		msgs := runCmds(cmds)
@@ -216,7 +217,7 @@ func TestService_HandleTaskStatusUpdate(t *testing.T) {
 	t.Run("emits working status with state and message", func(t *testing.T) {
 		svc, _, _, _, _ := newCoordinator()
 
-		cmds := svc.taskStatusUpdateCmds(domain.A2ATaskStatusUpdateEvent{
+		cmds := svc.taskStatusUpdateCmds(agentdomain.A2ATaskStatusUpdateEvent{
 			Status:  "running",
 			Message: "fetching",
 		})
@@ -242,7 +243,7 @@ func TestService_HandleTaskInputRequired(t *testing.T) {
 	t.Run("emits warning status with input requirement message", func(t *testing.T) {
 		svc, _, _, _, _ := newCoordinator()
 
-		cmds := svc.taskInputRequiredCmds(domain.A2ATaskInputRequiredEvent{
+		cmds := svc.taskInputRequiredCmds(agentdomain.A2ATaskInputRequiredEvent{
 			Message: "need API key",
 		})
 
@@ -267,7 +268,7 @@ func TestService_HandleToolCallExecuted(t *testing.T) {
 	t.Run("emits working status naming the tool", func(t *testing.T) {
 		svc, _, _, _, _ := newCoordinator()
 
-		cmds := svc.toolCallExecutedCmds(domain.A2AToolCallExecutedEvent{
+		cmds := svc.toolCallExecutedCmds(agentdomain.A2AToolCallExecutedEvent{
 			ToolName: "Read",
 		})
 
@@ -302,8 +303,8 @@ func TestService_HandleTaskCompleted_NilTaskRetentionService(t *testing.T) {
 	})
 
 	t.Run("does not panic when retention service is nil but result includes task", func(t *testing.T) {
-		event := domain.A2ATaskCompletedEvent{
-			Result: domain.ToolExecutionResult{
+		event := agentdomain.A2ATaskCompletedEvent{
+			Result: agentdomain.ToolExecutionResult{
 				Data: tools.A2ASubmitTaskResult{
 					TaskResult: "ok",
 					Task:       &adk.Task{ID: "t1"},
@@ -336,12 +337,12 @@ func TestService_PublicMethods_ReturnNonNilCmds(t *testing.T) {
 		name string
 		cmd  tea.Cmd
 	}{
-		{"HandleTaskSubmitted", svc.HandleTaskSubmitted(domain.A2ATaskSubmittedEvent{AgentName: "a"})},
-		{"HandleTaskCompleted", svc.HandleTaskCompleted(domain.A2ATaskCompletedEvent{})},
-		{"HandleTaskFailed", svc.HandleTaskFailed(domain.A2ATaskFailedEvent{Error: "e"})},
-		{"HandleTaskStatusUpdate", svc.HandleTaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{Status: "s"})},
-		{"HandleTaskInputRequired", svc.HandleTaskInputRequired(domain.A2ATaskInputRequiredEvent{Message: "m"})},
-		{"HandleToolCallExecuted", svc.HandleToolCallExecuted(domain.A2AToolCallExecutedEvent{ToolName: "t"})},
+		{"HandleTaskSubmitted", svc.HandleTaskSubmitted(agentdomain.A2ATaskSubmittedEvent{AgentName: "a"})},
+		{"HandleTaskCompleted", svc.HandleTaskCompleted(agentdomain.A2ATaskCompletedEvent{})},
+		{"HandleTaskFailed", svc.HandleTaskFailed(agentdomain.A2ATaskFailedEvent{Error: "e"})},
+		{"HandleTaskStatusUpdate", svc.HandleTaskStatusUpdate(agentdomain.A2ATaskStatusUpdateEvent{Status: "s"})},
+		{"HandleTaskInputRequired", svc.HandleTaskInputRequired(agentdomain.A2ATaskInputRequiredEvent{Message: "m"})},
+		{"HandleToolCallExecuted", svc.HandleToolCallExecuted(agentdomain.A2AToolCallExecutedEvent{ToolName: "t"})},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -3,13 +3,13 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestReadTool_Definition(t *testing.T) {
@@ -363,7 +363,7 @@ func TestReadTool_Execute_BasicFunctionality(t *testing.T) {
 			t.Error("Expected successful execution")
 		}
 
-		data := result.Data.(*domain.FileReadToolResult)
+		data := result.Data.(*agentdomain.FileReadToolResult)
 		lines := strings.Split(data.Content, "\n")
 
 		expectedLines := []string{
@@ -451,7 +451,7 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 			t.Error("Expected successful execution")
 		}
 
-		data := result.Data.(*domain.FileReadToolResult)
+		data := result.Data.(*agentdomain.FileReadToolResult)
 		resultLines := strings.Split(data.Content, "\n")
 
 		expectedLines := []string{
@@ -501,7 +501,7 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 			t.Error("Expected successful execution")
 		}
 
-		data := result.Data.(*domain.FileReadToolResult)
+		data := result.Data.(*agentdomain.FileReadToolResult)
 		if data.Content != "" {
 			t.Errorf("Expected empty content, got '%s'", data.Content)
 		}
@@ -598,7 +598,7 @@ func TestReadTool_Execute_EndLineAccuracy(t *testing.T) {
 				t.Fatal("Expected successful execution")
 			}
 
-			data := result.Data.(*domain.FileReadToolResult)
+			data := result.Data.(*agentdomain.FileReadToolResult)
 			if data.StartLine != tt.wantStartLine {
 				t.Errorf("Expected StartLine = %d, got %d", tt.wantStartLine, data.StartLine)
 			}
@@ -662,7 +662,7 @@ func TestReadTool_Execute_LineTruncation(t *testing.T) {
 			t.Error("Expected successful execution")
 		}
 
-		data := result.Data.(*domain.FileReadToolResult)
+		data := result.Data.(*agentdomain.FileReadToolResult)
 		lines := strings.Split(data.Content, "\n")
 
 		if len(lines) < 2 {
@@ -718,7 +718,7 @@ func TestReadTool_Execute_EmptyFile(t *testing.T) {
 			t.Error("Expected successful execution")
 		}
 
-		data := result.Data.(*domain.FileReadToolResult)
+		data := result.Data.(*agentdomain.FileReadToolResult)
 		if data.Content != EmptyFileReminder {
 			t.Errorf("Expected empty file reminder, got '%s'", data.Content)
 		}
@@ -904,7 +904,7 @@ func TestReadTool_Execute_Defaults(t *testing.T) {
 			t.Error("Expected successful execution")
 		}
 
-		data := result.Data.(*domain.FileReadToolResult)
+		data := result.Data.(*agentdomain.FileReadToolResult)
 		resultLines := strings.Split(data.Content, "\n")
 
 		if len(resultLines) != DefaultLimit {

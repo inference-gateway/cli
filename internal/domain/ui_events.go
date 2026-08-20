@@ -1,6 +1,7 @@
 package domain
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -87,7 +88,7 @@ type AutocompleteCompleteEvent struct {
 // UserInputEvent represents user input submission
 type UserInputEvent struct {
 	Content string
-	Images  []ImageAttachment
+	Images  []agentdomain.ImageAttachment
 }
 
 // RolloverCompletedEvent is dispatched when an asynchronous auto-rollover
@@ -97,7 +98,7 @@ type UserInputEvent struct {
 // completion flow without re-parsing user input.
 type RolloverCompletedEvent struct {
 	Message sdk.Message
-	Images  []ImageAttachment
+	Images  []agentdomain.ImageAttachment
 }
 
 // ModelSelectedEvent indicates model selection
@@ -179,7 +180,7 @@ type ToolExecutionCompletedEvent struct {
 	TotalExecuted int
 	SuccessCount  int
 	FailureCount  int
-	Results       []*ToolExecutionResult
+	Results       []*agentdomain.ToolExecutionResult
 }
 
 func (e ToolExecutionCompletedEvent) GetRequestID() string    { return e.RequestID }
@@ -189,7 +190,7 @@ func (e ToolExecutionCompletedEvent) GetTimestamp() time.Time { return e.Timesta
 
 // ToolApprovalResponseEvent captures the user's approval decision
 type ToolApprovalResponseEvent struct {
-	Action   ApprovalAction
+	Action   agentdomain.ApprovalAction
 	ToolCall sdk.ChatCompletionMessageToolCall
 }
 
@@ -197,14 +198,14 @@ type ToolApprovalResponseEvent struct {
 
 // PlanApprovalResponseEvent captures the user's plan approval decision
 type PlanApprovalResponseEvent struct {
-	Action PlanApprovalAction
+	Action agentdomain.PlanApprovalAction
 }
 
 // Todo Events
 
 // TodoUpdateEvent indicates the todo list has been updated
 type TodoUpdateEvent struct {
-	Todos []TodoItem
+	Todos []agentdomain.TodoItem
 }
 
 // ToggleTodoBoxEvent toggles the todo box expanded/collapsed state
@@ -258,7 +259,7 @@ type BackgroundTasksChangedEvent struct{}
 // AgentStatusUpdateEvent indicates an agent's status has changed
 type AgentStatusUpdateEvent struct {
 	AgentName string
-	State     AgentState
+	State     agentdomain.AgentState
 	Message   string
 	URL       string
 	Image     string
@@ -290,4 +291,28 @@ type TriggerHelpViewEvent struct{}
 // the highlighted button reflects the new index.
 type PlanApprovalSelectionChangedEvent struct {
 	NewIndex int
+}
+
+// MessageHistoryReadyEvent indicates message history has been loaded and is ready to display
+type MessageHistoryReadyEvent struct {
+	Messages []MessageSnapshot
+}
+
+// MessageHistoryEditEvent is emitted when user wants to edit a selected message
+type MessageHistoryEditEvent struct {
+	RequestID       string
+	Timestamp       time.Time
+	MessageIndex    int
+	MessageContent  string
+	MessageSnapshot MessageSnapshot
+}
+
+func (e MessageHistoryEditEvent) GetRequestID() string    { return e.RequestID }
+func (e MessageHistoryEditEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// MessageHistoryEditReadyEvent indicates editing is ready to begin
+type MessageHistoryEditReadyEvent struct {
+	MessageIndex int
+	Content      string
+	Snapshot     MessageSnapshot
 }

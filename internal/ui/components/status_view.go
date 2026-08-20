@@ -8,6 +8,7 @@ import (
 	spinner "charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
@@ -381,16 +382,16 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case domain.ChatStartEvent:
+	case agentdomain.ChatStartEvent:
 		sv.ShowSpinnerWithType("Starting response...", domain.StatusGenerating, nil)
 		if cmd == nil {
 			cmd = sv.spinner.Tick
 		}
 
-	case domain.ChatCompleteEvent:
+	case agentdomain.ChatCompleteEvent:
 		sv.ClearStatus()
 
-	case domain.ChatErrorEvent:
+	case agentdomain.ChatErrorEvent:
 		sv.ShowError(fmt.Sprintf("Error: %v", msg.Error))
 
 	case domain.SetStatusEvent:

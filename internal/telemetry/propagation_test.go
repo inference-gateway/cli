@@ -2,12 +2,11 @@ package telemetry
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func envMap(env []string) map[string]string {
@@ -99,7 +98,7 @@ func TestChildEnvBaggage(t *testing.T) {
 	rec := New(Options{Enabled: true, Dir: t.TempDir(), SessionID: "sess-bag"})
 	defer rec.Shutdown(context.Background())
 
-	ctx := domain.WithToolCallID(context.Background(), "call_1")
+	ctx := agentdomain.WithToolCallID(context.Background(), "call_1")
 	ctx, _ = rec.startToolSpan(ctx, "Bash")
 	ctx = rec.contextWithBaggage(ctx)
 
@@ -121,7 +120,7 @@ func TestChildEnvBaggageConfiguredKeys(t *testing.T) {
 	})
 	defer rec.Shutdown(context.Background())
 
-	ctx := domain.WithToolCallID(context.Background(), "call_1")
+	ctx := agentdomain.WithToolCallID(context.Background(), "call_1")
 	ctx, _ = rec.startToolSpan(ctx, "Bash")
 	ctx = rec.contextWithBaggage(ctx)
 

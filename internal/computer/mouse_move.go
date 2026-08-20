@@ -3,6 +3,8 @@ package computer
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -17,7 +19,7 @@ import (
 type MouseMoveTool struct {
 	config          *config.Config
 	enabled         bool
-	formatter       domain.BaseFormatter
+	formatter       agentinfra.BaseFormatter
 	rateLimiter     rateLimiter
 	displayProvider display.Provider
 	stateManager    domain.EventBridgeManager
@@ -28,7 +30,7 @@ func NewMouseMoveTool(cfg *config.Config, rateLimiter rateLimiter, displayProvid
 	return &MouseMoveTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.Tools.MouseMove.Enabled,
-		formatter:       domain.NewBaseFormatter("MouseMove"),
+		formatter:       agentinfra.NewBaseFormatter("MouseMove"),
 		rateLimiter:     rateLimiter,
 		displayProvider: displayProvider,
 		stateManager:    stateManager,
@@ -62,11 +64,11 @@ func (t *MouseMoveTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the mouse move tool with given arguments
-func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if err := t.rateLimiter.CheckAndRecord("MouseMove"); err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MouseMove",
 			Arguments: args,
 			Success:   false,
@@ -76,7 +78,7 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 	}
 
 	if err := acquireScreenLock(); err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MouseMove",
 			Arguments: args,
 			Success:   false,
@@ -89,7 +91,7 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 	y, yOk := args["y"].(float64)
 
 	if !xOk || !yOk {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MouseMove",
 			Arguments: args,
 			Success:   false,
@@ -99,7 +101,7 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 	}
 
 	if t.displayProvider == nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MouseMove",
 			Arguments: args,
 			Success:   false,
@@ -110,7 +112,7 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	controller, err := t.displayProvider.GetController()
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MouseMove",
 			Arguments: args,
 			Success:   false,
@@ -126,7 +128,7 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	targetX, targetY, err := t.scaleCoordinates(ctx, controller, int(x), int(y))
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MouseMove",
 			Arguments: args,
 			Success:   false,
@@ -138,7 +140,7 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 	fromX, fromY, _ := controller.GetCursorPosition(ctx)
 
 	if err := controller.MoveMouse(ctx, targetX, targetY); err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MouseMove",
 			Arguments: args,
 			Success:   false,
@@ -157,7 +159,7 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 		Method: t.displayProvider.GetDisplayInfo().Name,
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "MouseMove",
 		Arguments: args,
 		Success:   true,
@@ -193,11 +195,11 @@ func (t *MouseMoveTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *MouseMoveTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *MouseMoveTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)
@@ -205,7 +207,7 @@ func (t *MouseMoveTool) FormatResult(result *domain.ToolExecutionResult, formatT
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *MouseMoveTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *MouseMoveTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Mouse move failed"
 	}
@@ -217,7 +219,7 @@ func (t *MouseMoveTool) FormatPreview(result *domain.ToolExecutionResult) string
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *MouseMoveTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *MouseMoveTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
@@ -242,7 +244,7 @@ func (t *MouseMoveTool) ShouldAlwaysExpand() bool {
 // scaleCoordinates converts API coordinates to screen coordinates using Anthropic's proportional scaling.
 // This follows the official computer-use-demo implementation strategy.
 func (t *MouseMoveTool) scaleCoordinates(ctx context.Context, controller display.DisplayController, x, y int) (int, int, error) {
-	if isDirectExec := ctx.Value(domain.DirectExecutionKey); isDirectExec != nil && isDirectExec.(bool) {
+	if isDirectExec := ctx.Value(agentdomain.DirectExecutionKey); isDirectExec != nil && isDirectExec.(bool) {
 		return x, y, nil
 	}
 
@@ -282,8 +284,8 @@ func (t *MouseMoveTool) broadcastMoveEvent(fromX, fromY, toX, toY int) {
 	macosFromY := screenHeight - fromY
 	macosToY := screenHeight - toY
 
-	moveEvent := domain.MoveIndicatorEvent{
-		BaseChatEvent: domain.BaseChatEvent{
+	moveEvent := agentdomain.MoveIndicatorEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{
 			RequestID: "move-indicator",
 			Timestamp: time.Now(),
 		},

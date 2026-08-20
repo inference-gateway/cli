@@ -3,12 +3,13 @@ package computer
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -17,7 +18,7 @@ import (
 type MouseClickTool struct {
 	config          *config.Config
 	enabled         bool
-	formatter       domain.BaseFormatter
+	formatter       agentinfra.BaseFormatter
 	rateLimiter     rateLimiter
 	displayProvider display.Provider
 	stateManager    State
@@ -28,7 +29,7 @@ func NewMouseClickTool(cfg *config.Config, rateLimiter rateLimiter, displayProvi
 	return &MouseClickTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.Tools.MouseClick.Enabled,
-		formatter:       domain.NewBaseFormatter("MouseClick"),
+		formatter:       agentinfra.NewBaseFormatter("MouseClick"),
 		rateLimiter:     rateLimiter,
 		displayProvider: displayProvider,
 		stateManager:    stateManager,
@@ -74,7 +75,7 @@ func (t *MouseClickTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the mouse click tool with given arguments
-func (t *MouseClickTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *MouseClickTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if err := t.rateLimiter.CheckAndRecord("MouseClick"); err != nil {
@@ -123,7 +124,7 @@ func (t *MouseClickTool) Execute(ctx context.Context, args map[string]any) (*dom
 		Method: t.displayProvider.GetDisplayInfo().Name,
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "MouseClick",
 		Arguments: args,
 		Success:   true,
@@ -156,8 +157,8 @@ func (t *MouseClickTool) getCoordinates(args map[string]any) (int, int, bool) {
 	return 0, 0, false
 }
 
-func (t *MouseClickTool) errorResult(args map[string]any, start time.Time, errorMsg string) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func (t *MouseClickTool) errorResult(args map[string]any, start time.Time, errorMsg string) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "MouseClick",
 		Arguments: args,
 		Success:   false,
@@ -187,7 +188,7 @@ func (t *MouseClickTool) handleMovement(ctx context.Context, controller display.
 // scaleCoordinates converts API coordinates to screen coordinates using Anthropic's proportional scaling.
 // This follows the official computer-use-demo implementation strategy.
 func (t *MouseClickTool) scaleCoordinates(ctx context.Context, controller display.DisplayController, x, y int) (int, int, error) {
-	if isDirectExec := ctx.Value(domain.DirectExecutionKey); isDirectExec != nil && isDirectExec.(bool) {
+	if isDirectExec := ctx.Value(agentdomain.DirectExecutionKey); isDirectExec != nil && isDirectExec.(bool) {
 		return x, y, nil
 	}
 
@@ -249,8 +250,8 @@ func (t *MouseClickTool) broadcastClickEvent(x, y int) {
 
 	macosY := screenHeight - y
 
-	clickEvent := domain.ClickIndicatorEvent{
-		BaseChatEvent: domain.BaseChatEvent{
+	clickEvent := agentdomain.ClickIndicatorEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{
 			RequestID: "click-indicator",
 			Timestamp: time.Now(),
 		},
@@ -303,11 +304,11 @@ func (t *MouseClickTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *MouseClickTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *MouseClickTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)
@@ -315,7 +316,7 @@ func (t *MouseClickTool) FormatResult(result *domain.ToolExecutionResult, format
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *MouseClickTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *MouseClickTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Mouse click failed"
 	}
@@ -336,7 +337,7 @@ func (t *MouseClickTool) FormatPreview(result *domain.ToolExecutionResult) strin
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *MouseClickTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *MouseClickTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}

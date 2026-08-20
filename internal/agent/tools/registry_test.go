@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"sync"
 	"testing"
 	"time"
@@ -454,7 +456,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 
 	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 
-	fakeTool := &mocks.FakeTool{}
+	fakeTool := &agentdomainmocks.FakeTool{}
 	fakeTool.IsEnabledReturns(true)
 	mockDesc := "A mocked tool for testing"
 	mockParams := sdk.FunctionParameters(map[string]any{})
@@ -467,7 +469,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 		},
 	})
 	fakeTool.ValidateReturns(nil)
-	fakeTool.ExecuteReturns(&domain.ToolExecutionResult{
+	fakeTool.ExecuteReturns(&agentdomain.ToolExecutionResult{
 		ToolName: "MockTool",
 		Success:  true,
 	}, nil)

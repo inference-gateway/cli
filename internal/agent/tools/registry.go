@@ -3,6 +3,7 @@ package tools
 import (
 	"cmp"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -36,11 +37,11 @@ import (
 type Registry struct {
 	config          *config.Config
 	toolsMu         sync.RWMutex
-	tools           map[string]domain.Tool
+	tools           map[string]agentdomain.Tool
 	readToolUsed    atomic.Bool
 	readFiles       map[string]fileReadSnapshot
 	readFilesMu     sync.Mutex
-	taskTracker     domain.A2ATaskTracker
+	taskTracker     agentdomain.A2ATaskTracker
 	subagentTracker domain.SubagentTracker
 	jobSubmitter    domain.JobSubmitter
 	jobStopper      domain.JobStopper
@@ -48,8 +49,8 @@ type Registry struct {
 	imageService    domain.ImageService
 	mcpManager      domain.MCPManager
 	shellService    domain.BackgroundShellService
-	annotator       domain.ImageAnnotator
-	frameSources    map[string]domain.FrameSource
+	annotator       agentdomain.ImageAnnotator
+	frameSources    map[string]agentdomain.FrameSource
 	frameSourcesMu  sync.RWMutex
 	memoryBackend   domain.MemoryBackend
 	stores          *storage.Stores
@@ -62,20 +63,20 @@ type Registry struct {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, annotator domain.ImageAnnotator, taskTracker domain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}
 	registry := &Registry{
 		config:       cfg,
-		tools:        make(map[string]domain.Tool),
+		tools:        make(map[string]agentdomain.Tool),
 		shellService: shellService,
 		readFiles:    make(map[string]fileReadSnapshot),
 		taskTracker:  taskTracker,
 		imageService: imageService,
 		mcpManager:   mcpManager,
 		annotator:    annotator,
-		frameSources: make(map[string]domain.FrameSource),
+		frameSources: make(map[string]agentdomain.FrameSource),
 		stores:       stores,
 	}
 	if st, ok := taskTracker.(domain.SubagentTracker); ok {
@@ -99,7 +100,7 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 // GetLatestFrame tool is registered statically and reports itself enabled as
 // soon as at least one source exists, so late registration (e.g. chat starting
 // the screenshot server) needs no re-registration machinery.
-func (r *Registry) RegisterFrameSource(name string, src domain.FrameSource) {
+func (r *Registry) RegisterFrameSource(name string, src agentdomain.FrameSource) {
 	if name == "" || src == nil {
 		return
 	}
@@ -109,7 +110,7 @@ func (r *Registry) RegisterFrameSource(name string, src domain.FrameSource) {
 }
 
 // FrameSource returns the named frame source.
-func (r *Registry) FrameSource(name string) (domain.FrameSource, bool) {
+func (r *Registry) FrameSource(name string) (agentdomain.FrameSource, bool) {
 	r.frameSourcesMu.RLock()
 	defer r.frameSourcesMu.RUnlock()
 	src, ok := r.frameSources[name]
@@ -218,8 +219,8 @@ func (r *Registry) registerTools() {
 
 // RegisterTools installs capability tools constructed outside this package
 // (browser use, and later computer use). The agent core consumes them through
-// the domain.Tool contract only.
-func (r *Registry) RegisterTools(tools map[string]domain.Tool) {
+// the agentdomain.Tool contract only.
+func (r *Registry) RegisterTools(tools map[string]agentdomain.Tool) {
 	r.toolsMu.Lock()
 	defer r.toolsMu.Unlock()
 	for name, tool := range tools {
@@ -245,7 +246,7 @@ func (r *Registry) SetMemoryBackend(backend domain.MemoryBackend) {
 }
 
 // GetTool retrieves a tool by name
-func (r *Registry) GetTool(name string) (domain.Tool, error) {
+func (r *Registry) GetTool(name string) (agentdomain.Tool, error) {
 	r.toolsMu.RLock()
 	tool, exists := r.tools[name]
 	r.toolsMu.RUnlock()
@@ -413,7 +414,7 @@ func normalizeReadPath(path string) string {
 }
 
 // GetA2ATaskTracker returns the task tracker instance
-func (r *Registry) GetA2ATaskTracker() domain.A2ATaskTracker {
+func (r *Registry) GetA2ATaskTracker() agentdomain.A2ATaskTracker {
 	return r.taskTracker
 }
 

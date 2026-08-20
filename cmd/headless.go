@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"regexp"
 	"runtime/debug"
@@ -50,11 +51,11 @@ func startHeadlessScreenshotServer(cfg *config.Config, svc *container.ServiceCon
 // inheritedSubagentMode returns the coding mode a subagent should start in,
 // read from INFER_SUBAGENT_AGENT_MODE. Returns Standard when unset or
 // unrecognized, so top-level infer headless runs are unaffected.
-func inheritedSubagentMode() domain.AgentMode {
-	if m, ok := domain.ParseAgentMode(os.Getenv(domain.EnvSubagentAgentMode)); ok {
+func inheritedSubagentMode() agentdomain.AgentMode {
+	if m, ok := agentdomain.ParseAgentMode(os.Getenv(domain.EnvSubagentAgentMode)); ok {
 		return m
 	}
-	return domain.AgentModeStandard
+	return agentdomain.AgentModeStandard
 }
 
 // headlessOptions carries the headless command's flag values.
@@ -229,7 +230,7 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 		logger.Warn("failed to persist user task message", "error", err)
 	}
 
-	req := &domain.AgentRequest{
+	req := &agentdomain.AgentRequest{
 		RequestID:              sessionID,
 		Model:                  selectedModel,
 		Messages:               append(history, userMsg),
@@ -254,7 +255,7 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 		ctl := newHeadlessControl(agentService, svc.GetStateManager(), sessionID)
 		go ctl.readLines(os.Stdin)
 		approvals = ctl.approvals
-		renderEvents = ctl.pumpEvents(events, func() (<-chan domain.ChatEvent, error) {
+		renderEvents = ctl.pumpEvents(events, func() (<-chan agentdomain.ChatEvent, error) {
 			return resumeHeadlessRun(ctx, agentService, conversationRepo, req)
 		})
 	}
@@ -314,7 +315,7 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 		}
 
 		if imageSvc != nil && imageSvc.IsImageFile(filename) {
-			expanded = strings.Replace(expanded, fullMatch, domain.ImageFileRef(filename, models.SupportsVision(model)), 1)
+			expanded = strings.Replace(expanded, fullMatch, agentdomain.ImageFileRef(filename, models.SupportsVision(model)), 1)
 			continue
 		}
 
@@ -332,7 +333,7 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 			return "", fmt.Errorf("invalid file %q: %w", filename, err)
 		}
 		if imageSvc != nil && imageSvc.IsImageFile(filename) {
-			expanded += "\n\n" + domain.ImageFileRef(filename, models.SupportsVision(model))
+			expanded += "\n\n" + agentdomain.ImageFileRef(filename, models.SupportsVision(model))
 			continue
 		}
 		fileContent, err := fileSvc.ReadFile(filename)
@@ -372,7 +373,7 @@ func sessionOutcome(err error) string {
 		return telemetry.RunSuccess
 	case errors.Is(err, context.Canceled),
 		errors.Is(err, context.DeadlineExceeded),
-		errors.Is(err, domain.ErrMaxTurnsReached):
+		errors.Is(err, agentdomain.ErrMaxTurnsReached):
 		return telemetry.RunStoppedEarly
 	default:
 		return telemetry.RunFailed

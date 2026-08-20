@@ -1,4 +1,4 @@
-// Package render formats domain.ChatEvent streams for the headless CLI.
+// Package render formats agentdomain.ChatEvent streams for the headless CLI.
 //
 // Each format function consumes the event channel from
 // AgentService.RunWithStream and writes formatted output to an io.Writer.
@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"io"
 	"strings"
 	"time"
@@ -45,7 +46,7 @@ func truncate(s string, maxLen int) string {
 // nil for completions with nothing to say (cancellation, max-turns). content
 // is the turn's text accumulated from chunk deltas — the engine publishes
 // completion events without the message body.
-func assistantMessage(e domain.ChatCompleteEvent, content string) map[string]any {
+func assistantMessage(e agentdomain.ChatCompleteEvent, content string) map[string]any {
 	if content == "" && e.ReasoningContent == "" && len(e.ToolCalls) == 0 {
 		return nil
 	}
@@ -67,7 +68,7 @@ func assistantMessage(e domain.ChatCompleteEvent, content string) map[string]any
 }
 
 // toolMessage builds the JSON line for one tool execution result.
-func toolMessage(r *domain.ToolExecutionResult) map[string]any {
+func toolMessage(r *agentdomain.ToolExecutionResult) map[string]any {
 	return map[string]any{
 		"role":         "tool",
 		"content":      toolContent(r),
@@ -85,7 +86,7 @@ func toolMessage(r *domain.ToolExecutionResult) map[string]any {
 }
 
 // toolContent is the marshaled result on success, the error detail on failure.
-func toolContent(r *domain.ToolExecutionResult) string {
+func toolContent(r *agentdomain.ToolExecutionResult) string {
 	if r.Success {
 		if b, err := json.Marshal(r); err == nil {
 			return string(b)
@@ -103,12 +104,12 @@ func toolContent(r *domain.ToolExecutionResult) string {
 
 // completionErr maps a terminal event to the error the command should return:
 // ErrMaxTurnsReached for a turn-limit completion (exit code 2), nil otherwise.
-func completionErr(e domain.ChatCompleteEvent) error {
+func completionErr(e agentdomain.ChatCompleteEvent) error {
 	if e.Cancelled {
 		return context.Canceled
 	}
 	if e.MaxTurnsReached {
-		return domain.ErrMaxTurnsReached
+		return agentdomain.ErrMaxTurnsReached
 	}
 	return nil
 }
@@ -118,12 +119,12 @@ func completionErr(e domain.ChatCompleteEvent) error {
 // different tool_call_id are skipped (a late answer to a request the engine
 // already timed out must not decide the next one). A nil or closed channel
 // rejects the tool so the engine never waits out its timeout on a dead broker.
-func answerApproval(e domain.ToolApprovalRequestedEvent, approvals <-chan domain.ApprovalResponse) {
+func answerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan domain.ApprovalResponse) {
 	if e.ResponseChan == nil {
 		return
 	}
 	if approvals == nil {
-		e.ResponseChan <- domain.ApprovalReject
+		e.ResponseChan <- agentdomain.ApprovalReject
 		return
 	}
 	for resp := range approvals {
@@ -131,13 +132,13 @@ func answerApproval(e domain.ToolApprovalRequestedEvent, approvals <-chan domain
 			continue
 		}
 		if resp.Approved {
-			e.ResponseChan <- domain.ApprovalApprove
+			e.ResponseChan <- agentdomain.ApprovalApprove
 		} else {
-			e.ResponseChan <- domain.ApprovalReject
+			e.ResponseChan <- agentdomain.ApprovalReject
 		}
 		return
 	}
-	e.ResponseChan <- domain.ApprovalReject
+	e.ResponseChan <- agentdomain.ApprovalReject
 }
 
 // RenderJSON renders events as JSON lines, streaming each message as its turn
@@ -148,18 +149,18 @@ func answerApproval(e domain.ToolApprovalRequestedEvent, approvals <-chan domain
 // approval_request line is answered by the next matching ApprovalResponse.
 // A ComputerUseResumedEvent clears any error carried over from the paused
 // (cancelled) run, so a resumed run that completes cleanly exits zero.
-func RenderJSON(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
+func RenderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
 	return renderJSON(events, w, approvals, sessionID, model, cfg, repo, false)
 }
 
 // RenderJSONPretty is RenderJSON with each object indented across multiple
 // lines for human reading. Objects are separated by newlines but are no
 // longer one-per-line, so machine consumers should use RenderJSON.
-func RenderJSONPretty(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
+func RenderJSONPretty(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository) error {
 	return renderJSON(events, w, approvals, sessionID, model, cfg, repo, true)
 }
 
-func renderJSON(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository, pretty bool) error {
+func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo domain.ConversationRepository, pretty bool) error {
 	emit := func(msg any) { emitJSON(w, msg, pretty) }
 	emit(map[string]any{
 		"type":       "info",
@@ -173,12 +174,12 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan do
 	var content strings.Builder
 	for event := range events {
 		switch e := event.(type) {
-		case domain.ChatErrorEvent:
+		case agentdomain.ChatErrorEvent:
 			emit(domain.AgentErrorMessage{Type: "agent_error", Message: truncate(e.Error.Error(), 3500)})
 			runErr = fmt.Errorf("agent error: %w", e.Error)
-		case domain.ChatChunkEvent:
+		case agentdomain.ChatChunkEvent:
 			content.WriteString(e.Content)
-		case domain.ChatCompleteEvent:
+		case agentdomain.ChatCompleteEvent:
 			if msg := assistantMessage(e, content.String()); msg != nil {
 				emit(msg)
 			}
@@ -192,18 +193,18 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan do
 					emit(toolMessage(r))
 				}
 			}
-		case domain.ToolApprovalRequestedEvent:
+		case agentdomain.ToolApprovalRequestedEvent:
 			emit(map[string]any{
 				"type": "approval_request", "tool_name": e.ToolCall.Function.Name,
 				"tool_args": e.ToolCall.Function.Arguments, "tool_call_id": e.ToolCall.ID,
 			})
 			answerApproval(e, approvals)
-		case domain.ComputerUsePausedEvent:
+		case agentdomain.ComputerUsePausedEvent:
 			emit(map[string]any{"type": "computer_use_paused", "request_id": e.RequestID})
-		case domain.ComputerUseResumedEvent:
+		case agentdomain.ComputerUseResumedEvent:
 			emit(map[string]any{"type": "computer_use_resumed", "request_id": e.RequestID})
 			runErr = nil
-		case domain.TodoUpdateChatEvent:
+		case agentdomain.TodoUpdateChatEvent:
 			emit(map[string]any{"type": "notification", "message": "Todos updated", "todos": e.Todos})
 		}
 	}
@@ -229,17 +230,17 @@ func renderJSON(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan do
 // RenderText streams content deltas as plain text to w, matching the
 // non-interactive chat output style. The engine emits one ChatCompleteEvent
 // per turn, so rendering continues until the channel closes.
-func RenderText(events <-chan domain.ChatEvent, w io.Writer) error {
+func RenderText(events <-chan agentdomain.ChatEvent, w io.Writer) error {
 	var runErr error
 	printed := false
 	for event := range events {
 		switch e := event.(type) {
-		case domain.ChatChunkEvent:
+		case agentdomain.ChatChunkEvent:
 			if e.Content != "" {
 				_, _ = fmt.Fprint(w, e.Content)
 				printed = true
 			}
-		case domain.ChatCompleteEvent:
+		case agentdomain.ChatCompleteEvent:
 			if printed {
 				_, _ = fmt.Fprintln(w)
 				printed = false
@@ -247,7 +248,7 @@ func RenderText(events <-chan domain.ChatEvent, w io.Writer) error {
 			if err := completionErr(e); err != nil {
 				runErr = err
 			}
-		case domain.ChatErrorEvent:
+		case agentdomain.ChatErrorEvent:
 			runErr = fmt.Errorf("agent error: %w", e.Error)
 		}
 	}
@@ -260,21 +261,21 @@ func RenderText(events <-chan domain.ChatEvent, w io.Writer) error {
 // When approvals is non-nil it acts as the IPC approval broker, same as
 // RenderJSON. A ComputerUseResumedEvent clears any error carried over from
 // the paused (cancelled) run, same as RenderJSON.
-func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string) error {
+func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string) error {
 	e := &aguiEncoder{w: w, threadID: sessionID}
 	e.emitRunStarted(sessionID)
 
 	var runErr error
 	for event := range events {
 		switch ev := event.(type) {
-		case domain.ChatChunkEvent:
+		case agentdomain.ChatChunkEvent:
 			if ev.ReasoningContent != "" {
 				e.streamReasoning(ev.ReasoningContent)
 			}
 			if ev.Content != "" {
 				e.streamText(ev.Content)
 			}
-		case domain.ChatCompleteEvent:
+		case agentdomain.ChatCompleteEvent:
 			e.closeMessage()
 			for _, tc := range ev.ToolCalls {
 				e.emitToolCallStart(tc.ID, tc.Function.Name)
@@ -284,7 +285,7 @@ func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan do
 			if err := completionErr(ev); err != nil {
 				runErr = err
 			}
-		case domain.ChatErrorEvent:
+		case agentdomain.ChatErrorEvent:
 			runErr = ev.Error
 		case domain.ToolExecutionCompletedEvent:
 			for _, r := range ev.Results {
@@ -292,17 +293,17 @@ func RenderAGUI(events <-chan domain.ChatEvent, w io.Writer, approvals <-chan do
 					e.emitToolResult(r)
 				}
 			}
-		case domain.TodoUpdateChatEvent:
+		case agentdomain.TodoUpdateChatEvent:
 			e.emitTodos(ev.Todos)
-		case domain.ToolApprovalRequestedEvent:
+		case agentdomain.ToolApprovalRequestedEvent:
 			e.emitApprovalRequest(domain.ApprovalRequest{
 				Type: "approval_request", ToolName: ev.ToolCall.Function.Name,
 				ToolArgs: ev.ToolCall.Function.Arguments, ToolCallID: ev.ToolCall.ID,
 			})
 			answerApproval(ev, approvals)
-		case domain.ComputerUsePausedEvent:
+		case agentdomain.ComputerUsePausedEvent:
 			e.emitComputerUsePaused(ev.RequestID)
-		case domain.ComputerUseResumedEvent:
+		case agentdomain.ComputerUseResumedEvent:
 			e.emitComputerUseResumed(ev.RequestID)
 			runErr = nil
 		}

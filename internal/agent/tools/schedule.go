@@ -8,11 +8,14 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 const (
@@ -37,7 +40,7 @@ type ScheduleToolResult struct {
 type ScheduleTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter domain.BaseFormatter
+	formatter agentinfra.BaseFormatter
 	store     storage.ScheduledJobStorage
 }
 
@@ -47,7 +50,7 @@ func NewScheduleTool(cfg *config.Config, store storage.ScheduledJobStorage) *Sch
 	return &ScheduleTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.Schedule.Enabled,
-		formatter: domain.NewBaseFormatter("Schedule"),
+		formatter: agentinfra.NewBaseFormatter("Schedule"),
 		store:     store,
 	}
 }
@@ -106,7 +109,7 @@ func (t *ScheduleTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the Schedule tool with the given arguments.
-func (t *ScheduleTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *ScheduleTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled || !t.config.Tools.Schedule.Enabled {
 		return nil, fmt.Errorf("schedule tool is not enabled")
@@ -235,7 +238,7 @@ func (t *ScheduleTool) channelConfigured(name string) bool {
 	}
 }
 
-func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*agentdomain.ToolExecutionResult, error) {
 	if err := validateCreateArgs(args); err != nil {
 		return t.fail(args, start, err)
 	}
@@ -294,7 +297,7 @@ func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, stor
 // storage. It only errors when the session names a channel that is not enabled
 // in config - a silent no-delivery there would hide a misconfiguration.
 func (t *ScheduleTool) resolveRouting(ctx context.Context) (channel, recipient string, err error) {
-	channel, recipient, ok := domain.ParseChannelSessionID(domain.GetSessionID(ctx))
+	channel, recipient, ok := domain.ParseChannelSessionID(agentdomain.GetSessionID(ctx))
 	if !ok {
 		return "", "", nil
 	}
@@ -304,7 +307,7 @@ func (t *ScheduleTool) resolveRouting(ctx context.Context) (channel, recipient s
 	return channel, recipient, nil
 }
 
-func (t *ScheduleTool) execList(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *ScheduleTool) execList(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*agentdomain.ToolExecutionResult, error) {
 	jobs, err := store.ListJobs(context.Background())
 	if err != nil {
 		return t.fail(args, start, err)
@@ -316,7 +319,7 @@ func (t *ScheduleTool) execList(args map[string]any, store storage.ScheduledJobS
 	})
 }
 
-func (t *ScheduleTool) execGet(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *ScheduleTool) execGet(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*agentdomain.ToolExecutionResult, error) {
 	id, err := requireString(args, "job_id")
 	if err != nil {
 		return t.fail(args, start, err)
@@ -331,7 +334,7 @@ func (t *ScheduleTool) execGet(args map[string]any, store storage.ScheduledJobSt
 	})
 }
 
-func (t *ScheduleTool) execUpdate(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *ScheduleTool) execUpdate(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*agentdomain.ToolExecutionResult, error) {
 	id, err := requireString(args, "job_id")
 	if err != nil {
 		return t.fail(args, start, err)
@@ -382,7 +385,7 @@ func (t *ScheduleTool) execUpdate(args map[string]any, store storage.ScheduledJo
 	})
 }
 
-func (t *ScheduleTool) execDelete(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *ScheduleTool) execDelete(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*agentdomain.ToolExecutionResult, error) {
 	id, err := requireString(args, "job_id")
 	if err != nil {
 		return t.fail(args, start, err)
@@ -396,8 +399,8 @@ func (t *ScheduleTool) execDelete(args map[string]any, store storage.ScheduledJo
 	})
 }
 
-func (t *ScheduleTool) success(args map[string]any, start time.Time, data *ScheduleToolResult) (*domain.ToolExecutionResult, error) {
-	return &domain.ToolExecutionResult{
+func (t *ScheduleTool) success(args map[string]any, start time.Time, data *ScheduleToolResult) (*agentdomain.ToolExecutionResult, error) {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Schedule",
 		Arguments: args,
 		Success:   true,
@@ -406,8 +409,8 @@ func (t *ScheduleTool) success(args map[string]any, start time.Time, data *Sched
 	}, nil
 }
 
-func (t *ScheduleTool) fail(args map[string]any, start time.Time, err error) (*domain.ToolExecutionResult, error) {
-	return &domain.ToolExecutionResult{
+func (t *ScheduleTool) fail(args map[string]any, start time.Time, err error) (*agentdomain.ToolExecutionResult, error) {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Schedule",
 		Arguments: args,
 		Success:   false,
@@ -417,13 +420,13 @@ func (t *ScheduleTool) fail(args map[string]any, start time.Time, err error) (*d
 }
 
 // FormatResult formats tool execution results for different contexts.
-func (t *ScheduleTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *ScheduleTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -431,7 +434,7 @@ func (t *ScheduleTool) FormatResult(result *domain.ToolExecutionResult, formatTy
 }
 
 // FormatPreview returns a compact one-line preview.
-func (t *ScheduleTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *ScheduleTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Schedule result unavailable"
 	}
@@ -464,7 +467,7 @@ func (t *ScheduleTool) FormatPreview(result *domain.ToolExecutionResult) string 
 }
 
 // FormatForUI renders the tool call header with a single-line preview.
-func (t *ScheduleTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *ScheduleTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Schedule result unavailable"
 	}
@@ -478,7 +481,7 @@ func (t *ScheduleTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM renders a structured detail block for the assistant.
-func (t *ScheduleTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *ScheduleTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Schedule result unavailable"
 	}

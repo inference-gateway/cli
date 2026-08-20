@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"time"
 
@@ -27,7 +28,7 @@ func NewMessageHistoryHandler(
 }
 
 // HandleNavigateBackInTime processes the navigate back in time event
-func (h *MessageHistoryHandler) HandleNavigateBackInTime(event domain.NavigateBackInTimeEvent) tea.Cmd {
+func (h *MessageHistoryHandler) HandleNavigateBackInTime(event agentdomain.NavigateBackInTimeEvent) tea.Cmd {
 	return func() tea.Msg {
 		entries := h.conversationRepo.GetMessages()
 		messages := h.extractMessages(entries)
@@ -44,14 +45,14 @@ func (h *MessageHistoryHandler) HandleNavigateBackInTime(event domain.NavigateBa
 }
 
 // HandleRestore processes the message history restore event
-func (h *MessageHistoryHandler) HandleRestore(event domain.MessageHistoryRestoreEvent) tea.Cmd {
+func (h *MessageHistoryHandler) HandleRestore(event agentdomain.MessageHistoryRestoreEvent) tea.Cmd {
 	return func() tea.Msg {
 		entries := h.conversationRepo.GetMessages()
 		restoreIndex := h.adjustRestoreIndex(entries, event.RestoreToIndex)
 
 		if err := h.conversationRepo.DeleteMessagesAfterIndex(restoreIndex); err != nil {
 			logger.Error("failed to restore conversation", "error", err, "index", restoreIndex)
-			return domain.ChatErrorEvent{
+			return agentdomain.ChatErrorEvent{
 				RequestID: event.RequestID,
 				Error:     err,
 				Timestamp: time.Now(),
@@ -70,7 +71,7 @@ func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent)
 		entries := h.conversationRepo.GetMessages()
 		if event.MessageIndex >= len(entries) {
 			logger.Error("invalid message index for edit", "index", event.MessageIndex)
-			return domain.ChatErrorEvent{
+			return agentdomain.ChatErrorEvent{
 				RequestID: event.RequestID,
 				Error:     fmt.Errorf("invalid message index: %d", event.MessageIndex),
 				Timestamp: time.Now(),
@@ -80,7 +81,7 @@ func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent)
 		msg := entries[event.MessageIndex]
 		if msg.Message.Role != sdk.User {
 			logger.Error("cannot edit non-user message", "role", msg.Message.Role)
-			return domain.ChatErrorEvent{
+			return agentdomain.ChatErrorEvent{
 				RequestID: event.RequestID,
 				Error:     fmt.Errorf("cannot edit %s message", msg.Message.Role),
 				Timestamp: time.Now(),
@@ -96,7 +97,7 @@ func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent)
 }
 
 // HandleEditSubmit processes the message edit submission
-func (h *MessageHistoryHandler) HandleEditSubmit(event domain.MessageEditSubmitEvent) tea.Cmd {
+func (h *MessageHistoryHandler) HandleEditSubmit(event agentdomain.MessageEditSubmitEvent) tea.Cmd {
 	return func() tea.Msg {
 		return domain.UserInputEvent{
 			Content: event.EditedContent,

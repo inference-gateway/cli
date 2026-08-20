@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +20,7 @@ type a2aJob struct {
 	tool           *A2ASubmitTaskTool
 	agentURL       string
 	taskID         string
-	state          *domain.TaskPollingState
+	state          *agentdomain.TaskPollingState
 	mu             sync.RWMutex
 	lastKnownState string
 }
@@ -40,7 +41,7 @@ func (j *a2aJob) Meta() domain.JobMeta {
 // Run polls the remote agent until the task terminates. It records each remote
 // state change through the emit wrapper so A2APollingState can report the live
 // status to the task view without racing the poll goroutine on the shared state.
-func (j *a2aJob) Run(ctx context.Context, emit func(domain.JobSignal)) domain.ToolExecutionResult {
+func (j *a2aJob) Run(ctx context.Context, emit func(domain.JobSignal)) agentdomain.ToolExecutionResult {
 	return j.tool.runA2APolling(ctx, j.agentURL, j.taskID, j.state, func(sig domain.JobSignal) {
 		j.recordState(sig.State)
 		if emit != nil {
@@ -63,12 +64,12 @@ func (j *a2aJob) recordState(state string) {
 // A2APollingState implements domain.A2AStateProvider so the supervisor is the
 // single source for active A2A rows. Identity fields are immutable after submit;
 // only LastKnownState is read under mu (the poll goroutine writes it).
-func (j *a2aJob) A2APollingState() domain.TaskPollingState {
+func (j *a2aJob) A2APollingState() agentdomain.TaskPollingState {
 	j.mu.RLock()
 	last := j.lastKnownState
 	j.mu.RUnlock()
 
-	st := domain.TaskPollingState{
+	st := agentdomain.TaskPollingState{
 		TaskID:         j.taskID,
 		AgentURL:       j.agentURL,
 		LastKnownState: last,
@@ -102,7 +103,7 @@ func (j *a2aJob) Close() {
 // type assertion is safe here (no JSON round-trip). Completed/failed carry the full
 // *adk.Task; canceled does not, so reconstruct a minimal task from the polling state
 // and reported state. input-required (and any non-terminal state) opts out.
-func (j *a2aJob) RetainedTask(result domain.ToolExecutionResult) (domain.TaskInfo, bool) {
+func (j *a2aJob) RetainedTask(result agentdomain.ToolExecutionResult) (domain.TaskInfo, bool) {
 	submit, ok := result.Data.(A2ASubmitTaskResult)
 	if !ok || submit.TaskID == "" {
 		return domain.TaskInfo{}, false

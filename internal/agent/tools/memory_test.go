@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +15,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	project "github.com/inference-gateway/cli/internal/project"
 )
 
@@ -602,7 +602,7 @@ func TestSanitizeName(t *testing.T) {
 func TestMemoryTool_Write_RecordsSessionID(t *testing.T) {
 	tool, dir := newTestMemoryTool(t)
 
-	ctx := domain.WithSessionID(context.Background(), "channel-telegram-12345")
+	ctx := agentdomain.WithSessionID(context.Background(), "channel-telegram-12345")
 	res, err := tool.Execute(ctx, map[string]any{
 		"operation": "write", "name": "with-session", "description": "d", "type": "reference", "content": "b",
 	})

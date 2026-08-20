@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // TestExecutingToolsState_Handle covers the two ToolsCompletedEvent routes
@@ -14,40 +12,40 @@ import (
 func TestExecutingToolsState_Handle(t *testing.T) {
 	tests := []struct {
 		name            string
-		event           domain.AgentEvent
+		event           AgentEvent
 		transitionErr   error
 		wantErr         bool
-		wantTransitions []domain.AgentExecutionState
-		wantEvents      []domain.AgentEvent
+		wantTransitions []AgentExecutionState
+		wantEvents      []AgentEvent
 	}{
 		{
 			name:            "completed tools continue to post tool execution",
-			event:           domain.ToolsCompletedEvent{},
-			wantTransitions: []domain.AgentExecutionState{domain.StatePostToolExecution},
-			wantEvents:      []domain.AgentEvent{domain.MessageReceivedEvent{}},
+			event:           ToolsCompletedEvent{},
+			wantTransitions: []AgentExecutionState{StatePostToolExecution},
+			wantEvents:      []AgentEvent{MessageReceivedEvent{}},
 		},
 		{
 			name:            "stop signal terminates the loop",
-			event:           domain.ToolsCompletedEvent{Stop: true},
-			wantTransitions: []domain.AgentExecutionState{domain.StateStopped},
+			event:           ToolsCompletedEvent{Stop: true},
+			wantTransitions: []AgentExecutionState{StateStopped},
 		},
 		{
 			name:            "transition failure is returned",
-			event:           domain.ToolsCompletedEvent{},
+			event:           ToolsCompletedEvent{},
 			transitionErr:   errBoom,
 			wantErr:         true,
-			wantTransitions: []domain.AgentExecutionState{domain.StatePostToolExecution},
+			wantTransitions: []AgentExecutionState{StatePostToolExecution},
 		},
 		{
 			name:            "stop transition failure is returned",
-			event:           domain.ToolsCompletedEvent{Stop: true},
+			event:           ToolsCompletedEvent{Stop: true},
 			transitionErr:   errBoom,
 			wantErr:         true,
-			wantTransitions: []domain.AgentExecutionState{domain.StateStopped},
+			wantTransitions: []AgentExecutionState{StateStopped},
 		},
 		{
 			name:  "stray event is a no-op",
-			event: domain.MessageReceivedEvent{},
+			event: MessageReceivedEvent{},
 		},
 	}
 	for _, tt := range tests {
@@ -55,7 +53,7 @@ func TestExecutingToolsState_Handle(t *testing.T) {
 			f := newStateFixture()
 			f.sm.TransitionReturns(tt.transitionErr)
 			s := NewExecutingToolsState(f.ctx)
-			assert.Equal(t, domain.StateExecutingTools, s.Name())
+			assert.Equal(t, StateExecutingTools, s.Name())
 
 			err := s.Handle(tt.event)
 

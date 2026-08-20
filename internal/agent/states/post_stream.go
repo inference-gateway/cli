@@ -1,9 +1,9 @@
 package states
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -16,21 +16,21 @@ import (
 //  4. If no tools and can complete → Completing
 //  5. Otherwise → CheckingQueue
 type PostStreamState struct {
-	ctx *domain.StateContext
+	ctx *StateContext
 }
 
 // NewPostStreamState creates a new PostStream state handler
-func NewPostStreamState(ctx *domain.StateContext) domain.StateHandler {
+func NewPostStreamState(ctx *StateContext) StateHandler {
 	return &PostStreamState{ctx: ctx}
 }
 
 // Name returns the state this handler manages
-func (s *PostStreamState) Name() domain.AgentExecutionState {
-	return domain.StatePostStream
+func (s *PostStreamState) Name() AgentExecutionState {
+	return StatePostStream
 }
 
 // Handle processes events in PostStream state
-func (s *PostStreamState) Handle(event domain.AgentEvent) error {
+func (s *PostStreamState) Handle(event AgentEvent) error {
 	logger.Debug("post stream state: evaluating next action",
 		"turn", s.ctx.AgentCtx.Turns,
 		"tool_calls", len(*s.ctx.CurrentToolCalls),
@@ -41,16 +41,16 @@ func (s *PostStreamState) Handle(event domain.AgentEvent) error {
 		"has_reasoning", *s.ctx.CurrentReasoning != "")
 
 	if s.ctx.DispatchHooks != nil {
-		s.ctx.DispatchHooks(domain.HookPostStream)
+		s.ctx.DispatchHooks(agentdomain.HookPostStream)
 	}
 
 	if !s.ctx.AgentCtx.MessageQueue.IsEmpty() {
 		logger.Debug("messages queued during stream, returning to checking queue")
-		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateCheckingQueue); err != nil {
+		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateCheckingQueue); err != nil {
 			logger.Error("failed to transition to checking queue", "error", err)
 			return err
 		}
-		s.ctx.Events <- domain.MessageReceivedEvent{}
+		s.ctx.Events <- MessageReceivedEvent{}
 		return nil
 	}
 
@@ -64,11 +64,11 @@ func (s *PostStreamState) Handle(event domain.AgentEvent) error {
 // transitionToEvaluatingTools transitions to tool evaluation state
 func (s *PostStreamState) transitionToEvaluatingTools() error {
 	logger.Debug("has tool calls, evaluating tools", "count", len(*s.ctx.CurrentToolCalls))
-	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateEvaluatingTools); err != nil {
+	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateEvaluatingTools); err != nil {
 		logger.Error("failed to transition to evaluating tools", "error", err)
 		return err
 	}
-	s.ctx.Events <- domain.MessageReceivedEvent{}
+	s.ctx.Events <- MessageReceivedEvent{}
 	return nil
 }
 
@@ -77,7 +77,7 @@ func (s *PostStreamState) handleNoToolCallsScenario() error {
 	s.ctx.AgentCtx.HasToolResults = false
 	logger.Debug("no tool calls in response")
 
-	if s.ctx.StateMachine.CanTransition(s.ctx.AgentCtx, domain.StateCompleting) {
+	if s.ctx.StateMachine.CanTransition(s.ctx.AgentCtx, StateCompleting) {
 		return s.transitionToCompleting()
 	}
 
@@ -91,11 +91,11 @@ func (s *PostStreamState) transitionToCompleting() error {
 	var completeToolCalls []sdk.ChatCompletionMessageToolCall
 	s.ctx.PublishChatComplete(*s.ctx.CurrentReasoning, completeToolCalls, s.ctx.GetMetrics(s.ctx.Request.RequestID))
 
-	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateCompleting); err != nil {
+	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateCompleting); err != nil {
 		logger.Error("failed to transition to completing", "error", err)
 		return err
 	}
-	s.ctx.Events <- domain.CompletionRequestedEvent{}
+	s.ctx.Events <- CompletionRequestedEvent{}
 	return nil
 }
 
@@ -104,10 +104,10 @@ func (s *PostStreamState) transitionToCompleting() error {
 // user-role reminder to the conversation, which the model must answer.
 func (s *PostStreamState) transitionToStreaming() error {
 	logger.Debug("continuing agent loop (need more turns)")
-	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateStreamingLLM); err != nil {
+	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateStreamingLLM); err != nil {
 		logger.Error("failed to transition to streaming", "error", err)
 		return err
 	}
-	s.ctx.Events <- domain.StartStreamingEvent{}
+	s.ctx.Events <- StartStreamingEvent{}
 	return nil
 }

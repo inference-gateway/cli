@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"net"
 	"net/http"
 	"strings"
@@ -108,7 +109,7 @@ type ExtensionBridge struct {
 	cfg          *config.BrowserUseConfig
 	notifier     domain.UINotifier
 	repo         domain.ConversationRepository
-	events       domain.EventBridge
+	events       agentdomain.EventBridge
 	skills       domain.SkillsService
 	sessionID    string
 	artifactsDir string
@@ -130,7 +131,7 @@ type ExtensionBridge struct {
 // be nil (the matching feature is then skipped); cfg must not be nil.
 // artifactsDir, when non-empty, is served read-only at /artifacts/ so the panel
 // can display generated images the agent saved locally.
-func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier domain.UINotifier, repo domain.ConversationRepository, events domain.EventBridge, skills domain.SkillsService, sessionID, artifactsDir string) *ExtensionBridge {
+func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier domain.UINotifier, repo domain.ConversationRepository, events agentdomain.EventBridge, skills domain.SkillsService, sessionID, artifactsDir string) *ExtensionBridge {
 	return &ExtensionBridge{
 		cfg:              cfg,
 		notifier:         notifier,
@@ -365,7 +366,7 @@ func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
 	sub := b.events.SubscribeFuture()
 	defer b.events.Unsubscribe(sub)
 
-	filtered := make(chan domain.ChatEvent, 100)
+	filtered := make(chan agentdomain.ChatEvent, 100)
 	go func() {
 		defer close(filtered)
 		for {
@@ -376,11 +377,11 @@ func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
 				if !ok {
 					return
 				}
-				if req, isApproval := ev.(domain.ToolApprovalRequestedEvent); isApproval {
+				if req, isApproval := ev.(agentdomain.ToolApprovalRequestedEvent); isApproval {
 					b.requestApproval(conn, req)
 					continue
 				}
-				if _, isResolved := ev.(domain.ToolApprovalResolvedEvent); isResolved {
+				if _, isResolved := ev.(agentdomain.ToolApprovalResolvedEvent); isResolved {
 					b.resolvePendingApprovals(conn)
 					continue
 				}
@@ -429,7 +430,7 @@ func (w *chatEventWriter) Write(p []byte) (int, error) {
 }
 
 // requestApproval stashes the pending tool call and asks the panel to decide.
-func (b *ExtensionBridge) requestApproval(conn *websocket.Conn, req domain.ToolApprovalRequestedEvent) {
+func (b *ExtensionBridge) requestApproval(conn *websocket.Conn, req agentdomain.ToolApprovalRequestedEvent) {
 	b.mu.Lock()
 	b.pendingApprovals[req.RequestID] = req.ToolCall
 	b.mu.Unlock()
@@ -482,11 +483,11 @@ func (b *ExtensionBridge) answerApproval(conn *websocket.Conn, requestID, action
 
 // approvalAction maps the wire action to a decision; anything but "approve"
 // (including unknown values) is treated as a reject, failing safe.
-func approvalAction(action string) domain.ApprovalAction {
+func approvalAction(action string) agentdomain.ApprovalAction {
 	if action == "approve" {
-		return domain.ApprovalApprove
+		return agentdomain.ApprovalApprove
 	}
-	return domain.ApprovalReject
+	return agentdomain.ApprovalReject
 }
 
 func (b *ExtensionBridge) pingLoop(conn *websocket.Conn, stop chan struct{}) {

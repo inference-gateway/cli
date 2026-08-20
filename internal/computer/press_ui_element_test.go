@@ -1,10 +1,9 @@
 package computer
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestPressUIElementValidate(t *testing.T) {
@@ -32,7 +31,7 @@ func TestPressUIElementValidate(t *testing.T) {
 
 func TestPressUIElementFormat(t *testing.T) {
 	tool := NewPressUIElementTool(axTestConfig(t))
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName: "PressUIElement",
 		Success:  true,
 		Data: map[string]any{

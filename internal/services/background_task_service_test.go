@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
@@ -18,12 +19,12 @@ import (
 // visible to Supervisor.A2APollingStates / CountRunning while running.
 type fakeA2ABgJob struct {
 	id      string
-	state   domain.TaskPollingState
+	state   agentdomain.TaskPollingState
 	started chan struct{}
 	finish  chan struct{}
 }
 
-func newFakeA2ABgJob(id string, state domain.TaskPollingState) *fakeA2ABgJob {
+func newFakeA2ABgJob(id string, state agentdomain.TaskPollingState) *fakeA2ABgJob {
 	return &fakeA2ABgJob{id: id, state: state, started: make(chan struct{}), finish: make(chan struct{})}
 }
 
@@ -31,29 +32,29 @@ func (f *fakeA2ABgJob) Meta() domain.JobMeta {
 	return domain.JobMeta{ID: f.id, Kind: domain.JobKindA2A, StartedAt: time.Now(), HoldsSession: true}
 }
 
-func (f *fakeA2ABgJob) Run(ctx context.Context, _ func(domain.JobSignal)) domain.ToolExecutionResult {
+func (f *fakeA2ABgJob) Run(ctx context.Context, _ func(domain.JobSignal)) agentdomain.ToolExecutionResult {
 	close(f.started)
 	select {
 	case <-f.finish:
 	case <-ctx.Done():
 	}
-	return domain.ToolExecutionResult{Success: true}
+	return agentdomain.ToolExecutionResult{Success: true}
 }
 
 func (f *fakeA2ABgJob) Wind(context.Context, domain.WindSignal) error { return nil }
 func (f *fakeA2ABgJob) Close()                                        {}
-func (f *fakeA2ABgJob) A2APollingState() domain.TaskPollingState      { return f.state }
+func (f *fakeA2ABgJob) A2APollingState() agentdomain.TaskPollingState { return f.state }
 
 // fakeA2AController stands in for the job supervisor when testing
 // BackgroundTaskService in isolation: it returns canned polling states and
 // records Wind calls.
 type fakeA2AController struct {
-	states   []domain.TaskPollingState
+	states   []agentdomain.TaskPollingState
 	windIDs  []string
 	windSigs []domain.WindSignal
 }
 
-func (f *fakeA2AController) A2APollingStates() []domain.TaskPollingState { return f.states }
+func (f *fakeA2AController) A2APollingStates() []agentdomain.TaskPollingState { return f.states }
 
 func (f *fakeA2AController) Wind(id string, sig domain.WindSignal) error {
 	f.windIDs = append(f.windIDs, id)
@@ -65,7 +66,7 @@ func (f *fakeA2AController) Wind(id string, sig domain.WindSignal) error {
 // come from the job supervisor (the single source shared with the status bar),
 // with their context/agent/state detail intact.
 func TestGetBackgroundTasks_SourcedFromSupervisor(t *testing.T) {
-	ctrl := &fakeA2AController{states: []domain.TaskPollingState{
+	ctrl := &fakeA2AController{states: []agentdomain.TaskPollingState{
 		{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent", LastKnownState: "working"},
 	}}
 	svc := NewBackgroundTaskService(utils.NewA2ATaskTracker(), ctrl)
@@ -85,7 +86,7 @@ func TestGetBackgroundTasks_SourcedFromSupervisor(t *testing.T) {
 func TestCancelBackgroundTask_WindsSupervisor(t *testing.T) {
 	tracker := utils.NewA2ATaskTracker()
 	tracker.RegisterContext("http://agent", "c1")
-	tracker.StartPolling("t1", &domain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
+	tracker.StartPolling("t1", &agentdomain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
 
 	ctrl := &fakeA2AController{}
 	svc := NewBackgroundTaskService(tracker, ctrl)
@@ -116,7 +117,7 @@ func TestA2ADivergenceGone(t *testing.T) {
 	reg := NewBackgroundTaskRegistry(4, sup)
 	svc := NewBackgroundTaskService(reg, sup)
 
-	job := newFakeA2ABgJob("t1", domain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
+	job := newFakeA2ABgJob("t1", agentdomain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
 	sup.Submit(job)
 	<-job.started
 

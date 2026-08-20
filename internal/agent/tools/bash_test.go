@@ -3,12 +3,12 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"sync"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
@@ -238,7 +238,7 @@ func TestBashTool_Execute_TraceEnv(t *testing.T) {
 		ctx      context.Context
 		contains bool
 	}{
-		{name: "trace env exported", ctx: domain.WithTraceEnv(context.Background(), []string{"TRACEPARENT=00-abc-def-01", "BAGGAGE=session.id=s1"}), contains: true},
+		{name: "trace env exported", ctx: agentdomain.WithTraceEnv(context.Background(), []string{"TRACEPARENT=00-abc-def-01", "BAGGAGE=session.id=s1"}), contains: true},
 		{name: "no trace env without ctx value", ctx: context.Background(), contains: false},
 	}
 	for _, tt := range tests {
@@ -247,7 +247,7 @@ func TestBashTool_Execute_TraceEnv(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Execute() failed: %v", err)
 			}
-			output := result.Data.(*domain.BashToolResult).Output
+			output := result.Data.(*agentdomain.BashToolResult).Output
 			if got := strings.Contains(output, "TRACEPARENT=00-abc-def-01"); got != tt.contains {
 				t.Errorf("TRACEPARENT in child env=%v, want %v", got, tt.contains)
 			}
@@ -334,7 +334,7 @@ func TestBashTool_Execute_StripsANSIWhenColorsDisabled(t *testing.T) {
 			streamed.WriteString(output)
 			mu.Unlock()
 		}
-		ctx := context.WithValue(context.Background(), domain.BashOutputCallbackKey, domain.BashOutputCallback(callback))
+		ctx := context.WithValue(context.Background(), agentdomain.BashOutputCallbackKey, agentdomain.BashOutputCallback(callback))
 		result, err := tool.Execute(ctx, map[string]any{
 			"command": `sh -c 'printf "\033[31mboom\033[0m" >&2; exit 3'`,
 		})
@@ -483,7 +483,7 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 			mu.Unlock()
 		}
 
-		ctx := context.WithValue(context.Background(), domain.BashOutputCallbackKey, domain.BashOutputCallback(callback))
+		ctx := context.WithValue(context.Background(), agentdomain.BashOutputCallbackKey, agentdomain.BashOutputCallback(callback))
 
 		args := map[string]any{
 			"command": `printf 'line 1\nline 2\nline 3\n'`,
@@ -554,7 +554,7 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 			mu.Unlock()
 		}
 
-		ctx := context.WithValue(context.Background(), domain.BashOutputCallbackKey, domain.BashOutputCallback(callback))
+		ctx := context.WithValue(context.Background(), agentdomain.BashOutputCallbackKey, agentdomain.BashOutputCallback(callback))
 
 		args := map[string]any{
 			"command": fmt.Sprintf("seq 1 %d", lineCount),
@@ -588,9 +588,9 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 			t.Errorf("expected streamed lines 1..%d, got first=%q last=%q", lineCount, streamed[0], streamed[len(streamed)-1])
 		}
 
-		data, ok := result.Data.(*domain.BashToolResult)
+		data, ok := result.Data.(*agentdomain.BashToolResult)
 		if !ok {
-			t.Fatalf("expected result.Data to be *domain.BashToolResult, got %T", result.Data)
+			t.Fatalf("expected result.Data to be *agentdomain.BashToolResult, got %T", result.Data)
 		}
 		if got := strings.Count(data.Output, "\n"); got != lineCount {
 			t.Errorf("expected captured output to contain %d lines, got %d", lineCount, got)

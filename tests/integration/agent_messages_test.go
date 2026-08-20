@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
@@ -12,7 +13,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 )
 
@@ -30,7 +30,7 @@ func newAnthropicEnv(t *testing.T) *env {
 
 func (e *env) runAnthropicStream(ctx context.Context, t *testing.T, prompt string) result {
 	t.Helper()
-	req := &domain.AgentRequest{
+	req := &agentdomain.AgentRequest{
 		RequestID: fmt.Sprintf("req-%s", strings.ReplaceAll(t.Name(), "/", "-")),
 		Model:     testAnthropicModel,
 		Messages:  []sdk.Message{userMessage(t, prompt)},
@@ -167,7 +167,7 @@ func TestMessagesSyncRun(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 	defer cancel()
 
-	resp, err := e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
+	resp, err := e.container.GetAgentService().Run(ctx, &agentdomain.AgentRequest{
 		RequestID: "req-messages-sync",
 		Model:     testAnthropicModel,
 		Messages:  []sdk.Message{userMessage(t, "say hello")},

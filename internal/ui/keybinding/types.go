@@ -4,6 +4,7 @@ import (
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -21,7 +22,7 @@ type KeyHandlerContext interface {
 	GetConfigDir() string
 
 	// Services
-	GetAgentService() domain.AgentService
+	GetAgentService() agentdomain.AgentService
 	GetImageService() domain.ImageService
 
 	// UI components

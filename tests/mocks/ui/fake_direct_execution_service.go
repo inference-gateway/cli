@@ -2,6 +2,7 @@
 package ui
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
@@ -56,10 +57,10 @@ type FakeDirectExecutionService struct {
 	handleBashCommandCompletedReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandleBashOutputChunkStub        func(domain.BashOutputChunkEvent) tea.Cmd
+	HandleBashOutputChunkStub        func(agentdomain.BashOutputChunkEvent) tea.Cmd
 	handleBashOutputChunkMutex       sync.RWMutex
 	handleBashOutputChunkArgsForCall []struct {
-		arg1 domain.BashOutputChunkEvent
+		arg1 agentdomain.BashOutputChunkEvent
 	}
 	handleBashOutputChunkReturns struct {
 		result1 tea.Cmd
@@ -387,11 +388,11 @@ func (fake *FakeDirectExecutionService) HandleBashCommandCompletedReturnsOnCall(
 	}{result1}
 }
 
-func (fake *FakeDirectExecutionService) HandleBashOutputChunk(arg1 domain.BashOutputChunkEvent) tea.Cmd {
+func (fake *FakeDirectExecutionService) HandleBashOutputChunk(arg1 agentdomain.BashOutputChunkEvent) tea.Cmd {
 	fake.handleBashOutputChunkMutex.Lock()
 	ret, specificReturn := fake.handleBashOutputChunkReturnsOnCall[len(fake.handleBashOutputChunkArgsForCall)]
 	fake.handleBashOutputChunkArgsForCall = append(fake.handleBashOutputChunkArgsForCall, struct {
-		arg1 domain.BashOutputChunkEvent
+		arg1 agentdomain.BashOutputChunkEvent
 	}{arg1})
 	stub := fake.HandleBashOutputChunkStub
 	fakeReturns := fake.handleBashOutputChunkReturns
@@ -412,13 +413,13 @@ func (fake *FakeDirectExecutionService) HandleBashOutputChunkCallCount() int {
 	return len(fake.handleBashOutputChunkArgsForCall)
 }
 
-func (fake *FakeDirectExecutionService) HandleBashOutputChunkCalls(stub func(domain.BashOutputChunkEvent) tea.Cmd) {
+func (fake *FakeDirectExecutionService) HandleBashOutputChunkCalls(stub func(agentdomain.BashOutputChunkEvent) tea.Cmd) {
 	fake.handleBashOutputChunkMutex.Lock()
 	defer fake.handleBashOutputChunkMutex.Unlock()
 	fake.HandleBashOutputChunkStub = stub
 }
 
-func (fake *FakeDirectExecutionService) HandleBashOutputChunkArgsForCall(i int) domain.BashOutputChunkEvent {
+func (fake *FakeDirectExecutionService) HandleBashOutputChunkArgsForCall(i int) agentdomain.BashOutputChunkEvent {
 	fake.handleBashOutputChunkMutex.RLock()
 	defer fake.handleBashOutputChunkMutex.RUnlock()
 	argsForCall := fake.handleBashOutputChunkArgsForCall[i]

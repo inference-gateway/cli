@@ -7,6 +7,7 @@
 package directexec
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
@@ -27,7 +28,7 @@ type stateManager interface {
 // Service is the concrete DirectExecutionService.
 type Service struct {
 	conversationRepo       domain.ConversationRepository
-	toolService            domain.ToolService
+	toolService            agentdomain.ToolService
 	stateManager           stateManager
 	backgroundShellService domain.BackgroundShellService
 	listener               ui.ChatEventListener
@@ -43,7 +44,7 @@ type Service struct {
 // Options bundles the dependencies needed to construct a Service.
 type Options struct {
 	ConversationRepo       domain.ConversationRepository
-	ToolService            domain.ToolService
+	ToolService            agentdomain.ToolService
 	StateManager           stateManager
 	BackgroundShellService domain.BackgroundShellService
 	Listener               ui.ChatEventListener
@@ -60,21 +61,21 @@ func NewService(opts Options) *Service {
 	}
 }
 
-// SetBashDetachChan satisfies domain.BashDetachChannelHolder.
+// SetBashDetachChan satisfies agentdomain.BashDetachChannelHolder.
 func (s *Service) SetBashDetachChan(ch chan<- struct{}) {
 	s.bashDetachChanMu.Lock()
 	defer s.bashDetachChanMu.Unlock()
 	s.bashDetachChan = ch
 }
 
-// GetBashDetachChan satisfies domain.BashDetachChannelHolder.
+// GetBashDetachChan satisfies agentdomain.BashDetachChannelHolder.
 func (s *Service) GetBashDetachChan() chan<- struct{} {
 	s.bashDetachChanMu.RLock()
 	defer s.bashDetachChanMu.RUnlock()
 	return s.bashDetachChan
 }
 
-// ClearBashDetachChan satisfies domain.BashDetachChannelHolder.
+// ClearBashDetachChan satisfies agentdomain.BashDetachChannelHolder.
 func (s *Service) ClearBashDetachChan() {
 	s.bashDetachChanMu.Lock()
 	defer s.bashDetachChanMu.Unlock()

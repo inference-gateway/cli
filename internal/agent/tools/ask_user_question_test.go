@@ -2,11 +2,11 @@ package tools
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func newAskUserQuestionToolForTest() *AskUserQuestionTool {
@@ -48,14 +48,14 @@ func validQuestionArgs() map[string]any {
 
 // stubBroker is an in-memory UserQuestionBroker for Execute tests.
 type stubBroker struct {
-	answers   []domain.UserQuestionAnswer
+	answers   []agentdomain.UserQuestionAnswer
 	ok        bool
 	err       error
-	received  []domain.UserQuestion
+	received  []agentdomain.UserQuestion
 	callCount int
 }
 
-func (s *stubBroker) AskUserQuestions(_ context.Context, questions []domain.UserQuestion) ([]domain.UserQuestionAnswer, bool, error) {
+func (s *stubBroker) AskUserQuestions(_ context.Context, questions []agentdomain.UserQuestion) ([]agentdomain.UserQuestionAnswer, bool, error) {
 	s.callCount++
 	s.received = questions
 	return s.answers, s.ok, s.err
@@ -199,11 +199,11 @@ func TestAskUserQuestionTool_Execute_WithBroker(t *testing.T) {
 
 	broker := &stubBroker{
 		ok: true,
-		answers: []domain.UserQuestionAnswer{
+		answers: []agentdomain.UserQuestionAnswer{
 			{Header: "Format", Question: "Which output format?", SelectedLabels: []string{"JSON"}},
 		},
 	}
-	ctx := domain.WithUserQuestionBroker(context.Background(), broker)
+	ctx := agentdomain.WithUserQuestionBroker(context.Background(), broker)
 
 	result, err := tool.Execute(ctx, validQuestionArgs())
 	if err != nil {
@@ -219,7 +219,7 @@ func TestAskUserQuestionTool_Execute_WithBroker(t *testing.T) {
 		t.Fatalf("broker did not receive parsed questions: %+v", broker.received)
 	}
 	data, _ := result.Data.(map[string]any)
-	answers, _ := data["answers"].([]domain.UserQuestionAnswer)
+	answers, _ := data["answers"].([]agentdomain.UserQuestionAnswer)
 	if len(answers) != 1 || answers[0].SelectedLabels[0] != "JSON" {
 		t.Fatalf("unexpected answers in result: %+v", data["answers"])
 	}
@@ -232,7 +232,7 @@ func TestAskUserQuestionTool_Execute_Cancelled(t *testing.T) {
 	tool := newAskUserQuestionToolForTest()
 
 	broker := &stubBroker{ok: false}
-	ctx := domain.WithUserQuestionBroker(context.Background(), broker)
+	ctx := agentdomain.WithUserQuestionBroker(context.Background(), broker)
 
 	result, err := tool.Execute(ctx, validQuestionArgs())
 	if err != nil {
@@ -269,18 +269,18 @@ func TestAskUserQuestionTool_Execute_InvalidArgs(t *testing.T) {
 // tool-result message content.
 func TestAskUserQuestionTool_ResultReachesLLMContext(t *testing.T) {
 	tool := newAskUserQuestionToolForTest()
-	broker := &stubBroker{ok: true, answers: []domain.UserQuestionAnswer{
+	broker := &stubBroker{ok: true, answers: []agentdomain.UserQuestionAnswer{
 		{Header: "Backend", Question: "Which storage backend?", SelectedLabels: []string{"sqlite"}},
 		{Header: "Scope", Question: "Which areas?", SelectedLabels: []string{"agent", "ui"}, OtherText: "also config"},
 	}}
-	ctx := domain.WithUserQuestionBroker(context.Background(), broker)
+	ctx := agentdomain.WithUserQuestionBroker(context.Background(), broker)
 
 	result, err := tool.Execute(ctx, validQuestionArgs())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	llm := tool.FormatResult(result, domain.FormatterLLM)
+	llm := tool.FormatResult(result, agentdomain.FormatterLLM)
 	for _, want := range []string{"Backend", "sqlite", "Scope", "agent, ui", `Other: "also config"`} {
 		if !strings.Contains(llm, want) {
 			t.Errorf("LLM-facing tool result is missing %q; got:\n%s", want, llm)
@@ -289,7 +289,7 @@ func TestAskUserQuestionTool_ResultReachesLLMContext(t *testing.T) {
 }
 
 func TestFormatAnswersForLLM(t *testing.T) {
-	answers := []domain.UserQuestionAnswer{
+	answers := []agentdomain.UserQuestionAnswer{
 		{Header: "Format", Question: "Which output format?", SelectedLabels: []string{"JSON"}},
 		{Header: "Scope", Question: "Which files?", SelectedLabels: []string{"internal/agent", "internal/ui"}, OtherText: "also config/"},
 		{Header: "Mode", Question: "Pick one", OtherText: "custom only"},

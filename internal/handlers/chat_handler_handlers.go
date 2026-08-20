@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 
 // FormatMetrics formats LLM completion metrics for the status bar, computing
 // the request wall-clock time from the most recent user message.
-func (h *ChatHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
+func (h *ChatHandler) FormatMetrics(metrics *agentdomain.ChatMetrics) string {
 	if metrics == nil {
 		return ""
 	}

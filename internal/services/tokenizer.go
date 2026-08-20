@@ -2,10 +2,10 @@ package services
 
 import (
 	"encoding/json"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"unicode/utf8"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -255,7 +255,7 @@ func (t *TokenizerService) AdjustedEstimate(text string) int {
 }
 
 // GetToolStats returns token count and tool count for a given agent mode
-func (t *TokenizerService) GetToolStats(toolService domain.ToolService, agentMode domain.AgentMode) (tokens int, count int) {
+func (t *TokenizerService) GetToolStats(toolService agentdomain.ToolService, agentMode agentdomain.AgentMode) (tokens int, count int) {
 	if toolService == nil {
 		return 0, 0
 	}

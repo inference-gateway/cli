@@ -1,6 +1,7 @@
 package keybinding
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
@@ -232,8 +233,8 @@ func (c *textareaEditTestCtx) GetConfig() *config.Config                 { retur
 func (c *textareaEditTestCtx) GetConversationRepository() domain.ConversationRepository {
 	return nil
 }
-func (c *textareaEditTestCtx) GetAgentService() domain.AgentService { return nil }
-func (c *textareaEditTestCtx) GetImageService() domain.ImageService { return nil }
+func (c *textareaEditTestCtx) GetAgentService() agentdomain.AgentService { return nil }
+func (c *textareaEditTestCtx) GetImageService() domain.ImageService      { return nil }
 
 func newTextareaEditTestCtx(t *testing.T) (*textareaEditTestCtx, *components.InputView) {
 	t.Helper()

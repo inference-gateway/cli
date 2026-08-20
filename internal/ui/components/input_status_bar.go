@@ -9,6 +9,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -19,7 +20,7 @@ import (
 // AgentReadinessManager handles A2A agent readiness tracking
 type AgentReadinessManager interface {
 	InitializeAgentReadiness(totalAgents int)
-	UpdateAgentStatus(name string, state domain.AgentState, message string, url string, image string)
+	UpdateAgentStatus(name string, state agentdomain.AgentState, message string, url string, image string)
 	SetAgentError(name string, err error)
 	GetAgentReadiness() *domain.AgentReadinessState
 	AreAllAgentsReady() bool
@@ -35,7 +36,7 @@ type InputStatusBar struct {
 	stateManager           statusBarState
 	config                 *config.Config
 	conversationRepo       domain.ConversationRepository
-	toolService            domain.ToolService
+	toolService            agentdomain.ToolService
 	tokenEstimator         domain.TokenEstimator
 	backgroundShellService domain.BackgroundShellService
 	backgroundTaskService  domain.BackgroundTaskService
@@ -110,7 +111,7 @@ func (isb *InputStatusBar) SetConversationRepo(repo domain.ConversationRepositor
 }
 
 // SetToolService sets the tool service
-func (isb *InputStatusBar) SetToolService(toolService domain.ToolService) {
+func (isb *InputStatusBar) SetToolService(toolService agentdomain.ToolService) {
 	isb.toolService = toolService
 }
 
@@ -679,7 +680,7 @@ func (isb *InputStatusBar) a2aIndicatorColor() string {
 		return isb.styleProvider.GetThemeColor("success")
 	}
 	for _, agent := range readiness.Agents {
-		if agent.State == domain.AgentStateFailed {
+		if agent.State == agentdomain.AgentStateFailed {
 			return isb.styleProvider.GetThemeColor("error")
 		}
 	}
@@ -822,7 +823,7 @@ func (isb *InputStatusBar) getToolInfo() string {
 		return ""
 	}
 
-	agentMode := domain.AgentModeStandard
+	agentMode := agentdomain.AgentModeStandard
 	if isb.stateManager != nil {
 		agentMode = isb.stateManager.GetAgentMode()
 	}

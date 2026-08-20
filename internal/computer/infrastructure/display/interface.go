@@ -3,10 +3,10 @@ package display
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"image"
 
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // DisplayController abstracts display server-specific operations (X11, Wayland, macOS Quartz)
@@ -137,7 +137,7 @@ type AXProvider interface {
 	// logical screen points (the same space as GetScreenDimensions).
 	// Returns ErrNoAXPermission when the accessibility permission is not
 	// granted to this process.
-	ListElements(ctx context.Context, target string) ([]domain.AnnotatedElement, error)
+	ListElements(ctx context.Context, target string) ([]agentdomain.AnnotatedElement, error)
 
 	// PressElement re-walks target's tree and performs the default press
 	// action on the first element whose title equals label, without moving

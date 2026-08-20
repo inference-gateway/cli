@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // rateLimiter is the slice of the shared rate limiter the browser tools use.
@@ -39,15 +39,15 @@ func (b *browserToolBase) ShouldAlwaysExpand() bool {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (b *browserToolBase) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
-	if formatType == domain.FormatterShort {
+func (b *browserToolBase) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
+	if formatType == agentdomain.FormatterShort {
 		return b.FormatPreview(result)
 	}
 	return b.FormatForLLM(result)
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (b *browserToolBase) FormatPreview(result *domain.ToolExecutionResult) string {
+func (b *browserToolBase) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("%s failed", b.name)
 	}
@@ -63,7 +63,7 @@ func (b *browserToolBase) FormatPreview(result *domain.ToolExecutionResult) stri
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (b *browserToolBase) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (b *browserToolBase) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
@@ -97,8 +97,8 @@ func (b *browserToolBase) checkRateLimit() error {
 	return b.rateLimiter.CheckAndRecord(b.name)
 }
 
-func (b *browserToolBase) errorResult(args map[string]any, start time.Time, errorMsg string) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func (b *browserToolBase) errorResult(args map[string]any, start time.Time, errorMsg string) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  b.name,
 		Arguments: args,
 		Success:   false,
@@ -107,8 +107,8 @@ func (b *browserToolBase) errorResult(args map[string]any, start time.Time, erro
 	}
 }
 
-func (b *browserToolBase) successResult(args map[string]any, start time.Time, data browserdomain.BrowserToolResult) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func (b *browserToolBase) successResult(args map[string]any, start time.Time, data browserdomain.BrowserToolResult) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  b.name,
 		Arguments: args,
 		Success:   true,

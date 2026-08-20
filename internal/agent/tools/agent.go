@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,7 +43,7 @@ type AgentTaskSpec struct {
 	// Mode is the subagent's capability, resolved from the `type` argument:
 	// ReadOnly -> AgentModeReadOnly (Explore-like, no approval), ReadWrite ->
 	// AgentModeStandard (can mutate, approval applies).
-	Mode domain.AgentMode
+	Mode agentdomain.AgentMode
 }
 
 // AgentSubResult is the per-subagent outcome reported back to the LLM.
@@ -69,7 +71,7 @@ type AgentTool struct {
 	config    *config.Config
 	tracker   domain.SubagentTracker
 	submitter domain.JobSubmitter
-	formatter domain.BaseFormatter
+	formatter agentinfra.BaseFormatter
 	binary    string
 
 	// Injection points for tests; default to real implementations.
@@ -87,7 +89,7 @@ func NewAgentTool(cfg *config.Config, tracker domain.SubagentTracker, submitter 
 		config:    cfg,
 		tracker:   tracker,
 		submitter: submitter,
-		formatter: domain.NewBaseFormatter("Agent"),
+		formatter: agentinfra.NewBaseFormatter("Agent"),
 		binary:    os.Args[0],
 	}
 	t.runHeadless = agentrunner.Run
@@ -145,7 +147,7 @@ func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 // Execute runs the tool with the given arguments.
 //
 //nolint:funlen,gocyclo,cyclop
-func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if !t.IsEnabled() {
@@ -181,8 +183,8 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 		}
 	}
 
-	parentSession := domain.GetSessionID(ctx)
-	parentModel := domain.GetModel(ctx)
+	parentSession := agentdomain.GetSessionID(ctx)
+	parentModel := agentdomain.GetModel(ctx)
 	logger.Debug("agent tool invoked", "mode", mode, "wait", wait, "tasks", len(specs), "parent_session", parentSession)
 	for i := range specs {
 		specs[i].Model = t.resolveModel(specs[i].Model, parentModel)
@@ -200,7 +202,7 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 
 // runWait spawns all subagents concurrently and blocks until they finish,
 // returning one aggregated result (fan-out / fan-in).
-func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *domain.ToolExecutionResult {
+func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("running subagents synchronously", "tasks", len(specs), "mode", mode)
 	results := make([]AgentSubResult, len(specs))
 	states := make([]*domain.SubagentState, len(specs))
@@ -245,7 +247,7 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 			success = false
 		}
 	}
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Agent",
 		Arguments: args,
 		Success:   success,
@@ -262,7 +264,7 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 
 // runAsync dispatches subagents and returns immediately. Each subagent's
 // outcome is delivered later by the supervisor monitoring its headlessSubagentJob.
-func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *domain.ToolExecutionResult {
+func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("dispatching subagents", "tasks", len(specs), "mode", mode)
 	dispatched := make([]AgentSubResult, 0, len(specs))
 	for _, spec := range specs {
@@ -300,7 +302,7 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 	if len(notes) > 0 {
 		msg += " (" + strings.Join(notes, "; ") + ")"
 	}
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Agent",
 		Arguments: args,
 		Success:   true,
@@ -350,7 +352,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 // fire-and-track: it returns once the panes are launched. The main agent then
 // uses ListSubagents / GetSubagentResult / CloseSubagent to inspect and close
 // them.
-func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, parentSession string, notes []string) *domain.ToolExecutionResult {
+func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("launching interactive subagents", "tasks", len(specs), "parent_session", parentSession)
 	launched := make([]AgentSubResult, 0, len(specs))
 	for _, spec := range specs {
@@ -406,7 +408,7 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 	if len(notes) > 0 {
 		msg += " (" + strings.Join(notes, "; ") + ")"
 	}
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Agent",
 		Arguments: args,
 		Success:   true,
@@ -438,7 +440,7 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) s
 	if spec.SystemPrompt != "" {
 		parts = append(parts, subagentSystemPromptEnv+"="+shellQuote(spec.SystemPrompt))
 	}
-	if spec.Mode != domain.AgentModeStandard {
+	if spec.Mode != agentdomain.AgentModeStandard {
 		parts = append(parts, domain.EnvSubagentAgentMode+"="+shellQuote(spec.Mode.AllowedlistKey()))
 	}
 	if spec.Model != "" {
@@ -464,11 +466,11 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) s
 // depth guard plus an optional per-subagent system prompt and trace context.
 func (t *AgentTool) subagentExtraEnv(ctx context.Context, spec AgentTaskSpec) []string {
 	env := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
-	env = append(env, domain.GetTraceEnv(ctx)...)
+	env = append(env, agentdomain.GetTraceEnv(ctx)...)
 	if spec.SystemPrompt != "" {
 		env = append(env, subagentSystemPromptEnv+"="+spec.SystemPrompt)
 	}
-	if spec.Mode != domain.AgentModeStandard {
+	if spec.Mode != agentdomain.AgentModeStandard {
 		env = append(env, domain.EnvSubagentAgentMode+"="+spec.Mode.AllowedlistKey())
 	}
 	if t.config.Gateway.Mock && t.config.Tools.Agent.InheritMock {
@@ -647,8 +649,8 @@ func (t *AgentTool) resolveModel(taskModel, parentModel string) string {
 	return parentModel
 }
 
-func (t *AgentTool) errorResult(args map[string]any, start time.Time, msg string) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func (t *AgentTool) errorResult(args map[string]any, start time.Time, msg string) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Agent",
 		Arguments: args,
 		Success:   false,
@@ -659,13 +661,13 @@ func (t *AgentTool) errorResult(args map[string]any, start time.Time, msg string
 }
 
 // FormatResult formats tool execution results for different contexts.
-func (t *AgentTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *AgentTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -673,7 +675,7 @@ func (t *AgentTool) FormatResult(result *domain.ToolExecutionResult, formatType 
 }
 
 // FormatPreview returns a compact one-line preview.
-func (t *AgentTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *AgentTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Agent result unavailable"
 	}
@@ -691,7 +693,7 @@ func (t *AgentTool) FormatPreview(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForUI renders the tool call header with a single-line preview.
-func (t *AgentTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *AgentTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Agent result unavailable"
 	}
@@ -704,7 +706,7 @@ func (t *AgentTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM renders a structured detail block for the assistant.
-func (t *AgentTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *AgentTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Agent result unavailable"
 	}
@@ -815,11 +817,11 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 // capability mode: "ReadWrite" -> AgentModeStandard (can mutate, approval
 // applies); anything else, including the default empty value, -> AgentModeReadOnly
 // (Explore-like read/search, no approval). Matching is case-insensitive.
-func resolveSubagentType(t string) domain.AgentMode {
+func resolveSubagentType(t string) agentdomain.AgentMode {
 	if strings.EqualFold(strings.TrimSpace(t), "ReadWrite") {
-		return domain.AgentModeStandard
+		return agentdomain.AgentModeStandard
 	}
-	return domain.AgentModeReadOnly
+	return agentdomain.AgentModeReadOnly
 }
 
 func optionalStringSlice(m map[string]any, key string) []string {

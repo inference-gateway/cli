@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"net/http"
 	"os"
 	"sort"
@@ -10,8 +11,6 @@ import (
 	baggage "go.opentelemetry.io/otel/baggage"
 	propagation "go.opentelemetry.io/otel/propagation"
 	trace "go.opentelemetry.io/otel/trace"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 var propagator = propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
@@ -52,7 +51,7 @@ func (r *Recorder) contextWithBaggage(ctx context.Context) context.Context {
 	var members []baggage.Member
 	for k, v := range map[string]string{
 		r.attrSessionIDKey:  r.sessionID,
-		r.attrToolCallIDKey: domain.GetToolCallID(ctx),
+		r.attrToolCallIDKey: agentdomain.GetToolCallID(ctx),
 	} {
 		if v == "" {
 			continue

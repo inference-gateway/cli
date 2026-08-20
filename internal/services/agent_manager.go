@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"fmt"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"net/http"
 	"net/url"
 	"os"
@@ -38,19 +40,19 @@ type AgentManager struct {
 	assignedPorts        map[string]int
 	externalAgents       map[string]string
 	isRunning            bool
-	statusCallback       func(agentName string, state domain.AgentState, message string, url string, image string)
+	statusCallback       func(agentName string, state agentdomain.AgentState, message string, url string, image string)
 	pullProgressCallback func(agentName string, done, total int)
 	containersMutex      sync.Mutex
-	a2aAgentService      domain.A2AAgentService
+	a2aAgentService      agentapp.A2AAgentService
 	probeStop            chan struct{}
 	probeStopOnce        sync.Once
 	probeWg              sync.WaitGroup
 	startWg              sync.WaitGroup
-	agentStates          map[string]domain.AgentState
+	agentStates          map[string]agentdomain.AgentState
 }
 
 // NewAgentManager creates a new agent manager
-func NewAgentManager(sessionID domain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig, runtime domain.ContainerRuntime, a2aService domain.A2AAgentService) *AgentManager {
+func NewAgentManager(sessionID domain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig, runtime domain.ContainerRuntime, a2aService agentapp.A2AAgentService) *AgentManager {
 	return &AgentManager{
 		sessionID:        sessionID,
 		config:           cfg,
@@ -61,17 +63,17 @@ func NewAgentManager(sessionID domain.SessionID, cfg *config.Config, agentsConfi
 		externalAgents:   make(map[string]string),
 		a2aAgentService:  a2aService,
 		probeStop:        make(chan struct{}),
-		agentStates:      make(map[string]domain.AgentState),
+		agentStates:      make(map[string]agentdomain.AgentState),
 	}
 }
 
 // SetStatusCallback sets the callback function for agent status updates
-func (am *AgentManager) SetStatusCallback(callback func(agentName string, state domain.AgentState, message string, url string, image string)) {
+func (am *AgentManager) SetStatusCallback(callback func(agentName string, state agentdomain.AgentState, message string, url string, image string)) {
 	am.statusCallback = callback
 }
 
 // notifyStatus calls the status callback if set
-func (am *AgentManager) notifyStatus(agentName string, state domain.AgentState, message string, url string, image string) {
+func (am *AgentManager) notifyStatus(agentName string, state agentdomain.AgentState, message string, url string, image string) {
 	if am.statusCallback != nil {
 		am.statusCallback(agentName, state, message, url, image)
 	}
@@ -109,7 +111,7 @@ func (am *AgentManager) StartAgents(ctx context.Context) error {
 		if err := am.containerRuntime.EnsureNetwork(ctx); err != nil {
 			logger.Error("failed to ensure container network; local agents cannot start", "session", am.sessionID, "error", err)
 			for _, agent := range agentsToStart {
-				am.notifyStatus(agent.Name, domain.AgentStateFailed, "container network unavailable", agent.URL, agent.OCI)
+				am.notifyStatus(agent.Name, agentdomain.AgentStateFailed, "container network unavailable", agent.URL, agent.OCI)
 			}
 			am.initializeExternalAgents(ctx)
 			am.isRunning = true
@@ -239,29 +241,29 @@ func (am *AgentManager) probeExternalAgent(ctx context.Context, agentName, agent
 	am.containersMutex.Unlock()
 
 	if err != nil {
-		if lastState == domain.AgentStateFailed {
+		if lastState == agentdomain.AgentStateFailed {
 			return
 		}
 		logger.Warn("external agent not reachable", "name", agentName, "url", agentURL, "error", err)
-		am.notifyStatus(agentName, domain.AgentStateFailed, "Agent not reachable", agentURL, "")
+		am.notifyStatus(agentName, agentdomain.AgentStateFailed, "Agent not reachable", agentURL, "")
 		am.containersMutex.Lock()
-		am.agentStates[agentName] = domain.AgentStateFailed
+		am.agentStates[agentName] = agentdomain.AgentStateFailed
 		am.containersMutex.Unlock()
 		return
 	}
 
-	if lastState == domain.AgentStateReady {
+	if lastState == agentdomain.AgentStateReady {
 		return
 	}
 
 	message := "Ready (external)"
-	if lastState == domain.AgentStateFailed {
+	if lastState == agentdomain.AgentStateFailed {
 		message = "Recovered (external)"
 	}
 	logger.Info("external agent ready", "name", agentName, "url", agentURL)
-	am.notifyStatus(agentName, domain.AgentStateReady, message, agentURL, "")
+	am.notifyStatus(agentName, agentdomain.AgentStateReady, message, agentURL, "")
 	am.containersMutex.Lock()
-	am.agentStates[agentName] = domain.AgentStateReady
+	am.agentStates[agentName] = agentdomain.AgentStateReady
 	am.containersMutex.Unlock()
 }
 
@@ -284,7 +286,7 @@ func (am *AgentManager) extractAgentNameFromURL(url string) string {
 func (am *AgentManager) startAgentAsync(ctx context.Context, agent config.AgentEntry) {
 	if err := am.StartAgent(ctx, agent); err != nil {
 		logger.Warn("failed to start agent", "name", agent.Name, "error", err)
-		am.notifyStatus(agent.Name, domain.AgentStateFailed, fmt.Sprintf("Failed to start: %v", err), agent.URL, agent.OCI)
+		am.notifyStatus(agent.Name, agentdomain.AgentStateFailed, fmt.Sprintf("Failed to start: %v", err), agent.URL, agent.OCI)
 	}
 }
 
@@ -298,21 +300,21 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 
 	if am.isAgentRunning(agent.Name) {
 		logger.Info("agent container is already running", "name", agent.Name)
-		am.notifyStatus(agent.Name, domain.AgentStateReady, "Already running", agent.URL, agent.OCI)
+		am.notifyStatus(agent.Name, agentdomain.AgentStateReady, "Already running", agent.URL, agent.OCI)
 		return nil
 	}
 
-	am.notifyStatus(agent.Name, domain.AgentStatePullingImage, fmt.Sprintf("Pulling image: %s", agent.OCI), agent.URL, agent.OCI)
+	am.notifyStatus(agent.Name, agentdomain.AgentStatePullingImage, fmt.Sprintf("Pulling image: %s", agent.OCI), agent.URL, agent.OCI)
 	if err := am.pullImage(ctx, agent); err != nil {
 		logger.Warn("failed to pull agent image, attempting to use local image", "name", agent.Name, "error", err)
 	}
 
-	am.notifyStatus(agent.Name, domain.AgentStateStarting, "Starting container", agent.URL, agent.OCI)
+	am.notifyStatus(agent.Name, agentdomain.AgentStateStarting, "Starting container", agent.URL, agent.OCI)
 	if err := am.startContainer(ctx, agent); err != nil {
 		return fmt.Errorf("failed to start agent container: %w", err)
 	}
 
-	am.notifyStatus(agent.Name, domain.AgentStateWaitingReady, "Waiting for health check", agent.URL, agent.OCI)
+	am.notifyStatus(agent.Name, agentdomain.AgentStateWaitingReady, "Waiting for health check", agent.URL, agent.OCI)
 	if err := am.waitForReady(ctx, agent); err != nil {
 		if stopErr := am.StopAgent(ctx, agent.Name); stopErr != nil {
 			logger.Warn("failed to stop agent during error cleanup", "name", agent.Name, "error", stopErr)
@@ -320,11 +322,11 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 		return fmt.Errorf("agent failed to become ready: %w", err)
 	}
 
-	am.notifyStatus(agent.Name, domain.AgentStateReady, "Ready", agent.URL, agent.OCI)
+	am.notifyStatus(agent.Name, agentdomain.AgentStateReady, "Ready", agent.URL, agent.OCI)
 	logger.Info("agent container started successfully", "name", agent.Name, "url", agent.URL)
 
 	am.containersMutex.Lock()
-	am.agentStates[agent.Name] = domain.AgentStateReady
+	am.agentStates[agent.Name] = agentdomain.AgentStateReady
 	am.containersMutex.Unlock()
 
 	if am.config.A2A.LivenessProbeEnabled {
@@ -369,25 +371,25 @@ func (am *AgentManager) startLocalAgentProbe(ctx context.Context, agent config.A
 func (am *AgentManager) probeLocalAgent(ctx context.Context, httpClient *http.Client, agent config.AgentEntry, healthURL string) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
 	if err != nil {
-		am.handleLocalProbeResult(agent, domain.AgentStateFailed, "Agent not reachable", err)
+		am.handleLocalProbeResult(agent, agentdomain.AgentStateFailed, "Agent not reachable", err)
 		return
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		am.handleLocalProbeResult(agent, domain.AgentStateFailed, "Agent not reachable", err)
+		am.handleLocalProbeResult(agent, agentdomain.AgentStateFailed, "Agent not reachable", err)
 		return
 	}
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		am.handleLocalProbeResult(agent, domain.AgentStateFailed, "Agent not reachable", fmt.Errorf("unexpected status: %d", resp.StatusCode))
+		am.handleLocalProbeResult(agent, agentdomain.AgentStateFailed, "Agent not reachable", fmt.Errorf("unexpected status: %d", resp.StatusCode))
 		return
 	}
 
-	am.handleLocalProbeResult(agent, domain.AgentStateReady, "Ready", nil)
+	am.handleLocalProbeResult(agent, agentdomain.AgentStateReady, "Ready", nil)
 }
 
 // handleLocalProbeResult processes a probe result, emitting a status update only on state change.
-func (am *AgentManager) handleLocalProbeResult(agent config.AgentEntry, newState domain.AgentState, message string, probeErr error) {
+func (am *AgentManager) handleLocalProbeResult(agent config.AgentEntry, newState agentdomain.AgentState, message string, probeErr error) {
 	am.containersMutex.Lock()
 	lastState := am.agentStates[agent.Name]
 	am.containersMutex.Unlock()
@@ -396,16 +398,16 @@ func (am *AgentManager) handleLocalProbeResult(agent config.AgentEntry, newState
 		return
 	}
 
-	if newState == domain.AgentStateFailed {
+	if newState == agentdomain.AgentStateFailed {
 		logger.Warn("local agent health check failed", "name", agent.Name, "url", agent.URL, "error", probeErr)
-		am.notifyStatus(agent.Name, domain.AgentStateFailed, message, agent.URL, agent.OCI)
+		am.notifyStatus(agent.Name, agentdomain.AgentStateFailed, message, agent.URL, agent.OCI)
 	} else {
 		displayMsg := message
-		if lastState == domain.AgentStateFailed {
+		if lastState == agentdomain.AgentStateFailed {
 			displayMsg = "Recovered"
 		}
 		logger.Info("local agent health check passed", "name", agent.Name, "url", agent.URL)
-		am.notifyStatus(agent.Name, domain.AgentStateReady, displayMsg, agent.URL, agent.OCI)
+		am.notifyStatus(agent.Name, agentdomain.AgentStateReady, displayMsg, agent.URL, agent.OCI)
 	}
 
 	am.containersMutex.Lock()

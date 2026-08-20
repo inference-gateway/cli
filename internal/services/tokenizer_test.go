@@ -1,13 +1,12 @@
 package services
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"strings"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func TestNewTokenizerService(t *testing.T) {
@@ -468,8 +467,8 @@ func TestGetToolStats(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		toolService       domain.ToolService
-		agentMode         domain.AgentMode
+		toolService       agentdomain.ToolService
+		agentMode         agentdomain.AgentMode
 		expectedTokensMin int
 		expectedTokensMax int
 		expectedCount     int
@@ -477,27 +476,27 @@ func TestGetToolStats(t *testing.T) {
 		{
 			name:              "nil tool service",
 			toolService:       nil,
-			agentMode:         domain.AgentModeStandard,
+			agentMode:         agentdomain.AgentModeStandard,
 			expectedTokensMin: 0,
 			expectedTokensMax: 0,
 			expectedCount:     0,
 		},
 		{
 			name: "empty tools list",
-			toolService: func() domain.ToolService {
-				fake := &domainmocks.FakeToolService{}
+			toolService: func() agentdomain.ToolService {
+				fake := &agentdomainmocks.FakeToolService{}
 				fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{})
 				return fake
 			}(),
-			agentMode:         domain.AgentModeStandard,
+			agentMode:         agentdomain.AgentModeStandard,
 			expectedTokensMin: 0,
 			expectedTokensMax: 0,
 			expectedCount:     0,
 		},
 		{
 			name: "single tool",
-			toolService: func() domain.ToolService {
-				fake := &domainmocks.FakeToolService{}
+			toolService: func() agentdomain.ToolService {
+				fake := &agentdomainmocks.FakeToolService{}
 				fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{
 					{
 						Type: sdk.Function,
@@ -509,15 +508,15 @@ func TestGetToolStats(t *testing.T) {
 				})
 				return fake
 			}(),
-			agentMode:         domain.AgentModeStandard,
+			agentMode:         agentdomain.AgentModeStandard,
 			expectedTokensMin: 10,
 			expectedTokensMax: 50,
 			expectedCount:     1,
 		},
 		{
 			name: "multiple tools",
-			toolService: func() domain.ToolService {
-				fake := &domainmocks.FakeToolService{}
+			toolService: func() agentdomain.ToolService {
+				fake := &agentdomainmocks.FakeToolService{}
 				fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{
 					{
 						Type: sdk.Function,
@@ -536,15 +535,15 @@ func TestGetToolStats(t *testing.T) {
 				})
 				return fake
 			}(),
-			agentMode:         domain.AgentModeStandard,
+			agentMode:         agentdomain.AgentModeStandard,
 			expectedTokensMin: 20,
 			expectedTokensMax: 100,
 			expectedCount:     2,
 		},
 		{
 			name: "plan mode filtering",
-			toolService: func() domain.ToolService {
-				fake := &domainmocks.FakeToolService{}
+			toolService: func() agentdomain.ToolService {
+				fake := &agentdomainmocks.FakeToolService{}
 				fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{
 					{
 						Type: sdk.Function,
@@ -556,7 +555,7 @@ func TestGetToolStats(t *testing.T) {
 				})
 				return fake
 			}(),
-			agentMode:         domain.AgentModePlan,
+			agentMode:         agentdomain.AgentModePlan,
 			expectedTokensMin: 10,
 			expectedTokensMax: 50,
 			expectedCount:     1,
@@ -577,7 +576,7 @@ func TestGetToolStats(t *testing.T) {
 			}
 
 			if tt.toolService != nil && tt.expectedCount > 0 {
-				fake, ok := tt.toolService.(*domainmocks.FakeToolService)
+				fake, ok := tt.toolService.(*agentdomainmocks.FakeToolService)
 				if ok && fake.ListToolsForModeCallCount() > 0 {
 					actualMode := fake.ListToolsForModeArgsForCall(0)
 					if actualMode != tt.agentMode {

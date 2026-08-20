@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -302,7 +303,7 @@ func (cm *ChannelManagerService) recordMessageProcessed(ctx context.Context, cha
 // sendFn callback in real-time. If images are present, they are written to
 // session-scoped files and passed via --files flags. When require_approval is
 // enabled, tool approvals are brokered over the agent's stdin/stdout.
-func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessionID, message string, images []domain.ImageAttachment, sendFn func(string), ch domain.Channel) error {
+func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessionID, message string, images []agentdomain.ImageAttachment, sendFn func(string), ch domain.Channel) error {
 	var files []string
 	for _, img := range images {
 		imgPath, err := writeSessionImage(sessionID, img)
@@ -561,7 +562,7 @@ func sessionImageDir(sessionID string) string {
 }
 
 // writeSessionImage decodes a base64 ImageAttachment to a file in the session image directory.
-func writeSessionImage(sessionID string, img domain.ImageAttachment) (string, error) {
+func writeSessionImage(sessionID string, img agentdomain.ImageAttachment) (string, error) {
 	data, err := base64.StdEncoding.DecodeString(img.Data)
 	if err != nil {
 		return "", fmt.Errorf("decoding base64: %w", err)

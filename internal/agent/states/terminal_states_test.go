@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // TestTerminalStates_IgnoreAllEvents verifies the three terminal states
@@ -15,12 +13,12 @@ import (
 func TestTerminalStates_IgnoreAllEvents(t *testing.T) {
 	tests := []struct {
 		name  string
-		build func(ctx *domain.StateContext) domain.StateHandler
-		want  domain.AgentExecutionState
+		build func(ctx *StateContext) StateHandler
+		want  AgentExecutionState
 	}{
-		{"cancelled", NewCancelledState, domain.StateCancelled},
-		{"error", NewErrorState, domain.StateError},
-		{"stopped", NewStoppedState, domain.StateStopped},
+		{"cancelled", NewCancelledState, StateCancelled},
+		{"error", NewErrorState, StateError},
+		{"stopped", NewStoppedState, StateStopped},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -28,11 +26,11 @@ func TestTerminalStates_IgnoreAllEvents(t *testing.T) {
 			s := tt.build(f.ctx)
 			assert.Equal(t, tt.want, s.Name())
 
-			for _, evt := range []domain.AgentEvent{
-				domain.MessageReceivedEvent{},
-				domain.CompletionRequestedEvent{},
-				domain.AllToolsProcessedEvent{},
-				domain.ToolsCompletedEvent{},
+			for _, evt := range []AgentEvent{
+				MessageReceivedEvent{},
+				CompletionRequestedEvent{},
+				AllToolsProcessedEvent{},
+				ToolsCompletedEvent{},
 			} {
 				assert.NoError(t, s.Handle(evt), "event %T", evt)
 			}

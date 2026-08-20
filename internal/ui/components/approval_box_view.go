@@ -3,6 +3,7 @@ package components
 import (
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -48,14 +49,14 @@ type ApprovalBoxView struct {
 	height           int
 	styleProvider    *styles.Provider
 	stateManager     domain.ApprovalUIManager
-	toolFormatter    domain.ToolFormatter
+	toolFormatter    agentdomain.ToolFormatter
 	keyHintFormatter *hints.Formatter
 
 	// active is the approval state the form was built for; a mismatch with
 	// the StateManager (cleared externally) marks the form stale.
 	active *domain.ApprovalUIState
 	form   *huh.Form
-	choice domain.ApprovalAction
+	choice agentdomain.ApprovalAction
 
 	// expanded switches the diff from the height-capped preview to a scrollable
 	// window over the full diff (ctrl+o), mirroring the conversation view's
@@ -105,7 +106,7 @@ func (av *ApprovalBoxView) IsExpanded() bool {
 	return av.expanded
 }
 
-func NewApprovalBoxView(styleProvider *styles.Provider, stateManager domain.ApprovalUIManager, toolFormatter domain.ToolFormatter) *ApprovalBoxView {
+func NewApprovalBoxView(styleProvider *styles.Provider, stateManager domain.ApprovalUIManager, toolFormatter agentdomain.ToolFormatter) *ApprovalBoxView {
 	return &ApprovalBoxView{
 		width:         80,
 		styleProvider: styleProvider,
@@ -161,16 +162,16 @@ func (av *ApprovalBoxView) Begin() tea.Cmd {
 		return nil
 	}
 	av.active = state
-	av.choice = domain.ApprovalApprove
+	av.choice = agentdomain.ApprovalApprove
 	av.expanded = false
 	av.scrollOffset = 0
 	av.form = huh.NewForm(
 		huh.NewGroup(
-			huh.NewSelect[domain.ApprovalAction]().
+			huh.NewSelect[agentdomain.ApprovalAction]().
 				Options(
-					huh.NewOption("Approve", domain.ApprovalApprove),
-					huh.NewOption("Reject", domain.ApprovalReject),
-					huh.NewOption("Auto-Approve", domain.ApprovalAutoAccept),
+					huh.NewOption("Approve", agentdomain.ApprovalApprove),
+					huh.NewOption("Reject", agentdomain.ApprovalReject),
+					huh.NewOption("Auto-Approve", agentdomain.ApprovalAutoAccept),
 				).
 				Inline(true).
 				Value(&av.choice),

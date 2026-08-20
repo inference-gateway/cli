@@ -2,21 +2,22 @@ package approvalcoord
 
 import (
 	"errors"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // newCoordinator returns a Service wired with fake dependencies for tests.
 // The conversation repo is an *InMemoryConversationRepository because the
 // coordinator uses the concrete planRepoUpdater interface for plan-status
 // mutations, which the in-memory repo satisfies.
-func newCoordinator() (*Service, *services.InMemoryConversationRepository, *services.StateManager, *mocksdomain.FakeAgentService) {
+func newCoordinator() (*Service, *services.InMemoryConversationRepository, *services.StateManager, *agentdomainmocks.FakeAgentService) {
 	repo := services.NewInMemoryConversationRepository(nil, nil)
 	state := services.NewStateManager(false)
-	agent := &mocksdomain.FakeAgentService{}
+	agent := &agentdomainmocks.FakeAgentService{}
 
 	svc := NewService(Options{
 		AgentService:     agent,
@@ -29,9 +30,9 @@ func newCoordinator() (*Service, *services.InMemoryConversationRepository, *serv
 func TestService_HandlePlanApprovalRequested(t *testing.T) {
 	t.Run("sets up plan approval UI state and returns a non-nil cmd", func(t *testing.T) {
 		svc, _, state, _ := newCoordinator()
-		responseChan := make(chan domain.PlanApprovalAction, 1)
+		responseChan := make(chan agentdomain.PlanApprovalAction, 1)
 
-		cmd := svc.HandlePlanApprovalRequested(domain.PlanApprovalRequestedEvent{
+		cmd := svc.HandlePlanApprovalRequested(agentdomain.PlanApprovalRequestedEvent{
 			PlanContent:  "# Plan\n- step 1",
 			PlanID:       "2026-06-28-090000-plan",
 			ResponseChan: responseChan,
@@ -60,10 +61,10 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 	t.Run("nil approval UI state returns nil cmd and restart=false without side effects", func(t *testing.T) {
 		svc, _, state, _ := newCoordinator()
 		// Fresh state manager has no plan approval UI state.
-		state.SetAgentMode(domain.AgentModePlan)
+		state.SetAgentMode(agentdomain.AgentModePlan)
 
 		cmd, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
-			Action: domain.PlanApprovalAccept,
+			Action: agentdomain.PlanApprovalAccept,
 		})
 
 		if cmd != nil {
@@ -75,18 +76,18 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		if state.GetPlanApprovalUIState() != nil {
 			t.Errorf("expected no plan approval UI state to be established when state was already nil")
 		}
-		if mode := state.GetAgentMode(); mode != domain.AgentModePlan {
+		if mode := state.GetAgentMode(); mode != agentdomain.AgentModePlan {
 			t.Errorf("expected agent mode unchanged when state was already nil, got %v", mode)
 		}
 	})
 
 	t.Run("Accept clears UI state, switches to auto-accept mode, adds hidden continue, requests restart", func(t *testing.T) {
 		svc, repo, state, _ := newCoordinator()
-		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
 		state.SetupPlanApprovalUIState("p", "", nil)
 
 		cmd, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
-			Action: domain.PlanApprovalAccept,
+			Action: agentdomain.PlanApprovalAccept,
 		})
 
 		if !restart {
@@ -98,7 +99,7 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		if state.GetPlanApprovalUIState() != nil {
 			t.Errorf("expected plan approval UI state cleared on Accept")
 		}
-		if mode := state.GetAgentMode(); mode != domain.AgentModeAutoAccept {
+		if mode := state.GetAgentMode(); mode != agentdomain.AgentModeAutoAccept {
 			t.Errorf("expected AgentModeAutoAccept, got %v", mode)
 		}
 		if state.GetChatSession() == nil {
@@ -111,17 +112,17 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 
 	t.Run("AcceptStandard switches to standard mode and requests restart", func(t *testing.T) {
 		svc, repo, state, _ := newCoordinator()
-		state.SetAgentMode(domain.AgentModePlan)
+		state.SetAgentMode(agentdomain.AgentModePlan)
 		state.SetupPlanApprovalUIState("p", "", nil)
 
 		_, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
-			Action: domain.PlanApprovalAcceptStandard,
+			Action: agentdomain.PlanApprovalAcceptStandard,
 		})
 
 		if !restart {
 			t.Errorf("AcceptStandard should request restart")
 		}
-		if mode := state.GetAgentMode(); mode != domain.AgentModeStandard {
+		if mode := state.GetAgentMode(); mode != agentdomain.AgentModeStandard {
 			t.Errorf("expected AgentModeStandard, got %v", mode)
 		}
 		if got := len(repo.GetMessages()); got != 1 {
@@ -131,18 +132,18 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 
 	t.Run("Reject ends chat session, does not switch mode, does not request restart", func(t *testing.T) {
 		svc, repo, state, _ := newCoordinator()
-		state.SetAgentMode(domain.AgentModePlan)
-		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		state.SetAgentMode(agentdomain.AgentModePlan)
+		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
 		state.SetupPlanApprovalUIState("p", "", nil)
 
 		_, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
-			Action: domain.PlanApprovalReject,
+			Action: agentdomain.PlanApprovalReject,
 		})
 
 		if restart {
 			t.Errorf("Reject should not request restart")
 		}
-		if mode := state.GetAgentMode(); mode != domain.AgentModePlan {
+		if mode := state.GetAgentMode(); mode != agentdomain.AgentModePlan {
 			t.Errorf("Reject should not switch agent mode, got %v", mode)
 		}
 		if state.GetChatSession() != nil {
@@ -158,7 +159,7 @@ func TestService_HandleComputerUsePaused(t *testing.T) {
 	t.Run("cancels request, marks paused, returns non-nil cmd", func(t *testing.T) {
 		svc, _, state, agent := newCoordinator()
 
-		cmd := svc.HandleComputerUsePaused(domain.ComputerUsePausedEvent{
+		cmd := svc.HandleComputerUsePaused(agentdomain.ComputerUsePausedEvent{
 			RequestID: "req-1",
 		})
 
@@ -183,7 +184,7 @@ func TestService_HandleComputerUsePaused(t *testing.T) {
 		svc, _, state, agent := newCoordinator()
 		agent.CancelRequestReturns(errors.New("no such request"))
 
-		cmd := svc.HandleComputerUsePaused(domain.ComputerUsePausedEvent{
+		cmd := svc.HandleComputerUsePaused(agentdomain.ComputerUsePausedEvent{
 			RequestID: "stale",
 		})
 
@@ -201,7 +202,7 @@ func TestService_HandleComputerUseResumed(t *testing.T) {
 		svc, repo, state, _ := newCoordinator()
 		state.SetComputerUsePaused(true, "req-1")
 
-		cmd, restart := svc.HandleComputerUseResumed(domain.ComputerUseResumedEvent{})
+		cmd, restart := svc.HandleComputerUseResumed(agentdomain.ComputerUseResumedEvent{})
 
 		if !restart {
 			t.Errorf("expected restart=true")

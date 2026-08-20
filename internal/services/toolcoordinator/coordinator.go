@@ -6,6 +6,7 @@ package toolcoordinator
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
@@ -22,8 +23,8 @@ import (
 // *services.PersistentConversationRepository satisfy it (the latter via
 // embedding).
 type toolApprovalRepoUpdater interface {
-	UpdateToolApprovalStatus(action domain.ApprovalAction)
-	AddPendingToolCall(toolCall sdk.ChatCompletionMessageToolCall, responseChan chan domain.ApprovalAction) error
+	UpdateToolApprovalStatus(action agentdomain.ApprovalAction)
+	AddPendingToolCall(toolCall sdk.ChatCompletionMessageToolCall, responseChan chan agentdomain.ApprovalAction) error
 }
 
 // stateManager is the narrow slice of the app state manager this coordinator
@@ -82,7 +83,7 @@ func (c *Coordinator) SetActiveToolCallID(id string) {
 // HandleToolCallUpdate emits a per-tool-call status update during streaming
 // (e.g. "Streaming Read..." → "Completed Read") and keeps the chat listener
 // pumping.
-func (c *Coordinator) HandleToolCallUpdate(msg domain.ToolCallUpdateEvent) tea.Cmd {
+func (c *Coordinator) HandleToolCallUpdate(msg agentdomain.ToolCallUpdateEvent) tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			history := c.conversationRepo.GetMessages()
@@ -95,7 +96,7 @@ func (c *Coordinator) HandleToolCallUpdate(msg domain.ToolCallUpdateEvent) tea.C
 	statusMsg := formatToolCallStatusMessage(msg.ToolName, msg.Status)
 
 	switch msg.Status {
-	case domain.ToolCallStreamStatusStreaming:
+	case agentdomain.ToolCallStreamStatusStreaming:
 		cmds = append(cmds, func() tea.Msg {
 			return domain.UpdateStatusEvent{
 				Message:    statusMsg,
@@ -120,7 +121,7 @@ func (c *Coordinator) HandleToolCallUpdate(msg domain.ToolCallUpdateEvent) tea.C
 
 // HandleToolCallReady refreshes history when a tool call has finished
 // streaming and is ready for the next step.
-func (c *Coordinator) HandleToolCallReady(_ domain.ToolCallReadyEvent) tea.Cmd {
+func (c *Coordinator) HandleToolCallReady(_ agentdomain.ToolCallReadyEvent) tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			history := c.conversationRepo.GetMessages()
@@ -136,12 +137,12 @@ func (c *Coordinator) HandleToolCallReady(_ domain.ToolCallReadyEvent) tea.Cmd {
 // HandleToolApprovalRequested records the pending tool call in the repo,
 // sets up the approval UI state, broadcasts a notification, and keeps the
 // chat listener pumping while the user decides.
-func (c *Coordinator) HandleToolApprovalRequested(msg domain.ToolApprovalRequestedEvent) tea.Cmd {
+func (c *Coordinator) HandleToolApprovalRequested(msg agentdomain.ToolApprovalRequestedEvent) tea.Cmd {
 	c.addPendingToolCall(msg.ToolCall, msg.ResponseChan)
 	c.stateManager.SetupApprovalUIState(&msg.ToolCall, msg.ResponseChan)
 	writeSubagentApprovalSidecar(msg.ToolCall)
 
-	c.stateManager.BroadcastEvent(domain.ToolApprovalNotificationEvent{
+	c.stateManager.BroadcastEvent(agentdomain.ToolApprovalNotificationEvent{
 		RequestID: msg.RequestID,
 		Timestamp: msg.Timestamp,
 		ToolName:  msg.ToolCall.Function.Name,
@@ -170,9 +171,9 @@ func (c *Coordinator) HandleToolApprovalResponse(msg domain.ToolApprovalResponse
 
 	c.updateToolApprovalStatus(msg.Action)
 
-	c.stateManager.BroadcastEvent(domain.ToolApprovalResolvedEvent{})
+	c.stateManager.BroadcastEvent(agentdomain.ToolApprovalResolvedEvent{})
 
-	if msg.Action == domain.ApprovalAutoAccept {
+	if msg.Action == agentdomain.ApprovalAutoAccept {
 		return c.applyAutoAccept(msg)
 	}
 
@@ -205,8 +206,8 @@ func (c *Coordinator) HandleToolApprovalResponse(msg domain.ToolApprovalResponse
 // response channel, and returns the appropriate UI cmds.
 func (c *Coordinator) applyAutoAccept(msg domain.ToolApprovalResponseEvent) tea.Cmd {
 	logger.Info("switching to auto-accept mode for all future tools")
-	c.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
-	c.sendApprovalDecision(domain.ApprovalApprove)
+	c.stateManager.SetAgentMode(agentdomain.AgentModeAutoAccept)
+	c.sendApprovalDecision(agentdomain.ApprovalApprove)
 	c.stateManager.ClearApprovalUIState()
 
 	cmds := []tea.Cmd{
@@ -232,7 +233,7 @@ func (c *Coordinator) applyAutoAccept(msg domain.ToolApprovalResponseEvent) tea.
 // sendApprovalDecision forwards the user's decision to the agent via the
 // response channel held on the approval UI state. Non-blocking; logs a
 // warning if the channel is full or closed.
-func (c *Coordinator) sendApprovalDecision(action domain.ApprovalAction) {
+func (c *Coordinator) sendApprovalDecision(action agentdomain.ApprovalAction) {
 	approvalState := c.stateManager.GetApprovalUIState()
 	if approvalState == nil || approvalState.ResponseChan == nil {
 		return
@@ -247,9 +248,9 @@ func (c *Coordinator) sendApprovalDecision(action domain.ApprovalAction) {
 
 func (c *Coordinator) formatApprovalStatus(msg domain.ToolApprovalResponseEvent) (string, bool) {
 	switch msg.Action {
-	case domain.ApprovalApprove:
+	case agentdomain.ApprovalApprove:
 		return fmt.Sprintf("Tool approved - executing %s...", msg.ToolCall.Function.Name), true
-	case domain.ApprovalReject:
+	case agentdomain.ApprovalReject:
 		return fmt.Sprintf("Tool rejected: %s", msg.ToolCall.Function.Name), false
 	}
 	return "", false
@@ -274,7 +275,7 @@ func (c *Coordinator) HandleToolExecutionStarted(msg domain.ToolExecutionStarted
 // HandleToolExecutionProgress translates a tool-execution progress event into
 // the appropriate UI status updates and keeps the right event channel
 // pumping (bash, tool, or chat).
-func (c *Coordinator) HandleToolExecutionProgress(msg domain.ToolExecutionProgressEvent) tea.Cmd {
+func (c *Coordinator) HandleToolExecutionProgress(msg agentdomain.ToolExecutionProgressEvent) tea.Cmd {
 	cmds := c.progressStatusCmds(msg)
 
 	if toolEventChan := c.directExec.PendingToolChannel(); toolEventChan != nil {
@@ -297,7 +298,7 @@ func (c *Coordinator) HandleToolExecutionProgress(msg domain.ToolExecutionProgre
 
 // progressStatusCmds returns the per-status UI commands and updates the
 // active-tool-call indicator as the tool moves through its lifecycle.
-func (c *Coordinator) progressStatusCmds(msg domain.ToolExecutionProgressEvent) []tea.Cmd {
+func (c *Coordinator) progressStatusCmds(msg agentdomain.ToolExecutionProgressEvent) []tea.Cmd {
 	switch msg.Status {
 	case "starting":
 		c.SetActiveToolCallID(msg.ToolCallID)
@@ -339,7 +340,7 @@ func (c *Coordinator) progressStatusCmds(msg domain.ToolExecutionProgressEvent) 
 	return nil
 }
 
-func (c *Coordinator) runningProgressCmds(msg domain.ToolExecutionProgressEvent) []tea.Cmd {
+func (c *Coordinator) runningProgressCmds(msg agentdomain.ToolExecutionProgressEvent) []tea.Cmd {
 	if msg.Message == "" {
 		c.SetActiveToolCallID(msg.ToolCallID)
 		return nil
@@ -401,7 +402,7 @@ func (c *Coordinator) HandleToolExecutionCompleted(msg domain.ToolExecutionCompl
 // [cancelled] tool entry that the integrity validator persisted becomes
 // visible. No status-bar message - the cancel that triggered this already
 // drove its own status ("User interrupted").
-func (c *Coordinator) HandleToolCancelled(_ domain.ToolCancelledEvent) tea.Cmd {
+func (c *Coordinator) HandleToolCancelled(_ agentdomain.ToolCancelledEvent) tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			history := c.conversationRepo.GetMessages()
@@ -425,7 +426,7 @@ func (c *Coordinator) appendChatListener(cmds []tea.Cmd) []tea.Cmd {
 // addPendingToolCall stores the pending tool call + response channel on the
 // conversation repo. Falls back silently if the repo doesn't implement the
 // concrete updater interface.
-func (c *Coordinator) addPendingToolCall(call sdk.ChatCompletionMessageToolCall, ch chan domain.ApprovalAction) {
+func (c *Coordinator) addPendingToolCall(call sdk.ChatCompletionMessageToolCall, ch chan agentdomain.ApprovalAction) {
 	updater, ok := c.conversationRepo.(toolApprovalRepoUpdater)
 	if !ok {
 		return
@@ -437,7 +438,7 @@ func (c *Coordinator) addPendingToolCall(call sdk.ChatCompletionMessageToolCall,
 
 // updateToolApprovalStatus mutates the most recent pending tool entry on the
 // conversation repo.
-func (c *Coordinator) updateToolApprovalStatus(action domain.ApprovalAction) {
+func (c *Coordinator) updateToolApprovalStatus(action agentdomain.ApprovalAction) {
 	updater, ok := c.conversationRepo.(toolApprovalRepoUpdater)
 	if !ok {
 		return
@@ -446,11 +447,11 @@ func (c *Coordinator) updateToolApprovalStatus(action domain.ApprovalAction) {
 	updater.UpdateToolApprovalStatus(action)
 }
 
-func formatToolCallStatusMessage(toolName string, status domain.ToolCallStreamStatus) string {
+func formatToolCallStatusMessage(toolName string, status agentdomain.ToolCallStreamStatus) string {
 	switch status {
-	case domain.ToolCallStreamStatusStreaming:
+	case agentdomain.ToolCallStreamStatusStreaming:
 		return fmt.Sprintf("Streaming %s...", toolName)
-	case domain.ToolCallStreamStatusComplete:
+	case agentdomain.ToolCallStreamStatusComplete:
 		return fmt.Sprintf("Completed %s", toolName)
 	default:
 		return ""
@@ -459,13 +460,13 @@ func formatToolCallStatusMessage(toolName string, status domain.ToolCallStreamSt
 
 // extractTodoUpdateCmd checks tool results for TodoWrite and returns a
 // command to update todos.
-func extractTodoUpdateCmd(results []*domain.ToolExecutionResult) tea.Cmd {
+func extractTodoUpdateCmd(results []*agentdomain.ToolExecutionResult) tea.Cmd {
 	for _, result := range results {
 		if result == nil || result.ToolName != "TodoWrite" || !result.Success {
 			continue
 		}
 
-		todoResult, ok := result.Data.(*domain.TodoWriteToolResult)
+		todoResult, ok := result.Data.(*agentdomain.TodoWriteToolResult)
 		if !ok || todoResult == nil {
 			continue
 		}

@@ -3,11 +3,11 @@ package browser
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -62,7 +62,7 @@ func (t *BrowserTypeTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the browser type tool with given arguments
-func (t *BrowserTypeTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *BrowserTypeTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if err := t.checkRateLimit(); err != nil {

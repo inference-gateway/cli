@@ -1,4 +1,4 @@
-package domain
+package infrastructure
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tree "charm.land/lipgloss/v2/tree"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // Status glyphs shared by the formatters. Plain runes, no styling: color is
@@ -75,7 +76,7 @@ func (f BaseFormatter) FormatStatusIcon(success bool) string {
 }
 
 // FormatDuration formats a duration for display in a human-friendly way
-func (f BaseFormatter) FormatDuration(result *ToolExecutionResult) string {
+func (f BaseFormatter) FormatDuration(result *agentdomain.ToolExecutionResult) string {
 	d := result.Duration
 
 	if d < 1e3 {
@@ -157,12 +158,12 @@ func (f CustomFormatter) FormatToolCall(args map[string]any, expanded bool) stri
 // replacing the hand-drawn ├─/└─ connectors that used to live across three methods.
 // dataContent is the tool-specific result body (may be ""). Output is plain: the UI
 // wraps and themes it (services.themeTreeLines); LLM / headless consume it as-is.
-func (f BaseFormatter) FormatExpanded(result *ToolExecutionResult, dataContent string) string {
+func (f BaseFormatter) FormatExpanded(result *agentdomain.ToolExecutionResult, dataContent string) string {
 	return renderExpandedTree(f.FormatToolCall(result.Arguments, false), result, dataContent, f.argValue)
 }
 
 // FormatExpanded renders the expanded tree using the custom collapse behavior.
-func (f CustomFormatter) FormatExpanded(result *ToolExecutionResult, dataContent string) string {
+func (f CustomFormatter) FormatExpanded(result *agentdomain.ToolExecutionResult, dataContent string) string {
 	return renderExpandedTree(f.FormatToolCall(result.Arguments, false), result, dataContent, f.argValue)
 }
 
@@ -184,7 +185,7 @@ func (f CustomFormatter) argValue(key string, value any) string {
 
 // renderExpandedTree builds the shared native tree from a result. It is the single
 // source of the ├──/╰── connectors, replacing the per-method hand drawing.
-func renderExpandedTree(toolCall string, result *ToolExecutionResult, dataContent string, argValue func(string, any) string) string {
+func renderExpandedTree(toolCall string, result *agentdomain.ToolExecutionResult, dataContent string, argValue func(string, any) string) string {
 	base := BaseFormatter{}
 	t := tree.Root(toolCall).Enumerator(tree.RoundedEnumerator)
 

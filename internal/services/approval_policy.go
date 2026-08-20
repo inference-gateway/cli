@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -45,11 +46,11 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 		return p.requiresComputerUseApproval(toolCall.Function.Name)
 	}
 
-	if p.stateManager != nil && p.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
+	if p.stateManager != nil && p.stateManager.GetAgentMode() == agentdomain.AgentModeAutoAccept {
 		return false
 	}
 
-	if p.stateManager != nil && p.stateManager.GetAgentMode() == domain.AgentModeReadOnly {
+	if p.stateManager != nil && p.stateManager.GetAgentMode() == agentdomain.AgentModeReadOnly {
 		return false
 	}
 

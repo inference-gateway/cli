@@ -3,13 +3,13 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestMultiEditTool_Definition(t *testing.T) {
@@ -145,7 +145,7 @@ func TestMultiEditTool_Execute_SuccessfulMultipleEdits(t *testing.T) {
 		t.Errorf("Execute should succeed, got error: %s", result.Error)
 	}
 
-	multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
+	multiEditResult, ok := result.Data.(*agentdomain.MultiEditToolResult)
 	if !ok {
 		t.Fatal("Expected MultiEditToolResult in result data")
 	}
@@ -294,7 +294,7 @@ func TestMultiEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
 			t.Fatalf("expected success, got error: %s", result.Error)
 		}
 
-		multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
+		multiEditResult, ok := result.Data.(*agentdomain.MultiEditToolResult)
 		if !ok {
 			t.Fatal("expected MultiEditToolResult in result data")
 		}
@@ -546,7 +546,7 @@ func TestMultiEditTool_Execute_ReplaceAll(t *testing.T) {
 		t.Errorf("Execute should succeed with replace_all, got error: %s", result.Error)
 	}
 
-	multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
+	multiEditResult, ok := result.Data.(*agentdomain.MultiEditToolResult)
 	if !ok {
 		t.Fatal("Expected MultiEditToolResult in result data")
 	}
@@ -1043,7 +1043,7 @@ func TestMultiEditTool_FormatForUI(t *testing.T) {
 	tool := NewMultiEditTool(cfg)
 
 	t.Run("Successful multi-edit with collapsed view", func(t *testing.T) {
-		result := &domain.ToolExecutionResult{
+		result := &agentdomain.ToolExecutionResult{
 			ToolName: "MultiEdit",
 			Success:  true,
 			Arguments: map[string]any{
@@ -1063,7 +1063,7 @@ func TestMultiEditTool_FormatForUI(t *testing.T) {
 					},
 				},
 			},
-			Data: &domain.MultiEditToolResult{
+			Data: &agentdomain.MultiEditToolResult{
 				FilePath:        "/path/to/test.go",
 				TotalEdits:      3,
 				SuccessfulEdits: 3,
@@ -1090,7 +1090,7 @@ func TestMultiEditTool_FormatForUI(t *testing.T) {
 	})
 
 	t.Run("Failed multi-edit", func(t *testing.T) {
-		result := &domain.ToolExecutionResult{
+		result := &agentdomain.ToolExecutionResult{
 			ToolName: "MultiEdit",
 			Success:  false,
 			Error:    "old_string not found",
@@ -1117,7 +1117,7 @@ func TestMultiEditTool_FormatForUI(t *testing.T) {
 	})
 
 	t.Run("Empty edits array", func(t *testing.T) {
-		result := &domain.ToolExecutionResult{
+		result := &agentdomain.ToolExecutionResult{
 			ToolName: "MultiEdit",
 			Success:  false,
 			Arguments: map[string]any{
@@ -1381,7 +1381,7 @@ func runMultiEditExecuteTest(t *testing.T, tt multiEditExecuteTestCase, tmpDir s
 	}
 
 	if tt.expectedSuccess {
-		multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
+		multiEditResult, ok := result.Data.(*agentdomain.MultiEditToolResult)
 		if !ok {
 			t.Fatal("Expected MultiEditToolResult in result data")
 		}
@@ -1437,13 +1437,13 @@ func TestMultiEditTool_FormatResult_TableDriven(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		result     *domain.ToolExecutionResult
-		formatType domain.FormatterType
+		result     *agentdomain.ToolExecutionResult
+		formatType agentdomain.FormatterType
 		contains   []string
 	}{
 		{
 			name: "FormatPreview - successful multiple edits",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				ToolName: "MultiEdit",
 				Success:  true,
 				Arguments: map[string]any{
@@ -1453,7 +1453,7 @@ func TestMultiEditTool_FormatResult_TableDriven(t *testing.T) {
 						map[string]any{"old_string": "c", "new_string": "d"},
 					},
 				},
-				Data: &domain.MultiEditToolResult{
+				Data: &agentdomain.MultiEditToolResult{
 					FilePath:        "/path/to/file.go",
 					TotalEdits:      2,
 					SuccessfulEdits: 2,
@@ -1461,29 +1461,29 @@ func TestMultiEditTool_FormatResult_TableDriven(t *testing.T) {
 					BytesDifference: 10,
 				},
 			},
-			formatType: domain.FormatterShort,
+			formatType: agentdomain.FormatterShort,
 			contains:   []string{"Applied", "2/2", "edits"},
 		},
 		{
 			name: "FormatPreview - no changes",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				ToolName: "MultiEdit",
 				Success:  true,
 				Arguments: map[string]any{
 					"file_path": "/path/to/file.go",
 					"edits":     []any{},
 				},
-				Data: &domain.MultiEditToolResult{
+				Data: &agentdomain.MultiEditToolResult{
 					FilePath:     "/path/to/file.go",
 					FileModified: false,
 				},
 			},
-			formatType: domain.FormatterShort,
+			formatType: agentdomain.FormatterShort,
 			contains:   []string{"No changes"},
 		},
 		{
 			name: "FormatUI - collapsed view with edit count",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				ToolName: "MultiEdit",
 				Success:  true,
 				Arguments: map[string]any{
@@ -1494,19 +1494,19 @@ func TestMultiEditTool_FormatResult_TableDriven(t *testing.T) {
 						map[string]any{"old_string": "e", "new_string": "f"},
 					},
 				},
-				Data: &domain.MultiEditToolResult{
+				Data: &agentdomain.MultiEditToolResult{
 					FilePath:        "/path/to/file.go",
 					TotalEdits:      3,
 					SuccessfulEdits: 3,
 					FileModified:    true,
 				},
 			},
-			formatType: domain.FormatterUI,
+			formatType: agentdomain.FormatterUI,
 			contains:   []string{"MultiEdit(", "3 edits", "file.go"},
 		},
 		{
 			name: "FormatUI - failed edit",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				ToolName: "MultiEdit",
 				Success:  false,
 				Error:    "old_string not found",
@@ -1517,18 +1517,18 @@ func TestMultiEditTool_FormatResult_TableDriven(t *testing.T) {
 					},
 				},
 			},
-			formatType: domain.FormatterUI,
+			formatType: agentdomain.FormatterUI,
 			contains:   []string{"MultiEdit(", "✗"},
 		},
 		{
 			name:       "FormatResult - nil result",
 			result:     nil,
-			formatType: domain.FormatterUI,
+			formatType: agentdomain.FormatterUI,
 			contains:   []string{"unavailable"},
 		},
 		{
 			name: "FormatLLM - successful with details",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				ToolName: "MultiEdit",
 				Success:  true,
 				Arguments: map[string]any{
@@ -1537,7 +1537,7 @@ func TestMultiEditTool_FormatResult_TableDriven(t *testing.T) {
 						map[string]any{"old_string": "old", "new_string": "new"},
 					},
 				},
-				Data: &domain.MultiEditToolResult{
+				Data: &agentdomain.MultiEditToolResult{
 					FilePath:        "/path/to/file.go",
 					TotalEdits:      1,
 					SuccessfulEdits: 1,
@@ -1545,7 +1545,7 @@ func TestMultiEditTool_FormatResult_TableDriven(t *testing.T) {
 					BytesDifference: 5,
 				},
 			},
-			formatType: domain.FormatterLLM,
+			formatType: agentdomain.FormatterLLM,
 			contains:   []string{"MultiEdit"},
 		},
 	}

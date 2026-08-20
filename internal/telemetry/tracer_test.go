@@ -4,12 +4,11 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // exportedSpan is a minimal decode of one stdouttrace span stub.
@@ -82,7 +81,7 @@ func TestTraceSpansNestAndExport(t *testing.T) {
 	endSession := rec.StartSession("standard")
 	turnCtx, turnSpan := rec.StartLLMTurnSpan(rec.SpanContext(context.Background()), "openai/gpt-4o")
 	SetSpanUsage(turnCtx, 100, 42)
-	toolCtx := domain.WithToolCallID(turnCtx, "call_abc123")
+	toolCtx := agentdomain.WithToolCallID(turnCtx, "call_abc123")
 	_, toolSpan := rec.startToolSpan(toolCtx, "Read")
 	toolSpan.End()
 	turnSpan.End()

@@ -2,9 +2,9 @@ package agent
 
 import (
 	"fmt"
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	"sync"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -36,27 +36,27 @@ import (
 //
 //	All state transitions are protected by a read-write mutex to ensure thread-safe access.
 type AgentStateMachineImpl struct {
-	currentState  domain.AgentExecutionState
-	previousState domain.AgentExecutionState
+	currentState  states.AgentExecutionState
+	previousState states.AgentExecutionState
 	mu            sync.RWMutex
 
 	// State transition map: maps each state to its possible transitions with guards and actions
-	transitions map[domain.AgentExecutionState][]StateTransition
+	transitions map[states.AgentExecutionState][]StateTransition
 }
 
 // StateTransition represents a state transition with guard and action
 type StateTransition struct {
-	fromState domain.AgentExecutionState
-	toState   domain.AgentExecutionState
-	guard     domain.StateGuard
-	action    domain.StateAction
+	fromState states.AgentExecutionState
+	toState   states.AgentExecutionState
+	guard     states.StateGuard
+	action    states.StateAction
 }
 
 // NewAgentStateMachine creates a new agent state machine
-func NewAgentStateMachine() domain.AgentStateMachine {
+func NewAgentStateMachine() states.AgentStateMachine {
 	sm := &AgentStateMachineImpl{
-		currentState: domain.StateIdle,
-		transitions:  make(map[domain.AgentExecutionState][]StateTransition),
+		currentState: states.StateIdle,
+		transitions:  make(map[states.AgentExecutionState][]StateTransition),
 	}
 
 	sm.registerTransitions()
@@ -71,116 +71,116 @@ func NewAgentStateMachine() domain.AgentStateMachine {
 //
 // Transitions without guards are always allowed. Nil guards/actions are permitted.
 func (sm *AgentStateMachineImpl) registerTransitions() {
-	sm.addTransition(domain.StateIdle, domain.StateCheckingQueue, nil, nil)
+	sm.addTransition(states.StateIdle, states.StateCheckingQueue, nil, nil)
 
-	sm.addTransition(domain.StateCheckingQueue, domain.StateIdle,
-		func(ctx *domain.AgentContext) bool {
+	sm.addTransition(states.StateCheckingQueue, states.StateIdle,
+		func(ctx *states.AgentContext) bool {
 			return sm.canComplete(ctx) && ctx.MessageQueue.IsEmpty()
 		},
 		nil)
 
-	sm.addTransition(domain.StateCheckingQueue, domain.StateCompleting,
-		func(ctx *domain.AgentContext) bool {
+	sm.addTransition(states.StateCheckingQueue, states.StateCompleting,
+		func(ctx *states.AgentContext) bool {
 			return sm.canComplete(ctx)
 		},
 		nil)
 
-	sm.addTransition(domain.StateCheckingQueue, domain.StateStreamingLLM,
-		func(ctx *domain.AgentContext) bool {
+	sm.addTransition(states.StateCheckingQueue, states.StateStreamingLLM,
+		func(ctx *states.AgentContext) bool {
 			return !ctx.MessageQueue.IsEmpty() || len(*ctx.Conversation) > 0
 		},
 		nil)
 
-	sm.addTransition(domain.StateStreamingLLM, domain.StatePostStream, nil, nil)
+	sm.addTransition(states.StateStreamingLLM, states.StatePostStream, nil, nil)
 
-	sm.addTransition(domain.StatePostStream, domain.StateCheckingQueue,
-		func(ctx *domain.AgentContext) bool {
+	sm.addTransition(states.StatePostStream, states.StateCheckingQueue,
+		func(ctx *states.AgentContext) bool {
 			return !ctx.MessageQueue.IsEmpty()
 		},
 		nil)
 
-	sm.addTransition(domain.StatePostStream, domain.StateEvaluatingTools,
-		func(ctx *domain.AgentContext) bool {
+	sm.addTransition(states.StatePostStream, states.StateEvaluatingTools,
+		func(ctx *states.AgentContext) bool {
 			return len(ctx.ToolCalls) > 0
 		},
 		nil)
 
-	sm.addTransition(domain.StatePostStream, domain.StateStreamingLLM,
-		func(ctx *domain.AgentContext) bool {
+	sm.addTransition(states.StatePostStream, states.StateStreamingLLM,
+		func(ctx *states.AgentContext) bool {
 			return len(ctx.ToolCalls) == 0 && !sm.canComplete(ctx) && ctx.MessageQueue.IsEmpty()
 		},
 		nil)
 
-	sm.addTransition(domain.StatePostStream, domain.StateCompleting,
-		func(ctx *domain.AgentContext) bool {
+	sm.addTransition(states.StatePostStream, states.StateCompleting,
+		func(ctx *states.AgentContext) bool {
 			return len(ctx.ToolCalls) == 0 && sm.canComplete(ctx)
 		},
 		nil)
 
-	sm.addTransition(domain.StateEvaluatingTools, domain.StateApprovingTools,
-		func(ctx *domain.AgentContext) bool {
+	sm.addTransition(states.StateEvaluatingTools, states.StateApprovingTools,
+		func(ctx *states.AgentContext) bool {
 			return sm.needsApproval(ctx)
 		},
 		nil)
 
-	sm.addTransition(domain.StateEvaluatingTools, domain.StateBlockingTools,
-		func(ctx *domain.AgentContext) bool {
+	sm.addTransition(states.StateEvaluatingTools, states.StateBlockingTools,
+		func(ctx *states.AgentContext) bool {
 			return sm.needsApproval(ctx)
 		},
 		nil)
 
-	sm.addTransition(domain.StateEvaluatingTools, domain.StateExecutingTools,
-		func(ctx *domain.AgentContext) bool {
+	sm.addTransition(states.StateEvaluatingTools, states.StateExecutingTools,
+		func(ctx *states.AgentContext) bool {
 			return !sm.needsApproval(ctx)
 		},
 		nil)
 
-	sm.addTransition(domain.StateApprovingTools, domain.StateExecutingTools, nil, nil)
+	sm.addTransition(states.StateApprovingTools, states.StateExecutingTools, nil, nil)
 
-	sm.addTransition(domain.StateApprovingTools, domain.StatePostToolExecution, nil, nil)
+	sm.addTransition(states.StateApprovingTools, states.StatePostToolExecution, nil, nil)
 
-	sm.addTransition(domain.StateApprovingTools, domain.StateCancelled, nil, nil)
+	sm.addTransition(states.StateApprovingTools, states.StateCancelled, nil, nil)
 
-	sm.addTransition(domain.StateBlockingTools, domain.StatePostToolExecution, nil, nil)
+	sm.addTransition(states.StateBlockingTools, states.StatePostToolExecution, nil, nil)
 
-	sm.addTransition(domain.StateExecutingTools, domain.StatePostToolExecution, nil, nil)
+	sm.addTransition(states.StateExecutingTools, states.StatePostToolExecution, nil, nil)
 
-	sm.addTransition(domain.StateExecutingTools, domain.StateStopped, nil, nil)
+	sm.addTransition(states.StateExecutingTools, states.StateStopped, nil, nil)
 
-	sm.addTransition(domain.StatePostToolExecution, domain.StateCheckingQueue, nil, nil)
+	sm.addTransition(states.StatePostToolExecution, states.StateCheckingQueue, nil, nil)
 
-	sm.addTransition(domain.StatePostToolExecution, domain.StateCompleting,
-		func(ctx *domain.AgentContext) bool {
+	sm.addTransition(states.StatePostToolExecution, states.StateCompleting,
+		func(ctx *states.AgentContext) bool {
 			return sm.maxTurnsReached(ctx) || sm.canComplete(ctx)
 		},
-		func(ctx *domain.AgentContext) error {
+		func(ctx *states.AgentContext) error {
 			ctx.MaxTurnsExceeded = sm.maxTurnsReached(ctx) && !sm.canComplete(ctx)
 			return nil
 		})
 
-	sm.addTransition(domain.StatePostToolExecution, domain.StateStreamingLLM,
-		func(ctx *domain.AgentContext) bool {
+	sm.addTransition(states.StatePostToolExecution, states.StateStreamingLLM,
+		func(ctx *states.AgentContext) bool {
 			return !sm.maxTurnsReached(ctx) && !sm.canComplete(ctx) && ctx.MessageQueue.IsEmpty()
 		},
 		nil)
 
-	sm.addTransition(domain.StateCompleting, domain.StateIdle, nil, nil)
+	sm.addTransition(states.StateCompleting, states.StateIdle, nil, nil)
 
-	for state := domain.StateIdle; state <= domain.StateError; state++ {
-		if state != domain.StateCancelled {
-			sm.addTransition(state, domain.StateCancelled, nil, nil)
+	for state := states.StateIdle; state <= states.StateError; state++ {
+		if state != states.StateCancelled {
+			sm.addTransition(state, states.StateCancelled, nil, nil)
 		}
 	}
 
-	for state := domain.StateIdle; state <= domain.StateError; state++ {
-		if state != domain.StateError {
-			sm.addTransition(state, domain.StateError, nil, nil)
+	for state := states.StateIdle; state <= states.StateError; state++ {
+		if state != states.StateError {
+			sm.addTransition(state, states.StateError, nil, nil)
 		}
 	}
 }
 
 // addTransition adds a state transition to the map
-func (sm *AgentStateMachineImpl) addTransition(from, to domain.AgentExecutionState, guard domain.StateGuard, action domain.StateAction) {
+func (sm *AgentStateMachineImpl) addTransition(from, to states.AgentExecutionState, guard states.StateGuard, action states.StateAction) {
 	transition := StateTransition{
 		fromState: from,
 		toState:   to,
@@ -196,7 +196,7 @@ func (sm *AgentStateMachineImpl) addTransition(from, to domain.AgentExecutionSta
 }
 
 // Transition attempts to transition to the target state
-func (sm *AgentStateMachineImpl) Transition(ctx *domain.AgentContext, targetState domain.AgentExecutionState) error {
+func (sm *AgentStateMachineImpl) Transition(ctx *states.AgentContext, targetState states.AgentExecutionState) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -235,7 +235,7 @@ func (sm *AgentStateMachineImpl) Transition(ctx *domain.AgentContext, targetStat
 }
 
 // findTransition finds a matching transition from current state to target state
-func (sm *AgentStateMachineImpl) findTransition(from, to domain.AgentExecutionState) *StateTransition {
+func (sm *AgentStateMachineImpl) findTransition(from, to states.AgentExecutionState) *StateTransition {
 	transitions, exists := sm.transitions[from]
 	if !exists {
 		return nil
@@ -251,14 +251,14 @@ func (sm *AgentStateMachineImpl) findTransition(from, to domain.AgentExecutionSt
 }
 
 // GetCurrentState returns the current state (thread-safe)
-func (sm *AgentStateMachineImpl) GetCurrentState() domain.AgentExecutionState {
+func (sm *AgentStateMachineImpl) GetCurrentState() states.AgentExecutionState {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return sm.currentState
 }
 
 // GetPreviousState returns the previous state (thread-safe)
-func (sm *AgentStateMachineImpl) GetPreviousState() domain.AgentExecutionState {
+func (sm *AgentStateMachineImpl) GetPreviousState() states.AgentExecutionState {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return sm.previousState
@@ -278,7 +278,7 @@ func (sm *AgentStateMachineImpl) GetPreviousState() domain.AgentExecutionState {
 //   - Last message is not from the user (agent has responded)
 //
 // Returns true if all completion criteria are met.
-func (sm *AgentStateMachineImpl) canComplete(ctx *domain.AgentContext) bool {
+func (sm *AgentStateMachineImpl) canComplete(ctx *states.AgentContext) bool {
 
 	if ctx.Turns == 0 {
 		return false
@@ -310,7 +310,7 @@ func (sm *AgentStateMachineImpl) canComplete(ctx *domain.AgentContext) bool {
 //   - The agent is running in chat mode (approval not needed in background mode)
 //
 // Returns true if user approval is needed before executing tools.
-func (sm *AgentStateMachineImpl) needsApproval(ctx *domain.AgentContext) bool {
+func (sm *AgentStateMachineImpl) needsApproval(ctx *states.AgentContext) bool {
 	if ctx.ApprovalPolicy == nil {
 		return false
 	}
@@ -328,13 +328,13 @@ func (sm *AgentStateMachineImpl) needsApproval(ctx *domain.AgentContext) bool {
 //
 // This prevents infinite loops by limiting the number of LLM-tool iterations.
 // Returns true if the current turn count has reached or exceeded the maximum.
-func (sm *AgentStateMachineImpl) maxTurnsReached(ctx *domain.AgentContext) bool {
+func (sm *AgentStateMachineImpl) maxTurnsReached(ctx *states.AgentContext) bool {
 	return ctx.Turns >= ctx.MaxTurns
 }
 
 // CanTransition checks if a transition from current state to target state is valid
 // This is useful for checking before attempting a transition
-func (sm *AgentStateMachineImpl) CanTransition(ctx *domain.AgentContext, targetState domain.AgentExecutionState) bool {
+func (sm *AgentStateMachineImpl) CanTransition(ctx *states.AgentContext, targetState states.AgentExecutionState) bool {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
@@ -351,16 +351,16 @@ func (sm *AgentStateMachineImpl) CanTransition(ctx *domain.AgentContext, targetS
 }
 
 // GetValidTransitions returns all valid transitions from the current state
-func (sm *AgentStateMachineImpl) GetValidTransitions(ctx *domain.AgentContext) []domain.AgentExecutionState {
+func (sm *AgentStateMachineImpl) GetValidTransitions(ctx *states.AgentContext) []states.AgentExecutionState {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
 	transitions, exists := sm.transitions[sm.currentState]
 	if !exists {
-		return []domain.AgentExecutionState{}
+		return []states.AgentExecutionState{}
 	}
 
-	validStates := []domain.AgentExecutionState{}
+	validStates := []states.AgentExecutionState{}
 	for _, transition := range transitions {
 		if transition.guard == nil || transition.guard(ctx) {
 			validStates = append(validStates, transition.toState)
@@ -376,5 +376,5 @@ func (sm *AgentStateMachineImpl) Reset() {
 	defer sm.mu.Unlock()
 
 	sm.previousState = sm.currentState
-	sm.currentState = domain.StateIdle
+	sm.currentState = states.StateIdle
 }

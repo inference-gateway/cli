@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 
 	config "github.com/inference-gateway/cli/config"
@@ -58,9 +59,9 @@ func (t *CloseSubagentTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute closes the named subagent.
-func (t *CloseSubagentTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *CloseSubagentTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "CloseSubagent",
 			Arguments: args,
 			Success:   false,
@@ -71,7 +72,7 @@ func (t *CloseSubagentTool) Execute(ctx context.Context, args map[string]any) (*
 	subagentID, _ := args["subagent_id"].(string)
 	s := t.tracker.GetSubagent(subagentID)
 	if s == nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "CloseSubagent",
 			Arguments: args,
 			Success:   false,
@@ -89,7 +90,7 @@ func (t *CloseSubagentTool) Execute(ctx context.Context, args map[string]any) (*
 // closeInteractive harvests a final tail of the pane, kills it, and untracks the
 // subagent. The harvested output is returned so the subagent's last work folds
 // back into the conversation.
-func (t *CloseSubagentTool) closeInteractive(ctx context.Context, args map[string]any, s *domain.SubagentState) *domain.ToolExecutionResult {
+func (t *CloseSubagentTool) closeInteractive(ctx context.Context, args map[string]any, s *domain.SubagentState) *agentdomain.ToolExecutionResult {
 	output := readSubagentResultMessage(s.SessionID)
 	if t.stopJob != nil {
 		_ = t.stopJob.WindJob(s.ID, domain.WindStop)
@@ -98,7 +99,7 @@ func (t *CloseSubagentTool) closeInteractive(ctx context.Context, args map[strin
 	}
 	_ = os.Remove(subagentResultFilePath(s.SessionID))
 	_ = t.tracker.RemoveSubagent(s.ID)
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "CloseSubagent",
 		Arguments: args,
 		Success:   true,
@@ -115,11 +116,11 @@ func (t *CloseSubagentTool) closeInteractive(ctx context.Context, args map[strin
 // closeHeadless cancels a running headless subagent. The supervised
 // headlessSubagentJob delivers the cancellation outcome and removes it from
 // tracking on reap, so this does not remove it directly.
-func (t *CloseSubagentTool) closeHeadless(args map[string]any, s *domain.SubagentState) *domain.ToolExecutionResult {
+func (t *CloseSubagentTool) closeHeadless(args map[string]any, s *domain.SubagentState) *agentdomain.ToolExecutionResult {
 	if s.CancelFunc != nil {
 		s.CancelFunc()
 	}
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "CloseSubagent",
 		Arguments: args,
 		Success:   true,
@@ -145,9 +146,9 @@ func (t *CloseSubagentTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts.
-func (t *CloseSubagentTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *CloseSubagentTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)
@@ -155,7 +156,7 @@ func (t *CloseSubagentTool) FormatResult(result *domain.ToolExecutionResult, for
 }
 
 // FormatPreview returns a short preview of the result for UI display.
-func (t *CloseSubagentTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *CloseSubagentTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to close subagent"
 	}
@@ -168,7 +169,7 @@ func (t *CloseSubagentTool) FormatPreview(result *domain.ToolExecutionResult) st
 }
 
 // FormatForLLM formats the result for LLM consumption.
-func (t *CloseSubagentTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *CloseSubagentTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}

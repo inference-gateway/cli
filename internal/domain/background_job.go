@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 )
 
@@ -89,7 +90,7 @@ type BackgroundJob interface {
 	// Run blocks until the job reaches a terminal state or ctx is cancelled,
 	// emitting intermediate JobSignals via emit, and returns the terminal result.
 	// It MUST return promptly once ctx is cancelled.
-	Run(ctx context.Context, emit func(JobSignal)) ToolExecutionResult
+	Run(ctx context.Context, emit func(JobSignal)) agentdomain.ToolExecutionResult
 	// Wind delivers a graceful wind-down (WindWrapUp) or hard stop (WindStop) to a
 	// RUNNING job. It must be safe to call from another goroutine while Run is in
 	// flight, be idempotent, and a no-op once the job has finished.
@@ -132,7 +133,7 @@ type JobLivenessReporter interface {
 // which a generic tool-result formatter would not. Jobs that do not implement it
 // get the default domain formatting of their ToolExecutionResult.
 type JobNotifier interface {
-	Notification(result ToolExecutionResult) string
+	Notification(result agentdomain.ToolExecutionResult) string
 }
 
 // TaskRetainer is an optional BackgroundJob extension. A job that implements it
@@ -142,7 +143,7 @@ type JobNotifier interface {
 // finish). ok=false opts out (e.g. a non-terminal-for-retention state such as
 // input-required). Jobs that do not implement it are never retained.
 type TaskRetainer interface {
-	RetainedTask(result ToolExecutionResult) (TaskInfo, bool)
+	RetainedTask(result agentdomain.ToolExecutionResult) (TaskInfo, bool)
 }
 
 // A2AStateProvider is an optional BackgroundJob extension implemented by A2A task
@@ -150,7 +151,7 @@ type TaskRetainer interface {
 // id and last known remote state) as the single source for the task view and
 // status bar, without the generic JobMeta/TrackedJob carrying A2A-specific fields.
 type A2AStateProvider interface {
-	A2APollingState() TaskPollingState
+	A2APollingState() agentdomain.TaskPollingState
 }
 
 // JobOutputProvider is an optional BackgroundJob extension. A job that implements

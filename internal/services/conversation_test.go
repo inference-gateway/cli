@@ -1,9 +1,9 @@
 package services
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 )
@@ -89,7 +89,7 @@ func TestInMemoryConversationRepository_RemovePendingToolCallByID(t *testing.T) 
 			repo := NewInMemoryConversationRepository(nil, nil)
 
 			for _, toolCall := range tt.setupToolCalls {
-				err := repo.AddPendingToolCall(toolCall, make(chan domain.ApprovalAction))
+				err := repo.AddPendingToolCall(toolCall, make(chan agentdomain.ApprovalAction))
 				assert.NoError(t, err)
 			}
 

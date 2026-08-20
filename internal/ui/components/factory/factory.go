@@ -1,6 +1,7 @@
 package factory
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -29,7 +30,7 @@ func CreateInputViewWithName(modelService domain.ModelService, configDir, name s
 }
 
 // CreateAutocomplete creates a new autocomplete component
-func CreateAutocomplete(shortcutRegistry *shortcuts.Registry, toolService domain.ToolService, modelService domain.ModelService, pricingService domain.PricingService, skillsService domain.SkillsService, githubIssueService domain.GitHubIssueService) ui.AutocompleteComponent {
+func CreateAutocomplete(shortcutRegistry *shortcuts.Registry, toolService agentdomain.ToolService, modelService domain.ModelService, pricingService domain.PricingService, skillsService domain.SkillsService, githubIssueService domain.GitHubIssueService) ui.AutocompleteComponent {
 	if shortcutRegistry == nil {
 		return nil
 	}

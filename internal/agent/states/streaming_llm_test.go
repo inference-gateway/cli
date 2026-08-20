@@ -8,8 +8,6 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	sdk "github.com/inference-gateway/sdk"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // TestStreamingLLMState_StartStreamingSpawnsGoroutine verifies that a
@@ -21,9 +19,9 @@ func TestStreamingLLMState_StartStreamingSpawnsGoroutine(t *testing.T) {
 	started := make(chan struct{})
 	f.ctx.StartStreaming = func() { close(started) }
 	s := NewStreamingLLMState(f.ctx)
-	assert.Equal(t, domain.StateStreamingLLM, s.Name())
+	assert.Equal(t, StateStreamingLLM, s.Name())
 
-	require.NoError(t, s.Handle(domain.StartStreamingEvent{}))
+	require.NoError(t, s.Handle(StartStreamingEvent{}))
 
 	select {
 	case <-started:
@@ -43,7 +41,7 @@ func TestStreamingLLMState_StartStreamingSpawnsGoroutine(t *testing.T) {
 func TestStreamingLLMState_StreamCompletedStoresDataAndAdvances(t *testing.T) {
 	f := newStateFixture()
 	tools := makeTools(2)
-	evt := domain.StreamCompletedEvent{
+	evt := StreamCompletedEvent{
 		Message:   sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("hello")},
 		ToolCalls: tools,
 		Reasoning: "thinking",
@@ -56,8 +54,8 @@ func TestStreamingLLMState_StreamCompletedStoresDataAndAdvances(t *testing.T) {
 	assert.Equal(t, tools, *f.ctx.CurrentToolCalls)
 	assert.Equal(t, "thinking", *f.ctx.CurrentReasoning)
 	assert.Equal(t, tools, f.ctx.AgentCtx.ToolCalls)
-	assertTransitions(t, f.sm, domain.StatePostStream)
-	assertEvents(t, f.events, domain.MessageReceivedEvent{})
+	assertTransitions(t, f.sm, StatePostStream)
+	assertEvents(t, f.events, MessageReceivedEvent{})
 }
 
 // TestStreamingLLMState_TransitionFailureIsReturned verifies a failed
@@ -67,7 +65,7 @@ func TestStreamingLLMState_TransitionFailureIsReturned(t *testing.T) {
 	f.sm.TransitionReturns(errBoom)
 	s := NewStreamingLLMState(f.ctx)
 
-	err := s.Handle(domain.StreamCompletedEvent{})
+	err := s.Handle(StreamCompletedEvent{})
 
 	assert.ErrorIs(t, err, errBoom)
 	assertEvents(t, f.events)

@@ -3,6 +3,7 @@ package autocomplete
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"slices"
 	"strings"
 	"time"
@@ -61,8 +62,8 @@ type AutocompleteImpl struct {
 	shortcutRegistry     ShortcutRegistry
 	skillsService        domain.SkillsService
 	stateManager         domain.AgentModeManager
-	lastAgentMode        domain.AgentMode
-	toolService          domain.ToolService
+	lastAgentMode        agentdomain.AgentMode
+	toolService          agentdomain.ToolService
 	modelService         domain.ModelService
 	pricingService       domain.PricingService
 	githubIssueService   domain.GitHubIssueService
@@ -90,7 +91,7 @@ func NewAutocomplete(theme ui.Theme, shortcutRegistry ShortcutRegistry) *Autocom
 }
 
 // SetToolService sets the tool service for tool autocomplete
-func (a *AutocompleteImpl) SetToolService(toolService domain.ToolService) {
+func (a *AutocompleteImpl) SetToolService(toolService agentdomain.ToolService) {
 	a.toolService = toolService
 }
 
@@ -281,7 +282,7 @@ func (a *AutocompleteImpl) loadTools() {
 
 	a.suggestions = []ShortcutOption{}
 
-	mode := domain.AgentModeStandard
+	mode := agentdomain.AgentModeStandard
 	if a.stateManager != nil {
 		mode = a.stateManager.GetAgentMode()
 	}
@@ -568,7 +569,7 @@ func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 			a.selected = 0
 		}
 	case strings.HasPrefix(inputText, "!!") && cursorPos >= 2:
-		var currentMode domain.AgentMode
+		var currentMode agentdomain.AgentMode
 		if a.stateManager != nil {
 			currentMode = a.stateManager.GetAgentMode()
 		}

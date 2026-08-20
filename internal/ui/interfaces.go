@@ -3,6 +3,7 @@ package ui
 import (
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
@@ -89,8 +90,8 @@ type InputComponent interface {
 	NavigateHistoryUp()
 	NavigateHistoryDown()
 	IsNavigatingHistory() bool
-	AddImageAttachment(image domain.ImageAttachment)
-	GetImageAttachments() []domain.ImageAttachment
+	AddImageAttachment(image agentdomain.ImageAttachment)
+	GetImageAttachments() []agentdomain.ImageAttachment
 	ClearImageAttachments()
 	AddToHistory(text string) error
 	SetUsageHint(hint string)

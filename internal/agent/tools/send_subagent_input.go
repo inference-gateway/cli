@@ -6,9 +6,11 @@ import (
 	"os"
 	"strings"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // allowedSubagentKeys is the set of named tmux keys SendSubagentInput may emit.
@@ -81,7 +83,7 @@ func (t *SendSubagentInputTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute sends the input to the named subagent's pane.
-func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
@@ -126,7 +128,7 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 	} else if !submit {
 		msg += " Use ReadSubagentScreen to see the result."
 	}
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "SendSubagentInput",
 		Arguments: args,
 		Success:   true,
@@ -140,8 +142,8 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 	}, nil
 }
 
-func (t *SendSubagentInputTool) fail(args map[string]any, msg string) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func (t *SendSubagentInputTool) fail(args map[string]any, msg string) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "SendSubagentInput",
 		Arguments: args,
 		Success:   false,
@@ -173,9 +175,9 @@ func (t *SendSubagentInputTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts.
-func (t *SendSubagentInputTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *SendSubagentInputTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)
@@ -183,7 +185,7 @@ func (t *SendSubagentInputTool) FormatResult(result *domain.ToolExecutionResult,
 }
 
 // FormatPreview returns a short preview of the result for UI display.
-func (t *SendSubagentInputTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *SendSubagentInputTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to send subagent input"
 	}
@@ -196,7 +198,7 @@ func (t *SendSubagentInputTool) FormatPreview(result *domain.ToolExecutionResult
 }
 
 // FormatForLLM formats the result for LLM consumption.
-func (t *SendSubagentInputTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *SendSubagentInputTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}

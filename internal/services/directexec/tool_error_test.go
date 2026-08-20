@@ -2,6 +2,8 @@ package directexec_test
 
 import (
 	"errors"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 	"time"
 
@@ -20,7 +22,7 @@ import (
 // the timer) alongside the error banner - without wiping the error banner with
 // a status-clearing event.
 func TestHandleToolCommand_ErrorStopsSpinner(t *testing.T) {
-	toolSvc := &domainmocks.FakeToolService{}
+	toolSvc := &agentdomainmocks.FakeToolService{}
 	toolSvc.IsToolEnabledReturns(true)
 	toolSvc.ListToolsForModeReturns([]sdk.ChatCompletionTool{
 		{Function: sdk.FunctionObject{Name: "CloseSubagent"}},
@@ -28,7 +30,7 @@ func TestHandleToolCommand_ErrorStopsSpinner(t *testing.T) {
 	toolSvc.ExecuteToolDirectReturns(nil, errors.New("boom"))
 
 	sm := services.NewStateManager(false)
-	sm.SetAgentMode(domain.AgentModeStandard)
+	sm.SetAgentMode(agentdomain.AgentModeStandard)
 
 	svc := directexec.NewService(directexec.Options{
 		ToolService:      toolSvc,
@@ -48,7 +50,7 @@ func TestHandleToolCommand_ErrorStopsSpinner(t *testing.T) {
 		switch e := ev.(type) {
 		case domain.ShowErrorEvent:
 			sawError = true
-		case domain.ToolExecutionProgressEvent:
+		case agentdomain.ToolExecutionProgressEvent:
 			if e.Status == "failed" {
 				sawFailedProgress = true
 			}

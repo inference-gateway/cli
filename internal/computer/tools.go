@@ -1,9 +1,10 @@
 // Package computer is the computer-use capability: mouse, keyboard, screen,
-// and accessibility tools exposed to the agent as domain.Tool implementations.
+// and accessibility tools exposed to the agent as agentdomain.Tool implementations.
 // Display backends (and robotgo) live only under this package tree.
 package computer
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"runtime"
 
 	config "github.com/inference-gateway/cli/config"
@@ -37,7 +38,7 @@ type State interface {
 
 // FrameSourceLookup resolves named frame sources; the tool registry satisfies it.
 type FrameSourceLookup interface {
-	FrameSource(name string) (domain.FrameSource, bool)
+	FrameSource(name string) (agentdomain.FrameSource, bool)
 	FrameSourceNames() []string
 }
 
@@ -49,8 +50,8 @@ type rateLimiter interface {
 	CheckAndRecord(toolName string) error
 }
 
-func NewTools(cfg *config.Config, state State, frames FrameSourceLookup, annotator domain.ImageAnnotator) map[string]domain.Tool {
-	tools := map[string]domain.Tool{
+func NewTools(cfg *config.Config, state State, frames FrameSourceLookup, annotator agentdomain.ImageAnnotator) map[string]agentdomain.Tool {
+	tools := map[string]agentdomain.Tool{
 		"GetLatestFrame": NewGetLatestFrameTool(cfg, frames, annotator),
 	}
 

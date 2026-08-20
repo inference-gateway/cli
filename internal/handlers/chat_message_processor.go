@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"regexp"
 	"strconv"
 	"strings"
@@ -158,11 +159,11 @@ func (p *ChatMessageProcessor) confirmCatalogInstall(msg domain.UserInputEvent) 
 		return nil
 	}
 
-	responseChan := make(chan []domain.UserQuestionAnswer, 1)
-	question := domain.UserQuestion{
+	responseChan := make(chan []agentdomain.UserQuestionAnswer, 1)
+	question := agentdomain.UserQuestion{
 		Header:   "Install skill",
 		Question: fmt.Sprintf("%s is not installed locally. Download it from the skills catalog into %s for this session?", strings.Join(names, ", "), dynamicSkillsDirDisplay),
-		Options: []domain.UserQuestionOption{
+		Options: []agentdomain.UserQuestionOption{
 			{Label: "Install", Description: "Fetch the SKILL.md now and activate the skill"},
 			{Label: "Skip", Description: "Send the message without the skill; you will not be asked again this session"},
 		},
@@ -170,9 +171,9 @@ func (p *ChatMessageProcessor) confirmCatalogInstall(msg domain.UserInputEvent) 
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.UserQuestionRequestedEvent{
+			return agentdomain.UserQuestionRequestedEvent{
 				Timestamp:    time.Now(),
-				Questions:    []domain.UserQuestion{question},
+				Questions:    []agentdomain.UserQuestion{question},
 				ResponseChan: responseChan,
 			}
 		},
@@ -196,7 +197,7 @@ func (p *ChatMessageProcessor) confirmCatalogInstall(msg domain.UserInputEvent) 
 }
 
 // approvedInstall reports whether the user picked the install option.
-func approvedInstall(answers []domain.UserQuestionAnswer) bool {
+func approvedInstall(answers []agentdomain.UserQuestionAnswer) bool {
 	for _, answer := range answers {
 		for _, label := range answer.SelectedLabels {
 			if label == "Install" {
@@ -260,7 +261,7 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (string, err
 
 		if p.handler.imageService != nil && p.handler.imageService.IsImageFile(filename) {
 			supportsVision := p.handler.modelService != nil && models.SupportsVision(p.handler.modelService.GetCurrentModel())
-			imageRef := domain.ImageFileRef(filename, supportsVision)
+			imageRef := agentdomain.ImageFileRef(filename, supportsVision)
 			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
 			continue
 		}
@@ -356,7 +357,7 @@ func (p *ChatMessageProcessor) formatIssueBlock(iss *domain.GitHubIssue) string 
 // become image content parts.
 func (p *ChatMessageProcessor) buildUserMessage(
 	content string,
-	images []domain.ImageAttachment,
+	images []agentdomain.ImageAttachment,
 ) (sdk.Message, tea.Cmd) {
 	if len(images) == 0 {
 		return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(content)}, nil
@@ -371,7 +372,7 @@ func (p *ChatMessageProcessor) buildUserMessage(
 
 	for _, img := range images {
 		if !supportsVision {
-			if note := domain.ImagePathNote(img); note != "" {
+			if note := agentdomain.ImagePathNote(img); note != "" {
 				if notePart, err := sdk.NewTextContentPart(note); err == nil {
 					contentParts = append(contentParts, notePart)
 				}
@@ -398,7 +399,7 @@ func showErrorCmd(msg string) tea.Cmd {
 // processChatMessage processes a regular chat message with optional image attachments
 func (p *ChatMessageProcessor) processChatMessage(
 	content string,
-	images []domain.ImageAttachment,
+	images []agentdomain.ImageAttachment,
 ) tea.Cmd {
 	message, errCmd := p.buildUserMessage(content, images)
 	if errCmd != nil {
@@ -454,7 +455,7 @@ func (p *ChatMessageProcessor) shouldRolloverNow() bool {
 //  3. Run MaybeRollover on a goroutine via a tea.Cmd; on completion dispatch
 //     a RolloverCompletedEvent that the chat handler routes back into
 //     appendUserMessageAndStartCompletion to resume the deferred work.
-func (p *ChatMessageProcessor) compactThenContinue(message sdk.Message, images []domain.ImageAttachment) tea.Cmd {
+func (p *ChatMessageProcessor) compactThenContinue(message sdk.Message, images []agentdomain.ImageAttachment) tea.Cmd {
 	p.handler.stateManager.SetChatPending()
 	logger.Info("chat rollover: deferring user message, kicking off async MaybeRollover",
 		"queue_size_before", p.handler.messageQueue.Size(),
@@ -492,7 +493,7 @@ func (p *ChatMessageProcessor) compactThenContinue(message sdk.Message, images [
 // refresh and optional optimization status, and kicks off the chat
 // completion. Called directly when no rollover is due, and via
 // HandleRolloverCompletedEvent after an async rollover finishes.
-func (p *ChatMessageProcessor) appendUserMessageAndStartCompletion(message sdk.Message, images []domain.ImageAttachment) tea.Cmd {
+func (p *ChatMessageProcessor) appendUserMessageAndStartCompletion(message sdk.Message, images []agentdomain.ImageAttachment) tea.Cmd {
 	userEntry := domain.ConversationEntry{
 		Message: message,
 		Time:    time.Now(),

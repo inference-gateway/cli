@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"image"
 	"image/jpeg"
 	_ "image/png"
@@ -251,7 +252,7 @@ func (s *ScreenshotServer) captureScreenshot() error {
 		return fmt.Errorf("failed to process image: %w", err)
 	}
 
-	screenshot := &domain.Frame{
+	screenshot := &agentdomain.Frame{
 		Timestamp:      time.Now(),
 		Data:           imageAttachment.Data,
 		Width:          width,
@@ -338,7 +339,7 @@ func (s *ScreenshotServer) handleGetStatus(w http.ResponseWriter, r *http.Reques
 }
 
 // GetLatestFrame retrieves the latest screenshot from the buffer
-func (s *ScreenshotServer) GetLatestFrame() (*domain.Frame, error) {
+func (s *ScreenshotServer) GetLatestFrame() (*agentdomain.Frame, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

@@ -3,6 +3,7 @@ package states
 import (
 	"context"
 	"errors"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 	"testing"
 
@@ -29,10 +30,10 @@ type completeCall struct {
 // context, no tool calls, no approval required, DispatchHooks nil (the
 // executors' nil-guard path) unless recordHooks is called.
 type stateFixture struct {
-	ctx    *domain.StateContext
-	sm     *domainmocks.FakeAgentStateMachine
+	ctx    *StateContext
+	sm     *FakeAgentStateMachine
 	queue  *domainmocks.FakeMessageQueue
-	events chan domain.AgentEvent
+	events chan AgentEvent
 
 	drainReturns  int
 	drainCalls    int
@@ -43,9 +44,9 @@ type stateFixture struct {
 
 func newStateFixture() *stateFixture {
 	f := &stateFixture{
-		sm:     &domainmocks.FakeAgentStateMachine{},
+		sm:     &FakeAgentStateMachine{},
 		queue:  &domainmocks.FakeMessageQueue{},
-		events: make(chan domain.AgentEvent, 16),
+		events: make(chan AgentEvent, 16),
 	}
 	f.queue.IsEmptyReturns(true)
 
@@ -56,9 +57,9 @@ func newStateFixture() *stateFixture {
 	idx := 0
 	results := []domain.ConversationEntry{}
 
-	f.ctx = &domain.StateContext{
+	f.ctx = &StateContext{
 		StateMachine: f.sm,
-		AgentCtx: &domain.AgentContext{
+		AgentCtx: &AgentContext{
 			Ctx:          context.Background(),
 			MessageQueue: f.queue,
 			Conversation: &conv,
@@ -71,8 +72,8 @@ func newStateFixture() *stateFixture {
 		CurrentReasoning:      &reasoning,
 		CurrentToolIndex:      &idx,
 		ToolResults:           &results,
-		Request:               &domain.AgentRequest{RequestID: "req-1"},
-		GetMetrics:            func(string) *domain.ChatMetrics { return nil },
+		Request:               &agentdomain.AgentRequest{RequestID: "req-1"},
+		GetMetrics:            func(string) *agentdomain.ChatMetrics { return nil },
 		ShouldRequireApproval: func(*sdk.ChatCompletionMessageToolCall, bool) bool { return false },
 		AddMessage: func(e domain.ConversationEntry) error {
 			f.added = append(f.added, e)
@@ -85,11 +86,11 @@ func newStateFixture() *stateFixture {
 		ExecuteToolInternal: func(tc sdk.ChatCompletionMessageToolCall, _ bool) domain.ConversationEntry {
 			return toolEntry(tc)
 		},
-		PublishChatEvent: func(domain.ChatEvent) {},
-		PublishChatComplete: func(reasoning string, tcs []sdk.ChatCompletionMessageToolCall, _ *domain.ChatMetrics) {
+		PublishChatEvent: func(agentdomain.ChatEvent) {},
+		PublishChatComplete: func(reasoning string, tcs []sdk.ChatCompletionMessageToolCall, _ *agentdomain.ChatMetrics) {
 			f.completeCalls = append(f.completeCalls, completeCall{reasoning: reasoning, toolCalls: tcs})
 		},
-		PublishChatCancelled: func(*domain.ChatMetrics) { f.cancelCalls++ },
+		PublishChatCancelled: func(*agentdomain.ChatMetrics) { f.cancelCalls++ },
 	}
 	return f
 }
@@ -97,9 +98,9 @@ func newStateFixture() *stateFixture {
 // recordHooks installs a DispatchHooks recorder and returns the dispatched
 // hook points (nil until the first dispatch, so it compares equal to an
 // absent expectation).
-func (f *stateFixture) recordHooks() *[]domain.HookPoint {
-	var hooks []domain.HookPoint
-	f.ctx.DispatchHooks = func(h domain.HookPoint) { hooks = append(hooks, h) }
+func (f *stateFixture) recordHooks() *[]agentdomain.HookPoint {
+	var hooks []agentdomain.HookPoint
+	f.ctx.DispatchHooks = func(h agentdomain.HookPoint) { hooks = append(hooks, h) }
 	return &hooks
 }
 
@@ -112,7 +113,7 @@ func (f *stateFixture) cancelSession() {
 
 // assertTransitions asserts the exact sequence of Transition targets requested
 // on the fake state machine.
-func assertTransitions(t *testing.T, sm *domainmocks.FakeAgentStateMachine, want ...domain.AgentExecutionState) {
+func assertTransitions(t *testing.T, sm *FakeAgentStateMachine, want ...AgentExecutionState) {
 	t.Helper()
 	require.Equal(t, len(want), sm.TransitionCallCount(), "unexpected number of transitions")
 	for i, target := range want {
@@ -123,9 +124,9 @@ func assertTransitions(t *testing.T, sm *domainmocks.FakeAgentStateMachine, want
 
 // assertEvents drains the buffered events channel and asserts the emitted
 // events match want by type, in order.
-func assertEvents(t *testing.T, events chan domain.AgentEvent, want ...domain.AgentEvent) {
+func assertEvents(t *testing.T, events chan AgentEvent, want ...AgentEvent) {
 	t.Helper()
-	var got []domain.AgentEvent
+	var got []AgentEvent
 drain:
 	for {
 		select {

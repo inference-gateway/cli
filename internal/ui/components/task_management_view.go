@@ -13,6 +13,7 @@ import (
 
 	adk "github.com/inference-gateway/adk/types"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -27,7 +28,7 @@ import (
 // Output carries the job's captured output (shell stdout/stderr or subagent
 // result) for the detail panel.
 type TaskInfo struct {
-	domain.TaskPollingState
+	agentdomain.TaskPollingState
 	Status      string
 	ElapsedTime time.Duration
 	TaskRef     *domain.TaskInfo
@@ -195,7 +196,7 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 			elapsed := retainedTaskInfo.CompletedAt.Sub(retainedTaskInfo.StartedAt)
 
 			taskInfo := TaskInfo{
-				TaskPollingState: domain.TaskPollingState{
+				TaskPollingState: agentdomain.TaskPollingState{
 					TaskID:          retainedTaskInfo.Task.ID,
 					ContextID:       retainedTaskInfo.Task.ContextID,
 					AgentURL:        retainedTaskInfo.AgentURL,
@@ -255,7 +256,7 @@ func jobToTaskInfo(job domain.TrackedJob) TaskInfo {
 		end = *job.CompletedAt
 	}
 	return TaskInfo{
-		TaskPollingState: domain.TaskPollingState{
+		TaskPollingState: agentdomain.TaskPollingState{
 			TaskID:    job.Meta.ID,
 			StartedAt: job.Meta.StartedAt,
 		},

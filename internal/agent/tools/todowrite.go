@@ -6,16 +6,18 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // TodoWriteTool handles structured task list management for coding sessions
 type TodoWriteTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter domain.BaseFormatter
+	formatter agentinfra.BaseFormatter
 }
 
 // NewTodoWriteTool creates a new TodoWrite tool
@@ -23,7 +25,7 @@ func NewTodoWriteTool(cfg *config.Config) *TodoWriteTool {
 	return &TodoWriteTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.TodoWrite.Enabled,
-		formatter: domain.NewBaseFormatter("TodoWrite"),
+		formatter: agentinfra.NewBaseFormatter("TodoWrite"),
 	}
 }
 
@@ -71,7 +73,7 @@ func (t *TodoWriteTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the TodoWrite tool with given arguments
-func (t *TodoWriteTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *TodoWriteTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("TodoWrite tool is not enabled")
@@ -79,7 +81,7 @@ func (t *TodoWriteTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	todos, ok := args["todos"].([]any)
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "TodoWrite",
 			Arguments: args,
 			Success:   false,
@@ -90,7 +92,7 @@ func (t *TodoWriteTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	todoResult, err := t.executeTodoWrite(todos)
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "TodoWrite",
 			Arguments: args,
 			Success:   false,
@@ -99,7 +101,7 @@ func (t *TodoWriteTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}, nil
 	}
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "TodoWrite",
 		Arguments: args,
 		Success:   true,
@@ -130,8 +132,8 @@ func (t *TodoWriteTool) IsEnabled() bool {
 }
 
 // executeTodoWrite processes the todo list update
-func (t *TodoWriteTool) executeTodoWrite(todosRaw []any) (*domain.TodoWriteToolResult, error) {
-	var todos []domain.TodoItem
+func (t *TodoWriteTool) executeTodoWrite(todosRaw []any) (*agentdomain.TodoWriteToolResult, error) {
+	var todos []agentdomain.TodoItem
 
 	for i, todoRaw := range todosRaw {
 		todoMap, ok := todoRaw.(map[string]any)
@@ -139,7 +141,7 @@ func (t *TodoWriteTool) executeTodoWrite(todosRaw []any) (*domain.TodoWriteToolR
 			return nil, fmt.Errorf("todo item at index %d must be an object", i)
 		}
 
-		todo := domain.TodoItem{}
+		todo := agentdomain.TodoItem{}
 
 		if id, ok := todoMap["id"].(string); ok && id != "" {
 			todo.ID = id
@@ -177,7 +179,7 @@ func (t *TodoWriteTool) executeTodoWrite(todosRaw []any) (*domain.TodoWriteToolR
 		}
 	}
 
-	result := &domain.TodoWriteToolResult{
+	result := &agentdomain.TodoWriteToolResult{
 		Todos:          todos,
 		TotalTasks:     len(todos),
 		CompletedTasks: completedCount,
@@ -194,14 +196,14 @@ func (t *TodoWriteTool) validateTodos(todosRaw []any) error {
 		return fmt.Errorf("todos array cannot be empty")
 	}
 
-	var todos []domain.TodoItem
+	var todos []agentdomain.TodoItem
 	for i, todoRaw := range todosRaw {
 		todoMap, ok := todoRaw.(map[string]any)
 		if !ok {
 			return fmt.Errorf("todo item at index %d must be an object", i)
 		}
 
-		todo := domain.TodoItem{}
+		todo := agentdomain.TodoItem{}
 
 		if id, ok := todoMap["id"].(string); ok && id != "" {
 			todo.ID = id
@@ -228,7 +230,7 @@ func (t *TodoWriteTool) validateTodos(todosRaw []any) error {
 }
 
 // validateTodoList validates business rules for the todo list
-func (t *TodoWriteTool) validateTodoList(todos []domain.TodoItem) error {
+func (t *TodoWriteTool) validateTodoList(todos []agentdomain.TodoItem) error {
 	idMap := make(map[string]bool)
 	inProgressCount := 0
 
@@ -259,13 +261,13 @@ func (t *TodoWriteTool) validateTodoList(todos []domain.TodoItem) error {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *TodoWriteTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *TodoWriteTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -273,12 +275,12 @@ func (t *TodoWriteTool) FormatResult(result *domain.ToolExecutionResult, formatT
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *TodoWriteTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *TodoWriteTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
-	todoResult, ok := result.Data.(*domain.TodoWriteToolResult)
+	todoResult, ok := result.Data.(*agentdomain.TodoWriteToolResult)
 	if !ok {
 		if result.Success {
 			return "Todo list updated successfully"
@@ -305,7 +307,7 @@ func (t *TodoWriteTool) FormatPreview(result *domain.ToolExecutionResult) string
 
 // FormatForUI formats the result for UI display
 // Returns minimal format as todo updates are shown in the dedicated todo component
-func (t *TodoWriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *TodoWriteTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -315,7 +317,7 @@ func (t *TodoWriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *TodoWriteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *TodoWriteTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -329,7 +331,7 @@ func (t *TodoWriteTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 
 // formatTodoData formats todo-specific data with progress visualization
 func (t *TodoWriteTool) formatTodoData(data any) string {
-	todoResult, ok := data.(*domain.TodoWriteToolResult)
+	todoResult, ok := data.(*agentdomain.TodoWriteToolResult)
 	if !ok {
 		return t.formatter.FormatAsJSON(data)
 	}
@@ -405,7 +407,7 @@ func (t *TodoWriteTool) formatExpandedProgressBar(completed, total int) string {
 }
 
 // formatTodoItem formats a single todo item as plain text.
-func (t *TodoWriteTool) formatTodoItem(todo domain.TodoItem) (string, string) {
+func (t *TodoWriteTool) formatTodoItem(todo agentdomain.TodoItem) (string, string) {
 	switch todo.Status {
 	case "completed":
 		return "☒", todo.Content

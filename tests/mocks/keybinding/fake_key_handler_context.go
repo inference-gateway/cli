@@ -2,6 +2,7 @@
 package keybinding
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
@@ -13,15 +14,15 @@ import (
 )
 
 type FakeKeyHandlerContext struct {
-	GetAgentServiceStub        func() domain.AgentService
+	GetAgentServiceStub        func() agentdomain.AgentService
 	getAgentServiceMutex       sync.RWMutex
 	getAgentServiceArgsForCall []struct {
 	}
 	getAgentServiceReturns struct {
-		result1 domain.AgentService
+		result1 agentdomain.AgentService
 	}
 	getAgentServiceReturnsOnCall map[int]struct {
-		result1 domain.AgentService
+		result1 agentdomain.AgentService
 	}
 	GetAutocompleteStub        func() ui.AutocompleteComponent
 	getAutocompleteMutex       sync.RWMutex
@@ -164,7 +165,7 @@ type FakeKeyHandlerContext struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeKeyHandlerContext) GetAgentService() domain.AgentService {
+func (fake *FakeKeyHandlerContext) GetAgentService() agentdomain.AgentService {
 	fake.getAgentServiceMutex.Lock()
 	ret, specificReturn := fake.getAgentServiceReturnsOnCall[len(fake.getAgentServiceArgsForCall)]
 	fake.getAgentServiceArgsForCall = append(fake.getAgentServiceArgsForCall, struct {
@@ -188,32 +189,32 @@ func (fake *FakeKeyHandlerContext) GetAgentServiceCallCount() int {
 	return len(fake.getAgentServiceArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetAgentServiceCalls(stub func() domain.AgentService) {
+func (fake *FakeKeyHandlerContext) GetAgentServiceCalls(stub func() agentdomain.AgentService) {
 	fake.getAgentServiceMutex.Lock()
 	defer fake.getAgentServiceMutex.Unlock()
 	fake.GetAgentServiceStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetAgentServiceReturns(result1 domain.AgentService) {
+func (fake *FakeKeyHandlerContext) GetAgentServiceReturns(result1 agentdomain.AgentService) {
 	fake.getAgentServiceMutex.Lock()
 	defer fake.getAgentServiceMutex.Unlock()
 	fake.GetAgentServiceStub = nil
 	fake.getAgentServiceReturns = struct {
-		result1 domain.AgentService
+		result1 agentdomain.AgentService
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetAgentServiceReturnsOnCall(i int, result1 domain.AgentService) {
+func (fake *FakeKeyHandlerContext) GetAgentServiceReturnsOnCall(i int, result1 agentdomain.AgentService) {
 	fake.getAgentServiceMutex.Lock()
 	defer fake.getAgentServiceMutex.Unlock()
 	fake.GetAgentServiceStub = nil
 	if fake.getAgentServiceReturnsOnCall == nil {
 		fake.getAgentServiceReturnsOnCall = make(map[int]struct {
-			result1 domain.AgentService
+			result1 agentdomain.AgentService
 		})
 	}
 	fake.getAgentServiceReturnsOnCall[i] = struct {
-		result1 domain.AgentService
+		result1 agentdomain.AgentService
 	}{result1}
 }
 

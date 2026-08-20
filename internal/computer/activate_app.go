@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -70,7 +70,7 @@ func (t *ActivateAppTool) Validate(args map[string]any) error {
 }
 
 // Execute executes the ActivateApp tool
-func (t *ActivateAppTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *ActivateAppTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	appID, _ := args["app_id"].(string)
 	name, _ := args["name"].(string)
 
@@ -115,7 +115,7 @@ func (t *ActivateAppTool) Execute(ctx context.Context, args map[string]any) (*do
 		data["app_name"] = focusedApp.Name
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName: "ActivateApp",
 		Success:  true,
 		Data:     data,
@@ -146,7 +146,7 @@ func resolveAppByName(ctx context.Context, ap display.AppProvider, name string) 
 }
 
 // FormatPreview formats the result for display preview
-func (t *ActivateAppTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *ActivateAppTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to activate app"
 	}
@@ -164,7 +164,7 @@ func (t *ActivateAppTool) FormatPreview(result *domain.ToolExecutionResult) stri
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *ActivateAppTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *ActivateAppTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
@@ -189,11 +189,11 @@ func (t *ActivateAppTool) ShouldAlwaysExpand() bool {
 }
 
 // FormatResult formats the result based on the requested format type
-func (t *ActivateAppTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *ActivateAppTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)

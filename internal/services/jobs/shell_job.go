@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os/exec"
 	"syscall"
 	"time"
@@ -44,7 +45,7 @@ func (j *shellJob) Meta() domain.JobMeta {
 // It first waits for the pipe readers to drain (ReadersDone) so Cmd.Wait doesn't
 // close the pipes mid-read and lose output; the wait honours ctx so a kill or
 // shutdown can't wedge when a grandchild is holding the pipe open.
-func (j *shellJob) Run(ctx context.Context, _ func(domain.JobSignal)) domain.ToolExecutionResult {
+func (j *shellJob) Run(ctx context.Context, _ func(domain.JobSignal)) agentdomain.ToolExecutionResult {
 	if j.shell.ReadersDone != nil {
 		select {
 		case <-j.shell.ReadersDone:
@@ -63,17 +64,17 @@ func (j *shellJob) Run(ctx context.Context, _ func(domain.JobSignal)) domain.Too
 		code := -1
 		j.shell.ExitCode = &code
 		j.shell.State = domain.ShellStateCancelled
-		return domain.ToolExecutionResult{ToolName: "Bash", Success: false, Duration: duration, Error: "shell cancelled"}
+		return agentdomain.ToolExecutionResult{ToolName: "Bash", Success: false, Duration: duration, Error: "shell cancelled"}
 	case waitErr != nil:
 		code := exitCodeFromErr(waitErr)
 		j.shell.ExitCode = &code
 		j.shell.State = domain.ShellStateFailed
-		return domain.ToolExecutionResult{ToolName: "Bash", Success: false, Duration: duration, Error: waitErr.Error()}
+		return agentdomain.ToolExecutionResult{ToolName: "Bash", Success: false, Duration: duration, Error: waitErr.Error()}
 	default:
 		code := 0
 		j.shell.ExitCode = &code
 		j.shell.State = domain.ShellStateCompleted
-		return domain.ToolExecutionResult{ToolName: "Bash", Success: true, Duration: duration}
+		return agentdomain.ToolExecutionResult{ToolName: "Bash", Success: true, Duration: duration}
 	}
 }
 
@@ -108,7 +109,7 @@ func (j *shellJob) Output() string {
 
 // Notification formats the shell's completion summary (the generic tool-result
 // formatter does not know about exit codes or durations).
-func (j *shellJob) Notification(result domain.ToolExecutionResult) string {
+func (j *shellJob) Notification(result agentdomain.ToolExecutionResult) string {
 	code := 0
 	if j.shell.ExitCode != nil {
 		code = *j.shell.ExitCode

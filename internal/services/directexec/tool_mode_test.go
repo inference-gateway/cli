@@ -1,6 +1,8 @@
 package directexec_test
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"strings"
 	"testing"
 
@@ -9,18 +11,17 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func TestHandleToolCommand_BlocksToolNotInCurrentMode(t *testing.T) {
-	toolSvc := &domainmocks.FakeToolService{}
+	toolSvc := &agentdomainmocks.FakeToolService{}
 	toolSvc.IsToolEnabledReturns(true)
 	toolSvc.ListToolsForModeReturns([]sdk.ChatCompletionTool{
 		{Function: sdk.FunctionObject{Name: "Read"}},
 	})
 
 	sm := services.NewStateManager(false)
-	sm.SetAgentMode(domain.AgentModeStandard)
+	sm.SetAgentMode(agentdomain.AgentModeStandard)
 
 	svc := directexec.NewService(directexec.Options{ToolService: toolSvc, StateManager: sm})
 

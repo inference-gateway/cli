@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"slices"
 	"strings"
 
@@ -554,11 +555,11 @@ func (c *A2AAgentsShortcut) Execute(ctx context.Context, args []string) (Shortcu
 // switch. Runtime-only, like /model - agent.reasoning_effort in config
 // remains the startup seed.
 type EffortShortcut struct {
-	agent  domain.AgentService
+	agent  agentdomain.AgentService
 	models domain.ModelService
 }
 
-func NewEffortShortcut(agent domain.AgentService, models domain.ModelService) *EffortShortcut {
+func NewEffortShortcut(agent agentdomain.AgentService, models domain.ModelService) *EffortShortcut {
 	return &EffortShortcut{agent: agent, models: models}
 }
 

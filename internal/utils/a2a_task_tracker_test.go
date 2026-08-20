@@ -1,10 +1,10 @@
 package utils
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -399,7 +399,7 @@ func TestA2ATaskTracker_PollingState(t *testing.T) {
 	contextID := "context-1"
 	tracker.RegisterContext(agentURL, contextID)
 
-	state := &domain.TaskPollingState{
+	state := &agentdomain.TaskPollingState{
 		TaskID:    "task-1",
 		ContextID: contextID,
 		AgentURL:  agentURL,
@@ -463,7 +463,7 @@ func TestA2ATaskTracker_PollingTaskLists(t *testing.T) {
 
 			for _, spec := range tt.specs {
 				tracker.RegisterContext(spec.agent, spec.context)
-				tracker.StartPolling(spec.task, &domain.TaskPollingState{
+				tracker.StartPolling(spec.task, &agentdomain.TaskPollingState{
 					TaskID:    spec.task,
 					ContextID: spec.context,
 					AgentURL:  spec.agent,
@@ -501,7 +501,7 @@ func TestA2ATaskTracker_GetAllPollingTasks_StableOrder(t *testing.T) {
 
 	startTime := time.Now()
 	for _, task := range tasks {
-		state := &domain.TaskPollingState{
+		state := &agentdomain.TaskPollingState{
 			AgentURL:  task.agent,
 			ContextID: task.context,
 			TaskID:    task.task,

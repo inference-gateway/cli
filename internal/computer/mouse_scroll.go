@@ -3,11 +3,12 @@ package computer
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -16,7 +17,7 @@ import (
 type MouseScrollTool struct {
 	config          *config.Config
 	enabled         bool
-	formatter       domain.BaseFormatter
+	formatter       agentinfra.BaseFormatter
 	rateLimiter     rateLimiter
 	displayProvider display.Provider
 }
@@ -26,7 +27,7 @@ func NewMouseScrollTool(cfg *config.Config, rateLimiter rateLimiter, displayProv
 	return &MouseScrollTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled,
-		formatter:       domain.NewBaseFormatter("MouseScroll"),
+		formatter:       agentinfra.NewBaseFormatter("MouseScroll"),
 		rateLimiter:     rateLimiter,
 		displayProvider: displayProvider,
 	}
@@ -60,11 +61,11 @@ func (t *MouseScrollTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the mouse scroll tool with given arguments
-func (t *MouseScrollTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *MouseScrollTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if err := t.rateLimiter.CheckAndRecord("MouseScroll"); err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MouseScroll",
 			Arguments: args,
 			Success:   false,
@@ -74,7 +75,7 @@ func (t *MouseScrollTool) Execute(ctx context.Context, args map[string]any) (*do
 	}
 
 	if err := acquireScreenLock(); err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MouseScroll",
 			Arguments: args,
 			Success:   false,
@@ -85,7 +86,7 @@ func (t *MouseScrollTool) Execute(ctx context.Context, args map[string]any) (*do
 
 	clicks, clicksOk := args["clicks"].(float64)
 	if !clicksOk {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MouseScroll",
 			Arguments: args,
 			Success:   false,
@@ -101,7 +102,7 @@ func (t *MouseScrollTool) Execute(ctx context.Context, args map[string]any) (*do
 
 	controller, err := t.displayProvider.GetController()
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MouseScroll",
 			Arguments: args,
 			Success:   false,
@@ -118,7 +119,7 @@ func (t *MouseScrollTool) Execute(ctx context.Context, args map[string]any) (*do
 	clicksInt := int(clicks)
 
 	if err := controller.ScrollMouse(ctx, clicksInt, direction); err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MouseScroll",
 			Arguments: args,
 			Success:   false,
@@ -143,7 +144,7 @@ func (t *MouseScrollTool) Execute(ctx context.Context, args map[string]any) (*do
 	message := fmt.Sprintf("Scrolled %s by %d clicks", scrollDir, clicksInt)
 	logger.Info("mouse scroll executed", "direction", direction, "clicks", clicks)
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "MouseScroll",
 		Arguments: args,
 		Success:   true,
@@ -177,7 +178,7 @@ func (t *MouseScrollTool) IsEnabled() bool {
 }
 
 // FormatPreview formats a short preview of tool execution
-func (t *MouseScrollTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *MouseScrollTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if !result.Success {
 		return "Scroll failed"
 	}
@@ -191,7 +192,7 @@ func (t *MouseScrollTool) FormatPreview(result *domain.ToolExecutionResult) stri
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *MouseScrollTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *MouseScrollTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if !result.Success {
 		return fmt.Sprintf("Scroll failed: %s", result.Error)
 	}
@@ -215,11 +216,11 @@ func (t *MouseScrollTool) ShouldAlwaysExpand() bool {
 }
 
 // FormatResult formats the result based on the requested format type
-func (t *MouseScrollTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *MouseScrollTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)

@@ -2,6 +2,7 @@ package formatting
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -10,11 +11,11 @@ import (
 // ConversationLineFormatter converts conversation entries to text lines
 type ConversationLineFormatter struct {
 	width         int
-	toolFormatter domain.ToolFormatter
+	toolFormatter agentdomain.ToolFormatter
 }
 
 // NewConversationLineFormatter creates a new conversation line formatter
-func NewConversationLineFormatter(width int, toolFormatter domain.ToolFormatter) *ConversationLineFormatter {
+func NewConversationLineFormatter(width int, toolFormatter agentdomain.ToolFormatter) *ConversationLineFormatter {
 	return &ConversationLineFormatter{
 		width:         width,
 		toolFormatter: toolFormatter,

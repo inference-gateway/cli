@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
@@ -38,7 +39,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
 		}
 	}
 
-	event := domain.MessageEditSubmitEvent{
+	event := agentdomain.MessageEditSubmitEvent{
 		RequestID:     "test-request",
 		OriginalIndex: 0,
 		EditedContent: "Edited first message",
@@ -92,7 +93,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_MiddleMessage(t *testing.T) {
 		}
 	}
 
-	event := domain.MessageEditSubmitEvent{
+	event := agentdomain.MessageEditSubmitEvent{
 		RequestID:     "test-request",
 		OriginalIndex: 2,
 		EditedContent: "Edited second message",

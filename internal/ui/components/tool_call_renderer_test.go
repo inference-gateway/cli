@@ -1,6 +1,7 @@
 package components
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +24,7 @@ func TestToolCallRenderer_BashOutputStreamLineCounting(t *testing.T) {
 		Status:   "running",
 	}
 
-	r.handleBashOutputStream(domain.BashOutputChunkEvent{
+	r.handleBashOutputStream(agentdomain.BashOutputChunkEvent{
 		ToolCallID: toolCallID,
 		Output:     "a\nb\nc\nd\ne\nf\ng\nh",
 	})
@@ -39,7 +40,7 @@ func TestToolCallRenderer_BashOutputStreamLineCounting(t *testing.T) {
 		t.Errorf("expected last 7 lines b..h, got %v", state.OutputBuffer)
 	}
 
-	r.handleBashOutputStream(domain.BashOutputChunkEvent{
+	r.handleBashOutputStream(agentdomain.BashOutputChunkEvent{
 		ToolCallID: toolCallID,
 		Output:     "i\nj",
 	})

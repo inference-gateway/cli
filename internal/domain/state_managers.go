@@ -5,6 +5,7 @@
 package domain
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -17,50 +18,50 @@ type ViewManager interface {
 
 // AgentModeManager handles agent mode switching
 type AgentModeManager interface {
-	GetAgentMode() AgentMode
-	SetAgentMode(mode AgentMode)
-	CycleAgentMode() AgentMode
+	GetAgentMode() agentdomain.AgentMode
+	SetAgentMode(mode agentdomain.AgentMode)
+	CycleAgentMode() agentdomain.AgentMode
 }
 
 // ChatSessionManager handles chat session lifecycle
 type ChatSessionManager interface {
 	SetChatPending()
-	StartChatSession(requestID, model string, eventChan <-chan ChatEvent) error
-	UpdateChatStatus(status ChatStatus) error
+	StartChatSession(requestID, model string, eventChan <-chan agentdomain.ChatEvent) error
+	UpdateChatStatus(status agentdomain.ChatStatus) error
 	EndChatSession()
 	GetChatSession() *ChatSession
 	IsAgentBusy() bool
-	SetRetryStatus(status *RetryStatus)
-	GetRetryStatus() *RetryStatus
+	SetRetryStatus(status *agentdomain.RetryStatus)
+	GetRetryStatus() *agentdomain.RetryStatus
 	TouchChatActivity()
 }
 
 // EventBridgeManager handles event multicast for external event consumers
 type EventBridgeManager interface {
-	SetEventBridge(bridge EventBridge)
-	GetEventBridge() EventBridge
-	BroadcastEvent(event ChatEvent)
+	SetEventBridge(bridge agentdomain.EventBridge)
+	GetEventBridge() agentdomain.EventBridge
+	BroadcastEvent(event agentdomain.ChatEvent)
 }
 
 // ToolExecutionManager handles tool execution sessions
 type ToolExecutionManager interface {
 	StartToolExecution(toolCalls []sdk.ChatCompletionMessageToolCall) error
-	CompleteCurrentTool(result *ToolExecutionResult) error
-	FailCurrentTool(result *ToolExecutionResult) error
+	CompleteCurrentTool(result *agentdomain.ToolExecutionResult) error
+	FailCurrentTool(result *agentdomain.ToolExecutionResult) error
 	EndToolExecution()
 	GetToolExecution() *ToolExecutionSession
 }
 
 // ApprovalUIManager handles tool approval UI state
 type ApprovalUIManager interface {
-	SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan ApprovalAction)
+	SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan agentdomain.ApprovalAction)
 	GetApprovalUIState() *ApprovalUIState
 	ClearApprovalUIState()
 }
 
 // PlanApprovalUIManager handles plan approval UI state
 type PlanApprovalUIManager interface {
-	SetupPlanApprovalUIState(planContent, planID string, responseChan chan PlanApprovalAction)
+	SetupPlanApprovalUIState(planContent, planID string, responseChan chan agentdomain.PlanApprovalAction)
 	GetPlanApprovalUIState() *PlanApprovalUIState
 	SetPlanApprovalSelectedIndex(index int)
 	ClearPlanApprovalUIState()
@@ -68,15 +69,15 @@ type PlanApprovalUIManager interface {
 
 // UserQuestionUIManager handles AskUserQuestion form state
 type UserQuestionUIManager interface {
-	SetupUserQuestionUIState(questions []UserQuestion, responseChan chan []UserQuestionAnswer)
+	SetupUserQuestionUIState(questions []agentdomain.UserQuestion, responseChan chan []agentdomain.UserQuestionAnswer)
 	GetUserQuestionUIState() *UserQuestionUIState
 	ClearUserQuestionUIState()
 }
 
 // TodoManager handles todo list state
 type TodoManager interface {
-	SetTodos(todos []TodoItem)
-	GetTodos() []TodoItem
+	SetTodos(todos []agentdomain.TodoItem)
+	GetTodos() []agentdomain.TodoItem
 }
 
 // ComputerUsePauseManager handles computer use pause state

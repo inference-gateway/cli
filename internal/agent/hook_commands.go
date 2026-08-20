@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os/exec"
 	"strings"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 )
@@ -33,7 +33,7 @@ const hookCommandOutputLimit = 4096
 // command's stdin JSON context. Commands run synchronously; their output is
 // emitted as a hook_command stream event and logged, never fed back into the
 // conversation or used to alter the loop (that feedback is a later iteration).
-func RunCommandHooks(ctx context.Context, cfg *config.Config, provider domain.HookCommandProvider, modeKey string, hook domain.HookPoint, turn int, sessionID string) {
+func RunCommandHooks(ctx context.Context, cfg *config.Config, provider agentdomain.HookCommandProvider, modeKey string, hook agentdomain.HookPoint, turn int, sessionID string) {
 	if provider == nil {
 		if cfg == nil {
 			return
@@ -64,7 +64,7 @@ func RunCommandHooks(ctx context.Context, cfg *config.Config, provider domain.Ho
 // stdin (hook, turn, session id - Claude-Code style), captures combined output,
 // and emits a hook_command stream event carrying the exit code, duration and
 // (truncated) output.
-func runHookCommand(ctx context.Context, hook domain.HookPoint, turn int, sessionID string, hc domain.HookCommand) {
+func runHookCommand(ctx context.Context, hook agentdomain.HookPoint, turn int, sessionID string, hc agentdomain.HookCommand) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -92,7 +92,7 @@ func runHookCommand(ctx context.Context, hook domain.HookPoint, turn int, sessio
 }
 
 // hookCommandStdin builds the JSON context fed to a hook command on stdin.
-func hookCommandStdin(hook domain.HookPoint, turn int, sessionID string) string {
+func hookCommandStdin(hook agentdomain.HookPoint, turn int, sessionID string) string {
 	payload, err := json.Marshal(map[string]any{
 		"hook":       string(hook),
 		"turn":       turn,

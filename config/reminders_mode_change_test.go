@@ -1,18 +1,17 @@
 package config
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-func modeChangeQuery(changed bool, prev, cur domain.AgentMode) domain.ReminderQuery {
-	return domain.ReminderQuery{
-		Hook:        domain.HookPreStream,
+func modeChangeQuery(changed bool, prev, cur agentdomain.AgentMode) agentdomain.ReminderQuery {
+	return agentdomain.ReminderQuery{
+		Hook:        agentdomain.HookPreStream,
 		Turn:        2,
 		SessionTurn: 1,
 		ModeChanged: changed,
@@ -27,12 +26,12 @@ func modeChangeQuery(changed bool, prev, cur domain.AgentMode) domain.ReminderQu
 func TestModeChangeTrigger_FiresOnlyOnChange(t *testing.T) {
 	cfg := DefaultRemindersConfig()
 
-	due := cfg.RemindersDue(modeChangeQuery(false, domain.AgentModeStandard, domain.AgentModeStandard))
+	due := cfg.RemindersDue(modeChangeQuery(false, agentdomain.AgentModeStandard, agentdomain.AgentModeStandard))
 	for _, r := range due {
 		assert.NotEqual(t, DefaultModeChangeReminderName, r.Name, "must not fire without a mode change")
 	}
 
-	due = cfg.RemindersDue(modeChangeQuery(true, domain.AgentModeAutoAccept, domain.AgentModePlan))
+	due = cfg.RemindersDue(modeChangeQuery(true, agentdomain.AgentModeAutoAccept, agentdomain.AgentModePlan))
 	var texts []string
 	for _, r := range due {
 		if r.Name == DefaultModeChangeReminderName {
@@ -53,16 +52,16 @@ func TestModeChangeTrigger_FiresOnlyOnChange(t *testing.T) {
 func TestModeChangeTrigger_GuidancePerMode(t *testing.T) {
 	cfg := DefaultRemindersConfig()
 	cases := []struct {
-		mode   domain.AgentMode
+		mode   agentdomain.AgentMode
 		wantIn string
 	}{
-		{domain.AgentModePlan, "read-only mode"},
-		{domain.AgentModeAutoAccept, "tool approvals are bypassed"},
-		{domain.AgentModeStandard, "per-call tool approvals"},
-		{domain.AgentModeReadOnly, "You are now in Read-Only mode."},
+		{agentdomain.AgentModePlan, "read-only mode"},
+		{agentdomain.AgentModeAutoAccept, "tool approvals are bypassed"},
+		{agentdomain.AgentModeStandard, "per-call tool approvals"},
+		{agentdomain.AgentModeReadOnly, "You are now in Read-Only mode."},
 	}
 	for _, tc := range cases {
-		due := cfg.RemindersDue(modeChangeQuery(true, domain.AgentModeStandard, tc.mode))
+		due := cfg.RemindersDue(modeChangeQuery(true, agentdomain.AgentModeStandard, tc.mode))
 		var found bool
 		for _, r := range due {
 			if r.Name == DefaultModeChangeReminderName {
@@ -81,18 +80,18 @@ func TestModeChangeTrigger_GuidanceUserOverrideMergesPerKey(t *testing.T) {
 		Enabled: true,
 		Reminders: []ReminderConfig{{
 			Name:     DefaultModeChangeReminderName,
-			Hook:     domain.HookPreStream,
+			Hook:     agentdomain.HookPreStream,
 			Trigger:  ReminderTriggerOnModeChange,
 			Text:     DefaultModeChangeReminderText,
 			Guidance: map[string]string{"plan": "CUSTOM PLAN GUIDANCE"},
 		}},
 	}
 
-	due := cfg.RemindersDue(modeChangeQuery(true, domain.AgentModeStandard, domain.AgentModePlan))
+	due := cfg.RemindersDue(modeChangeQuery(true, agentdomain.AgentModeStandard, agentdomain.AgentModePlan))
 	require.Len(t, due, 1)
 	assert.Contains(t, due[0].Text, "CUSTOM PLAN GUIDANCE")
 
-	due = cfg.RemindersDue(modeChangeQuery(true, domain.AgentModePlan, domain.AgentModeAutoAccept))
+	due = cfg.RemindersDue(modeChangeQuery(true, agentdomain.AgentModePlan, agentdomain.AgentModeAutoAccept))
 	require.Len(t, due, 1)
 	assert.Contains(t, due[0].Text, "tool approvals are bypassed", "unset keys keep built-in defaults")
 }
@@ -103,14 +102,14 @@ func TestModeChangeTrigger_MergeWithDefaultsOverridesEntry(t *testing.T) {
 		Enabled: true,
 		Reminders: []ReminderConfig{{
 			Name:    DefaultModeChangeReminderName,
-			Hook:    domain.HookPreStream,
+			Hook:    agentdomain.HookPreStream,
 			Trigger: ReminderTriggerOnModeChange,
 			Text:    "switched {prev_mode} -> {new_mode}",
 		}},
 	}
 	merged := user.MergeWithDefaults()
 
-	due := merged.RemindersDue(modeChangeQuery(true, domain.AgentModeStandard, domain.AgentModePlan))
+	due := merged.RemindersDue(modeChangeQuery(true, agentdomain.AgentModeStandard, agentdomain.AgentModePlan))
 	require.Len(t, due, 1)
 	assert.Equal(t, "switched Standard -> Plan Mode", due[0].Text)
 }
@@ -139,7 +138,7 @@ func TestModeChangeTrigger_Validate(t *testing.T) {
 	bad := RemindersConfig{Reminders: []ReminderConfig{{
 		Name:    "m",
 		Text:    "t",
-		Hook:    domain.HookPostTool,
+		Hook:    agentdomain.HookPostTool,
 		Trigger: ReminderTriggerOnModeChange,
 	}}}
 	assert.ErrorContains(t, bad.Validate(), "requires hook pre_stream")
@@ -147,7 +146,7 @@ func TestModeChangeTrigger_Validate(t *testing.T) {
 	badKey := RemindersConfig{Reminders: []ReminderConfig{{
 		Name:     "m",
 		Text:     "t",
-		Hook:     domain.HookPreStream,
+		Hook:     agentdomain.HookPreStream,
 		Trigger:  ReminderTriggerOnModeChange,
 		Guidance: map[string]string{"yolo": "x"},
 	}}}

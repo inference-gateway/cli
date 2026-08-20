@@ -1,7 +1,6 @@
 package states
 
 import (
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -11,23 +10,23 @@ import (
 //  1. StartStreamingEvent → launches background streaming goroutine
 //  2. StreamCompletedEvent → processes completed stream, stores data, transitions to PostStream
 type StreamingLLMState struct {
-	ctx *domain.StateContext
+	ctx *StateContext
 }
 
 // NewStreamingLLMState creates a new StreamingLLM state handler
-func NewStreamingLLMState(ctx *domain.StateContext) domain.StateHandler {
+func NewStreamingLLMState(ctx *StateContext) StateHandler {
 	return &StreamingLLMState{ctx: ctx}
 }
 
 // Name returns the state this handler manages
-func (s *StreamingLLMState) Name() domain.AgentExecutionState {
-	return domain.StateStreamingLLM
+func (s *StreamingLLMState) Name() AgentExecutionState {
+	return StateStreamingLLM
 }
 
 // Handle processes events in StreamingLLM state
-func (s *StreamingLLMState) Handle(event domain.AgentEvent) error {
+func (s *StreamingLLMState) Handle(event AgentEvent) error {
 	switch e := event.(type) {
-	case domain.StartStreamingEvent:
+	case StartStreamingEvent:
 		logger.Debug("starting llm streaming (background goroutine)", "turn", s.ctx.AgentCtx.Turns+1)
 		s.ctx.WaitGroup.Add(1)
 		go func() {
@@ -35,7 +34,7 @@ func (s *StreamingLLMState) Handle(event domain.AgentEvent) error {
 			s.ctx.StartStreaming()
 		}()
 
-	case domain.StreamCompletedEvent:
+	case StreamCompletedEvent:
 		logger.Debug("stream completed",
 			"turn", s.ctx.AgentCtx.Turns,
 			"tool_calls", len(e.ToolCalls),
@@ -51,12 +50,12 @@ func (s *StreamingLLMState) Handle(event domain.AgentEvent) error {
 			"content_length", len(contentStr),
 			"reasoning_length", len(e.Reasoning))
 
-		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StatePostStream); err != nil {
+		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StatePostStream); err != nil {
 			logger.Error("failed to transition to post stream", "error", err)
 			return err
 		}
 
-		s.ctx.Events <- domain.MessageReceivedEvent{}
+		s.ctx.Events <- MessageReceivedEvent{}
 	}
 	return nil
 }

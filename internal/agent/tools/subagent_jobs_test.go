@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -131,7 +132,7 @@ func TestInteractiveSubagentJob_PaneGoneReturns(t *testing.T) {
 	j := fastInteractiveJob(func() domain.PaneObservation {
 		return domain.PaneObservation{Gone: true}
 	})
-	done := make(chan domain.ToolExecutionResult, 1)
+	done := make(chan agentdomain.ToolExecutionResult, 1)
 	go func() { done <- j.Run(context.Background(), func(domain.JobSignal) {}) }()
 
 	select {

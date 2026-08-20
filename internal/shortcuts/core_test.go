@@ -2,6 +2,7 @@ package shortcuts
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
@@ -17,7 +18,7 @@ type stubTokenEstimator struct {
 	estimate int
 }
 
-func (s *stubTokenEstimator) GetToolStats(domain.ToolService, domain.AgentMode) (int, int) {
+func (s *stubTokenEstimator) GetToolStats(agentdomain.ToolService, agentdomain.AgentMode) (int, int) {
 	return 0, 0
 }
 

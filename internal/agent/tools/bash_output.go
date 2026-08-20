@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
@@ -54,7 +55,7 @@ func (t *BashOutputTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute retrieves output from a background shell
-func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*dom
 	}
 
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName: "BashOutput",
 			Success:  false,
 			Error:    fmt.Sprintf("Failed to get shell output: %v", err),
@@ -83,7 +84,7 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*dom
 
 	shell := t.shellService.GetShell(bashID)
 	if shell == nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName: "BashOutput",
 			Success:  false,
 			Error:    fmt.Sprintf("Shell not found: %s", bashID),
@@ -121,7 +122,7 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*dom
 		"filter_applied": filter != "",
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName: "BashOutput",
 		Success:  true,
 		Data:     result,
@@ -150,13 +151,13 @@ func (t *BashOutputTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *BashOutputTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *BashOutputTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -164,7 +165,7 @@ func (t *BashOutputTool) FormatResult(result *domain.ToolExecutionResult, format
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *BashOutputTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *BashOutputTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to retrieve shell output"
 	}
@@ -185,12 +186,12 @@ func (t *BashOutputTool) FormatPreview(result *domain.ToolExecutionResult) strin
 }
 
 // FormatForUI formats the result for UI display
-func (t *BashOutputTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *BashOutputTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	return t.FormatForLLM(result)
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *BashOutputTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *BashOutputTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}

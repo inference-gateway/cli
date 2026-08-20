@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	attribute "go.opentelemetry.io/otel/attribute"
@@ -10,26 +11,24 @@ import (
 	noop "go.opentelemetry.io/otel/trace/noop"
 
 	sdk "github.com/inference-gateway/sdk"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// toolService decorates a domain.ToolService, recording one metric and one
+// toolService decorates a agentdomain.ToolService, recording one metric and one
 // span per ExecuteTool call. It embeds the interface so every other method
 // passes through unchanged - only ExecuteTool is overridden.
 type toolService struct {
-	domain.ToolService
+	agentdomain.ToolService
 	rec *Recorder
 }
 
 // NewToolService wraps inner so tool executions are recorded. The container only
 // applies this when rec is non-nil, so the disabled tool path carries no
 // decorator at all.
-func NewToolService(inner domain.ToolService, rec *Recorder) domain.ToolService {
+func NewToolService(inner agentdomain.ToolService, rec *Recorder) agentdomain.ToolService {
 	return &toolService{ToolService: inner, rec: rec}
 }
 
-func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
+func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	ctx, span := t.rec.startToolSpan(ctx, tool.Name)
@@ -37,7 +36,7 @@ func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMe
 
 	ctx = t.rec.contextWithBaggage(ctx)
 	if env := t.rec.ChildEnv(ctx); env != nil {
-		ctx = domain.WithTraceEnv(ctx, env)
+		ctx = agentdomain.WithTraceEnv(ctx, env)
 	}
 
 	res, err := t.ToolService.ExecuteTool(ctx, tool)
@@ -67,7 +66,7 @@ func (r *Recorder) startToolSpan(ctx context.Context, toolName string) (context.
 		attribute.String("gen_ai.tool.name", toolName),
 		attribute.String("gen_ai.tool.type", "function"),
 	}
-	if toolCallID := domain.GetToolCallID(ctx); toolCallID != "" {
+	if toolCallID := agentdomain.GetToolCallID(ctx); toolCallID != "" {
 		attrs = append(attrs, attribute.String("gen_ai.tool.call.id", toolCallID))
 	}
 	return r.Tracer().Start(ctx, "execute_tool "+toolName,
@@ -77,7 +76,7 @@ func (r *Recorder) startToolSpan(ctx context.Context, toolName string) (context.
 
 // classify maps an execution result to (infer.tool.outcome, error.type). A nil
 // result or transport error is an error; an explicit rejection is "rejected".
-func classify(res *domain.ToolExecutionResult, err error) (outcome, errType string) {
+func classify(res *agentdomain.ToolExecutionResult, err error) (outcome, errType string) {
 	switch {
 	case err != nil || res == nil:
 		return ToolError, ErrTypeTool

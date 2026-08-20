@@ -1,11 +1,11 @@
 package computer
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func axTestConfig(t *testing.T) *config.Config {
@@ -43,20 +43,20 @@ func TestGetUIElementsValidate(t *testing.T) {
 func TestGetUIElementsFormatForLLM(t *testing.T) {
 	tool := NewGetUIElementsTool(axTestConfig(t))
 
-	annotation := &domain.ImageAnnotation{
+	annotation := &agentdomain.ImageAnnotation{
 		Summary: "2 pressable UI elements of dock, coordinates in the 1024x768 frame space",
-		Elements: []domain.AnnotatedElement{
+		Elements: []agentdomain.AnnotatedElement{
 			{Index: 1, Label: "dock item", Text: "Finder", BBox: [4]int{0, 700, 40, 740}},
 			{Index: 2, Label: "dock item", Text: "Safari", BBox: [4]int{50, 700, 90, 740}},
 		},
 	}
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName: "GetUIElements",
 		Success:  true,
 		Data: map[string]any{
 			"target":  "dock",
 			"count":   2,
-			"message": domain.AnnotationText(annotation) + "\nPress an element by its title with PressUIElement, or click its center coordinate with MouseClick.",
+			"message": agentdomain.AnnotationText(annotation) + "\nPress an element by its title with PressUIElement, or click its center coordinate with MouseClick.",
 		},
 	}
 

@@ -12,9 +12,12 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // WebSearchTool handles web search operations
@@ -22,7 +25,7 @@ type WebSearchTool struct {
 	config    *config.Config
 	client    *http.Client
 	enabled   bool
-	formatter domain.BaseFormatter
+	formatter agentinfra.BaseFormatter
 }
 
 // NewWebSearchTool creates a new web search tool
@@ -33,7 +36,7 @@ func NewWebSearchTool(cfg *config.Config) *WebSearchTool {
 			Timeout: time.Duration(cfg.Tools.WebSearch.Timeout) * time.Second,
 		},
 		enabled:   cfg.Tools.Enabled && cfg.Tools.WebSearch.Enabled,
-		formatter: domain.NewBaseFormatter("WebSearch"),
+		formatter: agentinfra.NewBaseFormatter("WebSearch"),
 	}
 }
 
@@ -87,7 +90,7 @@ func (t *WebSearchTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the web search tool with given arguments
-func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled || !t.config.Tools.WebSearch.Enabled {
 		return nil, fmt.Errorf("web search tool is not enabled")
@@ -95,7 +98,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	query, ok := args["query"].(string)
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "WebSearch",
 			Arguments: args,
 			Success:   false,
@@ -125,7 +128,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*doma
 	case "duckduckgo":
 		searchResult, err = t.searchDuckDuckGo(ctx, query, limit)
 	default:
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "WebSearch",
 			Arguments: args,
 			Success:   false,
@@ -136,7 +139,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	success := err == nil
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "WebSearch",
 		Arguments: args,
 		Success:   success,
@@ -586,13 +589,13 @@ func (t *WebSearchTool) generateMockResults(query string, limit int, engine stri
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *WebSearchTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *WebSearchTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -600,7 +603,7 @@ func (t *WebSearchTool) FormatResult(result *domain.ToolExecutionResult, formatT
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *WebSearchTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *WebSearchTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -626,7 +629,7 @@ func (t *WebSearchTool) FormatPreview(result *domain.ToolExecutionResult) string
 }
 
 // FormatForUI formats the result for UI display
-func (t *WebSearchTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *WebSearchTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -643,7 +646,7 @@ func (t *WebSearchTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *WebSearchTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *WebSearchTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}

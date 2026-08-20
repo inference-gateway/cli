@@ -2,6 +2,7 @@ package approvalcoord
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -16,7 +17,7 @@ import (
 // Repository and *services.PersistentConversationRepository satisfy it (the
 // latter via embedding).
 type planRepoUpdater interface {
-	UpdatePlanStatus(action domain.PlanApprovalAction)
+	UpdatePlanStatus(action agentdomain.PlanApprovalAction)
 }
 
 // stateManager is the narrow slice of the app state manager this coordinator
@@ -33,14 +34,14 @@ type stateManager interface {
 // Service owns the UI side of "pause the assistant turn pending external
 // decision" events.
 type Service struct {
-	agentService     domain.AgentService
+	agentService     agentdomain.AgentService
 	conversationRepo domain.ConversationRepository
 	stateManager     stateManager
 }
 
 // Options bundles the dependencies needed to construct a Service.
 type Options struct {
-	AgentService     domain.AgentService
+	AgentService     agentdomain.AgentService
 	ConversationRepo domain.ConversationRepository
 	StateManager     stateManager
 }
@@ -56,7 +57,7 @@ func NewService(opts Options) *Service {
 
 // HandlePlanApprovalRequested sets up the plan-approval UI state and emits an
 // info status. Always returns a cmd; no restart side-effect.
-func (s *Service) HandlePlanApprovalRequested(msg domain.PlanApprovalRequestedEvent) tea.Cmd {
+func (s *Service) HandlePlanApprovalRequested(msg agentdomain.PlanApprovalRequestedEvent) tea.Cmd {
 	logger.Info("approvalCoordinator.HandlePlanApprovalRequested called")
 
 	s.stateManager.SetupPlanApprovalUIState(msg.PlanContent, msg.PlanID, msg.ResponseChan)
@@ -87,7 +88,7 @@ func (s *Service) planApprovalRequestedCmds(_ string) []tea.Cmd {
 // stays ViewStateChat and keys are intercepted while the form state is set.
 // Unlike plan approval this does NOT stop the agent loop: the tool's Execute is
 // blocked on the response channel and resumes when the user submits or cancels.
-func (s *Service) HandleUserQuestionRequested(msg domain.UserQuestionRequestedEvent) tea.Cmd {
+func (s *Service) HandleUserQuestionRequested(msg agentdomain.UserQuestionRequestedEvent) tea.Cmd {
 	s.stateManager.SetupUserQuestionUIState(msg.Questions, msg.ResponseChan)
 
 	return func() tea.Msg {
@@ -128,7 +129,7 @@ func (s *Service) HandlePlanApprovalResponse(msg domain.PlanApprovalResponseEven
 		func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    statusMessage,
-				Spinner:    msg.Action != domain.PlanApprovalReject,
+				Spinner:    msg.Action != agentdomain.PlanApprovalReject,
 				StatusType: domain.StatusDefault,
 			}
 		},
@@ -139,21 +140,21 @@ func (s *Service) HandlePlanApprovalResponse(msg domain.PlanApprovalResponseEven
 
 // applyPlanDecision performs the agent-mode + session-state side effects for
 // each plan-approval action and returns the status string + restart flag.
-func (s *Service) applyPlanDecision(action domain.PlanApprovalAction) (string, bool) {
+func (s *Service) applyPlanDecision(action agentdomain.PlanApprovalAction) (string, bool) {
 	switch action {
-	case domain.PlanApprovalAccept:
+	case agentdomain.PlanApprovalAccept:
 		logger.Info("switching to auto-accept mode for plan execution")
-		s.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
+		s.stateManager.SetAgentMode(agentdomain.AgentModeAutoAccept)
 		logger.Info("adding hidden continue message to queue (auto-approve mode)")
 		s.addHiddenContinueMessage()
 		return "Plan accepted - Auto-Approve mode enabled, executing plan...", true
-	case domain.PlanApprovalAcceptStandard:
+	case agentdomain.PlanApprovalAcceptStandard:
 		logger.Info("switching to standard agent mode for plan execution")
-		s.stateManager.SetAgentMode(domain.AgentModeStandard)
+		s.stateManager.SetAgentMode(agentdomain.AgentModeStandard)
 		logger.Info("adding hidden continue message to queue")
 		s.addHiddenContinueMessage()
 		return "Plan accepted - executing plan (approving each step)...", true
-	case domain.PlanApprovalReject:
+	case agentdomain.PlanApprovalReject:
 		logger.Info("ending chat session due to plan rejection")
 		s.stateManager.EndChatSession()
 		return "Plan rejected - you can provide feedback or changes", false
@@ -164,7 +165,7 @@ func (s *Service) applyPlanDecision(action domain.PlanApprovalAction) (string, b
 // updatePlanStatus mutates the most recent pending plan entry on the
 // conversation repo. Falls back silently if the repo doesn't implement the
 // concrete updater interface (e.g. tests with stub repos).
-func (s *Service) updatePlanStatus(action domain.PlanApprovalAction) {
+func (s *Service) updatePlanStatus(action agentdomain.PlanApprovalAction) {
 	updater, ok := s.conversationRepo.(planRepoUpdater)
 	if !ok {
 		return
@@ -175,7 +176,7 @@ func (s *Service) updatePlanStatus(action domain.PlanApprovalAction) {
 
 // HandleComputerUsePaused cancels the in-flight request and marks state as
 // paused. No restart - the user will manually resume.
-func (s *Service) HandleComputerUsePaused(msg domain.ComputerUsePausedEvent) tea.Cmd {
+func (s *Service) HandleComputerUsePaused(msg agentdomain.ComputerUsePausedEvent) tea.Cmd {
 	logger.Info("computer use execution paused", "request_id", msg.RequestID)
 
 	if err := s.agentService.CancelRequest(msg.RequestID); err != nil {
@@ -195,7 +196,7 @@ func (s *Service) HandleComputerUsePaused(msg domain.ComputerUsePausedEvent) tea
 
 // HandleComputerUseResumed clears the pause state, injects a hidden "please
 // continue" user message, and signals the orchestrator to restart streaming.
-func (s *Service) HandleComputerUseResumed(_ domain.ComputerUseResumedEvent) (tea.Cmd, bool) {
+func (s *Service) HandleComputerUseResumed(_ agentdomain.ComputerUseResumedEvent) (tea.Cmd, bool) {
 	s.stateManager.ClearComputerUsePauseState()
 
 	if err := s.addHiddenContinue("Please continue from where you left off."); err != nil {

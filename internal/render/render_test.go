@@ -2,6 +2,7 @@ package render
 
 import (
 	"errors"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
@@ -13,8 +14,8 @@ import (
 
 // stream feeds the given events into a closed channel, mimicking the engine
 // closing the channel when the run ends.
-func stream(events ...domain.ChatEvent) <-chan domain.ChatEvent {
-	ch := make(chan domain.ChatEvent, len(events))
+func stream(events ...agentdomain.ChatEvent) <-chan agentdomain.ChatEvent {
+	ch := make(chan agentdomain.ChatEvent, len(events))
 	for _, e := range events {
 		ch <- e
 	}
@@ -25,10 +26,10 @@ func stream(events ...domain.ChatEvent) <-chan domain.ChatEvent {
 func TestRenderText_MultiTurn(t *testing.T) {
 	var out strings.Builder
 	err := RenderText(stream(
-		domain.ChatChunkEvent{Content: "turn one"},
-		domain.ChatCompleteEvent{}, // per-turn completion must not stop rendering
-		domain.ChatChunkEvent{Content: "turn two"},
-		domain.ChatCompleteEvent{},
+		agentdomain.ChatChunkEvent{Content: "turn one"},
+		agentdomain.ChatCompleteEvent{}, // per-turn completion must not stop rendering
+		agentdomain.ChatChunkEvent{Content: "turn two"},
+		agentdomain.ChatCompleteEvent{},
 	), &out)
 	if err != nil {
 		t.Fatalf("RenderText() err = %v", err)
@@ -40,8 +41,8 @@ func TestRenderText_MultiTurn(t *testing.T) {
 
 func TestRenderText_MaxTurns(t *testing.T) {
 	var out strings.Builder
-	err := RenderText(stream(domain.ChatCompleteEvent{MaxTurnsReached: true}), &out)
-	if !errors.Is(err, domain.ErrMaxTurnsReached) {
+	err := RenderText(stream(agentdomain.ChatCompleteEvent{MaxTurnsReached: true}), &out)
+	if !errors.Is(err, agentdomain.ErrMaxTurnsReached) {
 		t.Fatalf("RenderText() err = %v, want ErrMaxTurnsReached", err)
 	}
 }
@@ -49,14 +50,14 @@ func TestRenderText_MaxTurns(t *testing.T) {
 func TestRenderAGUI_SingleRunLifecycle(t *testing.T) {
 	var out strings.Builder
 	err := RenderAGUI(stream(
-		domain.ChatStartEvent{},
-		domain.ChatChunkEvent{RequestID: "r1", Content: "hi"},
-		domain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{
+		agentdomain.ChatStartEvent{},
+		agentdomain.ChatChunkEvent{RequestID: "r1", Content: "hi"},
+		agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{
 			{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"ls"}`}},
 		}},
-		domain.ChatStartEvent{},
-		domain.ChatChunkEvent{RequestID: "r1", Content: "done"},
-		domain.ChatCompleteEvent{},
+		agentdomain.ChatStartEvent{},
+		agentdomain.ChatChunkEvent{RequestID: "r1", Content: "done"},
+		agentdomain.ChatCompleteEvent{},
 	), &out, nil, "session-1", "openai/gpt-4o")
 	if err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
@@ -81,8 +82,8 @@ func TestRenderAGUI_SingleRunLifecycle(t *testing.T) {
 func TestRenderAGUI_ErrorEmitsSingleRunError(t *testing.T) {
 	var out strings.Builder
 	err := RenderAGUI(stream(
-		domain.ChatCompleteEvent{},
-		domain.ChatErrorEvent{Error: errors.New("boom")},
+		agentdomain.ChatCompleteEvent{},
+		agentdomain.ChatErrorEvent{Error: errors.New("boom")},
 	), &out, nil, "session-1", "m")
 	if err == nil {
 		t.Fatal("RenderAGUI() err = nil, want error")
@@ -111,23 +112,23 @@ func TestAnswerApproval_RoundTrip(t *testing.T) {
 	tests := []struct {
 		name      string
 		approvals <-chan domain.ApprovalResponse
-		want      domain.ApprovalAction
+		want      agentdomain.ApprovalAction
 	}{
-		{"approved", approvalsChan(domain.ApprovalResponse{ToolCallID: "tc1", Approved: true}), domain.ApprovalApprove},
-		{"rejected", approvalsChan(domain.ApprovalResponse{ToolCallID: "tc1", Approved: false}), domain.ApprovalReject},
-		{"empty tool_call_id matches", approvalsChan(domain.ApprovalResponse{Approved: true}), domain.ApprovalApprove},
+		{"approved", approvalsChan(domain.ApprovalResponse{ToolCallID: "tc1", Approved: true}), agentdomain.ApprovalApprove},
+		{"rejected", approvalsChan(domain.ApprovalResponse{ToolCallID: "tc1", Approved: false}), agentdomain.ApprovalReject},
+		{"empty tool_call_id matches", approvalsChan(domain.ApprovalResponse{Approved: true}), agentdomain.ApprovalApprove},
 		{"skips stale tool_call_id", approvalsChan(
 			domain.ApprovalResponse{ToolCallID: "stale", Approved: true},
 			domain.ApprovalResponse{ToolCallID: "tc1", Approved: false},
-		), domain.ApprovalReject},
-		{"only stale responses reject", approvalsChan(domain.ApprovalResponse{ToolCallID: "stale", Approved: true}), domain.ApprovalReject},
-		{"closed broker rejects", approvalsChan(), domain.ApprovalReject},
-		{"nil broker rejects", nil, domain.ApprovalReject},
+		), agentdomain.ApprovalReject},
+		{"only stale responses reject", approvalsChan(domain.ApprovalResponse{ToolCallID: "stale", Approved: true}), agentdomain.ApprovalReject},
+		{"closed broker rejects", approvalsChan(), agentdomain.ApprovalReject},
+		{"nil broker rejects", nil, agentdomain.ApprovalReject},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			respChan := make(chan domain.ApprovalAction, 1)
-			ev := domain.ToolApprovalRequestedEvent{
+			respChan := make(chan agentdomain.ApprovalAction, 1)
+			ev := agentdomain.ToolApprovalRequestedEvent{
 				ToolCall:     sdk.ChatCompletionMessageToolCall{ID: "tc1"},
 				ResponseChan: respChan,
 			}
@@ -152,19 +153,19 @@ func TestAnswerApproval_RoundTrip(t *testing.T) {
 }
 
 func TestRenderAGUI_ApprovalRoundTrip(t *testing.T) {
-	respChan := make(chan domain.ApprovalAction, 1)
-	ev := domain.ToolApprovalRequestedEvent{
+	respChan := make(chan agentdomain.ApprovalAction, 1)
+	ev := agentdomain.ToolApprovalRequestedEvent{
 		ToolCall:     sdk.ChatCompletionMessageToolCall{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"}},
 		ResponseChan: respChan,
 	}
 	approvals := approvalsChan(domain.ApprovalResponse{ToolCallID: "tc1", Approved: true})
 	var out strings.Builder
-	if err := RenderAGUI(stream(ev, domain.ChatCompleteEvent{}), &out, approvals, "s1", "m"); err != nil {
+	if err := RenderAGUI(stream(ev, agentdomain.ChatCompleteEvent{}), &out, approvals, "s1", "m"); err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
 	}
 	select {
 	case got := <-respChan:
-		if got != domain.ApprovalApprove {
+		if got != agentdomain.ApprovalApprove {
 			t.Fatalf("approval action = %v, want ApprovalApprove", got)
 		}
 	default:
@@ -178,13 +179,13 @@ func TestRenderAGUI_ApprovalRoundTrip(t *testing.T) {
 func TestRenderJSON_StreamsPerTurn(t *testing.T) {
 	var out strings.Builder
 	err := RenderJSON(stream(
-		domain.ChatChunkEvent{Content: "calling a tool"},
-		domain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{
+		agentdomain.ChatChunkEvent{Content: "calling a tool"},
+		agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{
 			{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"ls"}`}},
 		}},
-		domain.ToolExecutionCompletedEvent{Results: []*domain.ToolExecutionResult{{ToolName: "Bash", Success: true}}},
-		domain.ChatChunkEvent{Content: "all done"},
-		domain.ChatCompleteEvent{},
+		domain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolName: "Bash", Success: true}}},
+		agentdomain.ChatChunkEvent{Content: "all done"},
+		agentdomain.ChatCompleteEvent{},
 	), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderJSON() err = %v", err)
@@ -203,8 +204,8 @@ func TestRenderJSON_StreamsPerTurn(t *testing.T) {
 func TestRenderJSONPretty_Multiline(t *testing.T) {
 	var out strings.Builder
 	err := RenderJSONPretty(stream(
-		domain.ChatChunkEvent{Content: "hello"},
-		domain.ChatCompleteEvent{},
+		agentdomain.ChatChunkEvent{Content: "hello"},
+		agentdomain.ChatCompleteEvent{},
 	), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderJSONPretty() err = %v", err)
@@ -220,8 +221,8 @@ func TestRenderJSONPretty_Multiline(t *testing.T) {
 
 func TestRenderJSON_MaxTurns(t *testing.T) {
 	var out strings.Builder
-	err := RenderJSON(stream(domain.ChatCompleteEvent{MaxTurnsReached: true}), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
-	if !errors.Is(err, domain.ErrMaxTurnsReached) {
+	err := RenderJSON(stream(agentdomain.ChatCompleteEvent{MaxTurnsReached: true}), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
+	if !errors.Is(err, agentdomain.ErrMaxTurnsReached) {
 		t.Fatalf("RenderJSON() err = %v, want ErrMaxTurnsReached", err)
 	}
 }
@@ -256,11 +257,11 @@ func TestEmitPreRunError_MachineFormats(t *testing.T) {
 func TestRenderJSON_ComputerUsePauseResume(t *testing.T) {
 	var out strings.Builder
 	err := RenderJSON(stream(
-		domain.ComputerUsePausedEvent{RequestID: "s1"},
-		domain.ChatCompleteEvent{Cancelled: true},
-		domain.ComputerUseResumedEvent{RequestID: "s1"},
-		domain.ChatChunkEvent{Content: "back at it"},
-		domain.ChatCompleteEvent{},
+		agentdomain.ComputerUsePausedEvent{RequestID: "s1"},
+		agentdomain.ChatCompleteEvent{Cancelled: true},
+		agentdomain.ComputerUseResumedEvent{RequestID: "s1"},
+		agentdomain.ChatChunkEvent{Content: "back at it"},
+		agentdomain.ChatCompleteEvent{},
 	), &out, nil, "s1", "m", nil, &mocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderJSON() err = %v, want nil after resumed run completes", err)
@@ -276,10 +277,10 @@ func TestRenderJSON_ComputerUsePauseResume(t *testing.T) {
 func TestRenderAGUI_ComputerUsePauseResume(t *testing.T) {
 	var out strings.Builder
 	err := RenderAGUI(stream(
-		domain.ComputerUsePausedEvent{RequestID: "s1"},
-		domain.ChatCompleteEvent{Cancelled: true},
-		domain.ComputerUseResumedEvent{RequestID: "s1"},
-		domain.ChatCompleteEvent{},
+		agentdomain.ComputerUsePausedEvent{RequestID: "s1"},
+		agentdomain.ChatCompleteEvent{Cancelled: true},
+		agentdomain.ComputerUseResumedEvent{RequestID: "s1"},
+		agentdomain.ChatCompleteEvent{},
 	), &out, nil, "s1", "m")
 	if err != nil {
 		t.Fatalf("RenderAGUI() err = %v, want nil after resumed run completes", err)
@@ -296,11 +297,11 @@ func TestRenderAGUI_ComputerUsePauseResume(t *testing.T) {
 }
 
 func TestToolContent_NoLegacyEnvelope(t *testing.T) {
-	ok := toolContent(&domain.ToolExecutionResult{ToolName: "Read", Success: true})
+	ok := toolContent(&agentdomain.ToolExecutionResult{ToolName: "Read", Success: true})
 	if strings.HasPrefix(ok, "Result of tool call") || !strings.Contains(ok, `"tool_name":"Read"`) {
 		t.Fatalf("success content = %q, want bare marshaled result", ok)
 	}
-	failed := toolContent(&domain.ToolExecutionResult{ToolName: "Bash", Success: false, Error: "exit 1"})
+	failed := toolContent(&agentdomain.ToolExecutionResult{ToolName: "Bash", Success: false, Error: "exit 1"})
 	if failed != "exit 1" {
 		t.Fatalf("failure content = %q, want bare error detail", failed)
 	}

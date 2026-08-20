@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"encoding/base64"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"os"
 	"path/filepath"
@@ -11,7 +12,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // BrowserScreenshotTool captures the current browser page as an image and
@@ -53,7 +53,7 @@ func (t *BrowserScreenshotTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute captures the screenshot and returns it as an attached image
-func (t *BrowserScreenshotTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *BrowserScreenshotTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if err := t.checkRateLimit(); err != nil {
@@ -70,19 +70,19 @@ func (t *BrowserScreenshotTool) Execute(ctx context.Context, args map[string]any
 		path, _ = t.persistScreenshot(raw)
 	}
 
-	attachment := domain.ImageAttachment{
+	attachment := agentdomain.ImageAttachment{
 		Data:        res.Data,
 		MimeType:    res.MimeType,
 		DisplayName: "browser-screenshot",
 		SourcePath:  path,
 	}
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  t.name,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
 		Data:      browserdomain.BrowserToolResult{Action: "screenshot", URL: res.URL, Title: res.Title},
-		Images:    []domain.ImageAttachment{attachment},
+		Images:    []agentdomain.ImageAttachment{attachment},
 	}, nil
 }
 

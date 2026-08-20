@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +41,7 @@ const (
 type MemoryTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter domain.CustomFormatter
+	formatter agentinfra.CustomFormatter
 	backend   domain.MemoryBackend
 	project   project.Identity
 }
@@ -55,7 +57,7 @@ func NewMemoryTool(cfg *config.Config, backend domain.MemoryBackend, proj projec
 		config:  cfg,
 		enabled: cfg.Memory.Enabled,
 		project: proj,
-		formatter: domain.NewCustomFormatter(ToolNameMemory, func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolNameMemory, func(key string) bool {
 			return key == "content"
 		}),
 		backend: backend,
@@ -114,7 +116,7 @@ func (t *MemoryTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the memory tool with the given arguments.
-func (t *MemoryTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *MemoryTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if !t.enabled {
@@ -147,7 +149,7 @@ func (t *MemoryTool) syncOut(ctx context.Context) {
 }
 
 // execRead returns the MEMORY.md index (no name) or a single fact-file (name).
-func (t *MemoryTool) execRead(args map[string]any, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *MemoryTool) execRead(args map[string]any, start time.Time) (*agentdomain.ToolExecutionResult, error) {
 	dir, err := t.config.ResolveMemoryDir()
 	if err != nil {
 		return t.errResult(args, start, fmt.Sprintf("failed to resolve memory dir: %v", err)), nil
@@ -186,7 +188,7 @@ func (t *MemoryTool) execRead(args map[string]any, start time.Time) (*domain.Too
 	}), nil
 }
 
-func (t *MemoryTool) readIndex(args map[string]any, start time.Time, dir string) (*domain.ToolExecutionResult, error) {
+func (t *MemoryTool) readIndex(args map[string]any, start time.Time, dir string) (*agentdomain.ToolExecutionResult, error) {
 	indexPath := filepath.Join(dir, config.MemoryIndexFileName)
 	content, err := os.ReadFile(indexPath)
 	if err != nil {
@@ -207,7 +209,7 @@ func (t *MemoryTool) readIndex(args map[string]any, start time.Time, dir string)
 }
 
 // execWrite creates or updates a fact-file and upserts its index entry.
-func (t *MemoryTool) execWrite(ctx context.Context, args map[string]any, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *MemoryTool) execWrite(ctx context.Context, args map[string]any, start time.Time) (*agentdomain.ToolExecutionResult, error) {
 	name, _ := args["name"].(string)
 	description, _ := args["description"].(string)
 	memType, _ := args["type"].(string)
@@ -231,7 +233,7 @@ func (t *MemoryTool) execWrite(ctx context.Context, args map[string]any, start t
 		return t.errResult(args, start, fmt.Sprintf("failed to resolve memory dir: %v", err)), nil
 	}
 
-	fileBody, err := buildMemoryFile(slug, description, memType, t.projectDisplayName(projectSlug, projectArg), domain.GetSessionID(ctx), content)
+	fileBody, err := buildMemoryFile(slug, description, memType, t.projectDisplayName(projectSlug, projectArg), agentdomain.GetSessionID(ctx), content)
 	if err != nil {
 		return t.errResult(args, start, fmt.Sprintf("failed to render memory file: %v", err)), nil
 	}
@@ -315,7 +317,7 @@ func resolveWriteTarget(name, projectArg, memType string, detected project.Ident
 }
 
 // execDelete removes a fact-file and its index entry (idempotent).
-func (t *MemoryTool) execDelete(ctx context.Context, args map[string]any, start time.Time) (*domain.ToolExecutionResult, error) {
+func (t *MemoryTool) execDelete(ctx context.Context, args map[string]any, start time.Time) (*agentdomain.ToolExecutionResult, error) {
 	name, _ := args["name"].(string)
 	projectSlug, slug, ok := sanitizeName(name)
 	if !ok {
@@ -663,8 +665,8 @@ func writeFileAtomic(path, content string) error {
 	return os.Rename(tmpName, path)
 }
 
-func (t *MemoryTool) errResult(args map[string]any, start time.Time, msg string) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func (t *MemoryTool) errResult(args map[string]any, start time.Time, msg string) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  ToolNameMemory,
 		Arguments: args,
 		Success:   false,
@@ -673,8 +675,8 @@ func (t *MemoryTool) errResult(args map[string]any, start time.Time, msg string)
 	}
 }
 
-func (t *MemoryTool) okResult(args map[string]any, start time.Time, data *MemoryToolResult) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func (t *MemoryTool) okResult(args map[string]any, start time.Time, data *MemoryToolResult) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  ToolNameMemory,
 		Arguments: args,
 		Success:   true,
@@ -684,13 +686,13 @@ func (t *MemoryTool) okResult(args map[string]any, start time.Time, data *Memory
 }
 
 // FormatResult formats tool execution results for different contexts.
-func (t *MemoryTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *MemoryTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -698,7 +700,7 @@ func (t *MemoryTool) FormatResult(result *domain.ToolExecutionResult, formatType
 }
 
 // FormatPreview returns a short preview of the result for UI display.
-func (t *MemoryTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *MemoryTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Memory operation result unavailable"
 	}
@@ -750,7 +752,7 @@ func countIndexEntries(index string) int {
 }
 
 // FormatForUI formats the result for UI display.
-func (t *MemoryTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *MemoryTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -772,7 +774,7 @@ func (t *MemoryTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with expanded structure.
-func (t *MemoryTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *MemoryTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Memory operation result unavailable"
 	}
@@ -780,7 +782,7 @@ func (t *MemoryTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	return t.formatter.FormatExpanded(result, t.formatMemoryResultData(result))
 }
 
-func (t *MemoryTool) formatMemoryResultData(result *domain.ToolExecutionResult) string {
+func (t *MemoryTool) formatMemoryResultData(result *agentdomain.ToolExecutionResult) string {
 	memResult, ok := result.Data.(*MemoryToolResult)
 	if !ok {
 		return ""

@@ -4,6 +4,7 @@ package domain
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -12,15 +13,15 @@ import (
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
 	// Core message fields
-	Message          Message           `json:"message"`
-	Model            string            `json:"model,omitempty"`
-	Time             time.Time         `json:"time"`
-	Hidden           bool              `json:"hidden,omitempty"`
-	Images           []ImageAttachment `json:"images,omitempty"`
-	ReasoningContent string            `json:"reasoning_content,omitempty"`
+	Message          sdk.Message                   `json:"message"`
+	Model            string                        `json:"model,omitempty"`
+	Time             time.Time                     `json:"time"`
+	Hidden           bool                          `json:"hidden,omitempty"`
+	Images           []agentdomain.ImageAttachment `json:"images,omitempty"`
+	ReasoningContent string                        `json:"reasoning_content,omitempty"`
 
 	// Tool-related fields
-	ToolExecution      *ToolExecutionResult               `json:"tool_execution,omitempty"`
+	ToolExecution      *agentdomain.ToolExecutionResult   `json:"tool_execution,omitempty"`
 	PendingToolCall    *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call,omitempty"`
 	ToolApprovalStatus ToolApprovalStatus                 `json:"tool_approval_status,omitempty"`
 
@@ -85,9 +86,9 @@ type ConversationRepository interface {
 	GetSessionTokens() SessionTokenStats
 	GetSessionCostStats() SessionCostStats
 
-	FormatToolResultForLLM(result *ToolExecutionResult) string
-	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
-	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
+	FormatToolResultForLLM(result *agentdomain.ToolExecutionResult) string
+	FormatToolResultForUI(result *agentdomain.ToolExecutionResult, terminalWidth int) string
+	FormatToolResultExpanded(result *agentdomain.ToolExecutionResult, terminalWidth int) string
 
 	RemovePendingToolCallByID(toolCallID string)
 
@@ -113,53 +114,10 @@ type ModelService interface {
 	ValidateModel(modelID string) error
 }
 
-// ChatEvent represents events during chat operations
-type ChatEvent interface {
-	GetRequestID() string
-	GetTimestamp() time.Time
-}
-
-// EventBridge multicasts chat events to multiple subscribers (e.g., terminal UI and the opentask extension bridge)
-type EventBridge interface {
-	// Tap intercepts an event stream and multicasts it to all subscribers
-	// Returns a new channel that mirrors the input channel
-	Tap(input <-chan ChatEvent) <-chan ChatEvent
-
-	// Publish broadcasts an event to all subscribers
-	Publish(event ChatEvent)
-
-	// Subscribe creates a new event channel and returns it
-	Subscribe() chan ChatEvent
-
-	// SubscribeFuture is Subscribe without the ring-buffer replay, for
-	// subscribers that backfill history another way.
-	SubscribeFuture() chan ChatEvent
-
-	// Unsubscribe removes a subscriber and closes its channel
-	Unsubscribe(ch chan ChatEvent)
-}
-
-// ChatMetrics holds performance and usage metrics
-type ChatMetrics struct {
-	Duration time.Duration
-	Usage    *sdk.CompletionUsage
-}
-
-// ChatSyncResponse represents a synchronous chat completion response
-type ChatSyncResponse struct {
-	RequestID        string                              `json:"request_id"`
-	Content          string                              `json:"content"`
-	ReasoningContent string                              `json:"reasoning_content,omitempty"`
-	ToolCalls        []sdk.ChatCompletionMessageToolCall `json:"tool_calls,omitempty"`
-	Usage            *sdk.CompletionUsage                `json:"usage,omitempty"`
-	Duration         time.Duration                       `json:"duration"`
-	FinishReason     string                              `json:"finish_reason,omitempty"`
-}
-
 // MessageQueue handles centralized message queuing for all components
 type MessageQueue interface {
 	// Enqueue adds a message to the queue
-	Enqueue(message Message, requestID string)
+	Enqueue(message sdk.Message, requestID string)
 
 	// Dequeue removes and returns the next message from the queue
 	// Returns nil if the queue is empty

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -162,7 +163,7 @@ func TestShouldDrainAfterComplete(t *testing.T) {
 			queue.IsEmptyReturns(tt.queueEmpty)
 			h := &ChatHandler{messageQueue: queue}
 
-			msg := domain.ChatCompleteEvent{Cancelled: tt.cancelled, ToolCalls: tt.toolCalls}
+			msg := agentdomain.ChatCompleteEvent{Cancelled: tt.cancelled, ToolCalls: tt.toolCalls}
 			if got := h.shouldDrainAfterComplete(msg); got != tt.want {
 				t.Errorf("shouldDrainAfterComplete = %v, want %v", got, tt.want)
 			}

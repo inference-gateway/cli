@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"sync"
 	"time"
@@ -89,18 +90,18 @@ func (r *InMemoryConversationRepository) MarkMessageAsPlanByIndex(index int) {
 }
 
 // UpdatePlanStatus updates the status of the most recent pending plan
-func (r *InMemoryConversationRepository) UpdatePlanStatus(action domain.PlanApprovalAction) {
+func (r *InMemoryConversationRepository) UpdatePlanStatus(action agentdomain.PlanApprovalAction) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
 	for i := len(r.messages) - 1; i >= 0; i-- {
 		if r.messages[i].IsPlan && r.messages[i].PlanApprovalStatus == domain.PlanApprovalPending {
 			switch action {
-			case domain.PlanApprovalAccept:
+			case agentdomain.PlanApprovalAccept:
 				r.messages[i].PlanApprovalStatus = domain.PlanApprovalAccepted
-			case domain.PlanApprovalReject:
+			case agentdomain.PlanApprovalReject:
 				r.messages[i].PlanApprovalStatus = domain.PlanApprovalRejected
-			case domain.PlanApprovalAcceptStandard:
+			case agentdomain.PlanApprovalAcceptStandard:
 				r.messages[i].PlanApprovalStatus = domain.PlanApprovalAccepted
 			}
 			break
@@ -109,7 +110,7 @@ func (r *InMemoryConversationRepository) UpdatePlanStatus(action domain.PlanAppr
 }
 
 // AddPendingToolCall adds a pending tool call entry that requires approval
-func (r *InMemoryConversationRepository) AddPendingToolCall(toolCall sdk.ChatCompletionMessageToolCall, responseChan chan domain.ApprovalAction) error {
+func (r *InMemoryConversationRepository) AddPendingToolCall(toolCall sdk.ChatCompletionMessageToolCall, responseChan chan agentdomain.ApprovalAction) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -128,16 +129,16 @@ func (r *InMemoryConversationRepository) AddPendingToolCall(toolCall sdk.ChatCom
 }
 
 // UpdateToolApprovalStatus updates the approval status of the most recent pending tool
-func (r *InMemoryConversationRepository) UpdateToolApprovalStatus(action domain.ApprovalAction) {
+func (r *InMemoryConversationRepository) UpdateToolApprovalStatus(action agentdomain.ApprovalAction) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
 	for i := len(r.messages) - 1; i >= 0; i-- {
 		if r.messages[i].PendingToolCall != nil && r.messages[i].ToolApprovalStatus == domain.ToolApprovalPending {
 			switch action {
-			case domain.ApprovalApprove, domain.ApprovalAutoAccept:
+			case agentdomain.ApprovalApprove, agentdomain.ApprovalAutoAccept:
 				r.messages[i].ToolApprovalStatus = domain.ToolApprovalApproved
-			case domain.ApprovalReject:
+			case agentdomain.ApprovalReject:
 				r.messages[i].ToolApprovalStatus = domain.ToolApprovalRejected
 			}
 			break
@@ -495,7 +496,7 @@ func (r *InMemoryConversationRepository) SetSessionStats(tokenStats domain.Sessi
 }
 
 // FormatToolResultForLLM formats tool execution results for LLM consumption
-func (r *InMemoryConversationRepository) FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
+func (r *InMemoryConversationRepository) FormatToolResultForLLM(result *agentdomain.ToolExecutionResult) string {
 	if r.formatterService != nil {
 		return r.formatterService.FormatToolResultForLLM(result)
 	}
@@ -506,7 +507,7 @@ func (r *InMemoryConversationRepository) FormatToolResultForLLM(result *domain.T
 }
 
 // FormatToolResultForUI formats tool execution results for UI display
-func (r *InMemoryConversationRepository) FormatToolResultForUI(result *domain.ToolExecutionResult, terminalWidth int) string {
+func (r *InMemoryConversationRepository) FormatToolResultForUI(result *agentdomain.ToolExecutionResult, terminalWidth int) string {
 	if r.formatterService != nil {
 		return r.formatterService.FormatToolResultForUI(result, terminalWidth)
 	}
@@ -517,7 +518,7 @@ func (r *InMemoryConversationRepository) FormatToolResultForUI(result *domain.To
 }
 
 // FormatToolResultExpanded formats expanded tool execution results
-func (r *InMemoryConversationRepository) FormatToolResultExpanded(result *domain.ToolExecutionResult, terminalWidth int) string {
+func (r *InMemoryConversationRepository) FormatToolResultExpanded(result *agentdomain.ToolExecutionResult, terminalWidth int) string {
 	if r.formatterService != nil {
 		return r.formatterService.FormatToolResultExpanded(result, terminalWidth)
 	}

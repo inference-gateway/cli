@@ -3,10 +3,10 @@ package computer
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -44,7 +44,7 @@ func (t *GetFocusedAppTool) Validate(args map[string]any) error {
 }
 
 // Execute executes the GetFocusedApp tool
-func (t *GetFocusedAppTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *GetFocusedAppTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	appProvider, err := display.DetectAppProvider()
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect app provider: %w", err)
@@ -56,7 +56,7 @@ func (t *GetFocusedAppTool) Execute(ctx context.Context, args map[string]any) (*
 	}
 
 	if app == nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName: "GetFocusedApp",
 			Success:  true,
 			Data: map[string]any{
@@ -70,7 +70,7 @@ func (t *GetFocusedAppTool) Execute(ctx context.Context, args map[string]any) (*
 		msg += fmt.Sprintf(", platform_id: %s", app.PlatformID)
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName: "GetFocusedApp",
 		Success:  true,
 		Data: map[string]any{
@@ -88,7 +88,7 @@ func (t *GetFocusedAppTool) IsEnabled() bool {
 }
 
 // FormatPreview formats the result for display preview
-func (t *GetFocusedAppTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *GetFocusedAppTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to get focused app"
 	}
@@ -103,7 +103,7 @@ func (t *GetFocusedAppTool) FormatPreview(result *domain.ToolExecutionResult) st
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *GetFocusedAppTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *GetFocusedAppTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
@@ -128,11 +128,11 @@ func (t *GetFocusedAppTool) ShouldAlwaysExpand() bool {
 }
 
 // FormatResult formats the result based on the requested format type
-func (t *GetFocusedAppTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *GetFocusedAppTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)

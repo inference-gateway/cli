@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 	"time"
 
@@ -17,7 +18,7 @@ type StateManager struct {
 	stallThreshold time.Duration
 
 	// Event multicast for external event consumers (optional)
-	eventBridge domain.EventBridge
+	eventBridge agentdomain.EventBridge
 
 	debugMode bool
 }
@@ -58,14 +59,14 @@ func (sm *StateManager) TransitionToView(newView domain.ViewState) error {
 }
 
 // GetAgentMode returns the current agent mode
-func (sm *StateManager) GetAgentMode() domain.AgentMode {
+func (sm *StateManager) GetAgentMode() agentdomain.AgentMode {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetAgentMode()
 }
 
 // SetAgentMode sets the agent mode
-func (sm *StateManager) SetAgentMode(mode domain.AgentMode) {
+func (sm *StateManager) SetAgentMode(mode agentdomain.AgentMode) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -73,7 +74,7 @@ func (sm *StateManager) SetAgentMode(mode domain.AgentMode) {
 }
 
 // CycleAgentMode cycles to the next agent mode
-func (sm *StateManager) CycleAgentMode() domain.AgentMode {
+func (sm *StateManager) CycleAgentMode() agentdomain.AgentMode {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -105,7 +106,7 @@ func (sm *StateManager) SetChatPending() {
 // SetRetryStatus updates the retry status on the current chat session.
 // Called by the agent's reconnect loop to provide visual feedback in the
 // status bar while it is reconnecting after a failure.
-func (sm *StateManager) SetRetryStatus(status *domain.RetryStatus) {
+func (sm *StateManager) SetRetryStatus(status *agentdomain.RetryStatus) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.state.SetRetryStatus(status)
@@ -119,7 +120,7 @@ func (sm *StateManager) SetRetryStatus(status *domain.RetryStatus) {
 // its own. A synthesized status has Attempt == 0. Terminal sessions never
 // report a status, so a stale explicit retry can't outlive the turn it
 // belonged to (the input field is disabled while this returns non-nil).
-func (sm *StateManager) GetRetryStatus() *domain.RetryStatus {
+func (sm *StateManager) GetRetryStatus() *agentdomain.RetryStatus {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -136,7 +137,7 @@ func (sm *StateManager) GetRetryStatus() *domain.RetryStatus {
 		return nil
 	}
 	if sm.stallThreshold > 0 && time.Since(session.LastActivity) > sm.stallThreshold {
-		return &domain.RetryStatus{}
+		return &agentdomain.RetryStatus{}
 	}
 	return nil
 }
@@ -161,38 +162,38 @@ func (sm *StateManager) TouchChatActivity() {
 // chatStatusExpectsChunks reports whether the status is one where SSE chunks
 // should be flowing; local tool execution and terminal states are excluded so
 // a long-running tool doesn't read as a stalled connection.
-func chatStatusExpectsChunks(s domain.ChatStatus) bool {
+func chatStatusExpectsChunks(s agentdomain.ChatStatus) bool {
 	switch s {
-	case domain.ChatStatusStarting, domain.ChatStatusThinking, domain.ChatStatusGenerating, domain.ChatStatusReceivingTools:
+	case agentdomain.ChatStatusStarting, agentdomain.ChatStatusThinking, agentdomain.ChatStatusGenerating, agentdomain.ChatStatusReceivingTools:
 		return true
 	}
 	return false
 }
 
-func isTerminalChatStatus(s domain.ChatStatus) bool {
+func isTerminalChatStatus(s agentdomain.ChatStatus) bool {
 	switch s {
-	case domain.ChatStatusIdle, domain.ChatStatusCompleted, domain.ChatStatusError, domain.ChatStatusCancelled:
+	case agentdomain.ChatStatusIdle, agentdomain.ChatStatusCompleted, agentdomain.ChatStatusError, agentdomain.ChatStatusCancelled:
 		return true
 	}
 	return false
 }
 
 // SetEventBridge sets the event bridge for multicasting events to external consumers
-func (sm *StateManager) SetEventBridge(bridge domain.EventBridge) {
+func (sm *StateManager) SetEventBridge(bridge agentdomain.EventBridge) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.eventBridge = bridge
 }
 
 // GetEventBridge returns the event bridge for control event forwarding
-func (sm *StateManager) GetEventBridge() domain.EventBridge {
+func (sm *StateManager) GetEventBridge() agentdomain.EventBridge {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.eventBridge
 }
 
 // StartChatSession starts a new chat session
-func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-chan domain.ChatEvent) error {
+func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-chan agentdomain.ChatEvent) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -206,7 +207,7 @@ func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-ch
 }
 
 // UpdateChatStatus updates the chat session status with validation
-func (sm *StateManager) UpdateChatStatus(status domain.ChatStatus) error {
+func (sm *StateManager) UpdateChatStatus(status agentdomain.ChatStatus) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -254,7 +255,7 @@ func (sm *StateManager) IsAgentBusy() bool {
 	}
 
 	switch chatSession.Status {
-	case domain.ChatStatusIdle, domain.ChatStatusCompleted, domain.ChatStatusError, domain.ChatStatusCancelled:
+	case agentdomain.ChatStatusIdle, agentdomain.ChatStatusCompleted, agentdomain.ChatStatusError, agentdomain.ChatStatusCancelled:
 		return false
 	default:
 		return true
@@ -266,18 +267,18 @@ func (sm *StateManager) StartToolExecution(toolCalls []sdk.ChatCompletionMessage
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	tools := make([]domain.ToolCall, len(toolCalls))
+	tools := make([]agentdomain.ToolCall, len(toolCalls))
 	for i, tc := range toolCalls {
 		args := make(map[string]any)
 		if tc.Function.Arguments != "" {
 			_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
 		}
 
-		tools[i] = domain.ToolCall{
+		tools[i] = agentdomain.ToolCall{
 			ID:        tc.ID,
 			Name:      tc.Function.Name,
 			Arguments: args,
-			Status:    domain.ToolCallStatusPending,
+			Status:    agentdomain.ToolCallStatusPending,
 			StartTime: time.Now(),
 		}
 	}
@@ -288,7 +289,7 @@ func (sm *StateManager) StartToolExecution(toolCalls []sdk.ChatCompletionMessage
 }
 
 // CompleteCurrentTool marks the current tool as completed
-func (sm *StateManager) CompleteCurrentTool(result *domain.ToolExecutionResult) error {
+func (sm *StateManager) CompleteCurrentTool(result *agentdomain.ToolExecutionResult) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -300,7 +301,7 @@ func (sm *StateManager) CompleteCurrentTool(result *domain.ToolExecutionResult) 
 }
 
 // FailCurrentTool marks the current tool as failed
-func (sm *StateManager) FailCurrentTool(result *domain.ToolExecutionResult) error {
+func (sm *StateManager) FailCurrentTool(result *agentdomain.ToolExecutionResult) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -401,7 +402,7 @@ func (sm *StateManager) ClearFileSelectionState() {
 // Approval state methods
 
 // SetupApprovalUIState initializes approval UI state
-func (sm *StateManager) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan domain.ApprovalAction) {
+func (sm *StateManager) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan agentdomain.ApprovalAction) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -425,7 +426,7 @@ func (sm *StateManager) ClearApprovalUIState() {
 }
 
 // BroadcastEvent publishes an event to the EventBridge for external consumers
-func (sm *StateManager) BroadcastEvent(event domain.ChatEvent) {
+func (sm *StateManager) BroadcastEvent(event agentdomain.ChatEvent) {
 	if sm.eventBridge != nil {
 		sm.eventBridge.Publish(event)
 	}
@@ -434,7 +435,7 @@ func (sm *StateManager) BroadcastEvent(event domain.ChatEvent) {
 // Plan approval state methods
 
 // SetupPlanApprovalUIState initializes plan approval UI state
-func (sm *StateManager) SetupPlanApprovalUIState(planContent, planID string, responseChan chan domain.PlanApprovalAction) {
+func (sm *StateManager) SetupPlanApprovalUIState(planContent, planID string, responseChan chan agentdomain.PlanApprovalAction) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -466,7 +467,7 @@ func (sm *StateManager) ClearPlanApprovalUIState() {
 }
 
 // SetupUserQuestionUIState initializes the AskUserQuestion form state
-func (sm *StateManager) SetupUserQuestionUIState(questions []domain.UserQuestion, responseChan chan []domain.UserQuestionAnswer) {
+func (sm *StateManager) SetupUserQuestionUIState(questions []agentdomain.UserQuestion, responseChan chan []agentdomain.UserQuestionAnswer) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -492,7 +493,7 @@ func (sm *StateManager) ClearUserQuestionUIState() {
 // Todo management methods
 
 // SetTodos sets the todo list
-func (sm *StateManager) SetTodos(todos []domain.TodoItem) {
+func (sm *StateManager) SetTodos(todos []agentdomain.TodoItem) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -500,7 +501,7 @@ func (sm *StateManager) SetTodos(todos []domain.TodoItem) {
 }
 
 // GetTodos returns the current todo list
-func (sm *StateManager) GetTodos() []domain.TodoItem {
+func (sm *StateManager) GetTodos() []agentdomain.TodoItem {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -608,7 +609,7 @@ func (sm *StateManager) InitializeAgentReadiness(totalAgents int) {
 }
 
 // UpdateAgentStatus updates the status of a specific agent
-func (sm *StateManager) UpdateAgentStatus(name string, state domain.AgentState, message string, url string, image string) {
+func (sm *StateManager) UpdateAgentStatus(name string, state agentdomain.AgentState, message string, url string, image string) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 

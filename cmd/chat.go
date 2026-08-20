@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"io"
 	"os"
 	"os/signal"
@@ -193,7 +194,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		resumeChatSession(conversationRepo, sessionRolloverManager, sessionID)
 	}
 
-	if mode := inheritedSubagentMode(); mode != domain.AgentModeStandard {
+	if mode := inheritedSubagentMode(); mode != agentdomain.AgentModeStandard {
 		stateManager.SetAgentMode(mode)
 	}
 
@@ -405,7 +406,7 @@ func runNonInteractiveChat(cfg *config.Config) error {
 		Content: sdk.NewMessageContent(input),
 	}
 
-	req := &domain.AgentRequest{
+	req := &agentdomain.AgentRequest{
 		RequestID: fmt.Sprintf("req_%d", time.Now().UnixNano()),
 		Model:     defaultModel,
 		Messages:  []sdk.Message{userMessage},
@@ -469,17 +470,17 @@ func (p programNotifier) Notify(event any) { p.program.Send(event) }
 // forwardControlEventsToBubbleTea forwards control events from EventBridge to the
 // Bubble Tea loop through the single UI notifier. This ensures control events
 // (pause/resume) reach ChatHandler even when the chat session is closed.
-func forwardControlEventsToBubbleTea(notifier domain.UINotifier, eventBridge domain.EventBridge) {
+func forwardControlEventsToBubbleTea(notifier domain.UINotifier, eventBridge agentdomain.EventBridge) {
 	logger.Debug("starting control event forwarder")
 	subscription := eventBridge.Subscribe()
 
 	for event := range subscription {
 		switch e := event.(type) {
-		case domain.ComputerUsePausedEvent:
+		case agentdomain.ComputerUsePausedEvent:
 			logger.Debug("forwarding ComputerUsePausedEvent to BubbleTea", "request_id", e.RequestID)
 			notifier.Notify(e)
 
-		case domain.ComputerUseResumedEvent:
+		case agentdomain.ComputerUseResumedEvent:
 			logger.Debug("forwarding ComputerUseResumedEvent to BubbleTea", "request_id", e.RequestID)
 			notifier.Notify(e)
 

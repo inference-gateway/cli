@@ -3,6 +3,7 @@ package render
 import (
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"io"
 
 	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
@@ -113,12 +114,12 @@ func (e *aguiEncoder) emitToolCallEnd(id string) {
 	e.emit(aguievents.NewToolCallEndEvent(id))
 }
 
-func (e *aguiEncoder) emitToolResult(r *domain.ToolExecutionResult) {
+func (e *aguiEncoder) emitToolResult(r *agentdomain.ToolExecutionResult) {
 	content, _ := json.Marshal(r)
 	e.emit(aguievents.NewToolCallResultEvent(guuid.New().String(), r.ToolCallID, string(content)))
 }
 
-func (e *aguiEncoder) emitTodos(todos []domain.TodoItem) {
+func (e *aguiEncoder) emitTodos(todos []agentdomain.TodoItem) {
 	e.emit(aguievents.NewStateSnapshotEvent(map[string]any{"todos": todos}))
 }
 

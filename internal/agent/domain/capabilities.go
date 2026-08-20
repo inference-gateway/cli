@@ -5,19 +5,6 @@ package domain
 import (
 	"context"
 	"time"
-
-	sdk "github.com/inference-gateway/sdk"
-)
-
-// Assistant message
-type Message = sdk.Message
-
-// Common role constants
-const (
-	RoleUser      = sdk.User
-	RoleAssistant = sdk.Assistant
-	RoleTool      = sdk.Tool
-	RoleSystem    = sdk.System
 )
 
 // ImageAttachment represents an image attachment in a message

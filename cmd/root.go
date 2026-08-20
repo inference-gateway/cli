@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +15,6 @@ import (
 	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -61,7 +61,7 @@ func Execute() {
 	defer logger.Close()
 
 	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(version)); err != nil {
-		if errors.Is(err, domain.ErrMaxTurnsReached) {
+		if errors.Is(err, agentdomain.ErrMaxTurnsReached) {
 			os.Exit(ExitCodeMaxTurns)
 		}
 		os.Exit(1)

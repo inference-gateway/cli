@@ -11,6 +11,7 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 	ansi "github.com/charmbracelet/x/ansi"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -119,7 +120,7 @@ type ToolsViewImpl struct {
 	width         int
 	height        int
 	cancelled     bool
-	toolService   domain.ToolService
+	toolService   agentdomain.ToolService
 	stateManager  domain.AgentModeManager
 	styleProvider *styles.Provider
 }
@@ -127,7 +128,7 @@ type ToolsViewImpl struct {
 // NewToolsView creates the tools list view. Items are populated by Reset on
 // every entry because the tool set changes with the agent mode and with async
 // MCP tool registration.
-func NewToolsView(toolService domain.ToolService, stateManager domain.AgentModeManager, styleProvider *styles.Provider) *ToolsViewImpl {
+func NewToolsView(toolService agentdomain.ToolService, stateManager domain.AgentModeManager, styleProvider *styles.Provider) *ToolsViewImpl {
 	l := list.New(
 		nil,
 		newToolDelegate(styleProvider),
@@ -157,7 +158,7 @@ func (m *ToolsViewImpl) toolItems() []list.Item {
 		return nil
 	}
 
-	mode := domain.AgentModeStandard
+	mode := agentdomain.AgentModeStandard
 	if m.stateManager != nil {
 		mode = m.stateManager.GetAgentMode()
 	}

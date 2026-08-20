@@ -2,6 +2,7 @@
 package domain
 
 import (
+	sdk "github.com/inference-gateway/sdk"
 	"sync"
 
 	"github.com/inference-gateway/cli/internal/domain"
@@ -22,10 +23,10 @@ type FakeMessageQueue struct {
 	dequeueReturnsOnCall map[int]struct {
 		result1 *domain.QueuedMessage
 	}
-	EnqueueStub        func(domain.Message, string)
+	EnqueueStub        func(sdk.Message, string)
 	enqueueMutex       sync.RWMutex
 	enqueueArgsForCall []struct {
-		arg1 domain.Message
+		arg1 sdk.Message
 		arg2 string
 	}
 	GetAllStub        func() []domain.QueuedMessage
@@ -149,10 +150,10 @@ func (fake *FakeMessageQueue) DequeueReturnsOnCall(i int, result1 *domain.Queued
 	}{result1}
 }
 
-func (fake *FakeMessageQueue) Enqueue(arg1 domain.Message, arg2 string) {
+func (fake *FakeMessageQueue) Enqueue(arg1 sdk.Message, arg2 string) {
 	fake.enqueueMutex.Lock()
 	fake.enqueueArgsForCall = append(fake.enqueueArgsForCall, struct {
-		arg1 domain.Message
+		arg1 sdk.Message
 		arg2 string
 	}{arg1, arg2})
 	stub := fake.EnqueueStub
@@ -169,13 +170,13 @@ func (fake *FakeMessageQueue) EnqueueCallCount() int {
 	return len(fake.enqueueArgsForCall)
 }
 
-func (fake *FakeMessageQueue) EnqueueCalls(stub func(domain.Message, string)) {
+func (fake *FakeMessageQueue) EnqueueCalls(stub func(sdk.Message, string)) {
 	fake.enqueueMutex.Lock()
 	defer fake.enqueueMutex.Unlock()
 	fake.EnqueueStub = stub
 }
 
-func (fake *FakeMessageQueue) EnqueueArgsForCall(i int) (domain.Message, string) {
+func (fake *FakeMessageQueue) EnqueueArgsForCall(i int) (sdk.Message, string) {
 	fake.enqueueMutex.RLock()
 	defer fake.enqueueMutex.RUnlock()
 	argsForCall := fake.enqueueArgsForCall[i]

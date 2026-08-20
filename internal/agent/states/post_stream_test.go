@@ -1,12 +1,11 @@
 package states
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // TestPostStreamState_Handle covers the routing after a completed stream:
@@ -19,21 +18,21 @@ func TestPostStreamState_Handle(t *testing.T) {
 		setup           func(f *stateFixture)
 		transitionErr   error
 		wantErr         bool
-		wantTransitions []domain.AgentExecutionState
-		wantEvents      []domain.AgentEvent
+		wantTransitions []AgentExecutionState
+		wantEvents      []AgentEvent
 		check           func(t *testing.T, f *stateFixture)
 	}{
 		{
 			name:            "queued messages return to checking queue",
 			setup:           func(f *stateFixture) { f.queue.IsEmptyReturns(false) },
-			wantTransitions: []domain.AgentExecutionState{domain.StateCheckingQueue},
-			wantEvents:      []domain.AgentEvent{domain.MessageReceivedEvent{}},
+			wantTransitions: []AgentExecutionState{StateCheckingQueue},
+			wantEvents:      []AgentEvent{MessageReceivedEvent{}},
 		},
 		{
 			name:            "tool calls route to evaluating tools",
 			setup:           func(f *stateFixture) { *f.ctx.CurrentToolCalls = makeTools(1) },
-			wantTransitions: []domain.AgentExecutionState{domain.StateEvaluatingTools},
-			wantEvents:      []domain.AgentEvent{domain.MessageReceivedEvent{}},
+			wantTransitions: []AgentExecutionState{StateEvaluatingTools},
+			wantEvents:      []AgentEvent{MessageReceivedEvent{}},
 		},
 		{
 			name: "no tools after a turn completes",
@@ -42,8 +41,8 @@ func TestPostStreamState_Handle(t *testing.T) {
 				f.ctx.AgentCtx.HasToolResults = true
 				f.sm.CanTransitionReturns(true)
 			},
-			wantTransitions: []domain.AgentExecutionState{domain.StateCompleting},
-			wantEvents:      []domain.AgentEvent{domain.CompletionRequestedEvent{}},
+			wantTransitions: []AgentExecutionState{StateCompleting},
+			wantEvents:      []AgentEvent{CompletionRequestedEvent{}},
 			check: func(t *testing.T, f *stateFixture) {
 				assert.False(t, f.ctx.AgentCtx.HasToolResults, "HasToolResults must be cleared")
 				require.Len(t, f.completeCalls, 1, "final chat completion must be published")
@@ -52,8 +51,8 @@ func TestPostStreamState_Handle(t *testing.T) {
 		},
 		{
 			name:            "no tools on turn zero continues the loop",
-			wantTransitions: []domain.AgentExecutionState{domain.StateStreamingLLM},
-			wantEvents:      []domain.AgentEvent{domain.StartStreamingEvent{}},
+			wantTransitions: []AgentExecutionState{StateStreamingLLM},
+			wantEvents:      []AgentEvent{StartStreamingEvent{}},
 		},
 		{
 			name: "transition failure is returned",
@@ -63,7 +62,7 @@ func TestPostStreamState_Handle(t *testing.T) {
 			},
 			transitionErr:   errBoom,
 			wantErr:         true,
-			wantTransitions: []domain.AgentExecutionState{domain.StateCompleting},
+			wantTransitions: []AgentExecutionState{StateCompleting},
 		},
 	}
 	for _, tt := range tests {
@@ -75,9 +74,9 @@ func TestPostStreamState_Handle(t *testing.T) {
 			}
 			f.sm.TransitionReturns(tt.transitionErr)
 			s := NewPostStreamState(f.ctx)
-			assert.Equal(t, domain.StatePostStream, s.Name())
+			assert.Equal(t, StatePostStream, s.Name())
 
-			err := s.Handle(domain.MessageReceivedEvent{})
+			err := s.Handle(MessageReceivedEvent{})
 
 			if tt.wantErr {
 				assert.ErrorIs(t, err, errBoom)
@@ -86,7 +85,7 @@ func TestPostStreamState_Handle(t *testing.T) {
 			}
 			assertTransitions(t, f.sm, tt.wantTransitions...)
 			assertEvents(t, f.events, tt.wantEvents...)
-			assert.Equal(t, []domain.HookPoint{domain.HookPostStream}, *hooks, "post_stream hook dispatched on every path")
+			assert.Equal(t, []agentdomain.HookPoint{agentdomain.HookPostStream}, *hooks, "post_stream hook dispatched on every path")
 			if tt.check != nil {
 				tt.check(t, f)
 			}

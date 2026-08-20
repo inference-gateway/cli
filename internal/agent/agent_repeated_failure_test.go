@@ -1,6 +1,7 @@
 package agent
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -16,8 +17,8 @@ func TestTrackRepeatedFailure(t *testing.T) {
 			Arguments: `{"file_path":"/nope/reminders.go"}`,
 		},
 	}
-	failed := domain.ConversationEntry{ToolExecution: &domain.ToolExecutionResult{Success: false}}
-	ok := domain.ConversationEntry{ToolExecution: &domain.ToolExecutionResult{Success: true}}
+	failed := domain.ConversationEntry{ToolExecution: &agentdomain.ToolExecutionResult{Success: false}}
+	ok := domain.ConversationEntry{ToolExecution: &agentdomain.ToolExecutionResult{Success: true}}
 
 	s.trackRepeatedFailure(tc, failed)
 	if name, n := s.takeRepeatedFailure(); name != "" || n != 0 {

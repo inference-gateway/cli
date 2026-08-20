@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
@@ -64,7 +65,7 @@ func (t *ReadSubagentScreenTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute captures the named subagent's terminal screen.
-func (t *ReadSubagentScreenTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *ReadSubagentScreenTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
@@ -72,7 +73,7 @@ func (t *ReadSubagentScreenTool) Execute(ctx context.Context, args map[string]an
 	subagentID, _ := args["subagent_id"].(string)
 	s := t.tracker.GetSubagent(subagentID)
 	if s == nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "ReadSubagentScreen",
 			Arguments: args,
 			Success:   false,
@@ -81,7 +82,7 @@ func (t *ReadSubagentScreenTool) Execute(ctx context.Context, args map[string]an
 	}
 
 	if s.Mode != domain.SubagentModeInteractive || s.PaneID == "" {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "ReadSubagentScreen",
 			Arguments: args,
 			Success:   false,
@@ -90,7 +91,7 @@ func (t *ReadSubagentScreenTool) Execute(ctx context.Context, args map[string]an
 	}
 
 	screen := t.capture(ctx, s.PaneID, toInt(args["lines"]))
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "ReadSubagentScreen",
 		Arguments: args,
 		Success:   true,
@@ -118,9 +119,9 @@ func (t *ReadSubagentScreenTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts.
-func (t *ReadSubagentScreenTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *ReadSubagentScreenTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)
@@ -128,7 +129,7 @@ func (t *ReadSubagentScreenTool) FormatResult(result *domain.ToolExecutionResult
 }
 
 // FormatPreview returns a short preview of the result for UI display.
-func (t *ReadSubagentScreenTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *ReadSubagentScreenTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to read subagent screen"
 	}
@@ -141,7 +142,7 @@ func (t *ReadSubagentScreenTool) FormatPreview(result *domain.ToolExecutionResul
 }
 
 // FormatForLLM formats the result for LLM consumption.
-func (t *ReadSubagentScreenTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *ReadSubagentScreenTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}

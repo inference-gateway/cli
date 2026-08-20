@@ -1,13 +1,13 @@
 package browser
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
 	infrastructure "github.com/inference-gateway/cli/internal/browser/infrastructure"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
@@ -19,10 +19,10 @@ func browserTestConfig(enabled bool) *config.Config {
 	return cfg
 }
 
-func newBrowserTestTools(cfg *config.Config) []domain.Tool {
+func newBrowserTestTools(cfg *config.Config) []agentdomain.Tool {
 	session := infrastructure.NewSession(&cfg.BrowserUse)
 	limiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
-	return []domain.Tool{
+	return []agentdomain.Tool{
 		NewBrowserNavigateTool(cfg, limiter, session),
 		NewBrowserClickTool(cfg, limiter, session),
 		NewBrowserTypeTool(cfg, limiter, session),
@@ -64,7 +64,7 @@ func TestBrowserToolsValidate(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		tool    domain.Tool
+		tool    agentdomain.Tool
 		args    map[string]any
 		wantErr bool
 	}{
@@ -98,7 +98,7 @@ func TestBrowserToolFormatForLLM(t *testing.T) {
 	limiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
 	tool := NewBrowserReadTool(cfg, limiter, session)
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName: "BrowserRead",
 		Success:  true,
 		Data: browserdomain.BrowserToolResult{
@@ -116,7 +116,7 @@ func TestBrowserToolFormatForLLM(t *testing.T) {
 		}
 	}
 
-	failed := &domain.ToolExecutionResult{ToolName: "BrowserRead", Success: false, Error: "boom"}
+	failed := &agentdomain.ToolExecutionResult{ToolName: "BrowserRead", Success: false, Error: "boom"}
 	if out := tool.FormatForLLM(failed); !strings.Contains(out, "boom") {
 		t.Errorf("Expected error in output, got %q", out)
 	}
@@ -128,7 +128,7 @@ func TestBrowserTabsFormatForLLM(t *testing.T) {
 	limiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
 	tool := NewBrowserTabsTool(cfg, limiter, session)
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName: "BrowserTabs",
 		Success:  true,
 		Data: []browserdomain.BrowserTab{

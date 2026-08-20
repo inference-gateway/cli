@@ -1,12 +1,12 @@
 package computer
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
@@ -215,7 +215,7 @@ func TestKeyboardTypeTool_FormatResult(t *testing.T) {
 
 	tool := NewKeyboardTypeTool(cfg, utils.NewRateLimiter(cfg.ComputerUse.RateLimit), nil)
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "KeyboardType",
 		Arguments: map[string]any{"text": "www.google.com"},
 		Success:   true,

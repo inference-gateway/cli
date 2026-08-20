@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"time"
 
@@ -52,7 +53,7 @@ func (s *ChatShortcutHandler) executeShortcut(
 				s.handler.messageQueue.Clear()
 			}
 
-			s.handler.stateManager.SetTodos([]domain.TodoItem{})
+			s.handler.stateManager.SetTodos([]agentdomain.TodoItem{})
 
 			return tea.Batch(
 				func() tea.Msg {
@@ -62,7 +63,7 @@ func (s *ChatShortcutHandler) executeShortcut(
 				},
 				func() tea.Msg {
 					return domain.TodoUpdateEvent{
-						Todos: []domain.TodoItem{},
+						Todos: []agentdomain.TodoItem{},
 					}
 				},
 				func() tea.Msg {
@@ -137,7 +138,7 @@ func (s *ChatShortcutHandler) performShortcutExecution(shortcut shortcuts.Shortc
 		} else {
 			logger.Debug("conversationRepo is not PersistentConversationRepository", "type", fmt.Sprintf("%T", s.handler.conversationRepo))
 		}
-		ctx = context.WithValue(ctx, domain.SessionIDKey, sessionID)
+		ctx = context.WithValue(ctx, agentdomain.SessionIDKey, sessionID)
 
 		result, err := shortcut.Execute(ctx, args)
 		if err != nil {
@@ -658,7 +659,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 }
 
 func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
-	imageAttachments, ok := data.([]domain.ImageAttachment)
+	imageAttachments, ok := data.([]agentdomain.ImageAttachment)
 	if !ok {
 		return domain.SetStatusEvent{
 			Message:    "Invalid image data",

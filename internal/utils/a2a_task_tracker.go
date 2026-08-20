@@ -1,17 +1,16 @@
 package utils
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-var _ domain.A2ATaskTracker = (*A2ATaskTrackerImpl)(nil)
+var _ agentdomain.A2ATaskTracker = (*A2ATaskTrackerImpl)(nil)
 
 // AgentContext represents a context within an agent with its tasks
 type AgentContext struct {
 	ContextID string
-	Tasks     []*domain.TaskPollingState
+	Tasks     []*agentdomain.TaskPollingState
 }
 
 // Agent represents an A2A agent with its contexts
@@ -29,19 +28,19 @@ type A2ATaskTrackerImpl struct {
 
 	agentIndex   map[string]int
 	contextIndex map[string]*AgentContext
-	taskIndex    map[string]*domain.TaskPollingState
+	taskIndex    map[string]*agentdomain.TaskPollingState
 }
 
 // NewA2ATaskTracker creates a new A2ATaskTrackerImpl. Returns the concrete
 // type so callers that need to embed it (e.g. the unified
 // services.BackgroundTaskRegistry) don't need to type-assert. The result
-// still satisfies domain.A2ATaskTracker via interface conversion.
+// still satisfies agentdomain.A2ATaskTracker via interface conversion.
 func NewA2ATaskTracker() *A2ATaskTrackerImpl {
 	return &A2ATaskTrackerImpl{
 		agents:       make([]*Agent, 0),
 		agentIndex:   make(map[string]int),
 		contextIndex: make(map[string]*AgentContext),
-		taskIndex:    make(map[string]*domain.TaskPollingState),
+		taskIndex:    make(map[string]*agentdomain.TaskPollingState),
 	}
 }
 
@@ -72,7 +71,7 @@ func (t *A2ATaskTrackerImpl) RegisterContext(agentURL, contextID string) {
 
 	context := &AgentContext{
 		ContextID: contextID,
-		Tasks:     make([]*domain.TaskPollingState, 0),
+		Tasks:     make([]*agentdomain.TaskPollingState, 0),
 	}
 	agent.Contexts = append(agent.Contexts, context)
 	t.contextIndex[contextID] = context
@@ -196,7 +195,7 @@ func (t *A2ATaskTrackerImpl) AddTask(contextID, taskID string) {
 		}
 	}
 
-	state := &domain.TaskPollingState{
+	state := &agentdomain.TaskPollingState{
 		TaskID:    taskID,
 		ContextID: contextID,
 	}
@@ -315,11 +314,11 @@ func (t *A2ATaskTrackerImpl) ClearAllAgents() {
 	t.agents = make([]*Agent, 0)
 	t.agentIndex = make(map[string]int)
 	t.contextIndex = make(map[string]*AgentContext)
-	t.taskIndex = make(map[string]*domain.TaskPollingState)
+	t.taskIndex = make(map[string]*agentdomain.TaskPollingState)
 }
 
 // StartPolling starts tracking a background polling operation for a task
-func (t *A2ATaskTrackerImpl) StartPolling(taskID string, state *domain.TaskPollingState) {
+func (t *A2ATaskTrackerImpl) StartPolling(taskID string, state *agentdomain.TaskPollingState) {
 	if state == nil || taskID == "" {
 		return
 	}
@@ -376,7 +375,7 @@ func (t *A2ATaskTrackerImpl) StopPolling(taskID string) {
 }
 
 // GetPollingState returns the current polling state for a task
-func (t *A2ATaskTrackerImpl) GetPollingState(taskID string) *domain.TaskPollingState {
+func (t *A2ATaskTrackerImpl) GetPollingState(taskID string) *agentdomain.TaskPollingState {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 

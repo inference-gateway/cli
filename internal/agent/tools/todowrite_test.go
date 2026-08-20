@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestTodoWriteTool_Definition(t *testing.T) {
@@ -352,9 +352,9 @@ func TestTodoWriteTool_Execute(t *testing.T) {
 				return
 			}
 
-			todoResult, ok := result.Data.(*domain.TodoWriteToolResult)
+			todoResult, ok := result.Data.(*agentdomain.TodoWriteToolResult)
 			if !ok {
-				t.Error("Expected result data to be *domain.TodoWriteToolResult")
+				t.Error("Expected result data to be *agentdomain.TodoWriteToolResult")
 				return
 			}
 

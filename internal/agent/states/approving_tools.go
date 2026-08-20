@@ -3,6 +3,7 @@ package states
 import (
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 	"time"
 
@@ -34,23 +35,23 @@ type toolRound struct {
 //  2. AllToolsProcessedEvent → transitions to PostToolExecution
 //  3. ApprovalFailedEvent → handles approval failures
 type ApprovingToolsState struct {
-	ctx *domain.StateContext
+	ctx *StateContext
 }
 
 // NewApprovingToolsState creates a new ApprovingTools state handler
-func NewApprovingToolsState(ctx *domain.StateContext) domain.StateHandler {
+func NewApprovingToolsState(ctx *StateContext) StateHandler {
 	return &ApprovingToolsState{ctx: ctx}
 }
 
 // Name returns the state this handler manages
-func (s *ApprovingToolsState) Name() domain.AgentExecutionState {
-	return domain.StateApprovingTools
+func (s *ApprovingToolsState) Name() AgentExecutionState {
+	return StateApprovingTools
 }
 
 // Handle processes events in ApprovingTools state
-func (s *ApprovingToolsState) Handle(event domain.AgentEvent) error {
+func (s *ApprovingToolsState) Handle(event AgentEvent) error {
 	switch e := event.(type) {
-	case domain.MessageReceivedEvent:
+	case MessageReceivedEvent:
 		logger.Debug("approving tools state: initializing tool processing queue")
 
 		*s.ctx.ToolsNeedingApproval = make([]sdk.ChatCompletionMessageToolCall, 0, len(*s.ctx.CurrentToolCalls))
@@ -71,17 +72,17 @@ func (s *ApprovingToolsState) Handle(event domain.AgentEvent) error {
 		s.ctx.WaitGroup.Add(1)
 		go s.processNextTool(round)
 
-	case domain.AllToolsProcessedEvent:
+	case AllToolsProcessedEvent:
 		logger.Debug("all tools processed", "results", len(*s.ctx.ToolResults))
 
-		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StatePostToolExecution); err != nil {
+		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StatePostToolExecution); err != nil {
 			logger.Error("failed to transition to post tool execution", "error", err)
 			return err
 		}
 
-		s.ctx.Events <- domain.MessageReceivedEvent{}
+		s.ctx.Events <- MessageReceivedEvent{}
 
-	case domain.ApprovalFailedEvent:
+	case ApprovalFailedEvent:
 		logger.Error("approval failed", "error", e.Error)
 		s.handleApprovalFailure(e.Error)
 	}
@@ -114,7 +115,7 @@ func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 	approved, err := s.ctx.RequestToolApproval(*tc)
 	if err != nil {
 		logger.Error("approval request failed", "tool", tc.Function.Name, "error", err)
-		s.ctx.Events <- domain.ApprovalFailedEvent{Error: err}
+		s.ctx.Events <- ApprovalFailedEvent{Error: err}
 		return
 	}
 
@@ -249,14 +250,14 @@ func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 	round.wg.Wait()
 	s.flushReady(round)
 
-	s.ctx.AgentCtx.LastToolFailed = domain.AnyToolFailed(*s.ctx.ToolResults)
-	if domain.AnyToolRejected(*s.ctx.ToolResults) {
+	s.ctx.AgentCtx.LastToolFailed = AnyToolFailed(*s.ctx.ToolResults)
+	if AnyToolRejected(*s.ctx.ToolResults) {
 		s.ctx.AgentCtx.HasToolResults = false
 	}
 	if s.ctx.PublishToolResults != nil {
 		s.ctx.PublishToolResults(*s.ctx.ToolResults)
 	}
-	s.ctx.Events <- domain.AllToolsProcessedEvent{}
+	s.ctx.Events <- AllToolsProcessedEvent{}
 }
 
 // buildRejectionEntry constructs the Tool-role result for a user-rejected tool
@@ -265,8 +266,8 @@ func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageToolCall) domain.ConversationEntry {
 	logger.Debug("tool rejected by user", "tool", tc.Function.Name)
 
-	s.ctx.PublishChatEvent(domain.ToolExecutionProgressEvent{
-		BaseChatEvent: domain.BaseChatEvent{
+	s.ctx.PublishChatEvent(agentdomain.ToolExecutionProgressEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{
 			RequestID: s.ctx.Request.RequestID,
 			Timestamp: time.Now(),
 		},
@@ -290,7 +291,7 @@ func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageTo
 	return domain.ConversationEntry{
 		Message: rejectionMessage,
 		Time:    time.Now(),
-		ToolExecution: &domain.ToolExecutionResult{
+		ToolExecution: &agentdomain.ToolExecutionResult{
 			ToolName:  tc.Function.Name,
 			Arguments: args,
 			Success:   false,
@@ -302,7 +303,7 @@ func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageTo
 
 // shouldAutoApproveRemaining checks if auto-accept mode is enabled
 func (s *ApprovingToolsState) shouldAutoApproveRemaining() bool {
-	return s.ctx.GetAgentMode() == domain.AgentModeAutoAccept
+	return s.ctx.GetAgentMode() == agentdomain.AgentModeAutoAccept
 }
 
 // maxConcurrent returns the bound on concurrently executing tools, clamped to
@@ -318,11 +319,11 @@ func (s *ApprovingToolsState) maxConcurrent() int {
 func (s *ApprovingToolsState) handleApprovalFailure(err error) {
 	logger.Error("handling approval failure", "error", err)
 
-	s.ctx.PublishChatEvent(domain.ChatErrorEvent{
+	s.ctx.PublishChatEvent(agentdomain.ChatErrorEvent{
 		RequestID: s.ctx.Request.RequestID,
 		Timestamp: time.Now(),
 		Error:     fmt.Errorf("approval failed: %w", err),
 	})
 
-	_ = s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateError)
+	_ = s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateError)
 }

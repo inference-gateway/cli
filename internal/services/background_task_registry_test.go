@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -22,13 +23,13 @@ func newFakeMetaJob(meta domain.JobMeta) *fakeMetaJob {
 
 func (f *fakeMetaJob) Meta() domain.JobMeta { return f.meta }
 
-func (f *fakeMetaJob) Run(ctx context.Context, _ func(domain.JobSignal)) domain.ToolExecutionResult {
+func (f *fakeMetaJob) Run(ctx context.Context, _ func(domain.JobSignal)) agentdomain.ToolExecutionResult {
 	close(f.started)
 	select {
 	case <-f.finish:
 	case <-ctx.Done():
 	}
-	return domain.ToolExecutionResult{Success: true}
+	return agentdomain.ToolExecutionResult{Success: true}
 }
 
 func (f *fakeMetaJob) Wind(context.Context, domain.WindSignal) error { return nil }
@@ -71,12 +72,12 @@ func TestHasPending_A2AViaSupervisor(t *testing.T) {
 	reg := NewBackgroundTaskRegistry(4, sup)
 
 	reg.RegisterContext("http://agent", "c1")
-	reg.StartPolling("t1", &domain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
+	reg.StartPolling("t1", &agentdomain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
 	if reg.HasPending() {
 		t.Fatalf("StartPolling without a supervised job must not count as pending")
 	}
 
-	job := newFakeA2ABgJob("t1", domain.TaskPollingState{TaskID: "t1"})
+	job := newFakeA2ABgJob("t1", agentdomain.TaskPollingState{TaskID: "t1"})
 	reg.Submit(job)
 	<-job.started
 	if !reg.HasPending() {
@@ -115,7 +116,7 @@ func TestClearAllAgents_DiscardsInFlightA2AJobs(t *testing.T) {
 	reg := NewBackgroundTaskRegistry(4, sup)
 
 	reg.RegisterContext("http://agent", "c1")
-	task := newFakeA2ABgJob("t1", domain.TaskPollingState{TaskID: "t1"})
+	task := newFakeA2ABgJob("t1", agentdomain.TaskPollingState{TaskID: "t1"})
 	reg.Submit(task)
 	<-task.started
 

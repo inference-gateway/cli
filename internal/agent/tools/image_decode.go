@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -23,11 +24,11 @@ import (
 type ImageDecodeTool struct {
 	config       *config.Config
 	imageService domain.ImageService
-	annotator    domain.ImageAnnotator
+	annotator    agentdomain.ImageAnnotator
 }
 
 // NewImageDecodeTool creates a new ImageDecode tool
-func NewImageDecodeTool(cfg *config.Config, imageService domain.ImageService, annotator domain.ImageAnnotator) *ImageDecodeTool {
+func NewImageDecodeTool(cfg *config.Config, imageService domain.ImageService, annotator agentdomain.ImageAnnotator) *ImageDecodeTool {
 	return &ImageDecodeTool{
 		config:       cfg,
 		imageService: imageService,
@@ -62,10 +63,10 @@ func (t *ImageDecodeTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute annotates the image file and returns the text description
-func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
-	fail := func(msg string) (*domain.ToolExecutionResult, error) {
-		return &domain.ToolExecutionResult{
+	fail := func(msg string) (*agentdomain.ToolExecutionResult, error) {
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "ImageDecode",
 			Arguments: args,
 			Success:   false,
@@ -76,7 +77,7 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*do
 
 	path, _ := args["image"].(string)
 
-	var attachment *domain.ImageAttachment
+	var attachment *agentdomain.ImageAttachment
 	var err error
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
 		attachment, err = t.imageService.ReadImageFromURL(path)
@@ -95,7 +96,7 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*do
 		prompt += "\nAnswer this question about the image in the summary: " + question
 	}
 
-	annotation, err := t.annotator.AnnotateImage(ctx, *attachment, domain.AnnotateOptions{
+	annotation, err := t.annotator.AnnotateImage(ctx, *attachment, agentdomain.AnnotateOptions{
 		Prompt: prompt,
 		Width:  width,
 		Height: height,
@@ -104,12 +105,12 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*do
 		return fail(fmt.Sprintf("annotation failed: %v", err))
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "ImageDecode",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
-		Data: domain.FrameToolResult{
+		Data: agentdomain.FrameToolResult{
 			Source:     path,
 			Width:      width,
 			Height:     height,
@@ -147,9 +148,9 @@ func (t *ImageDecodeTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *ImageDecodeTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *ImageDecodeTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)
@@ -157,23 +158,23 @@ func (t *ImageDecodeTool) FormatResult(result *domain.ToolExecutionResult, forma
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *ImageDecodeTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *ImageDecodeTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to decode image"
 	}
-	if data, ok := result.Data.(domain.FrameToolResult); ok && data.Annotation != nil {
+	if data, ok := result.Data.(agentdomain.FrameToolResult); ok && data.Annotation != nil {
 		return fmt.Sprintf("Decoded image: %d element(s)", len(data.Annotation.Elements))
 	}
 	return "Image decoded"
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *ImageDecodeTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *ImageDecodeTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
-	if data, ok := result.Data.(domain.FrameToolResult); ok && data.Annotation != nil {
-		return domain.AnnotationText(data.Annotation)
+	if data, ok := result.Data.(agentdomain.FrameToolResult); ok && data.Annotation != nil {
+		return agentdomain.AnnotationText(data.Annotation)
 	}
 	return "Image decoded."
 }

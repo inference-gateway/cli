@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -45,11 +46,11 @@ func (t *ListShellsTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute lists all background shells
-func (t *ListShellsTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *ListShellsTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	shells := t.backgroundShellService.GetAllShells()
 
 	if len(shells) == 0 {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "ListShells",
 			Arguments: args,
 			Success:   true,
@@ -75,7 +76,7 @@ func (t *ListShellsTool) Execute(ctx context.Context, args map[string]any) (*dom
 		}
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "ListShells",
 		Arguments: args,
 		Success:   true,
@@ -97,8 +98,8 @@ func (t *ListShellsTool) IsEnabled() bool {
 }
 
 // FormatResult formats the result for display
-func (t *ListShellsTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
-	if formatType == domain.FormatterShort {
+func (t *ListShellsTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
+	if formatType == agentdomain.FormatterShort {
 		if data, ok := result.Data.(map[string]any); ok {
 			count := toInt(data["shell_count"])
 			if count == 0 {
@@ -108,7 +109,7 @@ func (t *ListShellsTool) FormatResult(result *domain.ToolExecutionResult, format
 		}
 	}
 
-	if formatType == domain.FormatterLLM {
+	if formatType == agentdomain.FormatterLLM {
 		return t.formatLLMResult(result)
 	}
 
@@ -146,8 +147,8 @@ func (t *ListShellsTool) FormatResult(result *domain.ToolExecutionResult, format
 }
 
 // FormatPreview returns a short preview
-func (t *ListShellsTool) FormatPreview(result *domain.ToolExecutionResult) string {
-	return t.FormatResult(result, domain.FormatterShort)
+func (t *ListShellsTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
+	return t.FormatResult(result, agentdomain.FormatterShort)
 }
 
 // ShouldCollapseArg returns whether an argument should be collapsed
@@ -161,7 +162,7 @@ func (t *ListShellsTool) ShouldAlwaysExpand() bool {
 }
 
 // formatLLMResult formats the result for LLM consumption
-func (t *ListShellsTool) formatLLMResult(result *domain.ToolExecutionResult) string {
+func (t *ListShellsTool) formatLLMResult(result *agentdomain.ToolExecutionResult) string {
 	data, ok := result.Data.(map[string]any)
 	if !ok {
 		return "ListShells completed"

@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	"strings"
 	"time"
 
@@ -12,7 +14,7 @@ import (
 	mcp "github.com/metoro-io/mcp-golang"
 )
 
-// MCPTool wraps an MCP server tool to implement the domain.Tool interface
+// MCPTool wraps an MCP server tool to implement the agentdomain.Tool interface
 type MCPTool struct {
 	serverName    string
 	toolName      string
@@ -20,7 +22,7 @@ type MCPTool struct {
 	inputSchema   any
 	clientManager domain.MCPClient
 	config        *config.MCPConfig
-	formatter     domain.BaseFormatter
+	formatter     agentinfra.BaseFormatter
 }
 
 // NewMCPTool creates a new MCP tool wrapper
@@ -40,7 +42,7 @@ func NewMCPTool(
 		inputSchema:   inputSchema,
 		clientManager: clientManager,
 		config:        mcpConfig,
-		formatter:     domain.NewBaseFormatter(fullToolName),
+		formatter:     agentinfra.NewBaseFormatter(fullToolName),
 	}
 }
 
@@ -81,7 +83,7 @@ func (t *MCPTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the MCP tool with given arguments
-func (t *MCPTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *MCPTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	fullToolName := fmt.Sprintf("MCP_%s_%s", t.serverName, t.toolName)
 
@@ -103,14 +105,14 @@ func (t *MCPTool) Execute(ctx context.Context, args map[string]any) (*domain.Too
 		}
 	}
 
-	toolData := &domain.MCPToolResult{
+	toolData := &agentdomain.MCPToolResult{
 		ServerName: t.serverName,
 		ToolName:   t.toolName,
 		Content:    content,
 		Error:      errorMsg,
 	}
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  fullToolName,
 		Arguments: args,
 		Success:   success,
@@ -276,13 +278,13 @@ func (t *MCPTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *MCPTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *MCPTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -290,12 +292,12 @@ func (t *MCPTool) FormatResult(result *domain.ToolExecutionResult, formatType do
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *MCPTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *MCPTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "MCP tool execution result unavailable"
 	}
 
-	mcpResult, ok := result.Data.(*domain.MCPToolResult)
+	mcpResult, ok := result.Data.(*agentdomain.MCPToolResult)
 	if !ok {
 		if result.Success {
 			return "MCP tool executed successfully"
@@ -323,7 +325,7 @@ func (t *MCPTool) FormatPreview(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForUI formats the result for UI display
-func (t *MCPTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *MCPTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "MCP tool execution result unavailable"
 	}
@@ -348,7 +350,7 @@ func (t *MCPTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *MCPTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *MCPTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "MCP tool execution result unavailable"
 	}
@@ -362,7 +364,7 @@ func (t *MCPTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 // formatMCPData formats MCP-specific data for display
 func (t *MCPTool) formatMCPData(data any) string {
-	mcpResult, ok := data.(*domain.MCPToolResult)
+	mcpResult, ok := data.(*agentdomain.MCPToolResult)
 	if !ok {
 		return "Invalid MCP data format"
 	}

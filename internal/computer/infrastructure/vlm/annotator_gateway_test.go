@@ -2,13 +2,13 @@ package vlm
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 )
 
@@ -31,8 +31,8 @@ func TestGatewayAnnotateImage(t *testing.T) {
 	}, nil)
 
 	a := NewGatewayAnnotator(client, gatewayTestConfig())
-	img := domain.ImageAttachment{Data: "aW1n", MimeType: "image/jpeg"}
-	got, err := a.AnnotateImage(context.Background(), img, domain.AnnotateOptions{Width: 640, Height: 480})
+	img := agentdomain.ImageAttachment{Data: "aW1n", MimeType: "image/jpeg"}
+	got, err := a.AnnotateImage(context.Background(), img, agentdomain.AnnotateOptions{Width: 640, Height: 480})
 	if err != nil {
 		t.Fatalf("AnnotateImage: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestGatewayAnnotateImageBadModelFormat(t *testing.T) {
 	cfg := gatewayTestConfig()
 	cfg.Vision.Annotator.Model = "no-slash"
 	a := NewGatewayAnnotator(&sdkmocks.FakeClient{}, cfg)
-	_, err := a.AnnotateImage(context.Background(), domain.ImageAttachment{Data: "aW1n", MimeType: "image/png"}, domain.AnnotateOptions{})
+	_, err := a.AnnotateImage(context.Background(), agentdomain.ImageAttachment{Data: "aW1n", MimeType: "image/png"}, agentdomain.AnnotateOptions{})
 	if err == nil || !strings.Contains(err.Error(), "provider/model") {
 		t.Fatalf("expected provider/model error, got %v", err)
 	}
@@ -77,7 +77,7 @@ func TestGatewayAnnotateImageGarbageDegrades(t *testing.T) {
 	}, nil)
 
 	a := NewGatewayAnnotator(client, gatewayTestConfig())
-	got, err := a.AnnotateImage(context.Background(), domain.ImageAttachment{Data: "aW1n", MimeType: "image/png"}, domain.AnnotateOptions{})
+	got, err := a.AnnotateImage(context.Background(), agentdomain.ImageAttachment{Data: "aW1n", MimeType: "image/png"}, agentdomain.AnnotateOptions{})
 	if err != nil {
 		t.Fatalf("AnnotateImage: %v", err)
 	}

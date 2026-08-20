@@ -1,9 +1,9 @@
 package agent
 
 import (
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -26,7 +26,7 @@ func (a *EventDrivenAgent) executeTools() {
 
 	stop := a.service.handleToolResults(toolResults, a.agentCtx.Conversation, a.eventPublisher, a.req)
 
-	failed := domain.AnyToolFailed(toolResults)
+	failed := states.AnyToolFailed(toolResults)
 	a.mu.Lock()
 	a.agentCtx.LastToolFailed = failed
 	if !stop {
@@ -35,5 +35,5 @@ func (a *EventDrivenAgent) executeTools() {
 	a.mu.Unlock()
 
 	logger.Debug("emitting tools completed event", "stop", stop)
-	a.events <- domain.ToolsCompletedEvent{Results: toolResults, Stop: stop}
+	a.events <- states.ToolsCompletedEvent{Results: toolResults, Stop: stop}
 }

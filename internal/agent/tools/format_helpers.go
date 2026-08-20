@@ -1,6 +1,6 @@
 package tools
 
-// Helpers for reading values out of a domain.ToolExecutionResult.Data map inside
+// Helpers for reading values out of a agentdomain.ToolExecutionResult.Data map inside
 // FormatResult/FormatPreview implementations. Data is typed `any` and is persisted
 // and reloaded through JSON (see internal/infra/storage), so on reload every number
 // becomes float64 and every []map[string]any becomes []any of map[string]any. Bare

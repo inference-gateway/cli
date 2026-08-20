@@ -2,11 +2,11 @@ package computer
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	displayMocks "github.com/inference-gateway/cli/tests/mocks/display"
 )
 
@@ -14,9 +14,9 @@ import (
 // coordinate tests never exercise the bridge.
 type stubEventBridgeManager struct{}
 
-func (stubEventBridgeManager) SetEventBridge(domain.EventBridge)  {}
-func (stubEventBridgeManager) GetEventBridge() domain.EventBridge { return nil }
-func (stubEventBridgeManager) BroadcastEvent(domain.ChatEvent)    {}
+func (stubEventBridgeManager) SetEventBridge(agentdomain.EventBridge)  {}
+func (stubEventBridgeManager) GetEventBridge() agentdomain.EventBridge { return nil }
+func (stubEventBridgeManager) BroadcastEvent(agentdomain.ChatEvent)    {}
 
 // nopRateLimiter satisfies rateLimiter for tests without limiting anything.
 type nopRateLimiter struct{}
@@ -188,7 +188,7 @@ func runCoordinateScalingTest(t *testing.T, tt coordinateScalingTestCase) {
 
 	ctx := context.Background()
 	if tt.directExec {
-		ctx = context.WithValue(ctx, domain.DirectExecutionKey, true)
+		ctx = context.WithValue(ctx, agentdomain.DirectExecutionKey, true)
 	}
 
 	args := map[string]any{

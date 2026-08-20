@@ -8,6 +8,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -16,7 +17,7 @@ import (
 type QueueBoxView struct {
 	width         int
 	styleProvider *styles.Provider
-	toolFormatter domain.ToolFormatter
+	toolFormatter agentdomain.ToolFormatter
 }
 
 func NewQueueBoxView(styleProvider *styles.Provider) *QueueBoxView {
@@ -28,7 +29,7 @@ func NewQueueBoxView(styleProvider *styles.Provider) *QueueBoxView {
 
 // SetToolFormatter wires the shared tool formatter so queued tool calls show their
 // width-aware argument preview instead of a bare "Name(...)".
-func (qv *QueueBoxView) SetToolFormatter(f domain.ToolFormatter) {
+func (qv *QueueBoxView) SetToolFormatter(f agentdomain.ToolFormatter) {
 	qv.toolFormatter = f
 }
 

@@ -6,10 +6,9 @@ package vlm
 
 import (
 	"encoding/json"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"regexp"
 	"strings"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // jsonContract is the strict-JSON response instruction appended to every
@@ -21,7 +20,7 @@ Omit "elements" when nothing is notable. %s`
 // parseAnnotation turns raw model output into an ImageAnnotation. It strips
 // code fences and extracts the outermost JSON object; on any failure it
 // degrades to a summary-only annotation with the raw text - it never fails.
-func parseAnnotation(raw string) *domain.ImageAnnotation {
+func parseAnnotation(raw string) *agentdomain.ImageAnnotation {
 	text := strings.TrimSpace(raw)
 
 	candidate := text
@@ -31,14 +30,14 @@ func parseAnnotation(raw string) *domain.ImageAnnotation {
 		}
 	}
 
-	var annotation domain.ImageAnnotation
+	var annotation agentdomain.ImageAnnotation
 	if err := json.Unmarshal([]byte(candidate), &annotation); err == nil && annotation.Summary != "" {
 		return &annotation
 	}
 	if salvaged := salvageAnnotation(candidate); salvaged != nil {
 		return salvaged
 	}
-	return &domain.ImageAnnotation{Summary: text}
+	return &agentdomain.ImageAnnotation{Summary: text}
 }
 
 var (
@@ -49,13 +48,13 @@ var (
 // salvageAnnotation recovers what it can from a malformed reply (LLM JSON
 // glitches, truncation): the summary string plus every element object that
 // unmarshals on its own. Returns nil when nothing usable is found.
-func salvageAnnotation(candidate string) *domain.ImageAnnotation {
-	annotation := domain.ImageAnnotation{}
+func salvageAnnotation(candidate string) *agentdomain.ImageAnnotation {
+	annotation := agentdomain.ImageAnnotation{}
 	if m := summaryRe.FindStringSubmatch(candidate); m != nil {
 		_ = json.Unmarshal([]byte(m[1]), &annotation.Summary)
 	}
 	for _, raw := range elementRe.FindAllString(candidate, -1) {
-		var el domain.AnnotatedElement
+		var el agentdomain.AnnotatedElement
 		if err := json.Unmarshal([]byte(raw), &el); err == nil {
 			annotation.Elements = append(annotation.Elements, el)
 		}

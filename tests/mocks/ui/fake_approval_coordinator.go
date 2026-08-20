@@ -2,6 +2,7 @@
 package ui
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
@@ -10,10 +11,10 @@ import (
 )
 
 type FakeApprovalCoordinator struct {
-	HandleComputerUsePausedStub        func(domain.ComputerUsePausedEvent) tea.Cmd
+	HandleComputerUsePausedStub        func(agentdomain.ComputerUsePausedEvent) tea.Cmd
 	handleComputerUsePausedMutex       sync.RWMutex
 	handleComputerUsePausedArgsForCall []struct {
-		arg1 domain.ComputerUsePausedEvent
+		arg1 agentdomain.ComputerUsePausedEvent
 	}
 	handleComputerUsePausedReturns struct {
 		result1 tea.Cmd
@@ -21,10 +22,10 @@ type FakeApprovalCoordinator struct {
 	handleComputerUsePausedReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandleComputerUseResumedStub        func(domain.ComputerUseResumedEvent) (tea.Cmd, bool)
+	HandleComputerUseResumedStub        func(agentdomain.ComputerUseResumedEvent) (tea.Cmd, bool)
 	handleComputerUseResumedMutex       sync.RWMutex
 	handleComputerUseResumedArgsForCall []struct {
-		arg1 domain.ComputerUseResumedEvent
+		arg1 agentdomain.ComputerUseResumedEvent
 	}
 	handleComputerUseResumedReturns struct {
 		result1 tea.Cmd
@@ -34,10 +35,10 @@ type FakeApprovalCoordinator struct {
 		result1 tea.Cmd
 		result2 bool
 	}
-	HandlePlanApprovalRequestedStub        func(domain.PlanApprovalRequestedEvent) tea.Cmd
+	HandlePlanApprovalRequestedStub        func(agentdomain.PlanApprovalRequestedEvent) tea.Cmd
 	handlePlanApprovalRequestedMutex       sync.RWMutex
 	handlePlanApprovalRequestedArgsForCall []struct {
-		arg1 domain.PlanApprovalRequestedEvent
+		arg1 agentdomain.PlanApprovalRequestedEvent
 	}
 	handlePlanApprovalRequestedReturns struct {
 		result1 tea.Cmd
@@ -58,10 +59,10 @@ type FakeApprovalCoordinator struct {
 		result1 tea.Cmd
 		result2 bool
 	}
-	HandleUserQuestionRequestedStub        func(domain.UserQuestionRequestedEvent) tea.Cmd
+	HandleUserQuestionRequestedStub        func(agentdomain.UserQuestionRequestedEvent) tea.Cmd
 	handleUserQuestionRequestedMutex       sync.RWMutex
 	handleUserQuestionRequestedArgsForCall []struct {
-		arg1 domain.UserQuestionRequestedEvent
+		arg1 agentdomain.UserQuestionRequestedEvent
 	}
 	handleUserQuestionRequestedReturns struct {
 		result1 tea.Cmd
@@ -73,11 +74,11 @@ type FakeApprovalCoordinator struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeApprovalCoordinator) HandleComputerUsePaused(arg1 domain.ComputerUsePausedEvent) tea.Cmd {
+func (fake *FakeApprovalCoordinator) HandleComputerUsePaused(arg1 agentdomain.ComputerUsePausedEvent) tea.Cmd {
 	fake.handleComputerUsePausedMutex.Lock()
 	ret, specificReturn := fake.handleComputerUsePausedReturnsOnCall[len(fake.handleComputerUsePausedArgsForCall)]
 	fake.handleComputerUsePausedArgsForCall = append(fake.handleComputerUsePausedArgsForCall, struct {
-		arg1 domain.ComputerUsePausedEvent
+		arg1 agentdomain.ComputerUsePausedEvent
 	}{arg1})
 	stub := fake.HandleComputerUsePausedStub
 	fakeReturns := fake.handleComputerUsePausedReturns
@@ -98,13 +99,13 @@ func (fake *FakeApprovalCoordinator) HandleComputerUsePausedCallCount() int {
 	return len(fake.handleComputerUsePausedArgsForCall)
 }
 
-func (fake *FakeApprovalCoordinator) HandleComputerUsePausedCalls(stub func(domain.ComputerUsePausedEvent) tea.Cmd) {
+func (fake *FakeApprovalCoordinator) HandleComputerUsePausedCalls(stub func(agentdomain.ComputerUsePausedEvent) tea.Cmd) {
 	fake.handleComputerUsePausedMutex.Lock()
 	defer fake.handleComputerUsePausedMutex.Unlock()
 	fake.HandleComputerUsePausedStub = stub
 }
 
-func (fake *FakeApprovalCoordinator) HandleComputerUsePausedArgsForCall(i int) domain.ComputerUsePausedEvent {
+func (fake *FakeApprovalCoordinator) HandleComputerUsePausedArgsForCall(i int) agentdomain.ComputerUsePausedEvent {
 	fake.handleComputerUsePausedMutex.RLock()
 	defer fake.handleComputerUsePausedMutex.RUnlock()
 	argsForCall := fake.handleComputerUsePausedArgsForCall[i]
@@ -134,11 +135,11 @@ func (fake *FakeApprovalCoordinator) HandleComputerUsePausedReturnsOnCall(i int,
 	}{result1}
 }
 
-func (fake *FakeApprovalCoordinator) HandleComputerUseResumed(arg1 domain.ComputerUseResumedEvent) (tea.Cmd, bool) {
+func (fake *FakeApprovalCoordinator) HandleComputerUseResumed(arg1 agentdomain.ComputerUseResumedEvent) (tea.Cmd, bool) {
 	fake.handleComputerUseResumedMutex.Lock()
 	ret, specificReturn := fake.handleComputerUseResumedReturnsOnCall[len(fake.handleComputerUseResumedArgsForCall)]
 	fake.handleComputerUseResumedArgsForCall = append(fake.handleComputerUseResumedArgsForCall, struct {
-		arg1 domain.ComputerUseResumedEvent
+		arg1 agentdomain.ComputerUseResumedEvent
 	}{arg1})
 	stub := fake.HandleComputerUseResumedStub
 	fakeReturns := fake.handleComputerUseResumedReturns
@@ -159,13 +160,13 @@ func (fake *FakeApprovalCoordinator) HandleComputerUseResumedCallCount() int {
 	return len(fake.handleComputerUseResumedArgsForCall)
 }
 
-func (fake *FakeApprovalCoordinator) HandleComputerUseResumedCalls(stub func(domain.ComputerUseResumedEvent) (tea.Cmd, bool)) {
+func (fake *FakeApprovalCoordinator) HandleComputerUseResumedCalls(stub func(agentdomain.ComputerUseResumedEvent) (tea.Cmd, bool)) {
 	fake.handleComputerUseResumedMutex.Lock()
 	defer fake.handleComputerUseResumedMutex.Unlock()
 	fake.HandleComputerUseResumedStub = stub
 }
 
-func (fake *FakeApprovalCoordinator) HandleComputerUseResumedArgsForCall(i int) domain.ComputerUseResumedEvent {
+func (fake *FakeApprovalCoordinator) HandleComputerUseResumedArgsForCall(i int) agentdomain.ComputerUseResumedEvent {
 	fake.handleComputerUseResumedMutex.RLock()
 	defer fake.handleComputerUseResumedMutex.RUnlock()
 	argsForCall := fake.handleComputerUseResumedArgsForCall[i]
@@ -198,11 +199,11 @@ func (fake *FakeApprovalCoordinator) HandleComputerUseResumedReturnsOnCall(i int
 	}{result1, result2}
 }
 
-func (fake *FakeApprovalCoordinator) HandlePlanApprovalRequested(arg1 domain.PlanApprovalRequestedEvent) tea.Cmd {
+func (fake *FakeApprovalCoordinator) HandlePlanApprovalRequested(arg1 agentdomain.PlanApprovalRequestedEvent) tea.Cmd {
 	fake.handlePlanApprovalRequestedMutex.Lock()
 	ret, specificReturn := fake.handlePlanApprovalRequestedReturnsOnCall[len(fake.handlePlanApprovalRequestedArgsForCall)]
 	fake.handlePlanApprovalRequestedArgsForCall = append(fake.handlePlanApprovalRequestedArgsForCall, struct {
-		arg1 domain.PlanApprovalRequestedEvent
+		arg1 agentdomain.PlanApprovalRequestedEvent
 	}{arg1})
 	stub := fake.HandlePlanApprovalRequestedStub
 	fakeReturns := fake.handlePlanApprovalRequestedReturns
@@ -223,13 +224,13 @@ func (fake *FakeApprovalCoordinator) HandlePlanApprovalRequestedCallCount() int 
 	return len(fake.handlePlanApprovalRequestedArgsForCall)
 }
 
-func (fake *FakeApprovalCoordinator) HandlePlanApprovalRequestedCalls(stub func(domain.PlanApprovalRequestedEvent) tea.Cmd) {
+func (fake *FakeApprovalCoordinator) HandlePlanApprovalRequestedCalls(stub func(agentdomain.PlanApprovalRequestedEvent) tea.Cmd) {
 	fake.handlePlanApprovalRequestedMutex.Lock()
 	defer fake.handlePlanApprovalRequestedMutex.Unlock()
 	fake.HandlePlanApprovalRequestedStub = stub
 }
 
-func (fake *FakeApprovalCoordinator) HandlePlanApprovalRequestedArgsForCall(i int) domain.PlanApprovalRequestedEvent {
+func (fake *FakeApprovalCoordinator) HandlePlanApprovalRequestedArgsForCall(i int) agentdomain.PlanApprovalRequestedEvent {
 	fake.handlePlanApprovalRequestedMutex.RLock()
 	defer fake.handlePlanApprovalRequestedMutex.RUnlock()
 	argsForCall := fake.handlePlanApprovalRequestedArgsForCall[i]
@@ -323,11 +324,11 @@ func (fake *FakeApprovalCoordinator) HandlePlanApprovalResponseReturnsOnCall(i i
 	}{result1, result2}
 }
 
-func (fake *FakeApprovalCoordinator) HandleUserQuestionRequested(arg1 domain.UserQuestionRequestedEvent) tea.Cmd {
+func (fake *FakeApprovalCoordinator) HandleUserQuestionRequested(arg1 agentdomain.UserQuestionRequestedEvent) tea.Cmd {
 	fake.handleUserQuestionRequestedMutex.Lock()
 	ret, specificReturn := fake.handleUserQuestionRequestedReturnsOnCall[len(fake.handleUserQuestionRequestedArgsForCall)]
 	fake.handleUserQuestionRequestedArgsForCall = append(fake.handleUserQuestionRequestedArgsForCall, struct {
-		arg1 domain.UserQuestionRequestedEvent
+		arg1 agentdomain.UserQuestionRequestedEvent
 	}{arg1})
 	stub := fake.HandleUserQuestionRequestedStub
 	fakeReturns := fake.handleUserQuestionRequestedReturns
@@ -348,13 +349,13 @@ func (fake *FakeApprovalCoordinator) HandleUserQuestionRequestedCallCount() int 
 	return len(fake.handleUserQuestionRequestedArgsForCall)
 }
 
-func (fake *FakeApprovalCoordinator) HandleUserQuestionRequestedCalls(stub func(domain.UserQuestionRequestedEvent) tea.Cmd) {
+func (fake *FakeApprovalCoordinator) HandleUserQuestionRequestedCalls(stub func(agentdomain.UserQuestionRequestedEvent) tea.Cmd) {
 	fake.handleUserQuestionRequestedMutex.Lock()
 	defer fake.handleUserQuestionRequestedMutex.Unlock()
 	fake.HandleUserQuestionRequestedStub = stub
 }
 
-func (fake *FakeApprovalCoordinator) HandleUserQuestionRequestedArgsForCall(i int) domain.UserQuestionRequestedEvent {
+func (fake *FakeApprovalCoordinator) HandleUserQuestionRequestedArgsForCall(i int) agentdomain.UserQuestionRequestedEvent {
 	fake.handleUserQuestionRequestedMutex.RLock()
 	defer fake.handleUserQuestionRequestedMutex.RUnlock()
 	argsForCall := fake.handleUserQuestionRequestedArgsForCall[i]

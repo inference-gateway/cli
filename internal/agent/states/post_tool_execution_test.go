@@ -1,11 +1,10 @@
 package states
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // TestPostToolExecutionState_Handle covers the routing after a completed tool
@@ -19,23 +18,23 @@ func TestPostToolExecutionState_Handle(t *testing.T) {
 		setup           func(f *stateFixture)
 		transitionErr   error
 		wantErr         bool
-		wantTransitions []domain.AgentExecutionState
-		wantEvents      []domain.AgentEvent
-		wantHooks       []domain.HookPoint
+		wantTransitions []AgentExecutionState
+		wantEvents      []AgentEvent
+		wantHooks       []agentdomain.HookPoint
 		wantDrainCalls  int
 	}{
 		{
 			name:            "queue empty and can complete",
 			setup:           func(f *stateFixture) { f.sm.CanTransitionReturns(true) },
-			wantTransitions: []domain.AgentExecutionState{domain.StateCompleting},
-			wantEvents:      []domain.AgentEvent{domain.CompletionRequestedEvent{}},
-			wantHooks:       []domain.HookPoint{domain.HookPostTool},
+			wantTransitions: []AgentExecutionState{StateCompleting},
+			wantEvents:      []AgentEvent{CompletionRequestedEvent{}},
+			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPostTool},
 		},
 		{
 			name:            "queue empty and cannot complete continues to next turn",
-			wantTransitions: []domain.AgentExecutionState{domain.StateCheckingQueue},
-			wantEvents:      []domain.AgentEvent{domain.MessageReceivedEvent{}},
-			wantHooks:       []domain.HookPoint{domain.HookPostTool},
+			wantTransitions: []AgentExecutionState{StateCheckingQueue},
+			wantEvents:      []AgentEvent{MessageReceivedEvent{}},
+			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPostTool},
 		},
 		{
 			name: "queued messages are drained before the next turn",
@@ -43,9 +42,9 @@ func TestPostToolExecutionState_Handle(t *testing.T) {
 				f.queue.IsEmptyReturns(false)
 				f.drainReturns = 1
 			},
-			wantTransitions: []domain.AgentExecutionState{domain.StateCheckingQueue},
-			wantEvents:      []domain.AgentEvent{domain.MessageReceivedEvent{}},
-			wantHooks:       []domain.HookPoint{domain.HookPostTool, domain.HookPreQueueDrain, domain.HookPostQueueDrain},
+			wantTransitions: []AgentExecutionState{StateCheckingQueue},
+			wantEvents:      []AgentEvent{MessageReceivedEvent{}},
+			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPostTool, agentdomain.HookPreQueueDrain, agentdomain.HookPostQueueDrain},
 			wantDrainCalls:  1,
 		},
 		{
@@ -55,17 +54,17 @@ func TestPostToolExecutionState_Handle(t *testing.T) {
 				f.drainReturns = 1
 				f.cancelSession()
 			},
-			wantTransitions: []domain.AgentExecutionState{domain.StateCompleting},
-			wantEvents:      []domain.AgentEvent{domain.CompletionRequestedEvent{}},
-			wantHooks:       []domain.HookPoint{domain.HookPostTool, domain.HookPreQueueDrain, domain.HookPostQueueDrain},
+			wantTransitions: []AgentExecutionState{StateCompleting},
+			wantEvents:      []AgentEvent{CompletionRequestedEvent{}},
+			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPostTool, agentdomain.HookPreQueueDrain, agentdomain.HookPostQueueDrain},
 			wantDrainCalls:  1,
 		},
 		{
 			name:            "transition failure is returned",
 			transitionErr:   errBoom,
 			wantErr:         true,
-			wantTransitions: []domain.AgentExecutionState{domain.StateCheckingQueue},
-			wantHooks:       []domain.HookPoint{domain.HookPostTool},
+			wantTransitions: []AgentExecutionState{StateCheckingQueue},
+			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPostTool},
 		},
 	}
 	for _, tt := range tests {
@@ -77,9 +76,9 @@ func TestPostToolExecutionState_Handle(t *testing.T) {
 			}
 			f.sm.TransitionReturns(tt.transitionErr)
 			s := NewPostToolExecutionState(f.ctx)
-			assert.Equal(t, domain.StatePostToolExecution, s.Name())
+			assert.Equal(t, StatePostToolExecution, s.Name())
 
-			err := s.Handle(domain.MessageReceivedEvent{})
+			err := s.Handle(MessageReceivedEvent{})
 
 			if tt.wantErr {
 				assert.ErrorIs(t, err, errBoom)

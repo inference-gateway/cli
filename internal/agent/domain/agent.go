@@ -3,86 +3,13 @@ package domain
 import (
 	"context"
 	"errors"
-	"time"
 
-	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // ErrMaxTurnsReached is returned when the agent reaches its maximum turn limit
 // without completing the task. Callers should use errors.Is to check for it.
 var ErrMaxTurnsReached = errors.New("max_turns_reached")
-
-// AgentContext represents the execution context for the agent state machine
-type AgentContext struct {
-	RequestID        string
-	Conversation     *[]sdk.Message
-	MessageQueue     MessageQueue
-	ConversationRepo ConversationRepository
-	ToolCalls        []*sdk.ChatCompletionMessageToolCall
-	Turns            int
-	MaxTurns         int
-	HasToolResults   bool
-	LastToolFailed   bool
-	ApprovalPolicy   ApprovalPolicy
-	Ctx              context.Context
-	IsChatMode       bool
-	// MaxTurnsExceeded is set by the state machine when the run is forced into
-	// Completing because the turn limit was hit before the task could complete.
-	MaxTurnsExceeded bool
-}
-
-// AnyToolFailed reports whether any entry in a completed tool batch failed
-// (executed with a non-success result). It backs the post_tool `on_failure`
-// reminder trigger; callers set AgentContext.LastToolFailed from it when a batch
-// completes.
-func AnyToolFailed(results []ConversationEntry) bool {
-	for _, entry := range results {
-		if entry.ToolExecution != nil && !entry.ToolExecution.Success {
-			return true
-		}
-	}
-	return false
-}
-
-// AnyToolRejected reports whether any entry in a completed tool batch was
-// rejected by the user. A rejection ends the agent turn instead of feeding the
-// results back for another LLM response.
-func AnyToolRejected(results []ConversationEntry) bool {
-	for _, entry := range results {
-		if entry.ToolExecution != nil && entry.ToolExecution.Rejected {
-			return true
-		}
-	}
-	return false
-}
-
-// StateGuard is a function that determines if a state transition should occur
-type StateGuard func(ctx *AgentContext) bool
-
-// StateAction is a function executed on state transitions
-type StateAction func(ctx *AgentContext) error
-
-// AgentStateMachine manages agent execution state transitions
-type AgentStateMachine interface {
-	// Transition attempts to transition to the target state
-	Transition(ctx *AgentContext, targetState AgentExecutionState) error
-
-	// GetCurrentState returns the current state (thread-safe)
-	GetCurrentState() AgentExecutionState
-
-	// GetPreviousState returns the previous state (thread-safe)
-	GetPreviousState() AgentExecutionState
-
-	// CanTransition checks if a transition is valid without executing it
-	CanTransition(ctx *AgentContext, targetState AgentExecutionState) bool
-
-	// GetValidTransitions returns all valid transitions from current state
-	GetValidTransitions(ctx *AgentContext) []AgentExecutionState
-
-	// Reset resets the state machine to idle
-	Reset()
-}
 
 // AgentRequest represents a request to the agent service
 type AgentRequest struct {
@@ -126,19 +53,6 @@ type AgentService interface {
 	// GetReasoningEffort returns the effort level currently applied to
 	// requests ("" = provider default).
 	GetReasoningEffort() string
-}
-
-// CachedAgentCard represents a cached agent card with metadata
-type CachedAgentCard struct {
-	Card      *adk.AgentCard `json:"card"`
-	URL       string         `json:"url"`
-	FetchedAt time.Time      `json:"fetched_at"`
-}
-
-// A2AAgentService manages A2A agent operations
-type A2AAgentService interface {
-	GetAgentCards(ctx context.Context) ([]*CachedAgentCard, error)
-	GetConfiguredAgents() []string
 }
 
 // AgentManager manages the lifecycle of A2A agent containers

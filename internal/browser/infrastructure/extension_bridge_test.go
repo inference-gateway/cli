@@ -2,6 +2,7 @@ package infrastructure
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"io"
 	"net/http"
 	"os"
@@ -39,10 +40,10 @@ func readFrameOfType(t *testing.T, conn *websocket.Conn, typ string) map[string]
 	}
 }
 
-func toolApprovalEvent(id, name, args string) domain.ToolApprovalRequestedEvent {
-	return domain.ToolApprovalRequestedEvent{
+func toolApprovalEvent(id, name, args string) agentdomain.ToolApprovalRequestedEvent {
+	return agentdomain.ToolApprovalRequestedEvent{
 		RequestID:    id,
-		ResponseChan: make(chan domain.ApprovalAction, 1),
+		ResponseChan: make(chan agentdomain.ApprovalAction, 1),
 		ToolCall: sdk.ChatCompletionMessageToolCall{
 			ID:       "call-" + id,
 			Function: sdk.ChatCompletionMessageToolCallFunction{Name: name, Arguments: args},
@@ -77,7 +78,7 @@ func TestExtensionBridgeApprovalRoundTrip(t *testing.T) {
 			if !ok {
 				continue
 			}
-			if resp.Action != domain.ApprovalApprove {
+			if resp.Action != agentdomain.ApprovalApprove {
 				t.Fatalf("expected approve, got %v", resp.Action)
 			}
 			if resp.ToolCall.Function.Name != "Bash" {
@@ -112,7 +113,7 @@ func TestExtensionBridgeApprovalSurvivesTrailingEvents(t *testing.T) {
 	events.Publish(toolApprovalEvent("req-9", "Write", `{"file_path":"x"}`))
 	readFrameOfType(t, conn, "approval_request")
 
-	events.Publish(domain.ChatChunkEvent{Content: "streamed"})
+	events.Publish(agentdomain.ChatChunkEvent{Content: "streamed"})
 	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	var frame map[string]any
 	if err := conn.ReadJSON(&frame); err != nil {
@@ -122,7 +123,7 @@ func TestExtensionBridgeApprovalSurvivesTrailingEvents(t *testing.T) {
 		t.Fatal("a trailing chat event resolved the approval before the user answered")
 	}
 
-	events.Publish(domain.ToolApprovalResolvedEvent{})
+	events.Publish(agentdomain.ToolApprovalResolvedEvent{})
 	if resolved := readFrameOfType(t, conn, "approval_resolved"); resolved["request_id"] != "req-9" {
 		t.Fatalf("unexpected approval_resolved: %v", resolved)
 	}
@@ -147,7 +148,7 @@ func TestExtensionBridgeApprovalUnknownActionRejects(t *testing.T) {
 	for {
 		for _, ev := range notifier.all() {
 			if resp, ok := ev.(domain.ToolApprovalResponseEvent); ok {
-				if resp.Action != domain.ApprovalReject {
+				if resp.Action != agentdomain.ApprovalReject {
 					t.Fatalf("unknown action should reject, got %v", resp.Action)
 				}
 				return
@@ -211,7 +212,7 @@ func bridgeConfig() *config.BrowserUseConfig {
 	return cfg
 }
 
-func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier domain.UINotifier, events domain.EventBridge) *ExtensionBridge {
+func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier domain.UINotifier, events agentdomain.EventBridge) *ExtensionBridge {
 	t.Helper()
 	bridge := NewExtensionBridge(cfg, notifier, nil, events, nil, "test-session", "")
 	if err := bridge.Start(); err != nil {
@@ -401,7 +402,7 @@ func TestExtensionBridgeMirrorsChatEvents(t *testing.T) {
 
 	// Give the chat pump a moment to subscribe, then publish a chunk.
 	time.Sleep(50 * time.Millisecond)
-	events.Publish(domain.ChatChunkEvent{Content: "streamed text"})
+	events.Publish(agentdomain.ChatChunkEvent{Content: "streamed text"})
 
 	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	for {

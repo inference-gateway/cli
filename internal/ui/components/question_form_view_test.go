@@ -6,17 +6,18 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-func questionStateForTest(questions ...domain.UserQuestion) *domain.UserQuestionUIState {
+func questionStateForTest(questions ...agentdomain.UserQuestion) *domain.UserQuestionUIState {
 	if len(questions) == 0 {
-		questions = []domain.UserQuestion{
+		questions = []agentdomain.UserQuestion{
 			{
 				Header:      "Format",
 				Question:    "Which output format?",
 				MultiSelect: false,
-				Options: []domain.UserQuestionOption{
+				Options: []agentdomain.UserQuestionOption{
 					{Label: "JSON", Description: "machine readable"},
 					{Label: "YAML", Description: "human readable"},
 				},
@@ -25,7 +26,7 @@ func questionStateForTest(questions ...domain.UserQuestion) *domain.UserQuestion
 	}
 	return &domain.UserQuestionUIState{
 		Questions:    questions,
-		ResponseChan: make(chan []domain.UserQuestionAnswer, 1),
+		ResponseChan: make(chan []agentdomain.UserQuestionAnswer, 1),
 	}
 }
 
@@ -99,10 +100,10 @@ func TestQuestionFormView_SingleSelectDefaultSubmit(t *testing.T) {
 }
 
 func TestQuestionFormView_RecommendedPreselected(t *testing.T) {
-	state := questionStateForTest(domain.UserQuestion{
+	state := questionStateForTest(agentdomain.UserQuestion{
 		Header:   "Fmt",
 		Question: "q",
-		Options: []domain.UserQuestionOption{
+		Options: []agentdomain.UserQuestionOption{
 			{Label: "JSON"}, {Label: "YAML (Recommended)"},
 		},
 	})
@@ -121,11 +122,11 @@ func TestQuestionFormView_RecommendedPreselected(t *testing.T) {
 }
 
 func TestQuestionFormView_MultiSelectToggleAndSubmit(t *testing.T) {
-	state := questionStateForTest(domain.UserQuestion{
+	state := questionStateForTest(agentdomain.UserQuestion{
 		Header:      "Scope",
 		Question:    "scope?",
 		MultiSelect: true,
-		Options: []domain.UserQuestionOption{
+		Options: []agentdomain.UserQuestionOption{
 			{Label: "A"}, {Label: "B"}, {Label: "C"},
 		},
 	})

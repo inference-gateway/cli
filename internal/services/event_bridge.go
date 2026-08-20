@@ -2,9 +2,8 @@ package services
 
 import (
 	"container/ring"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // EventBridge multicasts chat events to multiple subscribers
@@ -17,7 +16,7 @@ type EventBridge struct {
 }
 
 type subscriber struct {
-	ch     chan domain.ChatEvent
+	ch     chan agentdomain.ChatEvent
 	closed bool
 	mu     sync.Mutex
 }
@@ -34,7 +33,7 @@ func NewEventBridge() *EventBridge {
 
 // Publish broadcasts an event to every subscriber. Delivery is non-blocking so
 // one slow subscriber can never stall the bus for the others.
-func (eb *EventBridge) Publish(event domain.ChatEvent) {
+func (eb *EventBridge) Publish(event agentdomain.ChatEvent) {
 	eb.subMutex.Lock()
 	eb.eventBuffer.Value = event
 	eb.eventBuffer = eb.eventBuffer.Next()
@@ -42,7 +41,7 @@ func (eb *EventBridge) Publish(event domain.ChatEvent) {
 	copy(subscribers, eb.subscribers)
 	eb.subMutex.Unlock()
 
-	_, droppable := event.(domain.ChatChunkEvent)
+	_, droppable := event.(agentdomain.ChatChunkEvent)
 	for _, sub := range subscribers {
 		sub.enqueue(event, droppable)
 	}
@@ -50,7 +49,7 @@ func (eb *EventBridge) Publish(event domain.ChatEvent) {
 
 // enqueue delivers one event without blocking: a full buffer drops a chunk, but
 // a control event evicts the oldest buffered event to guarantee room.
-func (s *subscriber) enqueue(event domain.ChatEvent, droppable bool) {
+func (s *subscriber) enqueue(event agentdomain.ChatEvent, droppable bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -73,15 +72,15 @@ func (s *subscriber) enqueue(event domain.ChatEvent, droppable bool) {
 
 // Subscribe registers a subscriber and replays the recent-event ring buffer so
 // backfill-less subscribers catch up on connect.
-func (eb *EventBridge) Subscribe() chan domain.ChatEvent { return eb.subscribe(true) }
+func (eb *EventBridge) Subscribe() chan agentdomain.ChatEvent { return eb.subscribe(true) }
 
 // SubscribeFuture is Subscribe without the ring-buffer replay, for subscribers
 // that backfill history another way (the extension bridge's conversation
 // snapshot) where a replay would double-render the last turn.
-func (eb *EventBridge) SubscribeFuture() chan domain.ChatEvent { return eb.subscribe(false) }
+func (eb *EventBridge) SubscribeFuture() chan agentdomain.ChatEvent { return eb.subscribe(false) }
 
-func (eb *EventBridge) subscribe(replay bool) chan domain.ChatEvent {
-	ch := make(chan domain.ChatEvent, 100)
+func (eb *EventBridge) subscribe(replay bool) chan agentdomain.ChatEvent {
+	ch := make(chan agentdomain.ChatEvent, 100)
 	sub := &subscriber{ch: ch}
 
 	eb.subMutex.Lock()
@@ -91,7 +90,7 @@ func (eb *EventBridge) subscribe(replay bool) chan domain.ChatEvent {
 
 	if replay {
 		eb.eventBuffer.Do(func(val any) {
-			if event, ok := val.(domain.ChatEvent); ok {
+			if event, ok := val.(agentdomain.ChatEvent); ok {
 				select {
 				case ch <- event:
 				default:
@@ -104,7 +103,7 @@ func (eb *EventBridge) subscribe(replay bool) chan domain.ChatEvent {
 }
 
 // Unsubscribe removes a subscriber and closes its channel
-func (eb *EventBridge) Unsubscribe(ch chan domain.ChatEvent) {
+func (eb *EventBridge) Unsubscribe(ch chan agentdomain.ChatEvent) {
 	eb.subMutex.Lock()
 	defer eb.subMutex.Unlock()
 
@@ -125,8 +124,8 @@ func (eb *EventBridge) Unsubscribe(ch chan domain.ChatEvent) {
 
 // Tap intercepts an event stream and multicasts it to all subscribers
 // Returns a new channel that mirrors the input channel for the terminal UI
-func (eb *EventBridge) Tap(input <-chan domain.ChatEvent) <-chan domain.ChatEvent {
-	output := make(chan domain.ChatEvent, 100)
+func (eb *EventBridge) Tap(input <-chan agentdomain.ChatEvent) <-chan agentdomain.ChatEvent {
+	output := make(chan agentdomain.ChatEvent, 100)
 
 	go func() {
 		defer close(output)

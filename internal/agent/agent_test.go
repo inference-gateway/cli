@@ -3,6 +3,10 @@ package agent
 import (
 	"context"
 	"errors"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentappmocks "github.com/inference-gateway/cli/tests/mocks/agentapp"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"sync"
 	"testing"
 	"time"
@@ -13,7 +17,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
@@ -23,13 +26,13 @@ func TestAgentServiceImpl_GetMetrics(t *testing.T) {
 		name            string
 		requestID       string
 		setupMetrics    bool
-		expectedMetrics *domain.ChatMetrics
+		expectedMetrics *agentdomain.ChatMetrics
 	}{
 		{
 			name:         "get_existing_metrics",
 			requestID:    "metrics-123",
 			setupMetrics: true,
-			expectedMetrics: &domain.ChatMetrics{
+			expectedMetrics: &agentdomain.ChatMetrics{
 				Duration: 2 * time.Second,
 				Usage: &sdk.CompletionUsage{
 					TotalTokens: 100,
@@ -47,7 +50,7 @@ func TestAgentServiceImpl_GetMetrics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			agentService := &AgentServiceImpl{
-				metrics: make(map[string]*domain.ChatMetrics),
+				metrics: make(map[string]*agentdomain.ChatMetrics),
 			}
 
 			if tt.setupMetrics {
@@ -109,12 +112,12 @@ func TestAgentServiceImpl_CancelRequest(t *testing.T) {
 func TestAgentServiceImpl_ValidateRequest(t *testing.T) {
 	tests := []struct {
 		name        string
-		request     *domain.AgentRequest
+		request     *agentdomain.AgentRequest
 		expectError bool
 	}{
 		{
 			name: "valid_request",
-			request: &domain.AgentRequest{
+			request: &agentdomain.AgentRequest{
 				RequestID: "test-123",
 				Model:     "openai/gpt-4",
 				Messages: []sdk.Message{
@@ -125,7 +128,7 @@ func TestAgentServiceImpl_ValidateRequest(t *testing.T) {
 		},
 		{
 			name: "missing_request_id",
-			request: &domain.AgentRequest{
+			request: &agentdomain.AgentRequest{
 				Model: "openai/gpt-4",
 				Messages: []sdk.Message{
 					{Role: sdk.User, Content: sdk.NewMessageContent("Hello")},
@@ -135,7 +138,7 @@ func TestAgentServiceImpl_ValidateRequest(t *testing.T) {
 		},
 		{
 			name: "missing_model",
-			request: &domain.AgentRequest{
+			request: &agentdomain.AgentRequest{
 				RequestID: "test-123",
 				Messages: []sdk.Message{
 					{Role: sdk.User, Content: sdk.NewMessageContent("Hello")},
@@ -145,7 +148,7 @@ func TestAgentServiceImpl_ValidateRequest(t *testing.T) {
 		},
 		{
 			name: "empty_messages",
-			request: &domain.AgentRequest{
+			request: &agentdomain.AgentRequest{
 				RequestID: "test-123",
 				Model:     "openai/gpt-4",
 				Messages:  []sdk.Message{},
@@ -240,7 +243,7 @@ func TestAgentServiceImpl_StreamingDeltaAccumulation(t *testing.T) {
 }
 
 func TestNewAgentService(t *testing.T) {
-	fakeToolService := &domainmocks.FakeToolService{}
+	fakeToolService := &agentdomainmocks.FakeToolService{}
 	fakeConversationRepo := &domainmocks.FakeConversationRepository{}
 	fakeStateManager := services.NewStateManager(false)
 
@@ -427,7 +430,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 		name                 string
 		toolCall             *sdk.ChatCompletionMessageToolCall
 		isChatMode           bool
-		agentMode            domain.AgentMode
+		agentMode            agentdomain.AgentMode
 		isApprovalRequired   bool
 		isBashCommandAllowed bool
 		expectedResult       bool
@@ -441,7 +444,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 				},
 			},
 			isChatMode:         true,
-			agentMode:          domain.AgentModeAutoAccept,
+			agentMode:          agentdomain.AgentModeAutoAccept,
 			isApprovalRequired: true,
 			expectedResult:     false,
 		},
@@ -454,7 +457,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 				},
 			},
 			isChatMode:         false,
-			agentMode:          domain.AgentModeStandard,
+			agentMode:          agentdomain.AgentModeStandard,
 			isApprovalRequired: true,
 			expectedResult:     true,
 		},
@@ -467,7 +470,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 				},
 			},
 			isChatMode:           true,
-			agentMode:            domain.AgentModeStandard,
+			agentMode:            agentdomain.AgentModeStandard,
 			isBashCommandAllowed: true,
 			expectedResult:       false,
 		},
@@ -480,7 +483,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 				},
 			},
 			isChatMode:           true,
-			agentMode:            domain.AgentModeStandard,
+			agentMode:            agentdomain.AgentModeStandard,
 			isBashCommandAllowed: false,
 			expectedResult:       true,
 		},
@@ -493,7 +496,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 				},
 			},
 			isChatMode:     true,
-			agentMode:      domain.AgentModeStandard,
+			agentMode:      agentdomain.AgentModeStandard,
 			expectedResult: true,
 		},
 		{
@@ -505,7 +508,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 				},
 			},
 			isChatMode:     true,
-			agentMode:      domain.AgentModeStandard,
+			agentMode:      agentdomain.AgentModeStandard,
 			expectedResult: true,
 		},
 		{
@@ -517,7 +520,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 				},
 			},
 			isChatMode:         true,
-			agentMode:          domain.AgentModeStandard,
+			agentMode:          agentdomain.AgentModeStandard,
 			isApprovalRequired: true,
 			expectedResult:     true,
 		},
@@ -530,7 +533,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 				},
 			},
 			isChatMode:         true,
-			agentMode:          domain.AgentModeStandard,
+			agentMode:          agentdomain.AgentModeStandard,
 			isApprovalRequired: false,
 			expectedResult:     false,
 		},
@@ -765,7 +768,7 @@ func TestAgentServiceImpl_StoreIterationMetrics(t *testing.T) {
 
 			agentService := &AgentServiceImpl{
 				conversationRepo: fakeRepo,
-				metrics:          make(map[string]*domain.ChatMetrics),
+				metrics:          make(map[string]*agentdomain.ChatMetrics),
 			}
 
 			startTime := time.Now().Add(-1 * time.Second)
@@ -840,14 +843,14 @@ func TestGetTruncationRecoveryGuidance(t *testing.T) {
 }
 
 func TestEventPublisher_PublishChatStart(t *testing.T) {
-	chatEvents := make(chan domain.ChatEvent, 1)
+	chatEvents := make(chan agentdomain.ChatEvent, 1)
 	publisher := newEventPublisher("request-123", chatEvents)
 
 	publisher.publishChatStart()
 
 	select {
 	case event := <-chatEvents:
-		startEvent, ok := event.(domain.ChatStartEvent)
+		startEvent, ok := event.(agentdomain.ChatStartEvent)
 		assert.True(t, ok)
 		assert.Equal(t, "request-123", startEvent.RequestID)
 		assert.False(t, startEvent.Timestamp.IsZero())
@@ -857,13 +860,13 @@ func TestEventPublisher_PublishChatStart(t *testing.T) {
 }
 
 func TestEventPublisher_PublishChatComplete(t *testing.T) {
-	chatEvents := make(chan domain.ChatEvent, 1)
+	chatEvents := make(chan agentdomain.ChatEvent, 1)
 	publisher := newEventPublisher("request-123", chatEvents)
 
 	toolCalls := []sdk.ChatCompletionMessageToolCall{
 		{ID: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
 	}
-	metrics := &domain.ChatMetrics{
+	metrics := &agentdomain.ChatMetrics{
 		Duration: 2 * time.Second,
 		Usage:    &sdk.CompletionUsage{TotalTokens: 100},
 	}
@@ -872,7 +875,7 @@ func TestEventPublisher_PublishChatComplete(t *testing.T) {
 
 	select {
 	case event := <-chatEvents:
-		completeEvent, ok := event.(domain.ChatCompleteEvent)
+		completeEvent, ok := event.(agentdomain.ChatCompleteEvent)
 		assert.True(t, ok)
 		assert.Equal(t, "request-123", completeEvent.RequestID)
 		assert.Len(t, completeEvent.ToolCalls, 1)
@@ -883,7 +886,7 @@ func TestEventPublisher_PublishChatComplete(t *testing.T) {
 }
 
 func TestEventPublisher_PublishChatChunk(t *testing.T) {
-	chatEvents := make(chan domain.ChatEvent, 1)
+	chatEvents := make(chan agentdomain.ChatEvent, 1)
 	publisher := newEventPublisher("request-123", chatEvents)
 
 	callID := "call-1"
@@ -895,7 +898,7 @@ func TestEventPublisher_PublishChatChunk(t *testing.T) {
 
 	select {
 	case event := <-chatEvents:
-		chunkEvent, ok := event.(domain.ChatChunkEvent)
+		chunkEvent, ok := event.(agentdomain.ChatChunkEvent)
 		assert.True(t, ok)
 		assert.Equal(t, "request-123", chunkEvent.RequestID)
 		assert.Equal(t, "Hello", chunkEvent.Content)
@@ -908,14 +911,14 @@ func TestEventPublisher_PublishChatChunk(t *testing.T) {
 }
 
 func TestEventPublisher_PublishOptimizationStatus(t *testing.T) {
-	chatEvents := make(chan domain.ChatEvent, 1)
+	chatEvents := make(chan agentdomain.ChatEvent, 1)
 	publisher := newEventPublisher("request-123", chatEvents)
 
 	publisher.publishOptimizationStatus("Optimizing...", true, 10, 5)
 
 	select {
 	case event := <-chatEvents:
-		optimizationEvent, ok := event.(domain.OptimizationStatusEvent)
+		optimizationEvent, ok := event.(agentdomain.OptimizationStatusEvent)
 		assert.True(t, ok)
 		assert.Equal(t, "request-123", optimizationEvent.RequestID)
 		assert.Equal(t, "Optimizing...", optimizationEvent.Message)
@@ -928,7 +931,7 @@ func TestEventPublisher_PublishOptimizationStatus(t *testing.T) {
 }
 
 func TestEventPublisher_PublishToolsQueued(t *testing.T) {
-	chatEvents := make(chan domain.ChatEvent, 10)
+	chatEvents := make(chan agentdomain.ChatEvent, 10)
 	publisher := newEventPublisher("request-123", chatEvents)
 
 	toolCalls := []sdk.ChatCompletionMessageToolCall{
@@ -941,7 +944,7 @@ func TestEventPublisher_PublishToolsQueued(t *testing.T) {
 	for i, tc := range toolCalls {
 		select {
 		case event := <-chatEvents:
-			progressEvent, ok := event.(domain.ToolExecutionProgressEvent)
+			progressEvent, ok := event.(agentdomain.ToolExecutionProgressEvent)
 			assert.True(t, ok, "expected ToolExecutionProgressEvent for tool %d", i)
 			assert.Equal(t, "request-123", progressEvent.RequestID)
 			assert.Equal(t, tc.ID, progressEvent.ToolCallID)
@@ -954,14 +957,14 @@ func TestEventPublisher_PublishToolsQueued(t *testing.T) {
 }
 
 func TestEventPublisher_PublishToolStatusChange(t *testing.T) {
-	chatEvents := make(chan domain.ChatEvent, 1)
+	chatEvents := make(chan agentdomain.ChatEvent, 1)
 	publisher := newEventPublisher("request-123", chatEvents)
 
 	publisher.publishToolStatusChange("call-1", "TestTool", "running", "Executing...", nil)
 
 	select {
 	case event := <-chatEvents:
-		progressEvent, ok := event.(domain.ToolExecutionProgressEvent)
+		progressEvent, ok := event.(agentdomain.ToolExecutionProgressEvent)
 		assert.True(t, ok)
 		assert.Equal(t, "request-123", progressEvent.RequestID)
 		assert.Equal(t, "call-1", progressEvent.ToolCallID)
@@ -989,8 +992,8 @@ func TestExecuteToolInternal_PublishesTerminalStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeToolService := &domainmocks.FakeToolService{}
-			fakeToolService.ExecuteToolReturns(&domain.ToolExecutionResult{
+			fakeToolService := &agentdomainmocks.FakeToolService{}
+			fakeToolService.ExecuteToolReturns(&agentdomain.ToolExecutionResult{
 				ToolName: "Read",
 				Success:  tt.success,
 			}, nil)
@@ -1003,7 +1006,7 @@ func TestExecuteToolInternal_PublishesTerminalStatus(t *testing.T) {
 				conversationRepo: fakeRepo,
 			}
 
-			chatEvents := make(chan domain.ChatEvent, 32)
+			chatEvents := make(chan agentdomain.ChatEvent, 32)
 			publisher := newEventPublisher("request-123", chatEvents)
 
 			tc := sdk.ChatCompletionMessageToolCall{
@@ -1020,7 +1023,7 @@ func TestExecuteToolInternal_PublishesTerminalStatus(t *testing.T) {
 			for {
 				select {
 				case event := <-chatEvents:
-					if progress, ok := event.(domain.ToolExecutionProgressEvent); ok {
+					if progress, ok := event.(agentdomain.ToolExecutionProgressEvent); ok {
 						lastStatus = progress.Status
 					}
 				default:
@@ -1165,7 +1168,7 @@ func TestSessionCancel_OnlyClosesOnce(t *testing.T) {
 func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
 	tests := []struct {
 		name            string
-		agentMode       domain.AgentMode
+		agentMode       agentdomain.AgentMode
 		systemPrompt    string
 		planPrompt      string
 		expectedPrompt  string
@@ -1180,28 +1183,28 @@ func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
 		},
 		{
 			name:           "standard_mode_returns_default",
-			agentMode:      domain.AgentModeStandard,
+			agentMode:      agentdomain.AgentModeStandard,
 			systemPrompt:   "Default prompt",
 			planPrompt:     "Plan prompt",
 			expectedPrompt: "Default prompt",
 		},
 		{
 			name:           "plan_mode_returns_plan_prompt",
-			agentMode:      domain.AgentModePlan,
+			agentMode:      agentdomain.AgentModePlan,
 			systemPrompt:   "Default prompt",
 			planPrompt:     "Plan prompt",
 			expectedPrompt: "Plan prompt",
 		},
 		{
 			name:           "plan_mode_falls_back_to_default_if_plan_empty",
-			agentMode:      domain.AgentModePlan,
+			agentMode:      agentdomain.AgentModePlan,
 			systemPrompt:   "Default prompt",
 			planPrompt:     "",
 			expectedPrompt: "Default prompt",
 		},
 		{
 			name:           "auto_accept_mode_returns_default",
-			agentMode:      domain.AgentModeAutoAccept,
+			agentMode:      agentdomain.AgentModeAutoAccept,
 			systemPrompt:   "Default prompt",
 			planPrompt:     "Plan prompt",
 			expectedPrompt: "Default prompt",
@@ -1353,7 +1356,7 @@ func TestAgentServiceImpl_AddSystemPrompt_EmptyPrompt(t *testing.T) {
 
 func TestAgentServiceImpl_ConcurrentMetricsAccess(t *testing.T) {
 	agentService := &AgentServiceImpl{
-		metrics: make(map[string]*domain.ChatMetrics),
+		metrics: make(map[string]*agentdomain.ChatMetrics),
 	}
 
 	var wg sync.WaitGroup
@@ -1364,7 +1367,7 @@ func TestAgentServiceImpl_ConcurrentMetricsAccess(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			agentService.metricsMux.Lock()
-			agentService.metrics[string(rune('a'+id%26))] = &domain.ChatMetrics{
+			agentService.metrics[string(rune('a'+id%26))] = &agentdomain.ChatMetrics{
 				Duration: time.Duration(id) * time.Second,
 			}
 			agentService.metricsMux.Unlock()
@@ -1412,8 +1415,8 @@ func TestAgentServiceImpl_ConcurrentToolCallsAccess(t *testing.T) {
 }
 
 func TestAgentServiceImpl_BuildA2AAgentInfo(t *testing.T) {
-	createFakeA2AAgentService := func(agents []string) *domainmocks.FakeA2AAgentService {
-		fake := &domainmocks.FakeA2AAgentService{}
+	createFakeA2AAgentService := func(agents []string) *agentappmocks.FakeA2AAgentService {
+		fake := &agentappmocks.FakeA2AAgentService{}
 		fake.GetConfiguredAgentsReturns(agents)
 		fake.GetAgentCardsReturns(nil, nil)
 		return fake
@@ -1421,7 +1424,7 @@ func TestAgentServiceImpl_BuildA2AAgentInfo(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		a2aAgentService domain.A2AAgentService
+		a2aAgentService agentapp.A2AAgentService
 		expectedParts   []string
 		expectedEmpty   bool
 	}{
@@ -1503,7 +1506,7 @@ func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
 		conversationRepo: repo,
 	}
 
-	eventCh := make(chan domain.ChatEvent, 16)
+	eventCh := make(chan agentdomain.ChatEvent, 16)
 	publisher := newEventPublisher("req-1", eventCh)
 
 	drained := svc.batchDrainQueue(&conversation, publisher)
@@ -1530,13 +1533,13 @@ func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
 	assert.Equal(t, services.CancelledToolResponseContent, body)
 
 	close(eventCh)
-	var cancelled []domain.ToolCancelledEvent
-	var queued []domain.MessageQueuedEvent
+	var cancelled []agentdomain.ToolCancelledEvent
+	var queued []agentdomain.MessageQueuedEvent
 	for ev := range eventCh {
 		switch e := ev.(type) {
-		case domain.ToolCancelledEvent:
+		case agentdomain.ToolCancelledEvent:
 			cancelled = append(cancelled, e)
-		case domain.MessageQueuedEvent:
+		case agentdomain.MessageQueuedEvent:
 			queued = append(queued, e)
 		}
 	}
@@ -1574,7 +1577,7 @@ func TestAgentServiceImpl_BatchDrainQueue_IdempotentOnRepairedConversation(t *te
 		conversationRepo: repo,
 	}
 
-	eventCh := make(chan domain.ChatEvent, 8)
+	eventCh := make(chan agentdomain.ChatEvent, 8)
 	publisher := newEventPublisher("req-x", eventCh)
 
 	drained := svc.batchDrainQueue(&conversation, publisher)
@@ -1584,7 +1587,7 @@ func TestAgentServiceImpl_BatchDrainQueue_IdempotentOnRepairedConversation(t *te
 	close(eventCh)
 	var cancelled int
 	for ev := range eventCh {
-		if _, ok := ev.(domain.ToolCancelledEvent); ok {
+		if _, ok := ev.(agentdomain.ToolCancelledEvent); ok {
 			cancelled++
 		}
 	}

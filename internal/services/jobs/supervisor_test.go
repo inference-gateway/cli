@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"sync"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ import (
 // ctx is cancelled), emitting any preset signals first, and records Wind calls.
 type fakeJob struct {
 	meta    domain.JobMeta
-	result  domain.ToolExecutionResult
+	result  agentdomain.ToolExecutionResult
 	started chan struct{}
 	finish  chan struct{}
 	signals []domain.JobSignal
@@ -31,7 +32,7 @@ type fakeJob struct {
 func newFakeJob(id string, kind domain.JobKind) *fakeJob {
 	return &fakeJob{
 		meta:    domain.JobMeta{ID: id, Kind: kind, Label: id, StartedAt: time.Now()},
-		result:  domain.ToolExecutionResult{Success: true},
+		result:  agentdomain.ToolExecutionResult{Success: true},
 		started: make(chan struct{}),
 		finish:  make(chan struct{}),
 	}
@@ -39,7 +40,7 @@ func newFakeJob(id string, kind domain.JobKind) *fakeJob {
 
 func (f *fakeJob) Meta() domain.JobMeta { return f.meta }
 
-func (f *fakeJob) Run(ctx context.Context, emit func(domain.JobSignal)) domain.ToolExecutionResult {
+func (f *fakeJob) Run(ctx context.Context, emit func(domain.JobSignal)) agentdomain.ToolExecutionResult {
 	close(f.started)
 	for _, sig := range f.signals {
 		emit(sig)
@@ -48,7 +49,7 @@ func (f *fakeJob) Run(ctx context.Context, emit func(domain.JobSignal)) domain.T
 	case <-f.finish:
 		return f.result
 	case <-ctx.Done():
-		return domain.ToolExecutionResult{Success: false, Error: "cancelled"}
+		return agentdomain.ToolExecutionResult{Success: false, Error: "cancelled"}
 	}
 }
 
@@ -86,7 +87,7 @@ type fakeRetainerJob struct {
 	ok   bool
 }
 
-func (j *fakeRetainerJob) RetainedTask(domain.ToolExecutionResult) (domain.TaskInfo, bool) {
+func (j *fakeRetainerJob) RetainedTask(agentdomain.ToolExecutionResult) (domain.TaskInfo, bool) {
 	return j.info, j.ok
 }
 
@@ -726,10 +727,10 @@ func TestSupervisor_SnapshotPopulatesOutputAfterCleanupReap(t *testing.T) {
 // visible to Supervisor.A2APollingStates while running.
 type fakeA2AJob struct {
 	*fakeJob
-	state domain.TaskPollingState
+	state agentdomain.TaskPollingState
 }
 
-func (f *fakeA2AJob) A2APollingState() domain.TaskPollingState { return f.state }
+func (f *fakeA2AJob) A2APollingState() agentdomain.TaskPollingState { return f.state }
 
 // TestSupervisor_A2APollingStates asserts the supervisor is the single source for
 // active A2A rows: only running A2A jobs are returned, with their polling detail
@@ -740,7 +741,7 @@ func TestSupervisor_A2APollingStates(t *testing.T) {
 
 	a2a := &fakeA2AJob{
 		fakeJob: newFakeJob("a1", domain.JobKindA2A),
-		state:   domain.TaskPollingState{TaskID: "a1", ContextID: "ctx1", AgentURL: "http://agent", LastKnownState: "working"},
+		state:   agentdomain.TaskPollingState{TaskID: "a1", ContextID: "ctx1", AgentURL: "http://agent", LastKnownState: "working"},
 	}
 	shell := newFakeJob("s1", domain.JobKindShell)
 

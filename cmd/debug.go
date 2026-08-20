@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"unicode/utf8"
 
@@ -11,7 +12,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
 	container "github.com/inference-gateway/cli/internal/container"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 )
 
@@ -80,7 +80,7 @@ const volatileTailDivider = "--- volatile context: sent each request as a separa
 // silently omits the PERSISTENT MEMORY INDEX section the real agent would
 // receive. Fail-soft like the agent: a sync failure must never break the
 // debug render.
-func syncedAgentService(ctx context.Context, cfg *config.Config) domain.AgentService {
+func syncedAgentService(ctx context.Context, cfg *config.Config) agentdomain.AgentService {
 	services := container.NewServiceContainer(cfg)
 	_ = services.GetMemoryBackend().SyncIn(ctx)
 	return services.GetAgentService()
@@ -95,7 +95,7 @@ func renderAgentSystemPrompt(ctx context.Context, cfg *config.Config) string {
 
 // renderPromptContext assembles the debug view from the exact runtime
 // builders, so what this prints is byte-for-byte what goes on the wire.
-func renderPromptContext(agentService domain.AgentService) string {
+func renderPromptContext(agentService agentdomain.AgentService) string {
 	prompt := agentService.BuildSystemPrompt()
 	tailer, ok := agentService.(interface{ VolatileTailText() (string, bool) })
 	if !ok {

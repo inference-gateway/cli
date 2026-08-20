@@ -1,6 +1,7 @@
 package agent
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -76,14 +77,14 @@ func TestClearToolCallsMap(t *testing.T) {
 func TestGetSystemPromptForMode(t *testing.T) {
 	tests := []struct {
 		name         string
-		mode         domain.AgentMode
+		mode         agentdomain.AgentMode
 		systemPrompt string
 		planPrompt   string
 		expected     string
 	}{
-		{"standard_mode", domain.AgentModeStandard, "standard prompt", "plan prompt", "standard prompt"},
-		{"plan_mode", domain.AgentModePlan, "standard prompt", "plan prompt", "plan prompt"},
-		{"auto_accept_mode", domain.AgentModeAutoAccept, "standard prompt", "plan prompt", "standard prompt"},
+		{"standard_mode", agentdomain.AgentModeStandard, "standard prompt", "plan prompt", "standard prompt"},
+		{"plan_mode", agentdomain.AgentModePlan, "standard prompt", "plan prompt", "plan prompt"},
+		{"auto_accept_mode", agentdomain.AgentModeAutoAccept, "standard prompt", "plan prompt", "standard prompt"},
 	}
 
 	for _, tt := range tests {
@@ -133,7 +134,7 @@ func TestCheckToolResultsStatus(t *testing.T) {
 			toolResults: []domain.ConversationEntry{
 				{
 					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("rejected")},
-					ToolExecution: &domain.ToolExecutionResult{
+					ToolExecution: &agentdomain.ToolExecutionResult{
 						ToolName: "Write",
 						Success:  false,
 						Rejected: true,
@@ -148,7 +149,7 @@ func TestCheckToolResultsStatus(t *testing.T) {
 			toolResults: []domain.ConversationEntry{
 				{
 					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("result")},
-					ToolExecution: &domain.ToolExecutionResult{
+					ToolExecution: &agentdomain.ToolExecutionResult{
 						ToolName: "Read",
 						Success:  true,
 						Rejected: false,
@@ -163,7 +164,7 @@ func TestCheckToolResultsStatus(t *testing.T) {
 			toolResults: []domain.ConversationEntry{
 				{
 					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("result1")},
-					ToolExecution: &domain.ToolExecutionResult{
+					ToolExecution: &agentdomain.ToolExecutionResult{
 						ToolName: "Read",
 						Success:  true,
 						Rejected: false,
@@ -171,7 +172,7 @@ func TestCheckToolResultsStatus(t *testing.T) {
 				},
 				{
 					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("rejected")},
-					ToolExecution: &domain.ToolExecutionResult{
+					ToolExecution: &agentdomain.ToolExecutionResult{
 						ToolName: "Write",
 						Success:  false,
 						Rejected: true,
@@ -186,7 +187,7 @@ func TestCheckToolResultsStatus(t *testing.T) {
 			toolResults: []domain.ConversationEntry{
 				{
 					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("plan")},
-					ToolExecution: &domain.ToolExecutionResult{
+					ToolExecution: &agentdomain.ToolExecutionResult{
 						ToolName: "RequestPlanApproval",
 						Success:  true,
 						Data: map[string]any{
@@ -217,24 +218,24 @@ func TestCheckToolResultsStatus(t *testing.T) {
 func TestExtractPlanID(t *testing.T) {
 	tests := []struct {
 		name     string
-		result   *domain.ToolExecutionResult
+		result   *agentdomain.ToolExecutionResult
 		expected string
 	}{
 		{name: "nil_result", result: nil, expected: ""},
-		{name: "nil_data", result: &domain.ToolExecutionResult{}, expected: ""},
+		{name: "nil_data", result: &agentdomain.ToolExecutionResult{}, expected: ""},
 		{
 			name:     "data_not_a_map",
-			result:   &domain.ToolExecutionResult{Data: "oops"},
+			result:   &agentdomain.ToolExecutionResult{Data: "oops"},
 			expected: "",
 		},
 		{
 			name:     "missing_plan_id_key",
-			result:   &domain.ToolExecutionResult{Data: map[string]any{"plan": "x"}},
+			result:   &agentdomain.ToolExecutionResult{Data: map[string]any{"plan": "x"}},
 			expected: "",
 		},
 		{
 			name:     "plan_id_present",
-			result:   &domain.ToolExecutionResult{Data: map[string]any{"plan_id": "2026-06-28-090000-p"}},
+			result:   &agentdomain.ToolExecutionResult{Data: map[string]any{"plan_id": "2026-06-28-090000-p"}},
 			expected: "2026-06-28-090000-p",
 		},
 	}
@@ -260,7 +261,7 @@ func TestAddToolResultsToConversation(t *testing.T) {
 				Content:    sdk.NewMessageContent("result1"),
 				ToolCallID: &call1,
 			},
-			ToolExecution: &domain.ToolExecutionResult{
+			ToolExecution: &agentdomain.ToolExecutionResult{
 				ToolName: "Read",
 				Success:  true,
 			},
@@ -271,7 +272,7 @@ func TestAddToolResultsToConversation(t *testing.T) {
 				Content:    sdk.NewMessageContent("result2"),
 				ToolCallID: &call2,
 			},
-			ToolExecution: &domain.ToolExecutionResult{
+			ToolExecution: &agentdomain.ToolExecutionResult{
 				ToolName: "Write",
 				Success:  true,
 			},
@@ -425,7 +426,7 @@ func TestBatchDrainQueue(t *testing.T) {
 
 			conversation := &[]sdk.Message{}
 			eventPublisher := &eventPublisher{
-				chatEvents: make(chan domain.ChatEvent, 10),
+				chatEvents: make(chan agentdomain.ChatEvent, 10),
 			}
 
 			result := agentService.batchDrainQueue(conversation, eventPublisher)
@@ -451,7 +452,7 @@ func TestBatchDrainQueue_NilMessageQueue(t *testing.T) {
 
 	conversation := &[]sdk.Message{}
 	eventPublisher := &eventPublisher{
-		chatEvents: make(chan domain.ChatEvent, 10),
+		chatEvents: make(chan agentdomain.ChatEvent, 10),
 	}
 
 	result := agentService.batchDrainQueue(conversation, eventPublisher)
