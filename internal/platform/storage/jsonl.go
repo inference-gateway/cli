@@ -91,10 +91,15 @@ func expandHome(path string) string {
 }
 
 // conversationFilePath returns the path to a conversation's JSONL file.
-// The ID is reduced to its base name so a crafted ID (e.g. "../../x") can
-// never escape the conversations directory.
+// The ID is reduced to its base name and the result verified to stay under
+// basePath, so a crafted ID (e.g. "../../x") can never escape the
+// conversations directory.
 func (s *JsonlStorage) conversationFilePath(conversationID string) string {
-	return filepath.Join(s.basePath, filepath.Base(conversationID)+".jsonl")
+	p := filepath.Join(s.basePath, filepath.Base(conversationID)+".jsonl")
+	if !strings.HasPrefix(p, filepath.Clean(s.basePath)+string(os.PathSeparator)) {
+		return filepath.Join(s.basePath, "invalid.jsonl")
+	}
+	return p
 }
 
 // saveConversationUnlocked saves a conversation without acquiring the lock.
