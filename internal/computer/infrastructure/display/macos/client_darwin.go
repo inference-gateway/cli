@@ -13,8 +13,8 @@ import (
 
 	robotgo "github.com/go-vgo/robotgo"
 
-	display "github.com/inference-gateway/cli/internal/computer/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 )
 
 // MacOSClient provides macOS screen control operations using RobotGo
@@ -297,14 +297,14 @@ func (c *MacOSClient) SendKeyCombo(combo string) error {
 // process table rather than only GUI applications, so the result is noisier
 // than the old NSWorkspace enumeration.
 // ponytail: full process table; filter to GUI apps if it proves too noisy.
-func listRunningApps() ([]domain.Application, error) {
+func listRunningApps() ([]computerdomain.Application, error) {
 	procs, err := robotgo.Process()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list processes: %w", err)
 	}
-	apps := make([]domain.Application, 0, len(procs))
+	apps := make([]computerdomain.Application, 0, len(procs))
 	for _, p := range procs {
-		apps = append(apps, domain.Application{
+		apps = append(apps, computerdomain.Application{
 			ID:         fmt.Sprintf("pid:%d", p.Pid),
 			Name:       p.Name,
 			PlatformID: strconv.Itoa(p.Pid),
@@ -315,13 +315,13 @@ func listRunningApps() ([]domain.Application, error) {
 
 // frontmostApp returns the focused application. Returns nil with no error when
 // no app is focused (headless).
-func frontmostApp() (*domain.Application, error) {
+func frontmostApp() (*computerdomain.Application, error) {
 	pid := robotgo.GetPid()
 	if pid <= 0 {
 		return nil, nil
 	}
 	name, _ := robotgo.FindName(pid)
-	return &domain.Application{
+	return &computerdomain.Application{
 		ID:         fmt.Sprintf("pid:%d", pid),
 		Name:       name,
 		PlatformID: strconv.Itoa(pid),

@@ -6,7 +6,8 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/computer/display"
+	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
@@ -17,13 +18,13 @@ type MouseMoveTool struct {
 	config          *config.Config
 	enabled         bool
 	formatter       domain.BaseFormatter
-	rateLimiter     domain.RateLimiter
+	rateLimiter     rateLimiter
 	displayProvider display.Provider
 	stateManager    domain.EventBridgeManager
 }
 
 // NewMouseMoveTool creates a new mouse move tool
-func NewMouseMoveTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider, stateManager domain.EventBridgeManager) *MouseMoveTool {
+func NewMouseMoveTool(cfg *config.Config, rateLimiter rateLimiter, displayProvider display.Provider, stateManager domain.EventBridgeManager) *MouseMoveTool {
 	return &MouseMoveTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.Tools.MouseMove.Enabled,
@@ -148,7 +149,7 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	t.broadcastMoveEvent(fromX, fromY, targetX, targetY)
 
-	result := domain.MouseMoveToolResult{
+	result := computerdomain.MouseMoveToolResult{
 		FromX:  fromX,
 		FromY:  fromY,
 		ToX:    targetX,
@@ -208,7 +209,7 @@ func (t *MouseMoveTool) FormatPreview(result *domain.ToolExecutionResult) string
 	if result == nil || !result.Success {
 		return "Mouse move failed"
 	}
-	data, ok := result.Data.(domain.MouseMoveToolResult)
+	data, ok := result.Data.(computerdomain.MouseMoveToolResult)
 	if !ok {
 		return "Mouse moved"
 	}
@@ -220,7 +221,7 @@ func (t *MouseMoveTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
-	data, ok := result.Data.(domain.MouseMoveToolResult)
+	data, ok := result.Data.(computerdomain.MouseMoveToolResult)
 	if !ok {
 		return "Mouse moved successfully"
 	}

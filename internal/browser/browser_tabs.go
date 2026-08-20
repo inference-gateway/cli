@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ type BrowserTabsTool struct {
 }
 
 // NewBrowserTabsTool creates a new browser tabs tool
-func NewBrowserTabsTool(cfg *config.Config, rateLimiter domain.RateLimiter, driver domain.BrowserDriver) *BrowserTabsTool {
+func NewBrowserTabsTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserTabsTool {
 	return &BrowserTabsTool{
 		browserToolBase: browserToolBase{
 			name:        "BrowserTabs",
@@ -88,7 +89,7 @@ func (t *BrowserTabsTool) FormatPreview(result *domain.ToolExecutionResult) stri
 	if result == nil || !result.Success {
 		return "BrowserTabs failed"
 	}
-	tabs, _ := result.Data.([]domain.BrowserTab)
+	tabs, _ := result.Data.([]browserdomain.BrowserTab)
 	return fmt.Sprintf("%d tab(s)", len(tabs))
 }
 
@@ -97,7 +98,7 @@ func (t *BrowserTabsTool) FormatForLLM(result *domain.ToolExecutionResult) strin
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
-	tabs, _ := result.Data.([]domain.BrowserTab)
+	tabs, _ := result.Data.([]browserdomain.BrowserTab)
 	if len(tabs) == 0 {
 		return "No open tabs."
 	}

@@ -7,7 +7,7 @@ import (
 	"image"
 	"os"
 
-	display "github.com/inference-gateway/cli/internal/computer/display"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 )
 
 // Controller wraps the existing X11Client to implement the display.DisplayController interface

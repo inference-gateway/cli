@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"encoding/base64"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"os"
 	"path/filepath"
 	"time"
@@ -22,7 +23,7 @@ type BrowserScreenshotTool struct {
 }
 
 // NewBrowserScreenshotTool creates a new browser screenshot tool
-func NewBrowserScreenshotTool(cfg *config.Config, rateLimiter domain.RateLimiter, driver domain.BrowserDriver) *BrowserScreenshotTool {
+func NewBrowserScreenshotTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserScreenshotTool {
 	return &BrowserScreenshotTool{
 		browserToolBase: browserToolBase{
 			name:        "BrowserScreenshot",
@@ -80,7 +81,7 @@ func (t *BrowserScreenshotTool) Execute(ctx context.Context, args map[string]any
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
-		Data:      domain.BrowserToolResult{Action: "screenshot", URL: res.URL, Title: res.Title},
+		Data:      browserdomain.BrowserToolResult{Action: "screenshot", URL: res.URL, Title: res.Title},
 		Images:    []domain.ImageAttachment{attachment},
 	}, nil
 }

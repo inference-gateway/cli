@@ -7,14 +7,14 @@ import (
 	"runtime"
 
 	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/computer/display"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	utils "github.com/inference-gateway/cli/internal/utils"
 
-	_ "github.com/inference-gateway/cli/internal/computer/display/macos"
-	_ "github.com/inference-gateway/cli/internal/computer/display/wayland"
-	_ "github.com/inference-gateway/cli/internal/computer/display/x11"
+	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/macos"
+	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/wayland"
+	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/x11"
 )
 
 // FocusManager handles macOS computer-use focus tracking.
@@ -44,6 +44,11 @@ type FrameSourceLookup interface {
 // NewTools builds the computer-use tool set. GetLatestFrame is always included
 // (it also serves non-screen frame sources such as cameras); the input tools
 // are gated on computer_use.enabled and require a supported display platform.
+// rateLimiter is the slice of the shared rate limiter the computer tools use.
+type rateLimiter interface {
+	CheckAndRecord(toolName string) error
+}
+
 func NewTools(cfg *config.Config, state State, frames FrameSourceLookup, annotator domain.ImageAnnotator) map[string]domain.Tool {
 	tools := map[string]domain.Tool{
 		"GetLatestFrame": NewGetLatestFrameTool(cfg, frames, annotator),

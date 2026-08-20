@@ -1,4 +1,4 @@
-package services
+package infrastructure
 
 import (
 	"context"
@@ -18,6 +18,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	render "github.com/inference-gateway/cli/internal/render"
@@ -26,20 +27,20 @@ import (
 // Bridge wire messages. One flat envelope per frame, discriminated by Type;
 // unknown types are ignored for forward compatibility.
 type extInbound struct {
-	Type             string              `json:"type"`
-	Token            string              `json:"token,omitempty"`
-	ExtensionVersion string              `json:"extension_version,omitempty"`
-	ID               string              `json:"id,omitempty"`
-	URL              string              `json:"url,omitempty"`
-	Title            string              `json:"title,omitempty"`
-	Content          string              `json:"content,omitempty"`
-	Events           []string            `json:"events,omitempty"`
-	Error            string              `json:"error,omitempty"`
-	RequestID        string              `json:"request_id,omitempty"`
-	Action           string              `json:"action,omitempty"`
-	Image            string              `json:"image,omitempty"` // base64 screenshot bytes
-	ImageMimeType    string              `json:"image_mime_type,omitempty"`
-	Tabs             []domain.BrowserTab `json:"tabs,omitempty"`
+	Type             string                     `json:"type"`
+	Token            string                     `json:"token,omitempty"`
+	ExtensionVersion string                     `json:"extension_version,omitempty"`
+	ID               string                     `json:"id,omitempty"`
+	URL              string                     `json:"url,omitempty"`
+	Title            string                     `json:"title,omitempty"`
+	Content          string                     `json:"content,omitempty"`
+	Events           []string                   `json:"events,omitempty"`
+	Error            string                     `json:"error,omitempty"`
+	RequestID        string                     `json:"request_id,omitempty"`
+	Action           string                     `json:"action,omitempty"`
+	Image            string                     `json:"image,omitempty"` // base64 screenshot bytes
+	ImageMimeType    string                     `json:"image_mime_type,omitempty"`
+	Tabs             []browserdomain.BrowserTab `json:"tabs,omitempty"`
 }
 
 type extApprovalRequest struct {
@@ -97,7 +98,7 @@ type extChatEvent struct {
 }
 
 // ExtensionBridge hosts the localhost WebSocket endpoint the opentask browser
-// extension dials into. It implements domain.BrowserDriver by forwarding the
+// extension dials into. It implements browserdomain.BrowserDriver by forwarding the
 // browser-use verbs to the connected extension, and it mirrors the chat
 // conversation to the extension (AG-UI event stream out, user messages in).
 //
@@ -580,40 +581,40 @@ func (b *ExtensionBridge) timeoutSeconds() int {
 	return 30
 }
 
-// Navigate implements domain.BrowserDriver.
-func (b *ExtensionBridge) Navigate(ctx context.Context, url string) (domain.BrowserToolResult, error) {
+// Navigate implements browserdomain.BrowserDriver.
+func (b *ExtensionBridge) Navigate(ctx context.Context, url string) (browserdomain.BrowserToolResult, error) {
 	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "navigate", URL: url})
 	if err != nil {
-		return domain.BrowserToolResult{}, err
+		return browserdomain.BrowserToolResult{}, err
 	}
-	return domain.BrowserToolResult{Action: "navigate", URL: result.URL, Title: result.Title}, nil
+	return browserdomain.BrowserToolResult{Action: "navigate", URL: result.URL, Title: result.Title}, nil
 }
 
-// Click implements domain.BrowserDriver.
-func (b *ExtensionBridge) Click(ctx context.Context, selector string) (domain.BrowserToolResult, error) {
+// Click implements browserdomain.BrowserDriver.
+func (b *ExtensionBridge) Click(ctx context.Context, selector string) (browserdomain.BrowserToolResult, error) {
 	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "click", Selector: selector})
 	if err != nil {
-		return domain.BrowserToolResult{}, err
+		return browserdomain.BrowserToolResult{}, err
 	}
-	return domain.BrowserToolResult{Action: "click", Selector: selector, URL: result.URL, Title: result.Title}, nil
+	return browserdomain.BrowserToolResult{Action: "click", Selector: selector, URL: result.URL, Title: result.Title}, nil
 }
 
-// Type implements domain.BrowserDriver.
-func (b *ExtensionBridge) Type(ctx context.Context, selector, text string, pressEnter bool) (domain.BrowserToolResult, error) {
+// Type implements browserdomain.BrowserDriver.
+func (b *ExtensionBridge) Type(ctx context.Context, selector, text string, pressEnter bool) (browserdomain.BrowserToolResult, error) {
 	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "type", Selector: selector, Text: text, PressEnter: pressEnter})
 	if err != nil {
-		return domain.BrowserToolResult{}, err
+		return browserdomain.BrowserToolResult{}, err
 	}
-	return domain.BrowserToolResult{Action: "type", Selector: selector, Text: text, URL: result.URL, Title: result.Title}, nil
+	return browserdomain.BrowserToolResult{Action: "type", Selector: selector, Text: text, URL: result.URL, Title: result.Title}, nil
 }
 
-// Read implements domain.BrowserDriver.
-func (b *ExtensionBridge) Read(ctx context.Context, selector string) (domain.BrowserToolResult, error) {
+// Read implements browserdomain.BrowserDriver.
+func (b *ExtensionBridge) Read(ctx context.Context, selector string) (browserdomain.BrowserToolResult, error) {
 	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "read", Selector: selector})
 	if err != nil {
-		return domain.BrowserToolResult{}, err
+		return browserdomain.BrowserToolResult{}, err
 	}
-	return domain.BrowserToolResult{
+	return browserdomain.BrowserToolResult{
 		Action:   "read",
 		Selector: selector,
 		URL:      result.URL,
@@ -623,27 +624,27 @@ func (b *ExtensionBridge) Read(ctx context.Context, selector string) (domain.Bro
 	}, nil
 }
 
-// ClickAt implements domain.BrowserDriver. The extension bridge drives clicks
+// ClickAt implements browserdomain.BrowserDriver. The extension bridge drives clicks
 // through chrome.scripting (untrusted synthetic events), which have no reliable
 // viewport-coordinate form - that needs chrome.debugger/CDP. Fail clearly.
-func (b *ExtensionBridge) ClickAt(_ context.Context, _, _ float64) (domain.BrowserToolResult, error) {
-	return domain.BrowserToolResult{}, fmt.Errorf("coordinate click isn't supported on the extension backend; use a CSS or text= selector with BrowserClick")
+func (b *ExtensionBridge) ClickAt(_ context.Context, _, _ float64) (browserdomain.BrowserToolResult, error) {
+	return browserdomain.BrowserToolResult{}, fmt.Errorf("coordinate click isn't supported on the extension backend; use a CSS or text= selector with BrowserClick")
 }
 
-// Screenshot implements domain.BrowserDriver via the extension's captureVisibleTab.
-func (b *ExtensionBridge) Screenshot(ctx context.Context) (domain.BrowserScreenshotResult, error) {
+// Screenshot implements browserdomain.BrowserDriver via the extension's captureVisibleTab.
+func (b *ExtensionBridge) Screenshot(ctx context.Context) (browserdomain.BrowserScreenshotResult, error) {
 	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "screenshot"})
 	if err != nil {
-		return domain.BrowserScreenshotResult{}, err
+		return browserdomain.BrowserScreenshotResult{}, err
 	}
 	if result.Image == "" {
-		return domain.BrowserScreenshotResult{}, fmt.Errorf("extension returned no screenshot data")
+		return browserdomain.BrowserScreenshotResult{}, fmt.Errorf("extension returned no screenshot data")
 	}
 	mime := result.ImageMimeType
 	if mime == "" {
 		mime = "image/png"
 	}
-	return domain.BrowserScreenshotResult{
+	return browserdomain.BrowserScreenshotResult{
 		Data:     result.Image,
 		MimeType: mime,
 		URL:      result.URL,
@@ -651,8 +652,8 @@ func (b *ExtensionBridge) Screenshot(ctx context.Context) (domain.BrowserScreens
 	}, nil
 }
 
-// Tabs implements domain.BrowserDriver via the extension's chrome.tabs query.
-func (b *ExtensionBridge) Tabs(ctx context.Context) ([]domain.BrowserTab, error) {
+// Tabs implements browserdomain.BrowserDriver via the extension's chrome.tabs query.
+func (b *ExtensionBridge) Tabs(ctx context.Context) ([]browserdomain.BrowserTab, error) {
 	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "tabs"})
 	if err != nil {
 		return nil, err
@@ -660,7 +661,7 @@ func (b *ExtensionBridge) Tabs(ctx context.Context) ([]domain.BrowserTab, error)
 	return result.Tabs, nil
 }
 
-// Close implements domain.BrowserDriver: shuts the server and any connection.
+// Close implements browserdomain.BrowserDriver: shuts the server and any connection.
 func (b *ExtensionBridge) Close() {
 	if b.server != nil {
 		_ = b.server.Close()

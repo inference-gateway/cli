@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"image"
 
-	display "github.com/inference-gateway/cli/internal/computer/display"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 )
 
 // Controller is a stub implementation for non-macOS platforms

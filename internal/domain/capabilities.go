@@ -58,19 +58,6 @@ type ImageAnnotator interface {
 	AnnotateImage(ctx context.Context, img ImageAttachment, opts AnnotateOptions) (*ImageAnnotation, error)
 }
 
-// Application represents a running application on any platform.
-// ID is a stable cross-platform identifier ("pid:N" on macOS and Linux, or
-// the app name for name-based lookup).
-// Name is the human-readable display name.
-// PlatformID is the OS-native identifier (the PID on macOS and Linux, window ID on X11).
-type Application struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	PlatformID string `json:"platform_id"`
-}
-
-// Computer use result types
-
 // ScreenRegion represents a rectangular region of the screen
 type ScreenRegion struct {
 	X      int `json:"x"`
@@ -99,16 +86,6 @@ type FrameSource interface {
 	GetLatestFrame() (*Frame, error)
 }
 
-// RateLimiter defines the interface for rate limiting computer use actions
-type RateLimiter interface {
-	// CheckAndRecord checks if the action is within rate limits and records it
-	CheckAndRecord(toolName string) error
-	// GetCurrentCount returns the number of actions in the current window
-	GetCurrentCount() int
-	// Reset clears all recorded actions
-	Reset()
-}
-
 // FrameToolResult represents the result of a frame retrieval
 type FrameToolResult struct {
 	Source     string           `json:"source,omitempty"`
@@ -121,85 +98,4 @@ type FrameToolResult struct {
 	Annotated  bool             `json:"annotated,omitempty"`
 	Annotation *ImageAnnotation `json:"annotation,omitempty"`
 	Note       string           `json:"note,omitempty"` // degrade note, e.g. "annotation unavailable: ..."
-}
-
-// MouseMoveToolResult represents the result of a mouse move operation
-type MouseMoveToolResult struct {
-	FromX   int    `json:"from_x"`
-	FromY   int    `json:"from_y"`
-	ToX     int    `json:"to_x"`
-	ToY     int    `json:"to_y"`
-	Display string `json:"display"`
-	Method  string `json:"method"`
-}
-
-// MouseClickToolResult represents the result of a mouse click operation
-type MouseClickToolResult struct {
-	Button  string `json:"button"`
-	Clicks  int    `json:"clicks"`
-	X       int    `json:"x"`
-	Y       int    `json:"y"`
-	Display string `json:"display"`
-	Method  string `json:"method"`
-}
-
-// KeyboardTypeToolResult represents the result of a keyboard input operation
-type KeyboardTypeToolResult struct {
-	Text     string `json:"text,omitempty"`
-	KeyCombo string `json:"key_combo,omitempty"`
-	Display  string `json:"display"`
-	Method   string `json:"method"`
-}
-
-// BrowserToolResult represents the result of a browser use operation. One
-// shared shape for all browser tools; each tool fills the fields it produces.
-type BrowserToolResult struct {
-	Action   string   `json:"action"`
-	URL      string   `json:"url,omitempty"`
-	Title    string   `json:"title,omitempty"`
-	Selector string   `json:"selector,omitempty"`
-	Text     string   `json:"text,omitempty"`
-	Content  string   `json:"content,omitempty"`
-	Events   []string `json:"events,omitempty"`
-}
-
-// BrowserTab describes one open tab/page as reported by BrowserTabs. Active
-// marks the tab the browser-use verbs currently act on.
-type BrowserTab struct {
-	Index  int    `json:"index"`
-	URL    string `json:"url"`
-	Title  string `json:"title"`
-	Active bool   `json:"active"`
-}
-
-// BrowserScreenshotResult carries a screenshot of the current page. Data is
-// base64-encoded image bytes; the BrowserScreenshot tool persists them and
-// sets the attachment's on-disk source path.
-type BrowserScreenshotResult struct {
-	Data     string `json:"-"`
-	MimeType string `json:"mime_type"`
-	URL      string `json:"url,omitempty"`
-	Title    string `json:"title,omitempty"`
-	Width    int    `json:"width,omitempty"`
-	Height   int    `json:"height,omitempty"`
-}
-
-// BrowserDriver executes browser-use verbs against a browser backend: a
-// Playwright-launched browser, or the user's real browser via the opentask
-// extension bridge.
-type BrowserDriver interface {
-	Navigate(ctx context.Context, url string) (BrowserToolResult, error)
-	Click(ctx context.Context, selector string) (BrowserToolResult, error)
-	// ClickAt clicks at viewport coordinates (CSS pixels), for use with a
-	// screenshot. Not every backend supports it (the extension bridge does not).
-	ClickAt(ctx context.Context, x, y float64) (BrowserToolResult, error)
-	Type(ctx context.Context, selector, text string, pressEnter bool) (BrowserToolResult, error)
-	// Read returns element text in Content and drained browser events in Events.
-	// Sensitive input values (passwords, tokens) MUST be redacted before return.
-	Read(ctx context.Context, selector string) (BrowserToolResult, error)
-	// Screenshot captures the current page/active tab as an image.
-	Screenshot(ctx context.Context) (BrowserScreenshotResult, error)
-	// Tabs lists the open tabs, marking the active one.
-	Tabs(ctx context.Context) ([]BrowserTab, error)
-	Close()
 }

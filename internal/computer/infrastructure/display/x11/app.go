@@ -11,7 +11,8 @@ import (
 	xgb "github.com/BurntSushi/xgb"
 	xproto "github.com/BurntSushi/xgb/xproto"
 
-	display "github.com/inference-gateway/cli/internal/computer/display"
+	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -22,7 +23,7 @@ type x11AppProvider struct{}
 
 var _ display.AppProvider = (*x11AppProvider)(nil)
 
-func (x11AppProvider) ListRunning(ctx context.Context) ([]domain.Application, error) {
+func (x11AppProvider) ListRunning(ctx context.Context) ([]computerdomain.Application, error) {
 	s, err := newX11Session()
 	if err != nil {
 		return nil, err
@@ -40,7 +41,7 @@ func (x11AppProvider) Activate(ctx context.Context, id string) error {
 	return s.activate(id)
 }
 
-func (x11AppProvider) GetFocused(ctx context.Context) (*domain.Application, error) {
+func (x11AppProvider) GetFocused(ctx context.Context) (*computerdomain.Application, error) {
 	s, err := newX11Session()
 	if err != nil {
 		return nil, err
@@ -73,14 +74,14 @@ func (s *x11Session) close() {
 // listRunning enumerates top-level windows via _NET_CLIENT_LIST, reads
 // _NET_WM_PID for each to associate windows with processes, and deduplicates
 // by PID. The stable ID for each app is "pid:<PID>".
-func (s *x11Session) listRunning() ([]domain.Application, error) {
+func (s *x11Session) listRunning() ([]computerdomain.Application, error) {
 	windows, err := s.getClientList()
 	if err != nil {
 		return nil, fmt.Errorf("get client list: %w", err)
 	}
 
 	seen := make(map[int]bool)
-	var apps []domain.Application
+	var apps []computerdomain.Application
 
 	for _, w := range windows {
 		pid := s.getWindowPID(w)
@@ -89,7 +90,7 @@ func (s *x11Session) listRunning() ([]domain.Application, error) {
 		}
 		seen[pid] = true
 
-		apps = append(apps, domain.Application{
+		apps = append(apps, computerdomain.Application{
 			ID:         fmt.Sprintf("pid:%d", pid),
 			Name:       s.getWindowName(w),
 			PlatformID: fmt.Sprintf("%d", pid),
@@ -127,7 +128,7 @@ func (s *x11Session) activate(id string) error {
 
 // getFocused returns the currently focused (active) application, or nil when
 // no window is focused.
-func (s *x11Session) getFocused() (*domain.Application, error) {
+func (s *x11Session) getFocused() (*computerdomain.Application, error) {
 	window, err := s.getActiveWindow()
 	if err != nil || window == 0 {
 		return nil, nil
@@ -138,7 +139,7 @@ func (s *x11Session) getFocused() (*domain.Application, error) {
 		return nil, nil
 	}
 
-	return &domain.Application{
+	return &computerdomain.Application{
 		ID:         fmt.Sprintf("pid:%d", pid),
 		Name:       s.getWindowName(window),
 		PlatformID: fmt.Sprintf("%d", pid),

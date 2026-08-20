@@ -6,7 +6,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/computer/display"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
@@ -17,12 +17,12 @@ type MouseScrollTool struct {
 	config          *config.Config
 	enabled         bool
 	formatter       domain.BaseFormatter
-	rateLimiter     domain.RateLimiter
+	rateLimiter     rateLimiter
 	displayProvider display.Provider
 }
 
 // NewMouseScrollTool creates a new mouse scroll tool
-func NewMouseScrollTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider) *MouseScrollTool {
+func NewMouseScrollTool(cfg *config.Config, rateLimiter rateLimiter, displayProvider display.Provider) *MouseScrollTool {
 	return &MouseScrollTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled,

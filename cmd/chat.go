@@ -21,8 +21,8 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	app "github.com/inference-gateway/cli/internal/app"
-	computer "github.com/inference-gateway/cli/internal/computer"
-	clipboard "github.com/inference-gateway/cli/internal/computer/clipboard"
+	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
+	clipboard "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -197,7 +197,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		stateManager.SetAgentMode(mode)
 	}
 
-	var screenshotServer *computer.ScreenshotServer
+	var screenshotServer *computerinfra.ScreenshotServer
 
 	if cfg.ComputerUse.Enabled && cfg.ComputerUse.Screenshot.StreamingEnabled {
 		screenshotServer = startScreenshotServer(cfg, imageService, toolRegistry)
@@ -431,10 +431,10 @@ func contains(slice []string, item string) bool {
 }
 
 // startScreenshotServer initializes and starts the screenshot streaming server
-func startScreenshotServer(config *config.Config, imageService domain.ImageService, toolRegistry *tools.Registry) *computer.ScreenshotServer {
+func startScreenshotServer(config *config.Config, imageService domain.ImageService, toolRegistry *tools.Registry) *computerinfra.ScreenshotServer {
 	logger.Info("screenshot streaming conditions met, starting server")
 	sessionID := fmt.Sprintf("%d-%s", time.Now().Unix(), uuid.New().String()[:8])
-	screenshotServer := computer.NewScreenshotServer(config, imageService, sessionID)
+	screenshotServer := computerinfra.NewScreenshotServer(config, imageService, sessionID)
 
 	if err := screenshotServer.Start(); err != nil {
 		logger.Warn("failed to start screenshot server", "error", err)

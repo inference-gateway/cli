@@ -4,7 +4,7 @@ package display
 import (
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/computer/display"
+	"github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 )
 
 type FakeProvider struct {

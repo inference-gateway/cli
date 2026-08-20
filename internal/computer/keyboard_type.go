@@ -6,7 +6,8 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/computer/display"
+	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
@@ -17,12 +18,12 @@ type KeyboardTypeTool struct {
 	config          *config.Config
 	enabled         bool
 	formatter       domain.BaseFormatter
-	rateLimiter     domain.RateLimiter
+	rateLimiter     rateLimiter
 	displayProvider display.Provider
 }
 
 // NewKeyboardTypeTool creates a new keyboard type tool
-func NewKeyboardTypeTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider) *KeyboardTypeTool {
+func NewKeyboardTypeTool(cfg *config.Config, rateLimiter rateLimiter, displayProvider display.Provider) *KeyboardTypeTool {
 	return &KeyboardTypeTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.Tools.KeyboardType.Enabled,
@@ -147,7 +148,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 		}, nil
 	}
 
-	result := domain.KeyboardTypeToolResult{
+	result := computerdomain.KeyboardTypeToolResult{
 		Text:     text,
 		KeyCombo: keyCombo,
 		Method:   t.displayProvider.GetDisplayInfo().Name,
@@ -215,7 +216,7 @@ func (t *KeyboardTypeTool) FormatPreview(result *domain.ToolExecutionResult) str
 	if result == nil || !result.Success {
 		return "Keyboard input failed"
 	}
-	data, ok := result.Data.(domain.KeyboardTypeToolResult)
+	data, ok := result.Data.(computerdomain.KeyboardTypeToolResult)
 	if !ok {
 		return "Keyboard input sent"
 	}
@@ -234,7 +235,7 @@ func (t *KeyboardTypeTool) FormatForLLM(result *domain.ToolExecutionResult) stri
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
-	data, ok := result.Data.(domain.KeyboardTypeToolResult)
+	data, ok := result.Data.(computerdomain.KeyboardTypeToolResult)
 	if !ok {
 		return "Keyboard input sent successfully"
 	}

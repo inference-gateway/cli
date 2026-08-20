@@ -6,7 +6,8 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/computer/display"
+	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
@@ -17,13 +18,13 @@ type MouseClickTool struct {
 	config          *config.Config
 	enabled         bool
 	formatter       domain.BaseFormatter
-	rateLimiter     domain.RateLimiter
+	rateLimiter     rateLimiter
 	displayProvider display.Provider
 	stateManager    State
 }
 
 // NewMouseClickTool creates a new mouse click tool
-func NewMouseClickTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider, stateManager State) *MouseClickTool {
+func NewMouseClickTool(cfg *config.Config, rateLimiter rateLimiter, displayProvider display.Provider, stateManager State) *MouseClickTool {
 	return &MouseClickTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.Tools.MouseClick.Enabled,
@@ -114,7 +115,7 @@ func (t *MouseClickTool) Execute(ctx context.Context, args map[string]any) (*dom
 
 	t.updateStateAfterClick(ctx, controller, finalX, finalY)
 
-	result := domain.MouseClickToolResult{
+	result := computerdomain.MouseClickToolResult{
 		Button: button,
 		Clicks: clicks,
 		X:      finalX,
@@ -318,7 +319,7 @@ func (t *MouseClickTool) FormatPreview(result *domain.ToolExecutionResult) strin
 	if result == nil || !result.Success {
 		return "Mouse click failed"
 	}
-	data, ok := result.Data.(domain.MouseClickToolResult)
+	data, ok := result.Data.(computerdomain.MouseClickToolResult)
 	if !ok {
 		return "Mouse clicked"
 	}
@@ -339,7 +340,7 @@ func (t *MouseClickTool) FormatForLLM(result *domain.ToolExecutionResult) string
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
-	data, ok := result.Data.(domain.MouseClickToolResult)
+	data, ok := result.Data.(computerdomain.MouseClickToolResult)
 	if !ok {
 		return "Mouse click performed successfully"
 	}

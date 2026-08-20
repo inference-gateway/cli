@@ -6,7 +6,6 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // TokenBucketRateLimiter implements token bucket rate limiting for computer use actions
@@ -16,11 +15,8 @@ type TokenBucketRateLimiter struct {
 	mu          sync.Mutex
 }
 
-// Ensure TokenBucketRateLimiter implements domain.RateLimiter
-var _ domain.RateLimiter = (*TokenBucketRateLimiter)(nil)
-
 // NewRateLimiter creates a new rate limiter
-func NewRateLimiter(cfg config.RateLimitConfig) domain.RateLimiter {
+func NewRateLimiter(cfg config.RateLimitConfig) *TokenBucketRateLimiter {
 	return &TokenBucketRateLimiter{
 		cfg:         &cfg,
 		actionTimes: make([]time.Time, 0),

@@ -18,7 +18,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	computer "github.com/inference-gateway/cli/internal/computer"
+	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -34,11 +34,11 @@ import (
 // as interactive chat does. It logs instead of printing: headless stdout
 // carries the ag-ui/json protocol stream. Returns nil when streaming is off or
 // the server failed to start.
-func startHeadlessScreenshotServer(cfg *config.Config, svc *container.ServiceContainer, sessionID string) *computer.ScreenshotServer {
+func startHeadlessScreenshotServer(cfg *config.Config, svc *container.ServiceContainer, sessionID string) *computerinfra.ScreenshotServer {
 	if !cfg.ComputerUse.Enabled || !cfg.ComputerUse.Screenshot.StreamingEnabled {
 		return nil
 	}
-	screenshotServer := computer.NewScreenshotServer(cfg, svc.GetImageService(), sessionID)
+	screenshotServer := computerinfra.NewScreenshotServer(cfg, svc.GetImageService(), sessionID)
 	if err := screenshotServer.Start(); err != nil {
 		logger.Warn("failed to start screenshot server", "error", err)
 		return nil

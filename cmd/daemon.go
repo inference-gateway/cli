@@ -12,6 +12,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	audio "github.com/inference-gateway/cli/internal/audio"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -22,7 +23,6 @@ import (
 	heartbeat "github.com/inference-gateway/cli/internal/services/heartbeat"
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	audio "github.com/inference-gateway/cli/internal/audio"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	cobra "github.com/spf13/cobra"
 )

@@ -9,7 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	config "github.com/inference-gateway/cli/config"
-	clipboard "github.com/inference-gateway/cli/internal/computer/clipboard"
+	clipboard "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"

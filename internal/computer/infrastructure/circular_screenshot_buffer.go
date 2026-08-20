@@ -1,4 +1,4 @@
-package computer
+package infrastructure
 
 import (
 	"encoding/base64"

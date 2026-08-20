@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -17,7 +18,7 @@ type BrowserTypeTool struct {
 }
 
 // NewBrowserTypeTool creates a new browser type tool
-func NewBrowserTypeTool(cfg *config.Config, rateLimiter domain.RateLimiter, driver domain.BrowserDriver) *BrowserTypeTool {
+func NewBrowserTypeTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserTypeTool {
 	return &BrowserTypeTool{
 		browserToolBase: browserToolBase{
 			name:        "BrowserType",

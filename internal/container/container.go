@@ -21,9 +21,11 @@ import (
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browser "github.com/inference-gateway/cli/internal/browser"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
+	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	computer "github.com/inference-gateway/cli/internal/computer"
-	clipboardtext "github.com/inference-gateway/cli/internal/computer/clipboard/text"
-	vlm "github.com/inference-gateway/cli/internal/computer/vlm"
+	clipboardtext "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard/text"
+	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	memory "github.com/inference-gateway/cli/internal/infra/memory"
@@ -146,8 +148,8 @@ type ServiceContainer struct {
 	directExecutionService   ui.DirectExecutionService
 	toolExecutionCoordinator ui.ToolExecutionCoordinator
 	uiNotifier               *uiNotifierHolder
-	extensionBridge          *services.ExtensionBridge
-	browserDriver            domain.BrowserDriver
+	extensionBridge          *browserinfra.ExtensionBridge
+	browserDriver            browserdomain.BrowserDriver
 }
 
 // uiNotifierHolder is a swap-once, read-many domain.UINotifier. Producers capture
@@ -251,10 +253,10 @@ func (c *ServiceContainer) initializeBrowserTools() {
 			c.stateManager.SetEventBridge(eventBridge)
 		}
 
-		c.extensionBridge = services.NewExtensionBridge(buCfg, c.uiNotifier, c.conversationRepo, eventBridge, c.skillsService, string(c.sessionID), c.config.ArtifactsDir())
+		c.extensionBridge = browserinfra.NewExtensionBridge(buCfg, c.uiNotifier, c.conversationRepo, eventBridge, c.skillsService, string(c.sessionID), c.config.ArtifactsDir())
 		c.browserDriver = c.extensionBridge
 	} else {
-		c.browserDriver = browser.NewSession(buCfg)
+		c.browserDriver = browserinfra.NewSession(buCfg)
 	}
 
 	c.toolRegistry.RegisterTools(browser.NewTools(c.config, c.browserDriver))

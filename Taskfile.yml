@@ -258,7 +258,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain FileService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ImageService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain FrameSource
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BrowserDriver
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/browser internal/browser/domain BrowserDriver
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ImageAnnotator
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain GitHubIssueService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain GitHubSetupService
@@ -278,7 +278,6 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain StateHandler
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain A2AAgentService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MCPClient
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain RateLimiter
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain Channel
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ApprovalChannel
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain HistoryCleaner
@@ -306,8 +305,8 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter PathValidator
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter BackupManager
       - mkdir -p tests/mocks/display
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/computer/display DisplayController
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/computer/display Provider
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/computer/infrastructure/display DisplayController
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/computer/infrastructure/display Provider
       - mkdir -p tests/mocks/services
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/services internal/services TitleGenerator
       - mkdir -p tests/mocks/shortcuts

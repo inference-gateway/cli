@@ -21,7 +21,6 @@ var nonSpeechMarkerRe = regexp.MustCompile(
 // speech_to_text.binary_path is configured.
 var whisperBinaryCandidates = []string{"whisper-cli", "whisper-cpp"}
 
-
 // WhisperTranscriber transcribes a 16kHz mono WAV file using whisper.cpp.
 type WhisperTranscriber struct {
 	cfg      config.SpeechToTextConfig

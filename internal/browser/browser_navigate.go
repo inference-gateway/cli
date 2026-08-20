@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"net/url"
 	"time"
 
@@ -18,7 +19,7 @@ type BrowserNavigateTool struct {
 }
 
 // NewBrowserNavigateTool creates a new browser navigate tool
-func NewBrowserNavigateTool(cfg *config.Config, rateLimiter domain.RateLimiter, driver domain.BrowserDriver) *BrowserNavigateTool {
+func NewBrowserNavigateTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserNavigateTool {
 	return &BrowserNavigateTool{
 		browserToolBase: browserToolBase{
 			name:        "BrowserNavigate",

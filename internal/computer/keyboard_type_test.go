@@ -5,6 +5,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	utils "github.com/inference-gateway/cli/internal/utils"
 )
@@ -219,7 +220,7 @@ func TestKeyboardTypeTool_FormatResult(t *testing.T) {
 		Arguments: map[string]any{"text": "www.google.com"},
 		Success:   true,
 		Duration:  time.Second,
-		Data: domain.KeyboardTypeToolResult{
+		Data: computerdomain.KeyboardTypeToolResult{
 			Text:    "www.google.com",
 			Display: ":0",
 			Method:  "x11",

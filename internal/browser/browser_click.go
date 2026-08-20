@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -18,7 +19,7 @@ type BrowserClickTool struct {
 }
 
 // NewBrowserClickTool creates a new browser click tool
-func NewBrowserClickTool(cfg *config.Config, rateLimiter domain.RateLimiter, driver domain.BrowserDriver) *BrowserClickTool {
+func NewBrowserClickTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserClickTool {
 	return &BrowserClickTool{
 		browserToolBase: browserToolBase{
 			name:        "BrowserClick",

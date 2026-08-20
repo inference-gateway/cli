@@ -3,16 +3,13 @@ package browser
 import (
 	"context"
 	"fmt"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
-
-// maxBrowserReadChars bounds how much page text a single BrowserRead returns
-// so one read cannot flood the conversation context.
-const maxBrowserReadChars = 50000
 
 // BrowserReadTool reads page content from the shared browser session
 type BrowserReadTool struct {
@@ -21,7 +18,7 @@ type BrowserReadTool struct {
 }
 
 // NewBrowserReadTool creates a new browser read tool
-func NewBrowserReadTool(cfg *config.Config, rateLimiter domain.RateLimiter, driver domain.BrowserDriver) *BrowserReadTool {
+func NewBrowserReadTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserReadTool {
 	return &BrowserReadTool{
 		browserToolBase: browserToolBase{
 			name:        "BrowserRead",

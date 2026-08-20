@@ -5,8 +5,8 @@ package macos
 import (
 	"context"
 
-	display "github.com/inference-gateway/cli/internal/computer/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -18,7 +18,7 @@ type macosAppProvider struct{}
 
 var _ display.AppProvider = (*macosAppProvider)(nil)
 
-func (macosAppProvider) ListRunning(ctx context.Context) ([]domain.Application, error) {
+func (macosAppProvider) ListRunning(ctx context.Context) ([]computerdomain.Application, error) {
 	return listRunningApps()
 }
 
@@ -26,7 +26,7 @@ func (macosAppProvider) Activate(ctx context.Context, id string) error {
 	return activateApp(id)
 }
 
-func (macosAppProvider) GetFocused(ctx context.Context) (*domain.Application, error) {
+func (macosAppProvider) GetFocused(ctx context.Context) (*computerdomain.Application, error) {
 	return frontmostApp()
 }
 

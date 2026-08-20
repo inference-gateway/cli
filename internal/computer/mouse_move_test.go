@@ -5,10 +5,9 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/computer/display"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	displayMocks "github.com/inference-gateway/cli/tests/mocks/display"
-	domainMocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // stubEventBridgeManager is a no-op domain.EventBridgeManager; the mouse-move
@@ -18,6 +17,11 @@ type stubEventBridgeManager struct{}
 func (stubEventBridgeManager) SetEventBridge(domain.EventBridge)  {}
 func (stubEventBridgeManager) GetEventBridge() domain.EventBridge { return nil }
 func (stubEventBridgeManager) BroadcastEvent(domain.ChatEvent)    {}
+
+// nopRateLimiter satisfies rateLimiter for tests without limiting anything.
+type nopRateLimiter struct{}
+
+func (nopRateLimiter) CheckAndRecord(string) error { return nil }
 
 func TestMouseMoveTool_CoordinateScaling(t *testing.T) {
 	tests := []struct {
@@ -180,10 +184,7 @@ func runCoordinateScalingTest(t *testing.T, tt coordinateScalingTestCase) {
 		},
 	}
 
-	rateLimiter := &domainMocks.FakeRateLimiter{}
-	rateLimiter.CheckAndRecordReturns(nil)
-
-	tool := NewMouseMoveTool(cfg, rateLimiter, mockProv, stubEventBridgeManager{})
+	tool := NewMouseMoveTool(cfg, nopRateLimiter{}, mockProv, stubEventBridgeManager{})
 
 	ctx := context.Background()
 	if tt.directExec {
