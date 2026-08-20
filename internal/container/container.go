@@ -20,6 +20,7 @@ import (
 	agent "github.com/inference-gateway/cli/internal/agent"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	audio "github.com/inference-gateway/cli/internal/audio"
+	browser "github.com/inference-gateway/cli/internal/browser"
 	clipboardtext "github.com/inference-gateway/cli/internal/clipboard/text"
 	macos "github.com/inference-gateway/cli/internal/display/macos"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -147,6 +148,7 @@ type ServiceContainer struct {
 	toolExecutionCoordinator ui.ToolExecutionCoordinator
 	uiNotifier               *uiNotifierHolder
 	extensionBridge          *services.ExtensionBridge
+	browserDriver            domain.BrowserDriver
 }
 
 // uiNotifierHolder is a swap-once, read-many domain.UINotifier. Producers capture
@@ -229,27 +231,34 @@ func (c *ServiceContainer) SetUINotifier(n domain.UINotifier) {
 	c.uiNotifier.set(n)
 }
 
-// initializeExtensionBridge wires the opentask extension bridge as the
-// browser tools' driver when browser_use selects the extension backend, and
-// installs an event bridge on the state manager so chat events are mirrored
-// to the extension.
+// initializeBrowserTools constructs the browser-use driver (the opentask
+// extension bridge, or a lazily-launched Playwright session) and registers the
+// browser tools against it. The container owns the driver lifecycle; the
+// extension backend also installs an event bridge on the state manager so chat
+// events are mirrored to the extension.
 // The WS server is NOT started here - every command builds a container and
 // short-lived ones (status, tools, ...) must not grab the bridge port.
 // Conversation-hosting commands call StartExtensionBridge.
-func (c *ServiceContainer) initializeExtensionBridge() {
+func (c *ServiceContainer) initializeBrowserTools() {
 	buCfg := &c.config.BrowserUse
-	if !buCfg.Enabled || buCfg.Backend != config.BrowserBackendExtension {
+	if !buCfg.Enabled {
 		return
 	}
 
-	eventBridge := c.stateManager.GetEventBridge()
-	if eventBridge == nil {
-		eventBridge = macos.NewEventBridge()
-		c.stateManager.SetEventBridge(eventBridge)
+	if buCfg.Backend == config.BrowserBackendExtension {
+		eventBridge := c.stateManager.GetEventBridge()
+		if eventBridge == nil {
+			eventBridge = macos.NewEventBridge()
+			c.stateManager.SetEventBridge(eventBridge)
+		}
+
+		c.extensionBridge = services.NewExtensionBridge(buCfg, c.uiNotifier, c.conversationRepo, eventBridge, c.skillsService, string(c.sessionID), c.config.ArtifactsDir())
+		c.browserDriver = c.extensionBridge
+	} else {
+		c.browserDriver = browser.NewSession(buCfg)
 	}
 
-	c.extensionBridge = services.NewExtensionBridge(buCfg, c.uiNotifier, c.conversationRepo, eventBridge, c.skillsService, string(c.sessionID), c.config.ArtifactsDir())
-	c.toolRegistry.SetBrowserDriver(c.extensionBridge)
+	c.toolRegistry.RegisterTools(browser.NewTools(c.config, c.browserDriver))
 }
 
 // StartExtensionBridge starts the WebSocket server the opentask extension
@@ -427,7 +436,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 	c.skillsService = skillsSvc
 
-	c.initializeExtensionBridge()
+	c.initializeBrowserTools()
 
 	modelClient := c.createRawSDKClient()
 	c.modelService = services.NewHTTPModelService(modelClient)
@@ -999,8 +1008,8 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	c.telemetryRecorder.Shutdown(ctx)
 
-	if c.toolRegistry != nil {
-		c.toolRegistry.Close()
+	if c.browserDriver != nil {
+		c.browserDriver.Close()
 	}
 
 	if c.skillsService != nil {

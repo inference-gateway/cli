@@ -1,4 +1,4 @@
-package tools
+package browser
 
 import (
 	"context"
@@ -43,7 +43,7 @@ type browserSession struct {
 	events   []string
 }
 
-func newBrowserSession(cfg *config.BrowserUseConfig) *browserSession {
+func NewSession(cfg *config.BrowserUseConfig) *browserSession {
 	return &browserSession{cfg: cfg}
 }
 
@@ -529,4 +529,12 @@ func (b *browserToolBase) successResult(args map[string]any, start time.Time, da
 		Duration:  time.Since(start),
 		Data:      data,
 	}
+}
+
+func requireString(args map[string]any, key string) (string, error) {
+	v, ok := args[key].(string)
+	if !ok || strings.TrimSpace(v) == "" {
+		return "", fmt.Errorf("%s is required and must be a non-empty string", key)
+	}
+	return v, nil
 }

@@ -71,7 +71,6 @@ type Registry struct {
 	frameSourcesMu  sync.RWMutex
 	memoryBackend   domain.MemoryBackend
 	stores          *storage.Stores
-	browserDriver   domain.BrowserDriver
 }
 
 // computerUseState is the narrow slice of StateManager the computer-use tools
@@ -240,10 +239,6 @@ func (r *Registry) registerTools() {
 		r.registerComputerUseTools()
 	}
 
-	if cfg.BrowserUse.Enabled {
-		r.registerBrowserUseTools()
-	}
-
 	r.tools["GetLatestFrame"] = NewGetLatestFrameTool(cfg, r, r.annotator)
 
 	if cfg.Vision.AnnotatorReady() && r.annotator != nil && r.imageService != nil {
@@ -282,43 +277,17 @@ func (r *Registry) registerComputerUseTools() {
 	r.tools["PressUIElement"] = NewPressUIElementTool(r.config)
 }
 
-// registerBrowserUseTools registers browser automation tools. They share one
-// driver (a lazily-launched Playwright session by default) and one rate
-// limiter.
-func (r *Registry) registerBrowserUseTools() {
-	cfg := r.config
-	if r.browserDriver == nil {
-		r.browserDriver = newBrowserSession(&cfg.BrowserUse)
-	}
-	rateLimiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
-	r.tools["BrowserNavigate"] = NewBrowserNavigateTool(cfg, rateLimiter, r.browserDriver)
-	r.tools["BrowserClick"] = NewBrowserClickTool(cfg, rateLimiter, r.browserDriver)
-	r.tools["BrowserType"] = NewBrowserTypeTool(cfg, rateLimiter, r.browserDriver)
-	r.tools["BrowserRead"] = NewBrowserReadTool(cfg, rateLimiter, r.browserDriver)
-	r.tools["BrowserScreenshot"] = NewBrowserScreenshotTool(cfg, rateLimiter, r.browserDriver)
-	r.tools["BrowserTabs"] = NewBrowserTabsTool(cfg, rateLimiter, r.browserDriver)
-}
-
-// SetBrowserDriver swaps the browser backend (e.g. the opentask extension
-// bridge) and re-registers the browser tools against it. The container calls
-// this after construction, mirroring SetMemoryBackend. The default playwright
-// session is closed if it was created.
-func (r *Registry) SetBrowserDriver(driver domain.BrowserDriver) {
-	if driver == nil || !r.config.BrowserUse.Enabled {
-		return
-	}
-	if r.browserDriver != nil {
-		r.browserDriver.Close()
-	}
-	r.browserDriver = driver
-	r.registerBrowserUseTools()
-}
-
-// Close releases resources held by tools - currently the shared browser
-// driver, when browser use created one. Safe to call multiple times.
-func (r *Registry) Close() {
-	if r.browserDriver != nil {
-		r.browserDriver.Close()
+// RegisterTools installs capability tools constructed outside this package
+// (browser use, and later computer use). The agent core consumes them through
+// the domain.Tool contract only.
+func (r *Registry) RegisterTools(tools map[string]domain.Tool) {
+	r.toolsMu.Lock()
+	defer r.toolsMu.Unlock()
+	for name, tool := range tools {
+		if name == "" || tool == nil {
+			continue
+		}
+		r.tools[name] = tool
 	}
 }
 

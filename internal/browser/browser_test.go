@@ -1,4 +1,4 @@
-package tools
+package browser
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ func browserTestConfig(enabled bool) *config.Config {
 }
 
 func newBrowserTestTools(cfg *config.Config) []domain.Tool {
-	session := newBrowserSession(&cfg.BrowserUse)
+	session := NewSession(&cfg.BrowserUse)
 	limiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
 	return []domain.Tool{
 		NewBrowserNavigateTool(cfg, limiter, session),
@@ -58,7 +58,7 @@ func TestBrowserToolsEnablement(t *testing.T) {
 
 func TestBrowserToolsValidate(t *testing.T) {
 	cfg := browserTestConfig(true)
-	session := newBrowserSession(&cfg.BrowserUse)
+	session := NewSession(&cfg.BrowserUse)
 	limiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
 
 	tests := []struct {
@@ -92,7 +92,7 @@ func TestBrowserToolsValidate(t *testing.T) {
 }
 
 func TestBrowserSessionEventBuffer(t *testing.T) {
-	session := newBrowserSession(config.DefaultBrowserUseConfig())
+	session := NewSession(config.DefaultBrowserUseConfig())
 
 	for i := range maxBrowserEvents + 10 {
 		session.recordEvent(fmt.Sprintf("event %d", i))
@@ -111,7 +111,7 @@ func TestBrowserSessionEventBuffer(t *testing.T) {
 
 func TestBrowserToolFormatForLLM(t *testing.T) {
 	cfg := browserTestConfig(true)
-	session := newBrowserSession(&cfg.BrowserUse)
+	session := NewSession(&cfg.BrowserUse)
 	limiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
 	tool := NewBrowserReadTool(cfg, limiter, session)
 
@@ -172,7 +172,7 @@ func TestBrowserReadRedaction(t *testing.T) {
 
 func TestBrowserTabsFormatForLLM(t *testing.T) {
 	cfg := browserTestConfig(true)
-	session := newBrowserSession(&cfg.BrowserUse)
+	session := NewSession(&cfg.BrowserUse)
 	limiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
 	tool := NewBrowserTabsTool(cfg, limiter, session)
 

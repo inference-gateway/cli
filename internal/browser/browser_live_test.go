@@ -1,4 +1,4 @@
-package tools
+package browser
 
 import (
 	"context"
@@ -21,7 +21,7 @@ func TestBrowserSessionLive(t *testing.T) {
 	cfg := config.DefaultBrowserUseConfig()
 	cfg.Browser.Headless = true
 	cfg.Browser.Channel = ""
-	session := newBrowserSession(cfg)
+	session := NewSession(cfg)
 	defer session.Close()
 
 	ctx := context.Background()
