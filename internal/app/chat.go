@@ -2472,8 +2472,9 @@ func (app *ChatApplication) GetConfigDir() string {
 	return app.configDir
 }
 
-// GetStateManager returns the current state manager
-func (app *ChatApplication) GetStateManager() *services.StateManager {
+// GetStateManager returns the current state manager as the narrow slice key
+// handlers consume.
+func (app *ChatApplication) GetStateManager() keybinding.StateManager {
 	return app.stateManager
 }
 

@@ -14,7 +14,6 @@ import (
 	clipboard "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	services "github.com/inference-gateway/cli/internal/services"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
@@ -398,8 +397,8 @@ func applyImageOptimization(tmpPath string, originalData []byte, cfg *config.Con
 }
 
 // optimizeClipboardImage optimizes an image according to configuration
-func optimizeClipboardImage(imagePath string, cfg config.ClipboardImageOptimizeConfig) (*services.OptimizeResult, error) {
-	optimizer := services.NewImageOptimizer(cfg)
+func optimizeClipboardImage(imagePath string, cfg config.ClipboardImageOptimizeConfig) (*OptimizeResult, error) {
+	optimizer := NewImageOptimizer(cfg)
 	return optimizer.OptimizeImage(imagePath)
 }
 

@@ -64,7 +64,10 @@ func (b *browserToolBase) FormatPreview(result *agentdomain.ToolExecutionResult)
 
 // FormatForLLM formats the result for LLM consumption
 func (b *browserToolBase) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
-	if result == nil || !result.Success {
+	if result == nil {
+		return "Error: no result"
+	}
+	if !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
 	data, ok := result.Data.(browserdomain.BrowserToolResult)

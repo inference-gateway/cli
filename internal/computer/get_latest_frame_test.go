@@ -192,6 +192,53 @@ func TestGetLatestFrameValidate(t *testing.T) {
 	assert.True(t, strings.Contains(err.Error(), "invalid format"))
 }
 
+func TestParseRegion(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   map[string]any
+		wantOK bool
+		want   agentdomain.ScreenRegion
+	}{
+		{"no region", map[string]any{}, false, agentdomain.ScreenRegion{}},
+		{"region wrong type", map[string]any{"region": "10,10"}, false, agentdomain.ScreenRegion{}},
+		{"full region", map[string]any{"region": map[string]any{"x": 10.0, "y": 20.0, "width": 100.0, "height": 50.0}}, true, agentdomain.ScreenRegion{X: 10, Y: 20, Width: 100, Height: 50}},
+		{"missing keys default to zero", map[string]any{"region": map[string]any{"x": 10.0}}, true, agentdomain.ScreenRegion{X: 10}},
+		{"wrong-typed values default to zero", map[string]any{"region": map[string]any{"x": "10", "y": 20.0, "width": 100, "height": 50.0}}, true, agentdomain.ScreenRegion{Y: 20, Height: 50}},
+		{"empty object", map[string]any{"region": map[string]any{}}, true, agentdomain.ScreenRegion{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := parseRegion(tt.args)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGetLatestFrameValidateRegion(t *testing.T) {
+	tool := NewGetLatestFrameTool(newFrameTestConfig(), fakeSourceLookup{}, nil)
+	tests := []struct {
+		name       string
+		args       map[string]any
+		wantErrSub string
+	}{
+		{"valid region", map[string]any{"region": map[string]any{"x": 0.0, "y": 0.0, "width": 100.0, "height": 50.0}}, ""},
+		{"region not an object", map[string]any{"region": []any{1, 2}}, "region must be an object"},
+		{"missing height", map[string]any{"region": map[string]any{"x": 0.0, "y": 0.0, "width": 100.0}}, "region.height must be an integer"},
+		{"string coordinate", map[string]any{"region": map[string]any{"x": "0", "y": 0.0, "width": 100.0, "height": 50.0}}, "region.x must be an integer"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tool.Validate(tt.args)
+			if tt.wantErrSub == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, tt.wantErrSub)
+		})
+	}
+}
+
 func TestGetLatestFramePerSourcePromptOverride(t *testing.T) {
 	cfg := newFrameTestConfig()
 	cfg.Vision.Sources = map[string]config.VisionSourceConfig{

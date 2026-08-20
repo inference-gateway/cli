@@ -1,6 +1,9 @@
 package project
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestSlugify(t *testing.T) {
 	tests := []struct {
@@ -46,4 +49,29 @@ func TestParseRemoteURL(t *testing.T) {
 			t.Errorf("ParseRemoteURL(%q) = %q, want %q", tt.in, got, tt.want)
 		}
 	}
+}
+
+func TestDetect(t *testing.T) {
+	t.Run("git repo yields org/repo identity", func(t *testing.T) {
+		id := detect()
+		if id.Name != "inference-gateway/cli" || id.Slug != "inference-gateway-cli" {
+			t.Fatalf("detect() = %+v, want inference-gateway/cli identity", id)
+		}
+	})
+
+	t.Run("no remote falls back to cwd basename", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Chdir(dir)
+		id := detect()
+		if id.Name != filepath.Base(dir) || id.Slug != Slugify(filepath.Base(dir)) {
+			t.Fatalf("detect() = %+v, want cwd basename identity for %s", id, dir)
+		}
+	})
+
+	t.Run("Detect caches the first result", func(t *testing.T) {
+		first := Detect()
+		if second := Detect(); second != first {
+			t.Fatalf("Detect() changed between calls: %+v then %+v", first, second)
+		}
+	})
 }

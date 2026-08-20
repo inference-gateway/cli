@@ -50,14 +50,49 @@ func (e *eventSink) TerminalErr() (bool, error) {
 }
 
 func TestParseCron(t *testing.T) {
-	if err := ParseCron("0 8 * * *"); err != nil {
-		t.Fatalf("valid cron rejected: %v", err)
+	memStore := storage.NewMemoryStorage()
+	svc, err := NewService(Options{Store: memStore, Runs: memStore})
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
 	}
-	if err := ParseCron("@every 1s"); err != nil {
-		t.Fatalf("@every rejected: %v", err)
+
+	tests := []struct {
+		name    string
+		expr    string
+		wantErr bool
+	}{
+		{"every minute", "* * * * *", false},
+		{"daily at 8", "0 8 * * *", false},
+		{"weekday range", "30 9 * * 1-5", false},
+		{"step values", "*/15 * * * *", false},
+		{"list values", "0 0,12 1 */2 *", false},
+		{"named month and day", "0 0 1 jan sun", false},
+		{"descriptor @daily", "@daily", false},
+		{"descriptor @hourly", "@hourly", false},
+		{"descriptor @weekly", "@weekly", false},
+		{"descriptor @every", "@every 1h30m", false},
+		{"empty", "", true},
+		{"garbage", "not a cron", true},
+		{"too few fields", "0 8 * *", true},
+		{"six fields (seconds not enabled)", "0 0 8 * * *", true},
+		{"out of range minute", "60 * * * *", true},
+		{"out of range hour", "* 24 * * *", true},
+		{"unknown descriptor", "@fortnightly", true},
+		{"bad @every duration", "@every banana", true},
 	}
-	if err := ParseCron("not a cron"); err == nil {
-		t.Fatal("expected error for bogus expression")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pkgErr := ParseCron(tt.expr)
+			if (pkgErr != nil) != tt.wantErr {
+				t.Fatalf("ParseCron(%q) err = %v, wantErr %v", tt.expr, pkgErr, tt.wantErr)
+			}
+			// The package-level helper reconstructs the parser flags by hand;
+			// it must never drift from the parser the service actually uses.
+			svcErr := svc.ParseCron(tt.expr)
+			if (pkgErr != nil) != (svcErr != nil) {
+				t.Fatalf("drift: package ParseCron(%q) err=%v but Service.ParseCron err=%v", tt.expr, pkgErr, svcErr)
+			}
+		})
 	}
 }
 

@@ -227,7 +227,7 @@ type textareaEditTestCtx struct {
 	autocomplete ui.AutocompleteComponent
 }
 
-func (c *textareaEditTestCtx) GetStateManager() *services.StateManager   { return c.state }
+func (c *textareaEditTestCtx) GetStateManager() StateManager             { return c.state }
 func (c *textareaEditTestCtx) GetInputView() ui.InputComponent           { return c.input }
 func (c *textareaEditTestCtx) GetAutocomplete() ui.AutocompleteComponent { return c.autocomplete }
 func (c *textareaEditTestCtx) GetConfig() *config.Config                 { return nil }
