@@ -559,6 +559,7 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 | **MouseMove** / **MouseClick** / **MouseScroll** | Control the mouse | No |
 | **KeyboardType** | Type text or send key combinations | No |
 | **GetFocusedApp** / **ActivateApp** | Query or focus an application | No |
+| **GetUIElements** / **PressUIElement** | Read the accessibility tree / press an element by title without moving the cursor (macOS) | No |
 | **GetLatestFrame** | Read the latest frame from a named source (screen, camera directory) | No |
 
 **Memory, scheduling & A2A** (each gated by its own flag):
@@ -1231,8 +1232,11 @@ screenshot:
   streaming_enabled: true   # also registers the GetLatestFrame tool
 ```
 
-Tools: `MouseMove`, `MouseClick`, `MouseScroll`, `KeyboardType`, `GetFocusedApp`, `ActivateApp`, and
-`GetLatestFrame`. They run silently in the background (bypassing the approval prompt) and are
+Tools: `MouseMove`, `MouseClick`, `MouseScroll`, `KeyboardType`, `GetFocusedApp`, `ActivateApp`,
+`GetUIElements`, `PressUIElement`, and
+`GetLatestFrame`. On macOS, `GetUIElements` and `PressUIElement` read the accessibility tree
+directly - exact element titles and positions with no vision round-trip, and presses that never
+move the cursor. They run silently in the background (bypassing the approval prompt) and are
 governed by `computer_use.enabled` plus the configured rate limits. The
 [desktop app](https://github.com/inference-gateway/desktop) visualizes what the agent is doing
 (monitor, screen overlay, approvals). For a sandboxed desktop to drive, see

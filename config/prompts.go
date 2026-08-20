@@ -105,6 +105,8 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.BrowserTabs, &defaults.BrowserTabs)
 	mergeToolDescription(&loaded.GetFocusedApp, &defaults.GetFocusedApp)
 	mergeToolDescription(&loaded.ActivateApp, &defaults.ActivateApp)
+	mergeToolDescription(&loaded.GetUIElements, &defaults.GetUIElements)
+	mergeToolDescription(&loaded.PressUIElement, &defaults.PressUIElement)
 	mergeToolDescription(&loaded.GetLatestFrame, &defaults.GetLatestFrame)
 	mergeToolDescription(&loaded.ImageDecode, &defaults.ImageDecode)
 	mergeToolDescription(&loaded.Memory, &defaults.Memory)
@@ -236,6 +238,8 @@ type PromptsToolsConfig struct {
 	BrowserTabs         PromptsToolDescription `yaml:"BrowserTabs" mapstructure:"BrowserTabs"`
 	GetFocusedApp       PromptsToolDescription `yaml:"GetFocusedApp" mapstructure:"GetFocusedApp"`
 	ActivateApp         PromptsToolDescription `yaml:"ActivateApp" mapstructure:"ActivateApp"`
+	GetUIElements       PromptsToolDescription `yaml:"GetUIElements" mapstructure:"GetUIElements"`
+	PressUIElement      PromptsToolDescription `yaml:"PressUIElement" mapstructure:"PressUIElement"`
 	GetLatestFrame      PromptsToolDescription `yaml:"GetLatestFrame" mapstructure:"GetLatestFrame"`
 	ImageDecode         PromptsToolDescription `yaml:"ImageDecode" mapstructure:"ImageDecode"`
 	Memory              PromptsToolDescription `yaml:"Memory" mapstructure:"Memory"`
@@ -727,6 +731,12 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 		},
 		ActivateApp: PromptsToolDescription{
 			Description: `Brings a running application to the foreground. Provide either "app_id" (the stable identifier returned by GetFocusedApp, e.g. "com.google.Chrome" or "pid:1234") or "name" (a human-readable name substring, e.g. "Chrome" or "Terminal") to identify the target. Name matching is case-insensitive and selects the first matching running application. Use GetFocusedApp first to check current state. Works on macOS and X11; Wayland is not supported.`,
+		},
+		GetUIElements: PromptsToolDescription{
+			Description: `Lists the pressable UI elements of an accessibility tree: "frontmost" (default, the focused application), "dock" (macOS Dock / taskbar), or "menubar" (the frontmost app's menu bar titles). Returns a numbered element list (role, title, center, bounding box) with coordinates in the same frame space as GetLatestFrame, so a center can be passed straight to MouseClick. PREFER this over screenshot annotation when locating buttons, dock items, or menus - it is exact, instant, and needs no vision. Read-only, does not move the cursor. If it reports no elements or is unavailable, fall back to GetLatestFrame with a region zoom. Menu bar note: pressing a menu title opens the menu; call GetUIElements again with target "frontmost" to see the opened menu's items.`,
+		},
+		PressUIElement: PromptsToolDescription{
+			Description: `Presses a UI element by its title via the accessibility tree, without moving the mouse cursor - the reliable way to click dock items, buttons, and menu titles. Provide "label" exactly as shown by GetUIElements (the quoted title; first exact match wins) and the same "target" tree ("frontmost" default, "dock", "menubar"). Run GetUIElements first to see the available titles. If the element is not found or accessibility is unavailable, fall back to MouseClick at the element's center coordinates.`,
 		},
 		GetLatestFrame: PromptsToolDescription{
 			Description: `Retrieves the latest frame from a named frame source. This is a read-only operation that does NOT require approval. Sources: "screen" (the screenshot ring buffer, captured every few seconds when streaming is enabled) and any configured directory sources (e.g. camera frames on disk). Formats: "regular" returns the raw image; "annotated" returns a text scene summary plus a numbered element list (label, text, bounding box) produced by the configured vision annotator - useful when you cannot see images yourself. When format is omitted it is chosen automatically based on your vision capability. Pass "region" to zoom: the given frame-space rectangle is re-captured at native resolution, which is the reliable way to read small UI such as macOS Dock icons, menu bar items, or dense toolbars - annotate the full frame first to locate the area, then zoom into it before clicking anything small.`,

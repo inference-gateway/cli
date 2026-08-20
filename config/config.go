@@ -1391,7 +1391,7 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		return false
 	case "Memory":
 		return false
-	case "MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestFrame":
+	case "MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestFrame", "GetUIElements", "PressUIElement":
 		return false
 	case "BrowserRead", "BrowserScreenshot", "BrowserTabs":
 		return false

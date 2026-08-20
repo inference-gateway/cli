@@ -9,6 +9,7 @@ import (
 type Registry struct {
 	providers    []Provider
 	appProviders []AppProvider
+	axProviders  []AXProvider
 	mu           sync.RWMutex
 }
 
@@ -16,6 +17,7 @@ var (
 	globalRegistry = &Registry{
 		providers:    make([]Provider, 0),
 		appProviders: make([]AppProvider, 0),
+		axProviders:  make([]AXProvider, 0),
 	}
 )
 
@@ -66,3 +68,24 @@ func DetectAppProvider() (AppProvider, error) {
 
 // ErrNoAppProvider is returned when no application provider is available.
 var ErrNoAppProvider = fmt.Errorf("no application provider")
+
+// RegisterAXProvider adds an AXProvider to the global registry.
+// Called from init() in platform-specific packages (currently macOS only).
+func RegisterAXProvider(ax AXProvider) {
+	globalRegistry.mu.Lock()
+	defer globalRegistry.mu.Unlock()
+	globalRegistry.axProviders = append(globalRegistry.axProviders, ax)
+}
+
+// DetectAXProvider returns the first registered AXProvider. Platforms
+// without an accessibility backend register nothing, so ErrNoAXProvider is
+// the graceful-degradation signal (fall back to the vision pipeline).
+func DetectAXProvider() (AXProvider, error) {
+	globalRegistry.mu.RLock()
+	defer globalRegistry.mu.RUnlock()
+
+	if len(globalRegistry.axProviders) == 0 {
+		return nil, ErrNoAXProvider
+	}
+	return globalRegistry.axProviders[0], nil
+}

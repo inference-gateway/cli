@@ -612,6 +612,44 @@ vision:
 
 ---
 
+## Accessibility Tools
+
+Computer-use tools that read the platform accessibility tree instead of pixels - exact element
+positions and titles with no vision model round-trip, so text-only models can locate and operate
+UI directly. Currently backed by macOS AXUIElement (requires the Accessibility permission for the
+process, granted in System Settings > Privacy & Security > Accessibility); Linux (AT-SPI2) and
+Windows (UIA) backends are planned. On unsupported platforms, without the permission, or for apps
+that expose no accessibility tree (some custom-drawn UIs), the tools degrade to a message steering
+the model to the `GetLatestFrame` vision pipeline instead of failing.
+
+Gated by `computer_use.enabled` plus per-tool flags (`computer_use.tools.get_ui_elements.enabled`,
+`computer_use.tools.press_ui_element.enabled`).
+
+### GetUIElements Tool
+
+List the pressable elements of an accessibility tree as a numbered list (role, title, center,
+bounding box). Coordinates are mapped into the same frame space as `GetLatestFrame` images, so a
+center can be passed straight to `MouseClick`. Read-only - it does not move the cursor and does not
+take the screen lock, so background sessions can use it for non-invasive UI inspection.
+
+**Parameters:**
+
+- `target` (optional): `frontmost` (default, the focused application), `dock` (the macOS Dock),
+  or `menubar` (the frontmost app's menu bar titles)
+
+### PressUIElement Tool
+
+Press a UI element by its title via its accessibility default action - no cursor movement, no
+coordinate risk. Under `computer_use.approval: destructive` this tool requires approval (like
+`MouseClick` and `ActivateApp`).
+
+**Parameters:**
+
+- `label` (required): The element title exactly as shown by `GetUIElements` (first exact match wins)
+- `target` (optional): Same values as `GetUIElements`; use the tree that listed the element
+
+---
+
 ## Workflow Tools
 
 ### TodoWrite Tool
