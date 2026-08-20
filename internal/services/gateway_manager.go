@@ -24,11 +24,6 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-const (
-	// InferNetworkPrefix is the prefix for session-specific Docker networks
-	InferNetworkPrefix = "infer-network"
-)
-
 // GatewayManager manages the lifecycle of the gateway container or binary
 type GatewayManager struct {
 	sessionID        convdomain.SessionID

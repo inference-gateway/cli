@@ -9,6 +9,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
@@ -85,13 +86,13 @@ func runTraces(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println(listField("Session", session))
 	fmt.Println()
-	fmt.Print(telemetry.RenderTraceTree(roots, traceTreeStyle))
+	fmt.Print(styles.RenderTraceTree(roots, traceTreeStyle))
 	return nil
 }
 
 // traceTreeStyle colors the span tree from the static CLI palette: dim
 // connectors, accent durations, red error markers.
-var traceTreeStyle = telemetry.TreeStyle{
+var traceTreeStyle = styles.TreeStyle{
 	Enumerator: listHintStyle,
 	Duration:   listTitleStyle,
 	Error:      lipgloss.NewStyle().Foreground(colors.ErrorColor.GetLipglossColor()),

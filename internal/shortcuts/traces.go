@@ -8,12 +8,13 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	"github.com/inference-gateway/cli/internal/ui/styles"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // traceTreeStyle colors the span tree from the static CLI palette: dim
 // connectors, accent durations, red error markers.
-var traceTreeStyle = telemetry.TreeStyle{
+var traceTreeStyle = styles.TreeStyle{
 	Enumerator: lipgloss.NewStyle().Foreground(colors.DimColor.GetLipglossColor()),
 	Duration:   lipgloss.NewStyle().Bold(true).Foreground(colors.AccentColor.GetLipglossColor()),
 	Error:      lipgloss.NewStyle().Foreground(colors.ErrorColor.GetLipglossColor()),
@@ -77,7 +78,7 @@ func (s *TracesShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		}, nil
 	}
 
-	output := fmt.Sprintf("Traces: %s\n\n%s", session, telemetry.RenderTraceTree(roots, traceTreeStyle))
+	output := fmt.Sprintf("Traces: %s\n\n%s", session, styles.RenderTraceTree(roots, traceTreeStyle))
 
 	return ShortcutResult{
 		Output:  output,

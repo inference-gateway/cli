@@ -470,7 +470,7 @@ func (am *AgentManager) pullImage(ctx context.Context, agent config.AgentEntry) 
 	if am.containerRuntime != nil {
 		return am.containerRuntime.PullImage(ctx, agent.OCI, progress)
 	}
-	return runPullCommand(ctx, "docker", agent.OCI, progress)
+	return containerruntime.RunPullCommand(ctx, "docker", agent.OCI, progress)
 }
 
 // startContainer starts the agent container

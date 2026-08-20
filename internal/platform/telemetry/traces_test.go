@@ -50,13 +50,6 @@ func TestLoadTraceTree_EndToEnd(t *testing.T) {
 	if turn.Children[0].Error == "" {
 		t.Fatal("failed tool span must carry an error")
 	}
-
-	rendered := RenderTraceTree(roots, TreeStyle{})
-	for _, want := range []string{"session (standard, success)", "╰── chat openai/gpt-4o", "╰── execute_tool Bash call_abc123", "[error:"} {
-		if !strings.Contains(rendered, want) {
-			t.Errorf("rendered tree missing %q:\n%s", want, rendered)
-		}
-	}
 }
 
 func TestLoadTraceTree(t *testing.T) {
@@ -143,13 +136,6 @@ func TestLoadTraceTree(t *testing.T) {
 	}
 }
 
-func TestSpanLabelServiceName(t *testing.T) {
-	s := &TraceSpan{Name: "a2a.request", Attributes: map[string]string{"service.name": "mock-agent"}}
-	if got := spanLabel(s); got != "a2a.request [mock-agent]" {
-		t.Fatalf("spanLabel=%q, want %q", got, "a2a.request [mock-agent]")
-	}
-}
-
 func TestLoadTraceTree_ErrorStatus(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -217,27 +203,5 @@ func TestTraceSessions(t *testing.T) {
 	}
 	if strings.Join(ids, ",") != "new,old" {
 		t.Fatalf("sessions=%v, want [new old] (newest first, empty and metric files skipped)", ids)
-	}
-}
-
-func TestFormatSpanDuration(t *testing.T) {
-	tests := []struct {
-		ms   float64
-		want string
-	}{
-		{0, "0µs"},
-		{0.117, "117µs"},
-		{9, "9ms"},
-		{999, "999ms"},
-		{3200, "3.2s"},
-		{42100, "42.1s"},
-		{92000, "1m32s"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.want, func(t *testing.T) {
-			if got := formatSpanDuration(tt.ms); got != tt.want {
-				t.Fatalf("formatSpanDuration(%v)=%q, want %q", tt.ms, got, tt.want)
-			}
-		})
 	}
 }

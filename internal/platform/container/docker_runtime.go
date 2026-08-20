@@ -1,12 +1,10 @@
-package services
+package container
 
 import (
 	"context"
 	"fmt"
 	"os/exec"
 	"strings"
-
-	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -20,7 +18,7 @@ type DockerRuntime struct {
 }
 
 // NewDockerRuntime creates a new Docker runtime manager
-func NewDockerRuntime(sessionID convdomain.SessionID) containerruntime.ContainerRuntime {
+func NewDockerRuntime(sessionID convdomain.SessionID) ContainerRuntime {
 	return &DockerRuntime{
 		sessionID:   sessionID,
 		networkName: InferNetworkPrefix,
@@ -114,7 +112,7 @@ func (dr *DockerRuntime) ContainerExists(containerIDOrName string) bool {
 }
 
 // RunContainer runs a Docker container with the given options
-func (dr *DockerRuntime) RunContainer(ctx context.Context, opts containerruntime.RunContainerOptions) (string, error) {
+func (dr *DockerRuntime) RunContainer(ctx context.Context, opts RunContainerOptions) (string, error) {
 	args := []string{"run"}
 
 	if opts.Detached {
@@ -152,7 +150,7 @@ func (dr *DockerRuntime) RunContainer(ctx context.Context, opts containerruntime
 	if opts.HealthCmd != "" {
 		healthConfig := opts.HealthConfig
 		if healthConfig == nil {
-			healthConfig = &containerruntime.HealthCheckConfig{
+			healthConfig = &HealthCheckConfig{
 				Interval:    "10s",
 				Timeout:     "5s",
 				Retries:     3,
@@ -213,32 +211,32 @@ func (dr *DockerRuntime) StopContainer(ctx context.Context, containerIDOrName st
 
 // PullImage pulls a Docker image, reporting layer progress via the optional callback
 func (dr *DockerRuntime) PullImage(ctx context.Context, image string, progress func(done, total int)) error {
-	return runPullCommand(ctx, "docker", image, progress)
+	return RunPullCommand(ctx, "docker", image, progress)
 }
 
 // GetContainerHealth returns the health status of a container
-func (dr *DockerRuntime) GetContainerHealth(ctx context.Context, containerIDOrName string) (containerruntime.HealthStatus, error) {
+func (dr *DockerRuntime) GetContainerHealth(ctx context.Context, containerIDOrName string) (HealthStatus, error) {
 	cmd := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.State.Health.Status}}", containerIDOrName)
 	output, err := cmd.Output()
 	if err != nil {
-		return containerruntime.HealthStatusNone, fmt.Errorf("failed to inspect container: %w", err)
+		return HealthStatusNone, fmt.Errorf("failed to inspect container: %w", err)
 	}
 
 	healthStr := strings.TrimSpace(string(output))
 	switch healthStr {
 	case "healthy":
-		return containerruntime.HealthStatusHealthy, nil
+		return HealthStatusHealthy, nil
 	case "unhealthy":
-		return containerruntime.HealthStatusUnhealthy, nil
+		return HealthStatusUnhealthy, nil
 	case "starting":
-		return containerruntime.HealthStatusStarting, nil
+		return HealthStatusStarting, nil
 	default:
-		return containerruntime.HealthStatusNone, nil
+		return HealthStatusNone, nil
 	}
 }
 
 // ListRunningContainers lists all running containers matching the name filter
-func (dr *DockerRuntime) ListRunningContainers(ctx context.Context, nameFilter string) ([]containerruntime.ContainerInfo, error) {
+func (dr *DockerRuntime) ListRunningContainers(ctx context.Context, nameFilter string) ([]ContainerInfo, error) {
 	args := []string{"ps", "--format", "{{.ID}}\t{{.Names}}"}
 	if nameFilter != "" {
 		args = append(args, "--filter", fmt.Sprintf("name=%s", nameFilter))
@@ -250,7 +248,7 @@ func (dr *DockerRuntime) ListRunningContainers(ctx context.Context, nameFilter s
 		return nil, fmt.Errorf("docker ps failed: %w, output: %s", err, string(output))
 	}
 
-	var containers []containerruntime.ContainerInfo
+	var containers []ContainerInfo
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	for _, line := range lines {
 		if line == "" {
@@ -260,7 +258,7 @@ func (dr *DockerRuntime) ListRunningContainers(ctx context.Context, nameFilter s
 		if len(parts) != 2 {
 			continue
 		}
-		containers = append(containers, containerruntime.ContainerInfo{
+		containers = append(containers, ContainerInfo{
 			ID:   parts[0],
 			Name: parts[1],
 		})

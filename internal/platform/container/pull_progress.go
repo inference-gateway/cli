@@ -1,4 +1,4 @@
-package services
+package container
 
 import (
 	"bufio"
@@ -67,9 +67,9 @@ func (p *pullProgress) recordLayer(id string, completed bool) {
 	}
 }
 
-// runPullCommand streams `<binary> pull <image>` output, reporting layer
+// RunPullCommand streams `<binary> pull <image>` output, reporting layer
 // progress via the optional progress callback.
-func runPullCommand(ctx context.Context, binary, image string, progress func(done, total int)) error {
+func RunPullCommand(ctx context.Context, binary, image string, progress func(done, total int)) error {
 	cmd := exec.CommandContext(ctx, binary, "pull", image)
 
 	pipeReader, pipeWriter := io.Pipe()

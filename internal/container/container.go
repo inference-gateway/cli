@@ -197,9 +197,9 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 
 	log := logger.GetGlobalLogger()
 
-	containerRuntime, err := services.NewContainerRuntime(
+	containerRuntime, err := containerruntime.NewContainerRuntime(
 		sessionID,
-		services.RuntimeType(cfg.ContainerRuntime.Type),
+		containerruntime.RuntimeType(cfg.ContainerRuntime.Type),
 	)
 	if err != nil {
 		logger.Warn("failed to initialize container runtime, continuing without container support", "error", err)

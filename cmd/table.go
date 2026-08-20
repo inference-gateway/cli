@@ -6,8 +6,8 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 	table "charm.land/lipgloss/v2/table"
 
-	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
@@ -44,7 +44,7 @@ func disableOutputColors() {
 	tableHeaderCell = lipgloss.NewStyle().Padding(0, 1)
 	tableBodyCell = lipgloss.NewStyle().Padding(0, 1)
 	tableBorderInk = lipgloss.NewStyle()
-	traceTreeStyle = telemetry.TreeStyle{}
+	traceTreeStyle = styles.TreeStyle{}
 	icons.CheckMarkStyle = lipgloss.NewStyle()
 	icons.CrossMarkStyle = lipgloss.NewStyle()
 }

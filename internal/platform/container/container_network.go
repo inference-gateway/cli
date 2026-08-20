@@ -1,4 +1,4 @@
-package services
+package container
 
 import (
 	"context"
@@ -7,6 +7,9 @@ import (
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
+
+// InferNetworkPrefix is the prefix for session-specific Docker networks
+const InferNetworkPrefix = "infer-network"
 
 // addressPoolExhaustedMsg is the daemon error emitted when Docker/Podman runs
 // out of predefined IPAM address pools - the signature of accumulated leaked
