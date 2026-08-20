@@ -1,4 +1,4 @@
-package tools
+package computer
 
 import (
 	"context"
@@ -19,11 +19,11 @@ type MouseClickTool struct {
 	formatter       domain.BaseFormatter
 	rateLimiter     domain.RateLimiter
 	displayProvider display.Provider
-	stateManager    computerUseState
+	stateManager    State
 }
 
 // NewMouseClickTool creates a new mouse click tool
-func NewMouseClickTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider, stateManager computerUseState) *MouseClickTool {
+func NewMouseClickTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider, stateManager State) *MouseClickTool {
 	return &MouseClickTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.Tools.MouseClick.Enabled,

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"fmt"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -15,16 +14,11 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	project "github.com/inference-gateway/cli/internal/project"
 	utils "github.com/inference-gateway/cli/internal/utils"
-
-	_ "github.com/inference-gateway/cli/internal/display/macos"
-	_ "github.com/inference-gateway/cli/internal/display/wayland"
-	_ "github.com/inference-gateway/cli/internal/display/x11"
 )
 
 // Note: this file deliberately does NOT call DiscoverTools synchronously at
@@ -38,17 +32,6 @@ import (
 // Calling DiscoverTools here would block container construction (and
 // therefore the bubbletea TUI startup) on sequential HTTP round trips to
 // every configured MCP server - see issue #523.
-
-// Registry manages all available tools
-// FocusManager handles macOS computer-use focus tracking
-type FocusManager interface {
-	SetLastFocusedApp(appID string)
-	GetLastFocusedApp() string
-	ClearLastFocusedApp()
-	SetLastClickCoordinates(x, y int)
-	GetLastClickCoordinates() (x, y int)
-	ClearLastClickCoordinates()
-}
 
 type Registry struct {
 	config          *config.Config
@@ -65,21 +48,11 @@ type Registry struct {
 	imageService    domain.ImageService
 	mcpManager      domain.MCPManager
 	shellService    domain.BackgroundShellService
-	stateManager    computerUseState
 	annotator       domain.ImageAnnotator
 	frameSources    map[string]domain.FrameSource
 	frameSourcesMu  sync.RWMutex
 	memoryBackend   domain.MemoryBackend
 	stores          *storage.Stores
-}
-
-// computerUseState is the narrow slice of StateManager the computer-use tools
-// need: broadcasting UI events (MouseMove/MouseClick) and recording the focused
-// app + last click coordinates (MouseClick). The registry only forwards it to
-// those tools.
-type computerUseState interface {
-	domain.EventBridgeManager
-	FocusManager
 }
 
 // NewRegistry creates a new tool registry with self-contained tools.
@@ -89,7 +62,7 @@ type computerUseState interface {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager computerUseState, annotator domain.ImageAnnotator, taskTracker domain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, annotator domain.ImageAnnotator, taskTracker domain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}
@@ -101,7 +74,6 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 		taskTracker:  taskTracker,
 		imageService: imageService,
 		mcpManager:   mcpManager,
-		stateManager: stateManager,
 		annotator:    annotator,
 		frameSources: make(map[string]domain.FrameSource),
 		stores:       stores,
@@ -235,12 +207,6 @@ func (r *Registry) registerTools() {
 		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(cfg, r.taskTracker, r.jobSubmitter)
 	}
 
-	if cfg.ComputerUse.Enabled {
-		r.registerComputerUseTools()
-	}
-
-	r.tools["GetLatestFrame"] = NewGetLatestFrameTool(cfg, r, r.annotator)
-
 	if cfg.Vision.AnnotatorReady() && r.annotator != nil && r.imageService != nil {
 		r.tools["ImageDecode"] = NewImageDecodeTool(cfg, r.imageService, r.annotator)
 	}
@@ -248,33 +214,6 @@ func (r *Registry) registerTools() {
 	if cfg.Memory.Enabled {
 		r.tools["Memory"] = NewMemoryTool(cfg, r.memoryBackend, project.Detect())
 	}
-}
-
-// registerComputerUseTools registers computer use tools (mouse, keyboard,
-// screenshot). On Windows these tools are not supported and a warning is
-// logged. On Linux/macOS the display platform is auto-detected.
-func (r *Registry) registerComputerUseTools() {
-	if runtime.GOOS == "windows" {
-		logger.Warn("computer use is not supported on Windows - mouse, keyboard, and screenshot tools will be disabled")
-		return
-	}
-
-	cfg := r.config
-	displayProvider, err := display.DetectDisplay()
-	if err != nil {
-		logger.Warn("no compatible display platform detected, computer use tools will be disabled", "error", err)
-		return
-	}
-
-	rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
-	r.tools["MouseMove"] = NewMouseMoveTool(cfg, rateLimiter, displayProvider, r.stateManager)
-	r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
-	r.tools["MouseScroll"] = NewMouseScrollTool(cfg, rateLimiter, displayProvider)
-	r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider)
-	r.tools["GetFocusedApp"] = NewGetFocusedAppTool(r.config)
-	r.tools["ActivateApp"] = NewActivateAppTool(r.config)
-	r.tools["GetUIElements"] = NewGetUIElementsTool(r.config)
-	r.tools["PressUIElement"] = NewPressUIElementTool(r.config)
 }
 
 // RegisterTools installs capability tools constructed outside this package

@@ -1,6 +1,6 @@
 //go:build windows
 
-package tools
+package computer
 
 // Computer use is not supported on Windows (see registerComputerUseTools), so
 // the screen lock has nothing to protect there.

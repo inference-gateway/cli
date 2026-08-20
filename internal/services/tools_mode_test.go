@@ -24,7 +24,7 @@ func toolNamesForMode(svc *LLMToolService, mode domain.AgentMode) []string {
 
 func TestListToolsForMode_ReadOnly(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
+	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 	names := toolNamesForMode(svc, domain.AgentModeReadOnly)
 
@@ -42,7 +42,7 @@ func TestListToolsForMode_ReadOnly(t *testing.T) {
 
 func TestListToolsForMode_AskUserQuestionPlanOnly(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
+	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 
 	if !slices.Contains(toolNamesForMode(svc, domain.AgentModePlan), "AskUserQuestion") {
@@ -77,7 +77,7 @@ func TestListToolsHidesImageDecodeForVisionModels(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Vision.Annotator.Enabled = true
 	cfg.Vision.Annotator.Model = "openai/qwen3-vl-2b"
-	registry := tools.NewRegistry(cfg, &mocksdomain.FakeImageService{}, nil, nil, nil, &mocksdomain.FakeImageAnnotator{}, nil, nil)
+	registry := tools.NewRegistry(cfg, &mocksdomain.FakeImageService{}, nil, nil, &mocksdomain.FakeImageAnnotator{}, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 
 	current := "anthropic/claude-haiku-4-5"
