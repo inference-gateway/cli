@@ -8,8 +8,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
-	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -285,7 +283,7 @@ func (t *TodoWriteTool) FormatPreview(result *domain.ToolExecutionResult) string
 		if result.Success {
 			return "Todo list updated successfully"
 		}
-		return fmt.Sprintf("%s Todo list update failed", icons.CrossMarkStyle.Render(icons.CrossMark))
+		return "✗ Todo list update failed"
 	}
 
 	if todoResult.TotalTasks == 0 {
@@ -338,15 +336,12 @@ func (t *TodoWriteTool) formatTodoData(data any) string {
 
 	var output strings.Builder
 
-	header := colors.CreateColoredText("Todo List", colors.AccentColor)
-	completionText := colors.CreateColoredText(fmt.Sprintf("(%d/%d completed)", todoResult.CompletedTasks, todoResult.TotalTasks), colors.DimColor)
-	fmt.Fprintf(&output, "%s %s\n\n", header, completionText)
+	fmt.Fprintf(&output, "Todo List (%d/%d completed)\n\n", todoResult.CompletedTasks, todoResult.TotalTasks)
 
 	if todoResult.TotalTasks > 0 {
-		progressBar := t.formatColoredProgressBar(todoResult.CompletedTasks, todoResult.TotalTasks)
+		progressBar := t.formatExpandedProgressBar(todoResult.CompletedTasks, todoResult.TotalTasks)
 		percentage := int(float64(todoResult.CompletedTasks) / float64(todoResult.TotalTasks) * 100)
-		progressText := colors.CreateColoredText(fmt.Sprintf("Progress: %s %d%%", progressBar, percentage), colors.AccentColor)
-		fmt.Fprintf(&output, "%s\n\n", progressText)
+		fmt.Fprintf(&output, "Progress: %s %d%%\n\n", progressBar, percentage)
 	}
 
 	if len(todoResult.Todos) > 0 {
@@ -357,9 +352,7 @@ func (t *TodoWriteTool) formatTodoData(data any) string {
 	}
 
 	if todoResult.InProgressTask != "" {
-		workingText := colors.CreateColoredText("Currently working on:", colors.AccentColor)
-		taskText := colors.CreateColoredText(todoResult.InProgressTask, colors.SuccessColor)
-		fmt.Fprintf(&output, "\n%s %s\n", workingText, taskText)
+		fmt.Fprintf(&output, "\nCurrently working on: %s\n", todoResult.InProgressTask)
 	}
 
 	return output.String()
@@ -388,8 +381,8 @@ func (t *TodoWriteTool) formatProgressBar(completed, total int) string {
 	return bar.String()
 }
 
-// formatColoredProgressBar creates a beautiful colored progress bar
-func (t *TodoWriteTool) formatColoredProgressBar(completed, total int) string {
+// formatExpandedProgressBar creates the wide progress bar for the expanded view
+func (t *TodoWriteTool) formatExpandedProgressBar(completed, total int) string {
 	if total == 0 {
 		return "[░░░░░░░░░░]"
 	}
@@ -411,23 +404,16 @@ func (t *TodoWriteTool) formatColoredProgressBar(completed, total int) string {
 	return bar.String()
 }
 
-// formatTodoItem formats a single todo item with appropriate colors and icons
+// formatTodoItem formats a single todo item as plain text.
 func (t *TodoWriteTool) formatTodoItem(todo domain.TodoItem) (string, string) {
-	var checkbox, content string
-
 	switch todo.Status {
 	case "completed":
-		checkbox = colors.CreateColoredText("☐", colors.SuccessColor)
-		content = colors.CreateStrikethroughText(todo.Content)
+		return "☒", todo.Content
 	case "in_progress":
-		checkbox = colors.CreateColoredText("☐", colors.AccentColor)
-		content = colors.CreateColoredText(fmt.Sprintf("%s (in progress)", todo.Content), colors.AccentColor)
+		return "☐", fmt.Sprintf("%s (in progress)", todo.Content)
 	default:
-		checkbox = "☐"
-		content = todo.Content
+		return "☐", todo.Content
 	}
-
-	return checkbox, content
 }
 
 // ShouldCollapseArg determines if an argument should be collapsed in display

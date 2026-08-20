@@ -10,7 +10,6 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	filewriter "github.com/inference-gateway/cli/internal/domain/filewriter"
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -22,13 +21,12 @@ const (
 
 // WriteTool implements a refactored WriteTool with clean architecture
 type WriteTool struct {
-	config        *config.Config
-	enabled       bool
-	formatter     domain.CustomFormatter
-	writer        filewriter.FileWriter
-	chunks        filewriter.ChunkManager
-	extractor     *ParameterExtractor
-	styleProvider *styles.Provider
+	config    *config.Config
+	enabled   bool
+	formatter domain.CustomFormatter
+	writer    filewriter.FileWriter
+	chunks    filewriter.ChunkManager
+	extractor *ParameterExtractor
 }
 
 // NewWriteTool creates a new write tool with clean architecture
@@ -38,8 +36,6 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 	fileWriter := filewriterservice.NewSafeFileWriter(pathValidator, backupManager)
 	chunkManager := filewriterservice.NewStreamingChunkManager("./.infer/tmp", fileWriter)
 	paramExtractor := NewParameterExtractor()
-	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
 
 	return &WriteTool{
 		config:  cfg,
@@ -47,10 +43,9 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 		formatter: domain.NewCustomFormatter("Write", func(key string) bool {
 			return key == "content"
 		}),
-		writer:        fileWriter,
-		chunks:        chunkManager,
-		extractor:     paramExtractor,
-		styleProvider: styleProvider,
+		writer:    fileWriter,
+		chunks:    chunkManager,
+		extractor: paramExtractor,
 	}
 }
 
@@ -152,31 +147,27 @@ func (t *WriteTool) FormatResult(result *domain.ToolExecutionResult, formatType 
 // FormatPreview returns a short preview of the result for UI display
 func (t *WriteTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	if result == nil {
-		return t.styleProvider.RenderDimText("Write operation result unavailable")
+		return "Write operation result unavailable"
 	}
 
 	if !result.Success {
-		return t.styleProvider.RenderErrorText("Write operation failed")
+		return "Write operation failed"
 	}
 
 	if result.Data == nil {
-		return t.styleProvider.RenderSuccessText("Write operation completed successfully")
+		return "Write operation completed successfully"
 	}
 
 	if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
-		fileName := t.styleProvider.RenderPathText(t.formatter.GetFileName(writeResult.FilePath))
-		bytes := t.styleProvider.RenderMetricText(fmt.Sprintf("%d bytes", writeResult.BytesWritten))
-
+		fileName := t.formatter.GetFileName(writeResult.FilePath)
+		action := "Updated"
 		if writeResult.Created {
-			return fmt.Sprintf("%s %s (%s)",
-				t.styleProvider.RenderCreatedText("Created"), fileName, bytes)
-		} else {
-			return fmt.Sprintf("%s %s (%s)",
-				t.styleProvider.RenderUpdatedText("Updated"), fileName, bytes)
+			action = "Created"
 		}
+		return fmt.Sprintf("%s %s (%d bytes)", action, fileName, writeResult.BytesWritten)
 	}
 
-	return t.styleProvider.RenderSuccessText("Write operation completed")
+	return "Write operation completed"
 }
 
 // FormatForUI formats the result for UI display
