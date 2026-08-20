@@ -1,11 +1,6 @@
-// Package stt provides CGO-free speech-to-text by shelling out to a local
-// whisper.cpp binary (whisper-cli / whisper-cpp) and downloading GGML models on
-// demand. It is gated by config.SpeechToTextConfig and used by the chat /voice
-// shortcut and by Telegram voice-message transcription.
-package stt
+package audio
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -26,8 +21,6 @@ var nonSpeechMarkerRe = regexp.MustCompile(
 // speech_to_text.binary_path is configured.
 var whisperBinaryCandidates = []string{"whisper-cli", "whisper-cpp"}
 
-// commandRunner runs a command and returns its stdout, abstracting exec for tests.
-type commandRunner func(ctx context.Context, name string, args ...string) ([]byte, error)
 
 // WhisperTranscriber transcribes a 16kHz mono WAV file using whisper.cpp.
 type WhisperTranscriber struct {
@@ -128,19 +121,4 @@ func (w *WhisperTranscriber) resolveBinary(ctx context.Context) (string, error) 
 func cleanTranscript(out string) string {
 	out = nonSpeechMarkerRe.ReplaceAllString(out, " ")
 	return strings.Join(strings.Fields(out), " ")
-}
-
-// execRun runs name with args and returns stdout, wrapping failures with stderr.
-func execRun(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		if msg := strings.TrimSpace(stderr.String()); msg != "" {
-			return nil, fmt.Errorf("%w: %s", err, msg)
-		}
-		return nil, err
-	}
-	return stdout.Bytes(), nil
 }

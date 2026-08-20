@@ -1,4 +1,4 @@
-package stt
+package audio
 
 import (
 	"context"

@@ -1,11 +1,10 @@
-package stt
+package audio
 
 import (
 	"context"
 	"os"
 
 	config "github.com/inference-gateway/cli/config"
-	audio "github.com/inference-gateway/cli/internal/audio"
 )
 
 // audioConverter converts an arbitrary audio file into a Whisper-ready WAV.
@@ -28,7 +27,7 @@ type FileTranscriber struct {
 
 // NewFileTranscriber creates a FileTranscriber from the speech-to-text config.
 func NewFileTranscriber(cfg config.SpeechToTextConfig) *FileTranscriber {
-	converter := audio.NewConverter(cfg)
+	converter := NewConverter(cfg)
 	if cfg.AutoDownload {
 		converter.SetBinaryEnsurer(NewBinaryManager(cfg).EnsureBinary)
 	}

@@ -22,7 +22,7 @@ import (
 	heartbeat "github.com/inference-gateway/cli/internal/services/heartbeat"
 	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	stt "github.com/inference-gateway/cli/internal/stt"
+	audio "github.com/inference-gateway/cli/internal/audio"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	cobra "github.com/spf13/cobra"
 )
@@ -456,7 +456,7 @@ func registerChannels(cm *services.ChannelManagerService, cfg *config.Config, co
 		var transcriber channels.VoiceTranscriber
 		var retention *channels.FileRetention
 		if cfg.SpeechToText.Enabled {
-			transcriber = stt.NewFileTranscriber(cfg.SpeechToText)
+			transcriber = audio.NewFileTranscriber(cfg.SpeechToText)
 			retention = buildVoiceRetention(cfg.SpeechToText)
 			logger.Info("speech-to-text enabled for inbound voice messages", "model", cfg.SpeechToText.Model)
 		}

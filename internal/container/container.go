@@ -42,7 +42,6 @@ import (
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	stt "github.com/inference-gateway/cli/internal/stt"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -706,7 +705,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		c.shortcutRegistry.Register(shortcuts.NewVoiceShortcut(
 			c.config.SpeechToText,
 			audio.NewRecorder(c.config.SpeechToText),
-			stt.NewWhisperTranscriber(c.config.SpeechToText),
+			audio.NewWhisperTranscriber(c.config.SpeechToText),
 		))
 	}
 
