@@ -377,12 +377,6 @@ type ChatSyncResponse struct {
 	FinishReason     string                              `json:"finish_reason,omitempty"`
 }
 
-// ChatService handles chat completion operations
-type ChatService interface {
-	CancelRequest(requestID string) error
-	GetMetrics(requestID string) *ChatMetrics
-}
-
 // MessageQueue handles centralized message queuing for all components
 type MessageQueue interface {
 	// Enqueue adds a message to the queue
@@ -452,21 +446,6 @@ type ToolExecutionManager interface {
 	GetToolExecution() *ToolExecutionSession
 }
 
-// DimensionsManager handles UI dimensions
-type DimensionsManager interface {
-	SetDimensions(width, height int)
-	GetDimensions() (int, int)
-}
-
-// FileSelectionManager handles file selection UI state
-type FileSelectionManager interface {
-	SetupFileSelection(files []string)
-	GetFileSelectionState() *FileSelectionState
-	UpdateFileSearchQuery(query string)
-	SetFileSelectedIndex(index int)
-	ClearFileSelectionState()
-}
-
 // ApprovalUIManager handles tool approval UI state
 type ApprovalUIManager interface {
 	SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan ApprovalAction)
@@ -504,14 +483,6 @@ type AgentReadinessManager interface {
 	AreAllAgentsReady() bool
 	ClearAgentReadiness()
 	RemoveAgent(name string)
-}
-
-// MessageEditManager handles message editing state
-type MessageEditManager interface {
-	SetMessageEditState(state *MessageEditState)
-	GetMessageEditState() *MessageEditState
-	ClearMessageEditState()
-	IsEditingMessage() bool
 }
 
 // FocusManager handles macOS computer-use focus tracking
@@ -637,14 +608,6 @@ type FileInfo struct {
 	Path  string
 	Size  int64
 	IsDir bool
-}
-
-// MarkdownRenderer handles conversion of markdown text to styled terminal output
-type MarkdownRenderer interface {
-	// Render converts markdown text to styled terminal output
-	Render(content string) string
-	// SetWidth updates the renderer width for responsive rendering
-	SetWidth(width int)
 }
 
 // TaskPollingState is the data record for one in-flight A2A task that the task
@@ -799,14 +762,6 @@ type FetchResult struct {
 	Warning     string            `json:"warning,omitempty"`
 }
 
-// WebFetchService handles content fetching operations
-type WebFetchService interface {
-	ValidateURL(url string) error
-	FetchContent(ctx context.Context, target string) (*FetchResult, error)
-	ClearCache()
-	GetCacheStats() map[string]any
-}
-
 // WebSearchResult represents a single search result
 type WebSearchResult struct {
 	Title   string `json:"title"`
@@ -822,14 +777,6 @@ type WebSearchResponse struct {
 	Total   int               `json:"total"`
 	Time    time.Duration     `json:"time"`
 	Error   string            `json:"error,omitempty"`
-}
-
-// WebSearchService handles web search operations
-type WebSearchService interface {
-	SearchGoogle(ctx context.Context, query string, maxResults int) (*WebSearchResponse, error)
-	SearchDuckDuckGo(ctx context.Context, query string, maxResults int) (*WebSearchResponse, error)
-	IsEnabled() bool
-	SetEnabled(enabled bool)
 }
 
 // GitHubIssue is a minimal projection of a GitHub issue, big enough for both
