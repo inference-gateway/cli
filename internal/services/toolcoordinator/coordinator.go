@@ -13,6 +13,7 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
 // toolApprovalRepoUpdater is the narrow interface the coordinator uses to
@@ -39,8 +40,8 @@ type stateManager interface {
 type Coordinator struct {
 	conversationRepo domain.ConversationRepository
 	stateManager     stateManager
-	directExec       domain.DirectExecutionService
-	listener         domain.ChatEventListener
+	directExec       ui.DirectExecutionService
+	listener         ui.ChatEventListener
 
 	activeToolCallID   string
 	activeToolCallIDMu sync.RWMutex
@@ -50,8 +51,8 @@ type Coordinator struct {
 type Options struct {
 	ConversationRepo domain.ConversationRepository
 	StateManager     stateManager
-	DirectExec       domain.DirectExecutionService
-	Listener         domain.ChatEventListener
+	DirectExec       ui.DirectExecutionService
+	Listener         ui.ChatEventListener
 }
 
 // NewCoordinator creates a new tool execution coordinator.

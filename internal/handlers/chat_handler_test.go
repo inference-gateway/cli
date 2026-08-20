@@ -8,6 +8,7 @@ import (
 	assert "github.com/stretchr/testify/assert"
 
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -703,7 +704,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 	// Handle() dispatcher returns non-nil for the events that delegate.
 	// Individual cmd contents are exercised by the per-service tests.
 	nonNilCmd := func() tea.Msg { return nil }
-	fakeRunner := &mocks.FakeChatCompletionRunner{}
+	fakeRunner := &uimocks.FakeChatCompletionRunner{}
 	fakeRunner.HandleChatStartReturns(nonNilCmd)
 	fakeRunner.HandleChatChunkReturns(nonNilCmd)
 	fakeRunner.HandleChatCompleteReturns(nonNilCmd)
@@ -711,14 +712,14 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 	fakeRunner.HandleOptimizationStatusReturns(nonNilCmd)
 	fakeRunner.StartReturns(nonNilCmd)
 
-	fakeDirect := &mocks.FakeDirectExecutionService{}
+	fakeDirect := &uimocks.FakeDirectExecutionService{}
 	fakeDirect.HandleBashCommandReturns(nonNilCmd)
 	fakeDirect.HandleToolCommandReturns(nonNilCmd)
 	fakeDirect.HandleBashOutputChunkReturns(nonNilCmd)
 	fakeDirect.HandleBashCommandCompletedReturns(nonNilCmd)
 	fakeDirect.HandleBackgroundShellRequestReturns(nonNilCmd)
 
-	fakeToolCoord := &mocks.FakeToolExecutionCoordinator{}
+	fakeToolCoord := &uimocks.FakeToolExecutionCoordinator{}
 	fakeToolCoord.HandleToolCallUpdateReturns(nonNilCmd)
 	fakeToolCoord.HandleToolCallReadyReturns(nonNilCmd)
 	fakeToolCoord.HandleToolApprovalRequestedReturns(nonNilCmd)

@@ -8,6 +8,7 @@ import (
 
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
 // Service handles the UI side of A2A task lifecycle events.
@@ -15,7 +16,7 @@ type Service struct {
 	conversationRepo     domain.ConversationRepository
 	stateManager         domain.ChatSessionManager
 	taskRetentionService domain.TaskRetentionService
-	listener             domain.ChatEventListener
+	listener             ui.ChatEventListener
 }
 
 // Options bundles the dependencies needed to construct a Service.
@@ -23,7 +24,7 @@ type Options struct {
 	ConversationRepo     domain.ConversationRepository
 	StateManager         domain.ChatSessionManager
 	TaskRetentionService domain.TaskRetentionService
-	Listener             domain.ChatEventListener
+	Listener             ui.ChatEventListener
 }
 
 // NewService creates a new A2A task coordinator.

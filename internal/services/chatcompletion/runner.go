@@ -14,6 +14,7 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
 // Runner owns the LLM streaming lifecycle for a chat session.
@@ -36,7 +37,7 @@ type Runner struct {
 	conversationRepo domain.ConversationRepository
 	modelService     domain.ModelService
 	stateManager     stateManager
-	listener         domain.ChatEventListener
+	listener         ui.ChatEventListener
 
 	pendingRestoration   string
 	pendingRestorationMu sync.RWMutex
@@ -48,7 +49,7 @@ type Options struct {
 	ConversationRepo domain.ConversationRepository
 	ModelService     domain.ModelService
 	StateManager     stateManager
-	Listener         domain.ChatEventListener
+	Listener         ui.ChatEventListener
 }
 
 // NewRunner creates a new ChatCompletionRunner.

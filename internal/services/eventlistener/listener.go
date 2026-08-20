@@ -6,7 +6,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// Service is the shared implementation of domain.ChatEventListener used by
+// Service is the shared implementation of ui.ChatEventListener used by
 // every handler/service that needs to keep pumping a Bubble Tea channel.
 type Service struct{}
 

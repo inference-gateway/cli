@@ -11,6 +11,7 @@ import (
 	services "github.com/inference-gateway/cli/internal/services"
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // TestHandleToolCommand_ErrorStopsSpinner guards the stuck "running" spinner
@@ -33,7 +34,7 @@ func TestHandleToolCommand_ErrorStopsSpinner(t *testing.T) {
 		ToolService:      toolSvc,
 		StateManager:     sm,
 		ConversationRepo: &domainmocks.FakeConversationRepository{},
-		Listener:         &domainmocks.FakeChatEventListener{},
+		Listener:         &uimocks.FakeChatEventListener{},
 	})
 
 	if cmd := svc.HandleToolCommand(`CloseSubagent({"subagent_id":""})`); cmd == nil {

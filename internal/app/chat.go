@@ -61,11 +61,11 @@ type ChatApplication struct {
 	backgroundTaskRegistry domain.BackgroundTaskRegistry
 
 	// Chat orchestration services
-	a2aTaskCoordinator       domain.A2ATaskCoordinator
-	approvalCoordinator      domain.ApprovalCoordinator
-	chatCompletionRunner     domain.ChatCompletionRunner
-	directExecutionService   domain.DirectExecutionService
-	toolExecutionCoordinator domain.ToolExecutionCoordinator
+	a2aTaskCoordinator       ui.A2ATaskCoordinator
+	approvalCoordinator      ui.ApprovalCoordinator
+	chatCompletionRunner     ui.ChatCompletionRunner
+	directExecutionService   ui.DirectExecutionService
+	toolExecutionCoordinator ui.ToolExecutionCoordinator
 
 	// State management
 	stateManager *services.StateManager
@@ -104,7 +104,7 @@ type ChatApplication struct {
 	fileSelectionHandler    *components.FileSelectionHandler
 
 	// Event handling
-	chatHandler           domain.ChatHandler
+	chatHandler           ui.ChatHandler
 	messageHistoryHandler *handlers.MessageHistoryHandler
 
 	// Current active component for key handling
@@ -165,11 +165,11 @@ func NewChatApplication(
 	toolService domain.ToolService,
 	shortcutRegistry *shortcuts.Registry,
 	toolRegistry *tools.Registry,
-	a2aTaskCoordinator domain.A2ATaskCoordinator,
-	approvalCoordinator domain.ApprovalCoordinator,
-	chatCompletionRunner domain.ChatCompletionRunner,
-	directExecutionService domain.DirectExecutionService,
-	toolExecutionCoordinator domain.ToolExecutionCoordinator,
+	a2aTaskCoordinator ui.A2ATaskCoordinator,
+	approvalCoordinator ui.ApprovalCoordinator,
+	chatCompletionRunner ui.ChatCompletionRunner,
+	directExecutionService ui.DirectExecutionService,
+	toolExecutionCoordinator ui.ToolExecutionCoordinator,
 	shellHistoryStore storage.ShellHistoryStorage,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection

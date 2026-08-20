@@ -11,14 +11,15 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // newCoordinator wires a Service with fake dependencies.
-func newCoordinator() (*Service, *mocksdomain.FakeConversationRepository, *services.StateManager, *mocksdomain.FakeTaskRetentionService, *mocksdomain.FakeChatEventListener) {
+func newCoordinator() (*Service, *mocksdomain.FakeConversationRepository, *services.StateManager, *mocksdomain.FakeTaskRetentionService, *uimocks.FakeChatEventListener) {
 	repo := &mocksdomain.FakeConversationRepository{}
 	state := services.NewStateManager(false)
 	retention := &mocksdomain.FakeTaskRetentionService{}
-	listener := &mocksdomain.FakeChatEventListener{}
+	listener := &uimocks.FakeChatEventListener{}
 
 	svc := NewService(Options{
 		ConversationRepo:     repo,
@@ -290,7 +291,7 @@ func TestService_HandleToolCallExecuted(t *testing.T) {
 func TestService_HandleTaskCompleted_NilTaskRetentionService(t *testing.T) {
 	repo := &mocksdomain.FakeConversationRepository{}
 	state := services.NewStateManager(false)
-	listener := &mocksdomain.FakeChatEventListener{}
+	listener := &uimocks.FakeChatEventListener{}
 	repo.GetMessagesReturns(nil)
 
 	svc := NewService(Options{

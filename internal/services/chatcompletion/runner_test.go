@@ -10,6 +10,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // newRunnerForTest wires a Runner with the in-memory conversation repository
@@ -19,7 +20,7 @@ func newRunnerForTest() (*Runner, *services.InMemoryConversationRepository, *ser
 	state := services.NewStateManager(false)
 	agent := &mocksdomain.FakeAgentService{}
 	model := &mocksdomain.FakeModelService{}
-	listener := &mocksdomain.FakeChatEventListener{}
+	listener := &uimocks.FakeChatEventListener{}
 
 	runner := NewRunner(Options{
 		AgentService:     agent,

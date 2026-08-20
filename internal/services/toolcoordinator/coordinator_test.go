@@ -3,7 +3,7 @@ package toolcoordinator
 import (
 	"testing"
 
-	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -11,11 +11,11 @@ import (
 	services "github.com/inference-gateway/cli/internal/services"
 )
 
-func newCoordinatorForTest() (*Coordinator, *services.InMemoryConversationRepository, *services.StateManager, *mocksdomain.FakeDirectExecutionService) {
+func newCoordinatorForTest() (*Coordinator, *services.InMemoryConversationRepository, *services.StateManager, *uimocks.FakeDirectExecutionService) {
 	repo := services.NewInMemoryConversationRepository(nil, nil)
 	state := services.NewStateManager(false)
-	direct := &mocksdomain.FakeDirectExecutionService{}
-	listener := &mocksdomain.FakeChatEventListener{}
+	direct := &uimocks.FakeDirectExecutionService{}
+	listener := &uimocks.FakeChatEventListener{}
 
 	c := NewCoordinator(Options{
 		ConversationRepo: repo,

@@ -11,6 +11,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
 // stateManager is the narrow slice of the app state manager the chat handler
@@ -40,11 +41,11 @@ type ChatHandler struct {
 	backgroundShellService domain.BackgroundShellService
 	agentManager           domain.AgentManager
 	config                 *config.Config
-	a2aTaskCoordinator     domain.A2ATaskCoordinator
-	approvalCoordinator    domain.ApprovalCoordinator
-	completionRunner       domain.ChatCompletionRunner
-	directExec             domain.DirectExecutionService
-	toolCoordinator        domain.ToolExecutionCoordinator
+	a2aTaskCoordinator     ui.A2ATaskCoordinator
+	approvalCoordinator    ui.ApprovalCoordinator
+	completionRunner       ui.ChatCompletionRunner
+	directExec             ui.DirectExecutionService
+	toolCoordinator        ui.ToolExecutionCoordinator
 	messageProcessor       *ChatMessageProcessor
 	shortcutHandler        *ChatShortcutHandler
 	skillsService          domain.SkillsService
@@ -71,11 +72,11 @@ func NewChatHandler(
 	backgroundShellService domain.BackgroundShellService,
 	agentManager domain.AgentManager,
 	cfg *config.Config,
-	a2aTaskCoordinator domain.A2ATaskCoordinator,
-	approvalCoordinator domain.ApprovalCoordinator,
-	completionRunner domain.ChatCompletionRunner,
-	directExec domain.DirectExecutionService,
-	toolCoordinator domain.ToolExecutionCoordinator,
+	a2aTaskCoordinator ui.A2ATaskCoordinator,
+	approvalCoordinator ui.ApprovalCoordinator,
+	completionRunner ui.ChatCompletionRunner,
+	directExec ui.DirectExecutionService,
+	toolCoordinator ui.ToolExecutionCoordinator,
 ) *ChatHandler {
 	handler := &ChatHandler{
 		agentService:           agentService,
@@ -211,7 +212,7 @@ func (h *ChatHandler) startChatCompletion() tea.Cmd {
 
 // ListenForChatEvents creates a tea.Cmd that listens for the next event from
 // the channel. Wraps the shared eventlistener service so callers within this
-// package and the legacy domain.ChatHandler interface continue to work.
+// package and the legacy ui.ChatHandler interface continue to work.
 func (h *ChatHandler) ListenForChatEvents(eventChan <-chan domain.ChatEvent) tea.Cmd {
 	return func() tea.Msg {
 		if event, ok := <-eventChan; ok {
@@ -573,31 +574,31 @@ func (h *ChatHandler) HandleComputerUseResumedEvent(msg domain.ComputerUseResume
 	return tea.Batch(cmd, h.startChatCompletion())
 }
 
-// SetBashDetachChan satisfies the legacy domain.ChatHandler interface by
+// SetBashDetachChan satisfies the legacy ui.ChatHandler interface by
 // forwarding to DirectExecutionService (the actual owner post-#529).
 func (h *ChatHandler) SetBashDetachChan(ch chan<- struct{}) {
 	h.directExec.SetBashDetachChan(ch)
 }
 
-// GetBashDetachChan satisfies the legacy domain.ChatHandler interface by
+// GetBashDetachChan satisfies the legacy ui.ChatHandler interface by
 // forwarding to DirectExecutionService.
 func (h *ChatHandler) GetBashDetachChan() chan<- struct{} {
 	return h.directExec.GetBashDetachChan()
 }
 
-// ClearBashDetachChan satisfies the legacy domain.ChatHandler interface by
+// ClearBashDetachChan satisfies the legacy ui.ChatHandler interface by
 // forwarding to DirectExecutionService.
 func (h *ChatHandler) ClearBashDetachChan() {
 	h.directExec.ClearBashDetachChan()
 }
 
-// GetActiveToolCallID satisfies the legacy domain.ChatHandler interface by
+// GetActiveToolCallID satisfies the legacy ui.ChatHandler interface by
 // forwarding to ToolExecutionCoordinator (the actual owner post-#529).
 func (h *ChatHandler) GetActiveToolCallID() string {
 	return h.toolCoordinator.GetActiveToolCallID()
 }
 
-// SetActiveToolCallID satisfies the legacy domain.ChatHandler interface by
+// SetActiveToolCallID satisfies the legacy ui.ChatHandler interface by
 // forwarding to ToolExecutionCoordinator.
 func (h *ChatHandler) SetActiveToolCallID(id string) {
 	h.toolCoordinator.SetActiveToolCallID(id)
@@ -621,20 +622,20 @@ func (h *ChatHandler) HandleBackgroundShellRequest() tea.Cmd {
 	return h.directExec.HandleBackgroundShellRequest()
 }
 
-// ParseToolCall satisfies the legacy domain.ChatHandler interface by
+// ParseToolCall satisfies the legacy ui.ChatHandler interface by
 // delegating to DirectExecutionService.
 func (h *ChatHandler) ParseToolCall(input string) (string, map[string]any, error) {
 	return h.directExec.ParseToolCall(input)
 }
 
-// ParseArguments satisfies the legacy domain.ChatHandler interface by
+// ParseArguments satisfies the legacy ui.ChatHandler interface by
 // delegating to DirectExecutionService.
 func (h *ChatHandler) ParseArguments(argsStr string) (map[string]any, error) {
 	return h.directExec.ParseArguments(argsStr)
 }
 
 // ListenForEvents reads one event off a generic tea.Msg channel as a tea.Cmd.
-// Kept on the orchestrator because domain.ChatHandler still exposes it and
+// Kept on the orchestrator because ui.ChatHandler still exposes it and
 // the runner-internal handlers (tool execution progress) call it directly.
 func (h *ChatHandler) ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd {
 	return func() tea.Msg {

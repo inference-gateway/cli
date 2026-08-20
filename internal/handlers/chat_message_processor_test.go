@@ -11,6 +11,7 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -106,11 +107,11 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 			stateManager := services.NewStateManager(false)
 			messageQueue := services.NewMessageQueueService()
 
-			fakeDirect := &mocks.FakeDirectExecutionService{}
+			fakeDirect := &uimocks.FakeDirectExecutionService{}
 			fakeDirect.HandleBashCommandReturns(func() tea.Msg { return nil })
 			fakeDirect.HandleToolCommandReturns(func() tea.Msg { return nil })
 
-			fakeRunner := &mocks.FakeChatCompletionRunner{}
+			fakeRunner := &uimocks.FakeChatCompletionRunner{}
 			fakeRunner.StartReturns(func() tea.Msg { return nil })
 
 			handler := NewChatHandler(
@@ -457,7 +458,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 				modelService:     mockModel,
 				stateManager:     stateManager,
 				messageQueue:     services.NewMessageQueueService(),
-				completionRunner: &mocks.FakeChatCompletionRunner{},
+				completionRunner: &uimocks.FakeChatCompletionRunner{},
 			}
 
 			processor := NewChatMessageProcessor(handler)
@@ -490,7 +491,7 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 	mockModel := &mocks.FakeModelService{}
 	mockModel.GetCurrentModelReturns("moonshot/moonshot-v1-8k")
 	stateManager := services.NewStateManager(false)
-	fakeRunner := &mocks.FakeChatCompletionRunner{}
+	fakeRunner := &uimocks.FakeChatCompletionRunner{}
 	fakeRunner.StartReturns(func() tea.Msg { return nil })
 
 	handler := &ChatHandler{
@@ -538,7 +539,7 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testing.T) {
 	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
 	stateManager := services.NewStateManager(false)
-	fakeRunner := &mocks.FakeChatCompletionRunner{}
+	fakeRunner := &uimocks.FakeChatCompletionRunner{}
 	fakeRunner.StartReturns(func() tea.Msg { return nil })
 
 	handler := &ChatHandler{
@@ -578,7 +579,7 @@ func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testi
 func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
 	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
 	stateManager := services.NewStateManager(false)
-	fakeRunner := &mocks.FakeChatCompletionRunner{}
+	fakeRunner := &uimocks.FakeChatCompletionRunner{}
 	fakeRunner.StartReturns(func() tea.Msg { return nil })
 
 	handler := &ChatHandler{

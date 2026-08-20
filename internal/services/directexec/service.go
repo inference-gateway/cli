@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
 // stateManager is the narrow slice of the app state manager the direct
@@ -29,7 +30,7 @@ type Service struct {
 	toolService            domain.ToolService
 	stateManager           stateManager
 	backgroundShellService domain.BackgroundShellService
-	listener               domain.ChatEventListener
+	listener               ui.ChatEventListener
 
 	bashDetachChan     chan<- struct{}
 	bashDetachChanMu   sync.RWMutex
@@ -45,7 +46,7 @@ type Options struct {
 	ToolService            domain.ToolService
 	StateManager           stateManager
 	BackgroundShellService domain.BackgroundShellService
-	Listener               domain.ChatEventListener
+	Listener               ui.ChatEventListener
 }
 
 // NewService creates a new DirectExecutionService.

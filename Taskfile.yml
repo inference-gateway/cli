@@ -283,13 +283,13 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ApprovalChannel
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain HistoryCleaner
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain TaskRetentionService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ChatEventListener
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain A2ATaskCoordinator
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ApprovalCoordinator
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ChatCompletionRunner
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ChatEventListener
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui A2ATaskCoordinator
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ApprovalCoordinator
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ChatCompletionRunner
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BashDetachChannelHolder
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain DirectExecutionService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ToolExecutionCoordinator
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui DirectExecutionService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ToolExecutionCoordinator
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SystemReminderProvider
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain HookCommandProvider
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MemoryBackend

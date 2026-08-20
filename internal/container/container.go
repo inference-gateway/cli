@@ -42,6 +42,7 @@ import (
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	stt "github.com/inference-gateway/cli/internal/stt"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	vlm "github.com/inference-gateway/cli/internal/vlm"
 )
@@ -138,12 +139,12 @@ type ServiceContainer struct {
 	// Chat orchestration services - extracted from internal/handlers/chat_handler.go.
 	// Constructed unconditionally; A2A-specific deps inside the
 	// services are nil-safe when A2A is disabled.
-	chatEventListener        domain.ChatEventListener
-	a2aTaskCoordinator       domain.A2ATaskCoordinator
-	approvalCoordinator      domain.ApprovalCoordinator
+	chatEventListener        ui.ChatEventListener
+	a2aTaskCoordinator       ui.A2ATaskCoordinator
+	approvalCoordinator      ui.ApprovalCoordinator
 	chatCompletionRunner     *chatcompletion.Runner
-	directExecutionService   domain.DirectExecutionService
-	toolExecutionCoordinator domain.ToolExecutionCoordinator
+	directExecutionService   ui.DirectExecutionService
+	toolExecutionCoordinator ui.ToolExecutionCoordinator
 	uiNotifier               *uiNotifierHolder
 	extensionBridge          *services.ExtensionBridge
 }
@@ -845,30 +846,30 @@ func (c *ServiceContainer) GetMCPManager() domain.MCPManager {
 }
 
 // GetA2ATaskCoordinator returns the A2A task lifecycle event coordinator.
-func (c *ServiceContainer) GetA2ATaskCoordinator() domain.A2ATaskCoordinator {
+func (c *ServiceContainer) GetA2ATaskCoordinator() ui.A2ATaskCoordinator {
 	return c.a2aTaskCoordinator
 }
 
 // GetApprovalCoordinator returns the plan-approval / computer-use pause-resume
 // coordinator.
-func (c *ServiceContainer) GetApprovalCoordinator() domain.ApprovalCoordinator {
+func (c *ServiceContainer) GetApprovalCoordinator() ui.ApprovalCoordinator {
 	return c.approvalCoordinator
 }
 
 // GetChatCompletionRunner returns the LLM streaming lifecycle runner.
-func (c *ServiceContainer) GetChatCompletionRunner() domain.ChatCompletionRunner {
+func (c *ServiceContainer) GetChatCompletionRunner() ui.ChatCompletionRunner {
 	return c.chatCompletionRunner
 }
 
 // GetDirectExecutionService returns the user-typed !command / !!Tool(...)
 // execution service. Also satisfies BashDetachChannelHolder.
-func (c *ServiceContainer) GetDirectExecutionService() domain.DirectExecutionService {
+func (c *ServiceContainer) GetDirectExecutionService() ui.DirectExecutionService {
 	return c.directExecutionService
 }
 
 // GetToolExecutionCoordinator returns the tool round-trip coordinator (tool
 // approval, streaming-status, execution progress, active-tool tracking).
-func (c *ServiceContainer) GetToolExecutionCoordinator() domain.ToolExecutionCoordinator {
+func (c *ServiceContainer) GetToolExecutionCoordinator() ui.ToolExecutionCoordinator {
 	return c.toolExecutionCoordinator
 }
 

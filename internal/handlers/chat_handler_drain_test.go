@@ -9,6 +9,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // TestHandleDrainQueueEvent guards the drain gate. It starts a fresh agent turn -
@@ -49,14 +50,14 @@ func TestHandleDrainQueueEvent(t *testing.T) {
 			queue := &mocks.FakeMessageQueue{}
 			queue.IsEmptyReturns(tt.queueEmpty)
 
-			runner := &mocks.FakeChatCompletionRunner{}
+			runner := &uimocks.FakeChatCompletionRunner{}
 			runner.StartReturns(func() tea.Msg { return nil })
 
 			h := &ChatHandler{
 				stateManager:     sm,
 				messageQueue:     queue,
 				completionRunner: runner,
-				directExec:       &mocks.FakeDirectExecutionService{},
+				directExec:       &uimocks.FakeDirectExecutionService{},
 			}
 			h.drainRetryArmed = tt.initialArmed
 
@@ -110,14 +111,14 @@ func TestHandleDrainQueueRetryEvent(t *testing.T) {
 			queue := &mocks.FakeMessageQueue{}
 			queue.IsEmptyReturns(tt.queueEmpty)
 
-			runner := &mocks.FakeChatCompletionRunner{}
+			runner := &uimocks.FakeChatCompletionRunner{}
 			runner.StartReturns(func() tea.Msg { return nil })
 
 			h := &ChatHandler{
 				stateManager:     sm,
 				messageQueue:     queue,
 				completionRunner: runner,
-				directExec:       &mocks.FakeDirectExecutionService{},
+				directExec:       &uimocks.FakeDirectExecutionService{},
 			}
 			h.drainRetryArmed = true
 
