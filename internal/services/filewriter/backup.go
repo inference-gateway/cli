@@ -10,13 +10,13 @@ import (
 	"time"
 )
 
-// DefaultBackupManager implements DefaultBackupManager
+// DefaultBackupManager handles file backup operations
 type DefaultBackupManager struct {
 	backupDir string
 }
 
 // NewBackupManager creates a new DefaultBackupManager
-func NewBackupManager(baseDir string) BackupManager {
+func NewBackupManager(baseDir string) *DefaultBackupManager {
 	backupDir := filepath.Join(baseDir, ".infer", "backups")
 	return &DefaultBackupManager{
 		backupDir: backupDir,

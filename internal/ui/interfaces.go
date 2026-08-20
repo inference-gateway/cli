@@ -155,13 +155,6 @@ type HelpBarComponent interface {
 	Render() string
 }
 
-// ApprovalComponent interface for approval display
-type ApprovalComponent interface {
-	SetWidth(width int)
-	SetHeight(height int)
-	Render(toolExecution *agentdomain.ToolExecutionSession, selectedIndex int) string
-}
-
 // DefaultTheme provides a concrete implementation of the Theme interface
 type DefaultTheme struct{}
 
@@ -177,20 +170,6 @@ func (t *DefaultTheme) GetDimColor() string        { return colors.DimColor.ANSI
 func (t *DefaultTheme) GetBorderColor() string     { return colors.BorderColor.ANSI }
 func (t *DefaultTheme) GetDiffAddColor() string    { return colors.DiffAddColor.ANSI }
 func (t *DefaultTheme) GetDiffRemoveColor() string { return colors.DiffRemoveColor.ANSI }
-
-// SelectionComponent is specific to UI layer (not duplicated in shared)
-type SelectionComponent interface {
-	GetOptions() []string
-	SetOptions(options []string)
-	GetSelected() string
-	GetSelectedIndex() int
-	SetSelected(index int)
-	IsSelected() bool
-	IsCancelled() bool
-	SetWidth(width int)
-	SetHeight(height int)
-	Render() string
-}
 
 // Layout calculation utilities
 func CalculateConversationHeight(totalHeight int) int {

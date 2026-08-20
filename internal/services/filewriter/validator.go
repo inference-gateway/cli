@@ -10,13 +10,13 @@ import (
 	"github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// DefaultPathValidator implements PathValidator
+// DefaultPathValidator validates file paths for security and accessibility
 type DefaultPathValidator struct {
 	config *config.Config
 }
 
 // NewPathValidator creates a new DefaultPathValidator
-func NewPathValidator(cfg *config.Config) PathValidator {
+func NewPathValidator(cfg *config.Config) *DefaultPathValidator {
 	return &DefaultPathValidator{
 		config: cfg,
 	}

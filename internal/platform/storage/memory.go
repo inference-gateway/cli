@@ -26,7 +26,7 @@ type MemoryStorage struct {
 
 type conversationData struct {
 	entries  []convdomain.ConversationEntry
-	metadata ConversationMetadata
+	metadata convdomain.ConversationMetadata
 }
 
 // NewMemoryStorage creates a new in-memory storage instance
@@ -45,7 +45,7 @@ func NewMemorySessionGroupStorage() SessionGroupStorage {
 }
 
 // SaveConversation saves a conversation with a unique ID
-func (m *MemoryStorage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
+func (m *MemoryStorage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -64,13 +64,13 @@ func (m *MemoryStorage) SaveConversation(ctx context.Context, conversationID str
 }
 
 // LoadConversation loads a conversation by its ID
-func (m *MemoryStorage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, ConversationMetadata, error) {
+func (m *MemoryStorage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, convdomain.ConversationMetadata, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
 	data, exists := m.conversations[conversationID]
 	if !exists {
-		return nil, ConversationMetadata{}, fmt.Errorf("conversation not found: %s", conversationID)
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("conversation not found: %s", conversationID)
 	}
 
 	entriesCopy := make([]convdomain.ConversationEntry, len(data.entries))
@@ -80,14 +80,14 @@ func (m *MemoryStorage) LoadConversation(ctx context.Context, conversationID str
 }
 
 // ListConversations returns a list of conversation summaries
-func (m *MemoryStorage) ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error) {
+func (m *MemoryStorage) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	summaries := make([]ConversationSummary, 0, len(m.conversations))
+	summaries := make([]convdomain.ConversationSummary, 0, len(m.conversations))
 
 	for _, data := range m.conversations {
-		summary := ConversationSummary{
+		summary := convdomain.ConversationSummary{
 			ID:                  data.metadata.ID,
 			Title:               data.metadata.Title,
 			CreatedAt:           data.metadata.CreatedAt,
@@ -103,12 +103,12 @@ func (m *MemoryStorage) ListConversations(ctx context.Context, limit, offset int
 		summaries = append(summaries, summary)
 	}
 
-	slices.SortFunc(summaries, func(a, b ConversationSummary) int {
+	slices.SortFunc(summaries, func(a, b convdomain.ConversationSummary) int {
 		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 
 	if offset >= len(summaries) {
-		return []ConversationSummary{}, nil
+		return []convdomain.ConversationSummary{}, nil
 	}
 
 	end := min(offset+limit, len(summaries))
@@ -134,7 +134,7 @@ func (m *MemoryStorage) DeleteConversation(ctx context.Context, conversationID s
 }
 
 // UpdateConversationMetadata updates metadata for a conversation
-func (m *MemoryStorage) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata ConversationMetadata) error {
+func (m *MemoryStorage) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata convdomain.ConversationMetadata) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -151,8 +151,8 @@ func (m *MemoryStorage) UpdateConversationMetadata(ctx context.Context, conversa
 }
 
 // ListConversationsNeedingTitles returns conversations that need title generation
-func (m *MemoryStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]ConversationSummary, error) {
-	return []ConversationSummary{}, nil
+func (m *MemoryStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]convdomain.ConversationSummary, error) {
+	return []convdomain.ConversationSummary{}, nil
 }
 
 // Close closes the storage connection (no-op for memory storage)

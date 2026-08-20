@@ -40,22 +40,22 @@ type SessionGroupStorage interface {
 // ConversationStorage defines the interface for persistent conversation storage
 type ConversationStorage interface {
 	// SaveConversation saves a conversation with a unique ID
-	SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error
+	SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error
 
 	// LoadConversation loads a conversation by its ID
-	LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, ConversationMetadata, error)
+	LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, convdomain.ConversationMetadata, error)
 
 	// ListConversations returns a list of conversation summaries
-	ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error)
+	ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error)
 
 	// DeleteConversation removes a conversation by its ID
 	DeleteConversation(ctx context.Context, conversationID string) error
 
 	// UpdateConversationMetadata updates metadata for a conversation
-	UpdateConversationMetadata(ctx context.Context, conversationID string, metadata ConversationMetadata) error
+	UpdateConversationMetadata(ctx context.Context, conversationID string, metadata convdomain.ConversationMetadata) error
 
 	// ListConversationsNeedingTitles returns conversations that need title generation
-	ListConversationsNeedingTitles(ctx context.Context, limit int) ([]ConversationSummary, error)
+	ListConversationsNeedingTitles(ctx context.Context, limit int) ([]convdomain.ConversationSummary, error)
 
 	// Close closes the storage connection
 	Close() error
@@ -63,12 +63,6 @@ type ConversationStorage interface {
 	// Health checks if the storage is healthy and reachable
 	Health(ctx context.Context) error
 }
-
-// ConversationMetadata contains metadata about a conversation
-type ConversationMetadata = convdomain.ConversationMetadata
-
-// ConversationSummary contains summary information about a conversation
-type ConversationSummary = convdomain.ConversationSummary
 
 // ScheduledJobStorage defines the interface for persisting scheduled jobs.
 // Implementations must be safe for concurrent access. Change notification is

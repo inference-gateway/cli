@@ -58,7 +58,7 @@ func (s *sqlStore) DB() *sql.DB {
 
 // SaveConversation saves a conversation with its entries using the single-table
 // schema (messages are stored as an embedded JSON blob).
-func (s *sqlStore) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
+func (s *sqlStore) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
 	modelsUsed := make(map[string]bool)
 	for _, entry := range entries {
 		if entry.Model != "" {
@@ -121,7 +121,7 @@ func (s *sqlStore) SaveConversation(ctx context.Context, conversationID string, 
 }
 
 // LoadConversation loads a conversation by its ID.
-func (s *sqlStore) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, ConversationMetadata, error) {
+func (s *sqlStore) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, convdomain.ConversationMetadata, error) {
 	metadata, messagesJSON, err := s.loadConversationMetadata(ctx, conversationID)
 	if err != nil {
 		return nil, metadata, err
@@ -136,8 +136,8 @@ func (s *sqlStore) LoadConversation(ctx context.Context, conversationID string) 
 }
 
 // loadConversationMetadata loads the metadata plus the raw messages blob.
-func (s *sqlStore) loadConversationMetadata(ctx context.Context, conversationID string) (ConversationMetadata, string, error) {
-	var metadata ConversationMetadata
+func (s *sqlStore) loadConversationMetadata(ctx context.Context, conversationID string) (convdomain.ConversationMetadata, string, error) {
+	var metadata convdomain.ConversationMetadata
 	var messagesJSON, modelsJSON, tagsJSON, costStatsJSON string
 	var totalInputTokens, totalOutputTokens, requestCount int
 	var titleGenerationTime sql.NullTime
@@ -193,7 +193,7 @@ func (s *sqlStore) loadConversationMetadata(ctx context.Context, conversationID 
 }
 
 // ListConversations returns a list of conversation summaries.
-func (s *sqlStore) ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error) {
+func (s *sqlStore) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	rows, err := s.db.QueryContext(ctx, s.rebind(`
 		SELECT id, title, created_at, updated_at, count, total_input_tokens, total_output_tokens, request_count, cost_stats
 		FROM conversations
@@ -205,9 +205,9 @@ func (s *sqlStore) ListConversations(ctx context.Context, limit, offset int) ([]
 	}
 	defer func() { _ = rows.Close() }()
 
-	var summaries []ConversationSummary
+	var summaries []convdomain.ConversationSummary
 	for rows.Next() {
-		var summary ConversationSummary
+		var summary convdomain.ConversationSummary
 		var totalInputTokens, totalOutputTokens, requestCount int
 		var costStatsJSON string
 
@@ -239,7 +239,7 @@ func (s *sqlStore) ListConversations(ctx context.Context, limit, offset int) ([]
 }
 
 // ListConversationsNeedingTitles returns conversations that need title generation.
-func (s *sqlStore) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]ConversationSummary, error) {
+func (s *sqlStore) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]convdomain.ConversationSummary, error) {
 	rows, err := s.db.QueryContext(ctx, s.rebind(`
 		SELECT id, title, created_at, updated_at, count, total_input_tokens, total_output_tokens, request_count,
 		       models, tags, title_generated, title_invalidated, title_generation_time
@@ -254,9 +254,9 @@ func (s *sqlStore) ListConversationsNeedingTitles(ctx context.Context, limit int
 	}
 	defer func() { _ = rows.Close() }()
 
-	var summaries []ConversationSummary
+	var summaries []convdomain.ConversationSummary
 	for rows.Next() {
-		var summary ConversationSummary
+		var summary convdomain.ConversationSummary
 		var totalInputTokens, totalOutputTokens, requestCount int
 		var modelsJSON, tagsJSON string
 		var titleGenerationTime sql.NullTime
@@ -319,7 +319,7 @@ func (s *sqlStore) DeleteConversation(ctx context.Context, conversationID string
 }
 
 // UpdateConversationMetadata updates metadata for a conversation.
-func (s *sqlStore) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata ConversationMetadata) error {
+func (s *sqlStore) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata convdomain.ConversationMetadata) error {
 	tagsJSON, err := json.Marshal(metadata.Tags)
 	if err != nil {
 		return fmt.Errorf("failed to marshal tags: %w", err)

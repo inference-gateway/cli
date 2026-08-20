@@ -47,9 +47,9 @@ const jsonlFormatVersion = 2
 
 // MetadataLine represents the first line in v2 format
 type MetadataLine struct {
-	Version  int                  `json:"v"`
-	Type     string               `json:"type"`
-	Metadata ConversationMetadata `json:"metadata"`
+	Version  int                             `json:"v"`
+	Type     string                          `json:"type"`
+	Metadata convdomain.ConversationMetadata `json:"metadata"`
 }
 
 // EntryLine represents an entry line in v2 format
@@ -105,7 +105,7 @@ func (s *JsonlStorage) conversationFilePath(conversationID string) string {
 // metadata line in the file, so each save publishes the latest token/cost
 // stats - even when no new entries were added (e.g. AddTokenUsage updated
 // stats after the assistant message was already persisted).
-func (s *JsonlStorage) saveConversationUnlocked(_ context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
+func (s *JsonlStorage) saveConversationUnlocked(_ context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
 	filePath := s.conversationFilePath(conversationID)
 
 	state := s.detectFileState(filePath)
@@ -142,7 +142,7 @@ func (s *JsonlStorage) saveConversationUnlocked(_ context.Context, conversationI
 }
 
 // SaveConversation saves a conversation to a JSONL file
-func (s *JsonlStorage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
+func (s *JsonlStorage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -152,7 +152,7 @@ func (s *JsonlStorage) SaveConversation(ctx context.Context, conversationID stri
 // LoadConversation loads a conversation from a JSONL file
 // Supports both v1 format (2-line: metadata + entries array) and
 // v2 format (entry lines + trailing metadata, append-only)
-func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, ConversationMetadata, error) {
+func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, convdomain.ConversationMetadata, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -160,9 +160,9 @@ func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID stri
 	file, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, ConversationMetadata{}, fmt.Errorf("conversation not found: %s", conversationID)
+			return nil, convdomain.ConversationMetadata{}, fmt.Errorf("conversation not found: %s", conversationID)
 		}
-		return nil, ConversationMetadata{}, fmt.Errorf("failed to open conversation file: %w", err)
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to open conversation file: %w", err)
 	}
 	defer func() { _ = file.Close() }()
 
@@ -172,9 +172,9 @@ func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID stri
 
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
-			return nil, ConversationMetadata{}, fmt.Errorf("failed to read first line: %w", err)
+			return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to read first line: %w", err)
 		}
-		return nil, ConversationMetadata{}, fmt.Errorf("failed to read first line: empty file")
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to read first line: empty file")
 	}
 
 	firstLine := make([]byte, len(scanner.Bytes()))
@@ -185,34 +185,34 @@ func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID stri
 	}
 	if json.Unmarshal(firstLine, &versionCheck) == nil && versionCheck.Version == jsonlFormatVersion {
 		if _, err := file.Seek(0, 0); err != nil {
-			return nil, ConversationMetadata{}, fmt.Errorf("failed to seek to beginning: %w", err)
+			return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to seek to beginning: %w", err)
 		}
 		entries, metadata, err := s.loadV2Format(file)
 		if err != nil {
-			return nil, ConversationMetadata{}, err
+			return nil, convdomain.ConversationMetadata{}, err
 		}
 		s.setPersistedCount(conversationID, len(entries))
 		return entries, metadata, nil
 	}
 
 	var metadataWrapper struct {
-		Metadata ConversationMetadata `json:"metadata"`
+		Metadata convdomain.ConversationMetadata `json:"metadata"`
 	}
 	if err := json.Unmarshal(firstLine, &metadataWrapper); err != nil {
-		return nil, ConversationMetadata{}, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}
 
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
-			return nil, ConversationMetadata{}, fmt.Errorf("failed to read entries line: %w", err)
+			return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to read entries line: %w", err)
 		}
-		return nil, ConversationMetadata{}, fmt.Errorf("failed to read entries line: missing entries")
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to read entries line: missing entries")
 	}
 	var entriesWrapper struct {
 		Entries []convdomain.ConversationEntry `json:"entries"`
 	}
 	if err := json.Unmarshal(scanner.Bytes(), &entriesWrapper); err != nil {
-		return nil, ConversationMetadata{}, fmt.Errorf("failed to unmarshal entries: %w", err)
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to unmarshal entries: %w", err)
 	}
 
 	return entriesWrapper.Entries, metadataWrapper.Metadata, nil
@@ -221,10 +221,10 @@ func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID stri
 // readMetadataFromFile reads metadata from a conversation file (v1 or v2 format)
 // For v1: metadata is on the first line
 // For v2: metadata is on the last "meta" type line
-func (s *JsonlStorage) readMetadataFromFile(filePath string) (ConversationMetadata, error) {
+func (s *JsonlStorage) readMetadataFromFile(filePath string) (convdomain.ConversationMetadata, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return ConversationMetadata{}, err
+		return convdomain.ConversationMetadata{}, err
 	}
 	defer func() { _ = file.Close() }()
 
@@ -233,7 +233,7 @@ func (s *JsonlStorage) readMetadataFromFile(filePath string) (ConversationMetada
 	scanner.Buffer(buf, 10*1024*1024)
 
 	if !scanner.Scan() {
-		return ConversationMetadata{}, fmt.Errorf("empty file")
+		return convdomain.ConversationMetadata{}, fmt.Errorf("empty file")
 	}
 
 	firstLine := make([]byte, len(scanner.Bytes()))
@@ -247,24 +247,24 @@ func (s *JsonlStorage) readMetadataFromFile(filePath string) (ConversationMetada
 }
 
 // parseV1MetadataLine parses metadata from a v1 format first line
-func (s *JsonlStorage) parseV1MetadataLine(line []byte) (ConversationMetadata, error) {
+func (s *JsonlStorage) parseV1MetadataLine(line []byte) (convdomain.ConversationMetadata, error) {
 	var metadataWrapper struct {
-		Metadata ConversationMetadata `json:"metadata"`
+		Metadata convdomain.ConversationMetadata `json:"metadata"`
 	}
 	if err := json.Unmarshal(line, &metadataWrapper); err != nil {
-		return ConversationMetadata{}, err
+		return convdomain.ConversationMetadata{}, err
 	}
 	return metadataWrapper.Metadata, nil
 }
 
 // scanV2Metadata scans a v2 format file for the last metadata line
-func (s *JsonlStorage) scanV2Metadata(firstLine []byte, scanner *bufio.Scanner) (ConversationMetadata, error) {
-	var lastMetadata ConversationMetadata
+func (s *JsonlStorage) scanV2Metadata(firstLine []byte, scanner *bufio.Scanner) (convdomain.ConversationMetadata, error) {
+	var lastMetadata convdomain.ConversationMetadata
 	hasMetadata := false
 
 	var typeCheck struct {
-		Type     string               `json:"type"`
-		Metadata ConversationMetadata `json:"metadata"`
+		Type     string                          `json:"type"`
+		Metadata convdomain.ConversationMetadata `json:"metadata"`
 	}
 
 	if json.Unmarshal(firstLine, &typeCheck) == nil && typeCheck.Type == "meta" {
@@ -280,13 +280,13 @@ func (s *JsonlStorage) scanV2Metadata(firstLine []byte, scanner *bufio.Scanner) 
 	}
 
 	if !hasMetadata {
-		return ConversationMetadata{}, fmt.Errorf("no metadata in v2 file")
+		return convdomain.ConversationMetadata{}, fmt.Errorf("no metadata in v2 file")
 	}
 	return lastMetadata, nil
 }
 
 // ListConversations returns a list of conversation summaries
-func (s *JsonlStorage) ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error) {
+func (s *JsonlStorage) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -295,7 +295,7 @@ func (s *JsonlStorage) ListConversations(ctx context.Context, limit, offset int)
 		return nil, fmt.Errorf("failed to read conversations directory: %w", err)
 	}
 
-	var summaries []ConversationSummary
+	var summaries []convdomain.ConversationSummary
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
 			continue
@@ -309,7 +309,7 @@ func (s *JsonlStorage) ListConversations(ctx context.Context, limit, offset int)
 			continue
 		}
 
-		summaries = append(summaries, ConversationSummary{
+		summaries = append(summaries, convdomain.ConversationSummary{
 			ID:                  metadata.ID,
 			Title:               metadata.Title,
 			CreatedAt:           metadata.CreatedAt,
@@ -325,12 +325,12 @@ func (s *JsonlStorage) ListConversations(ctx context.Context, limit, offset int)
 		})
 	}
 
-	slices.SortFunc(summaries, func(a, b ConversationSummary) int {
+	slices.SortFunc(summaries, func(a, b convdomain.ConversationSummary) int {
 		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 
 	if offset >= len(summaries) {
-		return []ConversationSummary{}, nil
+		return []convdomain.ConversationSummary{}, nil
 	}
 	summaries = summaries[offset:]
 	if limit > 0 && len(summaries) > limit {
@@ -341,7 +341,7 @@ func (s *JsonlStorage) ListConversations(ctx context.Context, limit, offset int)
 }
 
 // ListConversationsNeedingTitles returns conversations that need title generation
-func (s *JsonlStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]ConversationSummary, error) {
+func (s *JsonlStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]convdomain.ConversationSummary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -350,7 +350,7 @@ func (s *JsonlStorage) ListConversationsNeedingTitles(ctx context.Context, limit
 		return nil, err
 	}
 
-	var needingTitles []ConversationSummary
+	var needingTitles []convdomain.ConversationSummary
 	for _, summary := range allSummaries {
 		if (!summary.TitleGenerated || summary.TitleInvalidated) && summary.MessageCount >= 2 {
 			needingTitles = append(needingTitles, summary)
@@ -385,7 +385,7 @@ func (s *JsonlStorage) DeleteConversation(ctx context.Context, conversationID st
 // UpdateConversationMetadata updates only the metadata of a conversation
 // For both v1 and v2 formats, this requires a full rewrite of the file
 // (v2 format is used for the output regardless of input format)
-func (s *JsonlStorage) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata ConversationMetadata) error {
+func (s *JsonlStorage) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata convdomain.ConversationMetadata) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -513,14 +513,14 @@ type V2EntryLine struct {
 
 // TrailingMetaLine represents a metadata line without version (used after entries)
 type TrailingMetaLine struct {
-	Type     string               `json:"type"`
-	Metadata ConversationMetadata `json:"metadata"`
+	Type     string                          `json:"type"`
+	Metadata convdomain.ConversationMetadata `json:"metadata"`
 }
 
 // writeFullFileV2 writes a complete conversation file in v2 format
 // Uses atomic write via temp file + rename
 // Format: entry lines first (first entry has v:2), then trailing metadata
-func (s *JsonlStorage) writeFullFileV2(filePath string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
+func (s *JsonlStorage) writeFullFileV2(filePath string, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
 	tempPath := filePath + ".tmp"
 
 	file, err := os.Create(tempPath)
@@ -598,7 +598,7 @@ func (s *JsonlStorage) writeV2Entries(writer *bufio.Writer, entries []convdomain
 
 // writeV2Metadata writes metadata line to the writer
 // If includeVersion is true, the version is included (for empty entry files)
-func (s *JsonlStorage) writeV2Metadata(writer *bufio.Writer, metadata ConversationMetadata, includeVersion bool) error {
+func (s *JsonlStorage) writeV2Metadata(writer *bufio.Writer, metadata convdomain.ConversationMetadata, includeVersion bool) error {
 	var metaJSON []byte
 	var err error
 
@@ -628,7 +628,7 @@ func (s *JsonlStorage) writeV2Metadata(writer *bufio.Writer, metadata Conversati
 }
 
 // appendEntries appends new entries and updated metadata to an existing v2 format file
-func (s *JsonlStorage) appendEntries(filePath string, entries []convdomain.ConversationEntry, startIndex int, metadata ConversationMetadata) error {
+func (s *JsonlStorage) appendEntries(filePath string, entries []convdomain.ConversationEntry, startIndex int, metadata convdomain.ConversationMetadata) error {
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open file for append: %w", err)
@@ -656,8 +656,8 @@ func (s *JsonlStorage) appendEntries(filePath string, entries []convdomain.Conve
 	}
 
 	metaLine := struct {
-		Type     string               `json:"type"`
-		Metadata ConversationMetadata `json:"metadata"`
+		Type     string                          `json:"type"`
+		Metadata convdomain.ConversationMetadata `json:"metadata"`
 	}{
 		Type:     "meta",
 		Metadata: metadata,
@@ -752,13 +752,13 @@ func (s *JsonlStorage) loadEntriesFromFile(filePath string, firstLine []byte, sc
 // loadV2Format loads a conversation in the v2 format
 // Format: entry lines (first has v:2) followed by trailing metadata lines
 // The last metadata line is used (supports append-only updates)
-func (s *JsonlStorage) loadV2Format(file *os.File) ([]convdomain.ConversationEntry, ConversationMetadata, error) {
+func (s *JsonlStorage) loadV2Format(file *os.File) ([]convdomain.ConversationEntry, convdomain.ConversationMetadata, error) {
 	scanner := bufio.NewScanner(file)
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 10*1024*1024)
 
 	var entries []convdomain.ConversationEntry
-	var metadata ConversationMetadata
+	var metadata convdomain.ConversationMetadata
 	hasMetadata := false
 
 	for scanner.Scan() {
@@ -768,7 +768,7 @@ func (s *JsonlStorage) loadV2Format(file *os.File) ([]convdomain.ConversationEnt
 			Type string `json:"type"`
 		}
 		if err := json.Unmarshal(lineBytes, &typeCheck); err != nil {
-			return nil, ConversationMetadata{}, fmt.Errorf("failed to parse line type: %w", err)
+			return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to parse line type: %w", err)
 		}
 
 		switch typeCheck.Type {
@@ -777,15 +777,15 @@ func (s *JsonlStorage) loadV2Format(file *os.File) ([]convdomain.ConversationEnt
 				Entry convdomain.ConversationEntry `json:"entry"`
 			}
 			if err := json.Unmarshal(lineBytes, &entryLine); err != nil {
-				return nil, ConversationMetadata{}, fmt.Errorf("failed to unmarshal entry: %w", err)
+				return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to unmarshal entry: %w", err)
 			}
 			entries = append(entries, entryLine.Entry)
 		case "meta":
 			var metaLine struct {
-				Metadata ConversationMetadata `json:"metadata"`
+				Metadata convdomain.ConversationMetadata `json:"metadata"`
 			}
 			if err := json.Unmarshal(lineBytes, &metaLine); err != nil {
-				return nil, ConversationMetadata{}, fmt.Errorf("failed to unmarshal metadata: %w", err)
+				return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to unmarshal metadata: %w", err)
 			}
 			metadata = metaLine.Metadata
 			hasMetadata = true
@@ -793,11 +793,11 @@ func (s *JsonlStorage) loadV2Format(file *os.File) ([]convdomain.ConversationEnt
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, ConversationMetadata{}, fmt.Errorf("failed to read file: %w", err)
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	if !hasMetadata {
-		return nil, ConversationMetadata{}, fmt.Errorf("no metadata found in v2 file")
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("no metadata found in v2 file")
 	}
 
 	return entries, metadata, nil

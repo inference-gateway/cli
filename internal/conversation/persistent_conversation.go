@@ -23,7 +23,7 @@ type PersistentConversationRepository struct {
 	*InMemoryConversationRepository
 	storage        storage.ConversationStorage
 	conversationID string
-	metadata       storage.ConversationMetadata
+	metadata       convdomain.ConversationMetadata
 	metadataMutex  sync.RWMutex
 	autoSave       bool
 	titleGenerator *ConversationTitleGenerator
@@ -40,7 +40,7 @@ func NewPersistentConversationRepository(formatterService ToolFormatter, pricing
 		storage:                        storageBackend,
 		conversationID:                 "",
 		autoSave:                       true,
-		metadata: storage.ConversationMetadata{
+		metadata: convdomain.ConversationMetadata{
 			Title:            "New Conversation",
 			CreatedAt:        time.Now(),
 			UpdatedAt:        time.Now(),
@@ -86,7 +86,7 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 
 	r.metadataMutex.Lock()
 	r.conversationID = conversationID
-	r.metadata = storage.ConversationMetadata{
+	r.metadata = convdomain.ConversationMetadata{
 		ID:               conversationID,
 		Title:            title,
 		CreatedAt:        now,
@@ -170,7 +170,7 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 }
 
 // ListSavedConversations returns a list of saved conversations
-func (r *PersistentConversationRepository) ListSavedConversations(ctx context.Context, limit, offset int) ([]storage.ConversationSummary, error) {
+func (r *PersistentConversationRepository) ListSavedConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	return r.storage.ListConversations(ctx, limit, offset)
 }
 
@@ -218,7 +218,7 @@ func (r *PersistentConversationRepository) GetCurrentConversationID() string {
 }
 
 // GetCurrentConversationMetadata returns the current conversation metadata
-func (r *PersistentConversationRepository) GetCurrentConversationMetadata() storage.ConversationMetadata {
+func (r *PersistentConversationRepository) GetCurrentConversationMetadata() convdomain.ConversationMetadata {
 	messageCount := r.GetMessageCount()
 	tokenStats := r.GetSessionTokens()
 
@@ -255,7 +255,7 @@ func (r *PersistentConversationRepository) AddMessage(msg convdomain.Conversatio
 
 		r.metadataMutex.Lock()
 		r.conversationID = conversationID
-		r.metadata = storage.ConversationMetadata{
+		r.metadata = convdomain.ConversationMetadata{
 			ID:           conversationID,
 			Title:        title,
 			CreatedAt:    now,
@@ -333,7 +333,7 @@ func (r *PersistentConversationRepository) Clear() error {
 
 	r.metadataMutex.Lock()
 	r.conversationID = ""
-	r.metadata = storage.ConversationMetadata{
+	r.metadata = convdomain.ConversationMetadata{
 		Title:            "New Conversation",
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -396,7 +396,7 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 
 		r.metadataMutex.Lock()
 		r.conversationID = conversationID
-		r.metadata = storage.ConversationMetadata{
+		r.metadata = convdomain.ConversationMetadata{
 			ID:           conversationID,
 			Title:        title,
 			CreatedAt:    now,

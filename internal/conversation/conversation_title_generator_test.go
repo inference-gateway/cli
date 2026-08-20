@@ -13,7 +13,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 )
 
@@ -86,7 +85,7 @@ func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {
 			generator := NewConversationTitleGenerator(mockClient, mockStorage, cfg)
 
 			conversationID := "test-conv-123"
-			metadata := storage.ConversationMetadata{
+			metadata := convdomain.ConversationMetadata{
 				ID:           conversationID,
 				Title:        "Original Title",
 				CreatedAt:    time.Now(),

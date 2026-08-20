@@ -280,7 +280,7 @@ func asTimePtr(v any) *time.Time {
 }
 
 // SaveConversation saves a conversation with its entries using the simplified schema.
-func (s *D1Storage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
+func (s *D1Storage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
 	modelsUsed := make(map[string]bool)
 
 	for _, entry := range entries {
@@ -343,7 +343,7 @@ func (s *D1Storage) SaveConversation(ctx context.Context, conversationID string,
 }
 
 // LoadConversation loads a conversation by its ID using the simplified schema.
-func (s *D1Storage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, ConversationMetadata, error) {
+func (s *D1Storage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, convdomain.ConversationMetadata, error) {
 	metadata, messagesJSON, err := s.loadConversationMetadata(ctx, conversationID)
 	if err != nil {
 		return nil, metadata, err
@@ -358,8 +358,8 @@ func (s *D1Storage) LoadConversation(ctx context.Context, conversationID string)
 }
 
 // loadConversationMetadata loads the full metadata for a conversation.
-func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID string) (ConversationMetadata, string, error) {
-	var metadata ConversationMetadata
+func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID string) (convdomain.ConversationMetadata, string, error) {
+	var metadata convdomain.ConversationMetadata
 
 	rows, err := s.queryRows(ctx, `
 		SELECT id, title, count, messages, total_input_tokens, total_output_tokens,
@@ -417,7 +417,7 @@ func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID
 }
 
 // ListConversations returns a list of conversation summaries (lean: no models/tags/title fields).
-func (s *D1Storage) ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error) {
+func (s *D1Storage) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	rows, err := s.queryRows(ctx, `
 		SELECT id, title, created_at, updated_at, count, total_input_tokens, total_output_tokens, request_count, cost_stats
 		FROM conversations
@@ -428,9 +428,9 @@ func (s *D1Storage) ListConversations(ctx context.Context, limit, offset int) ([
 		return nil, fmt.Errorf("failed to query conversations: %w", err)
 	}
 
-	var summaries []ConversationSummary
+	var summaries []convdomain.ConversationSummary
 	for _, r := range rows {
-		var summary ConversationSummary
+		var summary convdomain.ConversationSummary
 		summary.ID = asString(r["id"])
 		summary.Title = asString(r["title"])
 		summary.CreatedAt = asTime(r["created_at"])
@@ -463,7 +463,7 @@ func (s *D1Storage) ListConversations(ctx context.Context, limit, offset int) ([
 // It carries Model/Tags/TitleGenerated/TitleInvalidated/TitleGenerationTime (the
 // title-generation batch path needs them) and therefore uses a dedicated mapper
 // rather than the lean ListConversations one.
-func (s *D1Storage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]ConversationSummary, error) {
+func (s *D1Storage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]convdomain.ConversationSummary, error) {
 	rows, err := s.queryRows(ctx, `
 		SELECT id, title, created_at, updated_at, count, total_input_tokens, total_output_tokens,
 		       models, tags, title_generated, title_invalidated, title_generation_time
@@ -477,7 +477,7 @@ func (s *D1Storage) ListConversationsNeedingTitles(ctx context.Context, limit in
 		return nil, fmt.Errorf("failed to query conversations needing titles: %w", err)
 	}
 
-	var summaries []ConversationSummary
+	var summaries []convdomain.ConversationSummary
 	for _, r := range rows {
 		summaries = append(summaries, mapTitleSummaryRow(r))
 	}
@@ -487,8 +487,8 @@ func (s *D1Storage) ListConversationsNeedingTitles(ctx context.Context, limit in
 
 // mapTitleSummaryRow maps a title-generation summary row, carrying the full
 // model/tags/title field set.
-func mapTitleSummaryRow(r map[string]any) ConversationSummary {
-	var summary ConversationSummary
+func mapTitleSummaryRow(r map[string]any) convdomain.ConversationSummary {
+	var summary convdomain.ConversationSummary
 	summary.ID = asString(r["id"])
 	summary.Title = asString(r["title"])
 	summary.CreatedAt = asTime(r["created_at"])
@@ -536,7 +536,7 @@ func (s *D1Storage) DeleteConversation(ctx context.Context, conversationID strin
 }
 
 // UpdateConversationMetadata updates metadata for a conversation.
-func (s *D1Storage) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata ConversationMetadata) error {
+func (s *D1Storage) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata convdomain.ConversationMetadata) error {
 	tagsJSON, err := json.Marshal(metadata.Tags)
 	if err != nil {
 		return fmt.Errorf("failed to marshal tags: %w", err)

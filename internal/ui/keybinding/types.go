@@ -44,9 +44,6 @@ type KeyHandlerContext interface {
 	SetMouseEnabled(bool)
 }
 
-// Theme is an alias to the ui Theme interface
-type Theme = ui.Theme
-
 // KeyAction represents a key binding action. Keys, description, and enabled
 // state live in the Binding, which is constructed at registry init from the
 // resolved keybindings config (defaults + keybindings.yaml overrides) — the

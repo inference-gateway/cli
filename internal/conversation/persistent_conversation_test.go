@@ -208,7 +208,7 @@ func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("List Saved Conversations", func(t *testing.T) {
-		expectedConversations := []storage.ConversationSummary{
+		expectedConversations := []convdomain.ConversationSummary{
 			{ID: "conv1", Title: "Test Conversation", MessageCount: 1},
 			{ID: "conv2", Title: "Another Test", MessageCount: 1},
 		}
@@ -262,7 +262,7 @@ func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 		conversationID := "test-conv-id"
 
 		mockStorage.DeleteConversationReturns(nil)
-		mockStorage.LoadConversationReturns(nil, storage.ConversationMetadata{}, fmt.Errorf("conversation not found"))
+		mockStorage.LoadConversationReturns(nil, convdomain.ConversationMetadata{}, fmt.Errorf("conversation not found"))
 
 		err := repo.DeleteSavedConversation(ctx, conversationID)
 		assert.NoError(t, err)

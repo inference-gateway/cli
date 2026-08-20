@@ -88,7 +88,7 @@ func TestHandleCommand_New(t *testing.T) {
 
 	groupKey := convdomain.FormatChannelSessionID("telegram", "42")
 	oldID := uuid.NewString()
-	if err := store.SaveConversation(ctx, oldID, nil, storage.ConversationMetadata{}); err != nil {
+	if err := store.SaveConversation(ctx, oldID, nil, convdomain.ConversationMetadata{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.PutSessionGroup(ctx, groupKey, storage.SessionGroupEntry{CurrentSessionID: oldID}); err != nil {
@@ -192,10 +192,10 @@ func TestHandleCommand_ConversationsList(t *testing.T) {
 
 	groupKey := convdomain.FormatChannelSessionID("telegram", "42")
 	currentID, oldID := uuid.NewString(), uuid.NewString()
-	if err := store.SaveConversation(ctx, currentID, nil, storage.ConversationMetadata{Title: "Weather talk", MessageCount: 4}); err != nil {
+	if err := store.SaveConversation(ctx, currentID, nil, convdomain.ConversationMetadata{Title: "Weather talk", MessageCount: 4}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SaveConversation(ctx, oldID, nil, storage.ConversationMetadata{Title: "Trip planning", MessageCount: 9}); err != nil {
+	if err := store.SaveConversation(ctx, oldID, nil, convdomain.ConversationMetadata{Title: "Trip planning", MessageCount: 9}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.PutSessionGroup(ctx, groupKey, storage.SessionGroupEntry{CurrentSessionID: currentID, History: []string{oldID}}); err != nil {
@@ -232,10 +232,10 @@ func TestHandleCommand_ConversationsSwitch(t *testing.T) {
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Plan me a trip to Rome")}},
 		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("Day 1: Colosseum and Forum.")}},
 	}
-	if err := store.SaveConversation(ctx, currentID, nil, storage.ConversationMetadata{Title: "Weather talk"}); err != nil {
+	if err := store.SaveConversation(ctx, currentID, nil, convdomain.ConversationMetadata{Title: "Weather talk"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SaveConversation(ctx, oldID, tripEntries, storage.ConversationMetadata{Title: "Trip planning"}); err != nil {
+	if err := store.SaveConversation(ctx, oldID, tripEntries, convdomain.ConversationMetadata{Title: "Trip planning"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.PutSessionGroup(ctx, groupKey, storage.SessionGroupEntry{CurrentSessionID: currentID, History: []string{oldID}}); err != nil {

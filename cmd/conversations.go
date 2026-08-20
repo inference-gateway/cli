@@ -13,7 +13,6 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
-	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 var conversationsCmd = &cobra.Command{
@@ -145,10 +144,10 @@ func listConversations(cmd *cobra.Command, args []string) error {
 	return renderConversationsTable(conversations, limit, offset)
 }
 
-func renderConversationsJSON(conversations []storage.ConversationSummary) error {
+func renderConversationsJSON(conversations []convdomain.ConversationSummary) error {
 	output := struct {
-		Conversations []storage.ConversationSummary `json:"conversations"`
-		Count         int                           `json:"count"`
+		Conversations []convdomain.ConversationSummary `json:"conversations"`
+		Count         int                              `json:"count"`
 	}{
 		Conversations: conversations,
 		Count:         len(conversations),
@@ -163,7 +162,7 @@ func renderConversationsJSON(conversations []storage.ConversationSummary) error 
 	return nil
 }
 
-func renderConversationsTable(conversations []storage.ConversationSummary, limit, offset int) error {
+func renderConversationsTable(conversations []convdomain.ConversationSummary, limit, offset int) error {
 	if len(conversations) == 0 {
 		fmt.Println("No conversations found.")
 		fmt.Println()

@@ -100,7 +100,7 @@ func TestJsonlStorage_SaveAndLoad(t *testing.T) {
 		},
 	}
 
-	metadata := ConversationMetadata{
+	metadata := convdomain.ConversationMetadata{
 		ID:           conversationID,
 		Title:        "Test Conversation",
 		CreatedAt:    time.Now(),
@@ -153,7 +153,7 @@ func TestJsonlStorage_List(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		conversationID := fmt.Sprintf("conversation-%d", i)
 		entries := []convdomain.ConversationEntry{}
-		metadata := ConversationMetadata{
+		metadata := convdomain.ConversationMetadata{
 			ID:           conversationID,
 			Title:        fmt.Sprintf("Conversation %d", i),
 			CreatedAt:    time.Now().Add(time.Duration(-i) * time.Hour),
@@ -220,7 +220,7 @@ func TestJsonlStorage_ListConversationsNeedingTitles(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		metadata := ConversationMetadata{
+		metadata := convdomain.ConversationMetadata{
 			ID:               tc.id,
 			Title:            "Test",
 			MessageCount:     tc.messageCount,
@@ -266,7 +266,7 @@ func TestJsonlStorage_ListConversationsNeedingTitles_Limit(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 5; i++ {
-		metadata := ConversationMetadata{
+		metadata := convdomain.ConversationMetadata{
 			ID:             fmt.Sprintf("conv-%d", i),
 			Title:          "Test",
 			MessageCount:   5,
@@ -290,7 +290,7 @@ func TestJsonlStorage_Delete(t *testing.T) {
 	ctx := context.Background()
 	conversationID := "test-delete"
 
-	err := storage.SaveConversation(ctx, conversationID, []convdomain.ConversationEntry{}, ConversationMetadata{
+	err := storage.SaveConversation(ctx, conversationID, []convdomain.ConversationEntry{}, convdomain.ConversationMetadata{
 		ID:        conversationID,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -333,7 +333,7 @@ func TestJsonlStorage_UpdateMetadata(t *testing.T) {
 			Time:    time.Now(),
 		},
 	}
-	metadata := ConversationMetadata{
+	metadata := convdomain.ConversationMetadata{
 		ID:             conversationID,
 		Title:          "Original Title",
 		MessageCount:   1,
@@ -368,7 +368,7 @@ func TestJsonlStorage_UpdateMetadataNonExistent(t *testing.T) {
 
 	ctx := context.Background()
 
-	metadata := ConversationMetadata{
+	metadata := convdomain.ConversationMetadata{
 		ID:        "non-existent",
 		Title:     "Test",
 		CreatedAt: time.Now(),
@@ -419,7 +419,7 @@ func TestJsonlStorage_ConcurrentAccess(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			go func(id int) {
 				conversationID := fmt.Sprintf("concurrent-%d", id)
-				metadata := ConversationMetadata{
+				metadata := convdomain.ConversationMetadata{
 					ID:        conversationID,
 					Title:     fmt.Sprintf("Concurrent %d", id),
 					CreatedAt: time.Now(),
@@ -460,7 +460,7 @@ func TestJsonlStorage_LargeConversation(t *testing.T) {
 		}
 	}
 
-	metadata := ConversationMetadata{
+	metadata := convdomain.ConversationMetadata{
 		ID:           conversationID,
 		Title:        "Large Conversation",
 		MessageCount: 1000,
@@ -497,7 +497,7 @@ func TestJsonlStorage_AppendOnlyBehavior(t *testing.T) {
 			Time:    time.Now(),
 		},
 	}
-	metadata := ConversationMetadata{
+	metadata := convdomain.ConversationMetadata{
 		ID:           conversationID,
 		Title:        "Append Test",
 		MessageCount: 2,
@@ -564,7 +564,7 @@ func TestJsonlStorage_MetadataOnlyUpdatePersists(t *testing.T) {
 		},
 	}
 
-	staleMetadata := ConversationMetadata{
+	staleMetadata := convdomain.ConversationMetadata{
 		ID:           conversationID,
 		Title:        "Hi",
 		MessageCount: 2,
@@ -607,7 +607,7 @@ func TestJsonlStorage_V1FormatMigration(t *testing.T) {
 	ctx := context.Background()
 	conversationID := "v1-migration"
 
-	v1Metadata := ConversationMetadata{
+	v1Metadata := convdomain.ConversationMetadata{
 		ID:           conversationID,
 		Title:        "V1 Conversation",
 		MessageCount: 2,
@@ -674,7 +674,7 @@ func TestJsonlStorage_EntryDeletionTriggersRewrite(t *testing.T) {
 			Time:    time.Now(),
 		}
 	}
-	metadata := ConversationMetadata{
+	metadata := convdomain.ConversationMetadata{
 		ID:           conversationID,
 		Title:        "Deletion Test",
 		MessageCount: 5,
@@ -705,7 +705,7 @@ func TestJsonlStorage_EmptyConversation(t *testing.T) {
 	conversationID := "empty-test"
 
 	entries := []convdomain.ConversationEntry{}
-	metadata := ConversationMetadata{
+	metadata := convdomain.ConversationMetadata{
 		ID:           conversationID,
 		Title:        "Empty Conversation",
 		MessageCount: 0,
@@ -730,7 +730,7 @@ func TestJsonlStorage_MultipleAppends(t *testing.T) {
 	conversationID := "multi-append-test"
 
 	entries := []convdomain.ConversationEntry{}
-	metadata := ConversationMetadata{
+	metadata := convdomain.ConversationMetadata{
 		ID:           conversationID,
 		Title:        "Multi-Append Test",
 		MessageCount: 0,
@@ -778,7 +778,7 @@ func TestJsonlStorage_ListV2Conversations(t *testing.T) {
 				Time:    time.Now(),
 			},
 		}
-		metadata := ConversationMetadata{
+		metadata := convdomain.ConversationMetadata{
 			ID:           conversationID,
 			Title:        fmt.Sprintf("V2 Conversation %d", i),
 			MessageCount: 1,

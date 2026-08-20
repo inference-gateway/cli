@@ -32,7 +32,7 @@ func TestMemoryStorage_SaveAndLoadConversation(t *testing.T) {
 		},
 	}
 
-	metadata := ConversationMetadata{
+	metadata := convdomain.ConversationMetadata{
 		ID:           conversationID,
 		Title:        "Test Conversation",
 		CreatedAt:    time.Now(),
@@ -86,7 +86,7 @@ func TestMemoryStorage_ListConversations(t *testing.T) {
 			},
 		}
 
-		metadata := ConversationMetadata{
+		metadata := convdomain.ConversationMetadata{
 			ID:        convID,
 			Title:     "Test Conversation " + convID,
 			CreatedAt: time.Now().Add(time.Duration(i) * time.Hour),
@@ -133,7 +133,7 @@ func TestMemoryStorage_DeleteConversation(t *testing.T) {
 		},
 	}
 
-	metadata := ConversationMetadata{
+	metadata := convdomain.ConversationMetadata{
 		ID:        conversationID,
 		Title:     "Test Conversation",
 		CreatedAt: time.Now(),
@@ -171,7 +171,7 @@ func TestMemoryStorage_UpdateMetadata(t *testing.T) {
 		},
 	}
 
-	metadata := ConversationMetadata{
+	metadata := convdomain.ConversationMetadata{
 		ID:        conversationID,
 		Title:     "Original Title",
 		CreatedAt: time.Now(),
@@ -230,7 +230,7 @@ func TestMemoryStorage_Close(t *testing.T) {
 		},
 	}
 
-	metadata := ConversationMetadata{
+	metadata := convdomain.ConversationMetadata{
 		ID:        conversationID,
 		Title:     "Test Conversation",
 		CreatedAt: time.Now(),

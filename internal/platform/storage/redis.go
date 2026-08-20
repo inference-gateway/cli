@@ -96,7 +96,7 @@ func (s *RedisStorage) conversationIndexKey() string {
 }
 
 // SaveConversation saves a conversation with its entries
-func (s *RedisStorage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata ConversationMetadata) error {
+func (s *RedisStorage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
 	pipe := s.client.Pipeline()
 
 	metadataJSON, err := json.Marshal(metadata)
@@ -139,8 +139,8 @@ func (s *RedisStorage) SaveConversation(ctx context.Context, conversationID stri
 }
 
 // LoadConversation loads a conversation by its ID
-func (s *RedisStorage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, ConversationMetadata, error) {
-	var metadata ConversationMetadata
+func (s *RedisStorage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, convdomain.ConversationMetadata, error) {
+	var metadata convdomain.ConversationMetadata
 	var entries []convdomain.ConversationEntry
 
 	pipe := s.client.Pipeline()
@@ -183,7 +183,7 @@ func (s *RedisStorage) LoadConversation(ctx context.Context, conversationID stri
 }
 
 // ListConversations returns a list of conversation summaries
-func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error) {
+func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	indexKey := s.conversationIndexKey()
 
 	conversationIDs, err := s.client.ZRevRange(ctx, indexKey, int64(offset), int64(offset+limit-1)).Result()
@@ -192,7 +192,7 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 	}
 
 	if len(conversationIDs) == 0 {
-		return []ConversationSummary{}, nil
+		return []convdomain.ConversationSummary{}, nil
 	}
 
 	pipe := s.client.Pipeline()
@@ -208,7 +208,7 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 		return nil, fmt.Errorf("failed to load conversation metadata: %w", err)
 	}
 
-	var summaries []ConversationSummary
+	var summaries []convdomain.ConversationSummary
 	for i, cmd := range metadataCmds {
 		metadataJSON, err := cmd.Result()
 		if err != nil {
@@ -218,12 +218,12 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 			return nil, fmt.Errorf("failed to get metadata for conversation %s: %w", conversationIDs[i], err)
 		}
 
-		var metadata ConversationMetadata
+		var metadata convdomain.ConversationMetadata
 		if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal metadata for conversation %s: %w", conversationIDs[i], err)
 		}
 
-		summary := ConversationSummary{
+		summary := convdomain.ConversationSummary{
 			ID:           metadata.ID,
 			Title:        metadata.Title,
 			CreatedAt:    metadata.CreatedAt,
@@ -241,7 +241,7 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 		summaries = append(summaries, summary)
 	}
 
-	slices.SortFunc(summaries, func(a, b ConversationSummary) int {
+	slices.SortFunc(summaries, func(a, b convdomain.ConversationSummary) int {
 		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 
@@ -249,7 +249,7 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 }
 
 // ListConversationsNeedingTitles returns conversations that need title generation
-func (s *RedisStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]ConversationSummary, error) {
+func (s *RedisStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]convdomain.ConversationSummary, error) {
 	indexKey := s.conversationIndexKey()
 
 	conversationIDs, err := s.client.ZRevRange(ctx, indexKey, 0, int64(limit*2-1)).Result()
@@ -258,7 +258,7 @@ func (s *RedisStorage) ListConversationsNeedingTitles(ctx context.Context, limit
 	}
 
 	if len(conversationIDs) == 0 {
-		return []ConversationSummary{}, nil
+		return []convdomain.ConversationSummary{}, nil
 	}
 
 	pipe := s.client.Pipeline()
@@ -274,7 +274,7 @@ func (s *RedisStorage) ListConversationsNeedingTitles(ctx context.Context, limit
 		return nil, fmt.Errorf("failed to load conversation metadata: %w", err)
 	}
 
-	var summaries []ConversationSummary
+	var summaries []convdomain.ConversationSummary
 	for i, cmd := range metadataCmds {
 		metadataJSON, err := cmd.Result()
 		if err != nil {
@@ -284,13 +284,13 @@ func (s *RedisStorage) ListConversationsNeedingTitles(ctx context.Context, limit
 			return nil, fmt.Errorf("failed to get metadata for conversation %s: %w", conversationIDs[i], err)
 		}
 
-		var metadata ConversationMetadata
+		var metadata convdomain.ConversationMetadata
 		if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal metadata for conversation %s: %w", conversationIDs[i], err)
 		}
 
 		if (!metadata.TitleGenerated || metadata.TitleInvalidated) && metadata.MessageCount > 0 {
-			summary := ConversationSummary{
+			summary := convdomain.ConversationSummary{
 				ID:           metadata.ID,
 				Title:        metadata.Title,
 				CreatedAt:    metadata.CreatedAt,
@@ -312,7 +312,7 @@ func (s *RedisStorage) ListConversationsNeedingTitles(ctx context.Context, limit
 		}
 	}
 
-	slices.SortFunc(summaries, func(a, b ConversationSummary) int {
+	slices.SortFunc(summaries, func(a, b convdomain.ConversationSummary) int {
 		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 
@@ -343,7 +343,7 @@ func (s *RedisStorage) DeleteConversation(ctx context.Context, conversationID st
 }
 
 // UpdateConversationMetadata updates metadata for a conversation
-func (s *RedisStorage) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata ConversationMetadata) error {
+func (s *RedisStorage) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata convdomain.ConversationMetadata) error {
 	exists, err := s.client.Exists(ctx, s.conversationKey(conversationID)).Result()
 	if err != nil {
 		return fmt.Errorf("failed to check conversation existence: %w", err)

@@ -2,7 +2,6 @@ package filewriter
 
 import (
 	"context"
-	"io"
 )
 
 // WriteRequest represents a file write operation request
@@ -50,26 +49,4 @@ type ChunkSessionInfo struct {
 	ReceivedChunks int
 	TempPath       string
 	Created        bool
-}
-
-// PathValidator validates file paths for security and accessibility
-type PathValidator interface {
-	Validate(path string) error
-	IsWritable(path string) bool
-	IsInSandbox(path string) bool
-}
-
-// BackupManager handles file backup operations
-type BackupManager interface {
-	CreateBackup(ctx context.Context, originalPath string) (string, error)
-	RestoreBackup(ctx context.Context, backupPath string, originalPath string) error
-	CleanupBackup(backupPath string) error
-}
-
-// StreamWriter provides streaming write capabilities
-type StreamWriter interface {
-	io.Writer
-	io.Closer
-	Sync() error
-	Path() string
 }

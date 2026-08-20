@@ -10,11 +10,10 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 func TestRenderConversationsJSON(t *testing.T) {
-	conversations := []storage.ConversationSummary{
+	conversations := []convdomain.ConversationSummary{
 		{
 			ID:           "12345678-1234-1234-1234-123456789abc",
 			Title:        "Test Conversation 1",
@@ -54,7 +53,7 @@ func TestRenderConversationsJSON(t *testing.T) {
 }
 
 func TestRenderConversationsJSON_Structure(t *testing.T) {
-	conversations := []storage.ConversationSummary{
+	conversations := []convdomain.ConversationSummary{
 		{
 			ID:           "test-id-1",
 			Title:        "Test 1",
@@ -71,8 +70,8 @@ func TestRenderConversationsJSON_Structure(t *testing.T) {
 	}
 
 	output := struct {
-		Conversations []storage.ConversationSummary `json:"conversations"`
-		Count         int                           `json:"count"`
+		Conversations []convdomain.ConversationSummary `json:"conversations"`
+		Count         int                              `json:"count"`
 	}{
 		Conversations: conversations,
 		Count:         len(conversations),
@@ -96,7 +95,7 @@ func TestRenderConversationsJSON_Structure(t *testing.T) {
 }
 
 func TestRenderConversationsTable_Empty(t *testing.T) {
-	conversations := []storage.ConversationSummary{}
+	conversations := []convdomain.ConversationSummary{}
 
 	err := renderConversationsTable(conversations, 50, 0)
 	if err != nil {
@@ -105,7 +104,7 @@ func TestRenderConversationsTable_Empty(t *testing.T) {
 }
 
 func TestRenderConversationsTable_WithData(t *testing.T) {
-	conversations := []storage.ConversationSummary{
+	conversations := []convdomain.ConversationSummary{
 		{
 			ID:           "12345678-1234-1234-1234-123456789abc",
 			Title:        "Test Conversation",
@@ -128,9 +127,9 @@ func TestRenderConversationsTable_WithData(t *testing.T) {
 }
 
 func TestRenderConversationsTable_Pagination(t *testing.T) {
-	conversations := make([]storage.ConversationSummary, 60)
+	conversations := make([]convdomain.ConversationSummary, 60)
 	for i := 0; i < 60; i++ {
-		conversations[i] = storage.ConversationSummary{
+		conversations[i] = convdomain.ConversationSummary{
 			ID:           "test-id",
 			Title:        "Test",
 			MessageCount: i + 1,
@@ -157,7 +156,7 @@ func TestRenderConversationsTable_Pagination(t *testing.T) {
 }
 
 func TestRenderConversationsTable_LongTitle(t *testing.T) {
-	conversations := []storage.ConversationSummary{
+	conversations := []convdomain.ConversationSummary{
 		{
 			ID:           "test-id",
 			Title:        "This is a very long conversation title that should be truncated to 25 characters",
@@ -180,7 +179,7 @@ func TestRenderConversationsTable_LongTitle(t *testing.T) {
 }
 
 func TestRenderConversationsTable_ZeroCost(t *testing.T) {
-	conversations := []storage.ConversationSummary{
+	conversations := []convdomain.ConversationSummary{
 		{
 			ID:           "test-id",
 			Title:        "Zero Cost Test",
@@ -203,7 +202,7 @@ func TestRenderConversationsTable_ZeroCost(t *testing.T) {
 }
 
 func TestRenderConversationsTable_VariousCosts(t *testing.T) {
-	conversations := []storage.ConversationSummary{
+	conversations := []convdomain.ConversationSummary{
 		{
 			ID:           "test-id-1",
 			Title:        "Very small cost",
@@ -252,7 +251,7 @@ func TestRenderConversationsTable_VariousCosts(t *testing.T) {
 }
 
 func TestRenderConversationsTable_LargeNumbers(t *testing.T) {
-	conversations := []storage.ConversationSummary{
+	conversations := []convdomain.ConversationSummary{
 		{
 			ID:           "test-id",
 			Title:        "Large token counts",

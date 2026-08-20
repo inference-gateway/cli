@@ -307,9 +307,9 @@ func createTestEntries() []convdomain.ConversationEntry {
 	}
 }
 
-func createTestMetadata(id string) ConversationMetadata {
+func createTestMetadata(id string) convdomain.ConversationMetadata {
 	now := time.Now()
-	return ConversationMetadata{
+	return convdomain.ConversationMetadata{
 		ID:        id,
 		Title:     "Test Conversation",
 		CreatedAt: now,
