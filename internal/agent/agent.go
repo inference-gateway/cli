@@ -16,6 +16,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conv "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
@@ -40,10 +41,10 @@ type AgentServiceImpl struct {
 	timeoutSeconds   int
 	maxTokens        int
 	optimizer        convdomain.ConversationOptimizer
-	tokenizer        *services.TokenizerService
+	tokenizer        *conv.TokenizerService
 	approvalPolicy   agentdomain.ApprovalPolicy
 	bgRegistry       domain.BackgroundTaskRegistry
-	rolloverManager  *services.SessionRolloverManager
+	rolloverManager  *conv.SessionRolloverManager
 	reminderProvider agentdomain.SystemReminderProvider
 	hookProvider     agentdomain.HookCommandProvider
 	memoryBackend    domain.MemoryBackend
@@ -373,9 +374,9 @@ func NewAgent(
 	timeoutSeconds int,
 	optimizer convdomain.ConversationOptimizer,
 	bgRegistry domain.BackgroundTaskRegistry,
-	rolloverManager *services.SessionRolloverManager,
+	rolloverManager *conv.SessionRolloverManager,
 ) *AgentServiceImpl {
-	tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
+	tokenizer := conv.NewTokenizerService(conv.DefaultTokenizerConfig())
 
 	approvalPolicy := services.NewStandardApprovalPolicy(cfg, stateManager)
 
@@ -744,7 +745,7 @@ func (s *AgentServiceImpl) ensureConversationIntegrity(
 		return 0
 	}
 
-	repaired, synthetics := services.EnsureToolCallsClosed(*conversation)
+	repaired, synthetics := conv.EnsureToolCallsClosed(*conversation)
 	if len(synthetics) == 0 {
 		return 0
 	}

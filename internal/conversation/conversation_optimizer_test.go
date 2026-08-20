@@ -1,15 +1,16 @@
-package services_test
+package conversation_test
 
 import (
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
-	models "github.com/inference-gateway/cli/internal/platform/models"
-	services "github.com/inference-gateway/cli/internal/services"
-	mocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	config "github.com/inference-gateway/cli/config"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	mocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 )
 
 // testCase represents a single test case for OptimizeMessages
@@ -269,7 +270,7 @@ func TestOptimizeMessages_ToolCallIntegrity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := createMockSDKClient(t, "Summary of conversation")
 
-			optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+			optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
 				Enabled:           true,
 				AutoAt:            80,
 				BufferSize:        2,
@@ -357,7 +358,7 @@ func TestOptimizeMessages_EdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := createMockSDKClient(t, "Summary")
 
-			optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+			optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
 				Enabled:           true,
 				AutoAt:            80,
 				BufferSize:        2,
@@ -390,11 +391,11 @@ func TestOptimizeMessages_LastInputTokensTrigger(t *testing.T) {
 	t.Cleanup(func() { models.SetGatewayContextWindows(nil) })
 
 	t.Run("fires when LastInputTokens above threshold", func(t *testing.T) {
-		repo := services.NewInMemoryConversationRepository(nil, nil)
+		repo := conversation.NewInMemoryConversationRepository(nil, nil)
 		require.NoError(t, repo.AddTokenUsage(model, 7000, 100, 7100, 0, 0))
 
 		mockClient := createMockSDKClient(t, "Summary text")
-		optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+		optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
 			Enabled:           true,
 			AutoAt:            80,
 			BufferSize:        2,
@@ -422,11 +423,11 @@ func TestOptimizeMessages_LastInputTokensTrigger(t *testing.T) {
 	})
 
 	t.Run("does not fire when LastInputTokens below threshold", func(t *testing.T) {
-		repo := services.NewInMemoryConversationRepository(nil, nil)
+		repo := conversation.NewInMemoryConversationRepository(nil, nil)
 		require.NoError(t, repo.AddTokenUsage(model, 1000, 100, 1100, 0, 0))
 
 		mockClient := createMockSDKClient(t, "Summary text")
-		optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+		optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
 			Enabled:           true,
 			AutoAt:            80,
 			BufferSize:        2,
@@ -463,11 +464,11 @@ func TestOptimizeMessages_LastInputTokensTrigger(t *testing.T) {
 func TestOptimizeMessages_NoAutoCompactForUnknownModel(t *testing.T) {
 	model := "ollama_cloud/some-unlisted-model"
 
-	repo := services.NewInMemoryConversationRepository(nil, nil)
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
 	require.NoError(t, repo.AddTokenUsage(model, 500000, 100, 500100, 0, 0))
 
 	mockClient := createMockSDKClient(t, "Summary text")
-	optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+	optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
 		Enabled:           true,
 		AutoAt:            80,
 		BufferSize:        2,
@@ -500,10 +501,10 @@ func TestOptimizeMessages_NoAutoCompactForUnknownModel(t *testing.T) {
 func TestOptimizeMessages_ForcedCompactWorksForUnknownModel(t *testing.T) {
 	model := "ollama_cloud/some-unlisted-model"
 
-	repo := services.NewInMemoryConversationRepository(nil, nil)
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
 
 	mockClient := createMockSDKClient(t, "Summary text")
-	optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+	optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
 		Enabled:           true,
 		AutoAt:            80,
 		BufferSize:        2,

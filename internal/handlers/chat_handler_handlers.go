@@ -10,8 +10,8 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 )
 
 // FormatMetrics formats LLM completion metrics for the status bar, computing
@@ -104,7 +104,7 @@ func (h *ChatHandler) handleFileSelectionRequest(
 func (h *ChatHandler) handleConversationSelected(
 	msg domain.ConversationSelectedEvent,
 ) tea.Cmd {
-	persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository)
+	persistentRepo, ok := h.conversationRepo.(*conversation.PersistentConversationRepository)
 	if !ok {
 		return func() tea.Msg {
 			return domain.ShowErrorEvent{

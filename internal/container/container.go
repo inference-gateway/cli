@@ -26,6 +26,7 @@ import (
 	computer "github.com/inference-gateway/cli/internal/computer"
 	clipboardtext "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard/text"
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	adapters "github.com/inference-gateway/cli/internal/platform/adapters"
@@ -92,7 +93,7 @@ type ServiceContainer struct {
 	// Domain services
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
-	sessionRolloverManager *services.SessionRolloverManager
+	sessionRolloverManager *conversation.SessionRolloverManager
 	modelService           convdomain.ModelService
 	agent                  agentdomain.AgentService
 	toolService            agentdomain.ToolService
@@ -121,7 +122,7 @@ type ServiceContainer struct {
 	stateManager *services.StateManager
 
 	// Background services
-	titleGenerator         *services.ConversationTitleGenerator
+	titleGenerator         *conversation.ConversationTitleGenerator
 	backgroundJobManager   *services.BackgroundJobManager
 	backgroundShellService *services.BackgroundShellService
 	memoryBackend          domain.MemoryBackend
@@ -131,7 +132,7 @@ type ServiceContainer struct {
 	// Token polyfill - used by /context, conversation optimizer, and the
 	// session rollover manager. Created unconditionally so any surface can
 	// fall back to it when the provider does not return usage metrics.
-	tokenizer *services.TokenizerService
+	tokenizer *conversation.TokenizerService
 
 	// UI components
 	themeService domain.ThemeService
@@ -256,7 +257,7 @@ func (c *ServiceContainer) initializeBrowserTools() {
 	if buCfg.Backend == config.BrowserBackendExtension {
 		eventBridge := c.stateManager.GetEventBridge()
 		if eventBridge == nil {
-			eventBridge = services.NewEventBridge()
+			eventBridge = conversation.NewEventBridge()
 			c.stateManager.SetEventBridge(eventBridge)
 		}
 
@@ -406,7 +407,7 @@ func (c *ServiceContainer) hasAutoStartMCPServers() bool {
 func (c *ServiceContainer) initializeDomainServices() {
 	c.fileService = services.NewFileService()
 	c.imageService = services.NewImageService(c.config, c.createRawSDKClient())
-	c.messageQueue = services.NewMessageQueueService()
+	c.messageQueue = conversation.NewMessageQueueService()
 
 	c.initializeMCPManager()
 
@@ -448,7 +449,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.initializeBrowserTools()
 
 	modelClient := c.createRawSDKClient()
-	c.modelService = services.NewHTTPModelService(modelClient)
+	c.modelService = conversation.NewHTTPModelService(modelClient)
 
 	c.telemetryRecorder = telemetry.New(telemetry.Options{
 		Enabled:           c.config.Telemetry.Enabled,
@@ -475,11 +476,11 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 
 	if c.tokenizer == nil {
-		c.tokenizer = services.NewTokenizerService(services.DefaultTokenizerConfig())
+		c.tokenizer = conversation.NewTokenizerService(conversation.DefaultTokenizerConfig())
 	}
 
 	summaryClient := c.createRawSDKClient()
-	c.conversationOptimizer = services.NewConversationOptimizer(services.OptimizerConfig{
+	c.conversationOptimizer = conversation.NewConversationOptimizer(conversation.OptimizerConfig{
 		Enabled:           c.config.Compact.Enabled,
 		AutoAt:            c.config.Compact.AutoAt,
 		BufferSize:        2,
@@ -491,8 +492,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 	})
 
 	if c.config.Compact.Enabled {
-		if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
-			c.sessionRolloverManager = services.NewSessionRolloverManager(
+		if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
+			c.sessionRolloverManager = conversation.NewSessionRolloverManager(
 				c.config,
 				c.conversationOptimizer,
 				persistentRepo,
@@ -543,12 +544,12 @@ func (c *ServiceContainer) initializeStorageBackend(
 	}
 
 	c.storage = stores.Conversations
-	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), stores.Conversations)
+	persistentRepo := conversation.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), stores.Conversations)
 	c.conversationRepo = persistentRepo
 	logger.Info("initialized conversation storage", "type", storageConfig.Type)
 
 	titleClient := c.createRawSDKClient()
-	c.titleGenerator = services.NewConversationTitleGenerator(titleClient, stores.Conversations, c.config)
+	c.titleGenerator = conversation.NewConversationTitleGenerator(titleClient, stores.Conversations, c.config)
 	c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
 
 	persistentRepo.SetTitleGenerator(c.titleGenerator)
@@ -587,7 +588,7 @@ func (c *ServiceContainer) handleStorageInitFailure(
 	}
 
 	logger.Warn("using in-memory conversation storage (conversations will not be persisted)")
-	c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
+	c.conversationRepo = conversation.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
 }
 
 // initializeStateManager creates the state manager before domain services need it
@@ -697,7 +698,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewStatsShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewTracesShortcut())
 
-	if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
+	if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(persistentRepo))
 		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(persistentRepo, c.backgroundTaskRegistry))
 	}
@@ -738,7 +739,7 @@ func (c *ServiceContainer) GetConversationOptimizer() convdomain.ConversationOpt
 	return c.conversationOptimizer
 }
 
-func (c *ServiceContainer) GetSessionRolloverManager() *services.SessionRolloverManager {
+func (c *ServiceContainer) GetSessionRolloverManager() *conversation.SessionRolloverManager {
 	return c.sessionRolloverManager
 }
 
@@ -811,7 +812,7 @@ func (c *ServiceContainer) GetPricingService() convdomain.PricingService {
 
 func (c *ServiceContainer) PricingService() convdomain.PricingService {
 	if c.pricingService == nil {
-		c.pricingService = services.NewPricingService(&c.config.Pricing)
+		c.pricingService = conversation.NewPricingService(&c.config.Pricing)
 	}
 	return c.pricingService
 }

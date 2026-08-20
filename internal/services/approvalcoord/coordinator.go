@@ -15,7 +15,7 @@ import (
 
 // planRepoUpdater is the narrow interface the coordinator uses to mutate plan
 // approval state on the conversation repo. Both *services.InMemoryConversation
-// Repository and *services.PersistentConversationRepository satisfy it (the
+// Repository and *conversation.PersistentConversationRepository satisfy it (the
 // latter via embedding).
 type planRepoUpdater interface {
 	UpdatePlanStatus(action agentdomain.PlanApprovalAction)

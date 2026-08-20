@@ -10,6 +10,7 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -49,8 +50,8 @@ func runExport(sessionID string) error {
 	themeService := styles.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)
 	toolFormatterService := services.NewToolFormatterService(toolRegistry, styleProvider)
-	pricingService := services.NewPricingService(&cfg.Pricing)
-	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, pricingService, stores.Conversations)
+	pricingService := conversation.NewPricingService(&cfg.Pricing)
+	persistentRepo := conversation.NewPersistentConversationRepository(toolFormatterService, pricingService, stores.Conversations)
 
 	ctx := context.Background()
 	if err := persistentRepo.LoadConversation(ctx, sessionID); err != nil {

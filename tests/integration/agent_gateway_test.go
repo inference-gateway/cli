@@ -24,9 +24,9 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
-	services "github.com/inference-gateway/cli/internal/services"
 )
 
 const runTimeout = 30 * time.Second
@@ -616,7 +616,7 @@ func TestModelMetadataFromGateway(t *testing.T) {
 	require.True(t, known, "gateway-reported model must be known")
 	require.Equal(t, mockgateway.DefaultContextWindow, window)
 
-	pricing := services.NewPricingService(&config.PricingConfig{Enabled: true})
+	pricing := conversation.NewPricingService(&config.PricingConfig{Enabled: true})
 	in, out, total := pricing.CalculateCost(testModel, 1_000_000, 1_000_000, 0, 0)
 	require.InDelta(t, 2.5, in, 1e-9)
 	require.InDelta(t, 10.0, out, 1e-9)

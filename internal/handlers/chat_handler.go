@@ -7,11 +7,11 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 )
@@ -30,7 +30,7 @@ type ChatHandler struct {
 	agentService           agentdomain.AgentService
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
-	sessionRolloverManager *services.SessionRolloverManager
+	sessionRolloverManager *conversation.SessionRolloverManager
 	modelService           convdomain.ModelService
 	toolService            agentdomain.ToolService
 	fileService            domain.FileService
@@ -59,7 +59,7 @@ func NewChatHandler(
 	agentService agentdomain.AgentService,
 	conversationRepo convdomain.ConversationRepository,
 	conversationOptimizer convdomain.ConversationOptimizer,
-	sessionRolloverManager *services.SessionRolloverManager,
+	sessionRolloverManager *conversation.SessionRolloverManager,
 	modelService convdomain.ModelService,
 	toolService agentdomain.ToolService,
 	fileService domain.FileService,

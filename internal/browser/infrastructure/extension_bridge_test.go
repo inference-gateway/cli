@@ -17,6 +17,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -53,7 +54,7 @@ func toolApprovalEvent(id, name, args string) agentdomain.ToolApprovalRequestedE
 
 func TestExtensionBridgeApprovalRoundTrip(t *testing.T) {
 	notifier := &recordingNotifier{}
-	events := services.NewEventBridge()
+	events := conversation.NewEventBridge()
 	bridge := startBridge(t, bridgeConfig(), notifier, events)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
@@ -104,7 +105,7 @@ func TestExtensionBridgeApprovalRoundTrip(t *testing.T) {
 // card - only an explicit ToolApprovalResolvedEvent does. Regression test for the
 // card vanishing before the user could answer.
 func TestExtensionBridgeApprovalSurvivesTrailingEvents(t *testing.T) {
-	events := services.NewEventBridge()
+	events := conversation.NewEventBridge()
 	bridge := startBridge(t, bridgeConfig(), nil, events)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
@@ -131,7 +132,7 @@ func TestExtensionBridgeApprovalSurvivesTrailingEvents(t *testing.T) {
 
 func TestExtensionBridgeApprovalUnknownActionRejects(t *testing.T) {
 	notifier := &recordingNotifier{}
-	events := services.NewEventBridge()
+	events := conversation.NewEventBridge()
 	bridge := startBridge(t, bridgeConfig(), notifier, events)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
@@ -165,7 +166,7 @@ func TestExtensionBridgeApprovalUnknownActionRejects(t *testing.T) {
 // second decision.
 func TestExtensionBridgeApprovalIgnoresUnknownID(t *testing.T) {
 	notifier := &recordingNotifier{}
-	events := services.NewEventBridge()
+	events := conversation.NewEventBridge()
 	bridge := startBridge(t, bridgeConfig(), notifier, events)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
@@ -243,12 +244,12 @@ func startBridgeWithSkills(t *testing.T, cfg *config.BrowserUseConfig, skills do
 }
 
 // newBridgeRepo builds a persistent repo backed by in-memory storage.
-func newBridgeRepo() *services.PersistentConversationRepository {
-	return services.NewPersistentConversationRepository(&services.ToolFormatterService{}, nil, storage.NewMemoryStorage())
+func newBridgeRepo() *conversation.PersistentConversationRepository {
+	return conversation.NewPersistentConversationRepository(&services.ToolFormatterService{}, nil, storage.NewMemoryStorage())
 }
 
 // seedConversation starts, fills, and saves a conversation, returning its id.
-func seedConversation(t *testing.T, repo *services.PersistentConversationRepository, title, content string) string {
+func seedConversation(t *testing.T, repo *conversation.PersistentConversationRepository, title, content string) string {
 	t.Helper()
 	if err := repo.StartNewConversation(title); err != nil {
 		t.Fatalf("StartNewConversation: %v", err)
@@ -395,7 +396,7 @@ func TestExtensionBridgeUserMessageReachesNotifier(t *testing.T) {
 }
 
 func TestExtensionBridgeMirrorsChatEvents(t *testing.T) {
-	events := services.NewEventBridge()
+	events := conversation.NewEventBridge()
 	bridge := startBridge(t, bridgeConfig(), nil, events)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")

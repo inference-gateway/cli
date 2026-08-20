@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
@@ -14,8 +15,8 @@ import (
 // The conversation repo is an *InMemoryConversationRepository because the
 // coordinator uses the concrete planRepoUpdater interface for plan-status
 // mutations, which the in-memory repo satisfies.
-func newCoordinator() (*Service, *services.InMemoryConversationRepository, *services.StateManager, *agentdomainmocks.FakeAgentService) {
-	repo := services.NewInMemoryConversationRepository(nil, nil)
+func newCoordinator() (*Service, *conversation.InMemoryConversationRepository, *services.StateManager, *agentdomainmocks.FakeAgentService) {
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
 	state := services.NewStateManager(false)
 	agent := &agentdomainmocks.FakeAgentService{}
 

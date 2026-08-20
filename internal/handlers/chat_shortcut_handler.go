@@ -10,10 +10,10 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	services "github.com/inference-gateway/cli/internal/services"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
@@ -134,7 +134,7 @@ func (s *ChatShortcutHandler) performShortcutExecution(shortcut shortcuts.Shortc
 		ctx := context.Background()
 
 		sessionID := ""
-		if persistentRepo, ok := s.handler.conversationRepo.(*services.PersistentConversationRepository); ok {
+		if persistentRepo, ok := s.handler.conversationRepo.(*conversation.PersistentConversationRepository); ok {
 			sessionID = persistentRepo.GetCurrentConversationID()
 			logger.Debug("adding session ID to shortcut context", "session_id", sessionID, "shortcut", shortcut.GetName())
 		} else {

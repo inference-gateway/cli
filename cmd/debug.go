@@ -12,7 +12,7 @@ import (
 	agent "github.com/inference-gateway/cli/internal/agent"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
-	services "github.com/inference-gateway/cli/internal/services"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 )
 
 var debugCmd = &cobra.Command{
@@ -43,7 +43,7 @@ var debugAgentSystemPromptCmd = &cobra.Command{
 			return err
 		}
 
-		tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
+		tokenizer := conversation.NewTokenizerService(conversation.DefaultTokenizerConfig())
 		out := cmd.OutOrStdout()
 		if sectioned, ok := agentService.(interface{ SystemPromptSections() []agent.PromptSection }); ok {
 			inTail := false

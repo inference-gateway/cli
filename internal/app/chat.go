@@ -15,6 +15,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	handlers "github.com/inference-gateway/cli/internal/handlers"
@@ -44,7 +45,7 @@ type ChatApplication struct {
 	agentService           agentdomain.AgentService
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
-	sessionRolloverManager *services.SessionRolloverManager
+	sessionRolloverManager *conversation.SessionRolloverManager
 	modelService           convdomain.ModelService
 	toolService            agentdomain.ToolService
 	fileService            domain.FileService
@@ -159,7 +160,7 @@ func NewChatApplication(
 	messageQueue convdomain.MessageQueue,
 	modelService convdomain.ModelService,
 	pricingService convdomain.PricingService,
-	sessionRolloverManager *services.SessionRolloverManager,
+	sessionRolloverManager *conversation.SessionRolloverManager,
 	stateManager *services.StateManager,
 	taskRetentionService domain.TaskRetentionService,
 	themeService domain.ThemeService,
@@ -264,7 +265,7 @@ func NewChatApplication(
 		isb.SetConfig(app.config)
 		isb.SetConversationRepo(app.conversationRepo)
 		isb.SetToolService(app.toolService)
-		isb.SetTokenEstimator(services.NewTokenizerService(services.DefaultTokenizerConfig()))
+		isb.SetTokenEstimator(conversation.NewTokenizerService(conversation.DefaultTokenizerConfig()))
 		isb.SetBackgroundShellService(app.toolRegistry.GetBackgroundShellService())
 		isb.SetBackgroundTaskService(app.backgroundTaskService)
 		if app.backgroundTaskRegistry != nil {
@@ -327,7 +328,7 @@ func NewChatApplication(
 		return err == nil && secretsExist
 	})
 
-	if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {
+	if persistentRepo, ok := app.conversationRepo.(*conversation.PersistentConversationRepository); ok {
 		app.conversationSelector = components.NewConversationSelector(persistentRepo, styleProvider)
 	} else {
 		app.conversationSelector = nil

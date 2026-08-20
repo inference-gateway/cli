@@ -1,4 +1,4 @@
-package services_test
+package conversation_test
 
 import (
 	"bytes"
@@ -6,15 +6,14 @@ import (
 	"strings"
 	"testing"
 
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
-	services "github.com/inference-gateway/cli/internal/services"
 )
 
 // decodeStreamEvents parses each newline-terminated JSON line in buf into
@@ -59,7 +58,7 @@ func TestOptimizeMessages_EmitsStartedAndCompletedEvents_OnForce(t *testing.T) {
 	models.SetGatewayContextWindows(map[string]int{"deepseek/deepseek-v4-pro": 128000})
 	t.Cleanup(func() { models.SetGatewayContextWindows(nil) })
 	mockClient := createMockSDKClient(t, "compact summary")
-	optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+	optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
 		Enabled:           true,
 		AutoAt:            80,
 		BufferSize:        2,
@@ -99,7 +98,7 @@ func TestOptimizeMessages_EmitsStartedAndCompletedEvents_OnForce(t *testing.T) {
 
 func TestOptimizeMessages_NoEventsWhenBelowThreshold(t *testing.T) {
 	mockClient := createMockSDKClient(t, "should not be called")
-	optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+	optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
 		Enabled:           true,
 		AutoAt:            80,
 		BufferSize:        2,
@@ -119,7 +118,7 @@ func TestOptimizeMessages_NoEventsWhenBelowThreshold(t *testing.T) {
 
 func TestOptimizeMessages_NoEventsWhenOptimizerDisabled(t *testing.T) {
 	mockClient := createMockSDKClient(t, "ignored")
-	optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+	optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
 		Enabled:           false,
 		AutoAt:            80,
 		BufferSize:        2,
@@ -138,7 +137,7 @@ func TestOptimizeMessages_NoEventsWhenOptimizerDisabled(t *testing.T) {
 
 func TestOptimizeMessages_DebugGateOff_NoStreamEvents(t *testing.T) {
 	mockClient := createMockSDKClient(t, "compact summary")
-	optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
+	optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
 		Enabled:           true,
 		AutoAt:            80,
 		BufferSize:        2,

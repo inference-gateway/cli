@@ -1,4 +1,4 @@
-package services
+package conversation
 
 import (
 	"context"
@@ -24,8 +24,7 @@ func setupTestRepository(t *testing.T) (*PersistentConversationRepository, func(
 	storageBackend, err := storage.NewSQLiteStorage(config)
 	require.NoError(t, err)
 
-	formatterService := &ToolFormatterService{}
-	repo := NewPersistentConversationRepository(formatterService, nil, storageBackend)
+	repo := NewPersistentConversationRepository(nil, nil, storageBackend)
 
 	cleanup := func() {
 		_ = repo.Close()
@@ -202,7 +201,7 @@ func TestPersistentConversationRepository_TitleWithPreassignedSessionID(t *testi
 
 func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 	mockStorage := &generated.FakeConversationStorage{}
-	formatterService := &ToolFormatterService{}
+	var formatterService ToolFormatter
 	repo := NewPersistentConversationRepository(formatterService, nil, mockStorage)
 
 	ctx := context.Background()

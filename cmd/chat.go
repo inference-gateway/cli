@@ -24,13 +24,13 @@ import (
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	clipboard "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	services "github.com/inference-gateway/cli/internal/services"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	web "github.com/inference-gateway/cli/internal/web"
 )
@@ -279,7 +279,7 @@ func chatExitMessage(sessionID string) string {
 // resolving rollover chains first. When the conversation cannot be loaded it
 // adopts the requested ID for the new session if the repository supports it,
 // mirroring `infer headless --session-id` semantics.
-func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager *services.SessionRolloverManager, sessionID string) {
+func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager *conversation.SessionRolloverManager, sessionID string) {
 	if rolloverManager != nil {
 		resolved, _, _ := rolloverManager.ResolveSessionID(sessionID)
 		sessionID = resolved

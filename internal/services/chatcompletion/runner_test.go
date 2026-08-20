@@ -8,6 +8,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -18,8 +19,8 @@ import (
 
 // newRunnerForTest wires a Runner with the in-memory conversation repository
 // and counterfeiter fakes for everything else.
-func newRunnerForTest() (*Runner, *services.InMemoryConversationRepository, *services.StateManager, *agentdomainmocks.FakeAgentService, *convmocks.FakeModelService) {
-	repo := services.NewInMemoryConversationRepository(nil, nil)
+func newRunnerForTest() (*Runner, *conversation.InMemoryConversationRepository, *services.StateManager, *agentdomainmocks.FakeAgentService, *convmocks.FakeModelService) {
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
 	state := services.NewStateManager(false)
 	agent := &agentdomainmocks.FakeAgentService{}
 	model := &convmocks.FakeModelService{}

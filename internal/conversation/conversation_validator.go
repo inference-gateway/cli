@@ -1,4 +1,4 @@
-package services
+package conversation
 
 import (
 	sdk "github.com/inference-gateway/sdk"

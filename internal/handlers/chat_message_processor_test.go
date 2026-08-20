@@ -14,6 +14,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
@@ -103,10 +104,10 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				tt.setupMocks(mockFile)
 			}
 
-			conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+			conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 			shortcutRegistry := shortcuts.NewRegistry()
 			stateManager := services.NewStateManager(false)
-			messageQueue := services.NewMessageQueueService()
+			messageQueue := conversation.NewMessageQueueService()
 
 			fakeDirect := &uimocks.FakeDirectExecutionService{}
 			fakeDirect.HandleBashCommandReturns(func() tea.Msg { return nil })
@@ -383,12 +384,12 @@ func (fakeRolloverOptimizer) OptimizeMessages(_ []sdk.Message, _ string, _ bool)
 // in-memory SQLite and an in-memory SessionGroupStorage. Used by the
 // async-rollover handler tests; cheaper than refactoring SessionRolloverManager
 // to an interface just for mocking.
-func newChatRolloverFixture(t *testing.T) (*services.SessionRolloverManager, *services.PersistentConversationRepository, func()) {
+func newChatRolloverFixture(t *testing.T) (*conversation.SessionRolloverManager, *conversation.PersistentConversationRepository, func()) {
 	t.Helper()
 
 	storageBackend, err := storage.NewSQLiteStorage(storage.SQLiteConfig{Path: ":memory:"})
 	require.NoError(t, err)
-	repo := services.NewPersistentConversationRepository(&services.ToolFormatterService{}, nil, storageBackend)
+	repo := conversation.NewPersistentConversationRepository(&services.ToolFormatterService{}, nil, storageBackend)
 
 	cfg := &config.Config{}
 	cfg.Compact.Enabled = true
@@ -396,11 +397,11 @@ func newChatRolloverFixture(t *testing.T) (*services.SessionRolloverManager, *se
 	cfg.Compact.RolloverOnIdleMinutes = 0
 	cfg.Compact.KeepFirstMessages = 2
 
-	mgr := services.NewSessionRolloverManager(
+	mgr := conversation.NewSessionRolloverManager(
 		cfg,
 		fakeRolloverOptimizer{},
 		repo,
-		services.NewTokenizerService(services.DefaultTokenizerConfig()),
+		conversation.NewTokenizerService(conversation.DefaultTokenizerConfig()),
 		storage.NewMemorySessionGroupStorage(),
 	)
 
@@ -437,7 +438,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+			conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 
 			for i := 0; i < tt.existingMessages; i++ {
 				entry := convdomain.ConversationEntry{
@@ -458,7 +459,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 				conversationRepo: conversationRepo,
 				modelService:     mockModel,
 				stateManager:     stateManager,
-				messageQueue:     services.NewMessageQueueService(),
+				messageQueue:     conversation.NewMessageQueueService(),
 				completionRunner: &uimocks.FakeChatCompletionRunner{},
 			}
 
@@ -500,7 +501,7 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 		sessionRolloverManager: mgr,
 		modelService:           mockModel,
 		stateManager:           stateManager,
-		messageQueue:           services.NewMessageQueueService(),
+		messageQueue:           conversation.NewMessageQueueService(),
 		completionRunner:       fakeRunner,
 	}
 	processor := NewChatMessageProcessor(handler)
@@ -538,7 +539,7 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 // that the no-rollover-manager case still produces the synchronous AddMessage +
 // startChatCompletion batch with no "Compacting..." status.
 func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testing.T) {
-	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 	stateManager := services.NewStateManager(false)
 	fakeRunner := &uimocks.FakeChatCompletionRunner{}
 	fakeRunner.StartReturns(func() tea.Msg { return nil })
@@ -548,7 +549,7 @@ func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testi
 		sessionRolloverManager: nil,
 		modelService:           &convmocks.FakeModelService{},
 		stateManager:           stateManager,
-		messageQueue:           services.NewMessageQueueService(),
+		messageQueue:           conversation.NewMessageQueueService(),
 		completionRunner:       fakeRunner,
 	}
 	processor := NewChatMessageProcessor(handler)
@@ -578,7 +579,7 @@ func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testi
 // startChatCompletion flow that processChatMessage skipped while the async
 // rollover was in flight.
 func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
-	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 	stateManager := services.NewStateManager(false)
 	fakeRunner := &uimocks.FakeChatCompletionRunner{}
 	fakeRunner.StartReturns(func() tea.Msg { return nil })
@@ -587,7 +588,7 @@ func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
 		conversationRepo: conversationRepo,
 		modelService:     &convmocks.FakeModelService{},
 		stateManager:     stateManager,
-		messageQueue:     services.NewMessageQueueService(),
+		messageQueue:     conversation.NewMessageQueueService(),
 		completionRunner: fakeRunner,
 	}
 	handler.messageProcessor = NewChatMessageProcessor(handler)

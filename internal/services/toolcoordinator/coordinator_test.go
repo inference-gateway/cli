@@ -6,13 +6,14 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
-func newCoordinatorForTest() (*Coordinator, *services.InMemoryConversationRepository, *services.StateManager, *uimocks.FakeDirectExecutionService) {
-	repo := services.NewInMemoryConversationRepository(nil, nil)
+func newCoordinatorForTest() (*Coordinator, *conversation.InMemoryConversationRepository, *services.StateManager, *uimocks.FakeDirectExecutionService) {
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
 	state := services.NewStateManager(false)
 	direct := &uimocks.FakeDirectExecutionService{}
 	listener := &uimocks.FakeChatEventListener{}

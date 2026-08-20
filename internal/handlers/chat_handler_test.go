@@ -11,6 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -368,10 +369,10 @@ More content.`
 }
 
 func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
-	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 	shortcutRegistry := shortcuts.NewRegistry()
 
-	messageQueue := services.NewMessageQueueService()
+	messageQueue := conversation.NewMessageQueueService()
 
 	handler := NewChatHandler(
 		nil, // agentService
@@ -696,9 +697,9 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*agentdomainmocks.FakeAg
 		setupMocks(mockAgent, mockModel, mockTool, mockFile, cfg)
 	}
 
-	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 	shortcutRegistry := shortcuts.NewRegistry()
-	messageQueue := services.NewMessageQueueService()
+	messageQueue := conversation.NewMessageQueueService()
 
 	// Configure the fake services to return non-nil cmds so the handler's
 	// Handle() dispatcher returns non-nil for the events that delegate.

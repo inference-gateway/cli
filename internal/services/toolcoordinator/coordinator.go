@@ -20,8 +20,8 @@ import (
 
 // toolApprovalRepoUpdater is the narrow interface the coordinator uses to
 // mutate tool-approval state on the conversation repo. Both
-// *services.InMemoryConversationRepository and
-// *services.PersistentConversationRepository satisfy it (the latter via
+// *conversation.InMemoryConversationRepository and
+// *conversation.PersistentConversationRepository satisfy it (the latter via
 // embedding).
 type toolApprovalRepoUpdater interface {
 	UpdateToolApprovalStatus(action agentdomain.ApprovalAction)

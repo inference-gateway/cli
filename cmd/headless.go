@@ -20,13 +20,13 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	container "github.com/inference-gateway/cli/internal/container"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	services "github.com/inference-gateway/cli/internal/services"
 	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
 )
 
@@ -349,7 +349,7 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 // honours --no-save, and returns prior history when resuming an existing
 // --session-id (empty when starting fresh or storage is not persistent).
 func prepareConversation(ctx context.Context, repo convdomain.ConversationRepository, sessionID string, resume, noSave bool) []sdk.Message {
-	persistentRepo, ok := repo.(*services.PersistentConversationRepository)
+	persistentRepo, ok := repo.(*conversation.PersistentConversationRepository)
 	if !ok {
 		return nil
 	}

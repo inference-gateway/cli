@@ -7,13 +7,13 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 )
 
 func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
-	repo := services.NewInMemoryConversationRepository(nil, nil)
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
 	handler := NewMessageHistoryHandler(repo)
 
 	messages := []convdomain.ConversationEntry{
@@ -67,7 +67,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
 }
 
 func TestMessageHistoryHandler_HandleEditSubmit_MiddleMessage(t *testing.T) {
-	repo := services.NewInMemoryConversationRepository(nil, nil)
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
 	handler := NewMessageHistoryHandler(repo)
 
 	messages := []convdomain.ConversationEntry{

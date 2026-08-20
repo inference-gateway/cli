@@ -1,4 +1,4 @@
-package services
+package conversation
 
 import (
 	"context"
@@ -60,7 +60,7 @@ func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionR
 	if err != nil {
 		t.Fatalf("create sqlite storage: %v", err)
 	}
-	repo := NewPersistentConversationRepository(&ToolFormatterService{}, nil, storageBackend)
+	repo := NewPersistentConversationRepository(nil, nil, storageBackend)
 
 	cfg := &config.Config{}
 	cfg.Compact.Enabled = true

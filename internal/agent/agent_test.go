@@ -14,6 +14,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conv "github.com/inference-gateway/cli/internal/conversation"
 	services "github.com/inference-gateway/cli/internal/services"
 	agentappmocks "github.com/inference-gateway/cli/tests/mocks/agentapp"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
@@ -1495,7 +1496,7 @@ func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
 		{Role: sdk.Assistant, Content: sdk.NewMessageContent("reading"), ToolCalls: &toolCalls},
 	}
 
-	queue := services.NewMessageQueueService()
+	queue := conv.NewMessageQueueService()
 	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hi")}, "req-1")
 
 	repo := &convmocks.FakeConversationRepository{}
@@ -1529,7 +1530,7 @@ func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
 
 	body, err := conversation[2].Content.AsMessageContent0()
 	require.NoError(t, err)
-	assert.Equal(t, services.CancelledToolResponseContent, body)
+	assert.Equal(t, conv.CancelledToolResponseContent, body)
 
 	close(eventCh)
 	var cancelled []agentdomain.ToolCancelledEvent
@@ -1564,10 +1565,10 @@ func TestAgentServiceImpl_BatchDrainQueue_IdempotentOnRepairedConversation(t *te
 	conversation := []sdk.Message{
 		{Role: sdk.User, Content: sdk.NewMessageContent("u1")},
 		{Role: sdk.Assistant, Content: sdk.NewMessageContent(""), ToolCalls: &toolCalls},
-		{Role: sdk.Tool, Content: sdk.NewMessageContent(services.CancelledToolResponseContent), ToolCallID: &idA},
+		{Role: sdk.Tool, Content: sdk.NewMessageContent(conv.CancelledToolResponseContent), ToolCallID: &idA},
 	}
 
-	queue := services.NewMessageQueueService()
+	queue := conv.NewMessageQueueService()
 	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("u2")}, "req-x")
 
 	repo := &convmocks.FakeConversationRepository{}

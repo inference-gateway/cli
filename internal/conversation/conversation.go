@@ -1,4 +1,4 @@
-package services
+package conversation
 
 import (
 	"context"
@@ -15,18 +15,27 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 )
 
+// ToolFormatter is the slice of the tool-formatter service the conversation
+// repositories use to render tool calls and results.
+type ToolFormatter interface {
+	FormatToolCall(toolName string, args map[string]any) string
+	FormatToolResultForLLM(result *agentdomain.ToolExecutionResult) string
+	FormatToolResultExpanded(result *agentdomain.ToolExecutionResult, terminalWidth int) string
+	FormatToolResultForUI(result *agentdomain.ToolExecutionResult, terminalWidth int) string
+}
+
 // InMemoryConversationRepository implements ConversationRepository using in-memory storage
 type InMemoryConversationRepository struct {
 	messages         []convdomain.ConversationEntry
 	mutex            sync.RWMutex
 	sessionStats     convdomain.SessionTokenStats
 	costStats        convdomain.SessionCostStats
-	formatterService *ToolFormatterService
+	formatterService ToolFormatter
 	pricingService   convdomain.PricingService
 }
 
 // NewInMemoryConversationRepository creates a new in-memory conversation repository
-func NewInMemoryConversationRepository(formatterService *ToolFormatterService, pricingService convdomain.PricingService) *InMemoryConversationRepository {
+func NewInMemoryConversationRepository(formatterService ToolFormatter, pricingService convdomain.PricingService) *InMemoryConversationRepository {
 	return &InMemoryConversationRepository{
 		messages:         make([]convdomain.ConversationEntry, 0),
 		formatterService: formatterService,

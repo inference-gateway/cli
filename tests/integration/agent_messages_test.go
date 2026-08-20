@@ -12,7 +12,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	services "github.com/inference-gateway/cli/internal/services"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 )
 
 // newAnthropicEnv is newEnv pointed at the mock's Anthropic model, so the
@@ -130,7 +130,7 @@ func TestMessagesTokenAccounting(t *testing.T) {
 func TestMessagesCacheWritePricing(t *testing.T) {
 	newAnthropicEnv(t)
 
-	pricing := services.NewPricingService(&config.PricingConfig{Enabled: true})
+	pricing := conversation.NewPricingService(&config.PricingConfig{Enabled: true})
 	in, _, _ := pricing.CalculateCost(testAnthropicModel, 1_000_000, 0, 0, 1_000_000)
 	require.InDelta(t, 3.125, in, 1e-9, "cache writes must bill at the cache-write rate")
 

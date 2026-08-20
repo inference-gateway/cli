@@ -1,4 +1,4 @@
-package services
+package conversation
 
 import (
 	"context"
@@ -31,7 +31,7 @@ type PersistentConversationRepository struct {
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
-func NewPersistentConversationRepository(formatterService *ToolFormatterService, pricingService convdomain.PricingService, storageBackend storage.ConversationStorage) *PersistentConversationRepository {
+func NewPersistentConversationRepository(formatterService ToolFormatter, pricingService convdomain.PricingService, storageBackend storage.ConversationStorage) *PersistentConversationRepository {
 	inMemory := NewInMemoryConversationRepository(formatterService, pricingService)
 
 	return &PersistentConversationRepository{

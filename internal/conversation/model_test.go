@@ -1,12 +1,11 @@
-package services
+package conversation
 
 import (
 	"context"
 	"testing"
 
-	assert "github.com/stretchr/testify/assert"
-
 	sdk "github.com/inference-gateway/sdk"
+	assert "github.com/stretchr/testify/assert"
 
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
