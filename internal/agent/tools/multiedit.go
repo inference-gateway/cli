@@ -9,7 +9,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -639,21 +638,7 @@ func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 	}
 
 	var dataContent string
-	switch {
-	case result.Success && result.Arguments != nil && result.Data != nil:
-		themeService := domain.NewThemeProvider()
-		styleProvider := styles.NewProvider(themeService)
-		diffRenderer := styles.NewDiffRenderer(styleProvider).SetContextLines(styles.InlineDiffContextLines)
-		diffInfo := t.getActualDiffInfo(result)
-		dataContent = diffRenderer.RenderDiff(*diffInfo)
-	case !result.Success && result.Arguments != nil:
-		themeService := domain.NewThemeProvider()
-		styleProvider := styles.NewProvider(themeService)
-		diffRenderer := styles.NewDiffRenderer(styleProvider).SetContextLines(styles.InlineDiffContextLines)
-		diffInfo := t.GetDiffInfo(result.Arguments)
-		diffInfo.Title = "← Simulated diff preview →"
-		dataContent = diffRenderer.RenderDiff(*diffInfo)
-	case result.Data != nil:
+	if result.Data != nil {
 		dataContent = t.formatMultiEditData(result.Data)
 	}
 
@@ -712,105 +697,4 @@ func (t *MultiEditTool) ShouldCollapseArg(key string) bool {
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
 func (t *MultiEditTool) ShouldAlwaysExpand() bool {
 	return false
-}
-
-// getActualDiffInfo creates a clean summary view for successful executions
-func (t *MultiEditTool) getActualDiffInfo(result *domain.ToolExecutionResult) *styles.DiffInfo {
-	filePath, _ := result.Arguments["file_path"].(string)
-
-	multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
-	if !ok {
-		return &styles.DiffInfo{
-			FilePath:   filePath,
-			OldContent: "",
-			NewContent: "Multi-edit completed successfully",
-			Title:      "Multi-Edit Applied",
-		}
-	}
-
-	var summary strings.Builder
-
-	fmt.Fprintf(&summary, "Successfully applied %d edits", multiEditResult.SuccessfulEdits)
-	if multiEditResult.BytesDifference != 0 {
-		if multiEditResult.BytesDifference > 0 {
-			fmt.Fprintf(&summary, " (+%d bytes)", multiEditResult.BytesDifference)
-		} else {
-			fmt.Fprintf(&summary, " (%d bytes)", multiEditResult.BytesDifference)
-		}
-	}
-
-	return &styles.DiffInfo{
-		FilePath:   filePath,
-		OldContent: "",
-		NewContent: strings.TrimSpace(summary.String()),
-		Title:      "Multi-Edit Applied",
-	}
-}
-
-// GetDiffInfo implements the DiffFormatter interface
-func (t *MultiEditTool) GetDiffInfo(args map[string]any) *styles.DiffInfo {
-	filePath, _ := args["file_path"].(string)
-	editsInterface := args["edits"]
-
-	editsArray, ok := editsInterface.([]any)
-	if !ok {
-		return &styles.DiffInfo{
-			FilePath:   filePath,
-			OldContent: "",
-			NewContent: "Invalid edits format",
-			Title:      "← Simulated diff preview →",
-		}
-	}
-
-	originalContent := ""
-	if content, err := os.ReadFile(filePath); err == nil {
-		originalContent = string(content)
-	}
-
-	currentContent := originalContent
-	for _, editInterface := range editsArray {
-		editMap, ok := editInterface.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		oldString, ok1 := editMap["old_string"].(string)
-		newString, ok2 := editMap["new_string"].(string)
-		replaceAll, _ := editMap["replace_all"].(bool)
-
-		if !ok1 || !ok2 {
-			continue
-		}
-
-		if !strings.Contains(currentContent, oldString) {
-			return &styles.DiffInfo{
-				FilePath:   filePath,
-				OldContent: originalContent,
-				NewContent: "⚠️  Edit simulation failed: old_string not found after previous edits",
-				Title:      "← Simulated diff preview →",
-			}
-		}
-
-		if replaceAll {
-			currentContent = strings.ReplaceAll(currentContent, oldString, newString)
-		} else {
-			count := strings.Count(currentContent, oldString)
-			if count > 1 {
-				return &styles.DiffInfo{
-					FilePath:   filePath,
-					OldContent: originalContent,
-					NewContent: fmt.Sprintf("⚠️  Edit simulation failed: old_string not unique (%d occurrences)", count),
-					Title:      "← Simulated diff preview →",
-				}
-			}
-			currentContent = strings.Replace(currentContent, oldString, newString, 1)
-		}
-	}
-
-	return &styles.DiffInfo{
-		FilePath:   filePath,
-		OldContent: originalContent,
-		NewContent: currentContent,
-		Title:      "← Simulated diff preview →",
-	}
 }

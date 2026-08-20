@@ -277,7 +277,12 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecu
 	if tool, err := s.toolRegistry.GetTool(result.ToolName); err != nil {
 		tree = s.formatFallback(result, domain.FormatterLLM)
 	} else {
-		tree = safeToolFormat(result.ToolName, func() string { return tool.FormatResult(result, domain.FormatterLLM) })
+		tree = safeToolFormat(result.ToolName, func() string {
+			if diffTree, ok := s.expandedDiffTree(result, tool); ok {
+				return diffTree
+			}
+			return tool.FormatResult(result, domain.FormatterLLM)
+		})
 	}
 
 	inner := s.cardWidth(terminalWidth) - 4
@@ -291,6 +296,147 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecu
 		body += "\n" + hint
 	}
 	return s.wrapCard(result.ToolName, body, terminalWidth)
+}
+
+// expandedDiffTree renders the colored diff Edit and MultiEdit results show in the
+// expanded view. The tools themselves emit plain text only; the ANSI rendering
+// lives here, behind the ToolFormatter seam. The second return is false for any
+// other tool (or when there is nothing to diff), sending the caller down the
+// generic FormatResult path.
+func (s *ToolFormatterService) expandedDiffTree(result *domain.ToolExecutionResult, tool domain.Tool) (string, bool) {
+	if result.Arguments == nil {
+		return "", false
+	}
+
+	renderer := styles.NewDiffRenderer(s.styleProvider).SetContextLines(styles.InlineDiffContextLines)
+	var info *styles.DiffInfo
+	switch result.ToolName {
+	case "Edit":
+		if !result.Success {
+			return "", false
+		}
+		if editResult, ok := result.Data.(*domain.EditToolResult); ok {
+			renderer.SetStartLine(editResult.StartLine)
+		}
+		filePath, _ := result.Arguments["file_path"].(string)
+		oldString, _ := result.Arguments["old_string"].(string)
+		newString, _ := result.Arguments["new_string"].(string)
+		info = &styles.DiffInfo{
+			FilePath:   filePath,
+			OldContent: oldString,
+			NewContent: newString,
+			Title:      "← Edits applied →",
+		}
+	case "MultiEdit":
+		switch {
+		case result.Success && result.Data != nil:
+			info = multiEditSummaryDiff(result)
+		case !result.Success:
+			info = simulateMultiEditDiff(result.Arguments)
+		default:
+			return "", false
+		}
+	default:
+		return "", false
+	}
+
+	diff := renderer.RenderDiff(*info)
+	return domain.NewCustomFormatter(result.ToolName, tool.ShouldCollapseArg).FormatExpanded(result, diff), true
+}
+
+// multiEditSummaryDiff builds the summary shown for a successful MultiEdit.
+func multiEditSummaryDiff(result *domain.ToolExecutionResult) *styles.DiffInfo {
+	filePath, _ := result.Arguments["file_path"].(string)
+
+	multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
+	if !ok {
+		return &styles.DiffInfo{
+			FilePath:   filePath,
+			NewContent: "Multi-edit completed successfully",
+			Title:      "Multi-Edit Applied",
+		}
+	}
+
+	var summary strings.Builder
+	fmt.Fprintf(&summary, "Successfully applied %d edits", multiEditResult.SuccessfulEdits)
+	if multiEditResult.BytesDifference != 0 {
+		if multiEditResult.BytesDifference > 0 {
+			fmt.Fprintf(&summary, " (+%d bytes)", multiEditResult.BytesDifference)
+		} else {
+			fmt.Fprintf(&summary, " (%d bytes)", multiEditResult.BytesDifference)
+		}
+	}
+
+	return &styles.DiffInfo{
+		FilePath:   filePath,
+		NewContent: strings.TrimSpace(summary.String()),
+		Title:      "Multi-Edit Applied",
+	}
+}
+
+// simulateMultiEditDiff previews a failed MultiEdit by re-reading the target file
+// and applying the requested edits in sequence.
+// ponytail: render-time file IO, inherited from the old MultiEdit.GetDiffInfo; the
+// file may have changed since the tool ran.
+func simulateMultiEditDiff(args map[string]any) *styles.DiffInfo {
+	filePath, _ := args["file_path"].(string)
+	title := "← Simulated diff preview →"
+
+	editsArray, ok := args["edits"].([]any)
+	if !ok {
+		return &styles.DiffInfo{FilePath: filePath, NewContent: "Invalid edits format", Title: title}
+	}
+
+	originalContent := ""
+	if content, err := os.ReadFile(filePath); err == nil {
+		originalContent = string(content)
+	}
+
+	currentContent := originalContent
+	for _, editInterface := range editsArray {
+		editMap, ok := editInterface.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		oldString, ok1 := editMap["old_string"].(string)
+		newString, ok2 := editMap["new_string"].(string)
+		replaceAll, _ := editMap["replace_all"].(bool)
+		if !ok1 || !ok2 {
+			continue
+		}
+
+		if !strings.Contains(currentContent, oldString) {
+			return &styles.DiffInfo{
+				FilePath:   filePath,
+				OldContent: originalContent,
+				NewContent: "⚠️  Edit simulation failed: old_string not found after previous edits",
+				Title:      title,
+			}
+		}
+
+		if replaceAll {
+			currentContent = strings.ReplaceAll(currentContent, oldString, newString)
+		} else {
+			count := strings.Count(currentContent, oldString)
+			if count > 1 {
+				return &styles.DiffInfo{
+					FilePath:   filePath,
+					OldContent: originalContent,
+					NewContent: fmt.Sprintf("⚠️  Edit simulation failed: old_string not unique (%d occurrences)", count),
+					Title:      title,
+				}
+			}
+			currentContent = strings.Replace(currentContent, oldString, newString, 1)
+		}
+	}
+
+	return &styles.DiffInfo{
+		FilePath:   filePath,
+		OldContent: originalContent,
+		NewContent: currentContent,
+		Title:      title,
+	}
 }
 
 // FormatToolResultForLLM formats tool execution results for LLM consumption

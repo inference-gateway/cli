@@ -11,8 +11,11 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
+
+// inlineDiffContextLines mirrors styles.InlineDiffContextLines for the plain-text
+// snippet diff so tool output stays in sync with the rendered inline diffs.
+const inlineDiffContextLines = 2
 
 // EditTool handles exact string replacements in files with strict safety rules
 type EditTool struct {
@@ -466,8 +469,8 @@ func generateDiff(oldContent, newContent string) string {
 		return ""
 	}
 
-	contextBefore := styles.InlineDiffContextLines
-	contextAfter := styles.InlineDiffContextLines
+	contextBefore := inlineDiffContextLines
+	contextAfter := inlineDiffContextLines
 	startLine := firstChanged - contextBefore
 	if startLine < 0 {
 		startLine = 0
@@ -609,18 +612,7 @@ func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	}
 
 	var dataContent string
-	showGitDiff := result.Success && result.Arguments != nil
-	if showGitDiff {
-		themeService := domain.NewThemeProvider()
-		styleProvider := styles.NewProvider(themeService)
-		diffRenderer := styles.NewDiffRenderer(styleProvider).SetContextLines(styles.InlineDiffContextLines)
-		if editResult, ok := result.Data.(*domain.EditToolResult); ok {
-			diffRenderer.SetStartLine(editResult.StartLine)
-		}
-		diffInfo := t.GetDiffInfo(result.Arguments)
-		diffInfo.Title = "← Edits applied →"
-		dataContent = diffRenderer.RenderDiff(*diffInfo)
-	} else if result.Data != nil {
+	if result.Data != nil {
 		dataContent = t.formatEditData(result.Data)
 	}
 
@@ -661,18 +653,4 @@ func (t *EditTool) formatEditData(data any) string {
 	}
 
 	return output.String()
-}
-
-// GetDiffInfo implements the DiffFormatter interface
-func (t *EditTool) GetDiffInfo(args map[string]any) *styles.DiffInfo {
-	oldString, _ := args["old_string"].(string)
-	newString, _ := args["new_string"].(string)
-	filePath, _ := args["file_path"].(string)
-
-	return &styles.DiffInfo{
-		FilePath:   filePath,
-		OldContent: oldString,
-		NewContent: newString,
-		Title:      "← Test edit for diff verification →",
-	}
 }

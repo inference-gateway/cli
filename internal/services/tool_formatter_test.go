@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -472,4 +473,66 @@ func TestCapToolResult(t *testing.T) {
 	if !strings.Contains(got, "truncated") {
 		t.Error("truncation marker should be present")
 	}
+}
+
+func TestFormatToolResultExpanded_EditRendersDiff(t *testing.T) {
+	tool := &fakeTool{name: "Edit", llm: "plain llm text"}
+	svc := newTestService(tool)
+
+	res := &domain.ToolExecutionResult{
+		ToolName: "Edit",
+		Success:  true,
+		Duration: 5 * time.Millisecond,
+		Arguments: map[string]any{
+			"file_path":  "/path/to/file.go",
+			"old_string": "alpha\nbeta\ngamma",
+			"new_string": "alpha\nBETA\ngamma",
+		},
+		Data: &domain.EditToolResult{FilePath: "/path/to/file.go", FileModified: true, StartLine: 50},
+	}
+	out := stripANSI(svc.FormatToolResultExpanded(res, 120))
+
+	for _, want := range []string{"← Edits applied →", "/path/to/file.go", "51"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expanded Edit view missing %q, got:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "plain llm text") {
+		t.Errorf("expanded Edit view should render the diff, not the LLM text:\n%s", out)
+	}
+}
+
+func TestSimulateMultiEditDiff(t *testing.T) {
+	dir := t.TempDir()
+	file := dir + "/test.txt"
+	if err := os.WriteFile(file, []byte("hello world"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("valid edits simulation", func(t *testing.T) {
+		info := simulateMultiEditDiff(map[string]any{
+			"file_path": file,
+			"edits":     []any{map[string]any{"old_string": "hello", "new_string": "hi"}},
+		})
+		if info.OldContent != "hello world" || info.NewContent != "hi world" {
+			t.Errorf("simulation = %q -> %q, want 'hello world' -> 'hi world'", info.OldContent, info.NewContent)
+		}
+	})
+
+	t.Run("invalid edits format", func(t *testing.T) {
+		info := simulateMultiEditDiff(map[string]any{"file_path": file, "edits": "not an array"})
+		if !strings.Contains(info.NewContent, "Invalid") {
+			t.Errorf("want invalid-format message, got %q", info.NewContent)
+		}
+	})
+
+	t.Run("old_string not found", func(t *testing.T) {
+		info := simulateMultiEditDiff(map[string]any{
+			"file_path": file,
+			"edits":     []any{map[string]any{"old_string": "nonexistent", "new_string": "new"}},
+		})
+		if !strings.Contains(info.NewContent, "not found") {
+			t.Errorf("want not-found failure message, got %q", info.NewContent)
+		}
+	})
 }

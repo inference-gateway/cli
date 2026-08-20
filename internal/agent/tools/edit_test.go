@@ -1142,7 +1142,7 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 			contains:   []string{"Edit("},
 		},
 		{
-			name: "FormatLLM - diff shows real file line numbers",
+			name: "FormatLLM - plain edit data, no ANSI",
 			result: &domain.ToolExecutionResult{
 				ToolName: "Edit",
 				Success:  true,
@@ -1158,7 +1158,7 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 				},
 			},
 			formatType: domain.FormatterLLM,
-			contains:   []string{"51"},
+			contains:   []string{"File: /path/to/file.go", "File Modified: true"},
 		},
 		{
 			name:       "FormatResult - nil result",
@@ -1309,85 +1309,6 @@ func TestEditTool_Execute_EdgeCases(t *testing.T) {
 	t.Run("overlapping pattern", func(t *testing.T) { testEditEdgeCaseOverlapping(t, tempDir, tool) })
 }
 
-func TestEditTool_GetDiffInfo(t *testing.T) {
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Enabled: true,
-			Edit: config.EditToolConfig{
-				Enabled: true,
-			},
-		},
-	}
-
-	tool := NewEditTool(cfg)
-
-	tests := []struct {
-		name         string
-		args         map[string]any
-		expectedFile string
-		expectedOld  string
-		expectedNew  string
-	}{
-		{
-			name: "basic diff info",
-			args: map[string]any{
-				"file_path":  "/path/to/file.go",
-				"old_string": "old content",
-				"new_string": "new content",
-			},
-			expectedFile: "/path/to/file.go",
-			expectedOld:  "old content",
-			expectedNew:  "new content",
-		},
-		{
-			name: "multi-line diff info",
-			args: map[string]any{
-				"file_path":  "/path/to/file.go",
-				"old_string": "line1\nline2",
-				"new_string": "newline1\nnewline2\nnewline3",
-			},
-			expectedFile: "/path/to/file.go",
-			expectedOld:  "line1\nline2",
-			expectedNew:  "newline1\nnewline2\nnewline3",
-		},
-		{
-			name: "empty strings",
-			args: map[string]any{
-				"file_path":  "/path/to/file.go",
-				"old_string": "",
-				"new_string": "new content",
-			},
-			expectedFile: "/path/to/file.go",
-			expectedOld:  "",
-			expectedNew:  "new content",
-		},
-		{
-			name:         "missing arguments",
-			args:         map[string]any{},
-			expectedFile: "",
-			expectedOld:  "",
-			expectedNew:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			diffInfo := tool.GetDiffInfo(tt.args)
-
-			if diffInfo.FilePath != tt.expectedFile {
-				t.Errorf("Expected FilePath=%q, got %q", tt.expectedFile, diffInfo.FilePath)
-			}
-			if diffInfo.OldContent != tt.expectedOld {
-				t.Errorf("Expected OldContent=%q, got %q", tt.expectedOld, diffInfo.OldContent)
-			}
-			if diffInfo.NewContent != tt.expectedNew {
-				t.Errorf("Expected NewContent=%q, got %q", tt.expectedNew, diffInfo.NewContent)
-			}
-		})
-	}
-}
-
-// TestEditTool_Execute_WhitespaceHandling_TrailingWhitespace tests trailing space/tab handling
 func TestEditTool_Execute_WhitespaceHandling_TrailingWhitespace(t *testing.T) {
 	tempDir := t.TempDir()
 	tool := createEditToolForWhitespaceTest(tempDir)

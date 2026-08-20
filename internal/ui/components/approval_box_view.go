@@ -290,9 +290,8 @@ func (av *ApprovalBoxView) highlightSummary(summary string) string {
 // tool so the caller falls back to the one-liner summary. The diff is sized to the
 // box width and capped to a bounded number of lines (see capLines).
 //
-// The tool names are matched as literals on purpose: internal/agent/tools imports
-// this package for the diff renderer, so importing it back for its name constants
-// would create an import cycle.
+// The tool names are matched as literals on purpose: importing internal/agent/tools
+// for its name constants would pull the whole tool layer into the UI.
 func (av *ApprovalBoxView) renderDiffPreview(toolName string, args map[string]any) (string, bool) {
 	renderer := styles.NewDiffRenderer(av.styleProvider).SetWidth(av.diffWidth()).SetMaxLines(-1)
 
