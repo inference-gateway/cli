@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	channels "github.com/inference-gateway/cli/internal/services/channels"
+	channelmocks "github.com/inference-gateway/cli/tests/mocks/channels"
 	"os"
 	"os/exec"
 	"strings"
@@ -12,9 +15,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	fakesdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func TestChannelManagerService_DaemonInstruments(t *testing.T) {
@@ -37,7 +38,7 @@ func TestChannelManagerService_Register(t *testing.T) {
 	cfg := config.ChannelsConfig{Enabled: true}
 	cm := NewChannelManagerService(cfg, nil)
 
-	ch := &fakesdomain.FakeChannel{}
+	ch := &channelmocks.FakeChannel{}
 	ch.NameReturns("test")
 	cm.Register(ch)
 
@@ -64,9 +65,9 @@ func TestChannelManagerService_StopChannels(t *testing.T) {
 	cfg := config.ChannelsConfig{Enabled: true}
 	cm := NewChannelManagerService(cfg, nil)
 
-	ch := &fakesdomain.FakeChannel{}
+	ch := &channelmocks.FakeChannel{}
 	ch.NameReturns("test")
-	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
+	ch.StartStub = func(ctx context.Context, inbox chan<- channels.InboundMessage) error {
 		<-ctx.Done()
 		return ctx.Err()
 	}
@@ -147,11 +148,11 @@ func TestChannelManagerService_InboundRouting(t *testing.T) {
 		return exec.CommandContext(ctx, "echo", `{"role":"assistant","content":"Hello from agent!","timestamp":"2024-01-01T00:00:00Z"}`)
 	}
 
-	responseSent := make(chan domain.OutboundMessage, 1)
-	ch := &fakesdomain.FakeChannel{}
+	responseSent := make(chan channels.OutboundMessage, 1)
+	ch := &channelmocks.FakeChannel{}
 	ch.NameReturns("telegram")
-	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		inbox <- domain.InboundMessage{
+	ch.StartStub = func(ctx context.Context, inbox chan<- channels.InboundMessage) error {
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "hello agent",
@@ -160,7 +161,7 @@ func TestChannelManagerService_InboundRouting(t *testing.T) {
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+	ch.SendStub = func(ctx context.Context, msg channels.OutboundMessage) error {
 		responseSent <- msg
 		return nil
 	}
@@ -204,12 +205,12 @@ func TestChannelManagerService_StreamingMultipleMessages(t *testing.T) {
 			`{"role":"assistant","content":"Let me check...","tools":["Read"]}\n{"role":"tool","content":"file contents","tool_call_id":"123"}\n{"role":"assistant","content":"Here are the results."}`)
 	}
 
-	var messages []domain.OutboundMessage
+	var messages []channels.OutboundMessage
 	allSent := make(chan struct{}, 1)
-	ch := &fakesdomain.FakeChannel{}
+	ch := &channelmocks.FakeChannel{}
 	ch.NameReturns("telegram")
-	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		inbox <- domain.InboundMessage{
+	ch.StartStub = func(ctx context.Context, inbox chan<- channels.InboundMessage) error {
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "read my files",
@@ -218,7 +219,7 @@ func TestChannelManagerService_StreamingMultipleMessages(t *testing.T) {
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+	ch.SendStub = func(ctx context.Context, msg channels.OutboundMessage) error {
 		messages = append(messages, msg)
 		if len(messages) == 3 {
 			allSent <- struct{}{}
@@ -269,10 +270,10 @@ func TestChannelManagerService_UnauthorizedUserRejected(t *testing.T) {
 	}
 
 	inboxSent := make(chan struct{}, 1)
-	ch := &fakesdomain.FakeChannel{}
+	ch := &channelmocks.FakeChannel{}
 	ch.NameReturns("telegram")
-	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		inbox <- domain.InboundMessage{
+	ch.StartStub = func(ctx context.Context, inbox chan<- channels.InboundMessage) error {
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "unauthorized_user",
 			Content:     "should be rejected",
@@ -369,10 +370,10 @@ func TestChannelManagerService_SessionID(t *testing.T) {
 	}
 
 	responseSent := make(chan struct{}, 1)
-	ch := &fakesdomain.FakeChannel{}
+	ch := &channelmocks.FakeChannel{}
 	ch.NameReturns("telegram")
-	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		inbox <- domain.InboundMessage{
+	ch.StartStub = func(ctx context.Context, inbox chan<- channels.InboundMessage) error {
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "test message",
@@ -381,7 +382,7 @@ func TestChannelManagerService_SessionID(t *testing.T) {
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+	ch.SendStub = func(ctx context.Context, msg channels.OutboundMessage) error {
 		responseSent <- struct{}{}
 		return nil
 	}
@@ -573,10 +574,10 @@ func TestChannelManagerService_ImagePassedToAgent(t *testing.T) {
 	}
 
 	responseSent := make(chan struct{}, 1)
-	ch := &fakesdomain.FakeChannel{}
+	ch := &channelmocks.FakeChannel{}
 	ch.NameReturns("telegram")
-	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		inbox <- domain.InboundMessage{
+	ch.StartStub = func(ctx context.Context, inbox chan<- channels.InboundMessage) error {
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "what is this?",
@@ -592,7 +593,7 @@ func TestChannelManagerService_ImagePassedToAgent(t *testing.T) {
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+	ch.SendStub = func(ctx context.Context, msg channels.OutboundMessage) error {
 		responseSent <- struct{}{}
 		return nil
 	}
@@ -654,7 +655,7 @@ func TestIsApprovalReply(t *testing.T) {
 }
 
 func TestFormatApprovalPrompt(t *testing.T) {
-	req := &domain.ApprovalRequest{
+	req := &ipc.ApprovalRequest{
 		Type:       "approval_request",
 		ToolName:   "Bash",
 		ToolArgs:   `{"command":"ls -la"}`,
@@ -675,7 +676,7 @@ func TestFormatApprovalPrompt(t *testing.T) {
 }
 
 func TestFormatApprovalPrompt_FilePath(t *testing.T) {
-	req := &domain.ApprovalRequest{
+	req := &ipc.ApprovalRequest{
 		Type:       "approval_request",
 		ToolName:   "Write",
 		ToolArgs:   `{"file_path":"/tmp/test.txt","content":"hello"}`,
@@ -702,7 +703,7 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 	}
 	cm := NewChannelManagerService(cfg, nil)
 
-	approvalReq := domain.ApprovalRequest{
+	approvalReq := ipc.ApprovalRequest{
 		Type:       "approval_request",
 		ToolName:   "Bash",
 		ToolArgs:   `{"command":"echo hello"}`,
@@ -715,12 +716,12 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 		return exec.CommandContext(ctx, "echo", agentOutput)
 	}
 
-	var messages []domain.OutboundMessage
+	var messages []channels.OutboundMessage
 	allSent := make(chan struct{}, 1)
-	ch := &fakesdomain.FakeChannel{}
+	ch := &channelmocks.FakeChannel{}
 	ch.NameReturns("telegram")
-	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		inbox <- domain.InboundMessage{
+	ch.StartStub = func(ctx context.Context, inbox chan<- channels.InboundMessage) error {
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "do something",
@@ -728,7 +729,7 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 		}
 
 		time.Sleep(200 * time.Millisecond)
-		inbox <- domain.InboundMessage{
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "yes",
@@ -738,7 +739,7 @@ func TestChannelManagerService_ApprovalInterception(t *testing.T) {
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+	ch.SendStub = func(ctx context.Context, msg channels.OutboundMessage) error {
 		messages = append(messages, msg)
 		if len(messages) >= 2 {
 			allSent <- struct{}{}
@@ -784,10 +785,10 @@ func TestChannelManagerService_RequireApprovalFlag(t *testing.T) {
 	}
 
 	responseSent := make(chan struct{}, 1)
-	ch := &fakesdomain.FakeChannel{}
+	ch := &channelmocks.FakeChannel{}
 	ch.NameReturns("telegram")
-	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		inbox <- domain.InboundMessage{
+	ch.StartStub = func(ctx context.Context, inbox chan<- channels.InboundMessage) error {
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "test",
@@ -796,7 +797,7 @@ func TestChannelManagerService_RequireApprovalFlag(t *testing.T) {
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+	ch.SendStub = func(ctx context.Context, msg channels.OutboundMessage) error {
 		responseSent <- struct{}{}
 		return nil
 	}
@@ -843,10 +844,10 @@ func TestChannelManagerService_NoApprovalFlagByDefault(t *testing.T) {
 	}
 
 	responseSent := make(chan struct{}, 1)
-	ch := &fakesdomain.FakeChannel{}
+	ch := &channelmocks.FakeChannel{}
 	ch.NameReturns("telegram")
-	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		inbox <- domain.InboundMessage{
+	ch.StartStub = func(ctx context.Context, inbox chan<- channels.InboundMessage) error {
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "test",
@@ -855,7 +856,7 @@ func TestChannelManagerService_NoApprovalFlagByDefault(t *testing.T) {
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+	ch.SendStub = func(ctx context.Context, msg channels.OutboundMessage) error {
 		responseSent <- struct{}{}
 		return nil
 	}
@@ -891,7 +892,7 @@ func TestChannelManagerService_ApprovalMetadataInterception(t *testing.T) {
 	}
 	cm := NewChannelManagerService(cfg, nil)
 
-	approvalReq := domain.ApprovalRequest{
+	approvalReq := ipc.ApprovalRequest{
 		Type:       "approval_request",
 		ToolName:   "Bash",
 		ToolArgs:   `{"command":"echo hello"}`,
@@ -904,12 +905,12 @@ func TestChannelManagerService_ApprovalMetadataInterception(t *testing.T) {
 		return exec.CommandContext(ctx, "echo", agentOutput)
 	}
 
-	var messages []domain.OutboundMessage
+	var messages []channels.OutboundMessage
 	allSent := make(chan struct{}, 1)
-	ch := &fakesdomain.FakeChannel{}
+	ch := &channelmocks.FakeChannel{}
 	ch.NameReturns("telegram")
-	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		inbox <- domain.InboundMessage{
+	ch.StartStub = func(ctx context.Context, inbox chan<- channels.InboundMessage) error {
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "do something",
@@ -917,7 +918,7 @@ func TestChannelManagerService_ApprovalMetadataInterception(t *testing.T) {
 		}
 
 		time.Sleep(200 * time.Millisecond)
-		inbox <- domain.InboundMessage{
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "approve",
@@ -932,7 +933,7 @@ func TestChannelManagerService_ApprovalMetadataInterception(t *testing.T) {
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+	ch.SendStub = func(ctx context.Context, msg channels.OutboundMessage) error {
 		messages = append(messages, msg)
 		if len(messages) >= 2 {
 			allSent <- struct{}{}
@@ -963,12 +964,12 @@ func TestChannelManagerService_ApprovalMetadataInterception(t *testing.T) {
 
 // fakeApprovalChannel implements both Channel and ApprovalChannel for testing.
 type fakeApprovalChannel struct {
-	*fakesdomain.FakeChannel
+	*channelmocks.FakeChannel
 	sendApprovalCalled bool
-	sendApprovalReq    *domain.ApprovalRequest
+	sendApprovalReq    *ipc.ApprovalRequest
 }
 
-func (f *fakeApprovalChannel) SendApproval(_ context.Context, _ string, req *domain.ApprovalRequest) error {
+func (f *fakeApprovalChannel) SendApproval(_ context.Context, _ string, req *ipc.ApprovalRequest) error {
 	f.sendApprovalCalled = true
 	f.sendApprovalReq = req
 	return nil
@@ -984,7 +985,7 @@ func TestChannelManagerService_ApprovalWithApprovalChannel(t *testing.T) {
 	}
 	cm := NewChannelManagerService(cfg, nil)
 
-	approvalReq := domain.ApprovalRequest{
+	approvalReq := ipc.ApprovalRequest{
 		Type:       "approval_request",
 		ToolName:   "Bash",
 		ToolArgs:   `{"command":"echo test"}`,
@@ -997,13 +998,13 @@ func TestChannelManagerService_ApprovalWithApprovalChannel(t *testing.T) {
 		return exec.CommandContext(ctx, "echo", agentOutput)
 	}
 
-	var messages []domain.OutboundMessage
+	var messages []channels.OutboundMessage
 	allSent := make(chan struct{}, 1)
 
-	fakeCh := &fakesdomain.FakeChannel{}
+	fakeCh := &channelmocks.FakeChannel{}
 	fakeCh.NameReturns("telegram")
-	fakeCh.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		inbox <- domain.InboundMessage{
+	fakeCh.StartStub = func(ctx context.Context, inbox chan<- channels.InboundMessage) error {
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "run a command",
@@ -1011,7 +1012,7 @@ func TestChannelManagerService_ApprovalWithApprovalChannel(t *testing.T) {
 		}
 
 		time.Sleep(200 * time.Millisecond)
-		inbox <- domain.InboundMessage{
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "approve",
@@ -1026,7 +1027,7 @@ func TestChannelManagerService_ApprovalWithApprovalChannel(t *testing.T) {
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	fakeCh.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+	fakeCh.SendStub = func(ctx context.Context, msg channels.OutboundMessage) error {
 		messages = append(messages, msg)
 		if len(messages) >= 1 {
 			allSent <- struct{}{}
@@ -1060,7 +1061,7 @@ func TestChannelManagerService_ApprovalWithApprovalChannel(t *testing.T) {
 // startAgentTestManager wires a ChannelManagerService with a fake channel and
 // a custom execCommandFunc, returning the channel that receives outbound
 // messages plus a cancel func. Used by error-propagation tests.
-func startAgentTestManager(t *testing.T, exec func(ctx context.Context, name string, args ...string) *exec.Cmd) (chan domain.OutboundMessage, context.CancelFunc) {
+func startAgentTestManager(t *testing.T, exec func(ctx context.Context, name string, args ...string) *exec.Cmd) (chan channels.OutboundMessage, context.CancelFunc) {
 	t.Helper()
 	cfg := config.ChannelsConfig{
 		Enabled: true,
@@ -1071,11 +1072,11 @@ func startAgentTestManager(t *testing.T, exec func(ctx context.Context, name str
 	cm := NewChannelManagerService(cfg, nil)
 	cm.execCommandFunc = exec
 
-	sent := make(chan domain.OutboundMessage, 8)
-	ch := &fakesdomain.FakeChannel{}
+	sent := make(chan channels.OutboundMessage, 8)
+	ch := &channelmocks.FakeChannel{}
 	ch.NameReturns("telegram")
-	ch.StartStub = func(ctx context.Context, inbox chan<- domain.InboundMessage) error {
-		inbox <- domain.InboundMessage{
+	ch.StartStub = func(ctx context.Context, inbox chan<- channels.InboundMessage) error {
+		inbox <- channels.InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    "123",
 			Content:     "trigger",
@@ -1084,7 +1085,7 @@ func startAgentTestManager(t *testing.T, exec func(ctx context.Context, name str
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	ch.SendStub = func(ctx context.Context, msg domain.OutboundMessage) error {
+	ch.SendStub = func(ctx context.Context, msg channels.OutboundMessage) error {
 		sent <- msg
 		return nil
 	}
@@ -1100,8 +1101,8 @@ func startAgentTestManager(t *testing.T, exec func(ctx context.Context, name str
 
 // collectMessages drains the sent channel until either deadline or noActivity passes.
 // Returns all messages observed.
-func collectMessages(sent chan domain.OutboundMessage, noActivity time.Duration, deadline time.Duration) []domain.OutboundMessage {
-	var msgs []domain.OutboundMessage
+func collectMessages(sent chan channels.OutboundMessage, noActivity time.Duration, deadline time.Duration) []channels.OutboundMessage {
+	var msgs []channels.OutboundMessage
 	overall := time.After(deadline)
 	for {
 		select {

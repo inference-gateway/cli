@@ -7,7 +7,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	ui "github.com/inference-gateway/cli/internal/ui"
 )
@@ -25,7 +24,7 @@ type KeyHandlerContext interface {
 
 	// Services
 	GetAgentService() agentdomain.AgentService
-	GetImageService() domain.ImageService
+	GetImageService() agentdomain.ImageService
 
 	// UI components
 	GetConversationView() ui.ConversationRenderer
@@ -62,9 +61,9 @@ type KeyAction struct {
 
 // KeyContext defines when and where a key binding is active
 type KeyContext struct {
-	Views        []domain.ViewState
+	Views        []ui.ViewState
 	Conditions   []ContextCondition
-	ExcludeViews []domain.ViewState
+	ExcludeViews []ui.ViewState
 }
 
 // ContextCondition represents a condition that must be met for key binding to be active

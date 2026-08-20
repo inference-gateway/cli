@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,7 +21,6 @@ import (
 	fuzzy "github.com/sahilm/fuzzy"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	diffview "github.com/inference-gateway/cli/internal/ui/components/diffview"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -96,7 +97,7 @@ type SnippetSelection struct {
 type FileExplorerImpl struct {
 	root          string
 	styleProvider *styles.Provider
-	themeService  domain.ThemeService
+	themeService  ui.ThemeService
 	keymap        diffKeymap
 
 	width        int
@@ -155,7 +156,7 @@ type FileExplorerImpl struct {
 }
 
 // NewFileExplorer creates an explorer rooted at the given working directory.
-func NewFileExplorer(root string, styleProvider *styles.Provider, themeService domain.ThemeService, kb config.KeybindingsConfig) *FileExplorerImpl {
+func NewFileExplorer(root string, styleProvider *styles.Provider, themeService ui.ThemeService, kb config.KeybindingsConfig) *FileExplorerImpl {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 	vp.MouseWheelEnabled = true
@@ -274,7 +275,7 @@ func (t *FileExplorerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return t.updateEditor(msg)
 	}
 	switch m := msg.(type) {
-	case domain.ToolExecutionCompletedEvent, domain.BashCommandCompletedEvent:
+	case agentdomain.ToolExecutionCompletedEvent, ui.BashCommandCompletedEvent:
 		// The agent's own edits / git commands are exactly what change the tree;
 		// refresh off those in-loop events instead of a clock.
 		t.refresh()

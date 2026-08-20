@@ -3,13 +3,13 @@ package render
 import (
 	"encoding/json"
 	"fmt"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"io"
 
 	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
 	guuid "github.com/google/uuid"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -123,7 +123,7 @@ func (e *aguiEncoder) emitTodos(todos []agentdomain.TodoItem) {
 	e.emit(aguievents.NewStateSnapshotEvent(map[string]any{"todos": todos}))
 }
 
-func (e *aguiEncoder) emitApprovalRequest(req domain.ApprovalRequest) {
+func (e *aguiEncoder) emitApprovalRequest(req ipc.ApprovalRequest) {
 	e.emit(aguievents.NewCustomEvent("approval_request", aguievents.WithValue(req)))
 }
 

@@ -1,21 +1,21 @@
 package keybinding_test
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	keybindingmocks "github.com/inference-gateway/cli/tests/mocks/keybinding"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // newTestContext creates a configured FakeKeyHandlerContext for testing
-func newTestContext(currentView domain.ViewState, inputText string) *keybindingmocks.FakeKeyHandlerContext {
+func newTestContext(currentView ui.ViewState, inputText string) *keybindingmocks.FakeKeyHandlerContext {
 	fake := &keybindingmocks.FakeKeyHandlerContext{}
 
 	stateManager := services.NewStateManager(false)
@@ -39,7 +39,7 @@ func newTestContext(currentView domain.ViewState, inputText string) *keybindingm
 	fake.GetConversationRepositoryReturns(nil)
 	fake.GetAgentServiceReturns(nil)
 
-	fakeImageService := &domainmocks.FakeImageService{}
+	fakeImageService := &agentdomainmocks.FakeImageService{}
 	fake.GetImageServiceReturns(fakeImageService)
 
 	return fake
@@ -48,28 +48,28 @@ func newTestContext(currentView domain.ViewState, inputText string) *keybindingm
 func TestActiveActionMembership(t *testing.T) {
 	tests := []struct {
 		name        string
-		view        domain.ViewState
+		view        ui.ViewState
 		inputText   string
 		actionID    string
 		wantPresent bool
 	}{
 		{
 			name:        "global quit registered in chat view",
-			view:        domain.ViewStateChat,
+			view:        ui.ViewStateChat,
 			inputText:   "test message",
 			actionID:    "global_quit",
 			wantPresent: true,
 		},
 		{
 			name:        "tool expansion toggle registered in chat view",
-			view:        domain.ViewStateChat,
+			view:        ui.ViewStateChat,
 			inputText:   "test message",
 			actionID:    "tools_toggle_tool_expansion",
 			wantPresent: true,
 		},
 		{
 			name:        "tool expansion toggle filtered out in model selection view",
-			view:        domain.ViewStateModelSelection,
+			view:        ui.ViewStateModelSelection,
 			inputText:   "",
 			actionID:    "tools_toggle_tool_expansion",
 			wantPresent: false,
@@ -151,7 +151,7 @@ func TestKeyResolution(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			registry := keybinding.NewRegistry(nil)
-			mockContext := newTestContext(domain.ViewStateChat, tt.inputText)
+			mockContext := newTestContext(ui.ViewStateChat, tt.inputText)
 
 			action := registry.ResolveKey(tt.key, mockContext)
 			if tt.wantID == "" {
@@ -172,7 +172,7 @@ func TestKeyResolution(t *testing.T) {
 
 func TestActionHandlers(t *testing.T) {
 	registry := keybinding.NewRegistry(nil)
-	mockContext := newTestContext(domain.ViewStateChat, "")
+	mockContext := newTestContext(ui.ViewStateChat, "")
 
 	action := registry.ResolveKey("ctrl+c", mockContext)
 	if action == nil {
@@ -199,7 +199,7 @@ func TestActionHandlers(t *testing.T) {
 
 func TestHelpShortcutGeneration(t *testing.T) {
 	registry := keybinding.NewRegistry(nil)
-	mockContext := newTestContext(domain.ViewStateChat, "test message")
+	mockContext := newTestContext(ui.ViewStateChat, "test message")
 
 	shortcuts := registry.GetHelpShortcuts(mockContext)
 	if len(shortcuts) == 0 {
@@ -231,7 +231,7 @@ func TestHelpShortcutGeneration(t *testing.T) {
 // tea.KeyPressMsg, complementing the string-based ResolveKey tests.
 func TestResolveKeyPressMsg(t *testing.T) {
 	registry := keybinding.NewRegistry(nil)
-	mockContext := newTestContext(domain.ViewStateChat, "test message")
+	mockContext := newTestContext(ui.ViewStateChat, "test message")
 
 	msg := tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	if got := msg.String(); got != "ctrl+c" {
@@ -298,7 +298,7 @@ func TestActionRegistration(t *testing.T) {
 			return nil
 		},
 		Context: keybinding.KeyContext{
-			Views: []domain.ViewState{domain.ViewStateChat},
+			Views: []ui.ViewState{ui.ViewStateChat},
 		},
 	}
 
@@ -314,7 +314,7 @@ func TestActionRegistration(t *testing.T) {
 		t.Errorf("Expected retrieved action ID to be 'test_action', got %s", retrievedAction.ID)
 	}
 
-	mockContext := newTestContext(domain.ViewStateChat, "")
+	mockContext := newTestContext(ui.ViewStateChat, "")
 	resolvedAction := registry.ResolveKey("ctrl+shift+t", mockContext)
 	if resolvedAction == nil {
 		t.Fatal("Expected custom action to be resolved")
@@ -334,7 +334,7 @@ func TestActionConflictDetection(t *testing.T) {
 			return nil
 		},
 		Context: keybinding.KeyContext{
-			Views: []domain.ViewState{domain.ViewStateChat},
+			Views: []ui.ViewState{ui.ViewStateChat},
 		},
 	}
 
@@ -350,7 +350,7 @@ func TestDeleteWordBackwardBindings(t *testing.T) {
 
 	assertResolves := func(t *testing.T, registry *keybinding.Registry) {
 		t.Helper()
-		ctx := newTestContext(domain.ViewStateChat, "hello world")
+		ctx := newTestContext(ui.ViewStateChat, "hello world")
 		for _, key := range wordDeleteKeys {
 			action := registry.ResolveKey(key, ctx)
 			if action == nil {

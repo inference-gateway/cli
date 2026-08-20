@@ -12,7 +12,6 @@ import (
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -23,11 +22,11 @@ type MouseMoveTool struct {
 	formatter       agentinfra.BaseFormatter
 	rateLimiter     rateLimiter
 	displayProvider display.Provider
-	stateManager    domain.EventBridgeManager
+	stateManager    agentdomain.EventBridgeManager
 }
 
 // NewMouseMoveTool creates a new mouse move tool
-func NewMouseMoveTool(cfg *config.Config, rateLimiter rateLimiter, displayProvider display.Provider, stateManager domain.EventBridgeManager) *MouseMoveTool {
+func NewMouseMoveTool(cfg *config.Config, rateLimiter rateLimiter, displayProvider display.Provider, stateManager agentdomain.EventBridgeManager) *MouseMoveTool {
 	return &MouseMoveTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.Tools.MouseMove.Enabled,

@@ -12,7 +12,6 @@ import (
 	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/macos"
 	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/wayland"
 	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/x11"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
@@ -31,7 +30,7 @@ type FocusManager interface {
 // broadcasting UI events (MouseMove/MouseClick) and recording the focused app
 // and last click coordinates (MouseClick).
 type State interface {
-	domain.EventBridgeManager
+	agentdomain.EventBridgeManager
 	FocusManager
 }
 

@@ -13,7 +13,6 @@ import (
 
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // x11AppProvider implements display.AppProvider for X11. It is stateless:

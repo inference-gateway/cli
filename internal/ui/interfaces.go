@@ -6,7 +6,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
@@ -22,6 +21,8 @@ type ScrollDirection int
 const (
 	ScrollUp ScrollDirection = iota
 	ScrollDown
+	ScrollLeft
+	ScrollRight
 	ScrollToTop
 	ScrollToBottom
 )
@@ -134,7 +135,7 @@ type InputStatusBarComponent interface {
 	SetWidth(width int)
 	SetHeight(height int)
 	SetInputText(text string)
-	UpdateMCPStatus(status *domain.MCPServerStatus)
+	UpdateMCPStatus(status *MCPServerStatus)
 	Focus() bool
 	Blur()
 	IsFocused() bool
@@ -158,7 +159,7 @@ type HelpBarComponent interface {
 type ApprovalComponent interface {
 	SetWidth(width int)
 	SetHeight(height int)
-	Render(toolExecution *domain.ToolExecutionSession, selectedIndex int) string
+	Render(toolExecution *ToolExecutionSession, selectedIndex int) string
 }
 
 // DefaultTheme provides a concrete implementation of the Theme interface

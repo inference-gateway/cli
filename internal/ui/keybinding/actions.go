@@ -13,7 +13,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	clipboard "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -30,11 +29,11 @@ import (
 func defaultActions() []*KeyAction {
 	chatView := func(conds ...ContextCondition) KeyContext {
 		return KeyContext{
-			Views:      []domain.ViewState{domain.ViewStateChat},
+			Views:      []ui.ViewState{ui.ViewStateChat},
 			Conditions: conds,
 		}
 	}
-	planApprovalView := KeyContext{Views: []domain.ViewState{domain.ViewStatePlanApproval}}
+	planApprovalView := KeyContext{Views: []ui.ViewState{ui.ViewStatePlanApproval}}
 
 	inputIsEmpty := ContextCondition{
 		Name: "input_is_empty",
@@ -136,14 +135,14 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	autocomplete := app.GetAutocomplete()
 	if autocomplete != nil && autocomplete.IsVisible() {
 		return func() tea.Msg {
-			return domain.AutocompleteHideEvent{}
+			return ui.AutocompleteHideEvent{}
 		}
 	}
 
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState != nil {
 		return func() tea.Msg {
-			return domain.PlanApprovalResponseEvent{
+			return ui.PlanApprovalResponseEvent{
 				Action: agentdomain.PlanApprovalReject,
 			}
 		}
@@ -152,7 +151,7 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	approvalState := stateManager.GetApprovalUIState()
 	if approvalState != nil && approvalState.PendingToolCall != nil {
 		return func() tea.Msg {
-			return domain.ToolApprovalResponseEvent{
+			return agentdomain.ToolApprovalResponseEvent{
 				Action:   agentdomain.ApprovalReject,
 				ToolCall: *approvalState.PendingToolCall,
 			}
@@ -171,10 +170,10 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager.ClearUserQuestionUIState()
 	stateManager.EndChatSession()
 	stateManager.EndToolExecution()
-	_ = stateManager.TransitionToView(domain.ViewStateChat)
+	_ = stateManager.TransitionToView(ui.ViewStateChat)
 
 	return func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message: "User interrupted",
 			Spinner: false,
 		}
@@ -194,7 +193,7 @@ func handleNewSession(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager.ClearUserQuestionUIState()
 	stateManager.EndChatSession()
 	stateManager.EndToolExecution()
-	_ = stateManager.TransitionToView(domain.ViewStateChat)
+	_ = stateManager.TransitionToView(ui.ViewStateChat)
 
 	conversationRepo := app.GetConversationRepository()
 	if conversationRepo != nil {
@@ -211,15 +210,15 @@ func handleNewSession(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: []convdomain.ConversationEntry{},
 			}
 		},
 		func() tea.Msg {
-			return domain.ClearInputEvent{}
+			return ui.ClearInputEvent{}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message: "New session started",
 				Spinner: false,
 			}
@@ -246,7 +245,7 @@ func handleBackgroundShell(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cm
 func handleToggleRawFormat(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	app.ToggleRawFormat()
 	return func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message: "Toggled raw/rendered format",
 			Spinner: false,
 		}
@@ -260,7 +259,7 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	if planApprovalState != nil {
 		action := agentdomain.PlanApprovalAction(planApprovalState.SelectedIndex)
 		return func() tea.Msg {
-			return domain.PlanApprovalResponseEvent{
+			return ui.PlanApprovalResponseEvent{
 				Action: action,
 			}
 		}
@@ -277,7 +276,7 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 			if completion != "" {
 				cursorPos := autocomplete.GetCompletionCursorPos()
 				return func() tea.Msg {
-					return domain.AutocompleteCompleteEvent{
+					return ui.AutocompleteCompleteEvent{
 						Completion: completion,
 						CursorPos:  cursorPos,
 					}
@@ -313,7 +312,7 @@ func handleTabKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 			if completion != "" {
 				cursorPos := autocomplete.GetCompletionCursorPos()
 				return func() tea.Msg {
-					return domain.AutocompleteCompleteEvent{
+					return ui.AutocompleteCompleteEvent{
 						Completion: completion,
 						CursorPos:  cursorPos,
 					}
@@ -333,7 +332,7 @@ func handleTabKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 }
 
 // handleImagePaste processes clipboard image data and adds it as an attachment
-func handleImagePaste(app KeyHandlerContext, imageService domain.ImageService, inputView ui.InputComponent, imageData []byte) bool {
+func handleImagePaste(app KeyHandlerContext, imageService agentdomain.ImageService, inputView ui.InputComponent, imageData []byte) bool {
 	timestamp := time.Now().Format("20060102-150405")
 	tmpDir := filepath.Join(app.GetConfigDir(), "tmp")
 
@@ -417,20 +416,20 @@ func flashStatus(app KeyHandlerContext, message string) tea.Cmd {
 	statusView := app.GetStatusView()
 	if statusView != nil && statusView.IsShowingSpinner() {
 		return tea.Batch(
-			func() tea.Msg { return domain.SaveStatusStateEvent{} },
-			func() tea.Msg { return domain.SetStatusEvent{Message: message, Spinner: false} },
+			func() tea.Msg { return ui.SaveStatusStateEvent{} },
+			func() tea.Msg { return ui.SetStatusEvent{Message: message, Spinner: false} },
 			func() tea.Msg {
 				time.Sleep(clipboardFlashDuration)
-				return domain.RestoreStatusStateEvent{}
+				return ui.RestoreStatusStateEvent{}
 			},
 		)
 	}
 
 	return tea.Batch(
-		func() tea.Msg { return domain.SetStatusEvent{Message: message, Spinner: false} },
+		func() tea.Msg { return ui.SetStatusEvent{Message: message, Spinner: false} },
 		func() tea.Msg {
 			time.Sleep(clipboardFlashDuration)
-			return domain.SetStatusEvent{Message: "", Spinner: false}
+			return ui.SetStatusEvent{Message: "", Spinner: false}
 		},
 	)
 }
@@ -510,9 +509,9 @@ func handleGoBackInTime(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 
 func handleScrollToTop(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.ScrollRequestEvent{
+		return ui.ScrollRequestEvent{
 			ComponentID: "conversation",
-			Direction:   domain.ScrollToTop,
+			Direction:   ui.ScrollToTop,
 			Amount:      0,
 		}
 	}
@@ -520,9 +519,9 @@ func handleScrollToTop(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 
 func handleScrollToBottom(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.ScrollRequestEvent{
+		return ui.ScrollRequestEvent{
 			ComponentID: "conversation",
-			Direction:   domain.ScrollToBottom,
+			Direction:   ui.ScrollToBottom,
 			Amount:      0,
 		}
 	}
@@ -530,9 +529,9 @@ func handleScrollToBottom(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 
 func handleScrollUpHalfPage(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.ScrollRequestEvent{
+		return ui.ScrollRequestEvent{
 			ComponentID: "conversation",
-			Direction:   domain.ScrollUp,
+			Direction:   ui.ScrollUp,
 			Amount:      10,
 		}
 	}
@@ -540,9 +539,9 @@ func handleScrollUpHalfPage(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.C
 
 func handleScrollDownHalfPage(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.ScrollRequestEvent{
+		return ui.ScrollRequestEvent{
 			ComponentID: "conversation",
-			Direction:   domain.ScrollDown,
+			Direction:   ui.ScrollDown,
 			Amount:      10,
 		}
 	}
@@ -550,9 +549,9 @@ func handleScrollDownHalfPage(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea
 
 func handlePageUp(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.ScrollRequestEvent{
+		return ui.ScrollRequestEvent{
 			ComponentID: "conversation",
-			Direction:   domain.ScrollUp,
+			Direction:   ui.ScrollUp,
 			Amount:      20,
 		}
 	}
@@ -560,9 +559,9 @@ func handlePageUp(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 
 func handlePageDown(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.ScrollRequestEvent{
+		return ui.ScrollRequestEvent{
 			ComponentID: "conversation",
-			Direction:   domain.ScrollDown,
+			Direction:   ui.ScrollDown,
 			Amount:      20,
 		}
 	}
@@ -580,7 +579,7 @@ func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) te
 		}
 		stateManager.SetPlanApprovalSelectedIndex(newIndex)
 		return func() tea.Msg {
-			return domain.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
+			return ui.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
 		}
 	}
 
@@ -598,7 +597,7 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) t
 		}
 		stateManager.SetPlanApprovalSelectedIndex(newIndex)
 		return func() tea.Msg {
-			return domain.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
+			return ui.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
 		}
 	}
 
@@ -652,7 +651,7 @@ func handleHistoryDown(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		if !inputView.IsNavigatingHistory() {
-			return func() tea.Msg { return domain.FocusStatusBarEvent{} }
+			return func() tea.Msg { return ui.FocusStatusBarEvent{} }
 		}
 		inputView.NavigateHistoryDown()
 	}
@@ -693,13 +692,13 @@ func handleInsertNewline(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd 
 
 func handleToggleHelp(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.ToggleHelpBarEvent{}
+		return ui.ToggleHelpBarEvent{}
 	}
 }
 
 func handleToggleTodoBox(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.ToggleTodoBoxEvent{}
+		return ui.ToggleTodoBoxEvent{}
 	}
 }
 
@@ -711,17 +710,17 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 	if statusView.IsShowingSpinner() {
 		return tea.Batch(
 			func() tea.Msg {
-				return domain.SaveStatusStateEvent{}
+				return ui.SaveStatusStateEvent{}
 			},
 			func() tea.Msg {
-				return domain.SetStatusEvent{
+				return ui.SetStatusEvent{
 					Message: fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
 					Spinner: false,
 				}
 			},
 			func() tea.Msg {
 				time.Sleep(800 * time.Millisecond)
-				return domain.RestoreStatusStateEvent{}
+				return ui.RestoreStatusStateEvent{}
 			},
 			func() tea.Msg {
 				return agentdomain.RefreshAutocompleteEvent{}
@@ -731,7 +730,7 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message: fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
 				Spinner: false,
 			}
@@ -753,10 +752,10 @@ func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cm
 			// app.GetMouseEnabled() into View.MouseMode. The status event
 			// here keeps the user feedback unchanged.
 			func() tea.Msg {
-				return domain.SetStatusEvent{
+				return ui.SetStatusEvent{
 					Message:    "Mouse scrolling enabled",
 					Spinner:    false,
-					StatusType: domain.StatusDefault,
+					StatusType: ui.StatusDefault,
 				}
 			},
 		)
@@ -764,10 +763,10 @@ func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cm
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Text selection enabled",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	)
@@ -921,7 +920,7 @@ func (m *KeyBindingManager) showSequenceHint(keyStr string) []tea.Cmd {
 	}
 
 	statusCmd := func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message: sequenceAction.Binding.Help().Desc,
 			Spinner: false,
 		}
@@ -929,7 +928,7 @@ func (m *KeyBindingManager) showSequenceHint(keyStr string) []tea.Cmd {
 
 	clearStatusCmd := func() tea.Msg {
 		time.Sleep(1 * time.Second)
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message: "",
 			Spinner: false,
 		}
@@ -1011,7 +1010,7 @@ func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyPressMsg, info string)
 	config := m.app.GetConfig()
 	if config != nil && config.Logging.Debug {
 		return func() tea.Msg {
-			return domain.DebugKeyEvent{
+			return ui.DebugKeyEvent{
 				Key:     keyMsg.String(),
 				Handler: info,
 			}
@@ -1035,7 +1034,7 @@ func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 	stateManager := app.GetStateManager()
 	currentView := stateManager.GetCurrentView()
 
-	if currentView == domain.ViewStatePlanApproval {
+	if currentView == ui.ViewStatePlanApproval {
 		return nil
 	}
 
@@ -1071,9 +1070,9 @@ func handleInputChangedAfterTextarea(app KeyHandlerContext, openFileSelection bo
 	}
 
 	scrollCmd := func() tea.Msg {
-		return domain.ScrollRequestEvent{
+		return ui.ScrollRequestEvent{
 			ComponentID: "conversation",
-			Direction:   domain.ScrollToBottom,
+			Direction:   ui.ScrollToBottom,
 			Amount:      0,
 		}
 	}
@@ -1082,7 +1081,7 @@ func handleInputChangedAfterTextarea(app KeyHandlerContext, openFileSelection bo
 		return tea.Batch(
 			scrollCmd,
 			func() tea.Msg {
-				return domain.FileSelectionRequestEvent{}
+				return ui.FileSelectionRequestEvent{}
 			},
 		)
 	}
@@ -1090,7 +1089,7 @@ func handleInputChangedAfterTextarea(app KeyHandlerContext, openFileSelection bo
 	return tea.Batch(
 		scrollCmd,
 		func() tea.Msg {
-			return domain.HideHelpBarEvent{}
+			return ui.HideHelpBarEvent{}
 		},
 	)
 }
@@ -1138,7 +1137,7 @@ func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.C
 	stateManager.SetPlanApprovalSelectedIndex(newIndex)
 
 	return func() tea.Msg {
-		return domain.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
+		return ui.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
 	}
 }
 
@@ -1156,7 +1155,7 @@ func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.
 	stateManager.SetPlanApprovalSelectedIndex(newIndex)
 
 	return func() tea.Msg {
-		return domain.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
+		return ui.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
 	}
 }
 
@@ -1173,7 +1172,7 @@ func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea
 			action = agentdomain.PlanApprovalAccept
 		}
 
-		return domain.PlanApprovalResponseEvent{
+		return ui.PlanApprovalResponseEvent{
 			Action: action,
 		}
 	}
@@ -1181,7 +1180,7 @@ func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea
 
 func handlePlanApprovalReject(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.PlanApprovalResponseEvent{
+		return ui.PlanApprovalResponseEvent{
 			Action: agentdomain.PlanApprovalReject,
 		}
 	}
@@ -1189,7 +1188,7 @@ func handlePlanApprovalReject(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea
 
 func handlePlanApprovalAcceptStandard(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.PlanApprovalResponseEvent{
+		return ui.PlanApprovalResponseEvent{
 			Action: agentdomain.PlanApprovalAcceptStandard,
 		}
 	}

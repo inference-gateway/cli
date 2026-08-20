@@ -9,12 +9,10 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
-func newImageDecodeTestTool(annotator agentdomain.ImageAnnotator, images domain.ImageService) *ImageDecodeTool {
+func newImageDecodeTestTool(annotator agentdomain.ImageAnnotator, images agentdomain.ImageService) *ImageDecodeTool {
 	cfg := config.DefaultConfig()
 	cfg.Prompts = *config.DefaultPromptsConfig()
 	cfg.Vision.Annotator.Enabled = true
@@ -23,7 +21,7 @@ func newImageDecodeTestTool(annotator agentdomain.ImageAnnotator, images domain.
 }
 
 func TestImageDecodeIsEnabled(t *testing.T) {
-	images := &domainmocks.FakeImageService{}
+	images := &agentdomainmocks.FakeImageService{}
 	annotator := &agentdomainmocks.FakeImageAnnotator{}
 
 	assert.True(t, newImageDecodeTestTool(annotator, images).IsEnabled())
@@ -36,14 +34,14 @@ func TestImageDecodeIsEnabled(t *testing.T) {
 }
 
 func TestImageDecodeValidate(t *testing.T) {
-	tool := newImageDecodeTestTool(&agentdomainmocks.FakeImageAnnotator{}, &domainmocks.FakeImageService{})
+	tool := newImageDecodeTestTool(&agentdomainmocks.FakeImageAnnotator{}, &agentdomainmocks.FakeImageService{})
 	assert.Error(t, tool.Validate(map[string]any{}))
 	assert.NoError(t, tool.Validate(map[string]any{"image": "shot.png"}))
 }
 
 func TestImageDecodeExecute(t *testing.T) {
 	t.Run("not an image file", func(t *testing.T) {
-		images := &domainmocks.FakeImageService{}
+		images := &agentdomainmocks.FakeImageService{}
 		images.ReadImageFromFileReturns(nil, errors.New("failed to detect image format: unknown format"))
 		tool := newImageDecodeTestTool(&agentdomainmocks.FakeImageAnnotator{}, images)
 
@@ -54,7 +52,7 @@ func TestImageDecodeExecute(t *testing.T) {
 	})
 
 	t.Run("read failure", func(t *testing.T) {
-		images := &domainmocks.FakeImageService{}
+		images := &agentdomainmocks.FakeImageService{}
 		images.ReadImageFromFileReturns(nil, errors.New("no such file"))
 		tool := newImageDecodeTestTool(&agentdomainmocks.FakeImageAnnotator{}, images)
 
@@ -64,7 +62,7 @@ func TestImageDecodeExecute(t *testing.T) {
 	})
 
 	t.Run("success with prompt pass-through", func(t *testing.T) {
-		images := &domainmocks.FakeImageService{}
+		images := &agentdomainmocks.FakeImageService{}
 		images.ReadImageFromFileReturns(&agentdomain.ImageAttachment{Data: "aW1n", MimeType: "image/png", Filename: "shot.png"}, nil)
 
 		annotator := &agentdomainmocks.FakeImageAnnotator{}
@@ -89,7 +87,7 @@ func TestImageDecodeExecute(t *testing.T) {
 	})
 
 	t.Run("annotator failure fails the call", func(t *testing.T) {
-		images := &domainmocks.FakeImageService{}
+		images := &agentdomainmocks.FakeImageService{}
 		images.ReadImageFromFileReturns(&agentdomain.ImageAttachment{Data: "aW1n", MimeType: "image/png"}, nil)
 
 		annotator := &agentdomainmocks.FakeImageAnnotator{}

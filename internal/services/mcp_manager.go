@@ -3,6 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"io"
 	"os"
 	"os/exec"
@@ -14,15 +17,14 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // Compile-time interface checks
 var (
-	_ domain.MCPClient  = (*mcpClient)(nil)
-	_ domain.MCPManager = (*MCPManager)(nil)
+	_ agentdomain.MCPClient  = (*mcpClient)(nil)
+	_ agentdomain.MCPManager = (*MCPManager)(nil)
 )
 
 // mcpClient wraps a single MCP server connection with an initialized MCP library client
@@ -62,7 +64,7 @@ func (c *mcpClient) initializeClient(serverURL string) {
 }
 
 // DiscoverTools discovers tools from this MCP server
-func (c *mcpClient) DiscoverTools(ctx context.Context) (map[string][]domain.MCPDiscoveredTool, error) {
+func (c *mcpClient) DiscoverTools(ctx context.Context) (map[string][]agentdomain.MCPDiscoveredTool, error) {
 	c.mu.Lock()
 	if c.client == nil {
 		c.mu.Unlock()
@@ -114,14 +116,14 @@ func (c *mcpClient) DiscoverTools(ctx context.Context) (map[string][]domain.MCPD
 		"server", c.serverName,
 		"toolCount", len(toolsResp.Tools))
 
-	tools := make([]domain.MCPDiscoveredTool, 0, len(toolsResp.Tools))
+	tools := make([]agentdomain.MCPDiscoveredTool, 0, len(toolsResp.Tools))
 	for _, tool := range toolsResp.Tools {
 		description := ""
 		if tool.Description != nil {
 			description = *tool.Description
 		}
 
-		tools = append(tools, domain.MCPDiscoveredTool{
+		tools = append(tools, agentdomain.MCPDiscoveredTool{
 			ServerName:  c.serverName,
 			Name:        tool.Name,
 			Description: description,
@@ -129,7 +131,7 @@ func (c *mcpClient) DiscoverTools(ctx context.Context) (map[string][]domain.MCPD
 		})
 	}
 
-	result := make(map[string][]domain.MCPDiscoveredTool)
+	result := make(map[string][]agentdomain.MCPDiscoveredTool)
 	result[c.serverName] = tools
 
 	c.mu.Lock()
@@ -241,8 +243,8 @@ func (c *mcpClient) Close() error {
 type MCPManager struct {
 	sessionID        convdomain.SessionID
 	config           *config.MCPConfig
-	containerRuntime domain.ContainerRuntime
-	notifier         domain.UINotifier
+	containerRuntime containerruntime.ContainerRuntime
+	notifier         agentdomain.UINotifier
 	mu               sync.RWMutex
 	clients          map[string]*mcpClient
 	toolCounts       map[string]int
@@ -256,9 +258,9 @@ type MCPManager struct {
 // NewMCPManager creates a new MCP manager. notifier is the single UI ingress the
 // liveness probes push MCPServerStatusUpdateEvent through; a nil notifier
 // degrades to no UI pushes.
-func NewMCPManager(sessionID convdomain.SessionID, cfg *config.MCPConfig, runtime domain.ContainerRuntime, notifier domain.UINotifier) *MCPManager {
+func NewMCPManager(sessionID convdomain.SessionID, cfg *config.MCPConfig, runtime containerruntime.ContainerRuntime, notifier agentdomain.UINotifier) *MCPManager {
 	if notifier == nil {
-		notifier = domain.NoopUINotifier{}
+		notifier = agentdomain.NoopUINotifier{}
 	}
 	clients := make(map[string]*mcpClient)
 
@@ -292,11 +294,11 @@ func (m *MCPManager) notify(event any) {
 }
 
 // GetClients returns a list of MCP clients
-func (m *MCPManager) GetClients() []domain.MCPClient {
+func (m *MCPManager) GetClients() []agentdomain.MCPClient {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	clients := make([]domain.MCPClient, 0, len(m.clients))
+	clients := make([]agentdomain.MCPClient, 0, len(m.clients))
 	for _, client := range m.clients {
 		clients = append(clients, client)
 	}
@@ -307,7 +309,7 @@ func (m *MCPManager) GetClients() []domain.MCPClient {
 // such client exists. Direct map lookup - does not perform any network I/O,
 // in contrast to iterating GetClients() and calling DiscoverTools to identify
 // the owning client.
-func (m *MCPManager) GetClient(serverName string) domain.MCPClient {
+func (m *MCPManager) GetClient(serverName string) agentdomain.MCPClient {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -574,7 +576,7 @@ func (m *MCPManager) sendStatusUpdate(serverName string, connected bool) {
 }
 
 // getMCPServerStatus calculates the current MCP server status
-func (m *MCPManager) getMCPServerStatus() domain.MCPServerStatus {
+func (m *MCPManager) getMCPServerStatus() ui.MCPServerStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -594,7 +596,7 @@ func (m *MCPManager) getMCPServerStatus() domain.MCPServerStatus {
 		totalTools += count
 	}
 
-	return domain.MCPServerStatus{
+	return ui.MCPServerStatus{
 		TotalServers:     totalServers,
 		ConnectedServers: connectedServers,
 		TotalTools:       totalTools,
@@ -604,10 +606,10 @@ func (m *MCPManager) getMCPServerStatus() domain.MCPServerStatus {
 // sendStatusUpdateWithTools pushes a status update event with discovered tools
 // through the UI notifier. getMCPServerStatus takes and releases m.mu before
 // notify runs, so the blocking program.Send is never called under the lock.
-func (m *MCPManager) sendStatusUpdateWithTools(serverName string, connected bool, tools []domain.MCPDiscoveredTool) {
+func (m *MCPManager) sendStatusUpdateWithTools(serverName string, connected bool, tools []agentdomain.MCPDiscoveredTool) {
 	status := m.getMCPServerStatus()
 
-	m.notify(domain.MCPServerStatusUpdateEvent{
+	m.notify(ui.MCPServerStatusUpdateEvent{
 		ServerName:       serverName,
 		Connected:        connected,
 		TotalServers:     status.TotalServers,

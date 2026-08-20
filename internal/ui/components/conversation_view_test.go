@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
 	"time"
@@ -11,9 +12,7 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
@@ -50,7 +49,7 @@ func (s *stubToolFormatter) RenderToolSummary(icon, toolName string, _ map[strin
 // createMockStyleProvider creates a mock styles provider for testing
 func createMockStyleProvider() *styles.Provider {
 	fakeTheme := &uimocks.FakeTheme{}
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
 	return styles.NewProvider(fakeThemeService)
 }
@@ -1225,12 +1224,12 @@ func TestConversationView_StreamingRenderCoalesced(t *testing.T) {
 
 	const marker = "STREAMED_MARKER"
 
-	_, cmd := cv.handleStreamingContentEvent(domain.StreamingContentEvent{Content: marker + " one "}, nil)
+	_, cmd := cv.handleStreamingContentEvent(ui.StreamingContentEvent{Content: marker + " one "}, nil)
 	if cmd == nil {
 		t.Fatal("first streamed delta should arm the render tick (non-nil cmd)")
 	}
 
-	if _, cmd2 := cv.handleStreamingContentEvent(domain.StreamingContentEvent{Content: "two "}, nil); cmd2 != nil {
+	if _, cmd2 := cv.handleStreamingContentEvent(ui.StreamingContentEvent{Content: "two "}, nil); cmd2 != nil {
 		t.Fatal("subsequent streamed deltas must not arm a second render tick")
 	}
 

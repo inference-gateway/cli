@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"fmt"
+	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 	"testing"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	generated "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func setupTestRepository(t *testing.T) (*PersistentConversationRepository, func()) {
@@ -200,7 +200,7 @@ func TestPersistentConversationRepository_TitleWithPreassignedSessionID(t *testi
 }
 
 func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
-	mockStorage := &generated.FakeConversationStorage{}
+	mockStorage := &storagemocks.FakeConversationStorage{}
 	var formatterService ToolFormatter
 	repo := NewPersistentConversationRepository(formatterService, nil, mockStorage)
 

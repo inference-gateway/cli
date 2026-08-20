@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"regexp"
@@ -23,7 +24,6 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	render "github.com/inference-gateway/cli/internal/platform/render"
@@ -251,7 +251,7 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 	}
 
 	renderEvents := events
-	var approvals <-chan domain.ApprovalResponse
+	var approvals <-chan ipc.ApprovalResponse
 	if opts.Format != "text" {
 		ctl := newHeadlessControl(agentService, svc.GetStateManager(), sessionID)
 		go ctl.readLines(os.Stdin)
@@ -301,7 +301,7 @@ func selectModel(models []string, modelFlag, defaultModel string) (string, error
 	return "", fmt.Errorf("no model specified; use --model or set agent.model in config")
 }
 
-func expandFileReferences(content string, files []string, fileSvc domain.FileService, imageSvc domain.ImageService, model string) (string, error) {
+func expandFileReferences(content string, files []string, fileSvc agentdomain.FileService, imageSvc agentdomain.ImageService, model string) (string, error) {
 	re := regexp.MustCompile(`@([^\s]+)`)
 	matches := re.FindAllStringSubmatch(content, -1)
 

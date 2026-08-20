@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"io"
 	"strings"
 	"time"
@@ -17,7 +18,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -120,7 +120,7 @@ func completionErr(e agentdomain.ChatCompleteEvent) error {
 // different tool_call_id are skipped (a late answer to a request the engine
 // already timed out must not decide the next one). A nil or closed channel
 // rejects the tool so the engine never waits out its timeout on a dead broker.
-func answerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan domain.ApprovalResponse) {
+func answerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan ipc.ApprovalResponse) {
 	if e.ResponseChan == nil {
 		return
 	}
@@ -150,18 +150,18 @@ func answerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan d
 // approval_request line is answered by the next matching ApprovalResponse.
 // A ComputerUseResumedEvent clears any error carried over from the paused
 // (cancelled) run, so a resumed run that completes cleanly exits zero.
-func RenderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
+func RenderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
 	return renderJSON(events, w, approvals, sessionID, model, cfg, repo, false)
 }
 
 // RenderJSONPretty is RenderJSON with each object indented across multiple
 // lines for human reading. Objects are separated by newlines but are no
 // longer one-per-line, so machine consumers should use RenderJSON.
-func RenderJSONPretty(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
+func RenderJSONPretty(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
 	return renderJSON(events, w, approvals, sessionID, model, cfg, repo, true)
 }
 
-func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository, pretty bool) error {
+func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository, pretty bool) error {
 	emit := func(msg any) { emitJSON(w, msg, pretty) }
 	emit(map[string]any{
 		"type":       "info",
@@ -176,7 +176,7 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 	for event := range events {
 		switch e := event.(type) {
 		case agentdomain.ChatErrorEvent:
-			emit(domain.AgentErrorMessage{Type: "agent_error", Message: truncate(e.Error.Error(), 3500)})
+			emit(ipc.AgentErrorMessage{Type: "agent_error", Message: truncate(e.Error.Error(), 3500)})
 			runErr = fmt.Errorf("agent error: %w", e.Error)
 		case agentdomain.ChatChunkEvent:
 			content.WriteString(e.Content)
@@ -188,7 +188,7 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 			if err := completionErr(e); err != nil {
 				runErr = err
 			}
-		case domain.ToolExecutionCompletedEvent:
+		case agentdomain.ToolExecutionCompletedEvent:
 			for _, r := range e.Results {
 				if r != nil {
 					emit(toolMessage(r))
@@ -262,7 +262,7 @@ func RenderText(events <-chan agentdomain.ChatEvent, w io.Writer) error {
 // When approvals is non-nil it acts as the IPC approval broker, same as
 // RenderJSON. A ComputerUseResumedEvent clears any error carried over from
 // the paused (cancelled) run, same as RenderJSON.
-func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan domain.ApprovalResponse, sessionID, model string) error {
+func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, sessionID, model string) error {
 	e := &aguiEncoder{w: w, threadID: sessionID}
 	e.emitRunStarted(sessionID)
 
@@ -288,7 +288,7 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 			}
 		case agentdomain.ChatErrorEvent:
 			runErr = ev.Error
-		case domain.ToolExecutionCompletedEvent:
+		case agentdomain.ToolExecutionCompletedEvent:
 			for _, r := range ev.Results {
 				if r != nil {
 					e.emitToolResult(r)
@@ -297,7 +297,7 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 		case agentdomain.TodoUpdateChatEvent:
 			e.emitTodos(ev.Todos)
 		case agentdomain.ToolApprovalRequestedEvent:
-			e.emitApprovalRequest(domain.ApprovalRequest{
+			e.emitApprovalRequest(ipc.ApprovalRequest{
 				Type: "approval_request", ToolName: ev.ToolCall.Function.Name,
 				ToolArgs: ev.ToolCall.Function.Arguments, ToolCallID: ev.ToolCall.ID,
 			})
@@ -326,7 +326,7 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 func EmitPreRunError(w io.Writer, format string, err error) {
 	switch format {
 	case "json", "json-pretty":
-		emitJSON(w, domain.AgentErrorMessage{Type: "agent_error", Message: truncate(err.Error(), 3500)}, format == "json-pretty")
+		emitJSON(w, ipc.AgentErrorMessage{Type: "agent_error", Message: truncate(err.Error(), 3500)}, format == "json-pretty")
 	case "ag-ui":
 		(&aguiEncoder{w: w}).emitRunError(truncate(err.Error(), 3500))
 	}

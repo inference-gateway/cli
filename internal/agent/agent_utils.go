@@ -20,7 +20,6 @@ import (
 	states "github.com/inference-gateway/cli/internal/agent/states"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -509,13 +508,13 @@ func (s *AgentServiceImpl) buildSkillsInfo() string {
 	// name only the user can invoke. Under budget pressure the latter is what
 	// should drop. skills is List()'s defensive copy, so sorting is local.
 	sort.SliceStable(skills, func(i, j int) bool {
-		return skills[i].Scope != domain.SkillScopeCatalog && skills[j].Scope == domain.SkillScopeCatalog
+		return skills[i].Scope != agentdomain.SkillScopeCatalog && skills[j].Scope == agentdomain.SkillScopeCatalog
 	})
 
 	var omitted int
 	for i, sk := range skills {
 		location := fmt.Sprintf("Path: %s", sk.Path)
-		if sk.Scope == domain.SkillScopeCatalog {
+		if sk.Scope == agentdomain.SkillScopeCatalog {
 			location = fmt.Sprintf("Installed from the catalog on demand - invoke /%s to activate it", sk.DisplayName())
 		}
 		entry := fmt.Sprintf("- %s (%s): %s\n  %s\n", sk.DisplayName(), sk.Scope, sk.Description, location)

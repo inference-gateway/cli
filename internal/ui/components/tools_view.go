@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"io"
 	"strings"
 
@@ -12,7 +13,6 @@ import (
 	ansi "github.com/charmbracelet/x/ansi"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -121,14 +121,14 @@ type ToolsViewImpl struct {
 	height        int
 	cancelled     bool
 	toolService   agentdomain.ToolService
-	stateManager  domain.AgentModeManager
+	stateManager  ui.AgentModeManager
 	styleProvider *styles.Provider
 }
 
 // NewToolsView creates the tools list view. Items are populated by Reset on
 // every entry because the tool set changes with the agent mode and with async
 // MCP tool registration.
-func NewToolsView(toolService agentdomain.ToolService, stateManager domain.AgentModeManager, styleProvider *styles.Provider) *ToolsViewImpl {
+func NewToolsView(toolService agentdomain.ToolService, stateManager ui.AgentModeManager, styleProvider *styles.Provider) *ToolsViewImpl {
 	l := list.New(
 		nil,
 		newToolDelegate(styleProvider),

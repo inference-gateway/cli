@@ -3,16 +3,15 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-
 	config "github.com/inference-gateway/cli/config"
 )
 
-func newTestImageVariationTool(imageService *domainmocks.FakeImageService) *ImageVariationTool {
+func newTestImageVariationTool(imageService *agentdomainmocks.FakeImageService) *ImageVariationTool {
 	return NewImageVariationTool(config.DefaultConfig(), imageService)
 }
 
@@ -33,7 +32,7 @@ func TestImageVariationTool_IsEnabled(t *testing.T) {
 			cfg := config.DefaultConfig()
 			cfg.Tools.ImageVariation.Enabled = tt.configEnable
 			cfg.Tools.ImageVariation.Model = tt.model
-			tool := NewImageVariationTool(cfg, &domainmocks.FakeImageService{})
+			tool := NewImageVariationTool(cfg, &agentdomainmocks.FakeImageService{})
 
 			assert.Equal(t, tt.expected, tool.IsEnabled())
 		})
@@ -41,7 +40,7 @@ func TestImageVariationTool_IsEnabled(t *testing.T) {
 }
 
 func TestImageVariationTool_Validate(t *testing.T) {
-	imageService := &domainmocks.FakeImageService{}
+	imageService := &agentdomainmocks.FakeImageService{}
 	imageService.IsImageFileReturns(true)
 	tool := newTestImageVariationTool(imageService)
 
@@ -66,7 +65,7 @@ func TestImageVariationTool_Validate(t *testing.T) {
 }
 
 func TestImageVariationTool_Validate_nonImageFile(t *testing.T) {
-	imageService := &domainmocks.FakeImageService{}
+	imageService := &agentdomainmocks.FakeImageService{}
 	imageService.IsImageFileReturns(false)
 	tool := newTestImageVariationTool(imageService)
 
@@ -77,7 +76,7 @@ func TestImageVariationTool_Validate_nonImageFile(t *testing.T) {
 
 func TestImageVariationTool_Execute(t *testing.T) {
 	t.Run("defaults to 1024x1024 and the configured model", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		imageService.IsImageFileReturns(true)
 		imageService.CreateImageVariationReturns("image-1.png", nil)
 		tool := newTestImageVariationTool(imageService)
@@ -93,7 +92,7 @@ func TestImageVariationTool_Execute(t *testing.T) {
 	})
 
 	t.Run("passes through an explicit size", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		imageService.IsImageFileReturns(true)
 		imageService.CreateImageVariationReturns("image-1.png", nil)
 		tool := newTestImageVariationTool(imageService)
@@ -106,7 +105,7 @@ func TestImageVariationTool_Execute(t *testing.T) {
 	})
 
 	t.Run("variation failure is a failed result, not an error", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		imageService.IsImageFileReturns(true)
 		imageService.CreateImageVariationReturns("", fmt.Errorf("API error: 404"))
 		tool := newTestImageVariationTool(imageService)
@@ -119,7 +118,7 @@ func TestImageVariationTool_Execute(t *testing.T) {
 	})
 
 	t.Run("invalid args error out before calling the service", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		imageService.IsImageFileReturns(true)
 		tool := newTestImageVariationTool(imageService)
 

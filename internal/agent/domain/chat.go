@@ -51,3 +51,10 @@ type ChatSyncResponse struct {
 	Duration         time.Duration                       `json:"duration"`
 	FinishReason     string                              `json:"finish_reason,omitempty"`
 }
+
+// EventBridgeManager handles event multicast for external event consumers
+type EventBridgeManager interface {
+	SetEventBridge(bridge EventBridge)
+	GetEventBridge() EventBridge
+	BroadcastEvent(event ChatEvent)
+}

@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"io"
 	"maps"
 	"slices"
@@ -13,7 +14,6 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -167,7 +167,7 @@ func (m *A2AAgentsViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if handled, cmd := m.handleKey(msg); handled {
 			return m, cmd
 		}
-	case domain.AgentStatusUpdateEvent:
+	case ui.AgentStatusUpdateEvent:
 		return m, m.refreshItems()
 	}
 

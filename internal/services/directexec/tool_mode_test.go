@@ -1,13 +1,13 @@
 package directexec_test
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
@@ -31,7 +31,7 @@ func TestHandleToolCommand_BlocksToolNotInCurrentMode(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected an error command")
 	}
-	errEvent, ok := cmd().(domain.ShowErrorEvent)
+	errEvent, ok := cmd().(ui.ShowErrorEvent)
 	if !ok {
 		t.Fatalf("expected ShowErrorEvent, got %T", cmd())
 	}

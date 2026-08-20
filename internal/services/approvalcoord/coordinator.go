@@ -2,6 +2,7 @@ package approvalcoord
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -9,7 +10,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -25,11 +25,11 @@ type planRepoUpdater interface {
 // needs: the plan-approval and user-question overlays, computer-use pause,
 // chat-session end, and mode switching. *services.StateManager satisfies it.
 type stateManager interface {
-	domain.PlanApprovalUIManager
-	domain.UserQuestionUIManager
-	domain.ComputerUsePauseManager
-	domain.ChatSessionManager
-	domain.AgentModeManager
+	ui.PlanApprovalUIManager
+	ui.UserQuestionUIManager
+	ui.ComputerUsePauseManager
+	ui.ChatSessionManager
+	ui.AgentModeManager
 }
 
 // Service owns the UI side of "pause the assistant turn pending external
@@ -70,15 +70,15 @@ func (s *Service) planApprovalRequestedCmds(_ string) []tea.Cmd {
 	return []tea.Cmd{
 		func() tea.Msg {
 			history := s.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Plan ready - use arrow keys to select and Enter to confirm",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	}
@@ -93,10 +93,10 @@ func (s *Service) HandleUserQuestionRequested(msg agentdomain.UserQuestionReques
 	s.stateManager.SetupUserQuestionUIState(msg.Questions, msg.ResponseChan)
 
 	return func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Please answer the question(s) - ↑/↓ move, space toggle, enter to continue, esc to cancel",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 }
@@ -104,7 +104,7 @@ func (s *Service) HandleUserQuestionRequested(msg agentdomain.UserQuestionReques
 // HandlePlanApprovalResponse processes the user's accept/reject decision on a
 // plan and returns whatever cmds the orchestrator should run plus a restart
 // flag (true → orchestrator should kick a new ChatCompletionRunner.Start()).
-func (s *Service) HandlePlanApprovalResponse(msg domain.PlanApprovalResponseEvent) (tea.Cmd, bool) {
+func (s *Service) HandlePlanApprovalResponse(msg ui.PlanApprovalResponseEvent) (tea.Cmd, bool) {
 	logger.Info("approvalCoordinator.HandlePlanApprovalResponse called", "action", msg.Action)
 
 	planApprovalState := s.stateManager.GetPlanApprovalUIState()
@@ -123,15 +123,15 @@ func (s *Service) HandlePlanApprovalResponse(msg domain.PlanApprovalResponseEven
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			history := s.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    statusMessage,
 				Spinner:    msg.Action != agentdomain.PlanApprovalReject,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	}
@@ -187,10 +187,10 @@ func (s *Service) HandleComputerUsePaused(msg agentdomain.ComputerUsePausedEvent
 	s.stateManager.SetComputerUsePaused(true, msg.RequestID)
 
 	return func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Computer use paused by user",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 }
@@ -202,7 +202,7 @@ func (s *Service) HandleComputerUseResumed(_ agentdomain.ComputerUseResumedEvent
 
 	if err := s.addHiddenContinue("Please continue from where you left off."); err != nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to resume: %v", err),
 				Sticky: false,
 			}
@@ -210,10 +210,10 @@ func (s *Service) HandleComputerUseResumed(_ agentdomain.ComputerUseResumedEvent
 	}
 
 	return func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Resuming execution...",
 			Spinner:    true,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}, true
 }

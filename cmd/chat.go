@@ -26,7 +26,6 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
@@ -432,7 +431,7 @@ func contains(slice []string, item string) bool {
 }
 
 // startScreenshotServer initializes and starts the screenshot streaming server
-func startScreenshotServer(config *config.Config, imageService domain.ImageService, toolRegistry *tools.Registry) *computerinfra.ScreenshotServer {
+func startScreenshotServer(config *config.Config, imageService agentdomain.ImageService, toolRegistry *tools.Registry) *computerinfra.ScreenshotServer {
 	logger.Info("screenshot streaming conditions met, starting server")
 	sessionID := fmt.Sprintf("%d-%s", time.Now().Unix(), uuid.New().String()[:8])
 	screenshotServer := computerinfra.NewScreenshotServer(config, imageService, sessionID)
@@ -452,7 +451,7 @@ func startScreenshotServer(config *config.Config, imageService domain.ImageServi
 	return screenshotServer
 }
 
-// programNotifier is the single domain.UINotifier backed by a real Bubble Tea
+// programNotifier is the single agentdomain.UINotifier backed by a real Bubble Tea
 // program: the one and only place (*tea.Program).Send is ever called, so every
 // background→TUI push funnels through this ingress. Set on the container via
 // SetUINotifier before program.Run.
@@ -470,7 +469,7 @@ func (p programNotifier) Notify(event any) { p.program.Send(event) }
 // forwardControlEventsToBubbleTea forwards control events from EventBridge to the
 // Bubble Tea loop through the single UI notifier. This ensures control events
 // (pause/resume) reach ChatHandler even when the chat session is closed.
-func forwardControlEventsToBubbleTea(notifier domain.UINotifier, eventBridge agentdomain.EventBridge) {
+func forwardControlEventsToBubbleTea(notifier agentdomain.UINotifier, eventBridge agentdomain.EventBridge) {
 	logger.Debug("starting control event forwarder")
 	subscription := eventBridge.Subscribe()
 

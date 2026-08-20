@@ -16,7 +16,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ImageDecodeTool describes a local image file as text (scene summary +
@@ -24,12 +23,12 @@ import (
 // text-only session models effectively vision-capable on demand.
 type ImageDecodeTool struct {
 	config       *config.Config
-	imageService domain.ImageService
+	imageService agentdomain.ImageService
 	annotator    agentdomain.ImageAnnotator
 }
 
 // NewImageDecodeTool creates a new ImageDecode tool
-func NewImageDecodeTool(cfg *config.Config, imageService domain.ImageService, annotator agentdomain.ImageAnnotator) *ImageDecodeTool {
+func NewImageDecodeTool(cfg *config.Config, imageService agentdomain.ImageService, annotator agentdomain.ImageAnnotator) *ImageDecodeTool {
 	return &ImageDecodeTool{
 		config:       cfg,
 		imageService: imageService,

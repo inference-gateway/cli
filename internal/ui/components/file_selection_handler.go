@@ -2,12 +2,12 @@ package components
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -142,14 +142,14 @@ func (h *FileSelectionHandler) CreateStatusMessage(action FileSelectionAction, s
 	switch action {
 	case FileSelectionActionSelect:
 		return func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message: fmt.Sprintf("📁 File selected: %s", selectedFile),
 				Spinner: false,
 			}
 		}
 	case FileSelectionActionCancel:
 		return func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message: "File selection cancelled",
 				Spinner: false,
 			}

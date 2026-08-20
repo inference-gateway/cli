@@ -17,7 +17,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // WebSearchTool handles web search operations
@@ -119,7 +118,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*agen
 		limit = t.config.Tools.WebSearch.MaxResults
 	}
 
-	var searchResult *domain.WebSearchResponse
+	var searchResult *agentdomain.WebSearchResponse
 	var err error
 
 	switch engine {
@@ -219,9 +218,9 @@ func (t *WebSearchTool) IsEnabled() bool {
 }
 
 // searchGoogle performs a Google search using Custom Search JSON API and scraping fallback
-func (t *WebSearchTool) searchGoogle(ctx context.Context, query string, limit int) (*domain.WebSearchResponse, error) {
+func (t *WebSearchTool) searchGoogle(ctx context.Context, query string, limit int) (*agentdomain.WebSearchResponse, error) {
 	start := time.Now()
-	response := &domain.WebSearchResponse{
+	response := &agentdomain.WebSearchResponse{
 		Query:  query,
 		Engine: "google",
 		Time:   0,
@@ -241,9 +240,9 @@ func (t *WebSearchTool) searchGoogle(ctx context.Context, query string, limit in
 }
 
 // searchDuckDuckGo performs a DuckDuckGo search using their instant answer API and HTML scraping
-func (t *WebSearchTool) searchDuckDuckGo(ctx context.Context, query string, limit int) (*domain.WebSearchResponse, error) {
+func (t *WebSearchTool) searchDuckDuckGo(ctx context.Context, query string, limit int) (*agentdomain.WebSearchResponse, error) {
 	start := time.Now()
-	response := &domain.WebSearchResponse{
+	response := &agentdomain.WebSearchResponse{
 		Query:  query,
 		Engine: "duckduckgo",
 		Time:   0,
@@ -263,7 +262,7 @@ func (t *WebSearchTool) searchDuckDuckGo(ctx context.Context, query string, limi
 }
 
 // performGoogleSearch performs the actual Google search
-func (t *WebSearchTool) performGoogleSearch(ctx context.Context, query string, limit int) ([]domain.WebSearchResult, error) {
+func (t *WebSearchTool) performGoogleSearch(ctx context.Context, query string, limit int) ([]agentdomain.WebSearchResult, error) {
 	apiKey := os.Getenv("GOOGLE_SEARCH_API_KEY")
 	searchEngineID := os.Getenv("GOOGLE_SEARCH_ENGINE_ID")
 
@@ -275,7 +274,7 @@ func (t *WebSearchTool) performGoogleSearch(ctx context.Context, query string, l
 }
 
 // performGoogleCustomSearch uses Google's Custom Search JSON API
-func (t *WebSearchTool) performGoogleCustomSearch(ctx context.Context, query string, limit int, apiKey, searchEngineID string) ([]domain.WebSearchResult, error) {
+func (t *WebSearchTool) performGoogleCustomSearch(ctx context.Context, query string, limit int, apiKey, searchEngineID string) ([]agentdomain.WebSearchResult, error) {
 	searchURL := fmt.Sprintf("https://www.googleapis.com/customsearch/v1?key=%s&cx=%s&q=%s&num=%d",
 		apiKey, searchEngineID, url.QueryEscape(query), limit)
 
@@ -308,12 +307,12 @@ func (t *WebSearchTool) performGoogleCustomSearch(ctx context.Context, query str
 }
 
 // performGoogleScraping performs Google search by scraping (fallback method) - simplified for now
-func (t *WebSearchTool) performGoogleScraping(_ /* ctx */ context.Context, query string, limit int) ([]domain.WebSearchResult, error) {
+func (t *WebSearchTool) performGoogleScraping(_ /* ctx */ context.Context, query string, limit int) ([]agentdomain.WebSearchResult, error) {
 	return t.generateMockResults(query, limit, "google"), nil
 }
 
 // performDuckDuckGoSearch performs the actual DuckDuckGo search
-func (t *WebSearchTool) performDuckDuckGoSearch(ctx context.Context, query string, limit int) ([]domain.WebSearchResult, error) {
+func (t *WebSearchTool) performDuckDuckGoSearch(ctx context.Context, query string, limit int) ([]agentdomain.WebSearchResult, error) {
 	apiKey := os.Getenv("DUCKDUCKGO_SEARCH_API_KEY")
 
 	if apiKey != "" {
@@ -324,7 +323,7 @@ func (t *WebSearchTool) performDuckDuckGoSearch(ctx context.Context, query strin
 }
 
 // performDuckDuckGoScraping performs DuckDuckGo search by scraping (fallback method)
-func (t *WebSearchTool) performDuckDuckGoScraping(ctx context.Context, query string, limit int) ([]domain.WebSearchResult, error) {
+func (t *WebSearchTool) performDuckDuckGoScraping(ctx context.Context, query string, limit int) ([]agentdomain.WebSearchResult, error) {
 	if query == "" {
 		return t.generateMockResults(query, limit, "duckduckgo"), nil
 	}
@@ -363,7 +362,7 @@ func (t *WebSearchTool) performDuckDuckGoScraping(ctx context.Context, query str
 }
 
 // performDuckDuckGoAPI uses DuckDuckGo's instant answer API
-func (t *WebSearchTool) performDuckDuckGoAPI(ctx context.Context, query string, limit int, _ /* apiKey */ string) ([]domain.WebSearchResult, error) {
+func (t *WebSearchTool) performDuckDuckGoAPI(ctx context.Context, query string, limit int, _ /* apiKey */ string) ([]agentdomain.WebSearchResult, error) {
 	searchURL := fmt.Sprintf("https://api.duckduckgo.com/?q=%s&format=json&no_html=1&skip_disambig=1",
 		url.QueryEscape(query))
 
@@ -417,11 +416,11 @@ type GoogleSearchItem struct {
 }
 
 // parseGoogleSearchResponse converts Google API response to domain results
-func (t *WebSearchTool) parseGoogleSearchResponse(response GoogleSearchResponse) []domain.WebSearchResult {
-	results := make([]domain.WebSearchResult, 0, len(response.Items))
+func (t *WebSearchTool) parseGoogleSearchResponse(response GoogleSearchResponse) []agentdomain.WebSearchResult {
+	results := make([]agentdomain.WebSearchResult, 0, len(response.Items))
 
 	for _, item := range response.Items {
-		results = append(results, domain.WebSearchResult{
+		results = append(results, agentdomain.WebSearchResult{
 			Title:   item.Title,
 			URL:     item.Link,
 			Snippet: item.Snippet,
@@ -432,8 +431,8 @@ func (t *WebSearchTool) parseGoogleSearchResponse(response GoogleSearchResponse)
 }
 
 // parseDuckDuckGoResponse parses the DuckDuckGo API response
-func (t *WebSearchTool) parseDuckDuckGoResponse(response map[string]any, limit int) []domain.WebSearchResult {
-	var results []domain.WebSearchResult
+func (t *WebSearchTool) parseDuckDuckGoResponse(response map[string]any, limit int) []agentdomain.WebSearchResult {
+	var results []agentdomain.WebSearchResult
 
 	results = t.parseRelatedTopics(response, limit)
 
@@ -445,8 +444,8 @@ func (t *WebSearchTool) parseDuckDuckGoResponse(response map[string]any, limit i
 }
 
 // parseRelatedTopics extracts search results from DuckDuckGo RelatedTopics
-func (t *WebSearchTool) parseRelatedTopics(response map[string]any, limit int) []domain.WebSearchResult {
-	var results []domain.WebSearchResult
+func (t *WebSearchTool) parseRelatedTopics(response map[string]any, limit int) []agentdomain.WebSearchResult {
+	var results []agentdomain.WebSearchResult
 
 	relatedTopics, ok := response["RelatedTopics"].([]any)
 	if !ok {
@@ -475,8 +474,8 @@ func (t *WebSearchTool) parseRelatedTopics(response map[string]any, limit int) [
 }
 
 // parseTopicResult extracts a single result from a DuckDuckGo topic
-func (t *WebSearchTool) parseTopicResult(topicMap map[string]any) domain.WebSearchResult {
-	result := domain.WebSearchResult{}
+func (t *WebSearchTool) parseTopicResult(topicMap map[string]any) agentdomain.WebSearchResult {
+	result := agentdomain.WebSearchResult{}
 
 	if text, ok := topicMap["Text"].(string); ok {
 		result.Title, result.Snippet = t.extractTitleAndSnippet(text)
@@ -499,14 +498,14 @@ func (t *WebSearchTool) extractTitleAndSnippet(text string) (string, string) {
 }
 
 // parseAbstract extracts search result from DuckDuckGo Abstract
-func (t *WebSearchTool) parseAbstract(response map[string]any) []domain.WebSearchResult {
-	var results []domain.WebSearchResult
+func (t *WebSearchTool) parseAbstract(response map[string]any) []agentdomain.WebSearchResult {
+	var results []agentdomain.WebSearchResult
 
 	abstract, hasAbstract := response["Abstract"].(string)
 	abstractURL, hasAbstractURL := response["AbstractURL"].(string)
 
 	if hasAbstract && abstract != "" && hasAbstractURL && abstractURL != "" {
-		results = append(results, domain.WebSearchResult{
+		results = append(results, agentdomain.WebSearchResult{
 			Title:   "DuckDuckGo Result",
 			URL:     abstractURL,
 			Snippet: abstract,
@@ -517,8 +516,8 @@ func (t *WebSearchTool) parseAbstract(response map[string]any) []domain.WebSearc
 }
 
 // parseDuckDuckGoHTML attempts to extract search results from DuckDuckGo HTML
-func (t *WebSearchTool) parseDuckDuckGoHTML(html string, limit int) ([]domain.WebSearchResult, error) {
-	var results []domain.WebSearchResult
+func (t *WebSearchTool) parseDuckDuckGoHTML(html string, limit int) ([]agentdomain.WebSearchResult, error) {
+	var results []agentdomain.WebSearchResult
 
 	titlePattern := regexp.MustCompile(`<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]*)"[^>]*>(.*?)</a>`)
 	snippetPattern := regexp.MustCompile(`<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>(.*?)</a>`)
@@ -532,7 +531,7 @@ func (t *WebSearchTool) parseDuckDuckGoHTML(html string, limit int) ([]domain.We
 			title = regexp.MustCompile(`<[^>]*>`).ReplaceAllString(title, "")
 			title = t.decodeHTMLEntities(title)
 
-			result := domain.WebSearchResult{
+			result := agentdomain.WebSearchResult{
 				URL:   match[1],
 				Title: title,
 			}
@@ -574,11 +573,11 @@ func (t *WebSearchTool) decodeHTMLEntities(text string) string {
 }
 
 // generateMockResults generates mock search results for demonstration
-func (t *WebSearchTool) generateMockResults(query string, limit int, engine string) []domain.WebSearchResult {
-	results := make([]domain.WebSearchResult, limit)
+func (t *WebSearchTool) generateMockResults(query string, limit int, engine string) []agentdomain.WebSearchResult {
+	results := make([]agentdomain.WebSearchResult, limit)
 
 	for i := 0; i < limit; i++ {
-		results[i] = domain.WebSearchResult{
+		results[i] = agentdomain.WebSearchResult{
 			Title:   fmt.Sprintf("Search Result %d for '%s'", i+1, query),
 			URL:     fmt.Sprintf("https://example.com/%s-result-%d", engine, i+1),
 			Snippet: fmt.Sprintf("This is a mock search result snippet %d for the query '%s' from %s search engine. This demonstrates the web search functionality.", i+1, query, engine),
@@ -608,7 +607,7 @@ func (t *WebSearchTool) FormatPreview(result *agentdomain.ToolExecutionResult) s
 		return "Tool execution result unavailable"
 	}
 
-	searchResponse, ok := result.Data.(*domain.WebSearchResponse)
+	searchResponse, ok := result.Data.(*agentdomain.WebSearchResponse)
 	if !ok {
 		if result.Success {
 			return "Web search completed successfully"
@@ -660,7 +659,7 @@ func (t *WebSearchTool) FormatForLLM(result *agentdomain.ToolExecutionResult) st
 
 // formatSearchData formats web search-specific data
 func (t *WebSearchTool) formatSearchData(data any) string {
-	searchResponse, ok := data.(*domain.WebSearchResponse)
+	searchResponse, ok := data.(*agentdomain.WebSearchResponse)
 	if !ok {
 		return t.formatter.FormatAsJSON(data)
 	}

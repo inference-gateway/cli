@@ -5,9 +5,9 @@ import (
 	"fmt"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	channels "github.com/inference-gateway/cli/internal/services/channels"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -16,12 +16,12 @@ import (
 // jobs without a delivery target are record-only, so their events are ignored
 // here and their output lives in storage.
 type ScheduleNotifier struct {
-	lookup func(name string) domain.Channel
+	lookup func(name string) channels.Channel
 }
 
 // NewScheduleNotifier constructs a notifier resolving channels through lookup
 // (typically ChannelManagerService.GetChannel).
-func NewScheduleNotifier(lookup func(name string) domain.Channel) *ScheduleNotifier {
+func NewScheduleNotifier(lookup func(name string) channels.Channel) *ScheduleNotifier {
 	return &ScheduleNotifier{lookup: lookup}
 }
 
@@ -53,7 +53,7 @@ func (n *ScheduleNotifier) Notify(job scheddomain.ScheduledJob, e scheddomain.Ru
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	out := domain.OutboundMessage{
+	out := channels.OutboundMessage{
 		ChannelName: job.Channel,
 		RecipientID: job.RecipientID,
 		Content:     content,

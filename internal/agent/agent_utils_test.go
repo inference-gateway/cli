@@ -13,10 +13,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func TestIsCompleteJSON(t *testing.T) {
@@ -231,22 +229,22 @@ func TestGetRecentCommits(t *testing.T) {
 
 // twoStubSkills returns the pair of distinctive skills used by the
 // buildSkillsInfo formatting case.
-func twoStubSkills() []domain.Skill {
-	return []domain.Skill{
-		{Name: "pdf-helper", Description: "Extract text from PDFs.", Path: "/abs/path/.infer/skills/pdf-helper/SKILL.md", Scope: domain.SkillScopeProject},
-		{Name: "diagrams", Description: "Render mermaid diagrams.", Path: "/home/me/.infer/skills/diagrams/SKILL.md", Scope: domain.SkillScopeUser},
+func twoStubSkills() []agentdomain.Skill {
+	return []agentdomain.Skill{
+		{Name: "pdf-helper", Description: "Extract text from PDFs.", Path: "/abs/path/.infer/skills/pdf-helper/SKILL.md", Scope: agentdomain.SkillScopeProject},
+		{Name: "diagrams", Description: "Render mermaid diagrams.", Path: "/home/me/.infer/skills/diagrams/SKILL.md", Scope: agentdomain.SkillScopeUser},
 	}
 }
 
 // manyStubSkills returns four long-description skills so the char cap kicks in.
-func manyStubSkills() []domain.Skill {
-	var skills []domain.Skill
+func manyStubSkills() []agentdomain.Skill {
+	var skills []agentdomain.Skill
 	for _, name := range []string{"alpha", "beta", "gamma", "delta"} {
-		skills = append(skills, domain.Skill{
+		skills = append(skills, agentdomain.Skill{
 			Name:        name,
 			Description: strings.Repeat("x", 200),
 			Path:        "/abs/.infer/skills/" + name + "/SKILL.md",
-			Scope:       domain.SkillScopeProject,
+			Scope:       agentdomain.SkillScopeProject,
 		})
 	}
 	return skills
@@ -274,14 +272,14 @@ func TestBuildSkillsInfo(t *testing.T) {
 		},
 		{
 			name:       "empty list",
-			svc:        &AgentServiceImpl{skillsService: &domainmocks.FakeSkillsService{}},
+			svc:        &AgentServiceImpl{skillsService: &agentdomainmocks.FakeSkillsService{}},
 			wantEmpty:  true,
 			exactPaths: -1,
 		},
 		{
 			name: "formats skills",
 			svc: func() *AgentServiceImpl {
-				fake := &domainmocks.FakeSkillsService{}
+				fake := &agentdomainmocks.FakeSkillsService{}
 				fake.ListReturns(twoStubSkills())
 				return &AgentServiceImpl{skillsService: fake}
 			}(),
@@ -303,7 +301,7 @@ func TestBuildSkillsInfo(t *testing.T) {
 		{
 			name: "caps rendered list at max chars",
 			svc: func() *AgentServiceImpl {
-				fake := &domainmocks.FakeSkillsService{}
+				fake := &agentdomainmocks.FakeSkillsService{}
 				fake.ListReturns(manyStubSkills())
 				return &AgentServiceImpl{config: skillsCapConfig(700), skillsService: fake}
 			}(),
@@ -314,7 +312,7 @@ func TestBuildSkillsInfo(t *testing.T) {
 		{
 			name: "no cap when max chars is zero",
 			svc: func() *AgentServiceImpl {
-				fake := &domainmocks.FakeSkillsService{}
+				fake := &agentdomainmocks.FakeSkillsService{}
 				fake.ListReturns(manyStubSkills())
 				return &AgentServiceImpl{config: skillsCapConfig(0), skillsService: fake}
 			}(),
@@ -353,21 +351,21 @@ func TestBuildSkillsInfo(t *testing.T) {
 func TestBuildSkillsInfo_LargeCatalogStaysBounded(t *testing.T) {
 	const maxChars = 4000
 
-	all := []domain.Skill{{
+	all := []agentdomain.Skill{{
 		Name:        "local-one",
 		Description: "The one skill that is actually on disk.",
 		Path:        "/abs/.infer/skills/local-one/SKILL.md",
-		Scope:       domain.SkillScopeProject,
+		Scope:       agentdomain.SkillScopeProject,
 	}}
 	for i := 0; i < 1000; i++ {
-		all = append(all, domain.Skill{
+		all = append(all, agentdomain.Skill{
 			Name:        fmt.Sprintf("catalog-skill-%04d", i),
 			Description: strings.Repeat("y", 200),
-			Scope:       domain.SkillScopeCatalog,
+			Scope:       agentdomain.SkillScopeCatalog,
 		})
 	}
 
-	fake := &domainmocks.FakeSkillsService{}
+	fake := &agentdomainmocks.FakeSkillsService{}
 	fake.ListReturns(all)
 	got := (&AgentServiceImpl{config: skillsCapConfig(maxChars), skillsService: fake}).buildSkillsInfo()
 
@@ -492,21 +490,21 @@ func assistantMsg(text string) sdk.Message {
 // activeSkillsAgent returns an agent whose skills service knows foo/bar, each
 // with distinctive metadata (description + path).
 func activeSkillsAgent() *AgentServiceImpl {
-	fake := &domainmocks.FakeSkillsService{}
-	skills := []domain.Skill{
-		{Name: "foo", Description: "FOO_DESC", Path: "/abs/.infer/skills/foo/SKILL.md", Scope: domain.SkillScopeProject},
-		{Name: "bar", Description: "BAR_DESC", Path: "/home/me/.infer/skills/bar/SKILL.md", Scope: domain.SkillScopeUser},
+	fake := &agentdomainmocks.FakeSkillsService{}
+	skills := []agentdomain.Skill{
+		{Name: "foo", Description: "FOO_DESC", Path: "/abs/.infer/skills/foo/SKILL.md", Scope: agentdomain.SkillScopeProject},
+		{Name: "bar", Description: "BAR_DESC", Path: "/home/me/.infer/skills/bar/SKILL.md", Scope: agentdomain.SkillScopeUser},
 	}
-	get := func(name string) (domain.Skill, bool) {
+	get := func(name string) (agentdomain.Skill, bool) {
 		for _, sk := range skills {
 			if sk.Name == name {
 				return sk, true
 			}
 		}
-		return domain.Skill{}, false
+		return agentdomain.Skill{}, false
 	}
 	fake.GetStub = get
-	fake.DiscoverStub = func(_ context.Context, name string) (domain.Skill, bool) { return get(name) }
+	fake.DiscoverStub = func(_ context.Context, name string) (agentdomain.Skill, bool) { return get(name) }
 	return &AgentServiceImpl{
 		skillsService: fake,
 	}
@@ -866,17 +864,17 @@ func TestVolatileTailMessage(t *testing.T) {
 // leaked into it, every conversation would lose its KV-cache prefix the moment
 // a skill was fetched.
 func TestBuildSkillsInfo_CatalogEntryIsCacheStable(t *testing.T) {
-	notInstalled := domain.Skill{
+	notInstalled := agentdomain.Skill{
 		Name:        "rust",
 		Description: "Idiomatic Rust.",
-		Scope:       domain.SkillScopeCatalog,
+		Scope:       agentdomain.SkillScopeCatalog,
 	}
 	installed := notInstalled
 	installed.Path = "/abs/.infer/tmp/skills/rust/SKILL.md"
 
-	render := func(sk domain.Skill) string {
-		fake := &domainmocks.FakeSkillsService{}
-		fake.ListReturns([]domain.Skill{sk})
+	render := func(sk agentdomain.Skill) string {
+		fake := &agentdomainmocks.FakeSkillsService{}
+		fake.ListReturns([]agentdomain.Skill{sk})
 		return (&AgentServiceImpl{skillsService: fake}).buildSkillsInfo()
 	}
 
@@ -890,14 +888,14 @@ func TestBuildSkillsInfo_CatalogEntryIsCacheStable(t *testing.T) {
 // split: a headless run installs a not-yet-downloaded skill itself, while chat
 // leaves it alone because the user approves the install at the input layer.
 func TestBuildActiveSkillInfo_CatalogInstallIsHeadlessOnly(t *testing.T) {
-	newAgent := func() (*AgentServiceImpl, *domainmocks.FakeSkillsService) {
-		fake := &domainmocks.FakeSkillsService{}
-		fake.GetReturns(domain.Skill{Name: "rust", Description: "RUST_DESC", Scope: domain.SkillScopeCatalog}, true)
-		fake.DiscoverReturns(domain.Skill{
+	newAgent := func() (*AgentServiceImpl, *agentdomainmocks.FakeSkillsService) {
+		fake := &agentdomainmocks.FakeSkillsService{}
+		fake.GetReturns(agentdomain.Skill{Name: "rust", Description: "RUST_DESC", Scope: agentdomain.SkillScopeCatalog}, true)
+		fake.DiscoverReturns(agentdomain.Skill{
 			Name:        "rust",
 			Description: "RUST_DESC",
 			Path:        "/abs/.infer/tmp/skills/rust/SKILL.md",
-			Scope:       domain.SkillScopeCatalog,
+			Scope:       agentdomain.SkillScopeCatalog,
 		}, true)
 		return &AgentServiceImpl{skillsService: fake}, fake
 	}

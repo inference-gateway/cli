@@ -8,11 +8,10 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	filewriter "github.com/inference-gateway/cli/internal/domain/filewriter"
 	require "github.com/stretchr/testify/require"
 )
 
-func setupWriterTest(t *testing.T) (string, filewriter.FileWriter, context.Context) {
+func setupWriterTest(t *testing.T) (string, FileWriter, context.Context) {
 	tempDir := t.TempDir()
 
 	cfg := &config.Config{
@@ -40,7 +39,7 @@ func TestSafeFileWriter_Write_Success(t *testing.T) {
 		testPath := filepath.Join(tempDir, "new_file.txt")
 		content := "test content"
 
-		req := filewriter.WriteRequest{
+		req := WriteRequest{
 			Path:      testPath,
 			Content:   content,
 			Overwrite: true,
@@ -64,7 +63,7 @@ func TestSafeFileWriter_Write_Success(t *testing.T) {
 
 		require.NoError(t, os.WriteFile(testPath, []byte(originalContent), 0644))
 
-		req := filewriter.WriteRequest{
+		req := WriteRequest{
 			Path:      testPath,
 			Content:   newContent,
 			Overwrite: true,
@@ -87,7 +86,7 @@ func TestSafeFileWriter_Write_Success(t *testing.T) {
 
 		require.NoError(t, os.WriteFile(testPath, []byte(originalContent), 0644))
 
-		req := filewriter.WriteRequest{
+		req := WriteRequest{
 			Path:      testPath,
 			Content:   newContent,
 			Overwrite: true,
@@ -112,7 +111,7 @@ func TestSafeFileWriter_Write_Success(t *testing.T) {
 		testPath := filepath.Join(tempDir, "nested", "deep", "directory", "file.txt")
 		content := "nested file content"
 
-		req := filewriter.WriteRequest{
+		req := WriteRequest{
 			Path:      testPath,
 			Content:   content,
 			Overwrite: true,
@@ -143,7 +142,7 @@ func TestSafeFileWriter_Write_Errors(t *testing.T) {
 
 		require.NoError(t, os.WriteFile(testPath, []byte(originalContent), 0644))
 
-		req := filewriter.WriteRequest{
+		req := WriteRequest{
 			Path:      testPath,
 			Content:   "new content",
 			Overwrite: false,
@@ -161,7 +160,7 @@ func TestSafeFileWriter_Write_Errors(t *testing.T) {
 	})
 
 	t.Run("error on empty path", func(t *testing.T) {
-		req := filewriter.WriteRequest{
+		req := WriteRequest{
 			Path:      "",
 			Content:   "content",
 			Overwrite: true,
@@ -174,7 +173,7 @@ func TestSafeFileWriter_Write_Errors(t *testing.T) {
 	})
 
 	t.Run("error on path traversal", func(t *testing.T) {
-		req := filewriter.WriteRequest{
+		req := WriteRequest{
 			Path:      "../../../etc/passwd",
 			Content:   "malicious content",
 			Overwrite: true,
@@ -188,7 +187,7 @@ func TestSafeFileWriter_Write_Errors(t *testing.T) {
 
 	t.Run("error on protected path", func(t *testing.T) {
 		gitPath := filepath.Join(tempDir, ".git", "config")
-		req := filewriter.WriteRequest{
+		req := WriteRequest{
 			Path:      gitPath,
 			Content:   "malicious content",
 			Overwrite: true,
@@ -201,7 +200,7 @@ func TestSafeFileWriter_Write_Errors(t *testing.T) {
 	})
 
 	t.Run("error on path outside sandbox", func(t *testing.T) {
-		req := filewriter.WriteRequest{
+		req := WriteRequest{
 			Path:      "/tmp/outside_sandbox.txt",
 			Content:   "content",
 			Overwrite: true,

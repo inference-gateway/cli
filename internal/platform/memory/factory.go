@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -15,7 +14,7 @@ import (
 // already rejects a git backend without a repo when memory is enabled; the
 // guard here is defensive so a partial/legacy config degrades to local rather
 // than constructing a broken git backend.
-func NewMemoryBackend(cfg *config.Config) domain.MemoryBackend {
+func NewMemoryBackend(cfg *config.Config) MemoryBackend {
 	if cfg == nil || !cfg.Memory.Enabled {
 		return NewLocalBackend()
 	}

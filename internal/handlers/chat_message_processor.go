@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,7 +14,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 )
@@ -47,7 +47,7 @@ func NewChatMessageProcessor(handler *ChatHandler) *ChatMessageProcessor {
 
 // handleUserInput processes user input messages
 func (p *ChatMessageProcessor) handleUserInput(
-	msg domain.UserInputEvent,
+	msg agentdomain.UserInputEvent,
 ) tea.Cmd {
 	if cmd := p.confirmCatalogInstall(msg); cmd != nil {
 		return cmd
@@ -68,7 +68,7 @@ func (p *ChatMessageProcessor) handleUserInput(
 	content, err := p.expandFileReferences(msg.Content)
 	if err != nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to expand file references: %v", err),
 				Sticky: false,
 			}
@@ -153,7 +153,7 @@ func (p *ChatMessageProcessor) pendingCatalogSkills(content string) []string {
 // The returned cmds run concurrently: the first renders the question form, the
 // second blocks on the answer, performs the install, and re-submits the
 // original input so the message is processed normally once the skill is on disk.
-func (p *ChatMessageProcessor) confirmCatalogInstall(msg domain.UserInputEvent) tea.Cmd {
+func (p *ChatMessageProcessor) confirmCatalogInstall(msg agentdomain.UserInputEvent) tea.Cmd {
 	names := p.pendingCatalogSkills(msg.Content)
 	if len(names) == 0 {
 		return nil
@@ -339,7 +339,7 @@ func (p *ChatMessageProcessor) expandIssueReferences(ctx context.Context, conten
 	})
 }
 
-func (p *ChatMessageProcessor) formatIssueBlock(iss *domain.GitHubIssue) string {
+func (p *ChatMessageProcessor) formatIssueBlock(iss *agentdomain.GitHubIssue) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "GitHub Issue #%d (%s): %s\nURL: %s\n\n%s\n",
 		iss.Number, iss.State, iss.Title, iss.URL, iss.Body)
@@ -392,7 +392,7 @@ func (p *ChatMessageProcessor) buildUserMessage(
 
 func showErrorCmd(msg string) tea.Cmd {
 	return func() tea.Msg {
-		return domain.ShowErrorEvent{Error: msg, Sticky: false}
+		return ui.ShowErrorEvent{Error: msg, Sticky: false}
 	}
 }
 
@@ -414,10 +414,10 @@ func (p *ChatMessageProcessor) processChatMessage(
 			"queue_size_after_enqueue", p.handler.messageQueue.Size())
 
 		return func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Message queued - agent is currently busy",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}
 	}
@@ -462,10 +462,10 @@ func (p *ChatMessageProcessor) compactThenContinue(message sdk.Message, images [
 		"agent_busy_now", p.handler.stateManager.IsAgentBusy())
 
 	statusCmd := func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Compacting conversation...",
 			Spinner:    true,
-			StatusType: domain.StatusPreparing,
+			StatusType: ui.StatusPreparing,
 		}
 	}
 
@@ -479,7 +479,7 @@ func (p *ChatMessageProcessor) compactThenContinue(message sdk.Message, images [
 			"fired", fired,
 			"new_session_id", newID,
 			"queue_size_after", p.handler.messageQueue.Size())
-		return domain.RolloverCompletedEvent{
+		return ui.RolloverCompletedEvent{
 			Message: message,
 			Images:  images,
 		}
@@ -503,7 +503,7 @@ func (p *ChatMessageProcessor) appendUserMessageAndStartCompletion(message sdk.M
 	if err := p.handler.conversationRepo.AddMessage(userEntry); err != nil {
 		logger.Error("chat: failed to AddMessage in appendUserMessageAndStartCompletion", "error", err)
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
 				Sticky: false,
 			}
@@ -518,7 +518,7 @@ func (p *ChatMessageProcessor) appendUserMessageAndStartCompletion(message sdk.M
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: p.handler.conversationRepo.GetMessages(),
 			}
 		},
@@ -526,10 +526,10 @@ func (p *ChatMessageProcessor) appendUserMessageAndStartCompletion(message sdk.M
 
 	if len(p.handler.conversationRepo.GetMessages()) > 10 {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Optimizing conversation history (%d messages)...", len(p.handler.conversationRepo.GetMessages())),
 				Spinner:    true,
-				StatusType: domain.StatusPreparing,
+				StatusType: ui.StatusPreparing,
 			}
 		})
 	}

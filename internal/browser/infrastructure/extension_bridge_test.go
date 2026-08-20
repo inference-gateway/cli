@@ -2,6 +2,7 @@ package infrastructure
 
 import (
 	"context"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"io"
 	"net/http"
 	"os"
@@ -19,10 +20,8 @@ import (
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	services "github.com/inference-gateway/cli/internal/services"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // readFrameOfType reads frames until one with the given type arrives, failing
@@ -75,7 +74,7 @@ func TestExtensionBridgeApprovalRoundTrip(t *testing.T) {
 	for {
 		found := false
 		for _, ev := range notifier.all() {
-			resp, ok := ev.(domain.ToolApprovalResponseEvent)
+			resp, ok := ev.(agentdomain.ToolApprovalResponseEvent)
 			if !ok {
 				continue
 			}
@@ -148,7 +147,7 @@ func TestExtensionBridgeApprovalUnknownActionRejects(t *testing.T) {
 	deadline := time.Now().Add(2 * time.Second)
 	for {
 		for _, ev := range notifier.all() {
-			if resp, ok := ev.(domain.ToolApprovalResponseEvent); ok {
+			if resp, ok := ev.(agentdomain.ToolApprovalResponseEvent); ok {
 				if resp.Action != agentdomain.ApprovalReject {
 					t.Fatalf("unknown action should reject, got %v", resp.Action)
 				}
@@ -177,13 +176,13 @@ func TestExtensionBridgeApprovalIgnoresUnknownID(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 	for _, ev := range notifier.all() {
-		if _, ok := ev.(domain.ToolApprovalResponseEvent); ok {
+		if _, ok := ev.(agentdomain.ToolApprovalResponseEvent); ok {
 			t.Fatal("unknown request id must not produce an approval response")
 		}
 	}
 }
 
-// recordingNotifier is a thread-safe domain.UINotifier that collects every
+// recordingNotifier is a thread-safe agentdomain.UINotifier that collects every
 // notified event.
 type recordingNotifier struct {
 	mu     sync.Mutex
@@ -213,7 +212,7 @@ func bridgeConfig() *config.BrowserUseConfig {
 	return cfg
 }
 
-func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier domain.UINotifier, events agentdomain.EventBridge) *ExtensionBridge {
+func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier agentdomain.UINotifier, events agentdomain.EventBridge) *ExtensionBridge {
 	t.Helper()
 	bridge := NewExtensionBridge(cfg, notifier, nil, events, nil, "test-session", "")
 	if err := bridge.Start(); err != nil {
@@ -233,7 +232,7 @@ func startBridgeWithRepo(t *testing.T, cfg *config.BrowserUseConfig, repo convdo
 	return bridge
 }
 
-func startBridgeWithSkills(t *testing.T, cfg *config.BrowserUseConfig, skills domain.SkillsService) *ExtensionBridge {
+func startBridgeWithSkills(t *testing.T, cfg *config.BrowserUseConfig, skills agentdomain.SkillsService) *ExtensionBridge {
 	t.Helper()
 	bridge := NewExtensionBridge(cfg, nil, nil, nil, skills, "test-session", "")
 	if err := bridge.Start(); err != nil {
@@ -383,7 +382,7 @@ func TestExtensionBridgeUserMessageReachesNotifier(t *testing.T) {
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		for _, ev := range notifier.all() {
-			if input, ok := ev.(domain.UserInputEvent); ok {
+			if input, ok := ev.(agentdomain.UserInputEvent); ok {
 				if input.Content != "hello from the browser" {
 					t.Fatalf("unexpected content: %q", input.Content)
 				}
@@ -596,11 +595,11 @@ func TestExtensionBridgeNoAutoSnapshotOnConnect(t *testing.T) {
 }
 
 func TestExtensionBridgeListSkills(t *testing.T) {
-	skills := &domainmocks.FakeSkillsService{}
-	skills.ListReturns([]domain.Skill{
-		{Name: "tmux", Description: "drive tmux", Scope: domain.SkillScopeUser},
-		{Name: "deploy", Description: "ship it", Scope: domain.SkillScopeAgents},
-		{Name: "notion", Scope: domain.SkillScopePlugin, PluginName: "notion"},
+	skills := &agentdomainmocks.FakeSkillsService{}
+	skills.ListReturns([]agentdomain.Skill{
+		{Name: "tmux", Description: "drive tmux", Scope: agentdomain.SkillScopeUser},
+		{Name: "deploy", Description: "ship it", Scope: agentdomain.SkillScopeAgents},
+		{Name: "notion", Scope: agentdomain.SkillScopePlugin, PluginName: "notion"},
 	})
 	bridge := startBridgeWithSkills(t, bridgeConfig(), skills)
 	conn := dial(t, bridge)

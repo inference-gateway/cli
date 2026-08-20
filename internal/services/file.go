@@ -2,19 +2,19 @@ package services
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-// FileServiceImpl implements domain.FileService
+// FileServiceImpl implements agentdomain.FileService
 type FileServiceImpl struct{}
 
 // NewFileService creates a new file service
-func NewFileService() domain.FileService {
+func NewFileService() agentdomain.FileService {
 	return &FileServiceImpl{}
 }
 
@@ -228,13 +228,13 @@ func (s *FileServiceImpl) ValidateFile(path string) error {
 }
 
 // GetFileInfo returns information about a file
-func (s *FileServiceImpl) GetFileInfo(path string) (domain.FileInfo, error) {
+func (s *FileServiceImpl) GetFileInfo(path string) (agentdomain.FileInfo, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return domain.FileInfo{}, fmt.Errorf("failed to get file info for %s: %w", path, err)
+		return agentdomain.FileInfo{}, fmt.Errorf("failed to get file info for %s: %w", path, err)
 	}
 
-	return domain.FileInfo{
+	return agentdomain.FileInfo{
 		Path:  path,
 		Size:  info.Size(),
 		IsDir: info.IsDir(),

@@ -2,6 +2,7 @@ package skills
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +11,6 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // writeSkill creates <baseDir>/<dirName>/SKILL.md with the given body. The
@@ -31,7 +31,7 @@ func validSkillBody(name, description string) string {
 
 // scope returns a single project-scope search dir pointing at root.
 func scope(root string) []scopedDir {
-	return []scopedDir{{dir: root, scope: domain.SkillScopeProject}}
+	return []scopedDir{{dir: root, scope: agentdomain.SkillScopeProject}}
 }
 
 func enabledCfg() *config.Config {
@@ -69,7 +69,7 @@ func TestParse_ValidFrontmatter(t *testing.T) {
 	require.Len(t, got, 1)
 	require.Equal(t, "pdf-helper", got[0].Name)
 	require.Equal(t, "Extract text from PDFs.", got[0].Description)
-	require.Equal(t, domain.SkillScopeProject, got[0].Scope)
+	require.Equal(t, agentdomain.SkillScopeProject, got[0].Scope)
 	require.True(t, filepath.IsAbs(got[0].Path), "path must be absolute, got %q", got[0].Path)
 	require.True(t, strings.HasSuffix(got[0].Path, filepath.Join("pdf-helper", "SKILL.md")))
 	require.Empty(t, s.Errors())
@@ -167,21 +167,21 @@ func TestPrecedence_ProjectOverridesUser(t *testing.T) {
 	writeSkill(t, userDir, "user-only", validSkillBody("user-only", "Only in user scope."))
 
 	s := newWithScopes(enabledCfg(), []scopedDir{
-		{dir: projDir, scope: domain.SkillScopeProject},
-		{dir: userDir, scope: domain.SkillScopeUser},
+		{dir: projDir, scope: agentdomain.SkillScopeProject},
+		{dir: userDir, scope: agentdomain.SkillScopeUser},
 	})
 	require.NoError(t, s.Load(context.Background()))
 
 	got := s.List()
 	require.Len(t, got, 2)
 
-	byName := map[string]domain.Skill{}
+	byName := map[string]agentdomain.Skill{}
 	for _, sk := range got {
 		byName[sk.Name] = sk
 	}
 	require.Equal(t, "Project version.", byName["shared"].Description)
-	require.Equal(t, domain.SkillScopeProject, byName["shared"].Scope)
-	require.Equal(t, domain.SkillScopeUser, byName["user-only"].Scope)
+	require.Equal(t, agentdomain.SkillScopeProject, byName["shared"].Scope)
+	require.Equal(t, agentdomain.SkillScopeUser, byName["user-only"].Scope)
 }
 
 // TestPrecedence_AgentsMiddleScope locks in the three-way precedence introduced
@@ -203,28 +203,28 @@ func TestPrecedence_AgentsMiddleScope(t *testing.T) {
 	writeSkill(t, userDir, "user-only", validSkillBody("user-only", "Only in user scope."))
 
 	s := newWithScopes(enabledCfg(), []scopedDir{
-		{dir: projDir, scope: domain.SkillScopeProject},
-		{dir: agentsDir, scope: domain.SkillScopeAgents},
-		{dir: userDir, scope: domain.SkillScopeUser},
+		{dir: projDir, scope: agentdomain.SkillScopeProject},
+		{dir: agentsDir, scope: agentdomain.SkillScopeAgents},
+		{dir: userDir, scope: agentdomain.SkillScopeUser},
 	})
 	require.NoError(t, s.Load(context.Background()))
 
 	got := s.List()
 	require.Len(t, got, 4)
 
-	byName := map[string]domain.Skill{}
+	byName := map[string]agentdomain.Skill{}
 	for _, sk := range got {
 		byName[sk.Name] = sk
 	}
 
 	require.Equal(t, "Project version.", byName["all-three"].Description)
-	require.Equal(t, domain.SkillScopeProject, byName["all-three"].Scope)
+	require.Equal(t, agentdomain.SkillScopeProject, byName["all-three"].Scope)
 
 	require.Equal(t, "Agents version.", byName["agents-and-user"].Description)
-	require.Equal(t, domain.SkillScopeAgents, byName["agents-and-user"].Scope)
+	require.Equal(t, agentdomain.SkillScopeAgents, byName["agents-and-user"].Scope)
 
-	require.Equal(t, domain.SkillScopeAgents, byName["agents-only"].Scope)
-	require.Equal(t, domain.SkillScopeUser, byName["user-only"].Scope)
+	require.Equal(t, agentdomain.SkillScopeAgents, byName["agents-only"].Scope)
+	require.Equal(t, agentdomain.SkillScopeUser, byName["user-only"].Scope)
 }
 
 // TestSearchScopes_Order guards the scan order that the precedence dedup relies
@@ -236,19 +236,19 @@ func TestSearchScopes_Order(t *testing.T) {
 	scopes := New(cfg).searchScopes()
 
 	require.GreaterOrEqual(t, len(scopes), 3)
-	require.Equal(t, domain.SkillScopeProject, scopes[0].scope)
+	require.Equal(t, agentdomain.SkillScopeProject, scopes[0].scope)
 	require.Equal(t, filepath.Join(config.ConfigDirName, skillsSubdir), scopes[0].dir)
 
-	require.Equal(t, domain.SkillScopeAgents, scopes[1].scope)
+	require.Equal(t, agentdomain.SkillScopeAgents, scopes[1].scope)
 	require.Equal(t, filepath.Join(config.AgentsDirName, skillsSubdir), scopes[1].dir)
 
 	last := scopes[len(scopes)-1]
-	require.Equal(t, domain.SkillScopePlugin, last.scope)
+	require.Equal(t, agentdomain.SkillScopePlugin, last.scope)
 	require.Equal(t, filepath.Join(pluginsDir, "last-plugin", skillsSubdir), last.dir)
 
 	if home, err := os.UserHomeDir(); err == nil {
 		require.Len(t, scopes, 4)
-		require.Equal(t, domain.SkillScopeUser, scopes[2].scope)
+		require.Equal(t, agentdomain.SkillScopeUser, scopes[2].scope)
 		require.Equal(t, filepath.Join(home, config.ConfigDirName, skillsSubdir), scopes[2].dir)
 	}
 }
@@ -309,7 +309,7 @@ See references/format.md for the spec.
 
 func TestLoad_NonexistentScopesIgnored(t *testing.T) {
 	s := newWithScopes(enabledCfg(), []scopedDir{
-		{dir: "/nonexistent/path/that/should/not/exist", scope: domain.SkillScopeProject},
+		{dir: "/nonexistent/path/that/should/not/exist", scope: agentdomain.SkillScopeProject},
 	})
 	require.NoError(t, s.Load(context.Background()))
 	require.Empty(t, s.List())
@@ -380,7 +380,7 @@ func TestSearchScopes_IncludesEnabledPluginSkills(t *testing.T) {
 
 	sk, ok := s.Get("ponytail")
 	require.True(t, ok, "enabled plugin skill must be discovered")
-	require.Equal(t, domain.SkillScopePlugin, sk.Scope)
+	require.Equal(t, agentdomain.SkillScopePlugin, sk.Scope)
 
 	_, ok = s.Get("hidden")
 	require.False(t, ok, "disabled plugin's skills must not be scanned")
@@ -415,21 +415,21 @@ func TestPrecedence_ProjectOverridesPlugin(t *testing.T) {
 
 	sk, ok := s.Get("shared-name")
 	require.True(t, ok)
-	require.Equal(t, domain.SkillScopeProject, sk.Scope)
+	require.Equal(t, agentdomain.SkillScopeProject, sk.Scope)
 	require.Contains(t, sk.Description, "Project version wins")
 }
 
 func TestLoadSkillMetadata_ExportedValidation(t *testing.T) {
 	tmp := t.TempDir()
 	writeSkill(t, tmp, "good-skill", validSkillBody("good-skill", "Valid."))
-	sk, loadErr := LoadSkillMetadata(filepath.Join(tmp, "good-skill"), "good-skill", domain.SkillScopePlugin, "test-plugin")
+	sk, loadErr := LoadSkillMetadata(filepath.Join(tmp, "good-skill"), "good-skill", agentdomain.SkillScopePlugin, "test-plugin")
 	require.Nil(t, loadErr)
 	require.NotNil(t, sk)
-	require.Equal(t, domain.SkillScopePlugin, sk.Scope)
+	require.Equal(t, agentdomain.SkillScopePlugin, sk.Scope)
 	require.Equal(t, "test-plugin", sk.PluginName)
 
 	writeSkill(t, tmp, "bad-skill", "---\ndescription: missing name\n---\n")
-	sk, loadErr = LoadSkillMetadata(filepath.Join(tmp, "bad-skill"), "bad-skill", domain.SkillScopePlugin, "")
+	sk, loadErr = LoadSkillMetadata(filepath.Join(tmp, "bad-skill"), "bad-skill", agentdomain.SkillScopePlugin, "")
 	require.Nil(t, sk)
 	require.NotNil(t, loadErr)
 }

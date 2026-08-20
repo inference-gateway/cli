@@ -6,7 +6,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/inference-gateway/cli/internal/agent/domain"
-	domaina "github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 
@@ -46,10 +45,10 @@ type FakeApprovalCoordinator struct {
 	handlePlanApprovalRequestedReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandlePlanApprovalResponseStub        func(domaina.PlanApprovalResponseEvent) (tea.Cmd, bool)
+	HandlePlanApprovalResponseStub        func(ui.PlanApprovalResponseEvent) (tea.Cmd, bool)
 	handlePlanApprovalResponseMutex       sync.RWMutex
 	handlePlanApprovalResponseArgsForCall []struct {
-		arg1 domaina.PlanApprovalResponseEvent
+		arg1 ui.PlanApprovalResponseEvent
 	}
 	handlePlanApprovalResponseReturns struct {
 		result1 tea.Cmd
@@ -260,11 +259,11 @@ func (fake *FakeApprovalCoordinator) HandlePlanApprovalRequestedReturnsOnCall(i 
 	}{result1}
 }
 
-func (fake *FakeApprovalCoordinator) HandlePlanApprovalResponse(arg1 domaina.PlanApprovalResponseEvent) (tea.Cmd, bool) {
+func (fake *FakeApprovalCoordinator) HandlePlanApprovalResponse(arg1 ui.PlanApprovalResponseEvent) (tea.Cmd, bool) {
 	fake.handlePlanApprovalResponseMutex.Lock()
 	ret, specificReturn := fake.handlePlanApprovalResponseReturnsOnCall[len(fake.handlePlanApprovalResponseArgsForCall)]
 	fake.handlePlanApprovalResponseArgsForCall = append(fake.handlePlanApprovalResponseArgsForCall, struct {
-		arg1 domaina.PlanApprovalResponseEvent
+		arg1 ui.PlanApprovalResponseEvent
 	}{arg1})
 	stub := fake.HandlePlanApprovalResponseStub
 	fakeReturns := fake.handlePlanApprovalResponseReturns
@@ -285,13 +284,13 @@ func (fake *FakeApprovalCoordinator) HandlePlanApprovalResponseCallCount() int {
 	return len(fake.handlePlanApprovalResponseArgsForCall)
 }
 
-func (fake *FakeApprovalCoordinator) HandlePlanApprovalResponseCalls(stub func(domaina.PlanApprovalResponseEvent) (tea.Cmd, bool)) {
+func (fake *FakeApprovalCoordinator) HandlePlanApprovalResponseCalls(stub func(ui.PlanApprovalResponseEvent) (tea.Cmd, bool)) {
 	fake.handlePlanApprovalResponseMutex.Lock()
 	defer fake.handlePlanApprovalResponseMutex.Unlock()
 	fake.HandlePlanApprovalResponseStub = stub
 }
 
-func (fake *FakeApprovalCoordinator) HandlePlanApprovalResponseArgsForCall(i int) domaina.PlanApprovalResponseEvent {
+func (fake *FakeApprovalCoordinator) HandlePlanApprovalResponseArgsForCall(i int) ui.PlanApprovalResponseEvent {
 	fake.handlePlanApprovalResponseMutex.RLock()
 	defer fake.handlePlanApprovalResponseMutex.RUnlock()
 	argsForCall := fake.handlePlanApprovalResponseArgsForCall[i]

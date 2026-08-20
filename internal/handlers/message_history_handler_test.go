@@ -9,7 +9,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
@@ -51,7 +50,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
 	cmd := handler.HandleEditSubmit(event)
 	msg := cmd()
 
-	userInputEvent, ok := msg.(domain.UserInputEvent)
+	userInputEvent, ok := msg.(agentdomain.UserInputEvent)
 	if !ok {
 		t.Fatalf("Expected UserInputEvent but got: %T", msg)
 	}
@@ -105,7 +104,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_MiddleMessage(t *testing.T) {
 	cmd := handler.HandleEditSubmit(event)
 	msg := cmd()
 
-	userInputEvent, ok := msg.(domain.UserInputEvent)
+	userInputEvent, ok := msg.(agentdomain.UserInputEvent)
 	if !ok {
 		t.Fatalf("Expected UserInputEvent but got: %T", msg)
 	}

@@ -2,23 +2,23 @@ package styles
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	"github.com/charmbracelet/x/exp/charmtone"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
-// ThemeProvider implements domain.ThemeService and manages available themes
+// ThemeProvider implements ui.ThemeService and manages available themes
 type ThemeProvider struct {
-	themes      map[string]domain.Theme
+	themes      map[string]ui.Theme
 	currentName string
 }
 
 // NewThemeProvider creates a new theme provider with default themes
 func NewThemeProvider() *ThemeProvider {
 	provider := &ThemeProvider{
-		themes:      make(map[string]domain.Theme),
+		themes:      make(map[string]ui.Theme),
 		currentName: "tokyo-night",
 	}
 
@@ -35,7 +35,7 @@ func (tp *ThemeProvider) registerDefaultThemes() {
 }
 
 // GetTheme returns the theme by name, or the current theme if name is empty
-func (tp *ThemeProvider) GetTheme(name string) (domain.Theme, error) {
+func (tp *ThemeProvider) GetTheme(name string) (ui.Theme, error) {
 	if name == "" {
 		name = tp.currentName
 	}
@@ -48,7 +48,7 @@ func (tp *ThemeProvider) GetTheme(name string) (domain.Theme, error) {
 	return theme, nil
 }
 
-// SetTheme sets the current theme by name (implements domain.ThemeService interface)
+// SetTheme sets the current theme by name (implements ui.ThemeService interface)
 func (tp *ThemeProvider) SetTheme(name string) error {
 	if _, exists := tp.themes[name]; !exists {
 		return fmt.Errorf("theme '%s' not found", name)
@@ -58,17 +58,17 @@ func (tp *ThemeProvider) SetTheme(name string) error {
 	return nil
 }
 
-// GetCurrentTheme returns the currently active theme (implements domain.ThemeService interface)
-func (tp *ThemeProvider) GetCurrentTheme() domain.Theme {
+// GetCurrentTheme returns the currently active theme (implements ui.ThemeService interface)
+func (tp *ThemeProvider) GetCurrentTheme() ui.Theme {
 	return tp.themes[tp.currentName]
 }
 
-// GetCurrentThemeName returns the name of the currently active theme (implements domain.ThemeService interface)
+// GetCurrentThemeName returns the name of the currently active theme (implements ui.ThemeService interface)
 func (tp *ThemeProvider) GetCurrentThemeName() string {
 	return tp.currentName
 }
 
-// ListThemes returns all available theme names (implements domain.ThemeService interface)
+// ListThemes returns all available theme names (implements ui.ThemeService interface)
 func (tp *ThemeProvider) ListThemes() []string {
 	names := make([]string, 0, len(tp.themes))
 	for name := range tp.themes {

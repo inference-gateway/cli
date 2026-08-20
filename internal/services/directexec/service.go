@@ -14,7 +14,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
@@ -22,9 +21,9 @@ import (
 // executor needs: the current agent mode, chat-session lookup, and
 // tool-execution session bookkeeping. *services.StateManager satisfies it.
 type stateManager interface {
-	domain.AgentModeManager
-	domain.ChatSessionManager
-	domain.ToolExecutionManager
+	ui.AgentModeManager
+	ui.ChatSessionManager
+	ui.ToolExecutionManager
 }
 
 // Service is the concrete DirectExecutionService.

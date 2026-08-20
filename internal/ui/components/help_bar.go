@@ -2,6 +2,7 @@ package components
 
 import (
 	"cmp"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"slices"
 
 	help "charm.land/bubbles/v2/help"
@@ -9,7 +10,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -128,9 +128,9 @@ func (hb *HelpBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		hb.SetWidth(msg.Width)
-	case domain.ToggleHelpBarEvent:
+	case ui.ToggleHelpBarEvent:
 		hb.enabled = !hb.enabled
-	case domain.HideHelpBarEvent:
+	case ui.HideHelpBarEvent:
 		hb.enabled = false
 	}
 	return hb, nil

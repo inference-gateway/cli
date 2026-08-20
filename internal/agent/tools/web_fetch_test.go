@@ -11,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestFetchTool_Definition(t *testing.T) {
@@ -297,9 +296,9 @@ func TestFetchTool_Execute_BinarySavedNotInlined(t *testing.T) {
 		t.Fatalf("expected success, got error: %s", result.Error)
 	}
 
-	fr, ok := result.Data.(*domain.FetchResult)
+	fr, ok := result.Data.(*agentdomain.FetchResult)
 	if !ok {
-		t.Fatalf("expected *domain.FetchResult, got %T", result.Data)
+		t.Fatalf("expected *agentdomain.FetchResult, got %T", result.Data)
 	}
 	if strings.Contains(fr.Content, string(pngBytes)) {
 		t.Error("raw binary bytes leaked into Content (would poison the LLM context)")
@@ -339,9 +338,9 @@ func TestFetchTool_Execute_TextStillInlined(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	fr, ok := result.Data.(*domain.FetchResult)
+	fr, ok := result.Data.(*agentdomain.FetchResult)
 	if !ok {
-		t.Fatalf("expected *domain.FetchResult, got %T", result.Data)
+		t.Fatalf("expected *agentdomain.FetchResult, got %T", result.Data)
 	}
 	if !strings.Contains(fr.Content, "hello world") {
 		t.Errorf("text content should be inlined, got: %q", fr.Content)
@@ -373,9 +372,9 @@ func TestFetchTool_Execute_ChannelImageDisplayHint(t *testing.T) {
 		t.Fatalf("expected success, got error: %s", result.Error)
 	}
 
-	fr, ok := result.Data.(*domain.FetchResult)
+	fr, ok := result.Data.(*agentdomain.FetchResult)
 	if !ok {
-		t.Fatalf("expected *domain.FetchResult, got %T", result.Data)
+		t.Fatalf("expected *agentdomain.FetchResult, got %T", result.Data)
 	}
 	if fr.SavedPath == "" {
 		t.Fatal("expected SavedPath to be set")

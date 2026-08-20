@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"strings"
 	"testing"
 
@@ -10,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func TestNewMCPTool(t *testing.T) {
@@ -24,7 +24,7 @@ func TestNewMCPTool(t *testing.T) {
 		},
 	}
 
-	mockClient := &mocks.FakeMCPClient{}
+	mockClient := &agentdomainmocks.FakeMCPClient{}
 
 	tool := NewMCPTool(
 		"test-server",
@@ -72,7 +72,7 @@ func TestMCPTool_Definition(t *testing.T) {
 		},
 	}
 
-	mockClient := &mocks.FakeMCPClient{}
+	mockClient := &agentdomainmocks.FakeMCPClient{}
 
 	tool := NewMCPTool(
 		"test-server",
@@ -126,7 +126,7 @@ func TestMCPTool_Execute_Success(t *testing.T) {
 		},
 	}
 
-	mockClient := &mocks.FakeMCPClient{}
+	mockClient := &agentdomainmocks.FakeMCPClient{}
 
 	// Mock successful response
 	textContent := &mcp.TextContent{
@@ -223,7 +223,7 @@ func TestMCPTool_Execute_Error(t *testing.T) {
 		},
 	}
 
-	mockClient := &mocks.FakeMCPClient{}
+	mockClient := &agentdomainmocks.FakeMCPClient{}
 
 	// Mock error response
 	mockClient.CallToolReturns(nil, &testError{msg: "connection failed"})
@@ -353,7 +353,7 @@ func TestMCPTool_Validate(t *testing.T) {
 				},
 			}
 
-			mockClient := &mocks.FakeMCPClient{}
+			mockClient := &agentdomainmocks.FakeMCPClient{}
 
 			tool := NewMCPTool(
 				"test-server",
@@ -500,7 +500,7 @@ func TestMCPTool_IsEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &mocks.FakeMCPClient{}
+			mockClient := &agentdomainmocks.FakeMCPClient{}
 
 			tool := NewMCPTool(
 				tt.serverName,
@@ -521,7 +521,7 @@ func TestMCPTool_IsEnabled(t *testing.T) {
 }
 
 func TestMCPTool_ShouldCollapseArg(t *testing.T) {
-	mockClient := &mocks.FakeMCPClient{}
+	mockClient := &agentdomainmocks.FakeMCPClient{}
 	tool := NewMCPTool("server", "tool", "desc", nil, mockClient, &config.MCPConfig{})
 
 	tests := []struct {
@@ -546,7 +546,7 @@ func TestMCPTool_ShouldCollapseArg(t *testing.T) {
 }
 
 func TestMCPTool_ShouldAlwaysExpand(t *testing.T) {
-	mockClient := &mocks.FakeMCPClient{}
+	mockClient := &agentdomainmocks.FakeMCPClient{}
 	tool := NewMCPTool("server", "tool", "desc", nil, mockClient, &config.MCPConfig{})
 
 	if tool.ShouldAlwaysExpand() {

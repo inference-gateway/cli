@@ -20,7 +20,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // WebFetchTool handles content fetching operations
@@ -186,12 +185,12 @@ func (t *WebFetchTool) IsEnabled() bool {
 }
 
 // fetchContent fetches content from the given URL
-func (t *WebFetchTool) fetchContent(ctx context.Context, url string) (*domain.FetchResult, error) {
+func (t *WebFetchTool) fetchContent(ctx context.Context, url string) (*agentdomain.FetchResult, error) {
 	return t.fetchHTTPContent(ctx, url)
 }
 
 // fetchHTTPContent fetches content from a regular HTTP/HTTPS URL
-func (t *WebFetchTool) fetchHTTPContent(ctx context.Context, url string) (*domain.FetchResult, error) {
+func (t *WebFetchTool) fetchHTTPContent(ctx context.Context, url string) (*agentdomain.FetchResult, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -222,7 +221,7 @@ func (t *WebFetchTool) fetchHTTPContent(ctx context.Context, url string) (*domai
 			t.config.Tools.WebFetch.Safety.MaxSize, len(body))
 	}
 
-	result := &domain.FetchResult{
+	result := &agentdomain.FetchResult{
 		Content:     string(body),
 		URL:         url,
 		Status:      resp.StatusCode,
@@ -352,7 +351,7 @@ func (t *WebFetchTool) FormatPreview(result *agentdomain.ToolExecutionResult) st
 		return "Tool execution result unavailable"
 	}
 
-	fetchResult, ok := result.Data.(*domain.FetchResult)
+	fetchResult, ok := result.Data.(*agentdomain.FetchResult)
 	if !ok {
 		if result.Success {
 			return "Web fetch completed successfully"
@@ -429,7 +428,7 @@ func (t *WebFetchTool) FormatForLLM(result *agentdomain.ToolExecutionResult) str
 
 // formatFetchData formats web fetch-specific data
 func (t *WebFetchTool) formatFetchData(data any) string {
-	fetchResult, ok := data.(*domain.FetchResult)
+	fetchResult, ok := data.(*agentdomain.FetchResult)
 	if !ok {
 		return t.formatter.FormatAsJSON(data)
 	}
@@ -553,7 +552,7 @@ func extensionFromContentType(contentType string) string {
 
 // saveToFile saves the fetched content to disk in the session's artifacts
 // directory
-func (t *WebFetchTool) saveToFile(ctx context.Context, fetchResult *domain.FetchResult, filename string) (string, error) {
+func (t *WebFetchTool) saveToFile(ctx context.Context, fetchResult *agentdomain.FetchResult, filename string) (string, error) {
 	baseDir := t.config.SessionArtifactsDir(agentdomain.GetSessionID(ctx))
 
 	if err := os.MkdirAll(baseDir, 0755); err != nil {

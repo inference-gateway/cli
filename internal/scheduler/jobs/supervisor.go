@@ -21,7 +21,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
@@ -30,7 +29,7 @@ import (
 type Supervisor struct {
 	messageQueue     convdomain.MessageQueue
 	conversationRepo convdomain.ConversationRepository
-	notifier         domain.UINotifier
+	notifier         agentdomain.UINotifier
 	taskRetention    scheddomain.TaskRetentionService
 
 	mu              sync.RWMutex
@@ -62,9 +61,9 @@ type supervised struct {
 // notifier is the single UI ingress used to push DrainQueueEvent (so landed work
 // drains promptly) and BackgroundTasksChangedEvent (so the task view refreshes);
 // a nil notifier degrades to no UI pushes.
-func NewSupervisor(messageQueue convdomain.MessageQueue, conversationRepo convdomain.ConversationRepository, notifier domain.UINotifier) *Supervisor {
+func NewSupervisor(messageQueue convdomain.MessageQueue, conversationRepo convdomain.ConversationRepository, notifier agentdomain.UINotifier) *Supervisor {
 	if notifier == nil {
-		notifier = domain.NoopUINotifier{}
+		notifier = agentdomain.NoopUINotifier{}
 	}
 	return &Supervisor{
 		messageQueue:     messageQueue,
@@ -177,7 +176,7 @@ func (s *Supervisor) Submit(job scheddomain.BackgroundJob) {
 
 	logger.Debug("background job submitted", "id", meta.ID, "kind", meta.Kind, "holds_session", meta.HoldsSession)
 	go s.monitor(ctx, sj)
-	s.notify(domain.BackgroundTasksChangedEvent{})
+	s.notify(agentdomain.BackgroundTasksChangedEvent{})
 }
 
 // monitor runs one job to completion and then delivers its outcome. A panicking
@@ -207,7 +206,7 @@ func (s *Supervisor) onSignal(sj *supervised, sig scheddomain.JobSignal) {
 		s.mu.Lock()
 		sj.lastNote = sig.Note
 		s.mu.Unlock()
-		s.notify(domain.BackgroundTasksChangedEvent{})
+		s.notify(agentdomain.BackgroundTasksChangedEvent{})
 	}
 
 	if sig.Enqueue && sig.Note != "" {
@@ -242,7 +241,7 @@ func (s *Supervisor) finish(sj *supervised, result agentdomain.ToolExecutionResu
 
 	if discarded {
 		sj.job.Close()
-		s.notify(domain.BackgroundTasksChangedEvent{})
+		s.notify(agentdomain.BackgroundTasksChangedEvent{})
 		return
 	}
 
@@ -258,7 +257,7 @@ func (s *Supervisor) finish(sj *supervised, result agentdomain.ToolExecutionResu
 		}
 	}
 
-	s.notify(domain.BackgroundTasksChangedEvent{})
+	s.notify(agentdomain.BackgroundTasksChangedEvent{})
 
 	if !sj.meta.Silent {
 		res := result
@@ -363,7 +362,7 @@ func (s *Supervisor) enqueue(content string) {
 		Role:    sdk.User,
 		Content: sdk.NewMessageContent(content),
 	}, "system")
-	s.notify(domain.DrainQueueEvent{})
+	s.notify(agentdomain.DrainQueueEvent{})
 }
 
 // Wind delivers a graceful wind-down or hard stop to a single running job by id.
@@ -432,7 +431,7 @@ func (s *Supervisor) DiscardKind(kind scheddomain.JobKind) {
 		sj.job.Close()
 	}
 	if len(toWind) > 0 || len(toClose) > 0 {
-		s.notify(domain.BackgroundTasksChangedEvent{})
+		s.notify(agentdomain.BackgroundTasksChangedEvent{})
 	}
 }
 

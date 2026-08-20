@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"slices"
 	"strings"
 	"time"
@@ -14,7 +15,6 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -46,7 +46,7 @@ type TaskManagerImpl struct {
 	selected              int
 	width                 int
 	height                int
-	themeService          domain.ThemeService
+	themeService          ui.ThemeService
 	styleProvider         *styles.Provider
 	done                  bool
 	cancelled             bool
@@ -78,7 +78,7 @@ const (
 
 // NewTaskManager creates a new task manager UI component
 func NewTaskManager(
-	themeService domain.ThemeService,
+	themeService ui.ThemeService,
 	styleProvider *styles.Provider,
 	taskRetentionService scheddomain.TaskRetentionService,
 	backgroundTaskService scheddomain.BackgroundTaskService,
@@ -157,7 +157,7 @@ func (t *TaskManagerImpl) Reset() {
 func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 	return func() tea.Msg {
 		if t.backgroundTaskService == nil {
-			return domain.TasksLoadedEvent{
+			return ui.TasksLoadedEvent{
 				ActiveTasks:    []any{},
 				CompletedTasks: []any{},
 				Error:          fmt.Errorf("background task service not available"),
@@ -235,7 +235,7 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 			interfaceCompletedTasks[i] = task
 		}
 
-		return domain.TasksLoadedEvent{
+		return ui.TasksLoadedEvent{
 			ActiveTasks:    interfaceActiveTasks,
 			CompletedTasks: interfaceCompletedTasks,
 			Error:          nil,
@@ -286,9 +286,9 @@ func jobStatusLabel(s scheddomain.JobStatus) string {
 
 func (t *TaskManagerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case domain.TasksLoadedEvent:
+	case ui.TasksLoadedEvent:
 		return t.handleTasksLoaded(msg)
-	case domain.BackgroundTasksChangedEvent:
+	case agentdomain.BackgroundTasksChangedEvent:
 		if t.loading {
 			return t, nil
 		}
@@ -296,7 +296,7 @@ func (t *TaskManagerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return t, tea.Batch(t.loadTasksCmd(), t.armRefreshTick())
 		}
 		return t, t.loadTasksCmd()
-	case domain.TaskCancelledEvent:
+	case ui.TaskCancelledEvent:
 		return t.handleTaskCancelled(msg)
 	case taskRefreshTickMsg:
 		if msg.epoch != t.tickEpoch {
@@ -326,7 +326,7 @@ func (t *TaskManagerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return t, nil
 }
 
-func (t *TaskManagerImpl) handleTasksLoaded(msg domain.TasksLoadedEvent) (tea.Model, tea.Cmd) {
+func (t *TaskManagerImpl) handleTasksLoaded(msg ui.TasksLoadedEvent) (tea.Model, tea.Cmd) {
 	t.loading = false
 	t.loadError = msg.Error
 
@@ -351,7 +351,7 @@ func (t *TaskManagerImpl) handleTasksLoaded(msg domain.TasksLoadedEvent) (tea.Mo
 	return t, nil
 }
 
-func (t *TaskManagerImpl) handleTaskCancelled(msg domain.TaskCancelledEvent) (tea.Model, tea.Cmd) {
+func (t *TaskManagerImpl) handleTaskCancelled(msg ui.TaskCancelledEvent) (tea.Model, tea.Cmd) {
 	if msg.Error != nil {
 		logger.Error("task cancellation failed", "task_id", msg.TaskID, "error", msg.Error)
 	} else {
@@ -545,14 +545,14 @@ func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
 		err := t.cancelTask(task)
 		if err != nil {
 			logger.Error("failed to cancel task", "task_id", task.TaskID, "error", err)
-			return domain.TaskCancelledEvent{
+			return ui.TaskCancelledEvent{
 				TaskID: task.TaskID,
 				Error:  err,
 			}
 		}
 
 		logger.Info("task cancelled successfully", "task_id", task.TaskID)
-		return domain.TaskCancelledEvent{
+		return ui.TaskCancelledEvent{
 			TaskID: task.TaskID,
 			Error:  nil,
 		}

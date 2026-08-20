@@ -3,16 +3,15 @@ package tools
 import (
 	"context"
 	"fmt"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-
 	config "github.com/inference-gateway/cli/config"
 )
 
-func newTestImageEditTool(imageService *domainmocks.FakeImageService) *ImageEditTool {
+func newTestImageEditTool(imageService *agentdomainmocks.FakeImageService) *ImageEditTool {
 	return NewImageEditTool(config.DefaultConfig(), imageService)
 }
 
@@ -33,7 +32,7 @@ func TestImageEditTool_IsEnabled(t *testing.T) {
 			cfg := config.DefaultConfig()
 			cfg.Tools.ImageEdit.Enabled = tt.configEnable
 			cfg.Tools.ImageEdit.Model = tt.model
-			tool := NewImageEditTool(cfg, &domainmocks.FakeImageService{})
+			tool := NewImageEditTool(cfg, &agentdomainmocks.FakeImageService{})
 
 			assert.Equal(t, tt.expected, tool.IsEnabled())
 		})
@@ -41,7 +40,7 @@ func TestImageEditTool_IsEnabled(t *testing.T) {
 }
 
 func TestImageEditTool_Validate(t *testing.T) {
-	imageService := &domainmocks.FakeImageService{}
+	imageService := &agentdomainmocks.FakeImageService{}
 	imageService.IsImageFileReturns(true)
 	tool := newTestImageEditTool(imageService)
 
@@ -74,7 +73,7 @@ func TestImageEditTool_Validate(t *testing.T) {
 }
 
 func TestImageEditTool_Validate_nonImageFile(t *testing.T) {
-	imageService := &domainmocks.FakeImageService{}
+	imageService := &agentdomainmocks.FakeImageService{}
 	imageService.IsImageFileReturns(false)
 	tool := newTestImageEditTool(imageService)
 
@@ -85,7 +84,7 @@ func TestImageEditTool_Validate_nonImageFile(t *testing.T) {
 
 func TestImageEditTool_Execute(t *testing.T) {
 	t.Run("defaults to auto quality and the configured model", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		imageService.IsImageFileReturns(true)
 		imageService.EditImageReturns("image-1.png", nil)
 		tool := newTestImageEditTool(imageService)
@@ -104,7 +103,7 @@ func TestImageEditTool_Execute(t *testing.T) {
 	})
 
 	t.Run("passes through an explicit quality and size", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		imageService.IsImageFileReturns(true)
 		imageService.EditImageReturns("image-1.png", nil)
 		tool := newTestImageEditTool(imageService)
@@ -121,7 +120,7 @@ func TestImageEditTool_Execute(t *testing.T) {
 	})
 
 	t.Run("passes through the mask path", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		imageService.IsImageFileReturns(true)
 		imageService.EditImageReturns("image-1.png", nil)
 		tool := newTestImageEditTool(imageService)
@@ -136,7 +135,7 @@ func TestImageEditTool_Execute(t *testing.T) {
 	})
 
 	t.Run("edit failure is a failed result, not an error", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		imageService.IsImageFileReturns(true)
 		imageService.EditImageReturns("", fmt.Errorf("API error: 404"))
 		tool := newTestImageEditTool(imageService)
@@ -149,7 +148,7 @@ func TestImageEditTool_Execute(t *testing.T) {
 	})
 
 	t.Run("invalid args error out before calling the service", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		imageService.IsImageFileReturns(true)
 		tool := newTestImageEditTool(imageService)
 

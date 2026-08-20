@@ -2,7 +2,7 @@
 // They have many consumer packages (handlers, agent, coordinator services, ui), so
 // they live here rather than in any single consumer.
 
-package domain
+package ui
 
 import (
 	sdk "github.com/inference-gateway/sdk"
@@ -35,13 +35,6 @@ type ChatSessionManager interface {
 	SetRetryStatus(status *agentdomain.RetryStatus)
 	GetRetryStatus() *agentdomain.RetryStatus
 	TouchChatActivity()
-}
-
-// EventBridgeManager handles event multicast for external event consumers
-type EventBridgeManager interface {
-	SetEventBridge(bridge agentdomain.EventBridge)
-	GetEventBridge() agentdomain.EventBridge
-	BroadcastEvent(event agentdomain.ChatEvent)
 }
 
 // ToolExecutionManager handles tool execution sessions

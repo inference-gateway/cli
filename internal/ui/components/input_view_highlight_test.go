@@ -1,13 +1,13 @@
 package components
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	"testing"
 
 	require "github.com/stretchr/testify/require"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
 )
 
@@ -15,12 +15,12 @@ func newInputViewWithHighlightDeps(t *testing.T) *InputView {
 	t.Helper()
 	iv := createInputViewWithTheme(createMockModelService())
 
-	fake := &domainmocks.FakeSkillsService{}
-	fake.GetStub = func(name string) (domain.Skill, bool) {
+	fake := &agentdomainmocks.FakeSkillsService{}
+	fake.GetStub = func(name string) (agentdomain.Skill, bool) {
 		if name == "maintainer" {
-			return domain.Skill{Name: name}, true
+			return agentdomain.Skill{Name: name}, true
 		}
-		return domain.Skill{}, false
+		return agentdomain.Skill{}, false
 	}
 	iv.SetSkillsService(fake)
 

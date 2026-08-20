@@ -2,12 +2,11 @@ package tools
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestExtractFilenameFromURL(t *testing.T) {
@@ -97,9 +96,9 @@ func TestFetchTool_Execute_BinarySavedWithCorrectExtension(t *testing.T) {
 		t.Fatalf("expected success, got error: %s", result.Error)
 	}
 
-	fr, ok := result.Data.(*domain.FetchResult)
+	fr, ok := result.Data.(*agentdomain.FetchResult)
 	if !ok {
-		t.Fatalf("expected *domain.FetchResult, got %T", result.Data)
+		t.Fatalf("expected *agentdomain.FetchResult, got %T", result.Data)
 	}
 	if !strings.HasSuffix(fr.SavedPath, ".png") {
 		t.Errorf("expected saved file to end with .png, got: %s", fr.SavedPath)

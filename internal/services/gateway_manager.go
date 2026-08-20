@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	"io"
 	"net/http"
 	"os"
@@ -19,7 +20,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -32,7 +32,7 @@ const (
 type GatewayManager struct {
 	sessionID        convdomain.SessionID
 	config           *config.Config
-	containerRuntime domain.ContainerRuntime
+	containerRuntime containerruntime.ContainerRuntime
 	containerID      string
 	isRunning        bool
 	binaryCmd        *exec.Cmd
@@ -40,7 +40,7 @@ type GatewayManager struct {
 }
 
 // NewGatewayManager creates a new gateway manager
-func NewGatewayManager(sessionID convdomain.SessionID, cfg *config.Config, runtime domain.ContainerRuntime) *GatewayManager {
+func NewGatewayManager(sessionID convdomain.SessionID, cfg *config.Config, runtime containerruntime.ContainerRuntime) *GatewayManager {
 	return &GatewayManager{
 		sessionID:        sessionID,
 		config:           cfg,

@@ -2,11 +2,11 @@ package approvalcoord
 
 import (
 	"errors"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"testing"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
@@ -64,7 +64,7 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		// Fresh state manager has no plan approval UI state.
 		state.SetAgentMode(agentdomain.AgentModePlan)
 
-		cmd, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
+		cmd, restart := svc.HandlePlanApprovalResponse(ui.PlanApprovalResponseEvent{
 			Action: agentdomain.PlanApprovalAccept,
 		})
 
@@ -87,7 +87,7 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
 		state.SetupPlanApprovalUIState("p", "", nil)
 
-		cmd, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
+		cmd, restart := svc.HandlePlanApprovalResponse(ui.PlanApprovalResponseEvent{
 			Action: agentdomain.PlanApprovalAccept,
 		})
 
@@ -116,7 +116,7 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		state.SetAgentMode(agentdomain.AgentModePlan)
 		state.SetupPlanApprovalUIState("p", "", nil)
 
-		_, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
+		_, restart := svc.HandlePlanApprovalResponse(ui.PlanApprovalResponseEvent{
 			Action: agentdomain.PlanApprovalAcceptStandard,
 		})
 
@@ -137,7 +137,7 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
 		state.SetupPlanApprovalUIState("p", "", nil)
 
-		_, restart := svc.HandlePlanApprovalResponse(domain.PlanApprovalResponseEvent{
+		_, restart := svc.HandlePlanApprovalResponse(ui.PlanApprovalResponseEvent{
 			Action: agentdomain.PlanApprovalReject,
 		})
 

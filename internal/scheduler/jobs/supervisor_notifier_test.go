@@ -15,7 +15,7 @@ import (
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
-// recNotifier is a thread-safe domain.UINotifier that records pushed events by
+// recNotifier is a thread-safe agentdomain.UINotifier that records pushed events by
 // type, so tests can assert what the supervisor emitted from its goroutines.
 type recNotifier struct {
 	mu     sync.Mutex

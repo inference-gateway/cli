@@ -9,6 +9,7 @@ package skills
 import (
 	"context"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,7 +19,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -50,8 +50,8 @@ type Service struct {
 	cfg          *config.Config
 	scopes       []scopedDir
 	mu           sync.RWMutex
-	skills       []domain.Skill
-	errs         []domain.SkillLoadError
+	skills       []agentdomain.Skill
+	errs         []agentdomain.SkillLoadError
 	catalog      *CatalogClient
 	dynamicNames []string
 }
@@ -168,17 +168,17 @@ func (s *Service) mergeCatalog(ctx context.Context, disabled map[string]struct{}
 }
 
 // List returns a defensive copy of the loaded skills.
-func (s *Service) List() []domain.Skill {
+func (s *Service) List() []agentdomain.Skill {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	out := make([]domain.Skill, len(s.skills))
+	out := make([]agentdomain.Skill, len(s.skills))
 	copy(out, s.skills)
 	return out
 }
 
 // Get returns the loaded skill with the given name. Lookup is exact (names are
 // validated to the lowercase `[a-z0-9-]+` charset at load time).
-func (s *Service) Get(name string) (domain.Skill, bool) {
+func (s *Service) Get(name string) (agentdomain.Skill, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, sk := range s.skills {
@@ -186,14 +186,14 @@ func (s *Service) Get(name string) (domain.Skill, bool) {
 			return sk, true
 		}
 	}
-	return domain.Skill{}, false
+	return agentdomain.Skill{}, false
 }
 
 // Errors returns a defensive copy of validation failures from the last Load.
-func (s *Service) Errors() []domain.SkillLoadError {
+func (s *Service) Errors() []agentdomain.SkillLoadError {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	out := make([]domain.SkillLoadError, len(s.errs))
+	out := make([]agentdomain.SkillLoadError, len(s.errs))
 	copy(out, s.errs)
 	return out
 }
@@ -205,14 +205,14 @@ func (s *Service) Errors() []domain.SkillLoadError {
 // is the safe replacement for Get on the activation path. Returns false when
 // the name is unknown, or when it is only resolvable via the catalog and
 // discovery is disabled.
-func (s *Service) Discover(ctx context.Context, name string) (domain.Skill, bool) {
+func (s *Service) Discover(ctx context.Context, name string) (agentdomain.Skill, bool) {
 	known, ok := s.Get(name)
 	if ok && known.Path != "" {
 		return known, true
 	}
 
 	if s.cfg == nil || !s.cfg.Agent.Skills.Discovery.Enabled {
-		return domain.Skill{}, false
+		return agentdomain.Skill{}, false
 	}
 
 	if s.catalog == nil {
@@ -223,7 +223,7 @@ func (s *Service) Discover(ctx context.Context, name string) (domain.Skill, bool
 	if !ok {
 		entry, found := s.catalog.Lookup(ctx, name)
 		if !found {
-			return domain.Skill{}, false
+			return agentdomain.Skill{}, false
 		}
 		description = entry.Description
 	}
@@ -231,14 +231,14 @@ func (s *Service) Discover(ctx context.Context, name string) (domain.Skill, bool
 	skillPath, err := s.catalog.DownloadSkill(ctx, name)
 	if err != nil {
 		logger.Warn("failed to download skill from catalog", "name", name, "error", err)
-		return domain.Skill{}, false
+		return agentdomain.Skill{}, false
 	}
 
-	skill := domain.Skill{
+	skill := agentdomain.Skill{
 		Name:        name,
 		Description: description,
 		Path:        skillPath,
-		Scope:       domain.SkillScopeCatalog,
+		Scope:       agentdomain.SkillScopeCatalog,
 	}
 
 	s.mu.Lock()
@@ -282,7 +282,7 @@ func (s *Service) CleanupDynamic(_ context.Context) error {
 
 type scopedDir struct {
 	dir        string
-	scope      domain.SkillScope
+	scope      agentdomain.SkillScope
 	pluginName string
 }
 
@@ -291,13 +291,13 @@ type scopedDir struct {
 // caller's `seen` map makes the first match win on name collision.
 func (s *Service) searchScopes() []scopedDir {
 	scopes := []scopedDir{
-		{dir: filepath.Join(config.ConfigDirName, skillsSubdir), scope: domain.SkillScopeProject},
-		{dir: filepath.Join(config.AgentsDirName, skillsSubdir), scope: domain.SkillScopeAgents},
+		{dir: filepath.Join(config.ConfigDirName, skillsSubdir), scope: agentdomain.SkillScopeProject},
+		{dir: filepath.Join(config.AgentsDirName, skillsSubdir), scope: agentdomain.SkillScopeAgents},
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		scopes = append(scopes, scopedDir{
 			dir:   filepath.Join(home, config.ConfigDirName, skillsSubdir),
-			scope: domain.SkillScopeUser,
+			scope: agentdomain.SkillScopeUser,
 		})
 	}
 	if s.cfg != nil {
@@ -306,17 +306,17 @@ func (s *Service) searchScopes() []scopedDir {
 			if err != nil {
 				continue
 			}
-			scopes = append(scopes, scopedDir{dir: dir, scope: domain.SkillScopePlugin, pluginName: p.Name})
+			scopes = append(scopes, scopedDir{dir: dir, scope: agentdomain.SkillScopePlugin, pluginName: p.Name})
 		}
 	}
 	return scopes
 }
 
 // LoadSkillMetadata reads <skillDir>/SKILL.md, parses frontmatter, validates
-// the fields, and returns the populated domain.Skill. Returns (nil, nil) when
+// the fields, and returns the populated agentdomain.Skill. Returns (nil, nil) when
 // the directory has no SKILL.md, (nil, err) when SKILL.md is invalid.
 // pluginName is set only for plugin-scoped skills.
-func LoadSkillMetadata(skillDir, dirName string, scope domain.SkillScope, pluginName string) (*domain.Skill, *domain.SkillLoadError) {
+func LoadSkillMetadata(skillDir, dirName string, scope agentdomain.SkillScope, pluginName string) (*agentdomain.Skill, *agentdomain.SkillLoadError) {
 	entryPath := filepath.Join(skillDir, skillEntryFile)
 	absPath, absErr := filepath.Abs(entryPath)
 	if absErr != nil {
@@ -328,19 +328,19 @@ func LoadSkillMetadata(skillDir, dirName string, scope domain.SkillScope, plugin
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, &domain.SkillLoadError{Path: absPath, Reason: fmt.Sprintf("read failed: %v", err)}
+		return nil, &agentdomain.SkillLoadError{Path: absPath, Reason: fmt.Sprintf("read failed: %v", err)}
 	}
 
 	fm, parseErr := parseFrontmatter(data)
 	if parseErr != nil {
-		return nil, &domain.SkillLoadError{Path: absPath, Reason: parseErr.Error()}
+		return nil, &agentdomain.SkillLoadError{Path: absPath, Reason: parseErr.Error()}
 	}
 
 	if validationErr := validate(fm, dirName); validationErr != nil {
-		return nil, &domain.SkillLoadError{Path: absPath, Reason: validationErr.Error()}
+		return nil, &agentdomain.SkillLoadError{Path: absPath, Reason: validationErr.Error()}
 	}
 
-	return &domain.Skill{
+	return &agentdomain.Skill{
 		Name:        fm.Name,
 		Description: fm.Description,
 		Path:        absPath,

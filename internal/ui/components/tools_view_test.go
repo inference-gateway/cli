@@ -1,6 +1,7 @@
 package components
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
 
@@ -9,10 +10,8 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
@@ -31,17 +30,17 @@ func toolDef(name, description string) sdk.ChatCompletionTool {
 // newToolsViewForTest builds a tools view backed by fakes: the tool service
 // returns the given tools for any mode and the state manager reports plan
 // mode, so the mode propagation is observable.
-func newToolsViewForTest(tools []sdk.ChatCompletionTool) (*ToolsViewImpl, *agentdomainmocks.FakeToolService, *domain.ApplicationState) {
+func newToolsViewForTest(tools []sdk.ChatCompletionTool) (*ToolsViewImpl, *agentdomainmocks.FakeToolService, *ui.ApplicationState) {
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeTheme.GetAccentColorReturns("#ff9e64")
 	fakeTheme.GetDimColorReturns("#888888")
-	themeService := &domainmocks.FakeThemeService{}
+	themeService := &uimocks.FakeThemeService{}
 	themeService.GetCurrentThemeReturns(fakeTheme)
 
 	toolService := &agentdomainmocks.FakeToolService{}
 	toolService.ListToolsForModeReturns(tools)
 
-	stateManager := domain.NewApplicationState()
+	stateManager := ui.NewApplicationState()
 	stateManager.SetAgentMode(agentdomain.AgentModePlan)
 
 	view := NewToolsView(toolService, stateManager, styles.NewProvider(themeService))

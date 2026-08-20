@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"os/exec"
 	"strings"
 	"sync"
@@ -14,7 +15,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
@@ -28,7 +28,7 @@ func (s *Service) HandleBashCommand(commandText string) tea.Cmd {
 
 	if command == "" {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  "No bash command provided. Use: !<command>",
 				Sticky: false,
 			}
@@ -42,7 +42,7 @@ func (s *Service) HandleBashCommand(commandText string) tea.Cmd {
 
 		if command == "" {
 			return func() tea.Msg {
-				return domain.ShowErrorEvent{
+				return ui.ShowErrorEvent{
 					Error:  "No bash command provided. Use: !<command>",
 					Sticky: false,
 				}
@@ -74,25 +74,25 @@ func (s *Service) HandleBashOutputChunk(_ agentdomain.BashOutputChunkEvent) tea.
 // bash run: refreshes history, surfaces an error message if the run failed,
 // and (for user-initiated `!command` runs) emits a UserInputEvent to trigger
 // auto-fix.
-func (s *Service) HandleBashCommandCompleted(msg domain.BashCommandCompletedEvent) tea.Cmd {
+func (s *Service) HandleBashCommandCompleted(msg ui.BashCommandCompletedEvent) tea.Cmd {
 	s.stateManager.EndToolExecution()
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{History: msg.History}
+			return ui.UpdateHistoryEvent{History: msg.History}
 		},
 	}
 
 	if msg.ErrorMessage != "" {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{Error: msg.ErrorMessage, Sticky: false}
+			return ui.ShowErrorEvent{Error: msg.ErrorMessage, Sticky: false}
 		})
 	}
 
 	if msg.Failed && msg.UserInitiated {
 		logger.Info("user-initiated bash command failed - triggering auto-fix")
 		cmds = append(cmds, func() tea.Msg {
-			return domain.UserInputEvent{
+			return agentdomain.UserInputEvent{
 				Content: "The bash command failed. Please analyze the error and help me fix it.",
 			}
 		})
@@ -108,7 +108,7 @@ func (s *Service) HandleBackgroundShellRequest() tea.Cmd {
 
 	if detachChan == nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  "No running Bash command to background",
 				Sticky: false,
 			}
@@ -118,15 +118,15 @@ func (s *Service) HandleBackgroundShellRequest() tea.Cmd {
 	select {
 	case detachChan <- struct{}{}:
 		return func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Moving command to background...",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}
 	default:
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  "Failed to signal detach to running command",
 				Sticky: false,
 			}
@@ -156,7 +156,7 @@ func (s *Service) executeBashCommand(commandText, command string) tea.Cmd {
 		},
 	}}); err != nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to start tool execution: %v", err),
 				Sticky: false,
 			}
@@ -166,15 +166,15 @@ func (s *Service) executeBashCommand(commandText, command string) tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg {
 			history := s.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Executing: %s", command),
 				Spinner:    true,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 				ToolName:   "Bash",
 			}
 		},
@@ -235,7 +235,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 		result, err := s.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
-			eventChan <- domain.BashCommandCompletedEvent{
+			eventChan <- ui.BashCommandCompletedEvent{
 				History:       s.conversationRepo.GetMessages(),
 				Failed:        true,
 				UserInitiated: strings.HasPrefix(toolCallID, "user-bash-"),
@@ -298,7 +298,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 		isUserInitiated := strings.HasPrefix(toolCallID, "user-bash-")
 		failed := result != nil && !result.Success
 
-		eventChan <- domain.BashCommandCompletedEvent{
+		eventChan <- ui.BashCommandCompletedEvent{
 			History:       s.conversationRepo.GetMessages(),
 			Failed:        failed,
 			UserInitiated: isUserInitiated,
@@ -402,15 +402,15 @@ func (s *Service) executeBashCommandInBackground(commandText, command string) te
 	return tea.Batch(
 		func() tea.Msg {
 			history := s.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Starting command in background: %s", command),
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	)

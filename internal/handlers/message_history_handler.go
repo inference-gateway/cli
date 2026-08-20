@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
@@ -40,7 +40,7 @@ func (h *MessageHistoryHandler) HandleNavigateBackInTime(event agentdomain.Navig
 			return nil
 		}
 
-		return domain.MessageHistoryReadyEvent{
+		return ui.MessageHistoryReadyEvent{
 			Messages: messages,
 		}
 	}
@@ -61,14 +61,14 @@ func (h *MessageHistoryHandler) HandleRestore(event agentdomain.MessageHistoryRe
 			}
 		}
 
-		return domain.UpdateHistoryEvent{
+		return ui.UpdateHistoryEvent{
 			History: h.conversationRepo.GetMessages(),
 		}
 	}
 }
 
 // HandleEdit processes the message history edit event
-func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent) tea.Cmd {
+func (h *MessageHistoryHandler) HandleEdit(event ui.MessageHistoryEditEvent) tea.Cmd {
 	return func() tea.Msg {
 		entries := h.conversationRepo.GetMessages()
 		if event.MessageIndex >= len(entries) {
@@ -90,7 +90,7 @@ func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent)
 			}
 		}
 
-		return domain.MessageHistoryEditReadyEvent{
+		return ui.MessageHistoryEditReadyEvent{
 			MessageIndex: event.MessageIndex,
 			Content:      event.MessageContent,
 			Snapshot:     event.MessageSnapshot,
@@ -101,7 +101,7 @@ func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent)
 // HandleEditSubmit processes the message edit submission
 func (h *MessageHistoryHandler) HandleEditSubmit(event agentdomain.MessageEditSubmitEvent) tea.Cmd {
 	return func() tea.Msg {
-		return domain.UserInputEvent{
+		return agentdomain.UserInputEvent{
 			Content: event.EditedContent,
 			Images:  event.Images,
 		}
@@ -140,8 +140,8 @@ func (h *MessageHistoryHandler) adjustRestoreIndex(entries []convdomain.Conversa
 
 // extractMessages filters conversation entries to user and assistant messages
 // and creates snapshots with truncated content for display
-func (h *MessageHistoryHandler) extractMessages(entries []convdomain.ConversationEntry) []domain.MessageSnapshot {
-	messages := make([]domain.MessageSnapshot, 0)
+func (h *MessageHistoryHandler) extractMessages(entries []convdomain.ConversationEntry) []ui.MessageSnapshot {
+	messages := make([]ui.MessageSnapshot, 0)
 
 	for i, entry := range entries {
 		if entry.Message.Role != sdk.User && entry.Message.Role != sdk.Assistant {
@@ -164,7 +164,7 @@ func (h *MessageHistoryHandler) extractMessages(entries []convdomain.Conversatio
 
 		truncated := formatting.TruncateText(content, 50)
 
-		message := domain.MessageSnapshot{
+		message := ui.MessageSnapshot{
 			Index:        i,
 			Role:         entry.Message.Role,
 			Content:      content,

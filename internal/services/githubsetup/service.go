@@ -1,4 +1,4 @@
-// Package githubsetup implements domain.GitHubSetupService for the GitHub Action
+// Package githubsetup implements agentdomain.GitHubSetupService for the GitHub Action
 // CI setup flow. Every git/gh command runs through the injected CommandRunner
 // under a 30-second timeout so a wedged subprocess cannot hang the UI.
 package githubsetup
@@ -35,7 +35,7 @@ func (r *RealRunner) Run(ctx context.Context, name string, args ...string) ([]by
 	return out, err
 }
 
-// Service implements domain.GitHubSetupService.
+// Service implements agentdomain.GitHubSetupService.
 type Service struct {
 	runner CommandRunner
 }

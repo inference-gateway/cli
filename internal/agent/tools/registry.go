@@ -3,6 +3,7 @@ package tools
 import (
 	"cmp"
 	"fmt"
+	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"path/filepath"
 	"slices"
@@ -16,7 +17,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -47,13 +47,13 @@ type Registry struct {
 	jobSubmitter    scheddomain.JobSubmitter
 	jobStopper      scheddomain.JobStopper
 	jobLiveness     scheddomain.JobLivenessReporter
-	imageService    domain.ImageService
-	mcpManager      domain.MCPManager
+	imageService    agentdomain.ImageService
+	mcpManager      agentdomain.MCPManager
 	shellService    scheddomain.BackgroundShellService
 	annotator       agentdomain.ImageAnnotator
 	frameSources    map[string]agentdomain.FrameSource
 	frameSourcesMu  sync.RWMutex
-	memoryBackend   domain.MemoryBackend
+	memoryBackend   memory.MemoryBackend
 	stores          *storage.Stores
 }
 
@@ -64,7 +64,7 @@ type Registry struct {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}
@@ -237,7 +237,7 @@ func (r *Registry) RegisterTools(tools map[string]agentdomain.Tool) {
 // constructing the shared backend; it re-registers the Memory tool so the
 // backend takes effect. A nil backend (or the local no-op backend) means no
 // remote sync.
-func (r *Registry) SetMemoryBackend(backend domain.MemoryBackend) {
+func (r *Registry) SetMemoryBackend(backend memory.MemoryBackend) {
 	r.memoryBackend = backend
 	if r.config.Memory.Enabled {
 		r.toolsMu.Lock()
@@ -304,7 +304,7 @@ func (r *Registry) IsToolEnabled(name string) bool {
 // RegisterMCPServerTools dynamically registers tools from an MCP server.
 // The serverName must match a client registered with the MCPManager - the
 // lookup is O(1) via MCPManager.GetClient and performs no network I/O.
-func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPDiscoveredTool) int {
+func (r *Registry) RegisterMCPServerTools(serverName string, tools []agentdomain.MCPDiscoveredTool) int {
 	if r.mcpManager == nil {
 		return 0
 	}

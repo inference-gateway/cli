@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	tea "charm.land/bubbletea/v2"
@@ -15,7 +14,7 @@ import (
 
 func newTestHelpView() *HelpViewImpl {
 	fakeTheme := &uimocks.FakeTheme{}
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
 	return NewHelpView(fakeThemeService, styles.NewProvider(fakeThemeService))
 }

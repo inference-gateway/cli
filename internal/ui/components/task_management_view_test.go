@@ -2,29 +2,28 @@ package components
 
 import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"strings"
 	"testing"
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 func createMockStyleProviderForTasks() *styles.Provider {
 	fakeTheme := &uimocks.FakeTheme{}
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
 	return styles.NewProvider(fakeThemeService)
 }
 
-func loadTaskRows(t *testing.T, tm *TaskManagerImpl) domain.TasksLoadedEvent {
+func loadTaskRows(t *testing.T, tm *TaskManagerImpl) ui.TasksLoadedEvent {
 	t.Helper()
 	msg := tm.loadTasksCmd()()
-	ev, ok := msg.(domain.TasksLoadedEvent)
+	ev, ok := msg.(ui.TasksLoadedEvent)
 	if !ok {
 		t.Fatalf("loadTasksCmd returned %T, want TasksLoadedEvent", msg)
 	}
@@ -241,7 +240,7 @@ func TestRefreshTick_ReArmsAndDedups(t *testing.T) {
 	}
 
 	tm = &TaskManagerImpl{tickLive: false, tickEpoch: 3, loading: false}
-	if _, cmd := tm.Update(domain.BackgroundTasksChangedEvent{}); cmd == nil {
+	if _, cmd := tm.Update(agentdomain.BackgroundTasksChangedEvent{}); cmd == nil {
 		t.Fatal("new task while dead: must re-arm (non-nil cmd)")
 	}
 	if !tm.tickLive || tm.tickEpoch != 4 {
@@ -249,7 +248,7 @@ func TestRefreshTick_ReArmsAndDedups(t *testing.T) {
 	}
 
 	tm = &TaskManagerImpl{tickLive: true, tickEpoch: 4, loading: false, activeTasks: running}
-	if _, cmd := tm.Update(domain.BackgroundTasksChangedEvent{}); cmd == nil {
+	if _, cmd := tm.Update(agentdomain.BackgroundTasksChangedEvent{}); cmd == nil {
 		t.Fatal("new task while alive: must still reload (non-nil cmd)")
 	}
 	if tm.tickEpoch != 4 {

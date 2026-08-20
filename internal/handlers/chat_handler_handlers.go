@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // FormatMetrics formats LLM completion metrics for the status bar, computing
@@ -63,12 +63,12 @@ func (h *ChatHandler) ExtractMarkdownSummary(content string) (string, bool) {
 // the file-selection view. Stays on the orchestrator because it's a one-shot
 // UI transition that doesn't fit any other service family.
 func (h *ChatHandler) handleFileSelectionRequest(
-	_ domain.FileSelectionRequestEvent,
+	_ ui.FileSelectionRequestEvent,
 ) tea.Cmd {
 	files, err := h.fileService.ListProjectFiles()
 	if err != nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to load files: %v", err),
 				Sticky: false,
 			}
@@ -77,16 +77,16 @@ func (h *ChatHandler) handleFileSelectionRequest(
 
 	if len(files) == 0 {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  "No files found in the current directory",
 				Sticky: false,
 			}
 		}
 	}
 
-	if err := h.stateManager.TransitionToView(domain.ViewStateFileSelection); err != nil {
+	if err := h.stateManager.TransitionToView(ui.ViewStateFileSelection); err != nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  "Failed to open file selection",
 				Sticky: false,
 			}
@@ -94,7 +94,7 @@ func (h *ChatHandler) handleFileSelectionRequest(
 	}
 
 	return func() tea.Msg {
-		return domain.SetupFileSelectionEvent{Files: files}
+		return ui.SetupFileSelectionEvent{Files: files}
 	}
 }
 
@@ -102,12 +102,12 @@ func (h *ChatHandler) handleFileSelectionRequest(
 // refreshes the UI. Requires the conversation repo to be persistent; falls
 // back with an error if it isn't.
 func (h *ChatHandler) handleConversationSelected(
-	msg domain.ConversationSelectedEvent,
+	msg ui.ConversationSelectedEvent,
 ) tea.Cmd {
 	persistentRepo, ok := h.conversationRepo.(*conversation.PersistentConversationRepository)
 	if !ok {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  "Conversation selection requires persistent storage",
 				Sticky: false,
 			}
@@ -117,7 +117,7 @@ func (h *ChatHandler) handleConversationSelected(
 	ctx := context.Background()
 	if err := persistentRepo.LoadConversation(ctx, msg.ConversationID); err != nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to load conversation: %v", err),
 				Sticky: false,
 			}
@@ -126,18 +126,18 @@ func (h *ChatHandler) handleConversationSelected(
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{History: h.conversationRepo.GetMessages()}
+			return ui.UpdateHistoryEvent{History: h.conversationRepo.GetMessages()}
 		},
 		func() tea.Msg {
-			return domain.TodoUpdateEvent{Todos: nil}
+			return ui.TodoUpdateEvent{Todos: nil}
 		},
 		func() tea.Msg {
 			metadata := persistentRepo.GetCurrentConversationMetadata()
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message: fmt.Sprintf("Loaded conversation: %s (%d messages)",
 					metadata.Title, metadata.MessageCount),
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	)
@@ -148,13 +148,13 @@ func (h *ChatHandler) handleConversationSelected(
 func (h *ChatHandler) handleMessageQueued() tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{History: h.conversationRepo.GetMessages()}
+			return ui.UpdateHistoryEvent{History: h.conversationRepo.GetMessages()}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Processing queued message...",
 				Spinner:    true,
-				StatusType: domain.StatusProcessing,
+				StatusType: ui.StatusProcessing,
 			}
 		},
 	}
@@ -170,7 +170,7 @@ func (h *ChatHandler) handleMessageQueued() tea.Cmd {
 func (h *ChatHandler) HandleCommand(commandText string) tea.Cmd {
 	if h.shortcutRegistry == nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  "Shortcut registry not available",
 				Sticky: false,
 			}
@@ -180,7 +180,7 @@ func (h *ChatHandler) HandleCommand(commandText string) tea.Cmd {
 	mainShortcut, args, err := h.shortcutRegistry.ParseShortcut(commandText)
 	if err != nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Invalid shortcut format: %v", err),
 				Sticky: false,
 			}

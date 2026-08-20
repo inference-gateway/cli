@@ -1,6 +1,7 @@
 package app
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"testing"
 	"time"
 
@@ -8,7 +9,6 @@ import (
 	zapcore "go.uber.org/zap/zapcore"
 	observer "go.uber.org/zap/zaptest/observer"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
@@ -22,8 +22,8 @@ func TestLogSlowUpdate(t *testing.T) {
 	logger.SetGlobalLogger(zap.New(core))
 	defer logger.SetGlobalLogger(prev)
 
-	logSlowUpdate(time.Now().Add(-2*constants.SlowUpdateThreshold), domain.DrainQueueEvent{})
-	logSlowUpdate(time.Now(), domain.DrainQueueEvent{})
+	logSlowUpdate(time.Now().Add(-2*constants.SlowUpdateThreshold), agentdomain.DrainQueueEvent{})
+	logSlowUpdate(time.Now(), agentdomain.DrainQueueEvent{})
 
 	warns := logs.FilterMessage("slow update").All()
 	if len(warns) != 1 {

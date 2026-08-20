@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	memory "github.com/inference-gateway/cli/internal/platform/memory"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -18,7 +20,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conv "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -36,7 +37,7 @@ type AgentServiceImpl struct {
 	config           *config.Config
 	conversationRepo convdomain.ConversationRepository
 	a2aAgentService  agentapp.A2AAgentService
-	skillsService    domain.SkillsService
+	skillsService    agentdomain.SkillsService
 	messageQueue     convdomain.MessageQueue
 	stateManager     stateManager
 	timeoutSeconds   int
@@ -48,7 +49,7 @@ type AgentServiceImpl struct {
 	rolloverManager  *conv.SessionRolloverManager
 	reminderProvider agentdomain.SystemReminderProvider
 	hookProvider     agentdomain.HookCommandProvider
-	memoryBackend    domain.MemoryBackend
+	memoryBackend    memory.MemoryBackend
 	recorder         *telemetry.Recorder
 	sessionTurns     atomic.Int64
 	firedReminders   map[string]bool
@@ -334,7 +335,7 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []convdomain.Conv
 		}
 	}
 
-	event := domain.ToolExecutionCompletedEvent{
+	event := agentdomain.ToolExecutionCompletedEvent{
 		SessionID:     p.requestID,
 		RequestID:     p.requestID,
 		Timestamp:     time.Now(),
@@ -357,10 +358,10 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []convdomain.Conv
 // updates, and the session todo list (reminder gating). *services.StateManager
 // satisfies it.
 type stateManager interface {
-	domain.AgentModeManager
-	domain.ComputerUsePauseManager
-	domain.ChatSessionManager
-	domain.TodoManager
+	ui.AgentModeManager
+	ui.ComputerUsePauseManager
+	ui.ChatSessionManager
+	ui.TodoManager
 }
 
 func NewAgent(
@@ -369,7 +370,7 @@ func NewAgent(
 	cfg *config.Config,
 	conversationRepo convdomain.ConversationRepository,
 	a2aAgentService agentapp.A2AAgentService,
-	skillsService domain.SkillsService,
+	skillsService agentdomain.SkillsService,
 	messageQueue convdomain.MessageQueue,
 	stateManager stateManager,
 	timeoutSeconds int,
@@ -466,7 +467,7 @@ func (s *AgentServiceImpl) SetTelemetryRecorder(rec *telemetry.Recorder) {
 // once at session start (SyncIn on HookPreSession). SyncOut is driven by the
 // Memory tool on write/delete, not here - chat fires HookPostSession after every
 // message, so pushing there would commit-storm. A nil backend disables sync.
-func (s *AgentServiceImpl) SetMemoryBackend(backend domain.MemoryBackend) {
+func (s *AgentServiceImpl) SetMemoryBackend(backend memory.MemoryBackend) {
 	s.memoryBackend = backend
 }
 

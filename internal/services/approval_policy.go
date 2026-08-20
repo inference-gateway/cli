@@ -3,13 +3,13 @@ package services
 import (
 	"context"
 	"encoding/json"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // StandardApprovalPolicy implements the default approval policy with the following rules:
@@ -25,11 +25,11 @@ import (
 //  5. Other tools check configuration (per-tool or global require_approval setting)
 type StandardApprovalPolicy struct {
 	config       *config.Config
-	stateManager domain.AgentModeManager
+	stateManager ui.AgentModeManager
 }
 
 // NewStandardApprovalPolicy creates a new standard approval policy
-func NewStandardApprovalPolicy(cfg *config.Config, stateManager domain.AgentModeManager) *StandardApprovalPolicy {
+func NewStandardApprovalPolicy(cfg *config.Config, stateManager ui.AgentModeManager) *StandardApprovalPolicy {
 	return &StandardApprovalPolicy{
 		config:       cfg,
 		stateManager: stateManager,

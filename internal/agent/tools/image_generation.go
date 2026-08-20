@@ -11,7 +11,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ImageGenerationTool generates an image with the configured image model and
@@ -20,7 +19,7 @@ import (
 // selected for the session.
 type ImageGenerationTool struct {
 	config       *config.Config
-	imageService domain.ImageService
+	imageService agentdomain.ImageService
 }
 
 var (
@@ -37,7 +36,7 @@ var (
 )
 
 // NewImageGenerationTool creates a new ImageGeneration tool
-func NewImageGenerationTool(cfg *config.Config, imageService domain.ImageService) *ImageGenerationTool {
+func NewImageGenerationTool(cfg *config.Config, imageService agentdomain.ImageService) *ImageGenerationTool {
 	return &ImageGenerationTool{
 		config:       cfg,
 		imageService: imageService,

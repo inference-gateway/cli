@@ -5,8 +5,7 @@ import (
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
-	domaina "github.com/inference-gateway/cli/internal/agent/domain"
-	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/agent/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 
@@ -46,10 +45,10 @@ type FakeDirectExecutionService struct {
 	handleBashCommandReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandleBashCommandCompletedStub        func(domain.BashCommandCompletedEvent) tea.Cmd
+	HandleBashCommandCompletedStub        func(ui.BashCommandCompletedEvent) tea.Cmd
 	handleBashCommandCompletedMutex       sync.RWMutex
 	handleBashCommandCompletedArgsForCall []struct {
-		arg1 domain.BashCommandCompletedEvent
+		arg1 ui.BashCommandCompletedEvent
 	}
 	handleBashCommandCompletedReturns struct {
 		result1 tea.Cmd
@@ -57,10 +56,10 @@ type FakeDirectExecutionService struct {
 	handleBashCommandCompletedReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandleBashOutputChunkStub        func(domaina.BashOutputChunkEvent) tea.Cmd
+	HandleBashOutputChunkStub        func(domain.BashOutputChunkEvent) tea.Cmd
 	handleBashOutputChunkMutex       sync.RWMutex
 	handleBashOutputChunkArgsForCall []struct {
-		arg1 domaina.BashOutputChunkEvent
+		arg1 domain.BashOutputChunkEvent
 	}
 	handleBashOutputChunkReturns struct {
 		result1 tea.Cmd
@@ -327,11 +326,11 @@ func (fake *FakeDirectExecutionService) HandleBashCommandReturnsOnCall(i int, re
 	}{result1}
 }
 
-func (fake *FakeDirectExecutionService) HandleBashCommandCompleted(arg1 domain.BashCommandCompletedEvent) tea.Cmd {
+func (fake *FakeDirectExecutionService) HandleBashCommandCompleted(arg1 ui.BashCommandCompletedEvent) tea.Cmd {
 	fake.handleBashCommandCompletedMutex.Lock()
 	ret, specificReturn := fake.handleBashCommandCompletedReturnsOnCall[len(fake.handleBashCommandCompletedArgsForCall)]
 	fake.handleBashCommandCompletedArgsForCall = append(fake.handleBashCommandCompletedArgsForCall, struct {
-		arg1 domain.BashCommandCompletedEvent
+		arg1 ui.BashCommandCompletedEvent
 	}{arg1})
 	stub := fake.HandleBashCommandCompletedStub
 	fakeReturns := fake.handleBashCommandCompletedReturns
@@ -352,13 +351,13 @@ func (fake *FakeDirectExecutionService) HandleBashCommandCompletedCallCount() in
 	return len(fake.handleBashCommandCompletedArgsForCall)
 }
 
-func (fake *FakeDirectExecutionService) HandleBashCommandCompletedCalls(stub func(domain.BashCommandCompletedEvent) tea.Cmd) {
+func (fake *FakeDirectExecutionService) HandleBashCommandCompletedCalls(stub func(ui.BashCommandCompletedEvent) tea.Cmd) {
 	fake.handleBashCommandCompletedMutex.Lock()
 	defer fake.handleBashCommandCompletedMutex.Unlock()
 	fake.HandleBashCommandCompletedStub = stub
 }
 
-func (fake *FakeDirectExecutionService) HandleBashCommandCompletedArgsForCall(i int) domain.BashCommandCompletedEvent {
+func (fake *FakeDirectExecutionService) HandleBashCommandCompletedArgsForCall(i int) ui.BashCommandCompletedEvent {
 	fake.handleBashCommandCompletedMutex.RLock()
 	defer fake.handleBashCommandCompletedMutex.RUnlock()
 	argsForCall := fake.handleBashCommandCompletedArgsForCall[i]
@@ -388,11 +387,11 @@ func (fake *FakeDirectExecutionService) HandleBashCommandCompletedReturnsOnCall(
 	}{result1}
 }
 
-func (fake *FakeDirectExecutionService) HandleBashOutputChunk(arg1 domaina.BashOutputChunkEvent) tea.Cmd {
+func (fake *FakeDirectExecutionService) HandleBashOutputChunk(arg1 domain.BashOutputChunkEvent) tea.Cmd {
 	fake.handleBashOutputChunkMutex.Lock()
 	ret, specificReturn := fake.handleBashOutputChunkReturnsOnCall[len(fake.handleBashOutputChunkArgsForCall)]
 	fake.handleBashOutputChunkArgsForCall = append(fake.handleBashOutputChunkArgsForCall, struct {
-		arg1 domaina.BashOutputChunkEvent
+		arg1 domain.BashOutputChunkEvent
 	}{arg1})
 	stub := fake.HandleBashOutputChunkStub
 	fakeReturns := fake.handleBashOutputChunkReturns
@@ -413,13 +412,13 @@ func (fake *FakeDirectExecutionService) HandleBashOutputChunkCallCount() int {
 	return len(fake.handleBashOutputChunkArgsForCall)
 }
 
-func (fake *FakeDirectExecutionService) HandleBashOutputChunkCalls(stub func(domaina.BashOutputChunkEvent) tea.Cmd) {
+func (fake *FakeDirectExecutionService) HandleBashOutputChunkCalls(stub func(domain.BashOutputChunkEvent) tea.Cmd) {
 	fake.handleBashOutputChunkMutex.Lock()
 	defer fake.handleBashOutputChunkMutex.Unlock()
 	fake.HandleBashOutputChunkStub = stub
 }
 
-func (fake *FakeDirectExecutionService) HandleBashOutputChunkArgsForCall(i int) domaina.BashOutputChunkEvent {
+func (fake *FakeDirectExecutionService) HandleBashOutputChunkArgsForCall(i int) domain.BashOutputChunkEvent {
 	fake.handleBashOutputChunkMutex.RLock()
 	defer fake.handleBashOutputChunkMutex.RUnlock()
 	argsForCall := fake.handleBashOutputChunkArgsForCall[i]

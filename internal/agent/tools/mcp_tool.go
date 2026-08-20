@@ -12,7 +12,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // MCPTool wraps an MCP server tool to implement the agentdomain.Tool interface
@@ -21,7 +20,7 @@ type MCPTool struct {
 	toolName      string
 	description   string
 	inputSchema   any
-	clientManager domain.MCPClient
+	clientManager agentdomain.MCPClient
 	config        *config.MCPConfig
 	formatter     agentinfra.BaseFormatter
 }
@@ -30,7 +29,7 @@ type MCPTool struct {
 func NewMCPTool(
 	serverName, toolName, description string,
 	inputSchema any,
-	clientManager domain.MCPClient,
+	clientManager agentdomain.MCPClient,
 	mcpConfig *config.MCPConfig,
 ) *MCPTool {
 	// Tool name format: MCP_<servername>_<toolname>

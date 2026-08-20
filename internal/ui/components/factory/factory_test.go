@@ -4,12 +4,11 @@ import (
 	"testing"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 func TestCreateConversationView(t *testing.T) {
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeTheme.GetDimColorReturns("#888888")
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
@@ -35,7 +34,7 @@ func TestCreateInputView(t *testing.T) {
 }
 
 func TestCreateStatusView(t *testing.T) {
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeTheme.GetDimColorReturns("#888888")
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
@@ -48,7 +47,7 @@ func TestCreateStatusView(t *testing.T) {
 }
 
 func TestCreateHelpBar(t *testing.T) {
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeTheme.GetDimColorReturns("#888888")
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)

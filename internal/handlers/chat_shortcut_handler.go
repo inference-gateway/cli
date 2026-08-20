@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"os"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -44,10 +44,10 @@ func (s *ChatShortcutHandler) executeShortcut(
 		switch shortcut {
 		case "clear", "cls":
 			if err := s.handler.conversationRepo.Clear(); err != nil {
-				return domain.SetStatusEvent{
+				return ui.SetStatusEvent{
 					Message:    fmt.Sprintf("Failed to clear conversation: %v", err),
 					Spinner:    false,
-					StatusType: domain.StatusDefault,
+					StatusType: ui.StatusDefault,
 				}
 			}
 
@@ -59,29 +59,29 @@ func (s *ChatShortcutHandler) executeShortcut(
 
 			return tea.Batch(
 				func() tea.Msg {
-					return domain.UpdateHistoryEvent{
+					return ui.UpdateHistoryEvent{
 						History: s.handler.conversationRepo.GetMessages(),
 					}
 				},
 				func() tea.Msg {
-					return domain.TodoUpdateEvent{
+					return ui.TodoUpdateEvent{
 						Todos: []agentdomain.TodoItem{},
 					}
 				},
 				func() tea.Msg {
-					return domain.SetStatusEvent{
+					return ui.SetStatusEvent{
 						Message:    "Conversation cleared",
 						Spinner:    false,
-						StatusType: domain.StatusDefault,
+						StatusType: ui.StatusDefault,
 					}
 				},
 			)()
 
 		default:
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Unknown shortcut: %s", shortcut),
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}
 	}
@@ -99,10 +99,10 @@ func (s *ChatShortcutHandler) tryExecuteFromRegistry(shortcut string, args []str
 	}
 
 	if !shortcutInstance.CanExecute(args) {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    fmt.Sprintf("Invalid usage. Usage: %s", shortcutInstance.GetUsage()),
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
@@ -118,10 +118,10 @@ func (s *ChatShortcutHandler) executeRegistryShortcut(shortcut shortcuts.Shortcu
 
 	return tea.Sequence(
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Executing %s...", shortcutName),
 				Spinner:    true,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 			}
 		},
 		s.performShortcutExecution(shortcut, args),
@@ -144,10 +144,10 @@ func (s *ChatShortcutHandler) performShortcutExecution(shortcut shortcuts.Shortc
 
 		result, err := shortcut.Execute(ctx, args)
 		if err != nil {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Command failed: %v", err),
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}
 
@@ -168,15 +168,15 @@ func (s *ChatShortcutHandler) performShortcutExecution(shortcut shortcuts.Shortc
 			if result.SideEffect == shortcuts.SideEffectNone {
 				return tea.Batch(
 					func() tea.Msg {
-						return domain.UpdateHistoryEvent{
+						return ui.UpdateHistoryEvent{
 							History: s.handler.conversationRepo.GetMessages(),
 						}
 					},
 					func() tea.Msg {
-						return domain.SetStatusEvent{
+						return ui.SetStatusEvent{
 							Message:    "Shortcut action completed",
 							Spinner:    false,
-							StatusType: domain.StatusDefault,
+							StatusType: ui.StatusDefault,
 						}
 					},
 				)()
@@ -231,57 +231,57 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 	case shortcuts.SideEffectSendMessageWithModel:
 		return s.handleSendMessageWithModelSideEffect(data)
 	default:
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Shortcut completed",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 }
 
 // Side effect handlers
 func (s *ChatShortcutHandler) handleSwitchModelSideEffect() tea.Msg {
-	_ = s.handler.stateManager.TransitionToView(domain.ViewStateModelSelection)
-	return domain.SetStatusEvent{
+	_ = s.handler.stateManager.TransitionToView(ui.ViewStateModelSelection)
+	return ui.SetStatusEvent{
 		Message:    "Select a model from the dropdown",
 		Spinner:    false,
-		StatusType: domain.StatusDefault,
+		StatusType: ui.StatusDefault,
 	}
 }
 
 func (s *ChatShortcutHandler) handleSwitchThemeSideEffect() tea.Msg {
-	_ = s.handler.stateManager.TransitionToView(domain.ViewStateThemeSelection)
-	return domain.SetStatusEvent{
+	_ = s.handler.stateManager.TransitionToView(ui.ViewStateThemeSelection)
+	return ui.SetStatusEvent{
 		Message:    "",
 		Spinner:    false,
-		StatusType: domain.StatusDefault,
+		StatusType: ui.StatusDefault,
 	}
 }
 
 func (s *ChatShortcutHandler) handleShowToolsListSideEffect() tea.Msg {
-	_ = s.handler.stateManager.TransitionToView(domain.ViewStateToolsList)
-	return domain.SetStatusEvent{
+	_ = s.handler.stateManager.TransitionToView(ui.ViewStateToolsList)
+	return ui.SetStatusEvent{
 		Message:    "",
 		Spinner:    false,
-		StatusType: domain.StatusDefault,
+		StatusType: ui.StatusDefault,
 	}
 }
 
 func (s *ChatShortcutHandler) handleShowA2AAgentsSideEffect() tea.Msg {
-	_ = s.handler.stateManager.TransitionToView(domain.ViewStateA2AAgents)
-	return domain.SetStatusEvent{
+	_ = s.handler.stateManager.TransitionToView(ui.ViewStateA2AAgents)
+	return ui.SetStatusEvent{
 		Message:    "",
 		Spinner:    false,
-		StatusType: domain.StatusDefault,
+		StatusType: ui.StatusDefault,
 	}
 }
 
 func (s *ChatShortcutHandler) handleClearConversationSideEffect() tea.Msg {
 	if err := s.handler.conversationRepo.Clear(); err != nil {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    fmt.Sprintf("Failed to clear conversation: %v", err),
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
@@ -291,63 +291,63 @@ func (s *ChatShortcutHandler) handleClearConversationSideEffect() tea.Msg {
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: s.handler.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return domain.TodoUpdateEvent{
+			return ui.TodoUpdateEvent{
 				Todos: nil,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Conversation cleared",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	)()
 }
 
 func (s *ChatShortcutHandler) handleReloadConfigSideEffect() tea.Msg {
-	return domain.SetStatusEvent{
+	return ui.SetStatusEvent{
 		Message:    "Configuration reloaded successfully",
 		Spinner:    false,
-		StatusType: domain.StatusDefault,
+		StatusType: ui.StatusDefault,
 	}
 }
 
 func (s *ChatShortcutHandler) handleShowHelpSideEffect() tea.Msg {
-	return domain.TriggerHelpViewEvent{}
+	return ui.TriggerHelpViewEvent{}
 }
 
 func (s *ChatShortcutHandler) handleSaveConversationSideEffect() tea.Msg {
-	return domain.SetStatusEvent{
+	return ui.SetStatusEvent{
 		Message:    "Conversation saved successfully",
 		Spinner:    false,
-		StatusType: domain.StatusDefault,
+		StatusType: ui.StatusDefault,
 	}
 }
 
 func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect() tea.Msg {
-	if err := s.handler.stateManager.TransitionToView(domain.ViewStateConversationSelection); err != nil {
+	if err := s.handler.stateManager.TransitionToView(ui.ViewStateConversationSelection); err != nil {
 		logger.Error("failed to transition to conversation selection view", "error", err)
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to show conversation selection: %v", err),
 			Sticky: false,
 		}
 	}
 
-	return domain.SetStatusEvent{
+	return ui.SetStatusEvent{
 		Message:    "Select a conversation from the dropdown",
 		Spinner:    false,
-		StatusType: domain.StatusDefault,
+		StatusType: ui.StatusDefault,
 	}
 }
 
 func (s *ChatShortcutHandler) handleShowGithubActionSetupSideEffect() tea.Msg {
-	return domain.TriggerGithubActionSetupEvent{}
+	return ui.TriggerGithubActionSetupEvent{}
 }
 
 func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea.Msg {
@@ -357,38 +357,38 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 	}
 
 	if err := s.handler.conversationRepo.StartNewConversation(title); err != nil {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    fmt.Sprintf("Failed to start new conversation: %v", err),
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: s.handler.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return domain.TodoUpdateEvent{
+			return ui.TodoUpdateEvent{
 				Todos: nil,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("• Started new conversation: %s", title),
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	)()
 }
 
 func (s *ChatShortcutHandler) handleShowA2ATaskManagementSideEffect() tea.Msg {
-	if err := s.handler.stateManager.TransitionToView(domain.ViewStateA2ATaskManagement); err != nil {
+	if err := s.handler.stateManager.TransitionToView(ui.ViewStateA2ATaskManagement); err != nil {
 		logger.Error("failed to transition to task management view", "error", err)
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to show task management: %v", err),
 			Sticky: false,
 		}
@@ -400,42 +400,42 @@ func (s *ChatShortcutHandler) handleShowA2ATaskManagementSideEffect() tea.Msg {
 		hasBackgroundTasks = len(backgroundTasks) > 0
 	}
 
-	return domain.SetStatusEvent{
+	return ui.SetStatusEvent{
 		Message:    "Task management interface",
 		Spinner:    hasBackgroundTasks,
-		StatusType: domain.StatusDefault,
+		StatusType: ui.StatusDefault,
 	}
 }
 
 func (s *ChatShortcutHandler) handleShowDiffViewerSideEffect() tea.Msg {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to resolve working directory: %v", err),
 			Sticky: false,
 		}
 	}
 
 	if !gitdiff.IsRepo(cwd) {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Not a git repository - nothing to diff",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
-	if err := s.handler.stateManager.TransitionToView(domain.ViewStateDiffViewer); err != nil {
+	if err := s.handler.stateManager.TransitionToView(ui.ViewStateDiffViewer); err != nil {
 		logger.Error("failed to transition to diff viewer view", "error", err)
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to open changes panel: %v", err),
 			Sticky: false,
 		}
 	}
 
-	return domain.SetStatusEvent{
+	return ui.SetStatusEvent{
 		Message:    "Changes panel - ↑/↓ select · a stage · u unstage · c commit · esc back",
 		Spinner:    false,
-		StatusType: domain.StatusDefault,
+		StatusType: ui.StatusDefault,
 	}
 }
 
@@ -443,41 +443,41 @@ func (s *ChatShortcutHandler) handleShowDiffViewerSideEffect() tea.Msg {
 // viewer, it has no git-repository gate - it browses the working directory via
 // the filesystem, so it works in any directory (git or not).
 func (s *ChatShortcutHandler) handleShowExplorerSideEffect() tea.Msg {
-	if err := s.handler.stateManager.TransitionToView(domain.ViewStateExplorer); err != nil {
+	if err := s.handler.stateManager.TransitionToView(ui.ViewStateExplorer); err != nil {
 		logger.Error("failed to transition to explorer view", "error", err)
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to open explorer: %v", err),
 			Sticky: false,
 		}
 	}
 
-	return domain.SetStatusEvent{
+	return ui.SetStatusEvent{
 		Message:    "Explorer - ↑/↓ select · →/← expand/collapse · / find · s select · v open · esc back",
 		Spinner:    false,
-		StatusType: domain.StatusDefault,
+		StatusType: ui.StatusDefault,
 	}
 }
 
 func (s *ChatShortcutHandler) handleSetInputSideEffect(data any) tea.Msg {
 	text, ok := data.(string)
 	if !ok {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Invalid input data",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetInputEvent{Text: text}
+			return ui.SetInputEvent{Text: text}
 		},
 	)()
 }
@@ -485,15 +485,15 @@ func (s *ChatShortcutHandler) handleSetInputSideEffect(data any) tea.Msg {
 func (s *ChatShortcutHandler) handleGenerateSnippetSideEffect(data any) tea.Msg {
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: s.handler.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Generating snippet with AI...",
 				Spinner:    true,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 			}
 		},
 		s.performSnippetGeneration(data),
@@ -503,19 +503,19 @@ func (s *ChatShortcutHandler) handleGenerateSnippetSideEffect(data any) tea.Msg 
 func (s *ChatShortcutHandler) performSnippetGeneration(data any) tea.Cmd {
 	return func() tea.Msg {
 		if data == nil {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "No snippet data available",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}
 
 		dataMap, ok := data.(map[string]any)
 		if !ok {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Invalid snippet data format",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}
 
@@ -526,10 +526,10 @@ func (s *ChatShortcutHandler) performSnippetGeneration(data any) tea.Cmd {
 		snippetConfig, ok5 := dataMap["snippet"].(*shortcuts.SnippetConfig)
 
 		if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Missing snippet generation data",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}
 
@@ -537,10 +537,10 @@ func (s *ChatShortcutHandler) performSnippetGeneration(data any) tea.Cmd {
 		if err != nil {
 			return tea.Batch(
 				func() tea.Msg {
-					return domain.SetStatusEvent{
+					return ui.SetStatusEvent{
 						Message:    fmt.Sprintf("%s Snippet generation failed: %v", icons.CrossMark, err),
 						Spinner:    false,
-						StatusType: domain.StatusDefault,
+						StatusType: ui.StatusDefault,
 					}
 				},
 			)()
@@ -548,14 +548,14 @@ func (s *ChatShortcutHandler) performSnippetGeneration(data any) tea.Cmd {
 
 		return tea.Batch(
 			func() tea.Msg {
-				return domain.SetStatusEvent{
+				return ui.SetStatusEvent{
 					Message:    fmt.Sprintf("%s Snippet generated for %s - review and press Enter", icons.CheckMark, shortcutName),
 					Spinner:    false,
-					StatusType: domain.StatusDefault,
+					StatusType: ui.StatusDefault,
 				}
 			},
 			func() tea.Msg {
-				return domain.SetInputEvent{
+				return ui.SetInputEvent{
 					Text: snippet,
 				}
 			},
@@ -566,19 +566,19 @@ func (s *ChatShortcutHandler) performSnippetGeneration(data any) tea.Cmd {
 func (s *ChatShortcutHandler) handleCompactConversationSideEffect() tea.Msg {
 	messageCount := s.handler.conversationRepo.GetMessageCount()
 	if messageCount == 0 {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "No conversation to compact",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Compacting conversation history...",
 				Spinner:    true,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 			}
 		},
 		s.performCompactAsync(),
@@ -589,28 +589,28 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 	return func() tea.Msg {
 		h := s.handler
 		if h.conversationOptimizer == nil {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Conversation optimizer is not enabled in configuration",
 				Spinner:    false,
-				StatusType: domain.StatusError,
+				StatusType: ui.StatusError,
 			}
 		}
 
 		messages := h.nonHiddenMessages()
 		if len(messages) == 0 {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "No messages to compact",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}
 
 		currentModel := h.modelService.GetCurrentModel()
 		if currentModel == "" {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "No model selected - please select a model first",
 				Spinner:    false,
-				StatusType: domain.StatusError,
+				StatusType: ui.StatusError,
 			}
 		}
 
@@ -618,42 +618,42 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 
 		optimizedMessages, ok := h.optimizeWithTimeout(messages, currentModel)
 		if !ok {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Conversation optimization timed out - try again or check gateway logs",
 				Spinner:    false,
-				StatusType: domain.StatusError,
+				StatusType: ui.StatusError,
 			}
 		}
 		logger.Info("optimization complete", "original_count", len(messages), "optimized_count", len(optimizedMessages))
 
 		if len(optimizedMessages) >= len(messages) {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Conversation is already compact - no optimization needed",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}
 
 		if err := h.reseedConversationWithMessages(optimizedMessages, currentModel); err != nil {
 			logger.Error("failed to start new conversation", "error", err)
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Failed to start new conversation: %v", err),
 				Spinner:    false,
-				StatusType: domain.StatusError,
+				StatusType: ui.StatusError,
 			}
 		}
 
 		return tea.Batch(
 			func() tea.Msg {
-				return domain.UpdateHistoryEvent{
+				return ui.UpdateHistoryEvent{
 					History: h.conversationRepo.GetMessages(),
 				}
 			},
 			func() tea.Msg {
-				return domain.SetStatusEvent{
+				return ui.SetStatusEvent{
 					Message:    fmt.Sprintf("• Started new conversation with summary (%d messages preserved)", len(messages)),
 					Spinner:    false,
-					StatusType: domain.StatusDefault,
+					StatusType: ui.StatusDefault,
 				}
 			},
 		)()
@@ -663,10 +663,10 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 	imageAttachments, ok := data.([]agentdomain.ImageAttachment)
 	if !ok {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Invalid image data",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
@@ -691,10 +691,10 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 
 	if len(contentParts) == 0 {
 		logger.Warn("no content parts created for image message")
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Failed to create image content",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
@@ -710,24 +710,24 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 
 	if err := s.handler.conversationRepo.AddMessage(imageEntry); err != nil {
 		logger.Error("failed to add image message", "error", err)
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Failed to embed images",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: s.handler.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Embedded %d image(s) from GitHub issue", len(imageAttachments)),
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	)()
@@ -736,29 +736,29 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 // handleSendMessageWithModelSideEffect handles sending a message with a temporary model switch
 func (s *ChatShortcutHandler) handleSendMessageWithModelSideEffect(data any) tea.Msg {
 	if data == nil {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "No model switch data provided",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
 	switchData, ok := data.(shortcuts.ModelSwitchData)
 	if !ok {
 		logger.Error("invalid model switch data type", "type", fmt.Sprintf("%T", data))
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Invalid model switch data",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
 	if err := s.handler.modelService.SelectModel(switchData.TargetModel); err != nil {
 		logger.Error("failed to switch to temporary model", "model", switchData.TargetModel, "error", err)
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    fmt.Sprintf("Failed to switch to model '%s': %v", switchData.TargetModel, err),
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
@@ -775,10 +775,10 @@ func (s *ChatShortcutHandler) handleSendMessageWithModelSideEffect(data any) tea
 		if restoreErr := s.handler.modelService.SelectModel(switchData.OriginalModel); restoreErr != nil {
 			logger.Error("failed to restore original model", "model", switchData.OriginalModel, "error", restoreErr)
 		}
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    fmt.Sprintf("Failed to add message: %v", err),
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 
@@ -788,15 +788,15 @@ func (s *ChatShortcutHandler) handleSendMessageWithModelSideEffect(data any) tea
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: s.handler.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Using model: %s", switchData.TargetModel),
 				Spinner:    true,
-				StatusType: domain.StatusPreparing,
+				StatusType: ui.StatusPreparing,
 			}
 		},
 		s.handler.startChatCompletion(),

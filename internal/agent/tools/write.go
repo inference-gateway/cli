@@ -11,8 +11,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	filewriter "github.com/inference-gateway/cli/internal/domain/filewriter"
-	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
+	filewriter "github.com/inference-gateway/cli/internal/services/filewriter"
 )
 
 const (
@@ -33,10 +32,10 @@ type WriteTool struct {
 
 // NewWriteTool creates a new write tool with clean architecture
 func NewWriteTool(cfg *config.Config) *WriteTool {
-	pathValidator := filewriterservice.NewPathValidator(cfg)
-	backupManager := filewriterservice.NewBackupManager(".")
-	fileWriter := filewriterservice.NewSafeFileWriter(pathValidator, backupManager)
-	chunkManager := filewriterservice.NewStreamingChunkManager("./.infer/tmp", fileWriter)
+	pathValidator := filewriter.NewPathValidator(cfg)
+	backupManager := filewriter.NewBackupManager(".")
+	fileWriter := filewriter.NewSafeFileWriter(pathValidator, backupManager)
+	chunkManager := filewriter.NewStreamingChunkManager("./.infer/tmp", fileWriter)
 	paramExtractor := NewParameterExtractor()
 
 	return &WriteTool{

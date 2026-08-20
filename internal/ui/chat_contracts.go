@@ -4,7 +4,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ChatHandler defines the interface for the chat handler
@@ -14,13 +13,13 @@ type ChatHandler interface {
 	Handle(msg tea.Msg) tea.Cmd
 
 	// Specific event handlers
-	HandleUserInputEvent(msg domain.UserInputEvent) tea.Cmd
-	HandleFileSelectionRequestEvent(msg domain.FileSelectionRequestEvent) tea.Cmd
-	HandleConversationSelectedEvent(msg domain.ConversationSelectedEvent) tea.Cmd
+	HandleUserInputEvent(msg agentdomain.UserInputEvent) tea.Cmd
+	HandleFileSelectionRequestEvent(msg FileSelectionRequestEvent) tea.Cmd
+	HandleConversationSelectedEvent(msg ConversationSelectedEvent) tea.Cmd
 	HandleToolApprovalRequestedEvent(msg agentdomain.ToolApprovalRequestedEvent) tea.Cmd
-	HandleToolApprovalResponseEvent(msg domain.ToolApprovalResponseEvent) tea.Cmd
+	HandleToolApprovalResponseEvent(msg agentdomain.ToolApprovalResponseEvent) tea.Cmd
 	HandlePlanApprovalRequestedEvent(msg agentdomain.PlanApprovalRequestedEvent) tea.Cmd
-	HandlePlanApprovalResponseEvent(msg domain.PlanApprovalResponseEvent) tea.Cmd
+	HandlePlanApprovalResponseEvent(msg PlanApprovalResponseEvent) tea.Cmd
 
 	// Command handlers
 	HandleCommand(commandText string) tea.Cmd
@@ -78,7 +77,7 @@ type A2ATaskCoordinator interface {
 // having to depend on the runner.
 type ApprovalCoordinator interface {
 	HandlePlanApprovalRequested(msg agentdomain.PlanApprovalRequestedEvent) tea.Cmd
-	HandlePlanApprovalResponse(msg domain.PlanApprovalResponseEvent) (cmd tea.Cmd, restart bool)
+	HandlePlanApprovalResponse(msg PlanApprovalResponseEvent) (cmd tea.Cmd, restart bool)
 	HandleUserQuestionRequested(msg agentdomain.UserQuestionRequestedEvent) tea.Cmd
 	HandleComputerUsePaused(msg agentdomain.ComputerUsePausedEvent) tea.Cmd
 	HandleComputerUseResumed(msg agentdomain.ComputerUseResumedEvent) (cmd tea.Cmd, restart bool)
@@ -115,10 +114,10 @@ type ToolExecutionCoordinator interface {
 	HandleToolCallUpdate(msg agentdomain.ToolCallUpdateEvent) tea.Cmd
 	HandleToolCallReady(msg agentdomain.ToolCallReadyEvent) tea.Cmd
 	HandleToolApprovalRequested(msg agentdomain.ToolApprovalRequestedEvent) tea.Cmd
-	HandleToolApprovalResponse(msg domain.ToolApprovalResponseEvent) tea.Cmd
-	HandleToolExecutionStarted(msg domain.ToolExecutionStartedEvent) tea.Cmd
+	HandleToolApprovalResponse(msg agentdomain.ToolApprovalResponseEvent) tea.Cmd
+	HandleToolExecutionStarted(msg ToolExecutionStartedEvent) tea.Cmd
 	HandleToolExecutionProgress(msg agentdomain.ToolExecutionProgressEvent) tea.Cmd
-	HandleToolExecutionCompleted(msg domain.ToolExecutionCompletedEvent) tea.Cmd
+	HandleToolExecutionCompleted(msg agentdomain.ToolExecutionCompletedEvent) tea.Cmd
 	HandleToolCancelled(msg agentdomain.ToolCancelledEvent) tea.Cmd
 }
 
@@ -138,7 +137,7 @@ type DirectExecutionService interface {
 	HandleToolCommand(commandText string) tea.Cmd
 	HandleBackgroundShellRequest() tea.Cmd
 	HandleBashOutputChunk(msg agentdomain.BashOutputChunkEvent) tea.Cmd
-	HandleBashCommandCompleted(msg domain.BashCommandCompletedEvent) tea.Cmd
+	HandleBashCommandCompleted(msg BashCommandCompletedEvent) tea.Cmd
 
 	ParseToolCall(input string) (string, map[string]any, error)
 	ParseArguments(argsStr string) (map[string]any, error)

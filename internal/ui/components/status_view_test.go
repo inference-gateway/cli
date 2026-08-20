@@ -1,13 +1,12 @@
 package components
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
@@ -15,7 +14,7 @@ import (
 // view's statusViewState interface, which adds the ChatSessionManager methods
 // (IsAgentBusy and an error-returning StartChatSession) that the wrapped
 // services.StateManager normally provides.
-type statusViewStateStub struct{ *domain.ApplicationState }
+type statusViewStateStub struct{ *ui.ApplicationState }
 
 func (statusViewStateStub) IsAgentBusy() bool { return false }
 
@@ -27,7 +26,7 @@ func (s statusViewStateStub) StartChatSession(requestID, model string, eventChan
 // createMockStyleProviderForStatus creates a mock styles provider for testing
 func createMockStyleProviderForStatus() *styles.Provider {
 	fakeTheme := &uimocks.FakeTheme{}
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
 	return styles.NewProvider(fakeThemeService)
 }
@@ -230,7 +229,7 @@ func TestStatusView_StateTransitions(t *testing.T) {
 
 func TestStatusView_Render_PausesSpinnerDuringApproval(t *testing.T) {
 	sv := NewStatusView(createMockStyleProviderForStatus())
-	sm := statusViewStateStub{domain.NewApplicationState()}
+	sm := statusViewStateStub{ui.NewApplicationState()}
 	sv.SetStateManager(sm)
 	sv.ShowSpinner("Executing tools")
 

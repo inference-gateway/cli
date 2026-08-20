@@ -13,7 +13,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -60,13 +59,13 @@ type AutocompleteImpl struct {
 	height               int
 	maxVisible           int
 	shortcutRegistry     ShortcutRegistry
-	skillsService        domain.SkillsService
-	stateManager         domain.AgentModeManager
+	skillsService        agentdomain.SkillsService
+	stateManager         ui.AgentModeManager
 	lastAgentMode        agentdomain.AgentMode
 	toolService          agentdomain.ToolService
 	modelService         convdomain.ModelService
 	pricingService       convdomain.PricingService
-	githubIssueService   domain.GitHubIssueService
+	githubIssueService   agentdomain.GitHubIssueService
 	completionMode       string
 	usageHint            string
 	splicePrefix         string
@@ -97,12 +96,12 @@ func (a *AutocompleteImpl) SetToolService(toolService agentdomain.ToolService) {
 
 // SetSkillsService sets the skills service so installed skills appear in the
 // slash-command autocomplete alongside shortcuts.
-func (a *AutocompleteImpl) SetSkillsService(skillsService domain.SkillsService) {
+func (a *AutocompleteImpl) SetSkillsService(skillsService agentdomain.SkillsService) {
 	a.skillsService = skillsService
 }
 
 // SetStateManager sets the state manager for agent mode filtering
-func (a *AutocompleteImpl) SetStateManager(stateManager domain.AgentModeManager) {
+func (a *AutocompleteImpl) SetStateManager(stateManager ui.AgentModeManager) {
 	a.stateManager = stateManager
 }
 
@@ -118,7 +117,7 @@ func (a *AutocompleteImpl) SetPricingService(pricingService convdomain.PricingSe
 
 // SetGitHubIssueService sets the GitHub issue lookup used by the "#"
 // autocomplete trigger. Safe to call with nil; the trigger then shows nothing.
-func (a *AutocompleteImpl) SetGitHubIssueService(s domain.GitHubIssueService) {
+func (a *AutocompleteImpl) SetGitHubIssueService(s agentdomain.GitHubIssueService) {
 	a.githubIssueService = s
 }
 

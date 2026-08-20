@@ -1,13 +1,13 @@
 package toolcoordinator
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
@@ -70,7 +70,7 @@ func TestCoordinator_HandleToolApprovalResponse(t *testing.T) {
 		responseChan := make(chan agentdomain.ApprovalAction, 1)
 		state.SetupApprovalUIState(&sdk.ChatCompletionMessageToolCall{ID: "tc-1"}, responseChan)
 
-		cmd := c.HandleToolApprovalResponse(domain.ToolApprovalResponseEvent{
+		cmd := c.HandleToolApprovalResponse(agentdomain.ToolApprovalResponseEvent{
 			Action:   agentdomain.ApprovalApprove,
 			ToolCall: sdk.ChatCompletionMessageToolCall{ID: "tc-1"},
 		})
@@ -96,7 +96,7 @@ func TestCoordinator_HandleToolApprovalResponse(t *testing.T) {
 		responseChan := make(chan agentdomain.ApprovalAction, 1)
 		state.SetupApprovalUIState(&sdk.ChatCompletionMessageToolCall{ID: "tc-1"}, responseChan)
 
-		_ = c.HandleToolApprovalResponse(domain.ToolApprovalResponseEvent{
+		_ = c.HandleToolApprovalResponse(agentdomain.ToolApprovalResponseEvent{
 			Action:   agentdomain.ApprovalAutoAccept,
 			ToolCall: sdk.ChatCompletionMessageToolCall{ID: "tc-1"},
 		})
@@ -119,7 +119,7 @@ func TestCoordinator_HandleToolApprovalResponse(t *testing.T) {
 		responseChan := make(chan agentdomain.ApprovalAction, 1)
 		state.SetupApprovalUIState(&sdk.ChatCompletionMessageToolCall{ID: "tc-1"}, responseChan)
 
-		_ = c.HandleToolApprovalResponse(domain.ToolApprovalResponseEvent{
+		_ = c.HandleToolApprovalResponse(agentdomain.ToolApprovalResponseEvent{
 			Action:   agentdomain.ApprovalReject,
 			ToolCall: sdk.ChatCompletionMessageToolCall{ID: "tc-1"},
 		})
@@ -187,7 +187,7 @@ func TestCoordinator_HandleToolExecutionProgress(t *testing.T) {
 			if cmd == nil {
 				continue
 			}
-			if _, ok := cmd().(domain.UpdateHistoryEvent); ok {
+			if _, ok := cmd().(ui.UpdateHistoryEvent); ok {
 				foundHistory = true
 				break
 			}
@@ -243,7 +243,7 @@ func TestCoordinator_HandleToolExecutionCompleted(t *testing.T) {
 		c, _, _, _ := newCoordinatorForTest()
 		c.SetActiveToolCallID("tc-1")
 
-		cmd := c.HandleToolExecutionCompleted(domain.ToolExecutionCompletedEvent{
+		cmd := c.HandleToolExecutionCompleted(agentdomain.ToolExecutionCompletedEvent{
 			TotalExecuted: 2,
 			SuccessCount:  2,
 		})

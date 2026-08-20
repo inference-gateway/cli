@@ -1,16 +1,16 @@
 package components
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-func questionStateForTest(questions ...agentdomain.UserQuestion) *domain.UserQuestionUIState {
+func questionStateForTest(questions ...agentdomain.UserQuestion) *ui.UserQuestionUIState {
 	if len(questions) == 0 {
 		questions = []agentdomain.UserQuestion{
 			{
@@ -24,7 +24,7 @@ func questionStateForTest(questions ...agentdomain.UserQuestion) *domain.UserQue
 			},
 		}
 	}
-	return &domain.UserQuestionUIState{
+	return &ui.UserQuestionUIState{
 		Questions:    questions,
 		ResponseChan: make(chan []agentdomain.UserQuestionAnswer, 1),
 	}
@@ -53,8 +53,8 @@ func drainQuestionForm(v *QuestionFormView, cmd tea.Cmd) {
 	drainQuestionForm(v, v.Forward(msg))
 }
 
-func newQuestionFormForTest(state *domain.UserQuestionUIState) (*QuestionFormView, *domain.ApplicationState) {
-	sm := domain.NewApplicationState()
+func newQuestionFormForTest(state *ui.UserQuestionUIState) (*QuestionFormView, *ui.ApplicationState) {
+	sm := ui.NewApplicationState()
 	sm.SetupUserQuestionUIState(state.Questions, state.ResponseChan)
 
 	v := NewQuestionFormView(createMockStyleProvider(), sm)
@@ -64,7 +64,7 @@ func newQuestionFormForTest(state *domain.UserQuestionUIState) (*QuestionFormVie
 }
 
 func TestQuestionFormView_RenderNilState(t *testing.T) {
-	sm := domain.NewApplicationState()
+	sm := ui.NewApplicationState()
 
 	v := NewQuestionFormView(createMockStyleProvider(), sm)
 	if got := v.Render(); got != "" {

@@ -1,6 +1,7 @@
 package app
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
 
@@ -9,7 +10,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	approvalcoord "github.com/inference-gateway/cli/internal/services/approvalcoord"
 	components "github.com/inference-gateway/cli/internal/ui/components"
@@ -86,7 +86,7 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 		cfg,
 		[]string{model},
 		model,
-		domain.VersionInfo{},
+		ui.VersionInfo{},
 		c.GetAgentManager(),
 		c.GetAgentService(),
 		c.GetBackgroundTaskService(),

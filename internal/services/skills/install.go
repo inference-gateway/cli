@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"io"
 	"net/http"
 	"net/url"
@@ -15,7 +16,6 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 const (
@@ -254,7 +254,7 @@ func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase stri
 		}
 	}
 
-	skill, loadErr := LoadSkillMetadata(destDir, skillDirName, domain.SkillScopeProject, "")
+	skill, loadErr := LoadSkillMetadata(destDir, skillDirName, agentdomain.SkillScopeProject, "")
 	if loadErr != nil {
 		_ = os.RemoveAll(destDir)
 		return "", fmt.Errorf("downloaded skill failed validation: %s", loadErr.Reason)

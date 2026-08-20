@@ -2,13 +2,13 @@ package styles
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"os"
 	"strings"
 
 	chroma "github.com/alecthomas/chroma/v2"
 	chromastyles "github.com/alecthomas/chroma/v2/styles"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	diffview "github.com/inference-gateway/cli/internal/ui/components/diffview"
 )
 
@@ -321,7 +321,7 @@ func (d *DiffRenderer) chromaStyle() *chroma.Style {
 	return chromastyles.Get("github-dark")
 }
 
-func (d *DiffRenderer) themeOrNil() domain.Theme {
+func (d *DiffRenderer) themeOrNil() ui.Theme {
 	if d.styleProvider == nil {
 		return nil
 	}
@@ -331,7 +331,7 @@ func (d *DiffRenderer) themeOrNil() domain.Theme {
 // isLightTheme classifies the theme by the luminance of its assistant
 // (primary text) color. Dark themes have light text (high luminance); light
 // themes have dark text (low luminance).
-func IsLightTheme(theme domain.Theme) bool {
+func IsLightTheme(theme ui.Theme) bool {
 	return hexLuminance(theme.GetAssistantColor()) < 0.5
 }
 

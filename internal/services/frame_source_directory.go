@@ -12,7 +12,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // DirectoryFrameSource serves the newest image file under a configured
@@ -24,13 +23,13 @@ type DirectoryFrameSource struct {
 	path     string
 	maxFiles int
 	maxAge   time.Duration
-	images   domain.ImageService
+	images   agentdomain.ImageService
 }
 
 // NewDirectoryFrameSource creates a frame source over cfg.Path. The retention
 // max_age was validated at config load, so a parse failure here means zero (no
 // age limit).
-func NewDirectoryFrameSource(name string, cfg config.VisionSourceConfig, images domain.ImageService) *DirectoryFrameSource {
+func NewDirectoryFrameSource(name string, cfg config.VisionSourceConfig, images agentdomain.ImageService) *DirectoryFrameSource {
 	maxAge, _ := time.ParseDuration(cfg.Retention.MaxAge)
 	return &DirectoryFrameSource{
 		name:     name,

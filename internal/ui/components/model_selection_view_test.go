@@ -1,12 +1,12 @@
 package components
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	assert "github.com/stretchr/testify/assert"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
@@ -98,7 +98,7 @@ func TestModelSelector_EnterSelectsAndEmitsEvent(t *testing.T) {
 				}
 				return
 			}
-			if ev, ok := out.(domain.ModelSelectedEvent); ok {
+			if ev, ok := out.(ui.ModelSelectedEvent); ok {
 				selected = ev.Model
 				return
 			}
@@ -166,7 +166,7 @@ func TestModelSelector_SearchEnterSelectsFilteredMatch(t *testing.T) {
 		if out == nil {
 			break
 		}
-		if ev, ok := out.(domain.ModelSelectedEvent); ok {
+		if ev, ok := out.(ui.ModelSelectedEvent); ok {
 			selected = ev.Model
 			break
 		}

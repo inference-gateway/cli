@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -26,8 +25,8 @@ func NewApplicationViewRenderer(styleProvider *styles.Provider) *ApplicationView
 type ChatInterfaceData struct {
 	Width          int
 	Height         int
-	ToolExecution  *domain.ToolExecutionSession
-	CurrentView    domain.ViewState
+	ToolExecution  *ui.ToolExecutionSession
+	CurrentView    ui.ViewState
 	QueuedMessages []convdomain.QueuedMessage
 }
 

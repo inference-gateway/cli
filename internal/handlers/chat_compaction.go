@@ -2,13 +2,13 @@ package handlers
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -127,7 +127,7 @@ func (h *ChatHandler) newSessionThenExecutePlanCmd(planID string) tea.Cmd {
 
 		return tea.Batch(
 			func() tea.Msg {
-				return domain.UpdateHistoryEvent{History: h.conversationRepo.GetMessages()}
+				return ui.UpdateHistoryEvent{History: h.conversationRepo.GetMessages()}
 			},
 			h.startChatCompletion(),
 		)()

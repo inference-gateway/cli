@@ -15,7 +15,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
@@ -59,12 +58,12 @@ type CustomShortcut struct {
 	config       CustomShortcutConfig
 	client       sdk.Client
 	modelService convdomain.ModelService
-	imageService domain.ImageService
+	imageService agentdomain.ImageService
 	toolService  agentdomain.ToolService
 }
 
 // NewCustomShortcut creates a new custom shortcut from configuration
-func NewCustomShortcut(config CustomShortcutConfig, client sdk.Client, modelService convdomain.ModelService, imageService domain.ImageService, toolService agentdomain.ToolService) *CustomShortcut {
+func NewCustomShortcut(config CustomShortcutConfig, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) *CustomShortcut {
 	return &CustomShortcut{
 		config:       config,
 		client:       client,
@@ -531,7 +530,7 @@ func (c *CustomShortcut) callLLM(ctx context.Context, prompt string) (string, er
 }
 
 // LoadCustomShortcuts loads user-defined shortcuts from shortcuts/ directory within the specified base directory
-func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService convdomain.ModelService, imageService domain.ImageService, toolService agentdomain.ToolService) ([]Shortcut, error) {
+func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) ([]Shortcut, error) {
 	shortcuts := make([]Shortcut, 0)
 
 	shortcutsDir := filepath.Join(baseDir, "shortcuts")
@@ -558,7 +557,7 @@ func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService convdom
 }
 
 // loadShortcutsFromFile loads shortcuts from a specific YAML file
-func loadShortcutsFromFile(filename string, client sdk.Client, modelService convdomain.ModelService, imageService domain.ImageService, toolService agentdomain.ToolService) ([]Shortcut, error) {
+func loadShortcutsFromFile(filename string, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) ([]Shortcut, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", filename, err)

@@ -2,13 +2,13 @@ package render
 
 import (
 	"errors"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"strings"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
@@ -99,8 +99,8 @@ func TestRenderAGUI_ErrorEmitsSingleRunError(t *testing.T) {
 
 // approvalsChan feeds the given responses into a closed channel, mimicking
 // the headless control broker after stdin EOF.
-func approvalsChan(resps ...domain.ApprovalResponse) <-chan domain.ApprovalResponse {
-	ch := make(chan domain.ApprovalResponse, len(resps))
+func approvalsChan(resps ...ipc.ApprovalResponse) <-chan ipc.ApprovalResponse {
+	ch := make(chan ipc.ApprovalResponse, len(resps))
 	for _, r := range resps {
 		ch <- r
 	}
@@ -111,17 +111,17 @@ func approvalsChan(resps ...domain.ApprovalResponse) <-chan domain.ApprovalRespo
 func TestAnswerApproval_RoundTrip(t *testing.T) {
 	tests := []struct {
 		name      string
-		approvals <-chan domain.ApprovalResponse
+		approvals <-chan ipc.ApprovalResponse
 		want      agentdomain.ApprovalAction
 	}{
-		{"approved", approvalsChan(domain.ApprovalResponse{ToolCallID: "tc1", Approved: true}), agentdomain.ApprovalApprove},
-		{"rejected", approvalsChan(domain.ApprovalResponse{ToolCallID: "tc1", Approved: false}), agentdomain.ApprovalReject},
-		{"empty tool_call_id matches", approvalsChan(domain.ApprovalResponse{Approved: true}), agentdomain.ApprovalApprove},
+		{"approved", approvalsChan(ipc.ApprovalResponse{ToolCallID: "tc1", Approved: true}), agentdomain.ApprovalApprove},
+		{"rejected", approvalsChan(ipc.ApprovalResponse{ToolCallID: "tc1", Approved: false}), agentdomain.ApprovalReject},
+		{"empty tool_call_id matches", approvalsChan(ipc.ApprovalResponse{Approved: true}), agentdomain.ApprovalApprove},
 		{"skips stale tool_call_id", approvalsChan(
-			domain.ApprovalResponse{ToolCallID: "stale", Approved: true},
-			domain.ApprovalResponse{ToolCallID: "tc1", Approved: false},
+			ipc.ApprovalResponse{ToolCallID: "stale", Approved: true},
+			ipc.ApprovalResponse{ToolCallID: "tc1", Approved: false},
 		), agentdomain.ApprovalReject},
-		{"only stale responses reject", approvalsChan(domain.ApprovalResponse{ToolCallID: "stale", Approved: true}), agentdomain.ApprovalReject},
+		{"only stale responses reject", approvalsChan(ipc.ApprovalResponse{ToolCallID: "stale", Approved: true}), agentdomain.ApprovalReject},
 		{"closed broker rejects", approvalsChan(), agentdomain.ApprovalReject},
 		{"nil broker rejects", nil, agentdomain.ApprovalReject},
 	}
@@ -158,7 +158,7 @@ func TestRenderAGUI_ApprovalRoundTrip(t *testing.T) {
 		ToolCall:     sdk.ChatCompletionMessageToolCall{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"}},
 		ResponseChan: respChan,
 	}
-	approvals := approvalsChan(domain.ApprovalResponse{ToolCallID: "tc1", Approved: true})
+	approvals := approvalsChan(ipc.ApprovalResponse{ToolCallID: "tc1", Approved: true})
 	var out strings.Builder
 	if err := RenderAGUI(stream(ev, agentdomain.ChatCompleteEvent{}), &out, approvals, "s1", "m"); err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
@@ -183,7 +183,7 @@ func TestRenderJSON_StreamsPerTurn(t *testing.T) {
 		agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{
 			{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"ls"}`}},
 		}},
-		domain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolName: "Bash", Success: true}}},
+		agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolName: "Bash", Success: true}}},
 		agentdomain.ChatChunkEvent{Content: "all done"},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})

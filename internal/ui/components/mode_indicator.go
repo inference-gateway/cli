@@ -1,17 +1,17 @@
 package components
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // ModeIndicator displays the current agent mode (PLAN/AUTO) on its own line
 type ModeIndicator struct {
 	width         int
-	stateManager  domain.AgentModeManager
+	stateManager  ui.AgentModeManager
 	styleProvider *styles.Provider
 }
 
@@ -28,7 +28,7 @@ func (mi *ModeIndicator) SetWidth(width int) {
 }
 
 // SetStateManager sets the state manager
-func (mi *ModeIndicator) SetStateManager(stateManager domain.AgentModeManager) {
+func (mi *ModeIndicator) SetStateManager(stateManager ui.AgentModeManager) {
 	mi.stateManager = stateManager
 }
 

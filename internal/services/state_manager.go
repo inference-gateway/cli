@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"sync"
 	"time"
 
@@ -9,13 +10,12 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // StateManager provides centralized state management with proper synchronization
 type StateManager struct {
-	state          *domain.ApplicationState
+	state          *ui.ApplicationState
 	mutex          sync.RWMutex
 	stallThreshold time.Duration
 
@@ -28,27 +28,27 @@ type StateManager struct {
 // NewStateManager creates a new state manager
 func NewStateManager(debugMode bool) *StateManager {
 	return &StateManager{
-		state:     domain.NewApplicationState(),
+		state:     ui.NewApplicationState(),
 		debugMode: debugMode,
 	}
 }
 
 // GetCurrentView returns the current view state
-func (sm *StateManager) GetCurrentView() domain.ViewState {
+func (sm *StateManager) GetCurrentView() ui.ViewState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetCurrentView()
 }
 
 // GetPreviousView returns the previous view state
-func (sm *StateManager) GetPreviousView() domain.ViewState {
+func (sm *StateManager) GetPreviousView() ui.ViewState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetPreviousView()
 }
 
 // TransitionToView transitions to a new view with validation and logging
-func (sm *StateManager) TransitionToView(newView domain.ViewState) error {
+func (sm *StateManager) TransitionToView(newView ui.ViewState) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -235,7 +235,7 @@ func (sm *StateManager) EndChatSession() {
 }
 
 // GetChatSession returns the current chat session (read-only)
-func (sm *StateManager) GetChatSession() *domain.ChatSession {
+func (sm *StateManager) GetChatSession() *ui.ChatSession {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetChatSession()
@@ -324,7 +324,7 @@ func (sm *StateManager) EndToolExecution() {
 }
 
 // GetToolExecution returns the current tool execution session (read-only)
-func (sm *StateManager) GetToolExecution() *domain.ToolExecutionSession {
+func (sm *StateManager) GetToolExecution() *ui.ToolExecutionSession {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetToolExecution()
@@ -371,7 +371,7 @@ func (sm *StateManager) SetupFileSelection(files []string) {
 }
 
 // GetFileSelectionState returns the current file selection state
-func (sm *StateManager) GetFileSelectionState() *domain.FileSelectionState {
+func (sm *StateManager) GetFileSelectionState() *ui.FileSelectionState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetFileSelectionState()
@@ -412,7 +412,7 @@ func (sm *StateManager) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessage
 }
 
 // GetApprovalUIState returns the current approval UI state
-func (sm *StateManager) GetApprovalUIState() *domain.ApprovalUIState {
+func (sm *StateManager) GetApprovalUIState() *ui.ApprovalUIState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -445,7 +445,7 @@ func (sm *StateManager) SetupPlanApprovalUIState(planContent, planID string, res
 }
 
 // GetPlanApprovalUIState returns the current plan approval UI state
-func (sm *StateManager) GetPlanApprovalUIState() *domain.PlanApprovalUIState {
+func (sm *StateManager) GetPlanApprovalUIState() *ui.PlanApprovalUIState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -477,7 +477,7 @@ func (sm *StateManager) SetupUserQuestionUIState(questions []agentdomain.UserQue
 }
 
 // GetUserQuestionUIState returns the current AskUserQuestion form state
-func (sm *StateManager) GetUserQuestionUIState() *domain.UserQuestionUIState {
+func (sm *StateManager) GetUserQuestionUIState() *ui.UserQuestionUIState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -545,7 +545,7 @@ func (sm *StateManager) GetQueuedMessages() []convdomain.QueuedMessage {
 // Message edit state methods
 
 // SetMessageEditState sets the message edit state
-func (sm *StateManager) SetMessageEditState(state *domain.MessageEditState) {
+func (sm *StateManager) SetMessageEditState(state *ui.MessageEditState) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -553,7 +553,7 @@ func (sm *StateManager) SetMessageEditState(state *domain.MessageEditState) {
 }
 
 // GetMessageEditState returns the current message edit state
-func (sm *StateManager) GetMessageEditState() *domain.MessageEditState {
+func (sm *StateManager) GetMessageEditState() *ui.MessageEditState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -587,10 +587,10 @@ func (sm *StateManager) RecoverFromInconsistentState() error {
 	sm.state.EndToolExecution()
 
 	currentView := sm.state.GetCurrentView()
-	if currentView != domain.ViewStateChat && currentView != domain.ViewStateModelSelection {
-		if err := sm.state.TransitionToView(domain.ViewStateChat); err != nil {
-			if currentView != domain.ViewStateModelSelection {
-				_ = sm.state.TransitionToView(domain.ViewStateModelSelection)
+	if currentView != ui.ViewStateChat && currentView != ui.ViewStateModelSelection {
+		if err := sm.state.TransitionToView(ui.ViewStateChat); err != nil {
+			if currentView != ui.ViewStateModelSelection {
+				_ = sm.state.TransitionToView(ui.ViewStateModelSelection)
 			}
 		}
 	}
@@ -635,7 +635,7 @@ func (sm *StateManager) SetAgentError(name string, err error) {
 }
 
 // GetAgentReadiness returns the current agent readiness state
-func (sm *StateManager) GetAgentReadiness() *domain.AgentReadinessState {
+func (sm *StateManager) GetAgentReadiness() *ui.AgentReadinessState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 

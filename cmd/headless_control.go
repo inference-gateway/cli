@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"io"
 	"time"
 
@@ -11,7 +13,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
 )
@@ -32,18 +33,18 @@ const resumeContinuePrompt = "Please continue from where you left off."
 // flag anywhere else races that decision.
 type headlessControl struct {
 	agentService agentdomain.AgentService
-	pauseState   domain.ComputerUsePauseManager
+	pauseState   ui.ComputerUsePauseManager
 	sessionID    string
-	approvals    chan domain.ApprovalResponse
+	approvals    chan ipc.ApprovalResponse
 	ctrlEvents   chan agentdomain.ChatEvent
 }
 
-func newHeadlessControl(agentService agentdomain.AgentService, pauseState domain.ComputerUsePauseManager, sessionID string) *headlessControl {
+func newHeadlessControl(agentService agentdomain.AgentService, pauseState ui.ComputerUsePauseManager, sessionID string) *headlessControl {
 	return &headlessControl{
 		agentService: agentService,
 		pauseState:   pauseState,
 		sessionID:    sessionID,
-		approvals:    make(chan domain.ApprovalResponse, 4),
+		approvals:    make(chan ipc.ApprovalResponse, 4),
 		ctrlEvents:   make(chan agentdomain.ChatEvent, 4),
 	}
 }
@@ -58,12 +59,12 @@ func (c *headlessControl) readLines(in io.Reader) {
 }
 
 func (c *headlessControl) dispatchLine(line []byte) {
-	var resp domain.ApprovalResponse
+	var resp ipc.ApprovalResponse
 	if json.Unmarshal(line, &resp) == nil && resp.Type == "approval_response" {
 		c.approvals <- resp
 		return
 	}
-	var ctrl domain.ComputerUseControlMessage
+	var ctrl ipc.ComputerUseControlMessage
 	if json.Unmarshal(line, &ctrl) != nil || ctrl.Type != "computer_use_control" {
 		return
 	}

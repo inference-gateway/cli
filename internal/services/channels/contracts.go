@@ -1,9 +1,10 @@
 // External messaging channel contracts (Telegram, WhatsApp, ...).
 
-package domain
+package channels
 
 import (
 	"context"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -24,7 +25,7 @@ type Channel interface {
 // ApprovalChannel is an optional interface that channels can implement to provide
 // rich approval UIs (e.g., inline keyboard buttons) instead of text-based prompts.
 type ApprovalChannel interface {
-	SendApproval(ctx context.Context, recipientID string, req *ApprovalRequest) error
+	SendApproval(ctx context.Context, recipientID string, req *ipc.ApprovalRequest) error
 }
 
 // HistoryCleaner is an optional interface that channels can implement to

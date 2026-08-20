@@ -6,7 +6,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/inference-gateway/cli/internal/agent/domain"
-	domaina "github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 
@@ -32,10 +31,10 @@ type FakeToolExecutionCoordinator struct {
 	handleToolApprovalRequestedReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandleToolApprovalResponseStub        func(domaina.ToolApprovalResponseEvent) tea.Cmd
+	HandleToolApprovalResponseStub        func(domain.ToolApprovalResponseEvent) tea.Cmd
 	handleToolApprovalResponseMutex       sync.RWMutex
 	handleToolApprovalResponseArgsForCall []struct {
-		arg1 domaina.ToolApprovalResponseEvent
+		arg1 domain.ToolApprovalResponseEvent
 	}
 	handleToolApprovalResponseReturns struct {
 		result1 tea.Cmd
@@ -76,10 +75,10 @@ type FakeToolExecutionCoordinator struct {
 	handleToolCancelledReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandleToolExecutionCompletedStub        func(domaina.ToolExecutionCompletedEvent) tea.Cmd
+	HandleToolExecutionCompletedStub        func(domain.ToolExecutionCompletedEvent) tea.Cmd
 	handleToolExecutionCompletedMutex       sync.RWMutex
 	handleToolExecutionCompletedArgsForCall []struct {
-		arg1 domaina.ToolExecutionCompletedEvent
+		arg1 domain.ToolExecutionCompletedEvent
 	}
 	handleToolExecutionCompletedReturns struct {
 		result1 tea.Cmd
@@ -98,10 +97,10 @@ type FakeToolExecutionCoordinator struct {
 	handleToolExecutionProgressReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	HandleToolExecutionStartedStub        func(domaina.ToolExecutionStartedEvent) tea.Cmd
+	HandleToolExecutionStartedStub        func(ui.ToolExecutionStartedEvent) tea.Cmd
 	handleToolExecutionStartedMutex       sync.RWMutex
 	handleToolExecutionStartedArgsForCall []struct {
-		arg1 domaina.ToolExecutionStartedEvent
+		arg1 ui.ToolExecutionStartedEvent
 	}
 	handleToolExecutionStartedReturns struct {
 		result1 tea.Cmd
@@ -232,11 +231,11 @@ func (fake *FakeToolExecutionCoordinator) HandleToolApprovalRequestedReturnsOnCa
 	}{result1}
 }
 
-func (fake *FakeToolExecutionCoordinator) HandleToolApprovalResponse(arg1 domaina.ToolApprovalResponseEvent) tea.Cmd {
+func (fake *FakeToolExecutionCoordinator) HandleToolApprovalResponse(arg1 domain.ToolApprovalResponseEvent) tea.Cmd {
 	fake.handleToolApprovalResponseMutex.Lock()
 	ret, specificReturn := fake.handleToolApprovalResponseReturnsOnCall[len(fake.handleToolApprovalResponseArgsForCall)]
 	fake.handleToolApprovalResponseArgsForCall = append(fake.handleToolApprovalResponseArgsForCall, struct {
-		arg1 domaina.ToolApprovalResponseEvent
+		arg1 domain.ToolApprovalResponseEvent
 	}{arg1})
 	stub := fake.HandleToolApprovalResponseStub
 	fakeReturns := fake.handleToolApprovalResponseReturns
@@ -257,13 +256,13 @@ func (fake *FakeToolExecutionCoordinator) HandleToolApprovalResponseCallCount() 
 	return len(fake.handleToolApprovalResponseArgsForCall)
 }
 
-func (fake *FakeToolExecutionCoordinator) HandleToolApprovalResponseCalls(stub func(domaina.ToolApprovalResponseEvent) tea.Cmd) {
+func (fake *FakeToolExecutionCoordinator) HandleToolApprovalResponseCalls(stub func(domain.ToolApprovalResponseEvent) tea.Cmd) {
 	fake.handleToolApprovalResponseMutex.Lock()
 	defer fake.handleToolApprovalResponseMutex.Unlock()
 	fake.HandleToolApprovalResponseStub = stub
 }
 
-func (fake *FakeToolExecutionCoordinator) HandleToolApprovalResponseArgsForCall(i int) domaina.ToolApprovalResponseEvent {
+func (fake *FakeToolExecutionCoordinator) HandleToolApprovalResponseArgsForCall(i int) domain.ToolApprovalResponseEvent {
 	fake.handleToolApprovalResponseMutex.RLock()
 	defer fake.handleToolApprovalResponseMutex.RUnlock()
 	argsForCall := fake.handleToolApprovalResponseArgsForCall[i]
@@ -476,11 +475,11 @@ func (fake *FakeToolExecutionCoordinator) HandleToolCancelledReturnsOnCall(i int
 	}{result1}
 }
 
-func (fake *FakeToolExecutionCoordinator) HandleToolExecutionCompleted(arg1 domaina.ToolExecutionCompletedEvent) tea.Cmd {
+func (fake *FakeToolExecutionCoordinator) HandleToolExecutionCompleted(arg1 domain.ToolExecutionCompletedEvent) tea.Cmd {
 	fake.handleToolExecutionCompletedMutex.Lock()
 	ret, specificReturn := fake.handleToolExecutionCompletedReturnsOnCall[len(fake.handleToolExecutionCompletedArgsForCall)]
 	fake.handleToolExecutionCompletedArgsForCall = append(fake.handleToolExecutionCompletedArgsForCall, struct {
-		arg1 domaina.ToolExecutionCompletedEvent
+		arg1 domain.ToolExecutionCompletedEvent
 	}{arg1})
 	stub := fake.HandleToolExecutionCompletedStub
 	fakeReturns := fake.handleToolExecutionCompletedReturns
@@ -501,13 +500,13 @@ func (fake *FakeToolExecutionCoordinator) HandleToolExecutionCompletedCallCount(
 	return len(fake.handleToolExecutionCompletedArgsForCall)
 }
 
-func (fake *FakeToolExecutionCoordinator) HandleToolExecutionCompletedCalls(stub func(domaina.ToolExecutionCompletedEvent) tea.Cmd) {
+func (fake *FakeToolExecutionCoordinator) HandleToolExecutionCompletedCalls(stub func(domain.ToolExecutionCompletedEvent) tea.Cmd) {
 	fake.handleToolExecutionCompletedMutex.Lock()
 	defer fake.handleToolExecutionCompletedMutex.Unlock()
 	fake.HandleToolExecutionCompletedStub = stub
 }
 
-func (fake *FakeToolExecutionCoordinator) HandleToolExecutionCompletedArgsForCall(i int) domaina.ToolExecutionCompletedEvent {
+func (fake *FakeToolExecutionCoordinator) HandleToolExecutionCompletedArgsForCall(i int) domain.ToolExecutionCompletedEvent {
 	fake.handleToolExecutionCompletedMutex.RLock()
 	defer fake.handleToolExecutionCompletedMutex.RUnlock()
 	argsForCall := fake.handleToolExecutionCompletedArgsForCall[i]
@@ -598,11 +597,11 @@ func (fake *FakeToolExecutionCoordinator) HandleToolExecutionProgressReturnsOnCa
 	}{result1}
 }
 
-func (fake *FakeToolExecutionCoordinator) HandleToolExecutionStarted(arg1 domaina.ToolExecutionStartedEvent) tea.Cmd {
+func (fake *FakeToolExecutionCoordinator) HandleToolExecutionStarted(arg1 ui.ToolExecutionStartedEvent) tea.Cmd {
 	fake.handleToolExecutionStartedMutex.Lock()
 	ret, specificReturn := fake.handleToolExecutionStartedReturnsOnCall[len(fake.handleToolExecutionStartedArgsForCall)]
 	fake.handleToolExecutionStartedArgsForCall = append(fake.handleToolExecutionStartedArgsForCall, struct {
-		arg1 domaina.ToolExecutionStartedEvent
+		arg1 ui.ToolExecutionStartedEvent
 	}{arg1})
 	stub := fake.HandleToolExecutionStartedStub
 	fakeReturns := fake.handleToolExecutionStartedReturns
@@ -623,13 +622,13 @@ func (fake *FakeToolExecutionCoordinator) HandleToolExecutionStartedCallCount() 
 	return len(fake.handleToolExecutionStartedArgsForCall)
 }
 
-func (fake *FakeToolExecutionCoordinator) HandleToolExecutionStartedCalls(stub func(domaina.ToolExecutionStartedEvent) tea.Cmd) {
+func (fake *FakeToolExecutionCoordinator) HandleToolExecutionStartedCalls(stub func(ui.ToolExecutionStartedEvent) tea.Cmd) {
 	fake.handleToolExecutionStartedMutex.Lock()
 	defer fake.handleToolExecutionStartedMutex.Unlock()
 	fake.HandleToolExecutionStartedStub = stub
 }
 
-func (fake *FakeToolExecutionCoordinator) HandleToolExecutionStartedArgsForCall(i int) domaina.ToolExecutionStartedEvent {
+func (fake *FakeToolExecutionCoordinator) HandleToolExecutionStartedArgsForCall(i int) ui.ToolExecutionStartedEvent {
 	fake.handleToolExecutionStartedMutex.RLock()
 	defer fake.handleToolExecutionStartedMutex.RUnlock()
 	argsForCall := fake.handleToolExecutionStartedArgsForCall[i]

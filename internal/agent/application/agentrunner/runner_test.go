@@ -2,10 +2,9 @@ package agentrunner
 
 import (
 	"context"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"os/exec"
 	"testing"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestBuildArgs(t *testing.T) {
@@ -133,9 +132,9 @@ printf '%s\n' '{"role":"assistant","content":"approved"}'`
 		SessionID:       "s1",
 		Prompt:          "do",
 		RequireApproval: true,
-		Approval: func(req domain.ApprovalRequest) domain.ApprovalResponse {
+		Approval: func(req ipc.ApprovalRequest) ipc.ApprovalResponse {
 			gotReq = req.ToolCallID == "c1"
-			return domain.ApprovalResponse{Approved: true}
+			return ipc.ApprovalResponse{Approved: true}
 		},
 	})
 	if err != nil {

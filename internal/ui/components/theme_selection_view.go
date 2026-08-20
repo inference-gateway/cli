@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"io"
 
 	key "charm.land/bubbles/v2/key"
@@ -9,7 +10,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -73,12 +73,12 @@ type ThemeSelectorImpl struct {
 	done          bool
 	cancelled     bool
 	selectedTheme string
-	themeService  domain.ThemeService
+	themeService  ui.ThemeService
 	styleProvider *styles.Provider
 }
 
 // NewThemeSelector creates a new theme selector.
-func NewThemeSelector(themeService domain.ThemeService, styleProvider *styles.Provider) *ThemeSelectorImpl {
+func NewThemeSelector(themeService ui.ThemeService, styleProvider *styles.Provider) *ThemeSelectorImpl {
 	themes := themeService.ListThemes()
 
 	l := list.New(
@@ -187,7 +187,7 @@ func (m *ThemeSelectorImpl) selectTheme() tea.Cmd {
 	m.selectedTheme = item.name
 	m.done = true
 	return func() tea.Msg {
-		return domain.ThemeSelectedEvent{Theme: item.name}
+		return ui.ThemeSelectedEvent{Theme: item.name}
 	}
 }
 

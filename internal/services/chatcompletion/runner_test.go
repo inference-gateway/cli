@@ -1,6 +1,7 @@
 package chatcompletion
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
@@ -339,11 +339,11 @@ func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
 		if len(cmds) != 1 {
 			t.Fatalf("expected 1 status cmd, got %d", len(cmds))
 		}
-		evt, ok := cmds[0]().(domain.SetStatusEvent)
+		evt, ok := cmds[0]().(ui.SetStatusEvent)
 		if !ok {
 			t.Fatalf("expected SetStatusEvent, got %T", cmds[0]())
 		}
-		if evt.Message != "Thinking..." || evt.StatusType != domain.StatusThinking {
+		if evt.Message != "Thinking..." || evt.StatusType != ui.StatusThinking {
 			t.Errorf("expected Thinking... status event, got %+v", evt)
 		}
 	})
@@ -364,11 +364,11 @@ func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
 		if len(cmds) != 1 {
 			t.Fatalf("expected 1 status cmd, got %d", len(cmds))
 		}
-		evt, ok := cmds[0]().(domain.UpdateStatusEvent)
+		evt, ok := cmds[0]().(ui.UpdateStatusEvent)
 		if !ok {
 			t.Fatalf("expected UpdateStatusEvent, got %T", cmds[0]())
 		}
-		if evt.Message != "Thinking..." || evt.StatusType != domain.StatusThinking {
+		if evt.Message != "Thinking..." || evt.StatusType != ui.StatusThinking {
 			t.Errorf("expected Thinking... status event, got %+v", evt)
 		}
 	})

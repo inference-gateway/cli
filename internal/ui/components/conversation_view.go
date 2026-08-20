@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"hash/fnv"
 	"os"
 	"path/filepath"
@@ -21,7 +22,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
 	markdown "github.com/inference-gateway/cli/internal/ui/markdown"
@@ -100,13 +100,13 @@ type ConversationView struct {
 	lineFormatter          *formatting.ConversationLineFormatter
 	plainTextLines         []string
 	configPath             string
-	versionInfo            *domain.VersionInfo
+	versionInfo            *ui.VersionInfo
 	styleProvider          *styles.Provider
 	toolCallRenderer       *ToolCallRenderer
 	markdownRenderer       *markdown.Renderer
 	rawFormat              bool
 	userScrolledUp         bool
-	stateManager           domain.PlanApprovalUIManager
+	stateManager           ui.PlanApprovalUIManager
 	renderedContent        string
 
 	// renderCache memoizes per-entry rendered output keyed by conversation
@@ -126,7 +126,7 @@ type ConversationView struct {
 
 	// Message history navigation
 	navigationMode       NavigationMode
-	messageSnapshots     []domain.MessageSnapshot
+	messageSnapshots     []ui.MessageSnapshot
 	historySelectedIndex int
 
 	// Inline background-task indicators for A2A_SubmitTask delegations.
@@ -192,7 +192,7 @@ func (cv *ConversationView) SetConfigPath(configPath string) {
 }
 
 // SetVersionInfo sets the version information for the welcome message
-func (cv *ConversationView) SetVersionInfo(info domain.VersionInfo) {
+func (cv *ConversationView) SetVersionInfo(info ui.VersionInfo) {
 	cv.versionInfo = &info
 }
 
@@ -202,7 +202,7 @@ func (cv *ConversationView) SetToolCallRenderer(renderer *ToolCallRenderer) {
 }
 
 // SetStateManager sets the state manager for accessing plan approval state
-func (cv *ConversationView) SetStateManager(stateManager domain.PlanApprovalUIManager) {
+func (cv *ConversationView) SetStateManager(stateManager ui.PlanApprovalUIManager) {
 	cv.stateManager = stateManager
 }
 
@@ -1259,20 +1259,20 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case domain.PlanApprovalSelectionChangedEvent:
+	case ui.PlanApprovalSelectionChangedEvent:
 		return cv.handlePlanApprovalSelectionChanged(msg, cmd)
-	case domain.UpdateHistoryEvent:
+	case ui.UpdateHistoryEvent:
 		return cv.handleUpdateHistoryEvent(msg, cmd)
 	case agentdomain.ToolCallPreviewEvent, agentdomain.ToolCallUpdateEvent, agentdomain.ToolCallReadyEvent,
 		agentdomain.ToolExecutionProgressEvent, agentdomain.BashOutputChunkEvent, agentdomain.ChatCompleteEvent:
 		return cv.handleToolCallEvents(msg, cmd)
-	case domain.BashCommandCompletedEvent:
+	case ui.BashCommandCompletedEvent:
 		return cv.handleBashCommandCompletedEvent(msg, cmd)
 	case agentdomain.ChatStartEvent:
 		return cv.handleChatStartEvent(cmd)
-	case domain.StreamingContentEvent:
+	case ui.StreamingContentEvent:
 		return cv.handleStreamingContentEvent(msg, cmd)
-	case domain.ScrollRequestEvent:
+	case ui.ScrollRequestEvent:
 		return cv.handleScrollRequestEvent(msg, cmd)
 	case agentdomain.A2ATaskSubmittedEvent:
 		return cv.handleA2ATaskSubmitted(msg, cmd)
@@ -1329,7 +1329,7 @@ func (cv *ConversationView) handleWindowSizeEvents(msg tea.Msg) tea.Cmd {
 
 // handlePlanApprovalSelectionChanged refreshes the conversation viewport so
 // the highlighted plan-approval button reflects the new selection index.
-func (cv *ConversationView) handlePlanApprovalSelectionChanged(_ domain.PlanApprovalSelectionChangedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handlePlanApprovalSelectionChanged(_ ui.PlanApprovalSelectionChangedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.updateViewportContent()
 	}
@@ -1337,7 +1337,7 @@ func (cv *ConversationView) handlePlanApprovalSelectionChanged(_ domain.PlanAppr
 }
 
 // handleUpdateHistoryEvent processes history update events
-func (cv *ConversationView) handleUpdateHistoryEvent(msg domain.UpdateHistoryEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleUpdateHistoryEvent(msg ui.UpdateHistoryEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.flushStreamingBuffer()
 		cv.SetConversation(msg.History)
@@ -1354,7 +1354,7 @@ func (cv *ConversationView) handleToolCallEvents(msg tea.Msg, cmd tea.Cmd) (tea.
 }
 
 // handleBashCommandCompletedEvent processes bash command completion events
-func (cv *ConversationView) handleBashCommandCompletedEvent(msg domain.BashCommandCompletedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleBashCommandCompletedEvent(msg ui.BashCommandCompletedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.SetConversation(msg.History)
 		if cv.toolCallRenderer != nil {
@@ -1376,7 +1376,7 @@ func (cv *ConversationView) handleChatStartEvent(cmd tea.Cmd) (tea.Model, tea.Cm
 }
 
 // handleStreamingContentEvent processes streaming content events
-func (cv *ConversationView) handleStreamingContentEvent(msg domain.StreamingContentEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleStreamingContentEvent(msg ui.StreamingContentEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.appendStreamingContent(msg.Content, msg.ReasoningContent, msg.Model)
 		if !cv.streamingRenderArmed {
@@ -1402,7 +1402,7 @@ func (cv *ConversationView) handleStreamingRenderTick(cmd tea.Cmd) (tea.Model, t
 }
 
 // handleScrollRequestEvent processes scroll request events
-func (cv *ConversationView) handleScrollRequestEvent(msg domain.ScrollRequestEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleScrollRequestEvent(msg ui.ScrollRequestEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if msg.ComponentID == "conversation" {
 		return cv.handleScrollRequest(msg)
 	}
@@ -2171,24 +2171,24 @@ func (cv *ConversationView) handleDefaultEvents(msg tea.Msg, cmd tea.Cmd) (tea.M
 	return cv, cmd
 }
 
-func (cv *ConversationView) handleScrollRequest(msg domain.ScrollRequestEvent) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleScrollRequest(msg ui.ScrollRequestEvent) (tea.Model, tea.Cmd) {
 	switch msg.Direction {
-	case domain.ScrollUp:
+	case ui.ScrollUp:
 		cv.userScrolledUp = true
 		for i := 0; i < msg.Amount; i++ {
 			cv.Viewport.ScrollUp(1)
 		}
-	case domain.ScrollDown:
+	case ui.ScrollDown:
 		for i := 0; i < msg.Amount; i++ {
 			cv.Viewport.ScrollDown(1)
 		}
 		if cv.Viewport.AtBottom() {
 			cv.userScrolledUp = false
 		}
-	case domain.ScrollToTop:
+	case ui.ScrollToTop:
 		cv.userScrolledUp = true
 		cv.Viewport.GotoTop()
-	case domain.ScrollToBottom:
+	case ui.ScrollToBottom:
 		cv.userScrolledUp = false
 		cv.Viewport.GotoBottom()
 	}
@@ -2544,7 +2544,7 @@ func (cv *ConversationView) getToggleToolHint(action string) string {
 // Message History Navigation Methods
 
 // EnterMessageHistoryMode switches the conversation view to message history navigation mode
-func (cv *ConversationView) EnterMessageHistoryMode(snapshots []domain.MessageSnapshot) {
+func (cv *ConversationView) EnterMessageHistoryMode(snapshots []ui.MessageSnapshot) {
 	cv.navigationMode = NavigationModeMessageHistory
 	cv.messageSnapshots = snapshots
 	if len(snapshots) > 0 {
@@ -2600,7 +2600,7 @@ func (cv *ConversationView) GetSelectedMessageIndex() int {
 }
 
 // GetSelectedMessageSnapshot returns the full snapshot of the selected message
-func (cv *ConversationView) GetSelectedMessageSnapshot() *domain.MessageSnapshot {
+func (cv *ConversationView) GetSelectedMessageSnapshot() *ui.MessageSnapshot {
 	if len(cv.messageSnapshots) == 0 || cv.historySelectedIndex < 0 ||
 		cv.historySelectedIndex >= len(cv.messageSnapshots) {
 		return nil

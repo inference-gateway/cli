@@ -3,6 +3,7 @@ package components
 import (
 	"context"
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -149,7 +149,7 @@ func (c *ConversationSelectorImpl) loadConversationsCmd() tea.Cmd {
 			interfaceConversations[i] = conv
 		}
 
-		return domain.ConversationsLoadedEvent{
+		return ui.ConversationsLoadedEvent{
 			Conversations: interfaceConversations,
 			Error:         err,
 		}
@@ -158,7 +158,7 @@ func (c *ConversationSelectorImpl) loadConversationsCmd() tea.Cmd {
 
 func (c *ConversationSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case domain.ConversationsLoadedEvent:
+	case ui.ConversationsLoadedEvent:
 		return c.handleConversationsLoaded(msg)
 	case tea.WindowSizeMsg:
 		return c.handleWindowResize(msg)
@@ -179,7 +179,7 @@ func (c *ConversationSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleConversationsLoaded(msg domain.ConversationsLoadedEvent) (tea.Model, tea.Cmd) {
+func (c *ConversationSelectorImpl) handleConversationsLoaded(msg ui.ConversationsLoadedEvent) (tea.Model, tea.Cmd) {
 	c.loading = false
 	c.loadError = msg.Error
 	c.dataLoaded = true

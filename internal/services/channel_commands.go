@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	channels "github.com/inference-gateway/cli/internal/services/channels"
 	"slices"
 	"strings"
 	"time"
@@ -11,7 +12,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -20,7 +20,7 @@ import (
 // ChannelBuiltinCommands are the shortcuts the daemon implements natively for
 // channels (everything else in the registry is either a custom shortcut,
 // executed as-is, or TUI-only and answered with a pointer to `infer chat`).
-var ChannelBuiltinCommands = []domain.ChannelCommand{
+var ChannelBuiltinCommands = []channels.ChannelCommand{
 	{Name: "new", Description: "Start a fresh conversation and wipe recent chat messages (previous one is kept)"},
 	{Name: "conversations", Description: "List past conversations, tap one to switch"},
 	{Name: "stats", Description: "Usage stats for this conversation — phone-friendly list (/stats 24h; add 'table' for tables)"},
@@ -58,7 +58,7 @@ func (cm *ChannelManagerService) parseChannelCommand(content string) (string, []
 
 // handleCommand executes a slash command for a sender. It takes the per-sender
 // mutex so destructive commands queue behind any in-flight agent run.
-func (cm *ChannelManagerService) handleCommand(ctx context.Context, msg domain.InboundMessage, name string, args []string) {
+func (cm *ChannelManagerService) handleCommand(ctx context.Context, msg channels.InboundMessage, name string, args []string) {
 	senderKey := fmt.Sprintf("%s-%s", msg.ChannelName, msg.SenderID)
 	mu := cm.getSenderMutex(senderKey)
 	mu.Lock()
@@ -72,8 +72,8 @@ func (cm *ChannelManagerService) handleCommand(ctx context.Context, msg domain.I
 		return
 	}
 
-	replyWith := func(content string, buttons []domain.MessageButton) {
-		out := domain.OutboundMessage{
+	replyWith := func(content string, buttons []channels.MessageButton) {
+		out := channels.OutboundMessage{
 			ChannelName: msg.ChannelName,
 			RecipientID: msg.SenderID,
 			Content:     content,
@@ -95,7 +95,7 @@ func (cm *ChannelManagerService) handleCommand(ctx context.Context, msg domain.I
 			reply(fmt.Sprintf("Failed to start a new conversation: %v", err))
 			return
 		}
-		if hc, ok := ch.(domain.HistoryCleaner); ok {
+		if hc, ok := ch.(channels.HistoryCleaner); ok {
 			if err := hc.ClearHistory(ctx, msg.SenderID); err != nil {
 				logger.Warn("chat history wipe failed", "channel", msg.ChannelName, "error", err)
 			}
@@ -162,7 +162,7 @@ func (cm *ChannelManagerService) handleCommand(ctx context.Context, msg domain.I
 // button's callback data is a /stats command tapped back in, changing only one
 // dimension: the window buttons keep the current view, the toggle keeps the
 // current window. Vertical is the channel default, so only tables carry a token.
-func statsButtons(since string, vertical bool) []domain.MessageButton {
+func statsButtons(since string, vertical bool) []channels.MessageButton {
 	win := ""
 	if since != "" {
 		win = " " + since
@@ -171,11 +171,11 @@ func statsButtons(since string, vertical bool) []domain.MessageButton {
 	if !vertical {
 		mode = " table"
 	}
-	toggle := domain.MessageButton{Text: "Table view", Data: strings.TrimSpace("/stats" + win + " table")}
+	toggle := channels.MessageButton{Text: "Table view", Data: strings.TrimSpace("/stats" + win + " table")}
 	if !vertical {
-		toggle = domain.MessageButton{Text: "Vertical view", Data: strings.TrimSpace("/stats" + win)}
+		toggle = channels.MessageButton{Text: "Vertical view", Data: strings.TrimSpace("/stats" + win)}
 	}
-	return []domain.MessageButton{
+	return []channels.MessageButton{
 		{Text: "Last 24h", Data: strings.TrimSpace("/stats 24h" + mode)},
 		{Text: "Last 7d", Data: strings.TrimSpace("/stats 7d" + mode)},
 		toggle,
@@ -199,14 +199,14 @@ func (cm *ChannelManagerService) senderConversationIDs(entry storage.SessionGrou
 }
 
 // listConversations builds the tap-to-switch conversation list for a sender.
-func (cm *ChannelManagerService) listConversations(ctx context.Context, groupKey string) (string, []domain.MessageButton) {
+func (cm *ChannelManagerService) listConversations(ctx context.Context, groupKey string) (string, []channels.MessageButton) {
 	entry, _, err := cm.groupStore.GetSessionGroup(ctx, groupKey)
 	if err != nil {
 		return fmt.Sprintf("Failed to list conversations: %v", err), nil
 	}
 
 	ids := cm.senderConversationIDs(entry)
-	var buttons []domain.MessageButton
+	var buttons []channels.MessageButton
 	truncated := false
 	for _, id := range ids {
 		if len(buttons) == maxListedConversations {
@@ -225,7 +225,7 @@ func (cm *ChannelManagerService) listConversations(ctx context.Context, groupKey
 		if id == entry.CurrentSessionID {
 			label = "▸ " + label
 		}
-		buttons = append(buttons, domain.MessageButton{Text: label, Data: "/conversations " + id})
+		buttons = append(buttons, channels.MessageButton{Text: label, Data: "/conversations " + id})
 	}
 
 	if len(buttons) == 0 {

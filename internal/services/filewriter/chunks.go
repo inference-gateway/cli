@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-
-	"github.com/inference-gateway/cli/internal/domain/filewriter"
 )
 
 // ChunkSession represents an active chunked writing session
@@ -21,16 +19,16 @@ type ChunkSession struct {
 	tempPath       string
 }
 
-// StreamingChunkManager implements filewriter.ChunkManager with safe streaming
+// StreamingChunkManager implements ChunkManager with safe streaming
 type StreamingChunkManager struct {
 	sessions map[string]*ChunkSession
 	mutex    sync.RWMutex
 	tempDir  string
-	writer   filewriter.FileWriter
+	writer   FileWriter
 }
 
 // NewStreamingChunkManager creates a new StreamingChunkManager
-func NewStreamingChunkManager(tempDir string, writer filewriter.FileWriter) filewriter.ChunkManager {
+func NewStreamingChunkManager(tempDir string, writer FileWriter) ChunkManager {
 	return &StreamingChunkManager{
 		sessions: make(map[string]*ChunkSession),
 		tempDir:  tempDir,
@@ -39,7 +37,7 @@ func NewStreamingChunkManager(tempDir string, writer filewriter.FileWriter) file
 }
 
 // WriteChunk writes a chunk to the session's temp file
-func (cm *StreamingChunkManager) WriteChunk(ctx context.Context, req filewriter.ChunkWriteRequest) error {
+func (cm *StreamingChunkManager) WriteChunk(ctx context.Context, req ChunkWriteRequest) error {
 	cm.mutex.Lock()
 	session, exists := cm.sessions[req.SessionID]
 	if !exists {
@@ -78,7 +76,7 @@ func (cm *StreamingChunkManager) WriteChunk(ctx context.Context, req filewriter.
 }
 
 // FinalizeChunks completes a chunked write session and moves to target location
-func (cm *StreamingChunkManager) FinalizeChunks(ctx context.Context, sessionID string, targetPath string) (*filewriter.WriteResult, error) {
+func (cm *StreamingChunkManager) FinalizeChunks(ctx context.Context, sessionID string, targetPath string) (*WriteResult, error) {
 	cm.mutex.Lock()
 	session, exists := cm.sessions[sessionID]
 	if !exists {
@@ -119,7 +117,7 @@ func (cm *StreamingChunkManager) FinalizeChunks(ctx context.Context, sessionID s
 
 	defer func() { _ = os.Remove(session.tempPath) }()
 
-	writeReq := filewriter.WriteRequest{
+	writeReq := WriteRequest{
 		Path:      targetPath,
 		Content:   string(tempContent),
 		Overwrite: true,
@@ -162,7 +160,7 @@ func (cm *StreamingChunkManager) CleanupSession(sessionID string) error {
 }
 
 // GetSessionInfo returns information about an active session
-func (cm *StreamingChunkManager) GetSessionInfo(sessionID string) (*filewriter.ChunkSessionInfo, error) {
+func (cm *StreamingChunkManager) GetSessionInfo(sessionID string) (*ChunkSessionInfo, error) {
 	cm.mutex.RLock()
 	session, exists := cm.sessions[sessionID]
 	cm.mutex.RUnlock()
@@ -174,7 +172,7 @@ func (cm *StreamingChunkManager) GetSessionInfo(sessionID string) (*filewriter.C
 	session.mutex.Lock()
 	defer session.mutex.Unlock()
 
-	return &filewriter.ChunkSessionInfo{
+	return &ChunkSessionInfo{
 		SessionID:      sessionID,
 		TotalChunks:    session.expectedChunks,
 		ReceivedChunks: session.receivedChunks,

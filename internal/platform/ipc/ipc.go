@@ -1,4 +1,4 @@
-package domain
+package ipc
 
 // ApprovalRequest is emitted by the agent on stdout when a tool needs user approval.
 // The channel manager detects this JSON line, prompts the user, and writes an ApprovalResponse to stdin.

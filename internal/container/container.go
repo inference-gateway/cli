@@ -3,6 +3,7 @@ package container
 import (
 	"context"
 	"fmt"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"net"
@@ -30,7 +31,6 @@ import (
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	adapters "github.com/inference-gateway/cli/internal/platform/adapters"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
@@ -84,7 +84,7 @@ type ServiceContainer struct {
 	sessionID convdomain.SessionID
 
 	// Container runtime
-	containerRuntime domain.ContainerRuntime
+	containerRuntime containerruntime.ContainerRuntime
 
 	// Logger
 	log *zap.Logger
@@ -99,15 +99,15 @@ type ServiceContainer struct {
 	modelService           convdomain.ModelService
 	agent                  agentdomain.AgentService
 	toolService            agentdomain.ToolService
-	fileService            domain.FileService
-	imageService           domain.ImageService
+	fileService            agentdomain.FileService
+	imageService           agentdomain.ImageService
 	imageAnnotator         agentdomain.ImageAnnotator
 	pricingService         convdomain.PricingService
 	telemetryRecorder      *telemetry.Recorder
 	a2aAgentService        agentapp.A2AAgentService
-	skillsService          domain.SkillsService
-	githubIssueService     domain.GitHubIssueService
-	gitHubSetupService     domain.GitHubSetupService
+	skillsService          agentdomain.SkillsService
+	githubIssueService     agentdomain.GitHubIssueService
+	gitHubSetupService     agentdomain.GitHubSetupService
 	messageQueue           convdomain.MessageQueue
 	// backgroundTaskRegistry is the single unified tracker for both A2A
 	// tasks and background bash shells. The narrower agentdomain.A2ATaskTracker
@@ -127,7 +127,7 @@ type ServiceContainer struct {
 	titleGenerator         *conversation.ConversationTitleGenerator
 	backgroundJobManager   *scheduler.BackgroundJobManager
 	backgroundShellService *scheduler.BackgroundShellService
-	memoryBackend          domain.MemoryBackend
+	memoryBackend          memory.MemoryBackend
 	storage                storage.ConversationStorage
 	stores                 *storage.Stores
 
@@ -137,14 +137,14 @@ type ServiceContainer struct {
 	tokenizer *conversation.TokenizerService
 
 	// UI components
-	themeService domain.ThemeService
+	themeService ui.ThemeService
 
 	// Extensibility
 	shortcutRegistry *shortcuts.Registry
 
 	// Tool registry
 	toolRegistry *tools.Registry
-	mcpManager   domain.MCPManager
+	mcpManager   agentdomain.MCPManager
 	// mcpStartupCancel aborts the async MCP server startup on Shutdown.
 	mcpStartupCancel context.CancelFunc
 
@@ -162,19 +162,19 @@ type ServiceContainer struct {
 	browserDriver            browserdomain.BrowserDriver
 }
 
-// uiNotifierHolder is a swap-once, read-many domain.UINotifier. Producers capture
+// uiNotifierHolder is a swap-once, read-many agentdomain.UINotifier. Producers capture
 // the *uiNotifierHolder once at construction (never reassigning it) and call Notify
 // from their own goroutines; SetUINotifier stores the real program-backed notifier
 // exactly once at startup (before program.Run). atomic.Pointer keeps the read
 // lock-free and the late swap race-free without a mutex. The stored pointer is
 // never nil (newUINotifierHolder seeds a NoopUINotifier), so Notify is always safe.
 type uiNotifierHolder struct {
-	inner atomic.Pointer[domain.UINotifier]
+	inner atomic.Pointer[agentdomain.UINotifier]
 }
 
 func newUINotifierHolder() *uiNotifierHolder {
 	h := &uiNotifierHolder{}
-	var noop domain.UINotifier = domain.NoopUINotifier{}
+	var noop agentdomain.UINotifier = agentdomain.NoopUINotifier{}
 	h.inner.Store(&noop)
 	return h
 }
@@ -183,9 +183,9 @@ func (h *uiNotifierHolder) Notify(event any) {
 	(*h.inner.Load()).Notify(event)
 }
 
-func (h *uiNotifierHolder) set(n domain.UINotifier) {
+func (h *uiNotifierHolder) set(n agentdomain.UINotifier) {
 	if n == nil {
-		n = domain.NoopUINotifier{}
+		n = agentdomain.NoopUINotifier{}
 	}
 	h.inner.Store(&n)
 }
@@ -238,7 +238,7 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 // producer that captured the holder at construction begins pushing into the live
 // Bubble Tea loop. Safe to call from any goroutine; before it runs, producers
 // push to the no-op default.
-func (c *ServiceContainer) SetUINotifier(n domain.UINotifier) {
+func (c *ServiceContainer) SetUINotifier(n agentdomain.UINotifier) {
 	c.uiNotifier.set(n)
 }
 
@@ -350,7 +350,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 
 	c.agentManager.SetStatusCallback(func(agentName string, state agentdomain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
-		c.uiNotifier.Notify(domain.AgentStatusUpdateEvent{
+		c.uiNotifier.Notify(ui.AgentStatusUpdateEvent{
 			AgentName: agentName,
 			State:     state,
 			Message:   message,
@@ -361,7 +361,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 
 	c.agentManager.SetPullProgressCallback(func(name string, done, total int) {
 		c.stateManager.UpdateAgentPullProgress(name, done, total)
-		c.uiNotifier.Notify(domain.AgentStatusUpdateEvent{AgentName: name, State: agentdomain.AgentStatePullingImage})
+		c.uiNotifier.Notify(ui.AgentStatusUpdateEvent{AgentName: name, State: agentdomain.AgentStatePullingImage})
 	})
 
 	ctx := context.Background()
@@ -766,15 +766,15 @@ func (c *ServiceContainer) GetToolRegistry() *tools.Registry {
 
 // GetMemoryBackend returns the shared memory sync backend (local no-op or git),
 // used by the headless AgentSession to sync memory at run start/finish.
-func (c *ServiceContainer) GetMemoryBackend() domain.MemoryBackend {
+func (c *ServiceContainer) GetMemoryBackend() memory.MemoryBackend {
 	return c.memoryBackend
 }
 
-func (c *ServiceContainer) GetFileService() domain.FileService {
+func (c *ServiceContainer) GetFileService() agentdomain.FileService {
 	return c.fileService
 }
 
-func (c *ServiceContainer) GetImageService() domain.ImageService {
+func (c *ServiceContainer) GetImageService() agentdomain.ImageService {
 	return c.imageService
 }
 
@@ -788,11 +788,11 @@ func (c *ServiceContainer) createImageAnnotator() agentdomain.ImageAnnotator {
 	return vlm.NewGatewayAnnotator(c.createRawSDKClient(), c.config)
 }
 
-func (c *ServiceContainer) GetSkillsService() domain.SkillsService {
+func (c *ServiceContainer) GetSkillsService() agentdomain.SkillsService {
 	return c.skillsService
 }
 
-func (c *ServiceContainer) GetGitHubIssueService() domain.GitHubIssueService {
+func (c *ServiceContainer) GetGitHubIssueService() agentdomain.GitHubIssueService {
 	return c.githubIssueService
 }
 
@@ -803,7 +803,7 @@ func (c *ServiceContainer) initializeGitHubSetupService() {
 	c.gitHubSetupService = githubsetup.NewService(&githubsetup.RealRunner{})
 }
 
-func (c *ServiceContainer) GetGitHubSetupService() domain.GitHubSetupService {
+func (c *ServiceContainer) GetGitHubSetupService() agentdomain.GitHubSetupService {
 	c.initializeGitHubSetupService()
 	return c.gitHubSetupService
 }
@@ -819,7 +819,7 @@ func (c *ServiceContainer) PricingService() convdomain.PricingService {
 	return c.pricingService
 }
 
-func (c *ServiceContainer) GetThemeService() domain.ThemeService {
+func (c *ServiceContainer) GetThemeService() ui.ThemeService {
 	return c.themeService
 }
 
@@ -862,7 +862,7 @@ func (c *ServiceContainer) GetBackgroundTaskService() scheddomain.BackgroundTask
 }
 
 // GetMCPManager returns the MCP manager (may be nil if MCP is not enabled)
-func (c *ServiceContainer) GetMCPManager() domain.MCPManager {
+func (c *ServiceContainer) GetMCPManager() agentdomain.MCPManager {
 	return c.mcpManager
 }
 

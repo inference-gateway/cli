@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/domain/filewriter"
+	"github.com/inference-gateway/cli/internal/services/filewriter"
 )
 
 type FakeBackupManager struct {

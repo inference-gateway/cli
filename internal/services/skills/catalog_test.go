@@ -2,6 +2,7 @@ package skills
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,7 +11,6 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // catalogServer serves a fixed index.json and counts how many times it was hit.
@@ -104,7 +104,7 @@ func TestSearch_RanksAndCaps(t *testing.T) {
 	hits := c.Search(ctx, "rust", 10)
 	require.Len(t, hits, 1)
 	require.Equal(t, "rust", hits[0].Name)
-	require.Equal(t, domain.SkillScopeCatalog, hits[0].Scope)
+	require.Equal(t, agentdomain.SkillScopeCatalog, hits[0].Scope)
 	require.Empty(t, hits[0].Path, "search returns metadata only, it must not download")
 
 	require.Len(t, c.Search(ctx, "idiomatic", 10), 1)
@@ -127,7 +127,7 @@ func TestSearch_DescriptionsMatchWholeWordsOnly(t *testing.T) {
 	]}`
 	srv, _ := catalogServer(t, index)
 
-	names := func(hits []domain.Skill) []string {
+	names := func(hits []agentdomain.Skill) []string {
 		out := make([]string, 0, len(hits))
 		for _, h := range hits {
 			out = append(out, h.Name)
@@ -217,12 +217,12 @@ func TestLoad_MergesCatalogEntries(t *testing.T) {
 
 	local, ok := s.Get("local-one")
 	require.True(t, ok)
-	require.Equal(t, domain.SkillScopeProject, local.Scope, "local skill must not be shadowed by the catalog")
+	require.Equal(t, agentdomain.SkillScopeProject, local.Scope, "local skill must not be shadowed by the catalog")
 	require.Equal(t, "The local copy wins.", local.Description)
 
 	remote, ok := s.Get("rust")
 	require.True(t, ok, "catalog skill should be listed after Load")
-	require.Equal(t, domain.SkillScopeCatalog, remote.Scope)
+	require.Equal(t, agentdomain.SkillScopeCatalog, remote.Scope)
 	require.Empty(t, remote.Path, "catalog entry is metadata-only until invoked")
 }
 

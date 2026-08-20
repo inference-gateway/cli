@@ -1,12 +1,11 @@
-// Cross-cutting service contracts consumed by multiple packages.
+// Ports of the agent context: services its tools and run loop consume,
+// implemented by internal/services and platform packages.
 
 package domain
 
 import (
 	"context"
 	"time"
-
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // FileService handles file operations
@@ -21,13 +20,13 @@ type FileService interface {
 // ImageService handles image operations including loading and encoding
 type ImageService interface {
 	// ReadImageFromFile reads an image from a file path and returns it as a base64 attachment
-	ReadImageFromFile(filePath string) (*agentdomain.ImageAttachment, error)
+	ReadImageFromFile(filePath string) (*ImageAttachment, error)
 	// ReadImageFromBinary reads an image from binary data and returns it as a base64 attachment
-	ReadImageFromBinary(imageData []byte, filename string) (*agentdomain.ImageAttachment, error)
+	ReadImageFromBinary(imageData []byte, filename string) (*ImageAttachment, error)
 	// ReadImageFromURL fetches an image from a URL and returns it as a base64 attachment
-	ReadImageFromURL(imageURL string) (*agentdomain.ImageAttachment, error)
+	ReadImageFromURL(imageURL string) (*ImageAttachment, error)
 	// CreateDataURL creates a data URL from an image attachment
-	CreateDataURL(attachment *agentdomain.ImageAttachment) string
+	CreateDataURL(attachment *ImageAttachment) string
 	// IsImageFile checks if a file is a supported image format
 	IsImageFile(filePath string) bool
 	// IsImageURL checks if a string is a valid image URL
@@ -146,28 +145,6 @@ type GitHubSetupService interface {
 	GenerateGithubActionWorkflowContent() string
 }
 
-// ThemeService handles theme management
-type ThemeService interface {
-	ListThemes() []string
-	GetCurrentTheme() Theme
-	GetCurrentThemeName() string
-	SetTheme(themeName string) error
-}
-
-// Theme interface for theming support
-type Theme interface {
-	GetUserColor() string
-	GetAssistantColor() string
-	GetErrorColor() string
-	GetSuccessColor() string
-	GetStatusColor() string
-	GetAccentColor() string
-	GetDimColor() string
-	GetBorderColor() string
-	GetDiffAddColor() string
-	GetDiffRemoveColor() string
-}
-
 // MCPDiscoveredTool represents a tool discovered from an MCP server
 type MCPDiscoveredTool struct {
 	ServerName  string
@@ -237,45 +214,4 @@ type MCPManager interface {
 
 	// Close stops monitoring, stops containers, and cleans up resources
 	Close() error
-}
-
-// StatusType represents different types of status messages
-type StatusType int
-
-const (
-	StatusDefault StatusType = iota
-	StatusThinking
-	StatusGenerating
-	StatusWorking
-	StatusProcessing
-	StatusPreparing
-	StatusError
-)
-
-// StatusProgress represents progress information for status messages
-type StatusProgress struct {
-	Current int
-	Total   int
-}
-
-// ScrollDirection defines scroll direction
-type ScrollDirection int
-
-const (
-	ScrollUp ScrollDirection = iota
-	ScrollDown
-	ScrollLeft
-	ScrollRight
-	ScrollToTop
-	ScrollToBottom
-)
-
-// MemoryBackend syncs the persistent memory directory with a remote. The local
-// backend is a no-op; the git backend pulls on run start and commits + pushes
-// when a fact changes. Both directions are best-effort: an error is returned for
-// tests/telemetry but callers log and continue - a sync failure never aborts the
-// agent run. SyncIn is idempotent and runs at most once per process.
-type MemoryBackend interface {
-	SyncIn(ctx context.Context) error
-	SyncOut(ctx context.Context) error
 }

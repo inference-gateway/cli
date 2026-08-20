@@ -10,7 +10,6 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 	table "charm.land/lipgloss/v2/table"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -33,7 +32,7 @@ type HelpCommand struct {
 type HelpViewImpl struct {
 	width         int
 	height        int
-	themeService  domain.ThemeService
+	themeService  ui.ThemeService
 	styleProvider *styles.Provider
 	viewport      viewport.Model
 	commands      []HelpCommand
@@ -42,7 +41,7 @@ type HelpViewImpl struct {
 }
 
 // NewHelpView creates a new help overlay component.
-func NewHelpView(themeService domain.ThemeService, styleProvider *styles.Provider) *HelpViewImpl {
+func NewHelpView(themeService ui.ThemeService, styleProvider *styles.Provider) *HelpViewImpl {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 

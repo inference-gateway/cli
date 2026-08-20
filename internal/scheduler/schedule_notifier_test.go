@@ -4,41 +4,40 @@ import (
 	"context"
 	"errors"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	channels "github.com/inference-gateway/cli/internal/services/channels"
 	"strings"
 	"sync"
 	"testing"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 type notifierFakeChannel struct {
 	mu       sync.Mutex
 	name     string
-	received []domain.OutboundMessage
+	received []channels.OutboundMessage
 }
 
 func (f *notifierFakeChannel) Name() string { return f.name }
-func (f *notifierFakeChannel) Start(_ context.Context, _ chan<- domain.InboundMessage) error {
+func (f *notifierFakeChannel) Start(_ context.Context, _ chan<- channels.InboundMessage) error {
 	return nil
 }
 func (f *notifierFakeChannel) Stop() error { return nil }
-func (f *notifierFakeChannel) Send(_ context.Context, m domain.OutboundMessage) error {
+func (f *notifierFakeChannel) Send(_ context.Context, m channels.OutboundMessage) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.received = append(f.received, m)
 	return nil
 }
 
-func (f *notifierFakeChannel) Snapshot() []domain.OutboundMessage {
+func (f *notifierFakeChannel) Snapshot() []channels.OutboundMessage {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	out := make([]domain.OutboundMessage, len(f.received))
+	out := make([]channels.OutboundMessage, len(f.received))
 	copy(out, f.received)
 	return out
 }
 
 func newNotifierWithChannel(ch *notifierFakeChannel) *ScheduleNotifier {
-	return NewScheduleNotifier(func(name string) domain.Channel {
+	return NewScheduleNotifier(func(name string) channels.Channel {
 		if ch != nil && name == ch.name {
 			return ch
 		}

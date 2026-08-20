@@ -1,6 +1,7 @@
 package services
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"testing"
 	"time"
 
@@ -8,7 +9,6 @@ import (
 	assert "github.com/stretchr/testify/assert"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // Test helper to create a state manager
@@ -48,22 +48,22 @@ func TestNewStateManager(t *testing.T) {
 func TestStateManager_ViewTransition(t *testing.T) {
 	tests := []struct {
 		name        string
-		transitions []domain.ViewState
+		transitions []ui.ViewState
 	}{
 		{
 			name:        "Transition to Chat view",
-			transitions: []domain.ViewState{domain.ViewStateChat},
+			transitions: []ui.ViewState{ui.ViewStateChat},
 		},
 		{
 			name:        "Transition to Model Selection view",
-			transitions: []domain.ViewState{domain.ViewStateModelSelection},
+			transitions: []ui.ViewState{ui.ViewStateModelSelection},
 		},
 		{
 			name: "Multiple transitions",
-			transitions: []domain.ViewState{
-				domain.ViewStateChat,
-				domain.ViewStateModelSelection,
-				domain.ViewStateChat,
+			transitions: []ui.ViewState{
+				ui.ViewStateChat,
+				ui.ViewStateModelSelection,
+				ui.ViewStateChat,
 			},
 		},
 	}

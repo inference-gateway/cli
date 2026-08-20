@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"html"
 	"io"
 	"net/http"
@@ -26,7 +27,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -69,7 +69,7 @@ type VoiceTranscriber interface {
 	TranscribeFile(ctx context.Context, audioPath string) (string, error)
 }
 
-// TelegramChannel implements domain.Channel for the Telegram Bot API
+// TelegramChannel implements Channel for the Telegram Bot API
 // using the go-telegram/bot SDK with long-polling.
 type TelegramChannel struct {
 	cfg         config.TelegramChannelConfig
@@ -82,7 +82,7 @@ type TelegramChannel struct {
 	media *FileRetention
 
 	// commands to advertise via SetMyCommands on Start.
-	commands []domain.ChannelCommand
+	commands []ChannelCommand
 
 	// msgIDs tracks recent message IDs per chat so ClearHistory can delete them.
 	// ponytail: in-memory + capped; Telegram can't delete >48h-old messages anyway, persistence buys nothing
@@ -107,7 +107,7 @@ func NewTelegramChannel(cfg config.TelegramChannelConfig, transcriber VoiceTrans
 }
 
 // SetCommands sets the slash commands advertised to Telegram on Start.
-func (t *TelegramChannel) SetCommands(cmds []domain.ChannelCommand) {
+func (t *TelegramChannel) SetCommands(cmds []ChannelCommand) {
 	t.commands = cmds
 }
 
@@ -123,7 +123,7 @@ func (t *TelegramChannel) trackMessage(chatID int64, messageID int) {
 }
 
 // ClearHistory best-effort deletes the tracked messages of a chat.
-// Implements domain.HistoryCleaner. Telegram silently skips messages it can no
+// Implements HistoryCleaner. Telegram silently skips messages it can no
 // longer delete (older than 48h), and batches that fail are logged and skipped.
 func (t *TelegramChannel) ClearHistory(ctx context.Context, recipientID string) error {
 	if t.bot == nil {
@@ -153,7 +153,7 @@ func (t *TelegramChannel) ClearHistory(ctx context.Context, recipientID string) 
 
 // telegramBotCommands converts channel commands to Telegram bot commands,
 // dropping names Telegram would reject and truncating long descriptions.
-func telegramBotCommands(cmds []domain.ChannelCommand) []models.BotCommand {
+func telegramBotCommands(cmds []ChannelCommand) []models.BotCommand {
 	var out []models.BotCommand
 	for _, c := range cmds {
 		if !botCommandNameRe.MatchString(c.Name) {
@@ -171,7 +171,7 @@ func telegramBotCommands(cmds []domain.ChannelCommand) []models.BotCommand {
 // inlineKeyboard renders message buttons as a one-button-per-row inline
 // keyboard (full-width, thumb-friendly). Returns nil for no buttons so callers
 // can pass it straight to sendText.
-func inlineKeyboard(buttons []domain.MessageButton) models.ReplyMarkup {
+func inlineKeyboard(buttons []MessageButton) models.ReplyMarkup {
 	if len(buttons) == 0 {
 		return nil
 	}
@@ -192,7 +192,7 @@ func (t *TelegramChannel) Name() string {
 }
 
 // Start begins long-polling for Telegram updates and sends inbound messages to the inbox
-func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.InboundMessage) error {
+func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- InboundMessage) error {
 	if t.cfg.BotToken == "" {
 		return fmt.Errorf("telegram bot token is required")
 	}
@@ -283,7 +283,7 @@ func (t *TelegramChannel) Start(ctx context.Context, inbox chan<- domain.Inbound
 }
 
 // Send delivers a message through the Telegram Bot API
-func (t *TelegramChannel) Send(ctx context.Context, msg domain.OutboundMessage) error {
+func (t *TelegramChannel) Send(ctx context.Context, msg OutboundMessage) error {
 	if t.bot == nil {
 		return fmt.Errorf("telegram bot not started")
 	}
@@ -379,8 +379,8 @@ func (t *TelegramChannel) sendText(ctx context.Context, chatID int64, text strin
 }
 
 // SendApproval sends a tool approval prompt with inline keyboard buttons.
-// Implements domain.ApprovalChannel.
-func (t *TelegramChannel) SendApproval(ctx context.Context, recipientID string, req *domain.ApprovalRequest) error {
+// Implements ApprovalChannel.
+func (t *TelegramChannel) SendApproval(ctx context.Context, recipientID string, req *ipc.ApprovalRequest) error {
 	if t.bot == nil {
 		return fmt.Errorf("telegram bot not started")
 	}
@@ -412,7 +412,7 @@ func (t *TelegramChannel) Stop() error {
 // processUpdate converts a Telegram update into an InboundMessage (or nil if
 // skipped). Videos are only accepted when mediaEnabled (channels.telegram.media
 // saving is on); otherwise they are skipped as before.
-func processUpdate(update *models.Update, mediaEnabled bool) *domain.InboundMessage {
+func processUpdate(update *models.Update, mediaEnabled bool) *InboundMessage {
 	if update.CallbackQuery != nil {
 		return processCallbackQuery(update.CallbackQuery)
 	}
@@ -448,7 +448,7 @@ func processUpdate(update *models.Update, mediaEnabled bool) *domain.InboundMess
 		metadata["user_id"] = strconv.FormatInt(msg.From.ID, 10)
 	}
 
-	inbound := &domain.InboundMessage{
+	inbound := &InboundMessage{
 		ChannelName: "telegram",
 		SenderID:    senderID,
 		Content:     content,
@@ -496,7 +496,7 @@ func processUpdate(update *models.Update, mediaEnabled bool) *domain.InboundMess
 // returns false when the message should be dropped (transcription disabled,
 // failed, or produced no text), matching the prior behavior of ignoring voice
 // messages the bot cannot turn into text.
-func (t *TelegramChannel) applyVoiceTranscription(ctx context.Context, b *bot.Bot, msg *domain.InboundMessage, fileID string) bool {
+func (t *TelegramChannel) applyVoiceTranscription(ctx context.Context, b *bot.Bot, msg *InboundMessage, fileID string) bool {
 	if t.transcriber == nil {
 		logger.Warn("received a voice message but speech-to-text is disabled; ignoring")
 		return false
@@ -574,7 +574,7 @@ func (t *TelegramChannel) mediaAcceptable(mime string, size int64) error {
 // directory after size/mime checks, then records the saved path in the message
 // metadata and content so the agent can use the file as an asset. Best-effort:
 // a rejected or failed save never drops the message.
-func (t *TelegramChannel) saveInboundMedia(msg *domain.InboundMessage, mime, hintPath string, data []byte) {
+func (t *TelegramChannel) saveInboundMedia(msg *InboundMessage, mime, hintPath string, data []byte) {
 	if t.media == nil {
 		return
 	}
@@ -595,7 +595,7 @@ func (t *TelegramChannel) saveInboundMedia(msg *domain.InboundMessage, mime, hin
 // Telegram declared (so oversized files are rejected before any download),
 // then fetches the video and saves it via saveInboundMedia. Rejections are
 // appended to the message content so the agent can tell the user why.
-func (t *TelegramChannel) downloadInboundVideo(ctx context.Context, b *bot.Bot, msg *domain.InboundMessage, fileID string) {
+func (t *TelegramChannel) downloadInboundVideo(ctx context.Context, b *bot.Bot, msg *InboundMessage, fileID string) {
 	mime := msg.Metadata["media_mime"]
 	size, _ := strconv.ParseInt(msg.Metadata["media_size"], 10, 64)
 	if err := t.mediaAcceptable(mime, size); err != nil {
@@ -668,13 +668,13 @@ func mimeFromPath(path string) string {
 // into an InboundMessage. Approval buttons carry approval metadata; command
 // buttons ("/..." callback data) are delivered as if the user typed the
 // command. Returns nil for unrecognized data.
-func processCallbackQuery(cq *models.CallbackQuery) *domain.InboundMessage {
+func processCallbackQuery(cq *models.CallbackQuery) *InboundMessage {
 	if strings.HasPrefix(cq.Data, "/") {
 		chatID := callbackChatID(cq)
 		if chatID == 0 {
 			return nil
 		}
-		return &domain.InboundMessage{
+		return &InboundMessage{
 			ChannelName: "telegram",
 			SenderID:    strconv.FormatInt(chatID, 10),
 			Content:     cq.Data,
@@ -705,7 +705,7 @@ func processCallbackQuery(cq *models.CallbackQuery) *domain.InboundMessage {
 		return nil
 	}
 
-	return &domain.InboundMessage{
+	return &InboundMessage{
 		ChannelName: "telegram",
 		SenderID:    strconv.FormatInt(chatID, 10),
 		Content:     action,
@@ -733,7 +733,7 @@ func callbackChatID(cq *models.CallbackQuery) int64 {
 }
 
 // formatApprovalText creates a prompt for inline keyboard approval (no "Reply yes/no" text).
-func formatApprovalText(req *domain.ApprovalRequest) string {
+func formatApprovalText(req *ipc.ApprovalRequest) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Approve %s?\n", req.ToolName)
 

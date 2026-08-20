@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // directQuestionBroker implements agentdomain.UserQuestionBroker for `!!` direct
@@ -54,7 +54,7 @@ func (s *Service) HandleToolCommand(commandText string) tea.Cmd {
 
 	if command == "" {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  "No tool command provided. Use: !!ToolName(arg=\"value\")",
 				Sticky: false,
 			}
@@ -64,7 +64,7 @@ func (s *Service) HandleToolCommand(commandText string) tea.Cmd {
 	toolName, args, err := s.ParseToolCall(command)
 	if err != nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Invalid tool syntax: %v. Use: !!ToolName(arg=\"value\")", err),
 				Sticky: false,
 			}
@@ -73,7 +73,7 @@ func (s *Service) HandleToolCommand(commandText string) tea.Cmd {
 
 	if !s.toolService.IsToolEnabled(toolName) {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Tool '%s' is not enabled. Check 'infer config get tools' for tool configuration.", toolName),
 				Sticky: false,
 			}
@@ -83,7 +83,7 @@ func (s *Service) HandleToolCommand(commandText string) tea.Cmd {
 	if !s.isToolAvailableInMode(toolName) {
 		mode := s.stateManager.GetAgentMode()
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Tool '%s' is not available in %s.", toolName, mode.DisplayName()),
 				Sticky: false,
 			}
@@ -93,7 +93,7 @@ func (s *Service) HandleToolCommand(commandText string) tea.Cmd {
 	argsJSON, err := json.Marshal(args)
 	if err != nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to marshal arguments: %v", err),
 				Sticky: false,
 			}
@@ -137,13 +137,13 @@ func (s *Service) executeToolCommand(commandText, toolName, argsJSON string) tea
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{History: s.conversationRepo.GetMessages()}
+			return ui.UpdateHistoryEvent{History: s.conversationRepo.GetMessages()}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Executing: %s", toolName),
 				Spinner:    true,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 				ToolName:   toolName,
 			}
 		},
@@ -199,7 +199,7 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 		ctx = agentdomain.WithUserQuestionBroker(ctx, &directQuestionBroker{events: eventChan, requestID: toolCallID})
 		result, err := s.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 		if err != nil {
-			eventChan <- domain.ShowErrorEvent{
+			eventChan <- ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to execute tool: %v", err),
 				Sticky: false,
 			}
@@ -274,14 +274,14 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 			Images:     images,
 		}
 
-		eventChan <- domain.UpdateHistoryEvent{
+		eventChan <- ui.UpdateHistoryEvent{
 			History: s.conversationRepo.GetMessages(),
 		}
 
-		eventChan <- domain.SetStatusEvent{
+		eventChan <- ui.SetStatusEvent{
 			Message:    fmt.Sprintf("%s %s", toolName, message),
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 
 		// Clear ToolCallRenderer previews now that the tool entry is in

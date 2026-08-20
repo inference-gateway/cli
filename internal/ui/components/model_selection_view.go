@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 
 	key "charm.land/bubbles/v2/key"
@@ -11,7 +12,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -217,7 +217,7 @@ func (m *ModelSelectorImpl) forwardToForm(msg tea.Msg) tea.Cmd {
 	}
 	m.done = true
 	return func() tea.Msg {
-		return domain.ModelSelectedEvent{Model: selectedModel}
+		return ui.ModelSelectedEvent{Model: selectedModel}
 	}
 }
 

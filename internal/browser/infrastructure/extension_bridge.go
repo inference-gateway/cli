@@ -20,7 +20,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 )
@@ -89,8 +88,8 @@ type extConversations struct {
 }
 
 type extSkills struct {
-	Type   string                `json:"type"`
-	Skills []domain.SkillSummary `json:"skills"`
+	Type   string                     `json:"type"`
+	Skills []agentdomain.SkillSummary `json:"skills"`
 }
 
 type extChatEvent struct {
@@ -107,10 +106,10 @@ type extChatEvent struct {
 // when someone actually needs it.
 type ExtensionBridge struct {
 	cfg          *config.BrowserUseConfig
-	notifier     domain.UINotifier
+	notifier     agentdomain.UINotifier
 	repo         convdomain.ConversationRepository
 	events       agentdomain.EventBridge
-	skills       domain.SkillsService
+	skills       agentdomain.SkillsService
 	sessionID    string
 	artifactsDir string
 
@@ -131,7 +130,7 @@ type ExtensionBridge struct {
 // be nil (the matching feature is then skipped); cfg must not be nil.
 // artifactsDir, when non-empty, is served read-only at /artifacts/ so the panel
 // can display generated images the agent saved locally.
-func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier domain.UINotifier, repo convdomain.ConversationRepository, events agentdomain.EventBridge, skills domain.SkillsService, sessionID, artifactsDir string) *ExtensionBridge {
+func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier agentdomain.UINotifier, repo convdomain.ConversationRepository, events agentdomain.EventBridge, skills agentdomain.SkillsService, sessionID, artifactsDir string) *ExtensionBridge {
 	return &ExtensionBridge{
 		cfg:              cfg,
 		notifier:         notifier,
@@ -309,11 +308,11 @@ func (b *ExtensionBridge) resumeConversation(conn *websocket.Conn, id string) {
 // Sends an empty list when skills are unavailable.
 func (b *ExtensionBridge) sendSkillList(conn *websocket.Conn) {
 	if b.skills == nil {
-		b.write(conn, extSkills{Type: "skills", Skills: []domain.SkillSummary{}})
+		b.write(conn, extSkills{Type: "skills", Skills: []agentdomain.SkillSummary{}})
 		return
 	}
 	loaded := b.skills.List()
-	out := make([]domain.SkillSummary, 0, len(loaded))
+	out := make([]agentdomain.SkillSummary, 0, len(loaded))
 	for _, sk := range loaded {
 		out = append(out, sk.Summary())
 	}
@@ -340,7 +339,7 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			}
 		case "user_message":
 			if b.notifier != nil && msg.Content != "" {
-				b.notifier.Notify(domain.UserInputEvent{Content: msg.Content})
+				b.notifier.Notify(agentdomain.UserInputEvent{Content: msg.Content})
 			}
 		case "list_conversations":
 			b.sendConversationList(conn)
@@ -473,7 +472,7 @@ func (b *ExtensionBridge) answerApproval(conn *websocket.Conn, requestID, action
 		return
 	}
 	if b.notifier != nil {
-		b.notifier.Notify(domain.ToolApprovalResponseEvent{
+		b.notifier.Notify(agentdomain.ToolApprovalResponseEvent{
 			Action:   approvalAction(action),
 			ToolCall: toolCall,
 		})

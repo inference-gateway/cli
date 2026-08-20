@@ -2,6 +2,8 @@ package components
 
 import (
 	"fmt"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"path/filepath"
 	"strings"
 
@@ -10,7 +12,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -139,7 +140,7 @@ type patchErrMsg struct{ err error }
 type DiffViewerImpl struct {
 	source        gitdiff.Source
 	styleProvider *styles.Provider
-	themeService  domain.ThemeService
+	themeService  ui.ThemeService
 	diffRenderer  *styles.DiffRenderer
 	keymap        diffKeymap
 
@@ -192,7 +193,7 @@ type DiffViewerImpl struct {
 }
 
 // NewDiffViewer creates a changes panel backed by the given git source.
-func NewDiffViewer(source gitdiff.Source, styleProvider *styles.Provider, themeService domain.ThemeService, kb config.KeybindingsConfig) *DiffViewerImpl {
+func NewDiffViewer(source gitdiff.Source, styleProvider *styles.Provider, themeService ui.ThemeService, kb config.KeybindingsConfig) *DiffViewerImpl {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 	vp.MouseWheelEnabled = true
@@ -450,7 +451,7 @@ func (t *DiffViewerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		t.patchMsg = m.err.Error()
 		t.dirtyDiff = true
 		return t, nil
-	case domain.ToolExecutionCompletedEvent, domain.BashCommandCompletedEvent:
+	case agentdomain.ToolExecutionCompletedEvent, ui.BashCommandCompletedEvent:
 		return t, t.loadCmd()
 	case tea.WindowSizeMsg:
 		t.SetWidth(m.Width)
@@ -688,7 +689,7 @@ func (t *DiffViewerImpl) handleDiscardConfirm(msg tea.KeyPressMsg) (tea.Model, t
 func (t *DiffViewerImpl) commit() (tea.Model, tea.Cmd) {
 	t.cancel = true
 	return t, func() tea.Msg {
-		return domain.UserInputEvent{Content: "/git commit"}
+		return agentdomain.UserInputEvent{Content: "/git commit"}
 	}
 }
 

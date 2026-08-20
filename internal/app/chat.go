@@ -18,7 +18,6 @@ import (
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	handlers "github.com/inference-gateway/cli/internal/handlers"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
@@ -49,16 +48,16 @@ type ChatApplication struct {
 	sessionRolloverManager *conversation.SessionRolloverManager
 	modelService           convdomain.ModelService
 	toolService            agentdomain.ToolService
-	fileService            domain.FileService
-	imageService           domain.ImageService
-	skillsService          domain.SkillsService
-	githubIssueService     domain.GitHubIssueService
-	githubSetupService     domain.GitHubSetupService
+	fileService            agentdomain.FileService
+	imageService           agentdomain.ImageService
+	skillsService          agentdomain.SkillsService
+	githubIssueService     agentdomain.GitHubIssueService
+	githubSetupService     agentdomain.GitHubSetupService
 	pricingService         convdomain.PricingService
 	shortcutRegistry       *shortcuts.Registry
-	themeService           domain.ThemeService
+	themeService           ui.ThemeService
 	toolRegistry           *tools.Registry
-	mcpManager             domain.MCPManager
+	mcpManager             agentdomain.MCPManager
 	taskRetentionService   scheddomain.TaskRetentionService
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
@@ -131,7 +130,7 @@ type ChatApplication struct {
 
 	// Track last key handled by keybinding action to prevent double-handling
 	lastHandledKey string
-	lastView       domain.ViewState
+	lastView       ui.ViewState
 
 	// Available models
 	availableModels []string
@@ -145,26 +144,26 @@ func NewChatApplication(
 	cfg *config.Config,
 	models []string,
 	defaultModel string,
-	versionInfo domain.VersionInfo,
+	versionInfo ui.VersionInfo,
 	agentManager agentdomain.AgentManager,
 	agentService agentdomain.AgentService,
 	backgroundTaskService scheddomain.BackgroundTaskService,
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry,
 	conversationOptimizer convdomain.ConversationOptimizer,
 	conversationRepo convdomain.ConversationRepository,
-	fileService domain.FileService,
-	imageService domain.ImageService,
-	skillsService domain.SkillsService,
-	githubIssueService domain.GitHubIssueService,
-	githubSetupService domain.GitHubSetupService,
-	mcpManager domain.MCPManager,
+	fileService agentdomain.FileService,
+	imageService agentdomain.ImageService,
+	skillsService agentdomain.SkillsService,
+	githubIssueService agentdomain.GitHubIssueService,
+	githubSetupService agentdomain.GitHubSetupService,
+	mcpManager agentdomain.MCPManager,
 	messageQueue convdomain.MessageQueue,
 	modelService convdomain.ModelService,
 	pricingService convdomain.PricingService,
 	sessionRolloverManager *conversation.SessionRolloverManager,
 	stateManager *services.StateManager,
 	taskRetentionService scheddomain.TaskRetentionService,
-	themeService domain.ThemeService,
+	themeService ui.ThemeService,
 	toolService agentdomain.ToolService,
 	shortcutRegistry *shortcuts.Registry,
 	toolRegistry *tools.Registry,
@@ -175,9 +174,9 @@ func NewChatApplication(
 	toolExecutionCoordinator ui.ToolExecutionCoordinator,
 	shellHistoryStore storage.ShellHistoryStorage,
 ) *ChatApplication {
-	initialView := domain.ViewStateModelSelection
+	initialView := ui.ViewStateModelSelection
 	if defaultModel != "" {
-		initialView = domain.ViewStateChat
+		initialView = ui.ViewStateChat
 	}
 
 	app := &ChatApplication{
@@ -337,7 +336,7 @@ func NewChatApplication(
 
 	app.taskManager = nil
 
-	if initialView == domain.ViewStateChat {
+	if initialView == ui.ViewStateChat {
 		app.focusedComponent = app.inputView
 	} else {
 		app.focusedComponent = nil
@@ -428,7 +427,7 @@ func (app *ChatApplication) Init() tea.Cmd {
 	}
 
 	if app.mcpManager != nil {
-		app.inputStatusBar.UpdateMCPStatus(&domain.MCPServerStatus{
+		app.inputStatusBar.UpdateMCPStatus(&ui.MCPServerStatus{
 			TotalServers:     app.mcpManager.GetTotalServers(),
 			ConnectedServers: 0,
 			TotalTools:       0,
@@ -439,7 +438,7 @@ func (app *ChatApplication) Init() tea.Cmd {
 
 	if msgs := app.conversationRepo.GetMessages(); len(msgs) > 0 {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.UpdateHistoryEvent{History: msgs}
+			return ui.UpdateHistoryEvent{History: msgs}
 		})
 	}
 
@@ -456,11 +455,11 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	viewBefore := app.stateManager.GetCurrentView()
 
-	if viewBefore == domain.ViewStateModelSelection && app.lastView != domain.ViewStateModelSelection {
+	if viewBefore == ui.ViewStateModelSelection && app.lastView != ui.ViewStateModelSelection {
 		app.modelSelector.Reset()
 	}
 
-	if viewBefore == domain.ViewStateA2AAgents && app.lastView != domain.ViewStateA2AAgents {
+	if viewBefore == ui.ViewStateA2AAgents && app.lastView != ui.ViewStateA2AAgents {
 		app.a2aAgentsView.Reset()
 	}
 
@@ -482,16 +481,16 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	cmds = append(cmds, app.updateUIComponentsForUIMessages(msg, viewBefore)...)
 
-	if event, ok := msg.(domain.MCPServerStatusUpdateEvent); ok {
+	if event, ok := msg.(ui.MCPServerStatusUpdateEvent); ok {
 		if cmd := app.handleMCPStatusUpdate(event); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
 
-	if viewBefore != domain.ViewStateChat &&
-		app.stateManager.GetCurrentView() == domain.ViewStateChat &&
+	if viewBefore != ui.ViewStateChat &&
+		app.stateManager.GetCurrentView() == ui.ViewStateChat &&
 		!app.messageQueue.IsEmpty() {
-		cmds = append(cmds, func() tea.Msg { return domain.DrainQueueEvent{} })
+		cmds = append(cmds, func() tea.Msg { return agentdomain.DrainQueueEvent{} })
 	}
 
 	app.lastView = viewBefore
@@ -539,9 +538,9 @@ func (app *ChatApplication) forwardToOverlayForms(msg tea.Msg) []tea.Cmd {
 func isDomainEvent(msg tea.Msg) bool {
 	switch msg.(type) {
 	// User input and interaction
-	case domain.UserInputEvent,
-		domain.FileSelectionRequestEvent,
-		domain.ConversationSelectedEvent:
+	case agentdomain.UserInputEvent,
+		ui.FileSelectionRequestEvent,
+		ui.ConversationSelectedEvent:
 		return true
 
 	// Chat lifecycle
@@ -550,28 +549,28 @@ func isDomainEvent(msg tea.Msg) bool {
 		agentdomain.ChatCompleteEvent,
 		agentdomain.ChatErrorEvent,
 		agentdomain.OptimizationStatusEvent,
-		domain.RolloverCompletedEvent:
+		ui.RolloverCompletedEvent:
 		return true
 
 	// Tool execution
 	case agentdomain.ToolCallUpdateEvent,
 		agentdomain.ToolCallReadyEvent,
-		domain.ToolExecutionStartedEvent,
+		ui.ToolExecutionStartedEvent,
 		agentdomain.ToolExecutionProgressEvent,
-		domain.ToolExecutionCompletedEvent:
+		agentdomain.ToolExecutionCompletedEvent:
 		return true
 
 	// Tool and plan approval
 	case agentdomain.ToolApprovalRequestedEvent,
-		domain.ToolApprovalResponseEvent,
+		agentdomain.ToolApprovalResponseEvent,
 		agentdomain.PlanApprovalRequestedEvent,
-		domain.PlanApprovalResponseEvent,
+		ui.PlanApprovalResponseEvent,
 		agentdomain.UserQuestionRequestedEvent:
 		return true
 
 	// Bash command execution
 	case agentdomain.BashOutputChunkEvent,
-		domain.BashCommandCompletedEvent,
+		ui.BashCommandCompletedEvent,
 		agentdomain.BackgroundShellRequestEvent:
 		return true
 
@@ -592,9 +591,9 @@ func isDomainEvent(msg tea.Msg) bool {
 	case agentdomain.MessageQueuedEvent,
 		agentdomain.ToolCancelledEvent,
 		agentdomain.TodoUpdateChatEvent,
-		domain.AgentStatusUpdateEvent,
-		domain.DrainQueueEvent,
-		domain.DrainQueueRetryEvent,
+		ui.AgentStatusUpdateEvent,
+		agentdomain.DrainQueueEvent,
+		ui.DrainQueueRetryEvent,
 		agentdomain.NavigateBackInTimeEvent,
 		agentdomain.MessageHistoryRestoreEvent,
 		agentdomain.ComputerUsePausedEvent,
@@ -608,13 +607,13 @@ func isDomainEvent(msg tea.Msg) bool {
 // handleAppEvents handles application-level events (not component-specific)
 func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
-	case domain.TriggerGithubActionSetupEvent:
+	case ui.TriggerGithubActionSetupEvent:
 		return tea.Batch(app.handleGithubActionSetupTrigger()...)
 
 	case githubSetupCheckedMsg:
 		return tea.Batch(app.handleGithubSetupChecked(m)...)
 
-	case domain.TriggerHelpViewEvent:
+	case ui.TriggerHelpViewEvent:
 		return tea.Batch(app.handleHelpViewTrigger()...)
 
 	case agentdomain.MessageHistoryRestoreEvent:
@@ -629,8 +628,8 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 }
 
 // handleMCPStatusUpdate processes MCP server connection status changes
-func (app *ChatApplication) handleMCPStatusUpdate(event domain.MCPServerStatusUpdateEvent) tea.Cmd {
-	app.inputStatusBar.UpdateMCPStatus(&domain.MCPServerStatus{
+func (app *ChatApplication) handleMCPStatusUpdate(event ui.MCPServerStatusUpdateEvent) tea.Cmd {
+	app.inputStatusBar.UpdateMCPStatus(&ui.MCPServerStatus{
 		TotalServers:     event.TotalServers,
 		ConnectedServers: event.ConnectedServers,
 		TotalTools:       event.TotalTools,
@@ -666,7 +665,7 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		inputView.SetDisabled(inputBlocked)
 	}
 
-	if app.statusBarFocused && (inputBlocked || currentView != domain.ViewStateChat) {
+	if app.statusBarFocused && (inputBlocked || currentView != ui.ViewStateChat) {
 		app.blurStatusBar()
 	}
 
@@ -681,31 +680,31 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 	return cmds
 }
 
-func (app *ChatApplication) dispatchViewMessage(currentView domain.ViewState, msg tea.Msg) []tea.Cmd {
+func (app *ChatApplication) dispatchViewMessage(currentView ui.ViewState, msg tea.Msg) []tea.Cmd {
 	switch currentView {
-	case domain.ViewStateModelSelection:
+	case ui.ViewStateModelSelection:
 		return app.handleModelSelectionView(msg)
-	case domain.ViewStateChat:
+	case ui.ViewStateChat:
 		return app.handleChatView(msg)
-	case domain.ViewStateFileSelection:
+	case ui.ViewStateFileSelection:
 		return app.handleFileSelectionView(msg)
-	case domain.ViewStateConversationSelection:
+	case ui.ViewStateConversationSelection:
 		return app.handleConversationSelectionView(msg)
-	case domain.ViewStateThemeSelection:
+	case ui.ViewStateThemeSelection:
 		return app.handleThemeSelectionView(msg)
-	case domain.ViewStateA2ATaskManagement:
+	case ui.ViewStateA2ATaskManagement:
 		return app.handleA2ATaskManagementView(msg)
-	case domain.ViewStateGithubActionSetup:
+	case ui.ViewStateGithubActionSetup:
 		return app.handleInitGithubActionView(msg)
-	case domain.ViewStateDiffViewer:
+	case ui.ViewStateDiffViewer:
 		return app.handleDiffViewerView(msg)
-	case domain.ViewStateExplorer:
+	case ui.ViewStateExplorer:
 		return app.handleExplorerView(msg)
-	case domain.ViewStateHelp:
+	case ui.ViewStateHelp:
 		return app.handleHelpView(msg)
-	case domain.ViewStateToolsList:
+	case ui.ViewStateToolsList:
 		return app.handleToolsListView(msg)
-	case domain.ViewStateA2AAgents:
+	case ui.ViewStateA2AAgents:
 		return app.handleA2AAgentsView(msg)
 	default:
 		return nil
@@ -713,21 +712,21 @@ func (app *ChatApplication) dispatchViewMessage(currentView domain.ViewState, ms
 }
 
 // ponytail: extracted to reduce cyclomatic complexity of handleViewSpecificMessages
-func (app *ChatApplication) isInputBlocked(currentView domain.ViewState) bool {
+func (app *ChatApplication) isInputBlocked(currentView ui.ViewState) bool {
 	inHistoryMode := false
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		inHistoryMode = cv.IsInMessageHistoryMode()
 	}
 
-	return currentView != domain.ViewStateChat ||
+	return currentView != ui.ViewStateChat ||
 		app.stateManager.GetApprovalUIState() != nil ||
 		app.stateManager.GetPlanApprovalUIState() != nil ||
 		app.stateManager.GetUserQuestionUIState() != nil ||
 		app.stateManager.GetRetryStatus() != nil ||
 		inHistoryMode ||
-		currentView == domain.ViewStateDiffViewer ||
-		currentView == domain.ViewStateExplorer ||
-		currentView == domain.ViewStateHelp
+		currentView == ui.ViewStateDiffViewer ||
+		currentView == ui.ViewStateExplorer ||
+		currentView == ui.ViewStateHelp
 }
 
 func (app *ChatApplication) handleModelSelectionView(msg tea.Msg) []tea.Cmd {
@@ -744,7 +743,7 @@ func (app *ChatApplication) handleModelSelectionView(msg tea.Msg) []tea.Cmd {
 
 func (app *ChatApplication) handleModelSelection(cmds []tea.Cmd) []tea.Cmd {
 	if app.modelSelector.IsSelected() {
-		if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 			return []tea.Cmd{tea.Quit}
 		}
 		app.focusedComponent = app.inputView
@@ -757,7 +756,7 @@ func (app *ChatApplication) handleModelSelection(cmds []tea.Cmd) []tea.Cmd {
 func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	if approvalEvent, ok := msg.(domain.PlanApprovalResponseEvent); ok {
+	if approvalEvent, ok := msg.(ui.PlanApprovalResponseEvent); ok {
 		approvalState := app.stateManager.GetPlanApprovalUIState()
 		if approvalState != nil && approvalState.ResponseChan != nil {
 			approvalState.ResponseChan <- approvalEvent.Action
@@ -770,7 +769,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return app.handleNavigateBackInTime(navEvent)
 	}
 
-	if readyEvent, ok := msg.(domain.MessageHistoryReadyEvent); ok {
+	if readyEvent, ok := msg.(ui.MessageHistoryReadyEvent); ok {
 		if cv, ok := app.conversationView.(*components.ConversationView); ok {
 			cv.EnterMessageHistoryMode(readyEvent.Messages)
 
@@ -781,7 +780,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
-	if editReadyEvent, ok := msg.(domain.MessageHistoryEditReadyEvent); ok {
+	if editReadyEvent, ok := msg.(ui.MessageHistoryEditReadyEvent); ok {
 		return app.handleEditReady(editReadyEvent)
 	}
 
@@ -792,7 +791,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
-	if _, ok := msg.(domain.FocusStatusBarEvent); ok {
+	if _, ok := msg.(ui.FocusStatusBarEvent); ok {
 		if app.inputStatusBar.Focus() {
 			app.statusBarFocused = true
 		}
@@ -953,45 +952,45 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 
 	switch action {
 	case ui.StatusIndicatorActionModelSelection:
-		_ = app.stateManager.TransitionToView(domain.ViewStateModelSelection)
+		_ = app.stateManager.TransitionToView(ui.ViewStateModelSelection)
 		return []tea.Cmd{func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Select a model from the dropdown",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}}
 	case ui.StatusIndicatorActionThemeSelection:
-		_ = app.stateManager.TransitionToView(domain.ViewStateThemeSelection)
+		_ = app.stateManager.TransitionToView(ui.ViewStateThemeSelection)
 		return []tea.Cmd{func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}}
 	case ui.StatusIndicatorActionToolsList:
-		_ = app.stateManager.TransitionToView(domain.ViewStateToolsList)
+		_ = app.stateManager.TransitionToView(ui.ViewStateToolsList)
 		return []tea.Cmd{func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}}
 	case ui.StatusIndicatorActionA2AAgents:
-		_ = app.stateManager.TransitionToView(domain.ViewStateA2AAgents)
+		_ = app.stateManager.TransitionToView(ui.ViewStateA2AAgents)
 		return []tea.Cmd{func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}}
 	case ui.StatusIndicatorActionTaskManagement:
-		if err := app.stateManager.TransitionToView(domain.ViewStateA2ATaskManagement); err != nil {
+		if err := app.stateManager.TransitionToView(ui.ViewStateA2ATaskManagement); err != nil {
 			return []tea.Cmd{func() tea.Msg {
-				return domain.ShowErrorEvent{
+				return ui.ShowErrorEvent{
 					Error:  fmt.Sprintf("Failed to show task management: %v", err),
 					Sticky: false,
 				}
@@ -1002,10 +1001,10 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 			hasBackgroundTasks = len(app.backgroundTaskService.GetBackgroundTasks()) > 0
 		}
 		return []tea.Cmd{func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Task management interface",
 				Spinner:    hasBackgroundTasks,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}}
 	default:
@@ -1043,29 +1042,29 @@ func (app *ChatApplication) viewContent() string {
 	currentView := app.stateManager.GetCurrentView()
 
 	switch currentView {
-	case domain.ViewStateModelSelection:
+	case ui.ViewStateModelSelection:
 		return app.renderModelSelection()
-	case domain.ViewStateChat:
+	case ui.ViewStateChat:
 		return app.renderChatInterface()
-	case domain.ViewStateFileSelection:
+	case ui.ViewStateFileSelection:
 		return app.renderFileSelection()
-	case domain.ViewStateConversationSelection:
+	case ui.ViewStateConversationSelection:
 		return app.renderConversationSelection()
-	case domain.ViewStateThemeSelection:
+	case ui.ViewStateThemeSelection:
 		return app.renderThemeSelection()
-	case domain.ViewStateA2ATaskManagement:
+	case ui.ViewStateA2ATaskManagement:
 		return app.renderA2ATaskManagement()
-	case domain.ViewStateGithubActionSetup:
+	case ui.ViewStateGithubActionSetup:
 		return app.renderGithubActionSetup()
-	case domain.ViewStateDiffViewer:
+	case ui.ViewStateDiffViewer:
 		return app.renderDiffViewer()
-	case domain.ViewStateExplorer:
+	case ui.ViewStateExplorer:
 		return app.renderExplorer()
-	case domain.ViewStateHelp:
+	case ui.ViewStateHelp:
 		return app.renderHelp()
-	case domain.ViewStateToolsList:
+	case ui.ViewStateToolsList:
 		return app.renderToolsList()
-	case domain.ViewStateA2AAgents:
+	case ui.ViewStateA2AAgents:
 		return app.renderA2AAgents()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
@@ -1097,17 +1096,17 @@ func (app *ChatApplication) handleInitGithubActionCompleted(cmds []tea.Cmd) []te
 
 	if err != nil {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Init Github Action setup failed: %v", err),
 				Sticky: false,
 			}
 		})
 	} else {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Setting up Init Github Action...",
 				Spinner:    true,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		})
 
@@ -1119,9 +1118,9 @@ func (app *ChatApplication) handleInitGithubActionCompleted(cmds []tea.Cmd) []te
 		cmds = append(cmds, cmd)
 	}
 
-	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to return to chat: %v", err),
 				Sticky: false,
 			}
@@ -1134,10 +1133,10 @@ func (app *ChatApplication) handleInitGithubActionCompleted(cmds []tea.Cmd) []te
 
 func (app *ChatApplication) handleInitGithubActionCancelled(cmds []tea.Cmd) []tea.Cmd {
 	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Init Github Action setup cancelled",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	})
 
@@ -1146,9 +1145,9 @@ func (app *ChatApplication) handleInitGithubActionCancelled(cmds []tea.Cmd) []te
 		cmds = append(cmds, cmd)
 	}
 
-	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to return to chat: %v", err),
 				Sticky: false,
 			}
@@ -1171,10 +1170,10 @@ type githubSetupCheckedMsg struct {
 func (app *ChatApplication) handleGithubActionSetupTrigger() []tea.Cmd {
 	return []tea.Cmd{
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Checking repository...",
 				Spinner:    true,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 		app.checkGithubSetupPreconditions(),
@@ -1211,7 +1210,7 @@ func (app *ChatApplication) handleGithubSetupChecked(msg githubSetupCheckedMsg) 
 
 	if msg.err != nil {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("GitHub Action setup failed: %v", msg.err),
 				Sticky: true,
 			}
@@ -1221,10 +1220,10 @@ func (app *ChatApplication) handleGithubSetupChecked(msg githubSetupCheckedMsg) 
 
 	if msg.isOrg && msg.secretsExist {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Org secrets found, creating workflow...",
 				Spinner:    true,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		})
 
@@ -1240,9 +1239,9 @@ func (app *ChatApplication) handleGithubSetupChecked(msg githubSetupCheckedMsg) 
 		cmds = append(cmds, cmd)
 	}
 
-	if err := app.stateManager.TransitionToView(domain.ViewStateGithubActionSetup); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateGithubActionSetup); err != nil {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to show Init Github Action setup: %v", err),
 				Sticky: false,
 			}
@@ -1251,10 +1250,10 @@ func (app *ChatApplication) handleGithubSetupChecked(msg githubSetupCheckedMsg) 
 	}
 
 	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "Setting up Init GitHub Action...",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	})
 
@@ -1265,7 +1264,7 @@ func (app *ChatApplication) performGithubActionSetup(appID, privateKeyPath strin
 	return func() tea.Msg {
 		repo, err := app.githubSetupService.GetCurrentRepo()
 		if err != nil {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to get repository info: %v", err),
 				Sticky: true,
 			}
@@ -1273,7 +1272,7 @@ func (app *ChatApplication) performGithubActionSetup(appID, privateKeyPath strin
 
 		isOrg, err := app.githubSetupService.IsOrgRepo(repo)
 		if err != nil {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to check repository type: %v", err),
 				Sticky: true,
 			}
@@ -1292,7 +1291,7 @@ func (app *ChatApplication) setupStandardWorkflow(repo string) tea.Msg {
 	workflowPath := ".github/workflows/infer.yml"
 
 	if err := app.githubSetupService.WriteWorkflowFile(workflowPath, workflowContent); err != nil {
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
 			Sticky: true,
 		}
@@ -1300,7 +1299,7 @@ func (app *ChatApplication) setupStandardWorkflow(repo string) tea.Msg {
 
 	prURL, err := app.githubSetupService.PreparePRCreation(repo, workflowPath)
 	if err != nil {
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
 			Sticky: true,
 		}
@@ -1314,7 +1313,7 @@ func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string)
 
 	secretsExist, err := app.githubSetupService.CheckOrgSecretsExist(orgName)
 	if err != nil {
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to check org secrets: %v", err),
 			Sticky: true,
 		}
@@ -1330,7 +1329,7 @@ func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string)
 	workflowPath := ".github/workflows/infer.yml"
 
 	if err := app.githubSetupService.WriteWorkflowFile(workflowPath, workflowContent); err != nil {
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
 			Sticky: true,
 		}
@@ -1338,7 +1337,7 @@ func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string)
 
 	prURL, err := app.githubSetupService.PreparePRCreation(repo, workflowPath)
 	if err != nil {
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
 			Sticky: true,
 		}
@@ -1350,21 +1349,21 @@ func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string)
 func (app *ChatApplication) setupOrgSecrets(orgName, appID, privateKeyPath string) tea.Msg {
 	privateKey, err := app.fileService.ReadFile(privateKeyPath)
 	if err != nil {
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to read private key: %v", err),
 			Sticky: true,
 		}
 	}
 
 	if err := app.githubSetupService.SetOrgSecret(orgName, "INFER_APP_ID", appID); err != nil {
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to set org secret INFER_APP_ID: %v", err),
 			Sticky: true,
 		}
 	}
 
 	if err := app.githubSetupService.SetOrgSecret(orgName, "INFER_APP_PRIVATE_KEY", privateKey); err != nil {
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to set org secret INFER_APP_PRIVATE_KEY: %v", err),
 			Sticky: true,
 		}
@@ -1398,15 +1397,15 @@ func (app *ChatApplication) createSuccessMessage(repo, prURL, successMsg string)
 
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: app.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	)()
@@ -1417,7 +1416,7 @@ func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.C
 
 	if app.conversationSelector == nil {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  "Conversation selection requires persistent storage (SQLite). Current storage type not supported.",
 				Sticky: true,
 			}
@@ -1427,7 +1426,7 @@ func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.C
 
 	isDone := app.conversationSelector.IsSelected() || app.conversationSelector.IsCancelled()
 	needsInit := app.conversationSelector.NeedsInitialization()
-	fromDifferentView := app.stateManager.GetPreviousView() != domain.ViewStateConversationSelection
+	fromDifferentView := app.stateManager.GetPreviousView() != ui.ViewStateConversationSelection
 
 	if fromDifferentView && (isDone || needsInit) {
 		app.conversationSelector.Reset()
@@ -1462,13 +1461,13 @@ func (app *ChatApplication) handleConversationSelected(cmds []tea.Cmd) []tea.Cmd
 	selectedConv := app.conversationSelector.GetSelected()
 	if selectedConv.ID != "" {
 		cmds = append(cmds, tea.Sequence(clearStatusCmd(), func() tea.Msg {
-			return domain.ConversationSelectedEvent{ConversationID: selectedConv.ID}
+			return ui.ConversationSelectedEvent{ConversationID: selectedConv.ID}
 		}))
 	} else {
 		cmds = append(cmds, clearStatusCmd())
 	}
 
-	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
 	}
 
@@ -1479,7 +1478,7 @@ func (app *ChatApplication) handleConversationSelected(cmds []tea.Cmd) []tea.Cmd
 func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cmd {
 	cmds = append(cmds, clearStatusCmd())
 
-	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
 	}
 
@@ -1489,10 +1488,10 @@ func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cm
 
 func clearStatusCmd() tea.Cmd {
 	return func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	}
 }
@@ -1541,17 +1540,17 @@ func (app *ChatApplication) handleA2ATaskManagement(cmds []tea.Cmd) []tea.Cmd {
 }
 
 func (app *ChatApplication) handleA2ATaskManagementCancelled(cmds []tea.Cmd) []tea.Cmd {
-	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
 	}
 
 	app.focusedComponent = app.inputView
 
 	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	})
 
@@ -1596,7 +1595,7 @@ func (app *ChatApplication) handleThemeSelected(cmds []tea.Cmd) []tea.Cmd {
 		app.updateAllComponentsWithNewTheme()
 
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ThemeSelectedEvent{Theme: selectedTheme}
+			return ui.ThemeSelectedEvent{Theme: selectedTheme}
 		})
 	}
 
@@ -1604,9 +1603,9 @@ func (app *ChatApplication) handleThemeSelected(cmds []tea.Cmd) []tea.Cmd {
 }
 
 func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
-	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to return to chat: %v", err),
 				Sticky: false,
 			}
@@ -1616,7 +1615,7 @@ func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
 	app.focusedComponent = app.inputView
 
 	cmds = append(cmds, func() tea.Msg {
-		return domain.UpdateHistoryEvent{
+		return ui.UpdateHistoryEvent{
 			History: app.conversationRepo.GetMessages(),
 		}
 	})
@@ -1677,9 +1676,9 @@ func (app *ChatApplication) handleToolsListView(msg tea.Msg) []tea.Cmd {
 	}
 
 	if app.toolsView.IsCancelled() {
-		if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 			cmds = append(cmds, func() tea.Msg {
-				return domain.ShowErrorEvent{
+				return ui.ShowErrorEvent{
 					Error:  fmt.Sprintf("Failed to return to chat: %v", err),
 					Sticky: false,
 				}
@@ -1715,9 +1714,9 @@ func (app *ChatApplication) handleA2AAgentsView(msg tea.Msg) []tea.Cmd {
 	}
 
 	if app.a2aAgentsView.IsCancelled() {
-		if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 			cmds = append(cmds, func() tea.Msg {
-				return domain.ShowErrorEvent{
+				return ui.ShowErrorEvent{
 					Error:  fmt.Sprintf("Failed to return to chat: %v", err),
 					Sticky: false,
 				}
@@ -1784,9 +1783,9 @@ func (app *ChatApplication) handleHelpViewTrigger() []tea.Cmd {
 	}
 	app.helpView.SetContent(app.buildHelpCommands(), shortcuts)
 
-	if err := app.stateManager.TransitionToView(domain.ViewStateHelp); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateHelp); err != nil {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to show help: %v", err),
 				Sticky: false,
 			}
@@ -1795,10 +1794,10 @@ func (app *ChatApplication) handleHelpViewTrigger() []tea.Cmd {
 	}
 
 	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	})
 
@@ -1842,17 +1841,17 @@ func (app *ChatApplication) handleHelpView(msg tea.Msg) []tea.Cmd {
 func (app *ChatApplication) handleHelpViewClosed(cmds []tea.Cmd) []tea.Cmd {
 	app.helpView.Reset()
 
-	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
 	}
 
 	app.focusedComponent = app.inputView
 
 	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    "",
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	})
 
@@ -1905,7 +1904,7 @@ func (app *ChatApplication) handleDiffViewerClose(cmds []tea.Cmd) []tea.Cmd {
 		return cmds
 	}
 
-	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
 	}
 
@@ -1916,7 +1915,7 @@ func (app *ChatApplication) handleDiffViewerClose(cmds []tea.Cmd) []tea.Cmd {
 	app.focusedComponent = app.inputView
 
 	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{Message: "", Spinner: false, StatusType: domain.StatusDefault}
+		return ui.SetStatusEvent{Message: "", Spinner: false, StatusType: ui.StatusDefault}
 	})
 	return cmds
 }
@@ -1974,7 +1973,7 @@ func (app *ChatApplication) handleExplorerClose(cmds []tea.Cmd) []tea.Cmd {
 		return cmds
 	}
 
-	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
 	}
 
@@ -1986,7 +1985,7 @@ func (app *ChatApplication) handleExplorerClose(cmds []tea.Cmd) []tea.Cmd {
 	app.attachmentsFocused = false
 
 	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{Message: "", Spinner: false, StatusType: domain.StatusDefault}
+		return ui.SetStatusEvent{Message: "", Spinner: false, StatusType: ui.StatusDefault}
 	})
 	return cmds
 }
@@ -1999,7 +1998,7 @@ func (app *ChatApplication) handleExplorerSubmit(cmds []tea.Cmd) []tea.Cmd {
 	sels := app.fileExplorer.Selections()
 	app.pendingSnippets = append(app.pendingSnippets, sels...)
 
-	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
 	}
 	if iv, ok := app.inputView.(*components.InputView); ok {
@@ -2014,7 +2013,7 @@ func (app *ChatApplication) handleExplorerSubmit(cmds []tea.Cmd) []tea.Cmd {
 		status = fmt.Sprintf("%d snippet(s) attached - sent with your next message", len(sels))
 	}
 	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{Message: status, Spinner: false, StatusType: domain.StatusDefault}
+		return ui.SetStatusEvent{Message: status, Spinner: false, StatusType: ui.StatusDefault}
 	})
 	return cmds
 }
@@ -2160,7 +2159,7 @@ func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyPressMsg) tea.
 }
 
 func (app *ChatApplication) clearFileSelectionState() {
-	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := app.stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		logger.Error("failed to transition to chat view after file selection", "error", err)
 	}
 	app.stateManager.ClearFileSelectionState()
@@ -2186,7 +2185,7 @@ func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
 	app.inputView.SetCursor(newCursor)
 }
 
-func (app *ChatApplication) updateUIComponents(msg tea.Msg, activeView domain.ViewState) []tea.Cmd {
+func (app *ChatApplication) updateUIComponents(msg tea.Msg, activeView ui.ViewState) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if handled := app.handleWindowAndSetupEvents(msg, &cmds); handled {
@@ -2214,7 +2213,7 @@ func (app *ChatApplication) handleWindowAndSetupEvents(msg tea.Msg, _ *[]tea.Cmd
 		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
 	}
 
-	if setupMsg, ok := msg.(domain.SetupFileSelectionEvent); ok {
+	if setupMsg, ok := msg.(ui.SetupFileSelectionEvent); ok {
 		app.stateManager.SetupFileSelection(setupMsg.Files)
 		return true
 	}
@@ -2237,7 +2236,7 @@ func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, _ *[]tea.Cmd) 
 }
 
 // updateUIComponentsForUIMessages updates UI components for UI events and framework messages
-func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg, activeView domain.ViewState) []tea.Cmd {
+func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg, activeView ui.ViewState) []tea.Cmd {
 	switch msg.(type) {
 	case tea.WindowSizeMsg, tea.MouseMsg, tea.KeyPressMsg, tea.FocusMsg, tea.BlurMsg:
 		return app.updateUIComponents(msg, activeView)
@@ -2263,7 +2262,7 @@ func (app *ChatApplication) toggleToolResultExpansion() {
 }
 
 // updateMainUIComponents updates the main UI components (conversation, status, input, help bar)
-func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, activeView domain.ViewState, cmds *[]tea.Cmd) {
+func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, activeView ui.ViewState, cmds *[]tea.Cmd) {
 	if model, cmd := app.conversationView.(tea.Model).Update(msg); cmd != nil {
 		*cmds = append(*cmds, cmd)
 		if convModel, ok := model.(ui.ConversationRenderer); ok {
@@ -2307,8 +2306,8 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, activeView domai
 
 }
 
-func (app *ChatApplication) shouldSkipInputKeyUpdate(keyMsg tea.KeyPressMsg, activeView domain.ViewState) bool {
-	if activeView != domain.ViewStateChat {
+func (app *ChatApplication) shouldSkipInputKeyUpdate(keyMsg tea.KeyPressMsg, activeView ui.ViewState) bool {
+	if activeView != ui.ViewStateChat {
 		return true
 	}
 	if app.inputView != nil && app.inputView.IsDisabled() {
@@ -2324,7 +2323,7 @@ func (app *ChatApplication) shouldSkipInputKeyUpdate(keyMsg tea.KeyPressMsg, act
 func (app *ChatApplication) updateOptionalComponents(msg tea.Msg, cmds *[]tea.Cmd) {
 	if app.conversationSelector != nil {
 		switch msg.(type) {
-		case domain.ConversationsLoadedEvent:
+		case ui.ConversationsLoadedEvent:
 			model, cmd := app.conversationSelector.Update(msg)
 			if cmd != nil {
 				*cmds = append(*cmds, cmd)
@@ -2337,7 +2336,7 @@ func (app *ChatApplication) updateOptionalComponents(msg tea.Msg, cmds *[]tea.Cm
 
 	if app.taskManager != nil {
 		switch msg.(type) {
-		case domain.TasksLoadedEvent, domain.TaskCancelledEvent:
+		case ui.TasksLoadedEvent, ui.TaskCancelledEvent:
 			model, cmd := app.taskManager.Update(msg)
 			if cmd != nil {
 				*cmds = append(*cmds, cmd)
@@ -2352,13 +2351,13 @@ func (app *ChatApplication) updateOptionalComponents(msg tea.Msg, cmds *[]tea.Cm
 // handleTodoEvents handles todo-related events
 func (app *ChatApplication) handleTodoEvents(msg tea.Msg, cmds *[]tea.Cmd) {
 	switch todoMsg := msg.(type) {
-	case domain.TodoUpdateEvent:
+	case ui.TodoUpdateEvent:
 		if app.todoBoxView != nil {
 			app.todoBoxView.SetTodos(todoMsg.Todos)
 			app.stateManager.SetTodos(todoMsg.Todos)
 			*cmds = append(*cmds, components.ScheduleAutoCollapse())
 		}
-	case domain.ToggleTodoBoxEvent:
+	case ui.ToggleTodoBoxEvent:
 		if app.todoBoxView != nil {
 			app.todoBoxView.Toggle()
 		}
@@ -2376,7 +2375,7 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 	}
 
 	switch acMsg := msg.(type) {
-	case domain.AutocompleteUpdateEvent:
+	case ui.AutocompleteUpdateEvent:
 		app.autocomplete.Update(acMsg.Text, acMsg.CursorPos)
 
 		if len(acMsg.Text) > 0 && strings.HasSuffix(acMsg.Text, " ") {
@@ -2392,10 +2391,10 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 			}
 		}
 
-	case domain.AutocompleteHideEvent:
+	case ui.AutocompleteHideEvent:
 		app.autocomplete.Hide()
 
-	case domain.AutocompleteCompleteEvent:
+	case ui.AutocompleteCompleteEvent:
 		if acMsg.Completion != "" {
 			app.inputView.SetText(acMsg.Completion)
 			switch {
@@ -2423,7 +2422,7 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 		app.autocomplete.Update(text, cursor)
 		app.inputView.SetUsageHint("")
 
-	case domain.ClearInputEvent:
+	case ui.ClearInputEvent:
 		app.autocomplete.Hide()
 		app.inputView.SetUsageHint("")
 	}
@@ -2440,7 +2439,7 @@ func (app *ChatApplication) GetAgentService() agentdomain.AgentService {
 }
 
 // GetImageService returns the image service
-func (app *ChatApplication) GetImageService() domain.ImageService {
+func (app *ChatApplication) GetImageService() agentdomain.ImageService {
 	return app.imageService
 }
 
@@ -2548,7 +2547,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		return domain.UserInputEvent{
+		return agentdomain.UserInputEvent{
 			Content: content,
 			Images:  images,
 		}
@@ -2651,10 +2650,10 @@ func (app *ChatApplication) handleNavigateBackInTime(event agentdomain.NavigateB
 }
 
 // handleEditReady enters edit mode with the selected message content
-func (app *ChatApplication) handleEditReady(event domain.MessageHistoryEditReadyEvent) []tea.Cmd {
+func (app *ChatApplication) handleEditReady(event ui.MessageHistoryEditReadyEvent) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	app.stateManager.SetMessageEditState(&domain.MessageEditState{
+	app.stateManager.SetMessageEditState(&ui.MessageEditState{
 		OriginalMessageIndex: event.MessageIndex,
 		OriginalContent:      event.Content,
 		EditTimestamp:        time.Now(),
@@ -2673,7 +2672,7 @@ func (app *ChatApplication) handleEditReady(event domain.MessageHistoryEditReady
 	if err != nil {
 		logger.Error("failed to delete messages during edit", "error", err)
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to delete messages: %v", err),
 				Sticky: true,
 			}
@@ -2682,7 +2681,7 @@ func (app *ChatApplication) handleEditReady(event domain.MessageHistoryEditReady
 	}
 
 	cmds = append(cmds, func() tea.Msg {
-		return domain.UpdateHistoryEvent{
+		return ui.UpdateHistoryEvent{
 			History: app.conversationRepo.GetMessages(),
 		}
 	})
@@ -2741,7 +2740,7 @@ func (app *ChatApplication) handleMessageHistoryEnter(cv *components.Conversatio
 	cv.ExitMessageHistoryMode()
 
 	if selectedSnapshot.Role == sdk.User {
-		editEvent := domain.MessageHistoryEditEvent{
+		editEvent := ui.MessageHistoryEditEvent{
 			RequestID:       "message-history-edit",
 			Timestamp:       time.Now(),
 			MessageIndex:    selectedIndex,

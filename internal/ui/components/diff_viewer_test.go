@@ -1,13 +1,13 @@
 package components
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -272,9 +272,9 @@ func TestDiffViewer_Commit(t *testing.T) {
 		t.Fatal("commit returned nil cmd")
 	}
 	msg := cmd()
-	ev, ok := msg.(domain.UserInputEvent)
+	ev, ok := msg.(agentdomain.UserInputEvent)
 	if !ok {
-		t.Fatalf("commit cmd msg = %T, want domain.UserInputEvent", msg)
+		t.Fatalf("commit cmd msg = %T, want agentdomain.UserInputEvent", msg)
 	}
 	if ev.Content != "/git commit" {
 		t.Errorf("commit content = %q, want /git commit", ev.Content)

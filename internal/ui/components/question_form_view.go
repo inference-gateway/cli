@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"slices"
 	"strings"
 
@@ -10,7 +11,6 @@ import (
 	huh "charm.land/huh/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -36,11 +36,11 @@ type QuestionFormView struct {
 	width         int
 	height        int
 	styleProvider *styles.Provider
-	stateManager  domain.UserQuestionUIManager
+	stateManager  ui.UserQuestionUIManager
 
 	// active is the state this form was built for; if the StateManager's
 	// state no longer matches (cancelled externally), the form is stale.
-	active  *domain.UserQuestionUIState
+	active  *ui.UserQuestionUIState
 	idx     int
 	form    *huh.Form
 	answers []agentdomain.UserQuestionAnswer
@@ -51,7 +51,7 @@ type QuestionFormView struct {
 	other  string
 }
 
-func NewQuestionFormView(styleProvider *styles.Provider, stateManager domain.UserQuestionUIManager) *QuestionFormView {
+func NewQuestionFormView(styleProvider *styles.Provider, stateManager ui.UserQuestionUIManager) *QuestionFormView {
 	return &QuestionFormView{
 		width:         80,
 		styleProvider: styleProvider,

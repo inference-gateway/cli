@@ -13,7 +13,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	ui "github.com/inference-gateway/cli/internal/ui"
 )
@@ -32,10 +31,10 @@ type toolApprovalRepoUpdater interface {
 // needs: event broadcast, the approval overlay, chat-session lookup, and mode
 // switching. *services.StateManager satisfies it.
 type stateManager interface {
-	domain.EventBridgeManager
-	domain.ApprovalUIManager
-	domain.ChatSessionManager
-	domain.AgentModeManager
+	agentdomain.EventBridgeManager
+	ui.ApprovalUIManager
+	ui.ChatSessionManager
+	ui.AgentModeManager
 }
 
 // Coordinator handles the tool round-trip UI flow.
@@ -88,7 +87,7 @@ func (c *Coordinator) HandleToolCallUpdate(msg agentdomain.ToolCallUpdateEvent) 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			history := c.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
@@ -99,18 +98,18 @@ func (c *Coordinator) HandleToolCallUpdate(msg agentdomain.ToolCallUpdateEvent) 
 	switch msg.Status {
 	case agentdomain.ToolCallStreamStatusStreaming:
 		cmds = append(cmds, func() tea.Msg {
-			return domain.UpdateStatusEvent{
+			return ui.UpdateStatusEvent{
 				Message:    statusMsg,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 				ToolName:   msg.ToolName,
 			}
 		})
 	default:
 		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    statusMsg,
 				Spinner:    false,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 				ToolName:   msg.ToolName,
 			}
 		})
@@ -126,7 +125,7 @@ func (c *Coordinator) HandleToolCallReady(_ agentdomain.ToolCallReadyEvent) tea.
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			history := c.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
@@ -153,7 +152,7 @@ func (c *Coordinator) HandleToolApprovalRequested(msg agentdomain.ToolApprovalRe
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			history := c.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
@@ -164,7 +163,7 @@ func (c *Coordinator) HandleToolApprovalRequested(msg agentdomain.ToolApprovalRe
 
 // HandleToolApprovalResponse processes the user's accept/reject decision and
 // forwards it to the waiting agent through the response channel.
-func (c *Coordinator) HandleToolApprovalResponse(msg domain.ToolApprovalResponseEvent) tea.Cmd {
+func (c *Coordinator) HandleToolApprovalResponse(msg agentdomain.ToolApprovalResponseEvent) tea.Cmd {
 	logger.Info("coordinator.HandleToolApprovalResponse called",
 		"action", msg.Action, "tool", msg.ToolCall.Function.Name)
 
@@ -186,15 +185,15 @@ func (c *Coordinator) HandleToolApprovalResponse(msg domain.ToolApprovalResponse
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			history := c.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    statusMessage,
 				Spinner:    spinner,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 				ToolName:   msg.ToolCall.Function.Name,
 			}
 		},
@@ -205,7 +204,7 @@ func (c *Coordinator) HandleToolApprovalResponse(msg domain.ToolApprovalResponse
 
 // applyAutoAccept flips agent mode to auto-accept, sends approval down the
 // response channel, and returns the appropriate UI cmds.
-func (c *Coordinator) applyAutoAccept(msg domain.ToolApprovalResponseEvent) tea.Cmd {
+func (c *Coordinator) applyAutoAccept(msg agentdomain.ToolApprovalResponseEvent) tea.Cmd {
 	logger.Info("switching to auto-accept mode for all future tools")
 	c.stateManager.SetAgentMode(agentdomain.AgentModeAutoAccept)
 	c.sendApprovalDecision(agentdomain.ApprovalApprove)
@@ -214,15 +213,15 @@ func (c *Coordinator) applyAutoAccept(msg domain.ToolApprovalResponseEvent) tea.
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			history := c.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Auto-Approve mode enabled - executing tool...",
 				Spinner:    true,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 				ToolName:   msg.ToolCall.Function.Name,
 			}
 		},
@@ -247,7 +246,7 @@ func (c *Coordinator) sendApprovalDecision(action agentdomain.ApprovalAction) {
 	}
 }
 
-func (c *Coordinator) formatApprovalStatus(msg domain.ToolApprovalResponseEvent) (string, bool) {
+func (c *Coordinator) formatApprovalStatus(msg agentdomain.ToolApprovalResponseEvent) (string, bool) {
 	switch msg.Action {
 	case agentdomain.ApprovalApprove:
 		return fmt.Sprintf("Tool approved - executing %s...", msg.ToolCall.Function.Name), true
@@ -259,13 +258,13 @@ func (c *Coordinator) formatApprovalStatus(msg domain.ToolApprovalResponseEvent)
 
 // HandleToolExecutionStarted emits the initial "Starting tool execution"
 // status.
-func (c *Coordinator) HandleToolExecutionStarted(msg domain.ToolExecutionStartedEvent) tea.Cmd {
+func (c *Coordinator) HandleToolExecutionStarted(msg ui.ToolExecutionStartedEvent) tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Starting tool execution (%d tools)", msg.TotalTools),
 				Spinner:    true,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 			}
 		},
 	}
@@ -304,10 +303,10 @@ func (c *Coordinator) progressStatusCmds(msg agentdomain.ToolExecutionProgressEv
 	case "starting":
 		c.SetActiveToolCallID(msg.ToolCallID)
 		return []tea.Cmd{func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    msg.Message,
 				Spinner:    true,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 				ToolName:   msg.ToolName,
 			}
 		}}
@@ -317,23 +316,23 @@ func (c *Coordinator) progressStatusCmds(msg agentdomain.ToolExecutionProgressEv
 		c.SetActiveToolCallID("")
 		return []tea.Cmd{
 			func() tea.Msg {
-				return domain.UpdateHistoryEvent{History: c.conversationRepo.GetMessages()}
+				return ui.UpdateHistoryEvent{History: c.conversationRepo.GetMessages()}
 			},
 			func() tea.Msg {
-				return domain.SetStatusEvent{
+				return ui.SetStatusEvent{
 					Message:    msg.Message,
 					Spinner:    false,
-					StatusType: domain.StatusDefault,
+					StatusType: ui.StatusDefault,
 					ToolName:   "",
 				}
 			},
 		}
 	case "saving":
 		return []tea.Cmd{func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    msg.Message,
 				Spinner:    true,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 				ToolName:   "",
 			}
 		}}
@@ -349,9 +348,9 @@ func (c *Coordinator) runningProgressCmds(msg agentdomain.ToolExecutionProgressE
 
 	if c.GetActiveToolCallID() == msg.ToolCallID {
 		return []tea.Cmd{func() tea.Msg {
-			return domain.UpdateStatusEvent{
+			return ui.UpdateStatusEvent{
 				Message:    msg.Message,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 				ToolName:   msg.ToolName,
 			}
 		}}
@@ -359,10 +358,10 @@ func (c *Coordinator) runningProgressCmds(msg agentdomain.ToolExecutionProgressE
 
 	c.SetActiveToolCallID(msg.ToolCallID)
 	return []tea.Cmd{func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    msg.Message,
 			Spinner:    true,
-			StatusType: domain.StatusWorking,
+			StatusType: ui.StatusWorking,
 			ToolName:   msg.ToolName,
 		}
 	}}
@@ -371,22 +370,22 @@ func (c *Coordinator) runningProgressCmds(msg agentdomain.ToolExecutionProgressE
 // HandleToolExecutionCompleted finalizes the tool round-trip: clears the
 // active-tool indicator, refreshes history, optionally fires a todo-update
 // command, and emits a "Tools completed" status.
-func (c *Coordinator) HandleToolExecutionCompleted(msg domain.ToolExecutionCompletedEvent) tea.Cmd {
+func (c *Coordinator) HandleToolExecutionCompleted(msg agentdomain.ToolExecutionCompletedEvent) tea.Cmd {
 	c.SetActiveToolCallID("")
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			history := c.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message: fmt.Sprintf("Tools completed (%d/%d successful) - preparing response...",
 					msg.SuccessCount, msg.TotalExecuted),
 				Spinner:    true,
-				StatusType: domain.StatusPreparing,
+				StatusType: ui.StatusPreparing,
 			}
 		},
 	}
@@ -407,7 +406,7 @@ func (c *Coordinator) HandleToolCancelled(_ agentdomain.ToolCancelledEvent) tea.
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			history := c.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
@@ -474,7 +473,7 @@ func extractTodoUpdateCmd(results []*agentdomain.ToolExecutionResult) tea.Cmd {
 
 		todos := todoResult.Todos
 		return func() tea.Msg {
-			return domain.TodoUpdateEvent{
+			return ui.TodoUpdateEvent{
 				Todos: todos,
 			}
 		}

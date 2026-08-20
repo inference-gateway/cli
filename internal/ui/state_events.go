@@ -1,4 +1,4 @@
-package domain
+package ui
 
 import (
 	"time"
@@ -87,12 +87,6 @@ type AutocompleteCompleteEvent struct {
 	CursorPos  int
 }
 
-// UserInputEvent represents user input submission
-type UserInputEvent struct {
-	Content string
-	Images  []agentdomain.ImageAttachment
-}
-
 // RolloverCompletedEvent is dispatched when an asynchronous auto-rollover
 // finishes in chat mode. It carries the already-built sdk.Message + images
 // that were pending while the summary LLM call was in flight, so the
@@ -174,27 +168,7 @@ type ToolExecutionStartedEvent struct {
 	TotalTools int
 }
 
-// ToolExecutionCompletedEvent indicates tool execution is complete
-type ToolExecutionCompletedEvent struct {
-	SessionID     string
-	RequestID     string
-	Timestamp     time.Time
-	TotalExecuted int
-	SuccessCount  int
-	FailureCount  int
-	Results       []*agentdomain.ToolExecutionResult
-}
-
-func (e ToolExecutionCompletedEvent) GetRequestID() string    { return e.RequestID }
-func (e ToolExecutionCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
 // Approval Events
-
-// ToolApprovalResponseEvent captures the user's approval decision
-type ToolApprovalResponseEvent struct {
-	Action   agentdomain.ApprovalAction
-	ToolCall sdk.ChatCompletionMessageToolCall
-}
 
 // Plan Approval Events
 
@@ -230,16 +204,6 @@ type BashCommandCompletedEvent struct {
 	ErrorMessage  string
 }
 
-// DrainQueueEvent asks the orchestrator to start a fresh agent turn when the
-// agent is idle on the chat view and the shared message queue has content
-// (background-job completion notes or user messages typed while busy). Unlike the
-// old queue-drain tick it is not a clock: it is pushed exactly once per real
-// trigger (a background job landing work, a turn completing with a non-empty
-// queue, or re-entering the chat view), and HandleDrainQueueEvent is a pure gate
-// that starts a turn (Idle -> CheckingQueue -> ... -> Completing -> Idle) or
-// returns nil. There is no self-reschedule.
-type DrainQueueEvent struct{}
-
 // DrainQueueRetryEvent is the bounded retry behind DrainQueueEvent, and is NOT a
 // clock. A DrainQueueEvent can land while the agent is momentarily busy (e.g. a
 // background job finishes in the same instant the turn is still completing); the
@@ -249,12 +213,6 @@ type DrainQueueEvent struct{}
 // arrived. When it fires, HandleDrainQueueRetryEvent re-runs the gate, which
 // re-arms only while work is still stranded and stops the moment the queue drains.
 type DrainQueueRetryEvent struct{}
-
-// BackgroundTasksChangedEvent signals that a background job's status changed
-// (submitted, signalled, completed, or failed). The supervisor pushes it so the
-// /tasks view and the inline conversation rows refresh on real change instead of
-// polling at render time.
-type BackgroundTasksChangedEvent struct{}
 
 // Agent Readiness Events
 
@@ -276,7 +234,7 @@ type MCPServerStatusUpdateEvent struct {
 	TotalServers     int
 	ConnectedServers int
 	TotalTools       int
-	Tools            []MCPDiscoveredTool
+	Tools            []agentdomain.MCPDiscoveredTool
 }
 
 // GitHub App Setup Events

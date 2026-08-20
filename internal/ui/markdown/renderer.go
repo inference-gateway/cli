@@ -1,23 +1,23 @@
 package markdown
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 
 	glamour "charm.land/glamour/v2"
 	ansi "charm.land/glamour/v2/ansi"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 )
 
 // Renderer handles markdown to styled terminal output conversion
 type Renderer struct {
-	themeService domain.ThemeService
+	themeService ui.ThemeService
 	width        int
 	renderer     *glamour.TermRenderer
 }
 
 // NewRenderer creates a new markdown renderer with theme integration
-func NewRenderer(themeService domain.ThemeService, width int) *Renderer {
+func NewRenderer(themeService ui.ThemeService, width int) *Renderer {
 	r := &Renderer{
 		themeService: themeService,
 		width:        width,

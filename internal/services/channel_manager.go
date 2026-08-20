@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	render "github.com/inference-gateway/cli/internal/platform/render"
+	chn "github.com/inference-gateway/cli/internal/services/channels"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,7 +22,6 @@ import (
 	agentrunner "github.com/inference-gateway/cli/internal/agent/application/agentrunner"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -32,8 +33,8 @@ import (
 // the agent as a subprocess for each inbound message.
 type ChannelManagerService struct {
 	mu       sync.RWMutex
-	channels map[string]domain.Channel
-	inbox    chan domain.InboundMessage
+	channels map[string]chn.Channel
+	inbox    chan chn.InboundMessage
 	cfg      config.ChannelsConfig
 
 	// Per-sender mutex to serialize agent invocations for the same session
@@ -46,7 +47,7 @@ type ChannelManagerService struct {
 	execCommandFunc func(ctx context.Context, name string, args ...string) *exec.Cmd
 
 	// pendingApprovals tracks senders waiting for tool approval replies.
-	// Key: senderKey ("channel-senderID"), Value: chan domain.ApprovalResponse
+	// Key: senderKey ("channel-senderID"), Value: chan ipc.ApprovalResponse
 	pendingApprovals sync.Map
 
 	cancel context.CancelFunc
@@ -74,8 +75,8 @@ func NewChannelManagerService(cfg config.ChannelsConfig, tel *telemetry.Recorder
 	}
 
 	cm := &ChannelManagerService{
-		channels:          make(map[string]domain.Channel),
-		inbox:             make(chan domain.InboundMessage, 100),
+		channels:          make(map[string]chn.Channel),
+		inbox:             make(chan chn.InboundMessage, 100),
 		cfg:               cfg,
 		semaphore:         make(chan struct{}, maxWorkers),
 		execCommandFunc:   exec.CommandContext,
@@ -117,7 +118,7 @@ func (cm *ChannelManagerService) initDaemonInstruments() {
 }
 
 // Register adds a channel to the manager
-func (cm *ChannelManagerService) Register(ch domain.Channel) {
+func (cm *ChannelManagerService) Register(ch chn.Channel) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.channels[ch.Name()] = ch
@@ -126,7 +127,7 @@ func (cm *ChannelManagerService) Register(ch domain.Channel) {
 // GetChannel returns a registered channel by name, or nil if not registered.
 // Used by the scheduler service to deliver scheduled-job output through the
 // in-process channel registry.
-func (cm *ChannelManagerService) GetChannel(name string) domain.Channel {
+func (cm *ChannelManagerService) GetChannel(name string) chn.Channel {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.channels[name]
@@ -142,14 +143,14 @@ func (cm *ChannelManagerService) Start(ctx context.Context) error {
 	cm.cancel = cancel
 
 	cm.mu.RLock()
-	channels := make(map[string]domain.Channel, len(cm.channels))
+	channels := make(map[string]chn.Channel, len(cm.channels))
 	for k, v := range cm.channels {
 		channels[k] = v
 	}
 	cm.mu.RUnlock()
 
 	for name, ch := range channels {
-		go func(name string, ch domain.Channel) {
+		go func(name string, ch chn.Channel) {
 			if cm.activeChannels != nil {
 				cm.activeChannels.Add(ctx, 1)
 				defer cm.activeChannels.Add(ctx, -1)
@@ -224,18 +225,18 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 // routeInbound — the single consumer of cm.inbox, whose block would freeze
 // message processing for every sender.
 func deliverApprovalReply(respChan any, approved bool) {
-	ch, ok := respChan.(chan domain.ApprovalResponse)
+	ch, ok := respChan.(chan ipc.ApprovalResponse)
 	if !ok {
 		return
 	}
 	select {
-	case ch <- domain.ApprovalResponse{Type: "approval_response", Approved: approved}:
+	case ch <- ipc.ApprovalResponse{Type: "approval_response", Approved: approved}:
 	default:
 	}
 }
 
 // handleMessage triggers the agent as a subprocess and streams responses back through the channel
-func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.InboundMessage) {
+func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg chn.InboundMessage) {
 	select {
 	case cm.semaphore <- struct{}{}:
 		defer func() { <-cm.semaphore }()
@@ -262,7 +263,7 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg domain.I
 	}
 
 	sendFn := func(content string) {
-		outMsg := domain.OutboundMessage{
+		outMsg := chn.OutboundMessage{
 			ChannelName: msg.ChannelName,
 			RecipientID: msg.SenderID,
 			Content:     content,
@@ -305,7 +306,7 @@ func (cm *ChannelManagerService) recordMessageProcessed(ctx context.Context, cha
 // sendFn callback in real-time. If images are present, they are written to
 // session-scoped files and passed via --files flags. When require_approval is
 // enabled, tool approvals are brokered over the agent's stdin/stdout.
-func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessionID, message string, images []agentdomain.ImageAttachment, sendFn func(string), ch domain.Channel) error {
+func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessionID, message string, images []agentdomain.ImageAttachment, sendFn func(string), ch chn.Channel) error {
 	var files []string
 	for _, img := range images {
 		imgPath, err := writeSessionImage(sessionID, img)
@@ -340,7 +341,7 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 				}
 			}
 		},
-		Approval: func(req domain.ApprovalRequest) domain.ApprovalResponse {
+		Approval: func(req ipc.ApprovalRequest) ipc.ApprovalResponse {
 			return cm.resolveApproval(ctx, senderKey, req, sendFn, ch)
 		},
 	})
@@ -360,12 +361,12 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 // resolveApproval sends an approval prompt to the channel, waits for the user's
 // reply (with a 5-minute auto-reject), and returns the decision. The shared
 // agentrunner writes the response back to the agent's stdin.
-func (cm *ChannelManagerService) resolveApproval(ctx context.Context, senderKey string, req domain.ApprovalRequest, sendFn func(string), ch domain.Channel) domain.ApprovalResponse {
-	respChan := make(chan domain.ApprovalResponse, 1)
+func (cm *ChannelManagerService) resolveApproval(ctx context.Context, senderKey string, req ipc.ApprovalRequest, sendFn func(string), ch chn.Channel) ipc.ApprovalResponse {
+	respChan := make(chan ipc.ApprovalResponse, 1)
 	cm.pendingApprovals.Store(senderKey, respChan)
 	defer cm.pendingApprovals.Delete(senderKey)
 
-	if ac, ok := ch.(domain.ApprovalChannel); ok {
+	if ac, ok := ch.(chn.ApprovalChannel); ok {
 		recipientID := strings.TrimPrefix(senderKey, ch.Name()+"-")
 		if err := ac.SendApproval(ctx, recipientID, &req); err != nil {
 			logger.Error("rich approval failed, falling back to text", "error", err)
@@ -375,7 +376,7 @@ func (cm *ChannelManagerService) resolveApproval(ctx context.Context, senderKey 
 		sendFn(formatApprovalPrompt(&req))
 	}
 
-	resp := domain.ApprovalResponse{Type: "approval_response", ToolCallID: req.ToolCallID}
+	resp := ipc.ApprovalResponse{Type: "approval_response", ToolCallID: req.ToolCallID}
 	select {
 	case reply := <-respChan:
 		resp.Approved = reply.Approved
@@ -422,7 +423,7 @@ func tailStderr(s string, n int) string {
 }
 
 // formatApprovalPrompt creates a human-readable approval prompt for the channel user.
-func formatApprovalPrompt(req *domain.ApprovalRequest) string {
+func formatApprovalPrompt(req *ipc.ApprovalRequest) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Approve %s?\n", req.ToolName)
 

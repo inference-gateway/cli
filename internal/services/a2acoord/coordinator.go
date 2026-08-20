@@ -10,14 +10,13 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
 // Service handles the UI side of A2A task lifecycle events.
 type Service struct {
 	conversationRepo     convdomain.ConversationRepository
-	stateManager         domain.ChatSessionManager
+	stateManager         ui.ChatSessionManager
 	taskRetentionService scheddomain.TaskRetentionService
 	listener             ui.ChatEventListener
 }
@@ -25,7 +24,7 @@ type Service struct {
 // Options bundles the dependencies needed to construct a Service.
 type Options struct {
 	ConversationRepo     convdomain.ConversationRepository
-	StateManager         domain.ChatSessionManager
+	StateManager         ui.ChatSessionManager
 	TaskRetentionService scheddomain.TaskRetentionService
 	Listener             ui.ChatEventListener
 }
@@ -82,10 +81,10 @@ func (s *Service) HandleToolCallExecuted(msg agentdomain.A2AToolCallExecutedEven
 func (s *Service) taskSubmittedCmds(msg agentdomain.A2ATaskSubmittedEvent) []tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("A2A task submitted to %s", msg.AgentName),
 				Spinner:    true,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 			}
 		},
 	}
@@ -100,7 +99,7 @@ func (s *Service) taskCompletedCmds(msg agentdomain.A2ATaskCompletedEvent) []tea
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.StreamingContentEvent{
+			return ui.StreamingContentEvent{
 				RequestID: msg.RequestID,
 				Content:   taskResult,
 				Delta:     false,
@@ -108,15 +107,15 @@ func (s *Service) taskCompletedCmds(msg agentdomain.A2ATaskCompletedEvent) []tea
 		},
 		func() tea.Msg {
 			history := s.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "A2A task completed",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	}
@@ -136,7 +135,7 @@ func (s *Service) taskFailedCmds(msg agentdomain.A2ATaskFailedEvent) []tea.Cmd {
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.StreamingContentEvent{
+			return ui.StreamingContentEvent{
 				RequestID: msg.RequestID,
 				Content:   errorContent,
 				Delta:     false,
@@ -144,15 +143,15 @@ func (s *Service) taskFailedCmds(msg agentdomain.A2ATaskFailedEvent) []tea.Cmd {
 		},
 		func() tea.Msg {
 			history := s.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("A2A task failed: %s", msg.Error),
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	}
@@ -162,9 +161,9 @@ func (s *Service) taskFailedCmds(msg agentdomain.A2ATaskFailedEvent) []tea.Cmd {
 func (s *Service) taskStatusUpdateCmds(msg agentdomain.A2ATaskStatusUpdateEvent) []tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.UpdateStatusEvent{
+			return ui.UpdateStatusEvent{
 				Message:    fmt.Sprintf("A2A task %s: %s", msg.Status, msg.Message),
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 			}
 		},
 	}
@@ -174,10 +173,10 @@ func (s *Service) taskStatusUpdateCmds(msg agentdomain.A2ATaskStatusUpdateEvent)
 func (s *Service) taskInputRequiredCmds(msg agentdomain.A2ATaskInputRequiredEvent) []tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("⚠️  A2A task requires input: %s", msg.Message),
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	}
@@ -187,10 +186,10 @@ func (s *Service) taskInputRequiredCmds(msg agentdomain.A2ATaskInputRequiredEven
 func (s *Service) toolCallExecutedCmds(msg agentdomain.A2AToolCallExecutedEvent) []tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("A2A tool %s executed on gateway", msg.ToolName),
 				Spinner:    true,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 			}
 		},
 	}

@@ -11,7 +11,6 @@ import (
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func toolNamesForMode(svc *LLMToolService, mode agentdomain.AgentMode) []string {
@@ -78,7 +77,7 @@ func TestListToolsHidesImageDecodeForVisionModels(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Vision.Annotator.Enabled = true
 	cfg.Vision.Annotator.Model = "openai/qwen3-vl-2b"
-	registry := tools.NewRegistry(cfg, &mocksdomain.FakeImageService{}, nil, nil, &agentdomainmocks.FakeImageAnnotator{}, nil, nil)
+	registry := tools.NewRegistry(cfg, &agentdomainmocks.FakeImageService{}, nil, nil, &agentdomainmocks.FakeImageAnnotator{}, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 
 	current := "anthropic/claude-haiku-4-5"

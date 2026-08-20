@@ -11,7 +11,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ImageVariationTool creates a variation of an existing image with the
@@ -20,11 +19,11 @@ import (
 // /v1/images/variations, independent of the model selected for the session.
 type ImageVariationTool struct {
 	config       *config.Config
-	imageService domain.ImageService
+	imageService agentdomain.ImageService
 }
 
 // NewImageVariationTool creates a new ImageVariation tool
-func NewImageVariationTool(cfg *config.Config, imageService domain.ImageService) *ImageVariationTool {
+func NewImageVariationTool(cfg *config.Config, imageService agentdomain.ImageService) *ImageVariationTool {
 	return &ImageVariationTool{
 		config:       cfg,
 		imageService: imageService,

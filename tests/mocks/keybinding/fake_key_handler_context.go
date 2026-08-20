@@ -8,7 +8,6 @@ import (
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/agent/domain"
 	domaina "github.com/inference-gateway/cli/internal/conversation/domain"
-	domainb "github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/ui"
 	"github.com/inference-gateway/cli/internal/ui/keybinding"
@@ -75,15 +74,15 @@ type FakeKeyHandlerContext struct {
 	getConversationViewReturnsOnCall map[int]struct {
 		result1 ui.ConversationRenderer
 	}
-	GetImageServiceStub        func() domainb.ImageService
+	GetImageServiceStub        func() domain.ImageService
 	getImageServiceMutex       sync.RWMutex
 	getImageServiceArgsForCall []struct {
 	}
 	getImageServiceReturns struct {
-		result1 domainb.ImageService
+		result1 domain.ImageService
 	}
 	getImageServiceReturnsOnCall map[int]struct {
-		result1 domainb.ImageService
+		result1 domain.ImageService
 	}
 	GetInputViewStub        func() ui.InputComponent
 	getInputViewMutex       sync.RWMutex
@@ -484,7 +483,7 @@ func (fake *FakeKeyHandlerContext) GetConversationViewReturnsOnCall(i int, resul
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetImageService() domainb.ImageService {
+func (fake *FakeKeyHandlerContext) GetImageService() domain.ImageService {
 	fake.getImageServiceMutex.Lock()
 	ret, specificReturn := fake.getImageServiceReturnsOnCall[len(fake.getImageServiceArgsForCall)]
 	fake.getImageServiceArgsForCall = append(fake.getImageServiceArgsForCall, struct {
@@ -508,32 +507,32 @@ func (fake *FakeKeyHandlerContext) GetImageServiceCallCount() int {
 	return len(fake.getImageServiceArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetImageServiceCalls(stub func() domainb.ImageService) {
+func (fake *FakeKeyHandlerContext) GetImageServiceCalls(stub func() domain.ImageService) {
 	fake.getImageServiceMutex.Lock()
 	defer fake.getImageServiceMutex.Unlock()
 	fake.GetImageServiceStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetImageServiceReturns(result1 domainb.ImageService) {
+func (fake *FakeKeyHandlerContext) GetImageServiceReturns(result1 domain.ImageService) {
 	fake.getImageServiceMutex.Lock()
 	defer fake.getImageServiceMutex.Unlock()
 	fake.GetImageServiceStub = nil
 	fake.getImageServiceReturns = struct {
-		result1 domainb.ImageService
+		result1 domain.ImageService
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetImageServiceReturnsOnCall(i int, result1 domainb.ImageService) {
+func (fake *FakeKeyHandlerContext) GetImageServiceReturnsOnCall(i int, result1 domain.ImageService) {
 	fake.getImageServiceMutex.Lock()
 	defer fake.getImageServiceMutex.Unlock()
 	fake.GetImageServiceStub = nil
 	if fake.getImageServiceReturnsOnCall == nil {
 		fake.getImageServiceReturnsOnCall = make(map[int]struct {
-			result1 domainb.ImageService
+			result1 domain.ImageService
 		})
 	}
 	fake.getImageServiceReturnsOnCall[i] = struct {
-		result1 domainb.ImageService
+		result1 domain.ImageService
 	}{result1}
 }
 

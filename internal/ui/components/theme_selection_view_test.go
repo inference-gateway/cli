@@ -1,21 +1,20 @@
 package components
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"testing"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	tea "charm.land/bubbletea/v2"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
-func newTestThemeSelector(t *testing.T, themes []string, current string) (*ThemeSelectorImpl, *domainmocks.FakeThemeService) {
+func newTestThemeSelector(t *testing.T, themes []string, current string) (*ThemeSelectorImpl, *uimocks.FakeThemeService) {
 	t.Helper()
 	fakeTheme := &uimocks.FakeTheme{}
-	ts := &domainmocks.FakeThemeService{}
+	ts := &uimocks.FakeThemeService{}
 	ts.GetCurrentThemeReturns(fakeTheme)
 	ts.ListThemesReturns(themes)
 	ts.GetCurrentThemeNameReturns(current)
@@ -48,7 +47,7 @@ func TestThemeSelector_EnterSelectsAndEmitsEvent(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected a ThemeSelectedEvent command")
 	}
-	if ev, ok := cmd().(domain.ThemeSelectedEvent); !ok || ev.Theme != "b" {
+	if ev, ok := cmd().(ui.ThemeSelectedEvent); !ok || ev.Theme != "b" {
 		t.Fatalf("expected ThemeSelectedEvent{Theme: b}, got %#v", cmd())
 	}
 }

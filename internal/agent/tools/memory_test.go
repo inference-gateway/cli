@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	memorymocks "github.com/inference-gateway/cli/tests/mocks/memory"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +15,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	project "github.com/inference-gateway/cli/internal/platform/project"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 // testProjectIdentity is the zero identity (global scope): the pre-existing
@@ -45,7 +45,7 @@ func TestMemoryTool_SyncOutOnMutation(t *testing.T) {
 	cfg.Memory.MaxChars = config.DefaultMemoryMaxChars
 	cfg.Prompts = *config.DefaultPromptsConfig()
 
-	fake := &mocks.FakeMemoryBackend{}
+	fake := &memorymocks.FakeMemoryBackend{}
 	tool := NewMemoryTool(cfg, fake, testProjectIdentity())
 
 	if _, err := tool.Execute(context.Background(), map[string]any{"operation": "read"}); err != nil {

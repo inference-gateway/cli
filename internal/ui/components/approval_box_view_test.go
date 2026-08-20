@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,9 +13,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
@@ -47,8 +46,8 @@ func (argsAwareToolFormatter) RenderToolSummary(icon, toolName string, args map[
 	return fmt.Sprintf("%s %s() %s", icon, toolName, trailing)
 }
 
-func approvalStateWith(toolName, arguments string) *domain.ApprovalUIState {
-	return &domain.ApprovalUIState{
+func approvalStateWith(toolName, arguments string) *ui.ApprovalUIState {
+	return &ui.ApprovalUIState{
 		PendingToolCall: &sdk.ChatCompletionMessageToolCall{
 			ID: "call_1",
 			Function: sdk.ChatCompletionMessageToolCallFunction{
@@ -61,8 +60,8 @@ func approvalStateWith(toolName, arguments string) *domain.ApprovalUIState {
 
 // approvalStateManager returns a real ApplicationState primed with the given
 // pending approval (or none when s is nil).
-func approvalStateManager(s *domain.ApprovalUIState) *domain.ApplicationState {
-	st := domain.NewApplicationState()
+func approvalStateManager(s *ui.ApprovalUIState) *ui.ApplicationState {
+	st := ui.NewApplicationState()
 	if s != nil {
 		st.SetupApprovalUIState(s.PendingToolCall, nil)
 	}
@@ -75,7 +74,7 @@ func TestApprovalHuhTheme_SelectedOptionIsButton(t *testing.T) {
 	const accent = "#5f5fff"
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeTheme.GetAccentColorReturns(accent)
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
 	p := styles.NewProvider(fakeThemeService)
 
@@ -186,7 +185,7 @@ func TestApprovalBox_SelectEmitsResponseEvent(t *testing.T) {
 	cmd := av.Forward(tea.KeyPressMsg{Code: tea.KeyEnter})
 	for cmd != nil {
 		msg := cmd()
-		if ev, ok := msg.(domain.ToolApprovalResponseEvent); ok {
+		if ev, ok := msg.(agentdomain.ToolApprovalResponseEvent); ok {
 			if ev.Action != agentdomain.ApprovalReject {
 				t.Errorf("expected Reject after one right arrow, got %v", ev.Action)
 			}

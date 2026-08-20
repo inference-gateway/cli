@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"maps"
 	"os/exec"
 	"strings"
@@ -17,7 +18,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -38,12 +38,12 @@ type InputView struct {
 	width                int
 	height               int
 	modelService         convdomain.ModelService
-	imageService         domain.ImageService
+	imageService         agentdomain.ImageService
 	stateManager         inputViewState
-	skillsService        domain.SkillsService
+	skillsService        agentdomain.SkillsService
 	shortcutRegistry     *shortcuts.Registry
-	fileService          domain.FileService
-	githubIssueService   domain.GitHubIssueService
+	fileService          agentdomain.FileService
+	githubIssueService   agentdomain.GitHubIssueService
 	highlighter          *inputsyntax.Highlighter
 	config               *config.Config
 	conversationRepo     convdomain.ConversationRepository
@@ -51,7 +51,7 @@ type InputView struct {
 	disabled             bool
 	savedText            string
 	savedCursor          int
-	themeService         domain.ThemeService
+	themeService         ui.ThemeService
 	styleProvider        *styles.Provider
 	imageAttachments     []agentdomain.ImageAttachment
 	messageQueue         convdomain.MessageQueue
@@ -154,7 +154,7 @@ func newInputTextarea(placeholder string) textarea.Model {
 }
 
 // SetThemeService sets the theme service for this input view
-func (iv *InputView) SetThemeService(themeService domain.ThemeService) {
+func (iv *InputView) SetThemeService(themeService ui.ThemeService) {
 	iv.themeService = themeService
 	iv.styleProvider = styles.NewProvider(themeService)
 }
@@ -162,8 +162,8 @@ func (iv *InputView) SetThemeService(themeService domain.ThemeService) {
 // inputViewState is the narrow slice of StateManager the input view reads to
 // decide whether an approval/plan overlay is active.
 type inputViewState interface {
-	domain.ApprovalUIManager
-	domain.PlanApprovalUIManager
+	ui.ApprovalUIManager
+	ui.PlanApprovalUIManager
 }
 
 // SetStateManager sets the state manager for this input view
@@ -220,7 +220,7 @@ func (iv *InputView) applyKeybindings(kb config.KeybindingsConfig) {
 }
 
 // SetImageService sets the image service for this input view
-func (iv *InputView) SetImageService(imageService domain.ImageService) {
+func (iv *InputView) SetImageService(imageService agentdomain.ImageService) {
 	iv.imageService = imageService
 }
 
@@ -231,7 +231,7 @@ func (iv *InputView) SetConversationRepo(repo convdomain.ConversationRepository)
 
 // SetSkillsService sets the skills service so "/<skill>" tokens can be
 // highlighted in the input to signal they route to the agent.
-func (iv *InputView) SetSkillsService(skillsService domain.SkillsService) {
+func (iv *InputView) SetSkillsService(skillsService agentdomain.SkillsService) {
 	iv.skillsService = skillsService
 }
 
@@ -243,7 +243,7 @@ func (iv *InputView) SetShortcutRegistry(registry *shortcuts.Registry) {
 
 // SetFileService sets the file service so "@<path>" references to real files can
 // be highlighted in the input.
-func (iv *InputView) SetFileService(fileService domain.FileService) {
+func (iv *InputView) SetFileService(fileService agentdomain.FileService) {
 	iv.fileService = fileService
 }
 
@@ -256,7 +256,7 @@ func (iv *InputView) SetMessageQueue(mq convdomain.MessageQueue) {
 // SetGitHubIssueService enables "#<number>" highlighting in the input. The
 // validator only checks the digit shape - resolution against actual repo
 // issues happens at submit time in the expansion path.
-func (iv *InputView) SetGitHubIssueService(s domain.GitHubIssueService) {
+func (iv *InputView) SetGitHubIssueService(s agentdomain.GitHubIssueService) {
 	iv.githubIssueService = s
 }
 
@@ -466,9 +466,9 @@ func fetchGitPRCmd() tea.Cmd {
 		defer cancel()
 		output, err := exec.CommandContext(ctx, "gh", "pr", "view", "--json", "number", "--jq", ".number").Output()
 		if err != nil {
-			return domain.GitPRResolvedEvent{}
+			return ui.GitPRResolvedEvent{}
 		}
-		return domain.GitPRResolvedEvent{PR: strings.TrimSpace(string(output))}
+		return ui.GitPRResolvedEvent{PR: strings.TrimSpace(string(output))}
 	}
 }
 
@@ -688,7 +688,7 @@ func (iv *InputView) ensureHighlighter() {
 
 	var rules []inputsyntax.Rule
 	if iv.skillsService != nil {
-		lookup := func(name string) (domain.Skill, bool) {
+		lookup := func(name string) (agentdomain.Skill, bool) {
 			lower := strings.ToLower(name)
 			if parts := strings.SplitN(lower, ":", 2); len(parts) == 2 {
 				return iv.skillsService.Get(parts[1])
@@ -845,7 +845,7 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if _, isKey := msg.(tea.KeyPressMsg); isKey && !iv.disabled {
 		if text, cursor := iv.ta.Value(), iv.GetCursor(); text != textBefore || cursor != cursorBefore {
 			autocompleteCmd := func() tea.Msg {
-				return domain.AutocompleteUpdateEvent{Text: text, CursorPos: cursor}
+				return ui.AutocompleteUpdateEvent{Text: text, CursorPos: cursor}
 			}
 			return iv, tea.Batch(cmd, autocompleteCmd)
 		}
@@ -863,20 +863,20 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		iv.focused = false
 		iv.ta.Blur()
 		return iv, cmd
-	case domain.ClearInputEvent:
+	case ui.ClearInputEvent:
 		iv.ClearInput()
 		return iv, cmd
-	case domain.SetInputEvent:
+	case ui.SetInputEvent:
 		iv.SetText(msg.Text)
 		iv.SetCursor(len(msg.Text))
 		return iv, cmd
-	case domain.GitPRResolvedEvent:
+	case ui.GitPRResolvedEvent:
 		iv.gitPRCache = msg.PR
 		return iv, cmd
-	case domain.BashCommandCompletedEvent:
+	case ui.BashCommandCompletedEvent:
 		iv.InvalidateGitBranchCache()
 		return iv, tea.Batch(cmd, fetchGitPRCmd())
-	case domain.ToolExecutionCompletedEvent:
+	case agentdomain.ToolExecutionCompletedEvent:
 		for _, result := range msg.Results {
 			if result != nil && result.ToolName == "Bash" {
 				return iv, tea.Batch(cmd, fetchGitPRCmd())
@@ -901,7 +901,7 @@ func (iv *InputView) HandleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return iv, nil
 	case key.Matches(k, inputViewKeys.navDown):
 		if !iv.IsNavigatingHistory() {
-			return iv, func() tea.Msg { return domain.FocusStatusBarEvent{} }
+			return iv, func() tea.Msg { return ui.FocusStatusBarEvent{} }
 		}
 		iv.navigateHistoryDown()
 		return iv, nil

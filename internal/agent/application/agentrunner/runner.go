@@ -14,11 +14,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	"io"
 	"os"
 	"os/exec"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ExecFunc matches exec.CommandContext. It is a type alias (not a defined type)
@@ -52,7 +51,7 @@ type Options struct {
 	// Approval, when set and RequireApproval is true, resolves a tool approval
 	// request into a response that is written back to the agent's stdin. It
 	// blocks until the decision is made.
-	Approval func(domain.ApprovalRequest) domain.ApprovalResponse
+	Approval func(ipc.ApprovalRequest) ipc.ApprovalResponse
 }
 
 // Result is the outcome of a subprocess run.
@@ -165,7 +164,7 @@ func buildArgs(opts Options) []string {
 	return append(args, opts.Prompt)
 }
 
-func writeApprovalResponse(w io.Writer, req domain.ApprovalRequest, resp domain.ApprovalResponse) {
+func writeApprovalResponse(w io.Writer, req ipc.ApprovalRequest, resp ipc.ApprovalResponse) {
 	resp.Type = "approval_response"
 	resp.ToolCallID = req.ToolCallID
 	data, err := json.Marshal(resp)
@@ -176,8 +175,8 @@ func writeApprovalResponse(w io.Writer, req domain.ApprovalRequest, resp domain.
 }
 
 // parseApprovalRequest attempts to parse a JSON line as an ApprovalRequest.
-func parseApprovalRequest(line []byte) (*domain.ApprovalRequest, bool) {
-	var req domain.ApprovalRequest
+func parseApprovalRequest(line []byte) (*ipc.ApprovalRequest, bool) {
+	var req ipc.ApprovalRequest
 	if err := json.Unmarshal(line, &req); err != nil {
 		return nil, false
 	}

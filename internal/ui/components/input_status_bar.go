@@ -11,7 +11,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -23,7 +22,7 @@ type AgentReadinessManager interface {
 	InitializeAgentReadiness(totalAgents int)
 	UpdateAgentStatus(name string, state agentdomain.AgentState, message string, url string, image string)
 	SetAgentError(name string, err error)
-	GetAgentReadiness() *domain.AgentReadinessState
+	GetAgentReadiness() *ui.AgentReadinessState
 	AreAllAgentsReady() bool
 	ClearAgentReadiness()
 	RemoveAgent(name string)
@@ -33,7 +32,7 @@ type InputStatusBar struct {
 	width                  int
 	modelService           convdomain.ModelService
 	effortSource           effortSource
-	themeService           domain.ThemeService
+	themeService           ui.ThemeService
 	stateManager           statusBarState
 	config                 *config.Config
 	conversationRepo       convdomain.ConversationRepository
@@ -42,7 +41,7 @@ type InputStatusBar struct {
 	backgroundShellService scheddomain.BackgroundShellService
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
-	mcpStatus              *domain.MCPServerStatus
+	mcpStatus              *ui.MCPServerStatus
 	styleProvider          *styles.Provider
 	currentInputText       string
 
@@ -86,13 +85,13 @@ func (isb *InputStatusBar) SetEffortSource(src effortSource) {
 }
 
 // SetThemeService sets the theme service
-func (isb *InputStatusBar) SetThemeService(themeService domain.ThemeService) {
+func (isb *InputStatusBar) SetThemeService(themeService ui.ThemeService) {
 	isb.themeService = themeService
 }
 
 // statusBarState is the narrow slice of StateManager the input status bar reads.
 type statusBarState interface {
-	domain.AgentModeManager
+	ui.AgentModeManager
 	AgentReadinessManager
 }
 
@@ -138,7 +137,7 @@ func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry scheddomain.Backgr
 }
 
 // UpdateMCPStatus updates the MCP server status (called by event handler)
-func (isb *InputStatusBar) UpdateMCPStatus(status *domain.MCPServerStatus) {
+func (isb *InputStatusBar) UpdateMCPStatus(status *ui.MCPServerStatus) {
 	isb.mcpStatus = status
 }
 

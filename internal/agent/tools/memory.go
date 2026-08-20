@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,7 +17,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 )
 
@@ -42,7 +42,7 @@ type MemoryTool struct {
 	config    *config.Config
 	enabled   bool
 	formatter agentinfra.CustomFormatter
-	backend   domain.MemoryBackend
+	backend   memory.MemoryBackend
 	project   project.Identity
 }
 
@@ -52,7 +52,7 @@ type MemoryTool struct {
 // would push after every message, so the tool triggers the push instead.
 // proj is the detected project the process runs in (zero value = global scope);
 // it decides where project-scoped facts are filed.
-func NewMemoryTool(cfg *config.Config, backend domain.MemoryBackend, proj project.Identity) *MemoryTool {
+func NewMemoryTool(cfg *config.Config, backend memory.MemoryBackend, proj project.Identity) *MemoryTool {
 	return &MemoryTool{
 		config:  cfg,
 		enabled: cfg.Memory.Enabled,

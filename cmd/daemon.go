@@ -16,7 +16,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
@@ -101,7 +100,7 @@ func RunDaemonCommand(cfg *config.Config) error {
 
 	cm := services.NewChannelManagerService(cfg.Channels, tel)
 
-	var channelCommands []domain.ChannelCommand
+	var channelCommands []channels.ChannelCommand
 	if cfg.Channels.Enabled {
 		if reg, conv, groups := buildCommandSupport(cfg); reg != nil {
 			cm.SetCommandSupport(reg, conv, groups)
@@ -440,18 +439,18 @@ func buildChannelShortcutRegistry(cfg *config.Config) *shortcuts.Registry {
 
 // supportedChannelCommands lists the commands worth advertising natively in a
 // channel's command menu: the daemon built-ins plus custom shortcuts.
-func supportedChannelCommands(reg *shortcuts.Registry) []domain.ChannelCommand {
-	cmds := append([]domain.ChannelCommand{}, services.ChannelBuiltinCommands...)
+func supportedChannelCommands(reg *shortcuts.Registry) []channels.ChannelCommand {
+	cmds := append([]channels.ChannelCommand{}, services.ChannelBuiltinCommands...)
 	for _, sc := range reg.GetAll() {
 		if _, isCustom := sc.(*shortcuts.CustomShortcut); isCustom {
-			cmds = append(cmds, domain.ChannelCommand{Name: sc.GetName(), Description: sc.GetDescription()})
+			cmds = append(cmds, channels.ChannelCommand{Name: sc.GetName(), Description: sc.GetDescription()})
 		}
 	}
 	return cmds
 }
 
 // registerChannels registers enabled channel implementations with the manager
-func registerChannels(cm *services.ChannelManagerService, cfg *config.Config, commands []domain.ChannelCommand) error {
+func registerChannels(cm *services.ChannelManagerService, cfg *config.Config, commands []channels.ChannelCommand) error {
 	registered := 0
 
 	if cfg.Channels.Telegram.Enabled {

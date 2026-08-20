@@ -13,7 +13,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
@@ -95,7 +94,7 @@ func newTestStyleProvider() *styles.Provider {
 	theme.GetSuccessColorReturns("#9ece6a")
 	theme.GetErrorColorReturns("#f7768e")
 	theme.GetAssistantColorReturns("#a9b1d6")
-	ts := &domainmocks.FakeThemeService{}
+	ts := &uimocks.FakeThemeService{}
 	ts.GetCurrentThemeReturns(theme)
 	return styles.NewProvider(ts)
 }

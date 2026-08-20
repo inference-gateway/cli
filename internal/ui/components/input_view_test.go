@@ -2,6 +2,7 @@ package components
 
 import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,12 +14,10 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
@@ -53,7 +52,7 @@ func createInputViewWithTheme(modelService convdomain.ModelService) *InputView {
 	fakeTheme.GetAccentColorReturns("#00ffff")
 	fakeTheme.GetBorderColorReturns("#555555")
 
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
 
 	iv.themeService = fakeThemeService
@@ -709,7 +708,7 @@ func TestInputView_BashCommandCompletedInvalidatesBranchCache(t *testing.T) {
 	iv := newInputViewWithBranch(t, "main")
 	require.NotEmpty(t, iv.gitBranchCache)
 
-	_, _ = iv.Update(domain.BashCommandCompletedEvent{})
+	_, _ = iv.Update(ui.BashCommandCompletedEvent{})
 
 	require.Empty(t, iv.gitBranchCache)
 }
@@ -722,7 +721,7 @@ func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
 
 	_, cmd := iv.HandleKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	require.NotNil(t, cmd, "expected a command handing focus to the status bar")
-	_, ok := cmd().(domain.FocusStatusBarEvent)
+	_, ok := cmd().(ui.FocusStatusBarEvent)
 	require.True(t, ok, "expected a FocusStatusBarEvent")
 }
 
@@ -782,7 +781,7 @@ func TestInputView_RenderOmitsPRWhenDisabled(t *testing.T) {
 func TestInputView_GitPRResolvedEventStoresPR(t *testing.T) {
 	iv := newInputViewWithPR(t, "main", "")
 
-	_, cmd := iv.Update(domain.GitPRResolvedEvent{PR: "792"})
+	_, cmd := iv.Update(ui.GitPRResolvedEvent{PR: "792"})
 
 	require.Nil(t, cmd)
 	require.Equal(t, "792", iv.gitPRCache)
@@ -791,7 +790,7 @@ func TestInputView_GitPRResolvedEventStoresPR(t *testing.T) {
 func TestInputView_BashCommandCompletedRefetchesPR(t *testing.T) {
 	iv := newInputViewWithPR(t, "main", "123")
 
-	_, cmd := iv.Update(domain.BashCommandCompletedEvent{})
+	_, cmd := iv.Update(ui.BashCommandCompletedEvent{})
 
 	require.NotNil(t, cmd, "bash completion must trigger an async PR refetch")
 	require.Equal(t, "123", iv.gitPRCache, "stale value must survive until the refetch resolves (no flicker)")
@@ -800,12 +799,12 @@ func TestInputView_BashCommandCompletedRefetchesPR(t *testing.T) {
 func TestInputView_ToolExecutionCompletedRefetchesPROnBash(t *testing.T) {
 	iv := newInputViewWithPR(t, "main", "123")
 
-	_, cmd := iv.Update(domain.ToolExecutionCompletedEvent{
+	_, cmd := iv.Update(agentdomain.ToolExecutionCompletedEvent{
 		Results: []*agentdomain.ToolExecutionResult{{ToolName: "Read"}, {ToolName: "Bash"}},
 	})
 	require.NotNil(t, cmd, "a Bash tool result must trigger an async PR refetch")
 
-	_, cmd = iv.Update(domain.ToolExecutionCompletedEvent{
+	_, cmd = iv.Update(agentdomain.ToolExecutionCompletedEvent{
 		Results: []*agentdomain.ToolExecutionResult{{ToolName: "Read"}},
 	})
 	require.Nil(t, cmd, "non-Bash tool results must not refetch")
@@ -949,7 +948,7 @@ func TestInputView_UpdateEmitsAutocompleteWithSettledValues(t *testing.T) {
 	require.True(t, ok, "expected BatchMsg, got %T", msg)
 	found := false
 	for _, sub := range batch {
-		if ev, isEv := sub().(domain.AutocompleteUpdateEvent); isEv {
+		if ev, isEv := sub().(ui.AutocompleteUpdateEvent); isEv {
 			require.Equal(t, "a", ev.Text)
 			require.Equal(t, 1, ev.CursorPos)
 			found = true

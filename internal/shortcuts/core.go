@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"slices"
 	"strings"
 
@@ -13,7 +14,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 )
 
@@ -474,10 +474,10 @@ func (c *SwitchShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 
 // ThemeShortcut switches the active theme
 type ThemeShortcut struct {
-	themeService domain.ThemeService
+	themeService ui.ThemeService
 }
 
-func NewThemeShortcut(themeService domain.ThemeService) *ThemeShortcut {
+func NewThemeShortcut(themeService ui.ThemeService) *ThemeShortcut {
 	return &ThemeShortcut{themeService: themeService}
 }
 

@@ -8,13 +8,11 @@ import (
 	assert "github.com/stretchr/testify/assert"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	autocomplete "github.com/inference-gateway/cli/internal/ui/autocomplete"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
@@ -381,9 +379,9 @@ func TestAutocomplete_IssueMode(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockGH := &domainmocks.FakeGitHubIssueService{}
+	mockGH := &agentdomainmocks.FakeGitHubIssueService{}
 	mockGH.IsAvailableReturns(true)
-	mockGH.ListIssuesReturns([]domain.GitHubIssue{
+	mockGH.ListIssuesReturns([]agentdomain.GitHubIssue{
 		{Number: 1, Title: "Add login flow"},
 		{Number: 12, Title: "Fix auth bug"},
 		{Number: 120, Title: "Add docs"},
@@ -437,9 +435,9 @@ func TestAutocomplete_IssueMode_SelectionInsertsHashNumber(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockGH := &domainmocks.FakeGitHubIssueService{}
+	mockGH := &agentdomainmocks.FakeGitHubIssueService{}
 	mockGH.IsAvailableReturns(true)
-	mockGH.ListIssuesReturns([]domain.GitHubIssue{
+	mockGH.ListIssuesReturns([]agentdomain.GitHubIssue{
 		{Number: 573, Title: "Github issue autocomplete"},
 	}, nil)
 
@@ -471,7 +469,7 @@ func TestAutocomplete_IssueMode_UnavailableServiceHidesDropdown(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockGH := &domainmocks.FakeGitHubIssueService{}
+	mockGH := &agentdomainmocks.FakeGitHubIssueService{}
 	mockGH.IsAvailableReturns(false)
 
 	theme := &uimocks.FakeTheme{}
@@ -488,9 +486,9 @@ func TestAutocomplete_IssueMode_MidText(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockGH := &domainmocks.FakeGitHubIssueService{}
+	mockGH := &agentdomainmocks.FakeGitHubIssueService{}
 	mockGH.IsAvailableReturns(true)
-	mockGH.ListIssuesReturns([]domain.GitHubIssue{
+	mockGH.ListIssuesReturns([]agentdomain.GitHubIssue{
 		{Number: 573, Title: "Github issue autocomplete"},
 	}, nil)
 
@@ -554,8 +552,8 @@ func TestAutocomplete_SkillsMidText(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{fakeShortcut})
 
-	skillsSvc := &domainmocks.FakeSkillsService{}
-	skillsSvc.ListReturns([]domain.Skill{
+	skillsSvc := &agentdomainmocks.FakeSkillsService{}
+	skillsSvc.ListReturns([]agentdomain.Skill{
 		{Name: "maintainer", Description: "Maintain the org"},
 	})
 

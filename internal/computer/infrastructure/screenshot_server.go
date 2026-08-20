@@ -20,7 +20,6 @@ import (
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/wayland"
 	_ "github.com/inference-gateway/cli/internal/computer/infrastructure/display/x11"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -34,12 +33,12 @@ type ScreenshotServer struct {
 	captureStop context.CancelFunc
 	mu          sync.RWMutex
 	sessionID   string
-	imageSvc    domain.ImageService
+	imageSvc    agentdomain.ImageService
 	running     bool
 }
 
 // NewScreenshotServer creates a new screenshot server
-func NewScreenshotServer(cfg *config.Config, imageService domain.ImageService, sessionID string) *ScreenshotServer {
+func NewScreenshotServer(cfg *config.Config, imageService agentdomain.ImageService, sessionID string) *ScreenshotServer {
 	return &ScreenshotServer{
 		cfg:       cfg,
 		sessionID: sessionID,

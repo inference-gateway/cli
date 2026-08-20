@@ -13,7 +13,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ImageEditTool edits an existing image with the configured image model and
@@ -22,7 +21,7 @@ import (
 // independent of the model selected for the session.
 type ImageEditTool struct {
 	config       *config.Config
-	imageService domain.ImageService
+	imageService agentdomain.ImageService
 }
 
 var (
@@ -36,7 +35,7 @@ var (
 )
 
 // NewImageEditTool creates a new ImageEdit tool
-func NewImageEditTool(cfg *config.Config, imageService domain.ImageService) *ImageEditTool {
+func NewImageEditTool(cfg *config.Config, imageService agentdomain.ImageService) *ImageEditTool {
 	return &ImageEditTool{
 		config:       cfg,
 		imageService: imageService,

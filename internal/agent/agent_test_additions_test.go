@@ -8,7 +8,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
@@ -109,7 +108,7 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 					t.Fatal("Expected no event, but received one")
 				}
 
-				completedEvent, ok := event.(domain.ToolExecutionCompletedEvent)
+				completedEvent, ok := event.(agentdomain.ToolExecutionCompletedEvent)
 				if !ok {
 					t.Fatalf("Expected ToolExecutionCompletedEvent, got %T", event)
 				}

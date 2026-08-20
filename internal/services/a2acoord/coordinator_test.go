@@ -1,6 +1,7 @@
 package a2acoord
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
@@ -64,14 +64,14 @@ func TestService_HandleTaskSubmitted(t *testing.T) {
 		}
 
 		msgs := runCmds(cmds[:1])
-		status, ok := msgs[0].(domain.SetStatusEvent)
+		status, ok := msgs[0].(ui.SetStatusEvent)
 		if !ok {
 			t.Fatalf("expected SetStatusEvent, got %T", msgs[0])
 		}
 		if status.Message != "A2A task submitted to weather-agent" {
 			t.Errorf("unexpected status message: %q", status.Message)
 		}
-		if status.StatusType != domain.StatusWorking {
+		if status.StatusType != ui.StatusWorking {
 			t.Errorf("expected StatusWorking, got %v", status.StatusType)
 		}
 		if !status.Spinner {
@@ -128,7 +128,7 @@ func TestService_HandleTaskCompleted(t *testing.T) {
 		msgs := runCmds(cmds)
 		var foundContent bool
 		for _, m := range msgs {
-			if sce, ok := m.(domain.StreamingContentEvent); ok {
+			if sce, ok := m.(ui.StreamingContentEvent); ok {
 				if sce.Content == "all done" && !sce.Delta && sce.RequestID == "req-1" {
 					foundContent = true
 				}
@@ -157,7 +157,7 @@ func TestService_HandleTaskCompleted(t *testing.T) {
 		msgs := runCmds(cmds)
 		var found bool
 		for _, m := range msgs {
-			if sce, ok := m.(domain.StreamingContentEvent); ok && sce.Content == "[formatted-result-text]" {
+			if sce, ok := m.(ui.StreamingContentEvent); ok && sce.Content == "[formatted-result-text]" {
 				found = true
 			}
 		}
@@ -182,7 +182,7 @@ func TestService_HandleTaskFailed(t *testing.T) {
 		want := "[A2A Task Failed]\n\npartial output"
 		var found bool
 		for _, m := range msgs {
-			if sce, ok := m.(domain.StreamingContentEvent); ok && sce.Content == want {
+			if sce, ok := m.(ui.StreamingContentEvent); ok && sce.Content == want {
 				found = true
 			}
 		}
@@ -203,7 +203,7 @@ func TestService_HandleTaskFailed(t *testing.T) {
 		msgs := runCmds(cmds)
 		var found bool
 		for _, m := range msgs {
-			if sce, ok := m.(domain.StreamingContentEvent); ok &&
+			if sce, ok := m.(ui.StreamingContentEvent); ok &&
 				sce.Content == "[A2A Task Failed]\n\nError: timeout\n\nformatted body" {
 				found = true
 			}
@@ -227,14 +227,14 @@ func TestService_HandleTaskStatusUpdate(t *testing.T) {
 		if len(msgs) != 1 {
 			t.Fatalf("expected one msg, got %d", len(msgs))
 		}
-		upd, ok := msgs[0].(domain.UpdateStatusEvent)
+		upd, ok := msgs[0].(ui.UpdateStatusEvent)
 		if !ok {
 			t.Fatalf("expected UpdateStatusEvent, got %T", msgs[0])
 		}
 		if upd.Message != "A2A task running: fetching" {
 			t.Errorf("unexpected status message: %q", upd.Message)
 		}
-		if upd.StatusType != domain.StatusWorking {
+		if upd.StatusType != ui.StatusWorking {
 			t.Errorf("expected StatusWorking, got %v", upd.StatusType)
 		}
 	})
@@ -252,7 +252,7 @@ func TestService_HandleTaskInputRequired(t *testing.T) {
 		if len(msgs) != 1 {
 			t.Fatalf("expected one msg, got %d", len(msgs))
 		}
-		status, ok := msgs[0].(domain.SetStatusEvent)
+		status, ok := msgs[0].(ui.SetStatusEvent)
 		if !ok {
 			t.Fatalf("expected SetStatusEvent, got %T", msgs[0])
 		}
@@ -277,7 +277,7 @@ func TestService_HandleToolCallExecuted(t *testing.T) {
 		if len(msgs) != 1 {
 			t.Fatalf("expected one msg, got %d", len(msgs))
 		}
-		status, ok := msgs[0].(domain.SetStatusEvent)
+		status, ok := msgs[0].(ui.SetStatusEvent)
 		if !ok {
 			t.Fatalf("expected SetStatusEvent, got %T", msgs[0])
 		}
@@ -318,7 +318,7 @@ func TestService_HandleTaskCompleted_NilTaskRetentionService(t *testing.T) {
 
 		var found bool
 		for _, m := range msgs {
-			if sce, ok := m.(domain.StreamingContentEvent); ok && sce.Content == "ok" {
+			if sce, ok := m.(ui.StreamingContentEvent); ok && sce.Content == "ok" {
 				found = true
 			}
 		}

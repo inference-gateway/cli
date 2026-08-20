@@ -2,13 +2,14 @@ package services
 
 import (
 	"context"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"sync"
 	"testing"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestNewMCPManager(t *testing.T) {
@@ -146,7 +147,7 @@ func TestMCPManager_GetClients_MultipleServers(t *testing.T) {
 	}
 }
 
-// recordingNotifier is a thread-safe domain.UINotifier that collects every
+// recordingNotifier is a thread-safe agentdomain.UINotifier that collects every
 // pushed event so tests can assert what a producer emitted.
 type recordingNotifier struct {
 	mu     sync.Mutex
@@ -218,7 +219,7 @@ func TestMCPManager_PushesStatusThroughNotifier(t *testing.T) {
 	if got := rec.count(); got != 1 {
 		t.Fatalf("expected 1 push, got %d", got)
 	}
-	ev, ok := rec.events[0].(domain.MCPServerStatusUpdateEvent)
+	ev, ok := rec.events[0].(ui.MCPServerStatusUpdateEvent)
 	if !ok {
 		t.Fatalf("expected MCPServerStatusUpdateEvent, got %T", rec.events[0])
 	}
@@ -390,5 +391,5 @@ func TestMCPServerEntry_GetTimeout(t *testing.T) {
 	}
 }
 
-// Ensure MCPManager implements domain.MCPManager interface
-var _ domain.MCPManager = (*MCPManager)(nil)
+// Ensure MCPManager implements agentdomain.MCPManager interface
+var _ agentdomain.MCPManager = (*MCPManager)(nil)

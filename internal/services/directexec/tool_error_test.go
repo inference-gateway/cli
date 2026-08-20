@@ -2,13 +2,13 @@ package directexec_test
 
 import (
 	"errors"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"testing"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
@@ -48,7 +48,7 @@ func TestHandleToolCommand_ErrorStopsSpinner(t *testing.T) {
 	var sawError, sawFailedProgress bool
 	for _, ev := range events {
 		switch e := ev.(type) {
-		case domain.ShowErrorEvent:
+		case ui.ShowErrorEvent:
 			sawError = true
 		case agentdomain.ToolExecutionProgressEvent:
 			if e.Status == "failed" {

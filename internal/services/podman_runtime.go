@@ -3,11 +3,11 @@ package services
 import (
 	"context"
 	"fmt"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	"os/exec"
 	"strings"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -19,7 +19,7 @@ type PodmanRuntime struct {
 }
 
 // NewPodmanRuntime creates a new Podman runtime manager
-func NewPodmanRuntime(sessionID convdomain.SessionID) domain.ContainerRuntime {
+func NewPodmanRuntime(sessionID convdomain.SessionID) containerruntime.ContainerRuntime {
 	return &PodmanRuntime{
 		sessionID:   sessionID,
 		networkName: InferNetworkPrefix,
@@ -113,7 +113,7 @@ func (pr *PodmanRuntime) ContainerExists(containerIDOrName string) bool {
 }
 
 // RunContainer runs a Podman container with the given options
-func (pr *PodmanRuntime) RunContainer(ctx context.Context, opts domain.RunContainerOptions) (string, error) {
+func (pr *PodmanRuntime) RunContainer(ctx context.Context, opts containerruntime.RunContainerOptions) (string, error) {
 	args := []string{"run"}
 
 	if opts.Detached {
@@ -151,7 +151,7 @@ func (pr *PodmanRuntime) RunContainer(ctx context.Context, opts domain.RunContai
 	if opts.HealthCmd != "" {
 		healthConfig := opts.HealthConfig
 		if healthConfig == nil {
-			healthConfig = &domain.HealthCheckConfig{
+			healthConfig = &containerruntime.HealthCheckConfig{
 				Interval:    "10s",
 				Timeout:     "5s",
 				Retries:     3,
@@ -216,28 +216,28 @@ func (pr *PodmanRuntime) PullImage(ctx context.Context, image string, progress f
 }
 
 // GetContainerHealth returns the health status of a container
-func (pr *PodmanRuntime) GetContainerHealth(ctx context.Context, containerIDOrName string) (domain.HealthStatus, error) {
+func (pr *PodmanRuntime) GetContainerHealth(ctx context.Context, containerIDOrName string) (containerruntime.HealthStatus, error) {
 	cmd := exec.CommandContext(ctx, "podman", "inspect", "--format", "{{.State.Health.Status}}", containerIDOrName)
 	output, err := cmd.Output()
 	if err != nil {
-		return domain.HealthStatusNone, fmt.Errorf("failed to inspect container: %w", err)
+		return containerruntime.HealthStatusNone, fmt.Errorf("failed to inspect container: %w", err)
 	}
 
 	healthStr := strings.TrimSpace(string(output))
 	switch healthStr {
 	case "healthy":
-		return domain.HealthStatusHealthy, nil
+		return containerruntime.HealthStatusHealthy, nil
 	case "unhealthy":
-		return domain.HealthStatusUnhealthy, nil
+		return containerruntime.HealthStatusUnhealthy, nil
 	case "starting":
-		return domain.HealthStatusStarting, nil
+		return containerruntime.HealthStatusStarting, nil
 	default:
-		return domain.HealthStatusNone, nil
+		return containerruntime.HealthStatusNone, nil
 	}
 }
 
 // ListRunningContainers lists all running containers matching the name filter
-func (pr *PodmanRuntime) ListRunningContainers(ctx context.Context, nameFilter string) ([]domain.ContainerInfo, error) {
+func (pr *PodmanRuntime) ListRunningContainers(ctx context.Context, nameFilter string) ([]containerruntime.ContainerInfo, error) {
 	args := []string{"ps", "--format", "{{.ID}}\t{{.Names}}"}
 	if nameFilter != "" {
 		args = append(args, "--filter", fmt.Sprintf("name=%s", nameFilter))
@@ -249,7 +249,7 @@ func (pr *PodmanRuntime) ListRunningContainers(ctx context.Context, nameFilter s
 		return nil, fmt.Errorf("podman ps failed: %w, output: %s", err, string(output))
 	}
 
-	var containers []domain.ContainerInfo
+	var containers []containerruntime.ContainerInfo
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	for _, line := range lines {
 		if line == "" {
@@ -259,7 +259,7 @@ func (pr *PodmanRuntime) ListRunningContainers(ctx context.Context, nameFilter s
 		if len(parts) != 2 {
 			continue
 		}
-		containers = append(containers, domain.ContainerInfo{
+		containers = append(containers, containerruntime.ContainerInfo{
 			ID:   parts[0],
 			Name: parts[1],
 		})

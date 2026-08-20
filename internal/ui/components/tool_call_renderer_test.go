@@ -1,12 +1,12 @@
 package components
 
 import (
+	ui "github.com/inference-gateway/cli/internal/ui"
 	"strings"
 	"testing"
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // TestToolCallRenderer_BashOutputStreamLineCounting verifies that a single
@@ -62,7 +62,7 @@ func TestToolCallRenderer_BashOutputStreamLineCounting(t *testing.T) {
 // question overlay is blocked on the user, and resumes afterwards.
 func TestToolCallRenderer_PausesTimerDuringApproval(t *testing.T) {
 	r := NewToolCallRenderer(createMockStyleProviderForStatus())
-	sm := domain.NewApplicationState()
+	sm := ui.NewApplicationState()
 	r.SetStateManager(sm)
 	r.tools["tc-1"] = &ToolRenderState{
 		CallID:    "tc-1",

@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"fmt"
+	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 	"testing"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	generated "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 )
 
@@ -67,7 +67,7 @@ func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockStorage := &generated.FakeConversationStorage{}
+			mockStorage := &storagemocks.FakeConversationStorage{}
 			mockClient := &sdkmocks.FakeClient{}
 
 			cfg := &config.Config{
