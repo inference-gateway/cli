@@ -905,3 +905,26 @@ func TestJsonlStorage_Conformance(t *testing.T) {
 		return newConformanceJsonlStorage(t)
 	})
 }
+
+func TestConversationFilePathSanitizesID(t *testing.T) {
+	storage, tempDir, cleanup := setupTestJsonlStorage(t)
+	defer cleanup()
+
+	tests := []struct {
+		name string
+		id   string
+		want string
+	}{
+		{"plain id", "abc-123", "abc-123.jsonl"},
+		{"traversal stripped", "../../etc/passwd", "passwd.jsonl"},
+		{"nested path stripped", "sub/dir/conv", "conv.jsonl"},
+		{"dot only", ".", "..jsonl"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := storage.conversationFilePath(tt.id)
+			assert.Equal(t, filepath.Join(tempDir, tt.want), got)
+			assert.True(t, strings.HasPrefix(got, tempDir), "path %q escaped base dir %q", got, tempDir)
+		})
+	}
+}
