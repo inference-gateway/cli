@@ -35,7 +35,8 @@ The agent is an **event-driven state machine** (`internal/agent/agent_state_mach
 - `internal/domain/` — pure interfaces and value types, split into topical files (`conversation_contracts.go`, `tool_contracts.go`, `services_contracts.go`, ...); touching them triggers mock regeneration in the pre-commit hook. Bubbletea-facing chat contracts live in `internal/ui/chat_contracts.go`.
 - `internal/infra/` — adapters (SDK clients, storage backends), storage migrations.
 - `internal/services/` — business logic (channels, scheduler, heartbeat, filewriter, skills).
-- `internal/agent/tools/` — tool implementations. `registry.go` is the source of truth for registered tools.
+- `internal/agent/tools/` — core tool implementations. `registry.go` is the source of truth for registered tools; capability packages register theirs via `Registry.RegisterTools`.
+- `internal/browser/`, `internal/computer/` — capability packages plugged into the agent through the `domain.Tool` contract. Playwright lives only in `browser/`; robotgo and the display backends only under `computer/`.
 
 ## Testing
 
