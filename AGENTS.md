@@ -32,7 +32,7 @@ task mod:tidy                 # go mod tidy
 The agent is an **event-driven state machine** (`internal/agent/agent_state_machine.go`). States flow: `Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/ExecutingTools → PostToolExecution → CheckingQueue … → Completing → Idle`. Each state's executor lives in `internal/agent/states/<state>.go`.
 
 **Domain/Infra split:**
-- `internal/domain/` — pure interfaces and value types. `interfaces.go` is the central contract; touching it triggers mock regeneration in the pre-commit hook.
+- `internal/domain/` — pure interfaces and value types, split into topical files (`conversation_contracts.go`, `tool_contracts.go`, `services_contracts.go`, ...); touching them triggers mock regeneration in the pre-commit hook. Bubbletea-facing chat contracts live in `internal/ui/chat_contracts.go`.
 - `internal/infra/` — adapters (SDK clients, storage backends), storage migrations.
 - `internal/services/` — business logic (channels, scheduler, heartbeat, filewriter, skills).
 - `internal/agent/tools/` — tool implementations. `registry.go` is the source of truth for registered tools.

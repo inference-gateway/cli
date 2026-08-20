@@ -329,23 +329,16 @@ tasks:
       - mkdir -p tests/mocks/adk
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/adk github.com/inference-gateway/adk/client.A2AClient
     sources:
-      - "internal/domain/interfaces.go"
-      - "internal/domain/subagent.go"
-      - "internal/domain/background_job.go"
-      - "internal/domain/shell.go"
-      - "internal/domain/agent.go"
-      - "internal/domain/config_service.go"
-      - "internal/domain/pricing.go"
+      - "internal/domain/*.go"
       - "internal/infra/storage/interfaces.go"
       - "internal/ui/interfaces.go"
+      - "internal/ui/chat_contracts.go"
       - "internal/services/background_jobs.go"
       - "internal/shortcuts/interfaces.go"
     generates:
       - "tests/mocks/domain/fake_tool.go"
       - "tests/mocks/domain/fake_tool_factory.go"
       - "tests/mocks/domain/fake_tool_service.go"
-      - "tests/mocks/domain/fake_web_search_service.go"
-      - "tests/mocks/domain/fake_web_fetch_service.go"
       - "tests/mocks/domain/fake_git_hub_issue_service.go"
       - "tests/mocks/domain/fake_skills_service.go"
       - "tests/mocks/domain/fake_file_service.go"
