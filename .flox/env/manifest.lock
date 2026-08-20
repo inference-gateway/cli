@@ -75,7 +75,6 @@
       }
     },
     "vars": {
-      "CGO_ENABLED": "1",
       "GO111MODULE": "on",
       "GOPATH": "$HOME/go",
       "GOPROXY": "https://proxy.golang.org,direct",

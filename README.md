@@ -1219,7 +1219,7 @@ infer skills uninstall pdf                 # Remove a skill folder by name
 
 When enabled, the agent can control the desktop - move and click the mouse, scroll, type text and key
 combinations, focus applications, and read screenshots. The display backend is detected automatically
-across **macOS** (via a bundled Swift bridge), **X11**, and **Wayland**.
+across **macOS**, **X11**, and **Wayland**.
 
 Computer Use is **off by default**. Turn it on in `computer_use.yaml` (or `infer config set computer_use.enabled true`):
 

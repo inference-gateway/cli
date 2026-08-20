@@ -52,7 +52,9 @@
 
           proxyVendor = true;
 
-          env.CGO_ENABLED = if stdenv.hostPlatform.isDarwin then "1" else "0";
+          env.CGO_ENABLED = "0";
+
+          tags = lib.optionals stdenv.hostPlatform.isDarwin [ "mac" ];
 
           ldflags = [
             "-s"
@@ -73,12 +75,6 @@
           nativeBuildInputs = [
             pkgs.installShellFiles
           ];
-
-          buildInputs = lib.optionals stdenv.hostPlatform.isDarwin [ pkgs.apple-sdk ];
-
-          preBuild = lib.optionalString stdenv.hostPlatform.isDarwin ''
-            export SDKROOT="${pkgs.apple-sdk}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
-          '';
 
           postInstall = ''
             if [ -f $out/bin/cli ]; then
