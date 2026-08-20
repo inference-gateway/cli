@@ -6,6 +6,7 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -2242,12 +2243,29 @@ func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg, activeV
 		return app.updateUIComponents(msg, activeView)
 	}
 
-	msgType := fmt.Sprintf("%T", msg)
-	if strings.HasPrefix(msgType, "domain.") || strings.Contains(msgType, "spinner.TickMsg") || strings.Contains(msgType, "Tick") {
+	if shouldRouteToUIComponents(msg) {
 		return app.updateUIComponents(msg, activeView)
 	}
 
 	return nil
+}
+
+// uiEventsPkgPath is resolved from a real event type so a future package move
+// updates it via the compiler instead of silently breaking a string match.
+var uiEventsPkgPath = reflect.TypeFor[ui.UpdateHistoryEvent]().PkgPath()
+
+// shouldRouteToUIComponents reports whether a non-framework message is a UI or
+// domain event the components should see: anything from internal/ui, anything
+// from an internal */domain package, or a framework tick (spinner animation).
+func shouldRouteToUIComponents(msg tea.Msg) bool {
+	t := reflect.TypeOf(msg)
+	if t == nil {
+		return false
+	}
+	pkg := t.PkgPath()
+	return pkg == uiEventsPkgPath ||
+		(strings.HasPrefix(pkg, "github.com/inference-gateway/cli/internal/") && strings.HasSuffix(pkg, "/domain")) ||
+		strings.Contains(t.String(), "Tick")
 }
 
 func (app *ChatApplication) getPageSize() int {
