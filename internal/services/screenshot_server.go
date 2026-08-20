@@ -228,9 +228,6 @@ func (s *ScreenshotServer) captureScreenshot() error {
 	originalWidth := logicalWidth
 	originalHeight := logicalHeight
 
-	// Resize once from the native capture, uniformly on both axes: an
-	// intermediate physical->logical downsample loses Retina detail, and
-	// stretching to a fixed box skews VLM coordinate grounding.
 	fitW, fitH := s.cfg.ComputerUse.Screenshot.FitDims(logicalWidth, logicalHeight)
 	if width != fitW || height != fitH {
 		img = display.ResizeImage(img, fitW, fitH)
