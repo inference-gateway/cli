@@ -1,4 +1,4 @@
-package macos
+package services
 
 import (
 	"testing"

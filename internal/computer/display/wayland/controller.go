@@ -1,18 +1,21 @@
 //go:build linux
 
-package x11
+package wayland
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"image"
+	"image/png"
 	"os"
 
-	display "github.com/inference-gateway/cli/internal/display"
+	display "github.com/inference-gateway/cli/internal/computer/display"
 )
 
-// Controller wraps the existing X11Client to implement the display.DisplayController interface
+// Controller wraps the existing WaylandClient to implement the display.DisplayController interface
 type Controller struct {
-	client *X11Client
+	client *WaylandClient
 }
 
 var _ display.DisplayController = (*Controller)(nil)
@@ -27,21 +30,38 @@ func (c *Controller) CaptureScreenBytes(ctx context.Context, region *display.Reg
 
 // CaptureScreen captures a screenshot and returns an image.Image
 func (c *Controller) CaptureScreen(ctx context.Context, region *display.Region) (image.Image, error) {
+	var imgBytes []byte
+	var err error
+
 	if region == nil {
-		return c.client.CaptureScreen(0, 0, 0, 0)
+		imgBytes, err = c.client.CaptureScreenBytes(0, 0, 0, 0)
+	} else {
+		imgBytes, err = c.client.CaptureScreenBytes(region.X, region.Y, region.Width, region.Height)
 	}
-	return c.client.CaptureScreen(region.X, region.Y, region.Width, region.Height)
+
+	if err != nil {
+		return nil, err
+	}
+
+	img, err := png.Decode(bytes.NewReader(imgBytes))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode screenshot: %w", err)
+	}
+
+	return img, nil
 }
 
 // GetScreenDimensions returns the screen width and height
 func (c *Controller) GetScreenDimensions(ctx context.Context) (width, height int, err error) {
-	w, h := c.client.GetScreenDimensions()
-	return w, h, nil
+	return c.client.GetScreenDimensions()
 }
 
 // GetCursorPosition returns the current cursor position
+// Note: Wayland doesn't provide a standard way to get cursor position
 func (c *Controller) GetCursorPosition(ctx context.Context) (x, y int, err error) {
-	return c.client.GetCursorPosition()
+	// Wayland doesn't expose cursor position for security reasons
+	// Return an error indicating this is not supported
+	return 0, 0, fmt.Errorf("getting cursor position is not supported on Wayland")
 }
 
 // MoveMouse moves the cursor to the specified coordinates
@@ -64,46 +84,42 @@ func (c *Controller) TypeText(ctx context.Context, text string, delayMs int) err
 	return c.client.TypeText(text, delayMs)
 }
 
-// SendKeyCombo sends a key combination (e.g., "ctrl+c", "super+l")
+// SendKeyCombo sends a key combination (e.g., "ctrl+c")
 func (c *Controller) SendKeyCombo(ctx context.Context, combo string) error {
 	return c.client.SendKeyCombo(combo)
 }
 
-// Close closes the X11 connection
+// Close closes the Wayland client
 func (c *Controller) Close() error {
 	c.client.Close()
 	return nil
 }
 
-// Provider implements the display.Provider interface for X11
+// Provider implements the display.Provider interface for Wayland
 type Provider struct{}
 
 var _ display.Provider = (*Provider)(nil)
 
-// NewProvider creates a new X11 provider
+// NewProvider creates a new Wayland provider
 func NewProvider() *Provider {
 	return &Provider{}
 }
 
-// GetController creates a new DisplayController (auto-detects display from $DISPLAY env var)
+// GetController creates a new DisplayController (auto-detects display from $WAYLAND_DISPLAY env var)
 func (p *Provider) GetController() (display.DisplayController, error) {
-	// Detect display from environment
-	displayName := os.Getenv("DISPLAY")
-	if displayName == "" {
-		displayName = ":0" // Fallback to default
-	}
+	displayName := os.Getenv("WAYLAND_DISPLAY")
 
-	client, err := NewX11Client(displayName)
+	client, err := NewWaylandClient(displayName)
 	if err != nil {
 		return nil, err
 	}
 	return &Controller{client: client}, nil
 }
 
-// GetDisplayInfo returns information about the X11 platform
+// GetDisplayInfo returns information about the Wayland platform
 func (p *Provider) GetDisplayInfo() display.DisplayInfo {
 	return display.DisplayInfo{
-		Name:              "x11",
+		Name:              "wayland",
 		SupportsRegions:   true,
 		SupportsMouse:     true,
 		SupportsKeyboard:  true,
@@ -112,12 +128,13 @@ func (p *Provider) GetDisplayInfo() display.DisplayInfo {
 	}
 }
 
-// IsAvailable returns true if X11 is available on the current system
+// IsAvailable returns true if Wayland is available on the current system
 func (p *Provider) IsAvailable() bool {
-	return os.Getenv("DISPLAY") != "" && os.Getenv("WAYLAND_DISPLAY") == ""
+	return os.Getenv("WAYLAND_DISPLAY") != ""
 }
 
-// Register the X11 provider in the global registry
+// Register the Wayland provider in the global registry
+// Note: init() runs before X11's init() due to alphabetical ordering of package names
 func init() {
 	display.Register(NewProvider())
 }

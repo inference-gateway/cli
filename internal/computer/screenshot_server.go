@@ -1,4 +1,4 @@
-package services
+package computer
 
 import (
 	"bytes"
@@ -16,12 +16,12 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/display"
+	display "github.com/inference-gateway/cli/internal/computer/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 
-	_ "github.com/inference-gateway/cli/internal/display/wayland"
-	_ "github.com/inference-gateway/cli/internal/display/x11"
+	_ "github.com/inference-gateway/cli/internal/computer/display/wayland"
+	_ "github.com/inference-gateway/cli/internal/computer/display/x11"
 )
 
 // ScreenshotServer provides an HTTP API for screenshot streaming

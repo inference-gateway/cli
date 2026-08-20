@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/display"
+	display "github.com/inference-gateway/cli/internal/computer/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	displayMocks "github.com/inference-gateway/cli/tests/mocks/display"
 	domainMocks "github.com/inference-gateway/cli/tests/mocks/domain"

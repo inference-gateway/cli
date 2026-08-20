@@ -9,7 +9,7 @@ import (
 	"os"
 	"runtime"
 
-	display "github.com/inference-gateway/cli/internal/display"
+	display "github.com/inference-gateway/cli/internal/computer/display"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 

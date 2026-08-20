@@ -8,7 +8,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/display"
+	display "github.com/inference-gateway/cli/internal/computer/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )

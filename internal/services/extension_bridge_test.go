@@ -16,7 +16,6 @@ import (
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 
 	config "github.com/inference-gateway/cli/config"
-	macos "github.com/inference-gateway/cli/internal/display/macos"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 )
@@ -50,7 +49,7 @@ func toolApprovalEvent(id, name, args string) domain.ToolApprovalRequestedEvent 
 
 func TestExtensionBridgeApprovalRoundTrip(t *testing.T) {
 	notifier := &recordingNotifier{}
-	events := macos.NewEventBridge()
+	events := NewEventBridge()
 	bridge := startBridge(t, bridgeConfig(), notifier, events)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
@@ -101,7 +100,7 @@ func TestExtensionBridgeApprovalRoundTrip(t *testing.T) {
 // card - only an explicit ToolApprovalResolvedEvent does. Regression test for the
 // card vanishing before the user could answer.
 func TestExtensionBridgeApprovalSurvivesTrailingEvents(t *testing.T) {
-	events := macos.NewEventBridge()
+	events := NewEventBridge()
 	bridge := startBridge(t, bridgeConfig(), nil, events)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
@@ -128,7 +127,7 @@ func TestExtensionBridgeApprovalSurvivesTrailingEvents(t *testing.T) {
 
 func TestExtensionBridgeApprovalUnknownActionRejects(t *testing.T) {
 	notifier := &recordingNotifier{}
-	events := macos.NewEventBridge()
+	events := NewEventBridge()
 	bridge := startBridge(t, bridgeConfig(), notifier, events)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
@@ -162,7 +161,7 @@ func TestExtensionBridgeApprovalUnknownActionRejects(t *testing.T) {
 // second decision.
 func TestExtensionBridgeApprovalIgnoresUnknownID(t *testing.T) {
 	notifier := &recordingNotifier{}
-	events := macos.NewEventBridge()
+	events := NewEventBridge()
 	bridge := startBridge(t, bridgeConfig(), notifier, events)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
@@ -380,7 +379,7 @@ func TestExtensionBridgeUserMessageReachesNotifier(t *testing.T) {
 }
 
 func TestExtensionBridgeMirrorsChatEvents(t *testing.T) {
-	events := macos.NewEventBridge()
+	events := NewEventBridge()
 	bridge := startBridge(t, bridgeConfig(), nil, events)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")

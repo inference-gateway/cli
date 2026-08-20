@@ -11,7 +11,7 @@ import (
 	xgb "github.com/BurntSushi/xgb"
 	xproto "github.com/BurntSushi/xgb/xproto"
 
-	display "github.com/inference-gateway/cli/internal/display"
+	display "github.com/inference-gateway/cli/internal/computer/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 

@@ -6,7 +6,7 @@ import (
 	"image"
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/display"
+	"github.com/inference-gateway/cli/internal/computer/display"
 )
 
 type FakeDisplayController struct {

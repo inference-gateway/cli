@@ -1,7 +1,4 @@
-// EventBridge is pure Go and used cross-platform (opentask extension bridge,
-// control event forwarding), so unlike the rest of this package it carries no
-// build tag.
-package macos
+package services
 
 import (
 	"container/ring"

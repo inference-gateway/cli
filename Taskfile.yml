@@ -306,8 +306,8 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter PathValidator
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter BackupManager
       - mkdir -p tests/mocks/display
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/display DisplayController
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/display Provider
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/computer/display DisplayController
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/computer/display Provider
       - mkdir -p tests/mocks/services
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/services internal/services TitleGenerator
       - mkdir -p tests/mocks/shortcuts

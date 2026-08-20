@@ -13,7 +13,7 @@ import (
 
 	robotgo "github.com/go-vgo/robotgo"
 
-	display "github.com/inference-gateway/cli/internal/display"
+	display "github.com/inference-gateway/cli/internal/computer/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 

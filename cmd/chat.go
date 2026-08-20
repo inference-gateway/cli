@@ -21,12 +21,13 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	app "github.com/inference-gateway/cli/internal/app"
-	clipboard "github.com/inference-gateway/cli/internal/clipboard"
+	computer "github.com/inference-gateway/cli/internal/computer"
+	clipboard "github.com/inference-gateway/cli/internal/computer/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	render "github.com/inference-gateway/cli/internal/render"
-	screenshotsvc "github.com/inference-gateway/cli/internal/services"
+	services "github.com/inference-gateway/cli/internal/services"
 	streamevent "github.com/inference-gateway/cli/internal/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
@@ -196,7 +197,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		stateManager.SetAgentMode(mode)
 	}
 
-	var screenshotServer *screenshotsvc.ScreenshotServer
+	var screenshotServer *computer.ScreenshotServer
 
 	if cfg.ComputerUse.Enabled && cfg.ComputerUse.Screenshot.StreamingEnabled {
 		screenshotServer = startScreenshotServer(cfg, imageService, toolRegistry)
@@ -277,7 +278,7 @@ func chatExitMessage(sessionID string) string {
 // resolving rollover chains first. When the conversation cannot be loaded it
 // adopts the requested ID for the new session if the repository supports it,
 // mirroring `infer headless --session-id` semantics.
-func resumeChatSession(repo domain.ConversationRepository, rolloverManager *screenshotsvc.SessionRolloverManager, sessionID string) {
+func resumeChatSession(repo domain.ConversationRepository, rolloverManager *services.SessionRolloverManager, sessionID string) {
 	if rolloverManager != nil {
 		resolved, _, _ := rolloverManager.ResolveSessionID(sessionID)
 		sessionID = resolved
@@ -430,10 +431,10 @@ func contains(slice []string, item string) bool {
 }
 
 // startScreenshotServer initializes and starts the screenshot streaming server
-func startScreenshotServer(config *config.Config, imageService domain.ImageService, toolRegistry *tools.Registry) *screenshotsvc.ScreenshotServer {
+func startScreenshotServer(config *config.Config, imageService domain.ImageService, toolRegistry *tools.Registry) *computer.ScreenshotServer {
 	logger.Info("screenshot streaming conditions met, starting server")
 	sessionID := fmt.Sprintf("%d-%s", time.Now().Unix(), uuid.New().String()[:8])
-	screenshotServer := screenshotsvc.NewScreenshotServer(config, imageService, sessionID)
+	screenshotServer := computer.NewScreenshotServer(config, imageService, sessionID)
 
 	if err := screenshotServer.Start(); err != nil {
 		logger.Warn("failed to start screenshot server", "error", err)

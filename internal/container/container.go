@@ -21,9 +21,9 @@ import (
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browser "github.com/inference-gateway/cli/internal/browser"
-	clipboardtext "github.com/inference-gateway/cli/internal/clipboard/text"
 	computer "github.com/inference-gateway/cli/internal/computer"
-	macos "github.com/inference-gateway/cli/internal/display/macos"
+	clipboardtext "github.com/inference-gateway/cli/internal/computer/clipboard/text"
+	vlm "github.com/inference-gateway/cli/internal/computer/vlm"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	memory "github.com/inference-gateway/cli/internal/infra/memory"
@@ -46,7 +46,6 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	vlm "github.com/inference-gateway/cli/internal/vlm"
 )
 
 // GatewayManager manages the lifecycle of the gateway (container or binary)
@@ -249,7 +248,7 @@ func (c *ServiceContainer) initializeBrowserTools() {
 	if buCfg.Backend == config.BrowserBackendExtension {
 		eventBridge := c.stateManager.GetEventBridge()
 		if eventBridge == nil {
-			eventBridge = macos.NewEventBridge()
+			eventBridge = services.NewEventBridge()
 			c.stateManager.SetEventBridge(eventBridge)
 		}
 
