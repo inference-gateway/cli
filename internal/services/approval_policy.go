@@ -69,7 +69,7 @@ func (p *StandardApprovalPolicy) requiresComputerUseApproval(toolName string) bo
 	case config.ComputerUseApprovalNever, "":
 		return false
 	case config.ComputerUseApprovalDestructive:
-		return toolName == "MouseClick" || toolName == "ActivateApp"
+		return toolName == "MouseClick" || toolName == "ActivateApp" || toolName == "PressUIElement"
 	default:
 		return true
 	}

@@ -46,7 +46,7 @@ type ApplicationState struct {
 	messageEditState *MessageEditState
 
 	// Focus Management (macOS computer-use tools)
-	// Stores the bundle ID of the app that was clicked (for restoring focus before keyboard operations)
+	// Stores the application ID of the app that was clicked (for restoring focus before keyboard operations)
 	lastFocusedAppID string
 	// Stores the coordinates of the last click (for re-clicking before keyboard operations)
 	lastClickX int
@@ -970,13 +970,13 @@ func (s *ApplicationState) IsEditingMessage() bool {
 
 // Focus Management Methods (macOS computer-use tools)
 
-// SetLastFocusedApp stores the bundle ID of the last focused application
+// SetLastFocusedApp stores the application ID of the last focused application
 // This is used to restore focus before keyboard operations
 func (s *ApplicationState) SetLastFocusedApp(appID string) {
 	s.lastFocusedAppID = appID
 }
 
-// GetLastFocusedApp returns the bundle ID of the last focused application
+// GetLastFocusedApp returns the application ID of the last focused application
 func (s *ApplicationState) GetLastFocusedApp() string {
 	return s.lastFocusedAppID
 }

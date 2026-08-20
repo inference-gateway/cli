@@ -15,7 +15,7 @@ const (
 // confirmation before executing a computer-use tool.
 const (
 	ComputerUseApprovalNever       = "never"       // all computer-use tools bypass approval (default)
-	ComputerUseApprovalDestructive = "destructive" // MouseClick and ActivateApp require approval; routine tools bypass
+	ComputerUseApprovalDestructive = "destructive" // MouseClick, ActivateApp, and PressUIElement require approval; routine tools bypass
 	ComputerUseApprovalAlways      = "always"      // every computer-use tool requires approval
 )
 
@@ -30,12 +30,14 @@ type ComputerUseConfig struct {
 
 // ComputerUseToolsConfig contains individual computer use tool settings
 type ComputerUseToolsConfig struct {
-	MouseMove     MouseMoveToolConfig     `yaml:"mouse_move" mapstructure:"mouse_move"`
-	MouseClick    MouseClickToolConfig    `yaml:"mouse_click" mapstructure:"mouse_click"`
-	MouseScroll   MouseScrollToolConfig   `yaml:"mouse_scroll" mapstructure:"mouse_scroll"`
-	KeyboardType  KeyboardTypeToolConfig  `yaml:"keyboard_type" mapstructure:"keyboard_type"`
-	GetFocusedApp GetFocusedAppToolConfig `yaml:"get_focused_app" mapstructure:"get_focused_app"`
-	ActivateApp   ActivateAppToolConfig   `yaml:"activate_app" mapstructure:"activate_app"`
+	MouseMove      MouseMoveToolConfig      `yaml:"mouse_move" mapstructure:"mouse_move"`
+	MouseClick     MouseClickToolConfig     `yaml:"mouse_click" mapstructure:"mouse_click"`
+	MouseScroll    MouseScrollToolConfig    `yaml:"mouse_scroll" mapstructure:"mouse_scroll"`
+	KeyboardType   KeyboardTypeToolConfig   `yaml:"keyboard_type" mapstructure:"keyboard_type"`
+	GetFocusedApp  GetFocusedAppToolConfig  `yaml:"get_focused_app" mapstructure:"get_focused_app"`
+	ActivateApp    ActivateAppToolConfig    `yaml:"activate_app" mapstructure:"activate_app"`
+	GetUIElements  GetUIElementsToolConfig  `yaml:"get_ui_elements" mapstructure:"get_ui_elements"`
+	PressUIElement PressUIElementToolConfig `yaml:"press_ui_element" mapstructure:"press_ui_element"`
 }
 
 // ScreenshotToolConfig contains screenshot-specific tool settings
@@ -104,6 +106,16 @@ type ActivateAppToolConfig struct {
 	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 }
 
+// GetUIElementsToolConfig contains get UI elements-specific tool settings
+type GetUIElementsToolConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+}
+
+// PressUIElementToolConfig contains press UI element-specific tool settings
+type PressUIElementToolConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+}
+
 // RateLimitConfig contains rate limiting settings
 type RateLimitConfig struct {
 	Enabled             bool `yaml:"enabled" mapstructure:"enabled"`
@@ -148,18 +160,23 @@ func DefaultComputerUseConfig() *ComputerUseConfig {
 				MaxTextLength: 1000,
 				TypingDelayMs: 100,
 			},
-			GetFocusedApp: GetFocusedAppToolConfig{Enabled: true},
-			ActivateApp:   ActivateAppToolConfig{Enabled: true},
+			GetFocusedApp:  GetFocusedAppToolConfig{Enabled: true},
+			ActivateApp:    ActivateAppToolConfig{Enabled: true},
+			GetUIElements:  GetUIElementsToolConfig{Enabled: true},
+			PressUIElement: PressUIElementToolConfig{Enabled: true},
 		},
 	}
 }
 
 // LoadComputerUse reads computer_use.yaml from disk. When the file is
 // missing it returns the in-code defaults so callers can treat absence as
-// "use defaults" without special-casing. The file body is run through
-// os.ExpandEnv so `${VAR}`-style references resolve from the environment.
+// "use defaults" without special-casing. The file is decoded over the
+// defaults, so tool sections added after a user's file was seeded keep
+// their default enablement instead of loading as disabled. The file body is
+// run through os.ExpandEnv so `${VAR}`-style references resolve from the
+// environment.
 func LoadComputerUse(path string) (*ComputerUseConfig, error) {
-	return utils.LoadYAML(path, "computer_use", DefaultComputerUseConfig)
+	return utils.LoadYAMLMerged(path, "computer_use", DefaultComputerUseConfig)
 }
 
 // SaveComputerUse writes the computer_use configuration to disk, creating

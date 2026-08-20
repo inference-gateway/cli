@@ -60,10 +60,10 @@ type ImageAnnotator interface {
 }
 
 // Application represents a running application on any platform.
-// ID is a stable cross-platform identifier (bundle ID on macOS,
-// "pid:N" on Linux, or the app name for name-based lookup).
+// ID is a stable cross-platform identifier ("pid:N" on macOS and Linux, or
+// the app name for name-based lookup).
 // Name is the human-readable display name.
-// PlatformID is the OS-native identifier (PID on Linux, bundle ID on macOS, window ID on X11).
+// PlatformID is the OS-native identifier (the PID on macOS and Linux, window ID on X11).
 type Application struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`

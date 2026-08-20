@@ -2,17 +2,6 @@
 
 package macos
 
-/*
-#cgo CFLAGS: -x objective-c
-#cgo LDFLAGS: -framework ApplicationServices
-#include <ApplicationServices/ApplicationServices.h>
-
-bool checkAccessibilityPermissions() {
-    return AXIsProcessTrusted();
-}
-*/
-import "C"
-
 import (
 	"context"
 	"fmt"
@@ -108,13 +97,10 @@ func (p *Provider) GetController() (display.DisplayController, error) {
 // hasAccessibilityPermissions checks if the app has accessibility permissions
 // Uses native macOS AXIsProcessTrusted() API for reliable detection
 func hasAccessibilityPermissions() bool {
-	trusted := C.checkAccessibilityPermissions()
-	hasPerm := bool(trusted)
-
+	hasPerm := axProcessTrusted()
 	if !hasPerm {
 		logger.Debug("accessibility permissions not granted")
 	}
-
 	return hasPerm
 }
 

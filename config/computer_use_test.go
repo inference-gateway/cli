@@ -105,6 +105,7 @@ func TestDefaultComputerUseConfig(t *testing.T) {
 	}
 }
 
+//nolint:gocognit // table-driven with per-case check closures
 func TestLoadComputerUse(t *testing.T) {
 	defaults := config.DefaultComputerUseConfig()
 
@@ -147,6 +148,18 @@ func TestLoadComputerUse(t *testing.T) {
 				}
 				if cfg.Tools.KeyboardType.MaxTextLength != 500 {
 					t.Errorf("Expected Tools.KeyboardType.MaxTextLength=500, got %d", cfg.Tools.KeyboardType.MaxTextLength)
+				}
+			},
+		},
+		{
+			name: "tool sections missing from an older file keep their defaults",
+			yaml: computerUseValidYAML,
+			check: func(t *testing.T, cfg *config.ComputerUseConfig) {
+				if !cfg.Tools.GetUIElements.Enabled {
+					t.Error("Expected Tools.GetUIElements.Enabled true (default) when absent from the file")
+				}
+				if !cfg.Tools.PressUIElement.Enabled {
+					t.Error("Expected Tools.PressUIElement.Enabled true (default) when absent from the file")
 				}
 			},
 		},

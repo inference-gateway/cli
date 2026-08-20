@@ -90,6 +90,8 @@ jobs:
       - lint
       - vet
     runs-on: ubuntu-24.04
+    env:
+      CGO_ENABLED: "0"
     steps:
     - name: Checkout code
       uses: actions/checkout@v7.0.1
@@ -113,6 +115,8 @@ jobs:
       - lint
       - vet
     runs-on: macos-latest
+    env:
+      CGO_ENABLED: "0"
     steps:
     - name: Checkout code
       uses: actions/checkout@v7.0.1
@@ -123,8 +127,8 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
-    - name: Build project (darwin cgo)
-      run: go build -o infer .
+    - name: Build project (darwin, cgo-free via -tags mac)
+      run: go build -tags mac -o infer .
 
   test:
     needs:

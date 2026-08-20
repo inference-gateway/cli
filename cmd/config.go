@@ -614,6 +614,8 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 		"INFER_PROMPTS_TOOLS_KEYBOARD_TYPE_DESCRIPTION":         &cfg.Prompts.Tools.KeyboardType.Description,
 		"INFER_PROMPTS_TOOLS_GET_FOCUSED_APP_DESCRIPTION":       &cfg.Prompts.Tools.GetFocusedApp.Description,
 		"INFER_PROMPTS_TOOLS_ACTIVATE_APP_DESCRIPTION":          &cfg.Prompts.Tools.ActivateApp.Description,
+		"INFER_PROMPTS_TOOLS_GET_UI_ELEMENTS_DESCRIPTION":       &cfg.Prompts.Tools.GetUIElements.Description,
+		"INFER_PROMPTS_TOOLS_PRESS_UI_ELEMENT_DESCRIPTION":      &cfg.Prompts.Tools.PressUIElement.Description,
 		"INFER_PROMPTS_TOOLS_GET_LATEST_FRAME_DESCRIPTION":      &cfg.Prompts.Tools.GetLatestFrame.Description,
 		"INFER_PROMPTS_TOOLS_IMAGE_DECODE_DESCRIPTION":          &cfg.Prompts.Tools.ImageDecode.Description,
 	}
@@ -954,6 +956,8 @@ func applyComputerUseEnvOverrides(cfg *config.Config) {
 	setInt("INFER_COMPUTER_USE_TOOLS_KEYBOARD_TYPE_TYPING_DELAY_MS", &cfg.ComputerUse.Tools.KeyboardType.TypingDelayMs)
 	setBool("INFER_COMPUTER_USE_TOOLS_GET_FOCUSED_APP_ENABLED", &cfg.ComputerUse.Tools.GetFocusedApp.Enabled)
 	setBool("INFER_COMPUTER_USE_TOOLS_ACTIVATE_APP_ENABLED", &cfg.ComputerUse.Tools.ActivateApp.Enabled)
+	setBool("INFER_COMPUTER_USE_TOOLS_GET_UI_ELEMENTS_ENABLED", &cfg.ComputerUse.Tools.GetUIElements.Enabled)
+	setBool("INFER_COMPUTER_USE_TOOLS_PRESS_UI_ELEMENT_ENABLED", &cfg.ComputerUse.Tools.PressUIElement.Enabled)
 }
 
 // applyBrowserUseEnvOverrides applies INFER_BROWSER_USE_* env vars onto the

@@ -6,7 +6,7 @@
       "claude-code": {
         "pkg-path": "claude-code",
         "pkg-group": "claude-code",
-        "version": "^2.1.201"
+        "version": "^2.1.234"
       },
       "codex": {
         "pkg-path": "codex",
@@ -51,7 +51,7 @@
         "version": "^0.22.0"
       },
       "infer": {
-        "flake": "github:inference-gateway/cli/v0.171.0"
+        "flake": "github:inference-gateway/cli/v0.177.0"
       },
       "k3d": {
         "pkg-path": "k3d",
@@ -75,7 +75,6 @@
       }
     },
     "vars": {
-      "CGO_ENABLED": "1",
       "GO111MODULE": "on",
       "GOPATH": "$HOME/go",
       "GOPROXY": "https://proxy.golang.org,direct",
@@ -89,122 +88,6 @@
     "options": {}
   },
   "packages": [
-    {
-      "attr_path": "claude-code",
-      "broken": false,
-      "derivation": "/nix/store/a4dizbyxlcf9s6r98dlcdin0cc4s26p7-claude-code-2.1.201.drv",
-      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
-      "install_id": "claude-code",
-      "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "claude-code-2.1.201",
-      "pname": "claude-code",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T03:12:55.152631Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": true,
-      "version": "2.1.201",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/djcx0bg3258x3sjwcjbf6kr7f0xlr0wq-claude-code-2.1.201"
-      },
-      "system": "aarch64-darwin",
-      "group": "claude-code",
-      "priority": 5
-    },
-    {
-      "attr_path": "claude-code",
-      "broken": false,
-      "derivation": "/nix/store/z8sidwsdz7fssg1inh0h1cdgsf0psm65-claude-code-2.1.201.drv",
-      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
-      "install_id": "claude-code",
-      "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "claude-code-2.1.201",
-      "pname": "claude-code",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T03:41:21.780601Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": true,
-      "version": "2.1.201",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/fm203s00j5ignfgr4f05p2fc7ppmhfy0-claude-code-2.1.201"
-      },
-      "system": "aarch64-linux",
-      "group": "claude-code",
-      "priority": 5
-    },
-    {
-      "attr_path": "claude-code",
-      "broken": false,
-      "derivation": "/nix/store/94k99z7q71qjfhf0h1524c9i14b5a8jm-claude-code-2.1.201.drv",
-      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
-      "install_id": "claude-code",
-      "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "claude-code-2.1.201",
-      "pname": "claude-code",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:00.518525Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": true,
-      "version": "2.1.201",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/23hm04zk9nn86835a2985p7a5pfd62bb-claude-code-2.1.201"
-      },
-      "system": "x86_64-darwin",
-      "group": "claude-code",
-      "priority": 5
-    },
-    {
-      "attr_path": "claude-code",
-      "broken": false,
-      "derivation": "/nix/store/igc75646h0srsbngdsqayh4swpkhnn04-claude-code-2.1.201.drv",
-      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
-      "install_id": "claude-code",
-      "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "claude-code-2.1.201",
-      "pname": "claude-code",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:40:24.423963Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": true,
-      "version": "2.1.201",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/rjdsjk82kc3qyyizifdfbrnzwkdji3ib-claude-code-2.1.201"
-      },
-      "system": "x86_64-linux",
-      "group": "claude-code",
-      "priority": 5
-    },
     {
       "attr_path": "codex",
       "broken": false,
@@ -220,6 +103,7 @@
       "rev_date": "2026-07-05T04:06:12Z",
       "scrape_date": "2026-07-06T03:12:55.196603Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -249,6 +133,7 @@
       "rev_date": "2026-07-05T04:06:12Z",
       "scrape_date": "2026-07-06T03:41:21.839790Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -260,35 +145,6 @@
         "out": "/nix/store/3wjh1x751r25ryixpiakzyf4qm7cpxnp-codex-0.142.3"
       },
       "system": "aarch64-linux",
-      "group": "codex",
-      "priority": 5
-    },
-    {
-      "attr_path": "codex",
-      "broken": false,
-      "derivation": "/nix/store/iqlrw9mda9ivkk46gbc77l5f2q6yyvjb-codex-0.142.3.drv",
-      "description": "Lightweight coding agent that runs in your terminal",
-      "install_id": "codex",
-      "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "codex-0.142.3",
-      "pname": "codex",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:00.571006Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "0.142.3",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/kwmmw872gbxnkxwapv8sax18iiq21hmi-codex-0.142.3"
-      },
-      "system": "x86_64-darwin",
       "group": "codex",
       "priority": 5
     },
@@ -307,6 +163,7 @@
       "rev_date": "2026-07-05T04:06:12Z",
       "scrape_date": "2026-07-06T04:40:24.488503Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -378,36 +235,6 @@
         "out": "/nix/store/7fs6z1z7vyf85v36fb12yj68ghjyp324-docker-29.6.0"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "docker",
-      "broken": false,
-      "derivation": "/nix/store/ilx35vgj3ni2hnvyq362wmbvbfd9wcrf-docker-29.6.0.drv",
-      "description": "Open source project to pack, ship and run any application as a lightweight container",
-      "install_id": "docker",
-      "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "docker-29.6.0",
-      "pname": "docker",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:00.887390Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "29.6.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/b9gj1ignx5npa9rnzs19wj9lpr573fjz-docker-29.6.0"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -498,36 +325,6 @@
         "out": "/nix/store/rrbgzlxz74x0s251zj3n61ldkx9rgc6w-docker-compose-5.3.0"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "docker-compose",
-      "broken": false,
-      "derivation": "/nix/store/nymk8xz8sb3dgbajn33svbrd4ssy7qyv-docker-compose-5.3.0.drv",
-      "description": "Docker CLI plugin to define and run multi-container applications with Docker",
-      "install_id": "docker-compose",
-      "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "docker-compose-5.3.0",
-      "pname": "docker-compose",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:00.888320Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "5.3.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/qlb751v6ivw78bw7r9ngy7wwkjhkyxmy-docker-compose-5.3.0"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -638,43 +435,6 @@
     {
       "attr_path": "ffmpeg",
       "broken": false,
-      "derivation": "/nix/store/0mhql2458qfwh3lcypb0cgb5clbdjay3-ffmpeg-8.1.1.drv",
-      "description": "Complete, cross-platform solution to record, convert and stream audio and video",
-      "install_id": "ffmpeg",
-      "license": "[ LGPL-2.1-or-later, GPL-2.0-or-later, LGPL-3.0-or-later, GPL-3.0-or-later ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "ffmpeg-8.1.1",
-      "pname": "ffmpeg",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:01.267559Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "8.1.1",
-      "outputs_to_install": [
-        "bin",
-        "man"
-      ],
-      "outputs": {
-        "bin": "/nix/store/l3vj6msfhnhz88cn80vzjzvb5wy7mbyh-ffmpeg-8.1.1-bin",
-        "data": "/nix/store/1rjnnsnkj8iyq24dvvvpci6pgdcgaqrr-ffmpeg-8.1.1-data",
-        "dev": "/nix/store/x2kv93yfmbnqr5m9i8kzpswp7c3698gx-ffmpeg-8.1.1-dev",
-        "doc": "/nix/store/42hwfxx0dxc0j43bs6761p2n5i5dmzx8-ffmpeg-8.1.1-doc",
-        "lib": "/nix/store/3z0gbnn9k7n562r8pqvpzlw2a1fmgl8r-ffmpeg-8.1.1-lib",
-        "man": "/nix/store/hizjzb0rsg89cw5vjk99yb94vs4jqbyy-ffmpeg-8.1.1-man",
-        "out": "/nix/store/wr163wqpwzbyj8bwmn0xgwdxwhqxgsza-ffmpeg-8.1.1"
-      },
-      "system": "x86_64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "ffmpeg",
-      "broken": false,
       "derivation": "/nix/store/ag98pa4lp7psyr32bax3f8h95fy52mf4-ffmpeg-8.1.1.drv",
       "description": "Complete, cross-platform solution to record, convert and stream audio and video",
       "install_id": "ffmpeg",
@@ -773,36 +533,6 @@
     {
       "attr_path": "gh",
       "broken": false,
-      "derivation": "/nix/store/3smfxxfn6mjw6nsf6aijvh9514h2kqlc-gh-2.96.0.drv",
-      "description": "GitHub CLI tool",
-      "install_id": "gh",
-      "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "gh-2.96.0",
-      "pname": "gh",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:01.575200Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "2.96.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/waa7fl1d466lkihg89p60iisjwynyfb7-gh-2.96.0"
-      },
-      "system": "x86_64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "gh",
-      "broken": false,
       "derivation": "/nix/store/wbhspnqh3z83s5gy4gfb97m58crvclqa-gh-2.96.0.drv",
       "description": "GitHub CLI tool",
       "install_id": "gh",
@@ -852,6 +582,7 @@
       "unfree": false,
       "version": "2.54.0",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -897,37 +628,6 @@
     {
       "attr_path": "git",
       "broken": false,
-      "derivation": "/nix/store/dbxkqx6x4irzb4jd65110qkxwm40548v-git-2.54.0.drv",
-      "description": "Distributed version control system",
-      "install_id": "git",
-      "license": "GPL-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "git-2.54.0",
-      "pname": "git",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:01.623127Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "2.54.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "doc": "/nix/store/zakmjh312hmg2yslsyqmnw8lb8dgmyyk-git-2.54.0-doc",
-        "out": "/nix/store/x671lak90qvcxgc5irp4xv5zdbaym2yr-git-2.54.0"
-      },
-      "system": "x86_64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "git",
-      "broken": false,
       "derivation": "/nix/store/214n5nb1k4qzynzgw7xpsp4fp19vni8i-git-2.54.0.drv",
       "description": "Distributed version control system",
       "install_id": "git",
@@ -946,6 +646,7 @@
       "unfree": false,
       "version": "2.54.0",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -978,6 +679,7 @@
       "unfree": false,
       "version": "1.26.4",
       "outputs_to_install": [
+        "out",
         "out",
         "out"
       ],
@@ -1015,36 +717,6 @@
         "out": "/nix/store/lgcj27hrbanbc93xm9zdrldds7b1jrw8-go-1.26.4"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "go",
-      "broken": false,
-      "derivation": "/nix/store/0lvbzgq250sass3jyxxvpamk09gcnym3-go-1.26.4.drv",
-      "description": "Go Programming language",
-      "install_id": "go",
-      "license": "BSD-3-Clause",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "go-1.26.4",
-      "pname": "go",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:01.839364Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.26.4",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/h0z6ghmi3cihlbm163d72xs9p9nn04a1-go-1.26.4"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -1141,36 +813,6 @@
     {
       "attr_path": "go-task",
       "broken": false,
-      "derivation": "/nix/store/gfazdxcl13yxiamx60xa9x8wqx57fnr9-go-task-3.48.0.drv",
-      "description": "Task runner / simpler Make alternative written in Go",
-      "install_id": "go-task",
-      "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "go-task-3.48.0",
-      "pname": "go-task",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:01.863255Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "3.48.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/q7mxf9b9kcphb3lxrzn4mqazb9nrvlnz-go-task-3.48.0"
-      },
-      "system": "x86_64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "go-task",
-      "broken": false,
       "derivation": "/nix/store/6y3w945jm88ncdssbc63gkr46ax9pdqh-go-task-3.48.0.drv",
       "description": "Task runner / simpler Make alternative written in Go",
       "install_id": "go-task",
@@ -1255,36 +897,6 @@
         "out": "/nix/store/i6f2vzix80whq7z1z1pklzflxk5nbkwd-golangci-lint-2.12.2"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "golangci-lint",
-      "broken": false,
-      "derivation": "/nix/store/58n129msqj1vm9msnhhchg53v55rd6vn-golangci-lint-2.12.2.drv",
-      "description": "Fast linters Runner for Go",
-      "install_id": "golangci-lint",
-      "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "golangci-lint-2.12.2",
-      "pname": "golangci-lint",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:01.919169Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "2.12.2",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/w8c3i6vmxnnj0xixvjsa9lva3rcd2rvs-golangci-lint-2.12.2"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -1381,36 +993,6 @@
     {
       "attr_path": "gopls",
       "broken": false,
-      "derivation": "/nix/store/0qfqir4zn72skq9ghdpwcz4ximrx4v1c-gopls-0.22.0.drv",
-      "description": "Official language server for the Go language",
-      "install_id": "gopls",
-      "license": "BSD-3-Clause",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "gopls-0.22.0",
-      "pname": "gopls",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:01.947807Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "0.22.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/6z8644fchcyp265bdfav43f0j99vagfd-gopls-0.22.0"
-      },
-      "system": "x86_64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "gopls",
-      "broken": false,
       "derivation": "/nix/store/6li8s67w4m9jnc57cpclaf6c54xwxrj1-gopls-0.22.0.drv",
       "description": "Official language server for the Go language",
       "install_id": "gopls",
@@ -1495,36 +1077,6 @@
         "out": "/nix/store/d2xq48mclqc9fvrhr1qcw3vr1ynb17h6-k3d-5.9.0"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "k3d",
-      "broken": false,
-      "derivation": "/nix/store/jhdskab1x66r2ivv2xgr5vcjwar8mjp6-k3d-5.9.0.drv",
-      "description": "Helper to run k3s (Lightweight Kubernetes. 5 less than k8s) in a docker container",
-      "install_id": "k3d",
-      "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "k3d-5.9.0",
-      "pname": "k3d",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:22.273969Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "5.9.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/793sqkcy2h7wmxyvv9llz4vx166s3qdf-k3d-5.9.0"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -1621,36 +1173,6 @@
     {
       "attr_path": "markdownlint-cli",
       "broken": false,
-      "derivation": "/nix/store/r1y3x7czv99kg15hkjwzb812xmsp65r7-markdownlint-cli-0.49.0.drv",
-      "description": "Command line interface for MarkdownLint",
-      "install_id": "markdownlint-cli",
-      "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "markdownlint-cli-0.49.0",
-      "pname": "markdownlint-cli",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:28.993354Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "0.49.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/fkmiv67anvs9r8fv0fzr5f4741vzq3id-markdownlint-cli-0.49.0"
-      },
-      "system": "x86_64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "markdownlint-cli",
-      "broken": false,
       "derivation": "/nix/store/44mfljjnl1ns71qw1ishriv70rmnajqn-markdownlint-cli-0.49.0.drv",
       "description": "Command line interface for MarkdownLint",
       "install_id": "markdownlint-cli",
@@ -1735,36 +1257,6 @@
         "out": "/nix/store/60vys190zxlx4k1jz0kyvk4vydzr7qml-nodejs-24.16.0"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "nodejs_24",
-      "broken": false,
-      "derivation": "/nix/store/yc1bpd21mkkawwxkq2zskmkqjmzwgv54-nodejs-24.16.0.drv",
-      "description": "Event-driven I/O framework for the V8 JavaScript engine",
-      "install_id": "nodejs",
-      "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "nodejs-24.16.0",
-      "pname": "nodejs_24",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:09:32.263259Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "24.16.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/v04l0kjhdvbzkzrnw6ryf43dp8v0qapv-nodejs-24.16.0"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -1861,36 +1353,6 @@
     {
       "attr_path": "ripgrep",
       "broken": false,
-      "derivation": "/nix/store/947diy7smyw7x4wwgxg4zwbvickv014v-ripgrep-15.1.0.drv",
-      "description": "Utility that combines the usability of The Silver Searcher with the raw speed of grep",
-      "install_id": "ripgrep",
-      "license": "[ Unlicense, MIT ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "ripgrep-15.1.0",
-      "pname": "ripgrep",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:10:56.501240Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "15.1.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/anpnnwglxciyg2brq503b2amkdq1wfw8-ripgrep-15.1.0"
-      },
-      "system": "x86_64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "ripgrep",
-      "broken": false,
       "derivation": "/nix/store/0jbhn2chcn27x4yayqnyihg6cvili005-ripgrep-15.1.0.drv",
       "description": "Utility that combines the usability of The Silver Searcher with the raw speed of grep",
       "install_id": "ripgrep",
@@ -1981,36 +1443,6 @@
     {
       "attr_path": "whisper-cpp",
       "broken": false,
-      "derivation": "/nix/store/s2jamjnnb12i9516lw5vnnkgb67kkvs7-whisper-cpp-1.8.7.drv",
-      "description": "Port of OpenAI's Whisper model in C/C++",
-      "install_id": "whisper-cpp",
-      "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
-      "name": "whisper-cpp-1.8.7",
-      "pname": "whisper-cpp",
-      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
-      "rev_count": 1027867,
-      "rev_date": "2026-07-05T04:06:12Z",
-      "scrape_date": "2026-07-06T04:12:41.221284Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.8.7",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/hspsj5nb249n4f4hldzqv6nymzkcmala-whisper-cpp-1.8.7"
-      },
-      "system": "x86_64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "whisper-cpp",
-      "broken": false,
       "derivation": "/nix/store/0jirlqlg0z3cizkly788jbidkfli8f4q-whisper-cpp-1.8.7.drv",
       "description": "Port of OpenAI's Whisper model in C/C++",
       "install_id": "whisper-cpp",
@@ -2039,13 +1471,100 @@
       "priority": 5
     },
     {
+      "attr_path": "claude-code",
+      "broken": false,
+      "derivation": "/nix/store/18241kp5z6yyl2wypr28hh7dcmsl59x8-claude-code-2.1.234.drv",
+      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
+      "install_id": "claude-code",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0ae2bc1419c3f345984c2629e72e7a631820fa4d",
+      "name": "claude-code-2.1.234",
+      "pname": "claude-code",
+      "rev": "0ae2bc1419c3f345984c2629e72e7a631820fa4d",
+      "rev_count": 1057639,
+      "rev_date": "2026-08-18T16:33:49Z",
+      "scrape_date": "2026-08-20T04:55:33.807405Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "2.1.234",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/1kkz1kmfradmyl94sznb4h573sp45jql-claude-code-2.1.234"
+      },
+      "system": "aarch64-darwin",
+      "group": "claude-code",
+      "priority": 5
+    },
+    {
+      "attr_path": "claude-code",
+      "broken": false,
+      "derivation": "/nix/store/3y6x99bi9j12m3qi1w8r7znmhnad24ax-claude-code-2.1.234.drv",
+      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
+      "install_id": "claude-code",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0ae2bc1419c3f345984c2629e72e7a631820fa4d",
+      "name": "claude-code-2.1.234",
+      "pname": "claude-code",
+      "rev": "0ae2bc1419c3f345984c2629e72e7a631820fa4d",
+      "rev_count": 1057639,
+      "rev_date": "2026-08-18T16:33:49Z",
+      "scrape_date": "2026-08-20T05:25:02.187538Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "2.1.234",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/mcclfv0k5hdz0qb0gywz2j7lvnn3lpsq-claude-code-2.1.234"
+      },
+      "system": "aarch64-linux",
+      "group": "claude-code",
+      "priority": 5
+    },
+    {
+      "attr_path": "claude-code",
+      "broken": false,
+      "derivation": "/nix/store/7c8ypzh9chpbyqkdk9kjbqh6yxz7010r-claude-code-2.1.234.drv",
+      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
+      "install_id": "claude-code",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0ae2bc1419c3f345984c2629e72e7a631820fa4d",
+      "name": "claude-code-2.1.234",
+      "pname": "claude-code",
+      "rev": "0ae2bc1419c3f345984c2629e72e7a631820fa4d",
+      "rev_count": 1057639,
+      "rev_date": "2026-08-18T16:33:49Z",
+      "scrape_date": "2026-08-20T05:57:55.146414Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "2.1.234",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/8r5yahf8kwxhvh2fmd1znnd98nwhgqir-claude-code-2.1.234"
+      },
+      "system": "x86_64-linux",
+      "group": "claude-code",
+      "priority": 5
+    },
+    {
       "install_id": "infer",
-      "locked-url": "github:inference-gateway/cli/8ccc8de7ff83af0bed7eb441ef30a2f176d7644c?narHash=sha256-J/fJIskuuwY8Xe8mH3yjyv5IH5mI6YeVU%2BVGplwGyMY%3D",
+      "locked-url": "github:inference-gateway/cli/fc5b75350d5934f41bc4b094f844d6b7483c41cd?narHash=sha256-zLLE5FMif5ZBJNw1%2BV9PR3ky8W9/ZIM8lFjfYj1dGXU%3D",
       "flake-description": "Inference Gateway CLI - infer",
       "locked-flake-attr-path": "packages.aarch64-darwin.default",
-      "derivation": "/nix/store/g6bvdl2w6hixl47wdyzphf8dsr6r6wdc-infer-0.171.0.drv",
+      "derivation": "/nix/store/r208gq1rwf6qy4n4rbm9r1mh507qgbh6-infer-0.177.0.drv",
       "outputs": {
-        "out": "/nix/store/rwk1h3r3gzc8cf5giighar6f6ghhp6w2-infer-0.171.0"
+        "out": "/nix/store/hv9vcfnvczik7ywqs0a2sbwmy2fxsnpi-infer-0.177.0"
       },
       "output-names": [
         "out"
@@ -2056,9 +1575,9 @@
       "requested-outputs-to-install": [],
       "package-system": "aarch64-darwin",
       "system": "aarch64-darwin",
-      "name": "infer-0.171.0",
+      "name": "infer-0.177.0",
       "pname": "infer",
-      "version": "0.171.0",
+      "version": "0.177.0",
       "description": "Command-line interface for the Inference Gateway - AI model interaction manager",
       "licenses": [
         "MIT"
@@ -2069,12 +1588,12 @@
     },
     {
       "install_id": "infer",
-      "locked-url": "github:inference-gateway/cli/8ccc8de7ff83af0bed7eb441ef30a2f176d7644c?narHash=sha256-J/fJIskuuwY8Xe8mH3yjyv5IH5mI6YeVU%2BVGplwGyMY%3D",
+      "locked-url": "github:inference-gateway/cli/fc5b75350d5934f41bc4b094f844d6b7483c41cd?narHash=sha256-zLLE5FMif5ZBJNw1%2BV9PR3ky8W9/ZIM8lFjfYj1dGXU%3D",
       "flake-description": "Inference Gateway CLI - infer",
       "locked-flake-attr-path": "packages.aarch64-linux.default",
-      "derivation": "/nix/store/b7h4syr3bggk084hs2lwjm7paxir7d2z-infer-0.171.0.drv",
+      "derivation": "/nix/store/a2xri0jk9dd8xmzpj121c5kf98djfg8g-infer-0.177.0.drv",
       "outputs": {
-        "out": "/nix/store/0a7nayp3mps0dzx46ck85mnjbkb39y4l-infer-0.171.0"
+        "out": "/nix/store/rbl6ynspfch1cxsy469fm0b0dwsk6z5h-infer-0.177.0"
       },
       "output-names": [
         "out"
@@ -2085,9 +1604,9 @@
       "requested-outputs-to-install": [],
       "package-system": "aarch64-linux",
       "system": "aarch64-linux",
-      "name": "infer-0.171.0",
+      "name": "infer-0.177.0",
       "pname": "infer",
-      "version": "0.171.0",
+      "version": "0.177.0",
       "description": "Command-line interface for the Inference Gateway - AI model interaction manager",
       "licenses": [
         "MIT"
@@ -2098,41 +1617,12 @@
     },
     {
       "install_id": "infer",
-      "locked-url": "github:inference-gateway/cli/8ccc8de7ff83af0bed7eb441ef30a2f176d7644c?narHash=sha256-J/fJIskuuwY8Xe8mH3yjyv5IH5mI6YeVU%2BVGplwGyMY%3D",
-      "flake-description": "Inference Gateway CLI - infer",
-      "locked-flake-attr-path": "packages.x86_64-darwin.default",
-      "derivation": "/nix/store/11a3wviqlbignbxnvp2crc3bc5safvm2-infer-0.171.0.drv",
-      "outputs": {
-        "out": "/nix/store/xvvrza5asp6xf17mgmk6zqxvkraj7iyz-infer-0.171.0"
-      },
-      "output-names": [
-        "out"
-      ],
-      "outputs-to-install": [
-        "out"
-      ],
-      "requested-outputs-to-install": [],
-      "package-system": "x86_64-darwin",
-      "system": "x86_64-darwin",
-      "name": "infer-0.171.0",
-      "pname": "infer",
-      "version": "0.171.0",
-      "description": "Command-line interface for the Inference Gateway - AI model interaction manager",
-      "licenses": [
-        "MIT"
-      ],
-      "broken": false,
-      "unfree": false,
-      "priority": 5
-    },
-    {
-      "install_id": "infer",
-      "locked-url": "github:inference-gateway/cli/8ccc8de7ff83af0bed7eb441ef30a2f176d7644c?narHash=sha256-J/fJIskuuwY8Xe8mH3yjyv5IH5mI6YeVU%2BVGplwGyMY%3D",
+      "locked-url": "github:inference-gateway/cli/fc5b75350d5934f41bc4b094f844d6b7483c41cd?narHash=sha256-zLLE5FMif5ZBJNw1%2BV9PR3ky8W9/ZIM8lFjfYj1dGXU%3D",
       "flake-description": "Inference Gateway CLI - infer",
       "locked-flake-attr-path": "packages.x86_64-linux.default",
-      "derivation": "/nix/store/7igikjzirhdj1bpas562k0zkr7ajyiwj-infer-0.171.0.drv",
+      "derivation": "/nix/store/ym06pvil1v0vdar6rx4qldwwh9bidc0n-infer-0.177.0.drv",
       "outputs": {
-        "out": "/nix/store/yz8lsmi5x48zbizld2811nn2cjs9v998-infer-0.171.0"
+        "out": "/nix/store/hsk9z4rqgimwplnpykk21dv9pf8c0k8y-infer-0.177.0"
       },
       "output-names": [
         "out"
@@ -2143,9 +1633,9 @@
       "requested-outputs-to-install": [],
       "package-system": "x86_64-linux",
       "system": "x86_64-linux",
-      "name": "infer-0.171.0",
+      "name": "infer-0.177.0",
       "pname": "infer",
-      "version": "0.171.0",
+      "version": "0.177.0",
       "description": "Command-line interface for the Inference Gateway - AI model interaction manager",
       "licenses": [
         "MIT"

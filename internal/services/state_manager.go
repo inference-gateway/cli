@@ -665,14 +665,14 @@ func (sm *StateManager) RemoveAgent(name string) {
 
 // Focus management methods (macOS computer-use tools)
 
-// SetLastFocusedApp stores the bundle ID of the last focused application
+// SetLastFocusedApp stores the application ID of the last focused application
 func (sm *StateManager) SetLastFocusedApp(appID string) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.state.SetLastFocusedApp(appID)
 }
 
-// GetLastFocusedApp returns the bundle ID of the last focused application
+// GetLastFocusedApp returns the application ID of the last focused application
 func (sm *StateManager) GetLastFocusedApp() string {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()

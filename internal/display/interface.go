@@ -124,3 +124,34 @@ type AppProvider interface {
 // application is not running. Callers should use errors.Is to distinguish
 // "not found" from other errors.
 var ErrAppNotFound = fmt.Errorf("application not found")
+
+// AXProvider exposes the platform accessibility tree (macOS AXUIElement;
+// Linux AT-SPI2 and Windows UIA are future backends). Like AppProvider,
+// registered providers are process-lifetime singletons with no Close.
+type AXProvider interface {
+	// ListElements walks the accessibility tree of target ("frontmost" or ""
+	// for the frontmost application, "dock", "menubar") and returns the
+	// pressable elements: Label is the normalized role (e.g. "button",
+	// "dock item"), Text the element title, BBox the on-screen rectangle in
+	// logical screen points (the same space as GetScreenDimensions).
+	// Returns ErrNoAXPermission when the accessibility permission is not
+	// granted to this process.
+	ListElements(ctx context.Context, target string) ([]domain.AnnotatedElement, error)
+
+	// PressElement re-walks target's tree and performs the default press
+	// action on the first element whose title equals label, without moving
+	// the cursor. Returns ErrElementNotFound when no element matches.
+	PressElement(ctx context.Context, target, label string) error
+}
+
+// ErrNoAXProvider is returned when no accessibility provider is registered
+// for this platform.
+var ErrNoAXProvider = fmt.Errorf("no accessibility provider")
+
+// ErrNoAXPermission is returned when the OS accessibility permission has not
+// been granted to this process.
+var ErrNoAXPermission = fmt.Errorf("accessibility permission not granted")
+
+// ErrElementNotFound is returned by PressElement when no element in the
+// target's tree matches the requested title.
+var ErrElementNotFound = fmt.Errorf("ui element not found")

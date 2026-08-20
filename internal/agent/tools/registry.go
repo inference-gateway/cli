@@ -268,6 +268,8 @@ func (r *Registry) registerComputerUseTools() {
 	r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider)
 	r.tools["GetFocusedApp"] = NewGetFocusedAppTool(r.config)
 	r.tools["ActivateApp"] = NewActivateAppTool(r.config)
+	r.tools["GetUIElements"] = NewGetUIElementsTool(r.config)
+	r.tools["PressUIElement"] = NewPressUIElementTool(r.config)
 }
 
 // registerBrowserUseTools registers browser automation tools. They share one
@@ -514,6 +516,8 @@ func IsComputerUseTool(toolName string) bool {
 		"ActivateApp":    true,
 		"GetFocusedApp":  true,
 		"GetLatestFrame": true,
+		"GetUIElements":  true,
+		"PressUIElement": true,
 	}
 	return computerUseTools[toolName]
 }

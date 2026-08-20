@@ -17,7 +17,7 @@ import (
 //
 // The tool takes either:
 //   - "app_id": a stable application ID returned by GetFocusedApp
-//     (e.g. "com.google.Chrome" on macOS, "pid:1234" on Linux)
+//     (e.g. "pid:1234")
 //   - "name": a human-readable name substring to match (case-insensitive, first
 //     match wins).  At least one of app_id or name is required; app_id wins if
 //     both are provided.
@@ -45,7 +45,7 @@ func (t *ActivateAppTool) Definition() sdk.ChatCompletionTool {
 				"properties": map[string]any{
 					"app_id": map[string]any{
 						"type":        "string",
-						"description": "The stable application identifier returned by GetFocusedApp (e.g., 'com.google.Chrome', 'pid:1234'). On macOS this is the bundle ID; on Linux it is 'pid:<PID>'. Optional if 'name' is provided.",
+						"description": "The stable application identifier returned by GetFocusedApp (e.g., 'pid:1234'). Optional if 'name' is provided.",
 					},
 					"name": map[string]any{
 						"type":        "string",
