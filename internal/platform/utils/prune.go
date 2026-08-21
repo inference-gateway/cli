@@ -1,4 +1,4 @@
-package services
+package utils
 
 import (
 	"os"
@@ -15,17 +15,17 @@ import (
 // must outlive the message that referenced them - the model may read the file
 // via ImageDecode after the send.
 func PruneClipboardImages(dir string) {
-	pruneFilesByModTime(dir, 20, 24*time.Hour, func(e os.DirEntry) bool {
+	PruneFilesByModTime(dir, 20, 24*time.Hour, func(e os.DirEntry) bool {
 		return strings.HasPrefix(e.Name(), "clipboard-image-")
 	})
 }
 
-// pruneFilesByModTime removes files in dir that fall outside the retention
+// PruneFilesByModTime removes files in dir that fall outside the retention
 // window: when keep > 0 only the newest keep files matching match survive, and
 // when maxAge > 0 files older than maxAge are removed regardless of count.
 // Zero values disable the respective limit. Only files accepted by match are
 // ever touched, so a producer's unrelated files stay safe.
-func pruneFilesByModTime(dir string, keep int, maxAge time.Duration, match func(os.DirEntry) bool) {
+func PruneFilesByModTime(dir string, keep int, maxAge time.Duration, match func(os.DirEntry) bool) {
 	if keep <= 0 && maxAge <= 0 {
 		return
 	}

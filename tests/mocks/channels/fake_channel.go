@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/services/channels"
+	"github.com/inference-gateway/cli/internal/channels"
 )
 
 type FakeChannel struct {

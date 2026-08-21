@@ -12,9 +12,9 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
 )
 
 const resumeContinuePrompt = "Please continue from where you left off."
@@ -200,6 +200,6 @@ func resumeHeadlessRun(ctx context.Context, agentService agentdomain.AgentServic
 		return nil, err
 	}
 	next := *req
-	next.Messages = chatcompletion.BuildAgentMessagesFromEntries(repo.GetMessages())
+	next.Messages = conversation.BuildAgentMessagesFromEntries(repo.GetMessages())
 	return agentService.RunWithStream(ctx, &next)
 }

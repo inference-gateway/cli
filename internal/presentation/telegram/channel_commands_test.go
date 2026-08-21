@@ -1,11 +1,11 @@
-package services
+package telegram
 
 import (
 	"context"
 	"strings"
 	"testing"
 
-	channels "github.com/inference-gateway/cli/internal/services/channels"
+	channels "github.com/inference-gateway/cli/internal/channels"
 	channelmocks "github.com/inference-gateway/cli/tests/mocks/channels"
 
 	uuid "github.com/google/uuid"

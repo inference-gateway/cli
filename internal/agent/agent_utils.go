@@ -19,13 +19,13 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
-	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 )
@@ -1160,7 +1160,7 @@ func (s *AgentServiceImpl) maybeRolloverSession(agentCtx *states.AgentContext, r
 	logger.Info("rolled over to new session (summary preserved)",
 		"previous_session_id", req.RequestID, "new_session_id", newID)
 	*agentCtx.Conversation = s.addSystemPrompt(
-		chatcompletion.BuildAgentMessagesFromEntries(s.conversationRepo.GetMessages()))
+		conversation.BuildAgentMessagesFromEntries(s.conversationRepo.GetMessages()))
 }
 
 // trackStreamOutcome records the just-finished stream's finish reason and

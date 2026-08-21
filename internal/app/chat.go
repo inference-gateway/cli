@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -2534,7 +2535,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	// retention instead of deleted on send.
 	for _, img := range images {
 		if img.SourcePath != "" {
-			services.PruneClipboardImages(filepath.Dir(img.SourcePath))
+			utils.PruneClipboardImages(filepath.Dir(img.SourcePath))
 			break
 		}
 	}

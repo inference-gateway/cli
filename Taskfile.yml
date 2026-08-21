@@ -279,8 +279,8 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/agent/states StateHandler
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentapp internal/agent/application A2AAgentService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain MCPClient
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/services/channels Channel
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/services/channels HistoryCleaner
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/channels Channel
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/channels HistoryCleaner
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain TaskRetentionService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ChatEventListener
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ChatCompletionRunner
@@ -319,7 +319,7 @@ tasks:
       - "internal/platform/memory/*.go"
       - "internal/platform/storage/*.go"
       - "internal/scheduler/domain/*.go"
-      - "internal/services/channels/*.go"
+      - "internal/channels/*.go"
       - "internal/shortcuts/*.go"
       - "internal/ui/*.go"
       - "internal/ui/autocomplete/*.go"

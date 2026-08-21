@@ -12,6 +12,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // DirectoryFrameSource serves the newest image file under a configured
@@ -84,7 +85,7 @@ func (d *DirectoryFrameSource) GetLatestFrame() (*agentdomain.Frame, error) {
 		Method:    "directory",
 	}
 
-	defer pruneFilesByModTime(d.path, d.maxFiles, d.maxAge, func(e os.DirEntry) bool {
+	defer utils.PruneFilesByModTime(d.path, d.maxFiles, d.maxAge, func(e os.DirEntry) bool {
 		return d.images.IsImageFile(filepath.Join(d.path, e.Name()))
 	})
 

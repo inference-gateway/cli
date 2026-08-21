@@ -1,9 +1,10 @@
-package channels
+package telegram
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	channels "github.com/inference-gateway/cli/internal/channels"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -39,7 +40,7 @@ func TestTelegramChannel_StartRequiresToken(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	inbox := make(chan InboundMessage, 10)
+	inbox := make(chan channels.InboundMessage, 10)
 	err := ch.Start(ctx, inbox)
 
 	if err == nil || !strings.Contains(err.Error(), "bot token is required") {
@@ -261,7 +262,7 @@ func TestProcessUpdate_AudioMessage(t *testing.T) {
 
 func TestApplyVoiceTranscription_DisabledDropsMessage(t *testing.T) {
 	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil, nil)
-	msg := &InboundMessage{Content: "[Voice message]"}
+	msg := &channels.InboundMessage{Content: "[Voice message]"}
 	if ch.applyVoiceTranscription(context.Background(), nil, msg, "voice123") {
 		t.Error("expected applyVoiceTranscription to return false when transcriber is nil")
 	}
@@ -437,7 +438,7 @@ func newMediaChannel(t *testing.T, cfg config.TelegramMediaConfig) *TelegramChan
 
 func TestSaveInboundMedia(t *testing.T) {
 	ch := newMediaChannel(t, config.TelegramMediaConfig{})
-	msg := &InboundMessage{Content: "[Attached image]", Metadata: map[string]string{}}
+	msg := &channels.InboundMessage{Content: "[Attached image]", Metadata: map[string]string{}}
 
 	ch.saveInboundMedia(msg, "image/jpeg", "photos/file_1.jpg", []byte("jpeg-bytes"))
 
@@ -463,7 +464,7 @@ func TestSaveInboundMedia(t *testing.T) {
 func TestSaveInboundMedia_RejectsDisallowedMime(t *testing.T) {
 	ch := newMediaChannel(t, config.TelegramMediaConfig{AllowedMimeTypes: []string{"image/png"}})
 	dir := ch.media.Dir
-	msg := &InboundMessage{Content: "x", Metadata: map[string]string{}}
+	msg := &channels.InboundMessage{Content: "x", Metadata: map[string]string{}}
 
 	ch.saveInboundMedia(msg, "image/jpeg", "photos/file_1.jpg", []byte("jpeg-bytes"))
 
@@ -481,7 +482,7 @@ func TestSaveInboundMedia_RejectsDisallowedMime(t *testing.T) {
 
 func TestSaveInboundMedia_DisabledIsNoOp(t *testing.T) {
 	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil, nil)
-	msg := &InboundMessage{Content: "x", Metadata: map[string]string{}}
+	msg := &channels.InboundMessage{Content: "x", Metadata: map[string]string{}}
 
 	ch.saveInboundMedia(msg, "image/jpeg", "photos/file_1.jpg", []byte("jpeg-bytes"))
 
@@ -501,7 +502,7 @@ func TestDownloadInboundVideo_SavesFile(t *testing.T) {
 	}
 	ch.bot = b
 
-	msg := &InboundMessage{
+	msg := &channels.InboundMessage{
 		Content: "[Attached video]",
 		Metadata: map[string]string{
 			"media_file_id": "video123",
@@ -545,7 +546,7 @@ func TestDownloadInboundVideo_RejectsOversizeBeforeDownload(t *testing.T) {
 	}
 	ch.bot = b
 
-	msg := &InboundMessage{
+	msg := &channels.InboundMessage{
 		Content: "[Attached video]",
 		Metadata: map[string]string{
 			"media_file_id": "video123",
@@ -569,7 +570,7 @@ func TestDownloadInboundVideo_RejectsOversizeBeforeDownload(t *testing.T) {
 func TestTelegramChannel_SendRequiresBot(t *testing.T) {
 	ch := NewTelegramChannel(config.TelegramChannelConfig{}, nil, nil)
 
-	err := ch.Send(context.Background(), OutboundMessage{
+	err := ch.Send(context.Background(), channels.OutboundMessage{
 		RecipientID: "123",
 		Content:     "test",
 	})
@@ -1010,7 +1011,7 @@ func TestClearHistoryRequiresBot(t *testing.T) {
 
 func TestTelegramBotCommands(t *testing.T) {
 	long := strings.Repeat("d", 300)
-	cmds := telegramBotCommands([]ChannelCommand{
+	cmds := telegramBotCommands([]channels.ChannelCommand{
 		{Name: "clear", Description: "ok"},
 		{Name: "Bad-Name", Description: "dropped"},
 		{Name: "UPPER", Description: "dropped"},
@@ -1077,10 +1078,10 @@ func TestSendWithButtons(t *testing.T) {
 	ch := NewTelegramChannel(config.TelegramChannelConfig{BotToken: "test-token"}, nil, nil)
 	ch.bot = b
 
-	err = ch.Send(context.Background(), OutboundMessage{
+	err = ch.Send(context.Background(), channels.OutboundMessage{
 		RecipientID: "99",
 		Content:     "Tap a conversation to switch:",
-		Buttons: []MessageButton{
+		Buttons: []channels.MessageButton{
 			{Text: "Weather talk · 4 msgs", Data: "/conversations abc"},
 			{Text: "Trip planning · 9 msgs", Data: "/conversations def"},
 		},
@@ -1160,7 +1161,7 @@ func TestSendText_NoRetryOnNon400(t *testing.T) {
 	defer srv.Close()
 	ch := newTestChannel(t, srv.URL)
 
-	err := ch.Send(context.Background(), OutboundMessage{RecipientID: "99", Content: "hi"})
+	err := ch.Send(context.Background(), channels.OutboundMessage{RecipientID: "99", Content: "hi"})
 	if err == nil {
 		t.Fatal("expected Send to return the 429 error")
 	}
@@ -1180,7 +1181,7 @@ func TestSendText_RetriesPlainOn400(t *testing.T) {
 	defer srv.Close()
 	ch := newTestChannel(t, srv.URL)
 
-	if err := ch.Send(context.Background(), OutboundMessage{RecipientID: "99", Content: "hi"}); err != nil {
+	if err := ch.Send(context.Background(), channels.OutboundMessage{RecipientID: "99", Content: "hi"}); err != nil {
 		t.Fatalf("expected Send to succeed after plain-text fallback, got %v", err)
 	}
 	got := parseModes()
@@ -1227,7 +1228,7 @@ func TestSendImage_FallsBackToDocumentOnPhotoError(t *testing.T) {
 	defer srv.Close()
 
 	ch := newTestChannel(t, srv.URL)
-	if err := ch.Send(context.Background(), OutboundMessage{
+	if err := ch.Send(context.Background(), channels.OutboundMessage{
 		RecipientID: "99",
 		Content:     "![image](" + imgPath + ")",
 	}); err != nil {
@@ -1248,7 +1249,7 @@ func TestInlineKeyboard_TruncatesLabels(t *testing.T) {
 	if inlineKeyboard(nil) != nil {
 		t.Fatal("expected nil markup for no buttons")
 	}
-	kb := inlineKeyboard([]MessageButton{{Text: strings.Repeat("é", 60), Data: "/x"}})
+	kb := inlineKeyboard([]channels.MessageButton{{Text: strings.Repeat("é", 60), Data: "/x"}})
 	markup, ok := kb.(*models.InlineKeyboardMarkup)
 	if !ok {
 		t.Fatalf("expected InlineKeyboardMarkup, got %T", kb)

@@ -29,7 +29,6 @@ import (
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
 )
 
 // startHeadlessScreenshotServer starts the screenshot capture server and
@@ -216,7 +215,7 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 		logger.Info("rolled over to new session (summary preserved)",
 			"previous_session_id", sessionID, "new_session_id", newID)
 		sessionID = newID
-		history = chatcompletion.BuildAgentMessagesFromEntries(conversationRepo.GetMessages())
+		history = conversation.BuildAgentMessagesFromEntries(conversationRepo.GetMessages())
 	}
 
 	expanded, err := expandFileReferences(opts.Task, opts.Files, svc.GetFileService(), svc.GetImageService(), selectedModel)
@@ -366,7 +365,7 @@ func prepareConversation(ctx context.Context, repo convdomain.ConversationReposi
 		logger.Warn("could not load conversation for --session-id, starting fresh", "session_id", sessionID, "error", err)
 		return nil
 	}
-	return chatcompletion.BuildAgentMessagesFromEntries(persistentRepo.GetMessages())
+	return conversation.BuildAgentMessagesFromEntries(persistentRepo.GetMessages())
 }
 
 func sessionOutcome(err error) string {

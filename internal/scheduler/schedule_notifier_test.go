@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	channels "github.com/inference-gateway/cli/internal/channels"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	channels "github.com/inference-gateway/cli/internal/services/channels"
 )
 
 type notifierFakeChannel struct {

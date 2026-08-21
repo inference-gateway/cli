@@ -1,4 +1,4 @@
-package services
+package telegram
 
 import (
 	"context"
@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
+	chn "github.com/inference-gateway/cli/internal/channels"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	render "github.com/inference-gateway/cli/internal/platform/render"
-	chn "github.com/inference-gateway/cli/internal/services/channels"
 
 	attribute "go.opentelemetry.io/otel/attribute"
 	metric "go.opentelemetry.io/otel/metric"
@@ -27,6 +27,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 )
 
@@ -518,7 +519,7 @@ func pruneSessionImages(sessionID string, retention int) {
 	if retention <= 0 {
 		return
 	}
-	pruneFilesByModTime(sessionImageDir(sessionID), retention, 0, func(e os.DirEntry) bool {
+	utils.PruneFilesByModTime(sessionImageDir(sessionID), retention, 0, func(e os.DirEntry) bool {
 		return strings.HasPrefix(e.Name(), "infer-")
 	})
 }

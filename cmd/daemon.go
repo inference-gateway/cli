@@ -15,15 +15,16 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	audio "github.com/inference-gateway/cli/internal/audio"
+	channels "github.com/inference-gateway/cli/internal/channels"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	telegram "github.com/inference-gateway/cli/internal/presentation/telegram"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	heartbeat "github.com/inference-gateway/cli/internal/scheduler/heartbeat"
 	services "github.com/inference-gateway/cli/internal/services"
-	channels "github.com/inference-gateway/cli/internal/services/channels"
 	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 )
@@ -98,7 +99,7 @@ func RunDaemonCommand(cfg *config.Config) error {
 		AttrToolCallIDKey: cfg.Telemetry.AttrToolCallIDKey,
 	})
 
-	cm := services.NewChannelManagerService(cfg.Channels, tel)
+	cm := telegram.NewChannelManagerService(cfg.Channels, tel)
 
 	var channelCommands []channels.ChannelCommand
 	if cfg.Channels.Enabled {
@@ -218,7 +219,7 @@ func acquireDaemonLock() (func(), error) {
 	return func() { _ = os.Remove(pidPath) }, nil
 }
 
-func startScheduler(ctx context.Context, cm *services.ChannelManagerService, cfg *config.Config) (*scheduler.Service, error) {
+func startScheduler(ctx context.Context, cm *telegram.ChannelManagerService, cfg *config.Config) (*scheduler.Service, error) {
 	if !cfg.Tools.Schedule.Enabled {
 		return nil, nil
 	}
@@ -369,7 +370,7 @@ func startHeartbeat(ctx context.Context, cfg *config.Config) (*heartbeat.Service
 
 // buildVoiceRetention returns a retainer for inbound voice/audio files when
 // speech_to_text.retain_recordings > 0, or nil to disable retention.
-func buildVoiceRetention(cfg config.SpeechToTextConfig) *channels.FileRetention {
+func buildVoiceRetention(cfg config.SpeechToTextConfig) *telegram.FileRetention {
 	if cfg.RetainRecordings <= 0 {
 		return nil
 	}
@@ -379,7 +380,7 @@ func buildVoiceRetention(cfg config.SpeechToTextConfig) *channels.FileRetention 
 		return nil
 	}
 	logger.Info("retaining inbound voice recordings", "dir", dir, "keep", cfg.RetainRecordings)
-	return channels.NewVoiceRetention(dir, cfg.RetainRecordings)
+	return telegram.NewVoiceRetention(dir, cfg.RetainRecordings)
 }
 
 // buildCommandSupport constructs the shortcut registry and storage handles
@@ -440,7 +441,7 @@ func buildChannelShortcutRegistry(cfg *config.Config) *shortcuts.Registry {
 // supportedChannelCommands lists the commands worth advertising natively in a
 // channel's command menu: the daemon built-ins plus custom shortcuts.
 func supportedChannelCommands(reg *shortcuts.Registry) []channels.ChannelCommand {
-	cmds := append([]channels.ChannelCommand{}, services.ChannelBuiltinCommands...)
+	cmds := append([]channels.ChannelCommand{}, telegram.ChannelBuiltinCommands...)
 	for _, sc := range reg.GetAll() {
 		if _, isCustom := sc.(*shortcuts.CustomShortcut); isCustom {
 			cmds = append(cmds, channels.ChannelCommand{Name: sc.GetName(), Description: sc.GetDescription()})
@@ -450,18 +451,18 @@ func supportedChannelCommands(reg *shortcuts.Registry) []channels.ChannelCommand
 }
 
 // registerChannels registers enabled channel implementations with the manager
-func registerChannels(cm *services.ChannelManagerService, cfg *config.Config, commands []channels.ChannelCommand) error {
+func registerChannels(cm *telegram.ChannelManagerService, cfg *config.Config, commands []channels.ChannelCommand) error {
 	registered := 0
 
 	if cfg.Channels.Telegram.Enabled {
-		var transcriber channels.VoiceTranscriber
-		var retention *channels.FileRetention
+		var transcriber telegram.VoiceTranscriber
+		var retention *telegram.FileRetention
 		if cfg.SpeechToText.Enabled {
 			transcriber = audio.NewFileTranscriber(cfg.SpeechToText)
 			retention = buildVoiceRetention(cfg.SpeechToText)
 			logger.Info("speech-to-text enabled for inbound voice messages", "model", cfg.SpeechToText.Model)
 		}
-		telegramCh := channels.NewTelegramChannel(cfg.Channels.Telegram, transcriber, retention)
+		telegramCh := telegram.NewTelegramChannel(cfg.Channels.Telegram, transcriber, retention)
 		telegramCh.SetCommands(commands)
 		cm.Register(telegramCh)
 		registered++

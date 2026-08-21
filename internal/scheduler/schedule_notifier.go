@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	channels "github.com/inference-gateway/cli/internal/channels"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	channels "github.com/inference-gateway/cli/internal/services/channels"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )

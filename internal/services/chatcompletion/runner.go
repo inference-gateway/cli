@@ -15,6 +15,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -85,7 +86,7 @@ func (r *Runner) Start(holder agentdomain.BashDetachChannelHolder) tea.Cmd {
 		}
 
 		entries := r.conversationRepo.GetMessages()
-		messages := BuildAgentMessagesFromEntries(entries)
+		messages := conversation.BuildAgentMessagesFromEntries(entries)
 
 		requestID := generateRequestID()
 
@@ -491,73 +492,6 @@ func (r *Runner) addModelRestorationWarning(originalModel string) {
 	if err := r.conversationRepo.AddMessage(warningEntry); err != nil {
 		logger.Error("failed to add model restoration warning message", "error", err)
 	}
-}
-
-// BuildAgentMessagesFromEntries converts conversation entries into the flat
-// slice of SDK messages sent to the model.
-//
-// Three classes of entries are filtered:
-//
-//  1. Plan-mode entries (entry.IsPlan): synthesized assistant messages used
-//     for UI rendering only; their content duplicates the args of the
-//     preceding RequestPlanApproval tool call.
-//  2. User-initiated bash entries: synthetic assistant + tool pairs created
-//     when the user types `!command` directly in chat. Their assistant
-//     side has tool_calls but no reasoning_content (the user, not the
-//     model, generated them).
-//  3. Pending-approval placeholders (entry.PendingToolCall != nil): UI-only
-//     empty assistant entries added while a tool awaits approval. On
-//     rejection they stay in the repo; serializing one between an assistant
-//     tool_calls message and its tool response breaks the provider's
-//     adjacency requirement ("Messages with role 'tool' must be a response
-//     to a preceding message with 'tool_calls'", issue #786).
-//     SaveConversation applies the same filter for disk persistence.
-//
-// Sending the first two to a thinking-mode provider (DeepSeek, etc.)
-// produces an assistant turn lacking `reasoning_content`, which is rejected
-// with HTTP 400 ("The reasoning_content in the thinking mode must be passed
-// back to the API.").
-func BuildAgentMessagesFromEntries(entries []convdomain.ConversationEntry) []sdk.Message {
-	messages := make([]sdk.Message, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsPlan {
-			continue
-		}
-		if isUserInitiatedBashEntry(entry) {
-			continue
-		}
-		if entry.PendingToolCall != nil {
-			continue
-		}
-		msg := entry.Message
-		if entry.ReasoningContent != "" && msg.Reasoning == nil && msg.ReasoningContent == nil {
-			rc := entry.ReasoningContent
-			msg.Reasoning = &rc
-			msg.ReasoningContent = &rc
-		}
-		messages = append(messages, msg)
-	}
-	return messages
-}
-
-// isUserInitiatedBashEntry reports whether the entry was synthesized for a
-// user-typed `!command` shortcut. Tool-call IDs created by that path are
-// prefixed with `user-bash-` (see DirectExecutionService).
-func isUserInitiatedBashEntry(entry convdomain.ConversationEntry) bool {
-	const userBashPrefix = "user-bash-"
-
-	if entry.Message.ToolCallID != nil && strings.HasPrefix(*entry.Message.ToolCallID, userBashPrefix) {
-		return true
-	}
-
-	if entry.Message.ToolCalls != nil {
-		for _, tc := range *entry.Message.ToolCalls {
-			if strings.HasPrefix(tc.ID, userBashPrefix) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // generateRequestID produces a unique id for a chat request, matching the

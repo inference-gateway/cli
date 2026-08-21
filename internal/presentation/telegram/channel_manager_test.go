@@ -1,4 +1,4 @@
-package services
+package telegram
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	channels "github.com/inference-gateway/cli/internal/channels"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
-	channels "github.com/inference-gateway/cli/internal/services/channels"
 	channelmocks "github.com/inference-gateway/cli/tests/mocks/channels"
 
 	config "github.com/inference-gateway/cli/config"

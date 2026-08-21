@@ -1,4 +1,4 @@
-package services
+package telegram
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	channels "github.com/inference-gateway/cli/internal/services/channels"
+	channels "github.com/inference-gateway/cli/internal/channels"
 
 	uuid "github.com/google/uuid"
 	sdk "github.com/inference-gateway/sdk"
