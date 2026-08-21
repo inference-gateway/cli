@@ -1,6 +1,7 @@
 package project
 
 import (
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -53,6 +54,9 @@ func TestParseRemoteURL(t *testing.T) {
 
 func TestDetect(t *testing.T) {
 	t.Run("git repo yields org/repo identity", func(t *testing.T) {
+		if err := exec.Command("git", "rev-parse", "--git-dir").Run(); err != nil {
+			t.Skip("not in a git repo (e.g. sandboxed build)")
+		}
 		id := detect()
 		if id.Name != "inference-gateway/cli" || id.Slug != "inference-gateway-cli" {
 			t.Fatalf("detect() = %+v, want inference-gateway/cli identity", id)

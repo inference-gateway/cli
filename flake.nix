@@ -16,7 +16,7 @@
       system:
       let
         pkgs = import nixpkgs { inherit system; };
-        inherit (pkgs) lib stdenv;
+        inherit (pkgs) lib;
 
         version = "0.177.0";
 
@@ -46,7 +46,7 @@
               );
           };
 
-          vendorHash = "sha256-JngVb63yCwcw4+pAR+FwGuLceUSchSpAAj7QbQwDrpY=";
+          vendorHash = "sha256-2urSnm3b5amre7UxCyu5kbph/ke6rQMQMl5zJ6LZvPw=";
 
           goSum = ./go.sum;
 
@@ -54,7 +54,7 @@
 
           env.CGO_ENABLED = "0";
 
-          tags = lib.optionals stdenv.hostPlatform.isDarwin [ "mac" ];
+          tags = [ "purego" ];
 
           ldflags = [
             "-s"
