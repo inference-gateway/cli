@@ -17,7 +17,7 @@ staged="$(git diff --cached --name-only)"
 
 task mod:tidy
 
-if printf '%s\n' "$staged" | grep -qE '^internal/(agent/(application|domain|states)|conversation/domain|platform/(memory|storage)|scheduler/domain|services/channels|shortcuts|ui)/'; then
+if printf '%s\n' "$staged" | grep -qE '^internal/(agent/(application|domain|states)|channels|conversation/domain|platform/(memory|storage)|presentation/(shortcuts|tui)|scheduler/domain)/'; then
   task mocks:generate
 fi
 

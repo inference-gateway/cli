@@ -35,15 +35,21 @@ The agent is an **event-driven state machine** (`internal/agent/agent_state_mach
 - `internal/agent/` — the core domain. `agent/domain/` is the shared kernel (Tool contract, tool-call value types, chat events, hooks, frames/annotations, service ports like `FileService`/`MCPManager`/`SkillsService`); `agent/states/` holds the state-machine contracts and per-state executors; `agent/application/` holds adk-coupled A2A contracts and `agentrunner`; `agent/infrastructure/` holds the lipgloss tool formatter. `agent/tools/registry.go` is the source of truth for registered tools; capability packages register theirs via `Registry.RegisterTools`.
 - `internal/conversation/` — conversation context: `domain/` (ConversationEntry, repository/optimizer/model/pricing/queue contracts, sessions) + application services (persistent/in-memory repos, tokenizer, rollover, title generation, event bridge).
 - `internal/scheduler/` — background-work context: `domain/` (scheduled jobs, background jobs, shell/subagent tracking, task retention) + cron scheduler, job supervisor (`jobs/`), `githubscheduler/`, `heartbeat/`.
-- `internal/browser/`, `internal/computer/` — capabilities plugged into the agent through the `agentdomain.Tool` contract, each with a pure `domain/` and an `infrastructure/` (Playwright only under `browser/infrastructure`; robotgo and display backends only under `computer/infrastructure`). They never import `agent/tools`, `services`, or `ui`.
+- `internal/browser/`, `internal/computer/` — capabilities plugged into the agent through the `agentdomain.Tool` contract, each with a pure `domain/` and an `infrastructure/` (Playwright only under `browser/infrastructure`; robotgo and display backends only under `computer/infrastructure`). They never import `agent/tools`, `services`, or `presentation`.
 - `internal/audio/` — capability: recording, conversion, and whisper.cpp speech-to-text.
 - `internal/platform/` — shared platform layer: `logger`, `constants`, `formatting`, `telemetry`, `utils`, `project`, `models`, `streamevent`, `render`, `storage` (+migrations), `memory`, `adapters`, `ipc`, `container` (docker/podman runtime contract).
-- `internal/services/` — remaining application services (channels, MCP manager, filewriter, skills) pending the presentation regroup (issue #1087 phases 6–7).
-- `internal/ui/` — Bubble Tea presentation: `ApplicationState`, view/manager contracts, UI events, theming. Only presentation packages may import it.
+- `internal/channels/` — external messaging ports (`Channel`, `InboundMessage`, `OutboundMessage`). Consumed by the scheduler and the Telegram surface; carries no driver.
+- `internal/services/` — the shrinking remainder: gateway manager, MCP manager, A2A agent manager, skills, plugins, filewriter, gitdiff, github setup/issues, provisioner. Each of these belongs in its own context; they are being promoted one at a time.
+- `internal/presentation/` — every user-facing surface, and the only place bubbletea, go-telegram and terminal styling appear:
+  - `tui/` (package `tui`) — `ApplicationState`, view/manager contracts, UI events, theming; `tui/app` is the Bubble Tea root model, `tui/handlers` the event handlers, `tui/{a2acoord,approvalcoord,chatcompletion,directexec,eventlistener,toolcoordinator}` the `tea.Cmd` coordinators, `tui/statemanager` the shared chat state, `tui/toolformatter` the styled tool renderer.
+  - `shortcuts/` — the `/`-command registry, shared by the TUI and Telegram.
+  - `web/` — the xterm.js terminal server. `telegram/` — the go-telegram driver plus channel routing. `headless/` — `headless.Run` and the stdin IPC control loop.
+- `cmd/` — thin cobra wiring: parse flags, build config, delegate to a presentation surface.
 
-Import direction: `*/domain` packages import nothing internal (agent/domain is the bottom); other domains may import `agent/domain`; capabilities import domains + platform only; `services` sits above domains and `ui`; `container` and `cmd` compose everything.
+Import direction: `*/domain` packages import nothing internal (agent/domain is the bottom); other domains may import `agent/domain`; capabilities import domains + platform only; nothing outside `internal/presentation/` may import it or bubbletea. `internal/container` and `cmd` are composition roots and compose everything. **This is enforced by `depguard` in `.golangci.yml`, not just documented** — a violating import fails `task lint`.
 
 ## Testing
+
 
 - Use Go's standard `testing` package. Colocate `_test.go` files with the package under test.
 - **Mocks** use [counterfeiter](https://github.com/maxbrunsfeld/counterfeiter) and live in `tests/mocks/` — they are **committed** to the repo.

@@ -413,7 +413,7 @@ type Channel interface {
 ### Step-by-Step
 
 1. **Create the implementation** in
-   `internal/services/channels/your_channel.go`:
+   `internal/presentation/telegram/your_channel.go`:
 
 ```go
 package channels
@@ -474,7 +474,7 @@ case "mychannel":
     allowedUsers = cm.cfg.MyChannel.AllowedUsers
 ```
 
-5. **Write tests** in `internal/services/channels/your_channel_test.go`
+5. **Write tests** in `internal/presentation/telegram/your_channel_test.go`
 
 ## Supported Channels
 

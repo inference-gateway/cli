@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 	"os"
 	"path/filepath"
 	"time"
@@ -13,8 +14,7 @@ import (
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	services "github.com/inference-gateway/cli/internal/services"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
 var exportCmd = &cobra.Command{
@@ -49,7 +49,7 @@ func runExport(sessionID string) error {
 	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 	themeService := styles.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)
-	toolFormatterService := services.NewToolFormatterService(toolRegistry, styleProvider)
+	toolFormatterService := toolformatter.NewToolFormatterService(toolRegistry, styleProvider)
 	pricingService := conversation.NewPricingService(&cfg.Pricing)
 	persistentRepo := conversation.NewPersistentConversationRepository(toolFormatterService, pricingService, stores.Conversations)
 

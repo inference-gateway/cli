@@ -7,7 +7,6 @@ import (
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	ui "github.com/inference-gateway/cli/internal/ui"
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -220,7 +219,7 @@ func TestMCPManager_PushesStatusThroughNotifier(t *testing.T) {
 	if got := rec.count(); got != 1 {
 		t.Fatalf("expected 1 push, got %d", got)
 	}
-	ev, ok := rec.events[0].(ui.MCPServerStatusUpdateEvent)
+	ev, ok := rec.events[0].(agentdomain.MCPServerStatusUpdateEvent)
 	if !ok {
 		t.Fatalf("expected MCPServerStatusUpdateEvent, got %T", rec.events[0])
 	}

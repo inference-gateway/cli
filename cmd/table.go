@@ -7,9 +7,9 @@ import (
 	table "charm.land/lipgloss/v2/table"
 
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
-	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
+	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )
 
 // Shared styling for non-TUI `infer ... list` command output. These draw from

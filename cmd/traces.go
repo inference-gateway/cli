@@ -9,8 +9,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 )
 
 var tracesCmd = &cobra.Command{

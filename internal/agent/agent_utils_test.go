@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +14,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
@@ -455,7 +455,7 @@ func TestBuildToolsInfo(t *testing.T) {
 				s.toolService = fake
 			}
 			if tt.stateMode != nil {
-				sm := services.NewStateManager(false)
+				sm := statemanager.NewStateManager(false)
 				sm.SetAgentMode(*tt.stateMode)
 				s.stateManager = sm
 			}

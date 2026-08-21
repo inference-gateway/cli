@@ -12,7 +12,7 @@ import (
 )
 
 // Status glyphs shared by the formatters. Plain runes, no styling: color is
-// applied by the UI layer (services.ToolFormatterService), never here.
+// applied by the UI layer (toolformatter.ToolFormatterService), never here.
 const (
 	checkMark = "✓"
 	crossMark = "✗"

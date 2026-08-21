@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 

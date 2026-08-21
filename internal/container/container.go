@@ -3,6 +3,8 @@ package container
 import (
 	"context"
 	"fmt"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 	"net"
 	"net/http"
 	"os"
@@ -36,21 +38,21 @@ import (
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	a2acoord "github.com/inference-gateway/cli/internal/presentation/tui/a2acoord"
+	approvalcoord "github.com/inference-gateway/cli/internal/presentation/tui/approvalcoord"
+	chatcompletion "github.com/inference-gateway/cli/internal/presentation/tui/chatcompletion"
+	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
+	eventlistener "github.com/inference-gateway/cli/internal/presentation/tui/eventlistener"
+	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	toolcoordinator "github.com/inference-gateway/cli/internal/presentation/tui/toolcoordinator"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 	services "github.com/inference-gateway/cli/internal/services"
-	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
-	approvalcoord "github.com/inference-gateway/cli/internal/services/approvalcoord"
-	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
-	directexec "github.com/inference-gateway/cli/internal/services/directexec"
-	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	githubissues "github.com/inference-gateway/cli/internal/services/githubissues"
 	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
-	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
-	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	ui "github.com/inference-gateway/cli/internal/ui"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // GatewayManager manages the lifecycle of the gateway (container or binary)
@@ -118,7 +120,7 @@ type ServiceContainer struct {
 	agentManager           agentdomain.AgentManager
 
 	// Services
-	stateManager *services.StateManager
+	stateManager *statemanager.StateManager
 
 	// Background services
 	titleGenerator         *conversation.ConversationTitleGenerator
@@ -134,7 +136,7 @@ type ServiceContainer struct {
 	tokenizer *conversation.TokenizerService
 
 	// UI components
-	themeService ui.ThemeService
+	themeService tui.ThemeService
 
 	// Extensibility
 	shortcutRegistry *shortcuts.Registry
@@ -148,12 +150,12 @@ type ServiceContainer struct {
 	// Chat orchestration services - extracted from internal/handlers/chat_handler.go.
 	// Constructed unconditionally; A2A-specific deps inside the
 	// services are nil-safe when A2A is disabled.
-	chatEventListener        ui.ChatEventListener
-	a2aTaskCoordinator       ui.A2ATaskCoordinator
-	approvalCoordinator      ui.ApprovalCoordinator
+	chatEventListener        tui.ChatEventListener
+	a2aTaskCoordinator       tui.A2ATaskCoordinator
+	approvalCoordinator      tui.ApprovalCoordinator
 	chatCompletionRunner     *chatcompletion.Runner
-	directExecutionService   ui.DirectExecutionService
-	toolExecutionCoordinator ui.ToolExecutionCoordinator
+	directExecutionService   tui.DirectExecutionService
+	toolExecutionCoordinator tui.ToolExecutionCoordinator
 	uiNotifier               *uiNotifierHolder
 	extensionBridge          *browserinfra.ExtensionBridge
 	browserDriver            browserdomain.BrowserDriver
@@ -344,7 +346,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 
 	c.agentManager.SetStatusCallback(func(agentName string, state agentdomain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
-		c.uiNotifier.Notify(ui.AgentStatusUpdateEvent{
+		c.uiNotifier.Notify(tui.AgentStatusUpdateEvent{
 			AgentName: agentName,
 			State:     state,
 			Message:   message,
@@ -355,7 +357,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 
 	c.agentManager.SetPullProgressCallback(func(name string, done, total int) {
 		c.stateManager.UpdateAgentPullProgress(name, done, total)
-		c.uiNotifier.Notify(ui.AgentStatusUpdateEvent{AgentName: name, State: agentdomain.AgentStatePullingImage})
+		c.uiNotifier.Notify(tui.AgentStatusUpdateEvent{AgentName: name, State: agentdomain.AgentStatePullingImage})
 	})
 
 	ctx := context.Background()
@@ -427,7 +429,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 
 	styleProvider := styles.NewProvider(c.themeService)
-	toolFormatterService := services.NewToolFormatterService(c.toolRegistry, styleProvider)
+	toolFormatterService := toolformatter.NewToolFormatterService(c.toolRegistry, styleProvider)
 	toolFormatterService.SetMaxResultBytes(c.config.Tools.MaxResultBytes)
 
 	groupStore := c.initializeStorageBackend(stores, storageConfig, toolFormatterService, err)
@@ -531,7 +533,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 func (c *ServiceContainer) initializeStorageBackend(
 	stores *storage.Stores,
 	storageConfig storage.StorageConfig,
-	toolFormatterService *services.ToolFormatterService,
+	toolFormatterService *toolformatter.ToolFormatterService,
 	err error,
 ) storage.SessionGroupStorage {
 	if err != nil {
@@ -565,7 +567,7 @@ func (c *ServiceContainer) initializeStorageBackend(
 // storage on the implicit default path.
 func (c *ServiceContainer) handleStorageInitFailure(
 	storageConfig storage.StorageConfig,
-	toolFormatterService *services.ToolFormatterService,
+	toolFormatterService *toolformatter.ToolFormatterService,
 	err error,
 ) {
 	if c.config.Storage.Enabled && storageConfig.Type != config.StorageTypeMemory {
@@ -590,7 +592,7 @@ func (c *ServiceContainer) handleStorageInitFailure(
 // initializeStateManager creates the state manager before domain services need it
 func (c *ServiceContainer) initializeStateManager() {
 	debugMode := c.config.Logging.Debug
-	stateManager := services.NewStateManager(debugMode)
+	stateManager := statemanager.NewStateManager(debugMode)
 	stateManager.SetStallThreshold(time.Duration(c.config.Client.StallThresholdSec) * time.Second)
 	c.stateManager = stateManager
 }
@@ -808,7 +810,7 @@ func (c *ServiceContainer) PricingService() convdomain.PricingService {
 	return c.pricingService
 }
 
-func (c *ServiceContainer) GetThemeService() ui.ThemeService {
+func (c *ServiceContainer) GetThemeService() tui.ThemeService {
 	return c.themeService
 }
 
@@ -816,7 +818,7 @@ func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {
 	return c.shortcutRegistry
 }
 
-func (c *ServiceContainer) GetStateManager() *services.StateManager {
+func (c *ServiceContainer) GetStateManager() *statemanager.StateManager {
 	return c.stateManager
 }
 
@@ -856,30 +858,30 @@ func (c *ServiceContainer) GetMCPManager() agentdomain.MCPManager {
 }
 
 // GetA2ATaskCoordinator returns the A2A task lifecycle event coordinator.
-func (c *ServiceContainer) GetA2ATaskCoordinator() ui.A2ATaskCoordinator {
+func (c *ServiceContainer) GetA2ATaskCoordinator() tui.A2ATaskCoordinator {
 	return c.a2aTaskCoordinator
 }
 
 // GetApprovalCoordinator returns the plan-approval / computer-use pause-resume
 // coordinator.
-func (c *ServiceContainer) GetApprovalCoordinator() ui.ApprovalCoordinator {
+func (c *ServiceContainer) GetApprovalCoordinator() tui.ApprovalCoordinator {
 	return c.approvalCoordinator
 }
 
 // GetChatCompletionRunner returns the LLM streaming lifecycle runner.
-func (c *ServiceContainer) GetChatCompletionRunner() ui.ChatCompletionRunner {
+func (c *ServiceContainer) GetChatCompletionRunner() tui.ChatCompletionRunner {
 	return c.chatCompletionRunner
 }
 
 // GetDirectExecutionService returns the user-typed !command / !!Tool(...)
 // execution service. Also satisfies BashDetachChannelHolder.
-func (c *ServiceContainer) GetDirectExecutionService() ui.DirectExecutionService {
+func (c *ServiceContainer) GetDirectExecutionService() tui.DirectExecutionService {
 	return c.directExecutionService
 }
 
 // GetToolExecutionCoordinator returns the tool round-trip coordinator (tool
 // approval, streaming-status, execution progress, active-tool tracking).
-func (c *ServiceContainer) GetToolExecutionCoordinator() ui.ToolExecutionCoordinator {
+func (c *ServiceContainer) GetToolExecutionCoordinator() tui.ToolExecutionCoordinator {
 	return c.toolExecutionCoordinator
 }
 

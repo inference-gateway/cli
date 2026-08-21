@@ -1,0 +1,1073 @@
+package autocomplete
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+
+	key "charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
+)
+
+// autocompleteKeys holds the key.Binding set for the autocomplete overlay.
+var autocompleteKeys = struct {
+	navUp   key.Binding
+	navDown key.Binding
+	tab     key.Binding
+	enter   key.Binding
+	esc     key.Binding
+}{
+	navUp:   key.NewBinding(key.WithKeys("up", "ctrl+p")),
+	navDown: key.NewBinding(key.WithKeys("down", "ctrl+n")),
+	tab:     key.NewBinding(key.WithKeys("tab")),
+	enter:   key.NewBinding(key.WithKeys("enter")),
+	esc:     key.NewBinding(key.WithKeys("esc")),
+}
+
+// ShortcutOption represents a shortcut option for autocomplete
+type ShortcutOption struct {
+	Shortcut    string
+	Description string
+	Usage       string
+	Catalog     bool
+}
+
+// ShortcutRegistry interface for dependency injection
+type ShortcutRegistry interface {
+	GetAll() []shortcuts.Shortcut
+}
+
+// AutocompleteImpl implements inline autocomplete functionality
+type AutocompleteImpl struct {
+	suggestions          []ShortcutOption
+	filtered             []ShortcutOption
+	selected             int
+	visible              bool
+	query                string
+	theme                tui.Theme
+	width                int
+	height               int
+	maxVisible           int
+	shortcutRegistry     ShortcutRegistry
+	skillsService        agentdomain.SkillsService
+	stateManager         agentdomain.AgentModeManager
+	lastAgentMode        agentdomain.AgentMode
+	toolService          agentdomain.ToolService
+	modelService         convdomain.ModelService
+	pricingService       convdomain.PricingService
+	githubIssueService   agentdomain.GitHubIssueService
+	completionMode       string
+	usageHint            string
+	splicePrefix         string
+	spliceSuffix         string
+	lastCompletionCursor int
+}
+
+// NewAutocomplete creates a new autocomplete component
+func NewAutocomplete(theme tui.Theme, shortcutRegistry ShortcutRegistry) *AutocompleteImpl {
+	return &AutocompleteImpl{
+		suggestions:      []ShortcutOption{},
+		filtered:         []ShortcutOption{},
+		selected:         0,
+		visible:          false,
+		query:            "",
+		theme:            theme,
+		width:            80,
+		maxVisible:       5,
+		shortcutRegistry: shortcutRegistry,
+		toolService:      nil,
+	}
+}
+
+// SetToolService sets the tool service for tool autocomplete
+func (a *AutocompleteImpl) SetToolService(toolService agentdomain.ToolService) {
+	a.toolService = toolService
+}
+
+// SetSkillsService sets the skills service so installed skills appear in the
+// slash-command autocomplete alongside shortcuts.
+func (a *AutocompleteImpl) SetSkillsService(skillsService agentdomain.SkillsService) {
+	a.skillsService = skillsService
+}
+
+// SetStateManager sets the state manager for agent mode filtering
+func (a *AutocompleteImpl) SetStateManager(stateManager agentdomain.AgentModeManager) {
+	a.stateManager = stateManager
+}
+
+// SetModelService sets the model service for model autocomplete
+func (a *AutocompleteImpl) SetModelService(modelService convdomain.ModelService) {
+	a.modelService = modelService
+}
+
+// SetPricingService sets the pricing service for model pricing display
+func (a *AutocompleteImpl) SetPricingService(pricingService convdomain.PricingService) {
+	a.pricingService = pricingService
+}
+
+// SetGitHubIssueService sets the GitHub issue lookup used by the "#"
+// autocomplete trigger. Safe to call with nil; the trigger then shows nothing.
+func (a *AutocompleteImpl) SetGitHubIssueService(s agentdomain.GitHubIssueService) {
+	a.githubIssueService = s
+}
+
+// loadGitHubIssues populates the suggestion list with open issues from the
+// current repo. Bounded to a 2-second shell-out timeout so the Bubble Tea
+// Update goroutine doesn't stall on a slow gh call.
+func (a *AutocompleteImpl) loadGitHubIssues() {
+	a.suggestions = []ShortcutOption{}
+	if a.githubIssueService == nil || !a.githubIssueService.IsAvailable() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	issues, err := a.githubIssueService.ListIssues(ctx)
+	if err != nil {
+		return
+	}
+	a.suggestions = make([]ShortcutOption, 0, len(issues))
+	for _, iss := range issues {
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    fmt.Sprintf("#%d", iss.Number),
+			Description: iss.Title,
+			Usage:       "",
+		})
+	}
+}
+
+// loadModels loads available models from the model service
+func (a *AutocompleteImpl) loadModels() {
+	if a.modelService == nil {
+		return
+	}
+
+	a.suggestions = []ShortcutOption{}
+	ctx := context.Background()
+
+	models, err := a.modelService.ListModels(ctx)
+	if err != nil {
+		return
+	}
+
+	for _, model := range models {
+		description := ""
+		if a.pricingService != nil {
+			description = convdomain.FormatModelPricingLabel(a.pricingService, model)
+		}
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    model,
+			Description: description,
+			Usage:       "",
+		})
+	}
+}
+
+// loadShortcuts loads shortcuts from the registry
+func (a *AutocompleteImpl) loadShortcuts() {
+	if a.shortcutRegistry == nil {
+		return
+	}
+
+	a.suggestions = []ShortcutOption{}
+	seen := make(map[string]bool)
+	shortcuts := a.shortcutRegistry.GetAll()
+
+	for _, shortcut := range shortcuts {
+		seen[shortcut.GetName()] = true
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    "/" + shortcut.GetName(),
+			Description: shortcut.GetDescription(),
+			Usage:       shortcut.GetUsage(),
+		})
+	}
+
+	a.appendSkills(seen)
+}
+
+// appendSkills adds installed skills to the suggestion list as "/<name>"
+// entries so they autocomplete like shortcuts. Skills are invoked as
+// "/<name> ..." and routed to the agent (see isSkillInvocation). A skill whose
+// name already matches a registered shortcut is skipped to avoid duplicates.
+// Plugin skills are displayed as "/<pluginName>:<skillName>" so the user can
+// reference them unambiguously.
+func (a *AutocompleteImpl) appendSkills(seen map[string]bool) {
+	if a.skillsService == nil {
+		return
+	}
+
+	for _, skill := range a.skillsService.List() {
+		displayName := skill.DisplayName()
+		if seen[displayName] {
+			continue
+		}
+		seen[displayName] = true
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    "/" + displayName,
+			Description: skill.Description,
+			Usage:       "",
+			Catalog:     skill.Path == "",
+		})
+	}
+}
+
+// loadSkillsOnly populates the suggestion list with skills only - no
+// registered shortcuts. Used by the mid-text "/" trigger because shortcuts
+// are commands that only make sense at start-of-input, while skills are
+// agent capabilities that can be referenced anywhere in a sentence.
+// Plugin skills are displayed as "/<pluginName>:<skillName>" so the user can
+// reference them unambiguously.
+func (a *AutocompleteImpl) loadSkillsOnly() {
+	a.suggestions = []ShortcutOption{}
+	if a.skillsService == nil {
+		return
+	}
+	for _, skill := range a.skillsService.List() {
+		displayName := skill.DisplayName()
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    "/" + displayName,
+			Description: skill.Description,
+			Usage:       "",
+			Catalog:     skill.Path == "",
+		})
+	}
+}
+
+// SubcommandProvider is an interface for shortcuts that provide subcommands
+type SubcommandProvider interface {
+	GetSubcommands() []shortcuts.Subcommand
+}
+
+// loadSubcommands loads subcommands for a specific shortcut
+func (a *AutocompleteImpl) loadSubcommands(shortcutName string) {
+	if a.shortcutRegistry == nil {
+		return
+	}
+
+	a.suggestions = []ShortcutOption{}
+	allShortcuts := a.shortcutRegistry.GetAll()
+
+	for _, shortcut := range allShortcuts {
+		if shortcut.GetName() == shortcutName {
+			if provider, ok := shortcut.(SubcommandProvider); ok {
+				subcommands := provider.GetSubcommands()
+				for _, subCmd := range subcommands {
+					a.suggestions = append(a.suggestions, ShortcutOption{
+						Shortcut:    subCmd.Name,
+						Description: subCmd.Description,
+						Usage:       fmt.Sprintf("/%s %s", shortcutName, subCmd.Name),
+					})
+				}
+			}
+			break
+		}
+	}
+}
+
+// loadTools loads tools from the tool service with their required parameters
+func (a *AutocompleteImpl) loadTools() {
+	if a.toolService == nil {
+		return
+	}
+
+	a.suggestions = []ShortcutOption{}
+
+	mode := agentdomain.AgentModeStandard
+	if a.stateManager != nil {
+		mode = a.stateManager.GetAgentMode()
+	}
+
+	for _, toolDef := range a.toolService.ListToolsForMode(mode) {
+		toolName := toolDef.Function.Name
+		if toolName == "RequestPlanApproval" {
+			// The plan-submission tool isn't a meaningful manual !! command.
+			continue
+		}
+
+		description := "Execute " + toolName + " tool directly"
+		if hints := a.generateParameterHints(toolDef); hints != "" {
+			description += " - args: " + hints
+		}
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    a.generateToolTemplate(toolDef),
+			Description: description,
+			Usage:       "",
+		})
+	}
+}
+
+// generateToolTemplate creates a complete tool template with required arguments
+func (a *AutocompleteImpl) generateToolTemplate(toolDef sdk.ChatCompletionTool) string {
+	return "!!" + toolDef.Function.Name + "(" + a.generateToolArguments(toolDef) + ")"
+}
+
+// generateToolArguments builds the comma-separated argument skeleton that goes
+// inside the parentheses. It prefers top-level "required" properties, then
+// falls back to all top-level properties so one-of / all-optional schemas
+// (like the Agent tool) still surface their meaningful arguments.
+func (a *AutocompleteImpl) generateToolArguments(toolDef sdk.ChatCompletionTool) string {
+	if toolDef.Function.Parameters == nil {
+		return ""
+	}
+	params := map[string]any(*toolDef.Function.Parameters)
+	if requiredArgs := a.extractRequiredArguments(params); len(requiredArgs) > 0 {
+		return strings.Join(requiredArgs, ", ")
+	}
+	return strings.Join(a.extractAllProperties(params), ", ")
+}
+
+// extractRequiredArguments extracts required arguments from parameters
+func (a *AutocompleteImpl) extractRequiredArguments(params map[string]any) []string {
+	var requiredArgs []string
+
+	var properties map[string]any
+	if props, ok := params["properties"].(map[string]any); ok {
+		properties = props
+	}
+
+	if requiredRaw, exists := params["required"]; exists {
+		switch required := requiredRaw.(type) {
+		case []any:
+			requiredArgs = a.processAnySlice(required, properties)
+		case []string:
+			requiredArgs = a.processStringSlice(required, properties)
+		}
+	}
+
+	return requiredArgs
+}
+
+// extractAllProperties builds argument templates for every top-level property,
+// sorted by name for deterministic output. Used as the fallback when a schema
+// has no top-level "required" array (one-of / all-optional schemas like the
+// Agent tool), so the skeleton still shows the tool's meaningful arguments.
+// Returns nil when there are no properties.
+func (a *AutocompleteImpl) extractAllProperties(params map[string]any) []string {
+	properties, ok := params["properties"].(map[string]any)
+	if !ok || len(properties) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(properties))
+	for name := range properties {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	args := make([]string, 0, len(names))
+	for _, name := range names {
+		args = append(args, a.generateArgumentTemplate(name, properties))
+	}
+	return args
+}
+
+// generateParameterHints builds a compact, sorted parameter list of the form
+// "name (type, required|optional)" from the tool's top-level schema, so the
+// dropdown description surfaces what to pass even when the schema has no
+// top-level "required". Returns "" when the tool has no parameters.
+func (a *AutocompleteImpl) generateParameterHints(toolDef sdk.ChatCompletionTool) string {
+	if toolDef.Function.Parameters == nil {
+		return ""
+	}
+	params := map[string]any(*toolDef.Function.Parameters)
+	properties, ok := params["properties"].(map[string]any)
+	if !ok || len(properties) == 0 {
+		return ""
+	}
+
+	required := make(map[string]bool)
+	switch reqRaw := params["required"].(type) {
+	case []any:
+		for _, r := range reqRaw {
+			if s, ok := r.(string); ok {
+				required[s] = true
+			}
+		}
+	case []string:
+		for _, s := range reqRaw {
+			required[s] = true
+		}
+	}
+
+	names := make([]string, 0, len(properties))
+	for name := range properties {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		typ := "any"
+		if propDef, ok := properties[name].(map[string]any); ok {
+			if t, ok := propDef["type"].(string); ok && t != "" {
+				typ = t
+			}
+		}
+		qualifier := "optional"
+		if required[name] {
+			qualifier = "required"
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s, %s)", name, typ, qualifier))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// processAnySlice processes a slice of any type for required arguments
+func (a *AutocompleteImpl) processAnySlice(required []any, properties map[string]any) []string {
+	var args []string
+	for _, req := range required {
+		if reqStr, ok := req.(string); ok {
+			argTemplate := a.generateArgumentTemplate(reqStr, properties)
+			if argTemplate != "" {
+				args = append(args, argTemplate)
+			}
+		}
+	}
+	return args
+}
+
+// processStringSlice processes a slice of strings for required arguments
+func (a *AutocompleteImpl) processStringSlice(required []string, properties map[string]any) []string {
+	var args []string
+	for _, req := range required {
+		argTemplate := a.generateArgumentTemplate(req, properties)
+		if argTemplate != "" {
+			args = append(args, argTemplate)
+		}
+	}
+	return args
+}
+
+// generateArgumentTemplate creates the appropriate template for a parameter based on its type
+func (a *AutocompleteImpl) generateArgumentTemplate(paramName string, properties map[string]any) string {
+	if properties == nil {
+		return paramName + "=\"\""
+	}
+
+	if paramDef, ok := properties[paramName].(map[string]any); ok {
+		if paramType, ok := paramDef["type"].(string); ok {
+			switch paramType {
+			case "string":
+				return paramName + "=\"\""
+			case "integer":
+				return paramName + "=0"
+			case "number":
+				return paramName + "=0.0"
+			case "boolean":
+				return paramName + "=false"
+			case "array":
+				return paramName + "=[]"
+			case "object":
+				return paramName + "={}"
+			default:
+				return paramName + "=\"\""
+			}
+		}
+	}
+
+	return paramName + "=\"\""
+}
+
+// findIssueTriggerStart locates the start of a `#<query>` token at the cursor,
+// scanning backward from cursorPos. Returns the index of the `#` sigil, or -1
+// if the cursor isn't inside an issue-reference token. A trigger is valid when
+// the `#` sits at start-of-string or directly after whitespace, and there is
+// no whitespace between the `#` and the cursor (so the user is actively
+// editing one token). This lets the `#` autocomplete fire mid-sentence, e.g.
+// "can you work on #57|" - typing more characters refines the same query.
+func findIssueTriggerStart(text string, cursorPos int) int {
+	return findSigilTriggerStart(text, cursorPos, '#')
+}
+
+// findSlashTriggerStart is the `/` counterpart of findIssueTriggerStart, used
+// to enable mid-text shortcut/skill autocomplete. Returns the index of the `/`
+// sigil at the cursor, or -1.
+func findSlashTriggerStart(text string, cursorPos int) int {
+	return findSigilTriggerStart(text, cursorPos, '/')
+}
+
+// findSigilTriggerStart factors the trigger-detection logic: scan backward
+// from cursorPos for `sigil`, requiring the run between sigil and cursor to be
+// non-whitespace and the character before the sigil to be start-of-string or
+// whitespace. Returns the sigil index or -1.
+func findSigilTriggerStart(text string, cursorPos int, sigil byte) int {
+	if cursorPos <= 0 || cursorPos > len(text) {
+		return -1
+	}
+	for k := cursorPos - 1; k >= 0; k-- {
+		c := text[k]
+		if c == ' ' || c == '\t' || c == '\n' {
+			return -1
+		}
+		if c != sigil {
+			continue
+		}
+		if k == 0 {
+			return k
+		}
+		prev := text[k-1]
+		if prev == ' ' || prev == '\t' || prev == '\n' {
+			return k
+		}
+		return -1
+	}
+	return -1
+}
+
+// applyMidTextMode is the shared body of every mid-text completion case
+// (issues, skills). It saves the prefix/suffix around the token at the cursor,
+// (re)loads the right suggestion set if the mode changed, applies the given
+// filter, and updates visibility/selection. Reads everything else from the
+// receiver, so the per-call args stay small.
+func (a *AutocompleteImpl) applyMidTextMode(
+	inputText string, cursorPos, triggerStart int,
+	mode string, loader, filter func(),
+) {
+	if a.completionMode != mode || len(a.suggestions) == 0 {
+		loader()
+		a.completionMode = mode
+		a.usageHint = ""
+	}
+	a.query = inputText[triggerStart+1 : cursorPos]
+	a.splicePrefix = inputText[:triggerStart]
+	a.spliceSuffix = inputText[cursorPos:]
+	filter()
+	a.visible = len(a.filtered) > 0
+	if a.selected >= len(a.filtered) {
+		a.selected = 0
+	}
+}
+
+// Update handles autocomplete logic
+func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
+	if triggerStart := findIssueTriggerStart(inputText, cursorPos); triggerStart >= 0 {
+		a.applyMidTextMode(inputText, cursorPos, triggerStart, "issues", a.loadGitHubIssues, a.filterIssueSuggestions)
+		return
+	}
+	if triggerStart := findSlashTriggerStart(inputText, cursorPos); triggerStart > 0 {
+		a.applyMidTextMode(inputText, cursorPos, triggerStart, "skills-midtext", a.loadSkillsOnly, a.filterSuggestions)
+		return
+	}
+	switch {
+	case strings.HasPrefix(inputText, "/model ") && cursorPos >= 7:
+		if a.completionMode != "models" || len(a.suggestions) == 0 {
+			a.loadModels()
+			a.completionMode = "models"
+		}
+		a.query = inputText[7:cursorPos]
+		a.filterSuggestions()
+		a.visible = len(a.filtered) > 0
+		if a.selected >= len(a.filtered) {
+			a.selected = 0
+		}
+	case strings.HasPrefix(inputText, "!!") && cursorPos >= 2:
+		var currentMode agentdomain.AgentMode
+		if a.stateManager != nil {
+			currentMode = a.stateManager.GetAgentMode()
+		}
+
+		if currentMode != a.lastAgentMode || len(a.suggestions) == 0 || a.completionMode != "tools" {
+			a.loadTools()
+			a.lastAgentMode = currentMode
+			a.completionMode = "tools"
+		}
+
+		a.query = inputText[2:cursorPos]
+		a.filterSuggestions()
+		a.visible = len(a.filtered) > 0
+		if a.selected >= len(a.filtered) {
+			a.selected = 0
+		}
+	case strings.HasPrefix(inputText, "/") && cursorPos >= 1:
+		parts := strings.SplitN(inputText[:cursorPos], " ", 2)
+		if len(parts) == 2 && parts[0] != "/model" {
+			a.handleSubcommandCompletion(parts)
+		} else {
+			a.handleShortcutCompletion(inputText, cursorPos)
+		}
+	default:
+		a.visible = false
+		a.filtered = []ShortcutOption{}
+		a.selected = 0
+		a.completionMode = ""
+		a.usageHint = ""
+	}
+}
+
+// handleSubcommandCompletion handles autocomplete for subcommands
+func (a *AutocompleteImpl) handleSubcommandCompletion(parts []string) {
+	shortcutName := strings.TrimPrefix(parts[0], "/")
+	subcommandMode := "subcommand:" + shortcutName
+
+	if a.completionMode != subcommandMode {
+		a.loadSubcommands(shortcutName)
+		a.completionMode = subcommandMode
+		a.usageHint = ""
+	}
+
+	a.query = parts[1]
+	a.filterSuggestions()
+	a.visible = len(a.filtered) > 0
+	if a.selected >= len(a.filtered) {
+		a.selected = 0
+	}
+}
+
+// handleShortcutCompletion handles autocomplete for shortcuts
+func (a *AutocompleteImpl) handleShortcutCompletion(inputText string, cursorPos int) {
+	if len(a.suggestions) == 0 || a.completionMode != "shortcuts" {
+		a.loadShortcuts()
+		a.completionMode = "shortcuts"
+	}
+	a.query = inputText[1:cursorPos]
+	a.filterSuggestions()
+	a.visible = len(a.filtered) > 0
+	if a.selected >= len(a.filtered) {
+		a.selected = 0
+	}
+	a.usageHint = ""
+}
+
+// filterIssueSuggestions narrows the open-issues list. When the query is all
+// digits we prefix-match the issue number (so "#12" keeps #12, #120, #123...);
+// otherwise we substring-match the title and the number, case-insensitively
+// (so "#auth" finds "Add auth flow" and "#api" matches issue numbers too).
+func (a *AutocompleteImpl) filterIssueSuggestions() {
+	a.filtered = []ShortcutOption{}
+	if a.query == "" {
+		a.filtered = a.suggestions
+		return
+	}
+	allDigits := true
+	for _, r := range a.query {
+		if r < '0' || r > '9' {
+			allDigits = false
+			break
+		}
+	}
+	q := strings.ToLower(a.query)
+	for _, cmd := range a.suggestions {
+		num := strings.TrimPrefix(cmd.Shortcut, "#")
+		if allDigits {
+			if strings.HasPrefix(num, a.query) {
+				a.filtered = append(a.filtered, cmd)
+			}
+			continue
+		}
+		if strings.Contains(strings.ToLower(cmd.Description), q) || strings.Contains(num, a.query) {
+			a.filtered = append(a.filtered, cmd)
+		}
+	}
+}
+
+// filterSuggestions filters commands based on current query
+func (a *AutocompleteImpl) filterSuggestions() {
+	a.filtered = []ShortcutOption{}
+
+	if a.query == "" {
+		a.filtered = a.suggestions
+		return
+	}
+
+	for _, cmd := range a.suggestions {
+		var commandName string
+		if name, found := strings.CutPrefix(cmd.Shortcut, "!!"); found {
+			commandName = name
+			if idx := strings.Index(commandName, "("); idx != -1 {
+				commandName = commandName[:idx]
+			}
+		} else {
+			commandName = strings.TrimPrefix(cmd.Shortcut, "/")
+		}
+
+		if strings.HasPrefix(strings.ToLower(commandName), strings.ToLower(a.query)) {
+			a.filtered = append(a.filtered, cmd)
+		}
+	}
+}
+
+// HandleKey processes key input for autocomplete navigation
+func (a *AutocompleteImpl) HandleKey(k tea.KeyPressMsg) (bool, string) {
+	if !a.visible || len(a.filtered) == 0 {
+		return false, ""
+	}
+
+	switch {
+	case key.Matches(k, autocompleteKeys.navUp):
+		if a.selected > 0 {
+			a.selected--
+		} else {
+			a.selected = len(a.filtered) - 1
+		}
+		return true, ""
+
+	case key.Matches(k, autocompleteKeys.navDown):
+		if a.selected < len(a.filtered)-1 {
+			a.selected++
+		} else {
+			a.selected = 0
+		}
+		return true, ""
+
+	case key.Matches(k, autocompleteKeys.tab):
+		if a.selected >= len(a.filtered) {
+			return true, ""
+		}
+		return a.handleSelection()
+
+	case key.Matches(k, autocompleteKeys.enter):
+		a.visible = false
+		return false, ""
+
+	case key.Matches(k, autocompleteKeys.esc):
+		a.visible = false
+		return true, ""
+	}
+
+	return false, ""
+}
+
+// IsVisible returns whether autocomplete is currently visible
+func (a *AutocompleteImpl) IsVisible() bool {
+	return a.visible
+}
+
+// spliceMidText reconstructs the input by inserting `selected` between
+// `prefix` and `suffix`, preserving the user's surrounding sentence. Adds a
+// trailing space only when the suffix doesn't already start with whitespace,
+// so the user doesn't end up with a double space when editing mid-sentence.
+// Returns the new input and the caret position immediately after the inserted
+// token (past the separating space).
+func (a *AutocompleteImpl) spliceMidText(selected, prefix, suffix string) (string, int) {
+	tail := suffix
+	addedSpace := false
+	if tail == "" || (tail[0] != ' ' && tail[0] != '\t' && tail[0] != '\n') {
+		tail = " " + tail
+		addedSpace = true
+	}
+	caret := len(prefix) + len(selected)
+	if addedSpace || (len(suffix) > 0 && (suffix[0] == ' ' || suffix[0] == '\t')) {
+		caret++
+	}
+	return prefix + selected + tail, caret
+}
+
+// handleSelection handles the selected autocomplete item
+func (a *AutocompleteImpl) handleSelection() (bool, string) {
+	selected := a.filtered[a.selected].Shortcut
+	usage := a.filtered[a.selected].Usage
+	a.lastCompletionCursor = 0
+
+	if a.completionMode == "issues" || a.completionMode == "skills-midtext" {
+		result, caret := a.spliceMidText(selected, a.splicePrefix, a.spliceSuffix)
+		a.lastCompletionCursor = caret
+		a.visible = false
+		return true, result
+	}
+
+	if a.completionMode == "models" {
+		selected = "/model " + selected + " "
+		a.visible = false
+		return true, selected
+	}
+
+	if a.completionMode == "shortcuts" && selected == "/model" {
+		selected = selected + " "
+		a.loadModels()
+		a.completionMode = "models"
+		a.query = ""
+		a.filterSuggestions()
+		a.visible = len(a.filtered) > 0
+		return true, selected
+	}
+
+	if strings.HasPrefix(a.completionMode, "subcommand:") {
+		if usage != "" {
+			selected = usage
+		}
+
+		description := a.filtered[a.selected].Description
+		requiresArgs := strings.Contains(description, "<") || strings.Contains(description, "[")
+
+		if requiresArgs {
+			a.usageHint = a.extractUsageHint(description)
+		} else {
+			a.usageHint = ""
+		}
+
+		selected = selected + " "
+		a.visible = false
+		return true, selected
+	}
+
+	if a.completionMode == "shortcuts" {
+		if a.hasSubcommands(selected) {
+			selected = selected + " "
+			shortcutName := strings.TrimPrefix(selected, "/")
+			shortcutName = strings.TrimSpace(shortcutName)
+			a.loadSubcommands(shortcutName)
+			a.completionMode = "subcommand:" + shortcutName
+			a.query = ""
+			a.filterSuggestions()
+			a.visible = len(a.filtered) > 0
+			return true, selected
+		}
+
+		selected = selected + " "
+	}
+
+	a.visible = false
+	return true, selected
+}
+
+// hasSubcommands checks if a shortcut has subcommands defined
+func (a *AutocompleteImpl) hasSubcommands(shortcutName string) bool {
+	if a.shortcutRegistry == nil {
+		return false
+	}
+
+	name := shortcutName
+	if len(name) > 0 && name[0] == '/' {
+		name = name[1:]
+	}
+
+	shortcuts := a.shortcutRegistry.GetAll()
+	for _, s := range shortcuts {
+		if s.GetName() == name {
+			if provider, ok := s.(SubcommandProvider); ok {
+				subcommands := provider.GetSubcommands()
+				return len(subcommands) > 0
+			}
+			return false
+		}
+	}
+
+	return false
+}
+
+// SetWidth sets the width for rendering
+func (a *AutocompleteImpl) SetWidth(width int) {
+	a.width = width
+}
+
+// SetHeight sets the height for rendering
+func (a *AutocompleteImpl) SetHeight(height int) {
+	a.height = height
+}
+
+// Render returns the autocomplete suggestions as a string
+func (a *AutocompleteImpl) Render() string {
+	if !a.visible || len(a.filtered) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	start, end := a.calculateVisibleRange()
+	maxShortcutWidth := a.calculateMaxShortcutWidth()
+	descWidth := a.calculateDescriptionWidth(maxShortcutWidth)
+
+	a.renderItems(&b, start, end, maxShortcutWidth, descWidth)
+	a.renderHelpText(&b)
+
+	return b.String()
+}
+
+// calculateVisibleRange returns the start and end indices for visible items
+func (a *AutocompleteImpl) calculateVisibleRange() (int, int) {
+	start := 0
+	end := len(a.filtered)
+
+	if len(a.filtered) > a.maxVisible {
+		if a.selected >= a.maxVisible {
+			start = a.selected - a.maxVisible + 1
+		}
+		end = start + a.maxVisible
+		if end > len(a.filtered) {
+			end = len(a.filtered)
+			start = end - a.maxVisible
+		}
+	}
+
+	return start, end
+}
+
+// calculateMaxShortcutWidth calculates the maximum width for shortcut display
+func (a *AutocompleteImpl) calculateMaxShortcutWidth() int {
+	maxShortcutWidth := 0
+	for _, cmd := range a.filtered {
+		displayText := a.getShortcutDisplayText(cmd)
+		displayText = strings.TrimPrefix(displayText, "!!")
+		if len(displayText) > maxShortcutWidth {
+			maxShortcutWidth = len(displayText)
+		}
+	}
+
+	minShortcutWidth := 15
+	if a.width < 60 {
+		minShortcutWidth = 10
+	}
+
+	if maxShortcutWidth < minShortcutWidth {
+		maxShortcutWidth = minShortcutWidth
+	}
+
+	maxAllowedShortcutWidth := a.width / 3
+	if maxShortcutWidth > maxAllowedShortcutWidth && maxAllowedShortcutWidth > minShortcutWidth {
+		maxShortcutWidth = maxAllowedShortcutWidth
+	}
+
+	return maxShortcutWidth
+}
+
+// calculateDescriptionWidth calculates the width for description display
+func (a *AutocompleteImpl) calculateDescriptionWidth(maxShortcutWidth int) int {
+	const reservedSpace = 7
+	descWidth := a.width - maxShortcutWidth - reservedSpace
+	if descWidth < 20 {
+		descWidth = 20
+	}
+	return descWidth
+}
+
+// getShortcutDisplayText returns the display text for a shortcut
+func (a *AutocompleteImpl) getShortcutDisplayText(cmd ShortcutOption) string {
+	if cmd.Usage != "" && cmd.Usage != cmd.Shortcut {
+		return cmd.Usage
+	}
+	return cmd.Shortcut
+}
+
+// renderItems renders all visible autocomplete items
+func (a *AutocompleteImpl) renderItems(b *strings.Builder, start, end, maxShortcutWidth, descWidth int) {
+	const leftPadding = "  "
+
+	for i := start; i < end; i++ {
+		cmd := a.filtered[i]
+		marker := "  "
+		if i == a.selected {
+			marker = "▶ "
+		}
+
+		displayText := a.getShortcutDisplayText(cmd)
+		displayText = strings.TrimPrefix(displayText, "!!")
+		displayText = formatting.TruncateText(displayText, maxShortcutWidth)
+		paddedShortcut := displayText + strings.Repeat(" ", maxShortcutWidth-len(displayText))
+
+		description := formatting.TruncateText(cmd.Description, descWidth)
+		paddedDescription := description + strings.Repeat(" ", descWidth-len(description))
+
+		a.renderItem(b, i == a.selected, leftPadding, marker, paddedShortcut, paddedDescription, cmd.Catalog)
+
+		if i < end-1 {
+			b.WriteString("\n")
+		}
+	}
+}
+
+// renderItem renders a single autocomplete item. catalog entries (skills that
+// live in the remote catalog and are not installed yet) are painted in the
+// status color so they read as "available, but will be downloaded first".
+func (a *AutocompleteImpl) renderItem(b *strings.Builder, selected bool, leftPadding, marker, paddedShortcut, paddedDescription string, catalog bool) {
+	nameColor := ""
+	if catalog {
+		nameColor = a.theme.GetStatusColor()
+	}
+	if selected {
+		line := fmt.Sprintf("%s%s%s%s%s%s │ %s%s",
+			leftPadding,
+			a.theme.GetAccentColor(),
+			marker,
+			nameColor,
+			paddedShortcut,
+			a.theme.GetDimColor(),
+			paddedDescription,
+			colors.Reset)
+		b.WriteString(line)
+	} else {
+		line := fmt.Sprintf("%s%s%s%s │ %s%s%s",
+			leftPadding,
+			marker,
+			nameColor,
+			paddedShortcut,
+			a.theme.GetDimColor(),
+			paddedDescription,
+			colors.Reset)
+		b.WriteString(line)
+	}
+}
+
+// renderHelpText renders the help text at the bottom
+func (a *AutocompleteImpl) renderHelpText(b *strings.Builder) {
+	const leftPadding = "  "
+	helpColor := a.theme.GetDimColor()
+	if len(a.filtered) > 0 {
+		fmt.Fprintf(b, "\n\n%s%sTab to select, ↑↓ to navigate%s\n",
+			leftPadding, helpColor, colors.Reset)
+	}
+}
+
+// GetCompletionCursorPos returns the explicit caret position requested by the
+// most recent handleSelection call, or 0 to mean "use the caller's default
+// heuristic". Mirrors AutocompleteCompleteEvent.CursorPos.
+func (a *AutocompleteImpl) GetCompletionCursorPos() int {
+	return a.lastCompletionCursor
+}
+
+// GetSelectedShortcut returns the currently selected shortcut
+func (a *AutocompleteImpl) GetSelectedShortcut() string {
+	if a.visible && a.selected < len(a.filtered) {
+		return a.filtered[a.selected].Shortcut
+	}
+	return ""
+}
+
+// Hide hides the autocomplete
+func (a *AutocompleteImpl) Hide() {
+	a.visible = false
+}
+
+// GetUsageHint returns the current usage hint for ghost text display
+func (a *AutocompleteImpl) GetUsageHint() string {
+	return a.usageHint
+}
+
+// ClearUsageHint clears the current usage hint
+func (a *AutocompleteImpl) ClearUsageHint() {
+	a.usageHint = ""
+}
+
+// extractUsageHint extracts the usage pattern from a description
+// Example: "Remove an A2A agent (usage: <name>)" -> "<name>"
+func (a *AutocompleteImpl) extractUsageHint(description string) string {
+	// Look for "(usage: ...)" pattern
+	usageStart := strings.Index(description, "(usage:")
+	if usageStart == -1 {
+		return ""
+	}
+
+	usageEnd := strings.Index(description[usageStart:], ")")
+	if usageEnd == -1 {
+		return ""
+	}
+
+	usagePart := description[usageStart+7 : usageStart+usageEnd]
+	return strings.TrimSpace(usagePart)
+}
+
+// RefreshToolsList forces a reload of the tools list
+// This should be called when MCP servers connect or disconnect
+func (a *AutocompleteImpl) RefreshToolsList() {
+	if len(a.suggestions) > 0 && strings.HasPrefix(a.suggestions[0].Shortcut, "!!") {
+		a.suggestions = []ShortcutOption{}
+	}
+}
+
+// Compile-time check to ensure AutocompleteImpl implements the interface
+var _ tui.AutocompleteComponent = (*AutocompleteImpl)(nil)

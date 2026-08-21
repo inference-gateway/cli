@@ -267,7 +267,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain SkillsService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain AgentService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain ModelService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ThemeService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ThemeService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain ConversationRepository
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain PricingService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/sdk/fake_client.go github.com/inference-gateway/sdk.Client
@@ -279,13 +279,13 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/agent/states StateHandler
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentapp internal/agent/application A2AAgentService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain MCPClient
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/services/channels Channel
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/services/channels HistoryCleaner
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/channels Channel
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/channels HistoryCleaner
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain TaskRetentionService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ChatEventListener
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ChatCompletionRunner
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui DirectExecutionService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ToolExecutionCoordinator
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ChatEventListener
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ChatCompletionRunner
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui DirectExecutionService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ToolExecutionCoordinator
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain SystemReminderProvider
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain HookCommandProvider
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/memory internal/platform/memory MemoryBackend
@@ -297,18 +297,18 @@ tasks:
       - mkdir -p tests/mocks/conversation tests/mocks/agentdomain tests/mocks/states tests/mocks/agentapp
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain TitleGenerator
       - mkdir -p tests/mocks/shortcuts
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/shortcuts Shortcut
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/shortcuts PersistentConversationRepository
-      - mkdir -p tests/mocks/ui
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ConversationRenderer
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui InputComponent
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui StatusComponent
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui HelpBarComponent
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui Theme
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui/autocomplete ShortcutRegistry
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui AutocompleteComponent
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/presentation/shortcuts Shortcut
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/presentation/shortcuts PersistentConversationRepository
+      - mkdir -p tests/mocks/tui
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ConversationRenderer
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui InputComponent
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui StatusComponent
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui HelpBarComponent
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui Theme
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui/autocomplete ShortcutRegistry
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui AutocompleteComponent
       - mkdir -p tests/mocks/keybinding
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/keybinding internal/ui/keybinding KeyHandlerContext
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/keybinding internal/presentation/tui/keybinding KeyHandlerContext
       - mkdir -p tests/mocks/adk
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/adk github.com/inference-gateway/adk/client.A2AClient
     sources:
@@ -319,11 +319,11 @@ tasks:
       - "internal/platform/memory/*.go"
       - "internal/platform/storage/*.go"
       - "internal/scheduler/domain/*.go"
-      - "internal/services/channels/*.go"
-      - "internal/shortcuts/*.go"
-      - "internal/ui/*.go"
-      - "internal/ui/autocomplete/*.go"
-      - "internal/ui/keybinding/*.go"
+      - "internal/channels/*.go"
+      - "internal/presentation/shortcuts/*.go"
+      - "internal/presentation/tui/*.go"
+      - "internal/presentation/tui/autocomplete/*.go"
+      - "internal/presentation/tui/keybinding/*.go"
     generates:
       - "tests/mocks/**/*.go"
 

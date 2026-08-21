@@ -12,7 +12,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
-	ui "github.com/inference-gateway/cli/internal/ui"
 
 	mcp "github.com/metoro-io/mcp-golang"
 
@@ -577,7 +576,7 @@ func (m *MCPManager) sendStatusUpdate(serverName string, connected bool) {
 }
 
 // getMCPServerStatus calculates the current MCP server status
-func (m *MCPManager) getMCPServerStatus() ui.MCPServerStatus {
+func (m *MCPManager) getMCPServerStatus() agentdomain.MCPServerStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -597,7 +596,7 @@ func (m *MCPManager) getMCPServerStatus() ui.MCPServerStatus {
 		totalTools += count
 	}
 
-	return ui.MCPServerStatus{
+	return agentdomain.MCPServerStatus{
 		TotalServers:     totalServers,
 		ConnectedServers: connectedServers,
 		TotalTools:       totalTools,
@@ -610,7 +609,7 @@ func (m *MCPManager) getMCPServerStatus() ui.MCPServerStatus {
 func (m *MCPManager) sendStatusUpdateWithTools(serverName string, connected bool, tools []agentdomain.MCPDiscoveredTool) {
 	status := m.getMCPServerStatus()
 
-	m.notify(ui.MCPServerStatusUpdateEvent{
+	m.notify(agentdomain.MCPServerStatusUpdateEvent{
 		ServerName:       serverName,
 		Connected:        connected,
 		TotalServers:     status.TotalServers,

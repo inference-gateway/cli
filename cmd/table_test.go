@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )
 
 // disableOutputColors must leave no ANSI escape sequences in any shared

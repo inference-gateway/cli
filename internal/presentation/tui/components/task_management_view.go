@@ -1,0 +1,1256 @@
+package components
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
+	key "charm.land/bubbles/v2/key"
+	spinner "charm.land/bubbles/v2/spinner"
+	viewport "charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	adk "github.com/inference-gateway/adk/types"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+)
+
+// TaskInfo extends TaskPollingState with additional metadata for UI display.
+// Kind/Label/Detail carry the background-work kind (A2A task, shell, subagent)
+// and its kind-specific columns so the view can render one table per kind from a
+// single flat, selectable list. A2A rows keep using the embedded
+// TaskPollingState/TaskRef; shell and subagent rows populate Kind/Label/Detail.
+// Output carries the job's captured output (shell stdout/stderr or subagent
+// result) for the detail panel.
+type TaskInfo struct {
+	agentdomain.TaskPollingState
+	Status      string
+	ElapsedTime time.Duration
+	TaskRef     *scheddomain.TaskInfo
+	Kind        scheddomain.JobKind
+	Label       string
+	Detail      string
+	Output      string
+}
+
+// TaskManagerImpl implements task management UI similar to conversation selection
+type TaskManagerImpl struct {
+	activeTasks           []TaskInfo
+	completedTasks        []TaskInfo
+	filteredTasks         []TaskInfo
+	selected              int
+	width                 int
+	height                int
+	themeService          tui.ThemeService
+	styleProvider         *styles.Provider
+	done                  bool
+	cancelled             bool
+	taskRetentionService  scheddomain.TaskRetentionService
+	backgroundTaskService scheddomain.BackgroundTaskService
+	backgroundJobRegistry scheddomain.BackgroundTaskRegistry
+	searchQuery           string
+	searchMode            bool
+	loading               bool
+	loadError             error
+	confirmCancel         bool
+	showInfo              bool
+	currentView           TaskViewMode
+	infoViewport          viewport.Model
+	spinner               spinner.Model
+	tickLive              bool
+	tickEpoch             int
+}
+
+type TaskViewMode int
+
+const (
+	TaskViewAll TaskViewMode = iota
+	TaskViewActive
+	TaskViewInputRequired
+	TaskViewCompleted
+	TaskViewCanceled
+)
+
+// NewTaskManager creates a new task manager UI component
+func NewTaskManager(
+	themeService tui.ThemeService,
+	styleProvider *styles.Provider,
+	taskRetentionService scheddomain.TaskRetentionService,
+	backgroundTaskService scheddomain.BackgroundTaskService,
+) *TaskManagerImpl {
+	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
+	vp.SetContent("")
+
+	sp := newModernSpinner()
+
+	return &TaskManagerImpl{
+		activeTasks:           make([]TaskInfo, 0),
+		completedTasks:        make([]TaskInfo, 0),
+		filteredTasks:         make([]TaskInfo, 0),
+		selected:              0,
+		width:                 80,
+		height:                24,
+		themeService:          themeService,
+		styleProvider:         styleProvider,
+		taskRetentionService:  taskRetentionService,
+		backgroundTaskService: backgroundTaskService,
+		searchQuery:           "",
+		searchMode:            false,
+		loading:               true,
+		loadError:             nil,
+		currentView:           TaskViewAll,
+		infoViewport:          vp,
+		spinner:               sp,
+	}
+}
+
+func (t *TaskManagerImpl) Init() tea.Cmd {
+	return tea.Batch(t.loadTasksCmd(), t.spinner.Tick, t.armRefreshTick())
+}
+
+// taskRefreshTickMsg drives the live "Elapsed" column. Status changes already
+// arrive as BackgroundTasksChangedEvents, but elapsed time advances on the wall
+// clock with no event, so a periodic re-render is the only way to show it live.
+// epoch stamps which chain armed the tick so a superseded one is ignored.
+type taskRefreshTickMsg struct{ epoch int }
+
+// refreshTickCmd schedules the next live refresh for the current chain. It is
+// re-armed in Update ONLY while the view is open and a task is actually running,
+// so it stops the moment nothing is running - a bounded animation tick (like the
+// spinner), not an idle poller.
+func (t *TaskManagerImpl) refreshTickCmd() tea.Cmd {
+	epoch := t.tickEpoch
+	return tea.Tick(time.Second, func(time.Time) tea.Msg { return taskRefreshTickMsg{epoch: epoch} })
+}
+
+// armRefreshTick starts a NEW live-elapsed chain, bumping the epoch so any tick
+// armed by a prior chain (e.g. one still in flight from before a close/reopen) is
+// ignored when it fires - guaranteeing exactly one live chain. Callers must arm
+// only when t.tickLive is false (Init, or a new task arriving while the chain is
+// dead).
+func (t *TaskManagerImpl) armRefreshTick() tea.Cmd {
+	t.tickEpoch++
+	t.tickLive = true
+	return t.refreshTickCmd()
+}
+
+// Reset resets the task manager state for reuse
+func (t *TaskManagerImpl) Reset() {
+	t.done = false
+	t.cancelled = false
+	t.confirmCancel = false
+	t.showInfo = false
+	t.searchMode = false
+	t.searchQuery = ""
+	t.selected = 0
+	t.loading = true
+	t.loadError = nil
+	t.currentView = TaskViewAll
+	t.tickLive = false
+}
+
+func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
+	return func() tea.Msg {
+		if t.backgroundTaskService == nil {
+			return tui.TasksLoadedEvent{
+				ActiveTasks:    []any{},
+				CompletedTasks: []any{},
+				Error:          fmt.Errorf("background task service not available"),
+			}
+		}
+
+		backgroundTasks := t.backgroundTaskService.GetBackgroundTasks()
+		activeTasks := make([]TaskInfo, 0, len(backgroundTasks))
+
+		for _, task := range backgroundTasks {
+			elapsed := time.Since(task.StartedAt)
+
+			displayStatus := "Running"
+			if task.LastKnownState != "" {
+				displayStatus = t.mapTaskStateToDisplayStatus(task.LastKnownState)
+			}
+
+			taskInfo := TaskInfo{
+				TaskPollingState: task,
+				Status:           displayStatus,
+				ElapsedTime:      elapsed,
+				TaskRef:          nil,
+				Kind:             scheddomain.JobKindA2A,
+			}
+			activeTasks = append(activeTasks, taskInfo)
+		}
+
+		var retainedTaskInfos []scheddomain.TaskInfo
+		if t.taskRetentionService != nil {
+			retainedTaskInfos = t.taskRetentionService.GetTasks()
+		}
+		completedTasks := make([]TaskInfo, 0, len(retainedTaskInfos))
+
+		for i := range retainedTaskInfos {
+			retainedTaskInfo := &retainedTaskInfos[i]
+			elapsed := retainedTaskInfo.CompletedAt.Sub(retainedTaskInfo.StartedAt)
+
+			taskInfo := TaskInfo{
+				TaskPollingState: agentdomain.TaskPollingState{
+					TaskID:          retainedTaskInfo.Task.ID,
+					ContextID:       retainedTaskInfo.Task.ContextID,
+					AgentURL:        retainedTaskInfo.AgentURL,
+					TaskDescription: "",
+					StartedAt:       retainedTaskInfo.StartedAt,
+				},
+				Status:      t.mapTaskStatus(retainedTaskInfo.Task.Status.State),
+				ElapsedTime: elapsed,
+				TaskRef:     retainedTaskInfo,
+				Kind:        scheddomain.JobKindA2A,
+			}
+			completedTasks = append(completedTasks, taskInfo)
+		}
+
+		if t.backgroundJobRegistry != nil {
+			for _, job := range t.backgroundJobRegistry.Snapshot() {
+				if job.Meta.Kind == scheddomain.JobKindA2A {
+					continue
+				}
+				row := jobToTaskInfo(job)
+				if job.Status == scheddomain.JobRunning {
+					activeTasks = append(activeTasks, row)
+				} else {
+					completedTasks = append(completedTasks, row)
+				}
+			}
+		}
+
+		interfaceActiveTasks := make([]any, len(activeTasks))
+		for i, task := range activeTasks {
+			interfaceActiveTasks[i] = task
+		}
+
+		interfaceCompletedTasks := make([]any, len(completedTasks))
+		for i, task := range completedTasks {
+			interfaceCompletedTasks[i] = task
+		}
+
+		return tui.TasksLoadedEvent{
+			ActiveTasks:    interfaceActiveTasks,
+			CompletedTasks: interfaceCompletedTasks,
+			Error:          nil,
+		}
+	}
+}
+
+// jobToTaskInfo adapts a supervised background job (shell or subagent) to a
+// task-view row. Elapsed runs to the completion time for finished jobs and to
+// now for running ones.
+func jobToTaskInfo(job scheddomain.TrackedJob) TaskInfo {
+	label := job.Meta.Label
+	if label == "" {
+		label = job.Meta.ID
+	}
+	end := time.Now()
+	if job.CompletedAt != nil {
+		end = *job.CompletedAt
+	}
+	return TaskInfo{
+		TaskPollingState: agentdomain.TaskPollingState{
+			TaskID:    job.Meta.ID,
+			StartedAt: job.Meta.StartedAt,
+		},
+		Status:      jobStatusLabel(job.Status),
+		ElapsedTime: end.Sub(job.Meta.StartedAt),
+		Kind:        job.Meta.Kind,
+		Label:       label,
+		Detail:      job.Meta.Detail,
+		Output:      job.Output,
+	}
+}
+
+// jobStatusLabel renders a supervised job's status with the same vocabulary the
+// A2A rows use (Running / Completed / Failed).
+func jobStatusLabel(s scheddomain.JobStatus) string {
+	switch s {
+	case scheddomain.JobRunning:
+		return "Running"
+	case scheddomain.JobCompleted:
+		return "Completed"
+	case scheddomain.JobFailed:
+		return "Failed"
+	default:
+		return string(s)
+	}
+}
+
+func (t *TaskManagerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tui.TasksLoadedEvent:
+		return t.handleTasksLoaded(msg)
+	case agentdomain.BackgroundTasksChangedEvent:
+		if t.loading {
+			return t, nil
+		}
+		if !t.tickLive {
+			return t, tea.Batch(t.loadTasksCmd(), t.armRefreshTick())
+		}
+		return t, t.loadTasksCmd()
+	case tui.TaskCancelledEvent:
+		return t.handleTaskCancelled(msg)
+	case taskRefreshTickMsg:
+		if msg.epoch != t.tickEpoch {
+			return t, nil
+		}
+		if t.done || t.cancelled || (!t.loading && len(t.activeTasks) == 0) {
+			t.tickLive = false
+			return t, nil
+		}
+		return t, tea.Batch(t.loadTasksCmd(), t.refreshTickCmd())
+	case tea.WindowSizeMsg:
+		return t.handleWindowResize(msg)
+	case tea.KeyPressMsg:
+		if t.loading {
+			return t, nil
+		}
+		return t.handleKeyInput(msg)
+	case spinner.TickMsg:
+		if !t.loading {
+			return t, nil
+		}
+		var cmd tea.Cmd
+		t.spinner, cmd = t.spinner.Update(msg)
+		return t, cmd
+	}
+
+	return t, nil
+}
+
+func (t *TaskManagerImpl) handleTasksLoaded(msg tui.TasksLoadedEvent) (tea.Model, tea.Cmd) {
+	t.loading = false
+	t.loadError = msg.Error
+
+	if msg.Error == nil {
+		t.activeTasks = make([]TaskInfo, len(msg.ActiveTasks))
+		for i, task := range msg.ActiveTasks {
+			if taskInfo, ok := task.(TaskInfo); ok {
+				t.activeTasks[i] = taskInfo
+			}
+		}
+
+		t.completedTasks = make([]TaskInfo, len(msg.CompletedTasks))
+		for i, task := range msg.CompletedTasks {
+			if taskInfo, ok := task.(TaskInfo); ok {
+				t.completedTasks[i] = taskInfo
+			}
+		}
+
+		t.applyFilters()
+	}
+
+	return t, nil
+}
+
+func (t *TaskManagerImpl) handleTaskCancelled(msg tui.TaskCancelledEvent) (tea.Model, tea.Cmd) {
+	if msg.Error != nil {
+		logger.Error("task cancellation failed", "task_id", msg.TaskID, "error", msg.Error)
+	} else {
+		logger.Info("task cancelled, reloading tasks", "task_id", msg.TaskID)
+	}
+
+	return t, t.loadTasksCmd()
+}
+
+func (t *TaskManagerImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	t.width = msg.Width
+	t.height = msg.Height
+
+	t.infoViewport.SetWidth(msg.Width)
+	t.infoViewport.SetHeight(msg.Height - 2)
+
+	return t, nil
+}
+
+func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if t.confirmCancel {
+		return t.handleCancelConfirmation(msg)
+	}
+
+	if t.showInfo {
+		return t.handleInfoView(msg)
+	}
+
+	if t.searchMode {
+		return t.handleSearchInput(msg)
+	}
+
+	switch {
+	case key.Matches(msg, taskManagerKeys.quit):
+		t.cancelled = true
+		return t, nil
+
+	case key.Matches(msg, taskManagerKeys.enter):
+		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
+			t.showInfo = true
+			return t, nil
+		}
+
+	case key.Matches(msg, taskManagerKeys.navUp):
+		if t.selected > 0 {
+			t.selected--
+		}
+
+	case key.Matches(msg, taskManagerKeys.navDown):
+		if t.selected < len(t.filteredTasks)-1 {
+			t.selected++
+		}
+
+	case key.Matches(msg, taskManagerKeys.info):
+		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
+			t.showInfo = true
+			return t, nil
+		}
+
+	case key.Matches(msg, taskManagerKeys.cancel):
+		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
+			task := t.filteredTasks[t.selected]
+			if isCancellable(task) {
+				t.confirmCancel = true
+				return t, nil
+			}
+		}
+
+	case key.Matches(msg, taskManagerKeys.search):
+		t.searchMode = true
+		return t, nil
+
+	case key.Matches(msg, taskManagerKeys.tab1):
+		t.handleViewSwitch("1")
+		return t, nil
+	case key.Matches(msg, taskManagerKeys.tab2):
+		t.handleViewSwitch("2")
+		return t, nil
+	case key.Matches(msg, taskManagerKeys.tab3):
+		t.handleViewSwitch("3")
+		return t, nil
+	case key.Matches(msg, taskManagerKeys.tab4):
+		t.handleViewSwitch("4")
+		return t, nil
+	case key.Matches(msg, taskManagerKeys.tab5):
+		t.handleViewSwitch("5")
+		return t, nil
+
+	}
+
+	return t, nil
+}
+
+func (t *TaskManagerImpl) handleViewSwitch(key string) {
+	switch key {
+	case "1":
+		t.currentView = TaskViewAll
+	case "2":
+		t.currentView = TaskViewActive
+	case "3":
+		t.currentView = TaskViewInputRequired
+	case "4":
+		t.currentView = TaskViewCompleted
+	case "5":
+		t.currentView = TaskViewCanceled
+	}
+	t.applyFilters()
+}
+
+func (t *TaskManagerImpl) handleCancelConfirmation(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, taskManagerKeys.confirm):
+		t.confirmCancel = false
+		if t.selected < len(t.filteredTasks) {
+			task := t.filteredTasks[t.selected]
+			return t, t.cancelTaskCmd(task)
+		}
+
+	case key.Matches(msg, taskManagerKeys.deny):
+		t.confirmCancel = false
+	}
+
+	return t, nil
+}
+
+func (t *TaskManagerImpl) handleInfoView(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch {
+	case key.Matches(msg, taskManagerKeys.close):
+		t.showInfo = false
+		return t, nil
+	case key.Matches(msg, taskManagerKeys.navUp):
+		t.infoViewport.ScrollUp(1)
+	case key.Matches(msg, taskManagerKeys.navDown):
+		t.infoViewport.ScrollDown(1)
+	case key.Matches(msg, taskManagerKeys.pgUp):
+		t.infoViewport.PageUp()
+	case key.Matches(msg, taskManagerKeys.pgDown):
+		t.infoViewport.PageDown()
+	case key.Matches(msg, taskManagerKeys.top):
+		t.infoViewport.GotoTop()
+	case key.Matches(msg, taskManagerKeys.bottom):
+		t.infoViewport.GotoBottom()
+	default:
+		t.infoViewport, cmd = t.infoViewport.Update(msg)
+	}
+
+	return t, cmd
+}
+
+func (t *TaskManagerImpl) handleSearchInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, taskManagerKeys.escape):
+		t.searchMode = false
+		t.searchQuery = ""
+		t.applyFilters()
+
+	case key.Matches(msg, taskManagerKeys.enter):
+		t.searchMode = false
+		t.applyFilters()
+
+	case key.Matches(msg, taskManagerKeys.backspace):
+		if len(t.searchQuery) > 0 {
+			t.searchQuery = t.searchQuery[:len(t.searchQuery)-1]
+			t.applyFilters()
+		}
+
+	default:
+		if k := msg.String(); len(k) == 1 {
+			t.searchQuery += k
+			t.applyFilters()
+		}
+	}
+
+	return t, nil
+}
+
+// isCancellable reports whether a task row can be cancelled from the view: an
+// active A2A task (a live row, not a retained/terminal one) or a running shell
+// or subagent. Completed rows are not cancellable.
+func isCancellable(task TaskInfo) bool {
+	if normalizeKind(task.Kind) == scheddomain.JobKindA2A {
+		return task.TaskRef == nil
+	}
+	return task.Status == jobStatusLabel(scheddomain.JobRunning)
+}
+
+func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
+	return func() tea.Msg {
+		err := t.cancelTask(task)
+		if err != nil {
+			logger.Error("failed to cancel task", "task_id", task.TaskID, "error", err)
+			return tui.TaskCancelledEvent{
+				TaskID: task.TaskID,
+				Error:  err,
+			}
+		}
+
+		logger.Info("task cancelled successfully", "task_id", task.TaskID)
+		return tui.TaskCancelledEvent{
+			TaskID: task.TaskID,
+			Error:  nil,
+		}
+	}
+}
+
+// cancelTask routes cancellation by kind. An A2A task goes through
+// CancelBackgroundTask, which cancels the remote task and cleans up the tracker
+// in addition to winding the supervised poll job; shells and subagents wind
+// their supervised job down through the registry (a2aJob.Wind is a no-op, so
+// WindJob alone would never reach the remote agent).
+func (t *TaskManagerImpl) cancelTask(task TaskInfo) error {
+	if normalizeKind(task.Kind) == scheddomain.JobKindA2A {
+		return t.backgroundTaskService.CancelBackgroundTask(task.TaskID)
+	}
+	if t.backgroundJobRegistry == nil {
+		return fmt.Errorf("background job registry not available")
+	}
+	return t.backgroundJobRegistry.WindJob(task.TaskID, scheddomain.WindStop)
+}
+
+// mapTaskStatus maps task state to display status. Covers every
+// adk.TaskState constant so non-terminal states (Working, Submitted,
+// AuthRequired, ...) don't fall through to the raw "TASK_STATE_*"
+// label. Unknown states fall back to a title-cased rendering of the
+// raw value with the "TASK_STATE_" prefix stripped.
+func (t *TaskManagerImpl) mapTaskStatus(state adk.TaskState) string {
+	statusMap := map[adk.TaskState]string{
+		adk.TaskStateSubmitted:     "Submitted",
+		adk.TaskStateWorking:       "Working",
+		adk.TaskStateCompleted:     "Completed",
+		adk.TaskStateFailed:        "Failed",
+		adk.TaskStateCancelled:     "Canceled",
+		adk.TaskStateRejected:      "Rejected",
+		adk.TaskStateInputRequired: "Input Required",
+		adk.TaskStateAuthRequired:  "Auth Required",
+		adk.TaskStateUnspecified:   "Unknown",
+	}
+
+	if displayName, exists := statusMap[state]; exists {
+		return displayName
+	}
+
+	stateStr := strings.TrimPrefix(string(state), "TASK_STATE_")
+	stateStr = strings.ReplaceAll(strings.ToLower(stateStr), "_", " ")
+	if stateStr == "" {
+		return "Unknown"
+	}
+	return strings.ToUpper(stateStr[:1]) + stateStr[1:]
+}
+
+// mapTaskStateToDisplayStatus maps task state string to display status
+func (t *TaskManagerImpl) mapTaskStateToDisplayStatus(state string) string {
+	return t.mapTaskStatus(adk.TaskState(state))
+}
+
+func (t *TaskManagerImpl) applyFilters() {
+	var baseTasks []TaskInfo
+
+	allTasks := append(append([]TaskInfo{}, t.activeTasks...), t.completedTasks...)
+
+	switch t.currentView {
+	case TaskViewAll:
+		baseTasks = allTasks
+	case TaskViewActive:
+		baseTasks = t.activeTasks
+	case TaskViewInputRequired:
+		baseTasks = make([]TaskInfo, 0)
+		for _, task := range allTasks {
+			if task.Status == "Input Required" {
+				baseTasks = append(baseTasks, task)
+			}
+		}
+	case TaskViewCompleted:
+		baseTasks = make([]TaskInfo, 0)
+		for _, task := range t.completedTasks {
+			// There is no Failed tab, so failed shells/subagents (and failed A2A
+			// tasks) belong under Completed; Canceled stays A2A-only.
+			if task.Status == "Completed" || task.Status == "Failed" {
+				baseTasks = append(baseTasks, task)
+			}
+		}
+	case TaskViewCanceled:
+		baseTasks = make([]TaskInfo, 0)
+		for _, task := range t.completedTasks {
+			if task.Status == "Canceled" {
+				baseTasks = append(baseTasks, task)
+			}
+		}
+	}
+
+	// Group rows by kind (A2A, then shells, then subagents) so each kind renders
+	// as one contiguous table. Stable sort keeps the within-kind order built above
+	// (active rows before completed rows).
+	slices.SortStableFunc(baseTasks, func(a, b TaskInfo) int {
+		return kindRank(a.Kind) - kindRank(b.Kind)
+	})
+
+	if t.searchQuery == "" {
+		t.filteredTasks = baseTasks
+	} else {
+		t.filteredTasks = make([]TaskInfo, 0)
+		query := strings.ToLower(t.searchQuery)
+		for _, task := range baseTasks {
+			if strings.Contains(strings.ToLower(task.AgentURL), query) ||
+				strings.Contains(strings.ToLower(task.TaskID), query) ||
+				strings.Contains(strings.ToLower(task.Label), query) ||
+				strings.Contains(strings.ToLower(task.Detail), query) ||
+				strings.Contains(strings.ToLower(task.Status), query) {
+				t.filteredTasks = append(t.filteredTasks, task)
+			}
+		}
+	}
+
+	if t.selected >= len(t.filteredTasks) {
+		t.selected = len(t.filteredTasks) - 1
+	}
+	if t.selected < 0 {
+		t.selected = 0
+	}
+}
+
+func (t *TaskManagerImpl) View() tea.View {
+	return tea.NewView(t.viewContent())
+}
+
+func (t *TaskManagerImpl) viewContent() string {
+	if t.loading {
+		return t.renderLoading()
+	}
+
+	if t.loadError != nil {
+		return t.renderError()
+	}
+
+	if t.showInfo {
+		return t.renderTaskInfo()
+	}
+
+	return t.renderTaskList()
+}
+
+func (t *TaskManagerImpl) renderLoading() string {
+	return fmt.Sprintf("%s Loading tasks...", t.spinner.View())
+}
+
+func (t *TaskManagerImpl) renderError() string {
+	return fmt.Sprintf("Error loading tasks: %v", t.loadError)
+}
+
+func (t *TaskManagerImpl) renderTaskInfo() string {
+	if t.selected >= len(t.filteredTasks) {
+		return "No task selected"
+	}
+
+	task := t.filteredTasks[t.selected]
+	var content strings.Builder
+
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	dimColor := t.styleProvider.GetThemeColor("dim")
+
+	header := t.styleProvider.RenderWithColorAndBold("Task Details", accentColor)
+	content.WriteString(header)
+	content.WriteString("\n")
+
+	separatorWidth := t.getSeparatorWidth()
+	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", separatorWidth), dimColor)
+	content.WriteString(separator)
+	content.WriteString("\n\n")
+
+	fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("ID:"), task.TaskID)
+	if task.AgentURL != "" {
+		fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Agent URL:"), task.AgentURL)
+	}
+	if task.Detail != "" {
+		fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Detail:"), task.Detail)
+	}
+	fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Status:"), task.Status)
+	fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Started:"), task.StartedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&content, "%-12s %v\n", t.styleProvider.RenderDimText("Elapsed:"), task.ElapsedTime.Round(time.Second))
+	if task.ContextID != "" {
+		fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Context:"), task.ContextID)
+	}
+
+	if task.TaskRef != nil {
+		t.renderTaskHistory(&content, task)
+	}
+
+	if task.Output != "" {
+		t.renderJobOutput(&content, task)
+	}
+
+	t.infoViewport.SetContent(content.String())
+
+	var view strings.Builder
+	view.WriteString(t.infoViewport.View())
+	view.WriteString("\n")
+
+	footerSeparator := t.styleProvider.RenderWithColor(strings.Repeat("─", t.width), dimColor)
+	view.WriteString(footerSeparator)
+	view.WriteString("\n")
+
+	helpText := t.styleProvider.RenderDimText("Press ↑↓/j/k to scroll • g/G for top/bottom • PgUp/PgDn to page • 'i' or 'esc' to close")
+	view.WriteString(helpText)
+
+	return view.String()
+}
+
+// renderTaskHistory renders the task history section
+func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskInfo) {
+	content.WriteString("\n")
+
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	dimColor := t.styleProvider.GetThemeColor("dim")
+
+	separatorWidth := t.getSeparatorWidth()
+	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", separatorWidth), dimColor)
+	content.WriteString(separator)
+	content.WriteString("\n")
+
+	historyHeader := t.styleProvider.RenderWithColorAndBold("Task History", accentColor)
+	content.WriteString(historyHeader)
+	content.WriteString("\n")
+
+	content.WriteString(separator)
+	content.WriteString("\n\n")
+
+	textWidth := max(t.infoViewport.Width()-4, 40)
+
+	for i, historyItem := range task.TaskRef.Task.History {
+		if i > 0 {
+			content.WriteString("\n")
+		}
+
+		t.renderHistoryItemRole(content, string(historyItem.Role))
+
+		for _, part := range historyItem.Parts {
+			if part.Text != nil && *part.Text != "" {
+				wrappedText := formatting.FormatResponsiveMessage(*part.Text, textWidth)
+				for line := range strings.SplitSeq(wrappedText, "\n") {
+					fmt.Fprintf(content, "  %s\n", line)
+				}
+			}
+		}
+	}
+
+	if task.TaskRef.Task.Status.Message != nil {
+		t.renderFinalResult(content, task)
+	}
+
+	if len(task.TaskRef.Task.Artifacts) > 0 {
+		t.renderTaskArtifacts(content, task)
+	}
+}
+
+// renderTaskArtifacts surfaces the agent's produced artifacts (e.g. screenshots,
+// generated files) in the Task History panel - for many agents this is the
+// real output and Status.Message is empty.
+func (t *TaskManagerImpl) renderTaskArtifacts(content *strings.Builder, task TaskInfo) {
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	dimColor := t.styleProvider.GetThemeColor("dim")
+
+	if len(task.TaskRef.Task.History) > 0 || task.TaskRef.Task.Status.Message != nil {
+		content.WriteString("\n")
+	}
+
+	marker := t.styleProvider.RenderWithColor("◆", accentColor)
+	header := t.styleProvider.RenderWithColor(
+		fmt.Sprintf("Agent (Artifacts, %d produced):", len(task.TaskRef.Task.Artifacts)),
+		dimColor,
+	)
+	fmt.Fprintf(content, "%s %s\n", marker, header)
+
+	for i, artifact := range task.TaskRef.Task.Artifacts {
+		name := "unnamed"
+		if artifact.Name != nil && *artifact.Name != "" {
+			name = *artifact.Name
+		}
+		fmt.Fprintf(content, "  %d. %s", i+1, name)
+
+		if artifact.Metadata != nil {
+			if mimeType, ok := (*artifact.Metadata)["mime_type"].(string); ok && mimeType != "" {
+				fmt.Fprintf(content, "  (%s)", mimeType)
+			}
+			if size, ok := (*artifact.Metadata)["size"].(float64); ok && size > 0 {
+				fmt.Fprintf(content, "  %d bytes", int64(size))
+			}
+		}
+		content.WriteString("\n")
+
+		if artifact.Metadata != nil {
+			if url, ok := (*artifact.Metadata)["url"].(string); ok && url != "" {
+				fmt.Fprintf(content, "     %s\n", t.styleProvider.RenderWithColor(url, dimColor))
+			}
+		}
+	}
+}
+
+// renderHistoryItemRole renders the role prefix for a history item.
+// Handles both ADK enum-style values (ROLE_USER / ROLE_AGENT) and the
+// historical lowercase ones (user / assistant).
+func (t *TaskManagerImpl) renderHistoryItemRole(content *strings.Builder, role string) {
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	dimColor := t.styleProvider.GetThemeColor("dim")
+
+	marker := t.styleProvider.RenderWithColor("◆", accentColor)
+
+	label := friendlyRoleLabel(role)
+	roleText := t.styleProvider.RenderWithColor(label+":", dimColor)
+	fmt.Fprintf(content, "%s %s\n", marker, roleText)
+}
+
+// friendlyRoleLabel maps an ADK Role string to a tidy display label.
+// "ROLE_USER" → "User", "ROLE_AGENT" → "Agent", "user" → "User",
+// "assistant" → "Agent", anything else is title-cased as-is.
+func friendlyRoleLabel(role string) string {
+	normalized := strings.ToLower(strings.TrimPrefix(strings.ToUpper(role), "ROLE_"))
+	switch normalized {
+	case "user":
+		return "User"
+	case "agent":
+		return "Agent"
+	case "unspecified":
+		return "Unknown"
+	default:
+		if len(normalized) > 0 {
+			return strings.ToUpper(normalized[:1]) + normalized[1:]
+		}
+		return role
+	}
+}
+
+// renderFinalResult renders the final result message
+func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskInfo) {
+	textWidth := max(t.infoViewport.Width()-4, 40)
+
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	dimColor := t.styleProvider.GetThemeColor("dim")
+
+	if len(task.TaskRef.Task.History) > 0 {
+		content.WriteString("\n")
+	}
+
+	marker := t.styleProvider.RenderWithColor("◆", accentColor)
+	roleText := t.styleProvider.RenderWithColor("Agent (Final Result):", dimColor)
+	fmt.Fprintf(content, "%s %s\n", marker, roleText)
+
+	for _, part := range task.TaskRef.Task.Status.Message.Parts {
+		if part.Text != nil && *part.Text != "" {
+			wrappedText := formatting.FormatResponsiveMessage(*part.Text, textWidth)
+			for line := range strings.SplitSeq(wrappedText, "\n") {
+				fmt.Fprintf(content, "  %s\n", line)
+			}
+		}
+	}
+}
+
+// renderJobOutput renders the captured output for a shell or subagent job in
+// the detail panel. The output is bounded (truncated) so a chatty shell does
+// not blow up the viewport.
+func (t *TaskManagerImpl) renderJobOutput(content *strings.Builder, task TaskInfo) {
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	dimColor := t.styleProvider.GetThemeColor("dim")
+
+	content.WriteString("\n")
+
+	separatorWidth := t.getSeparatorWidth()
+	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", separatorWidth), dimColor)
+	content.WriteString(separator)
+	content.WriteString("\n")
+
+	outputHeader := t.styleProvider.RenderWithColorAndBold("Output", accentColor)
+	content.WriteString(outputHeader)
+	content.WriteString("\n")
+
+	content.WriteString(separator)
+	content.WriteString("\n\n")
+
+	textWidth := max(t.infoViewport.Width()-4, 40)
+
+	const maxOutputBytes = 10 * 1024
+	output := task.Output
+	if len(output) > maxOutputBytes {
+		output = "(truncated, showing last 10KB)\n" + output[len(output)-maxOutputBytes:]
+	}
+
+	wrappedText := formatting.FormatResponsiveMessage(output, textWidth)
+	for line := range strings.SplitSeq(wrappedText, "\n") {
+		fmt.Fprintf(content, "  %s\n", line)
+	}
+}
+
+func (t *TaskManagerImpl) renderTaskList() string {
+	var content strings.Builder
+
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	title := t.styleProvider.RenderWithColor("Background Tasks", accentColor)
+	fmt.Fprintf(&content, "%s\n\n", title)
+
+	t.writeJobCountsSummary(&content)
+
+	t.writeViewTabs(&content)
+
+	t.writeSearchInfo(&content)
+
+	if len(t.filteredTasks) == 0 {
+		errorColor := t.styleProvider.GetThemeColor("error")
+		noTasks := t.styleProvider.RenderWithColor("No tasks found.", errorColor)
+		fmt.Fprintf(&content, "%s\n", noTasks)
+		t.writeFooter(&content)
+		return content.String()
+	}
+
+	t.writeTaskSections(&content)
+
+	if t.confirmCancel {
+		content.WriteString("\n")
+		errorColor := t.styleProvider.GetThemeColor("error")
+		warning := t.styleProvider.RenderWithColor("⚠ Cancel this task? (y/n)", errorColor)
+		fmt.Fprintf(&content, "%s", warning)
+	}
+
+	t.writeFooter(&content)
+
+	return content.String()
+}
+
+// SetBackgroundTaskRegistry wires the unified registry so the view can show live
+// counts of every background-work kind (A2A tasks, shells, subagents), not just
+// the A2A tasks listed in the table below.
+func (t *TaskManagerImpl) SetBackgroundTaskRegistry(registry scheddomain.BackgroundTaskRegistry) {
+	t.backgroundJobRegistry = registry
+}
+
+// writeJobCountsSummary writes a one-line summary of all running background work
+// from the supervisor: "Running: 2 A2A · 1 shell · 3 subagents".
+func (t *TaskManagerImpl) writeJobCountsSummary(b *strings.Builder) {
+	if t.backgroundJobRegistry == nil {
+		return
+	}
+	a2a := t.backgroundJobRegistry.CountRunningJobs(scheddomain.JobKindA2A)
+	shells := t.backgroundJobRegistry.CountRunningJobs(scheddomain.JobKindShell)
+	subagents := t.backgroundJobRegistry.CountRunningJobs(scheddomain.JobKindSubagent)
+
+	dimColor := t.styleProvider.GetThemeColor("dim")
+	summary := fmt.Sprintf("Running: %d A2A · %d shells · %d subagents  (total %d)",
+		a2a, shells, subagents, a2a+shells+subagents)
+	fmt.Fprintf(b, "%s\n\n", t.styleProvider.RenderWithColor(summary, dimColor))
+}
+
+// writeViewTabs writes the view selection tabs
+func (t *TaskManagerImpl) writeViewTabs(b *strings.Builder) {
+	accentColor := t.styleProvider.GetThemeColor("accent")
+
+	allStyle := "[1] All"
+	activeStyle := "[2] Active"
+	inputRequiredStyle := "[3] Input Required"
+	completedStyle := "[4] Completed"
+	canceledStyle := "[5] Canceled"
+
+	switch t.currentView {
+	case TaskViewAll:
+		allStyle = t.styleProvider.RenderWithColor("[1] All", accentColor)
+	case TaskViewActive:
+		activeStyle = t.styleProvider.RenderWithColor("[2] Active", accentColor)
+	case TaskViewInputRequired:
+		inputRequiredStyle = t.styleProvider.RenderWithColor("[3] Input Required", accentColor)
+	case TaskViewCompleted:
+		completedStyle = t.styleProvider.RenderWithColor("[4] Completed", accentColor)
+	case TaskViewCanceled:
+		canceledStyle = t.styleProvider.RenderWithColor("[5] Canceled", accentColor)
+	}
+
+	tabs := fmt.Sprintf("%s  %s  %s  %s  %s", allStyle, activeStyle, inputRequiredStyle, completedStyle, canceledStyle)
+	dimTabs := t.styleProvider.RenderDimText(tabs)
+	fmt.Fprintf(b, "%s\n", dimTabs)
+
+	separatorWidth := t.width - 4
+	if separatorWidth < 0 {
+		separatorWidth = 40
+	}
+	separator := t.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth))
+	fmt.Fprintf(b, "%s\n\n", separator)
+}
+
+// writeSearchInfo writes the search information section
+func (t *TaskManagerImpl) writeSearchInfo(b *strings.Builder) {
+	if t.searchMode {
+		statusColor := t.styleProvider.GetThemeColor("status")
+		accentColor := t.styleProvider.GetThemeColor("accent")
+		searchText := t.styleProvider.RenderWithColor(fmt.Sprintf("Search: %s", t.searchQuery), statusColor)
+		cursor := t.styleProvider.RenderWithColor("│", accentColor)
+		fmt.Fprintf(b, "%s%s\n\n", searchText, cursor)
+	} else {
+		info := fmt.Sprintf("Press / to search • %d tasks available", len(t.filteredTasks))
+		dimInfo := t.styleProvider.RenderDimText(info)
+		fmt.Fprintf(b, "%s\n\n", dimInfo)
+	}
+}
+
+// writeTaskSections renders the filtered rows as one table per kind (A2A tasks,
+// background shells, subagents). applyFilters has already ordered the rows by
+// kind, so a new section header is emitted whenever the kind changes. The row
+// index stays global across sections so the ▶ selection highlight is correct.
+func (t *TaskManagerImpl) writeTaskSections(b *strings.Builder) {
+	prevKind := scheddomain.JobKind("")
+	for i, task := range t.filteredTasks {
+		kind := normalizeKind(task.Kind)
+		if i == 0 || kind != prevKind {
+			if i != 0 {
+				b.WriteString("\n")
+			}
+			t.writeSectionHeader(b, kind)
+			prevKind = kind
+		}
+		t.writeTaskRow(b, task, i)
+	}
+}
+
+// writeSectionHeader writes a per-kind table title plus its column header.
+func (t *TaskManagerImpl) writeSectionHeader(b *strings.Builder, kind scheddomain.JobKind) {
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	title := t.styleProvider.RenderWithColor(sectionTitle(kind), accentColor)
+	fmt.Fprintf(b, "%s\n", title)
+
+	dimHeader := t.styleProvider.RenderDimText(t.columnHeader(kind))
+	fmt.Fprintf(b, "%s\n", dimHeader)
+
+	separator := t.styleProvider.RenderDimText(strings.Repeat("─", t.width-4))
+	fmt.Fprintf(b, "%s\n", separator)
+}
+
+// columnHeader returns the column labels for a kind's table. A2A keeps its
+// Context ID / Task ID / Agent layout; shells and subagents share a leaner
+// ID / Detail layout (Detail = command for shells, mode for subagents).
+func (t *TaskManagerImpl) columnHeader(kind scheddomain.JobKind) string {
+	switch kind {
+	case scheddomain.JobKindShell:
+		return fmt.Sprintf("  %-40s │ %-50s │ %-15s │ %-12s", "Shell ID", "Command", "Status", "Elapsed")
+	case scheddomain.JobKindSubagent:
+		return fmt.Sprintf("  %-40s │ %-50s │ %-15s │ %-12s", "Subagent", "Mode", "Status", "Elapsed")
+	default:
+		return fmt.Sprintf("  %-36s │ %-38s │ %-30s │ %-15s │ %-12s", "Context ID", "Task ID", "Agent", "Status", "Elapsed")
+	}
+}
+
+// writeTaskRow writes a single row, dispatching on kind to the matching column
+// layout. index is the global position in filteredTasks (drives selection).
+func (t *TaskManagerImpl) writeTaskRow(b *strings.Builder, task TaskInfo, index int) {
+	switch normalizeKind(task.Kind) {
+	case scheddomain.JobKindShell, scheddomain.JobKindSubagent:
+		t.writeJobRow(b, task, index)
+	default:
+		t.writeA2ARow(b, task, index)
+	}
+}
+
+// writeA2ARow writes an A2A task row: Context ID | Task ID | Agent | Status | Elapsed.
+func (t *TaskManagerImpl) writeA2ARow(b *strings.Builder, task TaskInfo, index int) {
+	taskID := formatting.TruncateText(task.TaskID, 38)
+	agentURL := formatting.TruncateText(task.AgentURL, 30)
+	contextID := formatting.TruncateText(task.ContextID, 38)
+	if contextID == "" {
+		contextID = "-"
+	}
+	status := formatting.TruncateText(task.Status, 15)
+	elapsed := t.formatDuration(task.ElapsedTime)
+
+	if index == t.selected {
+		accentColor := t.styleProvider.GetThemeColor("accent")
+		rowText := fmt.Sprintf("▶ %-36s │ %-38s │ %-30s │ %-15s │ %-12s", contextID, taskID, agentURL, status, elapsed)
+		fmt.Fprintf(b, "%s\n", t.styleProvider.RenderWithColor(rowText, accentColor))
+	} else {
+		fmt.Fprintf(b, "  %-36s │ %-38s │ %-30s │ %-15s │ %-12s\n",
+			contextID, taskID, agentURL, status, elapsed)
+	}
+}
+
+// writeJobRow writes a shell/subagent row: ID | Detail | Status | Elapsed.
+func (t *TaskManagerImpl) writeJobRow(b *strings.Builder, task TaskInfo, index int) {
+	label := task.Label
+	if label == "" {
+		label = task.TaskID
+	}
+	id := formatting.TruncateText(label, 40)
+	detail := formatting.TruncateText(task.Detail, 50)
+	status := formatting.TruncateText(task.Status, 15)
+	elapsed := t.formatDuration(task.ElapsedTime)
+
+	if index == t.selected {
+		accentColor := t.styleProvider.GetThemeColor("accent")
+		rowText := fmt.Sprintf("▶ %-40s │ %-50s │ %-15s │ %-12s", id, detail, status, elapsed)
+		fmt.Fprintf(b, "%s\n", t.styleProvider.RenderWithColor(rowText, accentColor))
+	} else {
+		fmt.Fprintf(b, "  %-40s │ %-50s │ %-15s │ %-12s\n", id, detail, status, elapsed)
+	}
+}
+
+// normalizeKind treats an unset kind as A2A (A2A rows sourced from the poller
+// before kinds were tagged).
+func normalizeKind(kind scheddomain.JobKind) scheddomain.JobKind {
+	if kind == "" {
+		return scheddomain.JobKindA2A
+	}
+	return kind
+}
+
+// kindRank orders rows so each kind forms one contiguous section: A2A, then
+// shells, then subagents.
+func kindRank(kind scheddomain.JobKind) int {
+	switch normalizeKind(kind) {
+	case scheddomain.JobKindShell:
+		return 1
+	case scheddomain.JobKindSubagent:
+		return 2
+	default:
+		return 0
+	}
+}
+
+// sectionTitle is the heading shown above each kind's table.
+func sectionTitle(kind scheddomain.JobKind) string {
+	switch kind {
+	case scheddomain.JobKindShell:
+		return "Background Shells"
+	case scheddomain.JobKindSubagent:
+		return "Subagents"
+	default:
+		return "A2A Tasks"
+	}
+}
+
+// writeFooter writes the footer section with keyboard shortcuts
+func (t *TaskManagerImpl) writeFooter(b *strings.Builder) {
+	b.WriteString("\n")
+	separator := t.styleProvider.RenderDimText(strings.Repeat("─", t.width))
+	b.WriteString(separator)
+	b.WriteString("\n")
+
+	if t.searchMode {
+		help := t.styleProvider.RenderDimText("Type to search, ↑↓ to navigate, Enter to view, Esc to clear search")
+		fmt.Fprintf(b, "%s", help)
+	} else {
+		help := t.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter/i for info, c to cancel, / to search, q/Esc to quit")
+		fmt.Fprintf(b, "%s", help)
+	}
+}
+
+// formatDuration formats a duration into a human-readable string
+func (t *TaskManagerImpl) formatDuration(d time.Duration) string {
+	rounded := d.Round(time.Second)
+	if rounded < time.Minute {
+		return fmt.Sprintf("%ds", int(rounded.Seconds()))
+	}
+	if rounded < time.Hour {
+		mins := int(rounded.Minutes())
+		secs := int(rounded.Seconds()) % 60
+		return fmt.Sprintf("%dm %ds", mins, secs)
+	}
+	hours := int(rounded.Hours())
+	mins := int(rounded.Minutes()) % 60
+	return fmt.Sprintf("%dh %dm", hours, mins)
+}
+
+// GetSelectedTask returns the currently selected task (used by parent components)
+func (t *TaskManagerImpl) GetSelectedTask() *TaskInfo {
+	if t.selected < len(t.filteredTasks) {
+		return &t.filteredTasks[t.selected]
+	}
+	return nil
+}
+
+// IsDone returns true if the user has finished with the task manager
+func (t *TaskManagerImpl) IsDone() bool {
+	return t.done
+}
+
+// IsCancelled returns true if the user cancelled the task manager
+func (t *TaskManagerImpl) IsCancelled() bool {
+	return t.cancelled
+}
+
+// SetWidth sets the width of the task manager
+func (t *TaskManagerImpl) SetWidth(width int) {
+	t.width = width
+}
+
+// SetHeight sets the height of the task manager
+func (t *TaskManagerImpl) SetHeight(height int) {
+	t.height = height
+}
+
+// getSeparatorWidth returns a safe width for separator strings
+func (t *TaskManagerImpl) getSeparatorWidth() int {
+	width := t.width - 4
+	if width < 1 {
+		return 40
+	}
+	return width
+}

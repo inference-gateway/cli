@@ -2,7 +2,10 @@ package domain
 
 import (
 	"context"
+	"os"
 	"time"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // SubagentStatus represents the lifecycle state of a local subagent.
@@ -142,4 +145,14 @@ type SubagentTracker interface {
 	// SetSubagentStatus atomically updates a subagent's status under the
 	// tracker's lock. Returns an error if the ID is not tracked.
 	SetSubagentStatus(id string, status SubagentStatus) error
+}
+
+// InheritedAgentMode returns the coding mode a subagent should start in, read
+// from EnvSubagentAgentMode. Falls back to standard mode when unset or
+// unparseable.
+func InheritedAgentMode() agentdomain.AgentMode {
+	if m, ok := agentdomain.ParseAgentMode(os.Getenv(EnvSubagentAgentMode)); ok {
+		return m
+	}
+	return agentdomain.AgentModeStandard
 }

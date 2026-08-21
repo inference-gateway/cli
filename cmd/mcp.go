@@ -9,7 +9,7 @@ import (
 
 	glamour "charm.land/glamour/v2"
 	config "github.com/inference-gateway/cli/config"
-	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 	cobra "github.com/spf13/cobra"
 )
 

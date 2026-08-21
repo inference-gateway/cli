@@ -1,6 +1,7 @@
 package agent
 
 import (
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -9,7 +10,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
@@ -98,7 +98,7 @@ func TestGetSystemPromptForMode(t *testing.T) {
 				},
 			}
 
-			fakeStateManager := services.NewStateManager(false)
+			fakeStateManager := statemanager.NewStateManager(false)
 			fakeStateManager.SetAgentMode(tt.mode)
 
 			agentService := &AgentServiceImpl{
