@@ -42,7 +42,7 @@ tasks:
   clean:
     desc: Clean build artifacts
     cmds:
-      - rm -f {{.BINARY_NAME}} .infer/bin/mock-gateway
+      - rm -f {{.BINARY_NAME}} .infer/bin/mock-gateway .infer/bin/infer-e2e
       - go clean
 
   test:
@@ -68,7 +68,12 @@ tasks:
   test:e2e:
     desc: Run hermetic end-to-end tests of the built CLI against the mock gateway
     cmds:
-      - go test -race -tags "e2e {{.GOTAGS}}" -timeout 5m ./tests/e2e/...
+      # The harness builds the CLI with a plain `go build .` (no tags, cgo on), which
+      # selects robotgo's cgo backend and fails where X11 headers are absent. Prebuild
+      # with the purego tag and hand it over via INFER_E2E_BINARY.
+      - mkdir -p .infer/bin
+      - CGO_ENABLED=0 go build -tags "{{.GOTAGS}}" -o .infer/bin/infer-e2e .
+      - INFER_E2E_BINARY=$PWD/.infer/bin/infer-e2e go test -race -tags "e2e {{.GOTAGS}}" -timeout 5m ./tests/e2e/...
 
   lint:
     desc: Run linter (requires golangci-lint)

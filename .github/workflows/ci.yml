@@ -161,8 +161,18 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
+    # The e2e harness builds the CLI with a plain `go build .` (no tags, cgo on),
+    # which selects robotgo's cgo backend and fails where X11 headers are absent.
+    # Prebuild with the purego tag and hand the binary over via INFER_E2E_BINARY.
+    - name: Build the CLI under test
+      env:
+        CGO_ENABLED: "0"
+      run: go build -tags purego -o "${RUNNER_TEMP}/infer-e2e" .
+
     - name: Run hermetic end-to-end tests against the mock gateway
-      run: go test -race -tags "e2e purego" -timeout 5m ./tests/e2e/...
+      env:
+        INFER_E2E_BINARY: ${{ runner.temp }}/infer-e2e
+      run: go test -race -v -tags "e2e purego" -timeout 5m ./tests/e2e/...
 
   postgres:
     needs:
