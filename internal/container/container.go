@@ -57,25 +57,6 @@ import (
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 )
 
-// GatewayManager manages the lifecycle of the gateway (container or binary)
-type GatewayManager interface {
-	// Start starts the gateway container or binary if configured to run locally
-	Start(ctx context.Context) error
-
-	// Stop stops the gateway container or binary
-	Stop(ctx context.Context) error
-
-	// IsRunning returns whether the gateway is running
-	IsRunning() bool
-
-	// GetGatewayURL returns the actual gateway URL with the assigned port
-	GetGatewayURL() string
-
-	// EnsureStarted starts the gateway if configured and not already running
-	// This is a convenience method that checks config and running state before starting
-	EnsureStarted() error
-}
-
 // RetryNotifier, when set, receives a short human-readable notice for each
 // SDK-internal HTTP retry (e.g. "⏳ HTTP 502 - retrying in 10s (attempt 2)").
 // The headless agent points it at its stdout notification stream so remote
@@ -117,7 +98,7 @@ type ServiceContainer struct {
 	jobSupervisor          *jobs.Supervisor
 	taskRetentionService   scheddomain.TaskRetentionService
 	backgroundTaskService  scheddomain.BackgroundTaskService
-	gatewayManager         GatewayManager
+	gatewayManager         *gateway.GatewayManager
 	mockGateway            *http.Server
 	agentManager           agentdomain.AgentManager
 
@@ -973,7 +954,7 @@ func (c *ServiceContainer) GetShellHistoryStorage() storage.ShellHistoryStorage 
 }
 
 // GetGatewayManager returns the gateway manager
-func (c *ServiceContainer) GetGatewayManager() GatewayManager {
+func (c *ServiceContainer) GetGatewayManager() *gateway.GatewayManager {
 	return c.gatewayManager
 }
 
