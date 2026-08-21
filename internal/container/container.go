@@ -33,6 +33,7 @@ import (
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	mcp "github.com/inference-gateway/cli/internal/mcp"
 	adapters "github.com/inference-gateway/cli/internal/platform/adapters"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
@@ -372,7 +373,7 @@ func (c *ServiceContainer) initializeMCPManager() {
 		return
 	}
 
-	c.mcpManager = services.NewMCPManager(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
+	c.mcpManager = mcp.NewMCPManager(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
 
 	hasServersToStart := c.hasAutoStartMCPServers()
 	if !hasServersToStart {
