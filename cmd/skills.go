@@ -13,7 +13,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
-	skills "github.com/inference-gateway/cli/internal/services/skills"
+	skills "github.com/inference-gateway/cli/internal/skills"
 )
 
 // searchDescWidth keeps the search table inside a normal terminal. Catalog

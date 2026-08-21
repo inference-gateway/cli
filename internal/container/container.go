@@ -54,7 +54,7 @@ import (
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 	services "github.com/inference-gateway/cli/internal/services"
-	skills "github.com/inference-gateway/cli/internal/services/skills"
+	skills "github.com/inference-gateway/cli/internal/skills"
 )
 
 // RetryNotifier, when set, receives a short human-readable notice for each

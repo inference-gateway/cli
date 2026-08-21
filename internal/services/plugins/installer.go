@@ -14,7 +14,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
 	config "github.com/inference-gateway/cli/config"
-	skills "github.com/inference-gateway/cli/internal/services/skills"
+	skills "github.com/inference-gateway/cli/internal/skills"
 )
 
 const (
