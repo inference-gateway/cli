@@ -1,11 +1,13 @@
 package tools
 
 import (
+	"context"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // compactMaxFilesPerDir caps how many files a single directory line lists in
@@ -22,9 +24,7 @@ func compactProjectListing(path string, maxLines int) string {
 // gitProjectFiles returns tracked plus untracked non-ignored file paths
 // (relative, slash-separated) or nil when path is not in a git repository.
 func gitProjectFiles(path string) []string {
-	cmd := exec.Command("git", "ls-files", "--cached", "--others", "--exclude-standard")
-	cmd.Dir = path
-	out, err := cmd.Output()
+	out, err := utils.RunGit(context.Background(), path, "ls-files", "--cached", "--others", "--exclude-standard")
 	if err != nil {
 		return nil
 	}

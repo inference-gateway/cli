@@ -4,12 +4,14 @@
 package project
 
 import (
+	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // Identity is the detected project the process is running in. The zero value
@@ -56,7 +58,7 @@ func detect() Identity {
 // RemoteName returns the "org/repo" name parsed from the origin remote URL,
 // or "" when there is no repo/remote or the URL is unparsable.
 func RemoteName() string {
-	out, err := exec.Command("git", "remote", "get-url", "origin").Output()
+	out, err := utils.RunGit(context.Background(), "", "remote", "get-url", "origin")
 	if err != nil {
 		return ""
 	}

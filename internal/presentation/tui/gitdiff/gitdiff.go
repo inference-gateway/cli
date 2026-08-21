@@ -1,11 +1,11 @@
 // Package gitdiff is a small, focused data layer behind the `/diff` changes
-// panel. It shells out to the git CLI (mirroring the exec.Command("git", ...)
-// style used elsewhere in the codebase) to list working-tree changes and to
-// fetch the before/after content for a single changed file.
+// panel. It shells out to the git CLI via platform/utils.RunGit to list
+// working-tree changes and to fetch the before/after content for a single
+// changed file.
 //
 // It deliberately returns raw before/after content rather than a preformatted
 // patch: the UI renders the diff via the diffview package, which computes the
-// line diff itself. The Source interface lives here (not in internal/domain) so
+// line diff itself. The Source interface lives here (not in a domain package) so
 // it does not trigger counterfeiter mock regeneration - the only consumer is
 // the diff viewer component, which can be tested with a hand-written fake.
 package gitdiff
@@ -256,9 +256,7 @@ func (r *rangeSource) Diff(fc FileChange) (oldContent, newContent string, isBina
 
 // IsRepo reports whether workdir is inside a git work tree.
 func IsRepo(workdir string) bool {
-	cmd := exec.Command("git", "rev-parse", "--is-inside-work-tree")
-	cmd.Dir = workdir
-	out, err := cmd.Output()
+	out, err := utils.RunGit(context.Background(), workdir, "rev-parse", "--is-inside-work-tree")
 	return err == nil && strings.TrimSpace(string(out)) == "true"
 }
 
@@ -651,15 +649,8 @@ func parseStartNum(s string) int {
 }
 
 func (g *gitSource) runStdin(stdin string, args ...string) error {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = g.workdir
-	cmd.Stdin = strings.NewReader(stdin)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
-	}
-	return nil
+	_, err := utils.RunGitStdin(context.Background(), g.workdir, stdin, args...)
+	return err
 }
 
 // --- internals ---
