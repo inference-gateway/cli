@@ -1,4 +1,4 @@
-package githubissues
+package issues
 
 import (
 	"context"

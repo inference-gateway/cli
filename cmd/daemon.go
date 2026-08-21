@@ -17,6 +17,7 @@ import (
 	audio "github.com/inference-gateway/cli/internal/audio"
 	channels "github.com/inference-gateway/cli/internal/channels"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
@@ -26,7 +27,6 @@ import (
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	heartbeat "github.com/inference-gateway/cli/internal/scheduler/heartbeat"
-	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
 )
 
 var daemonCmd = &cobra.Command{

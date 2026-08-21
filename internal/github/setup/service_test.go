@@ -1,4 +1,4 @@
-package githubsetup
+package setup
 
 import (
 	"context"

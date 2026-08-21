@@ -4,7 +4,7 @@
 // installation so authentication is inherited automatically; when gh is
 // missing, the repo has no remote, or auth has expired, the service returns
 // empty results without error so the chat features become silent no-ops.
-package githubissues
+package issues
 
 import (
 	"context"

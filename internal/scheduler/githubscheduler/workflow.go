@@ -7,7 +7,7 @@ import (
 
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
-	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
+	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"

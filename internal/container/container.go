@@ -34,6 +34,8 @@ import (
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	gateway "github.com/inference-gateway/cli/internal/gateway"
+	githubissues "github.com/inference-gateway/cli/internal/github/issues"
+	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 	mcp "github.com/inference-gateway/cli/internal/mcp"
 	adapters "github.com/inference-gateway/cli/internal/platform/adapters"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -52,8 +54,6 @@ import (
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 	services "github.com/inference-gateway/cli/internal/services"
-	githubissues "github.com/inference-gateway/cli/internal/services/githubissues"
-	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 )
 
