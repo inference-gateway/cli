@@ -79,27 +79,27 @@ Each tab provides a full `infer chat` session with:
 └──────────────────┘                       └──────────────────┘                       └─────────────────┘
 ```
 
-**HTTP Server** (`internal/web/server.go`):
+**HTTP Server** (`internal/presentation/web/server.go`):
 
 - Serves HTML template and static assets (xterm.js, CSS, JavaScript)
 - Handles WebSocket upgrade requests
 - Manages graceful shutdown with signal handling
 
-**Session Manager** (`internal/web/session_manager.go`):
+**Session Manager** (`internal/presentation/web/session_manager.go`):
 
 - Tracks all active sessions with last activity timestamps
 - Spawns cleanup goroutine for inactive session removal
 - Coordinates shutdown of all sessions
 - Thread-safe with mutex-protected session map
 
-**PTY Manager** (`internal/web/pty_manager.go`):
+**PTY Manager** (`internal/presentation/web/pty_manager.go`):
 
 - Spawns `infer chat` subprocess in PTY
 - Bridges WebSocket ↔ PTY bidirectional I/O
 - Handles terminal resize events
 - Graceful process shutdown (PTY close → SIGTERM → SIGKILL)
 
-**Frontend** (`internal/web/static/app.js`, `internal/web/templates/index.html`):
+**Frontend** (`internal/presentation/web/static/app.js`, `internal/presentation/web/templates/index.html`):
 
 - Tab management for multiple sessions
 - xterm.js terminal emulator with Tokyo Night theme

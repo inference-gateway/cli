@@ -36,9 +36,9 @@ linters:
             - "!$test"
           deny:
             - pkg: github.com/inference-gateway/cli/internal/presentation
-              desc: "domain, capability and platform contexts must not depend on a UI surface (#1087); internal/container is the composition root and is exempt"
+              desc: "domain, capability and platform contexts must not depend on a UI surface; internal/container is the composition root and is exempt"
             - pkg: charm.land/bubbletea
-              desc: "bubbletea belongs to internal/presentation and cmd only (#1087)"
+              desc: "bubbletea belongs to internal/presentation and cmd only"
         telegram-only-in-presentation:
           list-mode: lax
           files:
@@ -46,7 +46,7 @@ linters:
             - "!**/internal/presentation/telegram/**"
           deny:
             - pkg: github.com/go-telegram/bot
-              desc: "the Telegram driver lives in internal/presentation/telegram; consume internal/channels instead (#1087)"
+              desc: "the Telegram driver lives in internal/presentation/telegram; consume internal/channels instead"
         playwright-only-in-browser:
           list-mode: lax
           files:
@@ -54,7 +54,7 @@ linters:
             - "!**/internal/browser/**"
           deny:
             - pkg: github.com/mxschmitt/playwright-go
-              desc: "Playwright is confined to the browser capability (#1087)"
+              desc: "Playwright is confined to the browser capability"
         robotgo-only-in-computer:
           list-mode: lax
           files:
@@ -62,7 +62,7 @@ linters:
             - "!**/internal/computer/**"
           deny:
             - pkg: github.com/go-vgo/robotgo
-              desc: "robotgo is confined to the computer capability (#1087)"
+              desc: "robotgo is confined to the computer capability"
     gocyclo:
       min-complexity: 25
     cyclop:

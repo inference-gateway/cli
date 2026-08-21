@@ -106,8 +106,8 @@ If A2A is disabled, the `/tasks` command will show an error message.
 
 ### Architecture
 
-- **Task Manager**: `TaskManagerImpl` (`internal/ui/components/task_management_view.go`) - Main UI component for task management
-- **Task Shortcut**: `A2ATaskManagementShortcut` (`internal/shortcuts/task_management.go`) - Handles the `/tasks` command
+- **Task Manager**: `TaskManagerImpl` (`internal/presentation/tui/components/task_management_view.go`) - Main UI component for task management
+- **Task Shortcut**: `A2ATaskManagementShortcut` (`internal/presentation/shortcuts/task_management.go`) - Handles the `/tasks` command
 - **State Manager**: Manages in-memory task retention using `RetainedTaskInfo` structs
 - **Events**: Uses `TasksLoadedEvent` and `TaskCancelledEvent` for state management
 
@@ -136,6 +136,6 @@ The feature includes comprehensive tests for:
 Run tests with:
 
 ```bash
-go test ./internal/ui/components/ -v -run TestTaskRetention
-go test ./internal/shortcuts/ -v -run TestTaskManagement
+go test ./internal/presentation/tui/components/ -v -run TestTaskRetention
+go test ./internal/presentation/shortcuts/ -v -run TestTaskManagement
 ```

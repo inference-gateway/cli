@@ -13,7 +13,7 @@ import (
 // plan entries, user-typed `!command` entries, and pending-approval placeholders.
 // Plan and bash entries carry no reasoning_content, which thinking-mode providers
 // reject with HTTP 400; a placeholder between an assistant tool_calls message and
-// its tool response breaks provider adjacency (issue #786).
+// its tool response breaks provider adjacency.
 func BuildAgentMessagesFromEntries(entries []convdomain.ConversationEntry) []sdk.Message {
 	messages := make([]sdk.Message, 0, len(entries))
 	for _, entry := range entries {

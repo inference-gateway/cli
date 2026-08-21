@@ -20,7 +20,7 @@ A `Form` is a sequence of `Group`s (one visible at a time); a `Group` holds
 ## The contract: embedding a form in a Bubble Tea model
 
 The canonical in-repo example is
-`internal/ui/components/init_github_action_view.go`. Hold a `*huh.Form`,
+`internal/presentation/tui/components/init_github_action_view.go`. Hold a `*huh.Form`,
 delegate `Update`, type-assert the returned model, switch on `form.State`,
 and rebuild + `Init()` a fresh form per phase:
 
@@ -63,7 +63,7 @@ a cmd, the runtime executes it, and the resulting message must be routed back
 into `form.Update` or the form stalls one step before completion. This is
 automatic when the form's owner is the top-level model; when the form floats
 inside a larger app (see `question_form_view.go` + `forwardToOverlayForms` in
-`internal/app/chat.go`), forward non-key messages explicitly. The same applies
+`internal/presentation/tui/app/chat.go`), forward non-key messages explicitly. The same applies
 to tests: pump returned cmds back through the form instead of asserting after
 a single `Update` call.
 
@@ -112,7 +112,7 @@ Options carry a display key and a typed value: `huh.NewOption("label", value)`.
   evaluated live, the standard trick for "show this input only when X chosen"
   (see the private-key fallbacks in `init_github_action_view.go`).
 - **Theming**: this repo maps the active style-provider palette via
-  `huhTheme(styleProvider)` in `internal/ui/components/huh_theme.go` - use it
+  `huhTheme(styleProvider)` in `internal/presentation/tui/components/huh_theme.go` - use it
   on every form (`.WithTheme(huhTheme(p))`). The theme is captured at build
   time; the rebuild-per-phase pattern picks up theme switches for free.
 - **Plain-terminal prompts** (outside any Bubble Tea program): call `Run()`
