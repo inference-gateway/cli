@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
@@ -28,6 +29,7 @@ import (
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // fileRefPattern matches @file references in the task description.
@@ -90,11 +92,13 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 
 	svc := container.NewServiceContainer(cfg)
 	svc.StartExtensionBridge()
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdown := sync.OnceFunc(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		_ = svc.Shutdown(ctx)
-	}()
+	})
+	defer shutdown()
+	utils.OnShutdownSignal(shutdown)
 
 	if err := svc.GetGatewayManager().EnsureStarted(); err != nil {
 		return fmt.Errorf("failed to start inference gateway: %w", err)

@@ -472,10 +472,10 @@ func (r *Recorder) Shutdown(ctx context.Context) {
 		}
 	}
 	if r.recvSrv != nil {
-		// Give the gateway's batch exporter time to flush pending spans
-		// (default batch delay is 5s, so 6s gives a comfortable margin).
-		// Override receiverGracePeriod to 0 in tests.
-		time.Sleep(receiverGracePeriod)
+		select {
+		case <-time.After(receiverGracePeriod):
+		case <-ctx.Done():
+		}
 		_ = r.recvSrv.Close()
 	}
 	if r.file != nil {

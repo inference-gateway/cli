@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -29,6 +27,7 @@ import (
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	app "github.com/inference-gateway/cli/internal/presentation/tui/app"
 	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 	web "github.com/inference-gateway/cli/internal/presentation/web"
@@ -118,33 +117,19 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	sessionStart := time.Now()
 	endSessionSpan := telemetryRec.StartSession(services.GetStateManager().GetAgentMode().AllowedlistKey())
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
-
-	shutdownComplete := make(chan struct{})
-	var shutdownOnce sync.Once
-
-	doShutdown := func() {
-		shutdownOnce.Do(func() {
-			logger.Info("received shutdown signal, cleaning up...")
-			endSessionSpan(telemetry.RunSuccess)
-			telemetryRec.RecordSession(services.GetStateManager().GetAgentMode().AllowedlistKey(), telemetry.RunSuccess, time.Since(sessionStart))
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancel()
-			if err := services.Shutdown(ctx); err != nil {
-				logger.Error("error during shutdown", "error", err)
-			}
-			close(shutdownComplete)
-		})
-	}
+	doShutdown := sync.OnceFunc(func() {
+		logger.Info("received shutdown signal, cleaning up...")
+		endSessionSpan(telemetry.RunSuccess)
+		telemetryRec.RecordSession(services.GetStateManager().GetAgentMode().AllowedlistKey(), telemetry.RunSuccess, time.Since(sessionStart))
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		if err := services.Shutdown(ctx); err != nil {
+			logger.Error("error during shutdown", "error", err)
+		}
+	})
 
 	defer doShutdown()
-
-	go func() {
-		<-sigChan
-		doShutdown()
-		os.Exit(0)
-	}()
+	utils.OnShutdownSignal(doShutdown)
 
 	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
 		fmt.Printf("\n⚠️  Failed to start gateway automatically: %v\n", err)
@@ -347,11 +332,13 @@ func runNonInteractiveChat(cfg *config.Config) error {
 	_ = streamevent.SetWriter(io.Discard)
 
 	services := container.NewServiceContainer(cfg)
-	defer func() {
+	doShutdown := sync.OnceFunc(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		_ = services.Shutdown(ctx)
-	}()
+	})
+	defer doShutdown()
+	utils.OnShutdownSignal(doShutdown)
 
 	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
 		return fmt.Errorf("failed to start gateway: %w", err)
