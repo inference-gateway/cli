@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // TestPIDRegistry verifies the last-one-out reference-counting logic:
@@ -49,7 +51,7 @@ func TestPIDRegistry(t *testing.T) {
 		t.Fatal("expected live registrations after deregistering self, 2 still alive")
 	}
 
-	if !processAlive(gwCmd.Process.Pid) {
+	if !utils.ProcessAlive(gwCmd.Process.Pid) {
 		t.Fatal("gateway was killed while other consumers were still registered")
 	}
 

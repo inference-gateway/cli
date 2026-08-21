@@ -22,6 +22,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // GatewayManager manages the lifecycle of the gateway container or binary
@@ -302,7 +303,7 @@ func (gm *GatewayManager) pruneAndCheckLive() bool {
 			_ = os.Remove(filepath.Join(pidDir, e.Name()))
 			continue
 		}
-		if !processAlive(pid) {
+		if !utils.ProcessAlive(pid) {
 			_ = os.Remove(filepath.Join(pidDir, e.Name()))
 			continue
 		}
