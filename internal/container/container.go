@@ -33,6 +33,7 @@ import (
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	gateway "github.com/inference-gateway/cli/internal/gateway"
 	mcp "github.com/inference-gateway/cli/internal/mcp"
 	adapters "github.com/inference-gateway/cli/internal/platform/adapters"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -285,7 +286,7 @@ func (c *ServiceContainer) StartExtensionBridge() {
 // initializeGatewayManager creates the gateway manager (but does not start it)
 // Commands that need the gateway should call gatewayManager.EnsureStarted() explicitly
 func (c *ServiceContainer) initializeGatewayManager() {
-	c.gatewayManager = services.NewGatewayManager(c.sessionID, c.config, c.containerRuntime)
+	c.gatewayManager = gateway.NewGatewayManager(c.sessionID, c.config, c.containerRuntime)
 }
 
 // startMockGateway serves a scenario library (github.com/inference-gateway/tokenless)
