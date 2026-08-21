@@ -333,6 +333,11 @@ func runNonInteractiveChat(cfg *config.Config) error {
 	_ = streamevent.SetWriter(io.Discard)
 
 	services := container.NewServiceContainer(cfg)
+	if am := services.GetAgentManager(); am != nil {
+		if err := am.StartAgents(context.Background()); err != nil {
+			logger.Warn("failed to start agents in background", "error", err)
+		}
+	}
 	doShutdown := sync.OnceFunc(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()

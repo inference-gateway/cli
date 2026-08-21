@@ -105,6 +105,9 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 	}
 
 	if agentManager := svc.GetAgentManager(); agentManager != nil {
+		if err := agentManager.StartAgents(context.Background()); err != nil {
+			logger.Warn("failed to start agents in background", "error", err)
+		}
 		readyTimeout := time.Duration(cmp.Or(cfg.A2A.AgentsReadyTimeoutSec, 600)) * time.Second
 		waitCtx, waitCancel := context.WithTimeout(context.Background(), readyTimeout)
 		agentManager.WaitForAgentsReady(waitCtx)
