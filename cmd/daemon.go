@@ -17,16 +17,16 @@ import (
 	audio "github.com/inference-gateway/cli/internal/audio"
 	channels "github.com/inference-gateway/cli/internal/channels"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	telegram "github.com/inference-gateway/cli/internal/presentation/telegram"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	heartbeat "github.com/inference-gateway/cli/internal/scheduler/heartbeat"
-	services "github.com/inference-gateway/cli/internal/services"
-	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
 )
 
 var daemonCmd = &cobra.Command{
@@ -206,7 +206,7 @@ func acquireDaemonLock() (func(), error) {
 	}
 	pidPath := filepath.Join(home, config.ConfigDirName, "run", "daemon.pid")
 	if data, err := os.ReadFile(pidPath); err == nil {
-		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid != os.Getpid() && services.ProcessAlive(pid) {
+		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid != os.Getpid() && utils.ProcessAlive(pid) {
 			return nil, fmt.Errorf("daemon already running (pid %d); stop it or remove %s", pid, pidPath)
 		}
 	}

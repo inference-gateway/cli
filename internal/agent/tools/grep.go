@@ -984,6 +984,10 @@ func (t *GrepTool) getOrLoadDirGitignore(dirPath string) *ignore.GitIgnore {
 		return cached
 	}
 
+	if t.gitignoreCache == nil {
+		t.gitignoreCache = make(map[string]*ignore.GitIgnore)
+	}
+
 	gitignorePath := filepath.Join(dirPath, ".gitignore")
 	if _, err := os.Stat(gitignorePath); err == nil {
 		gitignore, err := ignore.CompileIgnoreFile(gitignorePath)

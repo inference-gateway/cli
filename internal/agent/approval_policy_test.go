@@ -77,10 +77,6 @@ func standardPolicy(mode agentdomain.AgentMode) func(t *testing.T) agentdomain.A
 	return func(t *testing.T) agentdomain.ApprovalPolicy { return newStandardPolicy(t, mode) }
 }
 
-func permissivePolicy(_ *testing.T) agentdomain.ApprovalPolicy { return NewPermissiveApprovalPolicy() }
-
-func strictPolicy(_ *testing.T) agentdomain.ApprovalPolicy { return NewStrictApprovalPolicy() }
-
 // bashCases builds one Bash case per command with the given expectation.
 func bashCases(prefix string, policy func(t *testing.T) agentdomain.ApprovalPolicy, want bool, commands ...string) []approvalCase {
 	cases := make([]approvalCase, 0, len(commands))
@@ -116,20 +112,6 @@ func buildApprovalCases() []approvalCase {
 			tool: "Bash", args: args, chat: true, want: true,
 		})
 	}
-	tests = append(tests, approvalCases("permissive bypasses approval:", permissivePolicy,
-		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep", "Computer")...)
-	tests = append(tests,
-		approvalCase{name: "permissive bypasses approval non-chat Bash", policy: permissivePolicy,
-			tool: "Bash", args: `{"command": "dangerous"}`, chat: false, want: false})
-	tests = append(tests, approvalCases("strict requires approval:", strictPolicy, "{}", true, true,
-		"Bash", "Read", "Write", "Edit", "Grep")...)
-	tests = append(tests, approvalCases("strict bypasses computer use:", strictPolicy, `{"action": "click", "x": 1, "y": 1}`, true, false,
-		"Computer", "GetLatestFrame")...)
-	tests = append(tests,
-		approvalCase{name: "strict requires approval chat Bash", policy: strictPolicy,
-			tool: "Bash", args: `{"command": "ls"}`, chat: true, want: true},
-		approvalCase{name: "strict requires approval non-chat Bash", policy: strictPolicy,
-			tool: "Bash", args: `{"command": "ls"}`, chat: false, want: true})
 	return tests
 }
 

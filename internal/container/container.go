@@ -23,6 +23,7 @@ import (
 	agent "github.com/inference-gateway/cli/internal/agent"
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browser "github.com/inference-gateway/cli/internal/browser"
@@ -33,6 +34,10 @@ import (
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	gateway "github.com/inference-gateway/cli/internal/gateway"
+	githubissues "github.com/inference-gateway/cli/internal/github/issues"
+	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
+	mcp "github.com/inference-gateway/cli/internal/mcp"
 	adapters "github.com/inference-gateway/cli/internal/platform/adapters"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
@@ -49,30 +54,8 @@ import (
 	toolcoordinator "github.com/inference-gateway/cli/internal/presentation/tui/toolcoordinator"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
-	services "github.com/inference-gateway/cli/internal/services"
-	githubissues "github.com/inference-gateway/cli/internal/services/githubissues"
-	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
-	skills "github.com/inference-gateway/cli/internal/services/skills"
+	skills "github.com/inference-gateway/cli/internal/skills"
 )
-
-// GatewayManager manages the lifecycle of the gateway (container or binary)
-type GatewayManager interface {
-	// Start starts the gateway container or binary if configured to run locally
-	Start(ctx context.Context) error
-
-	// Stop stops the gateway container or binary
-	Stop(ctx context.Context) error
-
-	// IsRunning returns whether the gateway is running
-	IsRunning() bool
-
-	// GetGatewayURL returns the actual gateway URL with the assigned port
-	GetGatewayURL() string
-
-	// EnsureStarted starts the gateway if configured and not already running
-	// This is a convenience method that checks config and running state before starting
-	EnsureStarted() error
-}
 
 // RetryNotifier, when set, receives a short human-readable notice for each
 // SDK-internal HTTP retry (e.g. "⏳ HTTP 502 - retrying in 10s (attempt 2)").
@@ -115,7 +98,7 @@ type ServiceContainer struct {
 	jobSupervisor          *jobs.Supervisor
 	taskRetentionService   scheddomain.TaskRetentionService
 	backgroundTaskService  scheddomain.BackgroundTaskService
-	gatewayManager         GatewayManager
+	gatewayManager         *gateway.Manager
 	mockGateway            *http.Server
 	agentManager           agentdomain.AgentManager
 
@@ -284,7 +267,7 @@ func (c *ServiceContainer) StartExtensionBridge() {
 // initializeGatewayManager creates the gateway manager (but does not start it)
 // Commands that need the gateway should call gatewayManager.EnsureStarted() explicitly
 func (c *ServiceContainer) initializeGatewayManager() {
-	c.gatewayManager = services.NewGatewayManager(c.sessionID, c.config, c.containerRuntime)
+	c.gatewayManager = gateway.NewManager(c.sessionID, c.config, c.containerRuntime)
 }
 
 // startMockGateway serves a scenario library (github.com/inference-gateway/tokenless)
@@ -342,7 +325,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 		c.stateManager.InitializeAgentReadiness(agentCount)
 	}
 
-	c.agentManager = services.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
+	c.agentManager = agentapp.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
 
 	c.agentManager.SetStatusCallback(func(agentName string, state agentdomain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
@@ -372,7 +355,7 @@ func (c *ServiceContainer) initializeMCPManager() {
 		return
 	}
 
-	c.mcpManager = services.NewMCPManager(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
+	c.mcpManager = mcp.NewManager(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
 
 	hasServersToStart := c.hasAutoStartMCPServers()
 	if !hasServersToStart {
@@ -403,8 +386,8 @@ func (c *ServiceContainer) hasAutoStartMCPServers() bool {
 
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
-	c.fileService = services.NewFileService()
-	c.imageService = services.NewImageService(c.config, c.createRawSDKClient())
+	c.fileService = agentinfra.NewFileService()
+	c.imageService = agentinfra.NewImageService(c.config, c.createRawSDKClient())
 	c.messageQueue = conversation.NewMessageQueueService()
 
 	c.initializeMCPManager()
@@ -425,7 +408,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 
 	for name, srcCfg := range c.config.Vision.Sources {
-		c.toolRegistry.RegisterFrameSource(name, services.NewDirectoryFrameSource(name, srcCfg, c.imageService))
+		c.toolRegistry.RegisterFrameSource(name, agentinfra.NewDirectoryFrameSource(name, srcCfg, c.imageService))
 	}
 
 	styleProvider := styles.NewProvider(c.themeService)
@@ -463,11 +446,11 @@ func (c *ServiceContainer) initializeDomainServices() {
 	})
 
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
-		llmToolService := services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
+		llmToolService := agent.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
 		llmToolService.SetCurrentModelFn(c.modelService.GetCurrentModel)
 		c.toolService = llmToolService
 	} else {
-		c.toolService = services.NewNoOpToolService()
+		c.toolService = agent.NewNoOpToolService()
 	}
 	if c.telemetryRecorder != nil {
 		c.toolService = telemetry.NewToolService(c.toolService, c.telemetryRecorder)
@@ -501,7 +484,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		}
 	}
 
-	c.a2aAgentService = services.NewA2AAgentService(c.config)
+	c.a2aAgentService = agentapp.NewA2AAgentService(c.config)
 
 	c.githubIssueService = githubissues.New()
 
@@ -971,7 +954,7 @@ func (c *ServiceContainer) GetShellHistoryStorage() storage.ShellHistoryStorage 
 }
 
 // GetGatewayManager returns the gateway manager
-func (c *ServiceContainer) GetGatewayManager() GatewayManager {
+func (c *ServiceContainer) GetGatewayManager() *gateway.Manager {
 	return c.gatewayManager
 }
 

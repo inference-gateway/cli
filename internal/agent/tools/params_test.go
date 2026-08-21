@@ -3,7 +3,7 @@ package tools
 import (
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/services/filewriter"
+	"github.com/inference-gateway/cli/internal/agent/tools/filewriter"
 )
 
 type writeParamsTestCase struct {

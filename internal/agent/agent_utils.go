@@ -26,8 +26,8 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
-	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
-	plugins "github.com/inference-gateway/cli/internal/services/plugins"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	plugins "github.com/inference-gateway/cli/internal/plugins"
 )
 
 // accumulateToolCalls processes multiple tool call deltas and stores them in the agent's toolCallsMap
@@ -994,7 +994,7 @@ func gitCommandContext() (context.Context, context.CancelFunc) {
 func isGitRepository() bool {
 	ctx, cancel := gitCommandContext()
 	defer cancel()
-	_, err := gitdiff.RunGit(ctx, "", "rev-parse", "--git-dir")
+	_, err := utils.RunGit(ctx, "", "rev-parse", "--git-dir")
 	return err == nil
 }
 
@@ -1007,7 +1007,7 @@ func getGitRepositoryName() string {
 func getGitBranch() string {
 	ctx, cancel := gitCommandContext()
 	defer cancel()
-	output, err := gitdiff.RunGit(ctx, "", "branch", "--show-current")
+	output, err := utils.RunGit(ctx, "", "branch", "--show-current")
 	if err != nil {
 		logger.Debug("failed to get current git branch", "error", err)
 		return ""
@@ -1020,11 +1020,11 @@ func getGitBranch() string {
 func getGitMainBranch() string {
 	ctx, cancel := gitCommandContext()
 	defer cancel()
-	if _, err := gitdiff.RunGit(ctx, "", "rev-parse", "--verify", "main"); err == nil {
+	if _, err := utils.RunGit(ctx, "", "rev-parse", "--verify", "main"); err == nil {
 		return "main"
 	}
 
-	if _, err := gitdiff.RunGit(ctx, "", "rev-parse", "--verify", "master"); err == nil {
+	if _, err := utils.RunGit(ctx, "", "rev-parse", "--verify", "master"); err == nil {
 		return "master"
 	}
 
@@ -1036,7 +1036,7 @@ func getGitMainBranch() string {
 func getRecentCommits(count int) []string {
 	ctx, cancel := gitCommandContext()
 	defer cancel()
-	output, err := gitdiff.RunGit(ctx, "", "log", fmt.Sprintf("-%d", count), "--oneline", "--no-decorate")
+	output, err := utils.RunGit(ctx, "", "log", fmt.Sprintf("-%d", count), "--oneline", "--no-decorate")
 	if err != nil {
 		logger.Debug("failed to get recent commits", "error", err)
 		return nil

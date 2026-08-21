@@ -14,7 +14,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	plugins "github.com/inference-gateway/cli/internal/services/plugins"
+	plugins "github.com/inference-gateway/cli/internal/plugins"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 

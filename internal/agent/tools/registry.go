@@ -27,9 +27,9 @@ import (
 // Note: this file deliberately does NOT call DiscoverTools synchronously at
 // construction time. MCP tool discovery is handled asynchronously by the
 // liveness probe loop in MCPManager.StartMonitoring (see
-// internal/services/mcp_manager.go) which emits MCPServerStatusUpdateEvent
+// internal/mcp/manager.go) which emits MCPServerStatusUpdateEvent
 // once a server is reachable, and ChatApplication.handleMCPStatusUpdate
-// (internal/app/chat.go) then invokes RegisterMCPServerTools below to
+// (internal/presentation/tui/app/chat.go) then invokes RegisterMCPServerTools below to
 // install the discovered tools.
 //
 // Calling DiscoverTools here would block container construction (and

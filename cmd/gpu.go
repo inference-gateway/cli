@@ -12,7 +12,7 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
-	provisioner "github.com/inference-gateway/cli/internal/services/provisioner"
+	provisioner "github.com/inference-gateway/cli/internal/provisioner"
 )
 
 const (

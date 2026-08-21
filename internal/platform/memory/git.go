@@ -3,21 +3,20 @@ package memory
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // GitBackend syncs the memory directory with a git remote. It shells out to the
-// git CLI (mirroring the exec.Command("git", ...) style in internal/services/
-// gitdiff) and inherits the ambient environment unchanged, so auth uses the
-// user's default git/ssh config (ssh-agent, credential helper, GIT_* env). Every
-// command runs under a per-operation timeout so a misconfigured remote ends the
-// command instead of hanging on a credential prompt.
+// git CLI via utils.RunGit, inheriting the ambient environment unchanged, so auth
+// uses the user's default git/ssh config (ssh-agent, credential helper, GIT_*
+// env). Every command runs under a per-operation timeout so a misconfigured
+// remote ends the command instead of hanging on a credential prompt.
 //
 // All operations are best-effort: they return an error for tests/telemetry, but
 // callers log and continue - a sync failure never aborts the agent run.
@@ -63,10 +62,10 @@ func (b *GitBackend) syncIn(ctx context.Context) error {
 	g := b.git()
 	branch := g.EffectiveBranch()
 
-	hasBranch, out, err := b.remoteHasBranch(ctx, g.Repo, branch)
+	hasBranch, err := b.remoteHasBranch(ctx, g.Repo, branch)
 	if err != nil {
 		logger.Warn("memory git sync: remote unreachable, skipping sync-in",
-			"repo", redactRepo(g.Repo), "error", err, "output", trim(out))
+			"repo", redactRepo(g.Repo), "error", err)
 		return err
 	}
 
@@ -87,8 +86,8 @@ func (b *GitBackend) syncInExisting(ctx context.Context, dir, branch string, rem
 	if !remoteHasBranch {
 		return b.stageCommitPush(ctx, dir, branch, true)
 	}
-	if out, err := b.run(ctx, dir, "pull", "--rebase", "--autostash", "origin", branch); err != nil {
-		logger.Warn("memory git sync: pull failed", "error", err, "output", trim(out))
+	if _, err := b.run(ctx, dir, "pull", "--rebase", "--autostash", "origin", branch); err != nil {
+		logger.Warn("memory git sync: pull failed", "error", err)
 		return err
 	}
 	return nil
@@ -102,8 +101,8 @@ func (b *GitBackend) syncInExisting(ctx context.Context, dir, branch string, rem
 func (b *GitBackend) syncInFresh(ctx context.Context, dir, branch string, remoteHasBranch bool) error {
 	g := b.git()
 	if remoteHasBranch && isEmptyOrMissing(dir) {
-		if out, err := b.run(ctx, "", "clone", "--branch", branch, "--single-branch", g.Repo, dir); err != nil {
-			logger.Warn("memory git sync: clone failed", "repo", redactRepo(g.Repo), "error", err, "output", trim(out))
+		if _, err := b.run(ctx, "", "clone", "--branch", branch, "--single-branch", g.Repo, dir); err != nil {
+			logger.Warn("memory git sync: clone failed", "repo", redactRepo(g.Repo), "error", err)
 			return err
 		}
 		return nil
@@ -130,13 +129,13 @@ func (b *GitBackend) syncInFresh(ctx context.Context, dir, branch string, remote
 // Best-effort: on failure it aborts the merge, returns the error, and the caller
 // logs and continues.
 func (b *GitBackend) adoptRemoteBranch(ctx context.Context, dir, branch string) error {
-	if out, err := b.run(ctx, dir, "add", "-A"); err != nil {
-		logger.Warn("memory git sync: adopt add failed", "error", err, "output", trim(out))
+	if _, err := b.run(ctx, dir, "add", "-A"); err != nil {
+		logger.Warn("memory git sync: adopt add failed", "error", err)
 		return err
 	}
 	status, err := b.run(ctx, dir, "status", "--porcelain")
 	if err != nil {
-		logger.Warn("memory git sync: adopt status failed", "error", err, "output", trim(status))
+		logger.Warn("memory git sync: adopt status failed", "error", err)
 		return err
 	}
 	if len(strings.TrimSpace(string(status))) > 0 {
@@ -144,12 +143,12 @@ func (b *GitBackend) adoptRemoteBranch(ctx context.Context, dir, branch string) 
 			return err
 		}
 	}
-	if out, err := b.run(ctx, dir, "fetch", "origin", branch); err != nil {
-		logger.Warn("memory git sync: adopt fetch failed", "error", err, "output", trim(out))
+	if _, err := b.run(ctx, dir, "fetch", "origin", branch); err != nil {
+		logger.Warn("memory git sync: adopt fetch failed", "error", err)
 		return err
 	}
-	if out, err := b.run(ctx, dir, "merge", "--allow-unrelated-histories", "-X", "ours", "--no-edit", "FETCH_HEAD"); err != nil {
-		logger.Warn("memory git sync: adopt merge failed", "error", err, "output", trim(out))
+	if _, err := b.run(ctx, dir, "merge", "--allow-unrelated-histories", "-X", "ours", "--no-edit", "FETCH_HEAD"); err != nil {
+		logger.Warn("memory git sync: adopt merge failed", "error", err)
 		_, _ = b.run(ctx, dir, "merge", "--abort")
 		return err
 	}
@@ -189,13 +188,13 @@ func (b *GitBackend) SyncOut(ctx context.Context) error {
 // remote branch creates it. With no local commits at all there is nothing to
 // push, so it is a no-op regardless.
 func (b *GitBackend) stageCommitPush(ctx context.Context, dir, branch string, pushWhenClean bool) error {
-	if out, err := b.run(ctx, dir, "add", "-A"); err != nil {
-		logger.Warn("memory git sync: add failed", "error", err, "output", trim(out))
+	if _, err := b.run(ctx, dir, "add", "-A"); err != nil {
+		logger.Warn("memory git sync: add failed", "error", err)
 		return err
 	}
 	status, err := b.run(ctx, dir, "status", "--porcelain")
 	if err != nil {
-		logger.Warn("memory git sync: status failed", "error", err, "output", trim(status))
+		logger.Warn("memory git sync: status failed", "error", err)
 		return err
 	}
 	dirty := len(strings.TrimSpace(string(status))) > 0
@@ -234,8 +233,8 @@ const (
 // user.name/user.email.
 func (b *GitBackend) commit(ctx context.Context, dir string) error {
 	args := append(b.identityArgs(ctx, dir), "commit", "-m", b.git().EffectiveCommitMessage())
-	if out, err := b.run(ctx, dir, args...); err != nil {
-		logger.Warn("memory git sync: commit failed", "error", err, "output", trim(out))
+	if _, err := b.run(ctx, dir, args...); err != nil {
+		logger.Warn("memory git sync: commit failed", "error", err)
 		return err
 	}
 	return nil
@@ -282,8 +281,8 @@ func (b *GitBackend) pushWithRetry(ctx context.Context, dir, branch string) erro
 		if attempt == maxPushAttempts {
 			break
 		}
-		if rout, rerr := b.run(ctx, dir, "pull", "--rebase", "--autostash", "origin", branch); rerr != nil {
-			logger.Warn("memory git sync: rebase onto remote failed", "error", rerr, "output", trim(rout))
+		if _, rerr := b.run(ctx, dir, "pull", "--rebase", "--autostash", "origin", branch); rerr != nil {
+			logger.Warn("memory git sync: rebase onto remote failed", "error", rerr)
 			_, _ = b.run(ctx, dir, "rebase", "--abort")
 			return rerr
 		}
@@ -309,8 +308,8 @@ func (b *GitBackend) ensureRepo(ctx context.Context, dir string) error {
 		{"checkout", "-B", g.EffectiveBranch()},
 	}
 	for _, args := range steps {
-		if out, err := b.run(ctx, dir, args...); err != nil {
-			logger.Warn("memory git sync: repo init failed", "step", args[0], "error", err, "output", trim(out))
+		if _, err := b.run(ctx, dir, args...); err != nil {
+			logger.Warn("memory git sync: repo init failed", "step", args[0], "error", err)
 			return err
 		}
 	}
@@ -332,8 +331,8 @@ func (b *GitBackend) ensureOrigin(ctx context.Context, dir, repo string) error {
 	if current == "" {
 		verb = "add"
 	}
-	if out, err := b.run(ctx, dir, "remote", verb, "origin", repo); err != nil {
-		logger.Warn("memory git sync: failed to set origin remote", "error", err, "output", trim(out))
+	if _, err := b.run(ctx, dir, "remote", verb, "origin", repo); err != nil {
+		logger.Warn("memory git sync: failed to set origin remote", "error", err)
 		return err
 	}
 	return nil
@@ -341,28 +340,25 @@ func (b *GitBackend) ensureOrigin(ctx context.Context, dir, repo string) error {
 
 // remoteHasBranch reports whether the remote already has branch, via ls-remote.
 // A clean exit with empty output means the remote is reachable but empty (or
-// lacks the branch); a non-zero exit means unreachable/unauthorized. The raw
-// command output is returned so the caller can surface git's stderr (e.g.
-// "Repository not found") instead of the opaque "exit status 128".
-func (b *GitBackend) remoteHasBranch(ctx context.Context, repo, branch string) (bool, []byte, error) {
+// lacks the branch); a non-zero exit means unreachable/unauthorized - the error
+// carries git's stderr (e.g. "Repository not found") rather than the opaque
+// "exit status 128".
+func (b *GitBackend) remoteHasBranch(ctx context.Context, repo, branch string) (bool, error) {
 	out, err := b.run(ctx, "", "ls-remote", "--heads", repo, branch)
 	if err != nil {
-		return false, out, err
+		return false, err
 	}
-	return len(strings.TrimSpace(string(out))) > 0, out, nil
+	return len(strings.TrimSpace(string(out))) > 0, nil
 }
 
 // run executes a git command under the per-op timeout. It does NOT set cmd.Env,
 // so the process inherits the ambient environment (the user's default git/ssh
 // config and credential chain). workdir is the working directory ("" = inherit).
+// Returns stdout only; utils.RunGit folds git's stderr into the error.
 func (b *GitBackend) run(ctx context.Context, workdir string, args ...string) ([]byte, error) {
 	cctx, cancel := context.WithTimeout(ctx, b.git().EffectiveTimeout())
 	defer cancel()
-	cmd := exec.CommandContext(cctx, "git", args...)
-	if workdir != "" {
-		cmd.Dir = workdir
-	}
-	return cmd.CombinedOutput()
+	return utils.RunGit(cctx, workdir, args...)
 }
 
 func isGitRepo(dir string) bool {
@@ -379,15 +375,6 @@ func isEmptyOrMissing(dir string) bool {
 		return false
 	}
 	return len(entries) == 0
-}
-
-func trim(out []byte) string {
-	const max = 2000
-	s := strings.TrimSpace(string(out))
-	if len(s) > max {
-		return s[:max] + "..."
-	}
-	return s
 }
 
 // repoEmbedsCredentials reports whether an http(s) repo URL carries userinfo

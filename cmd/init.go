@@ -12,7 +12,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	utils "github.com/inference-gateway/cli/config/utils"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
-	skills "github.com/inference-gateway/cli/internal/services/skills"
+	skills "github.com/inference-gateway/cli/internal/skills"
 )
 
 var initCmd = &cobra.Command{

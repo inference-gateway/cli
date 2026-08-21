@@ -32,10 +32,10 @@ import (
 	autocomplete "github.com/inference-gateway/cli/internal/presentation/tui/autocomplete"
 	components "github.com/inference-gateway/cli/internal/presentation/tui/components"
 	factory "github.com/inference-gateway/cli/internal/presentation/tui/components/factory"
+	gitdiff "github.com/inference-gateway/cli/internal/presentation/tui/gitdiff"
 	handlers "github.com/inference-gateway/cli/internal/presentation/tui/handlers"
 	keybinding "github.com/inference-gateway/cli/internal/presentation/tui/keybinding"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
-	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 )
 
 // actChatFocusAttachments is the chat-namespace action that moves key focus to
