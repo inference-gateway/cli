@@ -19,6 +19,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // maxRenderBytes caps how large a single side of a diff may be before the
@@ -277,7 +279,7 @@ func parseStatus(data []byte) (staged, unstaged []FileChange) {
 	for i := 0; i < len(tokens); i++ {
 		entry := tokens[i]
 		if len(entry) < 4 {
-			continue // trailing empty token / malformed
+			continue
 		}
 		x, y, path := entry[0], entry[1], entry[3:]
 
@@ -681,22 +683,7 @@ func (g *gitSource) readWorking(path string) string {
 }
 
 func (g *gitSource) run(args ...string) ([]byte, error) {
-	return RunGit(context.Background(), g.workdir, args...)
-}
-
-// RunGit runs a git command in workdir (process cwd when empty) and returns
-// its stdout. The context bounds the command's lifetime; stderr is folded
-// into the returned error.
-func RunGit(ctx context.Context, workdir string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = workdir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
-	}
-	return stdout.Bytes(), nil
+	return utils.RunGit(context.Background(), g.workdir, args...)
 }
 
 // refPath prefers the rename/copy source when present, else the path itself.

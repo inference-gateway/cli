@@ -21,8 +21,8 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
-	gitdiff "github.com/inference-gateway/cli/internal/platform/gitdiff"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	history "github.com/inference-gateway/cli/internal/presentation/tui/history"
 	inputsyntax "github.com/inference-gateway/cli/internal/presentation/tui/inputsyntax"
@@ -76,7 +76,7 @@ type InputView struct {
 func gitCurrentBranch() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.GitCommandTimeout)
 	defer cancel()
-	output, err := gitdiff.RunGit(ctx, "", "branch", "--show-current")
+	output, err := utils.RunGit(ctx, "", "branch", "--show-current")
 	if err != nil {
 		return "", err
 	}

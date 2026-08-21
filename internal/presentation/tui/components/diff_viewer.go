@@ -13,7 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	gitdiff "github.com/inference-gateway/cli/internal/platform/gitdiff"
+	gitdiff "github.com/inference-gateway/cli/internal/presentation/tui/gitdiff"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 

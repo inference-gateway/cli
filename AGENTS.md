@@ -37,7 +37,7 @@ The agent is an **event-driven state machine** (`internal/agent/agent_state_mach
 - `internal/scheduler/` — background-work context: `domain/` (scheduled jobs, background jobs, shell/subagent tracking, task retention) + cron scheduler, job supervisor (`jobs/`), `githubscheduler/`, `heartbeat/`.
 - `internal/browser/`, `internal/computer/` — capabilities plugged into the agent through the `agentdomain.Tool` contract, each with a pure `domain/` and an `infrastructure/` (Playwright only under `browser/infrastructure`; robotgo and display backends only under `computer/infrastructure`). They never import `agent/tools` or `presentation`.
 - `internal/audio/` — capability: recording, conversion, and whisper.cpp speech-to-text.
-- `internal/platform/` — shared platform layer: `logger`, `constants`, `formatting`, `telemetry`, `utils`, `project`, `models`, `streamevent`, `render`, `storage` (+migrations), `memory`, `adapters`, `ipc`, `gitdiff` (git status/patch reader), `container` (docker/podman runtime contract).
+- `internal/platform/` — shared platform layer: `logger`, `constants`, `formatting`, `telemetry`, `utils`, `project`, `models`, `streamevent`, `render`, `storage` (+migrations), `memory`, `adapters`, `ipc`, `container` (docker/podman runtime contract). `utils.RunGit` is the shared git-exec helper.
 - `internal/channels/` — external messaging ports (`Channel`, `InboundMessage`, `OutboundMessage`). Consumed by the scheduler and the Telegram surface; carries no driver.
 - `internal/gateway/` — lifecycle of the local gateway (container or binary) plus its PID registry.
 - `internal/mcp/` — MCP server registry: the manager implementing `agentdomain.MCPManager`/`MCPClient` and its SSE transport.
@@ -47,6 +47,7 @@ The agent is an **event-driven state machine** (`internal/agent/agent_state_mach
 - `internal/presentation/` — every user-facing surface, and the only place bubbletea, go-telegram and terminal styling appear:
   - `tui/` (package `tui`) — `ApplicationState`, view/manager contracts, UI events, theming; `tui/app` is the Bubble Tea root model, `tui/handlers` the event handlers, `tui/{a2acoord,approvalcoord,chatcompletion,directexec,eventlistener,toolcoordinator}` the `tea.Cmd` coordinators, `tui/statemanager` the shared chat state, `tui/toolformatter` the styled tool renderer.
   - `shortcuts/` — the `/`-command registry, shared by the TUI and Telegram.
+  - `tui/gitdiff/` — the git status/patch reader behind the `/diff` panel; UI-agnostic but consumed only by the TUI.
   - `web/` — the xterm.js terminal server. `telegram/` — the go-telegram driver plus channel routing. `headless/` — `headless.Run` and the stdin IPC control loop.
 - `cmd/` — thin cobra wiring: parse flags, build config, delegate to a presentation surface.
 
