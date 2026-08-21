@@ -446,11 +446,11 @@ func (c *ServiceContainer) initializeDomainServices() {
 	})
 
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
-		llmToolService := services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
+		llmToolService := agent.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
 		llmToolService.SetCurrentModelFn(c.modelService.GetCurrentModel)
 		c.toolService = llmToolService
 	} else {
-		c.toolService = services.NewNoOpToolService()
+		c.toolService = agent.NewNoOpToolService()
 	}
 	if c.telemetryRecorder != nil {
 		c.toolService = telemetry.NewToolService(c.toolService, c.telemetryRecorder)
