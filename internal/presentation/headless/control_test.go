@@ -1,11 +1,12 @@
 package headless
 
 import (
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	"strings"
 	"testing"
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
@@ -124,5 +125,25 @@ func TestHeadlessControl_PumpPauseResume(t *testing.T) {
 	}
 	if resumeCalls != 1 {
 		t.Fatalf("resume() called %d times, want 1", resumeCalls)
+	}
+}
+
+func TestHeadlessControl_ReadLinesSurvivesLargeLine(t *testing.T) {
+	ctl, _, _ := newTestControl()
+	large := `{"type":"approval_response","tool_call_id":"` + strings.Repeat("x", 128*1024) + `","approved":false}`
+	go ctl.readLines(strings.NewReader(large + "\n" + `{"type":"approval_response","tool_call_id":"tc2","approved":true}` + "\n"))
+
+	for {
+		select {
+		case resp, ok := <-ctl.approvals:
+			if !ok {
+				t.Fatal("stdin reader gave up before the line following a >64KiB line")
+			}
+			if resp.ToolCallID == "tc2" {
+				return
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for the approval after a large line")
+		}
 	}
 }

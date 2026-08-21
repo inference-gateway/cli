@@ -49,10 +49,19 @@ func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentd
 	}
 }
 
+// maxControlLineBytes caps one stdin IPC line. bufio.Scanner's 64 KiB default
+// is small enough for a real approval payload to trip, and a tripped scanner
+// stops for good.
+const maxControlLineBytes = 4 << 20
+
 func (c *headlessControl) readLines(in io.Reader) {
 	scanner := bufio.NewScanner(in)
+	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxControlLineBytes)
 	for scanner.Scan() {
 		c.dispatchLine(scanner.Bytes())
+	}
+	if err := scanner.Err(); err != nil {
+		logger.Warn("headless control stdin reader stopped; approvals now auto-reject", "error", err)
 	}
 	close(c.approvals)
 	close(c.ctrlEvents)
