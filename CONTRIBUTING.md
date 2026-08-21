@@ -67,7 +67,7 @@ The hook automatically:
 
 - Rejects trailing whitespace and merge-conflict markers (`git diff --cached --check`)
 - Runs `go mod tidy` when `go.mod`/`go.sum` are staged
-- Regenerates mocks when `internal/domain/interfaces.go` is staged
+- Regenerates mocks when a `*/domain` package (or another counterfeiter source) is staged
 - Formats code and runs golangci-lint + markdownlint
 
 ### Available Tasks
@@ -96,13 +96,12 @@ flox activate -- task release:build  # Build for all platforms
 ## Adding New Tools
 
 The CLI uses a modular tools architecture where each tool is implemented as a separate module in the
-`internal/services/tools/` package. This section describes how to add new tools for LLM integration.
+`internal/agent/tools/` package. This section describes how to add new tools for LLM integration.
 
 ### Tool Architecture Overview
 
 ```text
-internal/services/tools/
-├── interfaces.go      # Tool interface definitions
+internal/agent/tools/
 ├── registry.go        # Tool management and registration
 ├── bash.go           # Example: Bash command execution tool
 ├── read.go           # Example: File reading tool
@@ -116,7 +115,7 @@ internal/services/tools/
 
 #### 1. Create Your Tool File
 
-Create a new file `internal/services/tools/your_tool.go`:
+Create a new file `internal/agent/tools/your_tool.go`:
 
 ```go
 package tools
@@ -126,7 +125,7 @@ import (
     "fmt"
 
     "github.com/inference-gateway/cli/config"
-    "github.com/inference-gateway/cli/internal/domain"
+    "github.com/inference-gateway/cli/internal/agent/domain"
     "github.com/inference-gateway/sdk"
 )
 
@@ -219,7 +218,7 @@ func (t *YourTool) IsEnabled() bool {
 
 #### 3. Register Your Tool
 
-Add your tool to the registry in `internal/services/tools/registry.go`:
+Add your tool to the registry in `internal/agent/tools/registry.go`:
 
 ```go
 // In the registerTools() method, add:
@@ -255,7 +254,7 @@ type YourServiceConfig struct {
 
 #### 5. Write Tests
 
-Create `internal/services/tools/your_tool_test.go`:
+Create `internal/agent/tools/your_tool_test.go`:
 
 ```go
 package tools
@@ -323,7 +322,7 @@ Run the test suite to ensure your tool works correctly:
 flox activate -- task test
 
 # Run tests for your specific tool
-flox activate -- go test ./internal/services/tools -run TestYourTool
+flox activate -- go test ./internal/agent/tools -run TestYourTool
 
 # Run with verbose output
 flox activate -- task test:verbose

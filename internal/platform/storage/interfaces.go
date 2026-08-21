@@ -67,7 +67,7 @@ type ConversationStorage interface {
 // ScheduledJobStorage defines the interface for persisting scheduled jobs.
 // Implementations must be safe for concurrent access. Change notification is
 // the consumer's job: the scheduler polls ListJobs and diffs (see
-// internal/services/scheduler).
+// internal/scheduler).
 type ScheduledJobStorage interface {
 	// SaveJob creates or updates a scheduled job.
 	SaveJob(ctx context.Context, job *scheddomain.ScheduledJob) error

@@ -1,5 +1,5 @@
 // Ports of the agent context: services its tools and run loop consume,
-// implemented by internal/services and platform packages.
+// implemented by the capability contexts and platform packages.
 
 package domain
 

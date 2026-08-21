@@ -13,7 +13,7 @@ import (
 )
 
 // GitBackend syncs the memory directory with a git remote. It shells out to the
-// git CLI (mirroring the exec.Command("git", ...) style in internal/services/
+// git CLI (mirroring the exec.Command("git", ...) style in internal/platform/
 // gitdiff) and inherits the ambient environment unchanged, so auth uses the
 // user's default git/ssh config (ssh-agent, credential helper, GIT_* env). Every
 // command runs under a per-operation timeout so a misconfigured remote ends the

@@ -15,7 +15,7 @@ import (
 
 // TestChatTUIViaTmux drives the built binary's chat TUI end-to-end inside a tmux
 // session, following the procedure documented in the built-in `tmux` skill
-// (internal/services/skills/builtins/tmux/SKILL.md) and the AGENTS.md recipe:
+// (internal/skills/builtins/tmux/SKILL.md) and the AGENTS.md recipe:
 // start a session, select the single mock model, type a prompt, and read the
 // reply back from the pane. Skipped where tmux is not installed.
 func TestChatTUIViaTmux(t *testing.T) {

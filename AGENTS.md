@@ -32,14 +32,18 @@ task mod:tidy                 # go mod tidy
 The agent is an **event-driven state machine** (`internal/agent/agent_state_machine.go`). States flow: `Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/ExecutingTools → PostToolExecution → CheckingQueue … → Completing → Idle`. Each state's executor lives in `internal/agent/states/<state>.go`.
 
 **Bounded contexts (DDD — contexts first, layers second).** There is no central domain package; each context owns its contracts in a pure `domain/` subpackage (stdlib plus the inference-gateway sdk, and adk types where the context speaks A2A), and touching any `*/domain` package triggers mock regeneration in the pre-commit hook:
-- `internal/agent/` — the core domain. `agent/domain/` is the shared kernel (Tool contract, tool-call value types, chat events, hooks, frames/annotations, service ports like `FileService`/`MCPManager`/`SkillsService`); `agent/states/` holds the state-machine contracts and per-state executors; `agent/application/` holds adk-coupled A2A contracts and `agentrunner`; `agent/infrastructure/` holds the lipgloss tool formatter. `agent/tools/registry.go` is the source of truth for registered tools; capability packages register theirs via `Registry.RegisterTools`.
+- `internal/agent/` — the core domain. `agent/domain/` is the shared kernel (Tool contract, tool-call value types, chat events, hooks, frames/annotations, service ports like `FileService`/`MCPManager`/`SkillsService`); `agent/states/` holds the state-machine contracts and per-state executors; `agent/application/` holds adk-coupled A2A contracts and `agentrunner`; `agent/infrastructure/` holds the lipgloss tool formatter and the `FileService`/`ImageService`/`FrameSource` adapters. `agent/tools/registry.go` is the source of truth for registered tools; capability packages register theirs via `Registry.RegisterTools`.
 - `internal/conversation/` — conversation context: `domain/` (ConversationEntry, repository/optimizer/model/pricing/queue contracts, sessions) + application services (persistent/in-memory repos, tokenizer, rollover, title generation, event bridge).
 - `internal/scheduler/` — background-work context: `domain/` (scheduled jobs, background jobs, shell/subagent tracking, task retention) + cron scheduler, job supervisor (`jobs/`), `githubscheduler/`, `heartbeat/`.
-- `internal/browser/`, `internal/computer/` — capabilities plugged into the agent through the `agentdomain.Tool` contract, each with a pure `domain/` and an `infrastructure/` (Playwright only under `browser/infrastructure`; robotgo and display backends only under `computer/infrastructure`). They never import `agent/tools`, `services`, or `presentation`.
+- `internal/browser/`, `internal/computer/` — capabilities plugged into the agent through the `agentdomain.Tool` contract, each with a pure `domain/` and an `infrastructure/` (Playwright only under `browser/infrastructure`; robotgo and display backends only under `computer/infrastructure`). They never import `agent/tools` or `presentation`.
 - `internal/audio/` — capability: recording, conversion, and whisper.cpp speech-to-text.
-- `internal/platform/` — shared platform layer: `logger`, `constants`, `formatting`, `telemetry`, `utils`, `project`, `models`, `streamevent`, `render`, `storage` (+migrations), `memory`, `adapters`, `ipc`, `container` (docker/podman runtime contract).
+- `internal/platform/` — shared platform layer: `logger`, `constants`, `formatting`, `telemetry`, `utils`, `project`, `models`, `streamevent`, `render`, `storage` (+migrations), `memory`, `adapters`, `ipc`, `gitdiff` (git status/patch reader), `container` (docker/podman runtime contract).
 - `internal/channels/` — external messaging ports (`Channel`, `InboundMessage`, `OutboundMessage`). Consumed by the scheduler and the Telegram surface; carries no driver.
-- `internal/services/` — the shrinking remainder: gateway manager, MCP manager, A2A agent manager, skills, plugins, filewriter, gitdiff, github setup/issues, provisioner. Each of these belongs in its own context; they are being promoted one at a time.
+- `internal/gateway/` — lifecycle of the local gateway (container or binary) plus its PID registry.
+- `internal/mcp/` — MCP server registry: the manager implementing `agentdomain.MCPManager`/`MCPClient` and its SSE transport.
+- `internal/skills/`, `internal/plugins/` — Agent Skills discovery/catalog/installer (with embedded builtins) and the plugin installer implementing `agentdomain.HookCommandProvider`.
+- `internal/github/` — `issues/` (`agentdomain.GitHubIssueService`) and `setup/` (workflow scaffolding, org secrets); two packages because both export `Service`.
+- `internal/provisioner/` — GPU pod provisioning, a leaf consumed only by `cmd/gpu.go`.
 - `internal/presentation/` — every user-facing surface, and the only place bubbletea, go-telegram and terminal styling appear:
   - `tui/` (package `tui`) — `ApplicationState`, view/manager contracts, UI events, theming; `tui/app` is the Bubble Tea root model, `tui/handlers` the event handlers, `tui/{a2acoord,approvalcoord,chatcompletion,directexec,eventlistener,toolcoordinator}` the `tea.Cmd` coordinators, `tui/statemanager` the shared chat state, `tui/toolformatter` the styled tool renderer.
   - `shortcuts/` — the `/`-command registry, shared by the TUI and Telegram.
@@ -73,7 +77,7 @@ The chat TUI (Bubble Tea v2) can be exercised end-to-end by running it inside a
 tmux session and scripting it with `send-keys` / `capture-pane`. The generic tmux
 mechanics — session/pane lifecycle, `send-keys -l` for literal text vs named keys,
 sleep-before-`capture-pane`, cleanup discipline — are the single source of truth in
-the built-in **`tmux` skill** (`internal/services/skills/builtins/tmux/SKILL.md`);
+the built-in **`tmux` skill** (`internal/skills/builtins/tmux/SKILL.md`);
 `tests/e2e/tmux_tui_test.go` drives the TUI the same way. This section only covers
 the repo-specific glue.
 
