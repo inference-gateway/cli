@@ -1,4 +1,4 @@
-package services
+package application
 
 import (
 	"context"
@@ -11,19 +11,18 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 
 	config "github.com/inference-gateway/cli/config"
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
-type A2AAgentService struct {
+type A2AAgentServiceImpl struct {
 	config     *config.Config
 	agentsPath string
-	cache      map[string]*agentapp.CachedAgentCard
+	cache      map[string]*CachedAgentCard
 	cacheMutex sync.RWMutex
 }
 
-func NewA2AAgentService(cfg *config.Config) *A2AAgentService {
+func NewA2AAgentService(cfg *config.Config) *A2AAgentServiceImpl {
 	agentsPath := config.DefaultAgentsPath
 
 	if homeDir, err := os.UserHomeDir(); err == nil {
@@ -37,14 +36,14 @@ func NewA2AAgentService(cfg *config.Config) *A2AAgentService {
 		agentsPath = config.DefaultAgentsPath
 	}
 
-	return &A2AAgentService{
+	return &A2AAgentServiceImpl{
 		config:     cfg,
 		agentsPath: agentsPath,
-		cache:      make(map[string]*agentapp.CachedAgentCard),
+		cache:      make(map[string]*CachedAgentCard),
 	}
 }
 
-func (s *A2AAgentService) GetAgentCard(ctx context.Context, agentURL string) (*adk.AgentCard, error) {
+func (s *A2AAgentServiceImpl) GetAgentCard(ctx context.Context, agentURL string) (*adk.AgentCard, error) {
 	if s.config.A2A.Cache.Enabled {
 		if card := s.getFromCache(agentURL); card != nil {
 			return card, nil
@@ -67,7 +66,7 @@ func (s *A2AAgentService) GetAgentCard(ctx context.Context, agentURL string) (*a
 	return card, nil
 }
 
-func (s *A2AAgentService) getFromCache(agentURL string) *adk.AgentCard {
+func (s *A2AAgentServiceImpl) getFromCache(agentURL string) *adk.AgentCard {
 	s.cacheMutex.RLock()
 	defer s.cacheMutex.RUnlock()
 
@@ -85,18 +84,18 @@ func (s *A2AAgentService) getFromCache(agentURL string) *adk.AgentCard {
 	return cachedCard.Card
 }
 
-func (s *A2AAgentService) storeInCache(agentURL string, card *adk.AgentCard) {
+func (s *A2AAgentServiceImpl) storeInCache(agentURL string, card *adk.AgentCard) {
 	s.cacheMutex.Lock()
 	defer s.cacheMutex.Unlock()
 
-	s.cache[agentURL] = &agentapp.CachedAgentCard{
+	s.cache[agentURL] = &CachedAgentCard{
 		Card:      card,
 		URL:       agentURL,
 		FetchedAt: time.Now(),
 	}
 }
 
-func (s *A2AAgentService) GetConfiguredAgents() []string {
+func (s *A2AAgentServiceImpl) GetConfiguredAgents() []string {
 	if len(s.config.A2A.Agents) > 0 {
 		return s.config.A2A.Agents
 	}
@@ -110,9 +109,9 @@ func (s *A2AAgentService) GetConfiguredAgents() []string {
 	return urls
 }
 
-func (s *A2AAgentService) GetAgentCards(ctx context.Context) ([]*agentapp.CachedAgentCard, error) {
+func (s *A2AAgentServiceImpl) GetAgentCards(ctx context.Context) ([]*CachedAgentCard, error) {
 	agentURLs := s.GetConfiguredAgents()
-	cards := make([]*agentapp.CachedAgentCard, 0, len(agentURLs))
+	cards := make([]*CachedAgentCard, 0, len(agentURLs))
 
 	for _, url := range agentURLs {
 		card, err := s.GetAgentCard(ctx, url)
@@ -121,7 +120,7 @@ func (s *A2AAgentService) GetAgentCards(ctx context.Context) ([]*agentapp.Cached
 			continue
 		}
 
-		var cachedCard *agentapp.CachedAgentCard
+		var cachedCard *CachedAgentCard
 
 		if s.config.A2A.Cache.Enabled {
 			s.cacheMutex.RLock()
@@ -130,7 +129,7 @@ func (s *A2AAgentService) GetAgentCards(ctx context.Context) ([]*agentapp.Cached
 		}
 
 		if cachedCard == nil {
-			cachedCard = &agentapp.CachedAgentCard{
+			cachedCard = &CachedAgentCard{
 				Card:      card,
 				URL:       url,
 				FetchedAt: time.Now(),

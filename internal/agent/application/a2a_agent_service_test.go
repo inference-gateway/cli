@@ -1,4 +1,4 @@
-package services
+package application
 
 import (
 	"path/filepath"
@@ -7,7 +7,6 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 )
 
 func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
@@ -29,10 +28,10 @@ func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 			"http://env-agent-2:8080",
 		}
 
-		svc := &A2AAgentService{
+		svc := &A2AAgentServiceImpl{
 			config:     cfg,
 			agentsPath: agentsPath,
-			cache:      make(map[string]*agentapp.CachedAgentCard),
+			cache:      make(map[string]*CachedAgentCard),
 		}
 
 		agents := svc.GetConfiguredAgents()
@@ -46,10 +45,10 @@ func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.A2A.Agents = []string{}
 
-		svc := &A2AAgentService{
+		svc := &A2AAgentServiceImpl{
 			config:     cfg,
 			agentsPath: agentsPath,
-			cache:      make(map[string]*agentapp.CachedAgentCard),
+			cache:      make(map[string]*CachedAgentCard),
 		}
 
 		agents := svc.GetConfiguredAgents()
@@ -62,10 +61,10 @@ func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.A2A.Agents = nil
 
-		svc := &A2AAgentService{
+		svc := &A2AAgentServiceImpl{
 			config:     cfg,
 			agentsPath: agentsPath,
-			cache:      make(map[string]*agentapp.CachedAgentCard),
+			cache:      make(map[string]*CachedAgentCard),
 		}
 
 		agents := svc.GetConfiguredAgents()
@@ -82,10 +81,10 @@ func TestA2AAgentService_GetConfiguredAgents_NoAgentsConfigured(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.A2A.Agents = nil
 
-	svc := &A2AAgentService{
+	svc := &A2AAgentServiceImpl{
 		config:     cfg,
 		agentsPath: agentsPath,
-		cache:      make(map[string]*agentapp.CachedAgentCard),
+		cache:      make(map[string]*CachedAgentCard),
 	}
 
 	agents := svc.GetConfiguredAgents()

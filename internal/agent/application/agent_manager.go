@@ -1,4 +1,4 @@
-package services
+package application
 
 import (
 	"context"
@@ -18,7 +18,6 @@ import (
 	gotenv "github.com/subosito/gotenv"
 
 	config "github.com/inference-gateway/cli/config"
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -44,7 +43,7 @@ type AgentManager struct {
 	statusCallback       func(agentName string, state agentdomain.AgentState, message string, url string, image string)
 	pullProgressCallback func(agentName string, done, total int)
 	containersMutex      sync.Mutex
-	a2aAgentService      agentapp.A2AAgentService
+	a2aAgentService      A2AAgentService
 	probeStop            chan struct{}
 	probeStopOnce        sync.Once
 	probeWg              sync.WaitGroup
@@ -53,7 +52,7 @@ type AgentManager struct {
 }
 
 // NewAgentManager creates a new agent manager
-func NewAgentManager(sessionID convdomain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig, runtime containerruntime.ContainerRuntime, a2aService agentapp.A2AAgentService) *AgentManager {
+func NewAgentManager(sessionID convdomain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig, runtime containerruntime.ContainerRuntime, a2aService A2AAgentService) *AgentManager {
 	return &AgentManager{
 		sessionID:        sessionID,
 		config:           cfg,
@@ -185,7 +184,7 @@ func (am *AgentManager) initializeExternalAgents(ctx context.Context) {
 func (am *AgentManager) monitorExternalAgents(ctx context.Context) {
 	time.Sleep(2 * time.Second)
 
-	if a2aSvc, ok := am.a2aAgentService.(*A2AAgentService); !ok || a2aSvc == nil {
+	if a2aSvc, ok := am.a2aAgentService.(*A2AAgentServiceImpl); !ok || a2aSvc == nil {
 		logger.Warn("cannot monitor external agents: A2A service not available")
 		return
 	}

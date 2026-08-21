@@ -325,7 +325,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 		c.stateManager.InitializeAgentReadiness(agentCount)
 	}
 
-	c.agentManager = services.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
+	c.agentManager = agentapp.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
 
 	c.agentManager.SetStatusCallback(func(agentName string, state agentdomain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
@@ -484,7 +484,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		}
 	}
 
-	c.a2aAgentService = services.NewA2AAgentService(c.config)
+	c.a2aAgentService = agentapp.NewA2AAgentService(c.config)
 
 	c.githubIssueService = githubissues.New()
 
