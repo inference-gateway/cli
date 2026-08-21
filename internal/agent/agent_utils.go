@@ -26,8 +26,8 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
+	plugins "github.com/inference-gateway/cli/internal/plugins"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
-	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 )
 
 // accumulateToolCalls processes multiple tool call deltas and stores them in the agent's toolCallsMap

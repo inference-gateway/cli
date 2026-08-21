@@ -12,8 +12,8 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	config "github.com/inference-gateway/cli/config"
+	plugins "github.com/inference-gateway/cli/internal/plugins"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
-	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 )
 
 var pluginsCmd = &cobra.Command{

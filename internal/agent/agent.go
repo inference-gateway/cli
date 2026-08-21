@@ -25,8 +25,8 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	plugins "github.com/inference-gateway/cli/internal/plugins"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 )
 
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
