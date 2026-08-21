@@ -9,8 +9,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	gitdiff "github.com/inference-gateway/cli/internal/platform/gitdiff"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
-	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 )
 
 // fakeDiffSource is a hand-written gitdiff.Source for tests.

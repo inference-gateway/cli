@@ -14,10 +14,10 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	gitdiff "github.com/inference-gateway/cli/internal/platform/gitdiff"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
-	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 )
 
 // ChatShortcutHandler handles shortcut execution and side effects

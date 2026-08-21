@@ -21,6 +21,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	gitdiff "github.com/inference-gateway/cli/internal/platform/gitdiff"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	history "github.com/inference-gateway/cli/internal/presentation/tui/history"
@@ -28,7 +29,6 @@ import (
 	keys "github.com/inference-gateway/cli/internal/presentation/tui/keys"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
-	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 )
 
 // InputView handles user input with history, delegating text editing to

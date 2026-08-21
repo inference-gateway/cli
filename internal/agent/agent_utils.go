@@ -23,11 +23,11 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	gitdiff "github.com/inference-gateway/cli/internal/platform/gitdiff"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	plugins "github.com/inference-gateway/cli/internal/plugins"
-	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 )
 
 // accumulateToolCalls processes multiple tool call deltas and stores them in the agent's toolCallsMap
