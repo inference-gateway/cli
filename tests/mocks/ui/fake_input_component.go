@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/agent/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 

@@ -1,4 +1,4 @@
-package states
+package states_test
 
 import (
 	"context"
@@ -6,13 +6,16 @@ import (
 	"sync"
 	"testing"
 
+	states "github.com/inference-gateway/cli/internal/agent/states"
+	statesmocks "github.com/inference-gateway/cli/tests/mocks/states"
+
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	sdk "github.com/inference-gateway/sdk"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 var errBoom = errors.New("boom")
@@ -23,29 +26,29 @@ type completeCall struct {
 	toolCalls []sdk.ChatCompletionMessageToolCall
 }
 
-// stateFixture wires a StateContext against the counterfeiter fakes
+// stateFixture wires a states.StateContext against the counterfeiter fakes
 // (FakeAgentStateMachine, FakeMessageQueue) with recording stubs for every
 // callback the state executors touch. Defaults: empty queue, live session
 // context, no tool calls, no approval required, DispatchHooks nil (the
 // executors' nil-guard path) unless recordHooks is called.
 type stateFixture struct {
-	ctx    *domain.StateContext
-	sm     *domainmocks.FakeAgentStateMachine
-	queue  *domainmocks.FakeMessageQueue
-	events chan domain.AgentEvent
+	ctx    *states.StateContext
+	sm     *statesmocks.FakeAgentStateMachine
+	queue  *convmocks.FakeMessageQueue
+	events chan states.AgentEvent
 
 	drainReturns  int
 	drainCalls    int
 	completeCalls []completeCall
 	cancelCalls   int
-	added         []domain.ConversationEntry
+	added         []convdomain.ConversationEntry
 }
 
 func newStateFixture() *stateFixture {
 	f := &stateFixture{
-		sm:     &domainmocks.FakeAgentStateMachine{},
-		queue:  &domainmocks.FakeMessageQueue{},
-		events: make(chan domain.AgentEvent, 16),
+		sm:     &statesmocks.FakeAgentStateMachine{},
+		queue:  &convmocks.FakeMessageQueue{},
+		events: make(chan states.AgentEvent, 16),
 	}
 	f.queue.IsEmptyReturns(true)
 
@@ -54,11 +57,11 @@ func newStateFixture() *stateFixture {
 	toolCalls := []*sdk.ChatCompletionMessageToolCall{}
 	reasoning := ""
 	idx := 0
-	results := []domain.ConversationEntry{}
+	results := []convdomain.ConversationEntry{}
 
-	f.ctx = &domain.StateContext{
+	f.ctx = &states.StateContext{
 		StateMachine: f.sm,
-		AgentCtx: &domain.AgentContext{
+		AgentCtx: &states.AgentContext{
 			Ctx:          context.Background(),
 			MessageQueue: f.queue,
 			Conversation: &conv,
@@ -71,10 +74,10 @@ func newStateFixture() *stateFixture {
 		CurrentReasoning:      &reasoning,
 		CurrentToolIndex:      &idx,
 		ToolResults:           &results,
-		Request:               &domain.AgentRequest{RequestID: "req-1"},
-		GetMetrics:            func(string) *domain.ChatMetrics { return nil },
+		Request:               &agentdomain.AgentRequest{RequestID: "req-1"},
+		GetMetrics:            func(string) *agentdomain.ChatMetrics { return nil },
 		ShouldRequireApproval: func(*sdk.ChatCompletionMessageToolCall, bool) bool { return false },
-		AddMessage: func(e domain.ConversationEntry) error {
+		AddMessage: func(e convdomain.ConversationEntry) error {
 			f.added = append(f.added, e)
 			return nil
 		},
@@ -82,14 +85,14 @@ func newStateFixture() *stateFixture {
 			f.drainCalls++
 			return f.drainReturns
 		},
-		ExecuteToolInternal: func(tc sdk.ChatCompletionMessageToolCall, _ bool) domain.ConversationEntry {
+		ExecuteToolInternal: func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
 			return toolEntry(tc)
 		},
-		PublishChatEvent: func(domain.ChatEvent) {},
-		PublishChatComplete: func(reasoning string, tcs []sdk.ChatCompletionMessageToolCall, _ *domain.ChatMetrics) {
+		PublishChatEvent: func(agentdomain.ChatEvent) {},
+		PublishChatComplete: func(reasoning string, tcs []sdk.ChatCompletionMessageToolCall, _ *agentdomain.ChatMetrics) {
 			f.completeCalls = append(f.completeCalls, completeCall{reasoning: reasoning, toolCalls: tcs})
 		},
-		PublishChatCancelled: func(*domain.ChatMetrics) { f.cancelCalls++ },
+		PublishChatCancelled: func(*agentdomain.ChatMetrics) { f.cancelCalls++ },
 	}
 	return f
 }
@@ -97,9 +100,9 @@ func newStateFixture() *stateFixture {
 // recordHooks installs a DispatchHooks recorder and returns the dispatched
 // hook points (nil until the first dispatch, so it compares equal to an
 // absent expectation).
-func (f *stateFixture) recordHooks() *[]domain.HookPoint {
-	var hooks []domain.HookPoint
-	f.ctx.DispatchHooks = func(h domain.HookPoint) { hooks = append(hooks, h) }
+func (f *stateFixture) recordHooks() *[]agentdomain.HookPoint {
+	var hooks []agentdomain.HookPoint
+	f.ctx.DispatchHooks = func(h agentdomain.HookPoint) { hooks = append(hooks, h) }
 	return &hooks
 }
 
@@ -112,7 +115,7 @@ func (f *stateFixture) cancelSession() {
 
 // assertTransitions asserts the exact sequence of Transition targets requested
 // on the fake state machine.
-func assertTransitions(t *testing.T, sm *domainmocks.FakeAgentStateMachine, want ...domain.AgentExecutionState) {
+func assertTransitions(t *testing.T, sm *statesmocks.FakeAgentStateMachine, want ...states.AgentExecutionState) {
 	t.Helper()
 	require.Equal(t, len(want), sm.TransitionCallCount(), "unexpected number of transitions")
 	for i, target := range want {
@@ -123,9 +126,9 @@ func assertTransitions(t *testing.T, sm *domainmocks.FakeAgentStateMachine, want
 
 // assertEvents drains the buffered events channel and asserts the emitted
 // events match want by type, in order.
-func assertEvents(t *testing.T, events chan domain.AgentEvent, want ...domain.AgentEvent) {
+func assertEvents(t *testing.T, events chan states.AgentEvent, want ...states.AgentEvent) {
 	t.Helper()
-	var got []domain.AgentEvent
+	var got []states.AgentEvent
 drain:
 	for {
 		select {

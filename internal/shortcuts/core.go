@@ -7,19 +7,24 @@ import (
 	"slices"
 	"strings"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	models "github.com/inference-gateway/cli/internal/models"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 )
 
 // ClearShortcut clears the conversation history
 type ClearShortcut struct {
-	repo        domain.ConversationRepository
-	taskTracker domain.A2AClearer
+	repo        convdomain.ConversationRepository
+	taskTracker scheddomain.A2AClearer
 }
 
-func NewClearShortcut(repo domain.ConversationRepository, taskTracker domain.A2AClearer) *ClearShortcut {
+func NewClearShortcut(repo convdomain.ConversationRepository, taskTracker scheddomain.A2AClearer) *ClearShortcut {
 	return &ClearShortcut{
 		repo:        repo,
 		taskTracker: taskTracker,
@@ -51,10 +56,10 @@ func (c *ClearShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 
 // CompactShortcut runs conversation optimization to reduce token usage
 type CompactShortcut struct {
-	repo domain.ConversationRepository
+	repo convdomain.ConversationRepository
 }
 
-func NewCompactShortcut(repo domain.ConversationRepository) *CompactShortcut {
+func NewCompactShortcut(repo convdomain.ConversationRepository) *CompactShortcut {
 	return &CompactShortcut{
 		repo: repo,
 	}
@@ -85,12 +90,12 @@ func (c *CompactShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 
 // ContextShortcut shows context window usage information
 type ContextShortcut struct {
-	repo         domain.ConversationRepository
-	modelService domain.ModelService
-	tokenizer    domain.TokenEstimator
+	repo         convdomain.ConversationRepository
+	modelService convdomain.ModelService
+	tokenizer    convdomain.TokenEstimator
 }
 
-func NewContextShortcut(repo domain.ConversationRepository, modelService domain.ModelService, tokenizer domain.TokenEstimator) *ContextShortcut {
+func NewContextShortcut(repo convdomain.ConversationRepository, modelService convdomain.ModelService, tokenizer convdomain.TokenEstimator) *ContextShortcut {
 	return &ContextShortcut{
 		repo:         repo,
 		modelService: modelService,
@@ -202,10 +207,10 @@ func (c *ContextShortcut) formatContextUsage(contextTokens, contextWindowSize in
 
 // CostShortcut displays cost information for the current session
 type CostShortcut struct {
-	repo domain.ConversationRepository
+	repo convdomain.ConversationRepository
 }
 
-func NewCostShortcut(repo domain.ConversationRepository) *CostShortcut {
+func NewCostShortcut(repo convdomain.ConversationRepository) *CostShortcut {
 	return &CostShortcut{repo: repo}
 }
 
@@ -294,10 +299,10 @@ func formatTokenCount(tokens int) string {
 // NewShortcut starts a new conversation
 type NewShortcut struct {
 	repo        PersistentConversationRepository
-	taskTracker domain.A2AClearer
+	taskTracker scheddomain.A2AClearer
 }
 
-func NewNewShortcut(repo PersistentConversationRepository, taskTracker domain.A2AClearer) *NewShortcut {
+func NewNewShortcut(repo PersistentConversationRepository, taskTracker scheddomain.A2AClearer) *NewShortcut {
 	return &NewShortcut{
 		repo:        repo,
 		taskTracker: taskTracker,
@@ -397,10 +402,10 @@ type ModelSwitchData struct {
 
 // SwitchShortcut switches the active model
 type SwitchShortcut struct {
-	modelService domain.ModelService
+	modelService convdomain.ModelService
 }
 
-func NewSwitchShortcut(modelService domain.ModelService) *SwitchShortcut {
+func NewSwitchShortcut(modelService convdomain.ModelService) *SwitchShortcut {
 	return &SwitchShortcut{modelService: modelService}
 }
 
@@ -470,10 +475,10 @@ func (c *SwitchShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 
 // ThemeShortcut switches the active theme
 type ThemeShortcut struct {
-	themeService domain.ThemeService
+	themeService ui.ThemeService
 }
 
-func NewThemeShortcut(themeService domain.ThemeService) *ThemeShortcut {
+func NewThemeShortcut(themeService ui.ThemeService) *ThemeShortcut {
 	return &ThemeShortcut{themeService: themeService}
 }
 
@@ -554,11 +559,11 @@ func (c *A2AAgentsShortcut) Execute(ctx context.Context, args []string) (Shortcu
 // switch. Runtime-only, like /model - agent.reasoning_effort in config
 // remains the startup seed.
 type EffortShortcut struct {
-	agent  domain.AgentService
-	models domain.ModelService
+	agent  agentdomain.AgentService
+	models convdomain.ModelService
 }
 
-func NewEffortShortcut(agent domain.AgentService, models domain.ModelService) *EffortShortcut {
+func NewEffortShortcut(agent agentdomain.AgentService, models convdomain.ModelService) *EffortShortcut {
 	return &EffortShortcut{agent: agent, models: models}
 }
 

@@ -7,13 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	sdk "github.com/inference-gateway/sdk"
 	require "github.com/stretchr/testify/require"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	services "github.com/inference-gateway/cli/internal/services"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 )
 
 // newAnthropicEnv is newEnv pointed at the mock's Anthropic model, so the
@@ -30,7 +29,7 @@ func newAnthropicEnv(t *testing.T) *env {
 
 func (e *env) runAnthropicStream(ctx context.Context, t *testing.T, prompt string) result {
 	t.Helper()
-	req := &domain.AgentRequest{
+	req := &agentdomain.AgentRequest{
 		RequestID: fmt.Sprintf("req-%s", strings.ReplaceAll(t.Name(), "/", "-")),
 		Model:     testAnthropicModel,
 		Messages:  []sdk.Message{userMessage(t, prompt)},
@@ -131,7 +130,7 @@ func TestMessagesTokenAccounting(t *testing.T) {
 func TestMessagesCacheWritePricing(t *testing.T) {
 	newAnthropicEnv(t)
 
-	pricing := services.NewPricingService(&config.PricingConfig{Enabled: true})
+	pricing := conversation.NewPricingService(&config.PricingConfig{Enabled: true})
 	in, _, _ := pricing.CalculateCost(testAnthropicModel, 1_000_000, 0, 0, 1_000_000)
 	require.InDelta(t, 3.125, in, 1e-9, "cache writes must bill at the cache-write rate")
 
@@ -167,7 +166,7 @@ func TestMessagesSyncRun(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 	defer cancel()
 
-	resp, err := e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
+	resp, err := e.container.GetAgentService().Run(ctx, &agentdomain.AgentRequest{
 		RequestID: "req-messages-sync",
 		Model:     testAnthropicModel,
 		Messages:  []sdk.Message{userMessage(t, "say hello")},

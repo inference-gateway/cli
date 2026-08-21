@@ -7,20 +7,23 @@ import (
 	"strings"
 	"time"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
 type A2AQueryTaskTool struct {
 	config    *config.Config
-	formatter domain.CustomFormatter
-	liveness  domain.JobLivenessReporter
+	formatter agentinfra.CustomFormatter
+	liveness  scheddomain.JobLivenessReporter
 }
 
 type A2AQueryTaskResult struct {
@@ -33,10 +36,10 @@ type A2AQueryTaskResult struct {
 	Duration  time.Duration `json:"duration"`
 }
 
-func NewA2AQueryTaskTool(cfg *config.Config, liveness domain.JobLivenessReporter) *A2AQueryTaskTool {
+func NewA2AQueryTaskTool(cfg *config.Config, liveness scheddomain.JobLivenessReporter) *A2AQueryTaskTool {
 	return &A2AQueryTaskTool{
 		config: cfg,
-		formatter: domain.NewCustomFormatter("A2A_QueryTask", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter("A2A_QueryTask", func(key string) bool {
 			return key == "metadata"
 		}),
 		liveness: liveness,
@@ -72,11 +75,11 @@ func (t *A2AQueryTaskTool) Definition() sdk.ChatCompletionTool {
 	}
 }
 
-func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	startTime := time.Now()
 
 	if !t.IsEnabled() {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "A2A_QueryTask",
 			Arguments: args,
 			Success:   false,
@@ -139,7 +142,7 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*d
 
 	result.Message = fmt.Sprintf("Task %s is %s", taskID, task.Status.State)
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "A2A_QueryTask",
 		Arguments: args,
 		Success:   true,
@@ -156,8 +159,8 @@ func (t *A2AQueryTaskTool) buildPollingBlockedError(agentURL string) string {
 	return fmt.Sprintf("Cannot query task manually - background polling is active for agent %s. The A2A_SubmitTask tool is already polling for updates automatically. Please wait for the polling to complete.", agentURL)
 }
 
-func (t *A2AQueryTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
-	return &domain.ToolExecutionResult{
+func (t *A2AQueryTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*agentdomain.ToolExecutionResult, error) {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "A2A_QueryTask",
 		Arguments: args,
 		Success:   false,
@@ -183,20 +186,20 @@ func (t *A2AQueryTaskTool) Validate(args map[string]any) error {
 	return nil
 }
 
-func (t *A2AQueryTaskTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *A2AQueryTaskTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
 	}
 }
 
-func (t *A2AQueryTaskTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *A2AQueryTaskTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -255,7 +258,7 @@ func (t *A2AQueryTaskTool) FormatForLLM(result *domain.ToolExecutionResult) stri
 	return t.formatter.FormatExpanded(result, body.String())
 }
 
-func (t *A2AQueryTaskTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *A2AQueryTaskTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -271,7 +274,7 @@ func (t *A2AQueryTaskTool) FormatForUI(result *domain.ToolExecutionResult) strin
 	return output.String()
 }
 
-func (t *A2AQueryTaskTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *A2AQueryTaskTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}

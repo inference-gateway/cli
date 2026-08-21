@@ -3,9 +3,9 @@ package styles
 import (
 	"strings"
 
-	lipgloss "charm.land/lipgloss/v2"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	lipgloss "charm.land/lipgloss/v2"
 )
 
 // Theme-independent styles, built once at package init. plainStyle and
@@ -52,7 +52,7 @@ type themedStyles struct {
 	diffRemove        lipgloss.Style
 }
 
-func buildThemedStyles(theme domain.Theme) themedStyles {
+func buildThemedStyles(theme ui.Theme) themedStyles {
 	accent := lipgloss.Color(theme.GetAccentColor())
 	dim := lipgloss.Color(theme.GetDimColor())
 	border := lipgloss.Color(theme.GetBorderColor())
@@ -149,14 +149,14 @@ func buildThemedStyles(theme domain.Theme) themedStyles {
 // Provider centralizes all styling logic and provides complete abstraction from Lipgloss.
 // Components should NEVER import lipgloss directly - they interact with styling through this provider.
 type Provider struct {
-	themeService domain.ThemeService
+	themeService ui.ThemeService
 	built        bool         // whether s has been built at all (a theme name can legitimately be "")
 	themeName    string       // theme the cache was built for
 	s            themedStyles // styles pre-baked for themeName
 }
 
 // NewProvider creates a new style provider
-func NewProvider(themeService domain.ThemeService) *Provider {
+func NewProvider(themeService ui.ThemeService) *Provider {
 	return &Provider{
 		themeService: themeService,
 	}
@@ -180,7 +180,7 @@ func (p *Provider) styles() *themedStyles {
 // GetCurrentTheme returns the active theme, exposing it for callers that need
 // to derive colors outside of Provider's pre-baked render methods (e.g. the
 // diffview Style selector).
-func (p *Provider) GetCurrentTheme() domain.Theme {
+func (p *Provider) GetCurrentTheme() ui.Theme {
 	return p.themeService.GetCurrentTheme()
 }
 
@@ -721,7 +721,7 @@ func (p *Provider) GetSpinnerStyle() lipgloss.Style {
 
 // GetThemeService returns the underlying theme service for advanced integrations
 // This is needed for components like the markdown renderer that need direct theme access
-func (p *Provider) GetThemeService() domain.ThemeService {
+func (p *Provider) GetThemeService() ui.ThemeService {
 	return p.themeService
 }
 

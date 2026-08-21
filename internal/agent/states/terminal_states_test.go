@@ -1,11 +1,11 @@
-package states
+package states_test
 
 import (
 	"testing"
 
-	assert "github.com/stretchr/testify/assert"
+	states "github.com/inference-gateway/cli/internal/agent/states"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	assert "github.com/stretchr/testify/assert"
 )
 
 // TestTerminalStates_IgnoreAllEvents verifies the three terminal states
@@ -15,12 +15,12 @@ import (
 func TestTerminalStates_IgnoreAllEvents(t *testing.T) {
 	tests := []struct {
 		name  string
-		build func(ctx *domain.StateContext) domain.StateHandler
-		want  domain.AgentExecutionState
+		build func(ctx *states.StateContext) states.StateHandler
+		want  states.AgentExecutionState
 	}{
-		{"cancelled", NewCancelledState, domain.StateCancelled},
-		{"error", NewErrorState, domain.StateError},
-		{"stopped", NewStoppedState, domain.StateStopped},
+		{"cancelled", states.NewCancelledState, states.StateCancelled},
+		{"error", states.NewErrorState, states.StateError},
+		{"stopped", states.NewStoppedState, states.StateStopped},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -28,11 +28,11 @@ func TestTerminalStates_IgnoreAllEvents(t *testing.T) {
 			s := tt.build(f.ctx)
 			assert.Equal(t, tt.want, s.Name())
 
-			for _, evt := range []domain.AgentEvent{
-				domain.MessageReceivedEvent{},
-				domain.CompletionRequestedEvent{},
-				domain.AllToolsProcessedEvent{},
-				domain.ToolsCompletedEvent{},
+			for _, evt := range []states.AgentEvent{
+				states.MessageReceivedEvent{},
+				states.CompletionRequestedEvent{},
+				states.AllToolsProcessedEvent{},
+				states.ToolsCompletedEvent{},
 			} {
 				assert.NoError(t, s.Handle(evt), "event %T", evt)
 			}

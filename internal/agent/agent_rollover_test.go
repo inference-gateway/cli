@@ -6,7 +6,8 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/states"
 )
 
 // A nil rollover manager (compact disabled / non-persistent storage) must make
@@ -14,9 +15,9 @@ import (
 func TestMaybeRolloverSession_NilManagerIsNoop(t *testing.T) {
 	s := &AgentServiceImpl{}
 	conv := []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("task")}}
-	agentCtx := &domain.AgentContext{Ctx: context.Background(), Conversation: &conv}
+	agentCtx := &states.AgentContext{Ctx: context.Background(), Conversation: &conv}
 
-	s.maybeRolloverSession(agentCtx, &domain.AgentRequest{RequestID: "s1", Model: "m"})
+	s.maybeRolloverSession(agentCtx, &agentdomain.AgentRequest{RequestID: "s1", Model: "m"})
 
 	if len(conv) != 1 {
 		t.Fatalf("conversation length = %d, want untouched (1)", len(conv))

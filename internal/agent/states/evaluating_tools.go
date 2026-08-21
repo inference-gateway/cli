@@ -4,8 +4,8 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // EvaluatingToolsState handles events in the EvaluatingTools state.
@@ -16,21 +16,21 @@ import (
 //  3. If approval needed → ApprovingTools
 //  4. Otherwise → ExecutingTools (starts background execution)
 type EvaluatingToolsState struct {
-	ctx *domain.StateContext
+	ctx *StateContext
 }
 
 // NewEvaluatingToolsState creates a new EvaluatingTools state handler
-func NewEvaluatingToolsState(ctx *domain.StateContext) domain.StateHandler {
+func NewEvaluatingToolsState(ctx *StateContext) StateHandler {
 	return &EvaluatingToolsState{ctx: ctx}
 }
 
 // Name returns the state this handler manages
-func (s *EvaluatingToolsState) Name() domain.AgentExecutionState {
-	return domain.StateEvaluatingTools
+func (s *EvaluatingToolsState) Name() AgentExecutionState {
+	return StateEvaluatingTools
 }
 
 // Handle processes events in EvaluatingTools state
-func (s *EvaluatingToolsState) Handle(event domain.AgentEvent) error {
+func (s *EvaluatingToolsState) Handle(event AgentEvent) error {
 	logger.Debug("evaluating tools", "tool_count", len(*s.ctx.CurrentToolCalls))
 
 	var completeToolCalls []sdk.ChatCompletionMessageToolCall
@@ -59,26 +59,26 @@ func (s *EvaluatingToolsState) Handle(event domain.AgentEvent) error {
 	}
 
 	if (!needsApproval || !allApprovalBlocked) && s.ctx.DispatchHooks != nil {
-		s.ctx.DispatchHooks(domain.HookPreTool)
+		s.ctx.DispatchHooks(agentdomain.HookPreTool)
 	}
 
 	switch {
 	case needsApproval && allApprovalBlocked:
 		logger.Info("approval required but undeliverable, blocking tools", "tool_count", len(*s.ctx.CurrentToolCalls))
-		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateBlockingTools); err != nil {
+		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateBlockingTools); err != nil {
 			logger.Error("failed to transition to blocking tools", "error", err)
 			return err
 		}
-		s.ctx.Events <- domain.MessageReceivedEvent{}
+		s.ctx.Events <- MessageReceivedEvent{}
 	case needsApproval:
-		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateApprovingTools); err != nil {
+		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateApprovingTools); err != nil {
 			logger.Error("failed to transition to approving tools", "error", err)
 			return err
 		}
-		s.ctx.Events <- domain.MessageReceivedEvent{}
+		s.ctx.Events <- MessageReceivedEvent{}
 	default:
 		logger.Debug("no approval needed, executing tools")
-		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateExecutingTools); err != nil {
+		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateExecutingTools); err != nil {
 			logger.Error("failed to transition to executing tools", "error", err)
 			return err
 		}

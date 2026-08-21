@@ -4,22 +4,22 @@ import (
 	"strings"
 	"testing"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // statusViewStateStub wraps the real ApplicationState to satisfy the status
-// view's statusViewState interface, which adds the ChatSessionManager methods
+// view's statusViewState interface, which adds the agentdomain.ChatSessionManager methods
 // (IsAgentBusy and an error-returning StartChatSession) that the wrapped
 // services.StateManager normally provides.
-type statusViewStateStub struct{ *domain.ApplicationState }
+type statusViewStateStub struct{ *ui.ApplicationState }
 
 func (statusViewStateStub) IsAgentBusy() bool { return false }
 
-func (s statusViewStateStub) StartChatSession(requestID, model string, eventChan <-chan domain.ChatEvent) error {
+func (s statusViewStateStub) StartChatSession(requestID, model string, eventChan <-chan agentdomain.ChatEvent) error {
 	s.ApplicationState.StartChatSession(requestID, model, eventChan)
 	return nil
 }
@@ -27,7 +27,7 @@ func (s statusViewStateStub) StartChatSession(requestID, model string, eventChan
 // createMockStyleProviderForStatus creates a mock styles provider for testing
 func createMockStyleProviderForStatus() *styles.Provider {
 	fakeTheme := &uimocks.FakeTheme{}
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
 	return styles.NewProvider(fakeThemeService)
 }
@@ -230,7 +230,7 @@ func TestStatusView_StateTransitions(t *testing.T) {
 
 func TestStatusView_Render_PausesSpinnerDuringApproval(t *testing.T) {
 	sv := NewStatusView(createMockStyleProviderForStatus())
-	sm := statusViewStateStub{domain.NewApplicationState()}
+	sm := statusViewStateStub{ui.NewApplicationState()}
 	sv.SetStateManager(sm)
 	sv.ShowSpinner("Executing tools")
 

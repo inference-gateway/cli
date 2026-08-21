@@ -6,23 +6,25 @@ import (
 	"testing"
 	"time"
 
-	require "github.com/stretchr/testify/require"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	tea "charm.land/bubbletea/v2"
+	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // createMockModelService creates a fake model service with default test values
-func createMockModelService() *domainmocks.FakeModelService {
-	fake := &domainmocks.FakeModelService{}
+func createMockModelService() *convmocks.FakeModelService {
+	fake := &convmocks.FakeModelService{}
 	fake.ListModelsReturns([]string{"test-model"}, nil)
 	fake.GetCurrentModelReturns("test-model")
 	fake.IsModelAvailableReturns(true)
@@ -31,7 +33,7 @@ func createMockModelService() *domainmocks.FakeModelService {
 }
 
 // createInputViewWithTheme creates an InputView with isolated memory-only history for testing
-func createInputViewWithTheme(modelService domain.ModelService) *InputView {
+func createInputViewWithTheme(modelService convdomain.ModelService) *InputView {
 	ta := newInputTextarea("Type your message...")
 
 	iv := &InputView{
@@ -42,7 +44,7 @@ func createInputViewWithTheme(modelService domain.ModelService) *InputView {
 		modelService:     modelService,
 		historyManager:   history.NewMemoryOnlyHistoryManager(5),
 		themeService:     nil,
-		imageAttachments: []domain.ImageAttachment{},
+		imageAttachments: []agentdomain.ImageAttachment{},
 	}
 
 	fakeTheme := &uimocks.FakeTheme{}
@@ -51,7 +53,7 @@ func createInputViewWithTheme(modelService domain.ModelService) *InputView {
 	fakeTheme.GetAccentColorReturns("#00ffff")
 	fakeTheme.GetBorderColorReturns("#555555")
 
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
 
 	iv.themeService = fakeThemeService
@@ -65,7 +67,7 @@ func createInputViewWithTheme(modelService domain.ModelService) *InputView {
 func TestNewInputViewWithName_HistorySelection(t *testing.T) {
 	ms := createMockModelService()
 
-	iv := NewInputViewWithName(ms, "cfgdir", domain.SubagentHistoryMemoryOnly, nil)
+	iv := NewInputViewWithName(ms, "cfgdir", scheddomain.SubagentHistoryMemoryOnly, nil)
 	if got := iv.historyManager.GetShellHistoryFile(); got != "" {
 		t.Errorf("memory-only sentinel must have no history file, got %q", got)
 	}
@@ -209,8 +211,8 @@ func TestInputView_ClearInput(t *testing.T) {
 func TestInputView_AddImageAttachmentTokenHasNoIssueRef(t *testing.T) {
 	iv := NewInputView(createMockModelService())
 
-	iv.AddImageAttachment(domain.ImageAttachment{})
-	iv.AddImageAttachment(domain.ImageAttachment{})
+	iv.AddImageAttachment(agentdomain.ImageAttachment{})
+	iv.AddImageAttachment(agentdomain.ImageAttachment{})
 
 	input := iv.GetInput()
 
@@ -707,7 +709,7 @@ func TestInputView_BashCommandCompletedInvalidatesBranchCache(t *testing.T) {
 	iv := newInputViewWithBranch(t, "main")
 	require.NotEmpty(t, iv.gitBranchCache)
 
-	_, _ = iv.Update(domain.BashCommandCompletedEvent{})
+	_, _ = iv.Update(ui.BashCommandCompletedEvent{})
 
 	require.Empty(t, iv.gitBranchCache)
 }
@@ -720,7 +722,7 @@ func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
 
 	_, cmd := iv.HandleKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	require.NotNil(t, cmd, "expected a command handing focus to the status bar")
-	_, ok := cmd().(domain.FocusStatusBarEvent)
+	_, ok := cmd().(ui.FocusStatusBarEvent)
 	require.True(t, ok, "expected a FocusStatusBarEvent")
 }
 
@@ -780,7 +782,7 @@ func TestInputView_RenderOmitsPRWhenDisabled(t *testing.T) {
 func TestInputView_GitPRResolvedEventStoresPR(t *testing.T) {
 	iv := newInputViewWithPR(t, "main", "")
 
-	_, cmd := iv.Update(domain.GitPRResolvedEvent{PR: "792"})
+	_, cmd := iv.Update(ui.GitPRResolvedEvent{PR: "792"})
 
 	require.Nil(t, cmd)
 	require.Equal(t, "792", iv.gitPRCache)
@@ -789,7 +791,7 @@ func TestInputView_GitPRResolvedEventStoresPR(t *testing.T) {
 func TestInputView_BashCommandCompletedRefetchesPR(t *testing.T) {
 	iv := newInputViewWithPR(t, "main", "123")
 
-	_, cmd := iv.Update(domain.BashCommandCompletedEvent{})
+	_, cmd := iv.Update(ui.BashCommandCompletedEvent{})
 
 	require.NotNil(t, cmd, "bash completion must trigger an async PR refetch")
 	require.Equal(t, "123", iv.gitPRCache, "stale value must survive until the refetch resolves (no flicker)")
@@ -798,13 +800,13 @@ func TestInputView_BashCommandCompletedRefetchesPR(t *testing.T) {
 func TestInputView_ToolExecutionCompletedRefetchesPROnBash(t *testing.T) {
 	iv := newInputViewWithPR(t, "main", "123")
 
-	_, cmd := iv.Update(domain.ToolExecutionCompletedEvent{
-		Results: []*domain.ToolExecutionResult{{ToolName: "Read"}, {ToolName: "Bash"}},
+	_, cmd := iv.Update(agentdomain.ToolExecutionCompletedEvent{
+		Results: []*agentdomain.ToolExecutionResult{{ToolName: "Read"}, {ToolName: "Bash"}},
 	})
 	require.NotNil(t, cmd, "a Bash tool result must trigger an async PR refetch")
 
-	_, cmd = iv.Update(domain.ToolExecutionCompletedEvent{
-		Results: []*domain.ToolExecutionResult{{ToolName: "Read"}},
+	_, cmd = iv.Update(agentdomain.ToolExecutionCompletedEvent{
+		Results: []*agentdomain.ToolExecutionResult{{ToolName: "Read"}},
 	})
 	require.Nil(t, cmd, "non-Bash tool results must not refetch")
 }
@@ -947,7 +949,7 @@ func TestInputView_UpdateEmitsAutocompleteWithSettledValues(t *testing.T) {
 	require.True(t, ok, "expected BatchMsg, got %T", msg)
 	found := false
 	for _, sub := range batch {
-		if ev, isEv := sub().(domain.AutocompleteUpdateEvent); isEv {
+		if ev, isEv := sub().(ui.AutocompleteUpdateEvent); isEv {
 			require.Equal(t, "a", ev.Text)
 			require.Equal(t, 1, ev.CursorPos)
 			found = true

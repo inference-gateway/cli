@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestFetchTool_Definition(t *testing.T) {
@@ -296,9 +296,9 @@ func TestFetchTool_Execute_BinarySavedNotInlined(t *testing.T) {
 		t.Fatalf("expected success, got error: %s", result.Error)
 	}
 
-	fr, ok := result.Data.(*domain.FetchResult)
+	fr, ok := result.Data.(*agentdomain.FetchResult)
 	if !ok {
-		t.Fatalf("expected *domain.FetchResult, got %T", result.Data)
+		t.Fatalf("expected *agentdomain.FetchResult, got %T", result.Data)
 	}
 	if strings.Contains(fr.Content, string(pngBytes)) {
 		t.Error("raw binary bytes leaked into Content (would poison the LLM context)")
@@ -318,7 +318,7 @@ func TestFetchTool_Execute_BinarySavedNotInlined(t *testing.T) {
 		t.Errorf("saved file corrupted: got %v, want %v", onDisk, pngBytes)
 	}
 
-	if llm := tool.FormatResult(result, domain.FormatterLLM); strings.Contains(llm, string(pngBytes)) {
+	if llm := tool.FormatResult(result, agentdomain.FormatterLLM); strings.Contains(llm, string(pngBytes)) {
 		t.Error("raw binary bytes leaked into FormatResult(FormatterLLM)")
 	}
 }
@@ -338,9 +338,9 @@ func TestFetchTool_Execute_TextStillInlined(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	fr, ok := result.Data.(*domain.FetchResult)
+	fr, ok := result.Data.(*agentdomain.FetchResult)
 	if !ok {
-		t.Fatalf("expected *domain.FetchResult, got %T", result.Data)
+		t.Fatalf("expected *agentdomain.FetchResult, got %T", result.Data)
 	}
 	if !strings.Contains(fr.Content, "hello world") {
 		t.Errorf("text content should be inlined, got: %q", fr.Content)
@@ -363,7 +363,7 @@ func TestFetchTool_Execute_ChannelImageDisplayHint(t *testing.T) {
 	defer srv.Close()
 
 	tool := newHTTPTestFetchTool(t)
-	ctx := domain.WithSessionID(context.Background(), "channel-telegram-12345")
+	ctx := agentdomain.WithSessionID(context.Background(), "channel-telegram-12345")
 	result, err := tool.Execute(ctx, map[string]any{"url": srv.URL})
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
@@ -372,9 +372,9 @@ func TestFetchTool_Execute_ChannelImageDisplayHint(t *testing.T) {
 		t.Fatalf("expected success, got error: %s", result.Error)
 	}
 
-	fr, ok := result.Data.(*domain.FetchResult)
+	fr, ok := result.Data.(*agentdomain.FetchResult)
 	if !ok {
-		t.Fatalf("expected *domain.FetchResult, got %T", result.Data)
+		t.Fatalf("expected *agentdomain.FetchResult, got %T", result.Data)
 	}
 	if fr.SavedPath == "" {
 		t.Fatal("expected SavedPath to be set")

@@ -5,21 +5,27 @@ import (
 	"testing"
 	"time"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // newRunnerForTest wires a Runner with the in-memory conversation repository
 // and counterfeiter fakes for everything else.
-func newRunnerForTest() (*Runner, *services.InMemoryConversationRepository, *services.StateManager, *mocksdomain.FakeAgentService, *mocksdomain.FakeModelService) {
-	repo := services.NewInMemoryConversationRepository(nil, nil)
+func newRunnerForTest() (*Runner, *conversation.InMemoryConversationRepository, *services.StateManager, *agentdomainmocks.FakeAgentService, *convmocks.FakeModelService) {
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
 	state := services.NewStateManager(false)
-	agent := &mocksdomain.FakeAgentService{}
-	model := &mocksdomain.FakeModelService{}
-	listener := &mocksdomain.FakeChatEventListener{}
+	agent := &agentdomainmocks.FakeAgentService{}
+	model := &convmocks.FakeModelService{}
+	listener := &uimocks.FakeChatEventListener{}
 
 	runner := NewRunner(Options{
 		AgentService:     agent,
@@ -41,7 +47,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 	reasoning := "thought process"
 	planTitle := "Add Feature X"
 
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -80,7 +86,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 				Content: sdk.NewMessageContent(planContent),
 			},
 			IsPlan:             true,
-			PlanApprovalStatus: domain.PlanApprovalAccepted,
+			PlanApprovalStatus: convdomain.PlanApprovalAccepted,
 		},
 		{
 			Message: sdk.Message{
@@ -119,7 +125,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 // (empty assistant entry) left behind by a rejected tool must not be
 // serialized between the assistant tool_calls message and its tool response.
 func TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries(t *testing.T) {
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("edit the file")}},
 		{
 			Message: sdk.Message{
@@ -143,7 +149,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries(t *testing.
 				Content: sdk.NewMessageContent(""),
 			},
 			PendingToolCall:    &sdk.ChatCompletionMessageToolCall{ID: "call_1"},
-			ToolApprovalStatus: domain.ToolApprovalRejected,
+			ToolApprovalStatus: convdomain.ToolApprovalRejected,
 		},
 		{
 			Message: sdk.Message{
@@ -168,7 +174,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries(t *testing.
 }
 
 func TestBuildAgentMessagesFromEntries_PreservesNonPlanEntries(t *testing.T) {
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hi")}},
 		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("hello")}},
 	}
@@ -187,7 +193,7 @@ func TestBuildAgentMessagesFromEntries_PreservesNonPlanEntries(t *testing.T) {
 func TestBuildAgentMessagesFromEntries_BackfillsReasoningFromEntry(t *testing.T) {
 	reasoning := "I should retry with a different path."
 
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
@@ -219,7 +225,7 @@ func TestBuildAgentMessagesFromEntries_BackfillsReasoningFromEntry(t *testing.T)
 func TestBuildAgentMessagesFromEntries_FiltersUserBashEntries(t *testing.T) {
 	userBashID := "user-bash-1234567890"
 
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("!task lint")}},
 		{
 			Message: sdk.Message{
@@ -270,7 +276,7 @@ func TestBuildAgentMessagesFromEntries_DoesNotOverwriteExistingReasoning(t *test
 	existing := "from message"
 	other := "from entry"
 
-	entries := []domain.ConversationEntry{
+	entries := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:             sdk.Assistant,
@@ -305,7 +311,7 @@ func TestRunner_Start(t *testing.T) {
 			t.Fatalf("expected non-nil cmd")
 		}
 		msg := cmd()
-		errEvt, ok := msg.(domain.ChatErrorEvent)
+		errEvt, ok := msg.(agentdomain.ChatErrorEvent)
 		if !ok {
 			t.Fatalf("expected ChatErrorEvent, got %T", msg)
 		}
@@ -324,9 +330,9 @@ func TestRunner_Start(t *testing.T) {
 func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
 	t.Run("first chunk emits SetStatusEvent Thinking...", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
 
-		cmds := runner.handleStatusUpdate(domain.ChatChunkEvent{
+		cmds := runner.handleStatusUpdate(agentdomain.ChatChunkEvent{
 			RequestID:        "req-1",
 			ReasoningContent: "thinking...",
 		}, state.GetChatSession())
@@ -334,24 +340,24 @@ func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
 		if len(cmds) != 1 {
 			t.Fatalf("expected 1 status cmd, got %d", len(cmds))
 		}
-		evt, ok := cmds[0]().(domain.SetStatusEvent)
+		evt, ok := cmds[0]().(ui.SetStatusEvent)
 		if !ok {
 			t.Fatalf("expected SetStatusEvent, got %T", cmds[0]())
 		}
-		if evt.Message != "Thinking..." || evt.StatusType != domain.StatusThinking {
+		if evt.Message != "Thinking..." || evt.StatusType != ui.StatusThinking {
 			t.Errorf("expected Thinking... status event, got %+v", evt)
 		}
 	})
 
 	t.Run("later turn (IsFirstChunk false) emits UpdateStatusEvent Thinking...", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
 
 		session := state.GetChatSession()
 		session.IsFirstChunk = false
-		_ = state.UpdateChatStatus(domain.ChatStatusStarting)
+		_ = state.UpdateChatStatus(agentdomain.ChatStatusStarting)
 
-		cmds := runner.handleStatusUpdate(domain.ChatChunkEvent{
+		cmds := runner.handleStatusUpdate(agentdomain.ChatChunkEvent{
 			RequestID:        "req-1",
 			ReasoningContent: "thinking...",
 		}, session)
@@ -359,11 +365,11 @@ func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
 		if len(cmds) != 1 {
 			t.Fatalf("expected 1 status cmd, got %d", len(cmds))
 		}
-		evt, ok := cmds[0]().(domain.UpdateStatusEvent)
+		evt, ok := cmds[0]().(ui.UpdateStatusEvent)
 		if !ok {
 			t.Fatalf("expected UpdateStatusEvent, got %T", cmds[0]())
 		}
-		if evt.Message != "Thinking..." || evt.StatusType != domain.StatusThinking {
+		if evt.Message != "Thinking..." || evt.StatusType != ui.StatusThinking {
 			t.Errorf("expected Thinking... status event, got %+v", evt)
 		}
 	})
@@ -372,11 +378,11 @@ func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
 func TestRunner_HandleChatComplete(t *testing.T) {
 	t.Run("non-cancelled, no tool calls: updates status to Completed and returns non-nil cmd", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
-		_ = state.UpdateChatStatus(domain.ChatStatusGenerating)
+		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
+		_ = state.UpdateChatStatus(agentdomain.ChatStatusGenerating)
 		_ = state.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "tc"}})
 
-		cmd := runner.HandleChatComplete(domain.ChatCompleteEvent{
+		cmd := runner.HandleChatComplete(agentdomain.ChatCompleteEvent{
 			RequestID: "req-1",
 			Timestamp: time.Now(),
 		})
@@ -384,7 +390,7 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 		if cmd == nil {
 			t.Fatalf("expected non-nil cmd")
 		}
-		if s := state.GetChatSession(); s == nil || s.Status != domain.ChatStatusCompleted {
+		if s := state.GetChatSession(); s == nil || s.Status != agentdomain.ChatStatusCompleted {
 			t.Errorf("expected chat status Completed, got %+v", s)
 		}
 		if state.GetToolExecution() != nil {
@@ -394,10 +400,10 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 
 	t.Run("cancelled: tears down session and updates status to Cancelled", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
 		_ = state.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "tc"}})
 
-		cmd := runner.HandleChatComplete(domain.ChatCompleteEvent{
+		cmd := runner.HandleChatComplete(agentdomain.ChatCompleteEvent{
 			RequestID: "req-1",
 			Cancelled: true,
 		})
@@ -420,9 +426,9 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 
 	t.Run("with tool calls: transitions to WaitingTools to prevent false stall detection", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
-		_ = state.StartChatSession("req-1", "model", make(chan domain.ChatEvent))
+		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
 
-		_ = runner.HandleChatComplete(domain.ChatCompleteEvent{
+		_ = runner.HandleChatComplete(agentdomain.ChatCompleteEvent{
 			RequestID: "req-1",
 			ToolCalls: []sdk.ChatCompletionMessageToolCall{{
 				ID:   "tc-1",
@@ -433,7 +439,7 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 			}},
 		})
 
-		if s := state.GetChatSession(); s == nil || s.Status != domain.ChatStatusWaitingTools {
+		if s := state.GetChatSession(); s == nil || s.Status != agentdomain.ChatStatusWaitingTools {
 			t.Errorf("expected chat status WaitingTools, got %+v", s)
 		}
 	})
@@ -445,7 +451,7 @@ func TestRunner_SetPendingRestoration_RestoresOnComplete(t *testing.T) {
 
 		runner.SetPendingRestoration("gpt-4")
 
-		_ = runner.HandleChatComplete(domain.ChatCompleteEvent{RequestID: "r"})
+		_ = runner.HandleChatComplete(agentdomain.ChatCompleteEvent{RequestID: "r"})
 
 		if model.SelectModelCallCount() != 1 {
 			t.Fatalf("expected SelectModel called once, got %d", model.SelectModelCallCount())
@@ -456,7 +462,7 @@ func TestRunner_SetPendingRestoration_RestoresOnComplete(t *testing.T) {
 
 		// Second completion should NOT restore again - the pending value
 		// is cleared after the first restoration.
-		_ = runner.HandleChatComplete(domain.ChatCompleteEvent{RequestID: "r"})
+		_ = runner.HandleChatComplete(agentdomain.ChatCompleteEvent{RequestID: "r"})
 		if model.SelectModelCallCount() != 1 {
 			t.Errorf("expected SelectModel still 1 after second complete, got %d", model.SelectModelCallCount())
 		}

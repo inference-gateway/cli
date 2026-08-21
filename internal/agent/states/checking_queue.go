@@ -1,8 +1,8 @@
 package states
 
 import (
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // CheckingQueueState handles events in the CheckingQueue state.
@@ -18,23 +18,23 @@ import (
 // wait at the completion boundary via WaitForBackgroundTasks so a run never
 // exits with orphaned background tasks.
 type CheckingQueueState struct {
-	ctx *domain.StateContext
+	ctx *StateContext
 }
 
 // NewCheckingQueueState creates a new CheckingQueue state handler
-func NewCheckingQueueState(ctx *domain.StateContext) domain.StateHandler {
+func NewCheckingQueueState(ctx *StateContext) StateHandler {
 	return &CheckingQueueState{ctx: ctx}
 }
 
 // Name returns the state this handler manages
-func (s *CheckingQueueState) Name() domain.AgentExecutionState {
-	return domain.StateCheckingQueue
+func (s *CheckingQueueState) Name() AgentExecutionState {
+	return StateCheckingQueue
 }
 
 // Handle processes events in CheckingQueue state
-func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
+func (s *CheckingQueueState) Handle(event AgentEvent) error {
 	switch event.(type) {
-	case domain.MessageReceivedEvent:
+	case MessageReceivedEvent:
 		logger.Debug("checking queue state: evaluating conditions",
 			"turns", s.ctx.AgentCtx.Turns,
 			"has_tool_results", s.ctx.AgentCtx.HasToolResults,
@@ -42,12 +42,12 @@ func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
 
 		if s.ctx.AgentCtx.HasToolResults {
 			logger.Debug("has tool results - must respond to tools before processing queue")
-			if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateStreamingLLM); err != nil {
+			if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateStreamingLLM); err != nil {
 				logger.Error("failed to transition to streaming llm", "error", err)
 				return err
 			}
 
-			s.ctx.Events <- domain.StartStreamingEvent{}
+			s.ctx.Events <- StartStreamingEvent{}
 			return nil
 		}
 
@@ -55,7 +55,7 @@ func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
 
 		if !s.ctx.Request.IsChatMode && s.ctx.WaitForBackgroundTasks != nil &&
 			s.ctx.AgentCtx.Ctx.Err() == nil &&
-			s.ctx.StateMachine.CanTransition(s.ctx.AgentCtx, domain.StateCompleting) {
+			s.ctx.StateMachine.CanTransition(s.ctx.AgentCtx, StateCompleting) {
 			s.ctx.WaitForBackgroundTasks()
 			s.drainQueueWithHooks()
 		}
@@ -63,15 +63,15 @@ func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
 		if s.ctx.AgentCtx.Ctx.Err() != nil {
 			logger.Debug("session cancelled - completing without next turn",
 				"err", s.ctx.AgentCtx.Ctx.Err())
-			if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateCompleting); err != nil {
+			if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateCompleting); err != nil {
 				logger.Error("failed to transition to completing", "error", err)
 				return err
 			}
-			s.ctx.Events <- domain.CompletionRequestedEvent{}
+			s.ctx.Events <- CompletionRequestedEvent{}
 			return nil
 		}
 
-		if s.ctx.StateMachine.CanTransition(s.ctx.AgentCtx, domain.StateCompleting) {
+		if s.ctx.StateMachine.CanTransition(s.ctx.AgentCtx, StateCompleting) {
 			logger.Debug("completion conditions met",
 				"turns", s.ctx.AgentCtx.Turns,
 				"has_tool_results", s.ctx.AgentCtx.HasToolResults,
@@ -83,11 +83,11 @@ func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
 					return "none"
 				}())
 
-			if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateCompleting); err != nil {
+			if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateCompleting); err != nil {
 				logger.Error("failed to transition to completing", "error", err)
 				return err
 			}
-			s.ctx.Events <- domain.CompletionRequestedEvent{}
+			s.ctx.Events <- CompletionRequestedEvent{}
 			return nil
 		}
 
@@ -102,13 +102,13 @@ func (s *CheckingQueueState) Handle(event domain.AgentEvent) error {
 				return "none"
 			}())
 
-		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateStreamingLLM); err != nil {
+		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateStreamingLLM); err != nil {
 			logger.Error("failed to transition to streaming llm", "error", err)
 			return err
 		}
 
 		logger.Debug("emitting start streaming event", "turn", s.ctx.AgentCtx.Turns+1)
-		s.ctx.Events <- domain.StartStreamingEvent{}
+		s.ctx.Events <- StartStreamingEvent{}
 	}
 	return nil
 }
@@ -122,11 +122,11 @@ func (s *CheckingQueueState) drainQueueWithHooks() {
 	}
 	logger.Debug("queue not empty, draining")
 	if s.ctx.DispatchHooks != nil {
-		s.ctx.DispatchHooks(domain.HookPreQueueDrain)
+		s.ctx.DispatchHooks(agentdomain.HookPreQueueDrain)
 	}
 	numBatched := s.ctx.BatchDrainQueue()
 	logger.Debug("batched queued messages", "count", numBatched)
 	if numBatched > 0 && s.ctx.DispatchHooks != nil {
-		s.ctx.DispatchHooks(domain.HookPostQueueDrain)
+		s.ctx.DispatchHooks(agentdomain.HookPostQueueDrain)
 	}
 }

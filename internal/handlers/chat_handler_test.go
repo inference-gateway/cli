@@ -5,18 +5,20 @@ import (
 	"testing"
 	"time"
 
-	assert "github.com/stretchr/testify/assert"
-
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	tea "charm.land/bubbletea/v2"
-
 	sdk "github.com/inference-gateway/sdk"
+	assert "github.com/stretchr/testify/assert"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 func TestChatHandler_extractMarkdownSummary_BasicCases(t *testing.T) {
@@ -367,10 +369,10 @@ More content.`
 }
 
 func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
-	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 	shortcutRegistry := shortcuts.NewRegistry()
 
-	messageQueue := services.NewMessageQueueService()
+	messageQueue := conversation.NewMessageQueueService()
 
 	handler := NewChatHandler(
 		nil, // agentService
@@ -403,7 +405,7 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		t.Fatalf("Failed to add token usage: %v", err)
 	}
 
-	metrics := &domain.ChatMetrics{
+	metrics := &agentdomain.ChatMetrics{
 		Duration: 1 * time.Second,
 		Usage: &sdk.CompletionUsage{
 			PromptTokens:     25,
@@ -476,7 +478,7 @@ func TestChatHandler_Handle(t *testing.T) {
 type chatHandlerTestCase struct {
 	name           string
 	msg            tea.Msg
-	setupMocks     func(*mocks.FakeAgentService, *mocks.FakeModelService, *mocks.FakeToolService, *mocks.FakeFileService, *config.Config)
+	setupMocks     func(*agentdomainmocks.FakeAgentService, *convmocks.FakeModelService, *agentdomainmocks.FakeToolService, *agentdomainmocks.FakeFileService, *config.Config)
 	expectedCmd    bool
 	validateResult func(*testing.T, tea.Cmd)
 }
@@ -500,12 +502,12 @@ func getUserInputTestCases() []chatHandlerTestCase {
 	return []chatHandlerTestCase{
 		{
 			name: "UserInputEvent - normal message",
-			msg: domain.UserInputEvent{
+			msg: agentdomain.UserInputEvent{
 				Content: "Hello, how are you?",
 			},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 				model.GetCurrentModelReturns("test-model")
-				eventCh := make(chan domain.ChatEvent, 1)
+				eventCh := make(chan agentdomain.ChatEvent, 1)
 				close(eventCh)
 				agent.RunWithStreamReturns(eventCh, nil)
 			},
@@ -513,29 +515,29 @@ func getUserInputTestCases() []chatHandlerTestCase {
 		},
 		{
 			name: "UserInputEvent - slash command",
-			msg: domain.UserInputEvent{
+			msg: agentdomain.UserInputEvent{
 				Content: "/help",
 			},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 			},
 			expectedCmd: true,
 		},
 		{
 			name: "UserInputEvent - bash command",
-			msg: domain.UserInputEvent{
+			msg: agentdomain.UserInputEvent{
 				Content: "!ls -la",
 			},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 				tool.IsToolEnabledReturns(true)
 			},
 			expectedCmd: true,
 		},
 		{
 			name: "UserInputEvent - tool command",
-			msg: domain.UserInputEvent{
+			msg: agentdomain.UserInputEvent{
 				Content: "!!Read(file_path=\"test.txt\")",
 			},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 				tool.IsToolEnabledReturns(true)
 			},
 			expectedCmd: true,
@@ -547,16 +549,16 @@ func getFileSelectionTestCases() []chatHandlerTestCase {
 	return []chatHandlerTestCase{
 		{
 			name: "FileSelectionRequestEvent - with files",
-			msg:  domain.FileSelectionRequestEvent{},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			msg:  ui.FileSelectionRequestEvent{},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 				file.ListProjectFilesReturns([]string{"file1.go", "file2.go"}, nil)
 			},
 			expectedCmd: true,
 		},
 		{
 			name: "FileSelectionRequestEvent - no files",
-			msg:  domain.FileSelectionRequestEvent{},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			msg:  ui.FileSelectionRequestEvent{},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 				file.ListProjectFilesReturns([]string{}, nil)
 			},
 			expectedCmd: true,
@@ -568,11 +570,11 @@ func getChatEventTestCases() []chatHandlerTestCase {
 	return []chatHandlerTestCase{
 		{
 			name: "ChatStartEvent",
-			msg: domain.ChatStartEvent{
+			msg: agentdomain.ChatStartEvent{
 				RequestID: "test-123",
 				Timestamp: time.Now(),
 			},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 			},
 			expectedCmd: true,
 		},
@@ -582,33 +584,33 @@ func getChatEventTestCases() []chatHandlerTestCase {
 			// always returns a non-nil cmd. The "no session returns nil" path
 			// is tested directly in chatcompletion/runner_test.go.
 			name: "ChatChunkEvent - with content (no session)",
-			msg: domain.ChatChunkEvent{
+			msg: agentdomain.ChatChunkEvent{
 				RequestID: "test-123",
 				Content:   "Response chunk",
 				Timestamp: time.Now(),
 			},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 				model.GetCurrentModelReturns("test-model")
 			},
 			expectedCmd: true,
 		},
 		{
 			name: "ChatChunkEvent - with reasoning",
-			msg: domain.ChatChunkEvent{
+			msg: agentdomain.ChatChunkEvent{
 				RequestID:        "test-123",
 				ReasoningContent: "Thinking...",
 				Timestamp:        time.Now(),
 			},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 			},
 			expectedCmd: true,
 		},
 		{
 			name: "ChatCompleteEvent - without tools",
-			msg: domain.ChatCompleteEvent{
+			msg: agentdomain.ChatCompleteEvent{
 				RequestID: "test-123",
 				Timestamp: time.Now(),
-				Metrics: &domain.ChatMetrics{
+				Metrics: &agentdomain.ChatMetrics{
 					Duration: time.Second,
 					Usage: &sdk.CompletionUsage{
 						PromptTokens:     100,
@@ -617,18 +619,18 @@ func getChatEventTestCases() []chatHandlerTestCase {
 					},
 				},
 			},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 			},
 			expectedCmd: true,
 		},
 		{
 			name: "ChatErrorEvent",
-			msg: domain.ChatErrorEvent{
+			msg: agentdomain.ChatErrorEvent{
 				RequestID: "test-123",
 				Error:     assert.AnError,
 				Timestamp: time.Now(),
 			},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 			},
 			expectedCmd: true,
 		},
@@ -639,11 +641,11 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 	return []chatHandlerTestCase{
 		{
 			name: "ToolExecutionStartedEvent",
-			msg: domain.ToolExecutionStartedEvent{
+			msg: ui.ToolExecutionStartedEvent{
 				SessionID:  "test-123",
 				TotalTools: 2,
 			},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 			},
 			expectedCmd: true,
 		},
@@ -654,28 +656,28 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 			// returns nil" path is tested directly in
 			// toolcoordinator/coordinator_test.go.
 			name: "ToolExecutionProgressEvent",
-			msg: domain.ToolExecutionProgressEvent{
-				BaseChatEvent: domain.BaseChatEvent{
+			msg: agentdomain.ToolExecutionProgressEvent{
+				BaseChatEvent: agentdomain.BaseChatEvent{
 					RequestID: "test-123",
 				},
 				ToolCallID: "test_tool_call",
 				Status:     "executing",
 				Message:    "Read tool executing",
 			},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 			},
 			expectedCmd: true,
 		},
 		{
 			name: "ToolExecutionCompletedEvent",
-			msg: domain.ToolExecutionCompletedEvent{
+			msg: agentdomain.ToolExecutionCompletedEvent{
 				SessionID:     "test-123",
 				TotalExecuted: 2,
 				SuccessCount:  2,
 			},
-			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, cfg *config.Config) {
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 				model.GetCurrentModelReturns("test-model")
-				eventCh := make(chan domain.ChatEvent, 1)
+				eventCh := make(chan agentdomain.ChatEvent, 1)
 				close(eventCh)
 				agent.RunWithStreamReturns(eventCh, nil)
 			},
@@ -684,26 +686,26 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 	}
 }
 
-func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService, *mocks.FakeModelService, *mocks.FakeToolService, *mocks.FakeFileService, *config.Config), stateManager *services.StateManager) *ChatHandler {
-	mockAgent := &mocks.FakeAgentService{}
-	mockModel := &mocks.FakeModelService{}
-	mockTool := &mocks.FakeToolService{}
-	mockFile := &mocks.FakeFileService{}
+func setupTestChatHandler(_ *testing.T, setupMocks func(*agentdomainmocks.FakeAgentService, *convmocks.FakeModelService, *agentdomainmocks.FakeToolService, *agentdomainmocks.FakeFileService, *config.Config), stateManager *services.StateManager) *ChatHandler {
+	mockAgent := &agentdomainmocks.FakeAgentService{}
+	mockModel := &convmocks.FakeModelService{}
+	mockTool := &agentdomainmocks.FakeToolService{}
+	mockFile := &agentdomainmocks.FakeFileService{}
 	cfg := config.DefaultConfig()
 
 	if setupMocks != nil {
 		setupMocks(mockAgent, mockModel, mockTool, mockFile, cfg)
 	}
 
-	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 	shortcutRegistry := shortcuts.NewRegistry()
-	messageQueue := services.NewMessageQueueService()
+	messageQueue := conversation.NewMessageQueueService()
 
 	// Configure the fake services to return non-nil cmds so the handler's
 	// Handle() dispatcher returns non-nil for the events that delegate.
 	// Individual cmd contents are exercised by the per-service tests.
 	nonNilCmd := func() tea.Msg { return nil }
-	fakeRunner := &mocks.FakeChatCompletionRunner{}
+	fakeRunner := &uimocks.FakeChatCompletionRunner{}
 	fakeRunner.HandleChatStartReturns(nonNilCmd)
 	fakeRunner.HandleChatChunkReturns(nonNilCmd)
 	fakeRunner.HandleChatCompleteReturns(nonNilCmd)
@@ -711,14 +713,14 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 	fakeRunner.HandleOptimizationStatusReturns(nonNilCmd)
 	fakeRunner.StartReturns(nonNilCmd)
 
-	fakeDirect := &mocks.FakeDirectExecutionService{}
+	fakeDirect := &uimocks.FakeDirectExecutionService{}
 	fakeDirect.HandleBashCommandReturns(nonNilCmd)
 	fakeDirect.HandleToolCommandReturns(nonNilCmd)
 	fakeDirect.HandleBashOutputChunkReturns(nonNilCmd)
 	fakeDirect.HandleBashCommandCompletedReturns(nonNilCmd)
 	fakeDirect.HandleBackgroundShellRequestReturns(nonNilCmd)
 
-	fakeToolCoord := &mocks.FakeToolExecutionCoordinator{}
+	fakeToolCoord := &uimocks.FakeToolExecutionCoordinator{}
 	fakeToolCoord.HandleToolCallUpdateReturns(nonNilCmd)
 	fakeToolCoord.HandleToolCallReadyReturns(nonNilCmd)
 	fakeToolCoord.HandleToolApprovalRequestedReturns(nonNilCmd)

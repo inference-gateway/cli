@@ -5,7 +5,7 @@ import (
 
 	cobra "github.com/spf13/cobra"
 
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
 var version = "dev"

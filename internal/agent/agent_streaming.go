@@ -11,10 +11,12 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	constants "github.com/inference-gateway/cli/internal/constants"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/states"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
 // errConnectStalled marks a stream request that produced no response within
@@ -47,11 +49,11 @@ func (a *EventDrivenAgent) startStreaming() {
 	a.eventPublisher.publishChatStart()
 
 	if a.agentCtx.Turns == 1 {
-		a.service.dispatchHooks(a.agentCtx, domain.HookPreSession)
+		a.service.dispatchHooks(a.agentCtx, agentdomain.HookPreSession)
 	}
-	a.service.dispatchHooks(a.agentCtx, domain.HookPreStream)
+	a.service.dispatchHooks(a.agentCtx, agentdomain.HookPreStream)
 
-	mode := domain.AgentModeStandard
+	mode := agentdomain.AgentModeStandard
 	if a.service.stateManager != nil {
 		mode = a.service.stateManager.GetAgentMode()
 	}
@@ -91,7 +93,7 @@ func (a *EventDrivenAgent) startStreaming() {
 		}
 
 		if a.service.stateManager != nil {
-			a.service.stateManager.SetRetryStatus(&domain.RetryStatus{Attempt: attempt + 1, MaxAttempts: maxReconnects})
+			a.service.stateManager.SetRetryStatus(&agentdomain.RetryStatus{Attempt: attempt + 1, MaxAttempts: maxReconnects})
 		}
 		a.eventPublisher.publishChatStart()
 
@@ -200,15 +202,15 @@ func (a *EventDrivenAgent) recoverPanic() {
 // failStream publishes a terminal stream error and moves the state machine to
 // StateError.
 func (a *EventDrivenAgent) failStream(err error) {
-	a.eventPublisher.chatEvents <- domain.ChatErrorEvent{
+	a.eventPublisher.chatEvents <- agentdomain.ChatErrorEvent{
 		RequestID: a.req.RequestID,
 		Timestamp: time.Now(),
 		Error:     err,
 	}
-	if terr := a.stateMachine.Transition(a.agentCtx, domain.StateError); terr != nil {
+	if terr := a.stateMachine.Transition(a.agentCtx, states.StateError); terr != nil {
 		logger.Error("failed to transition to Error state after stream failure", "error", terr)
 	}
-	a.events <- domain.MessageReceivedEvent{}
+	a.events <- states.MessageReceivedEvent{}
 }
 
 // reconnectBackoff returns the exponential backoff delay before reconnect
@@ -293,15 +295,15 @@ func (a *EventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, p
 	if requestCtx.Err() == context.DeadlineExceeded {
 		logger.Error("stream timeout", "error", requestCtx.Err())
 		telemetry.SetSpanError(requestCtx, requestCtx.Err())
-		a.eventPublisher.chatEvents <- domain.ChatErrorEvent{
+		a.eventPublisher.chatEvents <- agentdomain.ChatErrorEvent{
 			RequestID: a.req.RequestID,
 			Timestamp: time.Now(),
 			Error:     fmt.Errorf("stream timed out after %d seconds", a.service.timeoutSeconds),
 		}
-		if err := a.stateMachine.Transition(a.agentCtx, domain.StateError); err != nil {
+		if err := a.stateMachine.Transition(a.agentCtx, states.StateError); err != nil {
 			logger.Error("failed to transition to Error state after stream failure", "error", err)
 		}
-		a.events <- domain.MessageReceivedEvent{}
+		a.events <- states.MessageReceivedEvent{}
 		return
 	}
 
@@ -336,7 +338,7 @@ func (a *EventDrivenAgent) persistPartialAssistantMessage(partial sdk.Message) {
 	assistantMessage := buildAssistantMessage(sdk.NewMessageContent(content), reasoning, nil)
 	*a.agentCtx.Conversation = append(*a.agentCtx.Conversation, assistantMessage)
 
-	entry := domain.ConversationEntry{
+	entry := convdomain.ConversationEntry{
 		Message:          assistantMessage,
 		ReasoningContent: reasoning,
 		Model:            a.req.Model,
@@ -529,7 +531,7 @@ func (a *EventDrivenAgent) finalizeStream(
 	inputMessages := a.outboundConversation()
 	*a.agentCtx.Conversation = append(*a.agentCtx.Conversation, assistantMessage)
 
-	assistantEntry := domain.ConversationEntry{
+	assistantEntry := convdomain.ConversationEntry{
 		Message:          assistantMessage,
 		ReasoningContent: reasoning,
 		Model:            a.req.Model,
@@ -565,7 +567,7 @@ func (a *EventDrivenAgent) finalizeStream(
 
 	a.service.trackStreamOutcome(a.finishReason, len(toolCallsSlice) > 0)
 
-	a.events <- domain.StreamCompletedEvent{
+	a.events <- states.StreamCompletedEvent{
 		Message:            assistantMessage,
 		ToolCalls:          toolCallsSlice,
 		Reasoning:          reasoning,

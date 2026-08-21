@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
+
 	adk "github.com/inference-gateway/adk/types"
+
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestA2AQueryTaskTool_Definition(t *testing.T) {
@@ -282,7 +284,7 @@ func TestA2AQueryTaskTool_FormatResult(t *testing.T) {
 	}
 	tool := NewA2AQueryTaskTool(cfg, nil)
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "A2A_QueryTask",
 		Arguments: map[string]any{"agent_url": "http://example.com"},
 		Success:   true,
@@ -304,19 +306,19 @@ func TestA2AQueryTaskTool_FormatResult(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		formatType domain.FormatterType
+		formatType agentdomain.FormatterType
 	}{
 		{
 			name:       "UI format",
-			formatType: domain.FormatterUI,
+			formatType: agentdomain.FormatterUI,
 		},
 		{
 			name:       "LLM format",
-			formatType: domain.FormatterLLM,
+			formatType: agentdomain.FormatterLLM,
 		},
 		{
 			name:       "Short format",
-			formatType: domain.FormatterShort,
+			formatType: agentdomain.FormatterShort,
 		},
 	}
 
@@ -396,7 +398,7 @@ func TestA2AQueryTaskTool_FormatForLLM_FailedTaskSurfacesReason(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := &domain.ToolExecutionResult{
+			result := &agentdomain.ToolExecutionResult{
 				ToolName: "A2A_QueryTask",
 				Success:  false,
 				Data: A2AQueryTaskResult{
@@ -440,12 +442,12 @@ func TestA2AQueryTaskTool_FormatPreview(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		result *domain.ToolExecutionResult
+		result *agentdomain.ToolExecutionResult
 		want   string
 	}{
 		{
 			name: "successful result with data",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				Data: A2AQueryTaskResult{
 					Message: "Task completed successfully",
 				},
@@ -454,7 +456,7 @@ func TestA2AQueryTaskTool_FormatPreview(t *testing.T) {
 		},
 		{
 			name: "failed result with error",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				Error: "Failed to connect",
 			},
 			want: "Failed to connect",
@@ -515,7 +517,7 @@ func TestA2AQueryTaskTool_PollingStateBlocking(t *testing.T) {
 				},
 			}
 
-			liveness := &mocks.FakeJobLivenessReporter{}
+			liveness := &schedmocks.FakeJobLivenessReporter{}
 			liveness.IsJobRunningCalls(func(id string) bool {
 				return tt.runningTaskID != "" && id == tt.runningTaskID
 			})

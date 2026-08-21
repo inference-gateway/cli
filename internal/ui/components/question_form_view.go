@@ -9,7 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	huh "charm.land/huh/v2"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -35,14 +35,14 @@ type QuestionFormView struct {
 	width         int
 	height        int
 	styleProvider *styles.Provider
-	stateManager  domain.UserQuestionUIManager
+	stateManager  agentdomain.UserQuestionUIManager
 
 	// active is the state this form was built for; if the StateManager's
 	// state no longer matches (cancelled externally), the form is stale.
-	active  *domain.UserQuestionUIState
+	active  *agentdomain.UserQuestionUIState
 	idx     int
 	form    *huh.Form
-	answers []domain.UserQuestionAnswer
+	answers []agentdomain.UserQuestionAnswer
 
 	// Form-bound values, reset per question.
 	single int
@@ -50,7 +50,7 @@ type QuestionFormView struct {
 	other  string
 }
 
-func NewQuestionFormView(styleProvider *styles.Provider, stateManager domain.UserQuestionUIManager) *QuestionFormView {
+func NewQuestionFormView(styleProvider *styles.Provider, stateManager agentdomain.UserQuestionUIManager) *QuestionFormView {
 	return &QuestionFormView{
 		width:         80,
 		styleProvider: styleProvider,
@@ -197,7 +197,7 @@ func (qv *QuestionFormView) buildForm() {
 }
 
 // otherChosen reports whether the synthesized "Other" row is currently chosen.
-func (qv *QuestionFormView) otherChosen(question domain.UserQuestion) bool {
+func (qv *QuestionFormView) otherChosen(question agentdomain.UserQuestion) bool {
 	if question.MultiSelect {
 		return slices.Contains(qv.multi, otherSentinel)
 	}
@@ -205,9 +205,9 @@ func (qv *QuestionFormView) otherChosen(question domain.UserQuestion) bool {
 }
 
 // buildAnswer materializes the completed current question's answer.
-func (qv *QuestionFormView) buildAnswer() domain.UserQuestionAnswer {
+func (qv *QuestionFormView) buildAnswer() agentdomain.UserQuestionAnswer {
 	question := qv.active.Questions[qv.idx]
-	answer := domain.UserQuestionAnswer{
+	answer := agentdomain.UserQuestionAnswer{
 		Header:   question.Header,
 		Question: question.Question,
 	}
@@ -229,7 +229,7 @@ func (qv *QuestionFormView) buildAnswer() domain.UserQuestionAnswer {
 // defaultUserQuestionOption returns the option index to pre-select for a
 // single-select question: the first option whose label is marked
 // "(Recommended)" (case-insensitive), otherwise the first option.
-func defaultUserQuestionOption(q domain.UserQuestion) int {
+func defaultUserQuestionOption(q agentdomain.UserQuestion) int {
 	for i, opt := range q.Options {
 		if strings.Contains(strings.ToLower(opt.Label), "(recommended)") {
 			return i

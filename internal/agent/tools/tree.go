@@ -11,11 +11,12 @@ import (
 	"sync"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
 	ignore "github.com/sabhiram/go-gitignore"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	sdk "github.com/inference-gateway/sdk"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // TreeTool handles directory tree visualization operations
@@ -25,7 +26,7 @@ type TreeTool struct {
 	gitignore      *ignore.GitIgnore
 	gitignoreCache map[string]*ignore.GitIgnore
 	cacheMutex     sync.RWMutex
-	formatter      domain.BaseFormatter
+	formatter      agentinfra.BaseFormatter
 }
 
 // NewTreeTool creates a new tree tool
@@ -33,7 +34,7 @@ func NewTreeTool(cfg *config.Config) *TreeTool {
 	tool := &TreeTool{
 		config:         cfg,
 		enabled:        cfg.Tools.Enabled && cfg.Tools.Tree.Enabled,
-		formatter:      domain.NewBaseFormatter("Tree"),
+		formatter:      agentinfra.NewBaseFormatter("Tree"),
 		gitignoreCache: make(map[string]*ignore.GitIgnore),
 	}
 	tool.loadGitignore()
@@ -94,7 +95,7 @@ func (t *TreeTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the tree tool with given arguments
-func (t *TreeTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *TreeTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("tree tool is not enabled")
@@ -135,9 +136,9 @@ func (t *TreeTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 		return nil, err
 	}
 
-	var toolData *domain.TreeToolResult
+	var toolData *agentdomain.TreeToolResult
 	if treeResult != nil {
-		toolData = &domain.TreeToolResult{
+		toolData = &agentdomain.TreeToolResult{
 			Path:            treeResult.Path,
 			Output:          treeResult.Output,
 			TotalFiles:      treeResult.TotalFiles,
@@ -151,7 +152,7 @@ func (t *TreeTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 		}
 	}
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "Tree",
 		Arguments: args,
 		Success:   true,
@@ -529,13 +530,13 @@ func (t *TreeTool) getOrLoadDirGitignore(dirPath string) *ignore.GitIgnore {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *TreeTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *TreeTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -543,12 +544,12 @@ func (t *TreeTool) FormatResult(result *domain.ToolExecutionResult, formatType d
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *TreeTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *TreeTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
-	treeResult, ok := result.Data.(*domain.TreeToolResult)
+	treeResult, ok := result.Data.(*agentdomain.TreeToolResult)
 	if !ok {
 		if result.Success {
 			return "Directory tree generated successfully"
@@ -579,12 +580,12 @@ func (t *TreeTool) FormatPreview(result *domain.ToolExecutionResult) string {
 }
 
 // FormatResultBody returns the rendered directory tree for the collapsed preview.
-func (t *TreeTool) FormatResultBody(result *domain.ToolExecutionResult) string {
+func (t *TreeTool) FormatResultBody(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return ""
 	}
 
-	treeResult, ok := result.Data.(*domain.TreeToolResult)
+	treeResult, ok := result.Data.(*agentdomain.TreeToolResult)
 	if !ok {
 		return ""
 	}
@@ -592,7 +593,7 @@ func (t *TreeTool) FormatResultBody(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForUI formats the result for UI display
-func (t *TreeTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *TreeTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -609,7 +610,7 @@ func (t *TreeTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *TreeTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *TreeTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -623,7 +624,7 @@ func (t *TreeTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 // formatTreeData formats tree-specific data
 func (t *TreeTool) formatTreeData(data any) string {
-	treeResult, ok := data.(*domain.TreeToolResult)
+	treeResult, ok := data.(*agentdomain.TreeToolResult)
 	if !ok {
 		return t.formatter.FormatAsJSON(data)
 	}

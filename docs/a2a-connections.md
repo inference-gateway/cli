@@ -249,7 +249,6 @@ a2a:
     initial_poll_interval_sec: 2     # Initial poll interval
     max_poll_interval_sec: 60        # Maximum poll interval
     backoff_multiplier: 2.0          # Backoff multiplier
-    background_monitoring: true      # Enable background monitoring
     completed_task_retention: 5      # Number of completed tasks to retain
   tools:
     query_agent:

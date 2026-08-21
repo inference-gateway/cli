@@ -8,8 +8,9 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
@@ -65,7 +66,7 @@ func (s *ToolFormatterService) collapseHint() string {
 
 // ToolRegistry interface for accessing tools (implemented by tools.Registry)
 type ToolRegistry interface {
-	GetTool(name string) (domain.Tool, error)
+	GetTool(name string) (agentdomain.Tool, error)
 	ListAvailableTools() []string
 }
 
@@ -131,7 +132,7 @@ func (s *ToolFormatterService) joinArgs(args []string) string {
 // FormatToolResultForUI formats the collapsed (default) tool result: a themed status
 // line followed by an indented dim output preview (first 5 lines on success, the full
 // output on failure) and a "+N lines · ctrl+o to expand" footer.
-func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutionResult, terminalWidth int) string {
+func (s *ToolFormatterService) FormatToolResultForUI(result *agentdomain.ToolExecutionResult, terminalWidth int) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -189,7 +190,7 @@ func (s *ToolFormatterService) RenderToolSummary(icon, toolName string, args map
 
 // statusLine renders the compact "<icon> Name(args) · <duration>" header via the
 // shared summary renderer.
-func (s *ToolFormatterService) statusLine(result *domain.ToolExecutionResult, terminalWidth int) string {
+func (s *ToolFormatterService) statusLine(result *agentdomain.ToolExecutionResult, terminalWidth int) string {
 	icon := icons.CheckMark
 	iconColor := "success"
 	if !result.Success {
@@ -268,16 +269,21 @@ func (s *ToolFormatterService) formatArgsPreview(args map[string]any, maxWidth i
 // tool-call line, dim connectors, accent field labels), with a dim collapse hint.
 // The underlying tree text is unchanged, so tool-specific bodies (diffs, raw output)
 // are preserved exactly.
-func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecutionResult, terminalWidth int) string {
+func (s *ToolFormatterService) FormatToolResultExpanded(result *agentdomain.ToolExecutionResult, terminalWidth int) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
 	var tree string
 	if tool, err := s.toolRegistry.GetTool(result.ToolName); err != nil {
-		tree = s.formatFallback(result, domain.FormatterLLM)
+		tree = s.formatFallback(result, agentdomain.FormatterLLM)
 	} else {
-		tree = safeToolFormat(result.ToolName, func() string { return tool.FormatResult(result, domain.FormatterLLM) })
+		tree = safeToolFormat(result.ToolName, func() string {
+			if diffTree, ok := s.expandedDiffTree(result, tool); ok {
+				return diffTree
+			}
+			return tool.FormatResult(result, agentdomain.FormatterLLM)
+		})
 	}
 
 	inner := s.cardWidth(terminalWidth) - 4
@@ -293,18 +299,159 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecu
 	return s.wrapCard(result.ToolName, body, terminalWidth)
 }
 
+// expandedDiffTree renders the colored diff Edit and MultiEdit results show in the
+// expanded view. The tools themselves emit plain text only; the ANSI rendering
+// lives here, behind the ToolFormatter seam. The second return is false for any
+// other tool (or when there is nothing to diff), sending the caller down the
+// generic FormatResult path.
+func (s *ToolFormatterService) expandedDiffTree(result *agentdomain.ToolExecutionResult, tool agentdomain.Tool) (string, bool) {
+	if result.Arguments == nil {
+		return "", false
+	}
+
+	renderer := styles.NewDiffRenderer(s.styleProvider).SetContextLines(styles.InlineDiffContextLines)
+	var info *styles.DiffInfo
+	switch result.ToolName {
+	case "Edit":
+		if !result.Success {
+			return "", false
+		}
+		if editResult, ok := result.Data.(*agentdomain.EditToolResult); ok {
+			renderer.SetStartLine(editResult.StartLine)
+		}
+		filePath, _ := result.Arguments["file_path"].(string)
+		oldString, _ := result.Arguments["old_string"].(string)
+		newString, _ := result.Arguments["new_string"].(string)
+		info = &styles.DiffInfo{
+			FilePath:   filePath,
+			OldContent: oldString,
+			NewContent: newString,
+			Title:      "← Edits applied →",
+		}
+	case "MultiEdit":
+		switch {
+		case result.Success && result.Data != nil:
+			info = multiEditSummaryDiff(result)
+		case !result.Success:
+			info = simulateMultiEditDiff(result.Arguments)
+		default:
+			return "", false
+		}
+	default:
+		return "", false
+	}
+
+	diff := renderer.RenderDiff(*info)
+	return agentinfra.NewCustomFormatter(result.ToolName, tool.ShouldCollapseArg).FormatExpanded(result, diff), true
+}
+
+// multiEditSummaryDiff builds the summary shown for a successful MultiEdit.
+func multiEditSummaryDiff(result *agentdomain.ToolExecutionResult) *styles.DiffInfo {
+	filePath, _ := result.Arguments["file_path"].(string)
+
+	multiEditResult, ok := result.Data.(*agentdomain.MultiEditToolResult)
+	if !ok {
+		return &styles.DiffInfo{
+			FilePath:   filePath,
+			NewContent: "Multi-edit completed successfully",
+			Title:      "Multi-Edit Applied",
+		}
+	}
+
+	var summary strings.Builder
+	fmt.Fprintf(&summary, "Successfully applied %d edits", multiEditResult.SuccessfulEdits)
+	if multiEditResult.BytesDifference != 0 {
+		if multiEditResult.BytesDifference > 0 {
+			fmt.Fprintf(&summary, " (+%d bytes)", multiEditResult.BytesDifference)
+		} else {
+			fmt.Fprintf(&summary, " (%d bytes)", multiEditResult.BytesDifference)
+		}
+	}
+
+	return &styles.DiffInfo{
+		FilePath:   filePath,
+		NewContent: strings.TrimSpace(summary.String()),
+		Title:      "Multi-Edit Applied",
+	}
+}
+
+// simulateMultiEditDiff previews a failed MultiEdit by re-reading the target file
+// and applying the requested edits in sequence.
+// ponytail: render-time file IO, inherited from the old MultiEdit.GetDiffInfo; the
+// file may have changed since the tool ran.
+func simulateMultiEditDiff(args map[string]any) *styles.DiffInfo {
+	filePath, _ := args["file_path"].(string)
+	title := "← Simulated diff preview →"
+
+	editsArray, ok := args["edits"].([]any)
+	if !ok {
+		return &styles.DiffInfo{FilePath: filePath, NewContent: "Invalid edits format", Title: title}
+	}
+
+	originalContent := ""
+	if content, err := os.ReadFile(filePath); err == nil {
+		originalContent = string(content)
+	}
+
+	currentContent := originalContent
+	for _, editInterface := range editsArray {
+		editMap, ok := editInterface.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		oldString, ok1 := editMap["old_string"].(string)
+		newString, ok2 := editMap["new_string"].(string)
+		replaceAll, _ := editMap["replace_all"].(bool)
+		if !ok1 || !ok2 {
+			continue
+		}
+
+		if !strings.Contains(currentContent, oldString) {
+			return &styles.DiffInfo{
+				FilePath:   filePath,
+				OldContent: originalContent,
+				NewContent: "⚠️  Edit simulation failed: old_string not found after previous edits",
+				Title:      title,
+			}
+		}
+
+		if replaceAll {
+			currentContent = strings.ReplaceAll(currentContent, oldString, newString)
+		} else {
+			count := strings.Count(currentContent, oldString)
+			if count > 1 {
+				return &styles.DiffInfo{
+					FilePath:   filePath,
+					OldContent: originalContent,
+					NewContent: fmt.Sprintf("⚠️  Edit simulation failed: old_string not unique (%d occurrences)", count),
+					Title:      title,
+				}
+			}
+			currentContent = strings.Replace(currentContent, oldString, newString, 1)
+		}
+	}
+
+	return &styles.DiffInfo{
+		FilePath:   filePath,
+		OldContent: originalContent,
+		NewContent: currentContent,
+		Title:      title,
+	}
+}
+
 // FormatToolResultForLLM formats tool execution results for LLM consumption
-func (s *ToolFormatterService) FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
+func (s *ToolFormatterService) FormatToolResultForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
 	tool, err := s.toolRegistry.GetTool(result.ToolName)
 	if err != nil {
-		return capToolResult(s.formatFallback(result, domain.FormatterLLM), s.maxResultBytes)
+		return capToolResult(s.formatFallback(result, agentdomain.FormatterLLM), s.maxResultBytes)
 	}
 
-	formatted := safeToolFormat(result.ToolName, func() string { return tool.FormatResult(result, domain.FormatterLLM) })
+	formatted := safeToolFormat(result.ToolName, func() string { return tool.FormatResult(result, agentdomain.FormatterLLM) })
 	return capToolResult(formatted, s.maxResultBytes)
 }
 
@@ -327,11 +474,11 @@ func capToolResult(content string, maxBytes int) string {
 }
 
 // formatFallback provides fallback formatting when tool is not available
-func (s *ToolFormatterService) formatFallback(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
-	formatter := domain.NewBaseFormatter(result.ToolName)
+func (s *ToolFormatterService) formatFallback(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
+	formatter := agentinfra.NewBaseFormatter(result.ToolName)
 
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		if s.isGatewayToolWithEnhancedVisualization(result) {
 			return s.formatEnhancedGatewayTool(result, &formatter)
 		}
@@ -345,7 +492,7 @@ func (s *ToolFormatterService) formatFallback(result *domain.ToolExecutionResult
 
 		return fmt.Sprintf("%s %s %s", statusIcon, toolCall, statusText)
 
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		var dataContent string
 		if result.Data != nil {
 			dataContent = formatter.FormatAsJSON(result.Data)
@@ -392,7 +539,7 @@ func (s *ToolFormatterService) ShouldAlwaysExpandTool(toolName string) bool {
 }
 
 // isGatewayToolWithEnhancedVisualization checks if this is a Gateway tool with enhanced visualization
-func (s *ToolFormatterService) isGatewayToolWithEnhancedVisualization(result *domain.ToolExecutionResult) bool {
+func (s *ToolFormatterService) isGatewayToolWithEnhancedVisualization(result *agentdomain.ToolExecutionResult) bool {
 	if result.Data == nil {
 		return false
 	}
@@ -411,7 +558,7 @@ func (s *ToolFormatterService) isGatewayToolWithEnhancedVisualization(result *do
 }
 
 // formatEnhancedGatewayTool formats Gateway tools with enhanced user-friendly visualization
-func (s *ToolFormatterService) formatEnhancedGatewayTool(result *domain.ToolExecutionResult, formatter *domain.BaseFormatter) string {
+func (s *ToolFormatterService) formatEnhancedGatewayTool(result *agentdomain.ToolExecutionResult, formatter *agentinfra.BaseFormatter) string {
 	data, ok := result.Data.(map[string]any)
 	if !ok {
 		return fmt.Sprintf("%s Executed on Gateway", formatter.FormatStatusIcon(result.Success))

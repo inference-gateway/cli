@@ -17,18 +17,16 @@ import (
 	"testing"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+	mockgateway "github.com/inference-gateway/tokenless/gateway"
 	require "github.com/stretchr/testify/require"
 
-	sdk "github.com/inference-gateway/sdk"
-
-	mockgateway "github.com/inference-gateway/tokenless/gateway"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	models "github.com/inference-gateway/cli/internal/models"
-	services "github.com/inference-gateway/cli/internal/services"
-	streamevent "github.com/inference-gateway/cli/internal/streamevent"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 )
 
 const runTimeout = 30 * time.Second
@@ -123,9 +121,9 @@ func userMessage(t *testing.T, text string) sdk.Message {
 }
 
 type result struct {
-	chunks    []domain.ChatChunkEvent
-	completes []domain.ChatCompleteEvent
-	errs      []domain.ChatErrorEvent
+	chunks    []agentdomain.ChatChunkEvent
+	completes []agentdomain.ChatCompleteEvent
+	errs      []agentdomain.ChatErrorEvent
 }
 
 // content concatenates all streamed content deltas.
@@ -147,7 +145,7 @@ func (r result) reasoning() string {
 }
 
 // final returns the last ChatCompleteEvent of the run.
-func (r result) final(t *testing.T) domain.ChatCompleteEvent {
+func (r result) final(t *testing.T) agentdomain.ChatCompleteEvent {
 	t.Helper()
 	require.NotEmpty(t, r.completes, "no ChatCompleteEvent received")
 	return r.completes[len(r.completes)-1]
@@ -158,7 +156,7 @@ func (r result) final(t *testing.T) domain.ChatCompleteEvent {
 // closes the channel.
 func (e *env) runStream(ctx context.Context, t *testing.T, prompt string) result {
 	t.Helper()
-	req := &domain.AgentRequest{
+	req := &agentdomain.AgentRequest{
 		RequestID: fmt.Sprintf("req-%s", strings.ReplaceAll(t.Name(), "/", "-")),
 		Model:     testModel,
 		Messages:  []sdk.Message{userMessage(t, prompt)},
@@ -169,7 +167,7 @@ func (e *env) runStream(ctx context.Context, t *testing.T, prompt string) result
 	return drain(t, events)
 }
 
-func drain(t *testing.T, events <-chan domain.ChatEvent) result {
+func drain(t *testing.T, events <-chan agentdomain.ChatEvent) result {
 	t.Helper()
 	var res result
 	deadline := time.After(runTimeout)
@@ -180,11 +178,11 @@ func drain(t *testing.T, events <-chan domain.ChatEvent) result {
 				return res
 			}
 			switch e := ev.(type) {
-			case domain.ChatChunkEvent:
+			case agentdomain.ChatChunkEvent:
 				res.chunks = append(res.chunks, e)
-			case domain.ChatCompleteEvent:
+			case agentdomain.ChatCompleteEvent:
 				res.completes = append(res.completes, e)
-			case domain.ChatErrorEvent:
+			case agentdomain.ChatErrorEvent:
 				res.errs = append(res.errs, e)
 			}
 		case <-deadline:
@@ -398,7 +396,7 @@ func TestSyncRunParsesNonStreamingResponse(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 	defer cancel()
 
-	resp, err := e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
+	resp, err := e.container.GetAgentService().Run(ctx, &agentdomain.AgentRequest{
 		RequestID: "req-sync",
 		Model:     testModel,
 		Messages:  []sdk.Message{userMessage(t, "say hello")},
@@ -424,7 +422,7 @@ func TestSyncAndStreamAccumulateIdenticalSessionTokens(t *testing.T) {
 	defer cancel()
 
 	syncEnv := newEnv(t)
-	resp, err := syncEnv.container.GetAgentService().Run(ctx, &domain.AgentRequest{
+	resp, err := syncEnv.container.GetAgentService().Run(ctx, &agentdomain.AgentRequest{
 		RequestID: "req-usage-sync",
 		Model:     testModel,
 		Messages:  []sdk.Message{userMessage(t, "report your usage")},
@@ -508,7 +506,7 @@ func TestSyncRunAppendsVolatileTail(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 	defer cancel()
 
-	_, err := e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
+	_, err := e.container.GetAgentService().Run(ctx, &agentdomain.AgentRequest{
 		RequestID: "req-sync-tail",
 		Model:     testModel,
 		Messages:  []sdk.Message{userMessage(t, "say hello")},
@@ -543,7 +541,7 @@ func TestStreamResumedMidToolCallStillGetsVolatileTail(t *testing.T) {
 	toolCalls := []sdk.ChatCompletionMessageToolCall{
 		{ID: "call_orphan", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: `{"file_path":"a.txt"}`}},
 	}
-	req := &domain.AgentRequest{
+	req := &agentdomain.AgentRequest{
 		RequestID: "req-resume-tail",
 		Model:     testModel,
 		Messages: []sdk.Message{
@@ -587,7 +585,7 @@ func TestPolyfillTokensIdenticalAcrossSyncAndStreamWithTail(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 	defer cancel()
 
-	_, err = e.container.GetAgentService().Run(ctx, &domain.AgentRequest{
+	_, err = e.container.GetAgentService().Run(ctx, &agentdomain.AgentRequest{
 		RequestID: "req-polyfill-sync",
 		Model:     testModel,
 		Messages:  []sdk.Message{userMessage(t, "estimate me")},
@@ -618,7 +616,7 @@ func TestModelMetadataFromGateway(t *testing.T) {
 	require.True(t, known, "gateway-reported model must be known")
 	require.Equal(t, mockgateway.DefaultContextWindow, window)
 
-	pricing := services.NewPricingService(&config.PricingConfig{Enabled: true})
+	pricing := conversation.NewPricingService(&config.PricingConfig{Enabled: true})
 	in, out, total := pricing.CalculateCost(testModel, 1_000_000, 1_000_000, 0, 0)
 	require.InDelta(t, 2.5, in, 1e-9)
 	require.InDelta(t, 10.0, out, 1e-9)

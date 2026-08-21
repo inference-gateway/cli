@@ -17,7 +17,9 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // WebFetchTool handles content fetching operations
@@ -25,7 +27,7 @@ type WebFetchTool struct {
 	config    *config.Config
 	enabled   bool
 	client    *http.Client
-	formatter domain.BaseFormatter
+	formatter agentinfra.BaseFormatter
 }
 
 // NewWebFetchTool creates a new fetch tool
@@ -36,7 +38,7 @@ func NewWebFetchTool(cfg *config.Config) *WebFetchTool {
 		client: &http.Client{
 			Timeout: time.Duration(cfg.Tools.WebFetch.Safety.Timeout) * time.Second,
 		},
-		formatter: domain.NewBaseFormatter("WebFetch"),
+		formatter: agentinfra.NewBaseFormatter("WebFetch"),
 	}
 }
 
@@ -74,7 +76,7 @@ func (t *WebFetchTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the fetch tool with given arguments
-func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled || !t.config.Tools.WebFetch.Enabled {
 		return nil, fmt.Errorf("fetch tool is not enabled")
@@ -82,7 +84,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domai
 
 	url, ok := args["url"].(string)
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "WebFetch",
 			Arguments: args,
 			Success:   false,
@@ -92,7 +94,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domai
 	}
 
 	if err := t.validateURL(url); err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "WebFetch",
 			Arguments: args,
 			Success:   false,
@@ -106,7 +108,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domai
 	fetchResult, err := t.fetchContent(ctx, url)
 	success := err == nil
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "WebFetch",
 		Arguments: args,
 		Success:   success,
@@ -133,7 +135,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domai
 
 	if isBinary {
 		ct := cmp.Or(fetchResult.ContentType, "unknown type")
-		_, _, inChannel := domain.ParseChannelSessionID(domain.GetSessionID(ctx))
+		_, _, inChannel := convdomain.ParseChannelSessionID(agentdomain.GetSessionID(ctx))
 		if inChannel && fetchResult.SavedPath != "" && strings.HasPrefix(strings.ToLower(ct), "image/") {
 			fetchResult.Content = fmt.Sprintf(
 				"[image (%s, %s) saved to %s — the raw bytes are NOT shown to you. "+
@@ -183,12 +185,12 @@ func (t *WebFetchTool) IsEnabled() bool {
 }
 
 // fetchContent fetches content from the given URL
-func (t *WebFetchTool) fetchContent(ctx context.Context, url string) (*domain.FetchResult, error) {
+func (t *WebFetchTool) fetchContent(ctx context.Context, url string) (*agentdomain.FetchResult, error) {
 	return t.fetchHTTPContent(ctx, url)
 }
 
 // fetchHTTPContent fetches content from a regular HTTP/HTTPS URL
-func (t *WebFetchTool) fetchHTTPContent(ctx context.Context, url string) (*domain.FetchResult, error) {
+func (t *WebFetchTool) fetchHTTPContent(ctx context.Context, url string) (*agentdomain.FetchResult, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -219,7 +221,7 @@ func (t *WebFetchTool) fetchHTTPContent(ctx context.Context, url string) (*domai
 			t.config.Tools.WebFetch.Safety.MaxSize, len(body))
 	}
 
-	result := &domain.FetchResult{
+	result := &agentdomain.FetchResult{
 		Content:     string(body),
 		URL:         url,
 		Status:      resp.StatusCode,
@@ -330,13 +332,13 @@ func isTrustedAgentHost(cfg *config.Config, rawURL string) bool {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *WebFetchTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *WebFetchTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -344,12 +346,12 @@ func (t *WebFetchTool) FormatResult(result *domain.ToolExecutionResult, formatTy
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *WebFetchTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *WebFetchTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
-	fetchResult, ok := result.Data.(*domain.FetchResult)
+	fetchResult, ok := result.Data.(*agentdomain.FetchResult)
 	if !ok {
 		if result.Success {
 			return "Web fetch completed successfully"
@@ -395,7 +397,7 @@ func (t *WebFetchTool) FormatPreview(result *domain.ToolExecutionResult) string 
 }
 
 // FormatForUI formats the result for UI display
-func (t *WebFetchTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *WebFetchTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -412,7 +414,7 @@ func (t *WebFetchTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *WebFetchTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *WebFetchTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -426,7 +428,7 @@ func (t *WebFetchTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 // formatFetchData formats web fetch-specific data
 func (t *WebFetchTool) formatFetchData(data any) string {
-	fetchResult, ok := data.(*domain.FetchResult)
+	fetchResult, ok := data.(*agentdomain.FetchResult)
 	if !ok {
 		return t.formatter.FormatAsJSON(data)
 	}
@@ -550,8 +552,8 @@ func extensionFromContentType(contentType string) string {
 
 // saveToFile saves the fetched content to disk in the session's artifacts
 // directory
-func (t *WebFetchTool) saveToFile(ctx context.Context, fetchResult *domain.FetchResult, filename string) (string, error) {
-	baseDir := t.config.SessionArtifactsDir(domain.GetSessionID(ctx))
+func (t *WebFetchTool) saveToFile(ctx context.Context, fetchResult *agentdomain.FetchResult, filename string) (string, error) {
+	baseDir := t.config.SessionArtifactsDir(agentdomain.GetSessionID(ctx))
 
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create directory %s: %w", baseDir, err)

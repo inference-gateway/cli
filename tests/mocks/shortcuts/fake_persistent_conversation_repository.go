@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/conversation/domain"
 	"github.com/inference-gateway/cli/internal/shortcuts"
 )
 

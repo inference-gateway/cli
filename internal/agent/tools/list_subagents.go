@@ -6,9 +6,12 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // ListSubagentsTool lists local subagents spawned by the Agent tool. For
@@ -17,13 +20,13 @@ import (
 // ListShells.
 type ListSubagentsTool struct {
 	config    *config.Config
-	tracker   domain.SubagentTracker
+	tracker   scheddomain.SubagentTracker
 	paneState func(ctx context.Context, paneID string) paneState
 }
 
 // NewListSubagentsTool creates a new ListSubagents tool over the session's
 // SubagentTracker.
-func NewListSubagentsTool(cfg *config.Config, tracker domain.SubagentTracker) *ListSubagentsTool {
+func NewListSubagentsTool(cfg *config.Config, tracker scheddomain.SubagentTracker) *ListSubagentsTool {
 	return &ListSubagentsTool{
 		config:    cfg,
 		tracker:   tracker,
@@ -50,10 +53,10 @@ func (t *ListSubagentsTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute lists all tracked subagents.
-func (t *ListSubagentsTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *ListSubagentsTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	subagents := t.tracker.GetAllSubagents()
 	if len(subagents) == 0 {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "ListSubagents",
 			Arguments: args,
 			Success:   true,
@@ -68,7 +71,7 @@ func (t *ListSubagentsTool) Execute(ctx context.Context, args map[string]any) (*
 	for _, s := range subagents {
 		infos = append(infos, t.subagentInfo(ctx, s))
 	}
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "ListSubagents",
 		Arguments: args,
 		Success:   true,
@@ -82,13 +85,13 @@ func (t *ListSubagentsTool) Execute(ctx context.Context, args map[string]any) (*
 // subagentInfo builds the per-subagent record. Interactive subagents get their
 // live pane status (alive=running, dead=finished, gone=closed); headless ones
 // report their tracked status.
-func (t *ListSubagentsTool) subagentInfo(ctx context.Context, s *domain.SubagentState) map[string]any {
+func (t *ListSubagentsTool) subagentInfo(ctx context.Context, s *scheddomain.SubagentState) map[string]any {
 	status := string(s.Status)
-	if s.Mode == domain.SubagentModeInteractive && s.Status == domain.SubagentRunning {
+	if s.Mode == scheddomain.SubagentModeInteractive && s.Status == scheddomain.SubagentRunning {
 		status = t.paneState(ctx, s.PaneID).status()
 	}
 	awaiting := false
-	if s.Mode == domain.SubagentModeInteractive {
+	if s.Mode == scheddomain.SubagentModeInteractive {
 		if _, ok := readSubagentApproval(s.SessionID); ok {
 			status = "awaiting_approval"
 			awaiting = true
@@ -109,7 +112,7 @@ func (t *ListSubagentsTool) subagentInfo(ctx context.Context, s *domain.Subagent
 	switch {
 	case awaiting:
 		info["note"] = "blocked on tool approval; review and respond with ApproveSubagent"
-	case s.Status == domain.SubagentRunning:
+	case s.Status == scheddomain.SubagentRunning:
 		info["note"] = "notifies automatically when it finishes; do not poll"
 	}
 	return info
@@ -126,15 +129,15 @@ func (t *ListSubagentsTool) IsEnabled() bool {
 }
 
 // FormatResult formats the result for display.
-func (t *ListSubagentsTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
-	if formatType == domain.FormatterShort {
+func (t *ListSubagentsTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
+	if formatType == agentdomain.FormatterShort {
 		return t.FormatPreview(result)
 	}
 	return t.formatList(result)
 }
 
 // FormatPreview returns a short preview.
-func (t *ListSubagentsTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *ListSubagentsTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	data, ok := result.Data.(map[string]any)
 	if !ok {
 		return "ListSubagents completed"
@@ -146,7 +149,7 @@ func (t *ListSubagentsTool) FormatPreview(result *domain.ToolExecutionResult) st
 	return fmt.Sprintf("Found %d subagent(s)", count)
 }
 
-func (t *ListSubagentsTool) formatList(result *domain.ToolExecutionResult) string {
+func (t *ListSubagentsTool) formatList(result *agentdomain.ToolExecutionResult) string {
 	data, ok := result.Data.(map[string]any)
 	if !ok {
 		return "ListSubagents completed"

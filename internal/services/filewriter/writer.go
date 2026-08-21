@@ -6,18 +6,17 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/inference-gateway/cli/internal/domain/filewriter"
-	"github.com/inference-gateway/cli/internal/logger"
+	"github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// SafeFileWriter implements filewriter.FileWriter with atomic operations
+// SafeFileWriter implements FileWriter with atomic operations
 type SafeFileWriter struct {
-	validator     filewriter.PathValidator
-	backupManager filewriter.BackupManager
+	validator     *DefaultPathValidator
+	backupManager *DefaultBackupManager
 }
 
 // NewSafeFileWriter creates a new SafeFileWriter
-func NewSafeFileWriter(validator filewriter.PathValidator, backupManager filewriter.BackupManager) filewriter.FileWriter {
+func NewSafeFileWriter(validator *DefaultPathValidator, backupManager *DefaultBackupManager) FileWriter {
 	return &SafeFileWriter{
 		validator:     validator,
 		backupManager: backupManager,
@@ -25,7 +24,7 @@ func NewSafeFileWriter(validator filewriter.PathValidator, backupManager filewri
 }
 
 // Write performs an atomic file write operation
-func (w *SafeFileWriter) Write(ctx context.Context, req filewriter.WriteRequest) (*filewriter.WriteResult, error) {
+func (w *SafeFileWriter) Write(ctx context.Context, req WriteRequest) (*WriteResult, error) {
 	if err := w.ValidatePath(req.Path); err != nil {
 		return nil, err
 	}
@@ -35,7 +34,7 @@ func (w *SafeFileWriter) Write(ctx context.Context, req filewriter.WriteRequest)
 		return nil, fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
-	result := &filewriter.WriteResult{
+	result := &WriteResult{
 		Path: absPath,
 	}
 

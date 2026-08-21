@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"testing"
 
-	assert "github.com/stretchr/testify/assert"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	assert "github.com/stretchr/testify/assert"
 
 	config "github.com/inference-gateway/cli/config"
 )
 
-func newTestImageTool(imageService *domainmocks.FakeImageService) *ImageGenerationTool {
+func newTestImageTool(imageService *agentdomainmocks.FakeImageService) *ImageGenerationTool {
 	return NewImageGenerationTool(config.DefaultConfig(), imageService)
 }
 
@@ -33,7 +33,7 @@ func TestImageGenerationTool_IsEnabled(t *testing.T) {
 			cfg := config.DefaultConfig()
 			cfg.Tools.ImageGeneration.Enabled = tt.configEnable
 			cfg.Tools.ImageGeneration.Model = tt.model
-			tool := NewImageGenerationTool(cfg, &domainmocks.FakeImageService{})
+			tool := NewImageGenerationTool(cfg, &agentdomainmocks.FakeImageService{})
 
 			assert.Equal(t, tt.expected, tool.IsEnabled())
 		})
@@ -41,7 +41,7 @@ func TestImageGenerationTool_IsEnabled(t *testing.T) {
 }
 
 func TestImageGenerationTool_Validate(t *testing.T) {
-	tool := newTestImageTool(&domainmocks.FakeImageService{})
+	tool := newTestImageTool(&agentdomainmocks.FakeImageService{})
 
 	tests := []struct {
 		name    string
@@ -68,7 +68,7 @@ func TestImageGenerationTool_Validate(t *testing.T) {
 
 func TestImageGenerationTool_Execute(t *testing.T) {
 	t.Run("defaults to the cheap tier and the configured model", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		imageService.GenerateImageReturns("image-1.png", nil)
 		tool := newTestImageTool(imageService)
 
@@ -84,7 +84,7 @@ func TestImageGenerationTool_Execute(t *testing.T) {
 	})
 
 	t.Run("passes through an explicit quality and size", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		imageService.GenerateImageReturns("image-1.png", nil)
 		tool := newTestImageTool(imageService)
 
@@ -99,7 +99,7 @@ func TestImageGenerationTool_Execute(t *testing.T) {
 	})
 
 	t.Run("generation failure is a failed result, not an error", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		imageService.GenerateImageReturns("", fmt.Errorf("API error: 404"))
 		tool := newTestImageTool(imageService)
 
@@ -111,7 +111,7 @@ func TestImageGenerationTool_Execute(t *testing.T) {
 	})
 
 	t.Run("invalid args error out before calling the service", func(t *testing.T) {
-		imageService := &domainmocks.FakeImageService{}
+		imageService := &agentdomainmocks.FakeImageService{}
 		tool := newTestImageTool(imageService)
 
 		_, err := tool.Execute(context.Background(), map[string]any{"quality": "low"})

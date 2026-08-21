@@ -12,16 +12,18 @@ import (
 	"strings"
 	"time"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	spinner "charm.land/bubbles/v2/spinner"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
 	markdown "github.com/inference-gateway/cli/internal/ui/markdown"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -86,7 +88,7 @@ type subagentRemovalTickMsg struct {
 // the Bubble Tea event loop: all state is read and written from Update/View
 // only, so it holds no locks. Off-loop producers must go through Program.Send.
 type ConversationView struct {
-	conversation           []domain.ConversationEntry
+	conversation           []convdomain.ConversationEntry
 	Viewport               viewport.Model
 	width                  int
 	height                 int
@@ -95,17 +97,17 @@ type ConversationView struct {
 	allToolsExpanded       bool
 	allThinkingExpanded    bool
 	defaultExpandedTools   map[string]bool
-	toolFormatter          domain.ToolFormatter
+	toolFormatter          agentdomain.ToolFormatter
 	lineFormatter          *formatting.ConversationLineFormatter
 	plainTextLines         []string
 	configPath             string
-	versionInfo            *domain.VersionInfo
+	versionInfo            *ui.VersionInfo
 	styleProvider          *styles.Provider
 	toolCallRenderer       *ToolCallRenderer
 	markdownRenderer       *markdown.Renderer
 	rawFormat              bool
 	userScrolledUp         bool
-	stateManager           domain.PlanApprovalUIManager
+	stateManager           agentdomain.PlanApprovalUIManager
 	renderedContent        string
 
 	// renderCache memoizes per-entry rendered output keyed by conversation
@@ -125,7 +127,7 @@ type ConversationView struct {
 
 	// Message history navigation
 	navigationMode       NavigationMode
-	messageSnapshots     []domain.MessageSnapshot
+	messageSnapshots     []ui.MessageSnapshot
 	historySelectedIndex int
 
 	// Inline background-task indicators for A2A_SubmitTask delegations.
@@ -159,7 +161,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 	bgSpin := newModernSpinner()
 
 	return &ConversationView{
-		conversation:           []domain.ConversationEntry{},
+		conversation:           []convdomain.ConversationEntry{},
 		Viewport:               vp,
 		width:                  80,
 		height:                 20,
@@ -180,7 +182,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 }
 
 // SetToolFormatter sets the tool formatter for this conversation view
-func (cv *ConversationView) SetToolFormatter(formatter domain.ToolFormatter) {
+func (cv *ConversationView) SetToolFormatter(formatter agentdomain.ToolFormatter) {
 	cv.toolFormatter = formatter
 	cv.lineFormatter = formatting.NewConversationLineFormatter(cv.width, formatter)
 }
@@ -191,7 +193,7 @@ func (cv *ConversationView) SetConfigPath(configPath string) {
 }
 
 // SetVersionInfo sets the version information for the welcome message
-func (cv *ConversationView) SetVersionInfo(info domain.VersionInfo) {
+func (cv *ConversationView) SetVersionInfo(info ui.VersionInfo) {
 	cv.versionInfo = &info
 }
 
@@ -201,7 +203,7 @@ func (cv *ConversationView) SetToolCallRenderer(renderer *ToolCallRenderer) {
 }
 
 // SetStateManager sets the state manager for accessing plan approval state
-func (cv *ConversationView) SetStateManager(stateManager domain.PlanApprovalUIManager) {
+func (cv *ConversationView) SetStateManager(stateManager agentdomain.PlanApprovalUIManager) {
 	cv.stateManager = stateManager
 }
 
@@ -224,7 +226,7 @@ func (cv *ConversationView) SetAgentModelResolver(resolver func(url string) stri
 	cv.agentModelResolver = resolver
 }
 
-func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
+func (cv *ConversationView) SetConversation(conversation []convdomain.ConversationEntry) {
 	wasAtBottom := cv.Viewport.AtBottom()
 	if len(conversation) < len(cv.conversation) {
 		cv.renderCache = make(map[int]renderCacheEntry)
@@ -676,8 +678,8 @@ type renderCacheEntry struct {
 // renderEntryCached returns the memoized rendering for the entry at index,
 // re-rendering only when the fingerprint changes. Entries whose rendering
 // reads live external state (pending plan approval buttons) bypass the cache.
-func (cv *ConversationView) renderEntryCached(entry domain.ConversationEntry, index int) string {
-	if entry.IsPlan && entry.PlanApprovalStatus == domain.PlanApprovalPending {
+func (cv *ConversationView) renderEntryCached(entry convdomain.ConversationEntry, index int) string {
+	if entry.IsPlan && entry.PlanApprovalStatus == convdomain.PlanApprovalPending {
 		return cv.renderEntryWithIndex(entry, index)
 	}
 
@@ -696,7 +698,7 @@ func (cv *ConversationView) renderEntryCached(entry domain.ConversationEntry, in
 // entries are append-only, so post-creation changes only touch the mutable
 // fields mixed in below (tool execution, approval statuses, expansion, width,
 // raw mode).
-func (cv *ConversationView) entryFingerprint(entry domain.ConversationEntry, index int) uint64 {
+func (cv *ConversationView) entryFingerprint(entry convdomain.ConversationEntry, index int) uint64 {
 	h := fnv.New64a()
 	var buf [8]byte
 
@@ -746,7 +748,7 @@ func (cv *ConversationView) entryFingerprint(entry domain.ConversationEntry, ind
 	return h.Sum64()
 }
 
-func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
+func (cv *ConversationView) renderEntryWithIndex(entry convdomain.ConversationEntry, index int) string {
 	if handled, result := cv.tryRenderSpecialEntry(entry, index); handled {
 		return result
 	}
@@ -761,7 +763,7 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 }
 
 // tryRenderSpecialEntry attempts to render special entry types (user commands, plans, tools)
-func (cv *ConversationView) tryRenderSpecialEntry(entry domain.ConversationEntry, index int) (bool, string) {
+func (cv *ConversationView) tryRenderSpecialEntry(entry convdomain.ConversationEntry, index int) (bool, string) {
 	switch string(entry.Message.Role) {
 	case "user":
 		if result := cv.tryRenderUserCommand(entry); result != "" {
@@ -785,7 +787,7 @@ func (cv *ConversationView) tryRenderSpecialEntry(entry domain.ConversationEntry
 }
 
 // tryRenderUserCommand checks if user entry is a command and renders it
-func (cv *ConversationView) tryRenderUserCommand(entry domain.ConversationEntry) string {
+func (cv *ConversationView) tryRenderUserCommand(entry convdomain.ConversationEntry) string {
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
 		return ""
@@ -804,7 +806,7 @@ func (cv *ConversationView) tryRenderUserCommand(entry domain.ConversationEntry)
 }
 
 // getRoleAndColor returns the role label and color for a given entry
-func (cv *ConversationView) getRoleAndColor(entry domain.ConversationEntry) (string, string) {
+func (cv *ConversationView) getRoleAndColor(entry convdomain.ConversationEntry) (string, string) {
 	switch string(entry.Message.Role) {
 	case "user":
 		return cv.getUserColor(), "> You"
@@ -820,7 +822,7 @@ func (cv *ConversationView) getRoleAndColor(entry domain.ConversationEntry) (str
 }
 
 // getAssistantRoleAndColor returns role and color for assistant entries
-func (cv *ConversationView) getAssistantRoleAndColor(entry domain.ConversationEntry) (string, string) {
+func (cv *ConversationView) getAssistantRoleAndColor(entry convdomain.ConversationEntry) (string, string) {
 	if entry.Rejected {
 		return cv.styleProvider.GetThemeColor("dim"), "⊘ Rejected Plan"
 	}
@@ -828,7 +830,7 @@ func (cv *ConversationView) getAssistantRoleAndColor(entry domain.ConversationEn
 }
 
 // getToolRoleAndColor returns role and color for tool entries
-func (cv *ConversationView) getToolRoleAndColor(entry domain.ConversationEntry) (string, string) {
+func (cv *ConversationView) getToolRoleAndColor(entry convdomain.ConversationEntry) (string, string) {
 	role := "🔧 Tool"
 	if entry.ToolExecution != nil && !entry.ToolExecution.Success {
 		return cv.styleProvider.GetThemeColor("error"), role
@@ -840,7 +842,7 @@ func (cv *ConversationView) getToolRoleAndColor(entry domain.ConversationEntry) 
 }
 
 // renderStandardEntry renders a standard message entry
-func (cv *ConversationView) renderStandardEntry(entry domain.ConversationEntry, index int, color, role string) string {
+func (cv *ConversationView) renderStandardEntry(entry convdomain.ConversationEntry, index int, color, role string) string {
 	var result strings.Builder
 
 	if entry.Message.Role == sdk.Assistant && entry.ReasoningContent != "" {
@@ -899,7 +901,7 @@ func (cv *ConversationView) renderShortcutOutput(result *strings.Builder, roleSt
 }
 
 // renderInlineContent renders content inline with the role
-func (cv *ConversationView) renderInlineContent(result *strings.Builder, roleStyled string, entry domain.ConversationEntry, contentStr string, wrapWidth int) {
+func (cv *ConversationView) renderInlineContent(result *strings.Builder, roleStyled string, entry convdomain.ConversationEntry, contentStr string, wrapWidth int) {
 	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.rawFormat {
 		body := cv.applyMarkdownIfEnabled(contentStr, max(cv.width-2, 40))
 		cv.writeRoleAndBody(result, roleStyled, body)
@@ -939,7 +941,7 @@ func (cv *ConversationView) applyMarkdownIfEnabled(contentStr string, wrapWidth 
 	return formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 }
 
-func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.ConversationEntry, index int, color, role string) string {
+func (cv *ConversationView) renderAssistantWithToolCalls(entry convdomain.ConversationEntry, index int, color, role string) string {
 	var result strings.Builder
 
 	if entry.ReasoningContent != "" {
@@ -1004,7 +1006,7 @@ func (cv *ConversationView) formatAssistantContent(contentStr, role string, mode
 	return formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 }
 
-func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, index int) string {
+func (cv *ConversationView) renderToolEntry(entry convdomain.ConversationEntry, index int) string {
 	var isExpanded bool
 	if index >= 0 {
 		isExpanded = cv.IsToolResultExpanded(index)
@@ -1021,14 +1023,14 @@ func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, inde
 	return content + "\n"
 }
 
-func (cv *ConversationView) formatEntryContent(entry domain.ConversationEntry, isExpanded bool) string {
+func (cv *ConversationView) formatEntryContent(entry convdomain.ConversationEntry, isExpanded bool) string {
 	if isExpanded {
 		return cv.formatExpandedContent(entry)
 	}
 	return cv.formatCompactContent(entry)
 }
 
-func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry) string {
+func (cv *ConversationView) formatExpandedContent(entry convdomain.ConversationEntry) string {
 	if entry.ToolExecution != nil && cv.toolFormatter != nil {
 		return cv.toolFormatter.FormatToolResultExpanded(entry.ToolExecution, cv.width)
 	}
@@ -1041,7 +1043,7 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 	return wrappedContent + "\n\n• " + hint
 }
 
-func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
+func (cv *ConversationView) formatCompactContent(entry convdomain.ConversationEntry) string {
 	// Tool results own their themed status line, preview and expand hint.
 	if entry.ToolExecution != nil && cv.toolFormatter != nil {
 		return cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
@@ -1258,34 +1260,34 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case domain.PlanApprovalSelectionChangedEvent:
+	case ui.PlanApprovalSelectionChangedEvent:
 		return cv.handlePlanApprovalSelectionChanged(msg, cmd)
-	case domain.UpdateHistoryEvent:
+	case ui.UpdateHistoryEvent:
 		return cv.handleUpdateHistoryEvent(msg, cmd)
-	case domain.ToolCallPreviewEvent, domain.ToolCallUpdateEvent, domain.ToolCallReadyEvent,
-		domain.ToolExecutionProgressEvent, domain.BashOutputChunkEvent, domain.ChatCompleteEvent:
+	case agentdomain.ToolCallPreviewEvent, agentdomain.ToolCallUpdateEvent, agentdomain.ToolCallReadyEvent,
+		agentdomain.ToolExecutionProgressEvent, agentdomain.BashOutputChunkEvent, agentdomain.ChatCompleteEvent:
 		return cv.handleToolCallEvents(msg, cmd)
-	case domain.BashCommandCompletedEvent:
+	case ui.BashCommandCompletedEvent:
 		return cv.handleBashCommandCompletedEvent(msg, cmd)
-	case domain.ChatStartEvent:
+	case agentdomain.ChatStartEvent:
 		return cv.handleChatStartEvent(cmd)
-	case domain.StreamingContentEvent:
+	case ui.StreamingContentEvent:
 		return cv.handleStreamingContentEvent(msg, cmd)
-	case domain.ScrollRequestEvent:
+	case ui.ScrollRequestEvent:
 		return cv.handleScrollRequestEvent(msg, cmd)
-	case domain.A2ATaskSubmittedEvent:
+	case agentdomain.A2ATaskSubmittedEvent:
 		return cv.handleA2ATaskSubmitted(msg, cmd)
-	case domain.A2ATaskStatusUpdateEvent:
+	case agentdomain.A2ATaskStatusUpdateEvent:
 		return cv.handleA2ATaskStatusUpdate(msg, cmd)
-	case domain.A2ATaskCompletedEvent:
+	case agentdomain.A2ATaskCompletedEvent:
 		return cv.handleA2ATaskCompleted(msg, cmd)
-	case domain.A2ATaskFailedEvent:
+	case agentdomain.A2ATaskFailedEvent:
 		return cv.handleA2ATaskFailed(msg, cmd)
-	case domain.SubagentSubmittedEvent:
+	case agentdomain.SubagentSubmittedEvent:
 		return cv.handleSubagentSubmitted(msg, cmd)
-	case domain.SubagentCompletedEvent:
+	case agentdomain.SubagentCompletedEvent:
 		return cv.handleSubagentTerminal(msg.SubagentID, msg.Label, "done", cmd)
-	case domain.SubagentFailedEvent:
+	case agentdomain.SubagentFailedEvent:
 		return cv.handleSubagentTerminal(msg.SubagentID, msg.Label, "failed", cmd)
 	case BackgroundTaskRemovalTickMsg:
 		return cv.handleRemoveBackgroundTask(msg, cmd)
@@ -1328,7 +1330,7 @@ func (cv *ConversationView) handleWindowSizeEvents(msg tea.Msg) tea.Cmd {
 
 // handlePlanApprovalSelectionChanged refreshes the conversation viewport so
 // the highlighted plan-approval button reflects the new selection index.
-func (cv *ConversationView) handlePlanApprovalSelectionChanged(_ domain.PlanApprovalSelectionChangedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handlePlanApprovalSelectionChanged(_ ui.PlanApprovalSelectionChangedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.updateViewportContent()
 	}
@@ -1336,7 +1338,7 @@ func (cv *ConversationView) handlePlanApprovalSelectionChanged(_ domain.PlanAppr
 }
 
 // handleUpdateHistoryEvent processes history update events
-func (cv *ConversationView) handleUpdateHistoryEvent(msg domain.UpdateHistoryEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleUpdateHistoryEvent(msg ui.UpdateHistoryEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.flushStreamingBuffer()
 		cv.SetConversation(msg.History)
@@ -1353,7 +1355,7 @@ func (cv *ConversationView) handleToolCallEvents(msg tea.Msg, cmd tea.Cmd) (tea.
 }
 
 // handleBashCommandCompletedEvent processes bash command completion events
-func (cv *ConversationView) handleBashCommandCompletedEvent(msg domain.BashCommandCompletedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleBashCommandCompletedEvent(msg ui.BashCommandCompletedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.SetConversation(msg.History)
 		if cv.toolCallRenderer != nil {
@@ -1375,7 +1377,7 @@ func (cv *ConversationView) handleChatStartEvent(cmd tea.Cmd) (tea.Model, tea.Cm
 }
 
 // handleStreamingContentEvent processes streaming content events
-func (cv *ConversationView) handleStreamingContentEvent(msg domain.StreamingContentEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleStreamingContentEvent(msg ui.StreamingContentEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.appendStreamingContent(msg.Content, msg.ReasoningContent, msg.Model)
 		if !cv.streamingRenderArmed {
@@ -1401,7 +1403,7 @@ func (cv *ConversationView) handleStreamingRenderTick(cmd tea.Cmd) (tea.Model, t
 }
 
 // handleScrollRequestEvent processes scroll request events
-func (cv *ConversationView) handleScrollRequestEvent(msg domain.ScrollRequestEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleScrollRequestEvent(msg ui.ScrollRequestEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if msg.ComponentID == "conversation" {
 		return cv.handleScrollRequest(msg)
 	}
@@ -1438,7 +1440,7 @@ func (cv *ConversationView) handleSpinnerTick(msg spinner.TickMsg, cmd tea.Cmd) 
 
 // handleA2ATaskSubmitted records a newly submitted A2A task so its live
 // progress can be rendered under the originating tool result.
-func (cv *ConversationView) handleA2ATaskSubmitted(msg domain.A2ATaskSubmittedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleA2ATaskSubmitted(msg agentdomain.A2ATaskSubmittedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if msg.TaskID == "" {
 		return cv, cmd
 	}
@@ -1483,7 +1485,7 @@ func (cv *ConversationView) handleA2ATaskSubmitted(msg domain.A2ATaskSubmittedEv
 }
 
 // handleA2ATaskStatusUpdate refreshes the live state/message for an in-flight task.
-func (cv *ConversationView) handleA2ATaskStatusUpdate(msg domain.A2ATaskStatusUpdateEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleA2ATaskStatusUpdate(msg agentdomain.A2ATaskStatusUpdateEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if msg.TaskID == "" {
 		return cv, cmd
 	}
@@ -1523,7 +1525,7 @@ func (cv *ConversationView) handleA2ATaskStatusUpdate(msg domain.A2ATaskStatusUp
 
 // handleA2ATaskCompleted marks a task as successfully completed, captures
 // the usage JSON from Task.metadata, and schedules auto-removal.
-func (cv *ConversationView) handleA2ATaskCompleted(msg domain.A2ATaskCompletedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleA2ATaskCompleted(msg agentdomain.A2ATaskCompletedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if msg.TaskID == "" {
 		return cv, cmd
 	}
@@ -1553,7 +1555,7 @@ func (cv *ConversationView) handleA2ATaskCompleted(msg domain.A2ATaskCompletedEv
 
 // handleA2ATaskFailed marks a task as failed, captures the error, and
 // schedules auto-removal.
-func (cv *ConversationView) handleA2ATaskFailed(msg domain.A2ATaskFailedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleA2ATaskFailed(msg agentdomain.A2ATaskFailedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if msg.TaskID == "" {
 		return cv, cmd
 	}
@@ -1598,7 +1600,7 @@ func (cv *ConversationView) handleRemoveBackgroundTask(msg BackgroundTaskRemoval
 
 // handleSubagentSubmitted records a newly dispatched subagent so its live
 // progress renders in the sticky tree under the Agent tool call.
-func (cv *ConversationView) handleSubagentSubmitted(msg domain.SubagentSubmittedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleSubagentSubmitted(msg agentdomain.SubagentSubmittedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if msg.SubagentID == "" {
 		return cv, cmd
 	}
@@ -2170,24 +2172,24 @@ func (cv *ConversationView) handleDefaultEvents(msg tea.Msg, cmd tea.Cmd) (tea.M
 	return cv, cmd
 }
 
-func (cv *ConversationView) handleScrollRequest(msg domain.ScrollRequestEvent) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleScrollRequest(msg ui.ScrollRequestEvent) (tea.Model, tea.Cmd) {
 	switch msg.Direction {
-	case domain.ScrollUp:
+	case ui.ScrollUp:
 		cv.userScrolledUp = true
 		for i := 0; i < msg.Amount; i++ {
 			cv.Viewport.ScrollUp(1)
 		}
-	case domain.ScrollDown:
+	case ui.ScrollDown:
 		for i := 0; i < msg.Amount; i++ {
 			cv.Viewport.ScrollDown(1)
 		}
 		if cv.Viewport.AtBottom() {
 			cv.userScrolledUp = false
 		}
-	case domain.ScrollToTop:
+	case ui.ScrollToTop:
 		cv.userScrolledUp = true
 		cv.Viewport.GotoTop()
-	case domain.ScrollToBottom:
+	case ui.ScrollToBottom:
 		cv.userScrolledUp = false
 		cv.Viewport.GotoBottom()
 	}
@@ -2208,7 +2210,7 @@ func (cv *ConversationView) getHeaderColor() string {
 }
 
 // renderShellCommandEntry renders a shell command entry with highlighted prefix and proper spacing
-func (cv *ConversationView) renderShellCommandEntry(_ domain.ConversationEntry, color, role, contentStr string) string {
+func (cv *ConversationView) renderShellCommandEntry(_ convdomain.ConversationEntry, color, role, contentStr string) string {
 	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
 
 	command := strings.TrimPrefix(contentStr, "!")
@@ -2224,7 +2226,7 @@ func (cv *ConversationView) renderShellCommandEntry(_ domain.ConversationEntry, 
 }
 
 // renderToolCommandEntry renders a tool command entry (!! prefix) with highlighted prefix
-func (cv *ConversationView) renderToolCommandEntry(_ domain.ConversationEntry, color, role, contentStr string) string {
+func (cv *ConversationView) renderToolCommandEntry(_ convdomain.ConversationEntry, color, role, contentStr string) string {
 	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
 
 	command := strings.TrimPrefix(contentStr, "!!")
@@ -2242,7 +2244,7 @@ func (cv *ConversationView) renderToolCommandEntry(_ domain.ConversationEntry, c
 // renderPlanEntry renders the plan body as a regular markdown-rendered
 // assistant message under a status-aware header, followed by inline
 // approval buttons while approval is pending.
-func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, index int) string {
+func (cv *ConversationView) renderPlanEntry(entry convdomain.ConversationEntry, index int) string {
 	var result strings.Builder
 
 	color, role := cv.planRoleAndColor(entry)
@@ -2257,7 +2259,7 @@ func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, inde
 
 	var formattedContent string
 	switch entry.PlanApprovalStatus {
-	case domain.PlanApprovalRejected:
+	case convdomain.PlanApprovalRejected:
 		plain := formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 		formattedContent = cv.styleProvider.RenderWithColor(plain, color)
 	default:
@@ -2276,7 +2278,7 @@ func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, inde
 		result.WriteString("\n")
 	}
 
-	if entry.PlanApprovalStatus == domain.PlanApprovalPending {
+	if entry.PlanApprovalStatus == convdomain.PlanApprovalPending {
 		result.WriteString("\n")
 		result.WriteString(cv.renderInlineApprovalButtons(index))
 		result.WriteString("\n")
@@ -2287,13 +2289,13 @@ func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, inde
 
 // planRoleAndColor returns the role label + theme color for a plan entry
 // based on its approval status.
-func (cv *ConversationView) planRoleAndColor(entry domain.ConversationEntry) (string, string) {
+func (cv *ConversationView) planRoleAndColor(entry convdomain.ConversationEntry) (string, string) {
 	switch entry.PlanApprovalStatus {
-	case domain.PlanApprovalPending:
+	case convdomain.PlanApprovalPending:
 		return cv.styleProvider.GetThemeColor("accent"), "Plan (Pending Approval)"
-	case domain.PlanApprovalAccepted:
+	case convdomain.PlanApprovalAccepted:
 		return cv.styleProvider.GetThemeColor("success"), "Plan (Accepted)"
-	case domain.PlanApprovalRejected:
+	case convdomain.PlanApprovalRejected:
 		return cv.styleProvider.GetThemeColor("dim"), "Plan (Rejected)"
 	default:
 		return cv.getAssistantColor(), "Plan"
@@ -2319,7 +2321,7 @@ func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
 	highlightBg := cv.styleProvider.GetThemeColor("selection_bg")
 
 	var acceptStyled, rejectStyled, standardStyled string
-	if selectedIndex == int(domain.PlanApprovalAccept) {
+	if selectedIndex == int(agentdomain.PlanApprovalAccept) {
 		acceptStyled = cv.styleProvider.RenderStyledText("[ "+acceptText+" ]", styles.StyleOptions{
 			Foreground: successColor,
 			Background: highlightBg,
@@ -2329,7 +2331,7 @@ func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
 		acceptStyled = cv.styleProvider.RenderWithColor("[ "+acceptText+" ]", successColor)
 	}
 
-	if selectedIndex == int(domain.PlanApprovalReject) {
+	if selectedIndex == int(agentdomain.PlanApprovalReject) {
 		rejectStyled = cv.styleProvider.RenderStyledText("[ "+rejectText+" ]", styles.StyleOptions{
 			Foreground: errorColor,
 			Background: highlightBg,
@@ -2339,7 +2341,7 @@ func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
 		rejectStyled = cv.styleProvider.RenderWithColor("[ "+rejectText+" ]", errorColor)
 	}
 
-	if selectedIndex == int(domain.PlanApprovalAcceptStandard) {
+	if selectedIndex == int(agentdomain.PlanApprovalAcceptStandard) {
 		standardStyled = cv.styleProvider.RenderStyledText("[ "+standardText+" ]", styles.StyleOptions{
 			Foreground: accentColor,
 			Background: highlightBg,
@@ -2363,9 +2365,9 @@ func (cv *ConversationView) renderEditToolArgs(args map[string]any) string {
 
 	if hasOld && hasNew && hasPath {
 		fmt.Fprintf(&result, "  File: %s\n\n", filePath)
-		diffRenderer := NewDiffRenderer(cv.styleProvider).SetContextLines(InlineDiffContextLines)
-		diffRenderer.SetStartLine(snippetStartLine(filePath, oldStr))
-		diffInfo := DiffInfo{
+		diffRenderer := styles.NewDiffRenderer(cv.styleProvider).SetContextLines(styles.InlineDiffContextLines)
+		diffRenderer.SetStartLine(styles.SnippetStartLine(filePath, oldStr))
+		diffInfo := styles.DiffInfo{
 			FilePath:   filePath,
 			OldContent: oldStr,
 			NewContent: newStr,
@@ -2429,8 +2431,8 @@ func (cv *ConversationView) renderIndentedPlanContent(result *strings.Builder, c
 	}
 }
 
-func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntry) string {
-	if entry.ToolApprovalStatus == domain.ToolApprovalPending {
+func (cv *ConversationView) renderPendingToolEntry(entry convdomain.ConversationEntry) string {
+	if entry.ToolApprovalStatus == convdomain.ToolApprovalPending {
 		return ""
 	}
 
@@ -2457,11 +2459,11 @@ func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntr
 
 // renderApprovalHeader renders a themed one-line header for an approved/rejected tool
 // call, mirroring the completed result status line: "<icon> Name(args) · <status>".
-func (cv *ConversationView) renderApprovalHeader(toolName string, args map[string]any, status domain.ToolApprovalStatus) string {
+func (cv *ConversationView) renderApprovalHeader(toolName string, args map[string]any, status convdomain.ToolApprovalStatus) string {
 	icon := icons.CheckMark
 	colorName := "success"
 	label := "Approved"
-	if status == domain.ToolApprovalRejected {
+	if status == convdomain.ToolApprovalRejected {
 		icon = icons.CrossMark
 		colorName = "error"
 		label = "Rejected"
@@ -2482,37 +2484,37 @@ func (cv *ConversationView) renderApprovalHeader(toolName string, args map[strin
 // handleToolCallRendererEvents processes tool call renderer specific events
 func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cmd) tea.Cmd {
 	switch msg := msg.(type) {
-	case domain.ToolCallPreviewEvent:
+	case agentdomain.ToolCallPreviewEvent:
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
 		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
-	case domain.ToolCallUpdateEvent:
+	case agentdomain.ToolCallUpdateEvent:
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
 		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
-	case domain.ToolCallReadyEvent:
+	case agentdomain.ToolCallReadyEvent:
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
 		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
-	case domain.ToolExecutionProgressEvent:
+	case agentdomain.ToolExecutionProgressEvent:
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
 		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
-	case domain.BashOutputChunkEvent:
+	case agentdomain.BashOutputChunkEvent:
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
 		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
-	case domain.ChatCompleteEvent:
+	case agentdomain.ChatCompleteEvent:
 		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
 		cv.toolCallRenderer = updatedRenderer
 		if rendererCmd != nil {
@@ -2527,7 +2529,7 @@ func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cm
 }
 
 // getHintForEntry returns the appropriate hint based on entry state
-func (cv *ConversationView) getHintForEntry(_ domain.ConversationEntry) string {
+func (cv *ConversationView) getHintForEntry(_ convdomain.ConversationEntry) string {
 	return cv.getToggleToolHint("expand all tool calls")
 }
 
@@ -2543,7 +2545,7 @@ func (cv *ConversationView) getToggleToolHint(action string) string {
 // Message History Navigation Methods
 
 // EnterMessageHistoryMode switches the conversation view to message history navigation mode
-func (cv *ConversationView) EnterMessageHistoryMode(snapshots []domain.MessageSnapshot) {
+func (cv *ConversationView) EnterMessageHistoryMode(snapshots []ui.MessageSnapshot) {
 	cv.navigationMode = NavigationModeMessageHistory
 	cv.messageSnapshots = snapshots
 	if len(snapshots) > 0 {
@@ -2599,7 +2601,7 @@ func (cv *ConversationView) GetSelectedMessageIndex() int {
 }
 
 // GetSelectedMessageSnapshot returns the full snapshot of the selected message
-func (cv *ConversationView) GetSelectedMessageSnapshot() *domain.MessageSnapshot {
+func (cv *ConversationView) GetSelectedMessageSnapshot() *ui.MessageSnapshot {
 	if len(cv.messageSnapshots) == 0 || cv.historySelectedIndex < 0 ||
 		cv.historySelectedIndex >= len(cv.messageSnapshots) {
 		return nil

@@ -4,7 +4,8 @@ import (
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
@@ -20,6 +21,8 @@ type ScrollDirection int
 const (
 	ScrollUp ScrollDirection = iota
 	ScrollDown
+	ScrollLeft
+	ScrollRight
 	ScrollToTop
 	ScrollToBottom
 )
@@ -56,7 +59,7 @@ type Theme interface {
 
 // ConversationRenderer interface for conversation display
 type ConversationRenderer interface {
-	SetConversation([]domain.ConversationEntry)
+	SetConversation([]convdomain.ConversationEntry)
 	GetScrollOffset() int
 	CanScrollUp() bool
 	CanScrollDown() bool
@@ -89,8 +92,8 @@ type InputComponent interface {
 	NavigateHistoryUp()
 	NavigateHistoryDown()
 	IsNavigatingHistory() bool
-	AddImageAttachment(image domain.ImageAttachment)
-	GetImageAttachments() []domain.ImageAttachment
+	AddImageAttachment(image agentdomain.ImageAttachment)
+	GetImageAttachments() []agentdomain.ImageAttachment
 	ClearImageAttachments()
 	AddToHistory(text string) error
 	SetUsageHint(hint string)
@@ -132,7 +135,7 @@ type InputStatusBarComponent interface {
 	SetWidth(width int)
 	SetHeight(height int)
 	SetInputText(text string)
-	UpdateMCPStatus(status *domain.MCPServerStatus)
+	UpdateMCPStatus(status *MCPServerStatus)
 	Focus() bool
 	Blur()
 	IsFocused() bool
@@ -152,13 +155,6 @@ type HelpBarComponent interface {
 	Render() string
 }
 
-// ApprovalComponent interface for approval display
-type ApprovalComponent interface {
-	SetWidth(width int)
-	SetHeight(height int)
-	Render(toolExecution *domain.ToolExecutionSession, selectedIndex int) string
-}
-
 // DefaultTheme provides a concrete implementation of the Theme interface
 type DefaultTheme struct{}
 
@@ -174,20 +170,6 @@ func (t *DefaultTheme) GetDimColor() string        { return colors.DimColor.ANSI
 func (t *DefaultTheme) GetBorderColor() string     { return colors.BorderColor.ANSI }
 func (t *DefaultTheme) GetDiffAddColor() string    { return colors.DiffAddColor.ANSI }
 func (t *DefaultTheme) GetDiffRemoveColor() string { return colors.DiffRemoveColor.ANSI }
-
-// SelectionComponent is specific to UI layer (not duplicated in shared)
-type SelectionComponent interface {
-	GetOptions() []string
-	SetOptions(options []string)
-	GetSelected() string
-	GetSelectedIndex() int
-	SetSelected(index int)
-	IsSelected() bool
-	IsCancelled() bool
-	SetWidth(width int)
-	SetHeight(height int)
-	Render() string
-}
 
 // Layout calculation utilities
 func CalculateConversationHeight(totalHeight int) int {

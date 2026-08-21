@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 )
 
@@ -44,8 +45,8 @@ type InstallResult struct {
 	Name            string
 	Version         string
 	Description     string
-	Skills          []domain.Skill
-	SkillErrors     []domain.SkillLoadError
+	Skills          []agentdomain.Skill
+	SkillErrors     []agentdomain.SkillLoadError
 	HasInstructions bool
 	InstructionsLen int
 	HasHooks        bool
@@ -248,7 +249,7 @@ func Inspect(dir, fallbackName string) (*InstallResult, error) {
 			if !entry.IsDir() {
 				continue
 			}
-			sk, loadErr := skills.LoadSkillMetadata(filepath.Join(skillsDir, entry.Name()), entry.Name(), domain.SkillScopePlugin, res.Name)
+			sk, loadErr := skills.LoadSkillMetadata(filepath.Join(skillsDir, entry.Name()), entry.Name(), agentdomain.SkillScopePlugin, res.Name)
 			if loadErr != nil {
 				res.SkillErrors = append(res.SkillErrors, *loadErr)
 				continue

@@ -12,7 +12,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	configutils "github.com/inference-gateway/cli/config/utils"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 var configCmd = &cobra.Command{
@@ -604,18 +604,11 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 		"INFER_PROMPTS_TOOLS_A2A_QUERY_AGENT_DESCRIPTION":       &cfg.Prompts.Tools.A2AQueryAgent.Description,
 		"INFER_PROMPTS_TOOLS_A2A_QUERY_TASK_DESCRIPTION":        &cfg.Prompts.Tools.A2AQueryTask.Description,
 		"INFER_PROMPTS_TOOLS_A2A_SUBMIT_TASK_DESCRIPTION":       &cfg.Prompts.Tools.A2ASubmitTask.Description,
-		"INFER_PROMPTS_TOOLS_MOUSE_MOVE_DESCRIPTION":            &cfg.Prompts.Tools.MouseMove.Description,
-		"INFER_PROMPTS_TOOLS_MOUSE_CLICK_DESCRIPTION":           &cfg.Prompts.Tools.MouseClick.Description,
+		"INFER_PROMPTS_TOOLS_COMPUTER_DESCRIPTION":              &cfg.Prompts.Tools.Computer.Description,
 		"INFER_PROMPTS_TOOLS_BROWSER_NAVIGATE_DESCRIPTION":      &cfg.Prompts.Tools.BrowserNavigate.Description,
 		"INFER_PROMPTS_TOOLS_BROWSER_CLICK_DESCRIPTION":         &cfg.Prompts.Tools.BrowserClick.Description,
 		"INFER_PROMPTS_TOOLS_BROWSER_TYPE_DESCRIPTION":          &cfg.Prompts.Tools.BrowserType.Description,
 		"INFER_PROMPTS_TOOLS_BROWSER_READ_DESCRIPTION":          &cfg.Prompts.Tools.BrowserRead.Description,
-		"INFER_PROMPTS_TOOLS_MOUSE_SCROLL_DESCRIPTION":          &cfg.Prompts.Tools.MouseScroll.Description,
-		"INFER_PROMPTS_TOOLS_KEYBOARD_TYPE_DESCRIPTION":         &cfg.Prompts.Tools.KeyboardType.Description,
-		"INFER_PROMPTS_TOOLS_GET_FOCUSED_APP_DESCRIPTION":       &cfg.Prompts.Tools.GetFocusedApp.Description,
-		"INFER_PROMPTS_TOOLS_ACTIVATE_APP_DESCRIPTION":          &cfg.Prompts.Tools.ActivateApp.Description,
-		"INFER_PROMPTS_TOOLS_GET_UI_ELEMENTS_DESCRIPTION":       &cfg.Prompts.Tools.GetUIElements.Description,
-		"INFER_PROMPTS_TOOLS_PRESS_UI_ELEMENT_DESCRIPTION":      &cfg.Prompts.Tools.PressUIElement.Description,
 		"INFER_PROMPTS_TOOLS_GET_LATEST_FRAME_DESCRIPTION":      &cfg.Prompts.Tools.GetLatestFrame.Description,
 		"INFER_PROMPTS_TOOLS_IMAGE_DECODE_DESCRIPTION":          &cfg.Prompts.Tools.ImageDecode.Description,
 	}
@@ -931,8 +924,6 @@ func applyComputerUseEnvOverrides(cfg *config.Config) {
 	setString("INFER_COMPUTER_USE_APPROVAL", &cfg.ComputerUse.Approval)
 
 	setBool("INFER_COMPUTER_USE_SCREENSHOT_ENABLED", &cfg.ComputerUse.Screenshot.Enabled)
-	setInt("INFER_COMPUTER_USE_SCREENSHOT_MAX_WIDTH", &cfg.ComputerUse.Screenshot.MaxWidth)
-	setInt("INFER_COMPUTER_USE_SCREENSHOT_MAX_HEIGHT", &cfg.ComputerUse.Screenshot.MaxHeight)
 	setInt("INFER_COMPUTER_USE_SCREENSHOT_TARGET_WIDTH", &cfg.ComputerUse.Screenshot.TargetWidth)
 	setInt("INFER_COMPUTER_USE_SCREENSHOT_TARGET_HEIGHT", &cfg.ComputerUse.Screenshot.TargetHeight)
 	setString("INFER_COMPUTER_USE_SCREENSHOT_FORMAT", &cfg.ComputerUse.Screenshot.Format)
@@ -941,23 +932,11 @@ func applyComputerUseEnvOverrides(cfg *config.Config) {
 	setInt("INFER_COMPUTER_USE_SCREENSHOT_CAPTURE_INTERVAL", &cfg.ComputerUse.Screenshot.CaptureInterval)
 	setInt("INFER_COMPUTER_USE_SCREENSHOT_BUFFER_SIZE", &cfg.ComputerUse.Screenshot.BufferSize)
 	setString("INFER_COMPUTER_USE_SCREENSHOT_TEMP_DIR", &cfg.ComputerUse.Screenshot.TempDir)
-	setBool("INFER_COMPUTER_USE_SCREENSHOT_LOG_CAPTURES", &cfg.ComputerUse.Screenshot.LogCaptures)
-	setBool("INFER_COMPUTER_USE_SCREENSHOT_SHOW_OVERLAY", &cfg.ComputerUse.Screenshot.ShowOverlay)
 
 	setBool("INFER_COMPUTER_USE_RATE_LIMIT_ENABLED", &cfg.ComputerUse.RateLimit.Enabled)
 	setInt("INFER_COMPUTER_USE_RATE_LIMIT_MAX_ACTIONS_PER_MINUTE", &cfg.ComputerUse.RateLimit.MaxActionsPerMinute)
 	setInt("INFER_COMPUTER_USE_RATE_LIMIT_WINDOW_SECONDS", &cfg.ComputerUse.RateLimit.WindowSeconds)
 
-	setBool("INFER_COMPUTER_USE_TOOLS_MOUSE_MOVE_ENABLED", &cfg.ComputerUse.Tools.MouseMove.Enabled)
-	setBool("INFER_COMPUTER_USE_TOOLS_MOUSE_CLICK_ENABLED", &cfg.ComputerUse.Tools.MouseClick.Enabled)
-	setBool("INFER_COMPUTER_USE_TOOLS_MOUSE_SCROLL_ENABLED", &cfg.ComputerUse.Tools.MouseScroll.Enabled)
-	setBool("INFER_COMPUTER_USE_TOOLS_KEYBOARD_TYPE_ENABLED", &cfg.ComputerUse.Tools.KeyboardType.Enabled)
-	setInt("INFER_COMPUTER_USE_TOOLS_KEYBOARD_TYPE_MAX_TEXT_LENGTH", &cfg.ComputerUse.Tools.KeyboardType.MaxTextLength)
-	setInt("INFER_COMPUTER_USE_TOOLS_KEYBOARD_TYPE_TYPING_DELAY_MS", &cfg.ComputerUse.Tools.KeyboardType.TypingDelayMs)
-	setBool("INFER_COMPUTER_USE_TOOLS_GET_FOCUSED_APP_ENABLED", &cfg.ComputerUse.Tools.GetFocusedApp.Enabled)
-	setBool("INFER_COMPUTER_USE_TOOLS_ACTIVATE_APP_ENABLED", &cfg.ComputerUse.Tools.ActivateApp.Enabled)
-	setBool("INFER_COMPUTER_USE_TOOLS_GET_UI_ELEMENTS_ENABLED", &cfg.ComputerUse.Tools.GetUIElements.Enabled)
-	setBool("INFER_COMPUTER_USE_TOOLS_PRESS_UI_ELEMENT_ENABLED", &cfg.ComputerUse.Tools.PressUIElement.Enabled)
 }
 
 // applyBrowserUseEnvOverrides applies INFER_BROWSER_USE_* env vars onto the

@@ -3,18 +3,19 @@ package components
 import (
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	tea "charm.land/bubbletea/v2"
 	assert "github.com/stretchr/testify/assert"
+
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // newFilterTestSelector builds a selector backed by a fake pricing service with
 // three representative models: a per-token (pay-as-you-go) model, a genuinely
 // free model, and a subscription-gated model ($0/$0 but gated).
 func newFilterTestSelector(models []string) *ModelSelectorImpl {
-	pricing := &domainmocks.FakePricingService{}
+	pricing := &convmocks.FakePricingService{}
 	pricing.IsEnabledReturns(true)
 	pricing.GetInputPriceStub = func(model string) float64 {
 		if model == "paid-model" {
@@ -76,8 +77,8 @@ func TestModelSelector_SubscriptionModelExcludedFromFree(t *testing.T) {
 // completion and asserts the selection reaches the model service and the
 // ModelSelectedEvent carries the chosen model.
 func TestModelSelector_EnterSelectsAndEmitsEvent(t *testing.T) {
-	ms := &domainmocks.FakeModelService{}
-	pricing := &domainmocks.FakePricingService{}
+	ms := &convmocks.FakeModelService{}
+	pricing := &convmocks.FakePricingService{}
 	m := NewModelSelector([]string{"model-a", "model-b"}, ms, pricing, nil, createMockStyleProvider())
 
 	var selected string
@@ -98,7 +99,7 @@ func TestModelSelector_EnterSelectsAndEmitsEvent(t *testing.T) {
 				}
 				return
 			}
-			if ev, ok := out.(domain.ModelSelectedEvent); ok {
+			if ev, ok := out.(ui.ModelSelectedEvent); ok {
 				selected = ev.Model
 				return
 			}
@@ -153,8 +154,8 @@ func TestModelSelector_SearchFiltersByNameOnly(t *testing.T) {
 // asserts the emitted event carries the filtered match, not an index into the
 // unfiltered list.
 func TestModelSelector_SearchEnterSelectsFilteredMatch(t *testing.T) {
-	ms := &domainmocks.FakeModelService{}
-	pricing := &domainmocks.FakePricingService{}
+	ms := &convmocks.FakeModelService{}
+	pricing := &convmocks.FakePricingService{}
 	m := NewModelSelector([]string{"alpha", "beta", "gamma"}, ms, pricing, nil, createMockStyleProvider())
 
 	typeString(m, "/gam")
@@ -166,7 +167,7 @@ func TestModelSelector_SearchEnterSelectsFilteredMatch(t *testing.T) {
 		if out == nil {
 			break
 		}
-		if ev, ok := out.(domain.ModelSelectedEvent); ok {
+		if ev, ok := out.(ui.ModelSelectedEvent); ok {
 			selected = ev.Model
 			break
 		}

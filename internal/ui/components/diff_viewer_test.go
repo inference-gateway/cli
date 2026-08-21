@@ -4,10 +4,11 @@ import (
 	"strings"
 	"testing"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -81,7 +82,7 @@ func (f *fakeDiffSource) Discard(fc gitdiff.FileChange) error {
 }
 
 func newTestDiffViewer(src *fakeDiffSource) *DiffViewerImpl {
-	ts := domain.NewThemeProvider()
+	ts := styles.NewThemeProvider()
 	v := NewDiffViewer(src, styles.NewProvider(ts), ts, config.KeybindingsConfig{})
 	v.SetWidth(120)
 	v.SetHeight(40)
@@ -272,9 +273,9 @@ func TestDiffViewer_Commit(t *testing.T) {
 		t.Fatal("commit returned nil cmd")
 	}
 	msg := cmd()
-	ev, ok := msg.(domain.UserInputEvent)
+	ev, ok := msg.(agentdomain.UserInputEvent)
 	if !ok {
-		t.Fatalf("commit cmd msg = %T, want domain.UserInputEvent", msg)
+		t.Fatalf("commit cmd msg = %T, want agentdomain.UserInputEvent", msg)
 	}
 	if ev.Content != "/git commit" {
 		t.Errorf("commit content = %q, want /git commit", ev.Content)
@@ -502,7 +503,7 @@ func TestDiffViewer_ConfigurableKeybinding(t *testing.T) {
 		unstaged: []gitdiff.FileChange{{Path: "a.go", Status: gitdiff.StatusModified}},
 		diffs:    map[string][2]string{},
 	}
-	ts := domain.NewThemeProvider()
+	ts := styles.NewThemeProvider()
 	kb := config.KeybindingsConfig{Bindings: map[string]config.KeyBindingEntry{
 		config.ActionID(config.NamespaceDiffViewer, "stage"): {Keys: []string{"g"}},
 	}}

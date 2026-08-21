@@ -10,15 +10,16 @@ import (
 	"time"
 	"unicode/utf8"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 	"github.com/ledongthuc/pdf"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // Error constants for consistent error handling
 const (
-	ErrorNotAbsolutePath  = "NOT_ABSOLUTE_PATH"
 	ErrorNotFound         = "NOT_FOUND"
 	ErrorFileEmpty        = "FILE_EMPTY"
 	ErrorPDFParseError    = "PDF_PARSE_ERROR"
@@ -37,7 +38,7 @@ const (
 type ReadTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter domain.BaseFormatter
+	formatter agentinfra.BaseFormatter
 }
 
 // NewReadTool creates a new read tool
@@ -45,7 +46,7 @@ func NewReadTool(cfg *config.Config) *ReadTool {
 	return &ReadTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.Read.Enabled,
-		formatter: domain.NewBaseFormatter("Read"),
+		formatter: agentinfra.NewBaseFormatter("Read"),
 	}
 }
 
@@ -83,7 +84,7 @@ func (t *ReadTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the read tool with given arguments
-func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("read tool is not enabled")
@@ -91,7 +92,7 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 
 	filePath, ok := args["file_path"].(string)
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Read",
 			Arguments: args,
 			Success:   false,
@@ -112,7 +113,7 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 
 	// Check if file is an image - images cannot be read with this tool
 	if t.isImageFile(filePath) {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Read",
 			Arguments: args,
 			Success:   false,
@@ -123,7 +124,7 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 
 	readResult, err := t.executeRead(filePath, offset, limit)
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Read",
 			Arguments: args,
 			Success:   false,
@@ -132,9 +133,9 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 		}, nil
 	}
 
-	var toolData *domain.FileReadToolResult
+	var toolData *agentdomain.FileReadToolResult
 	if readResult != nil {
-		toolData = &domain.FileReadToolResult{
+		toolData = &agentdomain.FileReadToolResult{
 			FilePath:  readResult.FilePath,
 			Content:   readResult.Content,
 			Size:      readResult.Size,
@@ -144,7 +145,7 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 		}
 	}
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "Read",
 		Arguments: args,
 		Success:   true,
@@ -424,13 +425,13 @@ func (t *ReadTool) validatePathSecurity(path string) error {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *ReadTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *ReadTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -438,12 +439,12 @@ func (t *ReadTool) FormatResult(result *domain.ToolExecutionResult, formatType d
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *ReadTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *ReadTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
-	readResult, ok := result.Data.(*domain.FileReadToolResult)
+	readResult, ok := result.Data.(*agentdomain.FileReadToolResult)
 	if !ok {
 		if result.Success {
 			return "File read completed successfully"
@@ -460,12 +461,12 @@ func (t *ReadTool) FormatPreview(result *domain.ToolExecutionResult) string {
 }
 
 // FormatResultBody returns the file content for the collapsed preview.
-func (t *ReadTool) FormatResultBody(result *domain.ToolExecutionResult) string {
+func (t *ReadTool) FormatResultBody(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return ""
 	}
 
-	readResult, ok := result.Data.(*domain.FileReadToolResult)
+	readResult, ok := result.Data.(*agentdomain.FileReadToolResult)
 	if !ok {
 		return ""
 	}
@@ -473,7 +474,7 @@ func (t *ReadTool) FormatResultBody(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForUI formats the result for UI display
-func (t *ReadTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *ReadTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -498,7 +499,7 @@ func (t *ReadTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *ReadTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *ReadTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -512,7 +513,7 @@ func (t *ReadTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 // formatReadData formats read-specific data
 func (t *ReadTool) formatReadData(data any) string {
-	readResult, ok := data.(*domain.FileReadToolResult)
+	readResult, ok := data.(*agentdomain.FileReadToolResult)
 	if !ok {
 		return t.formatter.FormatAsJSON(data)
 	}

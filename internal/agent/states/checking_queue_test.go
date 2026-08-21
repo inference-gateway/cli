@@ -1,11 +1,13 @@
-package states
+package states_test
 
 import (
 	"testing"
 
+	states "github.com/inference-gateway/cli/internal/agent/states"
+
 	assert "github.com/stretchr/testify/assert"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // TestCheckingQueueState_Handle covers the routing priorities of the
@@ -16,73 +18,73 @@ import (
 func TestCheckingQueueState_Handle(t *testing.T) {
 	tests := []struct {
 		name            string
-		event           domain.AgentEvent
+		event           states.AgentEvent
 		setup           func(f *stateFixture)
 		transitionErr   error
 		wantErr         bool
-		wantTransitions []domain.AgentExecutionState
-		wantEvents      []domain.AgentEvent
-		wantHooks       []domain.HookPoint
+		wantTransitions []states.AgentExecutionState
+		wantEvents      []states.AgentEvent
+		wantHooks       []agentdomain.HookPoint
 		wantDrainCalls  int
 	}{
 		{
 			name:            "tool results pending stream first without draining",
-			event:           domain.MessageReceivedEvent{},
+			event:           states.MessageReceivedEvent{},
 			setup:           func(f *stateFixture) { f.ctx.AgentCtx.HasToolResults = true },
-			wantTransitions: []domain.AgentExecutionState{domain.StateStreamingLLM},
-			wantEvents:      []domain.AgentEvent{domain.StartStreamingEvent{}},
+			wantTransitions: []states.AgentExecutionState{states.StateStreamingLLM},
+			wantEvents:      []states.AgentEvent{states.StartStreamingEvent{}},
 		},
 		{
 			name:  "queued messages are drained with both drain hooks",
-			event: domain.MessageReceivedEvent{},
+			event: states.MessageReceivedEvent{},
 			setup: func(f *stateFixture) {
 				f.queue.IsEmptyReturns(false)
 				f.drainReturns = 2
 			},
-			wantTransitions: []domain.AgentExecutionState{domain.StateStreamingLLM},
-			wantEvents:      []domain.AgentEvent{domain.StartStreamingEvent{}},
-			wantHooks:       []domain.HookPoint{domain.HookPreQueueDrain, domain.HookPostQueueDrain},
+			wantTransitions: []states.AgentExecutionState{states.StateStreamingLLM},
+			wantEvents:      []states.AgentEvent{states.StartStreamingEvent{}},
+			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPreQueueDrain, agentdomain.HookPostQueueDrain},
 			wantDrainCalls:  1,
 		},
 		{
 			name:            "drain of zero messages skips the post-drain hook",
-			event:           domain.MessageReceivedEvent{},
+			event:           states.MessageReceivedEvent{},
 			setup:           func(f *stateFixture) { f.queue.IsEmptyReturns(false) },
-			wantTransitions: []domain.AgentExecutionState{domain.StateStreamingLLM},
-			wantEvents:      []domain.AgentEvent{domain.StartStreamingEvent{}},
-			wantHooks:       []domain.HookPoint{domain.HookPreQueueDrain},
+			wantTransitions: []states.AgentExecutionState{states.StateStreamingLLM},
+			wantEvents:      []states.AgentEvent{states.StartStreamingEvent{}},
+			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPreQueueDrain},
 			wantDrainCalls:  1,
 		},
 		{
 			name:            "cancelled session completes without another turn",
-			event:           domain.MessageReceivedEvent{},
+			event:           states.MessageReceivedEvent{},
 			setup:           func(f *stateFixture) { f.cancelSession() },
-			wantTransitions: []domain.AgentExecutionState{domain.StateCompleting},
-			wantEvents:      []domain.AgentEvent{domain.CompletionRequestedEvent{}},
+			wantTransitions: []states.AgentExecutionState{states.StateCompleting},
+			wantEvents:      []states.AgentEvent{states.CompletionRequestedEvent{}},
 		},
 		{
 			name:            "completion conditions met",
-			event:           domain.MessageReceivedEvent{},
+			event:           states.MessageReceivedEvent{},
 			setup:           func(f *stateFixture) { f.sm.CanTransitionReturns(true) },
-			wantTransitions: []domain.AgentExecutionState{domain.StateCompleting},
-			wantEvents:      []domain.AgentEvent{domain.CompletionRequestedEvent{}},
+			wantTransitions: []states.AgentExecutionState{states.StateCompleting},
+			wantEvents:      []states.AgentEvent{states.CompletionRequestedEvent{}},
 		},
 		{
 			name:            "default continues the loop with a new stream",
-			event:           domain.MessageReceivedEvent{},
-			wantTransitions: []domain.AgentExecutionState{domain.StateStreamingLLM},
-			wantEvents:      []domain.AgentEvent{domain.StartStreamingEvent{}},
+			event:           states.MessageReceivedEvent{},
+			wantTransitions: []states.AgentExecutionState{states.StateStreamingLLM},
+			wantEvents:      []states.AgentEvent{states.StartStreamingEvent{}},
 		},
 		{
 			name:            "transition failure is returned",
-			event:           domain.MessageReceivedEvent{},
+			event:           states.MessageReceivedEvent{},
 			transitionErr:   errBoom,
 			wantErr:         true,
-			wantTransitions: []domain.AgentExecutionState{domain.StateStreamingLLM},
+			wantTransitions: []states.AgentExecutionState{states.StateStreamingLLM},
 		},
 		{
 			name:  "stray event is a no-op",
-			event: domain.CompletionRequestedEvent{},
+			event: states.CompletionRequestedEvent{},
 		},
 	}
 	for _, tt := range tests {
@@ -93,8 +95,8 @@ func TestCheckingQueueState_Handle(t *testing.T) {
 				tt.setup(f)
 			}
 			f.sm.TransitionReturns(tt.transitionErr)
-			s := NewCheckingQueueState(f.ctx)
-			assert.Equal(t, domain.StateCheckingQueue, s.Name())
+			s := states.NewCheckingQueueState(f.ctx)
+			assert.Equal(t, states.StateCheckingQueue, s.Name())
 
 			err := s.Handle(tt.event)
 

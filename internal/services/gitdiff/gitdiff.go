@@ -33,10 +33,7 @@ const (
 	StatusModified   Status = 'M'
 	StatusAdded      Status = 'A'
 	StatusDeleted    Status = 'D'
-	StatusRenamed    Status = 'R'
-	StatusCopied     Status = 'C'
 	StatusTypeChange Status = 'T'
-	StatusUnmerged   Status = 'U'
 	StatusUntracked  Status = '?'
 )
 

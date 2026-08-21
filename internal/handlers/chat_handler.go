@@ -3,79 +3,83 @@ package handlers
 import (
 	"time"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	constants "github.com/inference-gateway/cli/internal/constants"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	services "github.com/inference-gateway/cli/internal/services"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
 // stateManager is the narrow slice of the app state manager the chat handler
 // and its sub-handlers need: chat-session lifecycle, view transitions, the
 // plan-approval overlay, and the todo list. *services.StateManager satisfies it.
 type stateManager interface {
-	domain.ChatSessionManager
-	domain.ViewManager
-	domain.PlanApprovalUIManager
-	domain.TodoManager
+	agentdomain.ChatSessionManager
+	ui.ViewManager
+	agentdomain.PlanApprovalUIManager
+	agentdomain.TodoManager
 }
 
 type ChatHandler struct {
-	agentService           domain.AgentService
-	conversationRepo       domain.ConversationRepository
-	conversationOptimizer  domain.ConversationOptimizer
-	sessionRolloverManager *services.SessionRolloverManager
-	modelService           domain.ModelService
-	toolService            domain.ToolService
-	fileService            domain.FileService
-	imageService           domain.ImageService
+	agentService           agentdomain.AgentService
+	conversationRepo       convdomain.ConversationRepository
+	conversationOptimizer  convdomain.ConversationOptimizer
+	sessionRolloverManager *conversation.SessionRolloverManager
+	modelService           convdomain.ModelService
+	toolService            agentdomain.ToolService
+	fileService            agentdomain.FileService
+	imageService           agentdomain.ImageService
 	shortcutRegistry       *shortcuts.Registry
 	stateManager           stateManager
-	messageQueue           domain.MessageQueue
-	taskRetentionService   domain.TaskRetentionService
-	backgroundTaskService  domain.BackgroundTaskService
-	backgroundShellService domain.BackgroundShellService
-	agentManager           domain.AgentManager
+	messageQueue           convdomain.MessageQueue
+	taskRetentionService   scheddomain.TaskRetentionService
+	backgroundTaskService  scheddomain.BackgroundTaskService
+	backgroundShellService scheddomain.BackgroundShellService
+	agentManager           agentdomain.AgentManager
 	config                 *config.Config
-	a2aTaskCoordinator     domain.A2ATaskCoordinator
-	approvalCoordinator    domain.ApprovalCoordinator
-	completionRunner       domain.ChatCompletionRunner
-	directExec             domain.DirectExecutionService
-	toolCoordinator        domain.ToolExecutionCoordinator
+	a2aTaskCoordinator     ui.A2ATaskCoordinator
+	approvalCoordinator    ui.ApprovalCoordinator
+	completionRunner       ui.ChatCompletionRunner
+	directExec             ui.DirectExecutionService
+	toolCoordinator        ui.ToolExecutionCoordinator
 	messageProcessor       *ChatMessageProcessor
 	shortcutHandler        *ChatShortcutHandler
-	skillsService          domain.SkillsService
-	githubIssueService     domain.GitHubIssueService
+	skillsService          agentdomain.SkillsService
+	githubIssueService     agentdomain.GitHubIssueService
 	drainRetryArmed        bool
 }
 
 func NewChatHandler(
-	agentService domain.AgentService,
-	conversationRepo domain.ConversationRepository,
-	conversationOptimizer domain.ConversationOptimizer,
-	sessionRolloverManager *services.SessionRolloverManager,
-	modelService domain.ModelService,
-	toolService domain.ToolService,
-	fileService domain.FileService,
-	imageService domain.ImageService,
-	skillsService domain.SkillsService,
-	githubIssueService domain.GitHubIssueService,
+	agentService agentdomain.AgentService,
+	conversationRepo convdomain.ConversationRepository,
+	conversationOptimizer convdomain.ConversationOptimizer,
+	sessionRolloverManager *conversation.SessionRolloverManager,
+	modelService convdomain.ModelService,
+	toolService agentdomain.ToolService,
+	fileService agentdomain.FileService,
+	imageService agentdomain.ImageService,
+	skillsService agentdomain.SkillsService,
+	githubIssueService agentdomain.GitHubIssueService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager stateManager,
-	messageQueue domain.MessageQueue,
-	taskRetentionService domain.TaskRetentionService,
-	backgroundTaskService domain.BackgroundTaskService,
-	backgroundShellService domain.BackgroundShellService,
-	agentManager domain.AgentManager,
+	messageQueue convdomain.MessageQueue,
+	taskRetentionService scheddomain.TaskRetentionService,
+	backgroundTaskService scheddomain.BackgroundTaskService,
+	backgroundShellService scheddomain.BackgroundShellService,
+	agentManager agentdomain.AgentManager,
 	cfg *config.Config,
-	a2aTaskCoordinator domain.A2ATaskCoordinator,
-	approvalCoordinator domain.ApprovalCoordinator,
-	completionRunner domain.ChatCompletionRunner,
-	directExec domain.DirectExecutionService,
-	toolCoordinator domain.ToolExecutionCoordinator,
+	a2aTaskCoordinator ui.A2ATaskCoordinator,
+	approvalCoordinator ui.ApprovalCoordinator,
+	completionRunner ui.ChatCompletionRunner,
+	directExec ui.DirectExecutionService,
+	toolCoordinator ui.ToolExecutionCoordinator,
 ) *ChatHandler {
 	handler := &ChatHandler{
 		agentService:           agentService,
@@ -113,87 +117,87 @@ func NewChatHandler(
 // TODO - refactor this
 func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,funlen
 	switch m := msg.(type) {
-	case domain.UserInputEvent:
+	case agentdomain.UserInputEvent:
 		return h.HandleUserInputEvent(m)
-	case domain.RolloverCompletedEvent:
+	case ui.RolloverCompletedEvent:
 		return h.HandleRolloverCompletedEvent(m)
-	case domain.FileSelectionRequestEvent:
+	case ui.FileSelectionRequestEvent:
 		return h.HandleFileSelectionRequestEvent(m)
-	case domain.ConversationSelectedEvent:
+	case ui.ConversationSelectedEvent:
 		return h.HandleConversationSelectedEvent(m)
-	case domain.ChatStartEvent:
+	case agentdomain.ChatStartEvent:
 		return h.HandleChatStartEvent(m)
-	case domain.ChatChunkEvent:
+	case agentdomain.ChatChunkEvent:
 		return h.HandleChatChunkEvent(m)
-	case domain.ChatCompleteEvent:
+	case agentdomain.ChatCompleteEvent:
 		return h.HandleChatCompleteEvent(m)
-	case domain.ChatErrorEvent:
+	case agentdomain.ChatErrorEvent:
 		return h.HandleChatErrorEvent(m)
-	case domain.OptimizationStatusEvent:
+	case agentdomain.OptimizationStatusEvent:
 		return h.HandleOptimizationStatusEvent(m)
-	case domain.ToolCallUpdateEvent:
+	case agentdomain.ToolCallUpdateEvent:
 		return h.HandleToolCallUpdateEvent(m)
-	case domain.ToolCallReadyEvent:
+	case agentdomain.ToolCallReadyEvent:
 		return h.HandleToolCallReadyEvent(m)
-	case domain.ToolExecutionStartedEvent:
+	case ui.ToolExecutionStartedEvent:
 		return h.HandleToolExecutionStartedEvent(m)
-	case domain.ToolExecutionProgressEvent:
+	case agentdomain.ToolExecutionProgressEvent:
 		return h.HandleToolExecutionProgressEvent(m)
-	case domain.BashOutputChunkEvent:
+	case agentdomain.BashOutputChunkEvent:
 		return h.HandleBashOutputChunkEvent(m)
-	case domain.BashCommandCompletedEvent:
+	case ui.BashCommandCompletedEvent:
 		return h.HandleBashCommandCompletedEvent(m)
-	case domain.BackgroundShellRequestEvent:
+	case agentdomain.BackgroundShellRequestEvent:
 		return h.HandleBackgroundShellRequest()
-	case domain.ToolExecutionCompletedEvent:
+	case agentdomain.ToolExecutionCompletedEvent:
 		return h.HandleToolExecutionCompletedEvent(m)
-	case domain.A2AToolCallExecutedEvent:
+	case agentdomain.A2AToolCallExecutedEvent:
 		return h.HandleA2AToolCallExecutedEvent(m)
-	case domain.A2ATaskSubmittedEvent:
+	case agentdomain.A2ATaskSubmittedEvent:
 		return h.HandleA2ATaskSubmittedEvent(m)
-	case domain.A2ATaskStatusUpdateEvent:
+	case agentdomain.A2ATaskStatusUpdateEvent:
 		return h.HandleA2ATaskStatusUpdateEvent(m)
-	case domain.A2ATaskCompletedEvent:
+	case agentdomain.A2ATaskCompletedEvent:
 		return h.HandleA2ATaskCompletedEvent(m)
-	case domain.A2ATaskFailedEvent:
+	case agentdomain.A2ATaskFailedEvent:
 		return h.HandleA2ATaskFailedEvent(m)
-	case domain.A2ATaskInputRequiredEvent:
+	case agentdomain.A2ATaskInputRequiredEvent:
 		return h.HandleA2ATaskInputRequiredEvent(m)
-	case domain.SubagentSubmittedEvent:
+	case agentdomain.SubagentSubmittedEvent:
 		return h.HandleSubagentSubmittedEvent(m)
-	case domain.SubagentCompletedEvent:
+	case agentdomain.SubagentCompletedEvent:
 		return h.HandleSubagentCompletedEvent(m)
-	case domain.SubagentFailedEvent:
+	case agentdomain.SubagentFailedEvent:
 		return h.HandleSubagentFailedEvent(m)
-	case domain.MessageQueuedEvent:
+	case agentdomain.MessageQueuedEvent:
 		return h.HandleMessageQueuedEvent(m)
-	case domain.ToolCancelledEvent:
+	case agentdomain.ToolCancelledEvent:
 		return h.HandleToolCancelledEvent(m)
-	case domain.ToolApprovalRequestedEvent:
+	case agentdomain.ToolApprovalRequestedEvent:
 		return h.HandleToolApprovalRequestedEvent(m)
-	case domain.ToolApprovalResponseEvent:
+	case agentdomain.ToolApprovalResponseEvent:
 		return h.HandleToolApprovalResponseEvent(m)
-	case domain.PlanApprovalRequestedEvent:
+	case agentdomain.PlanApprovalRequestedEvent:
 		return h.HandlePlanApprovalRequestedEvent(m)
-	case domain.PlanApprovalResponseEvent:
+	case ui.PlanApprovalResponseEvent:
 		return h.HandlePlanApprovalResponseEvent(m)
-	case domain.UserQuestionRequestedEvent:
+	case agentdomain.UserQuestionRequestedEvent:
 		return h.HandleUserQuestionRequestedEvent(m)
-	case domain.TodoUpdateChatEvent:
+	case agentdomain.TodoUpdateChatEvent:
 		return h.HandleTodoUpdateChatEvent(m)
-	case domain.AgentStatusUpdateEvent:
+	case ui.AgentStatusUpdateEvent:
 		return h.HandleAgentStatusUpdateEvent(m)
-	case domain.DrainQueueEvent:
+	case agentdomain.DrainQueueEvent:
 		return h.HandleDrainQueueEvent(m)
-	case domain.DrainQueueRetryEvent:
+	case ui.DrainQueueRetryEvent:
 		return h.HandleDrainQueueRetryEvent(m)
-	case domain.NavigateBackInTimeEvent:
+	case agentdomain.NavigateBackInTimeEvent:
 		return nil
-	case domain.MessageHistoryRestoreEvent:
+	case agentdomain.MessageHistoryRestoreEvent:
 		return nil
-	case domain.ComputerUsePausedEvent:
+	case agentdomain.ComputerUsePausedEvent:
 		return h.HandleComputerUsePausedEvent(m)
-	case domain.ComputerUseResumedEvent:
+	case agentdomain.ComputerUseResumedEvent:
 		return h.HandleComputerUseResumedEvent(m)
 	}
 
@@ -211,8 +215,8 @@ func (h *ChatHandler) startChatCompletion() tea.Cmd {
 
 // ListenForChatEvents creates a tea.Cmd that listens for the next event from
 // the channel. Wraps the shared eventlistener service so callers within this
-// package and the legacy domain.ChatHandler interface continue to work.
-func (h *ChatHandler) ListenForChatEvents(eventChan <-chan domain.ChatEvent) tea.Cmd {
+// package and the legacy ui.ChatHandler interface continue to work.
+func (h *ChatHandler) ListenForChatEvents(eventChan <-chan agentdomain.ChatEvent) tea.Cmd {
 	return func() tea.Msg {
 		if event, ok := <-eventChan; ok {
 			return event
@@ -222,39 +226,39 @@ func (h *ChatHandler) ListenForChatEvents(eventChan <-chan domain.ChatEvent) tea
 }
 
 func (h *ChatHandler) HandleUserInputEvent(
-	msg domain.UserInputEvent,
+	msg agentdomain.UserInputEvent,
 ) tea.Cmd {
 	return h.messageProcessor.handleUserInput(msg)
 }
 
 func (h *ChatHandler) HandleFileSelectionRequestEvent(
-	msg domain.FileSelectionRequestEvent,
+	msg ui.FileSelectionRequestEvent,
 ) tea.Cmd {
 	return h.handleFileSelectionRequest(msg)
 }
 
 func (h *ChatHandler) HandleConversationSelectedEvent(
-	msg domain.ConversationSelectedEvent,
+	msg ui.ConversationSelectedEvent,
 ) tea.Cmd {
 	return h.handleConversationSelected(msg)
 }
 
 func (h *ChatHandler) HandleChatStartEvent(
-	msg domain.ChatStartEvent,
+	msg agentdomain.ChatStartEvent,
 ) tea.Cmd {
 	h.toolCoordinator.SetActiveToolCallID("")
 	return h.completionRunner.HandleChatStart(msg)
 }
 
 func (h *ChatHandler) HandleChatChunkEvent(
-	msg domain.ChatChunkEvent,
+	msg agentdomain.ChatChunkEvent,
 ) tea.Cmd {
 	h.stateManager.TouchChatActivity()
 	return h.completionRunner.HandleChatChunk(msg)
 }
 
 func (h *ChatHandler) HandleChatCompleteEvent(
-	msg domain.ChatCompleteEvent,
+	msg agentdomain.ChatCompleteEvent,
 ) tea.Cmd {
 	cmd := h.completionRunner.HandleChatComplete(msg)
 	if msg.Cancelled {
@@ -271,7 +275,7 @@ func (h *ChatHandler) HandleChatCompleteEvent(
 // the moment queued work should drain (a message typed while busy, or a
 // background-job note that landed mid-turn). A turn with tool calls is not
 // terminal (results feed back in), so it does not drain.
-func (h *ChatHandler) shouldDrainAfterComplete(msg domain.ChatCompleteEvent) bool {
+func (h *ChatHandler) shouldDrainAfterComplete(msg agentdomain.ChatCompleteEvent) bool {
 	terminal := msg.Cancelled || len(msg.ToolCalls) == 0
 	return terminal && !h.messageQueue.IsEmpty()
 }
@@ -279,18 +283,18 @@ func (h *ChatHandler) shouldDrainAfterComplete(msg domain.ChatCompleteEvent) boo
 // drainQueueCmd emits a single DrainQueueEvent on the next loop tick. The gate
 // (HandleDrainQueueEvent) starts a fresh turn only if the agent is idle.
 func drainQueueCmd() tea.Cmd {
-	return func() tea.Msg { return domain.DrainQueueEvent{} }
+	return func() tea.Msg { return agentdomain.DrainQueueEvent{} }
 }
 
 func (h *ChatHandler) HandleChatErrorEvent(
-	msg domain.ChatErrorEvent,
+	msg agentdomain.ChatErrorEvent,
 ) tea.Cmd {
 	h.toolCoordinator.SetActiveToolCallID("")
 	return h.completionRunner.HandleChatError(msg)
 }
 
 func (h *ChatHandler) HandleOptimizationStatusEvent(
-	msg domain.OptimizationStatusEvent,
+	msg agentdomain.OptimizationStatusEvent,
 ) tea.Cmd {
 	return h.completionRunner.HandleOptimizationStatus(msg)
 }
@@ -298,7 +302,7 @@ func (h *ChatHandler) HandleOptimizationStatusEvent(
 // HandleRolloverCompletedEvent resumes the deferred work after the async
 // rollover (kicked off by ChatMessageProcessor.compactThenContinue) finishes.
 func (h *ChatHandler) HandleRolloverCompletedEvent(
-	msg domain.RolloverCompletedEvent,
+	msg ui.RolloverCompletedEvent,
 ) tea.Cmd {
 	logger.Info("chat rollover: completed, resuming deferred AddMessage + startChatCompletion",
 		"queue_size", h.messageQueue.Size(),
@@ -307,91 +311,91 @@ func (h *ChatHandler) HandleRolloverCompletedEvent(
 }
 
 func (h *ChatHandler) HandleToolCallUpdateEvent(
-	msg domain.ToolCallUpdateEvent,
+	msg agentdomain.ToolCallUpdateEvent,
 ) tea.Cmd {
 	return h.toolCoordinator.HandleToolCallUpdate(msg)
 }
 
 func (h *ChatHandler) HandleToolCallReadyEvent(
-	msg domain.ToolCallReadyEvent,
+	msg agentdomain.ToolCallReadyEvent,
 ) tea.Cmd {
 	return h.toolCoordinator.HandleToolCallReady(msg)
 }
 
 func (h *ChatHandler) HandleToolApprovalRequestedEvent(
-	msg domain.ToolApprovalRequestedEvent,
+	msg agentdomain.ToolApprovalRequestedEvent,
 ) tea.Cmd {
 	return h.toolCoordinator.HandleToolApprovalRequested(msg)
 }
 
 func (h *ChatHandler) HandleToolExecutionStartedEvent(
-	msg domain.ToolExecutionStartedEvent,
+	msg ui.ToolExecutionStartedEvent,
 ) tea.Cmd {
 	return h.toolCoordinator.HandleToolExecutionStarted(msg)
 }
 
 func (h *ChatHandler) HandleToolExecutionProgressEvent(
-	msg domain.ToolExecutionProgressEvent,
+	msg agentdomain.ToolExecutionProgressEvent,
 ) tea.Cmd {
 	return h.toolCoordinator.HandleToolExecutionProgress(msg)
 }
 
 func (h *ChatHandler) HandleBashOutputChunkEvent(
-	msg domain.BashOutputChunkEvent,
+	msg agentdomain.BashOutputChunkEvent,
 ) tea.Cmd {
 	return h.directExec.HandleBashOutputChunk(msg)
 }
 
 func (h *ChatHandler) HandleBashCommandCompletedEvent(
-	msg domain.BashCommandCompletedEvent,
+	msg ui.BashCommandCompletedEvent,
 ) tea.Cmd {
 	return h.directExec.HandleBashCommandCompleted(msg)
 }
 
 func (h *ChatHandler) HandleToolExecutionCompletedEvent(
-	msg domain.ToolExecutionCompletedEvent,
+	msg agentdomain.ToolExecutionCompletedEvent,
 ) tea.Cmd {
 	return h.toolCoordinator.HandleToolExecutionCompleted(msg)
 }
 
 func (h *ChatHandler) HandleA2AToolCallExecutedEvent(
-	msg domain.A2AToolCallExecutedEvent,
+	msg agentdomain.A2AToolCallExecutedEvent,
 ) tea.Cmd {
 	return h.a2aTaskCoordinator.HandleToolCallExecuted(msg)
 }
 
 func (h *ChatHandler) HandleA2ATaskSubmittedEvent(
-	msg domain.A2ATaskSubmittedEvent,
+	msg agentdomain.A2ATaskSubmittedEvent,
 ) tea.Cmd {
 	return h.a2aTaskCoordinator.HandleTaskSubmitted(msg)
 }
 
 func (h *ChatHandler) HandleA2ATaskStatusUpdateEvent(
-	msg domain.A2ATaskStatusUpdateEvent,
+	msg agentdomain.A2ATaskStatusUpdateEvent,
 ) tea.Cmd {
 	return h.a2aTaskCoordinator.HandleTaskStatusUpdate(msg)
 }
 
 func (h *ChatHandler) HandleA2ATaskCompletedEvent(
-	msg domain.A2ATaskCompletedEvent,
+	msg agentdomain.A2ATaskCompletedEvent,
 ) tea.Cmd {
 	return h.a2aTaskCoordinator.HandleTaskCompleted(msg)
 }
 
 func (h *ChatHandler) HandleA2ATaskFailedEvent(
-	msg domain.A2ATaskFailedEvent,
+	msg agentdomain.A2ATaskFailedEvent,
 ) tea.Cmd {
 	return h.a2aTaskCoordinator.HandleTaskFailed(msg)
 }
 
 func (h *ChatHandler) HandleA2ATaskInputRequiredEvent(
-	msg domain.A2ATaskInputRequiredEvent,
+	msg agentdomain.A2ATaskInputRequiredEvent,
 ) tea.Cmd {
 	return h.a2aTaskCoordinator.HandleTaskInputRequired(msg)
 }
 
 func (h *ChatHandler) HandleMessageQueuedEvent(
-	_ domain.MessageQueuedEvent,
+	_ agentdomain.MessageQueuedEvent,
 ) tea.Cmd {
 	return h.handleMessageQueued()
 }
@@ -400,15 +404,15 @@ func (h *ChatHandler) HandleMessageQueuedEvent(
 // (see ConversationView.renderSubagentTree). The handler here only needs to
 // keep the chat event listener pumping, since these events arrive on the chat
 // event channel and the conversation view consumes them for rendering.
-func (h *ChatHandler) HandleSubagentSubmittedEvent(_ domain.SubagentSubmittedEvent) tea.Cmd {
+func (h *ChatHandler) HandleSubagentSubmittedEvent(_ agentdomain.SubagentSubmittedEvent) tea.Cmd {
 	return h.rearmChatListener()
 }
 
-func (h *ChatHandler) HandleSubagentCompletedEvent(_ domain.SubagentCompletedEvent) tea.Cmd {
+func (h *ChatHandler) HandleSubagentCompletedEvent(_ agentdomain.SubagentCompletedEvent) tea.Cmd {
 	return h.rearmChatListener()
 }
 
-func (h *ChatHandler) HandleSubagentFailedEvent(_ domain.SubagentFailedEvent) tea.Cmd {
+func (h *ChatHandler) HandleSubagentFailedEvent(_ agentdomain.SubagentFailedEvent) tea.Cmd {
 	return h.rearmChatListener()
 }
 
@@ -422,25 +426,25 @@ func (h *ChatHandler) rearmChatListener() tea.Cmd {
 }
 
 func (h *ChatHandler) HandleToolCancelledEvent(
-	msg domain.ToolCancelledEvent,
+	msg agentdomain.ToolCancelledEvent,
 ) tea.Cmd {
 	return h.toolCoordinator.HandleToolCancelled(msg)
 }
 
 func (h *ChatHandler) HandleToolApprovalResponseEvent(
-	msg domain.ToolApprovalResponseEvent,
+	msg agentdomain.ToolApprovalResponseEvent,
 ) tea.Cmd {
 	return h.toolCoordinator.HandleToolApprovalResponse(msg)
 }
 
 // HandleTodoUpdateChatEvent converts the chat event to a UI event for the todo component
 func (h *ChatHandler) HandleTodoUpdateChatEvent(
-	msg domain.TodoUpdateChatEvent,
+	msg agentdomain.TodoUpdateChatEvent,
 ) tea.Cmd {
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
-		return domain.TodoUpdateEvent{
+		return ui.TodoUpdateEvent{
 			Todos: msg.Todos,
 		}
 	})
@@ -453,7 +457,7 @@ func (h *ChatHandler) HandleTodoUpdateChatEvent(
 }
 
 func (h *ChatHandler) HandlePlanApprovalRequestedEvent(
-	msg domain.PlanApprovalRequestedEvent,
+	msg agentdomain.PlanApprovalRequestedEvent,
 ) tea.Cmd {
 	return h.approvalCoordinator.HandlePlanApprovalRequested(msg)
 }
@@ -461,7 +465,7 @@ func (h *ChatHandler) HandlePlanApprovalRequestedEvent(
 // HandleUserQuestionRequestedEvent sets up the AskUserQuestion form. The agent
 // loop stays blocked in the tool until the user answers, so there is no restart.
 func (h *ChatHandler) HandleUserQuestionRequestedEvent(
-	msg domain.UserQuestionRequestedEvent,
+	msg agentdomain.UserQuestionRequestedEvent,
 ) tea.Cmd {
 	cmd := h.approvalCoordinator.HandleUserQuestionRequested(msg)
 
@@ -475,7 +479,7 @@ func (h *ChatHandler) HandleUserQuestionRequestedEvent(
 }
 
 func (h *ChatHandler) HandlePlanApprovalResponseEvent(
-	msg domain.PlanApprovalResponseEvent,
+	msg ui.PlanApprovalResponseEvent,
 ) tea.Cmd {
 	planID := ""
 	if st := h.stateManager.GetPlanApprovalUIState(); st != nil {
@@ -498,7 +502,7 @@ func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 // pushed, so simply receiving it re-renders the indicator. There is no polling:
 // the callback pushes a fresh event on every real status change and stops when
 // the agents stop changing.
-func (h *ChatHandler) HandleAgentStatusUpdateEvent(_ domain.AgentStatusUpdateEvent) tea.Cmd {
+func (h *ChatHandler) HandleAgentStatusUpdateEvent(_ ui.AgentStatusUpdateEvent) tea.Cmd {
 	return nil
 }
 
@@ -520,8 +524,8 @@ func (h *ChatHandler) HandleAgentStatusUpdateEvent(_ domain.AgentStatusUpdateEve
 // runs later inside the async Cmd), so the retry sees "busy" and cannot
 // double-start. The Bubble Tea Update loop is single-threaded, so this
 // check-then-mark is race-free.
-func (h *ChatHandler) HandleDrainQueueEvent(_ domain.DrainQueueEvent) tea.Cmd {
-	if h.messageQueue.IsEmpty() || h.stateManager.GetCurrentView() != domain.ViewStateChat {
+func (h *ChatHandler) HandleDrainQueueEvent(_ agentdomain.DrainQueueEvent) tea.Cmd {
+	if h.messageQueue.IsEmpty() || h.stateManager.GetCurrentView() != ui.ViewStateChat {
 		return nil
 	}
 
@@ -544,7 +548,7 @@ func (h *ChatHandler) armDrainRetry() tea.Cmd {
 	}
 	h.drainRetryArmed = true
 	return tea.Tick(constants.DrainQueueRetryInterval, func(time.Time) tea.Msg {
-		return domain.DrainQueueRetryEvent{}
+		return ui.DrainQueueRetryEvent{}
 	})
 }
 
@@ -554,18 +558,18 @@ func (h *ChatHandler) armDrainRetry() tea.Cmd {
 // than re-emitting DrainQueueEvent - is what lets the guard distinguish "the retry
 // fired" from "a fresh external push", so exactly one retry chain stays alive
 // regardless of how many DrainQueueEvents were pushed.
-func (h *ChatHandler) HandleDrainQueueRetryEvent(_ domain.DrainQueueRetryEvent) tea.Cmd {
+func (h *ChatHandler) HandleDrainQueueRetryEvent(_ ui.DrainQueueRetryEvent) tea.Cmd {
 	h.drainRetryArmed = false
-	return h.HandleDrainQueueEvent(domain.DrainQueueEvent{})
+	return h.HandleDrainQueueEvent(agentdomain.DrainQueueEvent{})
 }
 
 // HandleComputerUsePausedEvent handles computer use pause events
-func (h *ChatHandler) HandleComputerUsePausedEvent(msg domain.ComputerUsePausedEvent) tea.Cmd {
+func (h *ChatHandler) HandleComputerUsePausedEvent(msg agentdomain.ComputerUsePausedEvent) tea.Cmd {
 	return h.approvalCoordinator.HandleComputerUsePaused(msg)
 }
 
 // HandleComputerUseResumedEvent handles computer use resume events
-func (h *ChatHandler) HandleComputerUseResumedEvent(msg domain.ComputerUseResumedEvent) tea.Cmd {
+func (h *ChatHandler) HandleComputerUseResumedEvent(msg agentdomain.ComputerUseResumedEvent) tea.Cmd {
 	cmd, restart := h.approvalCoordinator.HandleComputerUseResumed(msg)
 	if !restart {
 		return cmd
@@ -573,31 +577,31 @@ func (h *ChatHandler) HandleComputerUseResumedEvent(msg domain.ComputerUseResume
 	return tea.Batch(cmd, h.startChatCompletion())
 }
 
-// SetBashDetachChan satisfies the legacy domain.ChatHandler interface by
+// SetBashDetachChan satisfies the legacy ui.ChatHandler interface by
 // forwarding to DirectExecutionService (the actual owner post-#529).
 func (h *ChatHandler) SetBashDetachChan(ch chan<- struct{}) {
 	h.directExec.SetBashDetachChan(ch)
 }
 
-// GetBashDetachChan satisfies the legacy domain.ChatHandler interface by
+// GetBashDetachChan satisfies the legacy ui.ChatHandler interface by
 // forwarding to DirectExecutionService.
 func (h *ChatHandler) GetBashDetachChan() chan<- struct{} {
 	return h.directExec.GetBashDetachChan()
 }
 
-// ClearBashDetachChan satisfies the legacy domain.ChatHandler interface by
+// ClearBashDetachChan satisfies the legacy ui.ChatHandler interface by
 // forwarding to DirectExecutionService.
 func (h *ChatHandler) ClearBashDetachChan() {
 	h.directExec.ClearBashDetachChan()
 }
 
-// GetActiveToolCallID satisfies the legacy domain.ChatHandler interface by
+// GetActiveToolCallID satisfies the legacy ui.ChatHandler interface by
 // forwarding to ToolExecutionCoordinator (the actual owner post-#529).
 func (h *ChatHandler) GetActiveToolCallID() string {
 	return h.toolCoordinator.GetActiveToolCallID()
 }
 
-// SetActiveToolCallID satisfies the legacy domain.ChatHandler interface by
+// SetActiveToolCallID satisfies the legacy ui.ChatHandler interface by
 // forwarding to ToolExecutionCoordinator.
 func (h *ChatHandler) SetActiveToolCallID(id string) {
 	h.toolCoordinator.SetActiveToolCallID(id)
@@ -621,20 +625,20 @@ func (h *ChatHandler) HandleBackgroundShellRequest() tea.Cmd {
 	return h.directExec.HandleBackgroundShellRequest()
 }
 
-// ParseToolCall satisfies the legacy domain.ChatHandler interface by
+// ParseToolCall satisfies the legacy ui.ChatHandler interface by
 // delegating to DirectExecutionService.
 func (h *ChatHandler) ParseToolCall(input string) (string, map[string]any, error) {
 	return h.directExec.ParseToolCall(input)
 }
 
-// ParseArguments satisfies the legacy domain.ChatHandler interface by
+// ParseArguments satisfies the legacy ui.ChatHandler interface by
 // delegating to DirectExecutionService.
 func (h *ChatHandler) ParseArguments(argsStr string) (map[string]any, error) {
 	return h.directExec.ParseArguments(argsStr)
 }
 
 // ListenForEvents reads one event off a generic tea.Msg channel as a tea.Cmd.
-// Kept on the orchestrator because domain.ChatHandler still exposes it and
+// Kept on the orchestrator because ui.ChatHandler still exposes it and
 // the runner-internal handlers (tool execution progress) call it directly.
 func (h *ChatHandler) ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd {
 	return func() tea.Msg {

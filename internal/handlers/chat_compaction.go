@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"time"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	tea "charm.land/bubbletea/v2"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // compactionTimeout bounds the LLM summarization call so a wedged gateway can't
@@ -55,7 +58,7 @@ func (h *ChatHandler) reseedConversationWithMessages(messages []sdk.Message, mod
 		return err
 	}
 	for _, msg := range messages {
-		entry := domain.ConversationEntry{
+		entry := convdomain.ConversationEntry{
 			Message: msg,
 			Model:   model,
 			Time:    time.Now(),
@@ -69,7 +72,7 @@ func (h *ChatHandler) reseedConversationWithMessages(messages []sdk.Message, mod
 
 // addHiddenUserMessage appends a hidden user message to the current conversation.
 func (h *ChatHandler) addHiddenUserMessage(content string) error {
-	return h.conversationRepo.AddMessage(domain.ConversationEntry{
+	return h.conversationRepo.AddMessage(convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(content),
@@ -125,7 +128,7 @@ func (h *ChatHandler) newSessionThenExecutePlanCmd(planID string) tea.Cmd {
 
 		return tea.Batch(
 			func() tea.Msg {
-				return domain.UpdateHistoryEvent{History: h.conversationRepo.GetMessages()}
+				return ui.UpdateHistoryEvent{History: h.conversationRepo.GetMessages()}
 			},
 			h.startChatCompletion(),
 		)()

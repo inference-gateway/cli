@@ -16,7 +16,7 @@ import (
 	ssh "golang.org/x/crypto/ssh"
 
 	config "github.com/inference-gateway/cli/config"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // SSHSession wraps an SSH session with PTY for remote terminal access

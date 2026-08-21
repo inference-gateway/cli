@@ -9,27 +9,31 @@ package directexec
 import (
 	"sync"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	tea "charm.land/bubbletea/v2"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
 // stateManager is the narrow slice of the app state manager the direct
 // executor needs: the current agent mode, chat-session lookup, and
 // tool-execution session bookkeeping. *services.StateManager satisfies it.
 type stateManager interface {
-	domain.AgentModeManager
-	domain.ChatSessionManager
-	domain.ToolExecutionManager
+	agentdomain.AgentModeManager
+	agentdomain.ChatSessionManager
+	agentdomain.ToolExecutionManager
 }
 
 // Service is the concrete DirectExecutionService.
 type Service struct {
-	conversationRepo       domain.ConversationRepository
-	toolService            domain.ToolService
+	conversationRepo       convdomain.ConversationRepository
+	toolService            agentdomain.ToolService
 	stateManager           stateManager
-	backgroundShellService domain.BackgroundShellService
-	listener               domain.ChatEventListener
+	backgroundShellService scheddomain.BackgroundShellService
+	listener               ui.ChatEventListener
 
 	bashDetachChan     chan<- struct{}
 	bashDetachChanMu   sync.RWMutex
@@ -41,11 +45,11 @@ type Service struct {
 
 // Options bundles the dependencies needed to construct a Service.
 type Options struct {
-	ConversationRepo       domain.ConversationRepository
-	ToolService            domain.ToolService
+	ConversationRepo       convdomain.ConversationRepository
+	ToolService            agentdomain.ToolService
 	StateManager           stateManager
-	BackgroundShellService domain.BackgroundShellService
-	Listener               domain.ChatEventListener
+	BackgroundShellService scheddomain.BackgroundShellService
+	Listener               ui.ChatEventListener
 }
 
 // NewService creates a new DirectExecutionService.
@@ -59,21 +63,21 @@ func NewService(opts Options) *Service {
 	}
 }
 
-// SetBashDetachChan satisfies domain.BashDetachChannelHolder.
+// SetBashDetachChan satisfies agentdomain.BashDetachChannelHolder.
 func (s *Service) SetBashDetachChan(ch chan<- struct{}) {
 	s.bashDetachChanMu.Lock()
 	defer s.bashDetachChanMu.Unlock()
 	s.bashDetachChan = ch
 }
 
-// GetBashDetachChan satisfies domain.BashDetachChannelHolder.
+// GetBashDetachChan satisfies agentdomain.BashDetachChannelHolder.
 func (s *Service) GetBashDetachChan() chan<- struct{} {
 	s.bashDetachChanMu.RLock()
 	defer s.bashDetachChanMu.RUnlock()
 	return s.bashDetachChan
 }
 
-// ClearBashDetachChan satisfies domain.BashDetachChannelHolder.
+// ClearBashDetachChan satisfies agentdomain.BashDetachChannelHolder.
 func (s *Service) ClearBashDetachChan() {
 	s.bashDetachChanMu.Lock()
 	defer s.bashDetachChanMu.Unlock()

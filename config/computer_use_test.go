@@ -19,8 +19,6 @@ floating_window:
   respawn_on_close: false
 screenshot:
   enabled: true
-  max_width: 800
-  max_height: 600
   target_width: 640
   target_height: 480
   format: png
@@ -29,8 +27,6 @@ screenshot:
   capture_interval: 5
   buffer_size: 2
   temp_dir: /tmp/cu
-  log_captures: true
-  show_overlay: false
 rate_limit:
   enabled: false
   max_actions_per_minute: 30
@@ -70,11 +66,11 @@ func TestDefaultComputerUseConfig(t *testing.T) {
 	if cfg.Enabled {
 		t.Error("Expected Enabled to be false by default")
 	}
-	if cfg.Screenshot.MaxWidth != 1920 {
-		t.Errorf("Expected Screenshot.MaxWidth=1920, got %d", cfg.Screenshot.MaxWidth)
+	if cfg.Screenshot.TargetWidth != 1024 {
+		t.Errorf("Expected Screenshot.TargetWidth=1024, got %d", cfg.Screenshot.TargetWidth)
 	}
-	if cfg.Screenshot.MaxHeight != 1080 {
-		t.Errorf("Expected Screenshot.MaxHeight=1080, got %d", cfg.Screenshot.MaxHeight)
+	if cfg.Screenshot.TargetHeight != 768 {
+		t.Errorf("Expected Screenshot.TargetHeight=768, got %d", cfg.Screenshot.TargetHeight)
 	}
 	if cfg.Screenshot.Format != "jpeg" {
 		t.Errorf("Expected Screenshot.Format 'jpeg', got %q", cfg.Screenshot.Format)
@@ -90,18 +86,6 @@ func TestDefaultComputerUseConfig(t *testing.T) {
 	}
 	if cfg.RateLimit.WindowSeconds != 60 {
 		t.Errorf("Expected RateLimit.WindowSeconds=60, got %d", cfg.RateLimit.WindowSeconds)
-	}
-	if cfg.Tools.KeyboardType.MaxTextLength != 1000 {
-		t.Errorf("Expected Tools.KeyboardType.MaxTextLength=1000, got %d", cfg.Tools.KeyboardType.MaxTextLength)
-	}
-	if cfg.Tools.KeyboardType.TypingDelayMs != 100 {
-		t.Errorf("Expected Tools.KeyboardType.TypingDelayMs=100, got %d", cfg.Tools.KeyboardType.TypingDelayMs)
-	}
-	if !cfg.Tools.MouseMove.Enabled {
-		t.Error("Expected Tools.MouseMove.Enabled true")
-	}
-	if !cfg.Tools.GetFocusedApp.Enabled {
-		t.Error("Expected Tools.GetFocusedApp.Enabled true")
 	}
 }
 
@@ -119,7 +103,7 @@ func TestLoadComputerUse(t *testing.T) {
 		{
 			name: "non-existent file returns defaults",
 			check: func(t *testing.T, cfg *config.ComputerUseConfig) {
-				if cfg.Enabled != defaults.Enabled || cfg.Screenshot.MaxWidth != defaults.Screenshot.MaxWidth {
+				if cfg.Enabled != defaults.Enabled || cfg.Screenshot.TargetWidth != defaults.Screenshot.TargetWidth {
 					t.Errorf("Expected defaults, got %+v", cfg)
 				}
 			},
@@ -131,8 +115,8 @@ func TestLoadComputerUse(t *testing.T) {
 				if !cfg.Enabled {
 					t.Error("Expected Enabled true")
 				}
-				if cfg.Screenshot.MaxWidth != 800 {
-					t.Errorf("Expected Screenshot.MaxWidth=800, got %d", cfg.Screenshot.MaxWidth)
+				if cfg.Screenshot.TargetWidth != 640 {
+					t.Errorf("Expected Screenshot.TargetWidth=640, got %d", cfg.Screenshot.TargetWidth)
 				}
 				if cfg.Screenshot.Format != "png" {
 					t.Errorf("Expected Screenshot.Format 'png', got %q", cfg.Screenshot.Format)
@@ -142,24 +126,6 @@ func TestLoadComputerUse(t *testing.T) {
 				}
 				if cfg.RateLimit.MaxActionsPerMinute != 30 {
 					t.Errorf("Expected RateLimit.MaxActionsPerMinute=30, got %d", cfg.RateLimit.MaxActionsPerMinute)
-				}
-				if cfg.Tools.MouseMove.Enabled {
-					t.Error("Expected Tools.MouseMove.Enabled false")
-				}
-				if cfg.Tools.KeyboardType.MaxTextLength != 500 {
-					t.Errorf("Expected Tools.KeyboardType.MaxTextLength=500, got %d", cfg.Tools.KeyboardType.MaxTextLength)
-				}
-			},
-		},
-		{
-			name: "tool sections missing from an older file keep their defaults",
-			yaml: computerUseValidYAML,
-			check: func(t *testing.T, cfg *config.ComputerUseConfig) {
-				if !cfg.Tools.GetUIElements.Enabled {
-					t.Error("Expected Tools.GetUIElements.Enabled true (default) when absent from the file")
-				}
-				if !cfg.Tools.PressUIElement.Enabled {
-					t.Error("Expected Tools.PressUIElement.Enabled true (default) when absent from the file")
 				}
 			},
 		},
@@ -243,8 +209,6 @@ func TestSaveComputerUse(t *testing.T) {
 		Enabled: true,
 		Screenshot: config.ScreenshotToolConfig{
 			Enabled:          true,
-			MaxWidth:         1024,
-			MaxHeight:        768,
 			TargetWidth:      512,
 			TargetHeight:     384,
 			Format:           "png",
@@ -253,25 +217,11 @@ func TestSaveComputerUse(t *testing.T) {
 			CaptureInterval:  10,
 			BufferSize:       3,
 			TempDir:          "/tmp/cu",
-			LogCaptures:      true,
-			ShowOverlay:      false,
 		},
 		RateLimit: config.RateLimitConfig{
 			Enabled:             false,
 			MaxActionsPerMinute: 90,
 			WindowSeconds:       45,
-		},
-		Tools: config.ComputerUseToolsConfig{
-			MouseMove:   config.MouseMoveToolConfig{Enabled: false},
-			MouseClick:  config.MouseClickToolConfig{Enabled: true},
-			MouseScroll: config.MouseScrollToolConfig{Enabled: false},
-			KeyboardType: config.KeyboardTypeToolConfig{
-				Enabled:       true,
-				MaxTextLength: 250,
-				TypingDelayMs: 75,
-			},
-			GetFocusedApp: config.GetFocusedAppToolConfig{Enabled: true},
-			ActivateApp:   config.ActivateAppToolConfig{Enabled: false},
 		},
 	}
 
@@ -291,14 +241,10 @@ func TestSaveComputerUse(t *testing.T) {
 					t.Fatalf("LoadComputerUse() failed: %v", err)
 				}
 				if loaded.Enabled != roundTrip.Enabled ||
-					loaded.Screenshot.MaxWidth != roundTrip.Screenshot.MaxWidth ||
+					loaded.Screenshot.TargetWidth != roundTrip.Screenshot.TargetWidth ||
 					loaded.Screenshot.Format != roundTrip.Screenshot.Format ||
 					loaded.RateLimit.MaxActionsPerMinute != roundTrip.RateLimit.MaxActionsPerMinute {
 					t.Errorf("Round-trip mismatch: got %+v", loaded)
-				}
-				if loaded.Tools.KeyboardType.MaxTextLength != roundTrip.Tools.KeyboardType.MaxTextLength ||
-					loaded.Tools.KeyboardType.TypingDelayMs != roundTrip.Tools.KeyboardType.TypingDelayMs {
-					t.Errorf("Tools.KeyboardType mismatch: got %+v", loaded.Tools.KeyboardType)
 				}
 			},
 		},

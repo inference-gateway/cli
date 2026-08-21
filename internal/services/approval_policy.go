@@ -7,8 +7,8 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // StandardApprovalPolicy implements the default approval policy with the following rules:
@@ -24,11 +24,11 @@ import (
 //  5. Other tools check configuration (per-tool or global require_approval setting)
 type StandardApprovalPolicy struct {
 	config       *config.Config
-	stateManager domain.AgentModeManager
+	stateManager agentdomain.AgentModeManager
 }
 
 // NewStandardApprovalPolicy creates a new standard approval policy
-func NewStandardApprovalPolicy(cfg *config.Config, stateManager domain.AgentModeManager) *StandardApprovalPolicy {
+func NewStandardApprovalPolicy(cfg *config.Config, stateManager agentdomain.AgentModeManager) *StandardApprovalPolicy {
 	return &StandardApprovalPolicy{
 		config:       cfg,
 		stateManager: stateManager,
@@ -42,14 +42,14 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 	isChatMode bool,
 ) bool {
 	if tools.IsComputerUseTool(toolCall.Function.Name) {
-		return p.requiresComputerUseApproval(toolCall.Function.Name)
+		return p.requiresComputerUseApproval(toolCall)
 	}
 
-	if p.stateManager != nil && p.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
+	if p.stateManager != nil && p.stateManager.GetAgentMode() == agentdomain.AgentModeAutoAccept {
 		return false
 	}
 
-	if p.stateManager != nil && p.stateManager.GetAgentMode() == domain.AgentModeReadOnly {
+	if p.stateManager != nil && p.stateManager.GetAgentMode() == agentdomain.AgentModeReadOnly {
 		return false
 	}
 
@@ -64,12 +64,20 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 // approval based on the computer_use.approval config setting. Unknown values
 // fail closed: config load rejects them, but a config that bypassed
 // validation must not silently disable a safety gate.
-func (p *StandardApprovalPolicy) requiresComputerUseApproval(toolName string) bool {
+func (p *StandardApprovalPolicy) requiresComputerUseApproval(toolCall *sdk.ChatCompletionMessageToolCall) bool {
 	switch p.config.ComputerUse.Approval {
 	case config.ComputerUseApprovalNever, "":
 		return false
 	case config.ComputerUseApprovalDestructive:
-		return toolName == "MouseClick" || toolName == "ActivateApp" || toolName == "PressUIElement"
+		if toolCall.Function.Name != "Computer" {
+			return false
+		}
+		var args map[string]any
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+			return true
+		}
+		action, _ := args["action"].(string)
+		return action != "screenshot" && action != "cursor"
 	default:
 		return true
 	}

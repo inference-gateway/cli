@@ -11,7 +11,8 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // ImageEditTool edits an existing image with the configured image model and
@@ -20,7 +21,7 @@ import (
 // independent of the model selected for the session.
 type ImageEditTool struct {
 	config       *config.Config
-	imageService domain.ImageService
+	imageService agentdomain.ImageService
 }
 
 var (
@@ -34,7 +35,7 @@ var (
 )
 
 // NewImageEditTool creates a new ImageEdit tool
-func NewImageEditTool(cfg *config.Config, imageService domain.ImageService) *ImageEditTool {
+func NewImageEditTool(cfg *config.Config, imageService agentdomain.ImageService) *ImageEditTool {
 	return &ImageEditTool{
 		config:       cfg,
 		imageService: imageService,
@@ -127,7 +128,7 @@ func (t *ImageEditTool) Validate(args map[string]any) error {
 }
 
 // Execute executes the ImageEdit tool
-func (t *ImageEditTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *ImageEditTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
@@ -149,7 +150,7 @@ func (t *ImageEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 	model := t.config.Tools.ImageEdit.Model
 	path, err := t.imageService.EditImage(ctx, model, prompt, image, quality, size, mask)
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "ImageEdit",
 			Arguments: args,
 			Success:   false,
@@ -158,7 +159,7 @@ func (t *ImageEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}, nil
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "ImageEdit",
 		Arguments: args,
 		Success:   true,
@@ -181,7 +182,7 @@ func (t *ImageEditTool) IsEnabled() bool {
 }
 
 // FormatPreview formats the result for display preview
-func (t *ImageEditTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *ImageEditTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Image edit failed"
 	}
@@ -194,7 +195,7 @@ func (t *ImageEditTool) FormatPreview(result *domain.ToolExecutionResult) string
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *ImageEditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *ImageEditTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Error: no result"
 	}
@@ -208,7 +209,7 @@ func (t *ImageEditTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 	path, _ := data["path"].(string)
 	quality, _ := data["quality"].(string)
 	size, _ := data["size"].(string)
-	formatter := domain.NewBaseFormatter("ImageEdit")
+	formatter := agentinfra.NewBaseFormatter("ImageEdit")
 	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (quality: %s, size: %s)", path, quality, size))
 }
 
@@ -223,11 +224,11 @@ func (t *ImageEditTool) ShouldAlwaysExpand() bool {
 }
 
 // FormatResult formats the result based on the requested format type
-func (t *ImageEditTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *ImageEditTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)

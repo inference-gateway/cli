@@ -8,7 +8,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	utils "github.com/inference-gateway/cli/config/utils"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 const (
@@ -47,15 +47,15 @@ enabled: false
 // pre-defined agent-loop hook point with a wall-clock timeout. It is the
 // command-action counterpart of ReminderConfig (the text-injection action).
 type HookCommandConfig struct {
-	Name    string           `yaml:"name" mapstructure:"name"`
-	Hook    domain.HookPoint `yaml:"hook" mapstructure:"hook"`
-	Command string           `yaml:"command" mapstructure:"command"`
-	Timeout int              `yaml:"timeout,omitempty" mapstructure:"timeout"` // seconds; 0 -> default
+	Name    string                `yaml:"name" mapstructure:"name"`
+	Hook    agentdomain.HookPoint `yaml:"hook" mapstructure:"hook"`
+	Command string                `yaml:"command" mapstructure:"command"`
+	Timeout int                   `yaml:"timeout,omitempty" mapstructure:"timeout"` // seconds; 0 -> default
 }
 
 // HooksConfig is the content of hooks.yaml: the master switch plus the list of
 // command hooks. Each hook attaches a shell command to a pre-defined hook point
-// (domain.HookPoint). HooksConfig implements domain.HookCommandProvider. It is
+// (agentdomain.HookPoint). HooksConfig implements agentdomain.HookCommandProvider. It is
 // the executable sibling of RemindersConfig (reminders.yaml): "run code" and
 // "inject text" stay separate concerns in separate files. Off by default;
 // commands still face the bash allow-list when the agent runs them.
@@ -86,7 +86,7 @@ func SaveHooks(path string, cfg *HooksConfig) error {
 
 // ParseHooksYAML unmarshals raw YAML bytes into a HooksConfig. It is the
 // low-level parse used by plugin inspection (where the file is read separately
-// and the result is validated against domain.HookPoints). LoadHooks is the
+// and the result is validated against agentdomain.HookPoints). LoadHooks is the
 // higher-level path that reads from disk and applies defaults.
 func ParseHooksYAML(data []byte, cfg *HooksConfig) error {
 	if err := yaml.Unmarshal(data, cfg); err != nil {
@@ -108,21 +108,21 @@ func (h HooksConfig) effective() []HookCommandConfig {
 	return out
 }
 
-// CommandsDue implements domain.HookCommandProvider: it returns every command
+// CommandsDue implements agentdomain.HookCommandProvider: it returns every command
 // hook attached to the given hook point. Multiple commands on the same point
 // stack (all are returned, in config order). Command hooks need no trigger - the
 // hook point's own cadence is the cadence (e.g. post_session fires once per run).
 // The agent gates each returned command on the bash allow-list before running it.
-func (h HooksConfig) CommandsDue(hook domain.HookPoint) []domain.HookCommand {
+func (h HooksConfig) CommandsDue(hook agentdomain.HookPoint) []agentdomain.HookCommand {
 	if !h.Enabled {
 		return nil
 	}
-	var due []domain.HookCommand
+	var due []agentdomain.HookCommand
 	for _, hc := range h.effective() {
 		if hc.Hook != hook {
 			continue
 		}
-		due = append(due, domain.HookCommand{
+		due = append(due, agentdomain.HookCommand{
 			Name:    hc.Name,
 			Command: hc.Command,
 			Timeout: time.Duration(hc.Timeout) * time.Second,
@@ -142,9 +142,9 @@ func (h HooksConfig) Validate() error {
 		case hc.Command == "":
 			return fmt.Errorf("hooks[%d] (%s): command is required", i, hc.Name)
 		case hc.Hook == "":
-			return fmt.Errorf("hooks[%d] (%s): hook is required (valid: %v)", i, hc.Name, domain.HookPoints)
+			return fmt.Errorf("hooks[%d] (%s): hook is required (valid: %v)", i, hc.Name, agentdomain.HookPoints)
 		case !hc.Hook.Valid():
-			return fmt.Errorf("hooks[%d] (%s): unknown hook %q (valid: %v)", i, hc.Name, hc.Hook, domain.HookPoints)
+			return fmt.Errorf("hooks[%d] (%s): unknown hook %q (valid: %v)", i, hc.Name, hc.Hook, agentdomain.HookPoints)
 		case hc.Timeout < 0:
 			return fmt.Errorf("hooks[%d] (%s): timeout must be >= 0", i, hc.Name)
 		}

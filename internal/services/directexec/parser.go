@@ -14,7 +14,7 @@ var argPattern = regexp.MustCompile(`(\w+)=("[^"]*"|'[^']*'|\w+)`)
 
 // ParseToolCall parses a tool call in the format ToolName(arg="value",
 // arg2="value2"). Exposed for testing and for use by the orchestrator that
-// satisfies the legacy domain.ChatHandler interface.
+// satisfies the legacy ui.ChatHandler interface.
 func (s *Service) ParseToolCall(input string) (string, map[string]any, error) {
 	parenIndex := strings.Index(input, "(")
 	if parenIndex == -1 {

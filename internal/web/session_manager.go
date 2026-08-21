@@ -7,7 +7,7 @@ import (
 	websocket "github.com/gorilla/websocket"
 
 	config "github.com/inference-gateway/cli/config"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // SessionManager tracks and manages all active sessions

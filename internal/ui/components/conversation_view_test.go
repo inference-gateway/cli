@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
+	ui "github.com/inference-gateway/cli/internal/ui"
 
 	lipgloss "charm.land/lipgloss/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // stubToolFormatter is a minimal ToolFormatter for tests that need the
@@ -24,19 +24,19 @@ type stubToolFormatter struct{}
 func (s *stubToolFormatter) FormatToolCall(toolName string, _ map[string]any) string {
 	return toolName + "()"
 }
-func (s *stubToolFormatter) FormatToolResultForUI(result *domain.ToolExecutionResult, _ int) string {
+func (s *stubToolFormatter) FormatToolResultForUI(result *agentdomain.ToolExecutionResult, _ int) string {
 	if result == nil {
 		return ""
 	}
 	return "Tool: " + result.ToolName
 }
-func (s *stubToolFormatter) FormatToolResultExpanded(result *domain.ToolExecutionResult, _ int) string {
+func (s *stubToolFormatter) FormatToolResultExpanded(result *agentdomain.ToolExecutionResult, _ int) string {
 	if result == nil {
 		return ""
 	}
 	return "Tool: " + result.ToolName
 }
-func (s *stubToolFormatter) FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
+func (s *stubToolFormatter) FormatToolResultForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return ""
 	}
@@ -50,7 +50,7 @@ func (s *stubToolFormatter) RenderToolSummary(icon, toolName string, _ map[strin
 // createMockStyleProvider creates a mock styles provider for testing
 func createMockStyleProvider() *styles.Provider {
 	fakeTheme := &uimocks.FakeTheme{}
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
 	return styles.NewProvider(fakeThemeService)
 }
@@ -82,7 +82,7 @@ func TestNewConversationView(t *testing.T) {
 func TestConversationView_SetConversation(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
-	conversation := []domain.ConversationEntry{
+	conversation := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -144,7 +144,7 @@ func TestConversationView_CanScrollDown(t *testing.T) {
 func TestConversationView_ToggleToolResultExpansion(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
-	conversation := []domain.ConversationEntry{
+	conversation := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -171,7 +171,7 @@ func TestConversationView_ToggleToolResultExpansion(t *testing.T) {
 func TestConversationView_ToggleAllToolResultsExpansion(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
-	conversation := []domain.ConversationEntry{
+	conversation := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.Tool,
@@ -233,15 +233,15 @@ func TestConversationView_DefaultExpandedDiffTools(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 	cv.SetToolFormatter(&stubToolFormatter{})
 
-	cv.SetConversation([]domain.ConversationEntry{
+	cv.SetConversation([]convdomain.ConversationEntry{
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
-			ToolExecution: &domain.ToolExecutionResult{ToolName: "Edit"},
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Edit"},
 			Time:          time.Now(),
 		},
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("ran")},
-			ToolExecution: &domain.ToolExecutionResult{ToolName: "Bash"},
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Bash"},
 			Time:          time.Now(),
 		},
 	})
@@ -269,10 +269,10 @@ func TestConversationView_ToggleAllCollapsesDefaultExpanded(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 	cv.SetToolFormatter(&stubToolFormatter{})
 
-	cv.SetConversation([]domain.ConversationEntry{
+	cv.SetConversation([]convdomain.ConversationEntry{
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
-			ToolExecution: &domain.ToolExecutionResult{ToolName: "MultiEdit"},
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "MultiEdit"},
 			Time:          time.Now(),
 		},
 	})
@@ -298,15 +298,15 @@ func TestConversationView_ToggleAllExpandsCollapsedAmongExpanded(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 	cv.SetToolFormatter(&stubToolFormatter{})
 
-	cv.SetConversation([]domain.ConversationEntry{
+	cv.SetConversation([]convdomain.ConversationEntry{
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
-			ToolExecution: &domain.ToolExecutionResult{ToolName: "Edit"}, // default-expanded
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Edit"}, // default-expanded
 			Time:          time.Now(),
 		},
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("rejected")},
-			ToolExecution: &domain.ToolExecutionResult{ToolName: "Write", Rejected: true}, // collapsed
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Write", Rejected: true}, // collapsed
 			Time:          time.Now(),
 		},
 	})
@@ -366,7 +366,7 @@ func TestConversationView_Render(t *testing.T) {
 		t.Error("Expected non-empty render output")
 	}
 
-	conversation := []domain.ConversationEntry{
+	conversation := []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -400,7 +400,7 @@ func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
 		{
 			name: "submitted creates entry",
 			events: func(cv *ConversationView) {
-				cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+				cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 					TaskID:    "task-1",
 					AgentName: "weather-agent",
 				}, nil)
@@ -412,7 +412,7 @@ func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
 		{
 			name: "submitted captures agent url",
 			events: func(cv *ConversationView) {
-				cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+				cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 					TaskID:   "task-1",
 					AgentURL: "http://localhost:8081",
 				}, nil)
@@ -423,7 +423,7 @@ func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
 		{
 			name: "status update captures agent url",
 			events: func(cv *ConversationView) {
-				cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
+				cv.handleA2ATaskStatusUpdate(agentdomain.A2ATaskStatusUpdateEvent{
 					TaskID:   "task-1",
 					AgentURL: "http://localhost:8081",
 					Status:   "TASK_STATE_WORKING",
@@ -434,11 +434,11 @@ func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
 		{
 			name: "status update changes state",
 			events: func(cv *ConversationView) {
-				cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+				cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 					TaskID:    "task-1",
 					AgentName: "weather-agent",
 				}, nil)
-				cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
+				cv.handleA2ATaskStatusUpdate(agentdomain.A2ATaskStatusUpdateEvent{
 					TaskID:  "task-1",
 					Status:  "working",
 					Message: "fetching forecast",
@@ -451,14 +451,14 @@ func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
 		{
 			name: "failed captures error",
 			events: func(cv *ConversationView) {
-				cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+				cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 					TaskID:    "task-1",
 					AgentName: "weather-agent",
 				}, nil)
-				cv.handleA2ATaskFailed(domain.A2ATaskFailedEvent{
+				cv.handleA2ATaskFailed(agentdomain.A2ATaskFailedEvent{
 					TaskID: "task-1",
 					Error:  "connection refused",
-					Result: domain.ToolExecutionResult{
+					Result: agentdomain.ToolExecutionResult{
 						ToolName: "A2A_SubmitTask",
 						Success:  false,
 					},
@@ -504,7 +504,7 @@ func TestBackgroundTaskDisplay_A2AEventHandlers(t *testing.T) {
 func TestBackgroundTaskDisplay_CompletedCapturesUsage(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+	cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 		TaskID:    "task-1",
 		AgentName: "weather-agent",
 	}, nil)
@@ -523,9 +523,9 @@ func TestBackgroundTaskDisplay_CompletedCapturesUsage(t *testing.T) {
 			},
 		},
 	}
-	cv.handleA2ATaskCompleted(domain.A2ATaskCompletedEvent{
+	cv.handleA2ATaskCompleted(agentdomain.A2ATaskCompletedEvent{
 		TaskID: "task-1",
-		Result: domain.ToolExecutionResult{
+		Result: agentdomain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  true,
 			Data:     resultData,
@@ -550,7 +550,7 @@ func TestBackgroundTaskDisplay_CompletedCapturesUsage(t *testing.T) {
 func TestBackgroundTaskDisplay_CompletedCapturesExecutionStats(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+	cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 		TaskID:    "task-1",
 		AgentName: "browser-agent",
 	}, nil)
@@ -575,9 +575,9 @@ func TestBackgroundTaskDisplay_CompletedCapturesExecutionStats(t *testing.T) {
 			},
 		},
 	}
-	cv.handleA2ATaskCompleted(domain.A2ATaskCompletedEvent{
+	cv.handleA2ATaskCompleted(agentdomain.A2ATaskCompletedEvent{
 		TaskID: "task-1",
-		Result: domain.ToolExecutionResult{
+		Result: agentdomain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  true,
 			Data:     resultData,
@@ -860,13 +860,13 @@ func TestBackgroundTaskDisplay_BarNotInsideConversationViewport(t *testing.T) {
 		State:     "working",
 	}
 
-	entry := domain.ConversationEntry{
+	entry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Tool,
 			Content: sdk.NewMessageContent("Task delegated"),
 		},
 		Time: time.Now(),
-		ToolExecution: &domain.ToolExecutionResult{
+		ToolExecution: &agentdomain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  true,
 			Data: map[string]any{
@@ -876,7 +876,7 @@ func TestBackgroundTaskDisplay_BarNotInsideConversationViewport(t *testing.T) {
 			},
 		},
 	}
-	cv.SetConversation([]domain.ConversationEntry{entry})
+	cv.SetConversation([]convdomain.ConversationEntry{entry})
 
 	if strings.Contains(cv.renderedContent, "Agent(weather-agent=working") {
 		t.Errorf("did not expect background-task line inside the scrollable viewport, got:\n%s", cv.renderedContent)
@@ -1105,7 +1105,7 @@ func TestBackgroundTaskDisplay_SubmittedPopulatesStartedAtFromTimestamp(t *testi
 	cv := NewConversationView(createMockStyleProvider())
 
 	ts := time.Now().Add(-2 * time.Second)
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+	cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 		TaskID:    "task-1",
 		AgentURL:  "http://localhost:8081",
 		Timestamp: ts,
@@ -1124,7 +1124,7 @@ func TestBackgroundTaskDisplay_SubmittedFallsBackToNowWhenTimestampZero(t *testi
 	cv := NewConversationView(createMockStyleProvider())
 
 	before := time.Now()
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+	cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 		TaskID: "task-1",
 	}, nil)
 	after := time.Now()
@@ -1147,7 +1147,7 @@ func TestBackgroundTaskDisplay_AgentModelResolverPopulatesOnSubmit(t *testing.T)
 		return ""
 	})
 
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{
+	cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{
 		TaskID:   "task-1",
 		AgentURL: "http://localhost:8081",
 	}, nil)
@@ -1170,12 +1170,12 @@ func TestBackgroundTaskDisplay_AgentModelResolverPopulatesOnLateStatusUpdate(t *
 		return ""
 	})
 
-	cv.handleA2ATaskSubmitted(domain.A2ATaskSubmittedEvent{TaskID: "task-1"}, nil)
+	cv.handleA2ATaskSubmitted(agentdomain.A2ATaskSubmittedEvent{TaskID: "task-1"}, nil)
 	if got := cv.backgroundTasks["task-1"].Model; got != "" {
 		t.Errorf("expected empty Model before AgentURL is known, got %q", got)
 	}
 
-	cv.handleA2ATaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{
+	cv.handleA2ATaskStatusUpdate(agentdomain.A2ATaskStatusUpdateEvent{
 		TaskID:   "task-1",
 		AgentURL: "http://localhost:8081",
 		Status:   "TASK_STATE_WORKING",
@@ -1225,12 +1225,12 @@ func TestConversationView_StreamingRenderCoalesced(t *testing.T) {
 
 	const marker = "STREAMED_MARKER"
 
-	_, cmd := cv.handleStreamingContentEvent(domain.StreamingContentEvent{Content: marker + " one "}, nil)
+	_, cmd := cv.handleStreamingContentEvent(ui.StreamingContentEvent{Content: marker + " one "}, nil)
 	if cmd == nil {
 		t.Fatal("first streamed delta should arm the render tick (non-nil cmd)")
 	}
 
-	if _, cmd2 := cv.handleStreamingContentEvent(domain.StreamingContentEvent{Content: "two "}, nil); cmd2 != nil {
+	if _, cmd2 := cv.handleStreamingContentEvent(ui.StreamingContentEvent{Content: "two "}, nil); cmd2 != nil {
 		t.Fatal("subsequent streamed deltas must not arm a second render tick")
 	}
 
@@ -1261,8 +1261,8 @@ func TestConversationView_StreamingRenderCoalesced(t *testing.T) {
 	}
 }
 
-func approvalEntry(status domain.ToolApprovalStatus) domain.ConversationEntry {
-	return domain.ConversationEntry{
+func approvalEntry(status convdomain.ToolApprovalStatus) convdomain.ConversationEntry {
+	return convdomain.ConversationEntry{
 		PendingToolCall: &sdk.ChatCompletionMessageToolCall{
 			Function: sdk.ChatCompletionMessageToolCallFunction{
 				Name:      "Bash",
@@ -1276,25 +1276,25 @@ func approvalEntry(status domain.ToolApprovalStatus) domain.ConversationEntry {
 func TestRenderPendingToolEntry(t *testing.T) {
 	cases := []struct {
 		name         string
-		status       domain.ToolApprovalStatus
+		status       convdomain.ToolApprovalStatus
 		wantContains []string
 		wantAbsent   []string
 		wantEmpty    bool
 	}{
 		{
 			name:         "approved themed header",
-			status:       domain.ToolApprovalApproved,
+			status:       convdomain.ToolApprovalApproved,
 			wantContains: []string{"Approved", "Bash"},
 			wantAbsent:   []string{"Tool:", "Arguments:"},
 		},
 		{
 			name:         "rejected themed header",
-			status:       domain.ToolApprovalRejected,
+			status:       convdomain.ToolApprovalRejected,
 			wantContains: []string{"Rejected"},
 		},
 		{
 			name:      "pending renders nothing",
-			status:    domain.ToolApprovalPending,
+			status:    convdomain.ToolApprovalPending,
 			wantEmpty: true,
 		},
 	}
@@ -1324,8 +1324,8 @@ func TestRenderPendingToolEntry(t *testing.T) {
 	}
 }
 
-func renderCacheConversation() []domain.ConversationEntry {
-	return []domain.ConversationEntry{
+func renderCacheConversation() []convdomain.ConversationEntry {
+	return []convdomain.ConversationEntry{
 		{
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hello **world**")},
 			Time:    time.Unix(1, 0),
@@ -1413,7 +1413,7 @@ func TestConversationView_RenderCache(t *testing.T) {
 		cv := NewConversationView(createMockStyleProvider())
 		conv := renderCacheConversation()
 		conv[1].IsPlan = true
-		conv[1].PlanApprovalStatus = domain.PlanApprovalPending
+		conv[1].PlanApprovalStatus = convdomain.PlanApprovalPending
 		cv.SetConversation(conv)
 
 		if _, ok := cv.renderCache[1]; ok {
@@ -1427,14 +1427,14 @@ func TestConversationView_RenderCache(t *testing.T) {
 type heightFormatter struct{ collapsed, expanded int }
 
 func (heightFormatter) FormatToolCall(name string, _ map[string]any) string { return name + "()" }
-func (f heightFormatter) FormatToolResultForUI(_ *domain.ToolExecutionResult, _ int) string {
+func (f heightFormatter) FormatToolResultForUI(_ *agentdomain.ToolExecutionResult, _ int) string {
 	return strings.TrimRight(strings.Repeat("c\n", f.collapsed), "\n")
 }
-func (f heightFormatter) FormatToolResultExpanded(_ *domain.ToolExecutionResult, _ int) string {
+func (f heightFormatter) FormatToolResultExpanded(_ *agentdomain.ToolExecutionResult, _ int) string {
 	return strings.TrimRight(strings.Repeat("e\n", f.expanded), "\n")
 }
-func (heightFormatter) FormatToolResultForLLM(_ *domain.ToolExecutionResult) string { return "" }
-func (heightFormatter) ShouldAlwaysExpandTool(string) bool                          { return false }
+func (heightFormatter) FormatToolResultForLLM(_ *agentdomain.ToolExecutionResult) string { return "" }
+func (heightFormatter) ShouldAlwaysExpandTool(string) bool                               { return false }
 func (heightFormatter) RenderToolSummary(icon, name string, _ map[string]any, trailing string, _ int) string {
 	return strings.TrimSpace(icon + " " + name + "() " + trailing)
 }
@@ -1445,11 +1445,11 @@ func scrollTestView(t *testing.T) *ConversationView {
 	cv.SetToolFormatter(heightFormatter{collapsed: 2, expanded: 6})
 	cv.SetWidth(80)
 	cv.SetHeight(8)
-	conv := make([]domain.ConversationEntry, 0, 6)
+	conv := make([]convdomain.ConversationEntry, 0, 6)
 	for i := 0; i < 6; i++ {
-		conv = append(conv, domain.ConversationEntry{
+		conv = append(conv, convdomain.ConversationEntry{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("x")},
-			ToolExecution: &domain.ToolExecutionResult{ToolName: "Bash"},
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Bash"},
 			Time:          time.Now(),
 		})
 	}

@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // TestAgentTool_InteractiveTracksPane verifies the fire-and-track behavior: an
@@ -39,10 +40,10 @@ func TestAgentTool_InteractiveTracksPane(t *testing.T) {
 	if got.PaneID != "%9" {
 		t.Fatalf("PaneID not stored: %q", got.PaneID)
 	}
-	if got.Mode != domain.SubagentModeInteractive {
+	if got.Mode != scheddomain.SubagentModeInteractive {
 		t.Fatalf("mode = %q, want interactive", got.Mode)
 	}
-	if got.Status != domain.SubagentRunning {
+	if got.Status != scheddomain.SubagentRunning {
 		t.Fatalf("interactive subagent should remain running, got %q", got.Status)
 	}
 }

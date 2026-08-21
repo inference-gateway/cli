@@ -8,10 +8,12 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
-	constants "github.com/inference-gateway/cli/internal/constants"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // EventDrivenAgent manages agent execution using event-driven state machine
@@ -19,20 +21,20 @@ type EventDrivenAgent struct {
 	// Core dependencies
 	service        *AgentServiceImpl
 	cfg            *config.AgentConfig
-	stateMachine   domain.AgentStateMachine
-	agentCtx       *domain.AgentContext
+	stateMachine   states.AgentStateMachine
+	agentCtx       *states.AgentContext
 	eventPublisher *eventPublisher
 	cancelChan     <-chan struct{}
-	req            *domain.AgentRequest
+	req            *agentdomain.AgentRequest
 	provider       string
 	model          string
-	registry       domain.BackgroundTaskRegistry
+	registry       scheddomain.BackgroundTaskRegistry
 
 	// Event channel
-	events chan domain.AgentEvent
+	events chan states.AgentEvent
 
 	// State handlers (registered on init)
-	stateHandlers map[domain.AgentExecutionState]domain.StateHandler
+	stateHandlers map[states.AgentExecutionState]states.StateHandler
 
 	// State data
 	currentMessage   sdk.Message
@@ -44,7 +46,7 @@ type EventDrivenAgent struct {
 	// Tool processing state (for sequential approval and execution)
 	toolsNeedingApproval []sdk.ChatCompletionMessageToolCall
 	currentToolIndex     int
-	toolResults          []domain.ConversationEntry
+	toolResults          []convdomain.ConversationEntry
 
 	// Synchronization
 	mu sync.Mutex
@@ -65,17 +67,17 @@ func NewEventDrivenAgent(
 	service *AgentServiceImpl,
 	cfg *config.AgentConfig,
 	ctx context.Context,
-	req *domain.AgentRequest,
+	req *agentdomain.AgentRequest,
 	conversation *[]sdk.Message,
 	eventPublisher *eventPublisher,
 	cancelChan <-chan struct{},
 	provider string,
 	model string,
-	registry domain.BackgroundTaskRegistry,
+	registry scheddomain.BackgroundTaskRegistry,
 ) *EventDrivenAgent {
 	stateMachine := NewAgentStateMachine()
 
-	agentCtx := &domain.AgentContext{
+	agentCtx := &states.AgentContext{
 		RequestID:        req.RequestID,
 		Conversation:     conversation,
 		MessageQueue:     service.messageQueue,
@@ -100,8 +102,8 @@ func NewEventDrivenAgent(
 		provider:       provider,
 		model:          model,
 		registry:       registry,
-		events:         make(chan domain.AgentEvent, constants.EventChannelBufferSize),
-		stateHandlers:  make(map[domain.AgentExecutionState]domain.StateHandler),
+		events:         make(chan states.AgentEvent, constants.EventChannelBufferSize),
+		stateHandlers:  make(map[states.AgentExecutionState]states.StateHandler),
 	}
 
 	agent.toolExecutor = agent.executeTools
@@ -113,17 +115,15 @@ func NewEventDrivenAgent(
 // registerStateHandlers creates and registers all state handlers for the event-driven agent.
 // This method is called during agent initialization to set up the state handler registry.
 func (a *EventDrivenAgent) registerStateHandlers() {
-	ctx := &domain.StateContext{
+	ctx := &states.StateContext{
 		StateMachine:           a.stateMachine,
 		AgentCtx:               a.agentCtx,
 		Events:                 a.events,
 		WaitGroup:              &a.wg,
-		CancelChan:             a.cancelChan,
 		Mutex:                  &a.mu,
 		CurrentMessage:         &a.currentMessage,
 		CurrentToolCalls:       &a.currentToolCalls,
 		CurrentReasoning:       &a.currentReasoning,
-		AvailableTools:         &a.availableTools,
 		ToolsNeedingApproval:   &a.toolsNeedingApproval,
 		CurrentToolIndex:       &a.currentToolIndex,
 		ToolResults:            &a.toolResults,
@@ -156,29 +156,29 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		RequestToolApproval: func(toolCall sdk.ChatCompletionMessageToolCall) (bool, error) {
 			return a.service.requestToolApproval(a.agentCtx.Ctx, toolCall, a.eventPublisher)
 		},
-		ExecuteToolInternal: func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) (entry domain.ConversationEntry) {
+		ExecuteToolInternal: func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) (entry convdomain.ConversationEntry) {
 			defer a.recoverPanic()
 			return a.service.executeToolInternal(a.agentCtx.Ctx, toolCall, a.eventPublisher, isApproved, time.Now())
 		},
-		GetAgentMode: func() domain.AgentMode {
+		GetAgentMode: func() agentdomain.AgentMode {
 			if a.service.stateManager == nil {
-				return domain.AgentModeStandard
+				return agentdomain.AgentModeStandard
 			}
 			return a.service.stateManager.GetAgentMode()
 		},
-		PublishChatEvent: func(event domain.ChatEvent) {
+		PublishChatEvent: func(event agentdomain.ChatEvent) {
 			a.eventPublisher.chatEvents <- event
 		},
-		PublishChatComplete: func(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *domain.ChatMetrics) {
+		PublishChatComplete: func(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *agentdomain.ChatMetrics) {
 			a.eventPublisher.publishChatComplete(reasoning, toolCalls, metrics)
 		},
-		PublishChatCancelled: func(metrics *domain.ChatMetrics) {
+		PublishChatCancelled: func(metrics *agentdomain.ChatMetrics) {
 			a.eventPublisher.publishChatCancelled(metrics)
 		},
-		PublishToolResults: func(results []domain.ConversationEntry) {
+		PublishToolResults: func(results []convdomain.ConversationEntry) {
 			a.eventPublisher.publishToolExecutionCompleted(results)
 		},
-		DispatchHooks: func(hook domain.HookPoint) {
+		DispatchHooks: func(hook agentdomain.HookPoint) {
 			a.service.dispatchHooks(a.agentCtx, hook)
 		},
 		WaitForBackgroundTasks: func() {
@@ -202,7 +202,7 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 }
 
 // registerHandler registers a single state handler
-func (a *EventDrivenAgent) registerHandler(handler domain.StateHandler) {
+func (a *EventDrivenAgent) registerHandler(handler states.StateHandler) {
 	a.stateHandlers[handler.Name()] = handler
 }
 
@@ -213,7 +213,7 @@ func (a *EventDrivenAgent) Start() {
 	a.wg.Add(1)
 	go a.processEvents()
 
-	a.events <- domain.MessageReceivedEvent{}
+	a.events <- states.MessageReceivedEvent{}
 }
 
 // Wait waits for the agent to complete
@@ -232,7 +232,7 @@ func (a *EventDrivenAgent) processEvents() {
 	defer a.recoverPanic()
 
 	cancelAndExit := func() {
-		if err := a.stateMachine.Transition(a.agentCtx, domain.StateCancelled); err != nil {
+		if err := a.stateMachine.Transition(a.agentCtx, states.StateCancelled); err != nil {
 			logger.Error("failed to transition to Cancelled state", "error", err)
 		}
 		a.eventPublisher.publishChatCancelled(a.service.GetMetrics(a.req.RequestID))
@@ -259,13 +259,13 @@ func (a *EventDrivenAgent) processEvents() {
 			a.handleEvent(event)
 
 			currentState := a.stateMachine.GetCurrentState()
-			if currentState == domain.StateStopped ||
-				currentState == domain.StateCancelled ||
-				currentState == domain.StateError {
+			if currentState == states.StateStopped ||
+				currentState == states.StateCancelled ||
+				currentState == states.StateError {
 				return
 			}
 
-			if currentState == domain.StateIdle {
+			if currentState == states.StateIdle {
 				logger.Debug("agent reached Idle state - turn complete",
 					"total_turns", a.service.sessionTurns.Load())
 				return
@@ -275,7 +275,7 @@ func (a *EventDrivenAgent) processEvents() {
 }
 
 // handleEvent processes a single event based on current state using the state handler registry
-func (a *EventDrivenAgent) handleEvent(event domain.AgentEvent) {
+func (a *EventDrivenAgent) handleEvent(event states.AgentEvent) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 

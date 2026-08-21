@@ -1,50 +1,50 @@
-package states
+package states_test
 
 import (
 	"testing"
 
-	assert "github.com/stretchr/testify/assert"
+	states "github.com/inference-gateway/cli/internal/agent/states"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	assert "github.com/stretchr/testify/assert"
 )
 
 // TestIdleState_Handle drives the Idle executor through its three paths: a
-// MessageReceivedEvent starts the loop (transition to CheckingQueue and
+// states.MessageReceivedEvent starts the loop (transition to CheckingQueue and
 // re-emit the event there), a failed transition surfaces the error without
 // emitting, and any other event is ignored.
 func TestIdleState_Handle(t *testing.T) {
 	tests := []struct {
 		name            string
-		event           domain.AgentEvent
+		event           states.AgentEvent
 		transitionErr   error
 		wantErr         bool
-		wantTransitions []domain.AgentExecutionState
-		wantEvents      []domain.AgentEvent
+		wantTransitions []states.AgentExecutionState
+		wantEvents      []states.AgentEvent
 	}{
 		{
 			name:            "message received starts the loop",
-			event:           domain.MessageReceivedEvent{},
-			wantTransitions: []domain.AgentExecutionState{domain.StateCheckingQueue},
-			wantEvents:      []domain.AgentEvent{domain.MessageReceivedEvent{}},
+			event:           states.MessageReceivedEvent{},
+			wantTransitions: []states.AgentExecutionState{states.StateCheckingQueue},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
 		},
 		{
 			name:            "transition failure is returned and nothing is emitted",
-			event:           domain.MessageReceivedEvent{},
+			event:           states.MessageReceivedEvent{},
 			transitionErr:   errBoom,
 			wantErr:         true,
-			wantTransitions: []domain.AgentExecutionState{domain.StateCheckingQueue},
+			wantTransitions: []states.AgentExecutionState{states.StateCheckingQueue},
 		},
 		{
 			name:  "stray event is a no-op",
-			event: domain.CompletionRequestedEvent{},
+			event: states.CompletionRequestedEvent{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newStateFixture()
 			f.sm.TransitionReturns(tt.transitionErr)
-			s := NewIdleState(f.ctx)
-			assert.Equal(t, domain.StateIdle, s.Name())
+			s := states.NewIdleState(f.ctx)
+			assert.Equal(t, states.StateIdle, s.Name())
 
 			err := s.Handle(tt.event)
 

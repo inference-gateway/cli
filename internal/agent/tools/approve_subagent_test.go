@@ -6,14 +6,15 @@ import (
 	"os"
 	"testing"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 func writeTestApprovalFile(t *testing.T, sessionID, summary string) {
 	t.Helper()
-	data, err := json.Marshal(domain.SubagentApprovalFile{Awaiting: true, Summary: summary})
+	data, err := json.Marshal(scheddomain.SubagentApprovalFile{Awaiting: true, Summary: summary})
 	if err != nil {
 		t.Fatalf("marshal approval file: %v", err)
 	}
@@ -53,9 +54,9 @@ func TestApproveSubagentTool_ApproveSendsEnterAndClearsSidecar(t *testing.T) {
 	writeTestApprovalFile(t, sessionID, "Bash rm -rf build")
 
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "s1", Mode: domain.SubagentModeInteractive, PaneID: "%2",
-		SessionID: sessionID, Status: domain.SubagentRunning,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "s1", Mode: scheddomain.SubagentModeInteractive, PaneID: "%2",
+		SessionID: sessionID, Status: scheddomain.SubagentRunning,
 	})
 	tool := NewApproveSubagentTool(config.DefaultConfig(), tracker)
 	tool.paneState = func(_ context.Context, _ string) paneState { return paneAlive }
@@ -82,9 +83,9 @@ func TestApproveSubagentTool_ApproveSendsEnterAndClearsSidecar(t *testing.T) {
 
 func TestApproveSubagentTool_RejectSendsEscape(t *testing.T) {
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "s2", Mode: domain.SubagentModeInteractive, PaneID: "%3",
-		SessionID: "sess-reject", Status: domain.SubagentRunning,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "s2", Mode: scheddomain.SubagentModeInteractive, PaneID: "%3",
+		SessionID: "sess-reject", Status: scheddomain.SubagentRunning,
 	})
 	tool := NewApproveSubagentTool(config.DefaultConfig(), tracker)
 	tool.paneState = func(_ context.Context, _ string) paneState { return paneAlive }
@@ -108,8 +109,8 @@ func TestApproveSubagentTool_RejectSendsEscape(t *testing.T) {
 
 func TestApproveSubagentTool_HeadlessFails(t *testing.T) {
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "h1", Mode: domain.SubagentModeHeadless, Status: domain.SubagentRunning,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "h1", Mode: scheddomain.SubagentModeHeadless, Status: scheddomain.SubagentRunning,
 	})
 	tool := NewApproveSubagentTool(config.DefaultConfig(), tracker)
 

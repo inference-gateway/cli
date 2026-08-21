@@ -6,9 +6,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // previewLineCount is how many output lines the collapsed tool result shows on success.
@@ -18,15 +18,15 @@ const previewLineCount = 5
 // primary output (command stdout, file content, …) for the collapsed preview and
 // the full-on-failure view. It is distinct from FormatPreview (a one-line summary)
 // and FormatForLLM (the full tree) and lives in the services package so adding it
-// does not touch the domain.Tool interface or its generated mocks.
+// does not touch the agentdomain.Tool interface or its generated mocks.
 type ResultBodyProvider interface {
-	FormatResultBody(result *domain.ToolExecutionResult) string
+	FormatResultBody(result *agentdomain.ToolExecutionResult) string
 }
 
 // resultBody returns the tool's primary output text used for the collapsed preview.
 // It prefers a ResultBodyProvider (full, untruncated) and falls back to the tool's
 // short FormatPreview summary.
-func (s *ToolFormatterService) resultBody(result *domain.ToolExecutionResult) string {
+func (s *ToolFormatterService) resultBody(result *agentdomain.ToolExecutionResult) string {
 	tool, err := s.toolRegistry.GetTool(result.ToolName)
 	if err != nil {
 		return ""
@@ -121,7 +121,7 @@ func (s *ToolFormatterService) collapsedFooter(more int) string {
 
 // collapseHintLine builds the dim "· ctrl+o to collapse" line appended to the
 // expanded tree. It is omitted for always-expanded tools (which cannot collapse).
-func (s *ToolFormatterService) collapseHintLine(result *domain.ToolExecutionResult) string {
+func (s *ToolFormatterService) collapseHintLine(result *agentdomain.ToolExecutionResult) string {
 	if s.ShouldAlwaysExpandTool(result.ToolName) {
 		return ""
 	}

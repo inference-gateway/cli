@@ -7,24 +7,23 @@ import (
 	"strings"
 
 	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain/filewriter"
-	"github.com/inference-gateway/cli/internal/logger"
+	"github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// PathValidator implements filewriter.PathValidator
-type PathValidator struct {
+// DefaultPathValidator validates file paths for security and accessibility
+type DefaultPathValidator struct {
 	config *config.Config
 }
 
-// NewPathValidator creates a new PathValidator
-func NewPathValidator(cfg *config.Config) filewriter.PathValidator {
-	return &PathValidator{
+// NewPathValidator creates a new DefaultPathValidator
+func NewPathValidator(cfg *config.Config) *DefaultPathValidator {
+	return &DefaultPathValidator{
 		config: cfg,
 	}
 }
 
 // Validate checks if a path is valid and secure for file operations
-func (v *PathValidator) Validate(path string) error {
+func (v *DefaultPathValidator) Validate(path string) error {
 	if path == "" {
 		return fmt.Errorf("path cannot be empty")
 	}
@@ -54,7 +53,7 @@ func (v *PathValidator) Validate(path string) error {
 }
 
 // IsWritable checks if a path can be written to
-func (v *PathValidator) IsWritable(path string) bool {
+func (v *DefaultPathValidator) IsWritable(path string) bool {
 	if err := v.Validate(path); err != nil {
 		return false
 	}
@@ -101,7 +100,7 @@ func (v *PathValidator) IsWritable(path string) bool {
 }
 
 // IsInSandbox checks if a path is within configured sandbox directories
-func (v *PathValidator) IsInSandbox(path string) bool {
+func (v *DefaultPathValidator) IsInSandbox(path string) bool {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return false
@@ -111,7 +110,7 @@ func (v *PathValidator) IsInSandbox(path string) bool {
 }
 
 // isProtectedPath checks if a path is in the protected list
-func (v *PathValidator) isProtectedPath(path string) bool {
+func (v *DefaultPathValidator) isProtectedPath(path string) bool {
 	protectedPatterns := []string{
 		".infer/",
 		".git/",
@@ -142,7 +141,7 @@ func (v *PathValidator) isProtectedPath(path string) bool {
 }
 
 // canCreatePath checks if we can create a directory path
-func (v *PathValidator) canCreatePath(path string) bool {
+func (v *DefaultPathValidator) canCreatePath(path string) bool {
 	current := path
 	for {
 		parent := filepath.Dir(current)

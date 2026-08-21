@@ -39,11 +39,10 @@ linters:
     loggercheck:
       no-printf-like: true
       rules:
-        - github.com/inference-gateway/cli/internal/logger.Debug
-        - github.com/inference-gateway/cli/internal/logger.Info
-        - github.com/inference-gateway/cli/internal/logger.Warn
-        - github.com/inference-gateway/cli/internal/logger.Error
-        - github.com/inference-gateway/cli/internal/logger.Fatal
+        - github.com/inference-gateway/cli/internal/platform/logger.Debug
+        - github.com/inference-gateway/cli/internal/platform/logger.Info
+        - github.com/inference-gateway/cli/internal/platform/logger.Warn
+        - github.com/inference-gateway/cli/internal/platform/logger.Error
   exclusions:
     rules:
       - linters:

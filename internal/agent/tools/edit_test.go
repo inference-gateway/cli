@@ -10,7 +10,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 type mockReadSnapshot struct {
@@ -538,7 +538,7 @@ func TestEditTool_Execute_Success(t *testing.T) {
 			}
 
 			// Check result data
-			editResult, ok := result.Data.(*domain.EditToolResult)
+			editResult, ok := result.Data.(*agentdomain.EditToolResult)
 			if !ok {
 				t.Fatal("Expected EditToolResult in result data")
 			}
@@ -660,7 +660,7 @@ func checkExecuteErrorResult(t *testing.T, err error, result any, expectedErrorS
 		return
 	}
 
-	toolResult, ok := result.(*domain.ToolExecutionResult)
+	toolResult, ok := result.(*agentdomain.ToolExecutionResult)
 	if !ok || toolResult == nil {
 		t.Error("Expected error but got successful result")
 		return
@@ -979,7 +979,7 @@ func runEditExecuteTest(t *testing.T, tt editExecuteTestCase, tempDir string, cf
 	}
 
 	if tt.expectedSuccess {
-		editResult, ok := result.Data.(*domain.EditToolResult)
+		editResult, ok := result.Data.(*agentdomain.EditToolResult)
 		if !ok {
 			t.Fatal("Expected EditToolResult in result data")
 		}
@@ -1039,13 +1039,13 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 
 	tests := []struct {
 		name       string
-		result     *domain.ToolExecutionResult
-		formatType domain.FormatterType
+		result     *agentdomain.ToolExecutionResult
+		formatType agentdomain.FormatterType
 		contains   []string
 	}{
 		{
 			name: "FormatPreview - successful single edit",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				ToolName: "Edit",
 				Success:  true,
 				Arguments: map[string]any{
@@ -1053,7 +1053,7 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 					"old_string": "old",
 					"new_string": "new",
 				},
-				Data: &domain.EditToolResult{
+				Data: &agentdomain.EditToolResult{
 					FilePath:        "/path/to/file.go",
 					ReplacedCount:   1,
 					FileModified:    true,
@@ -1061,12 +1061,12 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 					LinesDifference: 0,
 				},
 			},
-			formatType: domain.FormatterShort,
+			formatType: agentdomain.FormatterShort,
 			contains:   []string{"Updated", "file.go"},
 		},
 		{
 			name: "FormatPreview - replace all",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				ToolName: "Edit",
 				Success:  true,
 				Arguments: map[string]any{
@@ -1075,7 +1075,7 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 					"new_string":  "new",
 					"replace_all": true,
 				},
-				Data: &domain.EditToolResult{
+				Data: &agentdomain.EditToolResult{
 					FilePath:        "/path/to/file.go",
 					ReplacedCount:   5,
 					ReplaceAll:      true,
@@ -1084,12 +1084,12 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 					LinesDifference: 0,
 				},
 			},
-			formatType: domain.FormatterShort,
+			formatType: agentdomain.FormatterShort,
 			contains:   []string{"Replaced", "5", "occurrences"},
 		},
 		{
 			name: "FormatPreview - no changes",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				ToolName: "Edit",
 				Success:  true,
 				Arguments: map[string]any{
@@ -1097,17 +1097,17 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 					"old_string": "old",
 					"new_string": "old",
 				},
-				Data: &domain.EditToolResult{
+				Data: &agentdomain.EditToolResult{
 					FilePath:     "/path/to/file.go",
 					FileModified: false,
 				},
 			},
-			formatType: domain.FormatterShort,
+			formatType: agentdomain.FormatterShort,
 			contains:   []string{"No changes"},
 		},
 		{
 			name: "FormatUI - successful edit",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				ToolName: "Edit",
 				Success:  true,
 				Arguments: map[string]any{
@@ -1115,7 +1115,7 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 					"old_string": "old",
 					"new_string": "new",
 				},
-				Data: &domain.EditToolResult{
+				Data: &agentdomain.EditToolResult{
 					FilePath:        "/path/to/file.go",
 					ReplacedCount:   1,
 					FileModified:    true,
@@ -1123,12 +1123,12 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 					LinesDifference: 0,
 				},
 			},
-			formatType: domain.FormatterUI,
+			formatType: agentdomain.FormatterUI,
 			contains:   []string{"Edit(", "file_path"},
 		},
 		{
 			name: "FormatUI - failed edit",
-			result: &domain.ToolExecutionResult{
+			result: &agentdomain.ToolExecutionResult{
 				ToolName: "Edit",
 				Success:  false,
 				Error:    "old_string not found",
@@ -1138,12 +1138,12 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 					"new_string": "new",
 				},
 			},
-			formatType: domain.FormatterUI,
+			formatType: agentdomain.FormatterUI,
 			contains:   []string{"Edit("},
 		},
 		{
-			name: "FormatLLM - diff shows real file line numbers",
-			result: &domain.ToolExecutionResult{
+			name: "FormatLLM - plain edit data, no ANSI",
+			result: &agentdomain.ToolExecutionResult{
 				ToolName: "Edit",
 				Success:  true,
 				Arguments: map[string]any{
@@ -1151,19 +1151,19 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 					"old_string": "alpha\nbeta\ngamma",
 					"new_string": "alpha\nBETA\ngamma",
 				},
-				Data: &domain.EditToolResult{
+				Data: &agentdomain.EditToolResult{
 					FilePath:     "/path/to/file.go",
 					FileModified: true,
 					StartLine:    50,
 				},
 			},
-			formatType: domain.FormatterLLM,
-			contains:   []string{"51"},
+			formatType: agentdomain.FormatterLLM,
+			contains:   []string{"File: /path/to/file.go", "File Modified: true"},
 		},
 		{
 			name:       "FormatResult - nil result",
 			result:     nil,
-			formatType: domain.FormatterUI,
+			formatType: agentdomain.FormatterUI,
 			contains:   []string{"unavailable"},
 		},
 	}
@@ -1309,85 +1309,6 @@ func TestEditTool_Execute_EdgeCases(t *testing.T) {
 	t.Run("overlapping pattern", func(t *testing.T) { testEditEdgeCaseOverlapping(t, tempDir, tool) })
 }
 
-func TestEditTool_GetDiffInfo(t *testing.T) {
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Enabled: true,
-			Edit: config.EditToolConfig{
-				Enabled: true,
-			},
-		},
-	}
-
-	tool := NewEditTool(cfg)
-
-	tests := []struct {
-		name         string
-		args         map[string]any
-		expectedFile string
-		expectedOld  string
-		expectedNew  string
-	}{
-		{
-			name: "basic diff info",
-			args: map[string]any{
-				"file_path":  "/path/to/file.go",
-				"old_string": "old content",
-				"new_string": "new content",
-			},
-			expectedFile: "/path/to/file.go",
-			expectedOld:  "old content",
-			expectedNew:  "new content",
-		},
-		{
-			name: "multi-line diff info",
-			args: map[string]any{
-				"file_path":  "/path/to/file.go",
-				"old_string": "line1\nline2",
-				"new_string": "newline1\nnewline2\nnewline3",
-			},
-			expectedFile: "/path/to/file.go",
-			expectedOld:  "line1\nline2",
-			expectedNew:  "newline1\nnewline2\nnewline3",
-		},
-		{
-			name: "empty strings",
-			args: map[string]any{
-				"file_path":  "/path/to/file.go",
-				"old_string": "",
-				"new_string": "new content",
-			},
-			expectedFile: "/path/to/file.go",
-			expectedOld:  "",
-			expectedNew:  "new content",
-		},
-		{
-			name:         "missing arguments",
-			args:         map[string]any{},
-			expectedFile: "",
-			expectedOld:  "",
-			expectedNew:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			diffInfo := tool.GetDiffInfo(tt.args)
-
-			if diffInfo.FilePath != tt.expectedFile {
-				t.Errorf("Expected FilePath=%q, got %q", tt.expectedFile, diffInfo.FilePath)
-			}
-			if diffInfo.OldContent != tt.expectedOld {
-				t.Errorf("Expected OldContent=%q, got %q", tt.expectedOld, diffInfo.OldContent)
-			}
-			if diffInfo.NewContent != tt.expectedNew {
-				t.Errorf("Expected NewContent=%q, got %q", tt.expectedNew, diffInfo.NewContent)
-			}
-		})
-	}
-}
-
-// TestEditTool_Execute_WhitespaceHandling_TrailingWhitespace tests trailing space/tab handling
 func TestEditTool_Execute_WhitespaceHandling_TrailingWhitespace(t *testing.T) {
 	tempDir := t.TempDir()
 	tool := createEditToolForWhitespaceTest(tempDir)
@@ -1845,7 +1766,7 @@ func runEditWhitespaceTests(t *testing.T, tool *EditTool, tempDir string, tests 
 }
 
 // validateEditWhitespaceResult validates the execution result
-func validateEditWhitespaceResult(t *testing.T, result domain.ToolExecutionResult, tt editWhitespaceTest) {
+func validateEditWhitespaceResult(t *testing.T, result agentdomain.ToolExecutionResult, tt editWhitespaceTest) {
 	t.Helper()
 
 	if result.Success != tt.expectedSuccess {

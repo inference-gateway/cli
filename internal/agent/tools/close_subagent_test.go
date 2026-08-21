@@ -5,11 +5,11 @@ import (
 	"os"
 	"testing"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 func TestCloseSubagentTool_Validate(t *testing.T) {
@@ -25,9 +25,9 @@ func TestCloseSubagentTool_InteractiveKillsAndHarvests(t *testing.T) {
 	writeTestResultFile(t, sessionID, "final words")
 
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "s1", Label: "w", Mode: domain.SubagentModeInteractive,
-		SessionID: sessionID, PaneID: "%7", Status: domain.SubagentRunning,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "s1", Label: "w", Mode: scheddomain.SubagentModeInteractive,
+		SessionID: sessionID, PaneID: "%7", Status: scheddomain.SubagentRunning,
 	})
 	tool := NewCloseSubagentTool(config.DefaultConfig(), tracker, nil)
 	killed := ""
@@ -61,11 +61,11 @@ func TestCloseSubagentTool_InteractiveWindsSupervisedJob(t *testing.T) {
 	t.Cleanup(func() { _ = os.Remove(subagentResultFilePath(sessionID)) })
 
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "s1", Mode: domain.SubagentModeInteractive,
-		SessionID: sessionID, PaneID: "%7", Status: domain.SubagentRunning,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "s1", Mode: scheddomain.SubagentModeInteractive,
+		SessionID: sessionID, PaneID: "%7", Status: scheddomain.SubagentRunning,
 	})
-	stopper := &domainmocks.FakeJobStopper{}
+	stopper := &schedmocks.FakeJobStopper{}
 	tool := NewCloseSubagentTool(config.DefaultConfig(), tracker, stopper)
 
 	paneKilledDirectly := false
@@ -78,7 +78,7 @@ func TestCloseSubagentTool_InteractiveWindsSupervisedJob(t *testing.T) {
 	if stopper.WindJobCallCount() != 1 {
 		t.Fatalf("expected one WindJob call, got %d", stopper.WindJobCallCount())
 	}
-	if id, sig := stopper.WindJobArgsForCall(0); id != "s1" || sig != domain.WindStop {
+	if id, sig := stopper.WindJobArgsForCall(0); id != "s1" || sig != scheddomain.WindStop {
 		t.Fatalf("expected WindJob(s1, WindStop), got (%q, %v)", id, sig)
 	}
 	if paneKilledDirectly {
@@ -92,8 +92,8 @@ func TestCloseSubagentTool_InteractiveWindsSupervisedJob(t *testing.T) {
 func TestCloseSubagentTool_HeadlessCancels(t *testing.T) {
 	tracker := utils.NewSubagentTracker()
 	cancelled := false
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "h1", Mode: domain.SubagentModeHeadless, Status: domain.SubagentRunning,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "h1", Mode: scheddomain.SubagentModeHeadless, Status: scheddomain.SubagentRunning,
 		CancelFunc: func() { cancelled = true },
 	})
 	tool := NewCloseSubagentTool(config.DefaultConfig(), tracker, nil)

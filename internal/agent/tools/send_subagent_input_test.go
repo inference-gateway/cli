@@ -5,9 +5,10 @@ import (
 	"os"
 	"testing"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 func TestSendSubagentInputTool_Validate(t *testing.T) {
@@ -35,9 +36,9 @@ func TestSendSubagentInputTool_SubmitRearms(t *testing.T) {
 	writeTestResultFile(t, sessionID, "old answer")
 
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "s1", Mode: domain.SubagentModeInteractive, PaneID: "%2",
-		SessionID: sessionID, Status: domain.SubagentCompleted,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "s1", Mode: scheddomain.SubagentModeInteractive, PaneID: "%2",
+		SessionID: sessionID, Status: scheddomain.SubagentCompleted,
 	})
 	tool := NewSendSubagentInputTool(config.DefaultConfig(), tracker)
 	tool.paneState = func(_ context.Context, _ string) paneState { return paneAlive }
@@ -58,7 +59,7 @@ func TestSendSubagentInputTool_SubmitRearms(t *testing.T) {
 	if gotText != "do more" || len(gotKeys) == 0 || gotKeys[len(gotKeys)-1] != "Enter" {
 		t.Fatalf("submit should type text then press Enter; text=%q keys=%v", gotText, gotKeys)
 	}
-	if s := tracker.GetSubagent("s1"); s == nil || s.Status != domain.SubagentRunning {
+	if s := tracker.GetSubagent("s1"); s == nil || s.Status != scheddomain.SubagentRunning {
 		t.Fatalf("submit should re-arm by flipping status back to running, got %v", s)
 	}
 	if _, err := os.Stat(subagentResultFilePath(sessionID)); !os.IsNotExist(err) {
@@ -70,9 +71,9 @@ func TestSendSubagentInputTool_SubmitRearms(t *testing.T) {
 // NOT re-arm (the agent observes via ReadSubagentScreen).
 func TestSendSubagentInputTool_KeysNoSubmitDoesNotRearm(t *testing.T) {
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "s2", Mode: domain.SubagentModeInteractive, PaneID: "%3",
-		SessionID: "sess-send-keys", Status: domain.SubagentCompleted,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "s2", Mode: scheddomain.SubagentModeInteractive, PaneID: "%3",
+		SessionID: "sess-send-keys", Status: scheddomain.SubagentCompleted,
 	})
 	tool := NewSendSubagentInputTool(config.DefaultConfig(), tracker)
 	tool.paneState = func(_ context.Context, _ string) paneState { return paneAlive }
@@ -94,15 +95,15 @@ func TestSendSubagentInputTool_KeysNoSubmitDoesNotRearm(t *testing.T) {
 			t.Fatalf("submit=false must not append Enter; keys=%v", gotKeys)
 		}
 	}
-	if s := tracker.GetSubagent("s2"); s == nil || s.Status != domain.SubagentCompleted {
+	if s := tracker.GetSubagent("s2"); s == nil || s.Status != scheddomain.SubagentCompleted {
 		t.Fatalf("submit=false must not re-arm; status changed to %v", s.Status)
 	}
 }
 
 func TestSendSubagentInputTool_HeadlessFails(t *testing.T) {
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "h1", Mode: domain.SubagentModeHeadless, Status: domain.SubagentRunning,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "h1", Mode: scheddomain.SubagentModeHeadless, Status: scheddomain.SubagentRunning,
 	})
 	tool := NewSendSubagentInputTool(config.DefaultConfig(), tracker)
 
@@ -114,9 +115,9 @@ func TestSendSubagentInputTool_HeadlessFails(t *testing.T) {
 
 func TestSendSubagentInputTool_GonePaneFails(t *testing.T) {
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "g1", Mode: domain.SubagentModeInteractive, PaneID: "%9",
-		SessionID: "sess-gone", Status: domain.SubagentRunning,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "g1", Mode: scheddomain.SubagentModeInteractive, PaneID: "%9",
+		SessionID: "sess-gone", Status: scheddomain.SubagentRunning,
 	})
 	tool := NewSendSubagentInputTool(config.DefaultConfig(), tracker)
 	tool.paneState = func(_ context.Context, _ string) paneState { return paneGone }

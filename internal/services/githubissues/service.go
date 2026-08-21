@@ -16,8 +16,9 @@ import (
 	"sync"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 const (
@@ -30,13 +31,13 @@ const (
 // runnerFunc shells out to gh with the given args. Stubbed in tests.
 type runnerFunc func(ctx context.Context, args ...string) ([]byte, error)
 
-// Service implements domain.GitHubIssueService.
+// Service implements agentdomain.GitHubIssueService.
 type Service struct {
 	runner runnerFunc
 
 	mu        sync.Mutex
 	cachedAt  time.Time
-	cached    []domain.GitHubIssue
+	cached    []agentdomain.GitHubIssue
 	available *bool
 }
 
@@ -77,7 +78,7 @@ type rawComment struct {
 // capped at maxResults. Cached for cacheTTL. Returns ([], nil) on any
 // environment failure (no gh, not a repo, not authed) so the autocomplete UI
 // can treat absence as "show nothing" rather than as an error.
-func (s *Service) ListIssues(ctx context.Context) ([]domain.GitHubIssue, error) {
+func (s *Service) ListIssues(ctx context.Context) ([]agentdomain.GitHubIssue, error) {
 	s.mu.Lock()
 	if !s.cachedAt.IsZero() && time.Since(s.cachedAt) < cacheTTL {
 		issues := s.cached
@@ -97,18 +98,18 @@ func (s *Service) ListIssues(ctx context.Context) ([]domain.GitHubIssue, error) 
 	)
 	if err != nil {
 		logger.Debug("githubissues: gh issue list failed - returning empty", "err", err)
-		return []domain.GitHubIssue{}, nil
+		return []agentdomain.GitHubIssue{}, nil
 	}
 
 	var raw []rawIssue
 	if err := json.Unmarshal(out, &raw); err != nil {
 		logger.Debug("githubissues: gh issue list JSON decode failed", "err", err)
-		return []domain.GitHubIssue{}, nil
+		return []agentdomain.GitHubIssue{}, nil
 	}
 
-	issues := make([]domain.GitHubIssue, 0, len(raw))
+	issues := make([]agentdomain.GitHubIssue, 0, len(raw))
 	for _, r := range raw {
-		issues = append(issues, domain.GitHubIssue{
+		issues = append(issues, agentdomain.GitHubIssue{
 			Number:    r.Number,
 			Title:     r.Title,
 			State:     r.State,
@@ -117,7 +118,7 @@ func (s *Service) ListIssues(ctx context.Context) ([]domain.GitHubIssue, error) 
 			Author:    r.Author.Login,
 		})
 	}
-	slices.SortFunc(issues, func(a, b domain.GitHubIssue) int {
+	slices.SortFunc(issues, func(a, b agentdomain.GitHubIssue) int {
 		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 
@@ -131,7 +132,7 @@ func (s *Service) ListIssues(ctx context.Context) ([]domain.GitHubIssue, error) 
 
 // GetIssue fetches a single issue with body and the last maxComments comments.
 // Uncached; called once per "#N" token at message-submit time.
-func (s *Service) GetIssue(ctx context.Context, number int) (*domain.GitHubIssue, error) {
+func (s *Service) GetIssue(ctx context.Context, number int) (*agentdomain.GitHubIssue, error) {
 	if number <= 0 {
 		return nil, errors.New("invalid issue number")
 	}
@@ -152,9 +153,9 @@ func (s *Service) GetIssue(ctx context.Context, number int) (*domain.GitHubIssue
 		return nil, err
 	}
 
-	comments := make([]domain.GitHubIssueComment, 0, len(r.Comments))
+	comments := make([]agentdomain.GitHubIssueComment, 0, len(r.Comments))
 	for _, c := range r.Comments {
-		comments = append(comments, domain.GitHubIssueComment{
+		comments = append(comments, agentdomain.GitHubIssueComment{
 			Author:    c.Author.Login,
 			Body:      c.Body,
 			CreatedAt: c.CreatedAt,
@@ -164,7 +165,7 @@ func (s *Service) GetIssue(ctx context.Context, number int) (*domain.GitHubIssue
 		comments = comments[len(comments)-maxComments:]
 	}
 
-	return &domain.GitHubIssue{
+	return &agentdomain.GitHubIssue{
 		Number:    r.Number,
 		Title:     r.Title,
 		Body:      r.Body,
@@ -213,4 +214,4 @@ func (s *Service) probeAvailable() bool {
 }
 
 // Compile-time interface satisfaction check.
-var _ domain.GitHubIssueService = (*Service)(nil)
+var _ agentdomain.GitHubIssueService = (*Service)(nil)

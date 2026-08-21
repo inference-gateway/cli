@@ -9,7 +9,8 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // ImageGenerationTool generates an image with the configured image model and
@@ -18,7 +19,7 @@ import (
 // selected for the session.
 type ImageGenerationTool struct {
 	config       *config.Config
-	imageService domain.ImageService
+	imageService agentdomain.ImageService
 }
 
 var (
@@ -35,7 +36,7 @@ var (
 )
 
 // NewImageGenerationTool creates a new ImageGeneration tool
-func NewImageGenerationTool(cfg *config.Config, imageService domain.ImageService) *ImageGenerationTool {
+func NewImageGenerationTool(cfg *config.Config, imageService agentdomain.ImageService) *ImageGenerationTool {
 	return &ImageGenerationTool{
 		config:       cfg,
 		imageService: imageService,
@@ -102,7 +103,7 @@ func (t *ImageGenerationTool) Validate(args map[string]any) error {
 }
 
 // Execute executes the ImageGeneration tool
-func (t *ImageGenerationTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *ImageGenerationTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
@@ -122,7 +123,7 @@ func (t *ImageGenerationTool) Execute(ctx context.Context, args map[string]any) 
 	model := t.config.Tools.ImageGeneration.Model
 	path, err := t.imageService.GenerateImage(ctx, model, prompt, quality, size)
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "ImageGeneration",
 			Arguments: args,
 			Success:   false,
@@ -131,7 +132,7 @@ func (t *ImageGenerationTool) Execute(ctx context.Context, args map[string]any) 
 		}, nil
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "ImageGeneration",
 		Arguments: args,
 		Success:   true,
@@ -153,7 +154,7 @@ func (t *ImageGenerationTool) IsEnabled() bool {
 }
 
 // FormatPreview formats the result for display preview
-func (t *ImageGenerationTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *ImageGenerationTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Image generation failed"
 	}
@@ -166,7 +167,7 @@ func (t *ImageGenerationTool) FormatPreview(result *domain.ToolExecutionResult) 
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *ImageGenerationTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *ImageGenerationTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Error: no result"
 	}
@@ -180,7 +181,7 @@ func (t *ImageGenerationTool) FormatForLLM(result *domain.ToolExecutionResult) s
 	path, _ := data["path"].(string)
 	quality, _ := data["quality"].(string)
 	size, _ := data["size"].(string)
-	formatter := domain.NewBaseFormatter("ImageGeneration")
+	formatter := agentinfra.NewBaseFormatter("ImageGeneration")
 	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (quality: %s, size: %s)", path, quality, size))
 }
 
@@ -195,11 +196,11 @@ func (t *ImageGenerationTool) ShouldAlwaysExpand() bool {
 }
 
 // FormatResult formats the result based on the requested format type
-func (t *ImageGenerationTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *ImageGenerationTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)

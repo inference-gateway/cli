@@ -6,14 +6,15 @@ import (
 	"os"
 	"testing"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 func writeTestResultFile(t *testing.T, sessionID, msg string) {
 	t.Helper()
-	data, err := json.Marshal(domain.SubagentResultFile{FinalAssistant: msg, Success: true})
+	data, err := json.Marshal(scheddomain.SubagentResultFile{FinalAssistant: msg, Success: true})
 	if err != nil {
 		t.Fatalf("marshal result file: %v", err)
 	}
@@ -40,9 +41,9 @@ func TestGetSubagentResultTool_CompletedInteractiveReadsResultFile(t *testing.T)
 	writeTestResultFile(t, sessionID, "the real answer")
 
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "s1", Label: "w", Mode: domain.SubagentModeInteractive,
-		SessionID: sessionID, PaneID: "%5", Status: domain.SubagentCompleted,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "s1", Label: "w", Mode: scheddomain.SubagentModeInteractive,
+		SessionID: sessionID, PaneID: "%5", Status: scheddomain.SubagentCompleted,
 	})
 	tool := NewGetSubagentResultTool(config.DefaultConfig(), tracker)
 
@@ -64,9 +65,9 @@ func TestGetSubagentResultTool_CompletedInteractiveNoFileIsEmpty(t *testing.T) {
 	sessionID := "sess-getresult-empty"
 	_ = os.Remove(subagentResultFilePath(sessionID))
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "s2", Mode: domain.SubagentModeInteractive,
-		SessionID: sessionID, PaneID: "%6", Status: domain.SubagentCompleted,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "s2", Mode: scheddomain.SubagentModeInteractive,
+		SessionID: sessionID, PaneID: "%6", Status: scheddomain.SubagentCompleted,
 	})
 	tool := NewGetSubagentResultTool(config.DefaultConfig(), tracker)
 
@@ -79,10 +80,10 @@ func TestGetSubagentResultTool_CompletedInteractiveNoFileIsEmpty(t *testing.T) {
 
 // A running subagent (either mode) must refuse the poll - it notifies automatically.
 func TestGetSubagentResultTool_RunningRefuses(t *testing.T) {
-	for _, mode := range []string{domain.SubagentModeInteractive, domain.SubagentModeHeadless} {
+	for _, mode := range []string{scheddomain.SubagentModeInteractive, scheddomain.SubagentModeHeadless} {
 		tracker := utils.NewSubagentTracker()
-		_ = tracker.AddSubagent(&domain.SubagentState{
-			ID: "r1", Label: "w", Mode: mode, PaneID: "%5", Status: domain.SubagentRunning,
+		_ = tracker.AddSubagent(&scheddomain.SubagentState{
+			ID: "r1", Label: "w", Mode: mode, PaneID: "%5", Status: scheddomain.SubagentRunning,
 		})
 		tool := NewGetSubagentResultTool(config.DefaultConfig(), tracker)
 		res, err := tool.Execute(context.Background(), map[string]any{"subagent_id": "r1"})

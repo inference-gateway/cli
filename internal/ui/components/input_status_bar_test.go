@@ -6,16 +6,20 @@ import (
 	"strings"
 	"testing"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
+
 	sdk "github.com/inference-gateway/sdk"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	models "github.com/inference-gateway/cli/internal/models"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 type stubTokenEstimator struct {
@@ -24,7 +28,7 @@ type stubTokenEstimator struct {
 	toolCount  int
 }
 
-func (s *stubTokenEstimator) GetToolStats(domain.ToolService, domain.AgentMode) (int, int) {
+func (s *stubTokenEstimator) GetToolStats(agentdomain.ToolService, agentdomain.AgentMode) (int, int) {
 	return s.toolTokens, s.toolCount
 }
 
@@ -41,12 +45,12 @@ func (s *stubTokenEstimator) EffectiveContextTokens(lastInputTokens int, _ []sdk
 
 // readinessStateManager returns a real ApplicationState whose readiness matches
 // the given TotalAgents/ReadyAgents (nil r leaves readiness uninitialized).
-func readinessStateManager(r *domain.AgentReadinessState) *domain.ApplicationState {
-	st := domain.NewApplicationState()
+func readinessStateManager(r *ui.AgentReadinessState) *ui.ApplicationState {
+	st := ui.NewApplicationState()
 	if r != nil {
 		st.InitializeAgentReadiness(r.TotalAgents)
 		for i := 0; i < r.ReadyAgents; i++ {
-			st.UpdateAgentStatus(fmt.Sprintf("agent-%d", i), domain.AgentStateReady, "", "", "")
+			st.UpdateAgentStatus(fmt.Sprintf("agent-%d", i), agentdomain.AgentStateReady, "", "", "")
 		}
 	}
 	return st
@@ -72,14 +76,14 @@ func TestInputStatusBar_MasterToggle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			modelService := &domainmocks.FakeModelService{}
+			modelService := &convmocks.FakeModelService{}
 			modelService.GetCurrentModelReturns("test-model")
 
-			themeService := &domainmocks.FakeThemeService{}
+			themeService := &uimocks.FakeThemeService{}
 			themeService.GetCurrentThemeNameReturns("tokyo-night")
 
-			stateManager := domain.NewApplicationState()
-			stateManager.SetAgentMode(domain.AgentModeStandard)
+			stateManager := ui.NewApplicationState()
+			stateManager.SetAgentMode(agentdomain.AgentModeStandard)
 
 			cfg := config.DefaultConfig()
 			cfg.Chat.StatusBar.Enabled = tt.enabled
@@ -200,12 +204,12 @@ func TestInputStatusBar_GetBackgroundJobsInfo(t *testing.T) {
 	})
 
 	t.Run("only non-zero kinds are shown", func(t *testing.T) {
-		reg := &domainmocks.FakeBackgroundTaskRegistry{}
-		reg.CountRunningJobsStub = func(kind domain.JobKind) int {
+		reg := &schedmocks.FakeBackgroundTaskRegistry{}
+		reg.CountRunningJobsStub = func(kind scheddomain.JobKind) int {
 			switch kind {
-			case domain.JobKindA2A:
+			case scheddomain.JobKindA2A:
 				return 2
-			case domain.JobKindSubagent:
+			case scheddomain.JobKindSubagent:
 				return 3
 			default:
 				return 0
@@ -222,7 +226,7 @@ func TestInputStatusBar_GetBackgroundJobsInfo(t *testing.T) {
 	})
 
 	t.Run("all zero yields nothing", func(t *testing.T) {
-		reg := &domainmocks.FakeBackgroundTaskRegistry{}
+		reg := &schedmocks.FakeBackgroundTaskRegistry{}
 		reg.CountRunningJobsReturns(0)
 		sb := &InputStatusBar{backgroundTaskRegistry: reg}
 		if got := sb.getBackgroundJobsInfo(); got != "" {
@@ -232,7 +236,7 @@ func TestInputStatusBar_GetBackgroundJobsInfo(t *testing.T) {
 }
 
 func TestInputStatusBar_BuildThemeIndicator(t *testing.T) {
-	themeService := &domainmocks.FakeThemeService{}
+	themeService := &uimocks.FakeThemeService{}
 	themeService.GetCurrentThemeNameReturns("tokyo-night")
 
 	statusBar := &InputStatusBar{
@@ -248,9 +252,9 @@ func TestInputStatusBar_BuildThemeIndicator(t *testing.T) {
 }
 
 func TestInputStatusBar_BuildEffortIndicator(t *testing.T) {
-	agent := &domainmocks.FakeAgentService{}
+	agent := &agentdomainmocks.FakeAgentService{}
 	agent.GetReasoningEffortReturns("xhigh")
-	anthropicModels := &domainmocks.FakeModelService{}
+	anthropicModels := &convmocks.FakeModelService{}
 	anthropicModels.GetCurrentModelReturns("anthropic/claude-opus-4-8")
 
 	statusBar := &InputStatusBar{effortSource: agent, modelService: anthropicModels}
@@ -258,7 +262,7 @@ func TestInputStatusBar_BuildEffortIndicator(t *testing.T) {
 		t.Errorf("Expected 'Effort: xhigh' but got '%s'", got)
 	}
 
-	openaiModels := &domainmocks.FakeModelService{}
+	openaiModels := &convmocks.FakeModelService{}
 	openaiModels.GetCurrentModelReturns("openai/gpt-5")
 	statusBar.modelService = openaiModels
 	if got := statusBar.buildEffortIndicator(); got != "" {
@@ -322,13 +326,13 @@ func TestInputStatusBar_BuildMaxOutputIndicator(t *testing.T) {
 func TestInputStatusBar_BuildA2AAgentsIndicator(t *testing.T) {
 	tests := []struct {
 		name         string
-		readiness    *domain.AgentReadinessState
+		readiness    *ui.AgentReadinessState
 		expectedText string
 		expectEmpty  bool
 	}{
 		{
 			name: "returns agent readiness",
-			readiness: &domain.AgentReadinessState{
+			readiness: &ui.AgentReadinessState{
 				TotalAgents: 5,
 				ReadyAgents: 3,
 			},
@@ -343,7 +347,7 @@ func TestInputStatusBar_BuildA2AAgentsIndicator(t *testing.T) {
 		},
 		{
 			name: "returns empty when total agents is zero",
-			readiness: &domain.AgentReadinessState{
+			readiness: &ui.AgentReadinessState{
 				TotalAgents: 0,
 				ReadyAgents: 0,
 			},
@@ -375,14 +379,14 @@ func TestInputStatusBar_BuildA2AAgentsIndicator(t *testing.T) {
 func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 	tests := []struct {
 		name         string
-		mcpStatus    *domain.MCPServerStatus
+		mcpStatus    *ui.MCPServerStatus
 		serverCount  int
 		expectedText string
 		expectEmpty  bool
 	}{
 		{
 			name: "returns MCP status with tools",
-			mcpStatus: &domain.MCPServerStatus{
+			mcpStatus: &ui.MCPServerStatus{
 				TotalServers:     4,
 				ConnectedServers: 3,
 				TotalTools:       2500,
@@ -393,7 +397,7 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 		},
 		{
 			name: "returns MCP status without tools",
-			mcpStatus: &domain.MCPServerStatus{
+			mcpStatus: &ui.MCPServerStatus{
 				TotalServers:     4,
 				ConnectedServers: 3,
 				TotalTools:       0,
@@ -439,14 +443,14 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 	tests := []struct {
 		name         string
-		stats        domain.SessionTokenStats
+		stats        convdomain.SessionTokenStats
 		expectedText string
 		expectEmpty  bool
 		nilRepo      bool
 	}{
 		{
 			name: "renders cumulative total input tokens when present",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				TotalInputTokens:  20_000,
 				TotalOutputTokens: 314,
 				TotalTokens:       20_314,
@@ -459,7 +463,7 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 		},
 		{
 			name: "returns empty when total input tokens is zero",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				TotalTokens: 800,
 			},
 			expectedText: "",
@@ -476,9 +480,9 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var conversationRepo domain.ConversationRepository
+			var conversationRepo convdomain.ConversationRepository
 			if !tt.nilRepo {
-				mockRepo := &domainmocks.FakeConversationRepository{}
+				mockRepo := &convmocks.FakeConversationRepository{}
 				mockRepo.GetSessionTokensReturns(tt.stats)
 				conversationRepo = mockRepo
 			}
@@ -502,18 +506,18 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 func TestInputStatusBar_BuildCachedTokensIndicator(t *testing.T) {
 	tests := []struct {
 		name         string
-		stats        domain.SessionTokenStats
+		stats        convdomain.SessionTokenStats
 		expectedText string
 		nilRepo      bool
 	}{
 		{
 			name:         "renders cumulative cached tokens when present",
-			stats:        domain.SessionTokenStats{TotalInputTokens: 20_000, TotalCachedTokens: 17_500},
+			stats:        convdomain.SessionTokenStats{TotalInputTokens: 20_000, TotalCachedTokens: 17_500},
 			expectedText: "C.17500",
 		},
 		{
 			name:  "hidden while zero",
-			stats: domain.SessionTokenStats{TotalInputTokens: 20_000},
+			stats: convdomain.SessionTokenStats{TotalInputTokens: 20_000},
 		},
 		{
 			name:    "hidden when repo is nil",
@@ -523,9 +527,9 @@ func TestInputStatusBar_BuildCachedTokensIndicator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var conversationRepo domain.ConversationRepository
+			var conversationRepo convdomain.ConversationRepository
 			if !tt.nilRepo {
-				mockRepo := &domainmocks.FakeConversationRepository{}
+				mockRepo := &convmocks.FakeConversationRepository{}
 				mockRepo.GetSessionTokensReturns(tt.stats)
 				conversationRepo = mockRepo
 			}
@@ -547,7 +551,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		stats        domain.SessionTokenStats
+		stats        convdomain.SessionTokenStats
 		model        string
 		expectedText string
 		expectEmpty  bool
@@ -555,7 +559,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 	}{
 		{
 			name: "renders percentage at low usage from LastInputTokens",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				LastInputTokens: 20_000,
 			},
 			model:        "deepseek/deepseek-v4-flash",
@@ -564,7 +568,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		},
 		{
 			name: "renders HIGH label between 75 and 90 percent",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				LastInputTokens: 800_000,
 			},
 			model:        "deepseek/deepseek-v4-flash",
@@ -573,7 +577,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		},
 		{
 			name: "renders FULL label at or above 90 percent",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				LastInputTokens: 950_000,
 			},
 			model:        "deepseek/deepseek-v4-flash",
@@ -582,7 +586,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		},
 		{
 			name: "uses last request size, ignores cumulative total",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				TotalInputTokens: 3_163_117,
 				LastInputTokens:  50_000,
 			},
@@ -592,7 +596,7 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 		},
 		{
 			name: "returns empty when no usage and no estimator",
-			stats: domain.SessionTokenStats{
+			stats: convdomain.SessionTokenStats{
 				LastInputTokens: 0,
 			},
 			model:        "deepseek/deepseek-v4-flash",
@@ -610,9 +614,9 @@ func TestInputStatusBar_GetContextUsageIndicator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var conversationRepo domain.ConversationRepository
+			var conversationRepo convdomain.ConversationRepository
 			if !tt.nilRepo {
-				mockRepo := &domainmocks.FakeConversationRepository{}
+				mockRepo := &convmocks.FakeConversationRepository{}
 				mockRepo.GetSessionTokensReturns(tt.stats)
 				conversationRepo = mockRepo
 			}
@@ -656,9 +660,9 @@ func TestInputStatusBar_FallsBackToEstimator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := &domainmocks.FakeConversationRepository{}
-			mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{TotalInputTokens: 0})
-			mockRepo.GetMessagesReturns([]domain.ConversationEntry{
+			mockRepo := &convmocks.FakeConversationRepository{}
+			mockRepo.GetSessionTokensReturns(convdomain.SessionTokenStats{TotalInputTokens: 0})
+			mockRepo.GetMessagesReturns([]convdomain.ConversationEntry{
 				{Message: sdk.Message{Role: sdk.User}},
 			})
 
@@ -778,7 +782,7 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 				cfg := config.DefaultConfig()
 				cfg.Agent.MaxTokens = 8000
 
-				themeService := &domainmocks.FakeThemeService{}
+				themeService := &uimocks.FakeThemeService{}
 				themeService.GetCurrentThemeNameReturns("tokyo-night")
 
 				return &InputStatusBar{config: cfg, themeService: themeService}
@@ -792,12 +796,12 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 				cfg.Agent.MaxTokens = 8000
 				cfg.Chat.StatusBar.Indicators.SessionTokens = true
 
-				mockRepo := &domainmocks.FakeConversationRepository{}
-				mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{
+				mockRepo := &convmocks.FakeConversationRepository{}
+				mockRepo.GetSessionTokensReturns(convdomain.SessionTokenStats{
 					TotalInputTokens: 1234,
 				})
 
-				themeService := &domainmocks.FakeThemeService{}
+				themeService := &uimocks.FakeThemeService{}
 				themeService.GetCurrentThemeNameReturns("tokyo-night")
 
 				return &InputStatusBar{config: cfg, themeService: themeService, conversationRepo: mockRepo}
@@ -829,7 +833,7 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 }
 
 func TestInputStatusBar_NilStyleProviderFallback(t *testing.T) {
-	modelService := &domainmocks.FakeModelService{}
+	modelService := &convmocks.FakeModelService{}
 	modelService.GetCurrentModelReturns("test-model")
 
 	statusBar := &InputStatusBar{
@@ -850,10 +854,10 @@ func TestInputStatusBar_NilStyleProviderFallback(t *testing.T) {
 // indicators and, optionally, a background-jobs indicator (two running jobs
 // per kind).
 func newSelectableStatusBar(withJobs bool) *InputStatusBar {
-	modelService := &domainmocks.FakeModelService{}
+	modelService := &convmocks.FakeModelService{}
 	modelService.GetCurrentModelReturns("test-model")
 
-	themeService := &domainmocks.FakeThemeService{}
+	themeService := &uimocks.FakeThemeService{}
 	themeService.GetCurrentThemeNameReturns("tokyo-night")
 
 	statusBar := &InputStatusBar{
@@ -864,7 +868,7 @@ func newSelectableStatusBar(withJobs bool) *InputStatusBar {
 	}
 
 	if withJobs {
-		registry := &domainmocks.FakeBackgroundTaskRegistry{}
+		registry := &schedmocks.FakeBackgroundTaskRegistry{}
 		registry.CountRunningJobsReturns(2)
 		statusBar.backgroundTaskRegistry = registry
 	}
@@ -907,9 +911,9 @@ func TestInputStatusBar_FocusRequiresActionableIndicator(t *testing.T) {
 
 func TestInputStatusBar_SelectionCyclesActionableIndicators(t *testing.T) {
 	statusBar := newSelectableStatusBar(true)
-	statusBar.toolService = &domainmocks.FakeToolService{}
+	statusBar.toolService = &agentdomainmocks.FakeToolService{}
 	statusBar.tokenEstimator = &stubTokenEstimator{toolTokens: 8017, toolCount: 25}
-	statusBar.stateManager = readinessStateManager(&domain.AgentReadinessState{TotalAgents: 1, ReadyAgents: 1})
+	statusBar.stateManager = readinessStateManager(&ui.AgentReadinessState{TotalAgents: 1, ReadyAgents: 1})
 	if !statusBar.Focus() {
 		t.Fatal("Focus should succeed")
 	}
@@ -960,7 +964,7 @@ func TestInputStatusBar_SelectionClampsWhenIndicatorsDisappear(t *testing.T) {
 		t.Fatalf("precondition failed: expected task management selected, got %v", got)
 	}
 
-	registry := statusBar.backgroundTaskRegistry.(*domainmocks.FakeBackgroundTaskRegistry)
+	registry := statusBar.backgroundTaskRegistry.(*schedmocks.FakeBackgroundTaskRegistry)
 	registry.CountRunningJobsReturns(0)
 
 	if got := statusBar.SelectedAction(); got != ui.StatusIndicatorActionThemeSelection {
@@ -996,7 +1000,7 @@ func TestInputStatusBar_FocusedRenderHighlightsSelection(t *testing.T) {
 	fakeTheme.GetDimColorReturns("#888888")
 	fakeTheme.GetAccentColorReturns("#ff9e64")
 	fakeTheme.GetBorderColorReturns("#3b4261")
-	themeService := &domainmocks.FakeThemeService{}
+	themeService := &uimocks.FakeThemeService{}
 	themeService.GetCurrentThemeReturns(fakeTheme)
 
 	statusBar := newSelectableStatusBar(false)
@@ -1052,7 +1056,7 @@ func agentStartupProvider() *styles.Provider {
 	fakeTheme.GetSuccessColorReturns("#9ece6a")
 	fakeTheme.GetErrorColorReturns("#f7768e")
 	fakeTheme.GetAccentColorReturns("#ff9e64")
-	themeService := &domainmocks.FakeThemeService{}
+	themeService := &uimocks.FakeThemeService{}
 	themeService.GetCurrentThemeReturns(fakeTheme)
 	return styles.NewProvider(themeService)
 }
@@ -1062,64 +1066,64 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		setup func() *domain.ApplicationState
+		setup func() *ui.ApplicationState
 		want  string
 	}{
 		{
 			name:  "no readiness state has no color",
-			setup: domain.NewApplicationState,
+			setup: ui.NewApplicationState,
 			want:  "",
 		},
 		{
 			name: "startup in progress has no color",
-			setup: func() *domain.ApplicationState {
-				st := domain.NewApplicationState()
+			setup: func() *ui.ApplicationState {
+				st := ui.NewApplicationState()
 				st.InitializeAgentReadiness(1)
-				st.UpdateAgentStatus("agent-a", domain.AgentStatePullingImage, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStatePullingImage, "", "", "")
 				return st
 			},
 			want: "",
 		},
 		{
 			name: "all ready is green",
-			setup: func() *domain.ApplicationState {
-				st := domain.NewApplicationState()
+			setup: func() *ui.ApplicationState {
+				st := ui.NewApplicationState()
 				st.InitializeAgentReadiness(1)
-				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
 				return st
 			},
 			want: "#9ece6a",
 		},
 		{
 			name: "any failed is red",
-			setup: func() *domain.ApplicationState {
-				st := domain.NewApplicationState()
+			setup: func() *ui.ApplicationState {
+				st := ui.NewApplicationState()
 				st.InitializeAgentReadiness(2)
-				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
-				st.UpdateAgentStatus("agent-b", domain.AgentStateFailed, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-b", agentdomain.AgentStateFailed, "", "", "")
 				return st
 			},
 			want: "#f7768e",
 		},
 		{
 			name: "agent going down turns red",
-			setup: func() *domain.ApplicationState {
-				st := domain.NewApplicationState()
+			setup: func() *ui.ApplicationState {
+				st := ui.NewApplicationState()
 				st.InitializeAgentReadiness(1)
-				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
-				st.UpdateAgentStatus("agent-a", domain.AgentStateFailed, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateFailed, "", "", "")
 				return st
 			},
 			want: "#f7768e",
 		},
 		{
 			name: "recovered agent is green again",
-			setup: func() *domain.ApplicationState {
-				st := domain.NewApplicationState()
+			setup: func() *ui.ApplicationState {
+				st := ui.NewApplicationState()
 				st.InitializeAgentReadiness(1)
-				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
-				st.UpdateAgentStatus("agent-a", domain.AgentStateFailed, "", "", "")
-				st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateFailed, "", "", "")
+				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
 				return st
 			},
 			want: "#9ece6a",
@@ -1140,21 +1144,21 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 // per-agent states: a flapping agent must count down on failure and never
 // exceed the total on recovery (regression for the "A2A: 2/1" drift).
 func TestInputStatusBar_A2AIndicatorCountsDown(t *testing.T) {
-	st := domain.NewApplicationState()
+	st := ui.NewApplicationState()
 	st.InitializeAgentReadiness(1)
 	statusBar := &InputStatusBar{stateManager: st}
 
-	st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+	st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
 	if got := statusBar.buildA2AAgentsIndicator(); got != "A2A: 1/1" {
 		t.Fatalf("after ready: got %q, want %q", got, "A2A: 1/1")
 	}
 
-	st.UpdateAgentStatus("agent-a", domain.AgentStateFailed, "", "", "")
+	st.UpdateAgentStatus("agent-a", agentdomain.AgentStateFailed, "", "", "")
 	if got := statusBar.buildA2AAgentsIndicator(); got != "A2A: 0/1" {
 		t.Fatalf("after failure: got %q, want %q", got, "A2A: 0/1")
 	}
 
-	st.UpdateAgentStatus("agent-a", domain.AgentStateReady, "", "", "")
+	st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
 	if got := statusBar.buildA2AAgentsIndicator(); got != "A2A: 1/1" {
 		t.Fatalf("after recovery: got %q, want %q", got, "A2A: 1/1")
 	}

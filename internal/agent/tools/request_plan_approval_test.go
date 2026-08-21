@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/config"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 // newPlanToolForTest builds the tool against a jsonl store rooted at a temp

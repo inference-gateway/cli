@@ -11,8 +11,8 @@ import (
 	huh "charm.land/huh/v2"
 	cobra "github.com/spf13/cobra"
 
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	provisioner "github.com/inference-gateway/cli/internal/services/provisioner"
-	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
 const (

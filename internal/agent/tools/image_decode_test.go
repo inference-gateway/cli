@@ -8,11 +8,11 @@ import (
 	assert "github.com/stretchr/testify/assert"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
-func newImageDecodeTestTool(annotator domain.ImageAnnotator, images domain.ImageService) *ImageDecodeTool {
+func newImageDecodeTestTool(annotator agentdomain.ImageAnnotator, images agentdomain.ImageService) *ImageDecodeTool {
 	cfg := config.DefaultConfig()
 	cfg.Prompts = *config.DefaultPromptsConfig()
 	cfg.Vision.Annotator.Enabled = true
@@ -21,8 +21,8 @@ func newImageDecodeTestTool(annotator domain.ImageAnnotator, images domain.Image
 }
 
 func TestImageDecodeIsEnabled(t *testing.T) {
-	images := &domainmocks.FakeImageService{}
-	annotator := &domainmocks.FakeImageAnnotator{}
+	images := &agentdomainmocks.FakeImageService{}
+	annotator := &agentdomainmocks.FakeImageAnnotator{}
 
 	assert.True(t, newImageDecodeTestTool(annotator, images).IsEnabled())
 
@@ -34,16 +34,16 @@ func TestImageDecodeIsEnabled(t *testing.T) {
 }
 
 func TestImageDecodeValidate(t *testing.T) {
-	tool := newImageDecodeTestTool(&domainmocks.FakeImageAnnotator{}, &domainmocks.FakeImageService{})
+	tool := newImageDecodeTestTool(&agentdomainmocks.FakeImageAnnotator{}, &agentdomainmocks.FakeImageService{})
 	assert.Error(t, tool.Validate(map[string]any{}))
 	assert.NoError(t, tool.Validate(map[string]any{"image": "shot.png"}))
 }
 
 func TestImageDecodeExecute(t *testing.T) {
 	t.Run("not an image file", func(t *testing.T) {
-		images := &domainmocks.FakeImageService{}
+		images := &agentdomainmocks.FakeImageService{}
 		images.ReadImageFromFileReturns(nil, errors.New("failed to detect image format: unknown format"))
-		tool := newImageDecodeTestTool(&domainmocks.FakeImageAnnotator{}, images)
+		tool := newImageDecodeTestTool(&agentdomainmocks.FakeImageAnnotator{}, images)
 
 		result, err := tool.Execute(context.Background(), map[string]any{"image": "notes.txt"})
 		assert.NoError(t, err)
@@ -52,9 +52,9 @@ func TestImageDecodeExecute(t *testing.T) {
 	})
 
 	t.Run("read failure", func(t *testing.T) {
-		images := &domainmocks.FakeImageService{}
+		images := &agentdomainmocks.FakeImageService{}
 		images.ReadImageFromFileReturns(nil, errors.New("no such file"))
-		tool := newImageDecodeTestTool(&domainmocks.FakeImageAnnotator{}, images)
+		tool := newImageDecodeTestTool(&agentdomainmocks.FakeImageAnnotator{}, images)
 
 		result, err := tool.Execute(context.Background(), map[string]any{"image": "gone.png"})
 		assert.NoError(t, err)
@@ -62,13 +62,13 @@ func TestImageDecodeExecute(t *testing.T) {
 	})
 
 	t.Run("success with prompt pass-through", func(t *testing.T) {
-		images := &domainmocks.FakeImageService{}
-		images.ReadImageFromFileReturns(&domain.ImageAttachment{Data: "aW1n", MimeType: "image/png", Filename: "shot.png"}, nil)
+		images := &agentdomainmocks.FakeImageService{}
+		images.ReadImageFromFileReturns(&agentdomain.ImageAttachment{Data: "aW1n", MimeType: "image/png", Filename: "shot.png"}, nil)
 
-		annotator := &domainmocks.FakeImageAnnotator{}
-		annotator.AnnotateImageReturns(&domain.ImageAnnotation{
+		annotator := &agentdomainmocks.FakeImageAnnotator{}
+		annotator.AnnotateImageReturns(&agentdomain.ImageAnnotation{
 			Summary:  "A red button",
-			Elements: []domain.AnnotatedElement{{Index: 1, Label: "button", BBox: [4]int{1, 2, 3, 4}}},
+			Elements: []agentdomain.AnnotatedElement{{Index: 1, Label: "button", BBox: [4]int{1, 2, 3, 4}}},
 		}, nil)
 
 		tool := newImageDecodeTestTool(annotator, images)
@@ -87,10 +87,10 @@ func TestImageDecodeExecute(t *testing.T) {
 	})
 
 	t.Run("annotator failure fails the call", func(t *testing.T) {
-		images := &domainmocks.FakeImageService{}
-		images.ReadImageFromFileReturns(&domain.ImageAttachment{Data: "aW1n", MimeType: "image/png"}, nil)
+		images := &agentdomainmocks.FakeImageService{}
+		images.ReadImageFromFileReturns(&agentdomain.ImageAttachment{Data: "aW1n", MimeType: "image/png"}, nil)
 
-		annotator := &domainmocks.FakeImageAnnotator{}
+		annotator := &agentdomainmocks.FakeImageAnnotator{}
 		annotator.AnnotateImageReturns(nil, errors.New("model unreachable"))
 
 		tool := newImageDecodeTestTool(annotator, images)

@@ -1,0 +1,1285 @@
+package storage
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
+	yaml "gopkg.in/yaml.v3"
+
+	config "github.com/inference-gateway/cli/config"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+)
+
+// JsonlStorage implements ConversationStorage using JSONL files
+type JsonlStorage struct {
+	basePath        string
+	plansPath       string
+	mu              sync.RWMutex
+	persistedCounts map[string]int
+	persistedMutex  sync.RWMutex
+	groupIndexMu    sync.Mutex
+}
+
+// sessionGroupsFileName is the on-disk index that maps a "group key" to the
+// current session UUID for that group. The file is kept one level above the
+// JSONL conversations directory so that legacy installs (where it previously
+// lived at <ConfigDirName>/session_groups.json) keep working without
+// migration.
+const sessionGroupsFileName = "session_groups.json"
+
+type sessionGroupIndexFile struct {
+	Groups map[string]SessionGroupEntry `json:"groups"`
+}
+
+// V2 format version constant
+const jsonlFormatVersion = 2
+
+// MetadataLine represents the first line in v2 format
+type MetadataLine struct {
+	Version  int                             `json:"v"`
+	Type     string                          `json:"type"`
+	Metadata convdomain.ConversationMetadata `json:"metadata"`
+}
+
+// EntryLine represents an entry line in v2 format
+type EntryLine struct {
+	Type  string                       `json:"type"`
+	Index int                          `json:"index"`
+	Entry convdomain.ConversationEntry `json:"entry"`
+}
+
+// NewJsonlStorage creates a new JSONL storage instance
+func NewJsonlStorage(config JsonlStorageConfig) (*JsonlStorage, error) {
+	path := expandHome(config.Path)
+
+	if err := os.MkdirAll(path, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create conversations directory: %w", err)
+	}
+
+	testFile := filepath.Join(path, ".write_test")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		return nil, fmt.Errorf("conversations directory not writable: %w", err)
+	}
+	_ = os.Remove(testFile)
+
+	return &JsonlStorage{
+		basePath:        path,
+		plansPath:       expandHome(config.PlansPath),
+		persistedCounts: make(map[string]int),
+	}, nil
+}
+
+// expandHome resolves a leading "~" against the user's home directory.
+func expandHome(path string) string {
+	if strings.HasPrefix(path, "~") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, path[1:])
+		}
+	}
+	return path
+}
+
+// conversationFilePath returns the path to a conversation's JSONL file.
+// The ID is reduced to its base name and the result verified to stay under
+// basePath, so a crafted ID (e.g. "../../x") can never escape the
+// conversations directory.
+func (s *JsonlStorage) conversationFilePath(conversationID string) string {
+	p := filepath.Join(s.basePath, filepath.Base(conversationID)+".jsonl")
+	if !strings.HasPrefix(p, filepath.Clean(s.basePath)+string(os.PathSeparator)) {
+		return filepath.Join(s.basePath, "invalid.jsonl")
+	}
+	return p
+}
+
+// saveConversationUnlocked saves a conversation without acquiring the lock.
+// Caller must hold the lock before calling this method.
+//
+// Append strategy: any new entries since the last save get appended, then a
+// fresh metadata line is appended unconditionally. The reader uses the LAST
+// metadata line in the file, so each save publishes the latest token/cost
+// stats - even when no new entries were added (e.g. AddTokenUsage updated
+// stats after the assistant message was already persisted).
+func (s *JsonlStorage) saveConversationUnlocked(_ context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
+	filePath := s.conversationFilePath(conversationID)
+
+	state := s.detectFileState(filePath)
+
+	cachedCount, hasCached := s.getPersistedCount(conversationID)
+
+	persistedCount := 0
+	if state.exists && state.isV2 {
+		if hasCached {
+			persistedCount = cachedCount
+		} else {
+			persistedCount = state.persistedCount
+		}
+	}
+
+	needsFullRewrite := !state.exists ||
+		!state.isV2 ||
+		len(entries) < persistedCount
+
+	if needsFullRewrite {
+		if err := s.writeFullFileV2(filePath, entries, metadata); err != nil {
+			return err
+		}
+		s.setPersistedCount(conversationID, len(entries))
+		return nil
+	}
+
+	newEntries := entries[persistedCount:]
+	if err := s.appendEntries(filePath, newEntries, persistedCount, metadata); err != nil {
+		return err
+	}
+	s.setPersistedCount(conversationID, len(entries))
+	return nil
+}
+
+// SaveConversation saves a conversation to a JSONL file
+func (s *JsonlStorage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.saveConversationUnlocked(ctx, conversationID, entries, metadata)
+}
+
+// LoadConversation loads a conversation from a JSONL file
+// Supports both v1 format (2-line: metadata + entries array) and
+// v2 format (entry lines + trailing metadata, append-only)
+func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, convdomain.ConversationMetadata, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	filePath := s.conversationFilePath(conversationID)
+	file, err := os.Open(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, convdomain.ConversationMetadata{}, fmt.Errorf("conversation not found: %s", conversationID)
+		}
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to open conversation file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	scanner := bufio.NewScanner(file)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 10*1024*1024)
+
+	if !scanner.Scan() {
+		if err := scanner.Err(); err != nil {
+			return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to read first line: %w", err)
+		}
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to read first line: empty file")
+	}
+
+	firstLine := make([]byte, len(scanner.Bytes()))
+	copy(firstLine, scanner.Bytes())
+
+	var versionCheck struct {
+		Version int `json:"v"`
+	}
+	if json.Unmarshal(firstLine, &versionCheck) == nil && versionCheck.Version == jsonlFormatVersion {
+		if _, err := file.Seek(0, 0); err != nil {
+			return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to seek to beginning: %w", err)
+		}
+		entries, metadata, err := s.loadV2Format(file)
+		if err != nil {
+			return nil, convdomain.ConversationMetadata{}, err
+		}
+		s.setPersistedCount(conversationID, len(entries))
+		return entries, metadata, nil
+	}
+
+	var metadataWrapper struct {
+		Metadata convdomain.ConversationMetadata `json:"metadata"`
+	}
+	if err := json.Unmarshal(firstLine, &metadataWrapper); err != nil {
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to unmarshal metadata: %w", err)
+	}
+
+	if !scanner.Scan() {
+		if err := scanner.Err(); err != nil {
+			return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to read entries line: %w", err)
+		}
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to read entries line: missing entries")
+	}
+	var entriesWrapper struct {
+		Entries []convdomain.ConversationEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(scanner.Bytes(), &entriesWrapper); err != nil {
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to unmarshal entries: %w", err)
+	}
+
+	return entriesWrapper.Entries, metadataWrapper.Metadata, nil
+}
+
+// readMetadataFromFile reads metadata from a conversation file (v1 or v2 format)
+// For v1: metadata is on the first line
+// For v2: metadata is on the last "meta" type line
+func (s *JsonlStorage) readMetadataFromFile(filePath string) (convdomain.ConversationMetadata, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return convdomain.ConversationMetadata{}, err
+	}
+	defer func() { _ = file.Close() }()
+
+	scanner := bufio.NewScanner(file)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 10*1024*1024)
+
+	if !scanner.Scan() {
+		return convdomain.ConversationMetadata{}, fmt.Errorf("empty file")
+	}
+
+	firstLine := make([]byte, len(scanner.Bytes()))
+	copy(firstLine, scanner.Bytes())
+
+	if !isV2FormatLine(firstLine) {
+		return s.parseV1MetadataLine(firstLine)
+	}
+
+	return s.scanV2Metadata(firstLine, scanner)
+}
+
+// parseV1MetadataLine parses metadata from a v1 format first line
+func (s *JsonlStorage) parseV1MetadataLine(line []byte) (convdomain.ConversationMetadata, error) {
+	var metadataWrapper struct {
+		Metadata convdomain.ConversationMetadata `json:"metadata"`
+	}
+	if err := json.Unmarshal(line, &metadataWrapper); err != nil {
+		return convdomain.ConversationMetadata{}, err
+	}
+	return metadataWrapper.Metadata, nil
+}
+
+// scanV2Metadata scans a v2 format file for the last metadata line
+func (s *JsonlStorage) scanV2Metadata(firstLine []byte, scanner *bufio.Scanner) (convdomain.ConversationMetadata, error) {
+	var lastMetadata convdomain.ConversationMetadata
+	hasMetadata := false
+
+	var typeCheck struct {
+		Type     string                          `json:"type"`
+		Metadata convdomain.ConversationMetadata `json:"metadata"`
+	}
+
+	if json.Unmarshal(firstLine, &typeCheck) == nil && typeCheck.Type == "meta" {
+		lastMetadata = typeCheck.Metadata
+		hasMetadata = true
+	}
+
+	for scanner.Scan() {
+		if json.Unmarshal(scanner.Bytes(), &typeCheck) == nil && typeCheck.Type == "meta" {
+			lastMetadata = typeCheck.Metadata
+			hasMetadata = true
+		}
+	}
+
+	if !hasMetadata {
+		return convdomain.ConversationMetadata{}, fmt.Errorf("no metadata in v2 file")
+	}
+	return lastMetadata, nil
+}
+
+// ListConversations returns a list of conversation summaries
+func (s *JsonlStorage) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	entries, err := os.ReadDir(s.basePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read conversations directory: %w", err)
+	}
+
+	var summaries []convdomain.ConversationSummary
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
+			continue
+		}
+
+		conversationID := strings.TrimSuffix(entry.Name(), ".jsonl")
+		filePath := s.conversationFilePath(conversationID)
+
+		metadata, err := s.readMetadataFromFile(filePath)
+		if err != nil {
+			continue
+		}
+
+		summaries = append(summaries, convdomain.ConversationSummary{
+			ID:                  metadata.ID,
+			Title:               metadata.Title,
+			CreatedAt:           metadata.CreatedAt,
+			UpdatedAt:           metadata.UpdatedAt,
+			MessageCount:        metadata.MessageCount,
+			TokenStats:          metadata.TokenStats,
+			CostStats:           metadata.CostStats,
+			Model:               metadata.Model,
+			Tags:                metadata.Tags,
+			TitleGenerated:      metadata.TitleGenerated,
+			TitleInvalidated:    metadata.TitleInvalidated,
+			TitleGenerationTime: metadata.TitleGenerationTime,
+		})
+	}
+
+	slices.SortFunc(summaries, func(a, b convdomain.ConversationSummary) int {
+		return b.UpdatedAt.Compare(a.UpdatedAt)
+	})
+
+	if offset >= len(summaries) {
+		return []convdomain.ConversationSummary{}, nil
+	}
+	summaries = summaries[offset:]
+	if limit > 0 && len(summaries) > limit {
+		summaries = summaries[:limit]
+	}
+
+	return summaries, nil
+}
+
+// ListConversationsNeedingTitles returns conversations that need title generation
+func (s *JsonlStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]convdomain.ConversationSummary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	allSummaries, err := s.ListConversations(ctx, 0, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	var needingTitles []convdomain.ConversationSummary
+	for _, summary := range allSummaries {
+		if (!summary.TitleGenerated || summary.TitleInvalidated) && summary.MessageCount >= 2 {
+			needingTitles = append(needingTitles, summary)
+		}
+	}
+
+	if limit > 0 && len(needingTitles) > limit {
+		needingTitles = needingTitles[:limit]
+	}
+
+	return needingTitles, nil
+}
+
+// DeleteConversation removes a conversation file
+func (s *JsonlStorage) DeleteConversation(ctx context.Context, conversationID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	filePath := s.conversationFilePath(conversationID)
+	if err := os.Remove(filePath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("conversation not found: %s", conversationID)
+		}
+		return fmt.Errorf("failed to delete conversation: %w", err)
+	}
+
+	s.clearPersistedCount(conversationID)
+
+	return nil
+}
+
+// UpdateConversationMetadata updates only the metadata of a conversation
+// For both v1 and v2 formats, this requires a full rewrite of the file
+// (v2 format is used for the output regardless of input format)
+func (s *JsonlStorage) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata convdomain.ConversationMetadata) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	filePath := s.conversationFilePath(conversationID)
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("conversation not found: %s", conversationID)
+		}
+		return fmt.Errorf("failed to open conversation file: %w", err)
+	}
+
+	scanner := bufio.NewScanner(file)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 10*1024*1024)
+
+	if !scanner.Scan() {
+		_ = file.Close()
+		return fmt.Errorf("failed to read first line: empty file")
+	}
+
+	firstLine := make([]byte, len(scanner.Bytes()))
+	copy(firstLine, scanner.Bytes())
+
+	entries, err := s.loadEntriesFromFile(filePath, firstLine, scanner, file)
+	if err != nil {
+		return err
+	}
+	_ = file.Close()
+
+	if err := s.writeFullFileV2(filePath, entries, metadata); err != nil {
+		return err
+	}
+
+	s.setPersistedCount(conversationID, len(entries))
+	return nil
+}
+
+// Close closes the storage (no-op for JSONL)
+func (s *JsonlStorage) Close() error {
+	return nil
+}
+
+// Health checks if the storage is accessible
+func (s *JsonlStorage) Health(ctx context.Context) error {
+	if _, err := os.Stat(s.basePath); err != nil {
+		return fmt.Errorf("conversations directory not accessible: %w", err)
+	}
+
+	testFile := filepath.Join(s.basePath, ".health_check")
+	if err := os.WriteFile(testFile, []byte("health check"), 0644); err != nil {
+		return fmt.Errorf("conversations directory not writable: %w", err)
+	}
+	_ = os.Remove(testFile)
+
+	return nil
+}
+
+// fileState holds information about an existing conversation file
+type fileState struct {
+	exists         bool
+	isV2           bool
+	persistedCount int
+}
+
+// detectFileState reads the first line of a file to determine its format version
+// and counts entry lines for v2 format
+// V2 format supports trailing metadata: entries come first, metadata lines can appear
+// anywhere but we use the last one. The first line has v:2 to indicate v2 format.
+func (s *JsonlStorage) detectFileState(filePath string) fileState {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fileState{exists: false}
+	}
+	defer func() { _ = file.Close() }()
+
+	scanner := bufio.NewScanner(file)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 10*1024*1024)
+
+	if !scanner.Scan() {
+		return fileState{exists: true, isV2: false}
+	}
+
+	firstLine := make([]byte, len(scanner.Bytes()))
+	copy(firstLine, scanner.Bytes())
+
+	if !isV2FormatLine(firstLine) {
+		return fileState{exists: true, isV2: false}
+	}
+
+	entryCount := s.countV2Entries(firstLine, scanner)
+	return fileState{exists: true, isV2: true, persistedCount: entryCount}
+}
+
+// countV2Entries counts entry lines in a v2 format file
+func (s *JsonlStorage) countV2Entries(firstLine []byte, scanner *bufio.Scanner) int {
+	entryCount := 0
+
+	var typeCheck struct {
+		Type string `json:"type"`
+	}
+
+	if json.Unmarshal(firstLine, &typeCheck) == nil && typeCheck.Type == "entry" {
+		entryCount++
+	}
+
+	for scanner.Scan() {
+		if json.Unmarshal(scanner.Bytes(), &typeCheck) == nil && typeCheck.Type == "entry" {
+			entryCount++
+		}
+	}
+
+	return entryCount
+}
+
+// V2EntryLine represents an entry line in v2 format (first entry has version)
+type V2EntryLine struct {
+	Version int                          `json:"v,omitempty"`
+	Type    string                       `json:"type"`
+	Index   int                          `json:"index"`
+	Entry   convdomain.ConversationEntry `json:"entry"`
+}
+
+// TrailingMetaLine represents a metadata line without version (used after entries)
+type TrailingMetaLine struct {
+	Type     string                          `json:"type"`
+	Metadata convdomain.ConversationMetadata `json:"metadata"`
+}
+
+// writeFullFileV2 writes a complete conversation file in v2 format
+// Uses atomic write via temp file + rename
+// Format: entry lines first (first entry has v:2), then trailing metadata
+func (s *JsonlStorage) writeFullFileV2(filePath string, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
+	tempPath := filePath + ".tmp"
+
+	file, err := os.Create(tempPath)
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+
+	success := false
+	defer func() {
+		if !success {
+			_ = file.Close()
+			_ = os.Remove(tempPath)
+		}
+	}()
+
+	writer := bufio.NewWriter(file)
+
+	if err := s.writeV2Entries(writer, entries); err != nil {
+		return err
+	}
+	if err := s.writeV2Metadata(writer, metadata, len(entries) == 0); err != nil {
+		return err
+	}
+
+	if err := writer.Flush(); err != nil {
+		return fmt.Errorf("failed to flush writer: %w", err)
+	}
+
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	if err := os.Rename(tempPath, filePath); err != nil {
+		_ = os.Remove(tempPath)
+		return fmt.Errorf("failed to rename temp file: %w", err)
+	}
+
+	success = true
+	return nil
+}
+
+// writeV2Entries writes entry lines to the writer
+func (s *JsonlStorage) writeV2Entries(writer *bufio.Writer, entries []convdomain.ConversationEntry) error {
+	for i, entry := range entries {
+		var entryJSON []byte
+		var err error
+
+		if i == 0 {
+			entryJSON, err = json.Marshal(V2EntryLine{
+				Version: jsonlFormatVersion,
+				Type:    "entry",
+				Index:   i,
+				Entry:   entry,
+			})
+		} else {
+			entryJSON, err = json.Marshal(EntryLine{
+				Type:  "entry",
+				Index: i,
+				Entry: entry,
+			})
+		}
+
+		if err != nil {
+			return fmt.Errorf("failed to marshal entry %d: %w", i, err)
+		}
+		if _, err := writer.Write(entryJSON); err != nil {
+			return fmt.Errorf("failed to write entry %d: %w", i, err)
+		}
+		if _, err := writer.WriteString("\n"); err != nil {
+			return fmt.Errorf("failed to write newline: %w", err)
+		}
+	}
+	return nil
+}
+
+// writeV2Metadata writes metadata line to the writer
+// If includeVersion is true, the version is included (for empty entry files)
+func (s *JsonlStorage) writeV2Metadata(writer *bufio.Writer, metadata convdomain.ConversationMetadata, includeVersion bool) error {
+	var metaJSON []byte
+	var err error
+
+	if includeVersion {
+		metaJSON, err = json.Marshal(MetadataLine{
+			Version:  jsonlFormatVersion,
+			Type:     "meta",
+			Metadata: metadata,
+		})
+	} else {
+		metaJSON, err = json.Marshal(TrailingMetaLine{
+			Type:     "meta",
+			Metadata: metadata,
+		})
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+	if _, err := writer.Write(metaJSON); err != nil {
+		return fmt.Errorf("failed to write metadata: %w", err)
+	}
+	if _, err := writer.WriteString("\n"); err != nil {
+		return fmt.Errorf("failed to write newline: %w", err)
+	}
+	return nil
+}
+
+// appendEntries appends new entries and updated metadata to an existing v2 format file
+func (s *JsonlStorage) appendEntries(filePath string, entries []convdomain.ConversationEntry, startIndex int, metadata convdomain.ConversationMetadata) error {
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file for append: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	writer := bufio.NewWriter(file)
+
+	for i, entry := range entries {
+		entryLine := EntryLine{
+			Type:  "entry",
+			Index: startIndex + i,
+			Entry: entry,
+		}
+		entryJSON, err := json.Marshal(entryLine)
+		if err != nil {
+			return fmt.Errorf("failed to marshal entry %d: %w", startIndex+i, err)
+		}
+		if _, err := writer.Write(entryJSON); err != nil {
+			return fmt.Errorf("failed to write entry %d: %w", startIndex+i, err)
+		}
+		if _, err := writer.WriteString("\n"); err != nil {
+			return fmt.Errorf("failed to write newline: %w", err)
+		}
+	}
+
+	metaLine := struct {
+		Type     string                          `json:"type"`
+		Metadata convdomain.ConversationMetadata `json:"metadata"`
+	}{
+		Type:     "meta",
+		Metadata: metadata,
+	}
+	metaJSON, err := json.Marshal(metaLine)
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+	if _, err := writer.Write(metaJSON); err != nil {
+		return fmt.Errorf("failed to write metadata: %w", err)
+	}
+	if _, err := writer.WriteString("\n"); err != nil {
+		return fmt.Errorf("failed to write newline: %w", err)
+	}
+
+	if err := writer.Flush(); err != nil {
+		return fmt.Errorf("failed to flush writer: %w", err)
+	}
+
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync file: %w", err)
+	}
+
+	return nil
+}
+
+// getPersistedCount returns the cached persisted count for a conversation
+func (s *JsonlStorage) getPersistedCount(conversationID string) (int, bool) {
+	s.persistedMutex.RLock()
+	defer s.persistedMutex.RUnlock()
+	count, ok := s.persistedCounts[conversationID]
+	return count, ok
+}
+
+// setPersistedCount updates the cached persisted count for a conversation
+func (s *JsonlStorage) setPersistedCount(conversationID string, count int) {
+	s.persistedMutex.Lock()
+	defer s.persistedMutex.Unlock()
+	s.persistedCounts[conversationID] = count
+}
+
+// clearPersistedCount removes the cached persisted count for a conversation
+func (s *JsonlStorage) clearPersistedCount(conversationID string) {
+	s.persistedMutex.Lock()
+	defer s.persistedMutex.Unlock()
+	delete(s.persistedCounts, conversationID)
+}
+
+// isV2FormatLine checks if the first line indicates v2 format
+func isV2FormatLine(firstLine []byte) bool {
+	var versionCheck struct {
+		Version int `json:"v"`
+	}
+	if err := json.Unmarshal(firstLine, &versionCheck); err != nil {
+		return false
+	}
+	return versionCheck.Version == jsonlFormatVersion
+}
+
+// loadEntriesFromFile loads entries from a file, handling both v1 and v2 formats
+// The caller is responsible for closing the file after this function returns
+func (s *JsonlStorage) loadEntriesFromFile(filePath string, firstLine []byte, scanner *bufio.Scanner, file *os.File) ([]convdomain.ConversationEntry, error) {
+	if isV2FormatLine(firstLine) {
+		_ = file.Close()
+		reopenedFile, err := os.Open(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to reopen file: %w", err)
+		}
+		entries, _, err := s.loadV2Format(reopenedFile)
+		_ = reopenedFile.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load v2 entries: %w", err)
+		}
+		return entries, nil
+	}
+
+	if !scanner.Scan() {
+		return nil, fmt.Errorf("failed to read entries line")
+	}
+	entriesLine := make([]byte, len(scanner.Bytes()))
+	copy(entriesLine, scanner.Bytes())
+
+	var entriesWrapper struct {
+		Entries []convdomain.ConversationEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(entriesLine, &entriesWrapper); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal entries: %w", err)
+	}
+	return entriesWrapper.Entries, nil
+}
+
+// loadV2Format loads a conversation in the v2 format
+// Format: entry lines (first has v:2) followed by trailing metadata lines
+// The last metadata line is used (supports append-only updates)
+func (s *JsonlStorage) loadV2Format(file *os.File) ([]convdomain.ConversationEntry, convdomain.ConversationMetadata, error) {
+	scanner := bufio.NewScanner(file)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 10*1024*1024)
+
+	var entries []convdomain.ConversationEntry
+	var metadata convdomain.ConversationMetadata
+	hasMetadata := false
+
+	for scanner.Scan() {
+		lineBytes := scanner.Bytes()
+
+		var typeCheck struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(lineBytes, &typeCheck); err != nil {
+			return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to parse line type: %w", err)
+		}
+
+		switch typeCheck.Type {
+		case "entry":
+			var entryLine struct {
+				Entry convdomain.ConversationEntry `json:"entry"`
+			}
+			if err := json.Unmarshal(lineBytes, &entryLine); err != nil {
+				return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to unmarshal entry: %w", err)
+			}
+			entries = append(entries, entryLine.Entry)
+		case "meta":
+			var metaLine struct {
+				Metadata convdomain.ConversationMetadata `json:"metadata"`
+			}
+			if err := json.Unmarshal(lineBytes, &metaLine); err != nil {
+				return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to unmarshal metadata: %w", err)
+			}
+			metadata = metaLine.Metadata
+			hasMetadata = true
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	if !hasMetadata {
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("no metadata found in v2 file")
+	}
+
+	return entries, metadata, nil
+}
+
+// sessionGroupsPath is the path of the on-disk session-groups index. It lives
+// one directory level above basePath so existing installs (where the file
+// previously lived at <ConfigDirName>/session_groups.json next to the
+// conversations dir) keep working without migration.
+func (s *JsonlStorage) sessionGroupsPath() string {
+	return filepath.Join(filepath.Dir(s.basePath), sessionGroupsFileName)
+}
+
+func (s *JsonlStorage) loadSessionGroupsLocked() (map[string]SessionGroupEntry, error) {
+	data, err := os.ReadFile(s.sessionGroupsPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return make(map[string]SessionGroupEntry), nil
+		}
+		return nil, fmt.Errorf("read session groups index: %w", err)
+	}
+	if len(data) == 0 {
+		return make(map[string]SessionGroupEntry), nil
+	}
+	var idx sessionGroupIndexFile
+	if err := json.Unmarshal(data, &idx); err != nil {
+		return nil, fmt.Errorf("parse session groups index: %w", err)
+	}
+	if idx.Groups == nil {
+		idx.Groups = make(map[string]SessionGroupEntry)
+	}
+	return idx.Groups, nil
+}
+
+func (s *JsonlStorage) saveSessionGroupsLocked(groups map[string]SessionGroupEntry) error {
+	indexPath := s.sessionGroupsPath()
+	if err := os.MkdirAll(filepath.Dir(indexPath), 0o755); err != nil {
+		return fmt.Errorf("create session groups dir: %w", err)
+	}
+
+	data, err := json.MarshalIndent(sessionGroupIndexFile{Groups: groups}, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal session groups index: %w", err)
+	}
+
+	tmp, err := os.CreateTemp(filepath.Dir(indexPath), sessionGroupsFileName+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("create temp index file: %w", err)
+	}
+	tmpName := tmp.Name()
+	cleanup := func() { _ = os.Remove(tmpName) }
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		cleanup()
+		return fmt.Errorf("write temp index file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanup()
+		return fmt.Errorf("close temp index file: %w", err)
+	}
+	if err := os.Rename(tmpName, indexPath); err != nil {
+		cleanup()
+		return fmt.Errorf("replace session groups index: %w", err)
+	}
+	return nil
+}
+
+// GetSessionGroup returns the entry for groupKey, or (_, false, nil) if missing.
+func (s *JsonlStorage) GetSessionGroup(_ context.Context, groupKey string) (SessionGroupEntry, bool, error) {
+	s.groupIndexMu.Lock()
+	defer s.groupIndexMu.Unlock()
+
+	groups, err := s.loadSessionGroupsLocked()
+	if err != nil {
+		return SessionGroupEntry{}, false, err
+	}
+	entry, ok := groups[groupKey]
+	if !ok {
+		return SessionGroupEntry{}, false, nil
+	}
+	return entry, true, nil
+}
+
+// PutSessionGroup creates or replaces the entry for groupKey using an atomic
+// temp-file + rename so concurrent agent subprocesses don't see a partially
+// written file.
+func (s *JsonlStorage) PutSessionGroup(_ context.Context, groupKey string, entry SessionGroupEntry) error {
+	s.groupIndexMu.Lock()
+	defer s.groupIndexMu.Unlock()
+
+	groups, err := s.loadSessionGroupsLocked()
+	if err != nil {
+		return err
+	}
+	groups[groupKey] = entry
+	return s.saveSessionGroupsLocked(groups)
+}
+
+// ListSessionGroups returns all entries from the on-disk index.
+func (s *JsonlStorage) ListSessionGroups(_ context.Context) (map[string]SessionGroupEntry, error) {
+	s.groupIndexMu.Lock()
+	defer s.groupIndexMu.Unlock()
+
+	return s.loadSessionGroupsLocked()
+}
+
+// ---------------------------------------------------------------------------
+// ScheduledJobStorage (JsonlStorage) - file-based, machine-global
+// ---------------------------------------------------------------------------
+
+// schedulesDir returns the machine-global schedules directory. Jobs are
+// executed by the single per-machine daemon, so they live under the user's
+// home config dir regardless of where conversation storage points -
+// project-local storage used to orphan jobs the daemon never saw (#1053).
+func (s *JsonlStorage) schedulesDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(filepath.Dir(s.basePath), "schedules")
+	}
+	return filepath.Join(home, config.ConfigDirName, "schedules")
+}
+
+// jobFilePath returns the YAML path for a given job ID.
+func (s *JsonlStorage) jobFilePath(id string) string {
+	return filepath.Join(s.schedulesDir(), id+".yaml")
+}
+
+// SaveJob writes the job to disk atomically as YAML.
+func (s *JsonlStorage) SaveJob(_ context.Context, job *scheddomain.ScheduledJob) error {
+	if job == nil {
+		return errors.New("job is nil")
+	}
+	if job.ID == "" {
+		return errors.New("job ID is required")
+	}
+	dir := s.schedulesDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create schedules dir %s: %w", dir, err)
+	}
+	data, err := yaml.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("failed to marshal job %s: %w", job.ID, err)
+	}
+	final := s.jobFilePath(job.ID)
+	tmp := final + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write temp file %s: %w", tmp, err)
+	}
+	if err := os.Rename(tmp, final); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("failed to rename %s -> %s: %w", tmp, final, err)
+	}
+	return nil
+}
+
+// LoadJob reads a single job by ID. Returns ErrJobNotFound if the file does not exist.
+func (s *JsonlStorage) LoadJob(_ context.Context, id string) (*scheddomain.ScheduledJob, error) {
+	if id == "" {
+		return nil, errors.New("job ID is required")
+	}
+	data, err := os.ReadFile(s.jobFilePath(id))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrJobNotFound
+		}
+		return nil, fmt.Errorf("failed to read job %s: %w", id, err)
+	}
+	job := &scheddomain.ScheduledJob{}
+	if err := yaml.Unmarshal(data, job); err != nil {
+		return nil, fmt.Errorf("failed to parse job %s: %w", id, err)
+	}
+	return job, nil
+}
+
+// ListJobs returns all jobs sorted by CreatedAt ascending.
+func (s *JsonlStorage) ListJobs(_ context.Context) ([]*scheddomain.ScheduledJob, error) {
+	dir := s.schedulesDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read schedules dir: %w", err)
+	}
+	var jobs []*scheddomain.ScheduledJob
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
+			continue
+		}
+		id := strings.TrimSuffix(e.Name(), ".yaml")
+		job, err := s.LoadJob(context.Background(), id)
+		if err != nil {
+			continue
+		}
+		jobs = append(jobs, job)
+	}
+	slices.SortFunc(jobs, func(a, b *scheddomain.ScheduledJob) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
+	})
+	return jobs, nil
+}
+
+// DeleteJob removes a job by ID. Returns ErrJobNotFound if it did not exist.
+func (s *JsonlStorage) DeleteJob(_ context.Context, id string) error {
+	if id == "" {
+		return errors.New("job ID is required")
+	}
+	if err := os.Remove(s.jobFilePath(id)); err != nil {
+		if os.IsNotExist(err) {
+			return ErrJobNotFound
+		}
+		return fmt.Errorf("failed to delete job %s: %w", id, err)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// ScheduledRunStorage (JsonlStorage) - one YAML file per run
+// ---------------------------------------------------------------------------
+
+// runsDir returns the path to the schedule run-records directory.
+func (s *JsonlStorage) runsDir() string {
+	return filepath.Join(s.schedulesDir(), "runs")
+}
+
+// runFilePath returns the YAML path for a given run session ID.
+func (s *JsonlStorage) runFilePath(sessionID string) string {
+	return filepath.Join(s.runsDir(), sessionID+".yaml")
+}
+
+// SaveRun writes the run record to disk atomically as YAML.
+func (s *JsonlStorage) SaveRun(_ context.Context, run *scheddomain.RunRecord) error {
+	if run == nil || run.SessionID == "" {
+		return errors.New("run session ID is required")
+	}
+	dir := s.runsDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create runs dir %s: %w", dir, err)
+	}
+	data, err := yaml.Marshal(run)
+	if err != nil {
+		return fmt.Errorf("failed to marshal run %s: %w", run.SessionID, err)
+	}
+	final := s.runFilePath(run.SessionID)
+	tmp := final + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write temp file %s: %w", tmp, err)
+	}
+	if err := os.Rename(tmp, final); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("failed to rename %s -> %s: %w", tmp, final, err)
+	}
+	return nil
+}
+
+// ListRuns returns run records sorted by StartedAt descending.
+func (s *JsonlStorage) ListRuns(_ context.Context, jobID string) ([]*scheddomain.RunRecord, error) {
+	entries, err := os.ReadDir(s.runsDir())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read runs dir: %w", err)
+	}
+	var runs []*scheddomain.RunRecord
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(s.runsDir(), e.Name()))
+		if err != nil {
+			continue
+		}
+		run := &scheddomain.RunRecord{}
+		if err := yaml.Unmarshal(data, run); err != nil {
+			continue
+		}
+		if jobID != "" && run.JobID != jobID {
+			continue
+		}
+		runs = append(runs, run)
+	}
+	slices.SortFunc(runs, func(a, b *scheddomain.RunRecord) int {
+		return b.StartedAt.Compare(a.StartedAt)
+	})
+	return runs, nil
+}
+
+// PruneRuns deletes all but the newest keep run records.
+func (s *JsonlStorage) PruneRuns(ctx context.Context, keep int) error {
+	runs, err := s.ListRuns(ctx, "")
+	if err != nil {
+		return err
+	}
+	for i := keep; i < len(runs); i++ {
+		_ = os.Remove(s.runFilePath(runs[i].SessionID))
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// PlanStorage (JsonlStorage) - file-based, keeps historical paths
+// ---------------------------------------------------------------------------
+
+// plansDir returns the path to the plans directory: the configured PlansPath
+// (defaulted to ~/.infer/plans by NewStorageFromConfig), or storage-rooted
+// next to the conversations directory when unset (tests, direct construction).
+func (s *JsonlStorage) plansDir() string {
+	if s.plansPath != "" {
+		return s.plansPath
+	}
+	return filepath.Join(filepath.Dir(s.basePath), "plans")
+}
+
+// planStampFormat is the UTC timestamp prefix of a plan ID / filename stem.
+const planStampFormat = "2006-01-02-150405"
+
+// SavePlan writes the plan as a markdown file named after the plan ID.
+func (s *JsonlStorage) SavePlan(_ context.Context, plan *PlanRecord) error {
+	dir := s.plansDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create plans dir %s: %w", dir, err)
+	}
+
+	path := filepath.Join(dir, plan.ID+".md")
+	body := "# " + plan.Title + "\n\n" + plan.Body
+	if !strings.HasSuffix(body, "\n") {
+		body += "\n"
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(body), 0o644); err != nil {
+		return fmt.Errorf("failed to write plan file %s: %w", tmp, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("failed to finalise plan file %s: %w", path, err)
+	}
+	return nil
+}
+
+// LoadPlan returns a plan by ID. For JSONL, the ID is the filename stem.
+func (s *JsonlStorage) LoadPlan(_ context.Context, id string) (*PlanRecord, error) {
+	data, err := os.ReadFile(filepath.Join(s.plansDir(), id+".md"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("plan not found: %s", id)
+		}
+		return nil, fmt.Errorf("failed to read plan %s: %w", id, err)
+	}
+	return parsePlanFile(id, data), nil
+}
+
+// parsePlanFile parses a plan markdown file into a PlanRecord. The title comes
+// from the leading H1, the creation time from the ID's timestamp prefix.
+func parsePlanFile(stem string, data []byte) *PlanRecord {
+	content := string(data)
+	title := ""
+	body := content
+	if strings.HasPrefix(content, "# ") {
+		if line, rest, ok := strings.Cut(content, "\n"); ok {
+			title = strings.TrimPrefix(line, "# ")
+			body = strings.TrimLeft(rest, "\n")
+		}
+	}
+	var createdAt time.Time
+	if len(stem) >= len(planStampFormat) {
+		if ts, err := time.Parse(planStampFormat, stem[:len(planStampFormat)]); err == nil {
+			createdAt = ts.UTC()
+		}
+	}
+	return &PlanRecord{
+		ID:        stem,
+		Title:     title,
+		Body:      body,
+		CreatedAt: createdAt,
+	}
+}
+
+// ListPlans returns all plans sorted by CreatedAt descending.
+func (s *JsonlStorage) ListPlans(_ context.Context) ([]*PlanRecord, error) {
+	dir := s.plansDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read plans dir: %w", err)
+	}
+	var plans []*PlanRecord
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		stem := strings.TrimSuffix(e.Name(), ".md")
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		plans = append(plans, parsePlanFile(stem, data))
+	}
+	slices.SortFunc(plans, func(a, b *PlanRecord) int {
+		return b.CreatedAt.Compare(a.CreatedAt)
+	})
+	return plans, nil
+}
+
+// DeletePlan removes a plan by ID.
+func (s *JsonlStorage) DeletePlan(_ context.Context, id string) error {
+	dir := s.plansDir()
+	path := filepath.Join(dir, id+".md")
+	if err := os.Remove(path); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("plan not found: %s", id)
+		}
+		return fmt.Errorf("failed to delete plan %s: %w", id, err)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// ShellHistoryStorage (JsonlStorage) - file-based, keeps historical path
+// ---------------------------------------------------------------------------
+
+// historyFilePath returns the path to the shell history file.
+func (s *JsonlStorage) historyFilePath() string {
+	return filepath.Join(filepath.Dir(s.basePath), "history", "history")
+}
+
+// AppendHistory appends a command to the shell history file.
+func (s *JsonlStorage) AppendHistory(_ context.Context, command string) error {
+	if strings.TrimSpace(command) == "" {
+		return nil
+	}
+	path := s.historyFilePath()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create history directory: %w", err)
+	}
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open history file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+	escaped := strings.ReplaceAll(command, "\n", "\\n")
+	if _, err := file.WriteString(escaped + "\n"); err != nil {
+		return fmt.Errorf("failed to write to history file: %w", err)
+	}
+	return nil
+}
+
+// LoadHistory returns the most recent commands up to limit.
+func (s *JsonlStorage) LoadHistory(_ context.Context, limit int) ([]string, error) {
+	path := s.historyFilePath()
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to open history file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	var allLines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		allLines = append(allLines, strings.ReplaceAll(line, "\\n", "\n"))
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading history file: %w", err)
+	}
+	// Return most recent `limit` lines
+	if limit > 0 && len(allLines) > limit {
+		allLines = allLines[len(allLines)-limit:]
+	}
+	return allLines, nil
+}

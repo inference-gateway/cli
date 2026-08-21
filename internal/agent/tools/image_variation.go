@@ -9,7 +9,8 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // ImageVariationTool creates a variation of an existing image with the
@@ -18,11 +19,11 @@ import (
 // /v1/images/variations, independent of the model selected for the session.
 type ImageVariationTool struct {
 	config       *config.Config
-	imageService domain.ImageService
+	imageService agentdomain.ImageService
 }
 
 // NewImageVariationTool creates a new ImageVariation tool
-func NewImageVariationTool(cfg *config.Config, imageService domain.ImageService) *ImageVariationTool {
+func NewImageVariationTool(cfg *config.Config, imageService agentdomain.ImageService) *ImageVariationTool {
 	return &ImageVariationTool{
 		config:       cfg,
 		imageService: imageService,
@@ -79,7 +80,7 @@ func (t *ImageVariationTool) Validate(args map[string]any) error {
 }
 
 // Execute executes the ImageVariation tool
-func (t *ImageVariationTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *ImageVariationTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
@@ -95,7 +96,7 @@ func (t *ImageVariationTool) Execute(ctx context.Context, args map[string]any) (
 	model := t.config.Tools.ImageVariation.Model
 	path, err := t.imageService.CreateImageVariation(ctx, model, image, size)
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "ImageVariation",
 			Arguments: args,
 			Success:   false,
@@ -104,7 +105,7 @@ func (t *ImageVariationTool) Execute(ctx context.Context, args map[string]any) (
 		}, nil
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "ImageVariation",
 		Arguments: args,
 		Success:   true,
@@ -125,7 +126,7 @@ func (t *ImageVariationTool) IsEnabled() bool {
 }
 
 // FormatPreview formats the result for display preview
-func (t *ImageVariationTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *ImageVariationTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Image variation failed"
 	}
@@ -138,7 +139,7 @@ func (t *ImageVariationTool) FormatPreview(result *domain.ToolExecutionResult) s
 }
 
 // FormatForLLM formats the result for LLM consumption
-func (t *ImageVariationTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *ImageVariationTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Error: no result"
 	}
@@ -151,7 +152,7 @@ func (t *ImageVariationTool) FormatForLLM(result *domain.ToolExecutionResult) st
 	}
 	path, _ := data["path"].(string)
 	size, _ := data["size"].(string)
-	formatter := domain.NewBaseFormatter("ImageVariation")
+	formatter := agentinfra.NewBaseFormatter("ImageVariation")
 	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (size: %s)", path, size))
 }
 
@@ -166,11 +167,11 @@ func (t *ImageVariationTool) ShouldAlwaysExpand() bool {
 }
 
 // FormatResult formats the result based on the requested format type
-func (t *ImageVariationTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *ImageVariationTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)

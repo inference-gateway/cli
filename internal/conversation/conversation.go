@@ -1,0 +1,549 @@
+package conversation
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+)
+
+// ToolFormatter is the slice of the tool-formatter service the conversation
+// repositories use to render tool calls and results.
+type ToolFormatter interface {
+	FormatToolCall(toolName string, args map[string]any) string
+	FormatToolResultForLLM(result *agentdomain.ToolExecutionResult) string
+	FormatToolResultExpanded(result *agentdomain.ToolExecutionResult, terminalWidth int) string
+	FormatToolResultForUI(result *agentdomain.ToolExecutionResult, terminalWidth int) string
+}
+
+// InMemoryConversationRepository implements ConversationRepository using in-memory storage
+type InMemoryConversationRepository struct {
+	messages         []convdomain.ConversationEntry
+	mutex            sync.RWMutex
+	sessionStats     convdomain.SessionTokenStats
+	costStats        convdomain.SessionCostStats
+	formatterService ToolFormatter
+	pricingService   convdomain.PricingService
+}
+
+// NewInMemoryConversationRepository creates a new in-memory conversation repository
+func NewInMemoryConversationRepository(formatterService ToolFormatter, pricingService convdomain.PricingService) *InMemoryConversationRepository {
+	return &InMemoryConversationRepository{
+		messages:         make([]convdomain.ConversationEntry, 0),
+		formatterService: formatterService,
+		pricingService:   pricingService,
+		costStats: convdomain.SessionCostStats{
+			PerModelStats: make(map[string]*convdomain.ModelCostStats),
+			Currency:      "USD",
+		},
+	}
+}
+
+// formatToolCall formats a tool call for display using the formatter service
+func (r *InMemoryConversationRepository) formatToolCall(toolCall sdk.ChatCompletionMessageToolCall) string {
+	var args map[string]any
+	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+		return fmt.Sprintf("%s()", toolCall.Function.Name)
+	}
+
+	if r.formatterService != nil {
+		return r.formatterService.FormatToolCall(toolCall.Function.Name, args)
+	}
+
+	return formatting.FormatToolCall(toolCall.Function.Name, args)
+}
+
+func (r *InMemoryConversationRepository) AddMessage(msg convdomain.ConversationEntry) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if msg.Time.IsZero() {
+		msg.Time = time.Now()
+	}
+
+	r.messages = append(r.messages, msg)
+
+	return nil
+}
+
+// MarkLastMessageAsPlan marks the last assistant message as a plan with pending approval
+func (r *InMemoryConversationRepository) MarkLastMessageAsPlan() {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for i := len(r.messages) - 1; i >= 0; i-- {
+		if r.messages[i].Message.Role == sdk.Assistant {
+			r.messages[i].IsPlan = true
+			r.messages[i].PlanApprovalStatus = convdomain.PlanApprovalPending
+			break
+		}
+	}
+}
+
+// MarkMessageAsPlanByIndex marks a specific message by index as a plan with pending approval
+func (r *InMemoryConversationRepository) MarkMessageAsPlanByIndex(index int) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if index >= 0 && index < len(r.messages) {
+		r.messages[index].IsPlan = true
+		r.messages[index].PlanApprovalStatus = convdomain.PlanApprovalPending
+	}
+}
+
+// UpdatePlanStatus updates the status of the most recent pending plan
+func (r *InMemoryConversationRepository) UpdatePlanStatus(action agentdomain.PlanApprovalAction) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for i := len(r.messages) - 1; i >= 0; i-- {
+		if r.messages[i].IsPlan && r.messages[i].PlanApprovalStatus == convdomain.PlanApprovalPending {
+			switch action {
+			case agentdomain.PlanApprovalAccept:
+				r.messages[i].PlanApprovalStatus = convdomain.PlanApprovalAccepted
+			case agentdomain.PlanApprovalReject:
+				r.messages[i].PlanApprovalStatus = convdomain.PlanApprovalRejected
+			case agentdomain.PlanApprovalAcceptStandard:
+				r.messages[i].PlanApprovalStatus = convdomain.PlanApprovalAccepted
+			}
+			break
+		}
+	}
+}
+
+// AddPendingToolCall adds a pending tool call entry that requires approval
+func (r *InMemoryConversationRepository) AddPendingToolCall(toolCall sdk.ChatCompletionMessageToolCall, responseChan chan agentdomain.ApprovalAction) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	entry := convdomain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Assistant,
+			Content: sdk.NewMessageContent(""),
+		},
+		Time:               time.Now(),
+		PendingToolCall:    &toolCall,
+		ToolApprovalStatus: convdomain.ToolApprovalPending,
+	}
+
+	r.messages = append(r.messages, entry)
+	return nil
+}
+
+// UpdateToolApprovalStatus updates the approval status of the most recent pending tool
+func (r *InMemoryConversationRepository) UpdateToolApprovalStatus(action agentdomain.ApprovalAction) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for i := len(r.messages) - 1; i >= 0; i-- {
+		if r.messages[i].PendingToolCall != nil && r.messages[i].ToolApprovalStatus == convdomain.ToolApprovalPending {
+			switch action {
+			case agentdomain.ApprovalApprove, agentdomain.ApprovalAutoAccept:
+				r.messages[i].ToolApprovalStatus = convdomain.ToolApprovalApproved
+			case agentdomain.ApprovalReject:
+				r.messages[i].ToolApprovalStatus = convdomain.ToolApprovalRejected
+			}
+			break
+		}
+	}
+}
+
+// RemovePendingToolCallByID removes a specific pending tool call by its ID
+func (r *InMemoryConversationRepository) RemovePendingToolCallByID(toolCallID string) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for i := len(r.messages) - 1; i >= 0; i-- {
+		if r.messages[i].PendingToolCall != nil && r.messages[i].PendingToolCall.ID == toolCallID {
+			r.messages = append(r.messages[:i], r.messages[i+1:]...)
+			return
+		}
+	}
+}
+
+func (r *InMemoryConversationRepository) GetMessages() []convdomain.ConversationEntry {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	result := make([]convdomain.ConversationEntry, len(r.messages))
+	copy(result, r.messages)
+	return result
+}
+
+func (r *InMemoryConversationRepository) Clear() error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.messages = r.messages[:0]
+	r.sessionStats = convdomain.SessionTokenStats{}
+	r.costStats = convdomain.SessionCostStats{
+		PerModelStats: make(map[string]*convdomain.ModelCostStats),
+		Currency:      "USD",
+	}
+	return nil
+}
+
+// StartNewConversation clears the current conversation (in-memory doesn't persist)
+func (r *InMemoryConversationRepository) StartNewConversation(title string) error {
+	return r.Clear()
+}
+
+// LoadConversation always fails for in-memory storage: there is nothing
+// persisted to load from.
+func (r *InMemoryConversationRepository) LoadConversation(ctx context.Context, conversationID string) error {
+	return fmt.Errorf("conversation persistence is disabled; cannot load conversation %s", conversationID)
+}
+
+func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	var firstUserMessage *convdomain.ConversationEntry
+	for i := range r.messages {
+		if r.messages[i].Message.Role == sdk.User {
+			firstUserMessage = &r.messages[i]
+			break
+		}
+	}
+
+	if firstUserMessage == nil {
+		r.messages = r.messages[:0]
+		r.sessionStats = convdomain.SessionTokenStats{}
+		return nil
+	}
+
+	r.messages = []convdomain.ConversationEntry{*firstUserMessage}
+	r.sessionStats = convdomain.SessionTokenStats{}
+	r.costStats = convdomain.SessionCostStats{
+		PerModelStats: make(map[string]*convdomain.ModelCostStats),
+		Currency:      "USD",
+	}
+	return nil
+}
+
+// DeleteMessagesAfterIndex deletes all messages after the specified index
+// (keeps messages from 0 to index inclusive, deletes index+1 onward)
+func (r *InMemoryConversationRepository) DeleteMessagesAfterIndex(index int) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if index < 0 || index >= len(r.messages) {
+		return fmt.Errorf("index %d out of range (total entries: %d)", index, len(r.messages))
+	}
+
+	r.messages = r.messages[:index+1]
+	return nil
+}
+
+func (r *InMemoryConversationRepository) Export(format convdomain.ExportFormat) ([]byte, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	switch format {
+	case convdomain.ExportJSON:
+		filteredMessages := r.filterHiddenMessages()
+		return json.MarshalIndent(filteredMessages, "", "  ")
+
+	case convdomain.ExportMarkdown:
+		return r.exportMarkdown(), nil
+
+	case convdomain.ExportText:
+		return r.exportText(), nil
+
+	default:
+		return nil, fmt.Errorf("unsupported export format: %s", format)
+	}
+}
+
+func (r *InMemoryConversationRepository) GetMessageCount() int {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	return len(r.messages)
+}
+
+func (r *InMemoryConversationRepository) UpdateLastMessage(content string) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if len(r.messages) == 0 {
+		return fmt.Errorf("no messages to update")
+	}
+
+	lastIndex := len(r.messages) - 1
+	r.messages[lastIndex].Message.Content = sdk.NewMessageContent(content)
+	r.messages[lastIndex].Time = time.Now()
+
+	return nil
+}
+
+func (r *InMemoryConversationRepository) UpdateLastMessageToolCalls(toolCalls *[]sdk.ChatCompletionMessageToolCall) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if len(r.messages) == 0 {
+		return fmt.Errorf("no messages to update")
+	}
+
+	lastIndex := len(r.messages) - 1
+	if r.messages[lastIndex].Message.Role != sdk.Assistant {
+		return fmt.Errorf("last message is not from assistant")
+	}
+
+	r.messages[lastIndex].Message.ToolCalls = toolCalls
+	r.messages[lastIndex].Time = time.Now()
+
+	return nil
+}
+
+// exportMarkdown exports conversation as markdown
+func (r *InMemoryConversationRepository) exportMarkdown() []byte {
+	var content strings.Builder
+
+	filteredMessages := r.filterHiddenMessages()
+
+	content.WriteString("# Chat Session Export\n\n")
+	fmt.Fprintf(&content, "**Date:** %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&content, "**Total Messages:** %d\n", len(filteredMessages))
+
+	if r.sessionStats.RequestCount > 0 {
+		fmt.Fprintf(&content, "**Total Input Tokens:** %d\n", r.sessionStats.TotalInputTokens)
+		fmt.Fprintf(&content, "**Total Output Tokens:** %d\n", r.sessionStats.TotalOutputTokens)
+		fmt.Fprintf(&content, "**Total Tokens:** %d\n", r.sessionStats.TotalTokens)
+		fmt.Fprintf(&content, "**API Requests:** %d\n", r.sessionStats.RequestCount)
+	}
+	content.WriteString("\n---\n\n")
+
+	for i, entry := range filteredMessages {
+		var role string
+		switch entry.Message.Role {
+		case sdk.User:
+			role = "👤 **You**"
+		case sdk.Assistant:
+			if entry.Model != "" {
+				role = fmt.Sprintf("🤖 **Assistant (%s)**", entry.Model)
+			} else {
+				role = "🤖 **Assistant**"
+			}
+		case sdk.System:
+			role = "⚙️ **System**"
+		case sdk.Tool:
+			role = "🔧 **Tool Result**"
+		default:
+			role = fmt.Sprintf("**%s**", string(entry.Message.Role))
+		}
+
+		fmt.Fprintf(&content, "## Message %d - %s\n\n", i+1, role)
+		fmt.Fprintf(&content, "*%s*\n\n", entry.Time.Format("2006-01-02 15:04:05"))
+
+		contentStr, err := entry.Message.Content.AsMessageContent0()
+		if err == nil && contentStr != "" {
+			content.WriteString(contentStr)
+			content.WriteString("\n\n")
+		}
+
+		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
+			content.WriteString("### Tool Calls\n\n")
+			for _, toolCall := range *entry.Message.ToolCalls {
+				fmt.Fprintf(&content, "**Tool:** %s\n\n", r.formatToolCall(toolCall))
+				if toolCall.Function.Arguments != "" {
+					content.WriteString("**Arguments:**\n```json\n")
+					content.WriteString(toolCall.Function.Arguments)
+					content.WriteString("\n```\n\n")
+				}
+			}
+		}
+
+		if entry.Message.ToolCallID != nil {
+			fmt.Fprintf(&content, "*Tool Call ID: %s*\n\n", *entry.Message.ToolCallID)
+		}
+
+		content.WriteString("---\n\n")
+	}
+
+	fmt.Fprintf(&content, "*Exported on %s using Inference Gateway CLI*\n", time.Now().Format("2006-01-02 15:04:05"))
+
+	return []byte(content.String())
+}
+
+// exportText exports conversation as plain text
+func (r *InMemoryConversationRepository) exportText() []byte {
+	var content strings.Builder
+
+	filteredMessages := r.filterHiddenMessages()
+
+	content.WriteString("Chat Session Export\n")
+	content.WriteString("===================\n\n")
+
+	for _, entry := range filteredMessages {
+		var role string
+		switch entry.Message.Role {
+		case sdk.User:
+			role = "You"
+		case sdk.Assistant:
+			if entry.Model != "" {
+				role = fmt.Sprintf("Assistant (%s)", entry.Model)
+			} else {
+				role = "Assistant"
+			}
+		case sdk.System:
+			role = "System"
+		case sdk.Tool:
+			role = "Tool"
+		default:
+			role = string(entry.Message.Role)
+		}
+
+		fmt.Fprintf(&content, "[%s] %s: %s\n\n",
+			entry.Time.Format("15:04:05"), role, entry.Message.Content)
+	}
+
+	return []byte(content.String())
+}
+
+// filterHiddenMessages returns a copy of messages with hidden messages filtered out
+func (r *InMemoryConversationRepository) filterHiddenMessages() []convdomain.ConversationEntry {
+	filtered := make([]convdomain.ConversationEntry, 0, len(r.messages))
+	for _, entry := range r.messages {
+		if !entry.Hidden {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
+}
+
+// AddTokenUsage adds token usage from a single API call to session totals with model tracking.
+// The model parameter is required for cost tracking. Use empty string for unknown models.
+func (r *InMemoryConversationRepository) AddTokenUsage(model string, inputTokens, outputTokens, totalTokens, cachedTokens, cacheWriteTokens int) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.sessionStats.TotalInputTokens += inputTokens
+	r.sessionStats.TotalOutputTokens += outputTokens
+	r.sessionStats.TotalTokens += totalTokens
+	r.sessionStats.RequestCount++
+	r.sessionStats.LastInputTokens = inputTokens
+	r.sessionStats.TotalCacheWriteTokens += max(cacheWriteTokens, 0)
+
+	if r.pricingService == nil || model == "" {
+		return nil
+	}
+
+	inputCost, outputCost, totalCost := r.pricingService.CalculateCost(model, inputTokens, outputTokens, cachedTokens, cacheWriteTokens)
+
+	if r.costStats.PerModelStats == nil {
+		r.costStats.PerModelStats = make(map[string]*convdomain.ModelCostStats)
+	}
+
+	if _, exists := r.costStats.PerModelStats[model]; !exists {
+		r.costStats.PerModelStats[model] = &convdomain.ModelCostStats{
+			Model: model,
+		}
+	}
+
+	modelStats := r.costStats.PerModelStats[model]
+	modelStats.InputTokens += inputTokens
+	modelStats.OutputTokens += outputTokens
+	modelStats.InputCost += inputCost
+	modelStats.OutputCost += outputCost
+	modelStats.TotalCost += totalCost
+	modelStats.RequestCount++
+
+	r.costStats.TotalInputCost += inputCost
+	r.costStats.TotalOutputCost += outputCost
+	r.costStats.TotalCost += totalCost
+
+	return nil
+}
+
+// AddCachedTokens accumulates provider-reported cached prompt tokens
+// (usage.prompt_tokens_details.cached_tokens) into the session totals.
+func (r *InMemoryConversationRepository) AddCachedTokens(tokens int) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.sessionStats.TotalCachedTokens += tokens
+}
+
+// GetSessionTokens returns the accumulated token statistics for the session
+func (r *InMemoryConversationRepository) GetSessionTokens() convdomain.SessionTokenStats {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	return r.sessionStats
+}
+
+// GetSessionCostStats returns the accumulated cost statistics for the session
+func (r *InMemoryConversationRepository) GetSessionCostStats() convdomain.SessionCostStats {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	stats := r.costStats
+	stats.PerModelStats = make(map[string]*convdomain.ModelCostStats)
+	for k, v := range r.costStats.PerModelStats {
+		statsCopy := *v
+		stats.PerModelStats[k] = &statsCopy
+	}
+
+	return stats
+}
+
+// SetSessionStats sets the session token and cost statistics (used when loading conversations)
+func (r *InMemoryConversationRepository) SetSessionStats(tokenStats convdomain.SessionTokenStats, costStats convdomain.SessionCostStats) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.sessionStats = tokenStats
+	r.costStats = costStats
+}
+
+// FormatToolResultForLLM formats tool execution results for LLM consumption
+func (r *InMemoryConversationRepository) FormatToolResultForLLM(result *agentdomain.ToolExecutionResult) string {
+	if r.formatterService != nil {
+		return r.formatterService.FormatToolResultForLLM(result)
+	}
+	if result.Success {
+		return "Tool executed successfully"
+	}
+	return "Tool execution failed"
+}
+
+// FormatToolResultForUI formats tool execution results for UI display
+func (r *InMemoryConversationRepository) FormatToolResultForUI(result *agentdomain.ToolExecutionResult, terminalWidth int) string {
+	if r.formatterService != nil {
+		return r.formatterService.FormatToolResultForUI(result, terminalWidth)
+	}
+	if result.Success {
+		return "Tool executed successfully"
+	}
+	return "Tool execution failed"
+}
+
+// FormatToolResultExpanded formats expanded tool execution results
+func (r *InMemoryConversationRepository) FormatToolResultExpanded(result *agentdomain.ToolExecutionResult, terminalWidth int) string {
+	if r.formatterService != nil {
+		return r.formatterService.FormatToolResultExpanded(result, terminalWidth)
+	}
+	if result.Success {
+		return "Tool executed successfully"
+	}
+	return "Tool execution failed"
+}
+
+// GetCurrentConversationTitle returns the current conversation title
+func (r *InMemoryConversationRepository) GetCurrentConversationTitle() string {
+	return "New Conversation"
+}
+
+// GetCurrentConversationID returns the current conversation ID (empty for in-memory)
+func (r *InMemoryConversationRepository) GetCurrentConversationID() string {
+	return ""
+}

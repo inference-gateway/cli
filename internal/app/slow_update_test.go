@@ -4,13 +4,14 @@ import (
 	"testing"
 	"time"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+
 	zap "go.uber.org/zap"
 	zapcore "go.uber.org/zap/zapcore"
 	observer "go.uber.org/zap/zaptest/observer"
 
-	constants "github.com/inference-gateway/cli/internal/constants"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // logSlowUpdate is the single-ingress instrumentation: a handler slower than
@@ -22,8 +23,8 @@ func TestLogSlowUpdate(t *testing.T) {
 	logger.SetGlobalLogger(zap.New(core))
 	defer logger.SetGlobalLogger(prev)
 
-	logSlowUpdate(time.Now().Add(-2*constants.SlowUpdateThreshold), domain.DrainQueueEvent{})
-	logSlowUpdate(time.Now(), domain.DrainQueueEvent{})
+	logSlowUpdate(time.Now().Add(-2*constants.SlowUpdateThreshold), agentdomain.DrainQueueEvent{})
+	logSlowUpdate(time.Now(), agentdomain.DrainQueueEvent{})
 
 	warns := logs.FilterMessage("slow update").All()
 	if len(warns) != 1 {

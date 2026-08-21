@@ -10,9 +10,9 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	models "github.com/inference-gateway/cli/internal/models"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 )
 
 // LLMToolService implements ToolService with the new tools package architecture
@@ -75,8 +75,8 @@ func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
 }
 
 // ListToolsForMode returns definitions for enabled tools filtered by agent mode
-func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompletionTool {
-	if mode == domain.AgentModePlan {
+func (s *LLMToolService) ListToolsForMode(mode agentdomain.AgentMode) []sdk.ChatCompletionTool {
+	if mode == agentdomain.AgentModePlan {
 		allowedTools := map[string]bool{
 			"Read":                true,
 			"Grep":                true,
@@ -98,7 +98,7 @@ func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompl
 		return definitions
 	}
 
-	if mode == domain.AgentModeReadOnly {
+	if mode == agentdomain.AgentModeReadOnly {
 		allowedTools := map[string]bool{
 			"Read":               true,
 			"Grep":               true,
@@ -155,7 +155,7 @@ func (s *LLMToolService) isA2ATool(toolName string) bool {
 }
 
 // ExecuteTool executes a tool with the given arguments
-func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
+func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	if !s.isToolEnabled(toolCall.Name) {
 		if s.isA2ATool(toolCall.Name) {
 			return nil, fmt.Errorf("A2A tools are not enabled")
@@ -168,7 +168,7 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompl
 
 // ExecuteToolDirect executes a tool directly without checking if it's enabled
 // Used for user-initiated commands where the user explicitly wants to run the tool
-func (s *LLMToolService) ExecuteToolDirect(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
+func (s *LLMToolService) ExecuteToolDirect(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	var args map[string]any
 	if err := json.Unmarshal([]byte(toolCall.Arguments), &args); err != nil {
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
@@ -234,11 +234,11 @@ func (s *LLMToolService) ValidateTool(name string, args map[string]any) error {
 	return tool.Validate(args)
 }
 
-func (s *LLMToolService) GetA2ATaskTracker() domain.A2ATaskTracker {
+func (s *LLMToolService) GetA2ATaskTracker() agentdomain.A2ATaskTracker {
 	return s.registry.GetA2ATaskTracker()
 }
 
-func (s *LLMToolService) GetTool(name string) (domain.Tool, error) {
+func (s *LLMToolService) GetTool(name string) (agentdomain.Tool, error) {
 	return s.registry.GetTool(name)
 }
 
@@ -254,7 +254,7 @@ func (s *NoOpToolService) ListTools() []sdk.ChatCompletionTool {
 	return []sdk.ChatCompletionTool{}
 }
 
-func (s *NoOpToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompletionTool {
+func (s *NoOpToolService) ListToolsForMode(mode agentdomain.AgentMode) []sdk.ChatCompletionTool {
 	return []sdk.ChatCompletionTool{}
 }
 
@@ -262,11 +262,11 @@ func (s *NoOpToolService) ListAvailableTools() []string {
 	return []string{}
 }
 
-func (s *NoOpToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
+func (s *NoOpToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	return nil, fmt.Errorf("tools are not enabled")
 }
 
-func (s *NoOpToolService) ExecuteToolDirect(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
+func (s *NoOpToolService) ExecuteToolDirect(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	return nil, fmt.Errorf("tools are not enabled")
 }
 
@@ -278,10 +278,10 @@ func (s *NoOpToolService) ValidateTool(name string, args map[string]any) error {
 	return fmt.Errorf("tools are not enabled")
 }
 
-func (s *NoOpToolService) GetA2ATaskTracker() domain.A2ATaskTracker {
+func (s *NoOpToolService) GetA2ATaskTracker() agentdomain.A2ATaskTracker {
 	return nil
 }
 
-func (s *NoOpToolService) GetTool(name string) (domain.Tool, error) {
+func (s *NoOpToolService) GetTool(name string) (agentdomain.Tool, error) {
 	return nil, fmt.Errorf("tools are not enabled")
 }

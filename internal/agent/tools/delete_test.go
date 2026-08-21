@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestDeleteTool_Definition(t *testing.T) {
@@ -180,7 +180,7 @@ func TestDeleteTool_Execute_SingleFile(t *testing.T) {
 		t.Error("Expected file to be deleted")
 	}
 
-	deleteResult, ok := result.Data.(*domain.DeleteToolResult)
+	deleteResult, ok := result.Data.(*agentdomain.DeleteToolResult)
 	if !ok {
 		t.Fatal("Expected DeleteToolResult in result data")
 	}
@@ -250,7 +250,7 @@ func TestDeleteTool_Execute_Directory(t *testing.T) {
 		t.Error("Expected directory to be deleted")
 	}
 
-	deleteResult, ok := result.Data.(*domain.DeleteToolResult)
+	deleteResult, ok := result.Data.(*agentdomain.DeleteToolResult)
 	if !ok {
 		t.Fatal("Expected DeleteToolResult in result data")
 	}
@@ -318,7 +318,7 @@ func TestDeleteTool_Execute_Wildcard(t *testing.T) {
 		t.Error("Expected other.log to remain")
 	}
 
-	deleteResult, ok := result.Data.(*domain.DeleteToolResult)
+	deleteResult, ok := result.Data.(*agentdomain.DeleteToolResult)
 	if !ok {
 		t.Fatal("Expected DeleteToolResult in result data")
 	}

@@ -1,8 +1,9 @@
 package factory
 
 import (
-	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	autocomplete "github.com/inference-gateway/cli/internal/ui/autocomplete"
@@ -11,25 +12,25 @@ import (
 )
 
 // CreateConversationView creates a new conversation view component
-func CreateConversationView(themeService domain.ThemeService) ui.ConversationRenderer {
+func CreateConversationView(themeService ui.ThemeService) ui.ConversationRenderer {
 	styleProvider := styles.NewProvider(themeService)
 	return components.NewConversationView(styleProvider)
 }
 
 // CreateInputView creates a new input view component
-func CreateInputView(modelService domain.ModelService) ui.InputComponent {
+func CreateInputView(modelService convdomain.ModelService) ui.InputComponent {
 	return components.NewInputView(modelService)
 }
 
 // CreateInputViewWithName creates a new input view component with config directory and name.
 // When store is non-nil and name is empty (the main agent), input history goes through the
 // storage backend. Named subagent histories are file-based at <configDir>/history/history-<name>.
-func CreateInputViewWithName(modelService domain.ModelService, configDir, name string, store storage.ShellHistoryStorage) ui.InputComponent {
+func CreateInputViewWithName(modelService convdomain.ModelService, configDir, name string, store storage.ShellHistoryStorage) ui.InputComponent {
 	return components.NewInputViewWithName(modelService, configDir, name, store)
 }
 
 // CreateAutocomplete creates a new autocomplete component
-func CreateAutocomplete(shortcutRegistry *shortcuts.Registry, toolService domain.ToolService, modelService domain.ModelService, pricingService domain.PricingService, skillsService domain.SkillsService, githubIssueService domain.GitHubIssueService) ui.AutocompleteComponent {
+func CreateAutocomplete(shortcutRegistry *shortcuts.Registry, toolService agentdomain.ToolService, modelService convdomain.ModelService, pricingService convdomain.PricingService, skillsService agentdomain.SkillsService, githubIssueService agentdomain.GitHubIssueService) ui.AutocompleteComponent {
 	if shortcutRegistry == nil {
 		return nil
 	}
@@ -54,19 +55,19 @@ func CreateAutocomplete(shortcutRegistry *shortcuts.Registry, toolService domain
 }
 
 // CreateStatusView creates a new status view component
-func CreateStatusView(themeService domain.ThemeService) ui.StatusComponent {
+func CreateStatusView(themeService ui.ThemeService) ui.StatusComponent {
 	styleProvider := styles.NewProvider(themeService)
 	return components.NewStatusView(styleProvider)
 }
 
 // CreateInputStatusBar creates a new input status bar component
-func CreateInputStatusBar(themeService domain.ThemeService) ui.InputStatusBarComponent {
+func CreateInputStatusBar(themeService ui.ThemeService) ui.InputStatusBarComponent {
 	styleProvider := styles.NewProvider(themeService)
 	return components.NewInputStatusBar(styleProvider)
 }
 
 // CreateHelpBar creates a new help bar component
-func CreateHelpBar(themeService domain.ThemeService) ui.HelpBarComponent {
+func CreateHelpBar(themeService ui.ThemeService) ui.HelpBarComponent {
 	styleProvider := styles.NewProvider(themeService)
 	return components.NewHelpBar(styleProvider)
 }

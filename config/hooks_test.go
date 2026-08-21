@@ -7,7 +7,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestSaveLoadHooks_RoundTrip(t *testing.T) {
@@ -15,7 +15,7 @@ func TestSaveLoadHooks_RoundTrip(t *testing.T) {
 	original := &config.HooksConfig{
 		Enabled: true,
 		Hooks: []config.HookCommandConfig{
-			{Name: "gofmt", Hook: domain.HookPostSession, Command: "gofmt -w .", Timeout: 30},
+			{Name: "gofmt", Hook: agentdomain.HookPostSession, Command: "gofmt -w .", Timeout: 30},
 		},
 	}
 	if err := config.SaveHooks(path, original); err != nil {
@@ -26,7 +26,7 @@ func TestSaveLoadHooks_RoundTrip(t *testing.T) {
 		t.Fatalf("LoadHooks: %v", err)
 	}
 	if !loaded.Enabled || len(loaded.Hooks) != 1 ||
-		loaded.Hooks[0].Name != "gofmt" || loaded.Hooks[0].Hook != domain.HookPostSession ||
+		loaded.Hooks[0].Name != "gofmt" || loaded.Hooks[0].Hook != agentdomain.HookPostSession ||
 		loaded.Hooks[0].Command != "gofmt -w ." || loaded.Hooks[0].Timeout != 30 {
 		t.Errorf("round-trip mismatch: %+v", loaded)
 	}
@@ -77,25 +77,25 @@ func hooksCfg(enabled bool, hooks ...config.HookCommandConfig) config.HooksConfi
 	return config.HooksConfig{Enabled: enabled, Hooks: hooks}
 }
 
-func hookCmd(name string, hook domain.HookPoint, command string, timeout int) config.HookCommandConfig {
+func hookCmd(name string, hook agentdomain.HookPoint, command string, timeout int) config.HookCommandConfig {
 	return config.HookCommandConfig{Name: name, Hook: hook, Command: command, Timeout: timeout}
 }
 
 func TestCommandsDue(t *testing.T) {
-	post := hookCmd("gofmt", domain.HookPostSession, "gofmt -w .", 30)
-	pre := hookCmd("lint", domain.HookPreStream, "golangci-lint run", 0)
+	post := hookCmd("gofmt", agentdomain.HookPostSession, "gofmt -w .", 30)
+	pre := hookCmd("lint", agentdomain.HookPreStream, "golangci-lint run", 0)
 
 	tests := []struct {
 		name     string
 		cfg      config.HooksConfig
-		hook     domain.HookPoint
+		hook     agentdomain.HookPoint
 		wantLen  int
 		wantName string
 	}{
-		{"disabled returns nil", hooksCfg(false, post), domain.HookPostSession, 0, ""},
-		{"matching hook returns command", hooksCfg(true, post), domain.HookPostSession, 1, "gofmt"},
-		{"non-matching hook returns nil", hooksCfg(true, post), domain.HookPreStream, 0, ""},
-		{"only commands on the queried hook", hooksCfg(true, post, pre), domain.HookPreStream, 1, "lint"},
+		{"disabled returns nil", hooksCfg(false, post), agentdomain.HookPostSession, 0, ""},
+		{"matching hook returns command", hooksCfg(true, post), agentdomain.HookPostSession, 1, "gofmt"},
+		{"non-matching hook returns nil", hooksCfg(true, post), agentdomain.HookPreStream, 0, ""},
+		{"only commands on the queried hook", hooksCfg(true, post, pre), agentdomain.HookPreStream, 1, "lint"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -111,8 +111,8 @@ func TestCommandsDue(t *testing.T) {
 }
 
 func TestCommandsDue_TimeoutDefaulted(t *testing.T) {
-	cfg := hooksCfg(true, hookCmd("lint", domain.HookPostSession, "golangci-lint run", 0))
-	due := cfg.CommandsDue(domain.HookPostSession)
+	cfg := hooksCfg(true, hookCmd("lint", agentdomain.HookPostSession, "golangci-lint run", 0))
+	due := cfg.CommandsDue(agentdomain.HookPostSession)
 	if len(due) != 1 {
 		t.Fatalf("expected 1 command, got %d", len(due))
 	}
@@ -123,10 +123,10 @@ func TestCommandsDue_TimeoutDefaulted(t *testing.T) {
 
 func TestCommandsDue_Stacking(t *testing.T) {
 	cfg := hooksCfg(true,
-		hookCmd("gofmt", domain.HookPostSession, "gofmt -w .", 30),
-		hookCmd("notify", domain.HookPostSession, "echo done", 5),
+		hookCmd("gofmt", agentdomain.HookPostSession, "gofmt -w .", 30),
+		hookCmd("notify", agentdomain.HookPostSession, "echo done", 5),
 	)
-	due := cfg.CommandsDue(domain.HookPostSession)
+	due := cfg.CommandsDue(agentdomain.HookPostSession)
 	if len(due) != 2 {
 		t.Fatalf("both commands on the hook should be returned, got %d", len(due))
 	}
@@ -138,12 +138,12 @@ func TestHooksConfig_Validate(t *testing.T) {
 		cfg     config.HooksConfig
 		wantErr bool
 	}{
-		{"valid", hooksCfg(true, hookCmd("gofmt", domain.HookPostSession, "gofmt -w .", 30)), false},
-		{"empty name", hooksCfg(true, hookCmd("", domain.HookPostSession, "gofmt -w .", 30)), true},
-		{"empty command", hooksCfg(true, hookCmd("gofmt", domain.HookPostSession, "", 30)), true},
+		{"valid", hooksCfg(true, hookCmd("gofmt", agentdomain.HookPostSession, "gofmt -w .", 30)), false},
+		{"empty name", hooksCfg(true, hookCmd("", agentdomain.HookPostSession, "gofmt -w .", 30)), true},
+		{"empty command", hooksCfg(true, hookCmd("gofmt", agentdomain.HookPostSession, "", 30)), true},
 		{"empty hook", hooksCfg(true, hookCmd("gofmt", "", "gofmt -w .", 30)), true},
-		{"unknown hook", hooksCfg(true, hookCmd("gofmt", domain.HookPoint("nope"), "gofmt -w .", 30)), true},
-		{"negative timeout", hooksCfg(true, hookCmd("gofmt", domain.HookPostSession, "gofmt -w .", -1)), true},
+		{"unknown hook", hooksCfg(true, hookCmd("gofmt", agentdomain.HookPoint("nope"), "gofmt -w .", 30)), true},
+		{"negative timeout", hooksCfg(true, hookCmd("gofmt", agentdomain.HookPostSession, "gofmt -w .", -1)), true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

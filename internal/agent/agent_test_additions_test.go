@@ -4,14 +4,16 @@ import (
 	"testing"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	assert "github.com/stretchr/testify/assert"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 	tests := []struct {
 		name            string
-		results         []domain.ConversationEntry
+		results         []convdomain.ConversationEntry
 		expectedSuccess int
 		expectedFailure int
 		expectedTotal   int
@@ -20,9 +22,9 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 	}{
 		{
 			name: "all_tools_succeed",
-			results: []domain.ConversationEntry{
-				{ToolExecution: &domain.ToolExecutionResult{Success: true, ToolName: "Read"}},
-				{ToolExecution: &domain.ToolExecutionResult{Success: true, ToolName: "Write"}},
+			results: []convdomain.ConversationEntry{
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: true, ToolName: "Read"}},
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: true, ToolName: "Write"}},
 			},
 			expectedSuccess: 2,
 			expectedFailure: 0,
@@ -32,8 +34,8 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 		},
 		{
 			name: "all_tools_fail",
-			results: []domain.ConversationEntry{
-				{ToolExecution: &domain.ToolExecutionResult{Success: false, ToolName: "Bash", Error: "failed"}},
+			results: []convdomain.ConversationEntry{
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: false, ToolName: "Bash", Error: "failed"}},
 			},
 			expectedSuccess: 0,
 			expectedFailure: 1,
@@ -43,10 +45,10 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 		},
 		{
 			name: "mixed_success_and_failure",
-			results: []domain.ConversationEntry{
-				{ToolExecution: &domain.ToolExecutionResult{Success: true, ToolName: "Read"}},
-				{ToolExecution: &domain.ToolExecutionResult{Success: false, ToolName: "Write", Error: "permission denied"}},
-				{ToolExecution: &domain.ToolExecutionResult{Success: true, ToolName: "Grep"}},
+			results: []convdomain.ConversationEntry{
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: true, ToolName: "Read"}},
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: false, ToolName: "Write", Error: "permission denied"}},
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: true, ToolName: "Grep"}},
 			},
 			expectedSuccess: 2,
 			expectedFailure: 1,
@@ -56,7 +58,7 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 		},
 		{
 			name:            "empty_results",
-			results:         []domain.ConversationEntry{},
+			results:         []convdomain.ConversationEntry{},
 			expectedSuccess: 0,
 			expectedFailure: 0,
 			expectedTotal:   0,
@@ -65,9 +67,9 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 		},
 		{
 			name: "results_with_nil_tool_execution",
-			results: []domain.ConversationEntry{
+			results: []convdomain.ConversationEntry{
 				{ToolExecution: nil},
-				{ToolExecution: &domain.ToolExecutionResult{Success: true, ToolName: "Read"}},
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: true, ToolName: "Read"}},
 			},
 			expectedSuccess: 1,
 			expectedFailure: 0,
@@ -77,10 +79,10 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 		},
 		{
 			name: "multiple_failures_with_errors",
-			results: []domain.ConversationEntry{
-				{ToolExecution: &domain.ToolExecutionResult{Success: false, ToolName: "Write", Error: "disk full"}},
-				{ToolExecution: &domain.ToolExecutionResult{Success: false, ToolName: "Bash", Error: "command not found"}},
-				{ToolExecution: &domain.ToolExecutionResult{Success: false, ToolName: "Edit", Error: "file not found"}},
+			results: []convdomain.ConversationEntry{
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: false, ToolName: "Write", Error: "disk full"}},
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: false, ToolName: "Bash", Error: "command not found"}},
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: false, ToolName: "Edit", Error: "file not found"}},
 			},
 			expectedSuccess: 0,
 			expectedFailure: 3,
@@ -93,7 +95,7 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
-			chatEvents := make(chan domain.ChatEvent, 10)
+			chatEvents := make(chan agentdomain.ChatEvent, 10)
 			publisher := newEventPublisher("test-request-123", chatEvents)
 
 			// Execute
@@ -106,7 +108,7 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 					t.Fatal("Expected no event, but received one")
 				}
 
-				completedEvent, ok := event.(domain.ToolExecutionCompletedEvent)
+				completedEvent, ok := event.(agentdomain.ToolExecutionCompletedEvent)
 				if !ok {
 					t.Fatalf("Expected ToolExecutionCompletedEvent, got %T", event)
 				}

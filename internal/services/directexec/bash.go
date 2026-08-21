@@ -9,12 +9,15 @@ import (
 	"sync"
 	"time"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // HandleBashCommand processes bash commands starting with `!`. A trailing `&`
@@ -26,7 +29,7 @@ func (s *Service) HandleBashCommand(commandText string) tea.Cmd {
 
 	if command == "" {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  "No bash command provided. Use: !<command>",
 				Sticky: false,
 			}
@@ -40,7 +43,7 @@ func (s *Service) HandleBashCommand(commandText string) tea.Cmd {
 
 		if command == "" {
 			return func() tea.Msg {
-				return domain.ShowErrorEvent{
+				return ui.ShowErrorEvent{
 					Error:  "No bash command provided. Use: !<command>",
 					Sticky: false,
 				}
@@ -56,7 +59,7 @@ func (s *Service) HandleBashCommand(commandText string) tea.Cmd {
 // HandleBashOutputChunk is invoked after a bash output chunk reaches the UI.
 // It keeps the bash event channel pumping until the command completes; if no
 // bash channel is active, it falls back to the chat event channel.
-func (s *Service) HandleBashOutputChunk(_ domain.BashOutputChunkEvent) tea.Cmd {
+func (s *Service) HandleBashOutputChunk(_ agentdomain.BashOutputChunkEvent) tea.Cmd {
 	if bashEventChan := s.PendingBashChannel(); bashEventChan != nil {
 		return s.listener.ListenForEvents(bashEventChan)
 	}
@@ -72,25 +75,25 @@ func (s *Service) HandleBashOutputChunk(_ domain.BashOutputChunkEvent) tea.Cmd {
 // bash run: refreshes history, surfaces an error message if the run failed,
 // and (for user-initiated `!command` runs) emits a UserInputEvent to trigger
 // auto-fix.
-func (s *Service) HandleBashCommandCompleted(msg domain.BashCommandCompletedEvent) tea.Cmd {
+func (s *Service) HandleBashCommandCompleted(msg ui.BashCommandCompletedEvent) tea.Cmd {
 	s.stateManager.EndToolExecution()
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{History: msg.History}
+			return ui.UpdateHistoryEvent{History: msg.History}
 		},
 	}
 
 	if msg.ErrorMessage != "" {
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{Error: msg.ErrorMessage, Sticky: false}
+			return ui.ShowErrorEvent{Error: msg.ErrorMessage, Sticky: false}
 		})
 	}
 
 	if msg.Failed && msg.UserInitiated {
 		logger.Info("user-initiated bash command failed - triggering auto-fix")
 		cmds = append(cmds, func() tea.Msg {
-			return domain.UserInputEvent{
+			return agentdomain.UserInputEvent{
 				Content: "The bash command failed. Please analyze the error and help me fix it.",
 			}
 		})
@@ -106,7 +109,7 @@ func (s *Service) HandleBackgroundShellRequest() tea.Cmd {
 
 	if detachChan == nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  "No running Bash command to background",
 				Sticky: false,
 			}
@@ -116,15 +119,15 @@ func (s *Service) HandleBackgroundShellRequest() tea.Cmd {
 	select {
 	case detachChan <- struct{}{}:
 		return func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Moving command to background...",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		}
 	default:
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  "Failed to signal detach to running command",
 				Sticky: false,
 			}
@@ -137,7 +140,7 @@ func (s *Service) HandleBackgroundShellRequest() tea.Cmd {
 func (s *Service) executeBashCommand(commandText, command string) tea.Cmd {
 	toolCallID := fmt.Sprintf("user-bash-%d", time.Now().UnixNano())
 
-	userEntry := domain.ConversationEntry{
+	userEntry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(commandText),
@@ -154,7 +157,7 @@ func (s *Service) executeBashCommand(commandText, command string) tea.Cmd {
 		},
 	}}); err != nil {
 		return func() tea.Msg {
-			return domain.ShowErrorEvent{
+			return ui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to start tool execution: %v", err),
 				Sticky: false,
 			}
@@ -164,15 +167,15 @@ func (s *Service) executeBashCommand(commandText, command string) tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg {
 			history := s.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Executing: %s", command),
 				Spinner:    true,
-				StatusType: domain.StatusWorking,
+				StatusType: ui.StatusWorking,
 				ToolName:   "Bash",
 			}
 		},
@@ -202,8 +205,8 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 			Arguments: fmt.Sprintf(`{"command": "%s"}`, strings.ReplaceAll(command, `"`, `\"`)),
 		}
 
-		eventChan <- domain.ToolExecutionProgressEvent{
-			BaseChatEvent: domain.BaseChatEvent{
+		eventChan <- agentdomain.ToolExecutionProgressEvent{
+			BaseChatEvent: agentdomain.BaseChatEvent{
 				RequestID: toolCallID,
 				Timestamp: time.Now(),
 			},
@@ -215,8 +218,8 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 		}
 
 		bashCallback := func(line string) {
-			eventChan <- domain.BashOutputChunkEvent{
-				BaseChatEvent: domain.BaseChatEvent{
+			eventChan <- agentdomain.BashOutputChunkEvent{
+				BaseChatEvent: agentdomain.BaseChatEvent{
 					RequestID: toolCallID,
 					Timestamp: time.Now(),
 				},
@@ -226,14 +229,14 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 			}
 		}
 
-		ctx := domain.WithToolApproved(context.Background())
-		ctx = domain.WithBashOutputCallback(ctx, bashCallback)
-		ctx = domain.WithBashDetachChannel(ctx, detachChan)
-		ctx = domain.WithDirectExecution(ctx)
+		ctx := agentdomain.WithToolApproved(context.Background())
+		ctx = agentdomain.WithBashOutputCallback(ctx, bashCallback)
+		ctx = agentdomain.WithBashDetachChannel(ctx, detachChan)
+		ctx = agentdomain.WithDirectExecution(ctx)
 		result, err := s.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
-			eventChan <- domain.BashCommandCompletedEvent{
+			eventChan <- ui.BashCommandCompletedEvent{
 				History:       s.conversationRepo.GetMessages(),
 				Failed:        true,
 				UserInitiated: strings.HasPrefix(toolCallID, "user-bash-"),
@@ -249,8 +252,8 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 			message = "Execution failed"
 		}
 
-		eventChan <- domain.ToolExecutionProgressEvent{
-			BaseChatEvent: domain.BaseChatEvent{
+		eventChan <- agentdomain.ToolExecutionProgressEvent{
+			BaseChatEvent: agentdomain.BaseChatEvent{
 				RequestID: toolCallID,
 				Timestamp: time.Now(),
 			},
@@ -266,7 +269,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 				Function: toolCallFunc,
 			},
 		}
-		assistantEntry := domain.ConversationEntry{
+		assistantEntry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:      sdk.Assistant,
 				Content:   sdk.NewMessageContent(""),
@@ -282,7 +285,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 		} else {
 			formattedContent = "Tool execution failed: no result returned"
 		}
-		toolEntry := domain.ConversationEntry{
+		toolEntry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:       sdk.Tool,
 				Content:    sdk.NewMessageContent(formattedContent),
@@ -296,7 +299,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 		isUserInitiated := strings.HasPrefix(toolCallID, "user-bash-")
 		failed := result != nil && !result.Success
 
-		eventChan <- domain.BashCommandCompletedEvent{
+		eventChan <- ui.BashCommandCompletedEvent{
 			History:       s.conversationRepo.GetMessages(),
 			Failed:        failed,
 			UserInitiated: isUserInitiated,
@@ -310,7 +313,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 // background-shell service and returns a status update describing the shell
 // id.
 func (s *Service) executeBashCommandInBackground(commandText, command string) tea.Cmd {
-	userEntry := domain.ConversationEntry{
+	userEntry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(commandText),
@@ -320,7 +323,7 @@ func (s *Service) executeBashCommandInBackground(commandText, command string) te
 	_ = s.conversationRepo.AddMessage(userEntry)
 
 	go func() {
-		ctx := domain.WithToolApproved(context.Background())
+		ctx := agentdomain.WithToolApproved(context.Background())
 
 		cmd := exec.CommandContext(ctx, "bash", "-c", command)
 
@@ -387,7 +390,7 @@ func (s *Service) executeBashCommandInBackground(commandText, command string) te
 
 		<-done
 
-		assistantEntry := domain.ConversationEntry{
+		assistantEntry := convdomain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
 				Content: sdk.NewMessageContent(fmt.Sprintf("Command sent to the background with ID: %s. Use ListShells() to view background shells or BashOutput(shell_id=\"%s\") to view output.", shellID, shellID)),
@@ -400,15 +403,15 @@ func (s *Service) executeBashCommandInBackground(commandText, command string) te
 	return tea.Batch(
 		func() tea.Msg {
 			history := s.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{
+			return ui.UpdateHistoryEvent{
 				History: history,
 			}
 		},
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    fmt.Sprintf("Starting command in background: %s", command),
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: ui.StatusDefault,
 			}
 		},
 	)

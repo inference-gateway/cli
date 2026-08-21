@@ -144,9 +144,7 @@ By default the project `.infer/config.yaml` is updated; pass `--userspace` to up
 infer config set agent.model "openai/gpt-4-turbo"
 infer config set agent.max_turns 100
 infer config set agent.max_concurrent_tools 5
-infer config set agent.verbose_tools true
 infer config set agent.skills.enabled true
-infer config set export.summary_model "anthropic/claude-4.1-haiku"
 
 # Tools
 infer config set tools.enabled true

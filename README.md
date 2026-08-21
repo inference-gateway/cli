@@ -387,15 +387,11 @@ infer config get                       # dump the whole effective config
 # Agent configuration
 infer config set agent.model "deepseek/deepseek-v4-pro"
 infer config set agent.max_turns 100
-infer config set agent.verbose_tools true
 
 # Tool management
 infer config set tools.enabled true
 infer config set tools.bash.enabled true
 infer config set tools.safety.require_approval true
-
-# Export configuration
-infer config set export.summary_model "anthropic/claude-4.1-haiku"
 
 # Write to userspace (~/.infer/config.yaml) instead of the project
 infer config set agent.model "openai/gpt-4o" --userspace

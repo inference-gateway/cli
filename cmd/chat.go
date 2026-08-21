@@ -14,21 +14,22 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	uuid "github.com/google/uuid"
+	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	app "github.com/inference-gateway/cli/internal/app"
-	clipboard "github.com/inference-gateway/cli/internal/clipboard"
+	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
+	clipboard "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	render "github.com/inference-gateway/cli/internal/render"
-	screenshotsvc "github.com/inference-gateway/cli/internal/services"
-	streamevent "github.com/inference-gateway/cli/internal/streamevent"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	render "github.com/inference-gateway/cli/internal/platform/render"
+	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	web "github.com/inference-gateway/cli/internal/web"
 )
@@ -192,11 +193,11 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		resumeChatSession(conversationRepo, sessionRolloverManager, sessionID)
 	}
 
-	if mode := inheritedSubagentMode(); mode != domain.AgentModeStandard {
+	if mode := inheritedSubagentMode(); mode != agentdomain.AgentModeStandard {
 		stateManager.SetAgentMode(mode)
 	}
 
-	var screenshotServer *screenshotsvc.ScreenshotServer
+	var screenshotServer *computerinfra.ScreenshotServer
 
 	if cfg.ComputerUse.Enabled && cfg.ComputerUse.Screenshot.StreamingEnabled {
 		screenshotServer = startScreenshotServer(cfg, imageService, toolRegistry)
@@ -277,7 +278,7 @@ func chatExitMessage(sessionID string) string {
 // resolving rollover chains first. When the conversation cannot be loaded it
 // adopts the requested ID for the new session if the repository supports it,
 // mirroring `infer headless --session-id` semantics.
-func resumeChatSession(repo domain.ConversationRepository, rolloverManager *screenshotsvc.SessionRolloverManager, sessionID string) {
+func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager *conversation.SessionRolloverManager, sessionID string) {
 	if rolloverManager != nil {
 		resolved, _, _ := rolloverManager.ResolveSessionID(sessionID)
 		sessionID = resolved
@@ -306,7 +307,7 @@ func StartWebChatSession(cfg *config.Config) error {
 	return server.Start()
 }
 
-func validateAndSetDefaultModel(modelService domain.ModelService, models []string, defaultModel string) string {
+func validateAndSetDefaultModel(modelService convdomain.ModelService, models []string, defaultModel string) string {
 	modelFound := false
 	for _, model := range models {
 		if model == defaultModel {
@@ -404,7 +405,7 @@ func runNonInteractiveChat(cfg *config.Config) error {
 		Content: sdk.NewMessageContent(input),
 	}
 
-	req := &domain.AgentRequest{
+	req := &agentdomain.AgentRequest{
 		RequestID: fmt.Sprintf("req_%d", time.Now().UnixNano()),
 		Model:     defaultModel,
 		Messages:  []sdk.Message{userMessage},
@@ -430,10 +431,10 @@ func contains(slice []string, item string) bool {
 }
 
 // startScreenshotServer initializes and starts the screenshot streaming server
-func startScreenshotServer(config *config.Config, imageService domain.ImageService, toolRegistry *tools.Registry) *screenshotsvc.ScreenshotServer {
+func startScreenshotServer(config *config.Config, imageService agentdomain.ImageService, toolRegistry *tools.Registry) *computerinfra.ScreenshotServer {
 	logger.Info("screenshot streaming conditions met, starting server")
 	sessionID := fmt.Sprintf("%d-%s", time.Now().Unix(), uuid.New().String()[:8])
-	screenshotServer := screenshotsvc.NewScreenshotServer(config, imageService, sessionID)
+	screenshotServer := computerinfra.NewScreenshotServer(config, imageService, sessionID)
 
 	if err := screenshotServer.Start(); err != nil {
 		logger.Warn("failed to start screenshot server", "error", err)
@@ -450,7 +451,7 @@ func startScreenshotServer(config *config.Config, imageService domain.ImageServi
 	return screenshotServer
 }
 
-// programNotifier is the single domain.UINotifier backed by a real Bubble Tea
+// programNotifier is the single agentdomain.UINotifier backed by a real Bubble Tea
 // program: the one and only place (*tea.Program).Send is ever called, so every
 // background→TUI push funnels through this ingress. Set on the container via
 // SetUINotifier before program.Run.
@@ -468,17 +469,17 @@ func (p programNotifier) Notify(event any) { p.program.Send(event) }
 // forwardControlEventsToBubbleTea forwards control events from EventBridge to the
 // Bubble Tea loop through the single UI notifier. This ensures control events
 // (pause/resume) reach ChatHandler even when the chat session is closed.
-func forwardControlEventsToBubbleTea(notifier domain.UINotifier, eventBridge domain.EventBridge) {
+func forwardControlEventsToBubbleTea(notifier agentdomain.UINotifier, eventBridge agentdomain.EventBridge) {
 	logger.Debug("starting control event forwarder")
 	subscription := eventBridge.Subscribe()
 
 	for event := range subscription {
 		switch e := event.(type) {
-		case domain.ComputerUsePausedEvent:
+		case agentdomain.ComputerUsePausedEvent:
 			logger.Debug("forwarding ComputerUsePausedEvent to BubbleTea", "request_id", e.RequestID)
 			notifier.Notify(e)
 
-		case domain.ComputerUseResumedEvent:
+		case agentdomain.ComputerUseResumedEvent:
 			logger.Debug("forwarding ComputerUseResumedEvent to BubbleTea", "request_id", e.RequestID)
 			notifier.Notify(e)
 

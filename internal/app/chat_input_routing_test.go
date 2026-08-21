@@ -3,16 +3,17 @@ package app
 import (
 	"testing"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	tea "charm.land/bubbletea/v2"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 type teaConversationRenderer struct {
@@ -59,7 +60,7 @@ func (t *teaInputStatusBarComponent) SetHeight(int) {}
 
 func (t *teaInputStatusBarComponent) SetInputText(string) {}
 
-func (t *teaInputStatusBarComponent) UpdateMCPStatus(*domain.MCPServerStatus) {}
+func (t *teaInputStatusBarComponent) UpdateMCPStatus(*ui.MCPServerStatus) {}
 
 func (t *teaInputStatusBarComponent) Focus() bool { return false }
 
@@ -77,23 +78,23 @@ func (t *teaInputStatusBarComponent) SelectedAction() ui.StatusIndicatorAction {
 
 func (t *teaInputStatusBarComponent) Render() string { return "" }
 
-func newInputRoutingTestApp(t *testing.T, view domain.ViewState, draft string) (*ChatApplication, *components.InputView) {
+func newInputRoutingTestApp(t *testing.T, view ui.ViewState, draft string) (*ChatApplication, *components.InputView) {
 	t.Helper()
 
 	stateManager := services.NewStateManager(false)
-	if err := stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		t.Fatalf("transitioning to chat: %v", err)
 	}
-	if view != domain.ViewStateChat {
+	if view != ui.ViewStateChat {
 		if err := stateManager.TransitionToView(view); err != nil {
 			t.Fatalf("transitioning to %s: %v", view, err)
 		}
 	}
 
-	modelService := &domainmocks.FakeModelService{}
-	inputView := components.NewInputViewWithName(modelService, t.TempDir(), domain.SubagentHistoryMemoryOnly, nil)
+	modelService := &convmocks.FakeModelService{}
+	inputView := components.NewInputViewWithName(modelService, t.TempDir(), scheddomain.SubagentHistoryMemoryOnly, nil)
 	inputView.SetText(draft)
-	messageQueue := &domainmocks.FakeMessageQueue{}
+	messageQueue := &convmocks.FakeMessageQueue{}
 	messageQueue.IsEmptyReturns(true)
 
 	return &ChatApplication{
@@ -112,9 +113,9 @@ func printableKey(text string) tea.KeyPressMsg {
 }
 
 func TestModelSelectionSearchDoesNotLeakIntoInput(t *testing.T) {
-	app, inputView := newInputRoutingTestApp(t, domain.ViewStateModelSelection, "draft prompt")
+	app, inputView := newInputRoutingTestApp(t, ui.ViewStateModelSelection, "draft prompt")
 
-	modelService := &domainmocks.FakeModelService{}
+	modelService := &convmocks.FakeModelService{}
 	app.modelSelector = components.NewModelSelector(
 		[]string{"openai/gpt-4o", "deepseek/deepseek-chat"},
 		modelService,
@@ -146,14 +147,14 @@ func TestModelSelectionSearchDoesNotLeakIntoInput(t *testing.T) {
 }
 
 func TestConversationSelectionDeleteKeysDoNotLeakIntoInput(t *testing.T) {
-	app, inputView := newInputRoutingTestApp(t, domain.ViewStateConversationSelection, "existing draft")
+	app, inputView := newInputRoutingTestApp(t, ui.ViewStateConversationSelection, "existing draft")
 
 	repo := &shortcutsmocks.FakePersistentConversationRepository{}
 	selector := components.NewConversationSelector(repo, nil)
-	model, _ := selector.Update(domain.ConversationsLoadedEvent{
+	model, _ := selector.Update(ui.ConversationsLoadedEvent{
 		Conversations: []any{
-			domain.ConversationSummary{ID: "conv-1", Title: "Conversation 1"},
-			domain.ConversationSummary{ID: "conv-2", Title: "Conversation 2"},
+			convdomain.ConversationSummary{ID: "conv-1", Title: "Conversation 1"},
+			convdomain.ConversationSummary{ID: "conv-2", Title: "Conversation 2"},
 		},
 	})
 	app.conversationSelector = model.(*components.ConversationSelectorImpl)
@@ -208,6 +209,6 @@ func assertClearsStatus(t *testing.T, cmd tea.Cmd) {
 }
 
 func isClearStatusEvent(msg tea.Msg) bool {
-	status, ok := msg.(domain.SetStatusEvent)
-	return ok && status.Message == "" && !status.Spinner && status.StatusType == domain.StatusDefault
+	status, ok := msg.(ui.SetStatusEvent)
+	return ok && status.Message == "" && !status.Spinner && status.StatusType == ui.StatusDefault
 }

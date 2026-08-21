@@ -4,27 +4,29 @@ import (
 	"context"
 	"testing"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	mockdomain "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	states "github.com/inference-gateway/cli/internal/agent/states"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // TestStateMachineInitialization tests that the state machine initializes to Idle state
 func TestStateMachineInitialization(t *testing.T) {
 	sm := NewAgentStateMachine()
 
-	if sm.GetCurrentState() != domain.StateIdle {
+	if sm.GetCurrentState() != states.StateIdle {
 		t.Errorf("expected initial state to be Idle, got %s", sm.GetCurrentState())
 	}
 }
 
 // createTestAgentContext creates a minimal agent context for testing
-func createTestAgentContext() *domain.AgentContext {
-	return &domain.AgentContext{
+func createTestAgentContext() *states.AgentContext {
+	return &states.AgentContext{
 		RequestID:        "test-request-id",
 		Conversation:     &[]sdk.Message{},
-		MessageQueue:     &mockdomain.FakeMessageQueue{},
-		ConversationRepo: &mockdomain.FakeConversationRepository{},
+		MessageQueue:     &convmocks.FakeMessageQueue{},
+		ConversationRepo: &convmocks.FakeConversationRepository{},
 		ToolCalls:        nil,
 		Turns:            0,
 		MaxTurns:         10,
@@ -41,23 +43,23 @@ func TestValidTransitions_BasicFlow(t *testing.T) {
 	ctx := createTestAgentContext()
 
 	// Test Idle to CheckingQueue
-	err := sm.Transition(ctx, domain.StateCheckingQueue)
+	err := sm.Transition(ctx, states.StateCheckingQueue)
 	if err != nil {
 		t.Errorf("Idle → CheckingQueue should succeed, got error: %v", err)
 	}
-	if sm.GetCurrentState() != domain.StateCheckingQueue {
+	if sm.GetCurrentState() != states.StateCheckingQueue {
 		t.Errorf("Expected state CheckingQueue, got %s", sm.GetCurrentState())
 	}
 
 	// Test CheckingQueue to StreamingLLM
 	*ctx.Conversation = []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}}
-	err = sm.Transition(ctx, domain.StateStreamingLLM)
+	err = sm.Transition(ctx, states.StateStreamingLLM)
 	if err != nil {
 		t.Errorf("CheckingQueue → StreamingLLM should succeed, got error: %v", err)
 	}
 
 	// Test StreamingLLM to PostStream
-	err = sm.Transition(ctx, domain.StatePostStream)
+	err = sm.Transition(ctx, states.StatePostStream)
 	if err != nil {
 		t.Errorf("StreamingLLM → PostStream should succeed, got error: %v", err)
 	}
@@ -67,10 +69,10 @@ func TestValidTransitions_BasicFlow(t *testing.T) {
 func TestInvalidTransitions(t *testing.T) {
 	sm := NewAgentStateMachine()
 
-	ctx := &domain.AgentContext{
+	ctx := &states.AgentContext{
 		Conversation:     &[]sdk.Message{},
-		MessageQueue:     &mockdomain.FakeMessageQueue{},
-		ConversationRepo: &mockdomain.FakeConversationRepository{},
+		MessageQueue:     &convmocks.FakeMessageQueue{},
+		ConversationRepo: &convmocks.FakeConversationRepository{},
 		ToolCalls:        nil,
 		Turns:            0,
 		MaxTurns:         10,
@@ -80,20 +82,20 @@ func TestInvalidTransitions(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		fromState   domain.AgentExecutionState
-		toState     domain.AgentExecutionState
+		fromState   states.AgentExecutionState
+		toState     states.AgentExecutionState
 		description string
 	}{
 		{
 			name:        "StreamingLLM to Idle",
-			fromState:   domain.StateStreamingLLM,
-			toState:     domain.StateIdle,
+			fromState:   states.StateStreamingLLM,
+			toState:     states.StateIdle,
 			description: "Should not allow jumping back to Idle from StreamingLLM",
 		},
 		{
 			name:        "PostStream to ExecutingTools without EvaluatingTools",
-			fromState:   domain.StatePostStream,
-			toState:     domain.StateExecutingTools,
+			fromState:   states.StatePostStream,
+			toState:     states.StateExecutingTools,
 			description: "Should require going through EvaluatingTools first",
 		},
 	}
@@ -102,9 +104,9 @@ func TestInvalidTransitions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			sm = NewAgentStateMachine()
 
-			testCtx := &domain.AgentContext{
+			testCtx := &states.AgentContext{
 				Conversation: &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
-				MessageQueue: &mockdomain.FakeMessageQueue{},
+				MessageQueue: &convmocks.FakeMessageQueue{},
 				Turns:        0,
 				MaxTurns:     10,
 				Ctx:          context.Background(),
@@ -112,13 +114,13 @@ func TestInvalidTransitions(t *testing.T) {
 			}
 
 			switch tt.fromState {
-			case domain.StateStreamingLLM:
-				_ = sm.Transition(testCtx, domain.StateCheckingQueue)
-				_ = sm.Transition(testCtx, domain.StateStreamingLLM)
-			case domain.StatePostStream:
-				_ = sm.Transition(testCtx, domain.StateCheckingQueue)
-				_ = sm.Transition(testCtx, domain.StateStreamingLLM)
-				_ = sm.Transition(testCtx, domain.StatePostStream)
+			case states.StateStreamingLLM:
+				_ = sm.Transition(testCtx, states.StateCheckingQueue)
+				_ = sm.Transition(testCtx, states.StateStreamingLLM)
+			case states.StatePostStream:
+				_ = sm.Transition(testCtx, states.StateCheckingQueue)
+				_ = sm.Transition(testCtx, states.StateStreamingLLM)
+				_ = sm.Transition(testCtx, states.StatePostStream)
 			}
 
 			err := sm.Transition(ctx, tt.toState)
@@ -134,26 +136,26 @@ func TestGuardConditions(t *testing.T) {
 	t.Run("CheckingQueue to Idle transition respects canComplete guard", func(t *testing.T) {
 		sm := NewAgentStateMachine()
 
-		ctx := &domain.AgentContext{
+		ctx := &states.AgentContext{
 			Conversation:   &[]sdk.Message{},
-			MessageQueue:   &mockdomain.FakeMessageQueue{},
+			MessageQueue:   &convmocks.FakeMessageQueue{},
 			Turns:          0,
 			HasToolResults: false,
 			Ctx:            context.Background(),
 			IsChatMode:     true,
 		}
-		fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+		fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 		fakeQueue.IsEmptyReturns(true)
 
-		_ = sm.Transition(ctx, domain.StateCheckingQueue)
+		_ = sm.Transition(ctx, states.StateCheckingQueue)
 
-		err := sm.Transition(ctx, domain.StateIdle)
+		err := sm.Transition(ctx, states.StateIdle)
 		if err == nil {
 			t.Error("expected transition to fail when canComplete guard fails (turns=0)")
 		}
 
 		ctx.Turns = 1
-		err = sm.Transition(ctx, domain.StateIdle)
+		err = sm.Transition(ctx, states.StateIdle)
 		if err != nil {
 			t.Errorf("expected transition to succeed when canComplete guard passes, got: %v", err)
 		}
@@ -162,9 +164,9 @@ func TestGuardConditions(t *testing.T) {
 	t.Run("PostToolExecution respects maxTurnsReached guard", func(t *testing.T) {
 		sm := NewAgentStateMachine()
 
-		ctx := &domain.AgentContext{
+		ctx := &states.AgentContext{
 			Conversation:   &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
-			MessageQueue:   &mockdomain.FakeMessageQueue{},
+			MessageQueue:   &convmocks.FakeMessageQueue{},
 			ToolCalls:      nil,
 			Turns:          10,
 			MaxTurns:       10,
@@ -172,12 +174,12 @@ func TestGuardConditions(t *testing.T) {
 			Ctx:            context.Background(),
 			IsChatMode:     true,
 		}
-		fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+		fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 		fakeQueue.IsEmptyReturns(true)
 
-		_ = sm.Transition(ctx, domain.StateCheckingQueue)
-		_ = sm.Transition(ctx, domain.StateStreamingLLM)
-		_ = sm.Transition(ctx, domain.StatePostStream)
+		_ = sm.Transition(ctx, states.StateCheckingQueue)
+		_ = sm.Transition(ctx, states.StateStreamingLLM)
+		_ = sm.Transition(ctx, states.StatePostStream)
 
 		ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
 			{
@@ -188,11 +190,11 @@ func TestGuardConditions(t *testing.T) {
 				},
 			},
 		}
-		_ = sm.Transition(ctx, domain.StateEvaluatingTools)
-		_ = sm.Transition(ctx, domain.StateExecutingTools)
-		_ = sm.Transition(ctx, domain.StatePostToolExecution)
+		_ = sm.Transition(ctx, states.StateEvaluatingTools)
+		_ = sm.Transition(ctx, states.StateExecutingTools)
+		_ = sm.Transition(ctx, states.StatePostToolExecution)
 
-		if !sm.CanTransition(ctx, domain.StateCompleting) {
+		if !sm.CanTransition(ctx, states.StateCompleting) {
 			t.Error("expected to be able to transition to Completing when max turns reached")
 		}
 	})
@@ -202,18 +204,18 @@ func TestGuardConditions(t *testing.T) {
 func TestStateReset(t *testing.T) {
 	sm := NewAgentStateMachine()
 
-	ctx := &domain.AgentContext{
+	ctx := &states.AgentContext{
 		Conversation: &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
-		MessageQueue: &mockdomain.FakeMessageQueue{},
+		MessageQueue: &convmocks.FakeMessageQueue{},
 		Ctx:          context.Background(),
 	}
 
-	_ = sm.Transition(ctx, domain.StateCheckingQueue)
-	_ = sm.Transition(ctx, domain.StateStreamingLLM)
+	_ = sm.Transition(ctx, states.StateCheckingQueue)
+	_ = sm.Transition(ctx, states.StateStreamingLLM)
 
 	sm.Reset()
 
-	if sm.GetCurrentState() != domain.StateIdle {
+	if sm.GetCurrentState() != states.StateIdle {
 		t.Errorf("expected state to be Idle after reset, got %s", sm.GetCurrentState())
 	}
 }
@@ -222,23 +224,23 @@ func TestStateReset(t *testing.T) {
 func TestGetValidTransitions(t *testing.T) {
 	sm := NewAgentStateMachine()
 
-	ctx := &domain.AgentContext{
+	ctx := &states.AgentContext{
 		Conversation:   &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
-		MessageQueue:   &mockdomain.FakeMessageQueue{},
+		MessageQueue:   &convmocks.FakeMessageQueue{},
 		Turns:          0,
 		MaxTurns:       10,
 		HasToolResults: false,
 		Ctx:            context.Background(),
 	}
 
-	fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+	fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 	fakeQueue.IsEmptyReturns(true)
 
 	validStates := sm.GetValidTransitions(ctx)
 
 	found := false
 	for _, state := range validStates {
-		if state == domain.StateCheckingQueue {
+		if state == states.StateCheckingQueue {
 			found = true
 			break
 		}
@@ -253,15 +255,15 @@ func TestGetValidTransitions(t *testing.T) {
 func TestGuardFunctions_CanComplete(t *testing.T) {
 	tests := []struct {
 		name     string
-		setupCtx func(*domain.AgentContext)
+		setupCtx func(*states.AgentContext)
 		expected bool
 	}{
 		{
 			name: "returns_false_when_turns_is_zero",
-			setupCtx: func(ctx *domain.AgentContext) {
+			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 0
 				ctx.HasToolResults = false
-				fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+				fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 				fakeQueue.IsEmptyReturns(true)
 				*ctx.Conversation = []sdk.Message{
 					{Role: sdk.Assistant, Content: sdk.NewMessageContent("test")},
@@ -271,10 +273,10 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 		},
 		{
 			name: "returns_false_when_has_tool_results",
-			setupCtx: func(ctx *domain.AgentContext) {
+			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 1
 				ctx.HasToolResults = true
-				fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+				fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 				fakeQueue.IsEmptyReturns(true)
 				*ctx.Conversation = []sdk.Message{
 					{Role: sdk.Assistant, Content: sdk.NewMessageContent("test")},
@@ -284,10 +286,10 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 		},
 		{
 			name: "returns_false_when_queue_not_empty",
-			setupCtx: func(ctx *domain.AgentContext) {
+			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 1
 				ctx.HasToolResults = false
-				fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+				fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 				fakeQueue.IsEmptyReturns(false)
 				*ctx.Conversation = []sdk.Message{
 					{Role: sdk.Assistant, Content: sdk.NewMessageContent("test")},
@@ -297,10 +299,10 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 		},
 		{
 			name: "returns_false_when_last_message_is_user",
-			setupCtx: func(ctx *domain.AgentContext) {
+			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 1
 				ctx.HasToolResults = false
-				fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+				fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 				fakeQueue.IsEmptyReturns(true)
 				*ctx.Conversation = []sdk.Message{
 					{Role: sdk.User, Content: sdk.NewMessageContent("test")},
@@ -310,10 +312,10 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 		},
 		{
 			name: "returns_true_when_all_conditions_met",
-			setupCtx: func(ctx *domain.AgentContext) {
+			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 1
 				ctx.HasToolResults = false
-				fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+				fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 				fakeQueue.IsEmptyReturns(true)
 				*ctx.Conversation = []sdk.Message{
 					{Role: sdk.Assistant, Content: sdk.NewMessageContent("done")},
@@ -323,10 +325,10 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 		},
 		{
 			name: "returns_false_when_conversation_empty",
-			setupCtx: func(ctx *domain.AgentContext) {
+			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 1
 				ctx.HasToolResults = false
-				fakeQueue := ctx.MessageQueue.(*mockdomain.FakeMessageQueue)
+				fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
 				fakeQueue.IsEmptyReturns(true)
 				*ctx.Conversation = []sdk.Message{}
 			},
@@ -339,9 +341,9 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 			sm := NewAgentStateMachine()
 			smImpl := sm.(*AgentStateMachineImpl)
 
-			ctx := &domain.AgentContext{
+			ctx := &states.AgentContext{
 				Conversation:   &[]sdk.Message{},
-				MessageQueue:   &mockdomain.FakeMessageQueue{},
+				MessageQueue:   &convmocks.FakeMessageQueue{},
 				Turns:          0,
 				HasToolResults: false,
 				Ctx:            context.Background(),
@@ -363,12 +365,12 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 func TestGuardFunctions_NeedsApproval(t *testing.T) {
 	tests := []struct {
 		name     string
-		setupCtx func(*domain.AgentContext)
+		setupCtx func(*states.AgentContext)
 		expected bool
 	}{
 		{
 			name: "returns_false_when_no_approval_policy",
-			setupCtx: func(ctx *domain.AgentContext) {
+			setupCtx: func(ctx *states.AgentContext) {
 				ctx.ApprovalPolicy = nil
 				ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
 					{
@@ -384,8 +386,8 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 		},
 		{
 			name: "returns_true_when_tool_needs_approval",
-			setupCtx: func(ctx *domain.AgentContext) {
-				fakePolicy := &mockdomain.FakeApprovalPolicy{}
+			setupCtx: func(ctx *states.AgentContext) {
+				fakePolicy := &agentdomainmocks.FakeApprovalPolicy{}
 				fakePolicy.ShouldRequireApprovalReturns(true)
 				ctx.ApprovalPolicy = fakePolicy
 				ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
@@ -402,8 +404,8 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 		},
 		{
 			name: "returns_false_when_no_tools_need_approval",
-			setupCtx: func(ctx *domain.AgentContext) {
-				fakePolicy := &mockdomain.FakeApprovalPolicy{}
+			setupCtx: func(ctx *states.AgentContext) {
+				fakePolicy := &agentdomainmocks.FakeApprovalPolicy{}
 				fakePolicy.ShouldRequireApprovalReturns(false)
 				ctx.ApprovalPolicy = fakePolicy
 				ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
@@ -420,8 +422,8 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 		},
 		{
 			name: "returns_false_when_no_tool_calls",
-			setupCtx: func(ctx *domain.AgentContext) {
-				fakePolicy := &mockdomain.FakeApprovalPolicy{}
+			setupCtx: func(ctx *states.AgentContext) {
+				fakePolicy := &agentdomainmocks.FakeApprovalPolicy{}
 				ctx.ApprovalPolicy = fakePolicy
 				ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{}
 			},
@@ -434,7 +436,7 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 			sm := NewAgentStateMachine()
 			smImpl := sm.(*AgentStateMachineImpl)
 
-			ctx := &domain.AgentContext{
+			ctx := &states.AgentContext{
 				ToolCalls:  nil,
 				Ctx:        context.Background(),
 				IsChatMode: true,
@@ -491,7 +493,7 @@ func TestGuardFunctions_MaxTurnsReached(t *testing.T) {
 			sm := NewAgentStateMachine()
 			smImpl := sm.(*AgentStateMachineImpl)
 
-			ctx := &domain.AgentContext{
+			ctx := &states.AgentContext{
 				Turns:    tt.turns,
 				MaxTurns: tt.maxTurns,
 				Ctx:      context.Background(),
@@ -519,22 +521,22 @@ func TestExecutingToolsToStoppedTransition(t *testing.T) {
 		{ID: "t", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: "{}"}},
 	}
 
-	if err := sm.Transition(ctx, domain.StateStopped); err == nil {
+	if err := sm.Transition(ctx, states.StateStopped); err == nil {
 		t.Fatal("Idle → Stopped should fail (Stopped is not a global terminal)")
 	}
 
-	_ = sm.Transition(ctx, domain.StateCheckingQueue)
-	_ = sm.Transition(ctx, domain.StateStreamingLLM)
-	_ = sm.Transition(ctx, domain.StatePostStream)
-	_ = sm.Transition(ctx, domain.StateEvaluatingTools)
-	if err := sm.Transition(ctx, domain.StateExecutingTools); err != nil {
+	_ = sm.Transition(ctx, states.StateCheckingQueue)
+	_ = sm.Transition(ctx, states.StateStreamingLLM)
+	_ = sm.Transition(ctx, states.StatePostStream)
+	_ = sm.Transition(ctx, states.StateEvaluatingTools)
+	if err := sm.Transition(ctx, states.StateExecutingTools); err != nil {
 		t.Fatalf("setup: reaching ExecutingTools should succeed, got: %v", err)
 	}
 
-	if err := sm.Transition(ctx, domain.StateStopped); err != nil {
+	if err := sm.Transition(ctx, states.StateStopped); err != nil {
 		t.Fatalf("ExecutingTools → Stopped should succeed, got error: %v", err)
 	}
-	if sm.GetCurrentState() != domain.StateStopped {
+	if sm.GetCurrentState() != states.StateStopped {
 		t.Errorf("expected state Stopped, got %s", sm.GetCurrentState())
 	}
 }
@@ -554,25 +556,25 @@ func TestMaxTurnsExceededFlag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sm := NewAgentStateMachine()
-			ctx := &domain.AgentContext{
+			ctx := &states.AgentContext{
 				Conversation: &[]sdk.Message{{Role: sdk.Assistant, Content: sdk.NewMessageContent("done")}},
-				MessageQueue: &mockdomain.FakeMessageQueue{},
+				MessageQueue: &convmocks.FakeMessageQueue{},
 				Turns:        10,
 				MaxTurns:     10,
 				Ctx:          context.Background(),
 			}
-			ctx.MessageQueue.(*mockdomain.FakeMessageQueue).IsEmptyReturns(true)
+			ctx.MessageQueue.(*convmocks.FakeMessageQueue).IsEmptyReturns(true)
 
-			_ = sm.Transition(ctx, domain.StateCheckingQueue)
-			_ = sm.Transition(ctx, domain.StateStreamingLLM)
-			_ = sm.Transition(ctx, domain.StatePostStream)
+			_ = sm.Transition(ctx, states.StateCheckingQueue)
+			_ = sm.Transition(ctx, states.StateStreamingLLM)
+			_ = sm.Transition(ctx, states.StatePostStream)
 			ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{{ID: "t", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "t", Arguments: "{}"}}}
-			_ = sm.Transition(ctx, domain.StateEvaluatingTools)
-			_ = sm.Transition(ctx, domain.StateExecutingTools)
-			_ = sm.Transition(ctx, domain.StatePostToolExecution)
+			_ = sm.Transition(ctx, states.StateEvaluatingTools)
+			_ = sm.Transition(ctx, states.StateExecutingTools)
+			_ = sm.Transition(ctx, states.StatePostToolExecution)
 
 			ctx.HasToolResults = tt.hasToolResults
-			if err := sm.Transition(ctx, domain.StateCompleting); err != nil {
+			if err := sm.Transition(ctx, states.StateCompleting); err != nil {
 				t.Fatalf("transition to Completing failed: %v", err)
 			}
 			if ctx.MaxTurnsExceeded != tt.want {

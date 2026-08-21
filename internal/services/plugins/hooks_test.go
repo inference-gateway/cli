@@ -9,7 +9,7 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // writePluginHooks materializes a hooks.yaml for plugin name under the
@@ -51,7 +51,7 @@ func TestCommandsDue_MasterHooksSwitchGatesEverything(t *testing.T) {
 
 	provider := NewPluginHookCommandProvider(cfg)
 	require.NotNil(t, provider)
-	require.Nil(t, provider.CommandsDue(domain.HookPostSession))
+	require.Nil(t, provider.CommandsDue(agentdomain.HookPostSession))
 }
 
 func TestCommandsDue_PluginHooksAreOptIn(t *testing.T) {
@@ -69,14 +69,14 @@ func TestCommandsDue_PluginHooksAreOptIn(t *testing.T) {
 			cfg := hooksCfg(t, nil, tt.entry)
 			writePluginHooks(t, cfg.Plugins.Dir, "p", pluginHooksYAML)
 
-			due := NewPluginHookCommandProvider(cfg).CommandsDue(domain.HookPostSession)
+			due := NewPluginHookCommandProvider(cfg).CommandsDue(agentdomain.HookPostSession)
 			require.Len(t, due, tt.want)
 		})
 	}
 }
 
 func TestCommandsDue_UserHooksFirstThenPluginsInRegistryOrder(t *testing.T) {
-	user := []config.HookCommandConfig{{Name: "mine", Hook: domain.HookPostSession, Command: "echo user", Timeout: 5}}
+	user := []config.HookCommandConfig{{Name: "mine", Hook: agentdomain.HookPostSession, Command: "echo user", Timeout: 5}}
 	cfg := hooksCfg(t, user,
 		config.PluginEntry{Name: "alpha", Enabled: true, HooksEnabled: true},
 		config.PluginEntry{Name: "beta", Enabled: true, HooksEnabled: true},
@@ -84,7 +84,7 @@ func TestCommandsDue_UserHooksFirstThenPluginsInRegistryOrder(t *testing.T) {
 	writePluginHooks(t, cfg.Plugins.Dir, "alpha", pluginHooksYAML)
 	writePluginHooks(t, cfg.Plugins.Dir, "beta", pluginHooksYAML)
 
-	due := NewPluginHookCommandProvider(cfg).CommandsDue(domain.HookPostSession)
+	due := NewPluginHookCommandProvider(cfg).CommandsDue(agentdomain.HookPostSession)
 	require.Len(t, due, 3)
 	require.Equal(t, "mine", due[0].Name)
 	require.Equal(t, "alpha:fmt", due[1].Name)
@@ -97,15 +97,15 @@ func TestCommandsDue_FiltersByHookPoint(t *testing.T) {
 	writePluginHooks(t, cfg.Plugins.Dir, "p", pluginHooksYAML)
 
 	provider := NewPluginHookCommandProvider(cfg)
-	require.Len(t, provider.CommandsDue(domain.HookPostSession), 1)
-	require.Empty(t, provider.CommandsDue(domain.HookPreSession))
+	require.Len(t, provider.CommandsDue(agentdomain.HookPostSession), 1)
+	require.Empty(t, provider.CommandsDue(agentdomain.HookPreSession))
 }
 
 func TestCommandsDue_MissingPluginHooksYAML(t *testing.T) {
-	user := []config.HookCommandConfig{{Name: "mine", Hook: domain.HookPostSession, Command: "echo user", Timeout: 5}}
+	user := []config.HookCommandConfig{{Name: "mine", Hook: agentdomain.HookPostSession, Command: "echo user", Timeout: 5}}
 	cfg := hooksCfg(t, user, config.PluginEntry{Name: "p", Enabled: true, HooksEnabled: true})
 
-	due := NewPluginHookCommandProvider(cfg).CommandsDue(domain.HookPostSession)
+	due := NewPluginHookCommandProvider(cfg).CommandsDue(agentdomain.HookPostSession)
 	require.Len(t, due, 1)
 	require.Equal(t, "mine", due[0].Name)
 }

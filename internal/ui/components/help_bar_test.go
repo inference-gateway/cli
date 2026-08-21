@@ -6,7 +6,6 @@ import (
 
 	key "charm.land/bubbles/v2/key"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -20,7 +19,7 @@ func kb(k, desc string) key.Binding {
 // createMockStyleProviderForHelpBar creates a mock styles provider for testing
 func createMockStyleProviderForHelpBar() *styles.Provider {
 	fakeTheme := &uimocks.FakeTheme{}
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
 	return styles.NewProvider(fakeThemeService)
 }

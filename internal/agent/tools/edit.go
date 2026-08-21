@@ -10,17 +10,20 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	components "github.com/inference-gateway/cli/internal/ui/components"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
+
+// inlineDiffContextLines mirrors styles.InlineDiffContextLines for the plain-text
+// snippet diff so tool output stays in sync with the rendered inline diffs.
+const inlineDiffContextLines = 2
 
 // EditTool handles exact string replacements in files with strict safety rules
 type EditTool struct {
 	config    *config.Config
 	enabled   bool
 	registry  ReadToolTracker
-	formatter domain.CustomFormatter
+	formatter agentinfra.CustomFormatter
 }
 
 // ReadToolTracker interface for tracking read tool usage and per-file read freshness.
@@ -37,7 +40,7 @@ func NewEditTool(cfg *config.Config) *EditTool {
 	return &EditTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		formatter: domain.NewCustomFormatter("Edit", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter("Edit", func(key string) bool {
 			return key == "old_string" || key == "new_string"
 		}),
 	}
@@ -49,7 +52,7 @@ func NewEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *Edit
 		config:   cfg,
 		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
 		registry: registry,
-		formatter: domain.NewCustomFormatter("Edit", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter("Edit", func(key string) bool {
 			return key == "old_string" || key == "new_string"
 		}),
 	}
@@ -91,14 +94,14 @@ func (t *EditTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the edit tool with given arguments
-func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("edit tool is not enabled")
 	}
 
 	if t.registry != nil && !t.registry.IsReadToolUsed() {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Edit",
 			Arguments: args,
 			Success:   false,
@@ -109,7 +112,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 
 	filePath, ok := args["file_path"].(string)
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Edit",
 			Arguments: args,
 			Success:   false,
@@ -119,7 +122,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 	}
 
 	if msg := staleReadError(t.registry, filePath); msg != "" {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Edit",
 			Arguments: args,
 			Success:   false,
@@ -130,7 +133,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 
 	oldString, ok := args["old_string"].(string)
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Edit",
 			Arguments: args,
 			Success:   false,
@@ -141,7 +144,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 
 	newString, ok := args["new_string"].(string)
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Edit",
 			Arguments: args,
 			Success:   false,
@@ -151,7 +154,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 	}
 
 	if oldString == newString {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Edit",
 			Arguments: args,
 			Success:   false,
@@ -169,7 +172,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 
 	editResult, err := t.executeEdit(filePath, oldString, newString, replaceAll)
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Edit",
 			Arguments: args,
 			Success:   false,
@@ -178,7 +181,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 		}, nil
 	}
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "Edit",
 		Arguments: args,
 		Success:   true,
@@ -273,7 +276,7 @@ func staleReadError(registry ReadToolTracker, filePath string) string {
 }
 
 // executeEdit performs the actual edit operation
-func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll bool) (*domain.EditToolResult, error) {
+func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll bool) (*agentdomain.EditToolResult, error) {
 	if err := t.validateFile(filePath); err != nil {
 		return nil, err
 	}
@@ -334,7 +337,7 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 		startLine = strings.Count(before, "\n") + 1
 	}
 
-	result := &domain.EditToolResult{
+	result := &agentdomain.EditToolResult{
 		FilePath:             filePath,
 		OldString:            effectiveOld,
 		NewString:            effectiveNew,
@@ -467,8 +470,8 @@ func generateDiff(oldContent, newContent string) string {
 		return ""
 	}
 
-	contextBefore := components.InlineDiffContextLines
-	contextAfter := components.InlineDiffContextLines
+	contextBefore := inlineDiffContextLines
+	contextAfter := inlineDiffContextLines
 	startLine := firstChanged - contextBefore
 	if startLine < 0 {
 		startLine = 0
@@ -541,13 +544,13 @@ func (t *EditTool) validateFile(path string) error {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *EditTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *EditTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -555,12 +558,12 @@ func (t *EditTool) FormatResult(result *domain.ToolExecutionResult, formatType d
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *EditTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *EditTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
-	editResult, ok := result.Data.(*domain.EditToolResult)
+	editResult, ok := result.Data.(*agentdomain.EditToolResult)
 	if !ok {
 		if result.Success {
 			return "Edit completed successfully"
@@ -587,7 +590,7 @@ func (t *EditTool) FormatPreview(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForUI formats the result for UI display
-func (t *EditTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *EditTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -604,24 +607,13 @@ func (t *EditTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *EditTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
 	var dataContent string
-	showGitDiff := result.Success && result.Arguments != nil
-	if showGitDiff {
-		themeService := domain.NewThemeProvider()
-		styleProvider := styles.NewProvider(themeService)
-		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
-		if editResult, ok := result.Data.(*domain.EditToolResult); ok {
-			diffRenderer.SetStartLine(editResult.StartLine)
-		}
-		diffInfo := t.GetDiffInfo(result.Arguments)
-		diffInfo.Title = "← Edits applied →"
-		dataContent = diffRenderer.RenderDiff(*diffInfo)
-	} else if result.Data != nil {
+	if result.Data != nil {
 		dataContent = t.formatEditData(result.Data)
 	}
 
@@ -640,7 +632,7 @@ func (t *EditTool) ShouldAlwaysExpand() bool {
 
 // formatEditData formats edit-specific data
 func (t *EditTool) formatEditData(data any) string {
-	editResult, ok := data.(*domain.EditToolResult)
+	editResult, ok := data.(*agentdomain.EditToolResult)
 	if !ok {
 		return t.formatter.FormatAsJSON(data)
 	}
@@ -662,18 +654,4 @@ func (t *EditTool) formatEditData(data any) string {
 	}
 
 	return output.String()
-}
-
-// GetDiffInfo implements the DiffFormatter interface
-func (t *EditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
-	oldString, _ := args["old_string"].(string)
-	newString, _ := args["new_string"].(string)
-	filePath, _ := args["file_path"].(string)
-
-	return &components.DiffInfo{
-		FilePath:   filePath,
-		OldContent: oldString,
-		NewContent: newString,
-		Title:      "← Test edit for diff verification →",
-	}
 }

@@ -10,23 +10,34 @@ import (
 	"sync/atomic"
 	"time"
 
-	zap "go.uber.org/zap"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
+	scheduler "github.com/inference-gateway/cli/internal/scheduler"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	sdk "github.com/inference-gateway/sdk"
-
 	mockgateway "github.com/inference-gateway/tokenless/gateway"
 
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	audio "github.com/inference-gateway/cli/internal/audio"
-	clipboardtext "github.com/inference-gateway/cli/internal/clipboard/text"
-	macos "github.com/inference-gateway/cli/internal/display/macos"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
-	memory "github.com/inference-gateway/cli/internal/infra/memory"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	browser "github.com/inference-gateway/cli/internal/browser"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
+	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
+	computer "github.com/inference-gateway/cli/internal/computer"
+	clipboardtext "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard/text"
+	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	adapters "github.com/inference-gateway/cli/internal/platform/adapters"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	memory "github.com/inference-gateway/cli/internal/platform/memory"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
+	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 	services "github.com/inference-gateway/cli/internal/services"
 	a2acoord "github.com/inference-gateway/cli/internal/services/a2acoord"
 	approvalcoord "github.com/inference-gateway/cli/internal/services/approvalcoord"
@@ -34,114 +45,133 @@ import (
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
 	eventlistener "github.com/inference-gateway/cli/internal/services/eventlistener"
 	githubissues "github.com/inference-gateway/cli/internal/services/githubissues"
-	githubscheduler "github.com/inference-gateway/cli/internal/services/githubscheduler"
 	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
-	jobs "github.com/inference-gateway/cli/internal/services/jobs"
 	skills "github.com/inference-gateway/cli/internal/services/skills"
 	toolcoordinator "github.com/inference-gateway/cli/internal/services/toolcoordinator"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	stt "github.com/inference-gateway/cli/internal/stt"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	vlm "github.com/inference-gateway/cli/internal/vlm"
 )
+
+// GatewayManager manages the lifecycle of the gateway (container or binary)
+type GatewayManager interface {
+	// Start starts the gateway container or binary if configured to run locally
+	Start(ctx context.Context) error
+
+	// Stop stops the gateway container or binary
+	Stop(ctx context.Context) error
+
+	// IsRunning returns whether the gateway is running
+	IsRunning() bool
+
+	// GetGatewayURL returns the actual gateway URL with the assigned port
+	GetGatewayURL() string
+
+	// EnsureStarted starts the gateway if configured and not already running
+	// This is a convenience method that checks config and running state before starting
+	EnsureStarted() error
+}
+
+// RetryNotifier, when set, receives a short human-readable notice for each
+// SDK-internal HTTP retry (e.g. "⏳ HTTP 502 - retrying in 10s (attempt 2)").
+// The headless agent points it at its stdout notification stream so remote
+// channels (Telegram) see progress during backoff; the chat TUI leaves it nil.
+var RetryNotifier func(message string)
 
 // ServiceContainer manages all application dependencies
 type ServiceContainer struct {
 	// Session
-	sessionID domain.SessionID
+	sessionID convdomain.SessionID
 
 	// Container runtime
-	containerRuntime domain.ContainerRuntime
-
-	// Logger
-	log *zap.Logger
+	containerRuntime containerruntime.ContainerRuntime
 
 	// Configuration
 	config *config.Config
 
 	// Domain services
-	conversationRepo       domain.ConversationRepository
-	conversationOptimizer  domain.ConversationOptimizer
-	sessionRolloverManager *services.SessionRolloverManager
-	modelService           domain.ModelService
-	agent                  domain.AgentService
-	toolService            domain.ToolService
-	fileService            domain.FileService
-	imageService           domain.ImageService
-	imageAnnotator         domain.ImageAnnotator
-	pricingService         domain.PricingService
+	conversationRepo       convdomain.ConversationRepository
+	conversationOptimizer  convdomain.ConversationOptimizer
+	sessionRolloverManager *conversation.SessionRolloverManager
+	modelService           convdomain.ModelService
+	agent                  agentdomain.AgentService
+	toolService            agentdomain.ToolService
+	fileService            agentdomain.FileService
+	imageService           agentdomain.ImageService
+	imageAnnotator         agentdomain.ImageAnnotator
+	pricingService         convdomain.PricingService
 	telemetryRecorder      *telemetry.Recorder
-	a2aAgentService        domain.A2AAgentService
-	skillsService          domain.SkillsService
-	githubIssueService     domain.GitHubIssueService
-	gitHubSetupService     domain.GitHubSetupService
-	messageQueue           domain.MessageQueue
+	a2aAgentService        agentapp.A2AAgentService
+	skillsService          agentdomain.SkillsService
+	githubIssueService     agentdomain.GitHubIssueService
+	gitHubSetupService     agentdomain.GitHubSetupService
+	messageQueue           convdomain.MessageQueue
 	// backgroundTaskRegistry is the single unified tracker for both A2A
-	// tasks and background bash shells. The narrower domain.A2ATaskTracker
-	// and domain.ShellTracker views are accessed via the same instance.
-	backgroundTaskRegistry domain.BackgroundTaskRegistry
+	// tasks and background bash shells. The narrower agentdomain.A2ATaskTracker
+	// and scheddomain.ShellTracker views are accessed via the same instance.
+	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	jobSupervisor          *jobs.Supervisor
-	taskRetentionService   domain.TaskRetentionService
-	backgroundTaskService  domain.BackgroundTaskService
-	gatewayManager         domain.GatewayManager
+	taskRetentionService   scheddomain.TaskRetentionService
+	backgroundTaskService  scheddomain.BackgroundTaskService
+	gatewayManager         GatewayManager
 	mockGateway            *http.Server
-	agentManager           domain.AgentManager
+	agentManager           agentdomain.AgentManager
 
 	// Services
 	stateManager *services.StateManager
 
 	// Background services
-	titleGenerator         *services.ConversationTitleGenerator
-	backgroundJobManager   *services.BackgroundJobManager
-	backgroundShellService *services.BackgroundShellService
-	memoryBackend          domain.MemoryBackend
+	titleGenerator         *conversation.ConversationTitleGenerator
+	backgroundJobManager   *scheduler.BackgroundJobManager
+	backgroundShellService *scheduler.BackgroundShellService
+	memoryBackend          memory.MemoryBackend
 	storage                storage.ConversationStorage
 	stores                 *storage.Stores
 
 	// Token polyfill - used by /context, conversation optimizer, and the
 	// session rollover manager. Created unconditionally so any surface can
 	// fall back to it when the provider does not return usage metrics.
-	tokenizer *services.TokenizerService
+	tokenizer *conversation.TokenizerService
 
 	// UI components
-	themeService domain.ThemeService
+	themeService ui.ThemeService
 
 	// Extensibility
 	shortcutRegistry *shortcuts.Registry
 
 	// Tool registry
 	toolRegistry *tools.Registry
-	mcpManager   domain.MCPManager
+	mcpManager   agentdomain.MCPManager
 	// mcpStartupCancel aborts the async MCP server startup on Shutdown.
 	mcpStartupCancel context.CancelFunc
 
 	// Chat orchestration services - extracted from internal/handlers/chat_handler.go.
 	// Constructed unconditionally; A2A-specific deps inside the
 	// services are nil-safe when A2A is disabled.
-	chatEventListener        domain.ChatEventListener
-	a2aTaskCoordinator       domain.A2ATaskCoordinator
-	approvalCoordinator      domain.ApprovalCoordinator
+	chatEventListener        ui.ChatEventListener
+	a2aTaskCoordinator       ui.A2ATaskCoordinator
+	approvalCoordinator      ui.ApprovalCoordinator
 	chatCompletionRunner     *chatcompletion.Runner
-	directExecutionService   domain.DirectExecutionService
-	toolExecutionCoordinator domain.ToolExecutionCoordinator
+	directExecutionService   ui.DirectExecutionService
+	toolExecutionCoordinator ui.ToolExecutionCoordinator
 	uiNotifier               *uiNotifierHolder
-	extensionBridge          *services.ExtensionBridge
+	extensionBridge          *browserinfra.ExtensionBridge
+	browserDriver            browserdomain.BrowserDriver
 }
 
-// uiNotifierHolder is a swap-once, read-many domain.UINotifier. Producers capture
+// uiNotifierHolder is a swap-once, read-many agentdomain.UINotifier. Producers capture
 // the *uiNotifierHolder once at construction (never reassigning it) and call Notify
 // from their own goroutines; SetUINotifier stores the real program-backed notifier
 // exactly once at startup (before program.Run). atomic.Pointer keeps the read
 // lock-free and the late swap race-free without a mutex. The stored pointer is
 // never nil (newUINotifierHolder seeds a NoopUINotifier), so Notify is always safe.
 type uiNotifierHolder struct {
-	inner atomic.Pointer[domain.UINotifier]
+	inner atomic.Pointer[agentdomain.UINotifier]
 }
 
 func newUINotifierHolder() *uiNotifierHolder {
 	h := &uiNotifierHolder{}
-	var noop domain.UINotifier = domain.NoopUINotifier{}
+	var noop agentdomain.UINotifier = agentdomain.NoopUINotifier{}
 	h.inner.Store(&noop)
 	return h
 }
@@ -150,22 +180,20 @@ func (h *uiNotifierHolder) Notify(event any) {
 	(*h.inner.Load()).Notify(event)
 }
 
-func (h *uiNotifierHolder) set(n domain.UINotifier) {
+func (h *uiNotifierHolder) set(n agentdomain.UINotifier) {
 	if n == nil {
-		n = domain.NoopUINotifier{}
+		n = agentdomain.NoopUINotifier{}
 	}
 	h.inner.Store(&n)
 }
 
 // NewServiceContainer creates a new service container with all dependencies
 func NewServiceContainer(cfg *config.Config) *ServiceContainer {
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 
-	log := logger.GetGlobalLogger()
-
-	containerRuntime, err := services.NewContainerRuntime(
+	containerRuntime, err := containerruntime.NewContainerRuntime(
 		sessionID,
-		services.RuntimeType(cfg.ContainerRuntime.Type),
+		containerruntime.RuntimeType(cfg.ContainerRuntime.Type),
 	)
 	if err != nil {
 		logger.Warn("failed to initialize container runtime, continuing without container support", "error", err)
@@ -175,7 +203,6 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 		sessionID:        sessionID,
 		config:           cfg,
 		containerRuntime: containerRuntime,
-		log:              log,
 		uiNotifier:       newUINotifierHolder(),
 	}
 
@@ -205,31 +232,38 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 // producer that captured the holder at construction begins pushing into the live
 // Bubble Tea loop. Safe to call from any goroutine; before it runs, producers
 // push to the no-op default.
-func (c *ServiceContainer) SetUINotifier(n domain.UINotifier) {
+func (c *ServiceContainer) SetUINotifier(n agentdomain.UINotifier) {
 	c.uiNotifier.set(n)
 }
 
-// initializeExtensionBridge wires the opentask extension bridge as the
-// browser tools' driver when browser_use selects the extension backend, and
-// installs an event bridge on the state manager so chat events are mirrored
-// to the extension.
+// initializeBrowserTools constructs the browser-use driver (the opentask
+// extension bridge, or a lazily-launched Playwright session) and registers the
+// browser tools against it. The container owns the driver lifecycle; the
+// extension backend also installs an event bridge on the state manager so chat
+// events are mirrored to the extension.
 // The WS server is NOT started here - every command builds a container and
 // short-lived ones (status, tools, ...) must not grab the bridge port.
 // Conversation-hosting commands call StartExtensionBridge.
-func (c *ServiceContainer) initializeExtensionBridge() {
+func (c *ServiceContainer) initializeBrowserTools() {
 	buCfg := &c.config.BrowserUse
-	if !buCfg.Enabled || buCfg.Backend != config.BrowserBackendExtension {
+	if !buCfg.Enabled {
 		return
 	}
 
-	eventBridge := c.stateManager.GetEventBridge()
-	if eventBridge == nil {
-		eventBridge = macos.NewEventBridge()
-		c.stateManager.SetEventBridge(eventBridge)
+	if buCfg.Backend == config.BrowserBackendExtension {
+		eventBridge := c.stateManager.GetEventBridge()
+		if eventBridge == nil {
+			eventBridge = conversation.NewEventBridge()
+			c.stateManager.SetEventBridge(eventBridge)
+		}
+
+		c.extensionBridge = browserinfra.NewExtensionBridge(buCfg, c.uiNotifier, c.conversationRepo, eventBridge, c.skillsService, string(c.sessionID), c.config.ArtifactsDir())
+		c.browserDriver = c.extensionBridge
+	} else {
+		c.browserDriver = browserinfra.NewSession(buCfg)
 	}
 
-	c.extensionBridge = services.NewExtensionBridge(buCfg, c.uiNotifier, c.conversationRepo, eventBridge, c.skillsService, string(c.sessionID), c.config.ArtifactsDir())
-	c.toolRegistry.SetBrowserDriver(c.extensionBridge)
+	c.toolRegistry.RegisterTools(browser.NewTools(c.config, c.browserDriver))
 }
 
 // StartExtensionBridge starts the WebSocket server the opentask extension
@@ -308,9 +342,9 @@ func (c *ServiceContainer) initializeAgentManager() {
 
 	c.agentManager = services.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
 
-	c.agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
+	c.agentManager.SetStatusCallback(func(agentName string, state agentdomain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
-		c.uiNotifier.Notify(domain.AgentStatusUpdateEvent{
+		c.uiNotifier.Notify(ui.AgentStatusUpdateEvent{
 			AgentName: agentName,
 			State:     state,
 			Message:   message,
@@ -321,7 +355,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 
 	c.agentManager.SetPullProgressCallback(func(name string, done, total int) {
 		c.stateManager.UpdateAgentPullProgress(name, done, total)
-		c.uiNotifier.Notify(domain.AgentStatusUpdateEvent{AgentName: name, State: domain.AgentStatePullingImage})
+		c.uiNotifier.Notify(ui.AgentStatusUpdateEvent{AgentName: name, State: agentdomain.AgentStatePullingImage})
 	})
 
 	ctx := context.Background()
@@ -369,7 +403,7 @@ func (c *ServiceContainer) hasAutoStartMCPServers() bool {
 func (c *ServiceContainer) initializeDomainServices() {
 	c.fileService = services.NewFileService()
 	c.imageService = services.NewImageService(c.config, c.createRawSDKClient())
-	c.messageQueue = services.NewMessageQueueService()
+	c.messageQueue = conversation.NewMessageQueueService()
 
 	c.initializeMCPManager()
 
@@ -384,7 +418,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.stores = stores
 
 	c.imageAnnotator = c.createImageAnnotator()
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, c.imageAnnotator, c.backgroundTaskRegistry, stores)
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
+	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator))
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 
 	for name, srcCfg := range c.config.Vision.Sources {
@@ -407,10 +442,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 	c.skillsService = skillsSvc
 
-	c.initializeExtensionBridge()
+	c.initializeBrowserTools()
 
 	modelClient := c.createRawSDKClient()
-	c.modelService = services.NewHTTPModelService(modelClient)
+	c.modelService = conversation.NewHTTPModelService(modelClient)
 
 	c.telemetryRecorder = telemetry.New(telemetry.Options{
 		Enabled:           c.config.Telemetry.Enabled,
@@ -437,11 +472,11 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 
 	if c.tokenizer == nil {
-		c.tokenizer = services.NewTokenizerService(services.DefaultTokenizerConfig())
+		c.tokenizer = conversation.NewTokenizerService(conversation.DefaultTokenizerConfig())
 	}
 
 	summaryClient := c.createRawSDKClient()
-	c.conversationOptimizer = services.NewConversationOptimizer(services.OptimizerConfig{
+	c.conversationOptimizer = conversation.NewConversationOptimizer(conversation.OptimizerConfig{
 		Enabled:           c.config.Compact.Enabled,
 		AutoAt:            c.config.Compact.AutoAt,
 		BufferSize:        2,
@@ -453,8 +488,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 	})
 
 	if c.config.Compact.Enabled {
-		if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
-			c.sessionRolloverManager = services.NewSessionRolloverManager(
+		if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
+			c.sessionRolloverManager = conversation.NewSessionRolloverManager(
 				c.config,
 				c.conversationOptimizer,
 				persistentRepo,
@@ -505,13 +540,13 @@ func (c *ServiceContainer) initializeStorageBackend(
 	}
 
 	c.storage = stores.Conversations
-	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), stores.Conversations)
+	persistentRepo := conversation.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), stores.Conversations)
 	c.conversationRepo = persistentRepo
 	logger.Info("initialized conversation storage", "type", storageConfig.Type)
 
 	titleClient := c.createRawSDKClient()
-	c.titleGenerator = services.NewConversationTitleGenerator(titleClient, stores.Conversations, c.config)
-	c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
+	c.titleGenerator = conversation.NewConversationTitleGenerator(titleClient, stores.Conversations, c.config)
+	c.backgroundJobManager = scheduler.NewBackgroundJobManager(c.titleGenerator, c.config)
 
 	persistentRepo.SetTitleGenerator(c.titleGenerator)
 	persistentRepo.SetA2ATaskTracker(c.backgroundTaskRegistry)
@@ -549,7 +584,7 @@ func (c *ServiceContainer) handleStorageInitFailure(
 	}
 
 	logger.Warn("using in-memory conversation storage (conversations will not be persisted)")
-	c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
+	c.conversationRepo = conversation.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
 }
 
 // initializeStateManager creates the state manager before domain services need it
@@ -564,13 +599,13 @@ func (c *ServiceContainer) initializeStateManager() {
 func (c *ServiceContainer) initializeServices() {
 	if c.config.IsA2AToolsEnabled() {
 		maxTaskRetention := c.config.A2A.Task.CompletedTaskRetention
-		c.taskRetentionService = services.NewTaskRetentionService(maxTaskRetention)
+		c.taskRetentionService = scheduler.NewTaskRetentionService(maxTaskRetention)
 
 		if c.jobSupervisor != nil {
 			c.jobSupervisor.SetTaskRetention(c.taskRetentionService)
 		}
 
-		c.backgroundTaskService = services.NewBackgroundTaskService(c.backgroundTaskRegistry, c.jobSupervisor)
+		c.backgroundTaskService = scheduler.NewBackgroundTaskService(c.backgroundTaskRegistry, c.jobSupervisor)
 	}
 
 	c.initializeChatOrchestrationServices()
@@ -623,7 +658,7 @@ func (c *ServiceContainer) initializeChatOrchestrationServices() {
 
 // initializeUIComponents creates UI components and theme
 func (c *ServiceContainer) initializeUIComponents() {
-	themeProvider := domain.NewThemeProvider()
+	themeProvider := styles.NewThemeProvider()
 
 	if configuredTheme := c.config.GetTheme(); configuredTheme != "" {
 		if err := themeProvider.SetTheme(configuredTheme); err != nil {
@@ -659,7 +694,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewStatsShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewTracesShortcut())
 
-	if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
+	if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(persistentRepo))
 		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(persistentRepo, c.backgroundTaskRegistry))
 	}
@@ -676,7 +711,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		c.shortcutRegistry.Register(shortcuts.NewVoiceShortcut(
 			c.config.SpeechToText,
 			audio.NewRecorder(c.config.SpeechToText),
-			stt.NewWhisperTranscriber(c.config.SpeechToText),
+			audio.NewWhisperTranscriber(c.config.SpeechToText),
 		))
 	}
 
@@ -687,28 +722,23 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	}
 }
 
-// Logger returns the logger instance for this container
-func (c *ServiceContainer) Logger() *zap.Logger {
-	return c.log
-}
-
-func (c *ServiceContainer) GetConversationRepository() domain.ConversationRepository {
+func (c *ServiceContainer) GetConversationRepository() convdomain.ConversationRepository {
 	return c.conversationRepo
 }
 
-func (c *ServiceContainer) GetConversationOptimizer() domain.ConversationOptimizer {
+func (c *ServiceContainer) GetConversationOptimizer() convdomain.ConversationOptimizer {
 	return c.conversationOptimizer
 }
 
-func (c *ServiceContainer) GetSessionRolloverManager() *services.SessionRolloverManager {
+func (c *ServiceContainer) GetSessionRolloverManager() *conversation.SessionRolloverManager {
 	return c.sessionRolloverManager
 }
 
-func (c *ServiceContainer) GetModelService() domain.ModelService {
+func (c *ServiceContainer) GetModelService() convdomain.ModelService {
 	return c.modelService
 }
 
-func (c *ServiceContainer) GetToolService() domain.ToolService {
+func (c *ServiceContainer) GetToolService() agentdomain.ToolService {
 	return c.toolService
 }
 
@@ -725,33 +755,33 @@ func (c *ServiceContainer) GetToolRegistry() *tools.Registry {
 
 // GetMemoryBackend returns the shared memory sync backend (local no-op or git),
 // used by the headless AgentSession to sync memory at run start/finish.
-func (c *ServiceContainer) GetMemoryBackend() domain.MemoryBackend {
+func (c *ServiceContainer) GetMemoryBackend() memory.MemoryBackend {
 	return c.memoryBackend
 }
 
-func (c *ServiceContainer) GetFileService() domain.FileService {
+func (c *ServiceContainer) GetFileService() agentdomain.FileService {
 	return c.fileService
 }
 
-func (c *ServiceContainer) GetImageService() domain.ImageService {
+func (c *ServiceContainer) GetImageService() agentdomain.ImageService {
 	return c.imageService
 }
 
 // createImageAnnotator builds the configured annotation engine: the local
 // llama.cpp subprocess by default, or a gateway side-call (title-generator
 // style).
-func (c *ServiceContainer) createImageAnnotator() domain.ImageAnnotator {
+func (c *ServiceContainer) createImageAnnotator() agentdomain.ImageAnnotator {
 	if !c.config.Vision.AnnotatorReady() {
 		return nil
 	}
 	return vlm.NewGatewayAnnotator(c.createRawSDKClient(), c.config)
 }
 
-func (c *ServiceContainer) GetSkillsService() domain.SkillsService {
+func (c *ServiceContainer) GetSkillsService() agentdomain.SkillsService {
 	return c.skillsService
 }
 
-func (c *ServiceContainer) GetGitHubIssueService() domain.GitHubIssueService {
+func (c *ServiceContainer) GetGitHubIssueService() agentdomain.GitHubIssueService {
 	return c.githubIssueService
 }
 
@@ -762,23 +792,23 @@ func (c *ServiceContainer) initializeGitHubSetupService() {
 	c.gitHubSetupService = githubsetup.NewService(&githubsetup.RealRunner{})
 }
 
-func (c *ServiceContainer) GetGitHubSetupService() domain.GitHubSetupService {
+func (c *ServiceContainer) GetGitHubSetupService() agentdomain.GitHubSetupService {
 	c.initializeGitHubSetupService()
 	return c.gitHubSetupService
 }
 
-func (c *ServiceContainer) GetPricingService() domain.PricingService {
+func (c *ServiceContainer) GetPricingService() convdomain.PricingService {
 	return c.PricingService()
 }
 
-func (c *ServiceContainer) PricingService() domain.PricingService {
+func (c *ServiceContainer) PricingService() convdomain.PricingService {
 	if c.pricingService == nil {
-		c.pricingService = services.NewPricingService(&c.config.Pricing)
+		c.pricingService = conversation.NewPricingService(&c.config.Pricing)
 	}
 	return c.pricingService
 }
 
-func (c *ServiceContainer) GetThemeService() domain.ThemeService {
+func (c *ServiceContainer) GetThemeService() ui.ThemeService {
 	return c.themeService
 }
 
@@ -790,66 +820,66 @@ func (c *ServiceContainer) GetStateManager() *services.StateManager {
 	return c.stateManager
 }
 
-func (c *ServiceContainer) GetAgentManager() domain.AgentManager {
+func (c *ServiceContainer) GetAgentManager() agentdomain.AgentManager {
 	return c.agentManager
 }
 
-func (c *ServiceContainer) GetAgentService() domain.AgentService {
+func (c *ServiceContainer) GetAgentService() agentdomain.AgentService {
 	return c.agent
 }
 
-func (c *ServiceContainer) GetMessageQueue() domain.MessageQueue {
+func (c *ServiceContainer) GetMessageQueue() convdomain.MessageQueue {
 	return c.messageQueue
 }
 
 // GetBackgroundTaskRegistry returns the unified background task registry
 // (the single tracker that owns both A2A tasks and background bash shells).
 // Callers that need only the narrower A2A or shell view can use the
-// returned value as a domain.A2ATaskTracker or domain.ShellTracker.
-func (c *ServiceContainer) GetBackgroundTaskRegistry() domain.BackgroundTaskRegistry {
+// returned value as a agentdomain.A2ATaskTracker or scheddomain.ShellTracker.
+func (c *ServiceContainer) GetBackgroundTaskRegistry() scheddomain.BackgroundTaskRegistry {
 	return c.backgroundTaskRegistry
 }
 
 // GetTaskRetentionService returns the task retention service (may be nil if A2A is not enabled)
-func (c *ServiceContainer) GetTaskRetentionService() domain.TaskRetentionService {
+func (c *ServiceContainer) GetTaskRetentionService() scheddomain.TaskRetentionService {
 	return c.taskRetentionService
 }
 
 // GetBackgroundTaskService returns the background task service (may be nil if A2A is not enabled)
-func (c *ServiceContainer) GetBackgroundTaskService() domain.BackgroundTaskService {
+func (c *ServiceContainer) GetBackgroundTaskService() scheddomain.BackgroundTaskService {
 	return c.backgroundTaskService
 }
 
 // GetMCPManager returns the MCP manager (may be nil if MCP is not enabled)
-func (c *ServiceContainer) GetMCPManager() domain.MCPManager {
+func (c *ServiceContainer) GetMCPManager() agentdomain.MCPManager {
 	return c.mcpManager
 }
 
 // GetA2ATaskCoordinator returns the A2A task lifecycle event coordinator.
-func (c *ServiceContainer) GetA2ATaskCoordinator() domain.A2ATaskCoordinator {
+func (c *ServiceContainer) GetA2ATaskCoordinator() ui.A2ATaskCoordinator {
 	return c.a2aTaskCoordinator
 }
 
 // GetApprovalCoordinator returns the plan-approval / computer-use pause-resume
 // coordinator.
-func (c *ServiceContainer) GetApprovalCoordinator() domain.ApprovalCoordinator {
+func (c *ServiceContainer) GetApprovalCoordinator() ui.ApprovalCoordinator {
 	return c.approvalCoordinator
 }
 
 // GetChatCompletionRunner returns the LLM streaming lifecycle runner.
-func (c *ServiceContainer) GetChatCompletionRunner() domain.ChatCompletionRunner {
+func (c *ServiceContainer) GetChatCompletionRunner() ui.ChatCompletionRunner {
 	return c.chatCompletionRunner
 }
 
 // GetDirectExecutionService returns the user-typed !command / !!Tool(...)
 // execution service. Also satisfies BashDetachChannelHolder.
-func (c *ServiceContainer) GetDirectExecutionService() domain.DirectExecutionService {
+func (c *ServiceContainer) GetDirectExecutionService() ui.DirectExecutionService {
 	return c.directExecutionService
 }
 
 // GetToolExecutionCoordinator returns the tool round-trip coordinator (tool
 // approval, streaming-status, execution progress, active-tool tracking).
-func (c *ServiceContainer) GetToolExecutionCoordinator() domain.ToolExecutionCoordinator {
+func (c *ServiceContainer) GetToolExecutionCoordinator() ui.ToolExecutionCoordinator {
 	return c.toolExecutionCoordinator
 }
 
@@ -871,7 +901,7 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 				"attempt", attempt,
 				"error", err.Error(),
 				"delay", delay.String())
-			if notify := domain.RetryNotifier; notify != nil {
+			if notify := RetryNotifier; notify != nil {
 				notify(fmt.Sprintf("⏳ %s - retrying in %s (attempt %d)", err.Error(), delay, attempt))
 			}
 			if originalOnRetry != nil {
@@ -920,7 +950,7 @@ func (c *ServiceContainer) createRawSDKClient() sdk.Client {
 }
 
 // GetBackgroundJobManager returns the background job manager
-func (c *ServiceContainer) GetBackgroundJobManager() *services.BackgroundJobManager {
+func (c *ServiceContainer) GetBackgroundJobManager() *scheduler.BackgroundJobManager {
 	return c.backgroundJobManager
 }
 
@@ -939,15 +969,15 @@ func (c *ServiceContainer) GetShellHistoryStorage() storage.ShellHistoryStorage 
 }
 
 // GetGatewayManager returns the gateway manager
-func (c *ServiceContainer) GetGatewayManager() domain.GatewayManager {
+func (c *ServiceContainer) GetGatewayManager() GatewayManager {
 	return c.gatewayManager
 }
 
 // BackgroundShellService returns the background shell service
-func (c *ServiceContainer) BackgroundShellService() *services.BackgroundShellService {
+func (c *ServiceContainer) BackgroundShellService() *scheduler.BackgroundShellService {
 	if c.backgroundShellService == nil {
 		c.ensureBackgroundTaskRegistry()
-		c.backgroundShellService = services.NewBackgroundShellService(
+		c.backgroundShellService = scheduler.NewBackgroundShellService(
 			c.backgroundTaskRegistry,
 			c.jobSupervisor,
 			c.config,
@@ -966,21 +996,21 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 		return
 	}
 	c.jobSupervisor = jobs.NewSupervisor(c.messageQueue, c.conversationRepo, c.uiNotifier)
-	c.jobSupervisor.SetRetentionCount(domain.JobKindShell, c.config.Tools.Bash.BackgroundShells.CompletedRetention)
-	c.jobSupervisor.SetRetentionCount(domain.JobKindSubagent, c.config.Tools.Agent.CompletedRetention)
-	c.jobSupervisor.SetRetentionCount(domain.JobKindA2A, c.config.A2A.Task.CompletedTaskRetention)
+	c.jobSupervisor.SetRetentionCount(scheddomain.JobKindShell, c.config.Tools.Bash.BackgroundShells.CompletedRetention)
+	c.jobSupervisor.SetRetentionCount(scheddomain.JobKindSubagent, c.config.Tools.Agent.CompletedRetention)
+	c.jobSupervisor.SetRetentionCount(scheddomain.JobKindA2A, c.config.A2A.Task.CompletedTaskRetention)
 	retention := time.Duration(c.config.Tools.Bash.BackgroundShells.RetentionMinutes) * time.Minute
 	c.jobSupervisor.Start(10*time.Minute, retention)
 	maxConcurrent := c.config.Tools.Bash.BackgroundShells.MaxConcurrent
-	c.backgroundTaskRegistry = services.NewBackgroundTaskRegistry(maxConcurrent, c.jobSupervisor)
+	c.backgroundTaskRegistry = scheduler.NewBackgroundTaskRegistry(maxConcurrent, c.jobSupervisor)
 }
 
 // Shutdown gracefully shuts down the service container and its resources
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	c.telemetryRecorder.Shutdown(ctx)
 
-	if c.toolRegistry != nil {
-		c.toolRegistry.Close()
+	if c.browserDriver != nil {
+		c.browserDriver.Close()
 	}
 
 	if c.skillsService != nil {

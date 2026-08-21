@@ -10,11 +10,12 @@ import (
 	"regexp"
 	"strings"
 
+	sdk "github.com/inference-gateway/sdk"
 	"gopkg.in/yaml.v3"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // SnippetConfig represents the snippet generation configuration
@@ -56,13 +57,13 @@ type CustomShortcutsConfig struct {
 type CustomShortcut struct {
 	config       CustomShortcutConfig
 	client       sdk.Client
-	modelService domain.ModelService
-	imageService domain.ImageService
-	toolService  domain.ToolService
+	modelService convdomain.ModelService
+	imageService agentdomain.ImageService
+	toolService  agentdomain.ToolService
 }
 
 // NewCustomShortcut creates a new custom shortcut from configuration
-func NewCustomShortcut(config CustomShortcutConfig, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService, toolService domain.ToolService) *CustomShortcut {
+func NewCustomShortcut(config CustomShortcutConfig, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) *CustomShortcut {
 	return &CustomShortcut{
 		config:       config,
 		client:       client,
@@ -283,7 +284,7 @@ func (c *CustomShortcut) resolveCommandConfig(subcommand *SubcommandConfig) comm
 // buildCommandArgs builds the final command arguments
 func (c *CustomShortcut) buildCommandArgs(cfg commandConfig, args []string, ctx context.Context) []string {
 	if c.config.PassSessionID {
-		if sessionID := ctx.Value(domain.SessionIDKey); sessionID != nil {
+		if sessionID := ctx.Value(agentdomain.SessionIDKey); sessionID != nil {
 			if sessionIDStr, ok := sessionID.(string); ok {
 				args = append(args, sessionIDStr)
 			}
@@ -304,7 +305,7 @@ func (c *CustomShortcut) buildCommandArgs(cfg commandConfig, args []string, ctx 
 // formatOutput formats the command output with appropriate styling
 func (c *CustomShortcut) formatOutput(outputStr string) (ShortcutResult, error) {
 	imageURLs := extractAllImageURLs(outputStr)
-	var imageAttachments []domain.ImageAttachment
+	var imageAttachments []agentdomain.ImageAttachment
 
 	if len(imageURLs) > 0 && c.imageService != nil {
 		for _, url := range imageURLs {
@@ -389,7 +390,7 @@ func (c *CustomShortcut) executeWithTool(ctx context.Context, _ []string) (Short
 		Arguments: string(argsJSON),
 	}
 
-	ctx = domain.WithDirectExecution(ctx)
+	ctx = agentdomain.WithDirectExecution(ctx)
 	result, err := c.toolService.ExecuteToolDirect(ctx, toolCall)
 	if err != nil {
 		return ShortcutResult{
@@ -420,7 +421,7 @@ func (c *CustomShortcut) executeWithTool(ctx context.Context, _ []string) (Short
 		}, nil
 	}
 
-	output := tool.FormatResult(result, domain.FormatterUI)
+	output := tool.FormatResult(result, agentdomain.FormatterUI)
 	return ShortcutResult{
 		Output:  output,
 		Success: true,
@@ -529,7 +530,7 @@ func (c *CustomShortcut) callLLM(ctx context.Context, prompt string) (string, er
 }
 
 // LoadCustomShortcuts loads user-defined shortcuts from shortcuts/ directory within the specified base directory
-func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService, toolService domain.ToolService) ([]Shortcut, error) {
+func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) ([]Shortcut, error) {
 	shortcuts := make([]Shortcut, 0)
 
 	shortcutsDir := filepath.Join(baseDir, "shortcuts")
@@ -556,7 +557,7 @@ func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.
 }
 
 // loadShortcutsFromFile loads shortcuts from a specific YAML file
-func loadShortcutsFromFile(filename string, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService, toolService domain.ToolService) ([]Shortcut, error) {
+func loadShortcutsFromFile(filename string, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) ([]Shortcut, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", filename, err)

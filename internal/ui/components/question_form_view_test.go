@@ -4,28 +4,30 @@ import (
 	"strings"
 	"testing"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	tea "charm.land/bubbletea/v2"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-func questionStateForTest(questions ...domain.UserQuestion) *domain.UserQuestionUIState {
+func questionStateForTest(questions ...agentdomain.UserQuestion) *agentdomain.UserQuestionUIState {
 	if len(questions) == 0 {
-		questions = []domain.UserQuestion{
+		questions = []agentdomain.UserQuestion{
 			{
 				Header:      "Format",
 				Question:    "Which output format?",
 				MultiSelect: false,
-				Options: []domain.UserQuestionOption{
+				Options: []agentdomain.UserQuestionOption{
 					{Label: "JSON", Description: "machine readable"},
 					{Label: "YAML", Description: "human readable"},
 				},
 			},
 		}
 	}
-	return &domain.UserQuestionUIState{
+	return &agentdomain.UserQuestionUIState{
 		Questions:    questions,
-		ResponseChan: make(chan []domain.UserQuestionAnswer, 1),
+		ResponseChan: make(chan []agentdomain.UserQuestionAnswer, 1),
 	}
 }
 
@@ -52,8 +54,8 @@ func drainQuestionForm(v *QuestionFormView, cmd tea.Cmd) {
 	drainQuestionForm(v, v.Forward(msg))
 }
 
-func newQuestionFormForTest(state *domain.UserQuestionUIState) (*QuestionFormView, *domain.ApplicationState) {
-	sm := domain.NewApplicationState()
+func newQuestionFormForTest(state *agentdomain.UserQuestionUIState) (*QuestionFormView, *ui.ApplicationState) {
+	sm := ui.NewApplicationState()
 	sm.SetupUserQuestionUIState(state.Questions, state.ResponseChan)
 
 	v := NewQuestionFormView(createMockStyleProvider(), sm)
@@ -63,7 +65,7 @@ func newQuestionFormForTest(state *domain.UserQuestionUIState) (*QuestionFormVie
 }
 
 func TestQuestionFormView_RenderNilState(t *testing.T) {
-	sm := domain.NewApplicationState()
+	sm := ui.NewApplicationState()
 
 	v := NewQuestionFormView(createMockStyleProvider(), sm)
 	if got := v.Render(); got != "" {
@@ -99,10 +101,10 @@ func TestQuestionFormView_SingleSelectDefaultSubmit(t *testing.T) {
 }
 
 func TestQuestionFormView_RecommendedPreselected(t *testing.T) {
-	state := questionStateForTest(domain.UserQuestion{
+	state := questionStateForTest(agentdomain.UserQuestion{
 		Header:   "Fmt",
 		Question: "q",
-		Options: []domain.UserQuestionOption{
+		Options: []agentdomain.UserQuestionOption{
 			{Label: "JSON"}, {Label: "YAML (Recommended)"},
 		},
 	})
@@ -121,11 +123,11 @@ func TestQuestionFormView_RecommendedPreselected(t *testing.T) {
 }
 
 func TestQuestionFormView_MultiSelectToggleAndSubmit(t *testing.T) {
-	state := questionStateForTest(domain.UserQuestion{
+	state := questionStateForTest(agentdomain.UserQuestion{
 		Header:      "Scope",
 		Question:    "scope?",
 		MultiSelect: true,
-		Options: []domain.UserQuestionOption{
+		Options: []agentdomain.UserQuestionOption{
 			{Label: "A"}, {Label: "B"}, {Label: "C"},
 		},
 	})

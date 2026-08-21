@@ -14,10 +14,12 @@ import (
 	"sync"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 	ignore "github.com/sabhiram/go-gitignore"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // GrepTool handles search operations with ripgrep fallback to Go implementation
@@ -29,7 +31,7 @@ type GrepTool struct {
 	cacheMutex     sync.RWMutex
 	ripgrepPath    string
 	useRipgrep     bool
-	formatter      domain.BaseFormatter
+	formatter      agentinfra.BaseFormatter
 }
 
 // NewGrepTool creates a new grep tool
@@ -37,7 +39,7 @@ func NewGrepTool(cfg *config.Config) *GrepTool {
 	tool := &GrepTool{
 		config:         cfg,
 		enabled:        cfg.Tools.Enabled && cfg.Tools.Grep.Enabled,
-		formatter:      domain.NewBaseFormatter("Grep"),
+		formatter:      agentinfra.NewBaseFormatter("Grep"),
 		gitignoreCache: make(map[string]*ignore.GitIgnore),
 	}
 	tool.loadGitignore()
@@ -150,7 +152,7 @@ func (t *GrepTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the grep tool with given arguments
-func (t *GrepTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *GrepTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("grep tool is not enabled")
@@ -158,7 +160,7 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 
 	pattern, ok := args["pattern"].(string)
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Grep",
 			Arguments: args,
 			Success:   false,
@@ -177,7 +179,7 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 	}
 	success := err == nil
 
-	toolResult := &domain.ToolExecutionResult{
+	toolResult := &agentdomain.ToolExecutionResult{
 		ToolName:  "Grep",
 		Arguments: args,
 		Success:   success,
@@ -565,7 +567,6 @@ func (t *GrepTool) performGoSearch(ctx context.Context, pattern string, args map
 
 // SearchOptions holds configuration for the search operation
 type SearchOptions struct {
-	CaseInsensitive bool
 	ShowLineNumbers bool
 	ContextBefore   int
 	ContextAfter    int
@@ -589,12 +590,6 @@ func (t *GrepTool) getRegexFlags(args map[string]any) string {
 // buildSearchOptions builds search options from arguments
 func (t *GrepTool) buildSearchOptions(args map[string]any, outputMode string) *SearchOptions {
 	opts := &SearchOptions{}
-
-	if caseInsensitive, exists := args["-i"]; exists {
-		if caseInsensitiveBool, ok := caseInsensitive.(bool); ok {
-			opts.CaseInsensitive = caseInsensitiveBool
-		}
-	}
 
 	if outputMode == "content" {
 		if showLineNumbers, exists := args["-n"]; exists {
@@ -1003,13 +998,13 @@ func (t *GrepTool) getOrLoadDirGitignore(dirPath string) *ignore.GitIgnore {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *GrepTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *GrepTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -1017,7 +1012,7 @@ func (t *GrepTool) FormatResult(result *domain.ToolExecutionResult, formatType d
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *GrepTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *GrepTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -1045,7 +1040,7 @@ func (t *GrepTool) FormatPreview(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForUI formats the result for UI display
-func (t *GrepTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *GrepTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -1062,7 +1057,7 @@ func (t *GrepTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *GrepTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *GrepTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}

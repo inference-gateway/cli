@@ -13,11 +13,12 @@ import (
 	"sync"
 	"time"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+
 	fuzzy "github.com/sahilm/fuzzy"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 const (
@@ -159,15 +160,15 @@ func (c *CatalogClient) Release() (release, updated string) {
 // same limit local skills are validated against: catalog entries are remote
 // input that skips that validation, and the string ends up in the system
 // prompt.
-func skillFromEntry(entry catalogEntry) domain.Skill {
+func skillFromEntry(entry catalogEntry) agentdomain.Skill {
 	desc := entry.Description
 	if len(desc) > skillDescMaxLen {
 		desc = strings.ToValidUTF8(desc[:skillDescMaxLen], "")
 	}
-	return domain.Skill{
+	return agentdomain.Skill{
 		Name:        entry.Name,
 		Description: desc,
-		Scope:       domain.SkillScopeCatalog,
+		Scope:       agentdomain.SkillScopeCatalog,
 	}
 }
 
@@ -183,7 +184,7 @@ func skillFromEntry(entry catalogEntry) domain.Skill {
 //
 // Matching is local over the cached index because catalog.json is a single
 // static file with no server-side query support - see NewCatalogClient.
-func (c *CatalogClient) Search(ctx context.Context, query string, limit int) []domain.Skill {
+func (c *CatalogClient) Search(ctx context.Context, query string, limit int) []agentdomain.Skill {
 	entries := c.Index(ctx)
 	if limit <= 0 || limit > catalogSearchMaxResults {
 		limit = catalogSearchMaxResults
@@ -193,7 +194,7 @@ func (c *CatalogClient) Search(ctx context.Context, query string, limit int) []d
 		if len(entries) > limit {
 			entries = entries[:limit]
 		}
-		out := make([]domain.Skill, 0, len(entries))
+		out := make([]agentdomain.Skill, 0, len(entries))
 		for _, entry := range entries {
 			out = append(out, skillFromEntry(entry))
 		}
@@ -205,7 +206,7 @@ func (c *CatalogClient) Search(ctx context.Context, query string, limit int) []d
 		names[i] = entry.Name
 	}
 
-	out := make([]domain.Skill, 0, limit)
+	out := make([]agentdomain.Skill, 0, limit)
 	taken := make(map[int]struct{}, limit)
 	add := func(i int) {
 		if _, dup := taken[i]; dup {

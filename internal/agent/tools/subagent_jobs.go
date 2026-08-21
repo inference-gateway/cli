@@ -8,8 +8,10 @@ import (
 	"sync"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // headlessSubagentJob adapts a headless subagent (an `infer headless` subprocess) to
@@ -19,7 +21,7 @@ import (
 type headlessSubagentJob struct {
 	tool      *AgentTool
 	spec      AgentTaskSpec
-	state     *domain.SubagentState
+	state     *scheddomain.SubagentState
 	runCtx    context.Context
 	cancelRun context.CancelFunc
 
@@ -28,13 +30,13 @@ type headlessSubagentJob struct {
 }
 
 // Meta describes the subagent for the task view.
-func (j *headlessSubagentJob) Meta() domain.JobMeta {
-	return domain.JobMeta{
+func (j *headlessSubagentJob) Meta() scheddomain.JobMeta {
+	return scheddomain.JobMeta{
 		ID:           j.state.ID,
-		Kind:         domain.JobKindSubagent,
+		Kind:         scheddomain.JobKindSubagent,
 		Label:        labelOrSession(j.state.Label, j.state.SessionID),
 		Description:  j.state.Description,
-		Detail:       domain.SubagentModeHeadless,
+		Detail:       scheddomain.SubagentModeHeadless,
 		StartedAt:    j.state.StartedAt,
 		Silent:       j.state.Silent,
 		HoldsSession: true,
@@ -45,7 +47,7 @@ func (j *headlessSubagentJob) Meta() domain.JobMeta {
 // detached runCtx (so it survives the spawning turn); AfterFunc ties the
 // supervisor's context to it, so Wind/Stop/shutdown also cancel the subprocess
 // (via exec.CommandContext). Run returns promptly on either cancellation.
-func (j *headlessSubagentJob) Run(ctx context.Context, _ func(domain.JobSignal)) domain.ToolExecutionResult {
+func (j *headlessSubagentJob) Run(ctx context.Context, _ func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
 	logger.Debug("headless subagent starting", "subagent_id", j.state.ID, "session_id", j.state.SessionID)
 	runCtx := j.runCtx
 	if runCtx == nil {
@@ -61,16 +63,16 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(domain.JobSignal))
 	j.mu.Unlock()
 	sub := toSubResult(j.spec, j.state.SessionID, answer, err)
 
-	status := domain.SubagentCompleted
+	status := scheddomain.SubagentCompleted
 	if !sub.Success {
-		status = domain.SubagentFailed
+		status = scheddomain.SubagentFailed
 	}
 	if e := j.tool.tracker.SetSubagentStatus(j.state.ID, status); e != nil {
 		logger.Warn("subagent status update failed", "id", j.state.ID, "error", e)
 	}
 	logger.Debug("headless subagent finished", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "success", sub.Success)
 
-	return domain.ToolExecutionResult{
+	return agentdomain.ToolExecutionResult{
 		ToolName:  "Agent",
 		Arguments: map[string]any{"label": sub.Label, "session_id": j.state.SessionID},
 		Success:   sub.Success,
@@ -89,7 +91,7 @@ func (j *headlessSubagentJob) Output() string {
 
 // Wind is a no-op: the supervisor cancels Run's context, which kills the
 // subprocess.
-func (j *headlessSubagentJob) Wind(_ context.Context, _ domain.WindSignal) error { return nil }
+func (j *headlessSubagentJob) Wind(_ context.Context, _ scheddomain.WindSignal) error { return nil }
 
 // Close removes the subagent from the tracker on reap.
 func (j *headlessSubagentJob) Close() {
@@ -107,8 +109,8 @@ func (j *headlessSubagentJob) Close() {
 // fallback for a turn that produced no result file.
 type interactiveSubagentJob struct {
 	tool    *AgentTool
-	state   *domain.SubagentState
-	inspect func(ctx context.Context, paneID, sessionID string) domain.PaneObservation
+	state   *scheddomain.SubagentState
+	inspect func(ctx context.Context, paneID, sessionID string) scheddomain.PaneObservation
 
 	// Heuristic tunables (overridable in tests).
 	pollInterval time.Duration
@@ -119,7 +121,7 @@ type interactiveSubagentJob struct {
 	output string
 }
 
-func newInteractiveSubagentJob(tool *AgentTool, state *domain.SubagentState) *interactiveSubagentJob {
+func newInteractiveSubagentJob(tool *AgentTool, state *scheddomain.SubagentState) *interactiveSubagentJob {
 	return &interactiveSubagentJob{
 		tool:         tool,
 		state:        state,
@@ -134,13 +136,13 @@ func newInteractiveSubagentJob(tool *AgentTool, state *domain.SubagentState) *in
 // turn's output is emitted as its own note, so the terminal result adds nothing.
 // HoldsSession is false: a user-driven interactive pane must not keep a headless
 // session alive, so the supervisor's HasPending skips it.
-func (j *interactiveSubagentJob) Meta() domain.JobMeta {
-	return domain.JobMeta{
+func (j *interactiveSubagentJob) Meta() scheddomain.JobMeta {
+	return scheddomain.JobMeta{
 		ID:           j.state.ID,
-		Kind:         domain.JobKindSubagent,
+		Kind:         scheddomain.JobKindSubagent,
 		Label:        labelOrSession(j.state.Label, j.state.SessionID),
 		Description:  j.state.Description,
-		Detail:       domain.SubagentModeInteractive,
+		Detail:       scheddomain.SubagentModeInteractive,
 		StartedAt:    j.state.StartedAt,
 		Silent:       true,
 		HoldsSession: false,
@@ -149,7 +151,7 @@ func (j *interactiveSubagentJob) Meta() domain.JobMeta {
 
 // Run watches the pane until it closes, emitting each completed turn's output and
 // any pending-approval prompts.
-func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(domain.JobSignal)) domain.ToolExecutionResult {
+func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
 	logger.Debug("monitoring interactive subagent pane", "subagent_id", j.state.ID, "pane_id", j.state.PaneID, "session_id", j.state.SessionID)
 	ticker := time.NewTicker(j.pollInterval)
 	defer ticker.Stop()
@@ -165,20 +167,20 @@ func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(domain.JobSi
 		select {
 		case <-ctx.Done():
 			logger.Debug("interactive subagent monitor cancelled", "subagent_id", j.state.ID, "pane_id", j.state.PaneID)
-			return domain.ToolExecutionResult{ToolName: "Agent", Success: true}
+			return agentdomain.ToolExecutionResult{ToolName: "Agent", Success: true}
 		case <-ticker.C:
 			obs := j.inspect(ctx, j.state.PaneID, j.state.SessionID)
 
 			if obs.Gone || obs.Dead {
 				logger.Debug("interactive subagent pane closed", "subagent_id", j.state.ID, "pane_id", j.state.PaneID, "gone", obs.Gone, "dead", obs.Dead)
 				j.harvestTurn(obs.Harvested, &lastHarvest, emit)
-				return domain.ToolExecutionResult{ToolName: "Agent", Success: true}
+				return agentdomain.ToolExecutionResult{ToolName: "Agent", Success: true}
 			}
 
 			if obs.AwaitingApproval {
 				if notifiedApproval != obs.ApprovalSummary {
 					notifiedApproval = obs.ApprovalSummary
-					emit(domain.JobSignal{Note: j.approvalMessage(obs.ApprovalSummary), Enqueue: true})
+					emit(scheddomain.JobSignal{Note: j.approvalMessage(obs.ApprovalSummary), Enqueue: true})
 				}
 				stableTicks, prevScreen = 0, obs.Screen
 				continue
@@ -203,7 +205,7 @@ func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(domain.JobSi
 			prevScreen = obs.Screen
 			if stableTicks >= j.stableNeeded && !idleNotified {
 				idleNotified = true
-				emit(domain.JobSignal{Note: j.idleMessage(), Enqueue: true})
+				emit(scheddomain.JobSignal{Note: j.idleMessage(), Enqueue: true})
 			}
 		}
 	}
@@ -211,7 +213,7 @@ func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(domain.JobSi
 
 // harvestTurn emits a completed turn's output once and consumes the result file
 // so the next turn's write is a fresh signal.
-func (j *interactiveSubagentJob) harvestTurn(harvested string, last *string, emit func(domain.JobSignal)) {
+func (j *interactiveSubagentJob) harvestTurn(harvested string, last *string, emit func(scheddomain.JobSignal)) {
 	body := strings.TrimSpace(harvested)
 	if body == "" || body == *last {
 		return
@@ -221,7 +223,7 @@ func (j *interactiveSubagentJob) harvestTurn(harvested string, last *string, emi
 	j.output = body
 	j.mu.Unlock()
 	logger.Debug("interactive subagent turn harvested", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "bytes", len(body))
-	emit(domain.JobSignal{Note: j.completedMessage(body), Enqueue: true})
+	emit(scheddomain.JobSignal{Note: j.completedMessage(body), Enqueue: true})
 	_ = os.Remove(subagentResultFilePath(j.state.SessionID))
 }
 
@@ -234,8 +236,8 @@ func (j *interactiveSubagentJob) Output() string {
 
 // Wind kills the pane on WindStop (which makes Run observe Gone and return);
 // WindWrapUp is a no-op (no graceful wind-down for a user-driven pane).
-func (j *interactiveSubagentJob) Wind(ctx context.Context, sig domain.WindSignal) error {
-	if sig == domain.WindStop {
+func (j *interactiveSubagentJob) Wind(ctx context.Context, sig scheddomain.WindSignal) error {
+	if sig == scheddomain.WindStop {
 		return tmuxKillPane(ctx, j.state.PaneID)
 	}
 	return nil

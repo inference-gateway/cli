@@ -3,12 +3,15 @@ package handlers
 import (
 	"testing"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // TestHandleDrainQueueEvent guards the drain gate. It starts a fresh agent turn -
@@ -22,7 +25,7 @@ import (
 func TestHandleDrainQueueEvent(t *testing.T) {
 	tests := []struct {
 		name         string
-		view         domain.ViewState
+		view         ui.ViewState
 		busy         bool
 		queueEmpty   bool
 		initialArmed bool
@@ -30,12 +33,12 @@ func TestHandleDrainQueueEvent(t *testing.T) {
 		wantCmd      bool
 		wantArmed    bool
 	}{
-		{"idle + queued + chat -> start a turn (and arm retry)", domain.ViewStateChat, false, false, false, true, true, true},
-		{"busy + queued + chat -> arm retry only, no start", domain.ViewStateChat, true, false, false, false, true, true},
-		{"busy + queued + chat, retry already armed -> dedup (nil, no 2nd timer)", domain.ViewStateChat, true, false, true, false, false, true},
-		{"idle + queued + chat, retry already armed -> start, no 2nd timer", domain.ViewStateChat, false, false, true, true, true, true},
-		{"empty queue + chat -> nil (no idle ticker)", domain.ViewStateChat, false, true, false, false, false, false},
-		{"non-chat view + queued -> nil", domain.ViewStateModelSelection, false, false, false, false, false, false},
+		{"idle + queued + chat -> start a turn (and arm retry)", ui.ViewStateChat, false, false, false, true, true, true},
+		{"busy + queued + chat -> arm retry only, no start", ui.ViewStateChat, true, false, false, false, true, true},
+		{"busy + queued + chat, retry already armed -> dedup (nil, no 2nd timer)", ui.ViewStateChat, true, false, true, false, false, true},
+		{"idle + queued + chat, retry already armed -> start, no 2nd timer", ui.ViewStateChat, false, false, true, true, true, true},
+		{"empty queue + chat -> nil (no idle ticker)", ui.ViewStateChat, false, true, false, false, false, false},
+		{"non-chat view + queued -> nil", ui.ViewStateModelSelection, false, false, false, false, false, false},
 	}
 
 	for _, tt := range tests {
@@ -46,21 +49,21 @@ func TestHandleDrainQueueEvent(t *testing.T) {
 				_ = sm.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "busy"}})
 			}
 
-			queue := &mocks.FakeMessageQueue{}
+			queue := &convmocks.FakeMessageQueue{}
 			queue.IsEmptyReturns(tt.queueEmpty)
 
-			runner := &mocks.FakeChatCompletionRunner{}
+			runner := &uimocks.FakeChatCompletionRunner{}
 			runner.StartReturns(func() tea.Msg { return nil })
 
 			h := &ChatHandler{
 				stateManager:     sm,
 				messageQueue:     queue,
 				completionRunner: runner,
-				directExec:       &mocks.FakeDirectExecutionService{},
+				directExec:       &uimocks.FakeDirectExecutionService{},
 			}
 			h.drainRetryArmed = tt.initialArmed
 
-			cmd := h.HandleDrainQueueEvent(domain.DrainQueueEvent{})
+			cmd := h.HandleDrainQueueEvent(agentdomain.DrainQueueEvent{})
 
 			if (cmd != nil) != tt.wantCmd {
 				t.Fatalf("returned a Cmd = %v, want %v", cmd != nil, tt.wantCmd)
@@ -102,26 +105,26 @@ func TestHandleDrainQueueRetryEvent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sm := services.NewStateManager(false)
-			_ = sm.TransitionToView(domain.ViewStateChat)
+			_ = sm.TransitionToView(ui.ViewStateChat)
 			if tt.busy {
 				_ = sm.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "busy"}})
 			}
 
-			queue := &mocks.FakeMessageQueue{}
+			queue := &convmocks.FakeMessageQueue{}
 			queue.IsEmptyReturns(tt.queueEmpty)
 
-			runner := &mocks.FakeChatCompletionRunner{}
+			runner := &uimocks.FakeChatCompletionRunner{}
 			runner.StartReturns(func() tea.Msg { return nil })
 
 			h := &ChatHandler{
 				stateManager:     sm,
 				messageQueue:     queue,
 				completionRunner: runner,
-				directExec:       &mocks.FakeDirectExecutionService{},
+				directExec:       &uimocks.FakeDirectExecutionService{},
 			}
 			h.drainRetryArmed = true
 
-			cmd := h.HandleDrainQueueRetryEvent(domain.DrainQueueRetryEvent{})
+			cmd := h.HandleDrainQueueRetryEvent(ui.DrainQueueRetryEvent{})
 
 			if (cmd != nil) != tt.wantCmd {
 				t.Fatalf("returned a Cmd = %v, want %v", cmd != nil, tt.wantCmd)
@@ -157,11 +160,11 @@ func TestShouldDrainAfterComplete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			queue := &mocks.FakeMessageQueue{}
+			queue := &convmocks.FakeMessageQueue{}
 			queue.IsEmptyReturns(tt.queueEmpty)
 			h := &ChatHandler{messageQueue: queue}
 
-			msg := domain.ChatCompleteEvent{Cancelled: tt.cancelled, ToolCalls: tt.toolCalls}
+			msg := agentdomain.ChatCompleteEvent{Cancelled: tt.cancelled, ToolCalls: tt.toolCalls}
 			if got := h.shouldDrainAfterComplete(msg); got != tt.want {
 				t.Errorf("shouldDrainAfterComplete = %v, want %v", got, tt.want)
 			}

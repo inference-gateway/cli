@@ -7,18 +7,18 @@ import (
 	"strings"
 	"testing"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
-// argsAwareToolFormatter is a domain.ToolFormatter whose FormatToolCall renders
+// argsAwareToolFormatter is a agentdomain.ToolFormatter whose FormatToolCall renders
 // the file_path argument, so the approval-box summary tests can assert that the
 // pending call's arguments reach the box (the package's other stubToolFormatter
 // ignores args, which would defeat these assertions).
@@ -30,14 +30,16 @@ func (argsAwareToolFormatter) FormatToolCall(toolName string, args map[string]an
 	}
 	return fmt.Sprintf("%s()", toolName)
 }
-func (argsAwareToolFormatter) FormatToolResultForUI(*domain.ToolExecutionResult, int) string {
+func (argsAwareToolFormatter) FormatToolResultForUI(*agentdomain.ToolExecutionResult, int) string {
 	return ""
 }
-func (argsAwareToolFormatter) FormatToolResultExpanded(*domain.ToolExecutionResult, int) string {
+func (argsAwareToolFormatter) FormatToolResultExpanded(*agentdomain.ToolExecutionResult, int) string {
 	return ""
 }
-func (argsAwareToolFormatter) FormatToolResultForLLM(*domain.ToolExecutionResult) string { return "" }
-func (argsAwareToolFormatter) ShouldAlwaysExpandTool(string) bool                        { return false }
+func (argsAwareToolFormatter) FormatToolResultForLLM(*agentdomain.ToolExecutionResult) string {
+	return ""
+}
+func (argsAwareToolFormatter) ShouldAlwaysExpandTool(string) bool { return false }
 func (argsAwareToolFormatter) RenderToolSummary(icon, toolName string, args map[string]any, trailing string, _ int) string {
 	if p, ok := args["file_path"]; ok {
 		return fmt.Sprintf("%s %s(file_path=%v) %s", icon, toolName, p, trailing)
@@ -45,8 +47,8 @@ func (argsAwareToolFormatter) RenderToolSummary(icon, toolName string, args map[
 	return fmt.Sprintf("%s %s() %s", icon, toolName, trailing)
 }
 
-func approvalStateWith(toolName, arguments string) *domain.ApprovalUIState {
-	return &domain.ApprovalUIState{
+func approvalStateWith(toolName, arguments string) *agentdomain.ApprovalUIState {
+	return &agentdomain.ApprovalUIState{
 		PendingToolCall: &sdk.ChatCompletionMessageToolCall{
 			ID: "call_1",
 			Function: sdk.ChatCompletionMessageToolCallFunction{
@@ -59,8 +61,8 @@ func approvalStateWith(toolName, arguments string) *domain.ApprovalUIState {
 
 // approvalStateManager returns a real ApplicationState primed with the given
 // pending approval (or none when s is nil).
-func approvalStateManager(s *domain.ApprovalUIState) *domain.ApplicationState {
-	st := domain.NewApplicationState()
+func approvalStateManager(s *agentdomain.ApprovalUIState) *ui.ApplicationState {
+	st := ui.NewApplicationState()
 	if s != nil {
 		st.SetupApprovalUIState(s.PendingToolCall, nil)
 	}
@@ -73,7 +75,7 @@ func TestApprovalHuhTheme_SelectedOptionIsButton(t *testing.T) {
 	const accent = "#5f5fff"
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeTheme.GetAccentColorReturns(accent)
-	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService := &uimocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
 	p := styles.NewProvider(fakeThemeService)
 
@@ -150,7 +152,7 @@ func TestApprovalBox_SummaryRendering(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			sm := approvalStateManager(approvalStateWith(tc.toolName, tc.arguments))
-			var formatter domain.ToolFormatter = argsAwareToolFormatter{}
+			var formatter agentdomain.ToolFormatter = argsAwareToolFormatter{}
 			if tc.nilFormatter {
 				formatter = nil
 			}
@@ -184,8 +186,8 @@ func TestApprovalBox_SelectEmitsResponseEvent(t *testing.T) {
 	cmd := av.Forward(tea.KeyPressMsg{Code: tea.KeyEnter})
 	for cmd != nil {
 		msg := cmd()
-		if ev, ok := msg.(domain.ToolApprovalResponseEvent); ok {
-			if ev.Action != domain.ApprovalReject {
+		if ev, ok := msg.(agentdomain.ToolApprovalResponseEvent); ok {
+			if ev.Action != agentdomain.ApprovalReject {
 				t.Errorf("expected Reject after one right arrow, got %v", ev.Action)
 			}
 			if ev.ToolCall.ID != "call_1" {
@@ -348,7 +350,7 @@ func TestApprovalBox_DiffRendering(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			sm := approvalStateManager(approvalStateWith(tc.toolName, tc.arguments))
-			var formatter domain.ToolFormatter = argsAwareToolFormatter{}
+			var formatter agentdomain.ToolFormatter = argsAwareToolFormatter{}
 			if tc.nilFormatter {
 				formatter = nil
 			}

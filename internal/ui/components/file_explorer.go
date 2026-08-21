@@ -9,6 +9,9 @@ import (
 	"slices"
 	"strings"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	key "charm.land/bubbles/v2/key"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -19,7 +22,6 @@ import (
 	fuzzy "github.com/sahilm/fuzzy"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	diffview "github.com/inference-gateway/cli/internal/ui/components/diffview"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -96,7 +98,7 @@ type SnippetSelection struct {
 type FileExplorerImpl struct {
 	root          string
 	styleProvider *styles.Provider
-	themeService  domain.ThemeService
+	themeService  ui.ThemeService
 	keymap        diffKeymap
 
 	width        int
@@ -155,7 +157,7 @@ type FileExplorerImpl struct {
 }
 
 // NewFileExplorer creates an explorer rooted at the given working directory.
-func NewFileExplorer(root string, styleProvider *styles.Provider, themeService domain.ThemeService, kb config.KeybindingsConfig) *FileExplorerImpl {
+func NewFileExplorer(root string, styleProvider *styles.Provider, themeService ui.ThemeService, kb config.KeybindingsConfig) *FileExplorerImpl {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 	vp.MouseWheelEnabled = true
@@ -274,7 +276,7 @@ func (t *FileExplorerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return t.updateEditor(msg)
 	}
 	switch m := msg.(type) {
-	case domain.ToolExecutionCompletedEvent, domain.BashCommandCompletedEvent:
+	case agentdomain.ToolExecutionCompletedEvent, ui.BashCommandCompletedEvent:
 		// The agent's own edits / git commands are exactly what change the tree;
 		// refresh off those in-loop events instead of a clock.
 		t.refresh()
@@ -441,7 +443,7 @@ func (t *FileExplorerImpl) enterEditCmd() tea.Cmd {
 		return nil
 	}
 	abs := filepath.Join(t.root, rel)
-	editor, readCmd, err := startPTYEditor(abs, t.root, t.paneWidth, max(t.height-1, 1), themeIsDark(t.styleProvider))
+	editor, readCmd, err := startPTYEditor(abs, t.root, t.paneWidth, max(t.height-1, 1), styles.ThemeIsDark(t.styleProvider))
 	if err != nil {
 		t.loadErr = fmt.Errorf("failed to open editor: %w", err)
 		return nil
@@ -957,7 +959,7 @@ func (t *FileExplorerImpl) selectedFilePath() string {
 
 // chromaStyle picks a chroma highlighting style by the active theme's brightness.
 func (t *FileExplorerImpl) chromaStyle() *chroma.Style {
-	if theme := t.styleProvider.GetCurrentTheme(); theme != nil && isLightTheme(theme) {
+	if theme := t.styleProvider.GetCurrentTheme(); theme != nil && styles.IsLightTheme(theme) {
 		return chromastyles.Get("github")
 	}
 	return chromastyles.Get("github-dark")

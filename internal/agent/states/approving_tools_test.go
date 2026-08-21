@@ -1,4 +1,4 @@
-package states
+package states_test
 
 import (
 	"context"
@@ -7,12 +7,14 @@ import (
 	"testing"
 	"time"
 
+	states "github.com/inference-gateway/cli/internal/agent/states"
+
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	sdk "github.com/inference-gateway/sdk"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func makeTools(n int) []*sdk.ChatCompletionMessageToolCall {
@@ -27,16 +29,16 @@ func makeTools(n int) []*sdk.ChatCompletionMessageToolCall {
 	return tools
 }
 
-func toolEntry(tc sdk.ChatCompletionMessageToolCall) domain.ConversationEntry {
+func toolEntry(tc sdk.ChatCompletionMessageToolCall) convdomain.ConversationEntry {
 	id := tc.ID
-	return domain.ConversationEntry{
+	return convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:       sdk.Tool,
 			Content:    sdk.NewMessageContent("ok"),
 			ToolCallID: &id,
 		},
 		Time: time.Now(),
-		ToolExecution: &domain.ToolExecutionResult{
+		ToolExecution: &agentdomain.ToolExecutionResult{
 			ToolName: tc.Function.Name,
 			Success:  true,
 		},
@@ -45,19 +47,19 @@ func toolEntry(tc sdk.ChatCompletionMessageToolCall) domain.ConversationEntry {
 
 func newApprovingCtx(
 	tools []*sdk.ChatCompletionMessageToolCall,
-	mode domain.AgentMode,
-	execStub func(sdk.ChatCompletionMessageToolCall, bool) domain.ConversationEntry,
+	mode agentdomain.AgentMode,
+	execStub func(sdk.ChatCompletionMessageToolCall, bool) convdomain.ConversationEntry,
 	approveStub func(sdk.ChatCompletionMessageToolCall) (bool, error),
-) (*domain.StateContext, *[]domain.ConversationEntry, *[]sdk.Message, chan domain.AgentEvent) {
+) (*states.StateContext, *[]convdomain.ConversationEntry, *[]sdk.Message, chan states.AgentEvent) {
 	tna := []sdk.ChatCompletionMessageToolCall{}
 	idx := 0
-	tr := []domain.ConversationEntry{}
+	tr := []convdomain.ConversationEntry{}
 	conv := []sdk.Message{}
-	events := make(chan domain.AgentEvent, 16)
+	events := make(chan states.AgentEvent, 16)
 	wg := &sync.WaitGroup{}
 	mu := &sync.Mutex{}
 
-	ctx := &domain.StateContext{
+	ctx := &states.StateContext{
 		Events:               events,
 		WaitGroup:            wg,
 		Mutex:                mu,
@@ -66,30 +68,30 @@ func newApprovingCtx(
 		CurrentToolIndex:     &idx,
 		ToolResults:          &tr,
 		MaxConcurrentTools:   5,
-		Request:              &domain.AgentRequest{RequestID: "req-1"},
-		AgentCtx: &domain.AgentContext{
+		Request:              &agentdomain.AgentRequest{RequestID: "req-1"},
+		AgentCtx: &states.AgentContext{
 			Ctx:          context.Background(),
 			Conversation: &conv,
 		},
 		RequestToolApproval: approveStub,
 		ExecuteToolInternal: execStub,
-		PublishChatEvent:    func(domain.ChatEvent) {},
-		AddMessage:          func(domain.ConversationEntry) error { return nil },
-		GetAgentMode:        func() domain.AgentMode { return mode },
+		PublishChatEvent:    func(agentdomain.ChatEvent) {},
+		AddMessage:          func(convdomain.ConversationEntry) error { return nil },
+		GetAgentMode:        func() agentdomain.AgentMode { return mode },
 	}
 	return ctx, &tr, &conv, events
 }
 
-func waitForAllToolsProcessed(t *testing.T, events chan domain.AgentEvent) {
+func waitForAllToolsProcessed(t *testing.T, events chan states.AgentEvent) {
 	t.Helper()
 	for {
 		select {
 		case evt := <-events:
-			if _, ok := evt.(domain.AllToolsProcessedEvent); ok {
+			if _, ok := evt.(states.AllToolsProcessedEvent); ok {
 				return
 			}
 		case <-time.After(3 * time.Second):
-			t.Fatal("timed out waiting for AllToolsProcessedEvent")
+			t.Fatal("timed out waiting for states.AllToolsProcessedEvent")
 		}
 	}
 }
@@ -99,7 +101,7 @@ func waitForAllToolsProcessed(t *testing.T, events chan domain.AgentEvent) {
 // execution blocks on a barrier until ALL tools have started executing; if the
 // state serialized execution (running each approved tool to completion before
 // requesting the next approval), only one tool would ever reach the barrier and
-// AllToolsProcessedEvent would never arrive within the timeout.
+// states.AllToolsProcessedEvent would never arrive within the timeout.
 func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 	const n = 3
 	arrivals := make(chan struct{}, n)
@@ -116,7 +118,7 @@ func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 		close(allArrived)
 	}()
 
-	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) domain.ConversationEntry {
+	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
 		arrivals <- struct{}{}
 		select {
 		case <-allArrived:
@@ -126,15 +128,15 @@ func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 	}
 	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, error) { return true, nil }
 
-	ctx, _, _, events := newApprovingCtx(makeTools(n), domain.AgentModeStandard, execStub, approveStub)
-	s := &ApprovingToolsState{ctx: ctx}
+	ctx, _, _, events := newApprovingCtx(makeTools(n), agentdomain.AgentModeStandard, execStub, approveStub)
+	s := states.NewApprovingToolsState(ctx)
 
-	require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
 
 	select {
 	case evt := <-events:
-		_, ok := evt.(domain.AllToolsProcessedEvent)
-		assert.True(t, ok, "expected AllToolsProcessedEvent, got %T", evt)
+		_, ok := evt.(states.AllToolsProcessedEvent)
+		assert.True(t, ok, "expected states.AllToolsProcessedEvent, got %T", evt)
 	case <-time.After(2 * time.Second):
 		t.Fatal("approved tools did not execute concurrently - execution appears serialized")
 	}
@@ -144,7 +146,7 @@ func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 // finish out of order, results are appended to ToolResults and the conversation
 // in tool-call order (required by the conversation validator).
 func TestApprovingToolsState_PreservesToolCallOrder(t *testing.T) {
-	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) domain.ConversationEntry {
+	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
 		switch tc.ID {
 		case "call-0":
 			time.Sleep(60 * time.Millisecond) // finishes last
@@ -155,10 +157,10 @@ func TestApprovingToolsState_PreservesToolCallOrder(t *testing.T) {
 	}
 	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, error) { return true, nil }
 
-	ctx, results, conv, events := newApprovingCtx(makeTools(3), domain.AgentModeStandard, execStub, approveStub)
-	s := &ApprovingToolsState{ctx: ctx}
+	ctx, results, conv, events := newApprovingCtx(makeTools(3), agentdomain.AgentModeStandard, execStub, approveStub)
+	s := states.NewApprovingToolsState(ctx)
 
-	require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
 	waitForAllToolsProcessed(t, events)
 
 	require.Len(t, *results, 3)
@@ -179,7 +181,7 @@ func TestApprovingToolsState_PreservesToolCallOrder(t *testing.T) {
 // running - the previous batch-at-the-end behavior would time out here.
 func TestApprovingToolsState_FlushesResultsIncrementally(t *testing.T) {
 	block := make(chan struct{})
-	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) domain.ConversationEntry {
+	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
 		if tc.ID == "call-2" {
 			<-block
 		}
@@ -187,18 +189,18 @@ func TestApprovingToolsState_FlushesResultsIncrementally(t *testing.T) {
 	}
 	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, error) { return true, nil }
 
-	ctx, _, _, events := newApprovingCtx(makeTools(3), domain.AgentModeStandard, execStub, approveStub)
+	ctx, _, _, events := newApprovingCtx(makeTools(3), agentdomain.AgentModeStandard, execStub, approveStub)
 
 	added := make(chan string, 8)
-	ctx.AddMessage = func(e domain.ConversationEntry) error {
+	ctx.AddMessage = func(e convdomain.ConversationEntry) error {
 		if e.Message.ToolCallID != nil {
 			added <- *e.Message.ToolCallID
 		}
 		return nil
 	}
 
-	s := &ApprovingToolsState{ctx: ctx}
-	require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+	s := states.NewApprovingToolsState(ctx)
+	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
 
 	got := map[string]bool{}
 	for len(got) < 2 {
@@ -221,17 +223,17 @@ func TestApprovingToolsState_FlushesResultsIncrementally(t *testing.T) {
 // ToolExecution.Rejected and HasToolResults must be cleared even when another
 // tool in the batch was approved and executed.
 func TestApprovingToolsState_RejectionStopsTurn(t *testing.T) {
-	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) domain.ConversationEntry {
+	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
 		return toolEntry(tc)
 	}
 	approveStub := func(tc sdk.ChatCompletionMessageToolCall) (bool, error) {
 		return tc.ID != "call-0", nil
 	}
 
-	ctx, results, conv, events := newApprovingCtx(makeTools(2), domain.AgentModeStandard, execStub, approveStub)
-	s := &ApprovingToolsState{ctx: ctx}
+	ctx, results, conv, events := newApprovingCtx(makeTools(2), agentdomain.AgentModeStandard, execStub, approveStub)
+	s := states.NewApprovingToolsState(ctx)
 
-	require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
 	waitForAllToolsProcessed(t, events)
 
 	require.Len(t, *results, 2)
@@ -252,47 +254,20 @@ func TestApprovingToolsState_RejectionStopsTurn(t *testing.T) {
 // tool entry carries the original call arguments so the UI renders
 // "Bash(command=...)" instead of a bare "Bash()", and that a "failed" progress
 // event is published so the queued preview line is dropped (issue #861).
-func TestApprovingToolsState_RejectionEntryKeepsArguments(t *testing.T) {
-	var published []domain.ChatEvent
-	ctx, _, _, _ := newApprovingCtx(nil, domain.AgentModeStandard, nil, nil)
-	ctx.PublishChatEvent = func(e domain.ChatEvent) { published = append(published, e) }
-	s := &ApprovingToolsState{ctx: ctx}
-
-	tc := sdk.ChatCompletionMessageToolCall{
-		ID:       "call-0",
-		Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"rm -rf /tmp/x"}`},
-	}
-
-	entry := s.buildRejectionEntry(tc)
-
-	require.NotNil(t, entry.ToolExecution)
-	assert.Equal(t, map[string]any{"command": "rm -rf /tmp/x"}, entry.ToolExecution.Arguments)
-
-	require.Len(t, published, 1)
-	progress, ok := published[0].(domain.ToolExecutionProgressEvent)
-	require.True(t, ok, "rejection must publish a ToolExecutionProgressEvent")
-	assert.Equal(t, "call-0", progress.ToolCallID)
-	assert.Equal(t, "failed", progress.Status)
-
-	tc.Function.Arguments = "not-json"
-	entry = s.buildRejectionEntry(tc)
-	require.NotNil(t, entry.ToolExecution)
-	assert.NotNil(t, entry.ToolExecution.Arguments, "malformed args must fall back to an empty map")
-}
 
 // TestApprovingToolsState_ApprovedBatchKeepsToolResults verifies the inverse of
 // the rejection case: a fully approved batch leaves HasToolResults set so the
 // agent streams a follow-up turn responding to the results.
 func TestApprovingToolsState_ApprovedBatchKeepsToolResults(t *testing.T) {
-	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) domain.ConversationEntry {
+	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
 		return toolEntry(tc)
 	}
 	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, error) { return true, nil }
 
-	ctx, results, _, events := newApprovingCtx(makeTools(2), domain.AgentModeStandard, execStub, approveStub)
-	s := &ApprovingToolsState{ctx: ctx}
+	ctx, results, _, events := newApprovingCtx(makeTools(2), agentdomain.AgentModeStandard, execStub, approveStub)
+	s := states.NewApprovingToolsState(ctx)
 
-	require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
 	waitForAllToolsProcessed(t, events)
 
 	require.Len(t, *results, 2)
@@ -306,7 +281,7 @@ func TestApprovingToolsState_AutoAcceptExecutesAll(t *testing.T) {
 	var mu sync.Mutex
 	executed := map[string]bool{}
 
-	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) domain.ConversationEntry {
+	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
 		mu.Lock()
 		executed[tc.ID] = true
 		mu.Unlock()
@@ -314,10 +289,10 @@ func TestApprovingToolsState_AutoAcceptExecutesAll(t *testing.T) {
 	}
 	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, error) { return true, nil }
 
-	ctx, results, _, events := newApprovingCtx(makeTools(3), domain.AgentModeAutoAccept, execStub, approveStub)
-	s := &ApprovingToolsState{ctx: ctx}
+	ctx, results, _, events := newApprovingCtx(makeTools(3), agentdomain.AgentModeAutoAccept, execStub, approveStub)
+	s := states.NewApprovingToolsState(ctx)
 
-	require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
 	waitForAllToolsProcessed(t, events)
 
 	require.Len(t, *results, 3)

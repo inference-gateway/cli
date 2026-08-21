@@ -7,8 +7,8 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // PluginHookCommandProvider merges the user's hooks.yaml with each enabled
@@ -34,11 +34,11 @@ func NewPluginHookCommandProvider(cfg *config.Config) *PluginHookCommandProvider
 	return &PluginHookCommandProvider{cfg: cfg}
 }
 
-// CommandsDue implements domain.HookCommandProvider. It returns user command
+// CommandsDue implements agentdomain.HookCommandProvider. It returns user command
 // hooks first, then each enabled plugin's hooks (in registry order) whose
 // hooks_enabled flag is true and whose hooks.yaml exists on disk. The master
 // hooks.enabled switch gates everything: when false, nil is returned.
-func (p *PluginHookCommandProvider) CommandsDue(hook domain.HookPoint) []domain.HookCommand {
+func (p *PluginHookCommandProvider) CommandsDue(hook agentdomain.HookPoint) []agentdomain.HookCommand {
 	if p == nil || p.cfg == nil {
 		return nil
 	}
@@ -47,7 +47,7 @@ func (p *PluginHookCommandProvider) CommandsDue(hook domain.HookPoint) []domain.
 		return nil
 	}
 
-	var due []domain.HookCommand
+	var due []agentdomain.HookCommand
 
 	due = append(due, p.cfg.Hooks.CommandsDue(hook)...)
 	for _, entry := range p.cfg.Plugins.Plugins {
@@ -58,7 +58,7 @@ func (p *PluginHookCommandProvider) CommandsDue(hook domain.HookPoint) []domain.
 			if hc.Hook != hook {
 				continue
 			}
-			due = append(due, domain.HookCommand{
+			due = append(due, agentdomain.HookCommand{
 				Name:    fmt.Sprintf("%s:%s", entry.Name, hc.Name),
 				Command: hc.Command,
 				Timeout: time.Duration(hc.Timeout) * time.Second,

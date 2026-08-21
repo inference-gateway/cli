@@ -6,7 +6,6 @@ web:
 
   ssh:
     enabled: true
-    use_ssh_config: true
     known_hosts_path: "~/.ssh/known_hosts"
     auto_install: true
     install_version: "latest"

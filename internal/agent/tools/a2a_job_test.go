@@ -8,11 +8,11 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	jobs "github.com/inference-gateway/cli/internal/services/jobs"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // TestA2AJob_PollsRemoteTaskToCompletion drives the migrated A2A path end-to-end:
@@ -29,8 +29,8 @@ func TestA2AJob_PollsRemoteTaskToCompletion(t *testing.T) {
 	}
 
 	tracker := utils.NewA2ATaskTracker()
-	queue := &mocks.FakeMessageQueue{}
-	sup := jobs.NewSupervisor(queue, &mocks.FakeConversationRepository{}, nil)
+	queue := &convmocks.FakeMessageQueue{}
+	sup := jobs.NewSupervisor(queue, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
 	completed := adk.Task{ID: "t1", Status: adk.TaskStatus{State: adk.TaskStateCompleted}}
@@ -38,7 +38,7 @@ func TestA2AJob_PollsRemoteTaskToCompletion(t *testing.T) {
 	mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: completed}, nil)
 
 	tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, sup, mockClient)
-	state := &domain.TaskPollingState{TaskID: "t1", AgentURL: "http://agent", StartedAt: time.Now()}
+	state := &agentdomain.TaskPollingState{TaskID: "t1", AgentURL: "http://agent", StartedAt: time.Now()}
 	tracker.StartPolling("t1", state)
 	sup.Submit(&a2aJob{tool: tool, agentURL: "http://agent", taskID: "t1", state: state})
 
@@ -54,7 +54,7 @@ func TestA2AJob_PollsRemoteTaskToCompletion(t *testing.T) {
 	}
 }
 
-// TestA2AJob_RetainedTask covers the domain.TaskRetainer the supervisor calls on
+// TestA2AJob_RetainedTask covers the scheddomain.TaskRetainer the supervisor calls on
 // finish: completed/failed carry the full *adk.Task; canceled does not, so the task
 // is reconstructed from the polling state and reported state; input-required and
 // non-A2A results opt out. The asserted fields (state, ids, agent URL, started-at)
@@ -112,8 +112,8 @@ func TestA2AJob_RetainedTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			j := &a2aJob{state: &domain.TaskPollingState{StartedAt: started}}
-			info, ok := j.RetainedTask(domain.ToolExecutionResult{Data: tt.data})
+			j := &a2aJob{state: &agentdomain.TaskPollingState{StartedAt: started}}
+			info, ok := j.RetainedTask(agentdomain.ToolExecutionResult{Data: tt.data})
 			if ok != tt.wantOK {
 				t.Fatalf("RetainedTask ok = %v, want %v", ok, tt.wantOK)
 			}
@@ -176,7 +176,7 @@ func TestA2AJob_A2APollingState(t *testing.T) {
 	j := &a2aJob{
 		taskID:   "t1",
 		agentURL: "http://agent",
-		state:    &domain.TaskPollingState{ContextID: "ctx1", TaskDescription: "do work", StartedAt: started},
+		state:    &agentdomain.TaskPollingState{ContextID: "ctx1", TaskDescription: "do work", StartedAt: started},
 	}
 	j.recordState(string(adk.TaskStateWorking))
 
@@ -201,7 +201,7 @@ func TestA2AJob_A2APollingState(t *testing.T) {
 // poll goroutine's path) against the read (A2APollingState, the task view's path)
 // so `go test -race` proves the mutex closes the shared-state data race.
 func TestA2AJob_A2APollingStateConcurrent(t *testing.T) {
-	j := &a2aJob{taskID: "t1", agentURL: "http://a", state: &domain.TaskPollingState{ContextID: "ctx1", StartedAt: time.Now()}}
+	j := &a2aJob{taskID: "t1", agentURL: "http://a", state: &agentdomain.TaskPollingState{ContextID: "ctx1", StartedAt: time.Now()}}
 
 	var wg sync.WaitGroup
 	wg.Add(2)

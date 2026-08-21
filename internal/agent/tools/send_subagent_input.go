@@ -6,9 +6,12 @@ import (
 	"os"
 	"strings"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // allowedSubagentKeys is the set of named tmux keys SendSubagentInput may emit.
@@ -28,14 +31,14 @@ const allowedSubagentKeyList = "Enter, Escape, Tab, Space, BSpace, Up, Down, Lef
 // notified when the subagent finishes the resulting turn (no polling).
 type SendSubagentInputTool struct {
 	config    *config.Config
-	tracker   domain.SubagentTracker
+	tracker   scheddomain.SubagentTracker
 	sendKeys  func(ctx context.Context, paneID, text string, keys []string) error
 	paneState func(ctx context.Context, paneID string) paneState
 }
 
 // NewSendSubagentInputTool creates a new SendSubagentInput tool over the
 // session's SubagentTracker.
-func NewSendSubagentInputTool(cfg *config.Config, tracker domain.SubagentTracker) *SendSubagentInputTool {
+func NewSendSubagentInputTool(cfg *config.Config, tracker scheddomain.SubagentTracker) *SendSubagentInputTool {
 	return &SendSubagentInputTool{
 		config:    cfg,
 		tracker:   tracker,
@@ -81,7 +84,7 @@ func (t *SendSubagentInputTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute sends the input to the named subagent's pane.
-func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
@@ -91,7 +94,7 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 	if s == nil {
 		return t.fail(args, fmt.Sprintf("Subagent not found: %s (it may have been closed).", subagentID)), nil
 	}
-	if s.Mode != domain.SubagentModeInteractive || s.PaneID == "" {
+	if s.Mode != scheddomain.SubagentModeInteractive || s.PaneID == "" {
 		return t.fail(args, fmt.Sprintf("Subagent %s is headless and has no TUI to send input to. Only interactive (tmux-pane) subagents accept input.", labelOrSession(s.Label, s.SessionID))), nil
 	}
 	if t.paneState(ctx, s.PaneID) == paneGone {
@@ -114,9 +117,9 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 	}
 
 	rearmed := false
-	if submit && s.Status != domain.SubagentRunning {
+	if submit && s.Status != scheddomain.SubagentRunning {
 		_ = os.Remove(subagentResultFilePath(s.SessionID))
-		_ = t.tracker.SetSubagentStatus(s.ID, domain.SubagentRunning)
+		_ = t.tracker.SetSubagentStatus(s.ID, scheddomain.SubagentRunning)
 		rearmed = true
 	}
 
@@ -126,7 +129,7 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 	} else if !submit {
 		msg += " Use ReadSubagentScreen to see the result."
 	}
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "SendSubagentInput",
 		Arguments: args,
 		Success:   true,
@@ -140,8 +143,8 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 	}, nil
 }
 
-func (t *SendSubagentInputTool) fail(args map[string]any, msg string) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func (t *SendSubagentInputTool) fail(args map[string]any, msg string) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "SendSubagentInput",
 		Arguments: args,
 		Success:   false,
@@ -173,9 +176,9 @@ func (t *SendSubagentInputTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts.
-func (t *SendSubagentInputTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *SendSubagentInputTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)
@@ -183,7 +186,7 @@ func (t *SendSubagentInputTool) FormatResult(result *domain.ToolExecutionResult,
 }
 
 // FormatPreview returns a short preview of the result for UI display.
-func (t *SendSubagentInputTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *SendSubagentInputTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to send subagent input"
 	}
@@ -196,7 +199,7 @@ func (t *SendSubagentInputTool) FormatPreview(result *domain.ToolExecutionResult
 }
 
 // FormatForLLM formats the result for LLM consumption.
-func (t *SendSubagentInputTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *SendSubagentInputTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}

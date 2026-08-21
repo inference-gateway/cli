@@ -11,20 +11,21 @@ import (
 	"syscall"
 	"time"
 
+	cobra "github.com/spf13/cobra"
+
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	audio "github.com/inference-gateway/cli/internal/audio"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	scheduler "github.com/inference-gateway/cli/internal/scheduler"
+	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
+	heartbeat "github.com/inference-gateway/cli/internal/scheduler/heartbeat"
 	services "github.com/inference-gateway/cli/internal/services"
 	channels "github.com/inference-gateway/cli/internal/services/channels"
-	githubscheduler "github.com/inference-gateway/cli/internal/services/githubscheduler"
 	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
-	heartbeat "github.com/inference-gateway/cli/internal/services/heartbeat"
-	scheduler "github.com/inference-gateway/cli/internal/services/scheduler"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	stt "github.com/inference-gateway/cli/internal/stt"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
-	cobra "github.com/spf13/cobra"
 )
 
 var daemonCmd = &cobra.Command{
@@ -85,7 +86,7 @@ func RunDaemonCommand(cfg *config.Config) error {
 	defer release()
 
 	telemetry.ExecutionMode = telemetry.ExecDaemon
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 	tel := telemetry.New(telemetry.Options{
 		Enabled:           cfg.Telemetry.Enabled,
 		Dir:               config.TelemetryDir(),
@@ -99,7 +100,7 @@ func RunDaemonCommand(cfg *config.Config) error {
 
 	cm := services.NewChannelManagerService(cfg.Channels, tel)
 
-	var channelCommands []domain.ChannelCommand
+	var channelCommands []channels.ChannelCommand
 	if cfg.Channels.Enabled {
 		if reg, conv, groups := buildCommandSupport(cfg); reg != nil {
 			cm.SetCommandSupport(reg, conv, groups)
@@ -235,7 +236,7 @@ func startScheduler(ctx context.Context, cm *services.ChannelManagerService, cfg
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	notifier := services.NewScheduleNotifier(cm.GetChannel)
+	notifier := scheduler.NewScheduleNotifier(cm.GetChannel)
 	svc, err := scheduler.NewService(scheduler.Options{
 		Store:      stores.ScheduledJobs,
 		Runs:       stores.ScheduledRuns,
@@ -438,25 +439,25 @@ func buildChannelShortcutRegistry(cfg *config.Config) *shortcuts.Registry {
 
 // supportedChannelCommands lists the commands worth advertising natively in a
 // channel's command menu: the daemon built-ins plus custom shortcuts.
-func supportedChannelCommands(reg *shortcuts.Registry) []domain.ChannelCommand {
-	cmds := append([]domain.ChannelCommand{}, services.ChannelBuiltinCommands...)
+func supportedChannelCommands(reg *shortcuts.Registry) []channels.ChannelCommand {
+	cmds := append([]channels.ChannelCommand{}, services.ChannelBuiltinCommands...)
 	for _, sc := range reg.GetAll() {
 		if _, isCustom := sc.(*shortcuts.CustomShortcut); isCustom {
-			cmds = append(cmds, domain.ChannelCommand{Name: sc.GetName(), Description: sc.GetDescription()})
+			cmds = append(cmds, channels.ChannelCommand{Name: sc.GetName(), Description: sc.GetDescription()})
 		}
 	}
 	return cmds
 }
 
 // registerChannels registers enabled channel implementations with the manager
-func registerChannels(cm *services.ChannelManagerService, cfg *config.Config, commands []domain.ChannelCommand) error {
+func registerChannels(cm *services.ChannelManagerService, cfg *config.Config, commands []channels.ChannelCommand) error {
 	registered := 0
 
 	if cfg.Channels.Telegram.Enabled {
 		var transcriber channels.VoiceTranscriber
 		var retention *channels.FileRetention
 		if cfg.SpeechToText.Enabled {
-			transcriber = stt.NewFileTranscriber(cfg.SpeechToText)
+			transcriber = audio.NewFileTranscriber(cfg.SpeechToText)
 			retention = buildVoiceRetention(cfg.SpeechToText)
 			logger.Info("speech-to-text enabled for inbound voice messages", "model", cfg.SpeechToText.Model)
 		}

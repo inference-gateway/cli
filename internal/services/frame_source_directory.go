@@ -11,7 +11,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // DirectoryFrameSource serves the newest image file under a configured
@@ -23,13 +23,13 @@ type DirectoryFrameSource struct {
 	path     string
 	maxFiles int
 	maxAge   time.Duration
-	images   domain.ImageService
+	images   agentdomain.ImageService
 }
 
 // NewDirectoryFrameSource creates a frame source over cfg.Path. The retention
 // max_age was validated at config load, so a parse failure here means zero (no
 // age limit).
-func NewDirectoryFrameSource(name string, cfg config.VisionSourceConfig, images domain.ImageService) *DirectoryFrameSource {
+func NewDirectoryFrameSource(name string, cfg config.VisionSourceConfig, images agentdomain.ImageService) *DirectoryFrameSource {
 	maxAge, _ := time.ParseDuration(cfg.Retention.MaxAge)
 	return &DirectoryFrameSource{
 		name:     name,
@@ -41,7 +41,7 @@ func NewDirectoryFrameSource(name string, cfg config.VisionSourceConfig, images 
 }
 
 // GetLatestFrame returns the newest image file in the directory by mtime.
-func (d *DirectoryFrameSource) GetLatestFrame() (*domain.Frame, error) {
+func (d *DirectoryFrameSource) GetLatestFrame() (*agentdomain.Frame, error) {
 	entries, err := os.ReadDir(d.path)
 	if err != nil {
 		return nil, fmt.Errorf("reading frame source %q directory: %w", d.name, err)
@@ -73,7 +73,7 @@ func (d *DirectoryFrameSource) GetLatestFrame() (*domain.Frame, error) {
 	}
 
 	width, height := decodeImageDims(attachment.Data)
-	frame := &domain.Frame{
+	frame := &agentdomain.Frame{
 		ID:        newest.Name(),
 		Timestamp: newestTime,
 		Data:      attachment.Data,

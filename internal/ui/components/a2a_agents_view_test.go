@@ -4,24 +4,24 @@ import (
 	"errors"
 	"testing"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	tea "charm.land/bubbletea/v2"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // newA2AAgentsViewForTest builds an agents view backed by a real
 // ApplicationState reconstructed from the given readiness.
-func newA2AAgentsViewForTest(readiness *domain.AgentReadinessState) (*A2AAgentsViewImpl, *domain.ApplicationState) {
+func newA2AAgentsViewForTest(readiness *ui.AgentReadinessState) (*A2AAgentsViewImpl, *ui.ApplicationState) {
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeTheme.GetAccentColorReturns("#ff9e64")
 	fakeTheme.GetDimColorReturns("#888888")
 	fakeTheme.GetStatusColorReturns("#e0af68")
 	fakeTheme.GetErrorColorReturns("#f7768e")
-	themeService := &domainmocks.FakeThemeService{}
+	themeService := &uimocks.FakeThemeService{}
 	themeService.GetCurrentThemeReturns(fakeTheme)
 
 	stateManager := reconstructReadiness(readiness)
@@ -32,14 +32,14 @@ func newA2AAgentsViewForTest(readiness *domain.AgentReadinessState) (*A2AAgentsV
 
 // reconstructReadiness rebuilds a real ApplicationState from a readiness value,
 // preserving per-agent state and failure details.
-func reconstructReadiness(readiness *domain.AgentReadinessState) *domain.ApplicationState {
-	st := domain.NewApplicationState()
+func reconstructReadiness(readiness *ui.AgentReadinessState) *ui.ApplicationState {
+	st := ui.NewApplicationState()
 	if readiness == nil {
 		return st
 	}
 	st.InitializeAgentReadiness(readiness.TotalAgents)
 	for _, a := range readiness.Agents {
-		if a.State == domain.AgentStateFailed && a.Error != "" {
+		if a.State == agentdomain.AgentStateFailed && a.Error != "" {
 			st.SetAgentError(a.Name, errors.New(a.Error))
 			continue
 		}
@@ -49,12 +49,12 @@ func reconstructReadiness(readiness *domain.AgentReadinessState) *domain.Applica
 }
 
 func TestA2AAgentsView_ItemsReflectReadiness(t *testing.T) {
-	view, _ := newA2AAgentsViewForTest(&domain.AgentReadinessState{
+	view, _ := newA2AAgentsViewForTest(&ui.AgentReadinessState{
 		TotalAgents: 2,
 		ReadyAgents: 1,
-		Agents: map[string]*domain.AgentStatus{
-			"writer": {Name: "writer", URL: "http://localhost:8081", State: domain.AgentStateReady},
-			"coder":  {Name: "coder", URL: "http://localhost:8082", State: domain.AgentStateFailed, Error: "connection refused"},
+		Agents: map[string]*ui.AgentStatus{
+			"writer": {Name: "writer", URL: "http://localhost:8081", State: agentdomain.AgentStateReady},
+			"coder":  {Name: "coder", URL: "http://localhost:8082", State: agentdomain.AgentStateFailed, Error: "connection refused"},
 		},
 	})
 
@@ -89,10 +89,10 @@ func TestA2AAgentsView_NilReadinessIsSafe(t *testing.T) {
 }
 
 func TestA2AAgentsView_EscCancelsEnterDoesNot(t *testing.T) {
-	view, _ := newA2AAgentsViewForTest(&domain.AgentReadinessState{
+	view, _ := newA2AAgentsViewForTest(&ui.AgentReadinessState{
 		TotalAgents: 1,
 		ReadyAgents: 1,
-		Agents:      map[string]*domain.AgentStatus{"writer": {Name: "writer", State: domain.AgentStateReady}},
+		Agents:      map[string]*ui.AgentStatus{"writer": {Name: "writer", State: agentdomain.AgentStateReady}},
 	})
 
 	model, _ := view.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -109,16 +109,16 @@ func TestA2AAgentsView_EscCancelsEnterDoesNot(t *testing.T) {
 }
 
 func TestA2AAgentsView_ResetRefreshesReadiness(t *testing.T) {
-	view, stateManager := newA2AAgentsViewForTest(&domain.AgentReadinessState{
+	view, stateManager := newA2AAgentsViewForTest(&ui.AgentReadinessState{
 		TotalAgents: 1,
 		ReadyAgents: 0,
-		Agents:      map[string]*domain.AgentStatus{"writer": {Name: "writer", State: domain.AgentStateStarting}},
+		Agents:      map[string]*ui.AgentStatus{"writer": {Name: "writer", State: agentdomain.AgentStateStarting}},
 	})
 
 	model, _ := view.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	view = model.(*A2AAgentsViewImpl)
 
-	stateManager.UpdateAgentStatus("writer", domain.AgentStateReady, "", "", "")
+	stateManager.UpdateAgentStatus("writer", agentdomain.AgentStateReady, "", "", "")
 	view.Reset()
 
 	if view.IsCancelled() {
@@ -133,22 +133,22 @@ func TestA2AAgentsView_ResetRefreshesReadiness(t *testing.T) {
 }
 
 func TestA2AAgentsView_LiveUpdatesOnAgentStatusEvent(t *testing.T) {
-	view, stateManager := newA2AAgentsViewForTest(&domain.AgentReadinessState{
+	view, stateManager := newA2AAgentsViewForTest(&ui.AgentReadinessState{
 		TotalAgents: 1,
 		ReadyAgents: 0,
-		Agents:      map[string]*domain.AgentStatus{"writer": {Name: "writer", State: domain.AgentStatePullingImage, Message: "Pulling image: img"}},
+		Agents:      map[string]*ui.AgentStatus{"writer": {Name: "writer", State: agentdomain.AgentStatePullingImage, Message: "Pulling image: img"}},
 	})
 
 	stateManager.UpdateAgentPullProgress("writer", 3, 7)
-	model, _ := view.Update(domain.AgentStatusUpdateEvent{AgentName: "writer", State: domain.AgentStatePullingImage})
+	model, _ := view.Update(ui.AgentStatusUpdateEvent{AgentName: "writer", State: agentdomain.AgentStatePullingImage})
 	view = model.(*A2AAgentsViewImpl)
 
 	if got := view.list.Items()[0].(a2aAgentItem); got.detail != "Pulling image: img (3/7 layers)" {
 		t.Errorf("event should refresh pull progress in the detail, got %+v", got)
 	}
 
-	stateManager.UpdateAgentStatus("writer", domain.AgentStateReady, "", "", "")
-	model, _ = view.Update(domain.AgentStatusUpdateEvent{AgentName: "writer", State: domain.AgentStateReady})
+	stateManager.UpdateAgentStatus("writer", agentdomain.AgentStateReady, "", "", "")
+	model, _ = view.Update(ui.AgentStatusUpdateEvent{AgentName: "writer", State: agentdomain.AgentStateReady})
 	view = model.(*A2AAgentsViewImpl)
 
 	if view.list.Title != "A2A Agents (1/1 ready)" {

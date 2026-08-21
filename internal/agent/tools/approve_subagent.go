@@ -6,9 +6,12 @@ import (
 	"os"
 	"strings"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // ApproveSubagentTool relays the user's approve/reject decision to an interactive
@@ -18,14 +21,14 @@ import (
 // always approval-gated so the human confirms the relay in the MAIN chat.
 type ApproveSubagentTool struct {
 	config    *config.Config
-	tracker   domain.SubagentTracker
+	tracker   scheddomain.SubagentTracker
 	sendKeys  func(ctx context.Context, paneID, text string, keys []string) error
 	paneState func(ctx context.Context, paneID string) paneState
 }
 
 // NewApproveSubagentTool creates a new ApproveSubagent tool over the session's
 // SubagentTracker.
-func NewApproveSubagentTool(cfg *config.Config, tracker domain.SubagentTracker) *ApproveSubagentTool {
+func NewApproveSubagentTool(cfg *config.Config, tracker scheddomain.SubagentTracker) *ApproveSubagentTool {
 	return &ApproveSubagentTool{
 		config:    cfg,
 		tracker:   tracker,
@@ -63,7 +66,7 @@ func (t *ApproveSubagentTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute relays the decision to the named subagent's pane.
-func (t *ApproveSubagentTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *ApproveSubagentTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
@@ -74,7 +77,7 @@ func (t *ApproveSubagentTool) Execute(ctx context.Context, args map[string]any) 
 	if s == nil {
 		return t.fail(args, fmt.Sprintf("Subagent not found: %s (it may have been closed).", subagentID)), nil
 	}
-	if s.Mode != domain.SubagentModeInteractive || s.PaneID == "" {
+	if s.Mode != scheddomain.SubagentModeInteractive || s.PaneID == "" {
 		return t.fail(args, fmt.Sprintf("Subagent %s is headless and has no approval prompt to answer.", labelOrSession(s.Label, s.SessionID))), nil
 	}
 	if t.paneState(ctx, s.PaneID) == paneGone {
@@ -90,7 +93,7 @@ func (t *ApproveSubagentTool) Execute(ctx context.Context, args map[string]any) 
 	}
 	_ = os.Remove(subagentApprovalFilePath(s.SessionID))
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "ApproveSubagent",
 		Arguments: args,
 		Success:   true,
@@ -103,8 +106,8 @@ func (t *ApproveSubagentTool) Execute(ctx context.Context, args map[string]any) 
 	}, nil
 }
 
-func (t *ApproveSubagentTool) fail(args map[string]any, msg string) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func (t *ApproveSubagentTool) fail(args map[string]any, msg string) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "ApproveSubagent",
 		Arguments: args,
 		Success:   false,
@@ -131,9 +134,9 @@ func (t *ApproveSubagentTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts.
-func (t *ApproveSubagentTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *ApproveSubagentTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForLLM(result)
@@ -141,7 +144,7 @@ func (t *ApproveSubagentTool) FormatResult(result *domain.ToolExecutionResult, f
 }
 
 // FormatPreview returns a short preview of the result for UI display.
-func (t *ApproveSubagentTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *ApproveSubagentTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return "Failed to relay subagent decision"
 	}
@@ -155,7 +158,7 @@ func (t *ApproveSubagentTool) FormatPreview(result *domain.ToolExecutionResult) 
 }
 
 // FormatForLLM formats the result for LLM consumption.
-func (t *ApproveSubagentTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *ApproveSubagentTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil || !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}

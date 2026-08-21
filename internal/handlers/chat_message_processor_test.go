@@ -7,72 +7,75 @@ import (
 	"testing"
 	"time"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
+	tea "charm.land/bubbletea/v2"
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
-
-	tea "charm.land/bubbletea/v2"
-
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	models "github.com/inference-gateway/cli/internal/models"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 	tests := []struct {
 		name        string
-		input       domain.UserInputEvent
-		setupMocks  func(*mocks.FakeFileService)
+		input       agentdomain.UserInputEvent
+		setupMocks  func(*agentdomainmocks.FakeFileService)
 		expectError bool
 	}{
 		{
 			name: "Regular message",
-			input: domain.UserInputEvent{
+			input: agentdomain.UserInputEvent{
 				Content: "Hello world",
 			},
-			setupMocks: func(fileService *mocks.FakeFileService) {
+			setupMocks: func(fileService *agentdomainmocks.FakeFileService) {
 			},
 			expectError: false,
 		},
 		{
 			name: "Slash command",
-			input: domain.UserInputEvent{
+			input: agentdomain.UserInputEvent{
 				Content: "/help",
 			},
-			setupMocks: func(fileService *mocks.FakeFileService) {
+			setupMocks: func(fileService *agentdomainmocks.FakeFileService) {
 			},
 			expectError: false,
 		},
 		{
 			name: "Tool command",
-			input: domain.UserInputEvent{
+			input: agentdomain.UserInputEvent{
 				Content: "!!Read(file_path=\"test.txt\")",
 			},
-			setupMocks: func(fileService *mocks.FakeFileService) {
+			setupMocks: func(fileService *agentdomainmocks.FakeFileService) {
 			},
 			expectError: false,
 		},
 		{
 			name: "Bash command",
-			input: domain.UserInputEvent{
+			input: agentdomain.UserInputEvent{
 				Content: "!ls -la",
 			},
-			setupMocks: func(fileService *mocks.FakeFileService) {
+			setupMocks: func(fileService *agentdomainmocks.FakeFileService) {
 			},
 			expectError: false,
 		},
 		{
 			name: "Message with file reference",
-			input: domain.UserInputEvent{
+			input: agentdomain.UserInputEvent{
 				Content: "Please check @test.go",
 			},
-			setupMocks: func(fileService *mocks.FakeFileService) {
+			setupMocks: func(fileService *agentdomainmocks.FakeFileService) {
 				fileService.ValidateFileReturns(nil)
 				fileService.ReadFileReturns("package main\nfunc main() {}", nil)
 			},
@@ -80,10 +83,10 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 		},
 		{
 			name: "Message with invalid file reference",
-			input: domain.UserInputEvent{
+			input: agentdomain.UserInputEvent{
 				Content: "Check @nonexistent.go",
 			},
-			setupMocks: func(fileService *mocks.FakeFileService) {
+			setupMocks: func(fileService *agentdomainmocks.FakeFileService) {
 				fileService.ValidateFileReturns(errors.New("file not found"))
 			},
 			expectError: false,
@@ -92,25 +95,25 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockFile := &mocks.FakeFileService{}
-			mockAgent := &mocks.FakeAgentService{}
-			mockModel := &mocks.FakeModelService{}
-			mockTool := &mocks.FakeToolService{}
+			mockFile := &agentdomainmocks.FakeFileService{}
+			mockAgent := &agentdomainmocks.FakeAgentService{}
+			mockModel := &convmocks.FakeModelService{}
+			mockTool := &agentdomainmocks.FakeToolService{}
 
 			if tt.setupMocks != nil {
 				tt.setupMocks(mockFile)
 			}
 
-			conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+			conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 			shortcutRegistry := shortcuts.NewRegistry()
 			stateManager := services.NewStateManager(false)
-			messageQueue := services.NewMessageQueueService()
+			messageQueue := conversation.NewMessageQueueService()
 
-			fakeDirect := &mocks.FakeDirectExecutionService{}
+			fakeDirect := &uimocks.FakeDirectExecutionService{}
 			fakeDirect.HandleBashCommandReturns(func() tea.Msg { return nil })
 			fakeDirect.HandleToolCommandReturns(func() tea.Msg { return nil })
 
-			fakeRunner := &mocks.FakeChatCompletionRunner{}
+			fakeRunner := &uimocks.FakeChatCompletionRunner{}
 			fakeRunner.StartReturns(func() tea.Msg { return nil })
 
 			handler := NewChatHandler(
@@ -156,7 +159,7 @@ func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 	tests := []struct {
 		name           string
 		content        string
-		setupMocks     func(*mocks.FakeFileService)
+		setupMocks     func(*agentdomainmocks.FakeFileService)
 		expectedOutput string
 		expectError    bool
 	}{
@@ -169,7 +172,7 @@ func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 		{
 			name:    "Single file reference",
 			content: "Check @test.go",
-			setupMocks: func(fileService *mocks.FakeFileService) {
+			setupMocks: func(fileService *agentdomainmocks.FakeFileService) {
 				fileService.ValidateFileReturns(nil)
 				fileService.ReadFileReturns("package main", nil)
 			},
@@ -179,7 +182,7 @@ func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 		{
 			name:    "Multiple file references",
 			content: "Check @file1.go and @file2.go",
-			setupMocks: func(fileService *mocks.FakeFileService) {
+			setupMocks: func(fileService *agentdomainmocks.FakeFileService) {
 				fileService.ValidateFileReturns(nil)
 				fileService.ReadFileReturnsOnCall(0, "content1", nil)
 				fileService.ReadFileReturnsOnCall(1, "content2", nil)
@@ -190,7 +193,7 @@ func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 		{
 			name:    "Markdown file with summary",
 			content: "Check @README.md",
-			setupMocks: func(fileService *mocks.FakeFileService) {
+			setupMocks: func(fileService *agentdomainmocks.FakeFileService) {
 				fileService.ValidateFileReturns(nil)
 				fileService.ReadFileReturns("# Title\n\n## Summary\nThis is the summary\n\n## Details\nMore details", nil)
 			},
@@ -200,7 +203,7 @@ func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 		{
 			name:    "Invalid file reference",
 			content: "Check @invalid.go",
-			setupMocks: func(fileService *mocks.FakeFileService) {
+			setupMocks: func(fileService *agentdomainmocks.FakeFileService) {
 				fileService.ValidateFileReturns(errors.New("file not found"))
 			},
 			expectedOutput: "Check @invalid.go",
@@ -210,7 +213,7 @@ func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockFile := &mocks.FakeFileService{}
+			mockFile := &agentdomainmocks.FakeFileService{}
 
 			if tt.setupMocks != nil {
 				tt.setupMocks(mockFile)
@@ -238,9 +241,9 @@ func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 // the bytes are never inlined into the message, so non-vision models still learn
 // which file was selected and tools like ImageEdit can act on the path.
 func TestChatMessageProcessor_expandFileReferences_ImagePathOnly(t *testing.T) {
-	mockFile := &mocks.FakeFileService{}
+	mockFile := &agentdomainmocks.FakeFileService{}
 	mockFile.ValidateFileReturns(nil)
-	mockImage := &mocks.FakeImageService{}
+	mockImage := &agentdomainmocks.FakeImageService{}
 	mockImage.IsImageFileReturns(true)
 
 	processor := NewChatMessageProcessor(&ChatHandler{
@@ -255,13 +258,13 @@ func TestChatMessageProcessor_expandFileReferences_ImagePathOnly(t *testing.T) {
 }
 
 func TestChatMessageProcessor_expandIssueReferences(t *testing.T) {
-	issue123 := &domain.GitHubIssue{
+	issue123 := &agentdomain.GitHubIssue{
 		Number: 123,
 		Title:  "Add login",
 		Body:   "Implement auth.",
 		State:  "OPEN",
 		URL:    "https://github.com/o/r/issues/123",
-		Comments: []domain.GitHubIssueComment{
+		Comments: []agentdomain.GitHubIssueComment{
 			{Author: "alice", Body: "first comment", CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)},
 		},
 	}
@@ -269,14 +272,14 @@ func TestChatMessageProcessor_expandIssueReferences(t *testing.T) {
 	tests := []struct {
 		name      string
 		content   string
-		setup     func(*mocks.FakeGitHubIssueService)
+		setup     func(*agentdomainmocks.FakeGitHubIssueService)
 		assertOut func(t *testing.T, out string)
 		fetchCt   int
 	}{
 		{
 			name:    "no issue refs - passthrough",
 			content: "just text",
-			setup:   func(s *mocks.FakeGitHubIssueService) {},
+			setup:   func(s *agentdomainmocks.FakeGitHubIssueService) {},
 			assertOut: func(t *testing.T, out string) {
 				assert.Equal(t, "just text", out)
 			},
@@ -284,7 +287,7 @@ func TestChatMessageProcessor_expandIssueReferences(t *testing.T) {
 		{
 			name:    "single issue ref expanded with title and body",
 			content: "fix #123 please",
-			setup: func(s *mocks.FakeGitHubIssueService) {
+			setup: func(s *agentdomainmocks.FakeGitHubIssueService) {
 				s.GetIssueReturns(issue123, nil)
 			},
 			assertOut: func(t *testing.T, out string) {
@@ -299,8 +302,8 @@ func TestChatMessageProcessor_expandIssueReferences(t *testing.T) {
 		{
 			name:    "duplicate refs share one fetch",
 			content: "look at #1 and #1 again",
-			setup: func(s *mocks.FakeGitHubIssueService) {
-				s.GetIssueReturns(&domain.GitHubIssue{Number: 1, Title: "t", State: "OPEN"}, nil)
+			setup: func(s *agentdomainmocks.FakeGitHubIssueService) {
+				s.GetIssueReturns(&agentdomain.GitHubIssue{Number: 1, Title: "t", State: "OPEN"}, nil)
 			},
 			assertOut: func(t *testing.T, out string) {
 				assert.Equal(t, 2, strings.Count(out, "GitHub Issue #1"))
@@ -310,7 +313,7 @@ func TestChatMessageProcessor_expandIssueReferences(t *testing.T) {
 		{
 			name:    "fetch failure leaves raw token",
 			content: "ref #999",
-			setup: func(s *mocks.FakeGitHubIssueService) {
+			setup: func(s *agentdomainmocks.FakeGitHubIssueService) {
 				s.GetIssueReturns(nil, errors.New("not found"))
 			},
 			assertOut: func(t *testing.T, out string) {
@@ -321,8 +324,8 @@ func TestChatMessageProcessor_expandIssueReferences(t *testing.T) {
 		{
 			name:    "no leading whitespace - not matched",
 			content: "phone-555#1234",
-			setup: func(s *mocks.FakeGitHubIssueService) {
-				s.GetIssueReturns(&domain.GitHubIssue{Number: 1234}, nil)
+			setup: func(s *agentdomainmocks.FakeGitHubIssueService) {
+				s.GetIssueReturns(&agentdomain.GitHubIssue{Number: 1234}, nil)
 			},
 			assertOut: func(t *testing.T, out string) {
 				assert.Equal(t, "phone-555#1234", out)
@@ -332,8 +335,8 @@ func TestChatMessageProcessor_expandIssueReferences(t *testing.T) {
 		{
 			name:    "start-of-string ref is matched",
 			content: "#42 is the answer",
-			setup: func(s *mocks.FakeGitHubIssueService) {
-				s.GetIssueReturns(&domain.GitHubIssue{Number: 42, Title: "Life", State: "OPEN"}, nil)
+			setup: func(s *agentdomainmocks.FakeGitHubIssueService) {
+				s.GetIssueReturns(&agentdomain.GitHubIssue{Number: 42, Title: "Life", State: "OPEN"}, nil)
 			},
 			assertOut: func(t *testing.T, out string) {
 				assert.Contains(t, out, "GitHub Issue #42 (OPEN): Life")
@@ -345,7 +348,7 @@ func TestChatMessageProcessor_expandIssueReferences(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeGH := &mocks.FakeGitHubIssueService{}
+			fakeGH := &agentdomainmocks.FakeGitHubIssueService{}
 			if tt.setup != nil {
 				tt.setup(fakeGH)
 			}
@@ -381,12 +384,12 @@ func (fakeRolloverOptimizer) OptimizeMessages(_ []sdk.Message, _ string, _ bool)
 // in-memory SQLite and an in-memory SessionGroupStorage. Used by the
 // async-rollover handler tests; cheaper than refactoring SessionRolloverManager
 // to an interface just for mocking.
-func newChatRolloverFixture(t *testing.T) (*services.SessionRolloverManager, *services.PersistentConversationRepository, func()) {
+func newChatRolloverFixture(t *testing.T) (*conversation.SessionRolloverManager, *conversation.PersistentConversationRepository, func()) {
 	t.Helper()
 
 	storageBackend, err := storage.NewSQLiteStorage(storage.SQLiteConfig{Path: ":memory:"})
 	require.NoError(t, err)
-	repo := services.NewPersistentConversationRepository(&services.ToolFormatterService{}, nil, storageBackend)
+	repo := conversation.NewPersistentConversationRepository(&services.ToolFormatterService{}, nil, storageBackend)
 
 	cfg := &config.Config{}
 	cfg.Compact.Enabled = true
@@ -394,11 +397,11 @@ func newChatRolloverFixture(t *testing.T) (*services.SessionRolloverManager, *se
 	cfg.Compact.RolloverOnIdleMinutes = 0
 	cfg.Compact.KeepFirstMessages = 2
 
-	mgr := services.NewSessionRolloverManager(
+	mgr := conversation.NewSessionRolloverManager(
 		cfg,
 		fakeRolloverOptimizer{},
 		repo,
-		services.NewTokenizerService(services.DefaultTokenizerConfig()),
+		conversation.NewTokenizerService(conversation.DefaultTokenizerConfig()),
 		storage.NewMemorySessionGroupStorage(),
 	)
 
@@ -435,20 +438,20 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+			conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 
 			for i := 0; i < tt.existingMessages; i++ {
-				entry := domain.ConversationEntry{
-					Message: domain.Message{
-						Role:    domain.RoleUser,
+				entry := convdomain.ConversationEntry{
+					Message: sdk.Message{
+						Role:    sdk.User,
 						Content: sdk.NewMessageContent("test message"),
 					},
 				}
 				_ = conversationRepo.AddMessage(entry)
 			}
 
-			mockAgent := &mocks.FakeAgentService{}
-			mockModel := &mocks.FakeModelService{}
+			mockAgent := &agentdomainmocks.FakeAgentService{}
+			mockModel := &convmocks.FakeModelService{}
 			stateManager := services.NewStateManager(false)
 
 			handler := &ChatHandler{
@@ -456,8 +459,8 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 				conversationRepo: conversationRepo,
 				modelService:     mockModel,
 				stateManager:     stateManager,
-				messageQueue:     services.NewMessageQueueService(),
-				completionRunner: &mocks.FakeChatCompletionRunner{},
+				messageQueue:     conversation.NewMessageQueueService(),
+				completionRunner: &uimocks.FakeChatCompletionRunner{},
 			}
 
 			processor := NewChatMessageProcessor(handler)
@@ -480,17 +483,17 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 	defer cleanup()
 
 	require.NoError(t, repo.StartNewConversation("Initial"))
-	require.NoError(t, repo.AddMessage(domain.ConversationEntry{
+	require.NoError(t, repo.AddMessage(convdomain.ConversationEntry{
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
 		Time:    time.Now(),
 	}))
 
 	require.NoError(t, repo.AddTokenUsage("moonshot/moonshot-v1-8k", 25000, 100, 25100, 0, 0))
 
-	mockModel := &mocks.FakeModelService{}
+	mockModel := &convmocks.FakeModelService{}
 	mockModel.GetCurrentModelReturns("moonshot/moonshot-v1-8k")
 	stateManager := services.NewStateManager(false)
-	fakeRunner := &mocks.FakeChatCompletionRunner{}
+	fakeRunner := &uimocks.FakeChatCompletionRunner{}
 	fakeRunner.StartReturns(func() tea.Msg { return nil })
 
 	handler := &ChatHandler{
@@ -498,7 +501,7 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 		sessionRolloverManager: mgr,
 		modelService:           mockModel,
 		stateManager:           stateManager,
-		messageQueue:           services.NewMessageQueueService(),
+		messageQueue:           conversation.NewMessageQueueService(),
 		completionRunner:       fakeRunner,
 	}
 	processor := NewChatMessageProcessor(handler)
@@ -518,11 +521,11 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 	for _, sub := range batch {
 		msg := sub()
 		switch m := msg.(type) {
-		case domain.SetStatusEvent:
+		case ui.SetStatusEvent:
 			if m.Message == "Compacting conversation..." && m.Spinner {
 				sawCompactingStatus = true
 			}
-		case domain.RolloverCompletedEvent:
+		case ui.RolloverCompletedEvent:
 			sawRolloverCompleted = true
 			assert.Equal(t, sdk.User, m.Message.Role,
 				"RolloverCompletedEvent must carry the user message that was deferred")
@@ -536,17 +539,17 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 // that the no-rollover-manager case still produces the synchronous AddMessage +
 // startChatCompletion batch with no "Compacting..." status.
 func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testing.T) {
-	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 	stateManager := services.NewStateManager(false)
-	fakeRunner := &mocks.FakeChatCompletionRunner{}
+	fakeRunner := &uimocks.FakeChatCompletionRunner{}
 	fakeRunner.StartReturns(func() tea.Msg { return nil })
 
 	handler := &ChatHandler{
 		conversationRepo:       conversationRepo,
 		sessionRolloverManager: nil,
-		modelService:           &mocks.FakeModelService{},
+		modelService:           &convmocks.FakeModelService{},
 		stateManager:           stateManager,
-		messageQueue:           services.NewMessageQueueService(),
+		messageQueue:           conversation.NewMessageQueueService(),
 		completionRunner:       fakeRunner,
 	}
 	processor := NewChatMessageProcessor(handler)
@@ -559,10 +562,10 @@ func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testi
 
 	for _, sub := range batch {
 		switch m := sub().(type) {
-		case domain.SetStatusEvent:
+		case ui.SetStatusEvent:
 			assert.NotEqual(t, "Compacting conversation...", m.Message,
 				"nil rolloverManager must not produce a Compacting status")
-		case domain.RolloverCompletedEvent:
+		case ui.RolloverCompletedEvent:
 			t.Errorf("nil rolloverManager must not dispatch RolloverCompletedEvent")
 		}
 	}
@@ -576,22 +579,22 @@ func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testi
 // startChatCompletion flow that processChatMessage skipped while the async
 // rollover was in flight.
 func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
-	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
+	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 	stateManager := services.NewStateManager(false)
-	fakeRunner := &mocks.FakeChatCompletionRunner{}
+	fakeRunner := &uimocks.FakeChatCompletionRunner{}
 	fakeRunner.StartReturns(func() tea.Msg { return nil })
 
 	handler := &ChatHandler{
 		conversationRepo: conversationRepo,
-		modelService:     &mocks.FakeModelService{},
+		modelService:     &convmocks.FakeModelService{},
 		stateManager:     stateManager,
-		messageQueue:     services.NewMessageQueueService(),
+		messageQueue:     conversation.NewMessageQueueService(),
 		completionRunner: fakeRunner,
 	}
 	handler.messageProcessor = NewChatMessageProcessor(handler)
 
 	deferred := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hello after rollover")}
-	cmd := handler.HandleRolloverCompletedEvent(domain.RolloverCompletedEvent{Message: deferred})
+	cmd := handler.HandleRolloverCompletedEvent(ui.RolloverCompletedEvent{Message: deferred})
 	require.NotNil(t, cmd)
 
 	require.Equal(t, 1, conversationRepo.GetMessageCount(),
@@ -603,23 +606,23 @@ func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
 // fakeSkills returns a SkillsService whose Get resolves exactly the given
 // skills; every other name is unknown. Discover mirrors Get so a test that
 // activates a skill sees the same set.
-func fakeSkills(skills ...domain.Skill) *mocks.FakeSkillsService {
-	byName := make(map[string]domain.Skill, len(skills))
+func fakeSkills(skills ...agentdomain.Skill) *agentdomainmocks.FakeSkillsService {
+	byName := make(map[string]agentdomain.Skill, len(skills))
 	for _, sk := range skills {
 		byName[sk.Name] = sk
 	}
-	get := func(name string) (domain.Skill, bool) {
+	get := func(name string) (agentdomain.Skill, bool) {
 		sk, ok := byName[name]
 		return sk, ok
 	}
-	fake := &mocks.FakeSkillsService{}
+	fake := &agentdomainmocks.FakeSkillsService{}
 	fake.GetStub = get
-	fake.DiscoverStub = func(_ context.Context, name string) (domain.Skill, bool) { return get(name) }
+	fake.DiscoverStub = func(_ context.Context, name string) (agentdomain.Skill, bool) { return get(name) }
 	return fake
 }
 
 func TestChatMessageProcessor_isSkillInvocation(t *testing.T) {
-	skills := fakeSkills(domain.Skill{Name: "maintainer"}, domain.Skill{Name: "ponytail"})
+	skills := fakeSkills(agentdomain.Skill{Name: "maintainer"}, agentdomain.Skill{Name: "ponytail"})
 	p := NewChatMessageProcessor(&ChatHandler{skillsService: skills})
 
 	tests := []struct {
@@ -650,10 +653,10 @@ func TestChatMessageProcessor_isSkillInvocation_NilService(t *testing.T) {
 
 // catalogSkills reports rust as a not-yet-installed catalog skill (empty Path)
 // and maintainer as an installed local one.
-func catalogSkills() *mocks.FakeSkillsService {
+func catalogSkills() *agentdomainmocks.FakeSkillsService {
 	return fakeSkills(
-		domain.Skill{Name: "rust", Scope: domain.SkillScopeCatalog},
-		domain.Skill{Name: "maintainer", Path: "/abs/.infer/skills/maintainer/SKILL.md"},
+		agentdomain.Skill{Name: "rust", Scope: agentdomain.SkillScopeCatalog},
+		agentdomain.Skill{Name: "maintainer", Path: "/abs/.infer/skills/maintainer/SKILL.md"},
 	)
 }
 
@@ -682,19 +685,19 @@ func TestChatMessageProcessor_pendingCatalogSkills(t *testing.T) {
 func TestChatMessageProcessor_confirmCatalogInstall(t *testing.T) {
 	p := NewChatMessageProcessor(&ChatHandler{skillsService: catalogSkills()})
 
-	require.Nil(t, p.confirmCatalogInstall(domain.UserInputEvent{Content: "/maintainer go"}),
+	require.Nil(t, p.confirmCatalogInstall(agentdomain.UserInputEvent{Content: "/maintainer go"}),
 		"an installed skill must not prompt")
-	require.NotNil(t, p.confirmCatalogInstall(domain.UserInputEvent{Content: "/rust go"}),
+	require.NotNil(t, p.confirmCatalogInstall(agentdomain.UserInputEvent{Content: "/rust go"}),
 		"a catalog skill must prompt before downloading")
 
 	// A declined skill is never re-prompted, so re-submitting the same input
 	// cannot loop.
 	p.declinedSkills["rust"] = true
-	require.Nil(t, p.confirmCatalogInstall(domain.UserInputEvent{Content: "/rust go"}))
+	require.Nil(t, p.confirmCatalogInstall(agentdomain.UserInputEvent{Content: "/rust go"}))
 }
 
 func TestApprovedInstall(t *testing.T) {
-	require.True(t, approvedInstall([]domain.UserQuestionAnswer{{SelectedLabels: []string{"Install"}}}))
-	require.False(t, approvedInstall([]domain.UserQuestionAnswer{{SelectedLabels: []string{"Skip"}}}))
+	require.True(t, approvedInstall([]agentdomain.UserQuestionAnswer{{SelectedLabels: []string{"Install"}}}))
+	require.False(t, approvedInstall([]agentdomain.UserQuestionAnswer{{SelectedLabels: []string{"Skip"}}}))
 	require.False(t, approvedInstall(nil))
 }

@@ -5,18 +5,18 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 type QueueBoxView struct {
 	width         int
 	styleProvider *styles.Provider
-	toolFormatter domain.ToolFormatter
+	toolFormatter agentdomain.ToolFormatter
 }
 
 func NewQueueBoxView(styleProvider *styles.Provider) *QueueBoxView {
@@ -28,7 +28,7 @@ func NewQueueBoxView(styleProvider *styles.Provider) *QueueBoxView {
 
 // SetToolFormatter wires the shared tool formatter so queued tool calls show their
 // width-aware argument preview instead of a bare "Name(...)".
-func (qv *QueueBoxView) SetToolFormatter(f domain.ToolFormatter) {
+func (qv *QueueBoxView) SetToolFormatter(f agentdomain.ToolFormatter) {
 	qv.toolFormatter = f
 }
 
@@ -39,7 +39,7 @@ func (qv *QueueBoxView) SetWidth(width int) {
 func (qv *QueueBoxView) SetHeight(height int) {
 }
 
-func (qv *QueueBoxView) Render(queuedMessages []domain.QueuedMessage) string {
+func (qv *QueueBoxView) Render(queuedMessages []convdomain.QueuedMessage) string {
 	if len(queuedMessages) == 0 {
 		return ""
 	}
@@ -47,7 +47,7 @@ func (qv *QueueBoxView) Render(queuedMessages []domain.QueuedMessage) string {
 	return qv.renderQueuedMessages(queuedMessages)
 }
 
-func (qv *QueueBoxView) renderQueuedMessages(queuedMessages []domain.QueuedMessage) string {
+func (qv *QueueBoxView) renderQueuedMessages(queuedMessages []convdomain.QueuedMessage) string {
 	var messageLines []string
 	for _, queuedMsg := range queuedMessages {
 		messageLines = append(messageLines, qv.formatQueuedMessage(queuedMsg))
@@ -56,7 +56,7 @@ func (qv *QueueBoxView) renderQueuedMessages(queuedMessages []domain.QueuedMessa
 	return strings.Join(messageLines, "\n")
 }
 
-func (qv *QueueBoxView) formatQueuedMessage(queuedMsg domain.QueuedMessage) string {
+func (qv *QueueBoxView) formatQueuedMessage(queuedMsg convdomain.QueuedMessage) string {
 	dimColor := qv.styleProvider.GetThemeColor("dim")
 	preview := qv.formatMessagePreview(queuedMsg)
 
@@ -65,7 +65,7 @@ func (qv *QueueBoxView) formatQueuedMessage(queuedMsg domain.QueuedMessage) stri
 	return qv.styleProvider.RenderWithColor(formattedLine, dimColor)
 }
 
-func (qv *QueueBoxView) formatMessagePreview(queuedMsg domain.QueuedMessage) string {
+func (qv *QueueBoxView) formatMessagePreview(queuedMsg convdomain.QueuedMessage) string {
 	msg := queuedMsg.Message
 
 	if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {

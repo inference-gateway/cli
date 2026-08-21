@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestNewTreeTool(t *testing.T) {
@@ -259,7 +259,7 @@ func TestTreeTool_ExecuteBasic(t *testing.T) {
 		return
 	}
 
-	treeResult, ok := result.Data.(*domain.TreeToolResult)
+	treeResult, ok := result.Data.(*agentdomain.TreeToolResult)
 	if !ok {
 		t.Error("Expected TreeToolResult")
 		return
@@ -293,7 +293,7 @@ func TestTreeTool_ExecuteWithMaxDepth(t *testing.T) {
 		t.Error("Expected successful execution")
 	}
 
-	treeResult, ok := result.Data.(*domain.TreeToolResult)
+	treeResult, ok := result.Data.(*agentdomain.TreeToolResult)
 	if !ok {
 		t.Error("Expected TreeToolResult")
 		return
@@ -323,7 +323,7 @@ func TestTreeTool_ExecuteWithShowHidden(t *testing.T) {
 		t.Error("Expected successful execution")
 	}
 
-	treeResult, ok := result.Data.(*domain.TreeToolResult)
+	treeResult, ok := result.Data.(*agentdomain.TreeToolResult)
 	if !ok {
 		t.Error("Expected TreeToolResult")
 		return
@@ -353,7 +353,7 @@ func TestTreeTool_ExecuteWithJSONFormat(t *testing.T) {
 		t.Error("Expected successful execution")
 	}
 
-	treeResult, ok := result.Data.(*domain.TreeToolResult)
+	treeResult, ok := result.Data.(*agentdomain.TreeToolResult)
 	if !ok {
 		t.Error("Expected TreeToolResult")
 		return

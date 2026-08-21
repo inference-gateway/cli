@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
 func createTestRegistry() *Registry {
@@ -34,7 +35,7 @@ func createTestRegistry() *Registry {
 		},
 	}
 
-	return NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
+	return NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 }
 
 func TestRegistry_GetTool_Unknown(t *testing.T) {
@@ -65,7 +66,7 @@ func TestRegistry_DisabledTools(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 
 	tools := registry.ListAvailableTools()
 
@@ -116,7 +117,7 @@ func TestRegistry_NewRegistry(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 
 	if registry == nil {
 		t.Fatal("Expected non-nil registry")
@@ -150,7 +151,7 @@ func TestRegistry_GetTool(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -298,7 +299,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			registry := NewRegistry(tt.config, nil, nil, nil, nil, nil, nil, nil)
+			registry := NewRegistry(tt.config, nil, nil, nil, nil, nil, nil)
 			tools := registry.ListAvailableTools()
 
 			if len(tools) < tt.expectedMin || len(tools) > tt.expectedMax {
@@ -351,7 +352,7 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 		Prompts: *config.DefaultPromptsConfig(),
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 	definitions := registry.GetToolDefinitions()
 
 	if len(definitions) < 5 || len(definitions) > 15 {
@@ -400,7 +401,7 @@ func TestRegistry_IsToolEnabled(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -452,9 +453,9 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
 
-	fakeTool := &mocks.FakeTool{}
+	fakeTool := &agentdomainmocks.FakeTool{}
 	fakeTool.IsEnabledReturns(true)
 	mockDesc := "A mocked tool for testing"
 	mockParams := sdk.FunctionParameters(map[string]any{})
@@ -467,7 +468,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 		},
 	})
 	fakeTool.ValidateReturns(nil)
-	fakeTool.ExecuteReturns(&domain.ToolExecutionResult{
+	fakeTool.ExecuteReturns(&agentdomain.ToolExecutionResult{
 		ToolName: "MockTool",
 		Success:  true,
 	}, nil)
@@ -541,7 +542,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 	}
 }
 
-// blockingMCPManager is a domain.MCPManager double whose GetClients() blocks
+// blockingMCPManager is a agentdomain.MCPManager double whose GetClients() blocks
 // indefinitely (simulating a stalled discovery call). NewRegistry must never
 // reach this - see issue #523. The test uses a select-on-timeout to assert
 // that construction returns promptly even when MCP I/O would block.
@@ -549,18 +550,18 @@ type blockingMCPManager struct {
 	getClientsCalled chan struct{}
 }
 
-func (m *blockingMCPManager) GetClients() []domain.MCPClient {
+func (m *blockingMCPManager) GetClients() []agentdomain.MCPClient {
 	close(m.getClientsCalled)
 	select {}
 }
-func (m *blockingMCPManager) GetClient(string) domain.MCPClient  { return nil }
-func (m *blockingMCPManager) GetTotalServers() int               { return 0 }
-func (m *blockingMCPManager) UpdateToolCount(string, int)        {}
-func (m *blockingMCPManager) ClearToolCount(string)              {}
-func (m *blockingMCPManager) StartServers(context.Context) error { return nil }
-func (m *blockingMCPManager) StopServers(context.Context) error  { return nil }
-func (m *blockingMCPManager) Close() error                       { return nil }
-func (m *blockingMCPManager) StartMonitoring(context.Context)    {}
+func (m *blockingMCPManager) GetClient(string) agentdomain.MCPClient { return nil }
+func (m *blockingMCPManager) GetTotalServers() int                   { return 0 }
+func (m *blockingMCPManager) UpdateToolCount(string, int)            {}
+func (m *blockingMCPManager) ClearToolCount(string)                  {}
+func (m *blockingMCPManager) StartServers(context.Context) error     { return nil }
+func (m *blockingMCPManager) StopServers(context.Context) error      { return nil }
+func (m *blockingMCPManager) Close() error                           { return nil }
+func (m *blockingMCPManager) StartMonitoring(context.Context)        {}
 
 // TestRegistry_NewRegistry_DoesNotBlockOnMCP is a regression test for
 // issue #523: NewRegistry must not synchronously call DiscoverTools (or any
@@ -591,7 +592,7 @@ func TestRegistry_NewRegistry_DoesNotBlockOnMCP(t *testing.T) {
 
 	done := make(chan *Registry, 1)
 	go func() {
-		done <- NewRegistry(cfg, nil, blocker, nil, nil, nil, nil, nil)
+		done <- NewRegistry(cfg, nil, blocker, nil, nil, nil, nil)
 	}()
 
 	select {
@@ -610,19 +611,21 @@ func TestRegistry_NewRegistry_DoesNotBlockOnMCP(t *testing.T) {
 	// permissible; we only assert the constructor returned in time above.
 }
 
-// stubMCPManager is a minimal domain.MCPManager whose GetClient always
+// stubMCPManager is a minimal agentdomain.MCPManager whose GetClient always
 // resolves, so RegisterMCPServerTools reaches the tools-map writes.
-type stubMCPManager struct{ client domain.MCPClient }
+type stubMCPManager struct{ client agentdomain.MCPClient }
 
-func (m *stubMCPManager) GetClients() []domain.MCPClient     { return []domain.MCPClient{m.client} }
-func (m *stubMCPManager) GetClient(string) domain.MCPClient  { return m.client }
-func (m *stubMCPManager) GetTotalServers() int               { return 1 }
-func (m *stubMCPManager) UpdateToolCount(string, int)        {}
-func (m *stubMCPManager) ClearToolCount(string)              {}
-func (m *stubMCPManager) StartServers(context.Context) error { return nil }
-func (m *stubMCPManager) StopServers(context.Context) error  { return nil }
-func (m *stubMCPManager) Close() error                       { return nil }
-func (m *stubMCPManager) StartMonitoring(context.Context)    {}
+func (m *stubMCPManager) GetClients() []agentdomain.MCPClient {
+	return []agentdomain.MCPClient{m.client}
+}
+func (m *stubMCPManager) GetClient(string) agentdomain.MCPClient { return m.client }
+func (m *stubMCPManager) GetTotalServers() int                   { return 1 }
+func (m *stubMCPManager) UpdateToolCount(string, int)            {}
+func (m *stubMCPManager) ClearToolCount(string)                  {}
+func (m *stubMCPManager) StartServers(context.Context) error     { return nil }
+func (m *stubMCPManager) StopServers(context.Context) error      { return nil }
+func (m *stubMCPManager) Close() error                           { return nil }
+func (m *stubMCPManager) StartMonitoring(context.Context)        {}
 
 // TestRegistry_ConcurrentMCPToolAccess is a regression test for issue #708:
 // the MCP liveness probe registers/unregisters MCP_* tools from its own
@@ -650,9 +653,9 @@ func TestRegistry_ConcurrentMCPToolAccess(t *testing.T) {
 		Prompts: *config.DefaultPromptsConfig(),
 	}
 
-	registry := NewRegistry(cfg, nil, &stubMCPManager{client: &mocks.FakeMCPClient{}}, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, &stubMCPManager{client: &agentdomainmocks.FakeMCPClient{}}, nil, nil, nil, nil)
 
-	discovered := []domain.MCPDiscoveredTool{
+	discovered := []agentdomain.MCPDiscoveredTool{
 		{ServerName: "flappy", Name: "alpha", Description: "a", InputSchema: map[string]any{}},
 		{ServerName: "flappy", Name: "beta", Description: "b", InputSchema: map[string]any{}},
 	}

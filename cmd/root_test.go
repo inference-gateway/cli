@@ -9,7 +9,7 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // TestMain redirects the logger to a throwaway directory for the whole package.

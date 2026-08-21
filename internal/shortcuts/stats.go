@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
 // StatsShortcut renders the telemetry aggregate (tool, token, and session

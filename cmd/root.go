@@ -14,8 +14,8 @@ import (
 	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // Global Viper instance and resolved Config used by every command. Both
@@ -61,7 +61,7 @@ func Execute() {
 	defer logger.Close()
 
 	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(version)); err != nil {
-		if errors.Is(err, domain.ErrMaxTurnsReached) {
+		if errors.Is(err, agentdomain.ErrMaxTurnsReached) {
 			os.Exit(ExitCodeMaxTurns)
 		}
 		os.Exit(1)

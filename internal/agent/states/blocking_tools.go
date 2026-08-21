@@ -7,8 +7,9 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // BlockingToolsState handles events in the BlockingTools state.
@@ -24,41 +25,41 @@ import (
 //  1. MessageReceivedEvent → processes the batch, then emits AllToolsProcessedEvent
 //  2. AllToolsProcessedEvent → transitions to PostToolExecution
 type BlockingToolsState struct {
-	ctx *domain.StateContext
+	ctx *StateContext
 }
 
 // NewBlockingToolsState creates a new BlockingTools state handler
-func NewBlockingToolsState(ctx *domain.StateContext) domain.StateHandler {
+func NewBlockingToolsState(ctx *StateContext) StateHandler {
 	return &BlockingToolsState{ctx: ctx}
 }
 
 // Name returns the state this handler manages
-func (s *BlockingToolsState) Name() domain.AgentExecutionState {
-	return domain.StateBlockingTools
+func (s *BlockingToolsState) Name() AgentExecutionState {
+	return StateBlockingTools
 }
 
 // Handle processes events in BlockingTools state
-func (s *BlockingToolsState) Handle(event domain.AgentEvent) error {
+func (s *BlockingToolsState) Handle(event AgentEvent) error {
 	switch event.(type) {
-	case domain.MessageReceivedEvent:
+	case MessageReceivedEvent:
 		logger.Info("blocking tools state: rejecting gated tools (no approver reachable)",
 			"tool_count", len(*s.ctx.CurrentToolCalls))
 
 		*s.ctx.CurrentToolIndex = 0
-		*s.ctx.ToolResults = []domain.ConversationEntry{}
+		*s.ctx.ToolResults = []convdomain.ConversationEntry{}
 
 		s.ctx.WaitGroup.Add(1)
 		go s.processBlockedTools()
 
-	case domain.AllToolsProcessedEvent:
+	case AllToolsProcessedEvent:
 		logger.Debug("blocking tools processed", "results", len(*s.ctx.ToolResults))
 
-		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StatePostToolExecution); err != nil {
+		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StatePostToolExecution); err != nil {
 			logger.Error("failed to transition to post tool execution", "error", err)
 			return err
 		}
 
-		s.ctx.Events <- domain.MessageReceivedEvent{}
+		s.ctx.Events <- MessageReceivedEvent{}
 	}
 	return nil
 }
@@ -89,16 +90,16 @@ func (s *BlockingToolsState) processBlockedTools() {
 		s.ctx.Mutex.Unlock()
 	}
 
-	s.ctx.AgentCtx.LastToolFailed = domain.AnyToolFailed(*s.ctx.ToolResults)
+	s.ctx.AgentCtx.LastToolFailed = AnyToolFailed(*s.ctx.ToolResults)
 	if s.ctx.PublishToolResults != nil {
 		s.ctx.PublishToolResults(*s.ctx.ToolResults)
 	}
-	s.ctx.Events <- domain.AllToolsProcessedEvent{}
+	s.ctx.Events <- AllToolsProcessedEvent{}
 }
 
 // resolveEntry executes a non-gated tool or builds a blocked result for a gated
 // one.
-func (s *BlockingToolsState) resolveEntry(tc *sdk.ChatCompletionMessageToolCall) domain.ConversationEntry {
+func (s *BlockingToolsState) resolveEntry(tc *sdk.ChatCompletionMessageToolCall) convdomain.ConversationEntry {
 	if !s.ctx.ShouldRequireApproval(tc, s.ctx.Request.IsChatMode) {
 		logger.Debug("blocking state: running non-gated tool", "tool", tc.Function.Name)
 		return s.ctx.ExecuteToolInternal(*tc, false)
@@ -110,7 +111,7 @@ func (s *BlockingToolsState) resolveEntry(tc *sdk.ChatCompletionMessageToolCall)
 // approval no approver can deliver. It also publishes a terminal tool-execution
 // progress event so the live streaming overlay (which left the call at "ready" ->
 // rendered as "queued") is cleared instead of lingering forever.
-func (s *BlockingToolsState) buildBlockedEntry(tc sdk.ChatCompletionMessageToolCall) domain.ConversationEntry {
+func (s *BlockingToolsState) buildBlockedEntry(tc sdk.ChatCompletionMessageToolCall) convdomain.ConversationEntry {
 	reason := fmt.Sprintf(
 		"Blocked: %s requires approval, but approvals are not available in this session (tools.safety.approval_behaviour). "+
 			"The action was NOT executed. Do not retry the same call - tell the user what you need and why, "+
@@ -121,8 +122,8 @@ func (s *BlockingToolsState) buildBlockedEntry(tc sdk.ChatCompletionMessageToolC
 
 	logger.Info("tool blocked (approval required, no approver reachable)", "tool", tc.Function.Name)
 
-	s.ctx.PublishChatEvent(domain.ToolExecutionProgressEvent{
-		BaseChatEvent: domain.BaseChatEvent{
+	s.ctx.PublishChatEvent(agentdomain.ToolExecutionProgressEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{
 			RequestID: s.ctx.Request.RequestID,
 			Timestamp: time.Now(),
 		},
@@ -137,14 +138,14 @@ func (s *BlockingToolsState) buildBlockedEntry(tc sdk.ChatCompletionMessageToolC
 		args = make(map[string]any)
 	}
 
-	return domain.ConversationEntry{
+	return convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:       sdk.Tool,
 			Content:    sdk.NewMessageContent(content),
 			ToolCallID: &tc.ID,
 		},
 		Time: time.Now(),
-		ToolExecution: &domain.ToolExecutionResult{
+		ToolExecution: &agentdomain.ToolExecutionResult{
 			ToolName:  tc.Function.Name,
 			Arguments: args,
 			Success:   false,

@@ -13,7 +13,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	services "github.com/inference-gateway/cli/internal/services"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )

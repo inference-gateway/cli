@@ -7,7 +7,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	cobra "github.com/spf13/cobra"
 )
 

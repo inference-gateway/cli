@@ -3,7 +3,7 @@ package tools
 import (
 	"fmt"
 
-	"github.com/inference-gateway/cli/internal/domain/filewriter"
+	"github.com/inference-gateway/cli/internal/services/filewriter"
 )
 
 // WriteParams represents extracted parameters for write operations

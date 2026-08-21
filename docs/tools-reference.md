@@ -462,7 +462,6 @@ tools:
     safety:
       max_size: 8192  # 8KB
       timeout: 30
-      allow_redirect: true
     cache:
       enabled: true
       ttl: 3600  # 1 hour

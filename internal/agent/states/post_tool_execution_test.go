@@ -1,11 +1,13 @@
-package states
+package states_test
 
 import (
 	"testing"
 
+	states "github.com/inference-gateway/cli/internal/agent/states"
+
 	assert "github.com/stretchr/testify/assert"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // TestPostToolExecutionState_Handle covers the routing after a completed tool
@@ -19,23 +21,23 @@ func TestPostToolExecutionState_Handle(t *testing.T) {
 		setup           func(f *stateFixture)
 		transitionErr   error
 		wantErr         bool
-		wantTransitions []domain.AgentExecutionState
-		wantEvents      []domain.AgentEvent
-		wantHooks       []domain.HookPoint
+		wantTransitions []states.AgentExecutionState
+		wantEvents      []states.AgentEvent
+		wantHooks       []agentdomain.HookPoint
 		wantDrainCalls  int
 	}{
 		{
 			name:            "queue empty and can complete",
 			setup:           func(f *stateFixture) { f.sm.CanTransitionReturns(true) },
-			wantTransitions: []domain.AgentExecutionState{domain.StateCompleting},
-			wantEvents:      []domain.AgentEvent{domain.CompletionRequestedEvent{}},
-			wantHooks:       []domain.HookPoint{domain.HookPostTool},
+			wantTransitions: []states.AgentExecutionState{states.StateCompleting},
+			wantEvents:      []states.AgentEvent{states.CompletionRequestedEvent{}},
+			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPostTool},
 		},
 		{
 			name:            "queue empty and cannot complete continues to next turn",
-			wantTransitions: []domain.AgentExecutionState{domain.StateCheckingQueue},
-			wantEvents:      []domain.AgentEvent{domain.MessageReceivedEvent{}},
-			wantHooks:       []domain.HookPoint{domain.HookPostTool},
+			wantTransitions: []states.AgentExecutionState{states.StateCheckingQueue},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
+			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPostTool},
 		},
 		{
 			name: "queued messages are drained before the next turn",
@@ -43,9 +45,9 @@ func TestPostToolExecutionState_Handle(t *testing.T) {
 				f.queue.IsEmptyReturns(false)
 				f.drainReturns = 1
 			},
-			wantTransitions: []domain.AgentExecutionState{domain.StateCheckingQueue},
-			wantEvents:      []domain.AgentEvent{domain.MessageReceivedEvent{}},
-			wantHooks:       []domain.HookPoint{domain.HookPostTool, domain.HookPreQueueDrain, domain.HookPostQueueDrain},
+			wantTransitions: []states.AgentExecutionState{states.StateCheckingQueue},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
+			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPostTool, agentdomain.HookPreQueueDrain, agentdomain.HookPostQueueDrain},
 			wantDrainCalls:  1,
 		},
 		{
@@ -55,17 +57,17 @@ func TestPostToolExecutionState_Handle(t *testing.T) {
 				f.drainReturns = 1
 				f.cancelSession()
 			},
-			wantTransitions: []domain.AgentExecutionState{domain.StateCompleting},
-			wantEvents:      []domain.AgentEvent{domain.CompletionRequestedEvent{}},
-			wantHooks:       []domain.HookPoint{domain.HookPostTool, domain.HookPreQueueDrain, domain.HookPostQueueDrain},
+			wantTransitions: []states.AgentExecutionState{states.StateCompleting},
+			wantEvents:      []states.AgentEvent{states.CompletionRequestedEvent{}},
+			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPostTool, agentdomain.HookPreQueueDrain, agentdomain.HookPostQueueDrain},
 			wantDrainCalls:  1,
 		},
 		{
 			name:            "transition failure is returned",
 			transitionErr:   errBoom,
 			wantErr:         true,
-			wantTransitions: []domain.AgentExecutionState{domain.StateCheckingQueue},
-			wantHooks:       []domain.HookPoint{domain.HookPostTool},
+			wantTransitions: []states.AgentExecutionState{states.StateCheckingQueue},
+			wantHooks:       []agentdomain.HookPoint{agentdomain.HookPostTool},
 		},
 	}
 	for _, tt := range tests {
@@ -76,10 +78,10 @@ func TestPostToolExecutionState_Handle(t *testing.T) {
 				tt.setup(f)
 			}
 			f.sm.TransitionReturns(tt.transitionErr)
-			s := NewPostToolExecutionState(f.ctx)
-			assert.Equal(t, domain.StatePostToolExecution, s.Name())
+			s := states.NewPostToolExecutionState(f.ctx)
+			assert.Equal(t, states.StatePostToolExecution, s.Name())
 
-			err := s.Handle(domain.MessageReceivedEvent{})
+			err := s.Handle(states.MessageReceivedEvent{})
 
 			if tt.wantErr {
 				assert.ErrorIs(t, err, errBoom)

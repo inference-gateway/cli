@@ -9,11 +9,15 @@ import (
 	"sync"
 	"time"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
 // Runner owns the LLM streaming lifecycle for a chat session.
@@ -26,17 +30,17 @@ import (
 // chat-session lifecycle, tool-execution teardown, and the view transition on
 // completion. *services.StateManager satisfies it.
 type stateManager interface {
-	domain.ChatSessionManager
-	domain.ToolExecutionManager
-	domain.ViewManager
+	agentdomain.ChatSessionManager
+	agentdomain.ToolExecutionManager
+	ui.ViewManager
 }
 
 type Runner struct {
-	agentService     domain.AgentService
-	conversationRepo domain.ConversationRepository
-	modelService     domain.ModelService
+	agentService     agentdomain.AgentService
+	conversationRepo convdomain.ConversationRepository
+	modelService     convdomain.ModelService
 	stateManager     stateManager
-	listener         domain.ChatEventListener
+	listener         ui.ChatEventListener
 
 	pendingRestoration   string
 	pendingRestorationMu sync.RWMutex
@@ -44,11 +48,11 @@ type Runner struct {
 
 // Options bundles the dependencies needed to construct a Runner.
 type Options struct {
-	AgentService     domain.AgentService
-	ConversationRepo domain.ConversationRepository
-	ModelService     domain.ModelService
+	AgentService     agentdomain.AgentService
+	ConversationRepo convdomain.ConversationRepository
+	ModelService     convdomain.ModelService
 	StateManager     stateManager
-	Listener         domain.ChatEventListener
+	Listener         ui.ChatEventListener
 }
 
 // NewRunner creates a new ChatCompletionRunner.
@@ -67,13 +71,13 @@ func NewRunner(opts Options) *Runner {
 // ChatStartEvent on success or ChatErrorEvent on failure. The holder is
 // attached to the request context so the agent core can find the
 // BashDetachChannelHolder when launching tools that may need backgrounding.
-func (r *Runner) Start(holder domain.BashDetachChannelHolder) tea.Cmd {
+func (r *Runner) Start(holder agentdomain.BashDetachChannelHolder) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
 		currentModel := r.modelService.GetCurrentModel()
 		if currentModel == "" {
-			return domain.ChatErrorEvent{
+			return agentdomain.ChatErrorEvent{
 				RequestID: "unknown",
 				Timestamp: time.Now(),
 				Error:     fmt.Errorf("no model selected"),
@@ -85,18 +89,18 @@ func (r *Runner) Start(holder domain.BashDetachChannelHolder) tea.Cmd {
 
 		requestID := generateRequestID()
 
-		req := &domain.AgentRequest{
+		req := &agentdomain.AgentRequest{
 			RequestID:  requestID,
 			Model:      currentModel,
 			Messages:   messages,
 			IsChatMode: true,
 		}
 
-		ctx = domain.WithChatHandler(ctx, holder)
+		ctx = agentdomain.WithChatHandler(ctx, holder)
 
 		eventChan, err := r.agentService.RunWithStream(ctx, req)
 		if err != nil {
-			return domain.ChatErrorEvent{
+			return agentdomain.ChatErrorEvent{
 				RequestID: requestID,
 				Timestamp: time.Now(),
 				Error:     err,
@@ -105,7 +109,7 @@ func (r *Runner) Start(holder domain.BashDetachChannelHolder) tea.Cmd {
 
 		_ = r.stateManager.StartChatSession(requestID, currentModel, eventChan)
 
-		return domain.ChatStartEvent{
+		return agentdomain.ChatStartEvent{
 			RequestID: requestID,
 			Model:     currentModel,
 			Timestamp: time.Now(),
@@ -124,15 +128,15 @@ func (r *Runner) SetPendingRestoration(originalModel string) {
 // HandleChatStart transitions chat status to Starting and emits the initial
 // "Starting response..." status. Clearing the orchestrator's active-tool
 // indicator is the orchestrator's responsibility (see ChatHandler wrapper).
-func (r *Runner) HandleChatStart(_ domain.ChatStartEvent) tea.Cmd {
-	_ = r.stateManager.UpdateChatStatus(domain.ChatStatusStarting)
+func (r *Runner) HandleChatStart(_ agentdomain.ChatStartEvent) tea.Cmd {
+	_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusStarting)
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Starting response...",
 				Spinner:    true,
-				StatusType: domain.StatusGenerating,
+				StatusType: ui.StatusGenerating,
 			}
 		},
 	}
@@ -147,7 +151,7 @@ func (r *Runner) HandleChatStart(_ domain.ChatStartEvent) tea.Cmd {
 // HandleChatChunk forwards a streaming content delta to the UI and adjusts
 // chat status if the chunk indicates a thinking → generating transition (or
 // vice versa).
-func (r *Runner) HandleChatChunk(msg domain.ChatChunkEvent) tea.Cmd {
+func (r *Runner) HandleChatChunk(msg agentdomain.ChatChunkEvent) tea.Cmd {
 	chatSession := r.stateManager.GetChatSession()
 	if chatSession == nil {
 		return r.handleNoChatSession(msg)
@@ -159,7 +163,7 @@ func (r *Runner) HandleChatChunk(msg domain.ChatChunkEvent) tea.Cmd {
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.StreamingContentEvent{
+			return ui.StreamingContentEvent{
 				RequestID:        msg.RequestID,
 				Content:          msg.Content,
 				ReasoningContent: msg.ReasoningContent,
@@ -181,38 +185,38 @@ func (r *Runner) HandleChatChunk(msg domain.ChatChunkEvent) tea.Cmd {
 
 // HandleChatComplete restores the pending model (if any), updates chat
 // status, refreshes history, emits tool-call previews, and signals completion.
-func (r *Runner) HandleChatComplete(msg domain.ChatCompleteEvent) tea.Cmd {
+func (r *Runner) HandleChatComplete(msg agentdomain.ChatCompleteEvent) tea.Cmd {
 	r.restorePendingModel()
 	r.writeSubagentResultFile(msg)
 
 	if msg.Cancelled {
-		_ = r.stateManager.UpdateChatStatus(domain.ChatStatusCancelled)
+		_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusCancelled)
 		r.stateManager.EndChatSession()
 		r.stateManager.EndToolExecution()
 	} else if len(msg.ToolCalls) == 0 {
-		_ = r.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
+		_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusCompleted)
 		r.stateManager.EndToolExecution()
 	} else {
-		_ = r.stateManager.UpdateChatStatus(domain.ChatStatusWaitingTools)
+		_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusWaitingTools)
 	}
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			history := r.conversationRepo.GetMessages()
-			return domain.UpdateHistoryEvent{History: history}
+			return ui.UpdateHistoryEvent{History: history}
 		},
 	}
 
 	for _, toolCall := range msg.ToolCalls {
 		tc := toolCall
 		cmds = append(cmds, func() tea.Msg {
-			return domain.ToolCallPreviewEvent{
+			return agentdomain.ToolCallPreviewEvent{
 				RequestID:  msg.RequestID,
 				Timestamp:  msg.Timestamp,
 				ToolCallID: tc.ID,
 				ToolName:   tc.Function.Name,
 				Arguments:  tc.Function.Arguments,
-				Status:     domain.ToolCallStreamStatusReady,
+				Status:     agentdomain.ToolCallStreamStatusReady,
 				IsComplete: false,
 			}
 		})
@@ -223,10 +227,10 @@ func (r *Runner) HandleChatComplete(msg domain.ChatCompleteEvent) tea.Cmd {
 		statusMessage = "User interrupted"
 	}
 	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
+		return ui.SetStatusEvent{
 			Message:    statusMessage,
 			Spinner:    false,
-			StatusType: domain.StatusDefault,
+			StatusType: ui.StatusDefault,
 		}
 	})
 
@@ -247,8 +251,8 @@ func (r *Runner) HandleChatComplete(msg domain.ChatCompleteEvent) tea.Cmd {
 // The message comes from the conversation, not the event: ChatCompleteEvent.Message
 // is not populated (see publishChatComplete), but the assistant turn is already in
 // the repo by the time this runs (streaming appends it before emitting the event).
-func (r *Runner) writeSubagentResultFile(msg domain.ChatCompleteEvent) {
-	path := os.Getenv(domain.EnvSubagentResultFile)
+func (r *Runner) writeSubagentResultFile(msg agentdomain.ChatCompleteEvent) {
+	path := os.Getenv(scheddomain.EnvSubagentResultFile)
 	if path == "" || msg.Cancelled || len(msg.ToolCalls) > 0 {
 		return
 	}
@@ -256,17 +260,17 @@ func (r *Runner) writeSubagentResultFile(msg domain.ChatCompleteEvent) {
 	if answer == "" {
 		return
 	}
-	r.writeSubagentResultFileAtomic(path, domain.SubagentResultFile{FinalAssistant: answer, Success: true})
+	r.writeSubagentResultFileAtomic(path, scheddomain.SubagentResultFile{FinalAssistant: answer, Success: true})
 }
 
 // writeSubagentResultFileError records a failed terminal turn for an interactive
 // subagent so the parent harvests the error rather than falling back to the pane.
 func (r *Runner) writeSubagentResultFileError(runErr error) {
-	path := os.Getenv(domain.EnvSubagentResultFile)
+	path := os.Getenv(scheddomain.EnvSubagentResultFile)
 	if path == "" {
 		return
 	}
-	rf := domain.SubagentResultFile{
+	rf := scheddomain.SubagentResultFile{
 		FinalAssistant: lastAssistantText(r.conversationRepo.GetMessages()), // partial text, may be ""
 		Success:        false,
 	}
@@ -278,7 +282,7 @@ func (r *Runner) writeSubagentResultFileError(runErr error) {
 
 // writeSubagentResultFileAtomic marshals rf and writes it to path via a temp file
 // and rename, so a polling parent never reads a half-written file.
-func (r *Runner) writeSubagentResultFileAtomic(path string, rf domain.SubagentResultFile) {
+func (r *Runner) writeSubagentResultFileAtomic(path string, rf scheddomain.SubagentResultFile) {
 	data, err := json.Marshal(rf)
 	if err != nil {
 		logger.Warn("subagent result file: marshal failed", "error", err)
@@ -297,7 +301,7 @@ func (r *Runner) writeSubagentResultFileAtomic(path string, rf domain.SubagentRe
 // lastAssistantText returns the content of the last non-empty assistant message
 // in entries (backward scan), or "" if none. The interactive analogue of the
 // headless lastAssistantBefore (cmd/agent.go).
-func lastAssistantText(entries []domain.ConversationEntry) string {
+func lastAssistantText(entries []convdomain.ConversationEntry) string {
 	for i := len(entries) - 1; i >= 0; i-- {
 		e := entries[i]
 		if e.Message.Role != sdk.Assistant {
@@ -316,13 +320,13 @@ func lastAssistantText(entries []domain.ConversationEntry) string {
 
 // HandleChatError tears down session state and emits a sticky error event
 // (with a friendlier message for "timed out" errors).
-func (r *Runner) HandleChatError(msg domain.ChatErrorEvent) tea.Cmd {
+func (r *Runner) HandleChatError(msg agentdomain.ChatErrorEvent) tea.Cmd {
 	r.writeSubagentResultFileError(msg.Error)
-	_ = r.stateManager.UpdateChatStatus(domain.ChatStatusError)
+	_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusError)
 	r.stateManager.EndChatSession()
 	r.stateManager.EndToolExecution()
 
-	_ = r.stateManager.TransitionToView(domain.ViewStateChat)
+	_ = r.stateManager.TransitionToView(ui.ViewStateChat)
 
 	errorMsg := fmt.Sprintf("Chat error: %v", msg.Error)
 	if strings.Contains(msg.Error.Error(), "timed out") {
@@ -330,7 +334,7 @@ func (r *Runner) HandleChatError(msg domain.ChatErrorEvent) tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		return domain.ShowErrorEvent{
+		return ui.ShowErrorEvent{
 			Error:  errorMsg,
 			Sticky: true,
 		}
@@ -339,15 +343,15 @@ func (r *Runner) HandleChatError(msg domain.ChatErrorEvent) tea.Cmd {
 
 // HandleOptimizationStatus surfaces the "Optimizing conversation..." status
 // transitions emitted by the conversation optimizer.
-func (r *Runner) HandleOptimizationStatus(event domain.OptimizationStatusEvent) tea.Cmd {
+func (r *Runner) HandleOptimizationStatus(event agentdomain.OptimizationStatusEvent) tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			spinner := event.IsActive
-			statusType := domain.StatusDefault
+			statusType := ui.StatusDefault
 			if event.IsActive {
-				statusType = domain.StatusProcessing
+				statusType = ui.StatusProcessing
 			}
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    event.Message,
 				Spinner:    spinner,
 				StatusType: statusType,
@@ -362,27 +366,27 @@ func (r *Runner) HandleOptimizationStatus(event domain.OptimizationStatusEvent) 
 	return tea.Sequence(cmds...)
 }
 
-func (r *Runner) handleNoChatSession(msg domain.ChatChunkEvent) tea.Cmd {
+func (r *Runner) handleNoChatSession(msg agentdomain.ChatChunkEvent) tea.Cmd {
 	if msg.ReasoningContent != "" {
 		return func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Thinking...",
 				Spinner:    true,
-				StatusType: domain.StatusThinking,
+				StatusType: ui.StatusThinking,
 			}
 		}
 	}
 	return nil
 }
 
-func (r *Runner) handleEmptyContent(chatSession *domain.ChatSession) tea.Cmd {
+func (r *Runner) handleEmptyContent(chatSession *agentdomain.ChatSession) tea.Cmd {
 	if chatSession != nil && chatSession.EventChannel != nil {
 		return r.listener.ListenForChatEvents(chatSession.EventChannel)
 	}
 	return nil
 }
 
-func (r *Runner) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *domain.ChatSession) []tea.Cmd {
+func (r *Runner) handleStatusUpdate(msg agentdomain.ChatChunkEvent, chatSession *agentdomain.ChatSession) []tea.Cmd {
 	previousStatus := chatSession.Status
 	newStatus, shouldUpdateStatus := determineNewStatus(msg, previousStatus, chatSession.IsFirstChunk)
 	if !shouldUpdateStatus {
@@ -403,52 +407,52 @@ func (r *Runner) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *doma
 	return nil
 }
 
-func determineNewStatus(msg domain.ChatChunkEvent, currentStatus domain.ChatStatus, _ bool) (domain.ChatStatus, bool) {
+func determineNewStatus(msg agentdomain.ChatChunkEvent, currentStatus agentdomain.ChatStatus, _ bool) (agentdomain.ChatStatus, bool) {
 	if msg.ReasoningContent != "" {
-		return domain.ChatStatusThinking, true
+		return agentdomain.ChatStatusThinking, true
 	}
 	if msg.Content != "" {
-		return domain.ChatStatusGenerating, true
+		return agentdomain.ChatStatusGenerating, true
 	}
 	return currentStatus, false
 }
 
-func firstChunkStatusCmd(status domain.ChatStatus) []tea.Cmd {
+func firstChunkStatusCmd(status agentdomain.ChatStatus) []tea.Cmd {
 	switch status {
-	case domain.ChatStatusThinking:
+	case agentdomain.ChatStatusThinking:
 		return []tea.Cmd{func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Thinking...",
 				Spinner:    true,
-				StatusType: domain.StatusThinking,
+				StatusType: ui.StatusThinking,
 			}
 		}}
-	case domain.ChatStatusGenerating:
+	case agentdomain.ChatStatusGenerating:
 		return []tea.Cmd{func() tea.Msg {
-			return domain.SetStatusEvent{
+			return ui.SetStatusEvent{
 				Message:    "Generating response...",
 				Spinner:    true,
-				StatusType: domain.StatusGenerating,
+				StatusType: ui.StatusGenerating,
 			}
 		}}
 	}
 	return nil
 }
 
-func statusUpdateCmd(status domain.ChatStatus) []tea.Cmd {
+func statusUpdateCmd(status agentdomain.ChatStatus) []tea.Cmd {
 	switch status {
-	case domain.ChatStatusThinking:
+	case agentdomain.ChatStatusThinking:
 		return []tea.Cmd{func() tea.Msg {
-			return domain.UpdateStatusEvent{
+			return ui.UpdateStatusEvent{
 				Message:    "Thinking...",
-				StatusType: domain.StatusThinking,
+				StatusType: ui.StatusThinking,
 			}
 		}}
-	case domain.ChatStatusGenerating:
+	case agentdomain.ChatStatusGenerating:
 		return []tea.Cmd{func() tea.Msg {
-			return domain.UpdateStatusEvent{
+			return ui.UpdateStatusEvent{
 				Message:    "Generating response...",
-				StatusType: domain.StatusGenerating,
+				StatusType: ui.StatusGenerating,
 			}
 		}}
 	}
@@ -477,7 +481,7 @@ func (r *Runner) restorePendingModel() {
 }
 
 func (r *Runner) addModelRestorationWarning(originalModel string) {
-	warningEntry := domain.ConversationEntry{
+	warningEntry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
 			Content: sdk.NewMessageContent(fmt.Sprintf("[Warning: Failed to restore model to %s]", originalModel)),
@@ -513,7 +517,7 @@ func (r *Runner) addModelRestorationWarning(originalModel string) {
 // produces an assistant turn lacking `reasoning_content`, which is rejected
 // with HTTP 400 ("The reasoning_content in the thinking mode must be passed
 // back to the API.").
-func BuildAgentMessagesFromEntries(entries []domain.ConversationEntry) []sdk.Message {
+func BuildAgentMessagesFromEntries(entries []convdomain.ConversationEntry) []sdk.Message {
 	messages := make([]sdk.Message, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsPlan {
@@ -539,7 +543,7 @@ func BuildAgentMessagesFromEntries(entries []domain.ConversationEntry) []sdk.Mes
 // isUserInitiatedBashEntry reports whether the entry was synthesized for a
 // user-typed `!command` shortcut. Tool-call IDs created by that path are
 // prefixed with `user-bash-` (see DirectExecutionService).
-func isUserInitiatedBashEntry(entry domain.ConversationEntry) bool {
+func isUserInitiatedBashEntry(entry convdomain.ConversationEntry) bool {
 	const userBashPrefix = "user-bash-"
 
 	if entry.Message.ToolCallID != nil && strings.HasPrefix(*entry.Message.ToolCallID, userBashPrefix) {

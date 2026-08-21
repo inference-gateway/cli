@@ -66,7 +66,7 @@ jobs:
       uses: golangci/golangci-lint-action@v9.3.0
       with:
         version: v2.12.2
-        args: --timeout=5m
+        args: --timeout=5m --build-tags purego
 
   vet:
     needs:
@@ -83,7 +83,7 @@ jobs:
         cache: true
 
     - name: Run vet
-      run: go vet ./...
+      run: go vet -tags purego ./...
 
   build:
     needs:
@@ -104,7 +104,7 @@ jobs:
 
     - name: Build project
       run: |
-        go build \
+        go build -tags purego \
           -ldflags "\
             -w -s \
             -X github.com/inference-gateway/cli/cmd.version=${{ github.ref_name }}" \
@@ -127,8 +127,8 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
-    - name: Build project (darwin, cgo-free via -tags mac)
-      run: go build -tags mac -o infer .
+    - name: Build project (darwin, cgo-free via -tags purego)
+      run: go build -tags purego -o infer .
 
   test:
     needs:
@@ -145,7 +145,7 @@ jobs:
         cache: true
 
     - name: Run tests with race detector
-      run: go test -race ./...
+      run: go test -race -tags purego ./...
 
   e2e:
     needs:
@@ -161,8 +161,18 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
+    # The e2e harness builds the CLI with a plain `go build .` (no tags, cgo on),
+    # which selects robotgo's cgo backend and fails where X11 headers are absent.
+    # Prebuild with the purego tag and hand the binary over via INFER_E2E_BINARY.
+    - name: Build the CLI under test
+      env:
+        CGO_ENABLED: "0"
+      run: go build -tags purego -o "${RUNNER_TEMP}/infer-e2e" .
+
     - name: Run hermetic end-to-end tests against the mock gateway
-      run: go test -race -tags e2e -timeout 5m ./tests/e2e/...
+      env:
+        INFER_E2E_BINARY: ${{ runner.temp }}/infer-e2e
+      run: go test -race -v -tags "e2e purego" -timeout 5m ./tests/e2e/...
 
   postgres:
     needs:
@@ -194,4 +204,4 @@ jobs:
     - name: Run storage conformance against PostgreSQL
       env:
         INFER_TEST_POSTGRES_DSN: "host=localhost port=5432 user=postgres password=postgres dbname=infer_test sslmode=disable"
-      run: go test -race ./internal/infra/storage/...
+      run: go test -race -tags purego ./internal/platform/storage/...

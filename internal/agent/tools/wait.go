@@ -10,13 +10,15 @@ import (
 	"strings"
 	"time"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
+	fsnotify "github.com/fsnotify/fsnotify"
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-
-	fsnotify "github.com/fsnotify/fsnotify"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // WaitTool blocks inside a single tool execution until a condition is met
@@ -25,16 +27,16 @@ import (
 type WaitTool struct {
 	config       *config.Config
 	enabled      bool
-	formatter    domain.BaseFormatter
-	shellService domain.BackgroundShellService
+	formatter    agentinfra.BaseFormatter
+	shellService scheddomain.BackgroundShellService
 }
 
 // NewWaitTool creates a new Wait tool.
-func NewWaitTool(cfg *config.Config, shellService domain.BackgroundShellService) *WaitTool {
+func NewWaitTool(cfg *config.Config, shellService scheddomain.BackgroundShellService) *WaitTool {
 	return &WaitTool{
 		config:       cfg,
 		enabled:      cfg.Tools.Enabled && cfg.Tools.Wait.Enabled,
-		formatter:    domain.NewBaseFormatter("Wait"),
+		formatter:    agentinfra.NewBaseFormatter("Wait"),
 		shellService: shellService,
 	}
 }
@@ -95,11 +97,11 @@ func (t *WaitTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the Wait tool with given arguments.
-func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if err := t.Validate(args); err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Wait",
 			Arguments: args,
 			Success:   false,
@@ -138,7 +140,7 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 	case "command":
 		result = t.waitCommand(waitCtx, args)
 	default:
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Wait",
 			Arguments: args,
 			Success:   false,
@@ -165,7 +167,7 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 		errMsg = fmt.Sprintf("check command failed with exit code %d (not in pending_exit_codes)", exitCode)
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Wait",
 		Arguments: args,
 		Success:   success,
@@ -244,13 +246,13 @@ func (t *WaitTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts.
-func (t *WaitTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *WaitTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -258,7 +260,7 @@ func (t *WaitTool) FormatResult(result *domain.ToolExecutionResult, formatType d
 }
 
 // FormatPreview returns a short preview of the result for UI display.
-func (t *WaitTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *WaitTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -278,7 +280,7 @@ func (t *WaitTool) FormatPreview(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForUI formats the result for UI display.
-func (t *WaitTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *WaitTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -297,7 +299,7 @@ func (t *WaitTool) FormatForUI(result *domain.ToolExecutionResult) string {
 // FormatForLLM formats the result for LLM consumption. Condition details
 // (last output, exit codes, shell states) are included even on failure so
 // the model can see why the wait ended and decide what to do next.
-func (t *WaitTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *WaitTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -415,7 +417,7 @@ func (t *WaitTool) waitShells(ctx context.Context, args map[string]any) map[stri
 	if len(targetIDs) == 0 && t.shellService != nil {
 		allShells := t.shellService.GetAllShells()
 		for _, s := range allShells {
-			if s.State == domain.ShellStateRunning {
+			if s.State == scheddomain.ShellStateRunning {
 				targetIDs = append(targetIDs, s.ShellID)
 			}
 		}
@@ -637,7 +639,7 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any) map[str
 		}
 	}
 
-	if !t.config.IsBashCommandAllowed(cmdStr, domain.BashAllowModeKey(ctx)) {
+	if !t.config.IsBashCommandAllowed(cmdStr, agentdomain.BashAllowModeKey(ctx)) {
 		errMsg := fmt.Sprintf("command not allowed by bash allow-list: %s", cmdStr)
 		if hint := config.BashCommandRejectionHint(cmdStr); hint != "" {
 			errMsg += " - " + hint
@@ -732,5 +734,5 @@ func (t *WaitTool) runCheckCommand(ctx context.Context, cmdStr string) (string, 
 	return string(output), 0
 }
 
-// Ensure WaitTool implements domain.Tool
-var _ domain.Tool = (*WaitTool)(nil)
+// Ensure WaitTool implements agentdomain.Tool
+var _ agentdomain.Tool = (*WaitTool)(nil)

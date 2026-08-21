@@ -12,20 +12,24 @@ import (
 	"strings"
 	"time"
 
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	uuid "github.com/google/uuid"
+	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	container "github.com/inference-gateway/cli/internal/container"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	models "github.com/inference-gateway/cli/internal/models"
-	render "github.com/inference-gateway/cli/internal/render"
-	services "github.com/inference-gateway/cli/internal/services"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	render "github.com/inference-gateway/cli/internal/platform/render"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	chatcompletion "github.com/inference-gateway/cli/internal/services/chatcompletion"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
 )
 
 // startHeadlessScreenshotServer starts the screenshot capture server and
@@ -33,11 +37,11 @@ import (
 // as interactive chat does. It logs instead of printing: headless stdout
 // carries the ag-ui/json protocol stream. Returns nil when streaming is off or
 // the server failed to start.
-func startHeadlessScreenshotServer(cfg *config.Config, svc *container.ServiceContainer, sessionID string) *services.ScreenshotServer {
+func startHeadlessScreenshotServer(cfg *config.Config, svc *container.ServiceContainer, sessionID string) *computerinfra.ScreenshotServer {
 	if !cfg.ComputerUse.Enabled || !cfg.ComputerUse.Screenshot.StreamingEnabled {
 		return nil
 	}
-	screenshotServer := services.NewScreenshotServer(cfg, svc.GetImageService(), sessionID)
+	screenshotServer := computerinfra.NewScreenshotServer(cfg, svc.GetImageService(), sessionID)
 	if err := screenshotServer.Start(); err != nil {
 		logger.Warn("failed to start screenshot server", "error", err)
 		return nil
@@ -49,11 +53,11 @@ func startHeadlessScreenshotServer(cfg *config.Config, svc *container.ServiceCon
 // inheritedSubagentMode returns the coding mode a subagent should start in,
 // read from INFER_SUBAGENT_AGENT_MODE. Returns Standard when unset or
 // unrecognized, so top-level infer headless runs are unaffected.
-func inheritedSubagentMode() domain.AgentMode {
-	if m, ok := domain.ParseAgentMode(os.Getenv(domain.EnvSubagentAgentMode)); ok {
+func inheritedSubagentMode() agentdomain.AgentMode {
+	if m, ok := agentdomain.ParseAgentMode(os.Getenv(scheddomain.EnvSubagentAgentMode)); ok {
 		return m
 	}
-	return domain.AgentModeStandard
+	return agentdomain.AgentModeStandard
 }
 
 // headlessOptions carries the headless command's flag values.
@@ -175,7 +179,7 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 		cfg.Prompts.Agent.SystemPrompt = cfg.Prompts.Agent.SystemPromptRemote
 	}
 
-	cfg.Tools.Agent.Mode = domain.SubagentModeHeadless
+	cfg.Tools.Agent.Mode = scheddomain.SubagentModeHeadless
 
 	agentService := svc.GetAgentService()
 	conversationRepo := svc.GetConversationRepository()
@@ -224,11 +228,11 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 		Role:    sdk.User,
 		Content: sdk.NewMessageContent(expanded),
 	}
-	if err := conversationRepo.AddMessage(domain.ConversationEntry{Message: userMsg, Time: time.Now()}); err != nil {
+	if err := conversationRepo.AddMessage(convdomain.ConversationEntry{Message: userMsg, Time: time.Now()}); err != nil {
 		logger.Warn("failed to persist user task message", "error", err)
 	}
 
-	req := &domain.AgentRequest{
+	req := &agentdomain.AgentRequest{
 		RequestID:              sessionID,
 		Model:                  selectedModel,
 		Messages:               append(history, userMsg),
@@ -248,12 +252,12 @@ func runHeadless(cfg *config.Config, opts headlessOptions) (err error) { //nolin
 	}
 
 	renderEvents := events
-	var approvals <-chan domain.ApprovalResponse
+	var approvals <-chan ipc.ApprovalResponse
 	if opts.Format != "text" {
 		ctl := newHeadlessControl(agentService, svc.GetStateManager(), sessionID)
 		go ctl.readLines(os.Stdin)
 		approvals = ctl.approvals
-		renderEvents = ctl.pumpEvents(events, func() (<-chan domain.ChatEvent, error) {
+		renderEvents = ctl.pumpEvents(events, func() (<-chan agentdomain.ChatEvent, error) {
 			return resumeHeadlessRun(ctx, agentService, conversationRepo, req)
 		})
 	}
@@ -298,7 +302,7 @@ func selectModel(models []string, modelFlag, defaultModel string) (string, error
 	return "", fmt.Errorf("no model specified; use --model or set agent.model in config")
 }
 
-func expandFileReferences(content string, files []string, fileSvc domain.FileService, imageSvc domain.ImageService, model string) (string, error) {
+func expandFileReferences(content string, files []string, fileSvc agentdomain.FileService, imageSvc agentdomain.ImageService, model string) (string, error) {
 	re := regexp.MustCompile(`@([^\s]+)`)
 	matches := re.FindAllStringSubmatch(content, -1)
 
@@ -313,7 +317,7 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 		}
 
 		if imageSvc != nil && imageSvc.IsImageFile(filename) {
-			expanded = strings.Replace(expanded, fullMatch, domain.ImageFileRef(filename, models.SupportsVision(model)), 1)
+			expanded = strings.Replace(expanded, fullMatch, agentdomain.ImageFileRef(filename, models.SupportsVision(model)), 1)
 			continue
 		}
 
@@ -331,7 +335,7 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 			return "", fmt.Errorf("invalid file %q: %w", filename, err)
 		}
 		if imageSvc != nil && imageSvc.IsImageFile(filename) {
-			expanded += "\n\n" + domain.ImageFileRef(filename, models.SupportsVision(model))
+			expanded += "\n\n" + agentdomain.ImageFileRef(filename, models.SupportsVision(model))
 			continue
 		}
 		fileContent, err := fileSvc.ReadFile(filename)
@@ -346,8 +350,8 @@ func expandFileReferences(content string, files []string, fileSvc domain.FileSer
 // prepareConversation points the persistent repository at the session,
 // honours --no-save, and returns prior history when resuming an existing
 // --session-id (empty when starting fresh or storage is not persistent).
-func prepareConversation(ctx context.Context, repo domain.ConversationRepository, sessionID string, resume, noSave bool) []sdk.Message {
-	persistentRepo, ok := repo.(*services.PersistentConversationRepository)
+func prepareConversation(ctx context.Context, repo convdomain.ConversationRepository, sessionID string, resume, noSave bool) []sdk.Message {
+	persistentRepo, ok := repo.(*conversation.PersistentConversationRepository)
 	if !ok {
 		return nil
 	}
@@ -371,7 +375,7 @@ func sessionOutcome(err error) string {
 		return telemetry.RunSuccess
 	case errors.Is(err, context.Canceled),
 		errors.Is(err, context.DeadlineExceeded),
-		errors.Is(err, domain.ErrMaxTurnsReached):
+		errors.Is(err, agentdomain.ErrMaxTurnsReached):
 		return telemetry.RunStoppedEarly
 	default:
 		return telemetry.RunFailed
@@ -381,7 +385,7 @@ func sessionOutcome(err error) string {
 // writeResultFile atomically writes the run's outcome and final assistant
 // message to path, for a parent Agent tool to harvest - on failure too, so
 // the parent gets the partial answer and error detail instead of silence.
-func writeResultFile(path string, repo domain.ConversationRepository, sessionID string, runErr error) {
+func writeResultFile(path string, repo convdomain.ConversationRepository, sessionID string, runErr error) {
 	entries := repo.GetMessages()
 	content := ""
 	for i := len(entries) - 1; i >= 0; i-- {
@@ -393,7 +397,7 @@ func writeResultFile(path string, repo domain.ConversationRepository, sessionID 
 			}
 		}
 	}
-	rf := domain.SubagentResultFile{
+	rf := scheddomain.SubagentResultFile{
 		FinalAssistant: content,
 		Success:        runErr == nil,
 		SessionID:      sessionID,

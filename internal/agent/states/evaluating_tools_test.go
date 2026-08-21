@@ -1,16 +1,17 @@
-package states
+package states_test
 
 import (
 	"testing"
 	"time"
 
+	states "github.com/inference-gateway/cli/internal/agent/states"
+
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // TestEvaluatingToolsState_ApprovalRouting covers how a batch that needs
@@ -30,24 +31,24 @@ func TestEvaluatingToolsState_ApprovalRouting(t *testing.T) {
 	tests := []struct {
 		name           string
 		delivery       func(*sdk.ChatCompletionMessageToolCall) string
-		wantTransition domain.AgentExecutionState
-		wantHooks      []domain.HookPoint
+		wantTransition states.AgentExecutionState
+		wantHooks      []agentdomain.HookPoint
 	}{
 		{
 			name:           "deliverable approval routes to approving tools",
-			wantTransition: domain.StateApprovingTools,
-			wantHooks:      []domain.HookPoint{domain.HookPreTool},
+			wantTransition: states.StateApprovingTools,
+			wantHooks:      []agentdomain.HookPoint{agentdomain.HookPreTool},
 		},
 		{
 			name:           "undeliverable approval for every gated tool routes to blocking tools",
 			delivery:       blockAll,
-			wantTransition: domain.StateBlockingTools,
+			wantTransition: states.StateBlockingTools,
 		},
 		{
 			name:           "mixed deliverability still prompts",
 			delivery:       blockFirst,
-			wantTransition: domain.StateApprovingTools,
-			wantHooks:      []domain.HookPoint{domain.HookPreTool},
+			wantTransition: states.StateApprovingTools,
+			wantHooks:      []agentdomain.HookPoint{agentdomain.HookPreTool},
 		},
 	}
 	for _, tt := range tests {
@@ -57,13 +58,13 @@ func TestEvaluatingToolsState_ApprovalRouting(t *testing.T) {
 			*f.ctx.CurrentToolCalls = makeTools(2)
 			f.ctx.ShouldRequireApproval = func(*sdk.ChatCompletionMessageToolCall, bool) bool { return true }
 			f.ctx.ApprovalDelivery = tt.delivery
-			s := NewEvaluatingToolsState(f.ctx)
-			assert.Equal(t, domain.StateEvaluatingTools, s.Name())
+			s := states.NewEvaluatingToolsState(f.ctx)
+			assert.Equal(t, states.StateEvaluatingTools, s.Name())
 
-			require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+			require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
 
 			assertTransitions(t, f.sm, tt.wantTransition)
-			assertEvents(t, f.events, domain.MessageReceivedEvent{})
+			assertEvents(t, f.events, states.MessageReceivedEvent{})
 			assert.Equal(t, tt.wantHooks, *hooks)
 			require.Len(t, f.completeCalls, 1, "tool calls must be published before evaluation")
 			assert.Len(t, f.completeCalls[0].toolCalls, 2)
@@ -85,9 +86,9 @@ func TestEvaluatingToolsState_NoApprovalSpawnsExecutor(t *testing.T) {
 		close(ran)
 	}
 	f.ctx.ToolExecutor = &executor
-	s := NewEvaluatingToolsState(f.ctx)
+	s := states.NewEvaluatingToolsState(f.ctx)
 
-	require.NoError(t, s.Handle(domain.MessageReceivedEvent{}))
+	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
 
 	select {
 	case <-ran:
@@ -96,9 +97,9 @@ func TestEvaluatingToolsState_NoApprovalSpawnsExecutor(t *testing.T) {
 	}
 	f.ctx.WaitGroup.Wait()
 
-	assertTransitions(t, f.sm, domain.StateExecutingTools)
+	assertTransitions(t, f.sm, states.StateExecutingTools)
 	assertEvents(t, f.events)
-	assert.Equal(t, []domain.HookPoint{domain.HookPreTool}, *hooks)
+	assert.Equal(t, []agentdomain.HookPoint{agentdomain.HookPreTool}, *hooks)
 }
 
 // TestEvaluatingToolsState_TransitionFailureIsReturned verifies a failed
@@ -110,9 +111,9 @@ func TestEvaluatingToolsState_TransitionFailureIsReturned(t *testing.T) {
 	executorRan := false
 	executor := func() { executorRan = true; f.ctx.WaitGroup.Done() }
 	f.ctx.ToolExecutor = &executor
-	s := NewEvaluatingToolsState(f.ctx)
+	s := states.NewEvaluatingToolsState(f.ctx)
 
-	err := s.Handle(domain.MessageReceivedEvent{})
+	err := s.Handle(states.MessageReceivedEvent{})
 
 	assert.ErrorIs(t, err, errBoom)
 	assertEvents(t, f.events)

@@ -4,23 +4,25 @@ import (
 	"strings"
 	"testing"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	directexec "github.com/inference-gateway/cli/internal/services/directexec"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
 func TestHandleToolCommand_BlocksToolNotInCurrentMode(t *testing.T) {
-	toolSvc := &domainmocks.FakeToolService{}
+	toolSvc := &agentdomainmocks.FakeToolService{}
 	toolSvc.IsToolEnabledReturns(true)
 	toolSvc.ListToolsForModeReturns([]sdk.ChatCompletionTool{
 		{Function: sdk.FunctionObject{Name: "Read"}},
 	})
 
 	sm := services.NewStateManager(false)
-	sm.SetAgentMode(domain.AgentModeStandard)
+	sm.SetAgentMode(agentdomain.AgentModeStandard)
 
 	svc := directexec.NewService(directexec.Options{ToolService: toolSvc, StateManager: sm})
 
@@ -30,7 +32,7 @@ func TestHandleToolCommand_BlocksToolNotInCurrentMode(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected an error command")
 	}
-	errEvent, ok := cmd().(domain.ShowErrorEvent)
+	errEvent, ok := cmd().(ui.ShowErrorEvent)
 	if !ok {
 		t.Fatalf("expected ShowErrorEvent, got %T", cmd())
 	}

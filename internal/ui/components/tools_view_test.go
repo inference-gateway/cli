@@ -4,16 +4,16 @@ import (
 	"strings"
 	"testing"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // The default delegate renders items through the DefaultItem interface.
@@ -31,18 +31,18 @@ func toolDef(name, description string) sdk.ChatCompletionTool {
 // newToolsViewForTest builds a tools view backed by fakes: the tool service
 // returns the given tools for any mode and the state manager reports plan
 // mode, so the mode propagation is observable.
-func newToolsViewForTest(tools []sdk.ChatCompletionTool) (*ToolsViewImpl, *domainmocks.FakeToolService, *domain.ApplicationState) {
+func newToolsViewForTest(tools []sdk.ChatCompletionTool) (*ToolsViewImpl, *agentdomainmocks.FakeToolService, *ui.ApplicationState) {
 	fakeTheme := &uimocks.FakeTheme{}
 	fakeTheme.GetAccentColorReturns("#ff9e64")
 	fakeTheme.GetDimColorReturns("#888888")
-	themeService := &domainmocks.FakeThemeService{}
+	themeService := &uimocks.FakeThemeService{}
 	themeService.GetCurrentThemeReturns(fakeTheme)
 
-	toolService := &domainmocks.FakeToolService{}
+	toolService := &agentdomainmocks.FakeToolService{}
 	toolService.ListToolsForModeReturns(tools)
 
-	stateManager := domain.NewApplicationState()
-	stateManager.SetAgentMode(domain.AgentModePlan)
+	stateManager := ui.NewApplicationState()
+	stateManager.SetAgentMode(agentdomain.AgentModePlan)
 
 	view := NewToolsView(toolService, stateManager, styles.NewProvider(themeService))
 	return view, toolService, stateManager
@@ -74,7 +74,7 @@ func TestToolsView_ItemsReflectAvailableTools(t *testing.T) {
 		t.Errorf("title = %q, want the tool count", view.list.Title)
 	}
 
-	if got := toolService.ListToolsForModeArgsForCall(0); got != domain.AgentModePlan {
+	if got := toolService.ListToolsForModeArgsForCall(0); got != agentdomain.AgentModePlan {
 		t.Errorf("tools must be listed for the current agent mode, got %v", got)
 	}
 }

@@ -11,7 +11,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	utils "github.com/inference-gateway/cli/config/utils"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 const (
@@ -103,14 +103,14 @@ const defaultStalledTodosThreshold = 3
 // text substituted for the {guidance} placeholder when that mode is entered.
 // Keys the user omits keep their built-in defaults (per-key merge).
 type ReminderConfig struct {
-	Name      string            `yaml:"name" mapstructure:"name"`
-	Text      string            `yaml:"text" mapstructure:"text"`
-	Hook      domain.HookPoint  `yaml:"hook" mapstructure:"hook"`
-	Trigger   ReminderTrigger   `yaml:"trigger" mapstructure:"trigger"`
-	Interval  int               `yaml:"interval,omitempty" mapstructure:"interval"`
-	Threshold int               `yaml:"threshold,omitempty" mapstructure:"threshold"`
-	Guidance  map[string]string `yaml:"guidance,omitempty" mapstructure:"guidance"`
-	When      string            `yaml:"when,omitempty" mapstructure:"when"`
+	Name      string                `yaml:"name" mapstructure:"name"`
+	Text      string                `yaml:"text" mapstructure:"text"`
+	Hook      agentdomain.HookPoint `yaml:"hook" mapstructure:"hook"`
+	Trigger   ReminderTrigger       `yaml:"trigger" mapstructure:"trigger"`
+	Interval  int                   `yaml:"interval,omitempty" mapstructure:"interval"`
+	Threshold int                   `yaml:"threshold,omitempty" mapstructure:"threshold"`
+	Guidance  map[string]string     `yaml:"guidance,omitempty" mapstructure:"guidance"`
+	When      string                `yaml:"when,omitempty" mapstructure:"when"`
 }
 
 // ReminderWhenTodosEmpty gates a reminder to fire only while the session's
@@ -119,8 +119,8 @@ const ReminderWhenTodosEmpty = "todos_empty"
 
 // RemindersConfig is the content of reminders.yaml: the master switch plus the
 // list of named reminders. Each reminder attaches to a pre-defined agent-loop
-// hook point (domain.HookPoint) with a trigger. RemindersConfig implements
-// domain.SystemReminderProvider. The companion executable hooks (#270) get their
+// hook point (agentdomain.HookPoint) with a trigger. RemindersConfig implements
+// agentdomain.SystemReminderProvider. The companion executable hooks (#270) get their
 // own hooks.yaml so "inject text" and "run code" stay separate concerns.
 //
 // When Merge is true, the file's reminders are merged onto the built-in defaults
@@ -164,13 +164,13 @@ func MemoryReminders() []ReminderConfig {
 	return []ReminderConfig{
 		{
 			Name:    "memory-consult",
-			Hook:    domain.HookPreSession,
+			Hook:    agentdomain.HookPreSession,
 			Trigger: ReminderTriggerOnce,
 			Text:    defaultMemoryConsultReminderText,
 		},
 		{
 			Name:     "memory-hygiene",
-			Hook:     domain.HookPreStream,
+			Hook:     agentdomain.HookPreStream,
 			Trigger:  ReminderTriggerInterval,
 			Interval: defaultMemoryReminderInterval,
 			Text:     defaultMemoryHygieneReminderText,
@@ -187,7 +187,7 @@ func DefaultRemindersConfig() *RemindersConfig {
 	reminders := []ReminderConfig{
 		{
 			Name:     "todo-hygiene",
-			Hook:     domain.HookPreStream,
+			Hook:     agentdomain.HookPreStream,
 			Trigger:  ReminderTriggerInterval,
 			Interval: defaultReminderInterval,
 			When:     ReminderWhenTodosEmpty,
@@ -195,14 +195,14 @@ func DefaultRemindersConfig() *RemindersConfig {
 		},
 		{
 			Name:     DefaultModeChangeReminderName,
-			Hook:     domain.HookPreStream,
+			Hook:     agentdomain.HookPreStream,
 			Trigger:  ReminderTriggerOnModeChange,
 			Text:     DefaultModeChangeReminderText,
 			Guidance: maps.Clone(defaultModeChangeGuidance),
 		},
 		{
 			Name:      "user-intent-focus",
-			Hook:      domain.HookPreStream,
+			Hook:      agentdomain.HookPreStream,
 			Trigger:   ReminderTriggerOnceAfter,
 			Threshold: defaultUserIntentFocusThreshold,
 			Text:      defaultUserIntentFocusReminderText,
@@ -211,21 +211,21 @@ func DefaultRemindersConfig() *RemindersConfig {
 	reminders = append(reminders,
 		ReminderConfig{
 			Name:      "repeated-failure",
-			Hook:      domain.HookPostTool,
+			Hook:      agentdomain.HookPostTool,
 			Trigger:   ReminderTriggerOnRepeatedFailure,
 			Threshold: defaultRepeatedFailureThreshold,
 			Text:      defaultRepeatedFailureReminderText,
 		},
 		ReminderConfig{
 			Name:      "todo-continuation",
-			Hook:      domain.HookPostStream,
+			Hook:      agentdomain.HookPostStream,
 			Trigger:   ReminderTriggerOnStalledTodos,
 			Threshold: defaultStalledTodosThreshold,
 			Text:      defaultTodoContinuationReminderText,
 		},
 		ReminderConfig{
 			Name:    "truncation-continuation",
-			Hook:    domain.HookPostStream,
+			Hook:    agentdomain.HookPostStream,
 			Trigger: ReminderTriggerOnTruncation,
 			Text:    defaultTruncationContinuationReminderText,
 		},
@@ -298,7 +298,7 @@ func (r RemindersConfig) effective() []ReminderConfig {
 	out := make([]ReminderConfig, len(r.Reminders))
 	for i, rc := range r.Reminders {
 		if rc.Hook == "" {
-			rc.Hook = domain.HookPreStream
+			rc.Hook = agentdomain.HookPreStream
 		}
 		if rc.Trigger == "" {
 			rc.Trigger = ReminderTriggerAlways
@@ -321,7 +321,7 @@ func (r RemindersConfig) effective() []ReminderConfig {
 	return out
 }
 
-// RemindersDue implements domain.SystemReminderProvider: it returns every
+// RemindersDue implements agentdomain.SystemReminderProvider: it returns every
 // reminder attached to q.Hook whose trigger fires. Multiple reminders on the
 // same hook stack (all are returned). The interval trigger keys off
 // q.SessionTurn (cumulative across the chat session) so it fires on every Nth
@@ -329,11 +329,11 @@ func (r RemindersConfig) effective() []ReminderConfig {
 // run's loop budget). q.Fired is consulted only by the `once` trigger and is
 // never written here - the caller marks names fired after injecting. A nil
 // q.Fired is treated as "nothing fired yet".
-func (r RemindersConfig) RemindersDue(q domain.ReminderQuery) []domain.SystemReminder {
+func (r RemindersConfig) RemindersDue(q agentdomain.ReminderQuery) []agentdomain.SystemReminder {
 	if !r.Enabled {
 		return nil
 	}
-	var due []domain.SystemReminder
+	var due []agentdomain.SystemReminder
 	for _, rc := range r.effective() {
 		if rc.Hook != q.Hook {
 			continue
@@ -353,7 +353,7 @@ func (r RemindersConfig) RemindersDue(q domain.ReminderQuery) []domain.SystemRem
 		case ReminderTriggerOnStalledTodos:
 			text = resolveStalledTodosText(rc, q)
 		}
-		due = append(due, domain.SystemReminder{
+		due = append(due, agentdomain.SystemReminder{
 			Name:               rc.Name,
 			Text:               text,
 			AppendToToolResult: rc.Trigger == ReminderTriggerOnRepeatedFailure,
@@ -364,7 +364,7 @@ func (r RemindersConfig) RemindersDue(q domain.ReminderQuery) []domain.SystemRem
 
 // resolveModeChangeText substitutes the {prev_mode}/{new_mode}/{guidance}
 // placeholders of an on_mode_change reminder from the query's mode transition.
-func resolveModeChangeText(rc ReminderConfig, q domain.ReminderQuery) string {
+func resolveModeChangeText(rc ReminderConfig, q agentdomain.ReminderQuery) string {
 	guidance := rc.Guidance[q.Mode.AllowedlistKey()]
 	if guidance == "" {
 		guidance = "You are now in " + q.Mode.DisplayName() + " mode."
@@ -376,14 +376,14 @@ func resolveModeChangeText(rc ReminderConfig, q domain.ReminderQuery) string {
 
 // resolveRepeatedFailureText substitutes the {tool_name}/{count} placeholders
 // of an on_repeated_failure reminder from the query's failure tracking.
-func resolveRepeatedFailureText(rc ReminderConfig, q domain.ReminderQuery) string {
+func resolveRepeatedFailureText(rc ReminderConfig, q agentdomain.ReminderQuery) string {
 	text := strings.ReplaceAll(rc.Text, "{tool_name}", q.FailedTool)
 	return strings.ReplaceAll(text, "{count}", fmt.Sprintf("%d", q.RepeatedFailures))
 }
 
 // resolveStalledTodosText substitutes the {todo_list} placeholder of an
 // on_stalled_todos reminder from the query's incomplete todo items.
-func resolveStalledTodosText(rc ReminderConfig, q domain.ReminderQuery) string {
+func resolveStalledTodosText(rc ReminderConfig, q agentdomain.ReminderQuery) string {
 	var items strings.Builder
 	for _, t := range q.IncompleteTodos {
 		fmt.Fprintf(&items, "- [%s] %s\n", t.Status, t.Content)
@@ -394,7 +394,7 @@ func resolveStalledTodosText(rc ReminderConfig, q domain.ReminderQuery) string {
 // reminderWhenHolds evaluates the optional `when` state condition. An empty
 // When always holds; an unknown value never does (fail-closed so a typo
 // surfaces as a silent reminder rather than an unconditional one).
-func reminderWhenHolds(rc ReminderConfig, q domain.ReminderQuery) bool {
+func reminderWhenHolds(rc ReminderConfig, q agentdomain.ReminderQuery) bool {
 	switch rc.When {
 	case "":
 		return true
@@ -405,7 +405,7 @@ func reminderWhenHolds(rc ReminderConfig, q domain.ReminderQuery) bool {
 	}
 }
 
-func reminderTriggerFires(rc ReminderConfig, q domain.ReminderQuery) bool {
+func reminderTriggerFires(rc ReminderConfig, q agentdomain.ReminderQuery) bool {
 	switch rc.Trigger {
 	case ReminderTriggerInterval:
 		interval := cmp.Or(rc.Interval, defaultReminderInterval)
@@ -449,30 +449,30 @@ func (r RemindersConfig) Validate() error {
 		case rc.Text == "":
 			return fmt.Errorf("reminders[%d] (%s): text is required", i, rc.Name)
 		case rc.Hook != "" && !rc.Hook.Valid():
-			return fmt.Errorf("reminders[%d] (%s): unknown hook %q (valid: %v)", i, rc.Name, rc.Hook, domain.HookPoints)
+			return fmt.Errorf("reminders[%d] (%s): unknown hook %q (valid: %v)", i, rc.Name, rc.Hook, agentdomain.HookPoints)
 		case rc.Trigger != "" && !rc.Trigger.Valid():
 			return fmt.Errorf("reminders[%d] (%s): unknown trigger %q (valid: %v)", i, rc.Name, rc.Trigger, ReminderTriggers)
-		case rc.Trigger == ReminderTriggerOnFailure && rc.Hook != domain.HookPostTool:
-			return fmt.Errorf("reminders[%d] (%s): trigger on_failure requires hook %s", i, rc.Name, domain.HookPostTool)
+		case rc.Trigger == ReminderTriggerOnFailure && rc.Hook != agentdomain.HookPostTool:
+			return fmt.Errorf("reminders[%d] (%s): trigger on_failure requires hook %s", i, rc.Name, agentdomain.HookPostTool)
 		case rc.Trigger == ReminderTriggerTurnsBeforeMax && rc.Threshold <= 0:
 			return fmt.Errorf("reminders[%d] (%s): trigger turns_before_max requires threshold > 0", i, rc.Name)
 		case rc.Trigger == ReminderTriggerOnceAfter && rc.Threshold <= 0:
 			return fmt.Errorf("reminders[%d] (%s): trigger once_after requires threshold > 0", i, rc.Name)
-		case rc.Trigger == ReminderTriggerOnModeChange && rc.Hook != "" && rc.Hook != domain.HookPreStream:
-			return fmt.Errorf("reminders[%d] (%s): trigger on_mode_change requires hook %s", i, rc.Name, domain.HookPreStream)
-		case rc.Trigger == ReminderTriggerOnRepeatedFailure && rc.Hook != "" && rc.Hook != domain.HookPostTool:
-			return fmt.Errorf("reminders[%d] (%s): trigger on_repeated_failure requires hook %s", i, rc.Name, domain.HookPostTool)
+		case rc.Trigger == ReminderTriggerOnModeChange && rc.Hook != "" && rc.Hook != agentdomain.HookPreStream:
+			return fmt.Errorf("reminders[%d] (%s): trigger on_mode_change requires hook %s", i, rc.Name, agentdomain.HookPreStream)
+		case rc.Trigger == ReminderTriggerOnRepeatedFailure && rc.Hook != "" && rc.Hook != agentdomain.HookPostTool:
+			return fmt.Errorf("reminders[%d] (%s): trigger on_repeated_failure requires hook %s", i, rc.Name, agentdomain.HookPostTool)
 		case rc.Trigger == ReminderTriggerOnRepeatedFailure && rc.Threshold <= 0:
 			return fmt.Errorf("reminders[%d] (%s): trigger on_repeated_failure requires threshold > 0", i, rc.Name)
-		case rc.Trigger == ReminderTriggerOnTruncation && rc.Hook != "" && rc.Hook != domain.HookPostStream:
-			return fmt.Errorf("reminders[%d] (%s): trigger on_truncation requires hook %s", i, rc.Name, domain.HookPostStream)
-		case rc.Trigger == ReminderTriggerOnStalledTodos && rc.Hook != "" && rc.Hook != domain.HookPostStream:
-			return fmt.Errorf("reminders[%d] (%s): trigger on_stalled_todos requires hook %s", i, rc.Name, domain.HookPostStream)
+		case rc.Trigger == ReminderTriggerOnTruncation && rc.Hook != "" && rc.Hook != agentdomain.HookPostStream:
+			return fmt.Errorf("reminders[%d] (%s): trigger on_truncation requires hook %s", i, rc.Name, agentdomain.HookPostStream)
+		case rc.Trigger == ReminderTriggerOnStalledTodos && rc.Hook != "" && rc.Hook != agentdomain.HookPostStream:
+			return fmt.Errorf("reminders[%d] (%s): trigger on_stalled_todos requires hook %s", i, rc.Name, agentdomain.HookPostStream)
 		case rc.Interval < 0:
 			return fmt.Errorf("reminders[%d] (%s): interval must be >= 0", i, rc.Name)
 		}
 		for key := range rc.Guidance {
-			if _, ok := domain.ParseAgentMode(key); !ok {
+			if _, ok := agentdomain.ParseAgentMode(key); !ok {
 				return fmt.Errorf("reminders[%d] (%s): unknown guidance mode key %q (valid: standard, plan, auto)", i, rc.Name, key)
 			}
 		}

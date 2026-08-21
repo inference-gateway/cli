@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // fakeClipboard is a hand-written ClipboardWriter that records the copied text
@@ -25,7 +25,7 @@ func (f *fakeClipboard) Copy(_ context.Context, text string) error {
 }
 
 func TestCopyShortcut_Metadata(t *testing.T) {
-	sc := NewCopyShortcut(&domainmocks.FakeConversationRepository{}, &fakeClipboard{})
+	sc := NewCopyShortcut(&convmocks.FakeConversationRepository{}, &fakeClipboard{})
 
 	if sc.GetName() != "copy" {
 		t.Errorf("GetName = %q, want %q", sc.GetName(), "copy")
@@ -53,7 +53,7 @@ func TestCopyShortcut_Metadata(t *testing.T) {
 }
 
 func TestCopyShortcut_EmptyConversation(t *testing.T) {
-	repo := &domainmocks.FakeConversationRepository{}
+	repo := &convmocks.FakeConversationRepository{}
 	repo.GetMessageCountReturns(0)
 	clip := &fakeClipboard{}
 
@@ -78,7 +78,7 @@ func TestCopyShortcut_EmptyConversation(t *testing.T) {
 }
 
 func TestCopyShortcut_SuccessfulDefaultCopy(t *testing.T) {
-	repo := &domainmocks.FakeConversationRepository{}
+	repo := &convmocks.FakeConversationRepository{}
 	repo.GetMessageCountReturns(2)
 	exported := []byte("line1\nline2\n")
 	repo.ExportReturns(exported, nil)
@@ -99,8 +99,8 @@ func TestCopyShortcut_SuccessfulDefaultCopy(t *testing.T) {
 	if repo.ExportCallCount() != 1 {
 		t.Fatalf("expected Export called once, got %d", repo.ExportCallCount())
 	}
-	if got := repo.ExportArgsForCall(0); got != domain.ExportText {
-		t.Errorf("expected default format %v, got %v", domain.ExportText, got)
+	if got := repo.ExportArgsForCall(0); got != convdomain.ExportText {
+		t.Errorf("expected default format %v, got %v", convdomain.ExportText, got)
 	}
 	if clip.called != 1 {
 		t.Fatalf("expected clipboard called once, got %d", clip.called)
@@ -123,19 +123,19 @@ func TestCopyShortcut_FormatRouting(t *testing.T) {
 	cases := []struct {
 		name string
 		arg  string
-		want domain.ExportFormat
+		want convdomain.ExportFormat
 	}{
-		{"text", "text", domain.ExportText},
-		{"txt alias", "txt", domain.ExportText},
-		{"markdown", "markdown", domain.ExportMarkdown},
-		{"md alias", "md", domain.ExportMarkdown},
-		{"json", "json", domain.ExportJSON},
-		{"uppercase", "JSON", domain.ExportJSON},
+		{"text", "text", convdomain.ExportText},
+		{"txt alias", "txt", convdomain.ExportText},
+		{"markdown", "markdown", convdomain.ExportMarkdown},
+		{"md alias", "md", convdomain.ExportMarkdown},
+		{"json", "json", convdomain.ExportJSON},
+		{"uppercase", "JSON", convdomain.ExportJSON},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			repo := &domainmocks.FakeConversationRepository{}
+			repo := &convmocks.FakeConversationRepository{}
 			repo.GetMessageCountReturns(1)
 			repo.ExportReturns([]byte("data"), nil)
 			clip := &fakeClipboard{}
@@ -156,7 +156,7 @@ func TestCopyShortcut_FormatRouting(t *testing.T) {
 }
 
 func TestCopyShortcut_UnknownFormat(t *testing.T) {
-	repo := &domainmocks.FakeConversationRepository{}
+	repo := &convmocks.FakeConversationRepository{}
 	repo.GetMessageCountReturns(1)
 	clip := &fakeClipboard{}
 
@@ -181,7 +181,7 @@ func TestCopyShortcut_UnknownFormat(t *testing.T) {
 }
 
 func TestCopyShortcut_ExportError(t *testing.T) {
-	repo := &domainmocks.FakeConversationRepository{}
+	repo := &convmocks.FakeConversationRepository{}
 	repo.GetMessageCountReturns(2)
 	repo.ExportReturns(nil, errors.New("boom"))
 	clip := &fakeClipboard{}
@@ -204,7 +204,7 @@ func TestCopyShortcut_ExportError(t *testing.T) {
 }
 
 func TestCopyShortcut_ClipboardError(t *testing.T) {
-	repo := &domainmocks.FakeConversationRepository{}
+	repo := &convmocks.FakeConversationRepository{}
 	repo.GetMessageCountReturns(2)
 	repo.ExportReturns([]byte("data"), nil)
 	clip := &fakeClipboard{err: errors.New("no util")}

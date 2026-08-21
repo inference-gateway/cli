@@ -129,8 +129,8 @@ The migration system does not support automatic rollback. If a migration fails:
 When adding schema changes:
 
 1. **Create migration file**:
-   - SQLite: `internal/infra/storage/migrations/sqlite_migrations.go`
-   - PostgreSQL: `internal/infra/storage/migrations/postgres_migrations.go`
+   - SQLite: `internal/platform/storage/migrations/sqlite_migrations.go`
+   - PostgreSQL: `internal/platform/storage/migrations/postgres_migrations.go`
 
 2. **Add migration to the list**:
 
@@ -158,7 +158,7 @@ When adding schema changes:
 
 ```bash
 # Run tests
-go test ./internal/infra/storage/migrations/...
+go test ./internal/platform/storage/migrations/...
 
 # Test manually with a fresh database
 rm ~/.infer/conversations.db

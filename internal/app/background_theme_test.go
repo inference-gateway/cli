@@ -7,7 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 func TestHandleBackgroundColorDetected(t *testing.T) {
@@ -26,7 +26,7 @@ func TestHandleBackgroundColorDetected(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{}
 			cfg.Chat.Theme = tt.configuredTheme
-			ts := domain.NewThemeProvider()
+			ts := styles.NewThemeProvider()
 
 			app := &ChatApplication{config: cfg, themeService: ts}
 			app.handleBackgroundColorDetected(tea.BackgroundColorMsg{Color: tt.background})

@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // TestToolCallRenderer_BashOutputStreamLineCounting verifies that a single
@@ -23,7 +25,7 @@ func TestToolCallRenderer_BashOutputStreamLineCounting(t *testing.T) {
 		Status:   "running",
 	}
 
-	r.handleBashOutputStream(domain.BashOutputChunkEvent{
+	r.handleBashOutputStream(agentdomain.BashOutputChunkEvent{
 		ToolCallID: toolCallID,
 		Output:     "a\nb\nc\nd\ne\nf\ng\nh",
 	})
@@ -39,7 +41,7 @@ func TestToolCallRenderer_BashOutputStreamLineCounting(t *testing.T) {
 		t.Errorf("expected last 7 lines b..h, got %v", state.OutputBuffer)
 	}
 
-	r.handleBashOutputStream(domain.BashOutputChunkEvent{
+	r.handleBashOutputStream(agentdomain.BashOutputChunkEvent{
 		ToolCallID: toolCallID,
 		Output:     "i\nj",
 	})
@@ -61,7 +63,7 @@ func TestToolCallRenderer_BashOutputStreamLineCounting(t *testing.T) {
 // question overlay is blocked on the user, and resumes afterwards.
 func TestToolCallRenderer_PausesTimerDuringApproval(t *testing.T) {
 	r := NewToolCallRenderer(createMockStyleProviderForStatus())
-	sm := domain.NewApplicationState()
+	sm := ui.NewApplicationState()
 	r.SetStateManager(sm)
 	r.tools["tc-1"] = &ToolRenderState{
 		CallID:    "tc-1",

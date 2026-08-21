@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 func TestReadSubagentScreenTool_Validate(t *testing.T) {
@@ -20,9 +21,9 @@ func TestReadSubagentScreenTool_Validate(t *testing.T) {
 // does NOT refuse while the subagent is running (live TUI snapshots are the point).
 func TestReadSubagentScreenTool_CapturesRunningInteractivePane(t *testing.T) {
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "s1", Mode: domain.SubagentModeInteractive, PaneID: "%4",
-		SessionID: "sess", Status: domain.SubagentRunning,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "s1", Mode: scheddomain.SubagentModeInteractive, PaneID: "%4",
+		SessionID: "sess", Status: scheddomain.SubagentRunning,
 	})
 	tool := NewReadSubagentScreenTool(config.DefaultConfig(), tracker)
 	tool.capture = func(_ context.Context, paneID string, _ int) string {
@@ -46,8 +47,8 @@ func TestReadSubagentScreenTool_CapturesRunningInteractivePane(t *testing.T) {
 
 func TestReadSubagentScreenTool_HeadlessErrors(t *testing.T) {
 	tracker := utils.NewSubagentTracker()
-	_ = tracker.AddSubagent(&domain.SubagentState{
-		ID: "h1", Mode: domain.SubagentModeHeadless, Status: domain.SubagentRunning,
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{
+		ID: "h1", Mode: scheddomain.SubagentModeHeadless, Status: scheddomain.SubagentRunning,
 	})
 	tool := NewReadSubagentScreenTool(config.DefaultConfig(), tracker)
 

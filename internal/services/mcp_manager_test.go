@@ -6,8 +6,11 @@ import (
 	"testing"
 	"time"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func TestNewMCPManager(t *testing.T) {
@@ -27,7 +30,7 @@ func TestNewMCPManager(t *testing.T) {
 		},
 	}
 
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	if manager == nil {
@@ -50,7 +53,7 @@ func TestMCPManager_Close(t *testing.T) {
 		Servers: []config.MCPServerEntry{},
 	}
 
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	err := manager.Close()
@@ -65,7 +68,7 @@ func TestMCPManager_GetClients_NoServers(t *testing.T) {
 		Servers: []config.MCPServerEntry{},
 	}
 
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	clients := manager.GetClients()
@@ -94,7 +97,7 @@ func TestMCPManager_GetClients_DisabledServer(t *testing.T) {
 		},
 	}
 
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	clients := manager.GetClients()
@@ -135,7 +138,7 @@ func TestMCPManager_GetClients_MultipleServers(t *testing.T) {
 		},
 	}
 
-	sessionID := domain.GenerateSessionID()
+	sessionID := convdomain.GenerateSessionID()
 	manager := NewMCPManager(sessionID, cfg, nil, nil)
 
 	clients := manager.GetClients()
@@ -145,7 +148,7 @@ func TestMCPManager_GetClients_MultipleServers(t *testing.T) {
 	}
 }
 
-// recordingNotifier is a thread-safe domain.UINotifier that collects every
+// recordingNotifier is a thread-safe agentdomain.UINotifier that collects every
 // pushed event so tests can assert what a producer emitted.
 type recordingNotifier struct {
 	mu     sync.Mutex
@@ -210,14 +213,14 @@ func connectAll(m *MCPManager) {
 // probe path funnels through.
 func TestMCPManager_PushesStatusThroughNotifier(t *testing.T) {
 	rec := &recordingNotifier{}
-	manager := NewMCPManager(domain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	manager := NewMCPManager(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
 
 	manager.sendStatusUpdateWithTools("test-server", true, nil)
 
 	if got := rec.count(); got != 1 {
 		t.Fatalf("expected 1 push, got %d", got)
 	}
-	ev, ok := rec.events[0].(domain.MCPServerStatusUpdateEvent)
+	ev, ok := rec.events[0].(ui.MCPServerStatusUpdateEvent)
 	if !ok {
 		t.Fatalf("expected MCPServerStatusUpdateEvent, got %T", rec.events[0])
 	}
@@ -231,7 +234,7 @@ func TestMCPManager_PushesStatusThroughNotifier(t *testing.T) {
 // so the count stays at one connected client rather than doubling.
 func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
 	rec := &recordingNotifier{}
-	manager := NewMCPManager(domain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	manager := NewMCPManager(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
 	connectAll(manager)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -254,7 +257,7 @@ func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
 // once through the notifier and starts no probe goroutines.
 func TestMCPManager_StartMonitoring_DisabledProbes(t *testing.T) {
 	rec := &recordingNotifier{}
-	manager := NewMCPManager(domain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	manager := NewMCPManager(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
 	connectAll(manager)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -389,5 +392,5 @@ func TestMCPServerEntry_GetTimeout(t *testing.T) {
 	}
 }
 
-// Ensure MCPManager implements domain.MCPManager interface
-var _ domain.MCPManager = (*MCPManager)(nil)
+// Ensure MCPManager implements agentdomain.MCPManager interface
+var _ agentdomain.MCPManager = (*MCPManager)(nil)

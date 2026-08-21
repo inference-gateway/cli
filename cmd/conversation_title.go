@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/internal/container"
-	"github.com/inference-gateway/cli/internal/logger"
+	"github.com/inference-gateway/cli/internal/platform/logger"
 	"github.com/spf13/cobra"
 )
 

@@ -128,11 +128,6 @@ func CreateColoredText(text string, color Color) string {
 	return color.ANSI + text + Reset
 }
 
-// CreateColoredTextSimple creates colored text with automatic reset using string color
-func CreateColoredTextSimple(text, color string) string {
-	return color + text + Reset
-}
-
 // CreateStyledText creates text with color and reset, commonly used pattern
 func CreateStyledText(text, colorCode string) string {
 	return colorCode + text + Reset

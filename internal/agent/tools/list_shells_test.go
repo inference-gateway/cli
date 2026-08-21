@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // freshListShellsData mirrors the Data map produced by ListShellsTool.Execute for a
@@ -21,7 +23,7 @@ func freshListShellsData() map[string]any {
 			{
 				"shell_id":    "shell-1",
 				"command":     "sleep 100",
-				"state":       domain.ShellStateRunning.String(),
+				"state":       scheddomain.ShellStateRunning.String(),
 				"started_at":  "12:00:00",
 				"elapsed":     "5s",
 				"output_size": int64(1234),
@@ -30,7 +32,7 @@ func freshListShellsData() map[string]any {
 			{
 				"shell_id":    "shell-2",
 				"command":     "echo done",
-				"state":       domain.ShellStateCompleted.String(),
+				"state":       scheddomain.ShellStateCompleted.String(),
 				"started_at":  "12:01:00",
 				"elapsed":     "1s",
 				"output_size": int64(56),
@@ -40,13 +42,13 @@ func freshListShellsData() map[string]any {
 	}
 }
 
-func jsonRoundTrip(t *testing.T, in *domain.ToolExecutionResult) *domain.ToolExecutionResult {
+func jsonRoundTrip(t *testing.T, in *agentdomain.ToolExecutionResult) *agentdomain.ToolExecutionResult {
 	t.Helper()
 	raw, err := json.Marshal(in)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	var out domain.ToolExecutionResult
+	var out agentdomain.ToolExecutionResult
 	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
@@ -58,9 +60,9 @@ func jsonRoundTrip(t *testing.T, in *domain.ToolExecutionResult) *domain.ToolExe
 // saved conversation containing a ListShells result was reloaded. Formatting must work
 // on both the fresh result and the JSON-reloaded one.
 func TestListShellsTool_FormatAfterJSONRoundTrip(t *testing.T) {
-	fresh := &domain.ToolExecutionResult{ToolName: "ListShells", Success: true, Data: freshListShellsData()}
+	fresh := &agentdomain.ToolExecutionResult{ToolName: "ListShells", Success: true, Data: freshListShellsData()}
 
-	cases := map[string]*domain.ToolExecutionResult{
+	cases := map[string]*agentdomain.ToolExecutionResult{
 		"fresh":    fresh,
 		"reloaded": jsonRoundTrip(t, fresh),
 	}
@@ -73,14 +75,14 @@ func TestListShellsTool_FormatAfterJSONRoundTrip(t *testing.T) {
 				t.Errorf("FormatPreview = %q, want %q", got, "Found 2 background shell(s)")
 			}
 
-			ui := tool.FormatResult(result, domain.FormatterUI)
+			ui := tool.FormatResult(result, agentdomain.FormatterUI)
 			for _, want := range []string{"Background Shells (2):", "1234 bytes", "56 bytes"} {
 				if !strings.Contains(ui, want) {
 					t.Errorf("FormatterUI output missing %q:\n%s", want, ui)
 				}
 			}
 
-			llm := tool.FormatResult(result, domain.FormatterLLM)
+			llm := tool.FormatResult(result, agentdomain.FormatterLLM)
 			for _, want := range []string{"Found 2 background shell(s):", "Output Size: 1234 bytes", "Exit Code: 0"} {
 				if !strings.Contains(llm, want) {
 					t.Errorf("FormatterLLM output missing %q:\n%s", want, llm)
@@ -95,7 +97,7 @@ func TestListShellsTool_FormatAfterJSONRoundTrip(t *testing.T) {
 }
 
 func TestListShellsTool_FormatEmptyAfterJSONRoundTrip(t *testing.T) {
-	fresh := &domain.ToolExecutionResult{
+	fresh := &agentdomain.ToolExecutionResult{
 		ToolName: "ListShells",
 		Success:  true,
 		Data: map[string]any{
@@ -105,15 +107,15 @@ func TestListShellsTool_FormatEmptyAfterJSONRoundTrip(t *testing.T) {
 	}
 	tool := &ListShellsTool{}
 
-	for name, result := range map[string]*domain.ToolExecutionResult{"fresh": fresh, "reloaded": jsonRoundTrip(t, fresh)} {
+	for name, result := range map[string]*agentdomain.ToolExecutionResult{"fresh": fresh, "reloaded": jsonRoundTrip(t, fresh)} {
 		t.Run(name, func(t *testing.T) {
 			if got := tool.FormatPreview(result); got != "No background shells running" {
 				t.Errorf("FormatPreview = %q, want %q", got, "No background shells running")
 			}
-			if got := tool.FormatResult(result, domain.FormatterUI); got != "No background shells running" {
+			if got := tool.FormatResult(result, agentdomain.FormatterUI); got != "No background shells running" {
 				t.Errorf("FormatterUI = %q, want %q", got, "No background shells running")
 			}
-			if got := tool.FormatResult(result, domain.FormatterLLM); got != "No background shells are currently running or tracked." {
+			if got := tool.FormatResult(result, agentdomain.FormatterLLM); got != "No background shells are currently running or tracked." {
 				t.Errorf("FormatterLLM = %q", got)
 			}
 		})

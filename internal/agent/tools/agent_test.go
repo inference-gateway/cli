@@ -6,10 +6,12 @@ import (
 	"sync"
 	"testing"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	agentrunner "github.com/inference-gateway/cli/internal/agent/application/agentrunner"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 func newTestAgentTool(t *testing.T) *AgentTool {
@@ -160,10 +162,10 @@ func TestParseAgentTasks(t *testing.T) {
 func TestBuildChatPaneCommand_EmitsSubagentMode(t *testing.T) {
 	tool := newTestAgentTool(t)
 
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{Mode: domain.AgentModeReadOnly}, "sess"); !strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE='readonly'") {
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{Mode: agentdomain.AgentModeReadOnly}, "sess"); !strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE='readonly'") {
 		t.Fatalf("ReadOnly subagent must emit readonly mode; cmd = %q", got)
 	}
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{Mode: domain.AgentModeStandard}, "sess"); strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE") {
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{Mode: agentdomain.AgentModeStandard}, "sess"); strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE") {
 		t.Fatalf("ReadWrite (Standard) subagent must NOT emit the mode var; cmd = %q", got)
 	}
 }
@@ -190,7 +192,7 @@ func TestBuildChatPaneCommand_SlugifiesHistoryName(t *testing.T) {
 	if got := tool.buildChatPaneCommand(AgentTaskSpec{Label: "a/../../../tmp/pwned"}, "sess"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='a-tmp-pwned'") {
 		t.Fatalf("path separators/traversal must be sanitized out; cmd = %q", got)
 	}
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{}, "subagent-parent-uuid"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='"+domain.SubagentHistoryMemoryOnly+"'") {
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{}, "subagent-parent-uuid"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='"+scheddomain.SubagentHistoryMemoryOnly+"'") {
 		t.Fatalf("unlabeled subagent must use the memory-only sentinel, not the session id; cmd = %q", got)
 	}
 }
@@ -198,10 +200,10 @@ func TestBuildChatPaneCommand_SlugifiesHistoryName(t *testing.T) {
 func TestSubagentExtraEnv_EmitsSubagentMode(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	tool := newTestAgentTool(t)
-	if env := strings.Join(tool.subagentExtraEnv(context.Background(), AgentTaskSpec{Mode: domain.AgentModeReadOnly}), " "); !strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE=readonly") {
+	if env := strings.Join(tool.subagentExtraEnv(context.Background(), AgentTaskSpec{Mode: agentdomain.AgentModeReadOnly}), " "); !strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE=readonly") {
 		t.Fatalf("ReadOnly subagent must add the readonly mode var to headless env; got %q", env)
 	}
-	if env := strings.Join(tool.subagentExtraEnv(context.Background(), AgentTaskSpec{Mode: domain.AgentModeStandard}), " "); strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE") {
+	if env := strings.Join(tool.subagentExtraEnv(context.Background(), AgentTaskSpec{Mode: agentdomain.AgentModeStandard}), " "); strings.Contains(env, "INFER_SUBAGENT_AGENT_MODE") {
 		t.Fatalf("ReadWrite (Standard) subagent must NOT add the mode var; got %q", env)
 	}
 }
@@ -241,13 +243,13 @@ func TestSubagentMockModePropagation(t *testing.T) {
 // resolveSubagentType maps the `type` argument to a capability mode, defaulting
 // to ReadOnly; the parent's own mode no longer leaks into the subagent.
 func TestResolveSubagentType(t *testing.T) {
-	cases := map[string]domain.AgentMode{
-		"":          domain.AgentModeReadOnly,
-		"ReadOnly":  domain.AgentModeReadOnly,
-		"readonly":  domain.AgentModeReadOnly,
-		"ReadWrite": domain.AgentModeStandard,
-		"readwrite": domain.AgentModeStandard,
-		"bogus":     domain.AgentModeReadOnly,
+	cases := map[string]agentdomain.AgentMode{
+		"":          agentdomain.AgentModeReadOnly,
+		"ReadOnly":  agentdomain.AgentModeReadOnly,
+		"readonly":  agentdomain.AgentModeReadOnly,
+		"ReadWrite": agentdomain.AgentModeStandard,
+		"readwrite": agentdomain.AgentModeStandard,
+		"bogus":     agentdomain.AgentModeReadOnly,
 	}
 	for in, want := range cases {
 		if got := resolveSubagentType(in); got != want {
@@ -272,7 +274,7 @@ func TestAgentTool_InteractiveDefaultsToReadOnly(t *testing.T) {
 		return "", nil
 	}
 
-	ctx := domain.WithAgentMode(context.Background(), domain.AgentModeAutoAccept)
+	ctx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeAutoAccept)
 	if _, err := tool.Execute(ctx, map[string]any{"description": "do x"}); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}

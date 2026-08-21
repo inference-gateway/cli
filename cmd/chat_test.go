@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 func TestChatExitMessage(t *testing.T) {
@@ -54,7 +54,7 @@ func TestChatCommandSessionIDFlag(t *testing.T) {
 
 func TestResumeChatSession(t *testing.T) {
 	t.Run("loads the requested conversation", func(t *testing.T) {
-		fakeRepo := &mocks.FakeConversationRepository{}
+		fakeRepo := &convmocks.FakeConversationRepository{}
 		fakeRepo.LoadConversationReturns(nil)
 
 		resumeChatSession(fakeRepo, nil, "abc-123-def")
@@ -69,7 +69,7 @@ func TestResumeChatSession(t *testing.T) {
 	})
 
 	t.Run("continues without panicking when loading fails", func(t *testing.T) {
-		fakeRepo := &mocks.FakeConversationRepository{}
+		fakeRepo := &convmocks.FakeConversationRepository{}
 		fakeRepo.LoadConversationReturns(errors.New("not found"))
 
 		resumeChatSession(fakeRepo, nil, "missing-id")

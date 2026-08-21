@@ -3,14 +3,14 @@ package components
 import (
 	"strings"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // ModeIndicator displays the current agent mode (PLAN/AUTO) on its own line
 type ModeIndicator struct {
 	width         int
-	stateManager  domain.AgentModeManager
+	stateManager  agentdomain.AgentModeManager
 	styleProvider *styles.Provider
 }
 
@@ -27,7 +27,7 @@ func (mi *ModeIndicator) SetWidth(width int) {
 }
 
 // SetStateManager sets the state manager
-func (mi *ModeIndicator) SetStateManager(stateManager domain.AgentModeManager) {
+func (mi *ModeIndicator) SetStateManager(stateManager agentdomain.AgentModeManager) {
 	mi.stateManager = stateManager
 }
 
@@ -38,17 +38,17 @@ func (mi *ModeIndicator) Render() string {
 	}
 
 	agentMode := mi.stateManager.GetAgentMode()
-	if agentMode == domain.AgentModeStandard {
+	if agentMode == agentdomain.AgentModeStandard {
 		return ""
 	}
 
 	var modeText string
 	switch agentMode {
-	case domain.AgentModePlan:
+	case agentdomain.AgentModePlan:
 		modeText = "▶ PLAN"
-	case domain.AgentModeAutoAccept:
+	case agentdomain.AgentModeAutoAccept:
 		modeText = "▸ AUTO"
-	case domain.AgentModeReadOnly:
+	case agentdomain.AgentModeReadOnly:
 		modeText = "▸ READ-ONLY"
 	}
 

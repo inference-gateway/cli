@@ -8,13 +8,12 @@ import (
 	"testing"
 	"time"
 
+	adk "github.com/inference-gateway/adk/types"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	adk "github.com/inference-gateway/adk/types"
-
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestA2ASubmitTaskTool_Definition(t *testing.T) {
@@ -187,7 +186,7 @@ func TestA2ASubmitTaskTool_FormatResult(t *testing.T) {
 		Message:   "Task submitted successfully",
 	}
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName: "A2A_SubmitTask",
 		Success:  true,
 		Data:     taskResult,
@@ -195,22 +194,22 @@ func TestA2ASubmitTaskTool_FormatResult(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		formatType domain.FormatterType
+		formatType agentdomain.FormatterType
 		contains   []string
 	}{
 		{
 			name:       "LLM format",
-			formatType: domain.FormatterLLM,
+			formatType: agentdomain.FormatterLLM,
 			contains:   []string{"Task()", "✓ Success", "Result:", "Task ID:", "task-123"},
 		},
 		{
 			name:       "UI format",
-			formatType: domain.FormatterUI,
+			formatType: agentdomain.FormatterUI,
 			contains:   []string{"Task()", "✓", "Task submitted successfully"},
 		},
 		{
 			name:       "Short format",
-			formatType: domain.FormatterShort,
+			formatType: agentdomain.FormatterShort,
 			contains:   []string{"Task submitted successfully"},
 		},
 	}
@@ -247,7 +246,7 @@ func TestA2ASubmitTaskTool_FormatResult_IncludesUsageMetadata(t *testing.T) {
 		Metadata: &metadata,
 		Status:   adk.TaskStatus{State: adk.TaskStateCompleted},
 	}
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName: "A2A_SubmitTask",
 		Success:  true,
 		Data: A2ASubmitTaskResult{
@@ -259,7 +258,7 @@ func TestA2ASubmitTaskTool_FormatResult_IncludesUsageMetadata(t *testing.T) {
 		},
 	}
 
-	out := tool.FormatResult(result, domain.FormatterLLM)
+	out := tool.FormatResult(result, agentdomain.FormatterLLM)
 	assert.Contains(t, out, "Usage:")
 	assert.Contains(t, out, "prompt_tokens=21695")
 	assert.Contains(t, out, "completion_tokens=607")
@@ -273,7 +272,7 @@ func TestA2ASubmitTaskTool_FormatResult_NoMetadataOmitsLines(t *testing.T) {
 	cfg := &config.Config{}
 	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName: "A2A_SubmitTask",
 		Success:  true,
 		Data: A2ASubmitTaskResult{
@@ -285,7 +284,7 @@ func TestA2ASubmitTaskTool_FormatResult_NoMetadataOmitsLines(t *testing.T) {
 		},
 	}
 
-	out := tool.FormatResult(result, domain.FormatterLLM)
+	out := tool.FormatResult(result, agentdomain.FormatterLLM)
 	assert.NotContains(t, out, "Usage:")
 	assert.NotContains(t, out, "Execution Stats:")
 }
@@ -370,14 +369,14 @@ func TestA2ASubmitTaskTool_FormatResult_FailedSurfacesError(t *testing.T) {
 				TaskResult: errorText,
 				Task:       &taskCopy,
 			}
-			result := &domain.ToolExecutionResult{
+			result := &agentdomain.ToolExecutionResult{
 				ToolName: "A2A_SubmitTask",
 				Success:  false,
 				Error:    errorText,
 				Data:     data,
 			}
 
-			formatted := tool.FormatResult(result, domain.FormatterLLM)
+			formatted := tool.FormatResult(result, agentdomain.FormatterLLM)
 			assert.Contains(t, formatted, "Failure reason:", "Failed task formatter must label the error")
 			assert.Contains(t, formatted, errorText, "Failed task formatter must include the underlying error text")
 		})
@@ -409,13 +408,13 @@ func TestA2ASubmitTaskTool_FormatResult_FailedExtractsFromHistory(t *testing.T) 
 		Message:   "Task TASK_STATE_FAILED",
 		Task:      &taskCopy,
 	}
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName: "A2A_SubmitTask",
 		Success:  false,
 		Data:     data,
 	}
 
-	formatted := tool.FormatResult(result, domain.FormatterLLM)
+	formatted := tool.FormatResult(result, agentdomain.FormatterLLM)
 	assert.Contains(t, formatted, "Failure reason:")
 	assert.Contains(t, formatted, errorText)
 }
@@ -432,7 +431,7 @@ func TestA2ASubmitTaskTool_FormatPreview(t *testing.T) {
 		Message: "Task submitted successfully",
 	}
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName: "A2A_SubmitTask",
 		Success:  true,
 		Data:     taskResult,
@@ -503,7 +502,7 @@ func TestA2ASubmitTaskTool_FormatResult_ArtifactSavedTo(t *testing.T) {
 	tool := NewA2ASubmitTaskTool(cfg, nil, nil)
 	name := "shot.png"
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName: "A2A_SubmitTask",
 		Success:  true,
 		Data: A2ASubmitTaskResult{
@@ -524,7 +523,7 @@ func TestA2ASubmitTaskTool_FormatResult_ArtifactSavedTo(t *testing.T) {
 		},
 	}
 
-	formatted := tool.FormatResult(result, domain.FormatterLLM)
+	formatted := tool.FormatResult(result, agentdomain.FormatterLLM)
 	assert.Contains(t, formatted, "Download URL: http://localhost:8084/artifacts/shot.png")
 	assert.Contains(t, formatted, "Saved to: /home/user/.infer/tmp/shot.png")
 	assert.Contains(t, formatted, "already downloaded locally")
@@ -550,7 +549,7 @@ func TestA2ASubmitTaskTool_DownloadArtifacts(t *testing.T) {
 		},
 	}
 
-	tool.downloadArtifacts(domain.WithSessionID(context.Background(), "sess-1"), task)
+	tool.downloadArtifacts(agentdomain.WithSessionID(context.Background(), "sess-1"), task)
 
 	savedPath := artifactLocalPath(task.Artifacts[0])
 	require.NotEmpty(t, savedPath)
@@ -578,7 +577,7 @@ func TestA2ASubmitTaskTool_HandleTaskState_NoDownloadByDefault(t *testing.T) {
 			{ArtifactID: "a1", Metadata: &adk.Struct{"url": server.URL + "/artifacts/shot.png"}},
 		},
 	}
-	state := &domain.TaskPollingState{TaskID: "task-1", StartedAt: time.Now()}
+	state := &agentdomain.TaskPollingState{TaskID: "task-1", StartedAt: time.Now()}
 
 	done, result := tool.handleTaskState(context.Background(), server.URL, "task-1", 1, state, task, "")
 	require.True(t, done)

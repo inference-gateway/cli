@@ -4,32 +4,45 @@ import (
 	"fmt"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
+	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	models "github.com/inference-gateway/cli/internal/models"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // InputStatusBar displays input status information like model, theme, agents
+// AgentReadinessManager handles A2A agent readiness tracking
+type AgentReadinessManager interface {
+	InitializeAgentReadiness(totalAgents int)
+	UpdateAgentStatus(name string, state agentdomain.AgentState, message string, url string, image string)
+	SetAgentError(name string, err error)
+	GetAgentReadiness() *ui.AgentReadinessState
+	AreAllAgentsReady() bool
+	ClearAgentReadiness()
+	RemoveAgent(name string)
+}
+
 type InputStatusBar struct {
 	width                  int
-	modelService           domain.ModelService
+	modelService           convdomain.ModelService
 	effortSource           effortSource
-	themeService           domain.ThemeService
+	themeService           ui.ThemeService
 	stateManager           statusBarState
 	config                 *config.Config
-	conversationRepo       domain.ConversationRepository
-	toolService            domain.ToolService
-	tokenEstimator         domain.TokenEstimator
-	backgroundShellService domain.BackgroundShellService
-	backgroundTaskService  domain.BackgroundTaskService
-	backgroundTaskRegistry domain.BackgroundTaskRegistry
-	mcpStatus              *domain.MCPServerStatus
+	conversationRepo       convdomain.ConversationRepository
+	toolService            agentdomain.ToolService
+	tokenEstimator         convdomain.TokenEstimator
+	backgroundShellService scheddomain.BackgroundShellService
+	backgroundTaskService  scheddomain.BackgroundTaskService
+	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
+	mcpStatus              *ui.MCPServerStatus
 	styleProvider          *styles.Provider
 	currentInputText       string
 
@@ -57,7 +70,7 @@ func NewInputStatusBar(styleProvider *styles.Provider) *InputStatusBar {
 }
 
 // SetModelService sets the model service
-func (isb *InputStatusBar) SetModelService(modelService domain.ModelService) {
+func (isb *InputStatusBar) SetModelService(modelService convdomain.ModelService) {
 	isb.modelService = modelService
 }
 
@@ -73,14 +86,14 @@ func (isb *InputStatusBar) SetEffortSource(src effortSource) {
 }
 
 // SetThemeService sets the theme service
-func (isb *InputStatusBar) SetThemeService(themeService domain.ThemeService) {
+func (isb *InputStatusBar) SetThemeService(themeService ui.ThemeService) {
 	isb.themeService = themeService
 }
 
 // statusBarState is the narrow slice of StateManager the input status bar reads.
 type statusBarState interface {
-	domain.AgentModeManager
-	domain.AgentReadinessManager
+	agentdomain.AgentModeManager
+	AgentReadinessManager
 }
 
 // SetStateManager sets the state manager
@@ -94,38 +107,38 @@ func (isb *InputStatusBar) SetConfig(cfg *config.Config) {
 }
 
 // SetConversationRepo sets the conversation repository
-func (isb *InputStatusBar) SetConversationRepo(repo domain.ConversationRepository) {
+func (isb *InputStatusBar) SetConversationRepo(repo convdomain.ConversationRepository) {
 	isb.conversationRepo = repo
 }
 
 // SetToolService sets the tool service
-func (isb *InputStatusBar) SetToolService(toolService domain.ToolService) {
+func (isb *InputStatusBar) SetToolService(toolService agentdomain.ToolService) {
 	isb.toolService = toolService
 }
 
 // SetTokenEstimator sets the token estimator
-func (isb *InputStatusBar) SetTokenEstimator(estimator domain.TokenEstimator) {
+func (isb *InputStatusBar) SetTokenEstimator(estimator convdomain.TokenEstimator) {
 	isb.tokenEstimator = estimator
 }
 
 // SetBackgroundShellService sets the background shell service
-func (isb *InputStatusBar) SetBackgroundShellService(service domain.BackgroundShellService) {
+func (isb *InputStatusBar) SetBackgroundShellService(service scheddomain.BackgroundShellService) {
 	isb.backgroundShellService = service
 }
 
 // SetBackgroundTaskService sets the background task service
-func (isb *InputStatusBar) SetBackgroundTaskService(service domain.BackgroundTaskService) {
+func (isb *InputStatusBar) SetBackgroundTaskService(service scheddomain.BackgroundTaskService) {
 	isb.backgroundTaskService = service
 }
 
 // SetBackgroundTaskRegistry sets the unified background task registry, the single
 // source for the live A2A/shell/subagent counts shown in the status line.
-func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry domain.BackgroundTaskRegistry) {
+func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry scheddomain.BackgroundTaskRegistry) {
 	isb.backgroundTaskRegistry = registry
 }
 
 // UpdateMCPStatus updates the MCP server status (called by event handler)
-func (isb *InputStatusBar) UpdateMCPStatus(status *domain.MCPServerStatus) {
+func (isb *InputStatusBar) UpdateMCPStatus(status *ui.MCPServerStatus) {
 	isb.mcpStatus = status
 }
 
@@ -668,7 +681,7 @@ func (isb *InputStatusBar) a2aIndicatorColor() string {
 		return isb.styleProvider.GetThemeColor("success")
 	}
 	for _, agent := range readiness.Agents {
-		if agent.State == domain.AgentStateFailed {
+		if agent.State == agentdomain.AgentStateFailed {
 			return isb.styleProvider.GetThemeColor("error")
 		}
 	}
@@ -811,7 +824,7 @@ func (isb *InputStatusBar) getToolInfo() string {
 		return ""
 	}
 
-	agentMode := domain.AgentModeStandard
+	agentMode := agentdomain.AgentModeStandard
 	if isb.stateManager != nil {
 		agentMode = isb.stateManager.GetAgentMode()
 	}
@@ -830,9 +843,9 @@ func (isb *InputStatusBar) getBackgroundJobsInfo() string {
 		return ""
 	}
 
-	a2a := isb.backgroundTaskRegistry.CountRunningJobs(domain.JobKindA2A)
-	shells := isb.backgroundTaskRegistry.CountRunningJobs(domain.JobKindShell)
-	subagents := isb.backgroundTaskRegistry.CountRunningJobs(domain.JobKindSubagent)
+	a2a := isb.backgroundTaskRegistry.CountRunningJobs(scheddomain.JobKindA2A)
+	shells := isb.backgroundTaskRegistry.CountRunningJobs(scheddomain.JobKindShell)
+	subagents := isb.backgroundTaskRegistry.CountRunningJobs(scheddomain.JobKindSubagent)
 
 	var segments []string
 	if a2a > 0 {

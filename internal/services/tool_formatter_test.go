@@ -2,19 +2,18 @@ package services
 
 import (
 	"context"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
 	lipgloss "charm.land/lipgloss/v2"
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 var ansiRE = regexp.MustCompile("\x1b\\[[0-9;]*m")
@@ -44,7 +43,7 @@ func cardTitle(s string) string {
 	return strings.SplitN(s, "\n", 2)[0]
 }
 
-// fakeTool is a configurable domain.Tool (and ResultBodyProvider) for formatter tests.
+// fakeTool is a configurable agentdomain.Tool (and ResultBodyProvider) for formatter tests.
 type fakeTool struct {
 	name         string
 	preview      string
@@ -55,34 +54,34 @@ type fakeTool struct {
 }
 
 func (t *fakeTool) Definition() sdk.ChatCompletionTool { return sdk.ChatCompletionTool{} }
-func (t *fakeTool) Execute(context.Context, map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *fakeTool) Execute(context.Context, map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	return nil, nil
 }
 func (t *fakeTool) Validate(map[string]any) error { return nil }
 func (t *fakeTool) IsEnabled() bool               { return true }
-func (t *fakeTool) FormatResult(_ *domain.ToolExecutionResult, ft domain.FormatterType) string {
-	if ft == domain.FormatterLLM {
+func (t *fakeTool) FormatResult(_ *agentdomain.ToolExecutionResult, ft agentdomain.FormatterType) string {
+	if ft == agentdomain.FormatterLLM {
 		return t.llm
 	}
 	return t.preview
 }
-func (t *fakeTool) FormatPreview(*domain.ToolExecutionResult) string { return t.preview }
-func (t *fakeTool) ShouldCollapseArg(string) bool                    { return false }
-func (t *fakeTool) ShouldAlwaysExpand() bool                         { return t.alwaysExpand }
+func (t *fakeTool) FormatPreview(*agentdomain.ToolExecutionResult) string { return t.preview }
+func (t *fakeTool) ShouldCollapseArg(string) bool                         { return false }
+func (t *fakeTool) ShouldAlwaysExpand() bool                              { return t.alwaysExpand }
 
 // FormatResultBody satisfies ResultBodyProvider; returns "" when hasBody is false so
 // resultBody falls back to FormatPreview (simulating summary-only tools).
-func (t *fakeTool) FormatResultBody(*domain.ToolExecutionResult) string {
+func (t *fakeTool) FormatResultBody(*agentdomain.ToolExecutionResult) string {
 	if !t.hasBody {
 		return ""
 	}
 	return t.body
 }
 
-type fakeRegistry struct{ tool domain.Tool }
+type fakeRegistry struct{ tool agentdomain.Tool }
 
-func (r *fakeRegistry) GetTool(string) (domain.Tool, error) { return r.tool, nil }
-func (r *fakeRegistry) ListAvailableTools() []string        { return nil }
+func (r *fakeRegistry) GetTool(string) (agentdomain.Tool, error) { return r.tool, nil }
+func (r *fakeRegistry) ListAvailableTools() []string             { return nil }
 
 type fakeHint struct{}
 
@@ -95,19 +94,19 @@ func newTestStyleProvider() *styles.Provider {
 	theme.GetSuccessColorReturns("#9ece6a")
 	theme.GetErrorColorReturns("#f7768e")
 	theme.GetAssistantColorReturns("#a9b1d6")
-	ts := &domainmocks.FakeThemeService{}
+	ts := &uimocks.FakeThemeService{}
 	ts.GetCurrentThemeReturns(theme)
 	return styles.NewProvider(ts)
 }
 
-func newTestService(tool domain.Tool) *ToolFormatterService {
+func newTestService(tool agentdomain.Tool) *ToolFormatterService {
 	svc := NewToolFormatterService(&fakeRegistry{tool: tool}, newTestStyleProvider())
 	svc.SetHintFormatter(fakeHint{})
 	return svc
 }
 
-func bashResult(success bool, args map[string]any) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func bashResult(success bool, args map[string]any) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Bash",
 		Success:   success,
 		Duration:  19 * time.Millisecond,
@@ -171,7 +170,7 @@ func TestFormatToolResultForUI_SummaryFallsBackToPreview(t *testing.T) {
 	tool := &fakeTool{name: "Write", preview: "Created main.go (123 bytes)"}
 	svc := newTestService(tool)
 
-	res := &domain.ToolExecutionResult{ToolName: "Write", Success: true, Duration: 5 * time.Millisecond}
+	res := &agentdomain.ToolExecutionResult{ToolName: "Write", Success: true, Duration: 5 * time.Millisecond}
 	lines := strings.Split(stripCard(stripANSI(svc.FormatToolResultForUI(res, 80))), "\n")
 
 	if len(lines) != 4 {
@@ -200,7 +199,7 @@ func TestFormatToolResultForUI_RejectedShowsStatusAndHintOnly(t *testing.T) {
 	tool := &fakeTool{name: "Bash", preview: "Execution failed"}
 	svc := newTestService(tool)
 
-	res := &domain.ToolExecutionResult{
+	res := &agentdomain.ToolExecutionResult{
 		ToolName:  "Bash",
 		Success:   false,
 		Rejected:  true,
@@ -260,7 +259,7 @@ func TestFormatToolResultExpanded_BareErrorGetsHeader(t *testing.T) {
 	tool := &fakeTool{name: "ImageEdit", llm: "Image edit failed: API error (status code: 404)"}
 	svc := newTestService(tool)
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "ImageEdit",
 		Success:   false,
 		Duration:  45 * time.Millisecond,
@@ -281,7 +280,7 @@ func TestFormatToolResultExpanded_AlwaysExpandOmitsHint(t *testing.T) {
 	tool := &fakeTool{name: "Edit", llm: "Edit(file_path=x)\n└─ Result:\n   diff", alwaysExpand: true}
 	svc := newTestService(tool)
 
-	out := stripANSI(svc.FormatToolResultExpanded(&domain.ToolExecutionResult{ToolName: "Edit", Success: true}, 80))
+	out := stripANSI(svc.FormatToolResultExpanded(&agentdomain.ToolExecutionResult{ToolName: "Edit", Success: true}, 80))
 	if strings.Contains(out, "ctrl+o") {
 		t.Errorf("always-expand tool should not show a collapse hint: %q", out)
 	}
@@ -472,4 +471,66 @@ func TestCapToolResult(t *testing.T) {
 	if !strings.Contains(got, "truncated") {
 		t.Error("truncation marker should be present")
 	}
+}
+
+func TestFormatToolResultExpanded_EditRendersDiff(t *testing.T) {
+	tool := &fakeTool{name: "Edit", llm: "plain llm text"}
+	svc := newTestService(tool)
+
+	res := &agentdomain.ToolExecutionResult{
+		ToolName: "Edit",
+		Success:  true,
+		Duration: 5 * time.Millisecond,
+		Arguments: map[string]any{
+			"file_path":  "/path/to/file.go",
+			"old_string": "alpha\nbeta\ngamma",
+			"new_string": "alpha\nBETA\ngamma",
+		},
+		Data: &agentdomain.EditToolResult{FilePath: "/path/to/file.go", FileModified: true, StartLine: 50},
+	}
+	out := stripANSI(svc.FormatToolResultExpanded(res, 120))
+
+	for _, want := range []string{"← Edits applied →", "/path/to/file.go", "51"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expanded Edit view missing %q, got:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "plain llm text") {
+		t.Errorf("expanded Edit view should render the diff, not the LLM text:\n%s", out)
+	}
+}
+
+func TestSimulateMultiEditDiff(t *testing.T) {
+	dir := t.TempDir()
+	file := dir + "/test.txt"
+	if err := os.WriteFile(file, []byte("hello world"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("valid edits simulation", func(t *testing.T) {
+		info := simulateMultiEditDiff(map[string]any{
+			"file_path": file,
+			"edits":     []any{map[string]any{"old_string": "hello", "new_string": "hi"}},
+		})
+		if info.OldContent != "hello world" || info.NewContent != "hi world" {
+			t.Errorf("simulation = %q -> %q, want 'hello world' -> 'hi world'", info.OldContent, info.NewContent)
+		}
+	})
+
+	t.Run("invalid edits format", func(t *testing.T) {
+		info := simulateMultiEditDiff(map[string]any{"file_path": file, "edits": "not an array"})
+		if !strings.Contains(info.NewContent, "Invalid") {
+			t.Errorf("want invalid-format message, got %q", info.NewContent)
+		}
+	})
+
+	t.Run("old_string not found", func(t *testing.T) {
+		info := simulateMultiEditDiff(map[string]any{
+			"file_path": file,
+			"edits":     []any{map[string]any{"old_string": "nonexistent", "new_string": "new"}},
+		})
+		if !strings.Contains(info.NewContent, "not found") {
+			t.Errorf("want not-found failure message, got %q", info.NewContent)
+		}
+	})
 }

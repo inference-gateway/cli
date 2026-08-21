@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestWriteTool_Definition(t *testing.T) {
@@ -220,7 +220,7 @@ func testWriteNewFile(t *testing.T, tempDir string, tool *WriteTool, ctx context
 		t.Errorf("Expected no error, got: %s", result.Error)
 	}
 
-	data, ok := result.Data.(*domain.FileWriteToolResult)
+	data, ok := result.Data.(*agentdomain.FileWriteToolResult)
 	if !ok {
 		t.Fatalf("Expected FileWriteToolResult, got %T", result.Data)
 	}
@@ -306,7 +306,7 @@ func testWriteOverwriteExisting(t *testing.T, tempDir string, tool *WriteTool, c
 		t.Errorf("Expected success=true, got %v", result.Success)
 	}
 
-	data, ok := result.Data.(*domain.FileWriteToolResult)
+	data, ok := result.Data.(*agentdomain.FileWriteToolResult)
 	if !ok {
 		t.Fatalf("Expected FileWriteToolResult, got %T", result.Data)
 	}
@@ -468,7 +468,7 @@ func TestWriteTool_PathSecurity(t *testing.T) {
 	}
 }
 
-func validatePathResult(t *testing.T, result *domain.ToolExecutionResult, allowed bool, errorMsg string) {
+func validatePathResult(t *testing.T, result *agentdomain.ToolExecutionResult, allowed bool, errorMsg string) {
 	if allowed {
 		if !result.Success {
 			t.Errorf("Path should be allowed but got error: %s", result.Error)

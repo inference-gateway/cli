@@ -7,12 +7,14 @@ import (
 	"slices"
 	"strings"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	key "charm.land/bubbles/v2/key"
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -81,13 +83,13 @@ type A2AAgentsViewImpl struct {
 	width         int
 	height        int
 	cancelled     bool
-	stateManager  domain.AgentReadinessManager
+	stateManager  AgentReadinessManager
 	styleProvider *styles.Provider
 }
 
 // NewA2AAgentsView creates the A2A agents list view. Items are populated by
 // Reset on every entry because agent readiness changes as agents start up.
-func NewA2AAgentsView(stateManager domain.AgentReadinessManager, styleProvider *styles.Provider) *A2AAgentsViewImpl {
+func NewA2AAgentsView(stateManager AgentReadinessManager, styleProvider *styles.Provider) *A2AAgentsViewImpl {
 	l := list.New(
 		nil,
 		a2aAgentDelegate{styleProvider: styleProvider},
@@ -134,7 +136,7 @@ func (m *A2AAgentsViewImpl) agentItems() ([]list.Item, int, int) {
 			name:   status.Name,
 			url:    status.URL,
 			state:  status.State.DisplayName(),
-			failed: status.State == domain.AgentStateFailed,
+			failed: status.State == agentdomain.AgentStateFailed,
 		}
 		if item.name == "" {
 			item.name = name
@@ -145,7 +147,7 @@ func (m *A2AAgentsViewImpl) agentItems() ([]list.Item, int, int) {
 			item.detail = status.Message
 		}
 		item.detail = strings.Join(strings.Fields(item.detail), " ")
-		if status.State == domain.AgentStatePullingImage && status.LayersTotal > 0 {
+		if status.State == agentdomain.AgentStatePullingImage && status.LayersTotal > 0 {
 			item.detail = fmt.Sprintf("%s (%d/%d layers)", item.detail, status.LayersDone, status.LayersTotal)
 		}
 		items = append(items, item)
@@ -166,7 +168,7 @@ func (m *A2AAgentsViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if handled, cmd := m.handleKey(msg); handled {
 			return m, cmd
 		}
-	case domain.AgentStatusUpdateEvent:
+	case ui.AgentStatusUpdateEvent:
 		return m, m.refreshItems()
 	}
 

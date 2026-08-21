@@ -5,21 +5,24 @@ import (
 	"strings"
 	"time"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	tea "charm.land/bubbletea/v2"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // MessageHistoryHandler handles message history navigation and restoration
 type MessageHistoryHandler struct {
-	conversationRepo domain.ConversationRepository
+	conversationRepo convdomain.ConversationRepository
 }
 
 // NewMessageHistoryHandler creates a new message history handler
 func NewMessageHistoryHandler(
-	conversationRepo domain.ConversationRepository,
+	conversationRepo convdomain.ConversationRepository,
 ) *MessageHistoryHandler {
 	return &MessageHistoryHandler{
 		conversationRepo: conversationRepo,
@@ -27,7 +30,7 @@ func NewMessageHistoryHandler(
 }
 
 // HandleNavigateBackInTime processes the navigate back in time event
-func (h *MessageHistoryHandler) HandleNavigateBackInTime(event domain.NavigateBackInTimeEvent) tea.Cmd {
+func (h *MessageHistoryHandler) HandleNavigateBackInTime(event agentdomain.NavigateBackInTimeEvent) tea.Cmd {
 	return func() tea.Msg {
 		entries := h.conversationRepo.GetMessages()
 		messages := h.extractMessages(entries)
@@ -37,40 +40,40 @@ func (h *MessageHistoryHandler) HandleNavigateBackInTime(event domain.NavigateBa
 			return nil
 		}
 
-		return domain.MessageHistoryReadyEvent{
+		return ui.MessageHistoryReadyEvent{
 			Messages: messages,
 		}
 	}
 }
 
 // HandleRestore processes the message history restore event
-func (h *MessageHistoryHandler) HandleRestore(event domain.MessageHistoryRestoreEvent) tea.Cmd {
+func (h *MessageHistoryHandler) HandleRestore(event agentdomain.MessageHistoryRestoreEvent) tea.Cmd {
 	return func() tea.Msg {
 		entries := h.conversationRepo.GetMessages()
 		restoreIndex := h.adjustRestoreIndex(entries, event.RestoreToIndex)
 
 		if err := h.conversationRepo.DeleteMessagesAfterIndex(restoreIndex); err != nil {
 			logger.Error("failed to restore conversation", "error", err, "index", restoreIndex)
-			return domain.ChatErrorEvent{
+			return agentdomain.ChatErrorEvent{
 				RequestID: event.RequestID,
 				Error:     err,
 				Timestamp: time.Now(),
 			}
 		}
 
-		return domain.UpdateHistoryEvent{
+		return ui.UpdateHistoryEvent{
 			History: h.conversationRepo.GetMessages(),
 		}
 	}
 }
 
 // HandleEdit processes the message history edit event
-func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent) tea.Cmd {
+func (h *MessageHistoryHandler) HandleEdit(event ui.MessageHistoryEditEvent) tea.Cmd {
 	return func() tea.Msg {
 		entries := h.conversationRepo.GetMessages()
 		if event.MessageIndex >= len(entries) {
 			logger.Error("invalid message index for edit", "index", event.MessageIndex)
-			return domain.ChatErrorEvent{
+			return agentdomain.ChatErrorEvent{
 				RequestID: event.RequestID,
 				Error:     fmt.Errorf("invalid message index: %d", event.MessageIndex),
 				Timestamp: time.Now(),
@@ -80,14 +83,14 @@ func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent)
 		msg := entries[event.MessageIndex]
 		if msg.Message.Role != sdk.User {
 			logger.Error("cannot edit non-user message", "role", msg.Message.Role)
-			return domain.ChatErrorEvent{
+			return agentdomain.ChatErrorEvent{
 				RequestID: event.RequestID,
 				Error:     fmt.Errorf("cannot edit %s message", msg.Message.Role),
 				Timestamp: time.Now(),
 			}
 		}
 
-		return domain.MessageHistoryEditReadyEvent{
+		return ui.MessageHistoryEditReadyEvent{
 			MessageIndex: event.MessageIndex,
 			Content:      event.MessageContent,
 			Snapshot:     event.MessageSnapshot,
@@ -96,9 +99,9 @@ func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent)
 }
 
 // HandleEditSubmit processes the message edit submission
-func (h *MessageHistoryHandler) HandleEditSubmit(event domain.MessageEditSubmitEvent) tea.Cmd {
+func (h *MessageHistoryHandler) HandleEditSubmit(event agentdomain.MessageEditSubmitEvent) tea.Cmd {
 	return func() tea.Msg {
-		return domain.UserInputEvent{
+		return agentdomain.UserInputEvent{
 			Content: event.EditedContent,
 			Images:  event.Images,
 		}
@@ -106,7 +109,7 @@ func (h *MessageHistoryHandler) HandleEditSubmit(event domain.MessageEditSubmitE
 }
 
 // adjustRestoreIndex adjusts the restore index based on message role and tool calls
-func (h *MessageHistoryHandler) adjustRestoreIndex(entries []domain.ConversationEntry, restoreIndex int) int {
+func (h *MessageHistoryHandler) adjustRestoreIndex(entries []convdomain.ConversationEntry, restoreIndex int) int {
 	if restoreIndex >= len(entries) {
 		return restoreIndex
 	}
@@ -137,8 +140,8 @@ func (h *MessageHistoryHandler) adjustRestoreIndex(entries []domain.Conversation
 
 // extractMessages filters conversation entries to user and assistant messages
 // and creates snapshots with truncated content for display
-func (h *MessageHistoryHandler) extractMessages(entries []domain.ConversationEntry) []domain.MessageSnapshot {
-	messages := make([]domain.MessageSnapshot, 0)
+func (h *MessageHistoryHandler) extractMessages(entries []convdomain.ConversationEntry) []ui.MessageSnapshot {
+	messages := make([]ui.MessageSnapshot, 0)
 
 	for i, entry := range entries {
 		if entry.Message.Role != sdk.User && entry.Message.Role != sdk.Assistant {
@@ -159,14 +162,11 @@ func (h *MessageHistoryHandler) extractMessages(entries []domain.ConversationEnt
 			continue
 		}
 
-		truncated := formatting.TruncateText(content, 50)
-
-		message := domain.MessageSnapshot{
-			Index:        i,
-			Role:         entry.Message.Role,
-			Content:      content,
-			Timestamp:    entry.Time,
-			TruncatedMsg: truncated,
+		message := ui.MessageSnapshot{
+			Index:     i,
+			Role:      entry.Message.Role,
+			Content:   content,
+			Timestamp: entry.Time,
 		}
 		messages = append(messages, message)
 	}

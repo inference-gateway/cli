@@ -5,21 +5,23 @@ import (
 	"strings"
 	"testing"
 
+	channels "github.com/inference-gateway/cli/internal/services/channels"
+	channelmocks "github.com/inference-gateway/cli/tests/mocks/channels"
+
 	uuid "github.com/google/uuid"
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	fakesdomain "github.com/inference-gateway/cli/tests/mocks/domain"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // cleanerChannel combines the generated Channel and HistoryCleaner fakes so the
-// manager's type assertion to domain.HistoryCleaner succeeds.
+// manager's type assertion to channels.HistoryCleaner succeeds.
 type cleanerChannel struct {
-	*fakesdomain.FakeChannel
-	*fakesdomain.FakeHistoryCleaner
+	*channelmocks.FakeChannel
+	*channelmocks.FakeHistoryCleaner
 }
 
 func newCommandTestManager(t *testing.T) (*ChannelManagerService, *cleanerChannel, *storage.MemoryStorage) {
@@ -38,8 +40,8 @@ func newCommandTestManager(t *testing.T) (*ChannelManagerService, *cleanerChanne
 	cm.SetCommandSupport(reg, store, store)
 
 	ch := &cleanerChannel{
-		FakeChannel:        &fakesdomain.FakeChannel{},
-		FakeHistoryCleaner: &fakesdomain.FakeHistoryCleaner{},
+		FakeChannel:        &channelmocks.FakeChannel{},
+		FakeHistoryCleaner: &channelmocks.FakeHistoryCleaner{},
 	}
 	ch.NameReturns("telegram")
 	cm.Register(ch)
@@ -84,16 +86,16 @@ func TestHandleCommand_New(t *testing.T) {
 	cm, ch, store := newCommandTestManager(t)
 	ctx := context.Background()
 
-	groupKey := domain.FormatChannelSessionID("telegram", "42")
+	groupKey := convdomain.FormatChannelSessionID("telegram", "42")
 	oldID := uuid.NewString()
-	if err := store.SaveConversation(ctx, oldID, nil, storage.ConversationMetadata{}); err != nil {
+	if err := store.SaveConversation(ctx, oldID, nil, convdomain.ConversationMetadata{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.PutSessionGroup(ctx, groupKey, storage.SessionGroupEntry{CurrentSessionID: oldID}); err != nil {
 		t.Fatal(err)
 	}
 
-	cm.handleCommand(ctx, domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/new"}, "new", nil)
+	cm.handleCommand(ctx, channels.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/new"}, "new", nil)
 
 	if _, _, err := store.LoadConversation(ctx, oldID); err != nil {
 		t.Fatal("expected old conversation to be kept")
@@ -128,12 +130,12 @@ func TestHandleCommand_Stats(t *testing.T) {
 	cm, ch, store := newCommandTestManager(t)
 	ctx := context.Background()
 
-	groupKey := domain.FormatChannelSessionID("telegram", "42")
+	groupKey := convdomain.FormatChannelSessionID("telegram", "42")
 	if err := store.PutSessionGroup(ctx, groupKey, storage.SessionGroupEntry{CurrentSessionID: "conv-42"}); err != nil {
 		t.Fatal(err)
 	}
 
-	cm.handleCommand(ctx, domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/stats"}, "stats", nil)
+	cm.handleCommand(ctx, channels.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/stats"}, "stats", nil)
 
 	if ch.SendCallCount() != 1 {
 		t.Fatalf("expected 1 send, got %d", ch.SendCallCount())
@@ -153,7 +155,7 @@ func TestHandleCommand_Stats(t *testing.T) {
 		t.Fatalf("expected a Table view toggle by default, got %+v", out.Buttons[2])
 	}
 
-	cm.handleCommand(context.Background(), domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/stats table"}, "stats", []string{"table"})
+	cm.handleCommand(context.Background(), channels.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/stats table"}, "stats", []string{"table"})
 	if ch.SendCallCount() != 2 {
 		t.Fatalf("expected 2 sends, got %d", ch.SendCallCount())
 	}
@@ -170,7 +172,7 @@ func TestHandleCommand_StatsNoConversation(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	cm, ch, _ := newCommandTestManager(t)
 
-	cm.handleCommand(context.Background(), domain.InboundMessage{ChannelName: "telegram", SenderID: "99", Content: "/stats"}, "stats", nil)
+	cm.handleCommand(context.Background(), channels.InboundMessage{ChannelName: "telegram", SenderID: "99", Content: "/stats"}, "stats", nil)
 
 	if ch.SendCallCount() != 1 {
 		t.Fatalf("expected 1 send, got %d", ch.SendCallCount())
@@ -188,19 +190,19 @@ func TestHandleCommand_ConversationsList(t *testing.T) {
 	cm, ch, store := newCommandTestManager(t)
 	ctx := context.Background()
 
-	groupKey := domain.FormatChannelSessionID("telegram", "42")
+	groupKey := convdomain.FormatChannelSessionID("telegram", "42")
 	currentID, oldID := uuid.NewString(), uuid.NewString()
-	if err := store.SaveConversation(ctx, currentID, nil, storage.ConversationMetadata{Title: "Weather talk", MessageCount: 4}); err != nil {
+	if err := store.SaveConversation(ctx, currentID, nil, convdomain.ConversationMetadata{Title: "Weather talk", MessageCount: 4}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SaveConversation(ctx, oldID, nil, storage.ConversationMetadata{Title: "Trip planning", MessageCount: 9}); err != nil {
+	if err := store.SaveConversation(ctx, oldID, nil, convdomain.ConversationMetadata{Title: "Trip planning", MessageCount: 9}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.PutSessionGroup(ctx, groupKey, storage.SessionGroupEntry{CurrentSessionID: currentID, History: []string{oldID}}); err != nil {
 		t.Fatal(err)
 	}
 
-	cm.handleCommand(ctx, domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/conversations"}, "conversations", nil)
+	cm.handleCommand(ctx, channels.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/conversations"}, "conversations", nil)
 
 	if ch.SendCallCount() != 1 {
 		t.Fatalf("expected 1 send, got %d", ch.SendCallCount())
@@ -224,23 +226,23 @@ func TestHandleCommand_ConversationsSwitch(t *testing.T) {
 	cm, ch, store := newCommandTestManager(t)
 	ctx := context.Background()
 
-	groupKey := domain.FormatChannelSessionID("telegram", "42")
+	groupKey := convdomain.FormatChannelSessionID("telegram", "42")
 	currentID, oldID := uuid.NewString(), uuid.NewString()
-	tripEntries := []domain.ConversationEntry{
+	tripEntries := []convdomain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Plan me a trip to Rome")}},
 		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("Day 1: Colosseum and Forum.")}},
 	}
-	if err := store.SaveConversation(ctx, currentID, nil, storage.ConversationMetadata{Title: "Weather talk"}); err != nil {
+	if err := store.SaveConversation(ctx, currentID, nil, convdomain.ConversationMetadata{Title: "Weather talk"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SaveConversation(ctx, oldID, tripEntries, storage.ConversationMetadata{Title: "Trip planning"}); err != nil {
+	if err := store.SaveConversation(ctx, oldID, tripEntries, convdomain.ConversationMetadata{Title: "Trip planning"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.PutSessionGroup(ctx, groupKey, storage.SessionGroupEntry{CurrentSessionID: currentID, History: []string{oldID}}); err != nil {
 		t.Fatal(err)
 	}
 
-	cm.handleCommand(ctx, domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/conversations " + oldID}, "conversations", []string{oldID})
+	cm.handleCommand(ctx, channels.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/conversations " + oldID}, "conversations", []string{oldID})
 
 	entry, _, _ := store.GetSessionGroup(ctx, groupKey)
 	if entry.CurrentSessionID != oldID {
@@ -257,14 +259,14 @@ func TestHandleCommand_ConversationsSwitch(t *testing.T) {
 		t.Fatalf("expected last-exchange recap, got %q", out.Content)
 	}
 
-	cm.handleCommand(ctx, domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/conversations " + currentID[:8]}, "conversations", []string{currentID[:8]})
+	cm.handleCommand(ctx, channels.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/conversations " + currentID[:8]}, "conversations", []string{currentID[:8]})
 	entry, _, _ = store.GetSessionGroup(ctx, groupKey)
 	if entry.CurrentSessionID != currentID {
 		t.Fatalf("expected prefix switch back to %s, got %q", currentID, entry.CurrentSessionID)
 	}
 
 	before := entry
-	cm.handleCommand(ctx, domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/conversations zzzz"}, "conversations", []string{"zzzz"})
+	cm.handleCommand(ctx, channels.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/conversations zzzz"}, "conversations", []string{"zzzz"})
 	entry, _, _ = store.GetSessionGroup(ctx, groupKey)
 	if entry.CurrentSessionID != before.CurrentSessionID {
 		t.Fatalf("unknown prefix must not mutate the group, got %+v", entry)
@@ -278,7 +280,7 @@ func TestHandleCommand_ConversationsSwitch(t *testing.T) {
 func TestHandleCommand_Help(t *testing.T) {
 	cm, ch, _ := newCommandTestManager(t)
 
-	cm.handleCommand(context.Background(), domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/help"}, "help", nil)
+	cm.handleCommand(context.Background(), channels.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/help"}, "help", nil)
 
 	if ch.SendCallCount() != 1 {
 		t.Fatalf("expected 1 send, got %d", ch.SendCallCount())
@@ -292,7 +294,7 @@ func TestHandleCommand_Help(t *testing.T) {
 func TestHandleCommand_TUIOnly(t *testing.T) {
 	cm, ch, _ := newCommandTestManager(t)
 
-	cm.handleCommand(context.Background(), domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/context"}, "context", nil)
+	cm.handleCommand(context.Background(), channels.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/context"}, "context", nil)
 
 	if ch.SendCallCount() != 1 {
 		t.Fatalf("expected 1 send, got %d", ch.SendCallCount())
@@ -312,7 +314,7 @@ func TestHandleCommand_CustomShortcut(t *testing.T) {
 		Args:        []string{"hello from custom"},
 	}, nil, nil, nil, nil))
 
-	cm.handleCommand(context.Background(), domain.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/echo"}, "echo", nil)
+	cm.handleCommand(context.Background(), channels.InboundMessage{ChannelName: "telegram", SenderID: "42", Content: "/echo"}, "echo", nil)
 
 	if ch.SendCallCount() != 1 {
 		t.Fatalf("expected 1 send, got %d", ch.SendCallCount())

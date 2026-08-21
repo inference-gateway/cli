@@ -5,11 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+
 	sdk "github.com/inference-gateway/sdk"
 	mcp "github.com/metoro-io/mcp-golang"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestNewMCPTool(t *testing.T) {
@@ -23,7 +25,7 @@ func TestNewMCPTool(t *testing.T) {
 		},
 	}
 
-	mockClient := &mocks.FakeMCPClient{}
+	mockClient := &agentdomainmocks.FakeMCPClient{}
 
 	tool := NewMCPTool(
 		"test-server",
@@ -71,7 +73,7 @@ func TestMCPTool_Definition(t *testing.T) {
 		},
 	}
 
-	mockClient := &mocks.FakeMCPClient{}
+	mockClient := &agentdomainmocks.FakeMCPClient{}
 
 	tool := NewMCPTool(
 		"test-server",
@@ -125,7 +127,7 @@ func TestMCPTool_Execute_Success(t *testing.T) {
 		},
 	}
 
-	mockClient := &mocks.FakeMCPClient{}
+	mockClient := &agentdomainmocks.FakeMCPClient{}
 
 	// Mock successful response
 	textContent := &mcp.TextContent{
@@ -171,9 +173,9 @@ func TestMCPTool_Execute_Success(t *testing.T) {
 	}
 
 	// Verify the data is MCPToolResult
-	mcpData, ok := result.Data.(*domain.MCPToolResult)
+	mcpData, ok := result.Data.(*agentdomain.MCPToolResult)
 	if !ok {
-		t.Fatal("Expected result.Data to be *domain.MCPToolResult")
+		t.Fatal("Expected result.Data to be *agentdomain.MCPToolResult")
 	}
 
 	if mcpData.ServerName != "test-server" {
@@ -222,7 +224,7 @@ func TestMCPTool_Execute_Error(t *testing.T) {
 		},
 	}
 
-	mockClient := &mocks.FakeMCPClient{}
+	mockClient := &agentdomainmocks.FakeMCPClient{}
 
 	// Mock error response
 	mockClient.CallToolReturns(nil, &testError{msg: "connection failed"})
@@ -255,9 +257,9 @@ func TestMCPTool_Execute_Error(t *testing.T) {
 	}
 
 	// Verify the error message is present
-	mcpData, ok := result.Data.(*domain.MCPToolResult)
+	mcpData, ok := result.Data.(*agentdomain.MCPToolResult)
 	if !ok {
-		t.Fatal("Expected result.Data to be *domain.MCPToolResult")
+		t.Fatal("Expected result.Data to be *agentdomain.MCPToolResult")
 	}
 
 	if mcpData.Error == "" {
@@ -352,7 +354,7 @@ func TestMCPTool_Validate(t *testing.T) {
 				},
 			}
 
-			mockClient := &mocks.FakeMCPClient{}
+			mockClient := &agentdomainmocks.FakeMCPClient{}
 
 			tool := NewMCPTool(
 				"test-server",
@@ -499,7 +501,7 @@ func TestMCPTool_IsEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &mocks.FakeMCPClient{}
+			mockClient := &agentdomainmocks.FakeMCPClient{}
 
 			tool := NewMCPTool(
 				tt.serverName,
@@ -520,7 +522,7 @@ func TestMCPTool_IsEnabled(t *testing.T) {
 }
 
 func TestMCPTool_ShouldCollapseArg(t *testing.T) {
-	mockClient := &mocks.FakeMCPClient{}
+	mockClient := &agentdomainmocks.FakeMCPClient{}
 	tool := NewMCPTool("server", "tool", "desc", nil, mockClient, &config.MCPConfig{})
 
 	tests := []struct {
@@ -545,7 +547,7 @@ func TestMCPTool_ShouldCollapseArg(t *testing.T) {
 }
 
 func TestMCPTool_ShouldAlwaysExpand(t *testing.T) {
-	mockClient := &mocks.FakeMCPClient{}
+	mockClient := &agentdomainmocks.FakeMCPClient{}
 	tool := NewMCPTool("server", "tool", "desc", nil, mockClient, &config.MCPConfig{})
 
 	if tool.ShouldAlwaysExpand() {
@@ -562,5 +564,5 @@ func (e *testError) Error() string {
 	return e.msg
 }
 
-// Ensure MCPTool implements domain.Tool interface
-var _ domain.Tool = (*MCPTool)(nil)
+// Ensure MCPTool implements agentdomain.Tool interface
+var _ agentdomain.Tool = (*MCPTool)(nil)

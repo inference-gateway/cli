@@ -1,0 +1,181 @@
+package formatting
+
+import (
+	"fmt"
+	"maps"
+	"slices"
+	"strings"
+
+	"github.com/charmbracelet/x/ansi"
+	sdk "github.com/inference-gateway/sdk"
+	wordwrap "github.com/muesli/reflow/wordwrap"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+)
+
+// ============================================================================
+// Text Utilities
+// ============================================================================
+
+// WrapText wraps text to fit within the specified width using wordwrap
+func WrapText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+	return wordwrap.String(text, width)
+}
+
+// GetResponsiveWidth returns the content width for a terminal: the full width
+// minus a small right margin, floored at minWidth. No upper cap — content fills
+// the screen at any terminal size.
+func GetResponsiveWidth(terminalWidth int) int {
+	const (
+		minWidth = 40
+		margin   = 6
+	)
+
+	return max(terminalWidth-margin, minWidth)
+}
+
+// FormatResponsiveMessage formats a message with responsive text wrapping
+func FormatResponsiveMessage(content string, width int) string {
+	if width <= 0 {
+		return content
+	}
+
+	lines := strings.Split(content, "\n")
+	var result []string
+
+	for _, line := range lines {
+		if len(line) <= width {
+			result = append(result, line)
+		} else {
+			wrapped := WrapText(line, width)
+			wrappedLines := strings.Split(wrapped, "\n")
+			for i, wl := range wrappedLines {
+				wrappedLines[i] = strings.TrimRight(wl, " ")
+			}
+			result = append(result, strings.Join(wrappedLines, "\n"))
+		}
+	}
+
+	return strings.Join(result, "\n")
+}
+
+// TruncateText truncates text to fit within maxLength display columns, adding
+// "..." if needed. It is width-aware: multibyte and wide runes (emoji, CJK) and
+// ANSI escapes are measured by rendered width and never split mid-grapheme.
+func TruncateText(text string, maxLength int) string {
+	if maxLength <= 0 {
+		return ""
+	}
+	if ansi.StringWidth(text) <= maxLength {
+		return text
+	}
+	if maxLength < 3 {
+		return strings.Repeat(".", maxLength)
+	}
+	return ansi.Truncate(text, maxLength, "...")
+}
+
+// ExtractTextFromContent extracts text from potentially multimodal message content
+func ExtractTextFromContent(content sdk.MessageContent, images []agentdomain.ImageAttachment) string {
+	simpleStr, err := content.AsMessageContent0()
+	if err == nil {
+		return simpleStr
+	}
+
+	multimodalContent, err := content.AsMessageContent1()
+	if err != nil {
+		if len(images) > 0 {
+			var parts []string
+			for i := range images {
+				parts = append(parts, fmt.Sprintf("[Image %d]", i+1))
+			}
+			return strings.Join(parts, " ")
+		}
+		return "[error extracting content]"
+	}
+
+	var textParts []string
+	imageCount := 0
+	for _, part := range multimodalContent {
+		if textPart, err := part.AsTextContentPart(); err == nil {
+			textParts = append(textParts, textPart.Text)
+			continue
+		}
+
+		if _, err := part.AsImageContentPart(); err == nil {
+			imageCount++
+			textParts = append(textParts, fmt.Sprintf("[Image %d]", imageCount))
+		}
+	}
+
+	if len(textParts) > 0 {
+		return strings.Join(textParts, " ")
+	}
+
+	if len(images) > 0 {
+		var parts []string
+		for i := range images {
+			parts = append(parts, fmt.Sprintf("[Image %d]", i+1))
+		}
+		return strings.Join(parts, " ")
+	}
+
+	return "[empty message]"
+}
+
+// ============================================================================
+// Message Formatting
+// ============================================================================
+
+// FormatSuccess creates a properly formatted success message
+func FormatSuccess(message string) string {
+	return fmt.Sprintf("\033[32m%s\033[0m", message)
+}
+
+// FormatWarning creates a properly formatted warning message
+func FormatWarning(message string) string {
+	return fmt.Sprintf("\033[33m%s\033[0m", message)
+}
+
+// FormatErrorCLI creates an error message with red color for CLI output
+func FormatErrorCLI(message string) string {
+	return fmt.Sprintf("\033[31m%s\033[0m", message)
+}
+
+// ============================================================================
+// Tool Formatting
+// ============================================================================
+
+// FormatToolCall formats a tool call for consistent display across the application
+func FormatToolCall(toolName string, args map[string]any) string {
+	if len(args) == 0 {
+		return toolName + "()"
+	}
+	keys := slices.Sorted(maps.Keys(args))
+	pairs := make([]string, 0, len(args))
+	for _, k := range keys {
+		pairs = append(pairs, fmt.Sprintf("%s=%v", k, args[k]))
+	}
+	return fmt.Sprintf("%s(%s)", toolName, strings.Join(pairs, ", "))
+}
+
+// ============================================================================
+// Cost Formatting
+// ============================================================================
+
+// FormatCost formats cost with adaptive precision based on magnitude
+// Returns "-" for zero cost, and uses 2-4 decimal places based on the amount
+func FormatCost(cost float64) string {
+	if cost == 0 {
+		return "-"
+	} else if cost < 0.01 {
+		return fmt.Sprintf("$%.4f", cost)
+	} else if cost < 1.0 {
+		return fmt.Sprintf("$%.3f", cost)
+	} else {
+		return fmt.Sprintf("$%.2f", cost)
+	}
+}

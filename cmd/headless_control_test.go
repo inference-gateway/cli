@@ -4,18 +4,18 @@ import (
 	"testing"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
-func newTestControl() (*headlessControl, *mocks.FakeAgentService, *services.StateManager) {
-	agent := &mocks.FakeAgentService{}
+func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *services.StateManager) {
+	agent := &agentdomainmocks.FakeAgentService{}
 	sm := services.NewStateManager(false)
 	return newHeadlessControl(agent, sm, "sess-1"), agent, sm
 }
 
-func recvEvent(t *testing.T, ch <-chan domain.ChatEvent) domain.ChatEvent {
+func recvEvent(t *testing.T, ch <-chan agentdomain.ChatEvent) agentdomain.ChatEvent {
 	t.Helper()
 	select {
 	case ev := <-ch:
@@ -58,13 +58,13 @@ func TestHeadlessControl_DispatchLine(t *testing.T) {
 	if !sm.IsComputerUsePaused() {
 		t.Fatal("pause must set the paused state")
 	}
-	if ev, ok := recvEvent(t, ctl.ctrlEvents).(domain.ComputerUsePausedEvent); !ok || ev.RequestID != "sess-1" {
+	if ev, ok := recvEvent(t, ctl.ctrlEvents).(agentdomain.ComputerUsePausedEvent); !ok || ev.RequestID != "sess-1" {
 		t.Fatalf("pause event = %+v, want ComputerUsePausedEvent for sess-1", ev)
 	}
 
 	ctl.dispatchLine([]byte(`{"type":"computer_use_control","action":"resume"}`))
 	ev := recvEvent(t, ctl.ctrlEvents)
-	if resumed, ok := ev.(domain.ComputerUseResumedEvent); !ok || resumed.RequestID != "sess-1" {
+	if resumed, ok := ev.(agentdomain.ComputerUseResumedEvent); !ok || resumed.RequestID != "sess-1" {
 		t.Fatalf("resume event = %+v, want ComputerUseResumedEvent for sess-1", ev)
 	}
 	if !ctl.noteControlEvent(ev, false) {
@@ -73,7 +73,7 @@ func TestHeadlessControl_DispatchLine(t *testing.T) {
 	if sm.IsComputerUsePaused() {
 		t.Fatal("handling the resume event must clear the paused state")
 	}
-	if ctl.noteControlEvent(domain.ComputerUseResumedEvent{RequestID: "sess-1"}, false) {
+	if ctl.noteControlEvent(agentdomain.ComputerUseResumedEvent{RequestID: "sess-1"}, false) {
 		t.Fatal("resume without a preceding pause must not mark a pending resume")
 	}
 }
@@ -81,15 +81,15 @@ func TestHeadlessControl_DispatchLine(t *testing.T) {
 func TestHeadlessControl_PumpPauseResume(t *testing.T) {
 	ctl, _, _ := newTestControl()
 
-	first := make(chan domain.ChatEvent, 1)
-	first <- domain.ChatChunkEvent{Content: "before pause"}
+	first := make(chan agentdomain.ChatEvent, 1)
+	first <- agentdomain.ChatChunkEvent{Content: "before pause"}
 
-	resumedRun := make(chan domain.ChatEvent, 1)
-	resumedRun <- domain.ChatCompleteEvent{}
+	resumedRun := make(chan agentdomain.ChatEvent, 1)
+	resumedRun <- agentdomain.ChatCompleteEvent{}
 	close(resumedRun)
 
 	resumeCalls := 0
-	merged := ctl.pumpEvents(first, func() (<-chan domain.ChatEvent, error) {
+	merged := ctl.pumpEvents(first, func() (<-chan agentdomain.ChatEvent, error) {
 		resumeCalls++
 		return resumedRun, nil
 	})
@@ -108,11 +108,11 @@ func TestHeadlessControl_PumpPauseResume(t *testing.T) {
 				continue
 			}
 			switch ev.(type) {
-			case domain.ComputerUsePausedEvent:
+			case agentdomain.ComputerUsePausedEvent:
 				paused = true
-			case domain.ComputerUseResumedEvent:
+			case agentdomain.ComputerUseResumedEvent:
 				resumed = true
-			case domain.ChatCompleteEvent:
+			case agentdomain.ChatCompleteEvent:
 				completed = true
 			}
 		case <-deadline:

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	components "github.com/inference-gateway/cli/internal/ui/components"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // MultiEditTool handles multiple exact string replacements in a single file atomically
@@ -19,7 +19,7 @@ type MultiEditTool struct {
 	config    *config.Config
 	enabled   bool
 	registry  ReadToolTracker
-	formatter domain.CustomFormatter
+	formatter agentinfra.CustomFormatter
 }
 
 // NewMultiEditTool creates a new multi-edit tool
@@ -27,7 +27,7 @@ func NewMultiEditTool(cfg *config.Config) *MultiEditTool {
 	return &MultiEditTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		formatter: domain.NewCustomFormatter("MultiEdit", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter("MultiEdit", func(key string) bool {
 			return key == "edits"
 		}),
 	}
@@ -39,7 +39,7 @@ func NewMultiEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) 
 		config:   cfg,
 		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
 		registry: registry,
-		formatter: domain.NewCustomFormatter("MultiEdit", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter("MultiEdit", func(key string) bool {
 			return key == "edits"
 		}),
 	}
@@ -92,14 +92,14 @@ func (t *MultiEditTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the multi-edit tool with given arguments
-func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("multi-edit tool is not enabled")
 	}
 
 	if t.registry != nil && !t.registry.IsReadToolUsed() {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MultiEdit",
 			Arguments: args,
 			Success:   false,
@@ -110,7 +110,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	filePath, ok := args["file_path"].(string)
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MultiEdit",
 			Arguments: args,
 			Success:   false,
@@ -120,7 +120,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 	}
 
 	if msg := staleReadError(t.registry, filePath); msg != "" {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MultiEdit",
 			Arguments: args,
 			Success:   false,
@@ -131,7 +131,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	editsInterface, ok := args["edits"]
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MultiEdit",
 			Arguments: args,
 			Success:   false,
@@ -142,7 +142,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	editsArray, ok := editsInterface.([]any)
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MultiEdit",
 			Arguments: args,
 			Success:   false,
@@ -152,7 +152,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 	}
 
 	if len(editsArray) == 0 {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MultiEdit",
 			Arguments: args,
 			Success:   false,
@@ -164,7 +164,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 	// Parse and validate edits
 	edits, err := t.parseEdits(editsArray)
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MultiEdit",
 			Arguments: args,
 			Success:   false,
@@ -175,7 +175,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 
 	multiEditResult, err := t.executeMultiEdit(filePath, edits)
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "MultiEdit",
 			Arguments: args,
 			Success:   false,
@@ -184,7 +184,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}, nil
 	}
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "MultiEdit",
 		Arguments: args,
 		Success:   true,
@@ -300,7 +300,7 @@ func (t *MultiEditTool) IsEnabled() bool {
 }
 
 // executeMultiEdit performs the actual multi-edit operation atomically
-func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation) (*domain.MultiEditToolResult, error) {
+func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation) (*agentdomain.MultiEditToolResult, error) {
 	if err := t.validateFile(filePath); err != nil {
 		return nil, err
 	}
@@ -323,7 +323,7 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 
 	currentContent := originalContentStr
 
-	var editResults []domain.EditOperationResult
+	var editResults []agentdomain.EditOperationResult
 	successfulEdits := 0
 	normalizedEdits := 0
 
@@ -354,7 +354,7 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 		currentContent = newContent
 		successfulEdits++
 
-		editResults = append(editResults, domain.EditOperationResult{
+		editResults = append(editResults, agentdomain.EditOperationResult{
 			OldString:            effectiveOld,
 			NewString:            effectiveNew,
 			ReplaceAll:           edit.ReplaceAll,
@@ -375,7 +375,7 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 	newSize := int64(len(currentContent))
 	bytesDifference := newSize - originalSize
 
-	result := &domain.MultiEditToolResult{
+	result := &agentdomain.MultiEditToolResult{
 		FilePath:        filePath,
 		Edits:           editResults,
 		TotalEdits:      len(edits),
@@ -565,13 +565,13 @@ func (t *MultiEditTool) createSuggestion(lines, searchLines []string, startLine 
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *MultiEditTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *MultiEditTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -579,12 +579,12 @@ func (t *MultiEditTool) FormatResult(result *domain.ToolExecutionResult, formatT
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *MultiEditTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *MultiEditTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
-	multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
+	multiEditResult, ok := result.Data.(*agentdomain.MultiEditToolResult)
 	if !ok {
 		if result.Success {
 			return "Multi-edit completed successfully"
@@ -607,7 +607,7 @@ func (t *MultiEditTool) FormatPreview(result *domain.ToolExecutionResult) string
 }
 
 // FormatForUI formats the result for UI display
-func (t *MultiEditTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *MultiEditTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -634,27 +634,13 @@ func (t *MultiEditTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *MultiEditTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
 	var dataContent string
-	switch {
-	case result.Success && result.Arguments != nil && result.Data != nil:
-		themeService := domain.NewThemeProvider()
-		styleProvider := styles.NewProvider(themeService)
-		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
-		diffInfo := t.getActualDiffInfo(result)
-		dataContent = diffRenderer.RenderDiff(*diffInfo)
-	case !result.Success && result.Arguments != nil:
-		themeService := domain.NewThemeProvider()
-		styleProvider := styles.NewProvider(themeService)
-		diffRenderer := components.NewDiffRenderer(styleProvider).SetContextLines(components.InlineDiffContextLines)
-		diffInfo := t.GetDiffInfo(result.Arguments)
-		diffInfo.Title = "← Simulated diff preview →"
-		dataContent = diffRenderer.RenderDiff(*diffInfo)
-	case result.Data != nil:
+	if result.Data != nil {
 		dataContent = t.formatMultiEditData(result.Data)
 	}
 
@@ -663,7 +649,7 @@ func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 
 // formatMultiEditData formats multi-edit-specific data
 func (t *MultiEditTool) formatMultiEditData(data any) string {
-	multiEditResult, ok := data.(*domain.MultiEditToolResult)
+	multiEditResult, ok := data.(*agentdomain.MultiEditToolResult)
 	if !ok {
 		return t.formatter.FormatAsJSON(data)
 	}
@@ -713,105 +699,4 @@ func (t *MultiEditTool) ShouldCollapseArg(key string) bool {
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
 func (t *MultiEditTool) ShouldAlwaysExpand() bool {
 	return false
-}
-
-// getActualDiffInfo creates a clean summary view for successful executions
-func (t *MultiEditTool) getActualDiffInfo(result *domain.ToolExecutionResult) *components.DiffInfo {
-	filePath, _ := result.Arguments["file_path"].(string)
-
-	multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
-	if !ok {
-		return &components.DiffInfo{
-			FilePath:   filePath,
-			OldContent: "",
-			NewContent: "Multi-edit completed successfully",
-			Title:      "Multi-Edit Applied",
-		}
-	}
-
-	var summary strings.Builder
-
-	fmt.Fprintf(&summary, "Successfully applied %d edits", multiEditResult.SuccessfulEdits)
-	if multiEditResult.BytesDifference != 0 {
-		if multiEditResult.BytesDifference > 0 {
-			fmt.Fprintf(&summary, " (+%d bytes)", multiEditResult.BytesDifference)
-		} else {
-			fmt.Fprintf(&summary, " (%d bytes)", multiEditResult.BytesDifference)
-		}
-	}
-
-	return &components.DiffInfo{
-		FilePath:   filePath,
-		OldContent: "",
-		NewContent: strings.TrimSpace(summary.String()),
-		Title:      "Multi-Edit Applied",
-	}
-}
-
-// GetDiffInfo implements the DiffFormatter interface
-func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
-	filePath, _ := args["file_path"].(string)
-	editsInterface := args["edits"]
-
-	editsArray, ok := editsInterface.([]any)
-	if !ok {
-		return &components.DiffInfo{
-			FilePath:   filePath,
-			OldContent: "",
-			NewContent: "Invalid edits format",
-			Title:      "← Simulated diff preview →",
-		}
-	}
-
-	originalContent := ""
-	if content, err := os.ReadFile(filePath); err == nil {
-		originalContent = string(content)
-	}
-
-	currentContent := originalContent
-	for _, editInterface := range editsArray {
-		editMap, ok := editInterface.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		oldString, ok1 := editMap["old_string"].(string)
-		newString, ok2 := editMap["new_string"].(string)
-		replaceAll, _ := editMap["replace_all"].(bool)
-
-		if !ok1 || !ok2 {
-			continue
-		}
-
-		if !strings.Contains(currentContent, oldString) {
-			return &components.DiffInfo{
-				FilePath:   filePath,
-				OldContent: originalContent,
-				NewContent: "⚠️  Edit simulation failed: old_string not found after previous edits",
-				Title:      "← Simulated diff preview →",
-			}
-		}
-
-		if replaceAll {
-			currentContent = strings.ReplaceAll(currentContent, oldString, newString)
-		} else {
-			count := strings.Count(currentContent, oldString)
-			if count > 1 {
-				return &components.DiffInfo{
-					FilePath:   filePath,
-					OldContent: originalContent,
-					NewContent: fmt.Sprintf("⚠️  Edit simulation failed: old_string not unique (%d occurrences)", count),
-					Title:      "← Simulated diff preview →",
-				}
-			}
-			currentContent = strings.Replace(currentContent, oldString, newString, 1)
-		}
-	}
-
-	return &components.DiffInfo{
-		FilePath:   filePath,
-		OldContent: originalContent,
-		NewContent: currentContent,
-		Title:      "← Simulated diff preview →",
-	}
 }

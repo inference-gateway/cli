@@ -4,16 +4,18 @@ import (
 	"testing"
 	"time"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // flashTestCtx is a minimal KeyHandlerContext for exercising the clipboard
@@ -61,11 +63,11 @@ func TestFlashStatusPreservesActiveSpinner(t *testing.T) {
 		t.Fatalf("expected 3 batched commands (save, show, restore), got %d", len(batch))
 	}
 
-	if _, ok := batch[0]().(domain.SaveStatusStateEvent); !ok {
+	if _, ok := batch[0]().(ui.SaveStatusStateEvent); !ok {
 		t.Errorf("expected the first command to save the status state, got %T", batch[0]())
 	}
 
-	ev, ok := batch[1]().(domain.SetStatusEvent)
+	ev, ok := batch[1]().(ui.SetStatusEvent)
 	if !ok {
 		t.Fatalf("expected the second command to be a SetStatusEvent, got %T", batch[1]())
 	}
@@ -90,7 +92,7 @@ func TestFlashStatusClearsWhenIdle(t *testing.T) {
 		t.Fatalf("expected 2 batched commands (show, clear), got %d", len(batch))
 	}
 
-	ev, ok := batch[0]().(domain.SetStatusEvent)
+	ev, ok := batch[0]().(ui.SetStatusEvent)
 	if !ok {
 		t.Fatalf("expected the first command to be a SetStatusEvent, got %T", batch[0]())
 	}
@@ -122,7 +124,7 @@ func TestHandlePasteEventFlashesAndInserts(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected a tea.BatchMsg, got %T", cmd())
 	}
-	ev, ok := batch[0]().(domain.SetStatusEvent)
+	ev, ok := batch[0]().(ui.SetStatusEvent)
 	if !ok {
 		t.Fatalf("expected a SetStatusEvent, got %T", batch[0]())
 	}
@@ -191,7 +193,7 @@ func TestHandleHistoryDownFocusesStatusBarWhenIdle(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected a command when history navigation is idle")
 	}
-	if _, ok := cmd().(domain.FocusStatusBarEvent); !ok {
+	if _, ok := cmd().(ui.FocusStatusBarEvent); !ok {
 		t.Fatalf("expected a FocusStatusBarEvent, got %T", cmd())
 	}
 	if input.NavigateHistoryDownCallCount() != 0 {
@@ -225,26 +227,26 @@ type textareaEditTestCtx struct {
 	autocomplete ui.AutocompleteComponent
 }
 
-func (c *textareaEditTestCtx) GetStateManager() *services.StateManager   { return c.state }
+func (c *textareaEditTestCtx) GetStateManager() StateManager             { return c.state }
 func (c *textareaEditTestCtx) GetInputView() ui.InputComponent           { return c.input }
 func (c *textareaEditTestCtx) GetAutocomplete() ui.AutocompleteComponent { return c.autocomplete }
 func (c *textareaEditTestCtx) GetConfig() *config.Config                 { return nil }
-func (c *textareaEditTestCtx) GetConversationRepository() domain.ConversationRepository {
+func (c *textareaEditTestCtx) GetConversationRepository() convdomain.ConversationRepository {
 	return nil
 }
-func (c *textareaEditTestCtx) GetAgentService() domain.AgentService { return nil }
-func (c *textareaEditTestCtx) GetImageService() domain.ImageService { return nil }
+func (c *textareaEditTestCtx) GetAgentService() agentdomain.AgentService { return nil }
+func (c *textareaEditTestCtx) GetImageService() agentdomain.ImageService { return nil }
 
 func newTextareaEditTestCtx(t *testing.T) (*textareaEditTestCtx, *components.InputView) {
 	t.Helper()
 
 	state := services.NewStateManager(false)
-	if err := state.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := state.TransitionToView(ui.ViewStateChat); err != nil {
 		t.Fatalf("transitioning test state to chat: %v", err)
 	}
 
-	modelService := &domainmocks.FakeModelService{}
-	input := components.NewInputViewWithName(modelService, t.TempDir(), domain.SubagentHistoryMemoryOnly, nil)
+	modelService := &convmocks.FakeModelService{}
+	input := components.NewInputViewWithName(modelService, t.TempDir(), scheddomain.SubagentHistoryMemoryOnly, nil)
 	if _, cmd := input.Update(tea.FocusMsg{}); cmd != nil {
 		_ = cmd()
 	}
@@ -381,7 +383,7 @@ func assertAutocompleteEventText(t *testing.T, cmd tea.Cmd, want string) {
 	}
 
 	msg := cmd()
-	if ev, ok := msg.(domain.AutocompleteUpdateEvent); ok {
+	if ev, ok := msg.(ui.AutocompleteUpdateEvent); ok {
 		if ev.Text != want {
 			t.Fatalf("AutocompleteUpdateEvent.Text = %q, want %q", ev.Text, want)
 		}
@@ -393,7 +395,7 @@ func assertAutocompleteEventText(t *testing.T, cmd tea.Cmd, want string) {
 		t.Fatalf("expected AutocompleteUpdateEvent or BatchMsg, got %T", msg)
 	}
 	for _, sub := range batch {
-		if ev, ok := sub().(domain.AutocompleteUpdateEvent); ok {
+		if ev, ok := sub().(ui.AutocompleteUpdateEvent); ok {
 			if ev.Text != want {
 				t.Fatalf("AutocompleteUpdateEvent.Text = %q, want %q", ev.Text, want)
 			}

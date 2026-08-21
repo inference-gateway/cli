@@ -6,14 +6,14 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 // channelCtx returns a context tagged with a channel-formatted session ID,
 // matching the format the daemon's channel manager uses when spawning agents.
 func channelCtx(channel, recipient string) context.Context {
-	return domain.WithSessionID(context.Background(), "channel-"+channel+"-"+recipient)
+	return agentdomain.WithSessionID(context.Background(), "channel-"+channel+"-"+recipient)
 }
 
 func newScheduleCfg(t *testing.T, telegramEnabled bool) *config.Config {
@@ -243,7 +243,7 @@ func TestScheduleTool_Execute_NonChannelSessionCreatesRecordOnlyJob(t *testing.T
 	tool := NewScheduleTool(newScheduleCfg(t, true), storage.NewMemoryStorage())
 	for _, ctx := range []context.Context{
 		context.Background(),
-		domain.WithSessionID(context.Background(), "1733678400-a3f2bc8d"),
+		agentdomain.WithSessionID(context.Background(), "1733678400-a3f2bc8d"),
 	} {
 		r, err := tool.Execute(ctx, map[string]any{
 			"operation":       "create",
@@ -280,7 +280,7 @@ func TestScheduleTool_Execute_MaxJobs(t *testing.T) {
 	cfg.Tools.Schedule.MaxJobs = 1
 	tool := NewScheduleTool(cfg, storage.NewMemoryStorage())
 	ctx := channelCtx("telegram", "1")
-	mk := func() *domain.ToolExecutionResult {
+	mk := func() *agentdomain.ToolExecutionResult {
 		r, _ := tool.Execute(ctx, map[string]any{
 			"operation":       "create",
 			"cron_expression": "0 8 * * *",

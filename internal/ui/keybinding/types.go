@@ -3,26 +3,41 @@ package keybinding
 import (
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	services "github.com/inference-gateway/cli/internal/services"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
 // KeyHandler represents a function that handles a key binding
 type KeyHandler func(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 
+// StateManager is the narrow slice of the application state manager that key
+// handlers need. *services.StateManager satisfies it.
+type StateManager interface {
+	ui.ViewManager
+	agentdomain.AgentModeManager
+	agentdomain.ChatSessionManager
+	agentdomain.ToolExecutionManager
+	agentdomain.ApprovalUIManager
+	agentdomain.PlanApprovalUIManager
+	agentdomain.UserQuestionUIManager
+	IsEditingMessage() bool
+	ClearMessageEditState()
+}
+
 // KeyHandlerContext provides access to application context for key handlers
 type KeyHandlerContext interface {
 	// State management
-	GetStateManager() *services.StateManager
-	GetConversationRepository() domain.ConversationRepository
+	GetStateManager() StateManager
+	GetConversationRepository() convdomain.ConversationRepository
 	GetConfig() *config.Config
 	GetConfigDir() string
 
 	// Services
-	GetAgentService() domain.AgentService
-	GetImageService() domain.ImageService
+	GetAgentService() agentdomain.AgentService
+	GetImageService() agentdomain.ImageService
 
 	// UI components
 	GetConversationView() ui.ConversationRenderer
@@ -42,9 +57,6 @@ type KeyHandlerContext interface {
 	SetMouseEnabled(bool)
 }
 
-// Theme is an alias to the ui Theme interface
-type Theme = ui.Theme
-
 // KeyAction represents a key binding action. Keys, description, and enabled
 // state live in the Binding, which is constructed at registry init from the
 // resolved keybindings config (defaults + keybindings.yaml overrides) — the
@@ -59,9 +71,9 @@ type KeyAction struct {
 
 // KeyContext defines when and where a key binding is active
 type KeyContext struct {
-	Views        []domain.ViewState
+	Views        []ui.ViewState
 	Conditions   []ContextCondition
-	ExcludeViews []domain.ViewState
+	ExcludeViews []ui.ViewState
 }
 
 // ContextCondition represents a condition that must be met for key binding to be active

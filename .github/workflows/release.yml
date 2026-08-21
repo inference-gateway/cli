@@ -151,12 +151,12 @@ jobs:
             -w /workspace \
             -e CGO_ENABLED=0 \
             golang:1.26-alpine3.23 \
-            sh -c "go build -ldflags '-w -s -X github.com/inference-gateway/cli/cmd.version=v${{ needs.version.outputs.new_release_version }}' -o infer-${{ matrix.goos }}-${{ matrix.goarch }} ."
+            sh -c "go build -tags purego -ldflags '-w -s -X github.com/inference-gateway/cli/cmd.version=v${{ needs.version.outputs.new_release_version }}' -o infer-${{ matrix.goos }}-${{ matrix.goarch }} ."
 
-      - name: Build binary (macOS - pure Go via -tags mac)
+      - name: Build binary (macOS - pure Go via -tags purego)
         if: matrix.goos == 'darwin'
         run: |
-          go build -tags mac -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version=v${{ needs.version.outputs.new_release_version }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
+          go build -tags purego -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version=v${{ needs.version.outputs.new_release_version }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
 
       - name: Build binary (Windows - pure Go)
         if: matrix.goos == 'windows'
@@ -164,7 +164,7 @@ jobs:
           GOOS: windows
           GOARCH: ${{ matrix.goarch }}
         run: |
-          go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version=v${{ needs.version.outputs.new_release_version }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
+          go build -tags purego -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version=v${{ needs.version.outputs.new_release_version }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.1

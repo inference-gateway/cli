@@ -4,21 +4,25 @@ import (
 	"testing"
 	"time"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
+
 	tea "charm.land/bubbletea/v2"
 	adk "github.com/inference-gateway/adk/types"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	mocksdomain "github.com/inference-gateway/cli/tests/mocks/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // newCoordinator wires a Service with fake dependencies.
-func newCoordinator() (*Service, *mocksdomain.FakeConversationRepository, *services.StateManager, *mocksdomain.FakeTaskRetentionService, *mocksdomain.FakeChatEventListener) {
-	repo := &mocksdomain.FakeConversationRepository{}
+func newCoordinator() (*Service, *convmocks.FakeConversationRepository, *services.StateManager, *schedmocks.FakeTaskRetentionService, *uimocks.FakeChatEventListener) {
+	repo := &convmocks.FakeConversationRepository{}
 	state := services.NewStateManager(false)
-	retention := &mocksdomain.FakeTaskRetentionService{}
-	listener := &mocksdomain.FakeChatEventListener{}
+	retention := &schedmocks.FakeTaskRetentionService{}
+	listener := &uimocks.FakeChatEventListener{}
 
 	svc := NewService(Options{
 		ConversationRepo:     repo,
@@ -47,11 +51,11 @@ func runCmds(cmds []tea.Cmd) []tea.Msg {
 func TestService_HandleTaskSubmitted(t *testing.T) {
 	t.Run("emits working status with agent name and pumps listener when session active", func(t *testing.T) {
 		svc, _, state, _, listener := newCoordinator()
-		eventChan := make(chan domain.ChatEvent, 1)
+		eventChan := make(chan agentdomain.ChatEvent, 1)
 		_ = state.StartChatSession("req-1", "", eventChan)
 		listener.ListenForChatEventsReturns(func() tea.Msg { return nil })
 
-		cmds := svc.taskSubmittedCmds(domain.A2ATaskSubmittedEvent{
+		cmds := svc.taskSubmittedCmds(agentdomain.A2ATaskSubmittedEvent{
 			RequestID: "req-1",
 			AgentName: "weather-agent",
 		})
@@ -61,14 +65,14 @@ func TestService_HandleTaskSubmitted(t *testing.T) {
 		}
 
 		msgs := runCmds(cmds[:1])
-		status, ok := msgs[0].(domain.SetStatusEvent)
+		status, ok := msgs[0].(ui.SetStatusEvent)
 		if !ok {
 			t.Fatalf("expected SetStatusEvent, got %T", msgs[0])
 		}
 		if status.Message != "A2A task submitted to weather-agent" {
 			t.Errorf("unexpected status message: %q", status.Message)
 		}
-		if status.StatusType != domain.StatusWorking {
+		if status.StatusType != ui.StatusWorking {
 			t.Errorf("expected StatusWorking, got %v", status.StatusType)
 		}
 		if !status.Spinner {
@@ -83,7 +87,7 @@ func TestService_HandleTaskSubmitted(t *testing.T) {
 	t.Run("omits listener cmd when no active chat session", func(t *testing.T) {
 		svc, _, _, _, listener := newCoordinator()
 
-		cmds := svc.taskSubmittedCmds(domain.A2ATaskSubmittedEvent{AgentName: "foo"})
+		cmds := svc.taskSubmittedCmds(agentdomain.A2ATaskSubmittedEvent{AgentName: "foo"})
 
 		if len(cmds) != 1 {
 			t.Fatalf("expected exactly one cmd (no listener), got %d", len(cmds))
@@ -100,9 +104,9 @@ func TestService_HandleTaskCompleted(t *testing.T) {
 		repo.GetMessagesReturns(nil)
 		task := &adk.Task{ID: "task-1"}
 
-		event := domain.A2ATaskCompletedEvent{
+		event := agentdomain.A2ATaskCompletedEvent{
 			RequestID: "req-1",
-			Result: domain.ToolExecutionResult{
+			Result: agentdomain.ToolExecutionResult{
 				Data: tools.A2ASubmitTaskResult{
 					TaskResult: "all done",
 					AgentURL:   "https://agent.example",
@@ -125,7 +129,7 @@ func TestService_HandleTaskCompleted(t *testing.T) {
 		msgs := runCmds(cmds)
 		var foundContent bool
 		for _, m := range msgs {
-			if sce, ok := m.(domain.StreamingContentEvent); ok {
+			if sce, ok := m.(ui.StreamingContentEvent); ok {
 				if sce.Content == "all done" && !sce.Delta && sce.RequestID == "req-1" {
 					foundContent = true
 				}
@@ -140,7 +144,7 @@ func TestService_HandleTaskCompleted(t *testing.T) {
 		svc, repo, _, retention, _ := newCoordinator()
 		repo.FormatToolResultForLLMReturns("[formatted-result-text]")
 
-		event := domain.A2ATaskCompletedEvent{Result: domain.ToolExecutionResult{Data: "unrelated"}}
+		event := agentdomain.A2ATaskCompletedEvent{Result: agentdomain.ToolExecutionResult{Data: "unrelated"}}
 
 		cmds := svc.taskCompletedCmds(event)
 
@@ -154,7 +158,7 @@ func TestService_HandleTaskCompleted(t *testing.T) {
 		msgs := runCmds(cmds)
 		var found bool
 		for _, m := range msgs {
-			if sce, ok := m.(domain.StreamingContentEvent); ok && sce.Content == "[formatted-result-text]" {
+			if sce, ok := m.(ui.StreamingContentEvent); ok && sce.Content == "[formatted-result-text]" {
 				found = true
 			}
 		}
@@ -168,9 +172,9 @@ func TestService_HandleTaskFailed(t *testing.T) {
 	t.Run("formats error with task result when present", func(t *testing.T) {
 		svc, _, _, _, _ := newCoordinator()
 
-		cmds := svc.taskFailedCmds(domain.A2ATaskFailedEvent{
+		cmds := svc.taskFailedCmds(agentdomain.A2ATaskFailedEvent{
 			Error: "boom",
-			Result: domain.ToolExecutionResult{
+			Result: agentdomain.ToolExecutionResult{
 				Data: tools.A2ASubmitTaskResult{TaskResult: "partial output"},
 			},
 		})
@@ -179,7 +183,7 @@ func TestService_HandleTaskFailed(t *testing.T) {
 		want := "[A2A Task Failed]\n\npartial output"
 		var found bool
 		for _, m := range msgs {
-			if sce, ok := m.(domain.StreamingContentEvent); ok && sce.Content == want {
+			if sce, ok := m.(ui.StreamingContentEvent); ok && sce.Content == want {
 				found = true
 			}
 		}
@@ -192,15 +196,15 @@ func TestService_HandleTaskFailed(t *testing.T) {
 		svc, repo, _, _, _ := newCoordinator()
 		repo.FormatToolResultForLLMReturns("formatted body")
 
-		cmds := svc.taskFailedCmds(domain.A2ATaskFailedEvent{
+		cmds := svc.taskFailedCmds(agentdomain.A2ATaskFailedEvent{
 			Error:  "timeout",
-			Result: domain.ToolExecutionResult{Data: nil},
+			Result: agentdomain.ToolExecutionResult{Data: nil},
 		})
 
 		msgs := runCmds(cmds)
 		var found bool
 		for _, m := range msgs {
-			if sce, ok := m.(domain.StreamingContentEvent); ok &&
+			if sce, ok := m.(ui.StreamingContentEvent); ok &&
 				sce.Content == "[A2A Task Failed]\n\nError: timeout\n\nformatted body" {
 				found = true
 			}
@@ -215,7 +219,7 @@ func TestService_HandleTaskStatusUpdate(t *testing.T) {
 	t.Run("emits working status with state and message", func(t *testing.T) {
 		svc, _, _, _, _ := newCoordinator()
 
-		cmds := svc.taskStatusUpdateCmds(domain.A2ATaskStatusUpdateEvent{
+		cmds := svc.taskStatusUpdateCmds(agentdomain.A2ATaskStatusUpdateEvent{
 			Status:  "running",
 			Message: "fetching",
 		})
@@ -224,14 +228,14 @@ func TestService_HandleTaskStatusUpdate(t *testing.T) {
 		if len(msgs) != 1 {
 			t.Fatalf("expected one msg, got %d", len(msgs))
 		}
-		upd, ok := msgs[0].(domain.UpdateStatusEvent)
+		upd, ok := msgs[0].(ui.UpdateStatusEvent)
 		if !ok {
 			t.Fatalf("expected UpdateStatusEvent, got %T", msgs[0])
 		}
 		if upd.Message != "A2A task running: fetching" {
 			t.Errorf("unexpected status message: %q", upd.Message)
 		}
-		if upd.StatusType != domain.StatusWorking {
+		if upd.StatusType != ui.StatusWorking {
 			t.Errorf("expected StatusWorking, got %v", upd.StatusType)
 		}
 	})
@@ -241,7 +245,7 @@ func TestService_HandleTaskInputRequired(t *testing.T) {
 	t.Run("emits warning status with input requirement message", func(t *testing.T) {
 		svc, _, _, _, _ := newCoordinator()
 
-		cmds := svc.taskInputRequiredCmds(domain.A2ATaskInputRequiredEvent{
+		cmds := svc.taskInputRequiredCmds(agentdomain.A2ATaskInputRequiredEvent{
 			Message: "need API key",
 		})
 
@@ -249,7 +253,7 @@ func TestService_HandleTaskInputRequired(t *testing.T) {
 		if len(msgs) != 1 {
 			t.Fatalf("expected one msg, got %d", len(msgs))
 		}
-		status, ok := msgs[0].(domain.SetStatusEvent)
+		status, ok := msgs[0].(ui.SetStatusEvent)
 		if !ok {
 			t.Fatalf("expected SetStatusEvent, got %T", msgs[0])
 		}
@@ -266,7 +270,7 @@ func TestService_HandleToolCallExecuted(t *testing.T) {
 	t.Run("emits working status naming the tool", func(t *testing.T) {
 		svc, _, _, _, _ := newCoordinator()
 
-		cmds := svc.toolCallExecutedCmds(domain.A2AToolCallExecutedEvent{
+		cmds := svc.toolCallExecutedCmds(agentdomain.A2AToolCallExecutedEvent{
 			ToolName: "Read",
 		})
 
@@ -274,7 +278,7 @@ func TestService_HandleToolCallExecuted(t *testing.T) {
 		if len(msgs) != 1 {
 			t.Fatalf("expected one msg, got %d", len(msgs))
 		}
-		status, ok := msgs[0].(domain.SetStatusEvent)
+		status, ok := msgs[0].(ui.SetStatusEvent)
 		if !ok {
 			t.Fatalf("expected SetStatusEvent, got %T", msgs[0])
 		}
@@ -288,9 +292,9 @@ func TestService_HandleToolCallExecuted(t *testing.T) {
 }
 
 func TestService_HandleTaskCompleted_NilTaskRetentionService(t *testing.T) {
-	repo := &mocksdomain.FakeConversationRepository{}
+	repo := &convmocks.FakeConversationRepository{}
 	state := services.NewStateManager(false)
-	listener := &mocksdomain.FakeChatEventListener{}
+	listener := &uimocks.FakeChatEventListener{}
 	repo.GetMessagesReturns(nil)
 
 	svc := NewService(Options{
@@ -301,8 +305,8 @@ func TestService_HandleTaskCompleted_NilTaskRetentionService(t *testing.T) {
 	})
 
 	t.Run("does not panic when retention service is nil but result includes task", func(t *testing.T) {
-		event := domain.A2ATaskCompletedEvent{
-			Result: domain.ToolExecutionResult{
+		event := agentdomain.A2ATaskCompletedEvent{
+			Result: agentdomain.ToolExecutionResult{
 				Data: tools.A2ASubmitTaskResult{
 					TaskResult: "ok",
 					Task:       &adk.Task{ID: "t1"},
@@ -315,7 +319,7 @@ func TestService_HandleTaskCompleted_NilTaskRetentionService(t *testing.T) {
 
 		var found bool
 		for _, m := range msgs {
-			if sce, ok := m.(domain.StreamingContentEvent); ok && sce.Content == "ok" {
+			if sce, ok := m.(ui.StreamingContentEvent); ok && sce.Content == "ok" {
 				found = true
 			}
 		}
@@ -335,12 +339,12 @@ func TestService_PublicMethods_ReturnNonNilCmds(t *testing.T) {
 		name string
 		cmd  tea.Cmd
 	}{
-		{"HandleTaskSubmitted", svc.HandleTaskSubmitted(domain.A2ATaskSubmittedEvent{AgentName: "a"})},
-		{"HandleTaskCompleted", svc.HandleTaskCompleted(domain.A2ATaskCompletedEvent{})},
-		{"HandleTaskFailed", svc.HandleTaskFailed(domain.A2ATaskFailedEvent{Error: "e"})},
-		{"HandleTaskStatusUpdate", svc.HandleTaskStatusUpdate(domain.A2ATaskStatusUpdateEvent{Status: "s"})},
-		{"HandleTaskInputRequired", svc.HandleTaskInputRequired(domain.A2ATaskInputRequiredEvent{Message: "m"})},
-		{"HandleToolCallExecuted", svc.HandleToolCallExecuted(domain.A2AToolCallExecutedEvent{ToolName: "t"})},
+		{"HandleTaskSubmitted", svc.HandleTaskSubmitted(agentdomain.A2ATaskSubmittedEvent{AgentName: "a"})},
+		{"HandleTaskCompleted", svc.HandleTaskCompleted(agentdomain.A2ATaskCompletedEvent{})},
+		{"HandleTaskFailed", svc.HandleTaskFailed(agentdomain.A2ATaskFailedEvent{Error: "e"})},
+		{"HandleTaskStatusUpdate", svc.HandleTaskStatusUpdate(agentdomain.A2ATaskStatusUpdateEvent{Status: "s"})},
+		{"HandleTaskInputRequired", svc.HandleTaskInputRequired(agentdomain.A2ATaskInputRequiredEvent{Message: "m"})},
+		{"HandleToolCallExecuted", svc.HandleToolCallExecuted(agentdomain.A2AToolCallExecutedEvent{ToolName: "t"})},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

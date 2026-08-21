@@ -3,8 +3,7 @@ version: '3'
 vars:
   BINARY_NAME: infer
   MAIN_PACKAGE: .
-  GOTAGS:
-    sh: '[ "$(go env GOOS)" = "darwin" ] && echo "mac" || echo ""'
+  GOTAGS: purego
   VERSION:
     sh: echo "${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo "dev")}"
   COMMIT:
@@ -43,7 +42,7 @@ tasks:
   clean:
     desc: Clean build artifacts
     cmds:
-      - rm -f {{.BINARY_NAME}} .infer/bin/mock-gateway
+      - rm -f {{.BINARY_NAME}} .infer/bin/mock-gateway .infer/bin/infer-e2e
       - go clean
 
   test:
@@ -69,7 +68,12 @@ tasks:
   test:e2e:
     desc: Run hermetic end-to-end tests of the built CLI against the mock gateway
     cmds:
-      - go test -race -tags "e2e {{.GOTAGS}}" -timeout 5m ./tests/e2e/...
+      # The harness builds the CLI with a plain `go build .` (no tags, cgo on), which
+      # selects robotgo's cgo backend and fails where X11 headers are absent. Prebuild
+      # with the purego tag and hand it over via INFER_E2E_BINARY.
+      - mkdir -p .infer/bin
+      - CGO_ENABLED=0 go build -tags "{{.GOTAGS}}" -o .infer/bin/infer-e2e .
+      - INFER_E2E_BINARY=$PWD/.infer/bin/infer-e2e go test -race -tags "e2e {{.GOTAGS}}" -timeout 5m ./tests/e2e/...
 
   lint:
     desc: Run linter (requires golangci-lint)
@@ -252,67 +256,46 @@ tasks:
   mocks:generate:
     desc: Generate mocks using counterfeiter
     cmds:
-      - mkdir -p tests/mocks/domain
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain Tool
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ToolService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain FileService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ImageService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain FrameSource
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BrowserDriver
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ImageAnnotator
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain WebSearchService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain WebFetchService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain GitHubIssueService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain GitHubSetupService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SkillsService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain AgentService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ModelService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ThemeService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ConversationRepository
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain PricingService
+      - mkdir -p tests/mocks/channels tests/mocks/memory tests/mocks/storage
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain Tool
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ToolService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain FileService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ImageService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain FrameSource
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ImageAnnotator
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain GitHubIssueService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain SkillsService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain AgentService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain ModelService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ThemeService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain ConversationRepository
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain PricingService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/sdk/fake_client.go github.com/inference-gateway/sdk.Client
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MessageQueue
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain A2ATaskTracker
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BackgroundTaskRegistry
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SubagentTracker
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ApprovalPolicy
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain AgentStateMachine
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain StateHandler
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain A2AAgentService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MCPClient
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain RateLimiter
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain Channel
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ApprovalChannel
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain HistoryCleaner
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain TaskRetentionService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ChatEventListener
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain A2ATaskCoordinator
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ApprovalCoordinator
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ActiveToolTracker
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ChatCompletionRunner
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BashDetachChannelHolder
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain DirectExecutionService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ToolExecutionCoordinator
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SystemReminderProvider
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain HookCommandProvider
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MemoryBackend
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BackgroundJob
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain JobSubmitter
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain JobStopper
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain JobLivenessReporter
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain JobNotifier
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BackgroundShellService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain BackgroundTaskService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/infra/storage ConversationStorage
-      - mkdir -p tests/mocks/filewriter
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter FileWriter
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter PathValidator
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter BackupManager
-      - mkdir -p tests/mocks/display
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/display DisplayController
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/display Provider
-      - mkdir -p tests/mocks/services
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/services internal/services TitleGenerator
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain MessageQueue
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain A2ATaskTracker
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain BackgroundTaskRegistry
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ApprovalPolicy
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/agent/states AgentStateMachine
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/agent/states StateHandler
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentapp internal/agent/application A2AAgentService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain MCPClient
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/services/channels Channel
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/services/channels HistoryCleaner
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain TaskRetentionService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ChatEventListener
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ChatCompletionRunner
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui DirectExecutionService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ToolExecutionCoordinator
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain SystemReminderProvider
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain HookCommandProvider
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/memory internal/platform/memory MemoryBackend
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain JobStopper
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain JobLivenessReporter
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain BackgroundShellService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain BackgroundTaskService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/storage internal/platform/storage ConversationStorage
+      - mkdir -p tests/mocks/conversation tests/mocks/agentdomain tests/mocks/states tests/mocks/agentapp
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain TitleGenerator
       - mkdir -p tests/mocks/shortcuts
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/shortcuts Shortcut
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/shortcuts PersistentConversationRepository
@@ -321,55 +304,28 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui InputComponent
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui StatusComponent
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui HelpBarComponent
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui SelectionComponent
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui Theme
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui/autocomplete ShortcutRegistry
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui AutocompleteComponent
-      - mkdir -p tests/mocks/history
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/history internal/ui/history ShellHistoryProvider
       - mkdir -p tests/mocks/keybinding
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/keybinding internal/ui/keybinding KeyHandlerContext
       - mkdir -p tests/mocks/adk
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/adk github.com/inference-gateway/adk/client.A2AClient
     sources:
-      - "internal/domain/interfaces.go"
-      - "internal/domain/subagent.go"
-      - "internal/domain/background_job.go"
-      - "internal/domain/shell.go"
-      - "internal/domain/agent.go"
-      - "internal/domain/config_service.go"
-      - "internal/domain/pricing.go"
-      - "internal/infra/storage/interfaces.go"
-      - "internal/ui/interfaces.go"
-      - "internal/services/background_jobs.go"
-      - "internal/shortcuts/interfaces.go"
+      - "internal/agent/application/*.go"
+      - "internal/agent/domain/*.go"
+      - "internal/agent/states/*.go"
+      - "internal/conversation/domain/*.go"
+      - "internal/platform/memory/*.go"
+      - "internal/platform/storage/*.go"
+      - "internal/scheduler/domain/*.go"
+      - "internal/services/channels/*.go"
+      - "internal/shortcuts/*.go"
+      - "internal/ui/*.go"
+      - "internal/ui/autocomplete/*.go"
+      - "internal/ui/keybinding/*.go"
     generates:
-      - "tests/mocks/domain/fake_tool.go"
-      - "tests/mocks/domain/fake_tool_factory.go"
-      - "tests/mocks/domain/fake_tool_service.go"
-      - "tests/mocks/domain/fake_web_search_service.go"
-      - "tests/mocks/domain/fake_web_fetch_service.go"
-      - "tests/mocks/domain/fake_git_hub_issue_service.go"
-      - "tests/mocks/domain/fake_skills_service.go"
-      - "tests/mocks/domain/fake_file_service.go"
-      - "tests/mocks/domain/fake_agent_service.go"
-      - "tests/mocks/domain/fake_model_service.go"
-      - "tests/mocks/domain/fake_config_service.go"
-      - "tests/mocks/domain/fake_theme_service.go"
-      - "tests/mocks/domain/fake_conversation_repository.go"
-      - "tests/mocks/domain/fake_pricing_service.go"
-      - "tests/mocks/domain/fake_conversation_storage.go"
-      - "tests/mocks/domain/fake_sdkclient.go"
-      - "tests/mocks/domain/fake_task_tracker.go"
-      - "tests/mocks/domain/fake_subagent_tracker.go"
-      - "tests/mocks/ui/fake_conversation_renderer.go"
-      - "tests/mocks/ui/fake_input_component.go"
-      - "tests/mocks/ui/fake_status_component.go"
-      - "tests/mocks/ui/fake_help_bar_component.go"
-      - "tests/mocks/ui/fake_selection_component.go"
-      - "tests/mocks/ui/fake_theme.go"
-      - "tests/mocks/ui/fake_autocomplete_interface.go"
-      - "tests/mocks/adk/fake_a2aclient.go"
+      - "tests/mocks/**/*.go"
 
   mocks:clean:
     desc: Clean generated mock files

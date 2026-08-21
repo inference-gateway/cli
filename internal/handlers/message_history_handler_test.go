@@ -4,16 +4,18 @@ import (
 	"testing"
 	"time"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
-	repo := services.NewInMemoryConversationRepository(nil, nil)
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
 	handler := NewMessageHistoryHandler(repo)
 
-	messages := []domain.ConversationEntry{
+	messages := []convdomain.ConversationEntry{
 		{
 			Time:    time.Now(),
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("First user message")},
@@ -38,7 +40,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
 		}
 	}
 
-	event := domain.MessageEditSubmitEvent{
+	event := agentdomain.MessageEditSubmitEvent{
 		RequestID:     "test-request",
 		OriginalIndex: 0,
 		EditedContent: "Edited first message",
@@ -48,7 +50,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
 	cmd := handler.HandleEditSubmit(event)
 	msg := cmd()
 
-	userInputEvent, ok := msg.(domain.UserInputEvent)
+	userInputEvent, ok := msg.(agentdomain.UserInputEvent)
 	if !ok {
 		t.Fatalf("Expected UserInputEvent but got: %T", msg)
 	}
@@ -64,10 +66,10 @@ func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
 }
 
 func TestMessageHistoryHandler_HandleEditSubmit_MiddleMessage(t *testing.T) {
-	repo := services.NewInMemoryConversationRepository(nil, nil)
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
 	handler := NewMessageHistoryHandler(repo)
 
-	messages := []domain.ConversationEntry{
+	messages := []convdomain.ConversationEntry{
 		{
 			Time:    time.Now(),
 			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("First")},
@@ -92,7 +94,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_MiddleMessage(t *testing.T) {
 		}
 	}
 
-	event := domain.MessageEditSubmitEvent{
+	event := agentdomain.MessageEditSubmitEvent{
 		RequestID:     "test-request",
 		OriginalIndex: 2,
 		EditedContent: "Edited second message",
@@ -102,7 +104,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_MiddleMessage(t *testing.T) {
 	cmd := handler.HandleEditSubmit(event)
 	msg := cmd()
 
-	userInputEvent, ok := msg.(domain.UserInputEvent)
+	userInputEvent, ok := msg.(agentdomain.UserInputEvent)
 	if !ok {
 		t.Fatalf("Expected UserInputEvent but got: %T", msg)
 	}

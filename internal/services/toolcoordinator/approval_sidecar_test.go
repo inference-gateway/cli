@@ -7,14 +7,14 @@ import (
 	"strings"
 	"testing"
 
-	sdk "github.com/inference-gateway/sdk"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 func TestSubagentApprovalSidecar_WriteAndClear(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "approval.json")
-	t.Setenv(domain.EnvSubagentApprovalFile, path)
+	t.Setenv(scheddomain.EnvSubagentApprovalFile, path)
 
 	writeSubagentApprovalSidecar(sdk.ChatCompletionMessageToolCall{
 		Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"rm -rf x"}`},
@@ -24,7 +24,7 @@ func TestSubagentApprovalSidecar_WriteAndClear(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected sidecar to be written: %v", err)
 	}
-	var af domain.SubagentApprovalFile
+	var af scheddomain.SubagentApprovalFile
 	if err := json.Unmarshal(data, &af); err != nil {
 		t.Fatalf("unmarshal sidecar: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestSubagentApprovalSidecar_WriteAndClear(t *testing.T) {
 
 // Outside an interactive subagent (env unset) the hooks are a no-op.
 func TestSubagentApprovalSidecar_NoopWithoutEnv(t *testing.T) {
-	t.Setenv(domain.EnvSubagentApprovalFile, "")
+	t.Setenv(scheddomain.EnvSubagentApprovalFile, "")
 	writeSubagentApprovalSidecar(sdk.ChatCompletionMessageToolCall{
 		Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"},
 	})

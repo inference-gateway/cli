@@ -12,7 +12,7 @@ import (
 
 	require "github.com/stretchr/testify/require"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func validSkillBody(name, description string) string {
@@ -138,7 +138,7 @@ func TestInspect_ValidHooksYAML(t *testing.T) {
 	require.True(t, res.HasHooks)
 	require.Len(t, res.Hooks, 1)
 	require.Equal(t, "fmt", res.Hooks[0].Name)
-	require.Equal(t, domain.HookPostSession, res.Hooks[0].Hook)
+	require.Equal(t, agentdomain.HookPostSession, res.Hooks[0].Hook)
 }
 
 func TestInspect_InvalidHooksYAML_Rejected(t *testing.T) {

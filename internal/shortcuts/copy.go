@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // ClipboardWriter copies UTF-8 text to the system clipboard. It is defined here
@@ -18,12 +18,12 @@ type ClipboardWriter interface {
 
 // CopyShortcut copies the current conversation to the system clipboard.
 type CopyShortcut struct {
-	repo      domain.ConversationRepository
+	repo      convdomain.ConversationRepository
 	clipboard ClipboardWriter
 }
 
 // NewCopyShortcut creates a new CopyShortcut.
-func NewCopyShortcut(repo domain.ConversationRepository, clipboard ClipboardWriter) *CopyShortcut {
+func NewCopyShortcut(repo convdomain.ConversationRepository, clipboard ClipboardWriter) *CopyShortcut {
 	return &CopyShortcut{
 		repo:      repo,
 		clipboard: clipboard,
@@ -75,18 +75,18 @@ func (c *CopyShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 }
 
 // parseCopyFormat resolves the optional format argument, defaulting to plain text.
-func parseCopyFormat(args []string) (domain.ExportFormat, error) {
+func parseCopyFormat(args []string) (convdomain.ExportFormat, error) {
 	if len(args) == 0 {
-		return domain.ExportText, nil
+		return convdomain.ExportText, nil
 	}
 
 	switch strings.ToLower(strings.TrimSpace(args[0])) {
 	case "text", "txt":
-		return domain.ExportText, nil
+		return convdomain.ExportText, nil
 	case "markdown", "md":
-		return domain.ExportMarkdown, nil
+		return convdomain.ExportMarkdown, nil
 	case "json":
-		return domain.ExportJSON, nil
+		return convdomain.ExportJSON, nil
 	default:
 		return "", fmt.Errorf("unknown format %q (use text, markdown, or json)", args[0])
 	}

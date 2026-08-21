@@ -14,17 +14,15 @@ const (
 
 // Emoji icons
 const (
-	Robot     = "🤖"
-	Link      = "🔗"
-	Help      = "❓"
-	Lightbulb = "💡"
+	Robot = "🤖"
+	Link  = "🔗"
+	Help  = "❓"
 )
 
 // Tool execution icons - modern Unicode symbols
 const (
-	QueuedIcon    = "•"
-	ExecutingIcon = "⚡"
-	BulletIcon    = "•"
+	QueuedIcon = "•"
+	BulletIcon = "•"
 )
 
 // Icon styles

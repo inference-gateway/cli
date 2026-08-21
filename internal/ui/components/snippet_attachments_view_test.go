@@ -4,12 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 func newTestSnippetView() *SnippetAttachmentsView {
-	ts := domain.NewThemeProvider()
+	ts := styles.NewThemeProvider()
 	v := NewSnippetAttachmentsView(styles.NewProvider(ts))
 	v.SetWidth(80)
 	return v

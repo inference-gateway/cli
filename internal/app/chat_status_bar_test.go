@@ -3,17 +3,20 @@ package app
 import (
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 
+	tea "charm.land/bubbletea/v2"
 	sdk "github.com/inference-gateway/sdk"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // newStatusBarTestApp wires the minimal ChatApplication surface used by the
@@ -23,7 +26,7 @@ import (
 func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplication, *services.StateManager) {
 	t.Helper()
 
-	modelService := &domainmocks.FakeModelService{}
+	modelService := &convmocks.FakeModelService{}
 	modelService.GetCurrentModelReturns("test-model")
 
 	statusBar := components.NewInputStatusBar(nil)
@@ -31,19 +34,19 @@ func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplicati
 	statusBar.SetConfig(config.DefaultConfig())
 
 	if withJobs {
-		registry := &domainmocks.FakeBackgroundTaskRegistry{}
+		registry := &schedmocks.FakeBackgroundTaskRegistry{}
 		registry.CountRunningJobsReturns(1)
 		statusBar.SetBackgroundTaskRegistry(registry)
 	}
 
 	if withTheme {
-		themeService := &domainmocks.FakeThemeService{}
+		themeService := &uimocks.FakeThemeService{}
 		themeService.GetCurrentThemeNameReturns("tokyo-night")
 		statusBar.SetThemeService(themeService)
 	}
 
 	stateManager := services.NewStateManager(false)
-	_ = stateManager.TransitionToView(domain.ViewStateChat)
+	_ = stateManager.TransitionToView(ui.ViewStateChat)
 
 	app := &ChatApplication{
 		inputStatusBar: statusBar,
@@ -55,7 +58,7 @@ func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplicati
 func TestFocusStatusBarEventFocusesRow(t *testing.T) {
 	app, _ := newStatusBarTestApp(t, false, false)
 
-	app.handleChatView(domain.FocusStatusBarEvent{})
+	app.handleChatView(ui.FocusStatusBarEvent{})
 	if !app.statusBarFocused {
 		t.Fatal("FocusStatusBarEvent should focus the row when an indicator is actionable")
 	}
@@ -71,7 +74,7 @@ func TestFocusStatusBarEventNoopsWithoutActionableIndicator(t *testing.T) {
 	cfg.Chat.StatusBar.Indicators.Model = false
 	statusBar.SetConfig(cfg)
 
-	app.handleChatView(domain.FocusStatusBarEvent{})
+	app.handleChatView(ui.FocusStatusBarEvent{})
 	if app.statusBarFocused {
 		t.Fatal("nothing actionable: focus must stay in the input")
 	}
@@ -83,7 +86,7 @@ func TestFocusStatusBarEventNoopsWithoutActionableIndicator(t *testing.T) {
 // keys flow through to the components.
 func TestDuplicateKeyGuardConsumesMarkedKeysOnce(t *testing.T) {
 	stateManager := services.NewStateManager(false)
-	if err := stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+	if err := stateManager.TransitionToView(ui.ViewStateChat); err != nil {
 		t.Fatalf("transitioning to chat: %v", err)
 	}
 	app := &ChatApplication{stateManager: stateManager}
@@ -97,7 +100,7 @@ func TestDuplicateKeyGuardConsumesMarkedKeysOnce(t *testing.T) {
 	}
 
 	app.lastHandledKey = enter.String()
-	if err := stateManager.TransitionToView(domain.ViewStateThemeSelection); err != nil {
+	if err := stateManager.TransitionToView(ui.ViewStateThemeSelection); err != nil {
 		t.Fatalf("transitioning to theme selection: %v", err)
 	}
 	if got := app.handleDuplicateKeyEvents(enter, &cmds); !got {
@@ -113,11 +116,11 @@ func TestDuplicateKeyGuardConsumesMarkedKeysOnce(t *testing.T) {
 // status message the /model shortcut emits.
 func TestStatusBarEnterOpensModelSelection(t *testing.T) {
 	app, stateManager := newStatusBarTestApp(t, false, false)
-	app.handleChatView(domain.FocusStatusBarEvent{})
+	app.handleChatView(ui.FocusStatusBarEvent{})
 
 	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if got := stateManager.GetCurrentView(); got != domain.ViewStateModelSelection {
+	if got := stateManager.GetCurrentView(); got != ui.ViewStateModelSelection {
 		t.Errorf("transitioned to %v, want model selection", got)
 	}
 	if app.statusBarFocused || app.inputStatusBar.IsFocused() {
@@ -127,7 +130,7 @@ func TestStatusBarEnterOpensModelSelection(t *testing.T) {
 	if len(cmds) != 1 {
 		t.Fatalf("expected one status command, got %d", len(cmds))
 	}
-	ev, ok := cmds[0]().(domain.SetStatusEvent)
+	ev, ok := cmds[0]().(ui.SetStatusEvent)
 	if !ok {
 		t.Fatalf("expected a SetStatusEvent, got %T", cmds[0]())
 	}
@@ -138,27 +141,27 @@ func TestStatusBarEnterOpensModelSelection(t *testing.T) {
 
 func TestStatusBarEnterOpensThemeSelection(t *testing.T) {
 	app, stateManager := newStatusBarTestApp(t, false, true)
-	app.handleChatView(domain.FocusStatusBarEvent{})
+	app.handleChatView(ui.FocusStatusBarEvent{})
 
 	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
 	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if got := stateManager.GetCurrentView(); got != domain.ViewStateThemeSelection {
+	if got := stateManager.GetCurrentView(); got != ui.ViewStateThemeSelection {
 		t.Errorf("transitioned to %v, want theme selection", got)
 	}
 	if len(cmds) != 1 {
 		t.Fatalf("expected one status command, got %d", len(cmds))
 	}
-	if _, ok := cmds[0]().(domain.SetStatusEvent); !ok {
+	if _, ok := cmds[0]().(ui.SetStatusEvent); !ok {
 		t.Fatalf("expected a SetStatusEvent, got %T", cmds[0]())
 	}
 }
 
-// toolStatsEstimator is a minimal domain.TokenEstimator so the tools
+// toolStatsEstimator is a minimal convdomain.TokenEstimator so the tools
 // indicator renders in tests.
 type toolStatsEstimator struct{}
 
-func (toolStatsEstimator) GetToolStats(domain.ToolService, domain.AgentMode) (int, int) {
+func (toolStatsEstimator) GetToolStats(agentdomain.ToolService, agentdomain.AgentMode) (int, int) {
 	return 8017, 25
 }
 
@@ -171,21 +174,21 @@ func (toolStatsEstimator) EffectiveContextTokens(lastInputTokens int, _ []sdk.Me
 func TestStatusBarEnterOpensToolsList(t *testing.T) {
 	app, stateManager := newStatusBarTestApp(t, false, false)
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)
-	statusBar.SetToolService(&domainmocks.FakeToolService{})
+	statusBar.SetToolService(&agentdomainmocks.FakeToolService{})
 	statusBar.SetTokenEstimator(toolStatsEstimator{})
 
-	app.handleChatView(domain.FocusStatusBarEvent{})
+	app.handleChatView(ui.FocusStatusBarEvent{})
 
 	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
 	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if got := stateManager.GetCurrentView(); got != domain.ViewStateToolsList {
+	if got := stateManager.GetCurrentView(); got != ui.ViewStateToolsList {
 		t.Errorf("transitioned to %v, want the tools list", got)
 	}
 	if len(cmds) != 1 {
 		t.Fatalf("expected one status command, got %d", len(cmds))
 	}
-	if _, ok := cmds[0]().(domain.SetStatusEvent); !ok {
+	if _, ok := cmds[0]().(ui.SetStatusEvent); !ok {
 		t.Fatalf("expected a SetStatusEvent, got %T", cmds[0]())
 	}
 }
@@ -195,40 +198,40 @@ func TestStatusBarEnterOpensA2AAgents(t *testing.T) {
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)
 	barStateManager := services.NewStateManager(false)
 	barStateManager.InitializeAgentReadiness(1)
-	barStateManager.UpdateAgentStatus("agent", domain.AgentStateReady, "", "", "")
+	barStateManager.UpdateAgentStatus("agent", agentdomain.AgentStateReady, "", "", "")
 	statusBar.SetStateManager(barStateManager)
 
-	app.handleChatView(domain.FocusStatusBarEvent{})
+	app.handleChatView(ui.FocusStatusBarEvent{})
 
 	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
 	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if got := stateManager.GetCurrentView(); got != domain.ViewStateA2AAgents {
+	if got := stateManager.GetCurrentView(); got != ui.ViewStateA2AAgents {
 		t.Errorf("transitioned to %v, want the A2A agents view", got)
 	}
 	if len(cmds) != 1 {
 		t.Fatalf("expected one status command, got %d", len(cmds))
 	}
-	if _, ok := cmds[0]().(domain.SetStatusEvent); !ok {
+	if _, ok := cmds[0]().(ui.SetStatusEvent); !ok {
 		t.Fatalf("expected a SetStatusEvent, got %T", cmds[0]())
 	}
 }
 
 func TestStatusBarEnterOpensTaskManagement(t *testing.T) {
 	app, stateManager := newStatusBarTestApp(t, true, false)
-	app.handleChatView(domain.FocusStatusBarEvent{})
+	app.handleChatView(ui.FocusStatusBarEvent{})
 
 	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
 	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if got := stateManager.GetCurrentView(); got != domain.ViewStateA2ATaskManagement {
+	if got := stateManager.GetCurrentView(); got != ui.ViewStateA2ATaskManagement {
 		t.Errorf("transitioned to %v, want task management", got)
 	}
 
 	if len(cmds) != 1 {
 		t.Fatalf("expected one status command, got %d", len(cmds))
 	}
-	ev, ok := cmds[0]().(domain.SetStatusEvent)
+	ev, ok := cmds[0]().(ui.SetStatusEvent)
 	if !ok {
 		t.Fatalf("expected a SetStatusEvent, got %T", cmds[0]())
 	}
@@ -257,7 +260,7 @@ func TestStatusBarNavigationAndExitKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app.handleChatView(domain.FocusStatusBarEvent{})
+			app.handleChatView(ui.FocusStatusBarEvent{})
 			if !app.statusBarFocused {
 				t.Fatal("precondition failed: row not focused")
 			}
@@ -272,7 +275,7 @@ func TestStatusBarNavigationAndExitKeys(t *testing.T) {
 		})
 	}
 
-	if got := stateManager.GetCurrentView(); got != domain.ViewStateChat {
+	if got := stateManager.GetCurrentView(); got != ui.ViewStateChat {
 		t.Errorf("navigation and exit keys must not transition views, got %v", got)
 	}
 }

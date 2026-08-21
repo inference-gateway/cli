@@ -11,15 +11,15 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
 type A2AAgentService struct {
 	config     *config.Config
 	agentsPath string
-	cache      map[string]*domain.CachedAgentCard
+	cache      map[string]*agentapp.CachedAgentCard
 	cacheMutex sync.RWMutex
 }
 
@@ -40,7 +40,7 @@ func NewA2AAgentService(cfg *config.Config) *A2AAgentService {
 	return &A2AAgentService{
 		config:     cfg,
 		agentsPath: agentsPath,
-		cache:      make(map[string]*domain.CachedAgentCard),
+		cache:      make(map[string]*agentapp.CachedAgentCard),
 	}
 }
 
@@ -89,7 +89,7 @@ func (s *A2AAgentService) storeInCache(agentURL string, card *adk.AgentCard) {
 	s.cacheMutex.Lock()
 	defer s.cacheMutex.Unlock()
 
-	s.cache[agentURL] = &domain.CachedAgentCard{
+	s.cache[agentURL] = &agentapp.CachedAgentCard{
 		Card:      card,
 		URL:       agentURL,
 		FetchedAt: time.Now(),
@@ -110,9 +110,9 @@ func (s *A2AAgentService) GetConfiguredAgents() []string {
 	return urls
 }
 
-func (s *A2AAgentService) GetAgentCards(ctx context.Context) ([]*domain.CachedAgentCard, error) {
+func (s *A2AAgentService) GetAgentCards(ctx context.Context) ([]*agentapp.CachedAgentCard, error) {
 	agentURLs := s.GetConfiguredAgents()
-	cards := make([]*domain.CachedAgentCard, 0, len(agentURLs))
+	cards := make([]*agentapp.CachedAgentCard, 0, len(agentURLs))
 
 	for _, url := range agentURLs {
 		card, err := s.GetAgentCard(ctx, url)
@@ -121,7 +121,7 @@ func (s *A2AAgentService) GetAgentCards(ctx context.Context) ([]*domain.CachedAg
 			continue
 		}
 
-		var cachedCard *domain.CachedAgentCard
+		var cachedCard *agentapp.CachedAgentCard
 
 		if s.config.A2A.Cache.Enabled {
 			s.cacheMutex.RLock()
@@ -130,7 +130,7 @@ func (s *A2AAgentService) GetAgentCards(ctx context.Context) ([]*domain.CachedAg
 		}
 
 		if cachedCard == nil {
-			cachedCard = &domain.CachedAgentCard{
+			cachedCard = &agentapp.CachedAgentCard{
 				Card:      card,
 				URL:       url,
 				FetchedAt: time.Now(),

@@ -1,0 +1,399 @@
+package storage
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"sync"
+	"time"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+)
+
+// MemoryStorage implements ConversationStorage using in-memory storage
+// This allows conversation history features to work without persistent storage
+type MemoryStorage struct {
+	conversations map[string]conversationData
+	sessionGroups map[string]SessionGroupEntry
+	scheduledJobs map[string]*scheddomain.ScheduledJob
+	scheduledRuns map[string]*scheddomain.RunRecord
+	plans         map[string]*PlanRecord
+	shellHistory  []string
+	mutex         sync.RWMutex
+}
+
+type conversationData struct {
+	entries  []convdomain.ConversationEntry
+	metadata convdomain.ConversationMetadata
+}
+
+// NewMemoryStorage creates a new in-memory storage instance
+func NewMemoryStorage() *MemoryStorage {
+	return &MemoryStorage{
+		conversations: make(map[string]conversationData),
+		sessionGroups: make(map[string]SessionGroupEntry),
+	}
+}
+
+// NewMemorySessionGroupStorage returns an in-memory SessionGroupStorage. Used
+// as a fallback when conversation storage is disabled but the rollover manager
+// still needs somewhere to keep group state for the lifetime of the process.
+func NewMemorySessionGroupStorage() SessionGroupStorage {
+	return NewMemoryStorage()
+}
+
+// SaveConversation saves a conversation with a unique ID
+func (m *MemoryStorage) SaveConversation(ctx context.Context, conversationID string, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	metadata.UpdatedAt = time.Now()
+	metadata.MessageCount = len(entries)
+
+	entriesCopy := make([]convdomain.ConversationEntry, len(entries))
+	copy(entriesCopy, entries)
+
+	m.conversations[conversationID] = conversationData{
+		entries:  entriesCopy,
+		metadata: metadata,
+	}
+
+	return nil
+}
+
+// LoadConversation loads a conversation by its ID
+func (m *MemoryStorage) LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, convdomain.ConversationMetadata, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	data, exists := m.conversations[conversationID]
+	if !exists {
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("conversation not found: %s", conversationID)
+	}
+
+	entriesCopy := make([]convdomain.ConversationEntry, len(data.entries))
+	copy(entriesCopy, data.entries)
+
+	return entriesCopy, data.metadata, nil
+}
+
+// ListConversations returns a list of conversation summaries
+func (m *MemoryStorage) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	summaries := make([]convdomain.ConversationSummary, 0, len(m.conversations))
+
+	for _, data := range m.conversations {
+		summary := convdomain.ConversationSummary{
+			ID:                  data.metadata.ID,
+			Title:               data.metadata.Title,
+			CreatedAt:           data.metadata.CreatedAt,
+			UpdatedAt:           data.metadata.UpdatedAt,
+			MessageCount:        data.metadata.MessageCount,
+			TokenStats:          data.metadata.TokenStats,
+			Model:               data.metadata.Model,
+			Tags:                data.metadata.Tags,
+			TitleGenerated:      data.metadata.TitleGenerated,
+			TitleInvalidated:    data.metadata.TitleInvalidated,
+			TitleGenerationTime: data.metadata.TitleGenerationTime,
+		}
+		summaries = append(summaries, summary)
+	}
+
+	slices.SortFunc(summaries, func(a, b convdomain.ConversationSummary) int {
+		return b.UpdatedAt.Compare(a.UpdatedAt)
+	})
+
+	if offset >= len(summaries) {
+		return []convdomain.ConversationSummary{}, nil
+	}
+
+	end := min(offset+limit, len(summaries))
+
+	if limit <= 0 {
+		return summaries[offset:], nil
+	}
+
+	return summaries[offset:end], nil
+}
+
+// DeleteConversation removes a conversation by its ID
+func (m *MemoryStorage) DeleteConversation(ctx context.Context, conversationID string) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	if _, exists := m.conversations[conversationID]; !exists {
+		return fmt.Errorf("conversation not found: %s", conversationID)
+	}
+
+	delete(m.conversations, conversationID)
+	return nil
+}
+
+// UpdateConversationMetadata updates metadata for a conversation
+func (m *MemoryStorage) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata convdomain.ConversationMetadata) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	data, exists := m.conversations[conversationID]
+	if !exists {
+		return fmt.Errorf("conversation not found: %s", conversationID)
+	}
+
+	metadata.UpdatedAt = time.Now()
+	data.metadata = metadata
+	m.conversations[conversationID] = data
+
+	return nil
+}
+
+// ListConversationsNeedingTitles returns conversations that need title generation
+func (m *MemoryStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]convdomain.ConversationSummary, error) {
+	return []convdomain.ConversationSummary{}, nil
+}
+
+// Close closes the storage connection (no-op for memory storage)
+func (m *MemoryStorage) Close() error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	m.conversations = make(map[string]conversationData)
+	m.sessionGroups = make(map[string]SessionGroupEntry)
+	return nil
+}
+
+// GetSessionGroup returns the entry for groupKey or (_, false, nil) if missing.
+func (m *MemoryStorage) GetSessionGroup(_ context.Context, groupKey string) (SessionGroupEntry, bool, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	entry, ok := m.sessionGroups[groupKey]
+	if !ok {
+		return SessionGroupEntry{}, false, nil
+	}
+	return cloneSessionGroupEntry(entry), true, nil
+}
+
+// PutSessionGroup creates or replaces the entry for groupKey.
+func (m *MemoryStorage) PutSessionGroup(_ context.Context, groupKey string, entry SessionGroupEntry) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	m.sessionGroups[groupKey] = cloneSessionGroupEntry(entry)
+	return nil
+}
+
+// ListSessionGroups returns a copy of all session-group entries.
+func (m *MemoryStorage) ListSessionGroups(_ context.Context) (map[string]SessionGroupEntry, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	out := make(map[string]SessionGroupEntry, len(m.sessionGroups))
+	for k, v := range m.sessionGroups {
+		out[k] = cloneSessionGroupEntry(v)
+	}
+	return out, nil
+}
+
+func cloneSessionGroupEntry(entry SessionGroupEntry) SessionGroupEntry {
+	if len(entry.History) == 0 {
+		return entry
+	}
+	historyCopy := make([]string, len(entry.History))
+	copy(historyCopy, entry.History)
+	entry.History = historyCopy
+	return entry
+}
+
+// Health checks if the storage is healthy and reachable
+func (m *MemoryStorage) Health(ctx context.Context) error {
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// ScheduledJobStorage (MemoryStorage)
+// ---------------------------------------------------------------------------
+
+// SaveJob creates or updates a scheduled job.
+func (m *MemoryStorage) SaveJob(ctx context.Context, job *scheddomain.ScheduledJob) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if m.scheduledJobs == nil {
+		m.scheduledJobs = make(map[string]*scheddomain.ScheduledJob)
+	}
+	cp := *job
+	m.scheduledJobs[job.ID] = &cp
+	return nil
+}
+
+// LoadJob returns a copy of a job by ID, so callers can't mutate stored state.
+func (m *MemoryStorage) LoadJob(ctx context.Context, id string) (*scheddomain.ScheduledJob, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	job, ok := m.scheduledJobs[id]
+	if !ok {
+		return nil, ErrJobNotFound
+	}
+	cp := *job
+	return &cp, nil
+}
+
+// ListJobs returns copies of all jobs sorted by CreatedAt ascending.
+func (m *MemoryStorage) ListJobs(ctx context.Context) ([]*scheddomain.ScheduledJob, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	var jobs []*scheddomain.ScheduledJob
+	for _, job := range m.scheduledJobs {
+		cp := *job
+		jobs = append(jobs, &cp)
+	}
+	slices.SortFunc(jobs, func(a, b *scheddomain.ScheduledJob) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
+	})
+	return jobs, nil
+}
+
+// DeleteJob removes a job by ID.
+func (m *MemoryStorage) DeleteJob(ctx context.Context, id string) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if _, ok := m.scheduledJobs[id]; !ok {
+		return ErrJobNotFound
+	}
+	delete(m.scheduledJobs, id)
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// ScheduledRunStorage (MemoryStorage)
+// ---------------------------------------------------------------------------
+
+// SaveRun creates or updates a run record.
+func (m *MemoryStorage) SaveRun(ctx context.Context, run *scheddomain.RunRecord) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if m.scheduledRuns == nil {
+		m.scheduledRuns = make(map[string]*scheddomain.RunRecord)
+	}
+	cp := *run
+	m.scheduledRuns[run.SessionID] = &cp
+	return nil
+}
+
+// ListRuns returns copies of run records sorted by StartedAt descending.
+func (m *MemoryStorage) ListRuns(ctx context.Context, jobID string) ([]*scheddomain.RunRecord, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	var runs []*scheddomain.RunRecord
+	for _, run := range m.scheduledRuns {
+		if jobID != "" && run.JobID != jobID {
+			continue
+		}
+		cp := *run
+		runs = append(runs, &cp)
+	}
+	slices.SortFunc(runs, func(a, b *scheddomain.RunRecord) int {
+		return b.StartedAt.Compare(a.StartedAt)
+	})
+	return runs, nil
+}
+
+// PruneRuns deletes all but the newest keep run records.
+func (m *MemoryStorage) PruneRuns(ctx context.Context, keep int) error {
+	runs, err := m.ListRuns(ctx, "")
+	if err != nil {
+		return err
+	}
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	for i := keep; i < len(runs); i++ {
+		delete(m.scheduledRuns, runs[i].SessionID)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// PlanStorage (MemoryStorage)
+// ---------------------------------------------------------------------------
+
+// SavePlan creates a plan record.
+func (m *MemoryStorage) SavePlan(ctx context.Context, plan *PlanRecord) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if m.plans == nil {
+		m.plans = make(map[string]*PlanRecord)
+	}
+	cp := *plan
+	m.plans[plan.ID] = &cp
+	return nil
+}
+
+// LoadPlan returns a copy of a plan by ID.
+func (m *MemoryStorage) LoadPlan(ctx context.Context, id string) (*PlanRecord, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	plan, ok := m.plans[id]
+	if !ok {
+		return nil, fmt.Errorf("plan not found: %s", id)
+	}
+	cp := *plan
+	return &cp, nil
+}
+
+// ListPlans returns copies of all plans sorted by CreatedAt descending.
+func (m *MemoryStorage) ListPlans(ctx context.Context) ([]*PlanRecord, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	var plans []*PlanRecord
+	for _, plan := range m.plans {
+		cp := *plan
+		plans = append(plans, &cp)
+	}
+	slices.SortFunc(plans, func(a, b *PlanRecord) int {
+		return b.CreatedAt.Compare(a.CreatedAt)
+	})
+	return plans, nil
+}
+
+// DeletePlan removes a plan by ID.
+func (m *MemoryStorage) DeletePlan(ctx context.Context, id string) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if _, ok := m.plans[id]; !ok {
+		return fmt.Errorf("plan not found: %s", id)
+	}
+	delete(m.plans, id)
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// ShellHistoryStorage (MemoryStorage)
+// ---------------------------------------------------------------------------
+
+// AppendHistory appends a command to the shell history.
+func (m *MemoryStorage) AppendHistory(ctx context.Context, command string) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.shellHistory = append(m.shellHistory, command)
+	return nil
+}
+
+// LoadHistory returns the most recent commands up to limit.
+func (m *MemoryStorage) LoadHistory(ctx context.Context, limit int) ([]string, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	if len(m.shellHistory) == 0 {
+		return nil, nil
+	}
+	if limit <= 0 || limit >= len(m.shellHistory) {
+		result := make([]string, len(m.shellHistory))
+		copy(result, m.shellHistory)
+		return result, nil
+	}
+	result := make([]string, limit)
+	copy(result, m.shellHistory[len(m.shellHistory)-limit:])
+	return result, nil
+}

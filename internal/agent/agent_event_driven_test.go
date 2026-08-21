@@ -5,39 +5,43 @@ import (
 	"testing"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/states"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	mockdomain "github.com/inference-gateway/cli/tests/mocks/domain"
-	sdk "github.com/inference-gateway/sdk"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	statesmocks "github.com/inference-gateway/cli/tests/mocks/states"
 )
 
 // testMocks holds all the mocks needed for testing
 type testMocks struct {
-	stateMachine *mockdomain.FakeAgentStateMachine
-	queue        *mockdomain.FakeMessageQueue
-	repo         *mockdomain.FakeConversationRepository
+	stateMachine *statesmocks.FakeAgentStateMachine
+	queue        *convmocks.FakeMessageQueue
+	repo         *convmocks.FakeConversationRepository
 	stateManager *services.StateManager
-	approval     *mockdomain.FakeApprovalPolicy
+	approval     *agentdomainmocks.FakeApprovalPolicy
 }
 
 // setupTestMocks creates all required mocks
 func setupTestMocks() *testMocks {
 	return &testMocks{
-		stateMachine: &mockdomain.FakeAgentStateMachine{},
-		queue:        &mockdomain.FakeMessageQueue{},
-		repo:         &mockdomain.FakeConversationRepository{},
+		stateMachine: &statesmocks.FakeAgentStateMachine{},
+		queue:        &convmocks.FakeMessageQueue{},
+		repo:         &convmocks.FakeConversationRepository{},
 		stateManager: services.NewStateManager(false),
-		approval:     &mockdomain.FakeApprovalPolicy{},
+		approval:     &agentdomainmocks.FakeApprovalPolicy{},
 	}
 }
 
 // createTestContext creates a minimal agent context for testing
-func createTestContext(mocks *testMocks) *domain.AgentContext {
+func createTestContext(mocks *testMocks) *states.AgentContext {
 	conversation := []sdk.Message{}
-	return &domain.AgentContext{
+	return &states.AgentContext{
 		RequestID:        "test-request-id",
 		Conversation:     &conversation,
 		MessageQueue:     mocks.queue,
@@ -53,7 +57,7 @@ func createTestContext(mocks *testMocks) *domain.AgentContext {
 }
 
 // createTestAgent creates an EventDrivenAgent with test mocks
-func createTestAgent(mocks *testMocks, ctx *domain.AgentContext) *EventDrivenAgent {
+func createTestAgent(mocks *testMocks, ctx *states.AgentContext) *EventDrivenAgent {
 	service := &AgentServiceImpl{
 		messageQueue:     mocks.queue,
 		conversationRepo: mocks.repo,
@@ -63,7 +67,7 @@ func createTestAgent(mocks *testMocks, ctx *domain.AgentContext) *EventDrivenAge
 	}
 
 	eventPublisher := &eventPublisher{
-		chatEvents: make(chan domain.ChatEvent, 100),
+		chatEvents: make(chan agentdomain.ChatEvent, 100),
 	}
 
 	agent := &EventDrivenAgent{
@@ -72,10 +76,10 @@ func createTestAgent(mocks *testMocks, ctx *domain.AgentContext) *EventDrivenAge
 		stateMachine:     mocks.stateMachine,
 		agentCtx:         ctx,
 		eventPublisher:   eventPublisher,
-		events:           make(chan domain.AgentEvent, 100),
+		events:           make(chan states.AgentEvent, 100),
 		currentToolCalls: []*sdk.ChatCompletionMessageToolCall{},
-		stateHandlers:    make(map[domain.AgentExecutionState]domain.StateHandler),
-		req:              &domain.AgentRequest{},
+		stateHandlers:    make(map[states.AgentExecutionState]states.StateHandler),
+		req:              &agentdomain.AgentRequest{},
 		provider:         "openai",
 		model:            "gpt-4",
 	}
@@ -88,23 +92,23 @@ func createTestAgent(mocks *testMocks, ctx *domain.AgentContext) *EventDrivenAge
 func TestHandleIdleState(t *testing.T) {
 	tests := []struct {
 		name          string
-		event         domain.AgentEvent
+		event         states.AgentEvent
 		setupMocks    func(*testMocks)
 		verifyMocks   func(*testing.T, *testMocks)
-		expectedState domain.AgentExecutionState
+		expectedState states.AgentExecutionState
 	}{
 		{
 			name:  "message_received_transitions_to_checking_queue",
-			event: domain.MessageReceivedEvent{},
+			event: states.MessageReceivedEvent{},
 			setupMocks: func(m *testMocks) {
 				m.stateMachine.TransitionReturns(nil)
 			},
 			verifyMocks: func(t *testing.T, m *testMocks) {
 				assert.Equal(t, 1, m.stateMachine.TransitionCallCount())
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
-				assert.Equal(t, domain.StateCheckingQueue, toState)
+				assert.Equal(t, states.StateCheckingQueue, toState)
 			},
-			expectedState: domain.StateCheckingQueue,
+			expectedState: states.StateCheckingQueue,
 		},
 	}
 
@@ -118,7 +122,7 @@ func TestHandleIdleState(t *testing.T) {
 				tt.setupMocks(mocks)
 			}
 
-			handler := agent.stateHandlers[domain.StateIdle]
+			handler := agent.stateHandlers[states.StateIdle]
 			_ = handler.Handle(tt.event)
 
 			if tt.verifyMocks != nil {
@@ -131,13 +135,13 @@ func TestHandleIdleState(t *testing.T) {
 func TestHandleCheckingQueueState(t *testing.T) {
 	tests := []struct {
 		name        string
-		setupCtx    func(*domain.AgentContext)
+		setupCtx    func(*states.AgentContext)
 		setupMocks  func(*testMocks)
 		verifyMocks func(*testing.T, *testMocks, *EventDrivenAgent)
 	}{
 		{
 			name: "has_tool_results_transitions_to_streaming",
-			setupCtx: func(ctx *domain.AgentContext) {
+			setupCtx: func(ctx *states.AgentContext) {
 				ctx.HasToolResults = true
 				ctx.Turns = 1
 			},
@@ -148,12 +152,12 @@ func TestHandleCheckingQueueState(t *testing.T) {
 			verifyMocks: func(t *testing.T, m *testMocks, a *EventDrivenAgent) {
 				assert.Equal(t, 1, m.stateMachine.TransitionCallCount())
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
-				assert.Equal(t, domain.StateStreamingLLM, toState)
+				assert.Equal(t, states.StateStreamingLLM, toState)
 			},
 		},
 		{
 			name: "queue_empty_can_complete",
-			setupCtx: func(ctx *domain.AgentContext) {
+			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 1
 				ctx.HasToolResults = false
 				*ctx.Conversation = []sdk.Message{
@@ -169,12 +173,12 @@ func TestHandleCheckingQueueState(t *testing.T) {
 				assert.Equal(t, 2, m.stateMachine.CanTransitionCallCount())
 				assert.Equal(t, 1, m.stateMachine.TransitionCallCount())
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
-				assert.Equal(t, domain.StateCompleting, toState)
+				assert.Equal(t, states.StateCompleting, toState)
 			},
 		},
 		{
 			name: "queue_empty_cannot_complete",
-			setupCtx: func(ctx *domain.AgentContext) {
+			setupCtx: func(ctx *states.AgentContext) {
 				ctx.Turns = 0
 				ctx.HasToolResults = false
 				*ctx.Conversation = []sdk.Message{
@@ -189,7 +193,7 @@ func TestHandleCheckingQueueState(t *testing.T) {
 			verifyMocks: func(t *testing.T, m *testMocks, a *EventDrivenAgent) {
 				assert.Equal(t, 1, m.stateMachine.TransitionCallCount())
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
-				assert.Equal(t, domain.StateStreamingLLM, toState)
+				assert.Equal(t, states.StateStreamingLLM, toState)
 			},
 		},
 	}
@@ -207,7 +211,7 @@ func TestHandleCheckingQueueState(t *testing.T) {
 				tt.setupMocks(mocks)
 			}
 
-			_ = agent.stateHandlers[domain.StateCheckingQueue].Handle(domain.MessageReceivedEvent{})
+			_ = agent.stateHandlers[states.StateCheckingQueue].Handle(states.MessageReceivedEvent{})
 
 			if tt.verifyMocks != nil {
 				tt.verifyMocks(t, mocks, agent)
@@ -219,13 +223,13 @@ func TestHandleCheckingQueueState(t *testing.T) {
 func TestHandleStreamingState(t *testing.T) {
 	tests := []struct {
 		name        string
-		event       domain.AgentEvent
+		event       states.AgentEvent
 		setupMocks  func(*testMocks)
 		verifyMocks func(*testing.T, *testMocks, *EventDrivenAgent)
 	}{
 		{
 			name: "stream_completed_no_tools",
-			event: domain.StreamCompletedEvent{
+			event: states.StreamCompletedEvent{
 				Message: sdk.Message{
 					Role:    sdk.Assistant,
 					Content: sdk.NewMessageContent("response"),
@@ -242,7 +246,7 @@ func TestHandleStreamingState(t *testing.T) {
 			verifyMocks: func(t *testing.T, m *testMocks, a *EventDrivenAgent) {
 				assert.GreaterOrEqual(t, m.stateMachine.TransitionCallCount(), 1)
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
-				assert.Equal(t, domain.StatePostStream, toState)
+				assert.Equal(t, states.StatePostStream, toState)
 
 				content, _ := a.currentMessage.Content.AsMessageContent0()
 				assert.Equal(t, "response", content)
@@ -251,7 +255,7 @@ func TestHandleStreamingState(t *testing.T) {
 		},
 		{
 			name: "stream_completed_with_tools",
-			event: domain.StreamCompletedEvent{
+			event: states.StreamCompletedEvent{
 				Message: sdk.Message{
 					Role:    sdk.Assistant,
 					Content: sdk.NewMessageContent(""),
@@ -284,13 +288,13 @@ func TestHandleStreamingState(t *testing.T) {
 			mocks := setupTestMocks()
 			ctx := createTestContext(mocks)
 			agent := createTestAgent(mocks, ctx)
-			agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+			agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
 			if tt.setupMocks != nil {
 				tt.setupMocks(mocks)
 			}
 
-			handler := agent.stateHandlers[domain.StateStreamingLLM]
+			handler := agent.stateHandlers[states.StateStreamingLLM]
 			_ = handler.Handle(tt.event)
 
 			if tt.verifyMocks != nil {
@@ -303,13 +307,13 @@ func TestHandleStreamingState(t *testing.T) {
 func TestHandlePostStreamState(t *testing.T) {
 	tests := []struct {
 		name        string
-		setupAgent  func(*EventDrivenAgent, *domain.AgentContext)
+		setupAgent  func(*EventDrivenAgent, *states.AgentContext)
 		setupMocks  func(*testMocks)
 		verifyMocks func(*testing.T, *testMocks)
 	}{
 		{
 			name: "queue_not_empty",
-			setupAgent: func(a *EventDrivenAgent, ctx *domain.AgentContext) {
+			setupAgent: func(a *EventDrivenAgent, ctx *states.AgentContext) {
 				a.currentMessage = sdk.Message{
 					Role:    sdk.Assistant,
 					Content: sdk.NewMessageContent("test"),
@@ -324,12 +328,12 @@ func TestHandlePostStreamState(t *testing.T) {
 			verifyMocks: func(t *testing.T, m *testMocks) {
 				assert.GreaterOrEqual(t, m.stateMachine.TransitionCallCount(), 1)
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
-				assert.Equal(t, domain.StateCheckingQueue, toState)
+				assert.Equal(t, states.StateCheckingQueue, toState)
 			},
 		},
 		{
 			name: "no_tools_cannot_complete",
-			setupAgent: func(a *EventDrivenAgent, ctx *domain.AgentContext) {
+			setupAgent: func(a *EventDrivenAgent, ctx *states.AgentContext) {
 				a.currentMessage = sdk.Message{
 					Role:    sdk.Assistant,
 					Content: sdk.NewMessageContent("partial"),
@@ -344,7 +348,7 @@ func TestHandlePostStreamState(t *testing.T) {
 			verifyMocks: func(t *testing.T, m *testMocks) {
 				assert.GreaterOrEqual(t, m.stateMachine.TransitionCallCount(), 1)
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
-				assert.Equal(t, domain.StateStreamingLLM, toState)
+				assert.Equal(t, states.StateStreamingLLM, toState)
 			},
 		},
 	}
@@ -354,7 +358,7 @@ func TestHandlePostStreamState(t *testing.T) {
 			mocks := setupTestMocks()
 			ctx := createTestContext(mocks)
 			agent := createTestAgent(mocks, ctx)
-			agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+			agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
 			if tt.setupAgent != nil {
 				tt.setupAgent(agent, ctx)
@@ -363,7 +367,7 @@ func TestHandlePostStreamState(t *testing.T) {
 				tt.setupMocks(mocks)
 			}
 
-			_ = agent.stateHandlers[domain.StatePostStream].Handle(domain.MessageReceivedEvent{})
+			_ = agent.stateHandlers[states.StatePostStream].Handle(states.MessageReceivedEvent{})
 
 			if tt.verifyMocks != nil {
 				tt.verifyMocks(t, mocks)
@@ -377,7 +381,7 @@ func TestHandleEvaluatingToolsState(t *testing.T) {
 		mocks := setupTestMocks()
 		ctx := createTestContext(mocks)
 		agent := createTestAgent(mocks, ctx)
-		agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+		agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
 		agent.currentToolCalls = []*sdk.ChatCompletionMessageToolCall{
 			{
@@ -392,15 +396,15 @@ func TestHandleEvaluatingToolsState(t *testing.T) {
 		mocks.approval.ShouldRequireApprovalReturns(true)
 		mocks.stateMachine.TransitionReturns(nil)
 
-		_ = agent.stateHandlers[domain.StateEvaluatingTools].Handle(domain.MessageReceivedEvent{})
+		_ = agent.stateHandlers[states.StateEvaluatingTools].Handle(states.MessageReceivedEvent{})
 
 		assert.Equal(t, 1, mocks.stateMachine.TransitionCallCount())
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
-		assert.Equal(t, domain.StateApprovingTools, toState)
+		assert.Equal(t, states.StateApprovingTools, toState)
 
 		select {
 		case event := <-agent.events:
-			assert.IsType(t, domain.MessageReceivedEvent{}, event)
+			assert.IsType(t, states.MessageReceivedEvent{}, event)
 		default:
 			t.Error("Expected event to be emitted to channel")
 		}
@@ -410,7 +414,7 @@ func TestHandleEvaluatingToolsState(t *testing.T) {
 		mocks := setupTestMocks()
 		ctx := createTestContext(mocks)
 		agent := createTestAgent(mocks, ctx)
-		agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+		agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
 		agent.toolExecutor = func() {
 			agent.wg.Done()
@@ -429,11 +433,11 @@ func TestHandleEvaluatingToolsState(t *testing.T) {
 		mocks.approval.ShouldRequireApprovalReturns(false)
 		mocks.stateMachine.TransitionReturns(nil)
 
-		_ = agent.stateHandlers[domain.StateEvaluatingTools].Handle(domain.MessageReceivedEvent{})
+		_ = agent.stateHandlers[states.StateEvaluatingTools].Handle(states.MessageReceivedEvent{})
 
 		assert.Equal(t, 1, mocks.stateMachine.TransitionCallCount())
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
-		assert.Equal(t, domain.StateExecutingTools, toState)
+		assert.Equal(t, states.StateExecutingTools, toState)
 
 		agent.wg.Wait()
 	})
@@ -445,14 +449,14 @@ func TestHandleExecutingToolsState(t *testing.T) {
 		ctx := createTestContext(mocks)
 		agent := createTestAgent(mocks, ctx)
 
-		event := domain.ToolsCompletedEvent{
-			Results: []domain.ConversationEntry{
+		event := states.ToolsCompletedEvent{
+			Results: []convdomain.ConversationEntry{
 				{
 					Message: sdk.Message{
 						Role:    sdk.Tool,
 						Content: sdk.NewMessageContent("result"),
 					},
-					ToolExecution: &domain.ToolExecutionResult{
+					ToolExecution: &agentdomain.ToolExecutionResult{
 						ToolName: "Read",
 						Success:  true,
 					},
@@ -464,11 +468,11 @@ func TestHandleExecutingToolsState(t *testing.T) {
 		mocks.queue.IsEmptyReturns(true)
 		mocks.stateMachine.CanTransitionReturns(false)
 
-		_ = agent.stateHandlers[domain.StateExecutingTools].Handle(event)
+		_ = agent.stateHandlers[states.StateExecutingTools].Handle(event)
 
 		assert.GreaterOrEqual(t, mocks.stateMachine.TransitionCallCount(), 1)
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
-		assert.Equal(t, domain.StatePostToolExecution, toState)
+		assert.Equal(t, states.StatePostToolExecution, toState)
 	})
 
 	t.Run("tools_completed_event_with_stop_transitions_to_stopped", func(t *testing.T) {
@@ -476,19 +480,19 @@ func TestHandleExecutingToolsState(t *testing.T) {
 		ctx := createTestContext(mocks)
 		agent := createTestAgent(mocks, ctx)
 
-		event := domain.ToolsCompletedEvent{
-			Results: []domain.ConversationEntry{},
+		event := states.ToolsCompletedEvent{
+			Results: []convdomain.ConversationEntry{},
 			Stop:    true,
 		}
 
 		mocks.stateMachine.TransitionReturns(nil)
 
-		err := agent.stateHandlers[domain.StateExecutingTools].Handle(event)
+		err := agent.stateHandlers[states.StateExecutingTools].Handle(event)
 		assert.NoError(t, err)
 
 		assert.Equal(t, 1, mocks.stateMachine.TransitionCallCount())
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
-		assert.Equal(t, domain.StateStopped, toState)
+		assert.Equal(t, states.StateStopped, toState)
 
 		select {
 		case ev := <-agent.events:
@@ -514,11 +518,11 @@ func TestHandlePostToolExecutionState(t *testing.T) {
 		})
 		mocks.stateMachine.TransitionReturns(nil)
 
-		_ = agent.stateHandlers[domain.StatePostToolExecution].Handle(domain.MessageReceivedEvent{})
+		_ = agent.stateHandlers[states.StatePostToolExecution].Handle(states.MessageReceivedEvent{})
 
 		assert.GreaterOrEqual(t, mocks.stateMachine.TransitionCallCount(), 1)
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
-		assert.Equal(t, domain.StateCheckingQueue, toState)
+		assert.Equal(t, states.StateCheckingQueue, toState)
 	})
 
 	t.Run("transitions_to_completing_when_can_complete", func(t *testing.T) {
@@ -533,11 +537,11 @@ func TestHandlePostToolExecutionState(t *testing.T) {
 		mocks.stateMachine.CanTransitionReturns(true)
 		mocks.stateMachine.TransitionReturns(nil)
 
-		_ = agent.stateHandlers[domain.StatePostToolExecution].Handle(domain.MessageReceivedEvent{})
+		_ = agent.stateHandlers[states.StatePostToolExecution].Handle(states.MessageReceivedEvent{})
 
 		assert.GreaterOrEqual(t, mocks.stateMachine.TransitionCallCount(), 1)
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
-		assert.Equal(t, domain.StateCompleting, toState)
+		assert.Equal(t, states.StateCompleting, toState)
 	})
 
 	t.Run("transitions_to_checking_queue_to_continue", func(t *testing.T) {
@@ -552,11 +556,11 @@ func TestHandlePostToolExecutionState(t *testing.T) {
 		mocks.stateMachine.CanTransitionReturns(false)
 		mocks.stateMachine.TransitionReturns(nil)
 
-		_ = agent.stateHandlers[domain.StatePostToolExecution].Handle(domain.MessageReceivedEvent{})
+		_ = agent.stateHandlers[states.StatePostToolExecution].Handle(states.MessageReceivedEvent{})
 
 		assert.GreaterOrEqual(t, mocks.stateMachine.TransitionCallCount(), 1)
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
-		assert.Equal(t, domain.StateCheckingQueue, toState)
+		assert.Equal(t, states.StateCheckingQueue, toState)
 	})
 }
 
@@ -586,11 +590,11 @@ func TestHandlePostToolExecutionState_DrainsThenStopsWhenCancelled(t *testing.T)
 	})
 	mocks.stateMachine.TransitionReturns(nil)
 
-	_ = agent.stateHandlers[domain.StatePostToolExecution].Handle(domain.MessageReceivedEvent{})
+	_ = agent.stateHandlers[states.StatePostToolExecution].Handle(states.MessageReceivedEvent{})
 
 	assert.GreaterOrEqual(t, mocks.stateMachine.TransitionCallCount(), 1)
 	_, toState := mocks.stateMachine.TransitionArgsForCall(0)
-	assert.Equal(t, domain.StateCompleting, toState,
+	assert.Equal(t, states.StateCompleting, toState,
 		"cancelled session must short-circuit to Completing after drain, not loop back to CheckingQueue")
 }
 
@@ -610,11 +614,11 @@ func TestHandleCheckingQueueState_StopsAfterDrainWhenCancelled(t *testing.T) {
 	mocks.queue.IsEmptyReturns(true)
 	mocks.stateMachine.TransitionReturns(nil)
 
-	_ = agent.stateHandlers[domain.StateCheckingQueue].Handle(domain.MessageReceivedEvent{})
+	_ = agent.stateHandlers[states.StateCheckingQueue].Handle(states.MessageReceivedEvent{})
 
 	assert.GreaterOrEqual(t, mocks.stateMachine.TransitionCallCount(), 1)
 	_, toState := mocks.stateMachine.TransitionArgsForCall(0)
-	assert.Equal(t, domain.StateCompleting, toState,
+	assert.Equal(t, states.StateCompleting, toState,
 		"cancelled session in CheckingQueue must transition to Completing, not StreamingLLM")
 }
 
@@ -627,13 +631,13 @@ func TestProcessEvents_PriorityProbeFavoursCancellation(t *testing.T) {
 	mocks := setupTestMocks()
 	agentCtx := createTestContext(mocks)
 	agent := createTestAgent(mocks, agentCtx)
-	agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+	agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
 	cancelChan := make(chan struct{})
 	agent.cancelChan = cancelChan
 
 	for range 50 {
-		agent.events <- domain.MessageReceivedEvent{}
+		agent.events <- states.MessageReceivedEvent{}
 	}
 
 	close(cancelChan)
@@ -657,7 +661,7 @@ func TestProcessEvents_PriorityProbeFavoursCancellation(t *testing.T) {
 	foundCancelled := false
 	for i := range mocks.stateMachine.TransitionCallCount() {
 		_, toState := mocks.stateMachine.TransitionArgsForCall(i)
-		if toState == domain.StateCancelled {
+		if toState == states.StateCancelled {
 			foundCancelled = true
 			break
 		}
@@ -672,9 +676,9 @@ func TestProcessEvents_PublishesCancelledFlag(t *testing.T) {
 	mocks := setupTestMocks()
 	agentCtx := createTestContext(mocks)
 	agent := createTestAgent(mocks, agentCtx)
-	agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+	agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
-	chatEvents := make(chan domain.ChatEvent, 10)
+	chatEvents := make(chan agentdomain.ChatEvent, 10)
 	agent.eventPublisher = &eventPublisher{chatEvents: chatEvents}
 
 	cancelChan := make(chan struct{})
@@ -698,7 +702,7 @@ func TestProcessEvents_PublishesCancelledFlag(t *testing.T) {
 
 	select {
 	case ev := <-chatEvents:
-		complete, ok := ev.(domain.ChatCompleteEvent)
+		complete, ok := ev.(agentdomain.ChatCompleteEvent)
 		assert.True(t, ok, "expected a ChatCompleteEvent on the cancel path")
 		assert.True(t, complete.Cancelled, "ChatCompleteEvent.Cancelled must be true on user cancellation")
 	default:
@@ -712,19 +716,19 @@ func TestProcessEvents_PublishesCancelledFlag(t *testing.T) {
 func TestProcessEvents_RecoversPanicToChatError(t *testing.T) {
 	mocks := setupTestMocks()
 	agent := createTestAgent(mocks, createTestContext(mocks))
-	agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+	agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
-	chatEvents := make(chan domain.ChatEvent, 10)
+	chatEvents := make(chan agentdomain.ChatEvent, 10)
 	agent.eventPublisher = &eventPublisher{chatEvents: chatEvents}
 
-	panicHandler := &mockdomain.FakeStateHandler{}
-	panicHandler.NameReturns(domain.StateIdle)
-	panicHandler.HandleStub = func(domain.AgentEvent) error { panic("boom") }
-	agent.stateHandlers[domain.StateIdle] = panicHandler
-	mocks.stateMachine.GetCurrentStateReturns(domain.StateIdle)
+	panicHandler := &statesmocks.FakeStateHandler{}
+	panicHandler.NameReturns(states.StateIdle)
+	panicHandler.HandleStub = func(states.AgentEvent) error { panic("boom") }
+	agent.stateHandlers[states.StateIdle] = panicHandler
+	mocks.stateMachine.GetCurrentStateReturns(states.StateIdle)
 	mocks.stateMachine.TransitionReturns(nil)
 
-	agent.events <- domain.MessageReceivedEvent{}
+	agent.events <- states.MessageReceivedEvent{}
 
 	agent.wg.Add(1)
 	done := make(chan struct{})
@@ -741,7 +745,7 @@ func TestProcessEvents_RecoversPanicToChatError(t *testing.T) {
 
 	select {
 	case ev := <-chatEvents:
-		errEv, ok := ev.(domain.ChatErrorEvent)
+		errEv, ok := ev.(agentdomain.ChatErrorEvent)
 		if !ok {
 			t.Fatalf("expected ChatErrorEvent, got %T", ev)
 		}
@@ -766,7 +770,7 @@ func TestHandleCompletingState(t *testing.T) {
 			verifyMocks: func(t *testing.T, m *testMocks) {
 				assert.Equal(t, 1, m.stateMachine.TransitionCallCount())
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
-				assert.Equal(t, domain.StateIdle, toState)
+				assert.Equal(t, states.StateIdle, toState)
 			},
 		},
 		{
@@ -778,7 +782,7 @@ func TestHandleCompletingState(t *testing.T) {
 			verifyMocks: func(t *testing.T, m *testMocks) {
 				assert.Equal(t, 1, m.stateMachine.TransitionCallCount())
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
-				assert.Equal(t, domain.StateCheckingQueue, toState)
+				assert.Equal(t, states.StateCheckingQueue, toState)
 			},
 		},
 	}
@@ -788,13 +792,13 @@ func TestHandleCompletingState(t *testing.T) {
 			mocks := setupTestMocks()
 			ctx := createTestContext(mocks)
 			agent := createTestAgent(mocks, ctx)
-			agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+			agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
 			if tt.setupMocks != nil {
 				tt.setupMocks(mocks)
 			}
 
-			_ = agent.stateHandlers[domain.StateCompleting].Handle(domain.CompletionRequestedEvent{})
+			_ = agent.stateHandlers[states.StateCompleting].Handle(states.CompletionRequestedEvent{})
 
 			if tt.verifyMocks != nil {
 				tt.verifyMocks(t, mocks)
@@ -808,19 +812,19 @@ func TestHandleApprovingToolsState(t *testing.T) {
 		mocks := setupTestMocks()
 		ctx := createTestContext(mocks)
 		agent := createTestAgent(mocks, ctx)
-		agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+		agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
 		mocks.stateMachine.TransitionReturns(nil)
 
-		_ = agent.stateHandlers[domain.StateApprovingTools].Handle(domain.AllToolsProcessedEvent{})
+		_ = agent.stateHandlers[states.StateApprovingTools].Handle(states.AllToolsProcessedEvent{})
 
 		assert.Equal(t, 1, mocks.stateMachine.TransitionCallCount())
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
-		assert.Equal(t, domain.StatePostToolExecution, toState)
+		assert.Equal(t, states.StatePostToolExecution, toState)
 
 		select {
 		case event := <-agent.events:
-			_, ok := event.(domain.MessageReceivedEvent)
+			_, ok := event.(states.MessageReceivedEvent)
 			assert.True(t, ok, "Should emit MessageReceivedEvent")
 		case <-time.After(100 * time.Millisecond):
 			t.Error("Expected MessageReceivedEvent")
@@ -831,7 +835,7 @@ func TestHandleApprovingToolsState(t *testing.T) {
 		mocks := setupTestMocks()
 		ctx := createTestContext(mocks)
 		agent := createTestAgent(mocks, ctx)
-		agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+		agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
 		toolCall1 := &sdk.ChatCompletionMessageToolCall{
 			ID:   "call-1",
@@ -846,7 +850,7 @@ func TestHandleApprovingToolsState(t *testing.T) {
 		}
 
 		go func() {
-			_ = agent.stateHandlers[domain.StateApprovingTools].Handle(domain.MessageReceivedEvent{})
+			_ = agent.stateHandlers[states.StateApprovingTools].Handle(states.MessageReceivedEvent{})
 		}()
 
 		time.Sleep(10 * time.Millisecond)
@@ -862,15 +866,15 @@ func TestHandleApprovingToolsState(t *testing.T) {
 		mocks := setupTestMocks()
 		ctx := createTestContext(mocks)
 		agent := createTestAgent(mocks, ctx)
-		agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+		agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
 		mocks.stateMachine.TransitionReturns(nil)
 
-		_ = agent.stateHandlers[domain.StateApprovingTools].Handle(domain.ApprovalFailedEvent{Error: context.DeadlineExceeded})
+		_ = agent.stateHandlers[states.StateApprovingTools].Handle(states.ApprovalFailedEvent{Error: context.DeadlineExceeded})
 
 		assert.Equal(t, 1, mocks.stateMachine.TransitionCallCount())
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
-		assert.Equal(t, domain.StateError, toState)
+		assert.Equal(t, states.StateError, toState)
 	})
 
 	t.Run("cancelled_ctx_short_circuits_to_all_tools_processed", func(t *testing.T) {
@@ -880,7 +884,7 @@ func TestHandleApprovingToolsState(t *testing.T) {
 		cancel()
 		ctx.Ctx = cancelledCtx
 		agent := createTestAgent(mocks, ctx)
-		agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+		agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
 		agent.currentToolCalls = []*sdk.ChatCompletionMessageToolCall{
 			{
@@ -901,11 +905,11 @@ func TestHandleApprovingToolsState(t *testing.T) {
 			},
 		}
 
-		_ = agent.stateHandlers[domain.StateApprovingTools].Handle(domain.MessageReceivedEvent{})
+		_ = agent.stateHandlers[states.StateApprovingTools].Handle(states.MessageReceivedEvent{})
 
 		select {
 		case event := <-agent.events:
-			_, ok := event.(domain.AllToolsProcessedEvent)
+			_, ok := event.(states.AllToolsProcessedEvent)
 			assert.True(t, ok, "cancelled ctx must emit AllToolsProcessedEvent without running approval prompts")
 		case <-time.After(500 * time.Millisecond):
 			t.Fatal("processNextTool did not fast-exit on cancelled ctx")
@@ -920,7 +924,7 @@ func TestStart_DoesNotRedundantlyTransitionToIdle(t *testing.T) {
 	mocks := setupTestMocks()
 	ctx := createTestContext(mocks)
 	agent := createTestAgent(mocks, ctx)
-	agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+	agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 	mocks.stateMachine.TransitionReturns(nil)
 
 	agent.Start()
@@ -937,7 +941,7 @@ func TestStart_DoesNotRedundantlyTransitionToIdle(t *testing.T) {
 		t.Fatalf("expected Start() to drive at least one transition, got %d", got)
 	}
 	_, firstTarget := mocks.stateMachine.TransitionArgsForCall(0)
-	assert.NotEqual(t, domain.StateIdle, firstTarget,
+	assert.NotEqual(t, states.StateIdle, firstTarget,
 		"Start() must not issue a redundant Idle transition; the first should be "+
 			"Idle -> CheckingQueue from the seeded MessageReceivedEvent")
 }

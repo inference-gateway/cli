@@ -18,7 +18,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	models "github.com/inference-gateway/cli/internal/models"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 )
 
 func TestImageService_IsImageURL(t *testing.T) {

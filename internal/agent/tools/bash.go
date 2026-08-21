@@ -11,12 +11,15 @@ import (
 	"sync"
 	"time"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // Streaming-output coalescing thresholds. readPipeWithBatching accumulates
@@ -36,16 +39,16 @@ const (
 type BashTool struct {
 	config                 *config.Config
 	enabled                bool
-	formatter              domain.BaseFormatter
-	backgroundShellService domain.BackgroundShellService
+	formatter              agentinfra.BaseFormatter
+	backgroundShellService scheddomain.BackgroundShellService
 }
 
 // NewBashTool creates a new bash tool
-func NewBashTool(cfg *config.Config, backgroundShellService domain.BackgroundShellService) *BashTool {
+func NewBashTool(cfg *config.Config, backgroundShellService scheddomain.BackgroundShellService) *BashTool {
 	return &BashTool{
 		config:                 cfg,
 		enabled:                cfg.Tools.Enabled && cfg.Tools.Bash.Enabled,
-		formatter:              domain.NewBaseFormatter("Bash"),
+		formatter:              agentinfra.NewBaseFormatter("Bash"),
 		backgroundShellService: backgroundShellService,
 	}
 }
@@ -94,11 +97,11 @@ func (t *BashTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the bash tool with given arguments
-func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	command, ok := args["command"].(string)
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Bash",
 			Arguments: args,
 			Success:   false,
@@ -110,13 +113,13 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 	if detached, ok := args["detached"].(bool); ok && detached {
 		detachChan := make(chan struct{}, 1)
 		detachChan <- struct{}{}
-		ctx = domain.WithBashDetachChannel(ctx, detachChan)
+		ctx = agentdomain.WithBashDetachChannel(ctx, detachChan)
 	}
 
 	bashResult, err := t.executeBash(ctx, command)
 	success := err == nil && bashResult.ExitCode == 0
 
-	toolData := &domain.BashToolResult{
+	toolData := &agentdomain.BashToolResult{
 		Command:  bashResult.Command,
 		Output:   bashResult.Output,
 		Error:    bashResult.Error,
@@ -124,7 +127,7 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 		Duration: bashResult.Duration,
 	}
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "Bash",
 		Arguments: args,
 		Success:   success,
@@ -182,8 +185,8 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		Command: command,
 	}
 
-	wasApproved := domain.IsToolApproved(ctx)
-	modeKey := domain.BashAllowModeKey(ctx)
+	wasApproved := agentdomain.IsToolApproved(ctx)
+	modeKey := agentdomain.BashAllowModeKey(ctx)
 
 	if !wasApproved && !t.config.IsBashCommandAllowed(command, modeKey) {
 		err := t.notAllowedError(command, modeKey)
@@ -193,18 +196,18 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		return result, err
 	}
 
-	outputCallback := domain.GetBashOutputCallback(ctx)
-	hasCallback := domain.HasBashOutputCallback(ctx)
-	detachChan := domain.GetBashDetachChannel(ctx)
-	hasDetachChan := domain.HasBashDetachChannel(ctx)
+	outputCallback := agentdomain.GetBashOutputCallback(ctx)
+	hasCallback := agentdomain.HasBashOutputCallback(ctx)
+	detachChan := agentdomain.GetBashDetachChannel(ctx)
+	hasDetachChan := agentdomain.HasBashDetachChannel(ctx)
 
 	var cmdCtx context.Context
 	var cancel context.CancelFunc
 
 	if hasDetachChan && detachChan != nil && t.backgroundShellService != nil {
 		cmdCtx, cancel = context.WithCancel(context.Background())
-		cmdCtx = domain.WithBashDetachChannel(cmdCtx, detachChan)
-		cmdCtx = domain.WithBashOutputCallback(cmdCtx, outputCallback)
+		cmdCtx = agentdomain.WithBashDetachChannel(cmdCtx, detachChan)
+		cmdCtx = agentdomain.WithBashOutputCallback(cmdCtx, outputCallback)
 	} else {
 		timeout := time.Duration(t.config.Tools.Bash.Timeout) * time.Second
 		if timeout <= 0 {
@@ -216,7 +219,7 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	cmd := exec.CommandContext(cmdCtx, "bash", "-c", command)
 
 	cmd.Env = os.Environ()
-	if env := domain.GetTraceEnv(ctx); env != nil {
+	if env := agentdomain.GetTraceEnv(ctx); env != nil {
 		cmd.Env = append(cmd.Env, env...)
 	}
 	if utils.ColorsDisabled() {
@@ -249,7 +252,7 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 }
 
 // executeBashWithStreaming executes a bash command and streams output through the callback
-func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, callback domain.BashOutputCallback, cancel context.CancelFunc, start time.Time) (*BashResult, error) {
+func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, callback agentdomain.BashOutputCallback, cancel context.CancelFunc, start time.Time) (*BashResult, error) {
 	result := &BashResult{
 		Command: cmd.Args[len(cmd.Args)-1],
 	}
@@ -284,10 +287,10 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 		return result, err
 	}
 
-	detachChan, hasDetachChan := ctx.Value(domain.BashDetachChannelKey).(<-chan struct{})
+	detachChan, hasDetachChan := ctx.Value(agentdomain.BashDetachChannelKey).(<-chan struct{})
 
 	var outputBuilder strings.Builder
-	var outputBuffer domain.OutputRingBuffer
+	var outputBuffer scheddomain.OutputRingBuffer
 	var wg sync.WaitGroup
 	var outputMux sync.Mutex
 
@@ -361,8 +364,8 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 // readPipeWithBatching reads from a pipe and streams output line by line
 func (t *BashTool) readPipeWithBatching(
 	pipe io.ReadCloser,
-	callback domain.BashOutputCallback,
-	outputBuffer domain.OutputRingBuffer,
+	callback agentdomain.BashOutputCallback,
+	outputBuffer scheddomain.OutputRingBuffer,
 	outputBuilder *strings.Builder,
 	outputMux *sync.Mutex,
 	detached *bool,
@@ -436,13 +439,13 @@ func (t *BashTool) notAllowedError(command, mode string) error {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *BashTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *BashTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -450,12 +453,12 @@ func (t *BashTool) FormatResult(result *domain.ToolExecutionResult, formatType d
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *BashTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *BashTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
-	bashResult, ok := result.Data.(*domain.BashToolResult)
+	bashResult, ok := result.Data.(*agentdomain.BashToolResult)
 	if !ok {
 		if result.Success {
 			return "Execution completed successfully"
@@ -482,12 +485,12 @@ func (t *BashTool) FormatPreview(result *domain.ToolExecutionResult) string {
 // FormatResultBody returns the command's primary output for the collapsed preview
 // and the full-on-failure view. Unlike FormatPreview it never truncates, and on a
 // non-zero exit it surfaces the exit code and error so failures are fully visible.
-func (t *BashTool) FormatResultBody(result *domain.ToolExecutionResult) string {
+func (t *BashTool) FormatResultBody(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return ""
 	}
 
-	bashResult, ok := result.Data.(*domain.BashToolResult)
+	bashResult, ok := result.Data.(*agentdomain.BashToolResult)
 	if !ok {
 		return ""
 	}
@@ -508,7 +511,7 @@ func (t *BashTool) FormatResultBody(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForUI formats the result for UI display
-func (t *BashTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *BashTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -533,7 +536,7 @@ func (t *BashTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *BashTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *BashTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -547,7 +550,7 @@ func (t *BashTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 // formatBashData formats bash-specific data
 func (t *BashTool) formatBashData(data any) string {
-	bashResult, ok := data.(*domain.BashToolResult)
+	bashResult, ok := data.(*agentdomain.BashToolResult)
 	if !ok {
 		return t.formatter.FormatAsJSON(data)
 	}

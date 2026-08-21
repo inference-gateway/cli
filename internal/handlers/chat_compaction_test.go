@@ -5,7 +5,7 @@ import (
 
 	assert "github.com/stretchr/testify/assert"
 
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 func TestPlanExecutionContinuePrompt(t *testing.T) {
@@ -24,7 +24,7 @@ func TestPlanExecutionContinuePrompt(t *testing.T) {
 
 func TestNewSessionAfterPlanApproval(t *testing.T) {
 	t.Run("starts a new empty session and adds a hidden continue message", func(t *testing.T) {
-		repo := &mocks.FakeConversationRepository{}
+		repo := &convmocks.FakeConversationRepository{}
 		repo.GetCurrentConversationTitleReturns("Original")
 
 		h := &ChatHandler{
@@ -42,7 +42,7 @@ func TestNewSessionAfterPlanApproval(t *testing.T) {
 	})
 
 	t.Run("starts a new session even without a plan ID", func(t *testing.T) {
-		repo := &mocks.FakeConversationRepository{}
+		repo := &convmocks.FakeConversationRepository{}
 		repo.GetCurrentConversationTitleReturns("Original")
 
 		h := &ChatHandler{

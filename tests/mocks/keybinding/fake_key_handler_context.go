@@ -6,8 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/services"
+	"github.com/inference-gateway/cli/internal/agent/domain"
+	domaina "github.com/inference-gateway/cli/internal/conversation/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 	"github.com/inference-gateway/cli/internal/ui/keybinding"
 )
@@ -53,15 +53,15 @@ type FakeKeyHandlerContext struct {
 	getConfigDirReturnsOnCall map[int]struct {
 		result1 string
 	}
-	GetConversationRepositoryStub        func() domain.ConversationRepository
+	GetConversationRepositoryStub        func() domaina.ConversationRepository
 	getConversationRepositoryMutex       sync.RWMutex
 	getConversationRepositoryArgsForCall []struct {
 	}
 	getConversationRepositoryReturns struct {
-		result1 domain.ConversationRepository
+		result1 domaina.ConversationRepository
 	}
 	getConversationRepositoryReturnsOnCall map[int]struct {
-		result1 domain.ConversationRepository
+		result1 domaina.ConversationRepository
 	}
 	GetConversationViewStub        func() ui.ConversationRenderer
 	getConversationViewMutex       sync.RWMutex
@@ -113,15 +113,15 @@ type FakeKeyHandlerContext struct {
 	getPageSizeReturnsOnCall map[int]struct {
 		result1 int
 	}
-	GetStateManagerStub        func() *services.StateManager
+	GetStateManagerStub        func() keybinding.StateManager
 	getStateManagerMutex       sync.RWMutex
 	getStateManagerArgsForCall []struct {
 	}
 	getStateManagerReturns struct {
-		result1 *services.StateManager
+		result1 keybinding.StateManager
 	}
 	getStateManagerReturnsOnCall map[int]struct {
-		result1 *services.StateManager
+		result1 keybinding.StateManager
 	}
 	GetStatusViewStub        func() ui.StatusComponent
 	getStatusViewMutex       sync.RWMutex
@@ -376,7 +376,7 @@ func (fake *FakeKeyHandlerContext) GetConfigDirReturnsOnCall(i int, result1 stri
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationRepository() domain.ConversationRepository {
+func (fake *FakeKeyHandlerContext) GetConversationRepository() domaina.ConversationRepository {
 	fake.getConversationRepositoryMutex.Lock()
 	ret, specificReturn := fake.getConversationRepositoryReturnsOnCall[len(fake.getConversationRepositoryArgsForCall)]
 	fake.getConversationRepositoryArgsForCall = append(fake.getConversationRepositoryArgsForCall, struct {
@@ -400,32 +400,32 @@ func (fake *FakeKeyHandlerContext) GetConversationRepositoryCallCount() int {
 	return len(fake.getConversationRepositoryArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationRepositoryCalls(stub func() domain.ConversationRepository) {
+func (fake *FakeKeyHandlerContext) GetConversationRepositoryCalls(stub func() domaina.ConversationRepository) {
 	fake.getConversationRepositoryMutex.Lock()
 	defer fake.getConversationRepositoryMutex.Unlock()
 	fake.GetConversationRepositoryStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturns(result1 domain.ConversationRepository) {
+func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturns(result1 domaina.ConversationRepository) {
 	fake.getConversationRepositoryMutex.Lock()
 	defer fake.getConversationRepositoryMutex.Unlock()
 	fake.GetConversationRepositoryStub = nil
 	fake.getConversationRepositoryReturns = struct {
-		result1 domain.ConversationRepository
+		result1 domaina.ConversationRepository
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturnsOnCall(i int, result1 domain.ConversationRepository) {
+func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturnsOnCall(i int, result1 domaina.ConversationRepository) {
 	fake.getConversationRepositoryMutex.Lock()
 	defer fake.getConversationRepositoryMutex.Unlock()
 	fake.GetConversationRepositoryStub = nil
 	if fake.getConversationRepositoryReturnsOnCall == nil {
 		fake.getConversationRepositoryReturnsOnCall = make(map[int]struct {
-			result1 domain.ConversationRepository
+			result1 domaina.ConversationRepository
 		})
 	}
 	fake.getConversationRepositoryReturnsOnCall[i] = struct {
-		result1 domain.ConversationRepository
+		result1 domaina.ConversationRepository
 	}{result1}
 }
 
@@ -694,7 +694,7 @@ func (fake *FakeKeyHandlerContext) GetPageSizeReturnsOnCall(i int, result1 int) 
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetStateManager() *services.StateManager {
+func (fake *FakeKeyHandlerContext) GetStateManager() keybinding.StateManager {
 	fake.getStateManagerMutex.Lock()
 	ret, specificReturn := fake.getStateManagerReturnsOnCall[len(fake.getStateManagerArgsForCall)]
 	fake.getStateManagerArgsForCall = append(fake.getStateManagerArgsForCall, struct {
@@ -718,32 +718,32 @@ func (fake *FakeKeyHandlerContext) GetStateManagerCallCount() int {
 	return len(fake.getStateManagerArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetStateManagerCalls(stub func() *services.StateManager) {
+func (fake *FakeKeyHandlerContext) GetStateManagerCalls(stub func() keybinding.StateManager) {
 	fake.getStateManagerMutex.Lock()
 	defer fake.getStateManagerMutex.Unlock()
 	fake.GetStateManagerStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetStateManagerReturns(result1 *services.StateManager) {
+func (fake *FakeKeyHandlerContext) GetStateManagerReturns(result1 keybinding.StateManager) {
 	fake.getStateManagerMutex.Lock()
 	defer fake.getStateManagerMutex.Unlock()
 	fake.GetStateManagerStub = nil
 	fake.getStateManagerReturns = struct {
-		result1 *services.StateManager
+		result1 keybinding.StateManager
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetStateManagerReturnsOnCall(i int, result1 *services.StateManager) {
+func (fake *FakeKeyHandlerContext) GetStateManagerReturnsOnCall(i int, result1 keybinding.StateManager) {
 	fake.getStateManagerMutex.Lock()
 	defer fake.getStateManagerMutex.Unlock()
 	fake.GetStateManagerStub = nil
 	if fake.getStateManagerReturnsOnCall == nil {
 		fake.getStateManagerReturnsOnCall = make(map[int]struct {
-			result1 *services.StateManager
+			result1 keybinding.StateManager
 		})
 	}
 	fake.getStateManagerReturnsOnCall[i] = struct {
-		result1 *services.StateManager
+		result1 keybinding.StateManager
 	}{result1}
 }
 

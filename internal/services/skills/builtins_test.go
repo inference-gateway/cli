@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	require "github.com/stretchr/testify/require"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	require "github.com/stretchr/testify/require"
 )
 
 func TestSeedBuiltins_SeedsWhenMissing(t *testing.T) {
@@ -16,7 +16,7 @@ func TestSeedBuiltins_SeedsWhenMissing(t *testing.T) {
 
 	require.FileExists(t, filepath.Join(dest, "tmux", "SKILL.md"))
 
-	sk, loadErr := LoadSkillMetadata(filepath.Join(dest, "tmux"), "tmux", domain.SkillScopeUser, "")
+	sk, loadErr := LoadSkillMetadata(filepath.Join(dest, "tmux"), "tmux", agentdomain.SkillScopeUser, "")
 	require.Nil(t, loadErr, "seeded built-in must validate")
 	require.NotNil(t, sk)
 	require.Equal(t, "tmux", sk.Name)

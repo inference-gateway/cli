@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestSaveLoadReminders_RoundTrip(t *testing.T) {
@@ -15,7 +15,7 @@ func TestSaveLoadReminders_RoundTrip(t *testing.T) {
 	original := &config.RemindersConfig{
 		Enabled: true,
 		Reminders: []config.ReminderConfig{
-			{Name: "memory", Text: "load memory", Hook: domain.HookPreSession, Trigger: config.ReminderTriggerOnce},
+			{Name: "memory", Text: "load memory", Hook: agentdomain.HookPreSession, Trigger: config.ReminderTriggerOnce},
 		},
 	}
 	if err := config.SaveReminders(path, original); err != nil {
@@ -26,7 +26,7 @@ func TestSaveLoadReminders_RoundTrip(t *testing.T) {
 		t.Fatalf("LoadReminders: %v", err)
 	}
 	if !loaded.Enabled || len(loaded.Reminders) != 1 ||
-		loaded.Reminders[0].Name != "memory" || loaded.Reminders[0].Hook != domain.HookPreSession {
+		loaded.Reminders[0].Name != "memory" || loaded.Reminders[0].Hook != agentdomain.HookPreSession {
 		t.Errorf("round-trip mismatch: %+v", loaded)
 	}
 }
@@ -48,8 +48,8 @@ func remindersCfg(enabled bool, reminders ...config.ReminderConfig) config.Remin
 // query builds a ReminderQuery with SessionTurn mirroring turn, which suffices
 // for every case here: interval keys off SessionTurn, turns_before_max off
 // Turn/MaxTurns, and each test exercises a single trigger.
-func query(hook domain.HookPoint, turn, maxTurns int, fired map[string]bool) domain.ReminderQuery {
-	return domain.ReminderQuery{Hook: hook, Turn: turn, SessionTurn: turn, MaxTurns: maxTurns, Fired: fired}
+func query(hook agentdomain.HookPoint, turn, maxTurns int, fired map[string]bool) agentdomain.ReminderQuery {
+	return agentdomain.ReminderQuery{Hook: hook, Turn: turn, SessionTurn: turn, MaxTurns: maxTurns, Fired: fired}
 }
 
 func TestRemindersFileConstants(t *testing.T) {
@@ -72,7 +72,7 @@ func TestDefaultRemindersConfig(t *testing.T) {
 		t.Fatal("default should ship at least one reminder")
 	}
 	first := cfg.Reminders[0]
-	if first.Text == "" || first.Hook != domain.HookPreStream || first.Trigger != config.ReminderTriggerInterval {
+	if first.Text == "" || first.Hook != agentdomain.HookPreStream || first.Trigger != config.ReminderTriggerInterval {
 		t.Errorf("unexpected default reminder: %+v", first)
 	}
 	hasMemoryConsult := false
@@ -111,12 +111,12 @@ func TestDefaultRemindersConfig_MemoryHygiene(t *testing.T) {
 	if mh == nil {
 		t.Fatal("default reminders should include memory-hygiene")
 	}
-	if mh.Hook != domain.HookPreStream || mh.Trigger != config.ReminderTriggerInterval || mh.Interval != 13 {
+	if mh.Hook != agentdomain.HookPreStream || mh.Trigger != config.ReminderTriggerInterval || mh.Interval != 13 {
 		t.Errorf("memory-hygiene should fire every 13 turns on pre_stream: %+v", *mh)
 	}
 
 	fires := func(turn int) bool {
-		for _, r := range cfg.RemindersDue(query(domain.HookPreStream, turn, 0, nil)) {
+		for _, r := range cfg.RemindersDue(query(agentdomain.HookPreStream, turn, 0, nil)) {
 			if r.Name == "memory-hygiene" {
 				return true
 			}
@@ -133,9 +133,9 @@ func TestDefaultRemindersConfig_MemoryHygiene(t *testing.T) {
 
 func TestRemindersDue_MasterGateDisabled(t *testing.T) {
 	r := remindersCfg(false, config.ReminderConfig{
-		Name: "a", Text: "x", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerAlways,
+		Name: "a", Text: "x", Hook: agentdomain.HookPreStream, Trigger: config.ReminderTriggerAlways,
 	})
-	if got := r.RemindersDue(query(domain.HookPreStream, 1, 0, nil)); got != nil {
+	if got := r.RemindersDue(query(agentdomain.HookPreStream, 1, 0, nil)); got != nil {
 		t.Fatalf("disabled config must return nil, got %v", got)
 	}
 }
@@ -170,7 +170,7 @@ func TestRemindersDue_Triggers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := remindersCfg(true, tt.reminder)
-			got := r.RemindersDue(query(domain.HookPreStream, tt.turn, tt.maxTurns, tt.fired))
+			got := r.RemindersDue(query(agentdomain.HookPreStream, tt.turn, tt.maxTurns, tt.fired))
 			if (len(got) > 0) != tt.want {
 				t.Fatalf("RemindersDue fired=%v, want %v (got %v)", len(got) > 0, tt.want, got)
 			}
@@ -195,7 +195,7 @@ func TestRemindersDue_WhenTodosEmpty(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := remindersCfg(true, reminder)
-			q := query(domain.HookPreStream, 4, 0, nil)
+			q := query(agentdomain.HookPreStream, 4, 0, nil)
 			q.TodoCount = tt.todoCount
 			if got := r.RemindersDue(q); (len(got) > 0) != tt.want {
 				t.Fatalf("RemindersDue fired=%v, want %v", len(got) > 0, tt.want)
@@ -207,7 +207,7 @@ func TestRemindersDue_WhenTodosEmpty(t *testing.T) {
 		bad := reminder
 		bad.When = "todos_emtpy"
 		r := remindersCfg(true, bad)
-		if got := r.RemindersDue(query(domain.HookPreStream, 4, 0, nil)); len(got) != 0 {
+		if got := r.RemindersDue(query(agentdomain.HookPreStream, 4, 0, nil)); len(got) != 0 {
 			t.Fatalf("unknown when fired: %v", got)
 		}
 	})
@@ -215,18 +215,18 @@ func TestRemindersDue_WhenTodosEmpty(t *testing.T) {
 
 func TestRemindersDue_HookFiltering(t *testing.T) {
 	r := remindersCfg(true,
-		config.ReminderConfig{Name: "pre", Text: "p", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerAlways},
-		config.ReminderConfig{Name: "post", Text: "q", Hook: domain.HookPostTool, Trigger: config.ReminderTriggerAlways},
+		config.ReminderConfig{Name: "pre", Text: "p", Hook: agentdomain.HookPreStream, Trigger: config.ReminderTriggerAlways},
+		config.ReminderConfig{Name: "post", Text: "q", Hook: agentdomain.HookPostTool, Trigger: config.ReminderTriggerAlways},
 	)
-	pre := r.RemindersDue(query(domain.HookPreStream, 1, 0, nil))
+	pre := r.RemindersDue(query(agentdomain.HookPreStream, 1, 0, nil))
 	if len(pre) != 1 || pre[0].Name != "pre" {
 		t.Fatalf("pre_stream should return only the pre reminder, got %v", pre)
 	}
-	post := r.RemindersDue(query(domain.HookPostTool, 1, 0, nil))
+	post := r.RemindersDue(query(agentdomain.HookPostTool, 1, 0, nil))
 	if len(post) != 1 || post[0].Name != "post" {
 		t.Fatalf("post_tool should return only the post reminder, got %v", post)
 	}
-	if got := r.RemindersDue(query(domain.HookPostSession, 1, 0, nil)); got != nil {
+	if got := r.RemindersDue(query(agentdomain.HookPostSession, 1, 0, nil)); got != nil {
 		t.Fatalf("post_session has no reminders, got %v", got)
 	}
 }
@@ -235,10 +235,10 @@ func TestRemindersDue_HookFiltering(t *testing.T) {
 // capability of the new model over the old single-reminder design.
 func TestRemindersDue_Stacking(t *testing.T) {
 	r := remindersCfg(true,
-		config.ReminderConfig{Name: "todo", Text: "t", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerAlways},
-		config.ReminderConfig{Name: "memory", Text: "m", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerAlways},
+		config.ReminderConfig{Name: "todo", Text: "t", Hook: agentdomain.HookPreStream, Trigger: config.ReminderTriggerAlways},
+		config.ReminderConfig{Name: "memory", Text: "m", Hook: agentdomain.HookPreStream, Trigger: config.ReminderTriggerAlways},
 	)
-	got := r.RemindersDue(query(domain.HookPreStream, 1, 0, nil))
+	got := r.RemindersDue(query(agentdomain.HookPreStream, 1, 0, nil))
 	if len(got) != 2 {
 		t.Fatalf("both reminders on pre_stream should fire, got %v", got)
 	}
@@ -248,17 +248,17 @@ func TestRemindersDue_Stacking(t *testing.T) {
 // recorded the name in the shared fired-set.
 func TestRemindersDue_OnceAcrossCalls(t *testing.T) {
 	r := remindersCfg(true, config.ReminderConfig{
-		Name: "memory", Text: "m", Hook: domain.HookPreSession, Trigger: config.ReminderTriggerOnce,
+		Name: "memory", Text: "m", Hook: agentdomain.HookPreSession, Trigger: config.ReminderTriggerOnce,
 	})
 	fired := map[string]bool{}
 
-	first := r.RemindersDue(query(domain.HookPreSession, 1, 0, fired))
+	first := r.RemindersDue(query(agentdomain.HookPreSession, 1, 0, fired))
 	if len(first) != 1 {
 		t.Fatalf("once reminder should fire first time, got %v", first)
 	}
 	fired[first[0].Name] = true // the agent marks fired after injecting
 
-	if got := r.RemindersDue(query(domain.HookPreSession, 2, 0, fired)); got != nil {
+	if got := r.RemindersDue(query(agentdomain.HookPreSession, 2, 0, fired)); got != nil {
 		t.Fatalf("once reminder should be suppressed after firing, got %v", got)
 	}
 }
@@ -269,15 +269,15 @@ func TestRemindersDue_OnceAcrossCalls(t *testing.T) {
 func TestRemindersDue_OnFailure(t *testing.T) {
 	r := remindersCfg(true, config.ReminderConfig{
 		Name: "fail-nudge", Text: "the change did not happen",
-		Hook: domain.HookPostTool, Trigger: config.ReminderTriggerOnFailure,
+		Hook: agentdomain.HookPostTool, Trigger: config.ReminderTriggerOnFailure,
 	})
 
-	failed := domain.ReminderQuery{Hook: domain.HookPostTool, ToolFailed: true}
+	failed := agentdomain.ReminderQuery{Hook: agentdomain.HookPostTool, ToolFailed: true}
 	if got := r.RemindersDue(failed); len(got) != 1 || got[0].Name != "fail-nudge" {
 		t.Fatalf("on_failure should fire when a tool failed, got %v", got)
 	}
 
-	ok := domain.ReminderQuery{Hook: domain.HookPostTool, ToolFailed: false}
+	ok := agentdomain.ReminderQuery{Hook: agentdomain.HookPostTool, ToolFailed: false}
 	if got := r.RemindersDue(ok); got != nil {
 		t.Fatalf("on_failure must not fire when no tool failed, got %v", got)
 	}
@@ -298,7 +298,7 @@ reminders:
 		t.Fatalf("ParseReminders(valid): %v", err)
 	}
 	if !cfg.Enabled || len(cfg.Reminders) != 1 ||
-		cfg.Reminders[0].Trigger != config.ReminderTriggerOnFailure || cfg.Reminders[0].Hook != domain.HookPostTool {
+		cfg.Reminders[0].Trigger != config.ReminderTriggerOnFailure || cfg.Reminders[0].Hook != agentdomain.HookPostTool {
 		t.Fatalf("unexpected parse result: %+v", cfg)
 	}
 	if err := cfg.Validate(); err != nil {
@@ -324,7 +324,7 @@ func TestMergeWithDefaults_AppendsNew(t *testing.T) {
 		Enabled: true,
 		Merge:   true,
 		Reminders: []config.ReminderConfig{
-			{Name: "my-custom", Text: "do the thing", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerAlways},
+			{Name: "my-custom", Text: "do the thing", Hook: agentdomain.HookPreStream, Trigger: config.ReminderTriggerAlways},
 		},
 	}
 	merged := cfg.MergeWithDefaults()
@@ -383,7 +383,7 @@ func TestMergeWithDefaults_OverridesByName(t *testing.T) {
 		Enabled: true,
 		Merge:   true,
 		Reminders: []config.ReminderConfig{
-			{Name: "todo-hygiene", Text: "overridden text", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerAlways},
+			{Name: "todo-hygiene", Text: "overridden text", Hook: agentdomain.HookPreStream, Trigger: config.ReminderTriggerAlways},
 		},
 	}
 	merged := cfg.MergeWithDefaults()
@@ -460,16 +460,16 @@ func TestReminders_Validate(t *testing.T) {
 		reminder  config.ReminderConfig
 		wantError bool
 	}{
-		{"valid", config.ReminderConfig{Name: "a", Text: "t", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerInterval, Interval: 4}, false},
+		{"valid", config.ReminderConfig{Name: "a", Text: "t", Hook: agentdomain.HookPreStream, Trigger: config.ReminderTriggerInterval, Interval: 4}, false},
 		{"empty hook and trigger default ok", config.ReminderConfig{Name: "a", Text: "t"}, false},
-		{"missing name", config.ReminderConfig{Text: "t", Hook: domain.HookPreStream}, true},
-		{"missing text", config.ReminderConfig{Name: "a", Hook: domain.HookPreStream}, true},
-		{"unknown hook", config.ReminderConfig{Name: "a", Text: "t", Hook: domain.HookPoint("not_a_hook")}, true},
+		{"missing name", config.ReminderConfig{Text: "t", Hook: agentdomain.HookPreStream}, true},
+		{"missing text", config.ReminderConfig{Name: "a", Hook: agentdomain.HookPreStream}, true},
+		{"unknown hook", config.ReminderConfig{Name: "a", Text: "t", Hook: agentdomain.HookPoint("not_a_hook")}, true},
 		{"unknown trigger", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTrigger("nope")}, true},
 		{"turns_before_max needs threshold", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTriggerTurnsBeforeMax}, true},
 		{"negative interval", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTriggerInterval, Interval: -1}, true},
-		{"on_failure with post_tool ok", config.ReminderConfig{Name: "a", Text: "t", Hook: domain.HookPostTool, Trigger: config.ReminderTriggerOnFailure}, false},
-		{"on_failure rejects other hook", config.ReminderConfig{Name: "a", Text: "t", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerOnFailure}, true},
+		{"on_failure with post_tool ok", config.ReminderConfig{Name: "a", Text: "t", Hook: agentdomain.HookPostTool, Trigger: config.ReminderTriggerOnFailure}, false},
+		{"on_failure rejects other hook", config.ReminderConfig{Name: "a", Text: "t", Hook: agentdomain.HookPreStream, Trigger: config.ReminderTriggerOnFailure}, true},
 		{"on_failure requires explicit hook", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTriggerOnFailure}, true},
 	}
 	for _, tt := range tests {
@@ -484,14 +484,14 @@ func TestReminders_Validate(t *testing.T) {
 }
 
 func TestOnStalledTodosTrigger(t *testing.T) {
-	todos := []domain.TodoItem{
+	todos := []agentdomain.TodoItem{
 		{ID: "1", Content: "wire modalities", Status: "pending"},
 		{ID: "2", Content: "open draft PR", Status: "in_progress"},
 	}
 	tests := []struct {
 		name      string
 		threshold int
-		todos     []domain.TodoItem
+		todos     []agentdomain.TodoItem
 		strikes   int
 		want      bool
 	}{
@@ -506,12 +506,12 @@ func TestOnStalledTodosTrigger(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := remindersCfg(true, config.ReminderConfig{
 				Name:      "todo-continuation",
-				Hook:      domain.HookPostStream,
+				Hook:      agentdomain.HookPostStream,
 				Trigger:   config.ReminderTriggerOnStalledTodos,
 				Threshold: tt.threshold,
 				Text:      "incomplete:\n{todo_list}",
 			})
-			q := query(domain.HookPostStream, 1, 10, nil)
+			q := query(agentdomain.HookPostStream, 1, 10, nil)
 			q.IncompleteTodos = tt.todos
 			q.StalledStrikes = tt.strikes
 			due := cfg.RemindersDue(q)
@@ -533,20 +533,20 @@ func TestOnStalledTodosTrigger(t *testing.T) {
 func TestOnTruncationTrigger(t *testing.T) {
 	tests := []struct {
 		name         string
-		hook         domain.HookPoint
+		hook         agentdomain.HookPoint
 		finishReason string
 		want         bool
 	}{
-		{"fires on length at post_stream", domain.HookPostStream, "length", true},
-		{"silent on stop", domain.HookPostStream, "stop", false},
-		{"silent on empty finish reason", domain.HookPostStream, "", false},
-		{"silent at other hooks", domain.HookPostTool, "length", false},
+		{"fires on length at post_stream", agentdomain.HookPostStream, "length", true},
+		{"silent on stop", agentdomain.HookPostStream, "stop", false},
+		{"silent on empty finish reason", agentdomain.HookPostStream, "", false},
+		{"silent at other hooks", agentdomain.HookPostTool, "length", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := remindersCfg(true, config.ReminderConfig{
 				Name:    "truncation-continuation",
-				Hook:    domain.HookPostStream,
+				Hook:    agentdomain.HookPostStream,
 				Trigger: config.ReminderTriggerOnTruncation,
 				Text:    "continue where you left off",
 			})
@@ -573,12 +573,12 @@ func TestOnRepeatedFailureTrigger(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := remindersCfg(true, config.ReminderConfig{
 				Name:      "repeated-failure",
-				Hook:      domain.HookPostTool,
+				Hook:      agentdomain.HookPostTool,
 				Trigger:   config.ReminderTriggerOnRepeatedFailure,
 				Threshold: 3,
 				Text:      "{tool_name} failed {count} times",
 			})
-			q := query(domain.HookPostTool, 1, 10, nil)
+			q := query(agentdomain.HookPostTool, 1, 10, nil)
 			q.RepeatedFailures = tt.failures
 			q.FailedTool = "Read"
 			due := cfg.RemindersDue(q)
@@ -604,19 +604,19 @@ func TestValidateNewTriggerRequirements(t *testing.T) {
 		wantError bool
 	}{
 		{"on_repeated_failure at wrong hook", config.ReminderConfig{
-			Name: "r", Hook: domain.HookPostStream, Trigger: config.ReminderTriggerOnRepeatedFailure, Threshold: 3, Text: "t"}, true},
+			Name: "r", Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnRepeatedFailure, Threshold: 3, Text: "t"}, true},
 		{"on_repeated_failure without threshold", config.ReminderConfig{
-			Name: "r", Hook: domain.HookPostTool, Trigger: config.ReminderTriggerOnRepeatedFailure, Text: "t"}, true},
+			Name: "r", Hook: agentdomain.HookPostTool, Trigger: config.ReminderTriggerOnRepeatedFailure, Text: "t"}, true},
 		{"on_repeated_failure valid", config.ReminderConfig{
-			Name: "r", Hook: domain.HookPostTool, Trigger: config.ReminderTriggerOnRepeatedFailure, Threshold: 3, Text: "t"}, false},
+			Name: "r", Hook: agentdomain.HookPostTool, Trigger: config.ReminderTriggerOnRepeatedFailure, Threshold: 3, Text: "t"}, false},
 		{"on_truncation at wrong hook", config.ReminderConfig{
-			Name: "r", Hook: domain.HookPostTool, Trigger: config.ReminderTriggerOnTruncation, Text: "t"}, true},
+			Name: "r", Hook: agentdomain.HookPostTool, Trigger: config.ReminderTriggerOnTruncation, Text: "t"}, true},
 		{"on_truncation valid", config.ReminderConfig{
-			Name: "r", Hook: domain.HookPostStream, Trigger: config.ReminderTriggerOnTruncation, Text: "t"}, false},
+			Name: "r", Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnTruncation, Text: "t"}, false},
 		{"on_stalled_todos at wrong hook", config.ReminderConfig{
-			Name: "r", Hook: domain.HookPreStream, Trigger: config.ReminderTriggerOnStalledTodos, Text: "t"}, true},
+			Name: "r", Hook: agentdomain.HookPreStream, Trigger: config.ReminderTriggerOnStalledTodos, Text: "t"}, true},
 		{"on_stalled_todos valid", config.ReminderConfig{
-			Name: "r", Hook: domain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Text: "t"}, false},
+			Name: "r", Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Text: "t"}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

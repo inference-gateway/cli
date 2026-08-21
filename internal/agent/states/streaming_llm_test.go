@@ -1,29 +1,28 @@
-package states
+package states_test
 
 import (
 	"testing"
 	"time"
 
-	assert "github.com/stretchr/testify/assert"
-	require "github.com/stretchr/testify/require"
+	states "github.com/inference-gateway/cli/internal/agent/states"
 
 	sdk "github.com/inference-gateway/sdk"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
+	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 )
 
 // TestStreamingLLMState_StartStreamingSpawnsGoroutine verifies that a
-// StartStreamingEvent launches the StartStreaming callback on a background
+// states.StartStreamingEvent launches the StartStreaming callback on a background
 // goroutine tracked by the shared WaitGroup, without transitioning or
 // emitting anything itself.
 func TestStreamingLLMState_StartStreamingSpawnsGoroutine(t *testing.T) {
 	f := newStateFixture()
 	started := make(chan struct{})
 	f.ctx.StartStreaming = func() { close(started) }
-	s := NewStreamingLLMState(f.ctx)
-	assert.Equal(t, domain.StateStreamingLLM, s.Name())
+	s := states.NewStreamingLLMState(f.ctx)
+	assert.Equal(t, states.StateStreamingLLM, s.Name())
 
-	require.NoError(t, s.Handle(domain.StartStreamingEvent{}))
+	require.NoError(t, s.Handle(states.StartStreamingEvent{}))
 
 	select {
 	case <-started:
@@ -43,12 +42,12 @@ func TestStreamingLLMState_StartStreamingSpawnsGoroutine(t *testing.T) {
 func TestStreamingLLMState_StreamCompletedStoresDataAndAdvances(t *testing.T) {
 	f := newStateFixture()
 	tools := makeTools(2)
-	evt := domain.StreamCompletedEvent{
+	evt := states.StreamCompletedEvent{
 		Message:   sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("hello")},
 		ToolCalls: tools,
 		Reasoning: "thinking",
 	}
-	s := NewStreamingLLMState(f.ctx)
+	s := states.NewStreamingLLMState(f.ctx)
 
 	require.NoError(t, s.Handle(evt))
 
@@ -56,8 +55,8 @@ func TestStreamingLLMState_StreamCompletedStoresDataAndAdvances(t *testing.T) {
 	assert.Equal(t, tools, *f.ctx.CurrentToolCalls)
 	assert.Equal(t, "thinking", *f.ctx.CurrentReasoning)
 	assert.Equal(t, tools, f.ctx.AgentCtx.ToolCalls)
-	assertTransitions(t, f.sm, domain.StatePostStream)
-	assertEvents(t, f.events, domain.MessageReceivedEvent{})
+	assertTransitions(t, f.sm, states.StatePostStream)
+	assertEvents(t, f.events, states.MessageReceivedEvent{})
 }
 
 // TestStreamingLLMState_TransitionFailureIsReturned verifies a failed
@@ -65,9 +64,9 @@ func TestStreamingLLMState_StreamCompletedStoresDataAndAdvances(t *testing.T) {
 func TestStreamingLLMState_TransitionFailureIsReturned(t *testing.T) {
 	f := newStateFixture()
 	f.sm.TransitionReturns(errBoom)
-	s := NewStreamingLLMState(f.ctx)
+	s := states.NewStreamingLLMState(f.ctx)
 
-	err := s.Handle(domain.StreamCompletedEvent{})
+	err := s.Handle(states.StreamCompletedEvent{})
 
 	assert.ErrorIs(t, err, errBoom)
 	assertEvents(t, f.events)

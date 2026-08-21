@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // Instruction is one enabled plugin's AGENTS.md ruleset, capped for prompt injection.

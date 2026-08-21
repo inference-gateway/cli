@@ -8,7 +8,7 @@ import (
 	progress "charm.land/bubbles/v2/progress"
 	tea "charm.land/bubbletea/v2"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
@@ -21,7 +21,7 @@ type TodoBoxView struct {
 	width         int
 	height        int
 	styleProvider *styles.Provider
-	todos         []domain.TodoItem
+	todos         []agentdomain.TodoItem
 	expanded      bool
 	autoExpanded  bool      // true if expanded due to auto-expand (not user action)
 	lastUpdate    time.Time // time of last todo update
@@ -50,7 +50,7 @@ func (tv *TodoBoxView) SetHeight(height int) {
 }
 
 // SetTodos updates the todo list and triggers auto-expand
-func (tv *TodoBoxView) SetTodos(todos []domain.TodoItem) {
+func (tv *TodoBoxView) SetTodos(todos []agentdomain.TodoItem) {
 	tv.todos = todos
 	tv.lastUpdate = time.Now()
 
@@ -62,7 +62,7 @@ func (tv *TodoBoxView) SetTodos(todos []domain.TodoItem) {
 }
 
 // GetTodos returns the current todos
-func (tv *TodoBoxView) GetTodos() []domain.TodoItem {
+func (tv *TodoBoxView) GetTodos() []agentdomain.TodoItem {
 	return tv.todos
 }
 
@@ -218,7 +218,7 @@ func (tv *TodoBoxView) renderExpanded() string {
 }
 
 // formatTodoItem formats a single todo item
-func (tv *TodoBoxView) formatTodoItem(todo domain.TodoItem) string {
+func (tv *TodoBoxView) formatTodoItem(todo agentdomain.TodoItem) string {
 	var checkbox, content string
 
 	switch todo.Status {

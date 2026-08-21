@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	filewriter "github.com/inference-gateway/cli/internal/domain/filewriter"
-	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	filewriter "github.com/inference-gateway/cli/internal/services/filewriter"
 )
 
 const (
@@ -22,35 +22,31 @@ const (
 
 // WriteTool implements a refactored WriteTool with clean architecture
 type WriteTool struct {
-	config        *config.Config
-	enabled       bool
-	formatter     domain.CustomFormatter
-	writer        filewriter.FileWriter
-	chunks        filewriter.ChunkManager
-	extractor     *ParameterExtractor
-	styleProvider *styles.Provider
+	config    *config.Config
+	enabled   bool
+	formatter agentinfra.CustomFormatter
+	writer    filewriter.FileWriter
+	chunks    filewriter.ChunkManager
+	extractor *ParameterExtractor
 }
 
 // NewWriteTool creates a new write tool with clean architecture
 func NewWriteTool(cfg *config.Config) *WriteTool {
-	pathValidator := filewriterservice.NewPathValidator(cfg)
-	backupManager := filewriterservice.NewBackupManager(".")
-	fileWriter := filewriterservice.NewSafeFileWriter(pathValidator, backupManager)
-	chunkManager := filewriterservice.NewStreamingChunkManager("./.infer/tmp", fileWriter)
+	pathValidator := filewriter.NewPathValidator(cfg)
+	backupManager := filewriter.NewBackupManager(".")
+	fileWriter := filewriter.NewSafeFileWriter(pathValidator, backupManager)
+	chunkManager := filewriter.NewStreamingChunkManager("./.infer/tmp", fileWriter)
 	paramExtractor := NewParameterExtractor()
-	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
 
 	return &WriteTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Write.Enabled,
-		formatter: domain.NewCustomFormatter("Write", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter("Write", func(key string) bool {
 			return key == "content"
 		}),
-		writer:        fileWriter,
-		chunks:        chunkManager,
-		extractor:     paramExtractor,
-		styleProvider: styleProvider,
+		writer:    fileWriter,
+		chunks:    chunkManager,
+		extractor: paramExtractor,
 	}
 }
 
@@ -81,11 +77,11 @@ func (t *WriteTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the write tool with given arguments
-func (t *WriteTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *WriteTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if !t.enabled {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  ToolName,
 			Arguments: args,
 			Success:   false,
@@ -96,7 +92,7 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 
 	params, err := t.extractor.ExtractWriteParams(args)
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  ToolName,
 			Arguments: args,
 			Success:   false,
@@ -136,13 +132,13 @@ func (t *WriteTool) Validate(args map[string]any) error {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *WriteTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *WriteTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -150,37 +146,33 @@ func (t *WriteTool) FormatResult(result *domain.ToolExecutionResult, formatType 
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *WriteTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *WriteTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
-		return t.styleProvider.RenderDimText("Write operation result unavailable")
+		return "Write operation result unavailable"
 	}
 
 	if !result.Success {
-		return t.styleProvider.RenderErrorText("Write operation failed")
+		return "Write operation failed"
 	}
 
 	if result.Data == nil {
-		return t.styleProvider.RenderSuccessText("Write operation completed successfully")
+		return "Write operation completed successfully"
 	}
 
-	if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
-		fileName := t.styleProvider.RenderPathText(t.formatter.GetFileName(writeResult.FilePath))
-		bytes := t.styleProvider.RenderMetricText(fmt.Sprintf("%d bytes", writeResult.BytesWritten))
-
+	if writeResult, ok := result.Data.(*agentdomain.FileWriteToolResult); ok {
+		fileName := t.formatter.GetFileName(writeResult.FilePath)
+		action := "Updated"
 		if writeResult.Created {
-			return fmt.Sprintf("%s %s (%s)",
-				t.styleProvider.RenderCreatedText("Created"), fileName, bytes)
-		} else {
-			return fmt.Sprintf("%s %s (%s)",
-				t.styleProvider.RenderUpdatedText("Updated"), fileName, bytes)
+			action = "Created"
 		}
+		return fmt.Sprintf("%s %s (%d bytes)", action, fileName, writeResult.BytesWritten)
 	}
 
-	return t.styleProvider.RenderSuccessText("Write operation completed")
+	return "Write operation completed"
 }
 
 // FormatForUI formats the result for UI display
-func (t *WriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *WriteTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -196,7 +188,7 @@ func (t *WriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
 		return output.String()
 	}
 
-	if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
+	if writeResult, ok := result.Data.(*agentdomain.FileWriteToolResult); ok {
 		action := "Updated"
 		if writeResult.Created {
 			action = "Created"
@@ -211,7 +203,7 @@ func (t *WriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with expanded tree structure
-func (t *WriteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *WriteTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Write operation result unavailable"
 	}
@@ -220,12 +212,12 @@ func (t *WriteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 }
 
 // formatWriteResultData formats the write result data section
-func (t *WriteTool) formatWriteResultData(result *domain.ToolExecutionResult) string {
+func (t *WriteTool) formatWriteResultData(result *agentdomain.ToolExecutionResult) string {
 	if result.Data == nil {
 		return ""
 	}
 
-	writeResult, ok := result.Data.(*domain.FileWriteToolResult)
+	writeResult, ok := result.Data.(*agentdomain.FileWriteToolResult)
 	if !ok {
 		return ""
 	}
@@ -254,12 +246,12 @@ func (t *WriteTool) ShouldAlwaysExpand() bool {
 }
 
 // executeWrite handles regular file write operations
-func (t *WriteTool) executeWrite(ctx context.Context, params *WriteParams, args map[string]any, start time.Time) *domain.ToolExecutionResult {
+func (t *WriteTool) executeWrite(ctx context.Context, params *WriteParams, args map[string]any, start time.Time) *agentdomain.ToolExecutionResult {
 	writeReq := t.extractor.ToWriteRequest(params)
 
 	writeResult, err := t.writer.Write(ctx, writeReq)
 	if err != nil {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  ToolName,
 			Arguments: args,
 			Success:   false,
@@ -268,7 +260,7 @@ func (t *WriteTool) executeWrite(ctx context.Context, params *WriteParams, args 
 		}
 	}
 
-	domainResult := &domain.FileWriteToolResult{
+	domainResult := &agentdomain.FileWriteToolResult{
 		FilePath:     writeResult.Path,
 		BytesWritten: writeResult.BytesWritten,
 		LinesWritten: countNewLines(params.Content),
@@ -277,7 +269,7 @@ func (t *WriteTool) executeWrite(ctx context.Context, params *WriteParams, args 
 		IsComplete:   true,
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  ToolName,
 		Arguments: args,
 		Success:   true,
@@ -295,7 +287,7 @@ func (t *WriteTool) extractFormat(args map[string]any) string {
 }
 
 // formatAsJSON converts result to JSON format
-func (t *WriteTool) formatAsJSON(result *domain.ToolExecutionResult) *domain.ToolExecutionResult {
+func (t *WriteTool) formatAsJSON(result *agentdomain.ToolExecutionResult) *agentdomain.ToolExecutionResult {
 	return result
 }
 

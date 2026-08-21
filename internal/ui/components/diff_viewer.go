@@ -5,12 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	key "charm.land/bubbles/v2/key"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	gitdiff "github.com/inference-gateway/cli/internal/services/gitdiff"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -139,8 +141,8 @@ type patchErrMsg struct{ err error }
 type DiffViewerImpl struct {
 	source        gitdiff.Source
 	styleProvider *styles.Provider
-	themeService  domain.ThemeService
-	diffRenderer  *DiffRenderer
+	themeService  ui.ThemeService
+	diffRenderer  *styles.DiffRenderer
 	keymap        diffKeymap
 
 	width        int
@@ -192,7 +194,7 @@ type DiffViewerImpl struct {
 }
 
 // NewDiffViewer creates a changes panel backed by the given git source.
-func NewDiffViewer(source gitdiff.Source, styleProvider *styles.Provider, themeService domain.ThemeService, kb config.KeybindingsConfig) *DiffViewerImpl {
+func NewDiffViewer(source gitdiff.Source, styleProvider *styles.Provider, themeService ui.ThemeService, kb config.KeybindingsConfig) *DiffViewerImpl {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 	vp.MouseWheelEnabled = true
@@ -202,7 +204,7 @@ func NewDiffViewer(source gitdiff.Source, styleProvider *styles.Provider, themeS
 		source:         source,
 		styleProvider:  styleProvider,
 		themeService:   themeService,
-		diffRenderer:   NewDiffRenderer(styleProvider),
+		diffRenderer:   styles.NewDiffRenderer(styleProvider),
 		keymap:         newDiffKeymap(kb, config.NamespaceDiffViewer),
 		collapsed:      make(map[string]bool),
 		viewport:       vp,
@@ -450,7 +452,7 @@ func (t *DiffViewerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		t.patchMsg = m.err.Error()
 		t.dirtyDiff = true
 		return t, nil
-	case domain.ToolExecutionCompletedEvent, domain.BashCommandCompletedEvent:
+	case agentdomain.ToolExecutionCompletedEvent, ui.BashCommandCompletedEvent:
 		return t, t.loadCmd()
 	case tea.WindowSizeMsg:
 		t.SetWidth(m.Width)
@@ -688,7 +690,7 @@ func (t *DiffViewerImpl) handleDiscardConfirm(msg tea.KeyPressMsg) (tea.Model, t
 func (t *DiffViewerImpl) commit() (tea.Model, tea.Cmd) {
 	t.cancel = true
 	return t, func() tea.Msg {
-		return domain.UserInputEvent{Content: "/git commit"}
+		return agentdomain.UserInputEvent{Content: "/git commit"}
 	}
 }
 
@@ -704,7 +706,7 @@ func (t *DiffViewerImpl) enterEditCmd() tea.Cmd {
 	}
 	workdir := t.readSource().Workdir()
 	abs := filepath.Join(workdir, fc.Path)
-	editor, readCmd, err := startPTYEditor(abs, workdir, t.paneWidth, max(t.height-1, 1), themeIsDark(t.styleProvider))
+	editor, readCmd, err := startPTYEditor(abs, workdir, t.paneWidth, max(t.height-1, 1), styles.ThemeIsDark(t.styleProvider))
 	if err != nil {
 		t.patchMsg = "Failed to open editor: " + err.Error()
 		return nil
@@ -1534,7 +1536,7 @@ func (t *DiffViewerImpl) computeDiff(fc gitdiff.FileChange, width int) string {
 		return t.styleProvider.RenderDimText("⊘ Binary or large file - not shown")
 	}
 
-	info := DiffInfo{FilePath: fc.Path, OldContent: oldContent, NewContent: newContent}
+	info := styles.DiffInfo{FilePath: fc.Path, OldContent: oldContent, NewContent: newContent}
 	if fc.OrigPath != "" {
 		info.Title = fc.OrigPath + " → " + fc.Path
 	}

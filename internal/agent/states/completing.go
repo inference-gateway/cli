@@ -5,8 +5,8 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // CompletingState handles events in the Completing state.
@@ -16,25 +16,25 @@ import (
 //  2. If messages queued → restart agent (CheckingQueue)
 //  3. Otherwise → publish completion event and transition to Idle
 type CompletingState struct {
-	ctx *domain.StateContext
+	ctx *StateContext
 }
 
 // NewCompletingState creates a new Completing state handler
-func NewCompletingState(ctx *domain.StateContext) domain.StateHandler {
+func NewCompletingState(ctx *StateContext) StateHandler {
 	return &CompletingState{ctx: ctx}
 }
 
 // Name returns the state this handler manages
-func (s *CompletingState) Name() domain.AgentExecutionState {
-	return domain.StateCompleting
+func (s *CompletingState) Name() AgentExecutionState {
+	return StateCompleting
 }
 
 // Handle processes events in Completing state. Completion is driven solely by
 // CompletionRequestedEvent (emitted right after the transition into Completing);
 // any other event is ignored so a stray wake-up cannot finalize the agent.
-func (s *CompletingState) Handle(event domain.AgentEvent) error {
+func (s *CompletingState) Handle(event AgentEvent) error {
 	switch event.(type) {
-	case domain.CompletionRequestedEvent:
+	case CompletionRequestedEvent:
 		return s.complete()
 	}
 	return nil
@@ -52,11 +52,11 @@ func (s *CompletingState) complete() error {
 
 	if !s.ctx.AgentCtx.MessageQueue.IsEmpty() {
 		logger.Debug("messages queued after completion, restarting agent")
-		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateCheckingQueue); err != nil {
+		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateCheckingQueue); err != nil {
 			logger.Error("failed to transition to checking queue", "error", err)
 			return err
 		}
-		s.ctx.Events <- domain.MessageReceivedEvent{}
+		s.ctx.Events <- MessageReceivedEvent{}
 		return nil
 	}
 
@@ -67,7 +67,7 @@ func (s *CompletingState) complete() error {
 	case s.ctx.AgentCtx.Ctx.Err() != nil:
 		s.ctx.PublishChatCancelled(s.ctx.GetMetrics(s.ctx.Request.RequestID))
 	case s.ctx.AgentCtx.MaxTurnsExceeded:
-		s.ctx.PublishChatEvent(domain.ChatCompleteEvent{
+		s.ctx.PublishChatEvent(agentdomain.ChatCompleteEvent{
 			RequestID:       s.ctx.Request.RequestID,
 			Timestamp:       time.Now(),
 			Metrics:         s.ctx.GetMetrics(s.ctx.Request.RequestID),
@@ -75,12 +75,12 @@ func (s *CompletingState) complete() error {
 		})
 	default:
 		if s.ctx.DispatchHooks != nil {
-			s.ctx.DispatchHooks(domain.HookPostSession)
+			s.ctx.DispatchHooks(agentdomain.HookPostSession)
 		}
 		s.ctx.PublishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.ctx.GetMetrics(s.ctx.Request.RequestID))
 	}
 
-	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, domain.StateIdle); err != nil {
+	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateIdle); err != nil {
 		logger.Error("failed to transition to idle", "error", err)
 		return err
 	}

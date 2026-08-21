@@ -8,16 +8,18 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // DeleteTool handles file and directory deletion operations
 type DeleteTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter domain.BaseFormatter
+	formatter agentinfra.BaseFormatter
 }
 
 // NewDeleteTool creates a new delete tool
@@ -25,7 +27,7 @@ func NewDeleteTool(cfg *config.Config) *DeleteTool {
 	return &DeleteTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.Delete.Enabled,
-		formatter: domain.NewBaseFormatter("Delete"),
+		formatter: agentinfra.NewBaseFormatter("Delete"),
 	}
 }
 
@@ -68,7 +70,7 @@ func (t *DeleteTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the delete tool with given arguments
-func (t *DeleteTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *DeleteTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("delete tool is not enabled")
@@ -76,7 +78,7 @@ func (t *DeleteTool) Execute(ctx context.Context, args map[string]any) (*domain.
 
 	path, ok := args["path"].(string)
 	if !ok {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Delete",
 			Arguments: args,
 			Success:   false,
@@ -104,9 +106,9 @@ func (t *DeleteTool) Execute(ctx context.Context, args map[string]any) (*domain.
 		return nil, err
 	}
 
-	var toolData *domain.DeleteToolResult
+	var toolData *agentdomain.DeleteToolResult
 	if deleteResult != nil {
-		toolData = &domain.DeleteToolResult{
+		toolData = &agentdomain.DeleteToolResult{
 			Path:              deleteResult.Path,
 			DeletedFiles:      deleteResult.DeletedFiles,
 			DeletedDirs:       deleteResult.DeletedDirs,
@@ -117,7 +119,7 @@ func (t *DeleteTool) Execute(ctx context.Context, args map[string]any) (*domain.
 		}
 	}
 
-	result := &domain.ToolExecutionResult{
+	result := &agentdomain.ToolExecutionResult{
 		ToolName:  "Delete",
 		Arguments: args,
 		Success:   true,
@@ -309,13 +311,13 @@ func (t *DeleteTool) validatePathSecurity(path string) error {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *DeleteTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *DeleteTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -323,12 +325,12 @@ func (t *DeleteTool) FormatResult(result *domain.ToolExecutionResult, formatType
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *DeleteTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *DeleteTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
-	deleteResult, ok := result.Data.(*domain.DeleteToolResult)
+	deleteResult, ok := result.Data.(*agentdomain.DeleteToolResult)
 	if !ok {
 		if result.Success {
 			return "Deletion completed successfully"
@@ -360,7 +362,7 @@ func (t *DeleteTool) FormatPreview(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForUI formats the result for UI display
-func (t *DeleteTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *DeleteTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -377,7 +379,7 @@ func (t *DeleteTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *DeleteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *DeleteTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -391,7 +393,7 @@ func (t *DeleteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 // formatDeleteData formats delete-specific data
 func (t *DeleteTool) formatDeleteData(data any) string {
-	deleteResult, ok := data.(*domain.DeleteToolResult)
+	deleteResult, ok := data.(*agentdomain.DeleteToolResult)
 	if !ok {
 		return t.formatter.FormatAsJSON(data)
 	}

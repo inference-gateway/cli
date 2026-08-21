@@ -3,20 +3,18 @@ package autocomplete_test
 import (
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-
-	tea "charm.land/bubbletea/v2"
-
-	sdk "github.com/inference-gateway/sdk"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	autocomplete "github.com/inference-gateway/cli/internal/ui/autocomplete"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 func TestAutocomplete_CommandMode(t *testing.T) {
@@ -91,7 +89,7 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockToolService := &domainmocks.FakeToolService{}
+	mockToolService := &agentdomainmocks.FakeToolService{}
 
 	readDesc := "Read files"
 	writeDesc := "Write files"
@@ -239,9 +237,9 @@ func TestAutocomplete_ToolsRespectAgentMode(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockToolService := &domainmocks.FakeToolService{}
-	mockToolService.ListToolsForModeStub = func(mode domain.AgentMode) []sdk.ChatCompletionTool {
-		if mode == domain.AgentModePlan {
+	mockToolService := &agentdomainmocks.FakeToolService{}
+	mockToolService.ListToolsForModeStub = func(mode agentdomain.AgentMode) []sdk.ChatCompletionTool {
+		if mode == agentdomain.AgentModePlan {
 			return []sdk.ChatCompletionTool{
 				{Type: sdk.Function, Function: sdk.FunctionObject{Name: "AskUserQuestion"}},
 			}
@@ -262,14 +260,14 @@ func TestAutocomplete_ToolsRespectAgentMode(t *testing.T) {
 	ac.SetStateManager(sm)
 
 	// Standard mode: AskUserQuestion is plan-only, so it must not autocomplete.
-	sm.SetAgentMode(domain.AgentModeStandard)
+	sm.SetAgentMode(agentdomain.AgentModeStandard)
 	ac.Update("!!AskUser", 9)
 	if ac.IsVisible() {
 		t.Error("AskUserQuestion should not autocomplete in standard mode")
 	}
 
 	// Plan mode: it appears.
-	sm.SetAgentMode(domain.AgentModePlan)
+	sm.SetAgentMode(agentdomain.AgentModePlan)
 	ac.Update("!!AskUser", 9)
 	if !ac.IsVisible() {
 		t.Error("AskUserQuestion should autocomplete in plan mode")
@@ -308,7 +306,7 @@ func TestAutocomplete_ModelsMode(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockModelService := &domainmocks.FakeModelService{}
+	mockModelService := &convmocks.FakeModelService{}
 	mockModelService.ListModelsReturns([]string{
 		"deepseek-v4-pro",
 		"deepseek-v4-flash",
@@ -381,9 +379,9 @@ func TestAutocomplete_IssueMode(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockGH := &domainmocks.FakeGitHubIssueService{}
+	mockGH := &agentdomainmocks.FakeGitHubIssueService{}
 	mockGH.IsAvailableReturns(true)
-	mockGH.ListIssuesReturns([]domain.GitHubIssue{
+	mockGH.ListIssuesReturns([]agentdomain.GitHubIssue{
 		{Number: 1, Title: "Add login flow"},
 		{Number: 12, Title: "Fix auth bug"},
 		{Number: 120, Title: "Add docs"},
@@ -437,9 +435,9 @@ func TestAutocomplete_IssueMode_SelectionInsertsHashNumber(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockGH := &domainmocks.FakeGitHubIssueService{}
+	mockGH := &agentdomainmocks.FakeGitHubIssueService{}
 	mockGH.IsAvailableReturns(true)
-	mockGH.ListIssuesReturns([]domain.GitHubIssue{
+	mockGH.ListIssuesReturns([]agentdomain.GitHubIssue{
 		{Number: 573, Title: "Github issue autocomplete"},
 	}, nil)
 
@@ -471,7 +469,7 @@ func TestAutocomplete_IssueMode_UnavailableServiceHidesDropdown(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockGH := &domainmocks.FakeGitHubIssueService{}
+	mockGH := &agentdomainmocks.FakeGitHubIssueService{}
 	mockGH.IsAvailableReturns(false)
 
 	theme := &uimocks.FakeTheme{}
@@ -488,9 +486,9 @@ func TestAutocomplete_IssueMode_MidText(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockGH := &domainmocks.FakeGitHubIssueService{}
+	mockGH := &agentdomainmocks.FakeGitHubIssueService{}
 	mockGH.IsAvailableReturns(true)
-	mockGH.ListIssuesReturns([]domain.GitHubIssue{
+	mockGH.ListIssuesReturns([]agentdomain.GitHubIssue{
 		{Number: 573, Title: "Github issue autocomplete"},
 	}, nil)
 
@@ -554,8 +552,8 @@ func TestAutocomplete_SkillsMidText(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{fakeShortcut})
 
-	skillsSvc := &domainmocks.FakeSkillsService{}
-	skillsSvc.ListReturns([]domain.Skill{
+	skillsSvc := &agentdomainmocks.FakeSkillsService{}
+	skillsSvc.ListReturns([]agentdomain.Skill{
 		{Name: "maintainer", Description: "Maintain the org"},
 	})
 
@@ -610,7 +608,7 @@ func TestAutocomplete_ToolsAllOptionalSchema(t *testing.T) {
 	mockRegistry := &uimocks.FakeShortcutRegistry{}
 	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
 
-	mockToolService := &domainmocks.FakeToolService{}
+	mockToolService := &agentdomainmocks.FakeToolService{}
 
 	agentDesc := "Spawn local subagents in parallel"
 

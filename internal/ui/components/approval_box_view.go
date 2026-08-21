@@ -7,12 +7,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	huh "charm.land/huh/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -47,15 +46,15 @@ type ApprovalBoxView struct {
 	width            int
 	height           int
 	styleProvider    *styles.Provider
-	stateManager     domain.ApprovalUIManager
-	toolFormatter    domain.ToolFormatter
+	stateManager     agentdomain.ApprovalUIManager
+	toolFormatter    agentdomain.ToolFormatter
 	keyHintFormatter *hints.Formatter
 
 	// active is the approval state the form was built for; a mismatch with
 	// the StateManager (cleared externally) marks the form stale.
-	active *domain.ApprovalUIState
+	active *agentdomain.ApprovalUIState
 	form   *huh.Form
-	choice domain.ApprovalAction
+	choice agentdomain.ApprovalAction
 
 	// expanded switches the diff from the height-capped preview to a scrollable
 	// window over the full diff (ctrl+o), mirroring the conversation view's
@@ -105,7 +104,7 @@ func (av *ApprovalBoxView) IsExpanded() bool {
 	return av.expanded
 }
 
-func NewApprovalBoxView(styleProvider *styles.Provider, stateManager domain.ApprovalUIManager, toolFormatter domain.ToolFormatter) *ApprovalBoxView {
+func NewApprovalBoxView(styleProvider *styles.Provider, stateManager agentdomain.ApprovalUIManager, toolFormatter agentdomain.ToolFormatter) *ApprovalBoxView {
 	return &ApprovalBoxView{
 		width:         80,
 		styleProvider: styleProvider,
@@ -161,16 +160,16 @@ func (av *ApprovalBoxView) Begin() tea.Cmd {
 		return nil
 	}
 	av.active = state
-	av.choice = domain.ApprovalApprove
+	av.choice = agentdomain.ApprovalApprove
 	av.expanded = false
 	av.scrollOffset = 0
 	av.form = huh.NewForm(
 		huh.NewGroup(
-			huh.NewSelect[domain.ApprovalAction]().
+			huh.NewSelect[agentdomain.ApprovalAction]().
 				Options(
-					huh.NewOption("Approve", domain.ApprovalApprove),
-					huh.NewOption("Reject", domain.ApprovalReject),
-					huh.NewOption("Auto-Approve", domain.ApprovalAutoAccept),
+					huh.NewOption("Approve", agentdomain.ApprovalApprove),
+					huh.NewOption("Reject", agentdomain.ApprovalReject),
+					huh.NewOption("Auto-Approve", agentdomain.ApprovalAutoAccept),
 				).
 				Inline(true).
 				Value(&av.choice),
@@ -203,7 +202,7 @@ func (av *ApprovalBoxView) Forward(msg tea.Msg) tea.Cmd {
 		av.active = nil
 		av.form = nil
 		return func() tea.Msg {
-			return domain.ToolApprovalResponseEvent{Action: action, ToolCall: toolCall}
+			return agentdomain.ToolApprovalResponseEvent{Action: action, ToolCall: toolCall}
 		}
 	}
 	return cmd
@@ -213,7 +212,7 @@ func (av *ApprovalBoxView) Forward(msg tea.Msg) tea.Cmd {
 // bordered box so the approval prompt is unmistakable and shows *what* is being
 // approved, instead of bare buttons floating above the input. The border uses the
 // accent colour to echo the focused input box directly below it.
-func (av *ApprovalBoxView) renderApprovalBox(state *domain.ApprovalUIState) string {
+func (av *ApprovalBoxView) renderApprovalBox(state *agentdomain.ApprovalUIState) string {
 	accentColor := av.styleProvider.GetThemeColor("accent")
 
 	title := av.styleProvider.RenderWithColorAndBold("Approval required", accentColor)
@@ -286,20 +285,19 @@ func (av *ApprovalBoxView) highlightSummary(summary string) string {
 }
 
 // renderDiffPreview renders the file diff for the mutating tools using the shared,
-// theme-aware DiffRenderer (same package). The second return is false for any other
+// theme-aware styles.DiffRenderer. The second return is false for any other
 // tool so the caller falls back to the one-liner summary. The diff is sized to the
 // box width and capped to a bounded number of lines (see capLines).
 //
-// The tool names are matched as literals on purpose: internal/agent/tools imports
-// this package for the diff renderer, so importing it back for its name constants
-// would create an import cycle.
+// The tool names are matched as literals on purpose: importing internal/agent/tools
+// for its name constants would pull the whole tool layer into the UI.
 func (av *ApprovalBoxView) renderDiffPreview(toolName string, args map[string]any) (string, bool) {
-	renderer := NewDiffRenderer(av.styleProvider).SetWidth(av.diffWidth()).SetMaxLines(-1)
+	renderer := styles.NewDiffRenderer(av.styleProvider).SetWidth(av.diffWidth()).SetMaxLines(-1)
 
 	var rendered string
 	switch toolName {
 	case "Edit":
-		rendered = renderer.SetContextLines(InlineDiffContextLines).RenderEditToolArguments(args)
+		rendered = renderer.SetContextLines(styles.InlineDiffContextLines).RenderEditToolArguments(args)
 	case "MultiEdit":
 		rendered = renderer.RenderMultiEditToolArguments(args)
 	case "Write":

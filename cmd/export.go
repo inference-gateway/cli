@@ -7,12 +7,14 @@ import (
 	"path/filepath"
 	"time"
 
+	cobra "github.com/spf13/cobra"
+
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	services "github.com/inference-gateway/cli/internal/services"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	cobra "github.com/spf13/cobra"
 )
 
 var exportCmd = &cobra.Command{
@@ -44,12 +46,12 @@ func runExport(sessionID string) error {
 		return fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
-	themeService := domain.NewThemeProvider()
+	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	themeService := styles.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)
 	toolFormatterService := services.NewToolFormatterService(toolRegistry, styleProvider)
-	pricingService := services.NewPricingService(&cfg.Pricing)
-	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, pricingService, stores.Conversations)
+	pricingService := conversation.NewPricingService(&cfg.Pricing)
+	persistentRepo := conversation.NewPersistentConversationRepository(toolFormatterService, pricingService, stores.Conversations)
 
 	ctx := context.Background()
 	if err := persistentRepo.LoadConversation(ctx, sessionID); err != nil {
@@ -60,7 +62,7 @@ func runExport(sessionID string) error {
 		return fmt.Errorf("no conversation to export - conversation history is empty")
 	}
 
-	data, err := persistentRepo.Export(domain.ExportMarkdown)
+	data, err := persistentRepo.Export(convdomain.ExportMarkdown)
 	if err != nil {
 		return fmt.Errorf("failed to export conversation: %w", err)
 	}

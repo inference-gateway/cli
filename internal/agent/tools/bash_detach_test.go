@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // TestBashTool_DetachOnSignal is the regression guard for "ctrl+b didn't move the
@@ -17,16 +17,16 @@ import (
 // call DetachToBackground and return promptly (not run the command to completion).
 func TestBashTool_DetachOnSignal(t *testing.T) {
 	cfg := config.DefaultConfig()
-	fake := &domainmocks.FakeBackgroundShellService{}
+	fake := &schedmocks.FakeBackgroundShellService{}
 	fake.DetachToBackgroundReturns("shell-abc123", nil)
 	tool := NewBashTool(cfg, fake)
 
 	detachChan := make(chan struct{}, 1)
-	ctx := domain.WithToolApproved(context.Background())
-	ctx = domain.WithBashOutputCallback(ctx, func(string) {})
-	ctx = domain.WithBashDetachChannel(ctx, detachChan)
+	ctx := agentdomain.WithToolApproved(context.Background())
+	ctx = agentdomain.WithBashOutputCallback(ctx, func(string) {})
+	ctx = agentdomain.WithBashDetachChannel(ctx, detachChan)
 
-	resCh := make(chan *domain.ToolExecutionResult, 1)
+	resCh := make(chan *agentdomain.ToolExecutionResult, 1)
 	startedAt := time.Now()
 	go func() {
 		r, _ := tool.Execute(ctx, map[string]any{"command": "sleep 30"})
@@ -47,9 +47,9 @@ func TestBashTool_DetachOnSignal(t *testing.T) {
 		if !r.Success {
 			t.Fatalf("detach result not success: %+v", r)
 		}
-		data, ok := r.Data.(*domain.BashToolResult)
+		data, ok := r.Data.(*agentdomain.BashToolResult)
 		if !ok {
-			t.Fatalf("result Data is %T, want *domain.BashToolResult", r.Data)
+			t.Fatalf("result Data is %T, want *agentdomain.BashToolResult", r.Data)
 		}
 		if !strings.Contains(data.Output, "detached to background") {
 			t.Fatalf("output missing detach confirmation: %q", data.Output)
@@ -63,14 +63,14 @@ func TestBashTool_DetachOnSignal(t *testing.T) {
 // immediately detaches the command to the background, without needing a Ctrl+B signal.
 func TestBashTool_DetachedParam(t *testing.T) {
 	cfg := config.DefaultConfig()
-	fake := &domainmocks.FakeBackgroundShellService{}
+	fake := &schedmocks.FakeBackgroundShellService{}
 	fake.DetachToBackgroundReturns("shell-abc123", nil)
 	tool := NewBashTool(cfg, fake)
 
-	ctx := domain.WithToolApproved(context.Background())
-	ctx = domain.WithBashOutputCallback(ctx, func(string) {})
+	ctx := agentdomain.WithToolApproved(context.Background())
+	ctx = agentdomain.WithBashOutputCallback(ctx, func(string) {})
 
-	resCh := make(chan *domain.ToolExecutionResult, 1)
+	resCh := make(chan *agentdomain.ToolExecutionResult, 1)
 	startedAt := time.Now()
 	go func() {
 		r, _ := tool.Execute(ctx, map[string]any{"command": "sleep 30", "detached": true})
@@ -88,9 +88,9 @@ func TestBashTool_DetachedParam(t *testing.T) {
 		if !r.Success {
 			t.Fatalf("detach result not success: %+v", r)
 		}
-		data, ok := r.Data.(*domain.BashToolResult)
+		data, ok := r.Data.(*agentdomain.BashToolResult)
 		if !ok {
-			t.Fatalf("result Data is %T, want *domain.BashToolResult", r.Data)
+			t.Fatalf("result Data is %T, want *agentdomain.BashToolResult", r.Data)
 		}
 		if !strings.Contains(data.Output, "detached to background") {
 			t.Fatalf("output missing detach confirmation: %q", data.Output)

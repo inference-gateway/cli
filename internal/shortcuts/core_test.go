@@ -7,17 +7,17 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-
-	domain "github.com/inference-gateway/cli/internal/domain"
-	models "github.com/inference-gateway/cli/internal/models"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 type stubTokenEstimator struct {
 	estimate int
 }
 
-func (s *stubTokenEstimator) GetToolStats(domain.ToolService, domain.AgentMode) (int, int) {
+func (s *stubTokenEstimator) GetToolStats(agentdomain.ToolService, agentdomain.AgentMode) (int, int) {
 	return 0, 0
 }
 
@@ -36,8 +36,8 @@ func TestContextShortcut_Execute_UsesProviderUsageWhenAvailable(t *testing.T) {
 	models.SetGatewayContextWindows(map[string]int{"deepseek/deepseek-v4-flash": 1_000_000})
 	defer models.SetGatewayContextWindows(nil)
 
-	repo := &domainmocks.FakeConversationRepository{}
-	repo.GetSessionTokensReturns(domain.SessionTokenStats{
+	repo := &convmocks.FakeConversationRepository{}
+	repo.GetSessionTokensReturns(convdomain.SessionTokenStats{
 		LastInputTokens:   7_250,
 		TotalInputTokens:  20_000,
 		TotalOutputTokens: 314,
@@ -73,12 +73,12 @@ func TestContextShortcut_Execute_FallsBackToTokenizerWhenProviderSilent(t *testi
 	models.SetGatewayContextWindows(map[string]int{"deepseek/deepseek-v4-flash": 1_000_000})
 	defer models.SetGatewayContextWindows(nil)
 
-	repo := &domainmocks.FakeConversationRepository{}
-	repo.GetSessionTokensReturns(domain.SessionTokenStats{
+	repo := &convmocks.FakeConversationRepository{}
+	repo.GetSessionTokensReturns(convdomain.SessionTokenStats{
 		TotalInputTokens: 0,
 	})
 	repo.GetMessageCountReturns(2)
-	repo.GetMessagesReturns([]domain.ConversationEntry{
+	repo.GetMessagesReturns([]convdomain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User}},
 		{Message: sdk.Message{Role: sdk.Assistant}},
 	})
@@ -101,8 +101,8 @@ func TestContextShortcut_Execute_FallsBackToTokenizerWhenProviderSilent(t *testi
 }
 
 func TestContextShortcut_Execute_NoUsageNoEstimateOmitsPercent(t *testing.T) {
-	repo := &domainmocks.FakeConversationRepository{}
-	repo.GetSessionTokensReturns(domain.SessionTokenStats{TotalInputTokens: 0})
+	repo := &convmocks.FakeConversationRepository{}
+	repo.GetSessionTokensReturns(convdomain.SessionTokenStats{TotalInputTokens: 0})
 	repo.GetMessageCountReturns(0)
 	repo.GetMessagesReturns(nil)
 

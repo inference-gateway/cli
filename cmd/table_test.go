@@ -4,7 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
@@ -21,7 +22,7 @@ func TestDisableOutputColorsStripsEscapes(t *testing.T) {
 		"title": listTitle("Tool Calls"),
 		"field": listField("Session", "abc"),
 		"hint":  listHint("legend"),
-		"tree":  telemetry.RenderTraceTree([]*telemetry.TraceSpan{span}, traceTreeStyle),
+		"tree":  styles.RenderTraceTree([]*telemetry.TraceSpan{span}, traceTreeStyle),
 		"check": icons.StyledCheckMark(),
 		"cross": icons.StyledCrossMark(),
 	}

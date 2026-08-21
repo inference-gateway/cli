@@ -217,7 +217,6 @@ type BashToolConfig struct {
 type BackgroundShellsConfig struct {
 	Enabled            bool `yaml:"enabled" mapstructure:"enabled"`
 	MaxConcurrent      int  `yaml:"max_concurrent" mapstructure:"max_concurrent"`
-	MaxOutputBufferMB  int  `yaml:"max_output_buffer_mb" mapstructure:"max_output_buffer_mb"`
 	RetentionMinutes   int  `yaml:"retention_minutes" mapstructure:"retention_minutes"`
 	CompletedRetention int  `yaml:"completed_retention" mapstructure:"completed_retention"`
 }
@@ -367,9 +366,8 @@ type AgentToolConfig struct {
 // AgentInteractiveConfig configures the tmux-backed interactive surface for
 // subagents (used when mode is "interactive").
 type AgentInteractiveConfig struct {
-	Multiplexer string `yaml:"multiplexer" mapstructure:"multiplexer"` // tmux (only supported value)
-	Layout      string `yaml:"layout" mapstructure:"layout"`           // vertical | horizontal | window
-	Fallback    string `yaml:"fallback" mapstructure:"fallback"`       // headless | error (when not inside tmux)
+	Layout   string `yaml:"layout" mapstructure:"layout"`     // vertical | horizontal | window
+	Fallback string `yaml:"fallback" mapstructure:"fallback"` // headless | error (when not inside tmux)
 }
 
 // QueryAgentToolConfig contains Query-specific tool settings
@@ -444,8 +442,7 @@ type SafetyConfig struct {
 
 // ExportConfig contains settings for export command
 type ExportConfig struct {
-	OutputDir    string `yaml:"output_dir" mapstructure:"output_dir"`
-	SummaryModel string `yaml:"summary_model" mapstructure:"summary_model"`
+	OutputDir string `yaml:"output_dir" mapstructure:"output_dir"`
 }
 
 // CompactConfig contains conversation compaction settings
@@ -491,7 +488,6 @@ type WebConfig struct {
 // WebSSHConfig contains SSH connection settings for remote servers
 type WebSSHConfig struct {
 	Enabled        bool   `yaml:"enabled" mapstructure:"enabled"`
-	UseSSHConfig   bool   `yaml:"use_ssh_config" mapstructure:"use_ssh_config"`
 	KnownHostsPath string `yaml:"known_hosts_path" mapstructure:"known_hosts_path"`
 	AutoInstall    bool   `yaml:"auto_install" mapstructure:"auto_install"`
 	InstallVersion string `yaml:"install_version" mapstructure:"install_version"`
@@ -574,7 +570,6 @@ type AgentConfig struct {
 	Context                  AgentContextConfig `yaml:"context" mapstructure:"context"`
 	Skills                   AgentSkillsConfig  `yaml:"skills" mapstructure:"skills"`
 	AgentsMD                 AgentsMDConfig     `yaml:"agents_md" mapstructure:"agents_md"`
-	VerboseTools             bool               `yaml:"verbose_tools" mapstructure:"verbose_tools"`
 	MaxTurns                 int                `yaml:"max_turns" mapstructure:"max_turns"`
 	MaxTokens                int                `yaml:"max_tokens" mapstructure:"max_tokens"`
 	ReasoningEffort          string             `yaml:"reasoning_effort,omitempty" mapstructure:"reasoning_effort"`
@@ -674,9 +669,8 @@ type StatusBarIndicators struct {
 
 // FetchSafetyConfig contains safety settings for fetch operations
 type FetchSafetyConfig struct {
-	MaxSize       int64 `yaml:"max_size" mapstructure:"max_size"`
-	Timeout       int   `yaml:"timeout" mapstructure:"timeout"`
-	AllowRedirect bool  `yaml:"allow_redirect" mapstructure:"allow_redirect"`
+	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
+	Timeout int   `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // FetchCacheConfig contains cache settings for fetch operations
@@ -845,17 +839,6 @@ type D1StorageConfig struct {
 	BaseURL    string `yaml:"base_url,omitempty" mapstructure:"base_url,omitempty"`
 }
 
-// A2AAgentInfo contains information about an A2A agent connection
-type A2AAgentInfo struct {
-	Name        string            `yaml:"name" mapstructure:"name"`
-	URL         string            `yaml:"url" mapstructure:"url"`
-	APIKey      string            `yaml:"api_key" mapstructure:"api_key"`
-	Description string            `yaml:"description,omitempty" mapstructure:"description,omitempty"`
-	Timeout     int               `yaml:"timeout" mapstructure:"timeout"`
-	Enabled     bool              `yaml:"enabled" mapstructure:"enabled"`
-	Metadata    map[string]string `yaml:"metadata,omitempty" mapstructure:"metadata,omitempty"`
-}
-
 // A2ATaskConfig contains configuration for A2A task processing
 type A2ATaskConfig struct {
 	StatusPollSeconds       int     `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
@@ -863,7 +846,6 @@ type A2ATaskConfig struct {
 	InitialPollIntervalSec  int     `yaml:"initial_poll_interval_sec" mapstructure:"initial_poll_interval_sec"`
 	MaxPollIntervalSec      int     `yaml:"max_poll_interval_sec" mapstructure:"max_poll_interval_sec"`
 	BackoffMultiplier       float64 `yaml:"backoff_multiplier" mapstructure:"backoff_multiplier"`
-	BackgroundMonitoring    bool    `yaml:"background_monitoring" mapstructure:"background_monitoring"`
 	CompletedTaskRetention  int     `yaml:"completed_task_retention" mapstructure:"completed_task_retention"`
 	AgentModeMaxWaitSeconds int     `yaml:"agent_mode_max_wait_seconds" mapstructure:"agent_mode_max_wait_seconds"`
 	ArtifactsAutoDownload   bool    `yaml:"artifacts_auto_download" mapstructure:"artifacts_auto_download"`
@@ -1008,7 +990,6 @@ func DefaultConfig() *Config { //nolint:funlen
 				BackgroundShells: BackgroundShellsConfig{
 					Enabled:            true,
 					MaxConcurrent:      5,
-					MaxOutputBufferMB:  10,
 					RetentionMinutes:   60,
 					CompletedRetention: 5,
 				},
@@ -1047,9 +1028,8 @@ func DefaultConfig() *Config { //nolint:funlen
 				RequireApproval: &[]bool{false}[0],
 				AllowedDomains:  []string{"golang.org", "localhost", "github.com", "raw.githubusercontent.com"},
 				Safety: FetchSafetyConfig{
-					MaxSize:       10485760, // 10MB
-					Timeout:       30,       // 30 seconds
-					AllowRedirect: true,
+					MaxSize: 10485760, // 10MB
+					Timeout: 30,       // 30 seconds
 				},
 				Cache: FetchCacheConfig{
 					Enabled: true,
@@ -1103,9 +1083,8 @@ func DefaultConfig() *Config { //nolint:funlen
 				InheritMock:        true,
 				CompletedRetention: 5,
 				Interactive: AgentInteractiveConfig{
-					Multiplexer: "tmux",
-					Layout:      "vertical",
-					Fallback:    "headless",
+					Layout:   "vertical",
+					Fallback: "headless",
 				},
 			},
 			Safety: SafetyConfig{
@@ -1125,8 +1104,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Export: ExportConfig{
-			OutputDir:    ConfigDirName + "/tmp",
-			SummaryModel: "",
+			OutputDir: ConfigDirName + "/tmp",
 		},
 		Agent: AgentConfig{
 			Model: "",
@@ -1148,7 +1126,6 @@ func DefaultConfig() *Config { //nolint:funlen
 				MaxLines: DefaultInstructionsMaxLines,
 			},
 			SystemPromptWithDefaults: true,
-			VerboseTools:             false,
 			MaxTurns:                 50,
 			MaxTokens:                8192,
 			MaxConcurrentTools:       5,
@@ -1243,7 +1220,6 @@ func DefaultConfig() *Config { //nolint:funlen
 				InitialPollIntervalSec:  2,
 				MaxPollIntervalSec:      60,
 				BackoffMultiplier:       2.0,
-				BackgroundMonitoring:    true,
 				CompletedTaskRetention:  5,
 				AgentModeMaxWaitSeconds: 300,
 				ArtifactsAutoDownload:   false,
@@ -1280,7 +1256,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			Tmux:                  true,
 			SSH: WebSSHConfig{
 				Enabled:        false,
-				UseSSHConfig:   true,
 				KnownHostsPath: "~/.ssh/known_hosts",
 				AutoInstall:    true,
 				InstallVersion: "latest",
@@ -1391,7 +1366,7 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		return false
 	case "Memory":
 		return false
-	case "MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestFrame", "GetUIElements", "PressUIElement":
+	case "Computer", "GetLatestFrame":
 		return false
 	case "BrowserRead", "BrowserScreenshot", "BrowserTabs":
 		return false

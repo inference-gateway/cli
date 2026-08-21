@@ -13,13 +13,17 @@ import (
 	"sync"
 	"time"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	uuid "github.com/google/uuid"
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	project "github.com/inference-gateway/cli/internal/project"
-	agentrunner "github.com/inference-gateway/cli/internal/services/agentrunner"
 	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentrunner "github.com/inference-gateway/cli/internal/agent/application/agentrunner"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	project "github.com/inference-gateway/cli/internal/platform/project"
 )
 
 // subagentDepthEnv guards against subagent fork-bombs: each spawned subagent
@@ -41,7 +45,7 @@ type AgentTaskSpec struct {
 	// Mode is the subagent's capability, resolved from the `type` argument:
 	// ReadOnly -> AgentModeReadOnly (Explore-like, no approval), ReadWrite ->
 	// AgentModeStandard (can mutate, approval applies).
-	Mode domain.AgentMode
+	Mode agentdomain.AgentMode
 }
 
 // AgentSubResult is the per-subagent outcome reported back to the LLM.
@@ -67,9 +71,9 @@ type AgentToolResult struct {
 // lightweight, no-A2A-server complement to the A2A tools.
 type AgentTool struct {
 	config    *config.Config
-	tracker   domain.SubagentTracker
-	submitter domain.JobSubmitter
-	formatter domain.BaseFormatter
+	tracker   scheddomain.SubagentTracker
+	submitter scheddomain.JobSubmitter
+	formatter agentinfra.BaseFormatter
 	binary    string
 
 	// Injection points for tests; default to real implementations.
@@ -82,12 +86,12 @@ type AgentTool struct {
 // NewAgentTool creates the Agent tool. tracker is the session's SubagentTracker
 // (the data store the subagent control tools read); submitter is the job
 // supervisor that monitors async/interactive subagents to completion.
-func NewAgentTool(cfg *config.Config, tracker domain.SubagentTracker, submitter domain.JobSubmitter) *AgentTool {
+func NewAgentTool(cfg *config.Config, tracker scheddomain.SubagentTracker, submitter scheddomain.JobSubmitter) *AgentTool {
 	t := &AgentTool{
 		config:    cfg,
 		tracker:   tracker,
 		submitter: submitter,
-		formatter: domain.NewBaseFormatter("Agent"),
+		formatter: agentinfra.NewBaseFormatter("Agent"),
 		binary:    os.Args[0],
 	}
 	t.runHeadless = agentrunner.Run
@@ -145,7 +149,7 @@ func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 // Execute runs the tool with the given arguments.
 //
 //nolint:funlen,gocyclo,cyclop
-func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	if !t.IsEnabled() {
@@ -169,7 +173,7 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 		specs = specs[:maxN]
 	}
 
-	if mode == domain.SubagentModeInteractive && !t.interactiveAvailable() {
+	if mode == scheddomain.SubagentModeInteractive && !t.interactiveAvailable() {
 		switch t.config.Tools.Agent.Interactive.Fallback {
 		case "error":
 			logger.Error("interactive subagent unavailable", "reason", "not inside tmux ($TMUX unset)", "fallback", "error")
@@ -177,18 +181,18 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 		default:
 			logger.Debug("interactive subagent unavailable, falling back to headless", "reason", "not inside tmux ($TMUX unset)")
 			notes = append(notes, "not inside tmux - falling back to headless mode")
-			mode = domain.SubagentModeHeadless
+			mode = scheddomain.SubagentModeHeadless
 		}
 	}
 
-	parentSession := domain.GetSessionID(ctx)
-	parentModel := domain.GetModel(ctx)
+	parentSession := agentdomain.GetSessionID(ctx)
+	parentModel := agentdomain.GetModel(ctx)
 	logger.Debug("agent tool invoked", "mode", mode, "wait", wait, "tasks", len(specs), "parent_session", parentSession)
 	for i := range specs {
 		specs[i].Model = t.resolveModel(specs[i].Model, parentModel)
 	}
 
-	if mode == domain.SubagentModeInteractive {
+	if mode == scheddomain.SubagentModeInteractive {
 		return t.runInteractive(ctx, args, start, specs, parentSession, notes), nil
 	}
 
@@ -200,20 +204,20 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 
 // runWait spawns all subagents concurrently and blocks until they finish,
 // returning one aggregated result (fan-out / fan-in).
-func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *domain.ToolExecutionResult {
+func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("running subagents synchronously", "tasks", len(specs), "mode", mode)
 	results := make([]AgentSubResult, len(specs))
-	states := make([]*domain.SubagentState, len(specs))
+	states := make([]*scheddomain.SubagentState, len(specs))
 	var wg sync.WaitGroup
 	for i, spec := range specs {
-		state := &domain.SubagentState{
+		state := &scheddomain.SubagentState{
 			ID:          uuid.New().String(),
 			Label:       spec.Label,
 			Description: spec.Description,
 			Model:       spec.Model,
 			Mode:        mode,
 			SessionID:   newSubagentSessionID(parentSession),
-			Status:      domain.SubagentRunning,
+			Status:      scheddomain.SubagentRunning,
 			StartedAt:   time.Now(),
 			Silent:      true,
 		}
@@ -221,14 +225,14 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 		_ = t.tracker.AddSubagent(state)
 
 		wg.Add(1)
-		go func(i int, spec AgentTaskSpec, state *domain.SubagentState) {
+		go func(i int, spec AgentTaskSpec, state *scheddomain.SubagentState) {
 			defer wg.Done()
 			answer, err := t.executeOne(ctx, spec, state.SessionID)
 			sub := toSubResult(spec, state.SessionID, answer, err)
 			results[i] = sub
-			status := domain.SubagentCompleted
+			status := scheddomain.SubagentCompleted
 			if !sub.Success {
-				status = domain.SubagentFailed
+				status = scheddomain.SubagentFailed
 			}
 			_ = t.tracker.SetSubagentStatus(state.ID, status)
 		}(i, spec, state)
@@ -245,7 +249,7 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 			success = false
 		}
 	}
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Agent",
 		Arguments: args,
 		Success:   success,
@@ -262,21 +266,21 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 
 // runAsync dispatches subagents and returns immediately. Each subagent's
 // outcome is delivered later by the supervisor monitoring its headlessSubagentJob.
-func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *domain.ToolExecutionResult {
+func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("dispatching subagents", "tasks", len(specs), "mode", mode)
 	dispatched := make([]AgentSubResult, 0, len(specs))
 	for _, spec := range specs {
 		sessionID := newSubagentSessionID(parentSession)
 
 		runCtx, cancel := context.WithCancel(context.Background())
-		state := &domain.SubagentState{
+		state := &scheddomain.SubagentState{
 			ID:          uuid.New().String(),
 			Label:       spec.Label,
 			Description: spec.Description,
 			Model:       spec.Model,
 			Mode:        mode,
 			SessionID:   sessionID,
-			Status:      domain.SubagentRunning,
+			Status:      scheddomain.SubagentRunning,
 			StartedAt:   time.Now(),
 			CancelFunc:  cancel,
 		}
@@ -300,7 +304,7 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 	if len(notes) > 0 {
 		msg += " (" + strings.Join(notes, "; ") + ")"
 	}
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Agent",
 		Arguments: args,
 		Success:   true,
@@ -350,7 +354,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 // fire-and-track: it returns once the panes are launched. The main agent then
 // uses ListSubagents / GetSubagentResult / CloseSubagent to inspect and close
 // them.
-func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, parentSession string, notes []string) *domain.ToolExecutionResult {
+func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("launching interactive subagents", "tasks", len(specs), "parent_session", parentSession)
 	launched := make([]AgentSubResult, 0, len(specs))
 	for _, spec := range specs {
@@ -372,15 +376,15 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 			logger.Warn("failed to send task to interactive subagent pane", "pane", paneID, "error", err)
 		}
 
-		state := &domain.SubagentState{
+		state := &scheddomain.SubagentState{
 			ID:          uuid.New().String(),
 			Label:       spec.Label,
 			Description: spec.Description,
 			Model:       spec.Model,
-			Mode:        domain.SubagentModeInteractive,
+			Mode:        scheddomain.SubagentModeInteractive,
 			SessionID:   sessionID,
 			PaneID:      paneID,
-			Status:      domain.SubagentRunning,
+			Status:      scheddomain.SubagentRunning,
 			StartedAt:   time.Now(),
 		}
 		if err := t.tracker.AddSubagent(state); err != nil {
@@ -406,13 +410,13 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 	if len(notes) > 0 {
 		msg += " (" + strings.Join(notes, "; ") + ")"
 	}
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Agent",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
 		Data: AgentToolResult{
-			Mode:       domain.SubagentModeInteractive,
+			Mode:       scheddomain.SubagentModeInteractive,
 			Wait:       false,
 			Dispatched: len(launched),
 			Subagents:  launched,
@@ -438,8 +442,8 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) s
 	if spec.SystemPrompt != "" {
 		parts = append(parts, subagentSystemPromptEnv+"="+shellQuote(spec.SystemPrompt))
 	}
-	if spec.Mode != domain.AgentModeStandard {
-		parts = append(parts, domain.EnvSubagentAgentMode+"="+shellQuote(spec.Mode.AllowedlistKey()))
+	if spec.Mode != agentdomain.AgentModeStandard {
+		parts = append(parts, scheddomain.EnvSubagentAgentMode+"="+shellQuote(spec.Mode.AllowedlistKey()))
 	}
 	if spec.Model != "" {
 		parts = append(parts, "INFER_AGENT_MODEL="+shellQuote(spec.Model))
@@ -450,12 +454,12 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) s
 
 	historyName := project.Slugify(spec.Label)
 	if historyName == "" {
-		historyName = domain.SubagentHistoryMemoryOnly
+		historyName = scheddomain.SubagentHistoryMemoryOnly
 	}
-	parts = append(parts, domain.EnvSubagentHistoryName+"="+shellQuote(historyName))
+	parts = append(parts, scheddomain.EnvSubagentHistoryName+"="+shellQuote(historyName))
 
-	parts = append(parts, domain.EnvSubagentResultFile+"="+shellQuote(subagentResultFilePath(sessionID)))
-	parts = append(parts, domain.EnvSubagentApprovalFile+"="+shellQuote(subagentApprovalFilePath(sessionID)))
+	parts = append(parts, scheddomain.EnvSubagentResultFile+"="+shellQuote(subagentResultFilePath(sessionID)))
+	parts = append(parts, scheddomain.EnvSubagentApprovalFile+"="+shellQuote(subagentApprovalFilePath(sessionID)))
 	parts = append(parts, shellQuote(t.binary), "chat")
 	return strings.Join(parts, " ")
 }
@@ -464,12 +468,12 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) s
 // depth guard plus an optional per-subagent system prompt and trace context.
 func (t *AgentTool) subagentExtraEnv(ctx context.Context, spec AgentTaskSpec) []string {
 	env := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
-	env = append(env, domain.GetTraceEnv(ctx)...)
+	env = append(env, agentdomain.GetTraceEnv(ctx)...)
 	if spec.SystemPrompt != "" {
 		env = append(env, subagentSystemPromptEnv+"="+spec.SystemPrompt)
 	}
-	if spec.Mode != domain.AgentModeStandard {
-		env = append(env, domain.EnvSubagentAgentMode+"="+spec.Mode.AllowedlistKey())
+	if spec.Mode != agentdomain.AgentModeStandard {
+		env = append(env, scheddomain.EnvSubagentAgentMode+"="+spec.Mode.AllowedlistKey())
 	}
 	if t.config.Gateway.Mock && t.config.Tools.Agent.InheritMock {
 		env = append(env, "INFER_GATEWAY_MOCK=true")
@@ -556,7 +560,7 @@ func readSubagentApproval(sessionID string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	var af domain.SubagentApprovalFile
+	var af scheddomain.SubagentApprovalFile
 	if err := json.Unmarshal(data, &af); err != nil || !af.Awaiting {
 		return "", false
 	}
@@ -565,14 +569,14 @@ func readSubagentApproval(sessionID string) (string, bool) {
 
 // readSubagentResultFile reads and parses a subagent result file without
 // waiting. Returns ok=false when the file is absent or malformed.
-func readSubagentResultFile(path string) (domain.SubagentResultFile, bool) {
+func readSubagentResultFile(path string) (scheddomain.SubagentResultFile, bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return domain.SubagentResultFile{}, false
+		return scheddomain.SubagentResultFile{}, false
 	}
-	var rf domain.SubagentResultFile
+	var rf scheddomain.SubagentResultFile
 	if err := json.Unmarshal(data, &rf); err != nil {
-		return domain.SubagentResultFile{}, false
+		return scheddomain.SubagentResultFile{}, false
 	}
 	return rf, true
 }
@@ -620,10 +624,10 @@ func (t *AgentTool) maxParallel() int {
 // parameter - otherwise the model overrides the operator's config.
 func (t *AgentTool) resolveMode() string {
 	mode := strings.TrimSpace(t.config.Tools.Agent.Mode)
-	if mode == domain.SubagentModeInteractive {
-		return domain.SubagentModeInteractive
+	if mode == scheddomain.SubagentModeInteractive {
+		return scheddomain.SubagentModeInteractive
 	}
-	return domain.SubagentModeHeadless
+	return scheddomain.SubagentModeHeadless
 }
 
 // resolveWait returns whether the tool blocks for aggregated results, from
@@ -647,8 +651,8 @@ func (t *AgentTool) resolveModel(taskModel, parentModel string) string {
 	return parentModel
 }
 
-func (t *AgentTool) errorResult(args map[string]any, start time.Time, msg string) *domain.ToolExecutionResult {
-	return &domain.ToolExecutionResult{
+func (t *AgentTool) errorResult(args map[string]any, start time.Time, msg string) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "Agent",
 		Arguments: args,
 		Success:   false,
@@ -659,13 +663,13 @@ func (t *AgentTool) errorResult(args map[string]any, start time.Time, msg string
 }
 
 // FormatResult formats tool execution results for different contexts.
-func (t *AgentTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *AgentTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -673,7 +677,7 @@ func (t *AgentTool) FormatResult(result *domain.ToolExecutionResult, formatType 
 }
 
 // FormatPreview returns a compact one-line preview.
-func (t *AgentTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *AgentTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Agent result unavailable"
 	}
@@ -691,7 +695,7 @@ func (t *AgentTool) FormatPreview(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForUI renders the tool call header with a single-line preview.
-func (t *AgentTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *AgentTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Agent result unavailable"
 	}
@@ -704,7 +708,7 @@ func (t *AgentTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForLLM renders a structured detail block for the assistant.
-func (t *AgentTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *AgentTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Agent result unavailable"
 	}
@@ -815,11 +819,11 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 // capability mode: "ReadWrite" -> AgentModeStandard (can mutate, approval
 // applies); anything else, including the default empty value, -> AgentModeReadOnly
 // (Explore-like read/search, no approval). Matching is case-insensitive.
-func resolveSubagentType(t string) domain.AgentMode {
+func resolveSubagentType(t string) agentdomain.AgentMode {
 	if strings.EqualFold(strings.TrimSpace(t), "ReadWrite") {
-		return domain.AgentModeStandard
+		return agentdomain.AgentModeStandard
 	}
-	return domain.AgentModeReadOnly
+	return agentdomain.AgentModeReadOnly
 }
 
 func optionalStringSlice(m map[string]any, key string) []string {

@@ -12,22 +12,25 @@ import (
 	"strings"
 	"time"
 
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	telemetry "github.com/inference-gateway/cli/internal/telemetry"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
 // A2ASubmitTaskTool handles A2A task submission and management
 type A2ASubmitTaskTool struct {
 	config      *config.Config
-	formatter   domain.CustomFormatter
-	taskTracker domain.A2ATaskTracker
-	submitter   domain.JobSubmitter
+	formatter   agentinfra.CustomFormatter
+	taskTracker agentdomain.A2ATaskTracker
+	submitter   scheddomain.JobSubmitter
 	client      client.A2AClient
 }
 
@@ -44,26 +47,26 @@ type A2ASubmitTaskResult struct {
 }
 
 // NewA2ASubmitTaskTool creates a new A2A task tool
-func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker domain.A2ATaskTracker, submitter domain.JobSubmitter) *A2ASubmitTaskTool {
+func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker agentdomain.A2ATaskTracker, submitter scheddomain.JobSubmitter) *A2ASubmitTaskTool {
 	return &A2ASubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,
 		submitter:   submitter,
 		client:      nil,
-		formatter: domain.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
 			return key == "metadata"
 		}),
 	}
 }
 
 // NewA2ASubmitTaskToolWithClient creates a new A2A task tool with an injected client (for testing)
-func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker domain.A2ATaskTracker, submitter domain.JobSubmitter, client client.A2AClient) *A2ASubmitTaskTool {
+func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker agentdomain.A2ATaskTracker, submitter scheddomain.JobSubmitter, client client.A2AClient) *A2ASubmitTaskTool {
 	return &A2ASubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,
 		submitter:   submitter,
 		client:      client,
-		formatter: domain.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
 			return key == "metadata"
 		}),
 	}
@@ -93,7 +96,7 @@ func (t *A2ASubmitTaskTool) shouldResumeTask(ctx context.Context, adkClient clie
 	return existingTask.Status.State, true, nil
 }
 
-func (t *A2ASubmitTaskTool) validateExistingTask(ctx context.Context, adkClient client.A2AClient, existingTaskID, agentURL string, args map[string]any, startTime time.Time) *domain.ToolExecutionResult {
+func (t *A2ASubmitTaskTool) validateExistingTask(ctx context.Context, adkClient client.A2AClient, existingTaskID, agentURL string, args map[string]any, startTime time.Time) *agentdomain.ToolExecutionResult {
 	taskState, found, err := t.shouldResumeTask(ctx, adkClient, existingTaskID)
 	if err != nil || !found {
 		return nil
@@ -136,11 +139,11 @@ func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
 // Execute runs the tool with given arguments
 //
 //nolint:gocyclo,cyclop,funlen
-func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	startTime := time.Now()
 
 	if !t.IsEnabled() {
-		return &domain.ToolExecutionResult{
+		return &agentdomain.ToolExecutionResult{
 			ToolName:  "A2A_SubmitTask",
 			Arguments: args,
 			Success:   false,
@@ -251,7 +254,7 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		}
 	}
 
-	pollingState := &domain.TaskPollingState{
+	pollingState := &agentdomain.TaskPollingState{
 		TaskID:          taskID,
 		ContextID:       receivedContextID,
 		AgentURL:        agentURL,
@@ -268,7 +271,7 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		t.submitter.Submit(&a2aJob{tool: t, agentURL: agentURL, taskID: taskID, state: pollingState})
 	}
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "A2A_SubmitTask",
 		Arguments: args,
 		Success:   true,
@@ -295,9 +298,9 @@ func (t *A2ASubmitTaskTool) runA2APolling(
 	ctx context.Context,
 	agentURL string,
 	taskID string,
-	state *domain.TaskPollingState,
-	emit func(domain.JobSignal),
-) domain.ToolExecutionResult {
+	state *agentdomain.TaskPollingState,
+	emit func(scheddomain.JobSignal),
+) agentdomain.ToolExecutionResult {
 	if t.taskTracker != nil {
 		defer t.taskTracker.StopPolling(taskID)
 	}
@@ -316,7 +319,7 @@ func (t *A2ASubmitTaskTool) runA2APolling(
 	for {
 		select {
 		case <-ctx.Done():
-			return domain.ToolExecutionResult{
+			return agentdomain.ToolExecutionResult{
 				ToolName: "A2A_SubmitTask",
 				Success:  false,
 				Error:    "task cancelled",
@@ -348,7 +351,7 @@ func (t *A2ASubmitTaskTool) runA2APolling(
 				if taskResult != nil {
 					return *taskResult
 				}
-				return domain.ToolExecutionResult{ToolName: "A2A_SubmitTask", Success: false, Error: "task ended without a result"}
+				return agentdomain.ToolExecutionResult{ToolName: "A2A_SubmitTask", Success: false, Error: "task ended without a result"}
 			}
 
 			currentInterval = t.applyExponentialBackoff(agentURL, taskID, strategy, currentInterval, pollAttempt, state, ticker)
@@ -392,7 +395,7 @@ func (t *A2ASubmitTaskTool) queryTask(ctx context.Context, adkClient client.A2AC
 	return &currentTask, nil
 }
 
-func (t *A2ASubmitTaskTool) handleQueryError(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, _ /* state */ *domain.TaskPollingState, ticker *time.Ticker, _ /* err */ error) time.Duration {
+func (t *A2ASubmitTaskTool) handleQueryError(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, _ /* state */ *agentdomain.TaskPollingState, ticker *time.Ticker, _ /* err */ error) time.Duration {
 	if strategy != "exponential" {
 		return currentInterval
 	}
@@ -415,7 +418,7 @@ func (t *A2ASubmitTaskTool) extractTextFromParts(parts []adk.Part) string {
 
 // emitStatusUpdate records the latest remote task state on the polling state
 // (read by the task view) and emits it as a non-terminal JobSignal for the UI.
-func (t *A2ASubmitTaskTool) emitStatusUpdate(state *domain.TaskPollingState, taskID, agentURL string, currentTask adk.Task, emit func(domain.JobSignal)) {
+func (t *A2ASubmitTaskTool) emitStatusUpdate(state *agentdomain.TaskPollingState, taskID, agentURL string, currentTask adk.Task, emit func(scheddomain.JobSignal)) {
 	statusMessage := ""
 	if currentTask.Status.Message != nil {
 		statusMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
@@ -429,11 +432,11 @@ func (t *A2ASubmitTaskTool) emitStatusUpdate(state *domain.TaskPollingState, tas
 		note = fmt.Sprintf("A2A task on %s (%s): %s", agentURL, stateStr, statusMessage)
 	}
 	if emit != nil {
-		emit(domain.JobSignal{Note: note, State: stateStr})
+		emit(scheddomain.JobSignal{Note: note, State: stateStr})
 	}
 }
 
-func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* taskID */ string, _ /* pollAttempt */ int, state *domain.TaskPollingState, currentTask adk.Task, _ /* pollingDetails */ string) (bool, *domain.ToolExecutionResult) {
+func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* taskID */ string, _ /* pollAttempt */ int, state *agentdomain.TaskPollingState, currentTask adk.Task, _ /* pollingDetails */ string) (bool, *agentdomain.ToolExecutionResult) {
 	normalizedState := strings.ToLower(string(currentTask.Status.State))
 
 	switch {
@@ -447,7 +450,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* 
 			t.downloadArtifacts(ctx, &currentTask)
 		}
 
-		result := &domain.ToolExecutionResult{
+		result := &agentdomain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  true,
 			Duration: time.Since(state.StartedAt),
@@ -472,7 +475,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* 
 			msg = fmt.Sprintf("Task %s: %s", currentTask.Status.State, finalResult)
 		}
 
-		result := &domain.ToolExecutionResult{
+		result := &agentdomain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  false,
 			Duration: time.Since(state.StartedAt),
@@ -496,7 +499,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* 
 			inputMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
 		}
 
-		result := &domain.ToolExecutionResult{
+		result := &agentdomain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  true,
 			Duration: time.Since(state.StartedAt),
@@ -518,7 +521,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* 
 			cancelMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
 		}
 
-		result := &domain.ToolExecutionResult{
+		result := &agentdomain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  false,
 			Duration: time.Since(state.StartedAt),
@@ -538,7 +541,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* 
 	return false, nil
 }
 
-func (t *A2ASubmitTaskTool) applyExponentialBackoff(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, _ /* pollAttempt */ int, _ /* state */ *domain.TaskPollingState, ticker *time.Ticker) time.Duration {
+func (t *A2ASubmitTaskTool) applyExponentialBackoff(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, _ /* pollAttempt */ int, _ /* state */ *agentdomain.TaskPollingState, ticker *time.Ticker) time.Duration {
 	if strategy != "exponential" {
 		return currentInterval
 	}
@@ -571,13 +574,13 @@ func (t *A2ASubmitTaskTool) IsEnabled() bool {
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *A2ASubmitTaskTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *A2ASubmitTaskTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	switch formatType {
-	case domain.FormatterUI:
+	case agentdomain.FormatterUI:
 		return t.FormatForUI(result)
-	case domain.FormatterLLM:
+	case agentdomain.FormatterLLM:
 		return t.FormatForLLM(result)
-	case domain.FormatterShort:
+	case agentdomain.FormatterShort:
 		return t.FormatPreview(result)
 	default:
 		return t.FormatForUI(result)
@@ -585,7 +588,7 @@ func (t *A2ASubmitTaskTool) FormatResult(result *domain.ToolExecutionResult, for
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *A2ASubmitTaskTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *A2ASubmitTaskTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -747,7 +750,7 @@ func artifactLocalPath(artifact adk.Artifact) string {
 // point at a file on disk instead of asking the model to WebFetch it.
 // Fail-soft: any failure just leaves that artifact with its URL line.
 func (t *A2ASubmitTaskTool) downloadArtifacts(ctx context.Context, task *adk.Task) {
-	baseDir := t.config.SessionArtifactsDir(domain.GetSessionID(ctx))
+	baseDir := t.config.SessionArtifactsDir(agentdomain.GetSessionID(ctx))
 	httpClient := &http.Client{Timeout: 60 * time.Second}
 
 	for i := range task.Artifacts {
@@ -802,7 +805,7 @@ func downloadArtifactFile(httpClient *http.Client, url, baseDir string) (string,
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *A2ASubmitTaskTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *A2ASubmitTaskTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result.Data == nil {
 		return result.Error
 	}
@@ -821,7 +824,7 @@ func (t *A2ASubmitTaskTool) FormatPreview(result *domain.ToolExecutionResult) st
 }
 
 // FormatForUI formats the result for UI display
-func (t *A2ASubmitTaskTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *A2ASubmitTaskTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -848,10 +851,10 @@ func (t *A2ASubmitTaskTool) ShouldAlwaysExpand() bool {
 }
 
 // errorResult creates an error result
-func (t *A2ASubmitTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
+func (t *A2ASubmitTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*agentdomain.ToolExecutionResult, error) {
 	agentURL, _ := args["agent_url"].(string)
 
-	return &domain.ToolExecutionResult{
+	return &agentdomain.ToolExecutionResult{
 		ToolName:  "A2A_SubmitTask",
 		Arguments: args,
 		Success:   false,

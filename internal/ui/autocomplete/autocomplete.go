@@ -9,11 +9,11 @@ import (
 
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
@@ -59,13 +59,13 @@ type AutocompleteImpl struct {
 	height               int
 	maxVisible           int
 	shortcutRegistry     ShortcutRegistry
-	skillsService        domain.SkillsService
-	stateManager         domain.AgentModeManager
-	lastAgentMode        domain.AgentMode
-	toolService          domain.ToolService
-	modelService         domain.ModelService
-	pricingService       domain.PricingService
-	githubIssueService   domain.GitHubIssueService
+	skillsService        agentdomain.SkillsService
+	stateManager         agentdomain.AgentModeManager
+	lastAgentMode        agentdomain.AgentMode
+	toolService          agentdomain.ToolService
+	modelService         convdomain.ModelService
+	pricingService       convdomain.PricingService
+	githubIssueService   agentdomain.GitHubIssueService
 	completionMode       string
 	usageHint            string
 	splicePrefix         string
@@ -90,34 +90,34 @@ func NewAutocomplete(theme ui.Theme, shortcutRegistry ShortcutRegistry) *Autocom
 }
 
 // SetToolService sets the tool service for tool autocomplete
-func (a *AutocompleteImpl) SetToolService(toolService domain.ToolService) {
+func (a *AutocompleteImpl) SetToolService(toolService agentdomain.ToolService) {
 	a.toolService = toolService
 }
 
 // SetSkillsService sets the skills service so installed skills appear in the
 // slash-command autocomplete alongside shortcuts.
-func (a *AutocompleteImpl) SetSkillsService(skillsService domain.SkillsService) {
+func (a *AutocompleteImpl) SetSkillsService(skillsService agentdomain.SkillsService) {
 	a.skillsService = skillsService
 }
 
 // SetStateManager sets the state manager for agent mode filtering
-func (a *AutocompleteImpl) SetStateManager(stateManager domain.AgentModeManager) {
+func (a *AutocompleteImpl) SetStateManager(stateManager agentdomain.AgentModeManager) {
 	a.stateManager = stateManager
 }
 
 // SetModelService sets the model service for model autocomplete
-func (a *AutocompleteImpl) SetModelService(modelService domain.ModelService) {
+func (a *AutocompleteImpl) SetModelService(modelService convdomain.ModelService) {
 	a.modelService = modelService
 }
 
 // SetPricingService sets the pricing service for model pricing display
-func (a *AutocompleteImpl) SetPricingService(pricingService domain.PricingService) {
+func (a *AutocompleteImpl) SetPricingService(pricingService convdomain.PricingService) {
 	a.pricingService = pricingService
 }
 
 // SetGitHubIssueService sets the GitHub issue lookup used by the "#"
 // autocomplete trigger. Safe to call with nil; the trigger then shows nothing.
-func (a *AutocompleteImpl) SetGitHubIssueService(s domain.GitHubIssueService) {
+func (a *AutocompleteImpl) SetGitHubIssueService(s agentdomain.GitHubIssueService) {
 	a.githubIssueService = s
 }
 
@@ -162,7 +162,7 @@ func (a *AutocompleteImpl) loadModels() {
 	for _, model := range models {
 		description := ""
 		if a.pricingService != nil {
-			description = domain.FormatModelPricingLabel(a.pricingService, model)
+			description = convdomain.FormatModelPricingLabel(a.pricingService, model)
 		}
 		a.suggestions = append(a.suggestions, ShortcutOption{
 			Shortcut:    model,
@@ -281,7 +281,7 @@ func (a *AutocompleteImpl) loadTools() {
 
 	a.suggestions = []ShortcutOption{}
 
-	mode := domain.AgentModeStandard
+	mode := agentdomain.AgentModeStandard
 	if a.stateManager != nil {
 		mode = a.stateManager.GetAgentMode()
 	}
@@ -568,7 +568,7 @@ func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 			a.selected = 0
 		}
 	case strings.HasPrefix(inputText, "!!") && cursorPos >= 2:
-		var currentMode domain.AgentMode
+		var currentMode agentdomain.AgentMode
 		if a.stateManager != nil {
 			currentMode = a.stateManager.GetAgentMode()
 		}

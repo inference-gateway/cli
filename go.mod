@@ -11,8 +11,6 @@ require (
 	charm.land/glamour/v2 v2.0.1
 	charm.land/huh/v2 v2.0.3
 	charm.land/lipgloss/v2 v2.0.6
-	github.com/BurntSushi/xgb v0.0.0-20210121224620-deaf085860bc
-	github.com/BurntSushi/xgbutil v0.0.0-20190907113008-ad855c713046
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/aymanbagabas/go-udiff v0.4.1
 	github.com/charmbracelet/colorprofile v0.4.3
@@ -74,8 +72,6 @@ require (
 )
 
 require (
-	github.com/BurntSushi/freetype-go v0.0.0-20160129220410-b763ddbfe298 // indirect
-	github.com/BurntSushi/graphics-go v0.0.0-20160129215708-b43f31a4a966 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
@@ -98,7 +94,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dlclark/regexp2/v2 v2.2.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.10.1
+	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/gen2brain/shm v0.2.2 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect

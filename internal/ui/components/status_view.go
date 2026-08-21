@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"time"
 
+	ui "github.com/inference-gateway/cli/internal/ui"
+
 	progress "charm.land/bubbles/v2/progress"
 	spinner "charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
-	formatting "github.com/inference-gateway/cli/internal/formatting"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
@@ -25,8 +27,8 @@ type StatusView struct {
 	baseMessage      string
 	debugInfo        string
 	width            int
-	statusType       domain.StatusType
-	progress         *domain.StatusProgress
+	statusType       ui.StatusType
+	progress         *ui.StatusProgress
 	savedState       *StatusState
 	styleProvider    *styles.Provider
 	keyHintFormatter *hints.Formatter
@@ -39,7 +41,7 @@ type StatusView struct {
 // the approval/question overlays (to pause timers) plus retry status.
 type statusViewState interface {
 	approvalOverlayReader
-	domain.ChatSessionManager
+	agentdomain.ChatSessionManager
 }
 
 // SetStateManager wires the state manager so the spinner line can reflect
@@ -55,8 +57,8 @@ type StatusState struct {
 	isSpinner   bool
 	startTime   time.Time
 	baseMessage string
-	statusType  domain.StatusType
-	progress    *domain.StatusProgress
+	statusType  ui.StatusType
+	progress    *ui.StatusProgress
 }
 
 func NewStatusView(styleProvider *styles.Provider) *StatusView {
@@ -76,11 +78,11 @@ func (sv *StatusView) ShowStatus(message string) {
 	sv.baseMessage = message
 	sv.isError = false
 	sv.isSpinner = false
-	sv.statusType = domain.StatusDefault
+	sv.statusType = ui.StatusDefault
 	sv.progress = nil
 }
 
-func (sv *StatusView) ShowStatusWithType(message string, statusType domain.StatusType, progress *domain.StatusProgress) {
+func (sv *StatusView) ShowStatusWithType(message string, statusType ui.StatusType, progress *ui.StatusProgress) {
 	sv.message = message
 	sv.baseMessage = message
 	sv.isError = false
@@ -102,11 +104,11 @@ func (sv *StatusView) ShowSpinner(message string) {
 	sv.isSpinner = true
 	sv.startTime = time.Now()
 	sv.pausedAt = time.Time{}
-	sv.statusType = domain.StatusDefault
+	sv.statusType = ui.StatusDefault
 	sv.progress = nil
 }
 
-func (sv *StatusView) ShowSpinnerWithType(message string, statusType domain.StatusType, progress *domain.StatusProgress) {
+func (sv *StatusView) ShowSpinnerWithType(message string, statusType ui.StatusType, progress *ui.StatusProgress) {
 	sv.baseMessage = message
 	sv.message = message
 	sv.isError = false
@@ -117,7 +119,7 @@ func (sv *StatusView) ShowSpinnerWithType(message string, statusType domain.Stat
 	sv.progress = progress
 }
 
-func (sv *StatusView) UpdateSpinnerMessage(message string, statusType domain.StatusType) {
+func (sv *StatusView) UpdateSpinnerMessage(message string, statusType ui.StatusType) {
 	if sv.isSpinner {
 		sv.baseMessage = message
 		sv.message = message
@@ -133,7 +135,7 @@ func (sv *StatusView) ClearStatus() {
 	sv.startTime = time.Time{}
 	sv.pausedAt = time.Time{}
 	sv.debugInfo = ""
-	sv.statusType = domain.StatusDefault
+	sv.statusType = ui.StatusDefault
 	sv.progress = nil
 }
 
@@ -307,9 +309,9 @@ func (sv *StatusView) syncApprovalPause() {
 // approval, plan-approval, or user-question overlay is blocked on the user.
 // Shared by StatusView and ToolCallRenderer to pause their running timers.
 type approvalOverlayReader interface {
-	domain.ApprovalUIManager
-	domain.PlanApprovalUIManager
-	domain.UserQuestionUIManager
+	agentdomain.ApprovalUIManager
+	agentdomain.PlanApprovalUIManager
+	agentdomain.UserQuestionUIManager
 }
 
 // syncApprovalPause records when the UI becomes blocked on a user decision and,
@@ -381,19 +383,19 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case domain.ChatStartEvent:
-		sv.ShowSpinnerWithType("Starting response...", domain.StatusGenerating, nil)
+	case agentdomain.ChatStartEvent:
+		sv.ShowSpinnerWithType("Starting response...", ui.StatusGenerating, nil)
 		if cmd == nil {
 			cmd = sv.spinner.Tick
 		}
 
-	case domain.ChatCompleteEvent:
+	case agentdomain.ChatCompleteEvent:
 		sv.ClearStatus()
 
-	case domain.ChatErrorEvent:
+	case agentdomain.ChatErrorEvent:
 		sv.ShowError(fmt.Sprintf("Error: %v", msg.Error))
 
-	case domain.SetStatusEvent:
+	case ui.SetStatusEvent:
 		sv.toolName = msg.ToolName
 		if msg.Spinner {
 			sv.ShowSpinnerWithType(msg.Message, msg.StatusType, msg.Progress)
@@ -404,20 +406,20 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			sv.ShowStatusWithType(msg.Message, msg.StatusType, msg.Progress)
 		}
 
-	case domain.UpdateStatusEvent:
+	case ui.UpdateStatusEvent:
 		sv.toolName = msg.ToolName
 		sv.UpdateSpinnerMessage(msg.Message, msg.StatusType)
 
-	case domain.ShowErrorEvent:
+	case ui.ShowErrorEvent:
 		sv.ShowError(msg.Error)
 
-	case domain.ClearErrorEvent:
+	case ui.ClearErrorEvent:
 		sv.ClearStatus()
 
-	case domain.SaveStatusStateEvent:
+	case ui.SaveStatusStateEvent:
 		sv.SaveCurrentState()
 
-	case domain.RestoreStatusStateEvent:
+	case ui.RestoreStatusStateEvent:
 		if sv.HasSavedState() {
 			restoreCmd := sv.RestoreSavedState()
 			if cmd == nil {
@@ -425,10 +427,10 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case domain.DebugKeyEvent:
+	case ui.DebugKeyEvent:
 		sv.debugInfo = fmt.Sprintf("DEBUG: %s -> %s", msg.Key, msg.Handler)
 
-	case domain.BashCommandCompletedEvent:
+	case ui.BashCommandCompletedEvent:
 		sv.ClearStatus()
 	}
 

@@ -7,7 +7,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func createTestConfig() *config.Config {
@@ -39,7 +39,7 @@ func createToolCall(toolName string, args string) *sdk.ChatCompletionMessageTool
 
 // newStandardPolicy builds a StandardApprovalPolicy over a fresh test config
 // with the state manager set to the given agent mode.
-func newStandardPolicy(t *testing.T, mode domain.AgentMode) domain.ApprovalPolicy {
+func newStandardPolicy(t *testing.T, mode agentdomain.AgentMode) agentdomain.ApprovalPolicy {
 	t.Helper()
 	stateManager := NewStateManager(false)
 	stateManager.SetAgentMode(mode)
@@ -48,7 +48,7 @@ func newStandardPolicy(t *testing.T, mode domain.AgentMode) domain.ApprovalPolic
 
 type approvalCase struct {
 	name   string
-	policy func(t *testing.T) domain.ApprovalPolicy
+	policy func(t *testing.T) agentdomain.ApprovalPolicy
 	tool   string
 	args   string
 	chat   bool
@@ -57,7 +57,7 @@ type approvalCase struct {
 
 // approvalCases builds one case per tool, sharing the policy, args, chat flag,
 // and expected outcome.
-func approvalCases(prefix string, policy func(t *testing.T) domain.ApprovalPolicy, args string, chat, want bool, tools ...string) []approvalCase {
+func approvalCases(prefix string, policy func(t *testing.T) agentdomain.ApprovalPolicy, args string, chat, want bool, tools ...string) []approvalCase {
 	cases := make([]approvalCase, 0, len(tools))
 	for _, tool := range tools {
 		cases = append(cases, approvalCase{
@@ -72,16 +72,16 @@ func approvalCases(prefix string, policy func(t *testing.T) domain.ApprovalPolic
 	return cases
 }
 
-func standardPolicy(mode domain.AgentMode) func(t *testing.T) domain.ApprovalPolicy {
-	return func(t *testing.T) domain.ApprovalPolicy { return newStandardPolicy(t, mode) }
+func standardPolicy(mode agentdomain.AgentMode) func(t *testing.T) agentdomain.ApprovalPolicy {
+	return func(t *testing.T) agentdomain.ApprovalPolicy { return newStandardPolicy(t, mode) }
 }
 
-func permissivePolicy(_ *testing.T) domain.ApprovalPolicy { return NewPermissiveApprovalPolicy() }
+func permissivePolicy(_ *testing.T) agentdomain.ApprovalPolicy { return NewPermissiveApprovalPolicy() }
 
-func strictPolicy(_ *testing.T) domain.ApprovalPolicy { return NewStrictApprovalPolicy() }
+func strictPolicy(_ *testing.T) agentdomain.ApprovalPolicy { return NewStrictApprovalPolicy() }
 
 // bashCases builds one Bash case per command with the given expectation.
-func bashCases(prefix string, policy func(t *testing.T) domain.ApprovalPolicy, want bool, commands ...string) []approvalCase {
+func bashCases(prefix string, policy func(t *testing.T) agentdomain.ApprovalPolicy, want bool, commands ...string) []approvalCase {
 	cases := make([]approvalCase, 0, len(commands))
 	for _, cmd := range commands {
 		cases = append(cases, approvalCase{
@@ -97,13 +97,13 @@ func bashCases(prefix string, policy func(t *testing.T) domain.ApprovalPolicy, w
 }
 
 func buildApprovalCases() []approvalCase {
-	standard := standardPolicy(domain.AgentModeStandard)
+	standard := standardPolicy(agentdomain.AgentModeStandard)
 	var tests []approvalCase
-	tests = append(tests, approvalCases("computer use bypasses approval:", standard, "{}", true, false,
-		"MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestFrame")...)
-	tests = append(tests, approvalCases("auto-accept bypasses approval:", standardPolicy(domain.AgentModeAutoAccept),
+	tests = append(tests, approvalCases("computer use bypasses approval:", standard, `{"action": "click", "x": 1, "y": 1}`, true, false,
+		"Computer", "GetLatestFrame")...)
+	tests = append(tests, approvalCases("auto-accept bypasses approval:", standardPolicy(agentdomain.AgentModeAutoAccept),
 		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep")...)
-	tests = append(tests, approvalCases("read-only subagent bypasses approval in chat:", standardPolicy(domain.AgentModeReadOnly),
+	tests = append(tests, approvalCases("read-only subagent bypasses approval in chat:", standardPolicy(agentdomain.AgentModeReadOnly),
 		`{}`, true, false, "Read", "Grep", "Tree", "WebFetch", "Write")...)
 	tests = append(tests, approvalCases("non-chat follows the same approval rules:", standard, "{}", false, true,
 		"Bash", "Read", "Write", "Edit")...)
@@ -116,14 +116,14 @@ func buildApprovalCases() []approvalCase {
 		})
 	}
 	tests = append(tests, approvalCases("permissive bypasses approval:", permissivePolicy,
-		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep", "MouseClick")...)
+		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep", "Computer")...)
 	tests = append(tests,
 		approvalCase{name: "permissive bypasses approval non-chat Bash", policy: permissivePolicy,
 			tool: "Bash", args: `{"command": "dangerous"}`, chat: false, want: false})
 	tests = append(tests, approvalCases("strict requires approval:", strictPolicy, "{}", true, true,
 		"Bash", "Read", "Write", "Edit", "Grep")...)
-	tests = append(tests, approvalCases("strict bypasses computer use:", strictPolicy, "{}", true, false,
-		"MouseMove", "MouseClick", "KeyboardType")...)
+	tests = append(tests, approvalCases("strict bypasses computer use:", strictPolicy, `{"action": "click", "x": 1, "y": 1}`, true, false,
+		"Computer", "GetLatestFrame")...)
 	tests = append(tests,
 		approvalCase{name: "strict requires approval chat Bash", policy: strictPolicy,
 			tool: "Bash", args: `{"command": "ls"}`, chat: true, want: true},
@@ -147,31 +147,34 @@ func TestApprovalPolicies_ShouldRequireApproval(t *testing.T) {
 
 func TestStandardApprovalPolicy_ComputerUseApprovalLevels(t *testing.T) {
 	ctx := context.Background()
+	click := `{"action": "click", "x": 1, "y": 1}`
+	screenshot := `{"action": "screenshot"}`
 	tests := []struct {
 		name     string
 		approval string
 		tool     string
+		args     string
 		want     bool
 	}{
-		{"never bypasses destructive tool", config.ComputerUseApprovalNever, "MouseClick", false},
-		{"empty bypasses destructive tool", "", "MouseClick", false},
-		{"destructive gates MouseClick", config.ComputerUseApprovalDestructive, "MouseClick", true},
-		{"destructive gates ActivateApp", config.ComputerUseApprovalDestructive, "ActivateApp", true},
-		{"destructive bypasses MouseMove", config.ComputerUseApprovalDestructive, "MouseMove", false},
-		{"destructive bypasses GetLatestFrame", config.ComputerUseApprovalDestructive, "GetLatestFrame", false},
-		{"always gates MouseMove", config.ComputerUseApprovalAlways, "MouseMove", true},
-		{"always gates GetFocusedApp", config.ComputerUseApprovalAlways, "GetFocusedApp", true},
-		{"unknown value fails closed", "alway", "MouseMove", true},
+		{"never bypasses destructive action", config.ComputerUseApprovalNever, "Computer", click, false},
+		{"empty bypasses destructive action", "", "Computer", click, false},
+		{"destructive gates click", config.ComputerUseApprovalDestructive, "Computer", click, true},
+		{"destructive gates type", config.ComputerUseApprovalDestructive, "Computer", `{"action": "type", "text": "hi"}`, true},
+		{"destructive bypasses screenshot", config.ComputerUseApprovalDestructive, "Computer", screenshot, false},
+		{"destructive bypasses cursor", config.ComputerUseApprovalDestructive, "Computer", `{"action": "cursor"}`, false},
+		{"destructive bypasses GetLatestFrame", config.ComputerUseApprovalDestructive, "GetLatestFrame", "{}", false},
+		{"always gates screenshot", config.ComputerUseApprovalAlways, "Computer", screenshot, true},
+		{"unknown value fails closed", "alway", "Computer", screenshot, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := createTestConfig()
 			cfg.ComputerUse.Approval = tt.approval
 			stateManager := NewStateManager(false)
-			stateManager.SetAgentMode(domain.AgentModeStandard)
+			stateManager.SetAgentMode(agentdomain.AgentModeStandard)
 			policy := NewStandardApprovalPolicy(cfg, stateManager)
-			if got := policy.ShouldRequireApproval(ctx, createToolCall(tt.tool, "{}"), true); got != tt.want {
-				t.Errorf("ShouldRequireApproval(%s) with approval=%q = %v, want %v", tt.tool, tt.approval, got, tt.want)
+			if got := policy.ShouldRequireApproval(ctx, createToolCall(tt.tool, tt.args), true); got != tt.want {
+				t.Errorf("ShouldRequireApproval(%s, %s) with approval=%q = %v, want %v", tt.tool, tt.args, tt.approval, got, tt.want)
 			}
 		})
 	}
@@ -180,7 +183,7 @@ func TestStandardApprovalPolicy_ComputerUseApprovalLevels(t *testing.T) {
 func TestStandardApprovalPolicy_ConfigBasedApproval(t *testing.T) {
 	cfg := createTestConfig()
 	stateManager := NewStateManager(false)
-	stateManager.SetAgentMode(domain.AgentModeStandard)
+	stateManager.SetAgentMode(agentdomain.AgentModeStandard)
 
 	policy := NewStandardApprovalPolicy(cfg, stateManager)
 	ctx := context.Background()
@@ -214,21 +217,21 @@ func TestApprovalPolicy_PriorityOrder(t *testing.T) {
 		stateManager := NewStateManager(false)
 		ctx := context.Background()
 
-		stateManager.SetAgentMode(domain.AgentModeStandard)
+		stateManager.SetAgentMode(agentdomain.AgentModeStandard)
 		policy := NewStandardApprovalPolicy(cfg, stateManager)
 
-		mouseClick := createToolCall("MouseClick", "{}")
-		if policy.ShouldRequireApproval(ctx, mouseClick, true) {
+		computerClick := createToolCall("Computer", `{"action": "click", "x": 1, "y": 1}`)
+		if policy.ShouldRequireApproval(ctx, computerClick, true) {
 			t.Error("Computer use tool should bypass all other rules")
 		}
 
-		stateManager.SetAgentMode(domain.AgentModeAutoAccept)
+		stateManager.SetAgentMode(agentdomain.AgentModeAutoAccept)
 		bash := createToolCall("Bash", `{"command": "rm -rf /"}`)
 		if policy.ShouldRequireApproval(ctx, bash, true) {
 			t.Error("Auto-accept mode should bypass bash allowedlist and config")
 		}
 
-		stateManager.SetAgentMode(domain.AgentModeStandard)
+		stateManager.SetAgentMode(agentdomain.AgentModeStandard)
 		if !policy.ShouldRequireApproval(ctx, bash, false) {
 			t.Error("Non-chat mode must enforce the bash allowedlist and config, not bypass them")
 		}

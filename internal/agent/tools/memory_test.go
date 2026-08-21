@@ -9,13 +9,13 @@ import (
 	"sync"
 	"testing"
 
-	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	memorymocks "github.com/inference-gateway/cli/tests/mocks/memory"
 
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	project "github.com/inference-gateway/cli/internal/project"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	project "github.com/inference-gateway/cli/internal/platform/project"
 )
 
 // testProjectIdentity is the zero identity (global scope): the pre-existing
@@ -46,7 +46,7 @@ func TestMemoryTool_SyncOutOnMutation(t *testing.T) {
 	cfg.Memory.MaxChars = config.DefaultMemoryMaxChars
 	cfg.Prompts = *config.DefaultPromptsConfig()
 
-	fake := &mocks.FakeMemoryBackend{}
+	fake := &memorymocks.FakeMemoryBackend{}
 	tool := NewMemoryTool(cfg, fake, testProjectIdentity())
 
 	if _, err := tool.Execute(context.Background(), map[string]any{"operation": "read"}); err != nil {
@@ -602,7 +602,7 @@ func TestSanitizeName(t *testing.T) {
 func TestMemoryTool_Write_RecordsSessionID(t *testing.T) {
 	tool, dir := newTestMemoryTool(t)
 
-	ctx := domain.WithSessionID(context.Background(), "channel-telegram-12345")
+	ctx := agentdomain.WithSessionID(context.Background(), "channel-telegram-12345")
 	res, err := tool.Execute(ctx, map[string]any{
 		"operation": "write", "name": "with-session", "description": "d", "type": "reference", "content": "b",
 	})

@@ -9,8 +9,8 @@ import (
 	spinner "charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
-	constants "github.com/inference-gateway/cli/internal/constants"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
@@ -22,7 +22,7 @@ type ToolCallRenderer struct {
 	tools            map[string]*ToolRenderState
 	toolsOrder       []string
 	styleProvider    *styles.Provider
-	toolFormatter    domain.ToolFormatter
+	toolFormatter    agentdomain.ToolFormatter
 	keyHintFormatter KeyHintFormatter
 	lastUpdate       time.Time
 	lastTimerRender  time.Time
@@ -33,7 +33,7 @@ type ToolCallRenderer struct {
 // SetToolFormatter wires the shared tool formatter so live previews render the
 // same width-aware "<icon> Name(args) <status>" summary as the collapsed results,
 // instead of a byte-truncated raw-JSON preview.
-func (r *ToolCallRenderer) SetToolFormatter(f domain.ToolFormatter) {
+func (r *ToolCallRenderer) SetToolFormatter(f agentdomain.ToolFormatter) {
 	r.toolFormatter = f
 }
 
@@ -121,21 +121,21 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) { //
 	case tea.WindowSizeMsg:
 		r.handleWindowSize(msg)
 
-	case domain.ToolCallPreviewEvent:
+	case agentdomain.ToolCallPreviewEvent:
 		return r.handleToolCallPreview(msg)
 
-	case domain.ToolCallUpdateEvent:
+	case agentdomain.ToolCallUpdateEvent:
 		return r.handleToolCallUpdate(msg)
 
-	case domain.ToolCallReadyEvent:
+	case agentdomain.ToolCallReadyEvent:
 
-	case domain.ChatCompleteEvent:
+	case agentdomain.ChatCompleteEvent:
 		r.ClearPreviews()
 
-	case domain.ToolExecutionProgressEvent:
+	case agentdomain.ToolExecutionProgressEvent:
 		return r.handleToolExecutionProgress(msg)
 
-	case domain.BashOutputChunkEvent:
+	case agentdomain.BashOutputChunkEvent:
 		return r.handleBashOutputStream(msg)
 
 	case spinner.TickMsg:
@@ -150,7 +150,7 @@ func (r *ToolCallRenderer) handleWindowSize(msg tea.WindowSizeMsg) {
 	r.height = msg.Height
 }
 
-func (r *ToolCallRenderer) handleToolCallPreview(msg domain.ToolCallPreviewEvent) (*ToolCallRenderer, tea.Cmd) {
+func (r *ToolCallRenderer) handleToolCallPreview(msg agentdomain.ToolCallPreviewEvent) (*ToolCallRenderer, tea.Cmd) {
 	now := time.Now()
 
 	if _, exists := r.tools[msg.ToolCallID]; !exists {
@@ -173,14 +173,14 @@ func (r *ToolCallRenderer) handleToolCallPreview(msg domain.ToolCallPreviewEvent
 	return r, nil
 }
 
-func (r *ToolCallRenderer) handleToolCallUpdate(msg domain.ToolCallUpdateEvent) (*ToolCallRenderer, tea.Cmd) {
+func (r *ToolCallRenderer) handleToolCallUpdate(msg agentdomain.ToolCallUpdateEvent) (*ToolCallRenderer, tea.Cmd) {
 	if state, exists := r.tools[msg.ToolCallID]; exists {
 		if time.Since(r.lastUpdate) < constants.ToolCallUpdateThrottle {
 			return r, nil
 		}
 		state.Arguments = msg.Arguments
 		state.Status = string(msg.Status)
-		if msg.Status == domain.ToolCallStreamStatusComplete {
+		if msg.Status == agentdomain.ToolCallStreamStatusComplete {
 			state.IsComplete = true
 		}
 		state.LastUpdate = time.Now()
@@ -189,7 +189,7 @@ func (r *ToolCallRenderer) handleToolCallUpdate(msg domain.ToolCallUpdateEvent) 
 	return r, nil
 }
 
-func (r *ToolCallRenderer) handleToolExecutionProgress(msg domain.ToolExecutionProgressEvent) (*ToolCallRenderer, tea.Cmd) {
+func (r *ToolCallRenderer) handleToolExecutionProgress(msg agentdomain.ToolExecutionProgressEvent) (*ToolCallRenderer, tea.Cmd) {
 	now := time.Now()
 
 	state, exists := r.tools[msg.ToolCallID]
@@ -221,7 +221,7 @@ func (r *ToolCallRenderer) handleToolExecutionProgress(msg domain.ToolExecutionP
 	return r, nil
 }
 
-func (r *ToolCallRenderer) handleBashOutputStream(msg domain.BashOutputChunkEvent) (*ToolCallRenderer, tea.Cmd) {
+func (r *ToolCallRenderer) handleBashOutputStream(msg agentdomain.BashOutputChunkEvent) (*ToolCallRenderer, tea.Cmd) {
 	if state, exists := r.tools[msg.ToolCallID]; exists {
 		if msg.Output != "" {
 			for line := range strings.SplitSeq(strings.TrimSuffix(msg.Output, "\n"), "\n") {

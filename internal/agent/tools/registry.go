@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"fmt"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -12,19 +11,17 @@ import (
 	"sync/atomic"
 	"time"
 
+	memory "github.com/inference-gateway/cli/internal/platform/memory"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	display "github.com/inference-gateway/cli/internal/display"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	logger "github.com/inference-gateway/cli/internal/logger"
-	project "github.com/inference-gateway/cli/internal/project"
-	utils "github.com/inference-gateway/cli/internal/utils"
-
-	_ "github.com/inference-gateway/cli/internal/display/macos"
-	_ "github.com/inference-gateway/cli/internal/display/wayland"
-	_ "github.com/inference-gateway/cli/internal/display/x11"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	project "github.com/inference-gateway/cli/internal/platform/project"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // Note: this file deliberately does NOT call DiscoverTools synchronously at
@@ -39,38 +36,26 @@ import (
 // therefore the bubbletea TUI startup) on sequential HTTP round trips to
 // every configured MCP server - see issue #523.
 
-// Registry manages all available tools
 type Registry struct {
 	config          *config.Config
 	toolsMu         sync.RWMutex
-	tools           map[string]domain.Tool
+	tools           map[string]agentdomain.Tool
 	readToolUsed    atomic.Bool
 	readFiles       map[string]fileReadSnapshot
 	readFilesMu     sync.Mutex
-	taskTracker     domain.A2ATaskTracker
-	subagentTracker domain.SubagentTracker
-	jobSubmitter    domain.JobSubmitter
-	jobStopper      domain.JobStopper
-	jobLiveness     domain.JobLivenessReporter
-	imageService    domain.ImageService
-	mcpManager      domain.MCPManager
-	shellService    domain.BackgroundShellService
-	stateManager    computerUseState
-	annotator       domain.ImageAnnotator
-	frameSources    map[string]domain.FrameSource
+	taskTracker     agentdomain.A2ATaskTracker
+	subagentTracker scheddomain.SubagentTracker
+	jobSubmitter    scheddomain.JobSubmitter
+	jobStopper      scheddomain.JobStopper
+	jobLiveness     scheddomain.JobLivenessReporter
+	imageService    agentdomain.ImageService
+	mcpManager      agentdomain.MCPManager
+	shellService    scheddomain.BackgroundShellService
+	annotator       agentdomain.ImageAnnotator
+	frameSources    map[string]agentdomain.FrameSource
 	frameSourcesMu  sync.RWMutex
-	memoryBackend   domain.MemoryBackend
+	memoryBackend   memory.MemoryBackend
 	stores          *storage.Stores
-	browserDriver   domain.BrowserDriver
-}
-
-// computerUseState is the narrow slice of StateManager the computer-use tools
-// need: broadcasting UI events (MouseMove/MouseClick) and recording the focused
-// app + last click coordinates (MouseClick). The registry only forwards it to
-// those tools.
-type computerUseState interface {
-	domain.EventBridgeManager
-	domain.FocusManager
 }
 
 // NewRegistry creates a new tool registry with self-contained tools.
@@ -80,33 +65,32 @@ type computerUseState interface {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager computerUseState, annotator domain.ImageAnnotator, taskTracker domain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}
 	registry := &Registry{
 		config:       cfg,
-		tools:        make(map[string]domain.Tool),
+		tools:        make(map[string]agentdomain.Tool),
 		shellService: shellService,
 		readFiles:    make(map[string]fileReadSnapshot),
 		taskTracker:  taskTracker,
 		imageService: imageService,
 		mcpManager:   mcpManager,
-		stateManager: stateManager,
 		annotator:    annotator,
-		frameSources: make(map[string]domain.FrameSource),
+		frameSources: make(map[string]agentdomain.FrameSource),
 		stores:       stores,
 	}
-	if st, ok := taskTracker.(domain.SubagentTracker); ok {
+	if st, ok := taskTracker.(scheddomain.SubagentTracker); ok {
 		registry.subagentTracker = st
 	}
-	if js, ok := taskTracker.(domain.JobSubmitter); ok {
+	if js, ok := taskTracker.(scheddomain.JobSubmitter); ok {
 		registry.jobSubmitter = js
 	}
-	if jst, ok := taskTracker.(domain.JobStopper); ok {
+	if jst, ok := taskTracker.(scheddomain.JobStopper); ok {
 		registry.jobStopper = jst
 	}
-	if lr, ok := taskTracker.(domain.JobLivenessReporter); ok {
+	if lr, ok := taskTracker.(scheddomain.JobLivenessReporter); ok {
 		registry.jobLiveness = lr
 	}
 
@@ -118,7 +102,7 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 // GetLatestFrame tool is registered statically and reports itself enabled as
 // soon as at least one source exists, so late registration (e.g. chat starting
 // the screenshot server) needs no re-registration machinery.
-func (r *Registry) RegisterFrameSource(name string, src domain.FrameSource) {
+func (r *Registry) RegisterFrameSource(name string, src agentdomain.FrameSource) {
 	if name == "" || src == nil {
 		return
 	}
@@ -128,7 +112,7 @@ func (r *Registry) RegisterFrameSource(name string, src domain.FrameSource) {
 }
 
 // FrameSource returns the named frame source.
-func (r *Registry) FrameSource(name string) (domain.FrameSource, bool) {
+func (r *Registry) FrameSource(name string) (agentdomain.FrameSource, bool) {
 	r.frameSourcesMu.RLock()
 	defer r.frameSourcesMu.RUnlock()
 	src, ok := r.frameSources[name]
@@ -226,16 +210,6 @@ func (r *Registry) registerTools() {
 		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(cfg, r.taskTracker, r.jobSubmitter)
 	}
 
-	if cfg.ComputerUse.Enabled {
-		r.registerComputerUseTools()
-	}
-
-	if cfg.BrowserUse.Enabled {
-		r.registerBrowserUseTools()
-	}
-
-	r.tools["GetLatestFrame"] = NewGetLatestFrameTool(cfg, r, r.annotator)
-
 	if cfg.Vision.AnnotatorReady() && r.annotator != nil && r.imageService != nil {
 		r.tools["ImageDecode"] = NewImageDecodeTool(cfg, r.imageService, r.annotator)
 	}
@@ -245,70 +219,17 @@ func (r *Registry) registerTools() {
 	}
 }
 
-// registerComputerUseTools registers computer use tools (mouse, keyboard,
-// screenshot). On Windows these tools are not supported and a warning is
-// logged. On Linux/macOS the display platform is auto-detected.
-func (r *Registry) registerComputerUseTools() {
-	if runtime.GOOS == "windows" {
-		logger.Warn("computer use is not supported on Windows - mouse, keyboard, and screenshot tools will be disabled")
-		return
-	}
-
-	cfg := r.config
-	displayProvider, err := display.DetectDisplay()
-	if err != nil {
-		logger.Warn("no compatible display platform detected, computer use tools will be disabled", "error", err)
-		return
-	}
-
-	rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
-	r.tools["MouseMove"] = NewMouseMoveTool(cfg, rateLimiter, displayProvider, r.stateManager)
-	r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
-	r.tools["MouseScroll"] = NewMouseScrollTool(cfg, rateLimiter, displayProvider)
-	r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider)
-	r.tools["GetFocusedApp"] = NewGetFocusedAppTool(r.config)
-	r.tools["ActivateApp"] = NewActivateAppTool(r.config)
-	r.tools["GetUIElements"] = NewGetUIElementsTool(r.config)
-	r.tools["PressUIElement"] = NewPressUIElementTool(r.config)
-}
-
-// registerBrowserUseTools registers browser automation tools. They share one
-// driver (a lazily-launched Playwright session by default) and one rate
-// limiter.
-func (r *Registry) registerBrowserUseTools() {
-	cfg := r.config
-	if r.browserDriver == nil {
-		r.browserDriver = newBrowserSession(&cfg.BrowserUse)
-	}
-	rateLimiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
-	r.tools["BrowserNavigate"] = NewBrowserNavigateTool(cfg, rateLimiter, r.browserDriver)
-	r.tools["BrowserClick"] = NewBrowserClickTool(cfg, rateLimiter, r.browserDriver)
-	r.tools["BrowserType"] = NewBrowserTypeTool(cfg, rateLimiter, r.browserDriver)
-	r.tools["BrowserRead"] = NewBrowserReadTool(cfg, rateLimiter, r.browserDriver)
-	r.tools["BrowserScreenshot"] = NewBrowserScreenshotTool(cfg, rateLimiter, r.browserDriver)
-	r.tools["BrowserTabs"] = NewBrowserTabsTool(cfg, rateLimiter, r.browserDriver)
-}
-
-// SetBrowserDriver swaps the browser backend (e.g. the opentask extension
-// bridge) and re-registers the browser tools against it. The container calls
-// this after construction, mirroring SetMemoryBackend. The default playwright
-// session is closed if it was created.
-func (r *Registry) SetBrowserDriver(driver domain.BrowserDriver) {
-	if driver == nil || !r.config.BrowserUse.Enabled {
-		return
-	}
-	if r.browserDriver != nil {
-		r.browserDriver.Close()
-	}
-	r.browserDriver = driver
-	r.registerBrowserUseTools()
-}
-
-// Close releases resources held by tools - currently the shared browser
-// driver, when browser use created one. Safe to call multiple times.
-func (r *Registry) Close() {
-	if r.browserDriver != nil {
-		r.browserDriver.Close()
+// RegisterTools installs capability tools constructed outside this package
+// (browser use, and later computer use). The agent core consumes them through
+// the agentdomain.Tool contract only.
+func (r *Registry) RegisterTools(tools map[string]agentdomain.Tool) {
+	r.toolsMu.Lock()
+	defer r.toolsMu.Unlock()
+	for name, tool := range tools {
+		if name == "" || tool == nil {
+			continue
+		}
+		r.tools[name] = tool
 	}
 }
 
@@ -317,7 +238,7 @@ func (r *Registry) Close() {
 // constructing the shared backend; it re-registers the Memory tool so the
 // backend takes effect. A nil backend (or the local no-op backend) means no
 // remote sync.
-func (r *Registry) SetMemoryBackend(backend domain.MemoryBackend) {
+func (r *Registry) SetMemoryBackend(backend memory.MemoryBackend) {
 	r.memoryBackend = backend
 	if r.config.Memory.Enabled {
 		r.toolsMu.Lock()
@@ -327,7 +248,7 @@ func (r *Registry) SetMemoryBackend(backend domain.MemoryBackend) {
 }
 
 // GetTool retrieves a tool by name
-func (r *Registry) GetTool(name string) (domain.Tool, error) {
+func (r *Registry) GetTool(name string) (agentdomain.Tool, error) {
 	r.toolsMu.RLock()
 	tool, exists := r.tools[name]
 	r.toolsMu.RUnlock()
@@ -384,7 +305,7 @@ func (r *Registry) IsToolEnabled(name string) bool {
 // RegisterMCPServerTools dynamically registers tools from an MCP server.
 // The serverName must match a client registered with the MCPManager - the
 // lookup is O(1) via MCPManager.GetClient and performs no network I/O.
-func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPDiscoveredTool) int {
+func (r *Registry) RegisterMCPServerTools(serverName string, tools []agentdomain.MCPDiscoveredTool) int {
 	if r.mcpManager == nil {
 		return 0
 	}
@@ -495,12 +416,12 @@ func normalizeReadPath(path string) string {
 }
 
 // GetA2ATaskTracker returns the task tracker instance
-func (r *Registry) GetA2ATaskTracker() domain.A2ATaskTracker {
+func (r *Registry) GetA2ATaskTracker() agentdomain.A2ATaskTracker {
 	return r.taskTracker
 }
 
 // GetBackgroundShellService returns the background shell service instance
-func (r *Registry) GetBackgroundShellService() domain.BackgroundShellService {
+func (r *Registry) GetBackgroundShellService() scheddomain.BackgroundShellService {
 	return r.shellService
 }
 
@@ -508,16 +429,5 @@ func (r *Registry) GetBackgroundShellService() domain.BackgroundShellService {
 // Computer use tools operate directly on the computer (mouse, keyboard, screenshot)
 // and bypass the standard approval flow
 func IsComputerUseTool(toolName string) bool {
-	computerUseTools := map[string]bool{
-		"MouseClick":     true,
-		"MouseMove":      true,
-		"MouseScroll":    true,
-		"KeyboardType":   true,
-		"ActivateApp":    true,
-		"GetFocusedApp":  true,
-		"GetLatestFrame": true,
-		"GetUIElements":  true,
-		"PressUIElement": true,
-	}
-	return computerUseTools[toolName]
+	return toolName == "Computer" || toolName == "GetLatestFrame"
 }
