@@ -5,9 +5,8 @@ import (
 	"os/exec"
 	"strings"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // NewPaneInspector returns a pane inspector (a func yielding a

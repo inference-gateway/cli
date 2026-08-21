@@ -5,9 +5,8 @@ import (
 	"testing"
 	"time"
 
-	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
-
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 )
 
 // TestWaitForBackgroundTasks covers the headless completion boundary: a run

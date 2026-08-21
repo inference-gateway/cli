@@ -5,15 +5,15 @@ import (
 	"testing"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
 
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
-	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
 )
 
 // fakeA2ABgJob is a controllable A2A BackgroundJob: it stays running until finish

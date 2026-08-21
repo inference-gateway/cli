@@ -3,12 +3,11 @@ package components
 import (
 	"testing"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
 
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 

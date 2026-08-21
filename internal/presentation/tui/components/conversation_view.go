@@ -12,18 +12,18 @@ import (
 	"strings"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	spinner "charm.land/bubbles/v2/spinner"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	hints "github.com/inference-gateway/cli/internal/presentation/tui/hints"
 	markdown "github.com/inference-gateway/cli/internal/presentation/tui/markdown"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"

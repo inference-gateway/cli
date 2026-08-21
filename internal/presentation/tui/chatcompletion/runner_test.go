@@ -1,20 +1,20 @@
 package chatcompletion
 
 import (
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"strings"
 	"testing"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 // newRunnerForTest wires a Runner with the in-memory conversation repository

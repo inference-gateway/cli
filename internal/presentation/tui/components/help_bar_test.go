@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	key "charm.land/bubbles/v2/key"
-
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+
+	key "charm.land/bubbles/v2/key"
 
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )

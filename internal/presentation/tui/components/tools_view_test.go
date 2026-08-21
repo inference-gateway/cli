@@ -4,16 +4,17 @@ import (
 	"strings"
 	"testing"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 )
 
 // The default delegate renders items through the DefaultItem interface.

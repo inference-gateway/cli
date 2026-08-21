@@ -5,10 +5,9 @@ import (
 	"errors"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // SessionGroupEntry tracks the active session for a given group key plus a

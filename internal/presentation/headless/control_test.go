@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
 func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *statemanager.StateManager) {

@@ -5,9 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // freshListShellsData mirrors the Data map produced by ListShellsTool.Execute for a

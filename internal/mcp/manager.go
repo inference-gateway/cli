@@ -10,13 +10,12 @@ import (
 	"sync"
 	"time"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
-
 	mcp "github.com/metoro-io/mcp-golang"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )

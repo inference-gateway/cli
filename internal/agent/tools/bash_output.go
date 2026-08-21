@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	sdk "github.com/inference-gateway/sdk"
 
-	"github.com/inference-gateway/cli/config"
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // BashOutputTool retrieves output from background bash shells

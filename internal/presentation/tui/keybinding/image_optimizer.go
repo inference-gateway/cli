@@ -8,8 +8,9 @@ import (
 	"image/png"
 	"os"
 
-	"github.com/inference-gateway/cli/config"
-	"golang.org/x/image/draw"
+	draw "golang.org/x/image/draw"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 // ImageOptimizer handles image optimization for clipboard images

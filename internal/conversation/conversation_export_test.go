@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"

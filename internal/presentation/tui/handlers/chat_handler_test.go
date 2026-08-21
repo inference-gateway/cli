@@ -1,24 +1,26 @@
 package handlers
 
 import (
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"strings"
 	"testing"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	assert "github.com/stretchr/testify/assert"
+
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
-	assert "github.com/stretchr/testify/assert"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 func TestChatHandler_extractMarkdownSummary_BasicCases(t *testing.T) {

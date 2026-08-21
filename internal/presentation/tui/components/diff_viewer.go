@@ -5,14 +5,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	key "charm.land/bubbles/v2/key"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	gitdiff "github.com/inference-gateway/cli/internal/presentation/tui/gitdiff"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )

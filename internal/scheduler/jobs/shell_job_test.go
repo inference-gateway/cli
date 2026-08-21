@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func startShell(t *testing.T, id, name string, args ...string) *scheddomain.BackgroundShell {

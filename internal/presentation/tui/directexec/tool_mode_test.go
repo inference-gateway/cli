@@ -1,17 +1,17 @@
 package directexec_test
 
 import (
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"strings"
 	"testing"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 func TestHandleToolCommand_BlocksToolNotInCurrentMode(t *testing.T) {

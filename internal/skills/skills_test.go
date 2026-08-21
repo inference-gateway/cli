@@ -7,11 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // writeSkill creates <baseDir>/<dirName>/SKILL.md with the given body. The

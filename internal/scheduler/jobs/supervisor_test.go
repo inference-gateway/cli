@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	adk "github.com/inference-gateway/adk/types"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // fakeJob is a controllable BackgroundJob: Run blocks until finish is closed (or

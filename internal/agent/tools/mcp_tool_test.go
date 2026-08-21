@@ -7,8 +7,9 @@ import (
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
-	sdk "github.com/inference-gateway/sdk"
 	mcp "github.com/metoro-io/mcp-golang"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"

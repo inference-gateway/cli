@@ -5,6 +5,7 @@ import (
 
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
 	yaml "gopkg.in/yaml.v3"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"

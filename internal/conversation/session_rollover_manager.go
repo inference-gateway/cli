@@ -8,6 +8,7 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"

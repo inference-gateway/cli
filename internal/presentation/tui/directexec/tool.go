@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // directQuestionBroker implements agentdomain.UserQuestionBroker for `!!` direct

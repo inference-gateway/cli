@@ -20,6 +20,7 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
+
 	agentrunner "github.com/inference-gateway/cli/internal/agent/application/agentrunner"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )

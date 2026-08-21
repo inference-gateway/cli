@@ -5,13 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	channels "github.com/inference-gateway/cli/internal/channels"
 	channelmocks "github.com/inference-gateway/cli/tests/mocks/channels"
 
 	uuid "github.com/google/uuid"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	channels "github.com/inference-gateway/cli/internal/channels"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"

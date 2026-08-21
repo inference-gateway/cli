@@ -4,11 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 func questionStateForTest(questions ...agentdomain.UserQuestion) *agentdomain.UserQuestionUIState {

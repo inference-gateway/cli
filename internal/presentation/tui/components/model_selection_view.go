@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	key "charm.land/bubbles/v2/key"
 	textinput "charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -14,6 +12,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 

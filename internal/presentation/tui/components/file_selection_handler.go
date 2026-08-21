@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 

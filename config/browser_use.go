@@ -1,7 +1,7 @@
 package config
 
 import (
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 const (
@@ -113,11 +113,11 @@ func DefaultBrowserUseConfig() *BrowserUseConfig {
 // it returns the in-code defaults so callers can treat absence as "use
 // defaults" without special-casing.
 func LoadBrowserUse(path string) (*BrowserUseConfig, error) {
-	return utils.LoadYAML(path, "browser_use", DefaultBrowserUseConfig)
+	return configutils.LoadYAML(path, "browser_use", DefaultBrowserUseConfig)
 }
 
 // SaveBrowserUse writes the browser_use configuration to disk, creating any
 // missing parent directories.
 func SaveBrowserUse(path string, cfg *BrowserUseConfig) error {
-	return utils.SaveYAML(path, "browser_use", cfg)
+	return configutils.SaveYAML(path, "browser_use", cfg)
 }

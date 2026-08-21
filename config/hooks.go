@@ -7,7 +7,7 @@ import (
 
 	yaml "gopkg.in/yaml.v3"
 
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
@@ -75,13 +75,13 @@ func DefaultHooksConfig() *HooksConfig {
 // LoadHooks reads hooks.yaml from disk. When the file is missing it returns the
 // in-code defaults so callers can treat absence as "use defaults".
 func LoadHooks(path string) (*HooksConfig, error) {
-	return utils.LoadYAML(path, "hooks", DefaultHooksConfig)
+	return configutils.LoadYAML(path, "hooks", DefaultHooksConfig)
 }
 
 // SaveHooks writes the hooks configuration to disk, creating any missing parent
 // directories.
 func SaveHooks(path string, cfg *HooksConfig) error {
-	return utils.SaveYAML(path, "hooks", cfg)
+	return configutils.SaveYAML(path, "hooks", cfg)
 }
 
 // ParseHooksYAML unmarshals raw YAML bytes into a HooksConfig. It is the

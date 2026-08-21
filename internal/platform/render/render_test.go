@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 )
 
 // stream feeds the given events into a closed channel, mimicking the engine

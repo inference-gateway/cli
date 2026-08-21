@@ -14,11 +14,10 @@ import (
 	"strings"
 	"time"
 
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
-
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 

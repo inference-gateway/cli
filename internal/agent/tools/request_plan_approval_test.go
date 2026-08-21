@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
+	config "github.com/inference-gateway/cli/config"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 

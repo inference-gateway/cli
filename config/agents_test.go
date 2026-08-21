@@ -5,8 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
 	require "github.com/stretchr/testify/require"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 func TestCreateEntry_Agent(t *testing.T) {

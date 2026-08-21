@@ -3,13 +3,13 @@ package components
 import (
 	"testing"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-
 	require "github.com/stretchr/testify/require"
 
-	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 )
 
 func newInputViewWithHighlightDeps(t *testing.T) *InputView {

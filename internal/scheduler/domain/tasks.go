@@ -4,12 +4,11 @@ package domain
 
 import (
 	"context"
-
 	"time"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-
 	adk "github.com/inference-gateway/adk/types"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // TaskInfo wraps ADK Task with UI-specific metadata for completed/terminal tasks

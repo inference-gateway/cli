@@ -8,15 +8,15 @@ import (
 	"strings"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // issueRefRe matches `#<digits>` only at start-of-line or after whitespace, so

@@ -1,7 +1,7 @@
 package diffview
 
 import (
-	"charm.land/lipgloss/v2"
+	lipgloss "charm.land/lipgloss/v2"
 )
 
 // LineStyle holds the lipgloss styles for a single line type's three regions:

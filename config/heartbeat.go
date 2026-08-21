@@ -1,7 +1,7 @@
 package config
 
 import (
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 const (
@@ -44,11 +44,11 @@ func DefaultHeartbeatConfig() *HeartbeatConfig {
 // through os.ExpandEnv so `${VAR}`-style references resolve from the
 // environment.
 func LoadHeartbeat(path string) (*HeartbeatConfig, error) {
-	return utils.LoadYAML(path, "heartbeat", DefaultHeartbeatConfig)
+	return configutils.LoadYAML(path, "heartbeat", DefaultHeartbeatConfig)
 }
 
 // SaveHeartbeat writes the heartbeat configuration to disk, creating
 // any missing parent directories.
 func SaveHeartbeat(path string, cfg *HeartbeatConfig) error {
-	return utils.SaveYAML(path, "heartbeat", cfg)
+	return configutils.SaveYAML(path, "heartbeat", cfg)
 }

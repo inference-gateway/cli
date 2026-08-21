@@ -9,9 +9,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	key "charm.land/bubbles/v2/key"
 	textarea "charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
@@ -24,11 +21,13 @@ import (
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	history "github.com/inference-gateway/cli/internal/presentation/tui/history"
 	inputsyntax "github.com/inference-gateway/cli/internal/presentation/tui/inputsyntax"
 	keys "github.com/inference-gateway/cli/internal/presentation/tui/keys"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // InputView handles user input with history, delegating text editing to

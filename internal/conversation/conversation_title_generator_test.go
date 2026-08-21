@@ -6,14 +6,15 @@ import (
 	"testing"
 	"time"
 
+	assert "github.com/stretchr/testify/assert"
+
+	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 
 	sdk "github.com/inference-gateway/sdk"
-	assert "github.com/stretchr/testify/assert"
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 )
 
 func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {

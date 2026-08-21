@@ -2,20 +2,22 @@ package agent
 
 import (
 	"context"
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 	"time"
 
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
+
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	statesmocks "github.com/inference-gateway/cli/tests/mocks/states"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	statesmocks "github.com/inference-gateway/cli/tests/mocks/states"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 // testMocks holds all the mocks needed for testing

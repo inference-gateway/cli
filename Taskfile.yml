@@ -78,13 +78,33 @@ tasks:
   lint:
     desc: Run linter (requires golangci-lint)
     cmds:
+      - task: lint:imports
       - golangci-lint run --build-tags "{{.GOTAGS}}"
       - markdownlint . --fix
+
+  lint:imports:
+    desc: Fail on unaliased non-stdlib imports (see AGENTS.md "Import Style")
+    cmds:
+      - |
+        bad=$(git ls-files '*.go' | grep -v '^tests/mocks/' | xargs awk '
+          FNR==1 {inblock=0}
+          /^import \(/ {inblock=1; next}
+          inblock && /^\)/ {inblock=0; next}
+          (inblock && /^\t"/) || /^import "/ {
+            match($0, /"[^"]+"/); p=substr($0, RSTART+1, RLENGTH-2)
+            split(p, s, "/"); if (s[1] ~ /\./) printf "%s:%d: %s\n", FILENAME, FNR, p
+          }')
+        if [ -n "$bad" ]; then
+          echo "unaliased non-stdlib imports (every non-stdlib import needs an alias):"
+          echo "$bad"
+          exit 1
+        fi
 
   fmt:
     desc: Format Go code
     cmds:
       - go fmt ./...
+      - golangci-lint fmt
 
   vet:
     desc: Run go vet

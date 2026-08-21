@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	channels "github.com/inference-gateway/cli/internal/channels"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	channelmocks "github.com/inference-gateway/cli/tests/mocks/channels"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	channels "github.com/inference-gateway/cli/internal/channels"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 

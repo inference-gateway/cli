@@ -3,9 +3,9 @@ package states_test
 import (
 	"testing"
 
-	states "github.com/inference-gateway/cli/internal/agent/states"
-
 	assert "github.com/stretchr/testify/assert"
+
+	states "github.com/inference-gateway/cli/internal/agent/states"
 )
 
 // TestTerminalStates_IgnoreAllEvents verifies the three terminal states

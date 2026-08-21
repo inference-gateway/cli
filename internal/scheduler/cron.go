@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	uuid "github.com/google/uuid"
 	cron "github.com/robfig/cron/v3"
 	yaml "gopkg.in/yaml.v3"
@@ -17,6 +15,7 @@ import (
 	agentrunner "github.com/inference-gateway/cli/internal/agent/application/agentrunner"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // Service runs scheduled jobs inside the `infer daemon` process. Jobs are

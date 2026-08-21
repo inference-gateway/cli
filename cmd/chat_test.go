@@ -5,8 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 )
 
 func TestChatExitMessage(t *testing.T) {

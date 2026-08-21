@@ -6,9 +6,8 @@ import (
 	"context"
 	"time"
 
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
-
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 )
 
 // Channel represents a pluggable messaging transport (WhatsApp, Telegram, etc.)

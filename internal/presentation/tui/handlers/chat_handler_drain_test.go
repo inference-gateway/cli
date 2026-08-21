@@ -1,17 +1,18 @@
 package handlers
 
 import (
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 // TestHandleDrainQueueEvent guards the drain gate. It starts a fresh agent turn -

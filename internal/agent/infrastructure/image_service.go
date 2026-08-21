@@ -17,8 +17,9 @@ import (
 	"strings"
 	"time"
 
-	sdk "github.com/inference-gateway/sdk"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"

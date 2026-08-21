@@ -15,11 +15,10 @@ import (
 	"strings"
 	"sync"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 

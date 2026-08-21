@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func createMockStyleProviderForTasks() *styles.Provider {

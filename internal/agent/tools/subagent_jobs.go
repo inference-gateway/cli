@@ -8,10 +8,9 @@ import (
 	"sync"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // headlessSubagentJob adapts a headless subagent (an `infer headless` subprocess) to

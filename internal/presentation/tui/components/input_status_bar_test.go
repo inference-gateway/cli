@@ -6,8 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -17,9 +19,7 @@ import (
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 type stubTokenEstimator struct {

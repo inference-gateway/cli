@@ -6,9 +6,8 @@ import (
 	"os"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -16,6 +15,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	gitdiff "github.com/inference-gateway/cli/internal/presentation/tui/gitdiff"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )

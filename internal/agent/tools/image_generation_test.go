@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-
 	assert "github.com/stretchr/testify/assert"
+
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
 	config "github.com/inference-gateway/cli/config"
 )

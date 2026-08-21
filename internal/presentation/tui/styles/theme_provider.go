@@ -3,11 +3,10 @@ package styles
 import (
 	"fmt"
 
+	charmtone "github.com/charmbracelet/x/exp/charmtone"
+
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
-	"github.com/charmbracelet/x/exp/charmtone"
-
-	"github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
+	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 )
 
 // ThemeProvider implements tui.ThemeService and manages available themes

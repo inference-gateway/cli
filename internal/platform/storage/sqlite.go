@@ -8,8 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	migrations "github.com/inference-gateway/cli/internal/platform/storage/migrations"
 	_ "modernc.org/sqlite"
+
+	migrations "github.com/inference-gateway/cli/internal/platform/storage/migrations"
 )
 
 // SQLiteStorage implements ConversationStorage on top of the shared sqlStore

@@ -1,16 +1,18 @@
 package agent
 
 import (
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
+
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 // TestAccumulateToolCalls tests tool call accumulation

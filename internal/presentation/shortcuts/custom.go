@@ -10,8 +10,9 @@ import (
 	"regexp"
 	"strings"
 
+	yaml "gopkg.in/yaml.v3"
+
 	sdk "github.com/inference-gateway/sdk"
-	"gopkg.in/yaml.v3"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"

@@ -1,20 +1,20 @@
 package app
 
 import (
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
-	tea "charm.land/bubbletea/v2"
-
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-	components "github.com/inference-gateway/cli/internal/presentation/tui/components"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+
+	tea "charm.land/bubbletea/v2"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	components "github.com/inference-gateway/cli/internal/presentation/tui/components"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 type teaConversationRenderer struct {

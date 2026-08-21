@@ -2,19 +2,19 @@ package directexec_test
 
 import (
 	"errors"
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 // TestHandleToolCommand_ErrorStopsSpinner guards the stuck "running" spinner

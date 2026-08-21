@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
@@ -15,6 +14,7 @@ import (
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // InputStatusBar displays input status information like model, theme, agents

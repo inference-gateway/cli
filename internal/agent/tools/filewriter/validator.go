@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/platform/logger"
+	config "github.com/inference-gateway/cli/config"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // DefaultPathValidator validates file paths for security and accessibility

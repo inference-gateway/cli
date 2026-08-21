@@ -8,9 +8,10 @@ import (
 
 	assert "github.com/stretchr/testify/assert"
 
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
 // fakeSourceLookup is a hand-rolled frameSourceLookup over a plain map.

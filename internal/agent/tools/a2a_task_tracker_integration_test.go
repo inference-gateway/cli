@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	config "github.com/inference-gateway/cli/config"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 func TestA2ASubmitTaskTool_TaskIDTracking(t *testing.T) {

@@ -8,12 +8,14 @@ import (
 	"testing"
 	"time"
 
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+
 	lipgloss "charm.land/lipgloss/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 )
 
 var ansiRE = regexp.MustCompile("\x1b\\[[0-9;]*m")

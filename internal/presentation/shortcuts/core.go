@@ -7,15 +7,14 @@ import (
 	"slices"
 	"strings"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // ClearShortcut clears the conversation history

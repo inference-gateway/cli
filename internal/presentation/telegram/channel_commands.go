@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	channels "github.com/inference-gateway/cli/internal/channels"
-
 	uuid "github.com/google/uuid"
+
 	sdk "github.com/inference-gateway/sdk"
 
+	channels "github.com/inference-gateway/cli/internal/channels"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"

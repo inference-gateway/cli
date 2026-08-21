@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
+	config "github.com/inference-gateway/cli/config"
 )
 
 func TestPathValidator_Validate(t *testing.T) {

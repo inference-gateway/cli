@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 type yamlFileFixture struct {
@@ -23,7 +23,7 @@ func TestLoadYAML_MissingFileReturnsDefaults(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "missing.yaml")
 
-	cfg, err := utils.LoadYAML(path, "fixture", defaultsForFixture)
+	cfg, err := configutils.LoadYAML(path, "fixture", defaultsForFixture)
 	if err != nil {
 		t.Fatalf("LoadYAML() error = %v", err)
 	}
@@ -39,7 +39,7 @@ func TestLoadYAML_ParsesYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg, err := utils.LoadYAML(path, "fixture", defaultsForFixture)
+	cfg, err := configutils.LoadYAML(path, "fixture", defaultsForFixture)
 	if err != nil {
 		t.Fatalf("LoadYAML() error = %v", err)
 	}
@@ -56,7 +56,7 @@ func TestLoadYAML_ExpandsEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg, err := utils.LoadYAML(path, "fixture", defaultsForFixture)
+	cfg, err := configutils.LoadYAML(path, "fixture", defaultsForFixture)
 	if err != nil {
 		t.Fatalf("LoadYAML() error = %v", err)
 	}
@@ -72,7 +72,7 @@ func TestLoadYAML_MalformedYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := utils.LoadYAML(path, "fixture", defaultsForFixture)
+	_, err := configutils.LoadYAML(path, "fixture", defaultsForFixture)
 	if err == nil {
 		t.Fatal("expected parse error")
 	}
@@ -86,7 +86,7 @@ func TestSaveYAML_WritesDocMarkerAndRoundTrips(t *testing.T) {
 	path := filepath.Join(dir, "nested", "f.yaml")
 	original := &yamlFileFixture{Name: "n", Value: "v"}
 
-	if err := utils.SaveYAML(path, "fixture", original); err != nil {
+	if err := configutils.SaveYAML(path, "fixture", original); err != nil {
 		t.Fatalf("SaveYAML() error = %v", err)
 	}
 
@@ -98,7 +98,7 @@ func TestSaveYAML_WritesDocMarkerAndRoundTrips(t *testing.T) {
 		t.Errorf("expected `---\\n` doc marker prefix, got %q", string(data[:min(8, len(data))]))
 	}
 
-	loaded, err := utils.LoadYAML(path, "fixture", defaultsForFixture)
+	loaded, err := configutils.LoadYAML(path, "fixture", defaultsForFixture)
 	if err != nil {
 		t.Fatalf("load after save: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestSaveYAML_CreatesParentDirectory(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "a", "b", "c", "f.yaml")
 
-	if err := utils.SaveYAML(path, "fixture", &yamlFileFixture{Name: "n"}); err != nil {
+	if err := configutils.SaveYAML(path, "fixture", &yamlFileFixture{Name: "n"}); err != nil {
 		t.Fatalf("SaveYAML() error = %v", err)
 	}
 	if _, err := os.Stat(path); err != nil {

@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
@@ -20,6 +18,7 @@ import (
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // Streaming-output coalescing thresholds. readPipeWithBatching accumulates

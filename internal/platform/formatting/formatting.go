@@ -6,9 +6,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/charmbracelet/x/ansi"
-	sdk "github.com/inference-gateway/sdk"
+	ansi "github.com/charmbracelet/x/ansi"
 	wordwrap "github.com/muesli/reflow/wordwrap"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )

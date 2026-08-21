@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // FormatMetrics formats LLM completion metrics for the status bar, computing

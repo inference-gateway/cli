@@ -3,18 +3,20 @@ package handlers
 import (
 	"context"
 	"errors"
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
-	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 	"strings"
 	"testing"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
-	tea "charm.land/bubbletea/v2"
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+
+	tea "charm.land/bubbletea/v2"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -23,9 +25,9 @@ import (
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 )
 
 func TestChatMessageProcessor_handleUserInput(t *testing.T) {

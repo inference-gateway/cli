@@ -10,15 +10,15 @@ import (
 	"strings"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	fsnotify "github.com/fsnotify/fsnotify"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // WaitTool blocks inside a single tool execution until a condition is met

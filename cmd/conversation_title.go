@@ -8,9 +8,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/container"
-	"github.com/inference-gateway/cli/internal/platform/logger"
-	"github.com/spf13/cobra"
+	cobra "github.com/spf13/cobra"
+
+	container "github.com/inference-gateway/cli/internal/container"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 var conversationTitleCmd = &cobra.Command{

@@ -6,9 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 )
 
 // withDebugWriter wires a buffer and forces the debug gate on for the

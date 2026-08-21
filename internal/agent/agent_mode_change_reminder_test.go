@@ -3,17 +3,19 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"strings"
 	"testing"
 
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 // modeChangeSvc builds an agent service backed by the real default reminders

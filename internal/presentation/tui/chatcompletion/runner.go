@@ -9,9 +9,8 @@ import (
 	"sync"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -19,6 +18,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // Runner owns the LLM streaming lifecycle for a chat session.

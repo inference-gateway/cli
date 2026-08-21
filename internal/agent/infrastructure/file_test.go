@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
+	config "github.com/inference-gateway/cli/config"
 )
 
 func TestFileServiceImpl_ListProjectFiles(t *testing.T) {

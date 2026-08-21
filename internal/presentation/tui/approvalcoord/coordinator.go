@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // planRepoUpdater is the narrow interface the coordinator uses to mutate plan

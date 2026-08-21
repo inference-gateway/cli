@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"sync"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // a2aJobController is the narrow job-supervisor surface this service needs: the

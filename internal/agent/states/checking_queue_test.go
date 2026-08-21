@@ -3,11 +3,10 @@ package states_test
 import (
 	"testing"
 
-	states "github.com/inference-gateway/cli/internal/agent/states"
-
 	assert "github.com/stretchr/testify/assert"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/states"
 )
 
 // TestCheckingQueueState_Handle covers the routing priorities of the

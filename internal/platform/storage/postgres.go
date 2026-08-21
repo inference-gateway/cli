@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	migrations "github.com/inference-gateway/cli/internal/platform/storage/migrations"
-
 	_ "github.com/lib/pq"
+
+	migrations "github.com/inference-gateway/cli/internal/platform/storage/migrations"
 )
 
 // PostgresStorage implements ConversationStorage on top of the shared sqlStore

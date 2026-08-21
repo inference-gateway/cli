@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
-	key "charm.land/bubbles/v2/key"
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"

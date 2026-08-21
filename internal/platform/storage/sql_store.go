@@ -10,9 +10,8 @@ import (
 	"strings"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // sqlStore is the shared SQL implementation of ConversationStorage and

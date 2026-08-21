@@ -12,14 +12,14 @@ import (
 	"sync"
 	"time"
 
-	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
+	gotenv "github.com/subosito/gotenv"
 
 	client "github.com/inference-gateway/adk/client"
-	gotenv "github.com/subosito/gotenv"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"

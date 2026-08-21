@@ -6,9 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	conversation "github.com/inference-gateway/cli/internal/conversation"

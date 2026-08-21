@@ -4,10 +4,9 @@ import (
 	"context"
 	"testing"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	config "github.com/inference-gateway/cli/config"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func TestListSubagentsTool_Definition(t *testing.T) {

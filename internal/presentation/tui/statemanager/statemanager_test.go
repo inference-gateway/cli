@@ -4,12 +4,12 @@ import (
 	"testing"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // Test helper to create a state manager

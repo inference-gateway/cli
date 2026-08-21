@@ -3,8 +3,9 @@ package conversation
 import (
 	"testing"
 
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
+
+	sdk "github.com/inference-gateway/sdk"
 )
 
 func userMsg(content string) sdk.Message {

@@ -6,15 +6,16 @@ import (
 	"testing"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	lipgloss "charm.land/lipgloss/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 )
 
 // stubToolFormatter is a minimal ToolFormatter for tests that need the

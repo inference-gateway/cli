@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 	"os"
 	"path/filepath"
 	"time"
@@ -15,6 +14,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 )
 
 var exportCmd = &cobra.Command{

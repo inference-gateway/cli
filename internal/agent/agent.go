@@ -11,8 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	memory "github.com/inference-gateway/cli/internal/platform/memory"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
@@ -23,6 +21,7 @@ import (
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	plugins "github.com/inference-gateway/cli/internal/plugins"

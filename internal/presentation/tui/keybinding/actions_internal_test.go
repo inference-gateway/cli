@@ -1,11 +1,11 @@
 package keybinding
 
 import (
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -14,8 +14,8 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	components "github.com/inference-gateway/cli/internal/presentation/tui/components"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // flashTestCtx is a minimal KeyHandlerContext for exercising the clipboard

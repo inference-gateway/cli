@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func assistantEntries(answer string) []convdomain.ConversationEntry {

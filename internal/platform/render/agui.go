@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"io"
 
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
-
 	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
-	guuid "github.com/google/uuid"
+	uuid "github.com/google/uuid"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -40,7 +39,7 @@ func (e *aguiEncoder) emit(ev aguievents.Event) {
 
 func (e *aguiEncoder) emitRunStarted(sessionID string) {
 	e.threadID = sessionID
-	e.runID = guuid.New().String()
+	e.runID = uuid.New().String()
 	e.emit(aguievents.NewRunStartedEvent(e.threadID, e.runID))
 }
 
@@ -60,7 +59,7 @@ func (e *aguiEncoder) emitRunError(message string) {
 // closing any open reasoning block, which precedes text) on the first delta.
 func (e *aguiEncoder) streamText(delta string) {
 	if e.msgID == "" {
-		e.msgID = guuid.New().String()
+		e.msgID = uuid.New().String()
 	}
 	if e.reasoningOpen {
 		e.emit(aguievents.NewReasoningMessageEndEvent(e.msgID))
@@ -77,7 +76,7 @@ func (e *aguiEncoder) streamText(delta string) {
 // message on the first delta.
 func (e *aguiEncoder) streamReasoning(delta string) {
 	if e.msgID == "" {
-		e.msgID = guuid.New().String()
+		e.msgID = uuid.New().String()
 	}
 	if !e.reasoningOpen {
 		e.emit(aguievents.NewReasoningMessageStartEvent(e.msgID, "assistant"))
@@ -117,7 +116,7 @@ func (e *aguiEncoder) emitToolCallEnd(id string) {
 
 func (e *aguiEncoder) emitToolResult(r *agentdomain.ToolExecutionResult) {
 	content, _ := json.Marshal(r)
-	e.emit(aguievents.NewToolCallResultEvent(guuid.New().String(), r.ToolCallID, string(content)))
+	e.emit(aguievents.NewToolCallResultEvent(uuid.New().String(), r.ToolCallID, string(content)))
 }
 
 func (e *aguiEncoder) emitTodos(todos []agentdomain.TodoItem) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	channels "github.com/inference-gateway/cli/internal/channels"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,12 +16,12 @@ import (
 	"testing"
 	"time"
 
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
-
 	bot "github.com/go-telegram/bot"
 	models "github.com/go-telegram/bot/models"
 
 	config "github.com/inference-gateway/cli/config"
+	channels "github.com/inference-gateway/cli/internal/channels"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 )
 
 func TestTelegramChannel_Name(t *testing.T) {

@@ -9,9 +9,9 @@ import (
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	sdk "github.com/inference-gateway/sdk"
+	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 
-	mocksdk "github.com/inference-gateway/cli/tests/mocks/sdk"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // requestShape mirrors the JSON the gateway receives, for mapping assertions.
@@ -84,7 +84,7 @@ func TestBuildMessagesRequest(t *testing.T) {
 	}
 	maxTokens := 2048
 
-	adapter := NewAnthropicMessages(&mocksdk.FakeClient{})
+	adapter := NewAnthropicMessages(&sdkmocks.FakeClient{})
 	adapter.WithOptions(&sdk.CreateChatCompletionRequest{MaxTokens: &maxTokens}).WithTools(&tools)
 
 	shape := decodeRequest(t, adapter.buildMessagesRequest("claude-sonnet-4-5", conversationFixture()))
@@ -135,7 +135,7 @@ func TestBuildMessagesRequest(t *testing.T) {
 }
 
 func TestBuildMessagesRequestDefaults(t *testing.T) {
-	adapter := NewAnthropicMessages(&mocksdk.FakeClient{})
+	adapter := NewAnthropicMessages(&sdkmocks.FakeClient{})
 
 	shape := decodeRequest(t, adapter.buildMessagesRequest("claude-sonnet-4-5", []sdk.Message{
 		textMessage(sdk.User, "hi"),
@@ -166,7 +166,7 @@ func TestBuildMessagesRequestEffort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			effort := sdk.CreateChatCompletionRequestReasoningEffort(tt.effort)
-			adapter := NewAnthropicMessages(&mocksdk.FakeClient{})
+			adapter := NewAnthropicMessages(&sdkmocks.FakeClient{})
 			adapter.WithOptions(&sdk.CreateChatCompletionRequest{ReasoningEffort: &effort})
 
 			shape := decodeRequest(t, adapter.buildMessagesRequest("claude-sonnet-4-5", []sdk.Message{
@@ -200,7 +200,7 @@ func collectChunks(t *testing.T, out <-chan sdk.SSEvent) []sdk.CreateChatComplet
 
 func TestGenerateContentStreamTranslation(t *testing.T) {
 	in := make(chan sdk.SSEvent, 20)
-	fake := &mocksdk.FakeClient{}
+	fake := &sdkmocks.FakeClient{}
 	fake.CreateMessageStreamReturns(in, nil)
 	adapter := NewAnthropicMessages(fake)
 
@@ -272,7 +272,7 @@ func TestGenerateContentStreamTranslation(t *testing.T) {
 }
 
 func TestGenerateContentStreamPassthrough(t *testing.T) {
-	fake := &mocksdk.FakeClient{}
+	fake := &sdkmocks.FakeClient{}
 	inner := make(chan sdk.SSEvent)
 	close(inner)
 	fake.GenerateContentStreamReturns(inner, nil)
@@ -291,7 +291,7 @@ func TestGenerateContentStreamPassthrough(t *testing.T) {
 }
 
 func TestBuilderChainKeepsAdapterOutermost(t *testing.T) {
-	fake := &mocksdk.FakeClient{}
+	fake := &sdkmocks.FakeClient{}
 	adapter := NewAnthropicMessages(fake)
 	maxTokens := 512
 	tools := []sdk.ChatCompletionTool{{Type: sdk.Function, Function: sdk.FunctionObject{Name: "Read"}}}
@@ -329,7 +329,7 @@ func responseBlock(t *testing.T, payload string) sdk.MessagesResponseContentBloc
 }
 
 func TestGenerateContentSyncTranslation(t *testing.T) {
-	fake := &mocksdk.FakeClient{}
+	fake := &sdkmocks.FakeClient{}
 	cacheRead, cacheCreation := int64(40), int64(60)
 	fake.CreateMessageReturns(&sdk.MessagesResponse{
 		ID:    "msg_1",
@@ -376,7 +376,7 @@ func TestGenerateContentSyncTranslation(t *testing.T) {
 }
 
 func TestGenerateContentSyncPassthrough(t *testing.T) {
-	fake := &mocksdk.FakeClient{}
+	fake := &sdkmocks.FakeClient{}
 	fake.GenerateContentReturns(&sdk.CreateChatCompletionResponse{}, nil)
 	adapter := NewAnthropicMessages(fake)
 
@@ -391,7 +391,7 @@ func TestGenerateContentSyncPassthrough(t *testing.T) {
 // 400 triggers one retry without the parameter, and the model is remembered
 // so later turns omit effort up front.
 func TestGenerateContentRetriesWithoutEffortWhenRejected(t *testing.T) {
-	fake := &mocksdk.FakeClient{}
+	fake := &sdkmocks.FakeClient{}
 	fake.CreateMessageReturnsOnCall(0, nil,
 		fmt.Errorf("API error: This model does not support the effort parameter. (status code: 400)"))
 	ok := &sdk.MessagesResponse{
@@ -437,7 +437,7 @@ func TestBuildMessagesRequestTranslatesImageParts(t *testing.T) {
 	require.NoError(t, err)
 	content := sdk.NewMessageContent([]sdk.ContentPart{textPart, dataPart, urlPart})
 
-	adapter := NewAnthropicMessages(&mocksdk.FakeClient{})
+	adapter := NewAnthropicMessages(&sdkmocks.FakeClient{})
 	shape := decodeRequest(t, adapter.buildMessagesRequest("claude-haiku-4-5",
 		[]sdk.Message{{Role: sdk.User, Content: content}}))
 

@@ -4,13 +4,12 @@ import (
 	"cmp"
 	"slices"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	help "charm.land/bubbles/v2/help"
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 

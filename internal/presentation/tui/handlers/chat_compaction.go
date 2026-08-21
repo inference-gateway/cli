@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // compactionTimeout bounds the LLM summarization call so a wedged gateway can't

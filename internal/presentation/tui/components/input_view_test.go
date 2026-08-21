@@ -6,20 +6,21 @@ import (
 	"testing"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	require "github.com/stretchr/testify/require"
+
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
-	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	history "github.com/inference-gateway/cli/internal/presentation/tui/history"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // createMockModelService creates a fake model service with default test values

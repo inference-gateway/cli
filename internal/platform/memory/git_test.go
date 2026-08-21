@@ -8,11 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
-	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	zap "go.uber.org/zap"
 	zapcore "go.uber.org/zap/zapcore"
 	observer "go.uber.org/zap/zaptest/observer"
+
+	config "github.com/inference-gateway/cli/config"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // isolatedGitEnv points git at empty global/system config and a fixed identity

@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	progress "charm.land/bubbles/v2/progress"
 	spinner "charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	hints "github.com/inference-gateway/cli/internal/presentation/tui/hints"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"

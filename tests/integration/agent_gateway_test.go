@@ -17,9 +17,10 @@ import (
 	"testing"
 	"time"
 
+	require "github.com/stretchr/testify/require"
+
 	sdk "github.com/inference-gateway/sdk"
 	mockgateway "github.com/inference-gateway/tokenless/gateway"
-	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"

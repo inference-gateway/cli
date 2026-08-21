@@ -12,19 +12,18 @@ import (
 	"sync"
 	"time"
 
-	chn "github.com/inference-gateway/cli/internal/channels"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
-	render "github.com/inference-gateway/cli/internal/platform/render"
-
 	attribute "go.opentelemetry.io/otel/attribute"
 	metric "go.opentelemetry.io/otel/metric"
 
 	config "github.com/inference-gateway/cli/config"
 	agentrunner "github.com/inference-gateway/cli/internal/agent/application/agentrunner"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	chn "github.com/inference-gateway/cli/internal/channels"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	render "github.com/inference-gateway/cli/internal/platform/render"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"

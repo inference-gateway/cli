@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
-	yaml "gopkg.in/yaml.v3"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func testJob() *scheddomain.ScheduledJob {

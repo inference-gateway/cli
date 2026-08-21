@@ -5,11 +5,11 @@ import (
 	"os"
 	"testing"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	config "github.com/inference-gateway/cli/config"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func TestCloseSubagentTool_Validate(t *testing.T) {

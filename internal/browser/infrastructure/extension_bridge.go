@@ -14,6 +14,7 @@ import (
 
 	uuid "github.com/google/uuid"
 	websocket "github.com/gorilla/websocket"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"

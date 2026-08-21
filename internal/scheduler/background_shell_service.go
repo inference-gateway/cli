@@ -8,13 +8,12 @@ import (
 	"strings"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	uuid "github.com/google/uuid"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 )
 

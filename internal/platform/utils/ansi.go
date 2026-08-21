@@ -1,6 +1,6 @@
 package utils
 
-import "github.com/charmbracelet/x/ansi"
+import ansi "github.com/charmbracelet/x/ansi"
 
 // colorsDisabled mirrors the CLI's --no-colors / NO_COLOR / non-TTY decision
 // (see cmd.disableOutputColors) so leaf packages can strip ANSI from

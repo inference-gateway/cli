@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	sdk "github.com/inference-gateway/sdk"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // writeSubagentApprovalSidecar records that this chat is blocked on a tool

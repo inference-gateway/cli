@@ -8,9 +8,10 @@ import (
 	"strings"
 
 	glamour "charm.land/glamour/v2"
+	cobra "github.com/spf13/cobra"
+
 	config "github.com/inference-gateway/cli/config"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
-	cobra "github.com/spf13/cobra"
 )
 
 var mcpCmd = &cobra.Command{

@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
-	adk "github.com/inference-gateway/adk/types"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	adk "github.com/inference-gateway/adk/types"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"

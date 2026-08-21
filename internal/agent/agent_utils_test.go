@@ -3,18 +3,20 @@ package agent
 import (
 	"context"
 	"fmt"
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	sdk "github.com/inference-gateway/sdk"
 	require "github.com/stretchr/testify/require"
+
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 func TestIsCompleteJSON(t *testing.T) {

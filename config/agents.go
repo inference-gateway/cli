@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 // AgentsConfig represents the agents.yaml configuration file
@@ -90,7 +90,7 @@ func (a *AgentEntry) GetEnvironmentWithModel() map[string]string {
 // returns the in-code defaults so callers can treat absence as "use
 // defaults" without special-casing.
 func LoadAgents(path string) (*AgentsConfig, error) {
-	cfg, err := utils.LoadYAML(path, "agents", DefaultAgentsConfig)
+	cfg, err := configutils.LoadYAML(path, "agents", DefaultAgentsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func LoadAgents(path string) (*AgentsConfig, error) {
 // SaveAgents writes the agents configuration to disk, creating any
 // missing parent directories.
 func SaveAgents(path string, cfg *AgentsConfig) error {
-	return utils.SaveYAML(path, "agents", cfg)
+	return configutils.SaveYAML(path, "agents", cfg)
 }
 
 func agentName(e AgentEntry) string { return e.Name }

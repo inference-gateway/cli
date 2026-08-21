@@ -2,7 +2,6 @@ package infrastructure
 
 import (
 	"context"
-	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 	"io"
 	"net/http"
 	"os"
@@ -15,6 +14,7 @@ import (
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
 	websocket "github.com/gorilla/websocket"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
@@ -23,6 +23,7 @@ import (
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 )
 
 // readFrameOfType reads frames until one with the given type arrives, failing

@@ -3,12 +3,13 @@ package components
 import (
 	"testing"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
-	tea "charm.land/bubbletea/v2"
 	assert "github.com/stretchr/testify/assert"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	tea "charm.land/bubbletea/v2"
+
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // newFilterTestSelector builds a selector backed by a fake pricing service with

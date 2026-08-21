@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/lipgloss/v2"
+	lipgloss "charm.land/lipgloss/v2"
 )
 
 func TestColor_GetLipglossColor(t *testing.T) {

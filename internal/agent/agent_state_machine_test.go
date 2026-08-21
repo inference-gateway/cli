@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	states "github.com/inference-gateway/cli/internal/agent/states"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // TestStateMachineInitialization tests that the state machine initializes to Idle state

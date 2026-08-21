@@ -3,7 +3,7 @@ package domain
 import (
 	"context"
 
-	"github.com/inference-gateway/sdk"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // ToolService handles tool execution

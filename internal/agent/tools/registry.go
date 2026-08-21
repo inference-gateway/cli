@@ -11,17 +11,16 @@ import (
 	"sync/atomic"
 	"time"
 
-	memory "github.com/inference-gateway/cli/internal/platform/memory"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // Note: this file deliberately does NOT call DiscoverTools synchronously at

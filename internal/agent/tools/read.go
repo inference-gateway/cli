@@ -10,8 +10,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	pdf "github.com/ledongthuc/pdf"
+
 	sdk "github.com/inference-gateway/sdk"
-	"github.com/ledongthuc/pdf"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"

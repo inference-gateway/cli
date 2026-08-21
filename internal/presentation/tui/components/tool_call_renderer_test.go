@@ -5,9 +5,8 @@ import (
 	"testing"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // TestToolCallRenderer_BashOutputStreamLineCounting verifies that a single

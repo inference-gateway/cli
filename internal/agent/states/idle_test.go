@@ -3,9 +3,9 @@ package states_test
 import (
 	"testing"
 
-	states "github.com/inference-gateway/cli/internal/agent/states"
-
 	assert "github.com/stretchr/testify/assert"
+
+	states "github.com/inference-gateway/cli/internal/agent/states"
 )
 
 // TestIdleState_Handle drives the Idle executor through its three paths: a

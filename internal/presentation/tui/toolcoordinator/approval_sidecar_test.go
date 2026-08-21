@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	sdk "github.com/inference-gateway/sdk"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func TestSubagentApprovalSidecar_WriteAndClear(t *testing.T) {

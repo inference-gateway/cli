@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	cobra "github.com/spf13/cobra"
 	require "github.com/stretchr/testify/require"
+
+	cobra "github.com/spf13/cobra"
 
 	config "github.com/inference-gateway/cli/config"
 )
