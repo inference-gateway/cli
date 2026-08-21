@@ -17,16 +17,6 @@ import (
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 )
 
-// Capabilities reports what the robotgo backend supports (identical on every
-// platform).
-func Capabilities() []computerdomain.Capability {
-	return []computerdomain.Capability{
-		computerdomain.CapabilityPointer,
-		computerdomain.CapabilityKeyboard,
-		computerdomain.CapabilityScreen,
-	}
-}
-
 const maxTypeTextLength = 10000
 
 // Executor performs computer-use actions through the display controller.

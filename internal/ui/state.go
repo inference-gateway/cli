@@ -123,18 +123,15 @@ type FileSelectionState struct {
 
 // MessageEditState represents the state when editing a message
 type MessageEditState struct {
-	OriginalMessageIndex int       `json:"original_message_index"`
-	OriginalContent      string    `json:"original_content"`
-	EditTimestamp        time.Time `json:"edit_timestamp"`
+	OriginalMessageIndex int `json:"original_message_index"`
 }
 
 // MessageSnapshot represents a snapshot of a message for the history view
 type MessageSnapshot struct {
-	Index        int             `json:"index"`
-	Role         sdk.MessageRole `json:"role"`
-	Content      string          `json:"content"`
-	Timestamp    time.Time       `json:"timestamp"`
-	TruncatedMsg string          `json:"truncated_msg"`
+	Index     int             `json:"index"`
+	Role      sdk.MessageRole `json:"role"`
+	Content   string          `json:"content"`
+	Timestamp time.Time       `json:"timestamp"`
 }
 
 // NewApplicationState creates a new application state
@@ -744,7 +741,6 @@ type AgentStatus struct {
 	State       agentdomain.AgentState `json:"state"`
 	Message     string                 `json:"message,omitempty"`
 	StartTime   time.Time              `json:"start_time"`
-	ReadyTime   *time.Time             `json:"ready_time,omitempty"`
 	Error       string                 `json:"error,omitempty"`
 	LayersDone  int                    `json:"layers_done,omitempty"`
 	LayersTotal int                    `json:"layers_total,omitempty"`
@@ -785,15 +781,8 @@ func (s *ApplicationState) UpdateAgentStatus(name string, state agentdomain.Agen
 		}
 		s.agentReadiness.Agents[name] = agent
 	}
-
-	oldState := agent.State
 	agent.State = state
 	agent.Message = message
-
-	if oldState != agentdomain.AgentStateReady && state == agentdomain.AgentStateReady {
-		now := time.Now()
-		agent.ReadyTime = &now
-	}
 	s.recountReadyAgents()
 }
 

@@ -458,7 +458,6 @@ func (s *Supervisor) Snapshot() []scheddomain.TrackedJob {
 			Meta:        sj.meta,
 			Status:      sj.status,
 			CompletedAt: sj.completedAt,
-			LastNote:    sj.lastNote,
 		}
 		if p, ok := sj.job.(scheddomain.JobOutputProvider); ok {
 			tj.Output = p.Output()

@@ -173,11 +173,9 @@ func (cm *StreamingChunkManager) GetSessionInfo(sessionID string) (*ChunkSession
 	defer session.mutex.Unlock()
 
 	return &ChunkSessionInfo{
-		SessionID:      sessionID,
-		TotalChunks:    session.expectedChunks,
-		ReceivedChunks: session.receivedChunks,
-		TempPath:       session.tempPath,
-		Created:        true,
+		SessionID:   sessionID,
+		TotalChunks: session.expectedChunks,
+		Created:     true,
 	}, nil
 }
 

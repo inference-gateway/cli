@@ -12,7 +12,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -163,14 +162,11 @@ func (h *MessageHistoryHandler) extractMessages(entries []convdomain.Conversatio
 			continue
 		}
 
-		truncated := formatting.TruncateText(content, 50)
-
 		message := ui.MessageSnapshot{
-			Index:        i,
-			Role:         entry.Message.Role,
-			Content:      content,
-			Timestamp:    entry.Time,
-			TruncatedMsg: truncated,
+			Index:     i,
+			Role:      entry.Message.Role,
+			Content:   content,
+			Timestamp: entry.Time,
 		}
 		messages = append(messages, message)
 	}

@@ -30,8 +30,6 @@ type ComputerUseConfig struct {
 // ScreenshotToolConfig contains screenshot-specific tool settings
 type ScreenshotToolConfig struct {
 	Enabled          bool   `yaml:"enabled" mapstructure:"enabled"`
-	MaxWidth         int    `yaml:"max_width" mapstructure:"max_width"`
-	MaxHeight        int    `yaml:"max_height" mapstructure:"max_height"`
 	TargetWidth      int    `yaml:"target_width" mapstructure:"target_width"`
 	TargetHeight     int    `yaml:"target_height" mapstructure:"target_height"`
 	Format           string `yaml:"format" mapstructure:"format"`
@@ -40,8 +38,6 @@ type ScreenshotToolConfig struct {
 	CaptureInterval  int    `yaml:"capture_interval" mapstructure:"capture_interval"`
 	BufferSize       int    `yaml:"buffer_size" mapstructure:"buffer_size"`
 	TempDir          string `yaml:"temp_dir" mapstructure:"temp_dir"`
-	LogCaptures      bool   `yaml:"log_captures" mapstructure:"log_captures"`
-	ShowOverlay      bool   `yaml:"show_overlay" mapstructure:"show_overlay"`
 }
 
 // FitDims returns the frame dimensions for a screen, scaling uniformly to fit
@@ -78,8 +74,6 @@ func DefaultComputerUseConfig() *ComputerUseConfig {
 		Approval: ComputerUseApprovalNever,
 		Screenshot: ScreenshotToolConfig{
 			Enabled:          true,
-			MaxWidth:         1920,
-			MaxHeight:        1080,
 			TargetWidth:      1024,
 			TargetHeight:     768,
 			Format:           "jpeg",
@@ -88,8 +82,6 @@ func DefaultComputerUseConfig() *ComputerUseConfig {
 			CaptureInterval:  3,
 			BufferSize:       60,
 			TempDir:          "",
-			LogCaptures:      false,
-			ShowOverlay:      true,
 		},
 		RateLimit: RateLimitConfig{
 			Enabled:             true,

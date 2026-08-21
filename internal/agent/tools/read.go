@@ -20,7 +20,6 @@ import (
 
 // Error constants for consistent error handling
 const (
-	ErrorNotAbsolutePath  = "NOT_ABSOLUTE_PATH"
 	ErrorNotFound         = "NOT_FOUND"
 	ErrorFileEmpty        = "FILE_EMPTY"
 	ErrorPDFParseError    = "PDF_PARSE_ERROR"

@@ -39,9 +39,3 @@ type TodoUpdateChatEvent struct {
 	BaseChatEvent
 	Todos []TodoItem
 }
-
-// BorderOverlayEvent indicates the screen border overlay should be shown or hidden
-type BorderOverlayEvent struct {
-	BaseChatEvent
-	BorderAction string
-}

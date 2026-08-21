@@ -89,7 +89,6 @@ tools:
     background_shells:
       enabled: true
       max_concurrent: 5
-      max_output_buffer_mb: 10
       retention_minutes: 60
   read:
     enabled: true
@@ -107,7 +106,6 @@ tools:
     safety:
       max_size: 8192
       timeout: 30
-      allow_redirect: true
     cache:
       enabled: true
       ttl: 3600

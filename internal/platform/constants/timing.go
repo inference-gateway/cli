@@ -12,23 +12,10 @@ const (
 	DrainQueueRetryInterval   = 300 * time.Millisecond // Re-check interval while queued work waits behind a busy agent
 
 	// UI component timing for smooth transitions
-	ToolCallUpdateThrottle    = 50 * time.Millisecond  // Minimum time between tool call updates
-	ToolCallMinShowTime       = 400 * time.Millisecond // Minimum time to show tool call before hiding
-	ParallelToolsTickInterval = 500 * time.Millisecond // Parallel tools UI refresh interval
-	TimerUpdateThrottle       = 100 * time.Millisecond // Minimum time between timer updates (e.g., bash command duration)
-	RenderThrottleInterval    = 33 * time.Millisecond  // Throttle interval for streaming content rendering (~30 FPS)
+	ToolCallUpdateThrottle = 50 * time.Millisecond // Minimum time between tool call updates
 
 	// Test timing delays
 	TestSleepDelay = 100 * time.Millisecond // Standard delay in tests for timing-sensitive operations
-)
-
-// UITransitionTiming contains timing constants for UI state transitions
-const (
-	// Minimum display times for better UX
-	MinToolDisplayTime    = 400 * time.Millisecond
-	ToolUpdateThrottle    = 50 * time.Millisecond
-	SpinnerUpdateInterval = 200 * time.Millisecond
-	StatusRefreshInterval = 500 * time.Millisecond
 )
 
 // ObservabilityTiming contains thresholds for the single-ingress instrumentation:

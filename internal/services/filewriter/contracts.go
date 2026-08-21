@@ -44,9 +44,7 @@ type ChunkManager interface {
 
 // ChunkSessionInfo provides information about an active chunk session
 type ChunkSessionInfo struct {
-	SessionID      string
-	TotalChunks    int
-	ReceivedChunks int
-	TempPath       string
-	Created        bool
+	SessionID   string
+	TotalChunks int
+	Created     bool
 }

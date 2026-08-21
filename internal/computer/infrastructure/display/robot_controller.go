@@ -264,12 +264,7 @@ func (p *RobotProvider) GetController() (DisplayController, error) {
 
 func (p *RobotProvider) GetDisplayInfo() DisplayInfo {
 	return DisplayInfo{
-		Name:              "robotgo",
-		SupportsRegions:   true,
-		SupportsMouse:     true,
-		SupportsKeyboard:  true,
-		MaxTextLength:     0,
-		RequiresElevation: false,
+		Name: "robotgo",
 	}
 }
 

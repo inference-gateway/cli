@@ -27,7 +27,6 @@ type ChatInterfaceData struct {
 	Width          int
 	Height         int
 	ToolExecution  *agentdomain.ToolExecutionSession
-	CurrentView    ui.ViewState
 	QueuedMessages []convdomain.QueuedMessage
 }
 

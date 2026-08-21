@@ -166,7 +166,6 @@ tools:
     safety:
       max_size: 8192 # 8KB
       timeout: 30 # 30 seconds
-      allow_redirect: true
     cache:
       enabled: true
       ttl: 3600 # 1 hour
@@ -216,7 +215,6 @@ agent:
     5. Run lint/format with: task fmt and task lint
     6. Commit changes (only if explicitly asked)
     7. Create a pull request (only if explicitly asked)
-  verbose_tools: false
   max_turns: 50 # Maximum number of turns for agent sessions
   max_tokens: 4096 # The maximum number of tokens that can be generated per request
   max_concurrent_tools: 5 # Maximum concurrent tool executions
@@ -364,7 +362,6 @@ vision:
 - **agent.system_prompt_auto**: System prompt used in auto-accept mode; layers a destructive-action policy (confirm or avoid irreversible
   actions) on top of full autonomy (falls back to `system_prompt` when empty)
 - System reminders are configured in their own `reminders.yaml`, not under `agent:` - see [System Reminders](#system-reminders-remindersyaml) below.
-- **agent.verbose_tools**: Enable verbose tool output (default: false)
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
 - **agent.max_concurrent_tools**: Maximum number of tools that can execute concurrently (default: 5)
@@ -685,7 +682,6 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 - `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE`: Custom system prompt for remote agent
 - `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT`: Custom system prompt for heartbeat
 - `INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS`: Custom instructions for agent
-- `INFER_AGENT_VERBOSE_TOOLS`: Enable verbose tool output (default: `false`)
 
 > **Migration note (v0.105.0+):** The old `INFER_AGENT_SYSTEM_PROMPT` and
 > `INFER_AGENT_SYSTEM_PROMPT_PLAN` env vars were renamed to
@@ -902,7 +898,6 @@ http://browser-agent:8080
 ### Export Configuration
 
 - `INFER_EXPORT_OUTPUT_DIR`: Output directory for exported conversations (default: `./exports`)
-- `INFER_EXPORT_SUMMARY_MODEL`: Model for generating export summaries (default: `anthropic/claude-4.1-haiku`)
 
 ### Compact Configuration
 
@@ -985,7 +980,7 @@ infer config set agent.model "deepseek/deepseek-v4-pro"  # Project-specific mode
 infer config set tools.bash.enabled true                 # Enable bash tools for this project
 
 # 3. Runtime overrides
-INFER_AGENT_VERBOSE_TOOLS=true infer chat  # Temporary verbose mode
+INFER_AGENT_MAX_TURNS=100 infer chat  # Temporary turn limit
 ```
 
 ---

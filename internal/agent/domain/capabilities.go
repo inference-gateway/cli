@@ -55,16 +55,14 @@ type ScreenRegion struct {
 
 // Frame represents a captured image frame (screenshot, camera frame, ...) with metadata
 type Frame struct {
-	ID             string    `json:"id"`
-	Timestamp      time.Time `json:"timestamp"`
-	Data           string    `json:"data"`            // base64 encoded image
-	Path           string    `json:"-"`               // on-disk path when the frame exists as a file
-	Width          int       `json:"width"`           // Final image width (after scaling)
-	Height         int       `json:"height"`          // Final image height (after scaling)
-	Format         string    `json:"format"`          // "png" or "jpeg"
-	Method         string    `json:"method"`          // capture method, e.g. "x11", "wayland", "directory"
-	OriginalWidth  int       `json:"original_width"`  // Screen width before scaling
-	OriginalHeight int       `json:"original_height"` // Screen height before scaling
+	ID        string    `json:"id"`
+	Timestamp time.Time `json:"timestamp"`
+	Data      string    `json:"data"`   // base64 encoded image
+	Path      string    `json:"-"`      // on-disk path when the frame exists as a file
+	Width     int       `json:"width"`  // Final image width (after scaling)
+	Height    int       `json:"height"` // Final image height (after scaling)
+	Format    string    `json:"format"` // "png" or "jpeg"
+	Method    string    `json:"method"` // capture method, e.g. "x11", "wayland", "directory"
 }
 
 // FrameSource provides the most recent frame of a named frame source

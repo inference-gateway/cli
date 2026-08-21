@@ -78,10 +78,5 @@ type Provider interface {
 
 // DisplayInfo contains metadata about the display backend
 type DisplayInfo struct {
-	Name              string
-	SupportsRegions   bool
-	SupportsMouse     bool
-	SupportsKeyboard  bool
-	MaxTextLength     int
-	RequiresElevation bool
+	Name string
 }

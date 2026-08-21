@@ -218,26 +218,6 @@ func Error(msg string, args ...any) {
 	}
 }
 
-// Fatal logs a fatal message and exits
-func Fatal(msg string, args ...any) {
-	if sugar != nil {
-		if len(args) > 0 {
-			sugar.Fatalw(msg, args...)
-		} else {
-			sugar.Fatal(msg)
-		}
-	}
-	os.Exit(1)
-}
-
-// Sync flushes any buffered log entries
-func Sync() error {
-	if globalLogger != nil {
-		return globalLogger.Sync()
-	}
-	return nil
-}
-
 // Close closes the logger and flushes any buffered entries
 func Close() {
 	if globalLogger != nil {

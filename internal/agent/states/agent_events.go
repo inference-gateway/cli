@@ -83,15 +83,13 @@ type StateContext struct {
 	Events chan AgentEvent
 
 	// Concurrency control
-	WaitGroup  *sync.WaitGroup
-	CancelChan <-chan struct{}
-	Mutex      *sync.Mutex
+	WaitGroup *sync.WaitGroup
+	Mutex     *sync.Mutex
 
 	// Shared state data
 	CurrentMessage   *sdk.Message
 	CurrentToolCalls *[]*sdk.ChatCompletionMessageToolCall
 	CurrentReasoning *string
-	AvailableTools   *[]sdk.ChatCompletionTool
 
 	// Tool processing state
 	ToolsNeedingApproval *[]sdk.ChatCompletionMessageToolCall

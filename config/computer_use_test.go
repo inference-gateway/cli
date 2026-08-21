@@ -19,8 +19,6 @@ floating_window:
   respawn_on_close: false
 screenshot:
   enabled: true
-  max_width: 800
-  max_height: 600
   target_width: 640
   target_height: 480
   format: png
@@ -29,8 +27,6 @@ screenshot:
   capture_interval: 5
   buffer_size: 2
   temp_dir: /tmp/cu
-  log_captures: true
-  show_overlay: false
 rate_limit:
   enabled: false
   max_actions_per_minute: 30
@@ -70,11 +66,11 @@ func TestDefaultComputerUseConfig(t *testing.T) {
 	if cfg.Enabled {
 		t.Error("Expected Enabled to be false by default")
 	}
-	if cfg.Screenshot.MaxWidth != 1920 {
-		t.Errorf("Expected Screenshot.MaxWidth=1920, got %d", cfg.Screenshot.MaxWidth)
+	if cfg.Screenshot.TargetWidth != 1024 {
+		t.Errorf("Expected Screenshot.TargetWidth=1024, got %d", cfg.Screenshot.TargetWidth)
 	}
-	if cfg.Screenshot.MaxHeight != 1080 {
-		t.Errorf("Expected Screenshot.MaxHeight=1080, got %d", cfg.Screenshot.MaxHeight)
+	if cfg.Screenshot.TargetHeight != 768 {
+		t.Errorf("Expected Screenshot.TargetHeight=768, got %d", cfg.Screenshot.TargetHeight)
 	}
 	if cfg.Screenshot.Format != "jpeg" {
 		t.Errorf("Expected Screenshot.Format 'jpeg', got %q", cfg.Screenshot.Format)
@@ -107,7 +103,7 @@ func TestLoadComputerUse(t *testing.T) {
 		{
 			name: "non-existent file returns defaults",
 			check: func(t *testing.T, cfg *config.ComputerUseConfig) {
-				if cfg.Enabled != defaults.Enabled || cfg.Screenshot.MaxWidth != defaults.Screenshot.MaxWidth {
+				if cfg.Enabled != defaults.Enabled || cfg.Screenshot.TargetWidth != defaults.Screenshot.TargetWidth {
 					t.Errorf("Expected defaults, got %+v", cfg)
 				}
 			},
@@ -119,8 +115,8 @@ func TestLoadComputerUse(t *testing.T) {
 				if !cfg.Enabled {
 					t.Error("Expected Enabled true")
 				}
-				if cfg.Screenshot.MaxWidth != 800 {
-					t.Errorf("Expected Screenshot.MaxWidth=800, got %d", cfg.Screenshot.MaxWidth)
+				if cfg.Screenshot.TargetWidth != 640 {
+					t.Errorf("Expected Screenshot.TargetWidth=640, got %d", cfg.Screenshot.TargetWidth)
 				}
 				if cfg.Screenshot.Format != "png" {
 					t.Errorf("Expected Screenshot.Format 'png', got %q", cfg.Screenshot.Format)
@@ -213,8 +209,6 @@ func TestSaveComputerUse(t *testing.T) {
 		Enabled: true,
 		Screenshot: config.ScreenshotToolConfig{
 			Enabled:          true,
-			MaxWidth:         1024,
-			MaxHeight:        768,
 			TargetWidth:      512,
 			TargetHeight:     384,
 			Format:           "png",
@@ -223,8 +217,6 @@ func TestSaveComputerUse(t *testing.T) {
 			CaptureInterval:  10,
 			BufferSize:       3,
 			TempDir:          "/tmp/cu",
-			LogCaptures:      true,
-			ShowOverlay:      false,
 		},
 		RateLimit: config.RateLimitConfig{
 			Enabled:             false,
@@ -249,7 +241,7 @@ func TestSaveComputerUse(t *testing.T) {
 					t.Fatalf("LoadComputerUse() failed: %v", err)
 				}
 				if loaded.Enabled != roundTrip.Enabled ||
-					loaded.Screenshot.MaxWidth != roundTrip.Screenshot.MaxWidth ||
+					loaded.Screenshot.TargetWidth != roundTrip.Screenshot.TargetWidth ||
 					loaded.Screenshot.Format != roundTrip.Screenshot.Format ||
 					loaded.RateLimit.MaxActionsPerMinute != roundTrip.RateLimit.MaxActionsPerMinute {
 					t.Errorf("Round-trip mismatch: got %+v", loaded)

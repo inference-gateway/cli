@@ -108,8 +108,6 @@ type FileWriteToolResult struct {
 	LinesWritten int    `json:"lines_written"`
 	Created      bool   `json:"created"`
 	Overwritten  bool   `json:"overwritten"`
-	DirsCreated  bool   `json:"dirs_created"`
-	Appended     bool   `json:"appended"`
 	ChunkIndex   int    `json:"chunk_index,omitempty"`
 	TotalChunks  int    `json:"total_chunks,omitempty"`
 	IsComplete   bool   `json:"is_complete"`

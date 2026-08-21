@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"context"
 	"time"
 )
 
@@ -59,13 +58,4 @@ type RunEvent struct {
 	Line []byte
 	Err  error
 	Done bool
-}
-
-// SchedulerService manages the lifecycle of scheduled jobs. It is started by
-// the `infer daemon` process and watches the schedule storage for changes so
-// that jobs created by an agent process are picked up without a restart.
-type SchedulerService interface {
-	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
-	LoadJobs() error
 }

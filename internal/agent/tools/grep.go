@@ -567,7 +567,6 @@ func (t *GrepTool) performGoSearch(ctx context.Context, pattern string, args map
 
 // SearchOptions holds configuration for the search operation
 type SearchOptions struct {
-	CaseInsensitive bool
 	ShowLineNumbers bool
 	ContextBefore   int
 	ContextAfter    int
@@ -591,12 +590,6 @@ func (t *GrepTool) getRegexFlags(args map[string]any) string {
 // buildSearchOptions builds search options from arguments
 func (t *GrepTool) buildSearchOptions(args map[string]any, outputMode string) *SearchOptions {
 	opts := &SearchOptions{}
-
-	if caseInsensitive, exists := args["-i"]; exists {
-		if caseInsensitiveBool, ok := caseInsensitive.(bool); ok {
-			opts.CaseInsensitive = caseInsensitiveBool
-		}
-	}
 
 	if outputMode == "content" {
 		if showLineNumbers, exists := args["-n"]; exists {

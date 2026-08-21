@@ -924,8 +924,6 @@ func applyComputerUseEnvOverrides(cfg *config.Config) {
 	setString("INFER_COMPUTER_USE_APPROVAL", &cfg.ComputerUse.Approval)
 
 	setBool("INFER_COMPUTER_USE_SCREENSHOT_ENABLED", &cfg.ComputerUse.Screenshot.Enabled)
-	setInt("INFER_COMPUTER_USE_SCREENSHOT_MAX_WIDTH", &cfg.ComputerUse.Screenshot.MaxWidth)
-	setInt("INFER_COMPUTER_USE_SCREENSHOT_MAX_HEIGHT", &cfg.ComputerUse.Screenshot.MaxHeight)
 	setInt("INFER_COMPUTER_USE_SCREENSHOT_TARGET_WIDTH", &cfg.ComputerUse.Screenshot.TargetWidth)
 	setInt("INFER_COMPUTER_USE_SCREENSHOT_TARGET_HEIGHT", &cfg.ComputerUse.Screenshot.TargetHeight)
 	setString("INFER_COMPUTER_USE_SCREENSHOT_FORMAT", &cfg.ComputerUse.Screenshot.Format)
@@ -934,8 +932,6 @@ func applyComputerUseEnvOverrides(cfg *config.Config) {
 	setInt("INFER_COMPUTER_USE_SCREENSHOT_CAPTURE_INTERVAL", &cfg.ComputerUse.Screenshot.CaptureInterval)
 	setInt("INFER_COMPUTER_USE_SCREENSHOT_BUFFER_SIZE", &cfg.ComputerUse.Screenshot.BufferSize)
 	setString("INFER_COMPUTER_USE_SCREENSHOT_TEMP_DIR", &cfg.ComputerUse.Screenshot.TempDir)
-	setBool("INFER_COMPUTER_USE_SCREENSHOT_LOG_CAPTURES", &cfg.ComputerUse.Screenshot.LogCaptures)
-	setBool("INFER_COMPUTER_USE_SCREENSHOT_SHOW_OVERLAY", &cfg.ComputerUse.Screenshot.ShowOverlay)
 
 	setBool("INFER_COMPUTER_USE_RATE_LIMIT_ENABLED", &cfg.ComputerUse.RateLimit.Enabled)
 	setInt("INFER_COMPUTER_USE_RATE_LIMIT_MAX_ACTIONS_PER_MINUTE", &cfg.ComputerUse.RateLimit.MaxActionsPerMinute)

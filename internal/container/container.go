@@ -16,7 +16,6 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 	mockgateway "github.com/inference-gateway/tokenless/gateway"
-	zap "go.uber.org/zap"
 
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
@@ -86,9 +85,6 @@ type ServiceContainer struct {
 
 	// Container runtime
 	containerRuntime containerruntime.ContainerRuntime
-
-	// Logger
-	log *zap.Logger
 
 	// Configuration
 	config *config.Config
@@ -195,8 +191,6 @@ func (h *uiNotifierHolder) set(n agentdomain.UINotifier) {
 func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 	sessionID := convdomain.GenerateSessionID()
 
-	log := logger.GetGlobalLogger()
-
 	containerRuntime, err := containerruntime.NewContainerRuntime(
 		sessionID,
 		containerruntime.RuntimeType(cfg.ContainerRuntime.Type),
@@ -209,7 +203,6 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 		sessionID:        sessionID,
 		config:           cfg,
 		containerRuntime: containerRuntime,
-		log:              log,
 		uiNotifier:       newUINotifierHolder(),
 	}
 
@@ -727,11 +720,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir, customShortcutClient, c.modelService, c.imageService, c.toolService); err != nil {
 		logger.Error("failed to load custom shortcuts", "error", err, "config_dir", configDir)
 	}
-}
-
-// Logger returns the logger instance for this container
-func (c *ServiceContainer) Logger() *zap.Logger {
-	return c.log
 }
 
 func (c *ServiceContainer) GetConversationRepository() convdomain.ConversationRepository {

@@ -261,11 +261,6 @@ func (s *LocalPTYSession) Close() error {
 	return s.shutdownProcess()
 }
 
-// Stop is deprecated, use Close instead
-func (s *LocalPTYSession) Stop() error {
-	return s.Close()
-}
-
 func (s *LocalPTYSession) closePTYOnly() error {
 	if s.pty != nil {
 		if err := s.pty.Close(); err != nil {

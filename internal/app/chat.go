@@ -2053,7 +2053,6 @@ func (app *ChatApplication) renderChatInterface() string {
 		Width:          width,
 		Height:         height,
 		ToolExecution:  app.stateManager.GetToolExecution(),
-		CurrentView:    app.stateManager.GetCurrentView(),
 		QueuedMessages: queuedMessages,
 	}
 
@@ -2675,8 +2674,6 @@ func (app *ChatApplication) handleEditReady(event ui.MessageHistoryEditReadyEven
 
 	app.stateManager.SetMessageEditState(&ui.MessageEditState{
 		OriginalMessageIndex: event.MessageIndex,
-		OriginalContent:      event.Content,
-		EditTimestamp:        time.Now(),
 	})
 
 	entries := app.conversationRepo.GetMessages()

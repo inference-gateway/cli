@@ -131,13 +131,12 @@ func (e OptimizationStatusEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // A2AToolCallExecutedEvent indicates an A2A tool call was executed on the gateway
 type A2AToolCallExecutedEvent struct {
-	RequestID         string
-	Timestamp         time.Time
-	ToolCallID        string
-	ToolName          string
-	Arguments         string
-	ExecutedOnGateway bool
-	TaskID            string
+	RequestID  string
+	Timestamp  time.Time
+	ToolCallID string
+	ToolName   string
+	Arguments  string
+	TaskID     string
 }
 
 func (e A2AToolCallExecutedEvent) GetRequestID() string    { return e.RequestID }
@@ -150,7 +149,6 @@ type A2ATaskSubmittedEvent struct {
 	TaskID    string
 	AgentName string
 	AgentURL  string
-	TaskType  string
 }
 
 func (e A2ATaskSubmittedEvent) GetRequestID() string    { return e.RequestID }

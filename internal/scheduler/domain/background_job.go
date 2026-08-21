@@ -169,6 +169,5 @@ type TrackedJob struct {
 	Meta        JobMeta
 	Status      JobStatus
 	CompletedAt *time.Time
-	LastNote    string
 	Output      string
 }

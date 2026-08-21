@@ -221,10 +221,6 @@ func (s *ScreenshotServer) captureScreenshot() error {
 		logger.Warn("failed to get logical dimensions", "error", err)
 		logicalWidth, logicalHeight = width, height
 	}
-
-	originalWidth := logicalWidth
-	originalHeight := logicalHeight
-
 	fitW, fitH := s.cfg.ComputerUse.Screenshot.FitDims(logicalWidth, logicalHeight)
 	if width != fitW || height != fitH {
 		img = display.ResizeImage(img, fitW, fitH)
@@ -249,14 +245,12 @@ func (s *ScreenshotServer) captureScreenshot() error {
 	}
 
 	screenshot := &agentdomain.Frame{
-		Timestamp:      time.Now(),
-		Data:           imageAttachment.Data,
-		Width:          width,
-		Height:         height,
-		Format:         s.cfg.ComputerUse.Screenshot.Format,
-		Method:         displayProvider.GetDisplayInfo().Name,
-		OriginalWidth:  originalWidth,
-		OriginalHeight: originalHeight,
+		Timestamp: time.Now(),
+		Data:      imageAttachment.Data,
+		Width:     width,
+		Height:    height,
+		Format:    s.cfg.ComputerUse.Screenshot.Format,
+		Method:    displayProvider.GetDisplayInfo().Name,
 	}
 
 	return s.buffer.Add(screenshot)

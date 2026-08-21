@@ -24,17 +24,6 @@ type NoopUINotifier struct{}
 // Notify discards the event.
 func (NoopUINotifier) Notify(any) {}
 
-// NotifierFunc adapts a plain function to UINotifier. Tests use it to record the
-// events a producer pushes without a generated mock.
-type NotifierFunc func(event any)
-
-// Notify forwards to the wrapped function when non-nil.
-func (f NotifierFunc) Notify(event any) {
-	if f != nil {
-		f(event)
-	}
-}
-
 // Events sent through UINotifier by non-UI code (capabilities, job supervisor).
 
 // UserInputEvent represents user input submission
