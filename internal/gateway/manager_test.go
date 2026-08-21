@@ -38,7 +38,7 @@ func TestPIDRegistry(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(pidsDir, strconv.Itoa(con1.Process.Pid)), nil, 0644)
 	_ = os.WriteFile(filepath.Join(pidsDir, strconv.Itoa(con2.Process.Pid)), nil, 0644)
 
-	gm := &GatewayManager{}
+	gm := &Manager{}
 	_ = os.WriteFile(filepath.Join(pidsDir, strconv.Itoa(os.Getpid())), nil, 0644)
 
 	if !gm.pruneAndCheckLive() {

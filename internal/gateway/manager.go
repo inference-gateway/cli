@@ -25,8 +25,8 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
-// GatewayManager manages the lifecycle of the gateway container or binary
-type GatewayManager struct {
+// Manager manages the lifecycle of the gateway container or binary
+type Manager struct {
 	sessionID        convdomain.SessionID
 	config           *config.Config
 	containerRuntime containerruntime.ContainerRuntime
@@ -36,9 +36,9 @@ type GatewayManager struct {
 	assignedPort     int
 }
 
-// NewGatewayManager creates a new gateway manager
-func NewGatewayManager(sessionID convdomain.SessionID, cfg *config.Config, runtime containerruntime.ContainerRuntime) *GatewayManager {
-	return &GatewayManager{
+// NewManager creates a new gateway manager
+func NewManager(sessionID convdomain.SessionID, cfg *config.Config, runtime containerruntime.ContainerRuntime) *Manager {
+	return &Manager{
 		sessionID:        sessionID,
 		config:           cfg,
 		containerRuntime: runtime,
@@ -46,7 +46,7 @@ func NewGatewayManager(sessionID convdomain.SessionID, cfg *config.Config, runti
 }
 
 // Start starts the gateway container or binary if configured to run locally
-func (gm *GatewayManager) Start(ctx context.Context) error {
+func (gm *Manager) Start(ctx context.Context) error {
 	if !gm.config.Gateway.Run {
 		return nil
 	}
@@ -64,7 +64,7 @@ func (gm *GatewayManager) Start(ctx context.Context) error {
 
 // EnsureStarted starts the gateway if configured and not already running
 // This is a convenience method that checks config and running state before starting
-func (gm *GatewayManager) EnsureStarted() error {
+func (gm *Manager) EnsureStarted() error {
 	if !gm.config.Gateway.Run {
 		return nil
 	}
@@ -84,7 +84,7 @@ func (gm *GatewayManager) EnsureStarted() error {
 }
 
 // startBinary downloads and runs the gateway as a binary
-func (gm *GatewayManager) startBinary(ctx context.Context) error {
+func (gm *Manager) startBinary(ctx context.Context) error {
 	logger.Info("starting gateway from binary")
 
 	if gm.isBinaryRunning() {
@@ -129,7 +129,7 @@ func (gm *GatewayManager) startBinary(ctx context.Context) error {
 }
 
 // startContainer starts the gateway in a container
-func (gm *GatewayManager) startContainer(ctx context.Context) error {
+func (gm *Manager) startContainer(ctx context.Context) error {
 	if gm.config.Gateway.OCI == "" {
 		return fmt.Errorf("gateway OCI image not specified in configuration")
 	}
@@ -181,7 +181,7 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 }
 
 // Stop stops the gateway container or binary and cleans up the network
-func (gm *GatewayManager) Stop(ctx context.Context) error {
+func (gm *Manager) Stop(ctx context.Context) error {
 	if !gm.isRunning {
 		return nil
 	}
@@ -208,7 +208,7 @@ func (gm *GatewayManager) Stop(ctx context.Context) error {
 // prunes stale entries (crashed processes). The binary is killed only
 // when the last live registration is gone - whichever process exits last
 // turns off the lights.
-func (gm *GatewayManager) stopBinary() error {
+func (gm *Manager) stopBinary() error {
 	gm.deregisterPID()
 
 	if gm.pruneAndCheckLive() {
@@ -225,7 +225,7 @@ func (gm *GatewayManager) stopBinary() error {
 
 // killGateway kills the shared gateway process, using the saved gateway
 // PID file or the in-process binaryCmd handle as fallback.
-func (gm *GatewayManager) killGateway() {
+func (gm *Manager) killGateway() {
 	if pid := gm.readGatewayPID(); pid > 0 {
 		logger.Info("last process stopping gateway binary", "pid", pid)
 		proc, err := os.FindProcess(pid)
@@ -245,7 +245,7 @@ func (gm *GatewayManager) killGateway() {
 }
 
 // inferRunDir returns the runtime state directory (~/.infer/run).
-func (gm *GatewayManager) inferRunDir() string {
+func (gm *Manager) inferRunDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return filepath.Join(".infer", "run")
@@ -254,17 +254,17 @@ func (gm *GatewayManager) inferRunDir() string {
 }
 
 // pidsDir returns the consumer PID registry directory (~/.infer/run/pids).
-func (gm *GatewayManager) pidsDir() string {
+func (gm *Manager) pidsDir() string {
 	return filepath.Join(gm.inferRunDir(), "pids")
 }
 
 // gatewayPIDPath returns the gateway binary PID file path (~/.infer/run/gateway.pid).
-func (gm *GatewayManager) gatewayPIDPath() string {
+func (gm *Manager) gatewayPIDPath() string {
 	return filepath.Join(gm.inferRunDir(), "gateway.pid")
 }
 
 // registerPID drops a PID file for this consumer process.
-func (gm *GatewayManager) registerPID() {
+func (gm *Manager) registerPID() {
 	pidDir := gm.pidsDir()
 	if err := os.MkdirAll(pidDir, 0755); err != nil {
 		logger.Warn("failed to create PID directory", "error", err)
@@ -277,7 +277,7 @@ func (gm *GatewayManager) registerPID() {
 }
 
 // deregisterPID removes this process's PID file.
-func (gm *GatewayManager) deregisterPID() {
+func (gm *Manager) deregisterPID() {
 	pidPath := filepath.Join(gm.pidsDir(), strconv.Itoa(os.Getpid()))
 	if err := os.Remove(pidPath); err != nil && !os.IsNotExist(err) {
 		logger.Warn("failed to deregister PID", "error", err)
@@ -287,7 +287,7 @@ func (gm *GatewayManager) deregisterPID() {
 // pruneAndCheckLive prunes stale consumer PID files (dead processes) and
 // reports whether any live registrations remain. Our own PID is already
 // deregistered before this is called.
-func (gm *GatewayManager) pruneAndCheckLive() bool {
+func (gm *Manager) pruneAndCheckLive() bool {
 	pidDir := gm.pidsDir()
 	entries, err := os.ReadDir(pidDir)
 	if err != nil {
@@ -313,7 +313,7 @@ func (gm *GatewayManager) pruneAndCheckLive() bool {
 }
 
 // writeGatewayPID writes the spawned gateway binary's PID to the shared file.
-func (gm *GatewayManager) writeGatewayPID() {
+func (gm *Manager) writeGatewayPID() {
 	if gm.binaryCmd == nil || gm.binaryCmd.Process == nil {
 		return
 	}
@@ -329,7 +329,7 @@ func (gm *GatewayManager) writeGatewayPID() {
 }
 
 // readGatewayPID reads the gateway binary PID from the shared file, or 0.
-func (gm *GatewayManager) readGatewayPID() int {
+func (gm *Manager) readGatewayPID() int {
 	data, err := os.ReadFile(gm.gatewayPIDPath())
 	if err != nil {
 		return 0
@@ -342,14 +342,14 @@ func (gm *GatewayManager) readGatewayPID() int {
 }
 
 // removeGatewayPID removes the gateway PID file.
-func (gm *GatewayManager) removeGatewayPID() {
+func (gm *Manager) removeGatewayPID() {
 	if err := os.Remove(gm.gatewayPIDPath()); err != nil && !os.IsNotExist(err) {
 		logger.Warn("failed to remove gateway PID file", "error", err)
 	}
 }
 
 // stopContainer stops the container (network cleanup is handled in Stop() method)
-func (gm *GatewayManager) stopContainer(ctx context.Context) error {
+func (gm *Manager) stopContainer(ctx context.Context) error {
 	if gm.containerID == "" {
 		return nil
 	}
@@ -372,12 +372,12 @@ func (gm *GatewayManager) stopContainer(ctx context.Context) error {
 }
 
 // IsRunning returns whether the gateway container is running
-func (gm *GatewayManager) IsRunning() bool {
+func (gm *Manager) IsRunning() bool {
 	return gm.isRunning
 }
 
 // pullImage pulls the OCI image with progress feedback
-func (gm *GatewayManager) pullImage(ctx context.Context) error {
+func (gm *Manager) pullImage(ctx context.Context) error {
 	fmt.Printf("• Pulling gateway image: %s\n", gm.config.Gateway.OCI)
 
 	cmd := exec.CommandContext(ctx, "docker", "pull", gm.config.Gateway.OCI)
@@ -393,7 +393,7 @@ func (gm *GatewayManager) pullImage(ctx context.Context) error {
 }
 
 // runContainer runs the gateway container using docker run command
-func (gm *GatewayManager) runContainer(ctx context.Context) error {
+func (gm *Manager) runContainer(ctx context.Context) error {
 	assignedPort := gm.determineGatewayPort()
 	containerPort := "8080"
 
@@ -487,7 +487,7 @@ func (gm *GatewayManager) runContainer(ctx context.Context) error {
 }
 
 // isContainerRunning checks if a gateway container is already running
-func (gm *GatewayManager) isContainerRunning() bool {
+func (gm *Manager) isContainerRunning() bool {
 	expectedName := fmt.Sprintf("inference-gateway-%s", gm.sessionID)
 	cmd := exec.Command("docker", "ps", "--filter", "name=inference-gateway", "--format", "{{.ID}}\t{{.Names}}")
 	output, err := cmd.CombinedOutput()
@@ -516,7 +516,7 @@ func (gm *GatewayManager) isContainerRunning() bool {
 }
 
 // waitForReady waits for the gateway to become ready
-func (gm *GatewayManager) waitForReady(ctx context.Context) error {
+func (gm *Manager) waitForReady(ctx context.Context) error {
 	actualURL := gm.GetGatewayURL()
 	healthURL := strings.TrimSuffix(actualURL, "/") + "/health"
 
@@ -554,7 +554,7 @@ func (gm *GatewayManager) waitForReady(ctx context.Context) error {
 }
 
 // isBinaryRunning checks if the gateway is already running on the port
-func (gm *GatewayManager) isBinaryRunning() bool {
+func (gm *Manager) isBinaryRunning() bool {
 	healthURL := strings.TrimSuffix(gm.config.Gateway.URL, "/") + "/health"
 	client := &http.Client{Timeout: 1 * time.Second}
 	resp, err := client.Get(healthURL)
@@ -568,7 +568,7 @@ func (gm *GatewayManager) isBinaryRunning() bool {
 // downloadBinary downloads the latest gateway binary release directly from
 // GitHub, authenticating the API call with GITHUB_TOKEN/GH_TOKEN when
 // available to avoid the 60 req/hour unauthenticated rate limit
-func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
+func (gm *Manager) downloadBinary(ctx context.Context) (string, error) {
 	binaryDir := filepath.Join(".infer", "bin")
 	if err := os.MkdirAll(binaryDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create binary directory: %w", err)
@@ -842,7 +842,7 @@ func extractGatewayZip(r io.Reader, destPath string) error {
 }
 
 // runBinary starts the gateway binary
-func (gm *GatewayManager) runBinary(binaryPath string) error {
+func (gm *Manager) runBinary(binaryPath string) error {
 	cmd := exec.Command(binaryPath)
 	cmd.Env = gm.loadEnvironment()
 
@@ -895,7 +895,7 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 }
 
 // configureGatewayOutput sets up stdout/stderr redirection for the gateway binary
-func (gm *GatewayManager) configureGatewayOutput(cmd *exec.Cmd) error {
+func (gm *Manager) configureGatewayOutput(cmd *exec.Cmd) error {
 	logDir := filepath.Join(".infer", "logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return fmt.Errorf("failed to create gateway log directory: %w", err)
@@ -915,7 +915,7 @@ func (gm *GatewayManager) configureGatewayOutput(cmd *exec.Cmd) error {
 }
 
 // loadEnvironment loads environment variables from .env file or system environment
-func (gm *GatewayManager) loadEnvironment() []string {
+func (gm *Manager) loadEnvironment() []string {
 	if _, err := os.Stat(".env"); err != nil {
 		return os.Environ()
 	}
@@ -942,7 +942,7 @@ func (gm *GatewayManager) loadEnvironment() []string {
 
 // determineGatewayPort determines the port to use for the gateway
 // If a port is already assigned, it returns that; otherwise finds an available port
-func (gm *GatewayManager) determineGatewayPort() int {
+func (gm *Manager) determineGatewayPort() int {
 	if gm.assignedPort > 0 {
 		return gm.assignedPort
 	}
@@ -958,7 +958,7 @@ func (gm *GatewayManager) determineGatewayPort() int {
 }
 
 // extractPortFromURL extracts the port number from the configured gateway URL
-func (gm *GatewayManager) extractPortFromURL() int {
+func (gm *Manager) extractPortFromURL() int {
 	if !strings.Contains(gm.config.Gateway.URL, ":") {
 		return 8080
 	}
@@ -980,7 +980,7 @@ func (gm *GatewayManager) extractPortFromURL() int {
 }
 
 // GetGatewayURL returns the actual gateway URL with the assigned port
-func (gm *GatewayManager) GetGatewayURL() string {
+func (gm *Manager) GetGatewayURL() string {
 	if gm.assignedPort == 0 {
 		return gm.config.Gateway.URL
 	}

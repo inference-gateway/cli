@@ -98,7 +98,7 @@ type ServiceContainer struct {
 	jobSupervisor          *jobs.Supervisor
 	taskRetentionService   scheddomain.TaskRetentionService
 	backgroundTaskService  scheddomain.BackgroundTaskService
-	gatewayManager         *gateway.GatewayManager
+	gatewayManager         *gateway.Manager
 	mockGateway            *http.Server
 	agentManager           agentdomain.AgentManager
 
@@ -267,7 +267,7 @@ func (c *ServiceContainer) StartExtensionBridge() {
 // initializeGatewayManager creates the gateway manager (but does not start it)
 // Commands that need the gateway should call gatewayManager.EnsureStarted() explicitly
 func (c *ServiceContainer) initializeGatewayManager() {
-	c.gatewayManager = gateway.NewGatewayManager(c.sessionID, c.config, c.containerRuntime)
+	c.gatewayManager = gateway.NewManager(c.sessionID, c.config, c.containerRuntime)
 }
 
 // startMockGateway serves a scenario library (github.com/inference-gateway/tokenless)
@@ -954,7 +954,7 @@ func (c *ServiceContainer) GetShellHistoryStorage() storage.ShellHistoryStorage 
 }
 
 // GetGatewayManager returns the gateway manager
-func (c *ServiceContainer) GetGatewayManager() *gateway.GatewayManager {
+func (c *ServiceContainer) GetGatewayManager() *gateway.Manager {
 	return c.gatewayManager
 }
 
