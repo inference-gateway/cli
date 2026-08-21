@@ -227,16 +227,6 @@ type AgentStatusUpdateEvent struct {
 
 // MCP Server Status Events
 
-// MCPServerStatusUpdateEvent indicates MCP server status has changed
-type MCPServerStatusUpdateEvent struct {
-	ServerName       string
-	Connected        bool
-	TotalServers     int
-	ConnectedServers int
-	TotalTools       int
-	Tools            []agentdomain.MCPDiscoveredTool
-}
-
 // GitHub App Setup Events
 
 // TriggerGithubActionSetupEvent triggers the GitHub App setup flow

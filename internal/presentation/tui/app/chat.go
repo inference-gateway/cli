@@ -431,7 +431,7 @@ func (app *ChatApplication) Init() tea.Cmd {
 	}
 
 	if app.mcpManager != nil {
-		app.inputStatusBar.UpdateMCPStatus(&tui.MCPServerStatus{
+		app.inputStatusBar.UpdateMCPStatus(&agentdomain.MCPServerStatus{
 			TotalServers:     app.mcpManager.GetTotalServers(),
 			ConnectedServers: 0,
 			TotalTools:       0,
@@ -485,7 +485,7 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	cmds = append(cmds, app.updateUIComponentsForUIMessages(msg, viewBefore)...)
 
-	if event, ok := msg.(tui.MCPServerStatusUpdateEvent); ok {
+	if event, ok := msg.(agentdomain.MCPServerStatusUpdateEvent); ok {
 		if cmd := app.handleMCPStatusUpdate(event); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -632,8 +632,8 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 }
 
 // handleMCPStatusUpdate processes MCP server connection status changes
-func (app *ChatApplication) handleMCPStatusUpdate(event tui.MCPServerStatusUpdateEvent) tea.Cmd {
-	app.inputStatusBar.UpdateMCPStatus(&tui.MCPServerStatus{
+func (app *ChatApplication) handleMCPStatusUpdate(event agentdomain.MCPServerStatusUpdateEvent) tea.Cmd {
+	app.inputStatusBar.UpdateMCPStatus(&agentdomain.MCPServerStatus{
 		TotalServers:     event.TotalServers,
 		ConnectedServers: event.ConnectedServers,
 		TotalTools:       event.TotalTools,

@@ -42,7 +42,7 @@ type InputStatusBar struct {
 	backgroundShellService scheddomain.BackgroundShellService
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
-	mcpStatus              *tui.MCPServerStatus
+	mcpStatus              *agentdomain.MCPServerStatus
 	styleProvider          *styles.Provider
 	currentInputText       string
 
@@ -138,7 +138,7 @@ func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry scheddomain.Backgr
 }
 
 // UpdateMCPStatus updates the MCP server status (called by event handler)
-func (isb *InputStatusBar) UpdateMCPStatus(status *tui.MCPServerStatus) {
+func (isb *InputStatusBar) UpdateMCPStatus(status *agentdomain.MCPServerStatus) {
 	isb.mcpStatus = status
 }
 

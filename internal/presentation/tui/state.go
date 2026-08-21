@@ -746,13 +746,6 @@ type AgentStatus struct {
 	LayersTotal int                    `json:"layers_total,omitempty"`
 }
 
-// MCPServerStatus represents the status of MCP server connections
-type MCPServerStatus struct {
-	TotalServers     int `json:"total_servers"`
-	ConnectedServers int `json:"connected_servers"`
-	TotalTools       int `json:"total_tools"`
-}
-
 // Agent Readiness State Management
 
 // InitializeAgentReadiness initializes the agent readiness tracking

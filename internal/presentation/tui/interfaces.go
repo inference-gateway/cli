@@ -135,7 +135,7 @@ type InputStatusBarComponent interface {
 	SetWidth(width int)
 	SetHeight(height int)
 	SetInputText(text string)
-	UpdateMCPStatus(status *MCPServerStatus)
+	UpdateMCPStatus(status *agentdomain.MCPServerStatus)
 	Focus() bool
 	Blur()
 	IsFocused() bool

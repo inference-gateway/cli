@@ -1,6 +1,7 @@
 package app
 
 import (
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 
@@ -60,7 +61,7 @@ func (t *teaInputStatusBarComponent) SetHeight(int) {}
 
 func (t *teaInputStatusBarComponent) SetInputText(string) {}
 
-func (t *teaInputStatusBarComponent) UpdateMCPStatus(*tui.MCPServerStatus) {}
+func (t *teaInputStatusBarComponent) UpdateMCPStatus(*agentdomain.MCPServerStatus) {}
 
 func (t *teaInputStatusBarComponent) Focus() bool { return false }
 

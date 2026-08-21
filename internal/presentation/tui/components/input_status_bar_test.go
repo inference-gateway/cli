@@ -379,14 +379,14 @@ func TestInputStatusBar_BuildA2AAgentsIndicator(t *testing.T) {
 func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 	tests := []struct {
 		name         string
-		mcpStatus    *tui.MCPServerStatus
+		mcpStatus    *agentdomain.MCPServerStatus
 		serverCount  int
 		expectedText string
 		expectEmpty  bool
 	}{
 		{
 			name: "returns MCP status with tools",
-			mcpStatus: &tui.MCPServerStatus{
+			mcpStatus: &agentdomain.MCPServerStatus{
 				TotalServers:     4,
 				ConnectedServers: 3,
 				TotalTools:       2500,
@@ -397,7 +397,7 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 		},
 		{
 			name: "returns MCP status without tools",
-			mcpStatus: &tui.MCPServerStatus{
+			mcpStatus: &agentdomain.MCPServerStatus{
 				TotalServers:     4,
 				ConnectedServers: 3,
 				TotalTools:       0,
