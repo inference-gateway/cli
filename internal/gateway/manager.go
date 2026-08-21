@@ -114,8 +114,12 @@ func (gm *Manager) startBinary(ctx context.Context) error {
 	fmt.Println("• Waiting for gateway to become ready...")
 
 	if err := gm.waitForReady(ctx); err != nil {
-		if stopErr := gm.Stop(ctx); stopErr != nil {
-			logger.Warn("failed to stop gateway during error cleanup", "error", stopErr)
+		if gm.binaryCmd != nil && gm.binaryCmd.Process != nil {
+			if killErr := gm.binaryCmd.Process.Kill(); killErr != nil {
+				logger.Warn("failed to kill gateway binary during error cleanup", "error", killErr)
+			}
+			_ = gm.binaryCmd.Wait()
+			gm.binaryCmd = nil
 		}
 		return fmt.Errorf("gateway failed to become ready: %w", err)
 	}
@@ -164,6 +168,8 @@ func (gm *Manager) startContainer(ctx context.Context) error {
 		return fmt.Errorf("failed to start gateway container: %w", err)
 	}
 
+	gm.isRunning = true
+
 	fmt.Println("• Waiting for gateway to become ready...")
 
 	if err := gm.waitForReady(ctx); err != nil {
@@ -173,7 +179,6 @@ func (gm *Manager) startContainer(ctx context.Context) error {
 		return fmt.Errorf("gateway failed to become ready: %w", err)
 	}
 
-	gm.isRunning = true
 	actualURL := gm.GetGatewayURL()
 	fmt.Printf("• Gateway is ready at %s\n\n", actualURL)
 	logger.Info("gateway container started successfully", "session", gm.sessionID, "url", actualURL, "port", gm.assignedPort)
@@ -212,7 +217,7 @@ func (gm *Manager) stopBinary() error {
 	gm.deregisterPID()
 
 	if gm.pruneAndCheckLive() {
-		logger.Debug("other gateway users still active, deferring binary shutdown")
+		logger.Info("other gateway users still active, deferring binary shutdown")
 	} else {
 		gm.killGateway()
 		gm.removeGatewayPID()
@@ -226,20 +231,21 @@ func (gm *Manager) stopBinary() error {
 // killGateway kills the shared gateway process, using the saved gateway
 // PID file or the in-process binaryCmd handle as fallback.
 func (gm *Manager) killGateway() {
-	if pid := gm.readGatewayPID(); pid > 0 {
+	if gm.binaryCmd != nil && gm.binaryCmd.Process != nil {
+		logger.Info("last process stopping gateway binary", "pid", gm.binaryCmd.Process.Pid)
+		if err := gm.binaryCmd.Process.Kill(); err != nil {
+			logger.Warn("failed to kill gateway binary", "error", err)
+		}
+		return
+	}
+
+	if pid := gm.readGatewayPID(); pid > 0 && utils.ProcessAlive(pid) {
 		logger.Info("last process stopping gateway binary", "pid", pid)
 		proc, err := os.FindProcess(pid)
 		if err == nil {
 			if err := proc.Kill(); err != nil {
 				logger.Warn("failed to kill gateway binary", "pid", pid, "error", err)
 			}
-		}
-		return
-	}
-	if gm.binaryCmd != nil && gm.binaryCmd.Process != nil {
-		logger.Info("last process stopping gateway binary", "pid", gm.binaryCmd.Process.Pid)
-		if err := gm.binaryCmd.Process.Kill(); err != nil {
-			logger.Warn("failed to kill gateway binary", "error", err)
 		}
 	}
 }

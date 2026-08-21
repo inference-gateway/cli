@@ -386,7 +386,7 @@ func (s *WebTerminalServer) findServerConfig(serverID, sessionID string, conn *w
 
 func (s *WebTerminalServer) handleShutdown() {
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	<-sigChan
 
 	fmt.Println("\n\nShutting down web terminal server...")
