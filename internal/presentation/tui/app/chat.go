@@ -50,6 +50,7 @@ type ChatApplication struct {
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
 	sessionRolloverManager *conversation.SessionRolloverManager
+	agentManager           agentdomain.AgentManager
 	modelService           convdomain.ModelService
 	toolService            agentdomain.ToolService
 	fileService            agentdomain.FileService
@@ -149,7 +150,7 @@ func NewChatApplication(
 	models []string,
 	defaultModel string,
 	versionInfo tui.VersionInfo,
-	agentManager agentdomain.AgentManager,
+	agentManagerIn agentdomain.AgentManager,
 	agentService agentdomain.AgentService,
 	backgroundTaskService scheddomain.BackgroundTaskService,
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry,
@@ -188,6 +189,7 @@ func NewChatApplication(
 		conversationRepo:         conversationRepo,
 		conversationOptimizer:    conversationOptimizer,
 		sessionRolloverManager:   sessionRolloverManager,
+		agentManager:             agentManagerIn,
 		modelService:             modelService,
 		config:                   cfg,
 		toolService:              toolService,
@@ -363,7 +365,7 @@ func NewChatApplication(
 		app.taskRetentionService,
 		app.backgroundTaskService,
 		app.toolRegistry.GetBackgroundShellService(),
-		agentManager,
+		agentManagerIn,
 		app.config,
 		app.a2aTaskCoordinator,
 		app.approvalCoordinator,
@@ -438,6 +440,15 @@ func (app *ChatApplication) Init() tea.Cmd {
 		})
 
 		app.mcpManager.StartMonitoring(context.Background())
+	}
+
+	if app.agentManager != nil {
+		cmds = append(cmds, func() tea.Msg {
+			if err := app.agentManager.StartAgents(context.Background()); err != nil {
+				logger.Warn("failed to start agents in background", "error", err)
+			}
+			return nil
+		})
 	}
 
 	if msgs := app.conversationRepo.GetMessages(); len(msgs) > 0 {
