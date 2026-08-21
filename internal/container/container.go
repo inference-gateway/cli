@@ -355,7 +355,7 @@ func (c *ServiceContainer) initializeMCPManager() {
 		return
 	}
 
-	c.mcpManager = mcp.NewMCPManager(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
+	c.mcpManager = mcp.NewManager(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
 
 	hasServersToStart := c.hasAutoStartMCPServers()
 	if !hasServersToStart {

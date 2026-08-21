@@ -12,7 +12,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
-func TestNewMCPManager(t *testing.T) {
+func TestNewManager(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled:           true,
 		ConnectionTimeout: 30,
@@ -30,7 +30,7 @@ func TestNewMCPManager(t *testing.T) {
 	}
 
 	sessionID := convdomain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg, nil, nil)
+	manager := NewManager(sessionID, cfg, nil, nil)
 
 	if manager == nil {
 		t.Fatal("Expected non-nil manager")
@@ -46,14 +46,14 @@ func TestNewMCPManager(t *testing.T) {
 	}
 }
 
-func TestMCPManager_Close(t *testing.T) {
+func TestManager_Close(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled: true,
 		Servers: []config.MCPServerEntry{},
 	}
 
 	sessionID := convdomain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg, nil, nil)
+	manager := NewManager(sessionID, cfg, nil, nil)
 
 	err := manager.Close()
 	if err != nil {
@@ -61,14 +61,14 @@ func TestMCPManager_Close(t *testing.T) {
 	}
 }
 
-func TestMCPManager_GetClients_NoServers(t *testing.T) {
+func TestManager_GetClients_NoServers(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled: true,
 		Servers: []config.MCPServerEntry{},
 	}
 
 	sessionID := convdomain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg, nil, nil)
+	manager := NewManager(sessionID, cfg, nil, nil)
 
 	clients := manager.GetClients()
 
@@ -81,7 +81,7 @@ func TestMCPManager_GetClients_NoServers(t *testing.T) {
 	}
 }
 
-func TestMCPManager_GetClients_DisabledServer(t *testing.T) {
+func TestManager_GetClients_DisabledServer(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled: true,
 		Servers: []config.MCPServerEntry{
@@ -97,7 +97,7 @@ func TestMCPManager_GetClients_DisabledServer(t *testing.T) {
 	}
 
 	sessionID := convdomain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg, nil, nil)
+	manager := NewManager(sessionID, cfg, nil, nil)
 
 	clients := manager.GetClients()
 
@@ -106,7 +106,7 @@ func TestMCPManager_GetClients_DisabledServer(t *testing.T) {
 	}
 }
 
-func TestMCPManager_GetClients_MultipleServers(t *testing.T) {
+func TestManager_GetClients_MultipleServers(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled: true,
 		Servers: []config.MCPServerEntry{
@@ -138,7 +138,7 @@ func TestMCPManager_GetClients_MultipleServers(t *testing.T) {
 	}
 
 	sessionID := convdomain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg, nil, nil)
+	manager := NewManager(sessionID, cfg, nil, nil)
 
 	clients := manager.GetClients()
 
@@ -199,7 +199,7 @@ func monitoringTestConfig() *config.MCPConfig {
 
 // connectAll marks every client connected so the initial-status push fires
 // (initializeClient does not connect by itself - a live probe would).
-func connectAll(m *MCPManager) {
+func connectAll(m *Manager) {
 	for _, c := range m.clients {
 		c.mu.Lock()
 		c.isConnected = true
@@ -210,9 +210,9 @@ func connectAll(m *MCPManager) {
 // sendStatusUpdateWithTools pushes an MCPServerStatusUpdateEvent through the
 // injected notifier (no channel). This is the synchronous push primitive every
 // probe path funnels through.
-func TestMCPManager_PushesStatusThroughNotifier(t *testing.T) {
+func TestManager_PushesStatusThroughNotifier(t *testing.T) {
 	rec := &recordingNotifier{}
-	manager := NewMCPManager(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	manager := NewManager(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
 
 	manager.sendStatusUpdateWithTools("test-server", true, nil)
 
@@ -231,9 +231,9 @@ func TestMCPManager_PushesStatusThroughNotifier(t *testing.T) {
 // StartMonitoring pushes the initial status for connected clients through the
 // notifier - there is no channel to drain. A second call is a no-op (idempotent),
 // so the count stays at one connected client rather than doubling.
-func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
+func TestManager_StartMonitoring_Idempotent(t *testing.T) {
 	rec := &recordingNotifier{}
-	manager := NewMCPManager(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	manager := NewManager(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
 	connectAll(manager)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -254,9 +254,9 @@ func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
 
 // With liveness probes disabled, StartMonitoring still pushes the initial status
 // once through the notifier and starts no probe goroutines.
-func TestMCPManager_StartMonitoring_DisabledProbes(t *testing.T) {
+func TestManager_StartMonitoring_DisabledProbes(t *testing.T) {
 	rec := &recordingNotifier{}
-	manager := NewMCPManager(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	manager := NewManager(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
 	connectAll(manager)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -391,5 +391,5 @@ func TestMCPServerEntry_GetTimeout(t *testing.T) {
 	}
 }
 
-// Ensure MCPManager implements agentdomain.MCPManager interface
-var _ agentdomain.MCPManager = (*MCPManager)(nil)
+// Ensure Manager implements agentdomain.MCPManager interface
+var _ agentdomain.MCPManager = (*Manager)(nil)
