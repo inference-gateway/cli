@@ -23,6 +23,7 @@ import (
 	agent "github.com/inference-gateway/cli/internal/agent"
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browser "github.com/inference-gateway/cli/internal/browser"
@@ -53,7 +54,6 @@ import (
 	toolcoordinator "github.com/inference-gateway/cli/internal/presentation/tui/toolcoordinator"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
-	services "github.com/inference-gateway/cli/internal/services"
 	skills "github.com/inference-gateway/cli/internal/skills"
 )
 
@@ -386,8 +386,8 @@ func (c *ServiceContainer) hasAutoStartMCPServers() bool {
 
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
-	c.fileService = services.NewFileService()
-	c.imageService = services.NewImageService(c.config, c.createRawSDKClient())
+	c.fileService = agentinfra.NewFileService()
+	c.imageService = agentinfra.NewImageService(c.config, c.createRawSDKClient())
 	c.messageQueue = conversation.NewMessageQueueService()
 
 	c.initializeMCPManager()
@@ -408,7 +408,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 
 	for name, srcCfg := range c.config.Vision.Sources {
-		c.toolRegistry.RegisterFrameSource(name, services.NewDirectoryFrameSource(name, srcCfg, c.imageService))
+		c.toolRegistry.RegisterFrameSource(name, agentinfra.NewDirectoryFrameSource(name, srcCfg, c.imageService))
 	}
 
 	styleProvider := styles.NewProvider(c.themeService)
