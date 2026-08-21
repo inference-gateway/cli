@@ -7,11 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // catalogServer serves a fixed index.json and counts how many times it was hit.

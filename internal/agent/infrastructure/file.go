@@ -6,9 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // FileServiceImpl implements agentdomain.FileService

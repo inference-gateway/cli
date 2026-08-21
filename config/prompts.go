@@ -1,7 +1,7 @@
 package config
 
 import (
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 // CustomInstructions is intentionally excluded from backfill - empty is
 // a meaningful user choice there.
 func LoadPrompts(path string) (*PromptsConfig, error) {
-	cfg, err := utils.LoadYAML(path, "prompts", DefaultPromptsConfig)
+	cfg, err := configutils.LoadYAML(path, "prompts", DefaultPromptsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func mergeToolDescription(loaded, defaults *PromptsToolDescription) {
 // SavePrompts writes the prompts configuration to disk, creating any
 // missing parent directories.
 func SavePrompts(path string, cfg *PromptsConfig) error {
-	return utils.SaveYAML(path, "prompts", cfg)
+	return configutils.SaveYAML(path, "prompts", cfg)
 }
 
 // PromptsConfig holds every customisable LLM prompt the CLI ships with.

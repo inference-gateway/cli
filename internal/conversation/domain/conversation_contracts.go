@@ -6,9 +6,9 @@ import (
 	"context"
 	"time"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-
 	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // ConversationEntry represents a message in the conversation with metadata

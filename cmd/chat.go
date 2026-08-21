@@ -12,8 +12,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	uuid "github.com/google/uuid"
-	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"

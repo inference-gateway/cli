@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
+	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
+
 	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 
 	sdk "github.com/inference-gateway/sdk"
-	assert "github.com/stretchr/testify/assert"
-	require "github.com/stretchr/testify/require"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"

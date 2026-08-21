@@ -3,8 +3,6 @@ package handlers
 import (
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
@@ -15,6 +13,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // stateManager is the narrow slice of the app state manager the chat handler

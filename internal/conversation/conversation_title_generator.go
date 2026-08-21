@@ -10,8 +10,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	"github.com/inference-gateway/cli/internal/platform/logger"
-	"github.com/inference-gateway/cli/internal/platform/storage"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 // ConversationTitleGenerator generates titles for conversations using AI

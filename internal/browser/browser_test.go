@@ -7,7 +7,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
-	infrastructure "github.com/inference-gateway/cli/internal/browser/infrastructure"
+	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
@@ -20,7 +20,7 @@ func browserTestConfig(enabled bool) *config.Config {
 }
 
 func newBrowserTestTools(cfg *config.Config) []agentdomain.Tool {
-	session := infrastructure.NewSession(&cfg.BrowserUse)
+	session := browserinfra.NewSession(&cfg.BrowserUse)
 	limiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
 	return []agentdomain.Tool{
 		NewBrowserNavigateTool(cfg, limiter, session),
@@ -59,7 +59,7 @@ func TestBrowserToolsEnablement(t *testing.T) {
 
 func TestBrowserToolsValidate(t *testing.T) {
 	cfg := browserTestConfig(true)
-	session := infrastructure.NewSession(&cfg.BrowserUse)
+	session := browserinfra.NewSession(&cfg.BrowserUse)
 	limiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
 
 	tests := []struct {
@@ -94,7 +94,7 @@ func TestBrowserToolsValidate(t *testing.T) {
 
 func TestBrowserToolFormatForLLM(t *testing.T) {
 	cfg := browserTestConfig(true)
-	session := infrastructure.NewSession(&cfg.BrowserUse)
+	session := browserinfra.NewSession(&cfg.BrowserUse)
 	limiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
 	tool := NewBrowserReadTool(cfg, limiter, session)
 
@@ -124,7 +124,7 @@ func TestBrowserToolFormatForLLM(t *testing.T) {
 
 func TestBrowserTabsFormatForLLM(t *testing.T) {
 	cfg := browserTestConfig(true)
-	session := infrastructure.NewSession(&cfg.BrowserUse)
+	session := browserinfra.NewSession(&cfg.BrowserUse)
 	limiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
 	tool := NewBrowserTabsTool(cfg, limiter, session)
 

@@ -2,14 +2,14 @@ package approvalcoord
 
 import (
 	"errors"
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 // newCoordinator returns a Service wired with fake dependencies for tests.

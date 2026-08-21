@@ -4,12 +4,14 @@ import (
 	"context"
 	"testing"
 
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
+
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 func TestBuildAssistantMessage(t *testing.T) {

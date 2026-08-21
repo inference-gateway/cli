@@ -10,7 +10,7 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	config "github.com/inference-gateway/cli/config"
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 	skills "github.com/inference-gateway/cli/internal/skills"
 )
@@ -128,7 +128,7 @@ func initializeProject(cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclo
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 	} else {
-		if err := utils.SaveYAML(configPath, "config", config.DefaultConfig()); err != nil {
+		if err := configutils.SaveYAML(configPath, "config", config.DefaultConfig()); err != nil {
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 	}

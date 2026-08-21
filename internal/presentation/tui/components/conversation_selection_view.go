@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	key "charm.land/bubbles/v2/key"
 	spinner "charm.land/bubbles/v2/spinner"
 	table "charm.land/bubbles/v2/table"
@@ -19,6 +17,7 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 

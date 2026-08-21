@@ -8,7 +8,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	"github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 )
 

@@ -10,14 +10,14 @@ import (
 	"sync"
 	"time"
 
-	memory "github.com/inference-gateway/cli/internal/platform/memory"
+	yaml "gopkg.in/yaml.v3"
 
 	sdk "github.com/inference-gateway/sdk"
-	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 )
 

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 const (
@@ -111,7 +111,7 @@ func DefaultChannelsConfig() *ChannelsConfig {
 // os.ExpandEnv so `${BOT_TOKEN}`-style references resolve from the
 // environment.
 func LoadChannels(path string) (*ChannelsConfig, error) {
-	return utils.LoadYAML(path, "channels", DefaultChannelsConfig)
+	return configutils.LoadYAML(path, "channels", DefaultChannelsConfig)
 }
 
 // SaveChannels writes the channels configuration to disk, creating any
@@ -119,5 +119,5 @@ func LoadChannels(path string) (*ChannelsConfig, error) {
 // so callers should ensure it is also listed in
 // tools.sandbox.protected_paths.
 func SaveChannels(path string, cfg *ChannelsConfig) error {
-	return utils.SaveYAML(path, "channels", cfg)
+	return configutils.SaveYAML(path, "channels", cfg)
 }

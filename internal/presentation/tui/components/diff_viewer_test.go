@@ -4,11 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	gitdiff "github.com/inference-gateway/cli/internal/presentation/tui/gitdiff"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )

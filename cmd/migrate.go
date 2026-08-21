@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"os"
 
+	cobra "github.com/spf13/cobra"
+
 	container "github.com/inference-gateway/cli/internal/container"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	migrations "github.com/inference-gateway/cli/internal/platform/storage/migrations"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
-	cobra "github.com/spf13/cobra"
 )
 
 var migrateCmd = &cobra.Command{

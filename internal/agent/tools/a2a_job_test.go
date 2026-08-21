@@ -5,14 +5,15 @@ import (
 	"testing"
 	"time"
 
+	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
 	adk "github.com/inference-gateway/adk/types"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
-	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 // TestA2AJob_PollsRemoteTaskToCompletion drives the migrated A2A path end-to-end:

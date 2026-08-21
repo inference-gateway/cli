@@ -12,7 +12,7 @@ import (
 	playwright "github.com/mxschmitt/playwright-go"
 
 	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/browser/domain"
+	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -202,57 +202,57 @@ func (s *browserSession) DrainEvents() []string {
 	return events
 }
 
-// Navigate implements domain.BrowserDriver.
-func (s *browserSession) Navigate(_ context.Context, url string) (domain.BrowserToolResult, error) {
+// Navigate implements browserdomain.BrowserDriver.
+func (s *browserSession) Navigate(_ context.Context, url string) (browserdomain.BrowserToolResult, error) {
 	page, err := s.Page()
 	if err != nil {
-		return domain.BrowserToolResult{}, err
+		return browserdomain.BrowserToolResult{}, err
 	}
 	if _, err := page.Goto(url, playwright.PageGotoOptions{
 		Timeout: playwright.Float(s.timeoutMs()),
 	}); err != nil {
-		return domain.BrowserToolResult{}, fmt.Errorf("failed to navigate to %s: %w", url, err)
+		return browserdomain.BrowserToolResult{}, fmt.Errorf("failed to navigate to %s: %w", url, err)
 	}
 	title, _ := page.Title()
-	return domain.BrowserToolResult{Action: "navigate", URL: page.URL(), Title: title}, nil
+	return browserdomain.BrowserToolResult{Action: "navigate", URL: page.URL(), Title: title}, nil
 }
 
-// Click implements domain.BrowserDriver.
-func (s *browserSession) Click(_ context.Context, selector string) (domain.BrowserToolResult, error) {
+// Click implements browserdomain.BrowserDriver.
+func (s *browserSession) Click(_ context.Context, selector string) (browserdomain.BrowserToolResult, error) {
 	page, err := s.Page()
 	if err != nil {
-		return domain.BrowserToolResult{}, err
+		return browserdomain.BrowserToolResult{}, err
 	}
 	if err := page.Locator(selector).First().Click(playwright.LocatorClickOptions{
 		Timeout: playwright.Float(s.timeoutMs()),
 	}); err != nil {
-		return domain.BrowserToolResult{}, fmt.Errorf("failed to click %q: %w", selector, err)
+		return browserdomain.BrowserToolResult{}, fmt.Errorf("failed to click %q: %w", selector, err)
 	}
 	title, _ := page.Title()
-	return domain.BrowserToolResult{Action: "click", Selector: selector, URL: page.URL(), Title: title}, nil
+	return browserdomain.BrowserToolResult{Action: "click", Selector: selector, URL: page.URL(), Title: title}, nil
 }
 
-// Type implements domain.BrowserDriver.
-func (s *browserSession) Type(_ context.Context, selector, text string, pressEnter bool) (domain.BrowserToolResult, error) {
+// Type implements browserdomain.BrowserDriver.
+func (s *browserSession) Type(_ context.Context, selector, text string, pressEnter bool) (browserdomain.BrowserToolResult, error) {
 	page, err := s.Page()
 	if err != nil {
-		return domain.BrowserToolResult{}, err
+		return browserdomain.BrowserToolResult{}, err
 	}
 	locator := page.Locator(selector).First()
 	if err := locator.Fill(text, playwright.LocatorFillOptions{
 		Timeout: playwright.Float(s.timeoutMs()),
 	}); err != nil {
-		return domain.BrowserToolResult{}, fmt.Errorf("failed to type into %q: %w", selector, err)
+		return browserdomain.BrowserToolResult{}, fmt.Errorf("failed to type into %q: %w", selector, err)
 	}
 	if pressEnter {
 		if err := locator.Press("Enter", playwright.LocatorPressOptions{
 			Timeout: playwright.Float(s.timeoutMs()),
 		}); err != nil {
-			return domain.BrowserToolResult{}, fmt.Errorf("failed to press Enter in %q: %w", selector, err)
+			return browserdomain.BrowserToolResult{}, fmt.Errorf("failed to press Enter in %q: %w", selector, err)
 		}
 	}
 	title, _ := page.Title()
-	return domain.BrowserToolResult{Action: "type", Selector: selector, Text: text, URL: page.URL(), Title: title}, nil
+	return browserdomain.BrowserToolResult{Action: "type", Selector: selector, Text: text, URL: page.URL(), Title: title}, nil
 }
 
 // browserReadJS extracts text from the matched element. For form fields it
@@ -315,12 +315,12 @@ func extractReadContent(raw any) string {
 	return r.Text
 }
 
-// Read implements domain.BrowserDriver. It returns rendered text (never raw
+// Read implements browserdomain.BrowserDriver. It returns rendered text (never raw
 // input values), with sensitive field values redacted.
-func (s *browserSession) Read(_ context.Context, selector string) (domain.BrowserToolResult, error) {
+func (s *browserSession) Read(_ context.Context, selector string) (browserdomain.BrowserToolResult, error) {
 	page, err := s.Page()
 	if err != nil {
-		return domain.BrowserToolResult{}, err
+		return browserdomain.BrowserToolResult{}, err
 	}
 	target := selector
 	if target == "" {
@@ -328,14 +328,14 @@ func (s *browserSession) Read(_ context.Context, selector string) (domain.Browse
 	}
 	raw, err := page.Locator(target).First().Evaluate(browserReadJS, nil)
 	if err != nil {
-		return domain.BrowserToolResult{}, fmt.Errorf("failed to read %q: %w", target, err)
+		return browserdomain.BrowserToolResult{}, fmt.Errorf("failed to read %q: %w", target, err)
 	}
 	content := extractReadContent(raw)
 	if len(content) > maxBrowserReadChars {
 		content = content[:maxBrowserReadChars] + "\n... (truncated)"
 	}
 	title, _ := page.Title()
-	return domain.BrowserToolResult{
+	return browserdomain.BrowserToolResult{
 		Action:   "read",
 		Selector: selector,
 		URL:      page.URL(),
@@ -345,36 +345,36 @@ func (s *browserSession) Read(_ context.Context, selector string) (domain.Browse
 	}, nil
 }
 
-// ClickAt implements domain.BrowserDriver: clicks viewport coordinates (CSS
+// ClickAt implements browserdomain.BrowserDriver: clicks viewport coordinates (CSS
 // pixels), for use with a BrowserScreenshot. ponytail: coords are CSS pixels;
 // if the screenshot's devicePixelRatio != 1 the model must scale - the DPR
 // knob lives in the browser context, not here.
-func (s *browserSession) ClickAt(_ context.Context, x, y float64) (domain.BrowserToolResult, error) {
+func (s *browserSession) ClickAt(_ context.Context, x, y float64) (browserdomain.BrowserToolResult, error) {
 	page, err := s.Page()
 	if err != nil {
-		return domain.BrowserToolResult{}, err
+		return browserdomain.BrowserToolResult{}, err
 	}
 	if err := page.Mouse().Click(x, y); err != nil {
-		return domain.BrowserToolResult{}, fmt.Errorf("failed to click at (%.0f, %.0f): %w", x, y, err)
+		return browserdomain.BrowserToolResult{}, fmt.Errorf("failed to click at (%.0f, %.0f): %w", x, y, err)
 	}
 	title, _ := page.Title()
-	return domain.BrowserToolResult{Action: "click", URL: page.URL(), Title: title}, nil
+	return browserdomain.BrowserToolResult{Action: "click", URL: page.URL(), Title: title}, nil
 }
 
-// Screenshot implements domain.BrowserDriver: captures the active page as PNG.
-func (s *browserSession) Screenshot(_ context.Context) (domain.BrowserScreenshotResult, error) {
+// Screenshot implements browserdomain.BrowserDriver: captures the active page as PNG.
+func (s *browserSession) Screenshot(_ context.Context) (browserdomain.BrowserScreenshotResult, error) {
 	page, err := s.Page()
 	if err != nil {
-		return domain.BrowserScreenshotResult{}, err
+		return browserdomain.BrowserScreenshotResult{}, err
 	}
 	buf, err := page.Screenshot(playwright.PageScreenshotOptions{
 		Timeout: playwright.Float(s.timeoutMs()),
 	})
 	if err != nil {
-		return domain.BrowserScreenshotResult{}, fmt.Errorf("failed to screenshot page: %w", err)
+		return browserdomain.BrowserScreenshotResult{}, fmt.Errorf("failed to screenshot page: %w", err)
 	}
 	title, _ := page.Title()
-	res := domain.BrowserScreenshotResult{
+	res := browserdomain.BrowserScreenshotResult{
 		Data:     base64.StdEncoding.EncodeToString(buf),
 		MimeType: "image/png",
 		URL:      page.URL(),
@@ -387,9 +387,9 @@ func (s *browserSession) Screenshot(_ context.Context) (domain.BrowserScreenshot
 	return res, nil
 }
 
-// Tabs implements domain.BrowserDriver: lists open pages across all contexts,
+// Tabs implements browserdomain.BrowserDriver: lists open pages across all contexts,
 // marking the one the verbs currently act on.
-func (s *browserSession) Tabs(_ context.Context) ([]domain.BrowserTab, error) {
+func (s *browserSession) Tabs(_ context.Context) ([]browserdomain.BrowserTab, error) {
 	if _, err := s.Page(); err != nil {
 		return nil, err
 	}
@@ -399,12 +399,12 @@ func (s *browserSession) Tabs(_ context.Context) ([]domain.BrowserTab, error) {
 	if browser == nil {
 		return nil, fmt.Errorf("browser not started")
 	}
-	var tabs []domain.BrowserTab
+	var tabs []browserdomain.BrowserTab
 	idx := 0
 	for _, bctx := range browser.Contexts() {
 		for _, p := range bctx.Pages() {
 			title, _ := p.Title()
-			tabs = append(tabs, domain.BrowserTab{Index: idx, URL: p.URL(), Title: title, Active: p == active})
+			tabs = append(tabs, browserdomain.BrowserTab{Index: idx, URL: p.URL(), Title: title, Active: p == active})
 			idx++
 		}
 	}

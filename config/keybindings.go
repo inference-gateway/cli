@@ -1,7 +1,7 @@
 package config
 
 import (
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 const (
@@ -38,13 +38,13 @@ func DefaultKeybindingsConfig() *KeybindingsConfig {
 // os.ExpandEnv - any literal `${…}` token in a customised binding must be
 // escaped as `$$…`.
 func LoadKeybindings(path string) (*KeybindingsConfig, error) {
-	return utils.LoadYAML(path, "keybindings", DefaultKeybindingsConfig)
+	return configutils.LoadYAML(path, "keybindings", DefaultKeybindingsConfig)
 }
 
 // SaveKeybindings writes the keybindings configuration to disk, creating
 // any missing parent directories.
 func SaveKeybindings(path string, cfg *KeybindingsConfig) error {
-	return utils.SaveYAML(path, "keybindings", cfg)
+	return configutils.SaveYAML(path, "keybindings", cfg)
 }
 
 // GetDefaultKeybindings returns the default keybinding configuration

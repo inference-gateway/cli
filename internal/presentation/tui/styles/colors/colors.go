@@ -4,7 +4,7 @@ import (
 	"image/color"
 	"strings"
 
-	"charm.land/lipgloss/v2"
+	lipgloss "charm.land/lipgloss/v2"
 )
 
 // ANSI Color Codes - Tokyo Night Theme

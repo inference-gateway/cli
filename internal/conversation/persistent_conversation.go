@@ -7,14 +7,14 @@ import (
 	"sync"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	uuid "github.com/google/uuid"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // PersistentConversationRepository wraps the InMemoryConversationRepository

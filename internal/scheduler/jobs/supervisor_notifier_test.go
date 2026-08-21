@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
 	zap "go.uber.org/zap"
 	zapcore "go.uber.org/zap/zapcore"
 	observer "go.uber.org/zap/zaptest/observer"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // recNotifier is a thread-safe agentdomain.UINotifier that records pushed events by

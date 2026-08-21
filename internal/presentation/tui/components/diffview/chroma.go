@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
-	"charm.land/lipgloss/v2"
-	"github.com/alecthomas/chroma/v2"
+	lipgloss "charm.land/lipgloss/v2"
+	chroma "github.com/alecthomas/chroma/v2"
 )
 
 // chromaFormatter returns a chroma.Formatter that emits ANSI-styled output

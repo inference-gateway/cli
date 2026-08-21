@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	require "github.com/stretchr/testify/require"
 )
 
 func TestBackupManager_CreateBackup(t *testing.T) {

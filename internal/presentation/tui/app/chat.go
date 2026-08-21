@@ -3,19 +3,15 @@ package app
 import (
 	"context"
 	"fmt"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
-	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
@@ -27,6 +23,7 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	autocomplete "github.com/inference-gateway/cli/internal/presentation/tui/autocomplete"
@@ -35,7 +32,10 @@ import (
 	gitdiff "github.com/inference-gateway/cli/internal/presentation/tui/gitdiff"
 	handlers "github.com/inference-gateway/cli/internal/presentation/tui/handlers"
 	keybinding "github.com/inference-gateway/cli/internal/presentation/tui/keybinding"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // actChatFocusAttachments is the chat-namespace action that moves key focus to

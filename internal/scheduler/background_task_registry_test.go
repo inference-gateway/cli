@@ -4,9 +4,8 @@ import (
 	"context"
 	"testing"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 )
 

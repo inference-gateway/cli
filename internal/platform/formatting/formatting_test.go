@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/charmbracelet/x/ansi"
+	ansi "github.com/charmbracelet/x/ansi"
 )
 
 func TestFormatResponsiveMessage_NoTrailingSpaces(t *testing.T) {

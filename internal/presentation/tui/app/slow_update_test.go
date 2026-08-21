@@ -4,12 +4,11 @@ import (
 	"testing"
 	"time"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-
 	zap "go.uber.org/zap"
 	zapcore "go.uber.org/zap/zapcore"
 	observer "go.uber.org/zap/zaptest/observer"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )

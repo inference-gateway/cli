@@ -13,9 +13,8 @@ import (
 	"sync"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	uuid "github.com/google/uuid"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
@@ -24,6 +23,7 @@ import (
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	project "github.com/inference-gateway/cli/internal/platform/project"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // subagentDepthEnv guards against subagent fork-bombs: each spawned subagent

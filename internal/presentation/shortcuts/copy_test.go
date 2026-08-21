@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // fakeClipboard is a hand-written ClipboardWriter that records the copied text

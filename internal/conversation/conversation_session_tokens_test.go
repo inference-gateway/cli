@@ -3,8 +3,9 @@ package conversation
 import (
 	"testing"
 
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func TestSessionTokenTracking(t *testing.T) {

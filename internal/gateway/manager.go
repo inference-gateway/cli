@@ -17,10 +17,9 @@ import (
 	"strings"
 	"time"
 
-	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
-
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )

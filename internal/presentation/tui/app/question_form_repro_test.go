@@ -1,19 +1,18 @@
 package app
 
 import (
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"strings"
 	"testing"
-
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	approvalcoord "github.com/inference-gateway/cli/internal/presentation/tui/approvalcoord"
 	components "github.com/inference-gateway/cli/internal/presentation/tui/components"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 

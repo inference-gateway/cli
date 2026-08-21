@@ -3,9 +3,9 @@ package styles
 import (
 	"strings"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	lipgloss "charm.land/lipgloss/v2"
+
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // Theme-independent styles, built once at package init. plainStyle and

@@ -5,11 +5,12 @@ import (
 	"strings"
 	"testing"
 
+	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 )
 
 func gatewayTestConfig() *config.Config {

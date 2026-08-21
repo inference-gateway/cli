@@ -4,11 +4,13 @@ import (
 	"context"
 	"testing"
 
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 
-	models "github.com/inference-gateway/cli/internal/platform/models"
 	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
+
+	sdk "github.com/inference-gateway/sdk"
+
+	models "github.com/inference-gateway/cli/internal/platform/models"
 )
 
 // TestHTTPModelService_ListModelsPublishesMetadata verifies that a models

@@ -4,10 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 
 	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
+
+	sdk "github.com/inference-gateway/sdk"
 )
 
 func TestHTTPModelService_ValidateModel(t *testing.T) {

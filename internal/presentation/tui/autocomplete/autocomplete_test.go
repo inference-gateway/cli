@@ -1,20 +1,23 @@
 package autocomplete_test
 
 import (
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
-	autocomplete "github.com/inference-gateway/cli/internal/presentation/tui/autocomplete"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+
+	tea "charm.land/bubbletea/v2"
+
+	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	autocomplete "github.com/inference-gateway/cli/internal/presentation/tui/autocomplete"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 func TestAutocomplete_CommandMode(t *testing.T) {

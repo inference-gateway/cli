@@ -21,14 +21,13 @@ import (
 	"text/tabwriter"
 	"time"
 
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
-
 	bot "github.com/go-telegram/bot"
 	models "github.com/go-telegram/bot/models"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	channels "github.com/inference-gateway/cli/internal/channels"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 

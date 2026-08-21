@@ -8,11 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	redis "github.com/go-redis/redis/v8"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // RedisStorage implements ConversationStorage using Redis

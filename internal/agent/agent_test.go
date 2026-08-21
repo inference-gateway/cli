@@ -3,22 +3,24 @@ package agent
 import (
 	"context"
 	"errors"
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"sync"
 	"testing"
 	"time"
 
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	agentappmocks "github.com/inference-gateway/cli/tests/mocks/agentapp"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conv "github.com/inference-gateway/cli/internal/conversation"
-	agentappmocks "github.com/inference-gateway/cli/tests/mocks/agentapp"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 func TestAgentServiceImpl_GetMetrics(t *testing.T) {

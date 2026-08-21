@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 // MCPConfig represents the mcp.yaml configuration file
@@ -161,7 +161,7 @@ const (
 // the in-code defaults so callers can treat absence as "use defaults"
 // without special-casing.
 func LoadMCP(path string) (*MCPConfig, error) {
-	cfg, err := utils.LoadYAML(path, "MCP", DefaultMCPConfig)
+	cfg, err := configutils.LoadYAML(path, "MCP", DefaultMCPConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func LoadMCP(path string) (*MCPConfig, error) {
 // SaveMCP writes the MCP configuration to disk, creating any missing
 // parent directories.
 func SaveMCP(path string, cfg *MCPConfig) error {
-	return utils.SaveYAML(path, "MCP", cfg)
+	return configutils.SaveYAML(path, "MCP", cfg)
 }
 
 func mcpServerName(e MCPServerEntry) string { return e.Name }

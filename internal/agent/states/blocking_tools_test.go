@@ -5,11 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	states "github.com/inference-gateway/cli/internal/agent/states"
-
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	sdk "github.com/inference-gateway/sdk"
+
+	states "github.com/inference-gateway/cli/internal/agent/states"
 )
 
 func requireAllApproval(*sdk.ChatCompletionMessageToolCall, bool) bool { return true }

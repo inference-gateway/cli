@@ -5,8 +5,9 @@ import (
 
 	assert "github.com/stretchr/testify/assert"
 
-	domain "github.com/inference-gateway/cli/internal/conversation/domain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	domain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func TestFormatModelPricingLabel(t *testing.T) {

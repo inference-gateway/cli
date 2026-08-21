@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"io"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	key "charm.land/bubbles/v2/key"
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 

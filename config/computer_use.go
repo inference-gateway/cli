@@ -3,7 +3,7 @@ package config
 import (
 	"math"
 
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 const (
@@ -99,11 +99,11 @@ func DefaultComputerUseConfig() *ComputerUseConfig {
 // run through os.ExpandEnv so `${VAR}`-style references resolve from the
 // environment.
 func LoadComputerUse(path string) (*ComputerUseConfig, error) {
-	return utils.LoadYAMLMerged(path, "computer_use", DefaultComputerUseConfig)
+	return configutils.LoadYAMLMerged(path, "computer_use", DefaultComputerUseConfig)
 }
 
 // SaveComputerUse writes the computer_use configuration to disk, creating
 // any missing parent directories.
 func SaveComputerUse(path string, cfg *ComputerUseConfig) error {
-	return utils.SaveYAML(path, "computer_use", cfg)
+	return configutils.SaveYAML(path, "computer_use", cfg)
 }

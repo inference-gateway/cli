@@ -10,10 +10,9 @@ import (
 	"sync"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	config "github.com/inference-gateway/cli/config"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 const (

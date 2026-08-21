@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	cobra "github.com/spf13/cobra"
+
 	config "github.com/inference-gateway/cli/config"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
-	cobra "github.com/spf13/cobra"
 )
 
 var agentsCmd = &cobra.Command{

@@ -9,19 +9,17 @@ import (
 	"slices"
 	"strings"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	key "charm.land/bubbles/v2/key"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
-
 	chroma "github.com/alecthomas/chroma/v2"
 	chromastyles "github.com/alecthomas/chroma/v2/styles"
 	ignore "github.com/sabhiram/go-gitignore"
 	fuzzy "github.com/sahilm/fuzzy"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	diffview "github.com/inference-gateway/cli/internal/presentation/tui/components/diffview"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )

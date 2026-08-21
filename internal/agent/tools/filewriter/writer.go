@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/inference-gateway/cli/internal/platform/logger"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // SafeFileWriter implements FileWriter with atomic operations

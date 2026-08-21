@@ -7,10 +7,8 @@ import (
 	"strings"
 	"time"
 
-	scheduler "github.com/inference-gateway/cli/internal/scheduler"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	uuid "github.com/google/uuid"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
@@ -18,6 +16,8 @@ import (
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	scheduler "github.com/inference-gateway/cli/internal/scheduler"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 const (

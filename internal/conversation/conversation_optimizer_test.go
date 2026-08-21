@@ -3,14 +3,16 @@ package conversation_test
 import (
 	"testing"
 
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	models "github.com/inference-gateway/cli/internal/platform/models"
-	mocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 )
 
 // testCase represents a single test case for OptimizeMessages
@@ -538,10 +540,10 @@ func stringPtr(s string) *string {
 }
 
 // createMockSDKClient creates a mock SDK client using counterfeiter that returns a canned summary response
-func createMockSDKClient(t *testing.T, summaryText string) *mocks.FakeClient {
+func createMockSDKClient(t *testing.T, summaryText string) *sdkmocks.FakeClient {
 	t.Helper()
 
-	mockClient := &mocks.FakeClient{}
+	mockClient := &sdkmocks.FakeClient{}
 
 	// Configure the mock to return a summary response
 	content := sdk.NewMessageContent(summaryText)

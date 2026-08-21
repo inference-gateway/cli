@@ -5,11 +5,10 @@ import (
 	"os"
 	"strings"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	chroma "github.com/alecthomas/chroma/v2"
 	chromastyles "github.com/alecthomas/chroma/v2/styles"
 
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	diffview "github.com/inference-gateway/cli/internal/presentation/tui/components/diffview"
 )
 

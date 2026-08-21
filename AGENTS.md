@@ -53,6 +53,61 @@ The agent is an **event-driven state machine** (`internal/agent/agent_state_mach
 
 Import direction: `*/domain` packages import nothing internal (agent/domain is the bottom); other domains may import `agent/domain`; capabilities import domains + platform only; nothing outside `internal/presentation/` may import it or bubbletea. `internal/container` and `cmd` are composition roots and compose everything. **This is enforced by `depguard` in `.golangci.yml`, not just documented** — a violating import fails `task lint`.
 
+## Import Style
+
+Every import block follows the same six groups, in this order, one blank line
+between them. Empty groups are simply absent.
+
+```go
+import (
+	<stdlib>
+
+	<external test lib>                 // github.com/stretchr/testify/...
+
+	<testing mocks>                     // .../cli/tests/mocks/...
+
+	<external lib>                      // everything else third-party
+
+	<external inference-gateway libs>   // sdk, adk, tokenless
+
+	<project imports>                   // github.com/inference-gateway/cli/...
+)
+```
+
+**Every non-stdlib import carries an explicit alias; stdlib never does.** Blank
+(`_`) imports satisfy the rule as they are.
+
+The alias is the package's own name (`logger`, `config`, `cobra`, `sdk`,
+`yaml`). Where a package name is ambiguous repo-wide, one qualified alias is
+used *everywhere*, not only in the files where it collides:
+
+| Package | Alias |
+|---|---|
+| `internal/{agent,conversation,scheduler,browser,computer}/domain` | `agentdomain`, `convdomain`, `scheddomain`, `browserdomain`, `computerdomain` |
+| `internal/{agent,browser,computer}/infrastructure` | `agentinfra`, `browserinfra`, `computerinfra` |
+| `internal/agent/application` | `agentapp` |
+| `internal/platform/container` | `containerruntime` |
+| `internal/github/{issues,setup}` | `githubissues`, `githubsetup` |
+| `config/utils` | `configutils` |
+| `tests/mocks/<x>` | `<x>mocks` — `agentdomainmocks`, `convmocks`, `tuimocks`, `schedmocks`, `sdkmocks`, `adkmocks` |
+| `github.com/inference-gateway/adk/types` | `adk` |
+| `github.com/inference-gateway/tokenless/gateway` | `mockgateway` |
+| `github.com/alecthomas/chroma/v2/{styles,lexers}` | `chromastyles`, `chromalexers` |
+| `charm.land/bubbletea/v2` | `tea` |
+
+If the canonical alias would shadow a local identifier, use a short variant and
+keep it consistent within that package — `conv` for `internal/conversation` in
+`internal/agent` (declares a local `conversation`) and `chn` for
+`internal/channels` in `presentation/telegram/channel_manager.go` (declares a
+`channels` field) are the only current cases.
+
+`tests/mocks/**` is counterfeiter output (`DO NOT EDIT`) and is exempt — hand
+edits there are wiped by the next `task mocks:generate`.
+
+**This is enforced, not just documented:** grouping and order by the `gci`
+formatter in `.golangci.yml` (`task fmt` fixes it, `task lint` fails on it), and
+the alias rule by `task lint:imports`, which `task lint` runs first.
+
 ## Testing
 
 

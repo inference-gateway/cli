@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
@@ -18,6 +16,7 @@ import (
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 type A2AQueryTaskTool struct {

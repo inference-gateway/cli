@@ -5,12 +5,14 @@ import (
 	"errors"
 	"testing"
 
-	adk "github.com/inference-gateway/adk/types"
 	assert "github.com/stretchr/testify/assert"
 
-	config "github.com/inference-gateway/cli/config"
 	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+
+	adk "github.com/inference-gateway/adk/types"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 func TestA2ASubmitTaskTool_isTaskNotFoundError(t *testing.T) {

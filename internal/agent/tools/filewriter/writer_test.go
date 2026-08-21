@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
 	require "github.com/stretchr/testify/require"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 func setupWriterTest(t *testing.T) (string, FileWriter, context.Context) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
+	config "github.com/inference-gateway/cli/config"
 )
 
 func TestWebSearchTool_Definition(t *testing.T) {

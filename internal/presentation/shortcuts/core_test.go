@@ -5,12 +5,13 @@ import (
 	"strings"
 	"testing"
 
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 type stubTokenEstimator struct {

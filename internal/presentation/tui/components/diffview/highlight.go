@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/lexers"
+	chroma "github.com/alecthomas/chroma/v2"
+	chromalexers "github.com/alecthomas/chroma/v2/lexers"
 )
 
 // selectLexer picks a chroma lexer for the given path/content, falling back to
@@ -14,12 +14,12 @@ import (
 // same token type. Used by the single-file Highlight helper (the in-line diff
 // highlighter has its own cached, two-path variant in DiffView.lexer).
 func selectLexer(path, content string) chroma.Lexer {
-	l := lexers.Match(path)
+	l := chromalexers.Match(path)
 	if l == nil {
-		l = lexers.Analyse(content)
+		l = chromalexers.Analyse(content)
 	}
 	if l == nil {
-		l = lexers.Fallback
+		l = chromalexers.Fallback
 	}
 	return chroma.Coalesce(l)
 }

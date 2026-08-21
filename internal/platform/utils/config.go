@@ -6,9 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/spf13/viper"
-	"gopkg.in/yaml.v3"
+	viper "github.com/spf13/viper"
+	yaml "gopkg.in/yaml.v3"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 // WriteViperConfigWithIndent writes the current Viper config with specified indentation

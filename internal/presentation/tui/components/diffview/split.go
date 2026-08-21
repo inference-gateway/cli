@@ -3,7 +3,7 @@ package diffview
 import (
 	"slices"
 
-	"github.com/aymanbagabas/go-udiff"
+	udiff "github.com/aymanbagabas/go-udiff"
 )
 
 // splitHunk is the side-by-side projection of a unified udiff.Hunk. Each

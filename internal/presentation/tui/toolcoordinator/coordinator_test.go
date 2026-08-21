@@ -1,16 +1,16 @@
 package toolcoordinator
 
 import (
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 func newCoordinatorForTest() (*Coordinator, *conversation.InMemoryConversationRepository, *statemanager.StateManager, *tuimocks.FakeDirectExecutionService) {

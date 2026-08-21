@@ -11,9 +11,8 @@ import (
 	"strings"
 	"time"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	skills "github.com/inference-gateway/cli/internal/skills"
 )
 

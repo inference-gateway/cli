@@ -7,15 +7,16 @@ import (
 	"strings"
 	"testing"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 )
 
 // argsAwareToolFormatter is a agentdomain.ToolFormatter whose FormatToolCall renders

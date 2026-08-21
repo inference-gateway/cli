@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 	"strings"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 )
 
 var toolsCmd = &cobra.Command{

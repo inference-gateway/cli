@@ -6,10 +6,9 @@ import (
 	"time"
 
 	channels "github.com/inference-gateway/cli/internal/channels"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
-	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // ScheduleNotifier delivers scheduled-job run output to the job's delivery

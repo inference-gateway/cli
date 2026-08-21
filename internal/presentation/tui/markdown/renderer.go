@@ -3,11 +3,11 @@ package markdown
 import (
 	"strings"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-
 	glamour "charm.land/glamour/v2"
 	ansi "charm.land/glamour/v2/ansi"
+
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // Renderer handles markdown to styled terminal output conversion

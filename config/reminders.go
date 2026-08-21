@@ -10,7 +10,7 @@ import (
 
 	yaml "gopkg.in/yaml.v3"
 
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
@@ -240,7 +240,7 @@ func DefaultRemindersConfig() *RemindersConfig {
 // LoadReminders reads reminders.yaml from disk. When the file is missing it
 // returns the in-code defaults so callers can treat absence as "use defaults".
 func LoadReminders(path string) (*RemindersConfig, error) {
-	return utils.LoadYAML(path, "reminders", DefaultRemindersConfig)
+	return configutils.LoadYAML(path, "reminders", DefaultRemindersConfig)
 }
 
 // ParseReminders parses inline reminders YAML (e.g. the INFER_REMINDERS_CONFIG
@@ -288,7 +288,7 @@ func (r RemindersConfig) MergeWithDefaults() *RemindersConfig {
 // SaveReminders writes the reminders configuration to disk, creating any
 // missing parent directories.
 func SaveReminders(path string, cfg *RemindersConfig) error {
-	return utils.SaveYAML(path, "reminders", cfg)
+	return configutils.SaveYAML(path, "reminders", cfg)
 }
 
 // effective returns the reminders with per-entry defaults applied: an empty

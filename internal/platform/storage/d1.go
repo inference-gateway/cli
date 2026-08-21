@@ -10,10 +10,9 @@ import (
 	"strings"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	migrations "github.com/inference-gateway/cli/internal/platform/storage/migrations"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // D1Storage implements ConversationStorage and SessionGroupStorage on top of

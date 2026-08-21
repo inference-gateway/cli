@@ -4,13 +4,13 @@ import (
 	"errors"
 	"testing"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 )
 
 // newA2AAgentsViewForTest builds an agents view backed by a real

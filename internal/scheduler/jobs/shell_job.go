@@ -7,9 +7,8 @@ import (
 	"syscall"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // shellJob adapts a detached background bash shell to a BackgroundJob: Run blocks

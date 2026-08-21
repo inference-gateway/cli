@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	mcp_golang "github.com/metoro-io/mcp-golang"
+	mcp "github.com/metoro-io/mcp-golang"
 	mcphttp "github.com/metoro-io/mcp-golang/transport/http"
 )
 
@@ -43,7 +43,7 @@ func main() {
 	transport.WithAddr(fmt.Sprintf(":%d", *port))
 
 	// Create MCP server
-	server := mcp_golang.NewServer(transport)
+	server := mcp.NewServer(transport)
 
 	// Register tools
 	registerTools(server)
@@ -69,7 +69,7 @@ func main() {
 	}
 }
 
-func registerTools(server *mcp_golang.Server) {
+func registerTools(server *mcp.Server) {
 	// Get Time tool
 	if err := server.RegisterTool(
 		"get_time",
@@ -109,7 +109,7 @@ func registerTools(server *mcp_golang.Server) {
 
 // Tool handlers
 
-func handleGetTime(args GetTimeArgs) (*mcp_golang.ToolResponse, error) {
+func handleGetTime(args GetTimeArgs) (*mcp.ToolResponse, error) {
 	timezone := args.Timezone
 	if timezone == "" {
 		timezone = "UTC"
@@ -122,8 +122,8 @@ func handleGetTime(args GetTimeArgs) (*mcp_golang.ToolResponse, error) {
 
 	location, err := time.LoadLocation(timezone)
 	if err != nil {
-		return mcp_golang.NewToolResponse(
-			mcp_golang.NewTextContent(fmt.Sprintf("Invalid timezone: %v", err)),
+		return mcp.NewToolResponse(
+			mcp.NewTextContent(fmt.Sprintf("Invalid timezone: %v", err)),
 		), nil
 	}
 
@@ -140,30 +140,30 @@ func handleGetTime(args GetTimeArgs) (*mcp_golang.ToolResponse, error) {
 	}
 
 	result := fmt.Sprintf("Current time in %s: %s", timezone, timeStr)
-	return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(result)), nil
+	return mcp.NewToolResponse(mcp.NewTextContent(result)), nil
 }
 
-func handleCalculate(args CalculateArgs) (*mcp_golang.ToolResponse, error) {
+func handleCalculate(args CalculateArgs) (*mcp.ToolResponse, error) {
 	expr := strings.TrimSpace(args.Expression)
 	if expr == "" {
-		return mcp_golang.NewToolResponse(
-			mcp_golang.NewTextContent("Error: No expression provided"),
+		return mcp.NewToolResponse(
+			mcp.NewTextContent("Error: No expression provided"),
 		), nil
 	}
 
 	result, err := evaluateExpression(expr)
 	if err != nil {
-		return mcp_golang.NewToolResponse(
-			mcp_golang.NewTextContent(fmt.Sprintf("Calculation error: %v", err)),
+		return mcp.NewToolResponse(
+			mcp.NewTextContent(fmt.Sprintf("Calculation error: %v", err)),
 		), nil
 	}
 
-	return mcp_golang.NewToolResponse(
-		mcp_golang.NewTextContent(fmt.Sprintf("%s = %.2f", expr, result)),
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(fmt.Sprintf("%s = %.2f", expr, result)),
 	), nil
 }
 
-func handleListFiles(args ListFilesArgs) (*mcp_golang.ToolResponse, error) {
+func handleListFiles(args ListFilesArgs) (*mcp.ToolResponse, error) {
 	path := args.Path
 	if path == "" {
 		path = "."
@@ -177,8 +177,8 @@ func handleListFiles(args ListFilesArgs) (*mcp_golang.ToolResponse, error) {
 	// Read directory
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		return mcp_golang.NewToolResponse(
-			mcp_golang.NewTextContent(fmt.Sprintf("Failed to read directory: %v", err)),
+		return mcp.NewToolResponse(
+			mcp.NewTextContent(fmt.Sprintf("Failed to read directory: %v", err)),
 		), nil
 	}
 
@@ -203,34 +203,34 @@ func handleListFiles(args ListFilesArgs) (*mcp_golang.ToolResponse, error) {
 	}
 
 	if len(files) == 0 {
-		return mcp_golang.NewToolResponse(
-			mcp_golang.NewTextContent(fmt.Sprintf("No files found in %s matching pattern '%s'", path, pattern)),
+		return mcp.NewToolResponse(
+			mcp.NewTextContent(fmt.Sprintf("No files found in %s matching pattern '%s'", path, pattern)),
 		), nil
 	}
 
 	result := fmt.Sprintf("Files in '%s' (pattern: '%s'):\n%s\n\nTotal: %d items",
 		path, pattern, strings.Join(files, "\n"), len(files))
 
-	return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(result)), nil
+	return mcp.NewToolResponse(mcp.NewTextContent(result)), nil
 }
 
-func handleGetEnv(args GetEnvArgs) (*mcp_golang.ToolResponse, error) {
+func handleGetEnv(args GetEnvArgs) (*mcp.ToolResponse, error) {
 	name := args.Name
 	if name == "" {
-		return mcp_golang.NewToolResponse(
-			mcp_golang.NewTextContent("Error: No environment variable name provided"),
+		return mcp.NewToolResponse(
+			mcp.NewTextContent("Error: No environment variable name provided"),
 		), nil
 	}
 
 	value := os.Getenv(name)
 	if value == "" {
-		return mcp_golang.NewToolResponse(
-			mcp_golang.NewTextContent(fmt.Sprintf("Environment variable '%s' is not set or empty", name)),
+		return mcp.NewToolResponse(
+			mcp.NewTextContent(fmt.Sprintf("Environment variable '%s' is not set or empty", name)),
 		), nil
 	}
 
-	return mcp_golang.NewToolResponse(
-		mcp_golang.NewTextContent(fmt.Sprintf("%s=%s", name, value)),
+	return mcp.NewToolResponse(
+		mcp.NewTextContent(fmt.Sprintf("%s=%s", name, value)),
 	), nil
 }
 

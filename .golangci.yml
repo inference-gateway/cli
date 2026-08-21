@@ -92,3 +92,17 @@ linters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+
+formatters:
+  enable:
+    - gci
+  settings:
+    gci:
+      custom-order: true
+      sections:
+        - standard
+        - prefix(github.com/stretchr/testify)
+        - prefix(github.com/inference-gateway/cli/tests/mocks)
+        - default
+        - prefix(github.com/inference-gateway/)
+        - prefix(github.com/inference-gateway/cli)

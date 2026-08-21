@@ -5,13 +5,14 @@ import (
 	"testing"
 	"time"
 
-	scheduler "github.com/inference-gateway/cli/internal/scheduler"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	assert "github.com/stretchr/testify/assert"
+
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	config "github.com/inference-gateway/cli/config"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
-	assert "github.com/stretchr/testify/assert"
+	scheduler "github.com/inference-gateway/cli/internal/scheduler"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 var _ scheddomain.TitleGenerator = (*schedmocks.FakeTitleGenerator)(nil)

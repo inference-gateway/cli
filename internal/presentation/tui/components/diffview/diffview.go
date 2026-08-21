@@ -22,11 +22,11 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/lipgloss/v2"
-	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/lexers"
-	"github.com/aymanbagabas/go-udiff"
-	"github.com/zeebo/xxh3"
+	lipgloss "charm.land/lipgloss/v2"
+	chroma "github.com/alecthomas/chroma/v2"
+	chromalexers "github.com/alecthomas/chroma/v2/lexers"
+	udiff "github.com/aymanbagabas/go-udiff"
+	xxh3 "github.com/zeebo/xxh3"
 )
 
 // Layout controls whether the diff is rendered as a single column (Unified) or
@@ -571,15 +571,15 @@ func (dv *DiffView) lexer() chroma.Lexer {
 	if dv.cachedLexer != nil {
 		return dv.cachedLexer
 	}
-	l := lexers.Match(dv.before.path)
+	l := chromalexers.Match(dv.before.path)
 	if l == nil {
-		l = lexers.Match(dv.after.path)
+		l = chromalexers.Match(dv.after.path)
 	}
 	if l == nil {
-		l = lexers.Analyse(dv.after.content)
+		l = chromalexers.Analyse(dv.after.content)
 	}
 	if l == nil {
-		l = lexers.Fallback
+		l = chromalexers.Fallback
 	}
 	dv.cachedLexer = chroma.Coalesce(l)
 	return dv.cachedLexer

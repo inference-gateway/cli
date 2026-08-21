@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	utils "github.com/inference-gateway/cli/config/utils"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 const (
@@ -50,7 +50,7 @@ func DefaultPluginsConfig() *PluginsConfig {
 // LoadPlugins reads plugins.yaml from disk, returning defaults when the file
 // is missing.
 func LoadPlugins(path string) (*PluginsConfig, error) {
-	cfg, err := utils.LoadYAML(path, "Plugins", DefaultPluginsConfig)
+	cfg, err := configutils.LoadYAML(path, "Plugins", DefaultPluginsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func LoadPlugins(path string) (*PluginsConfig, error) {
 
 // SavePlugins writes the plugins registry to disk.
 func SavePlugins(path string, cfg *PluginsConfig) error {
-	return utils.SaveYAML(path, "Plugins", cfg)
+	return configutils.SaveYAML(path, "Plugins", cfg)
 }
 
 // ResolveDir returns the plugins storage root: Dir when set, otherwise

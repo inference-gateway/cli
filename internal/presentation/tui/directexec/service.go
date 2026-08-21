@@ -9,13 +9,12 @@ package directexec
 import (
 	"sync"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // stateManager is the narrow slice of the app state manager the direct

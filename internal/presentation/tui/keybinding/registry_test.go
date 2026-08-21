@@ -1,18 +1,19 @@
 package keybinding_test
 
 import (
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	keybindingmocks "github.com/inference-gateway/cli/tests/mocks/keybinding"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+
 	config "github.com/inference-gateway/cli/config"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	keybinding "github.com/inference-gateway/cli/internal/presentation/tui/keybinding"
-	keybindingmocks "github.com/inference-gateway/cli/tests/mocks/keybinding"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 // newTestContext creates a configured FakeKeyHandlerContext for testing

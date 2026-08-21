@@ -3,18 +3,20 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 // remindersConfig builds a Config whose SystemReminders drive the agent's

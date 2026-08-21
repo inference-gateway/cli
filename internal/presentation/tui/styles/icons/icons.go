@@ -1,8 +1,9 @@
 package icons
 
 import (
-	"charm.land/lipgloss/v2"
-	"github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
+	lipgloss "charm.land/lipgloss/v2"
+
+	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 )
 
 // Status icons

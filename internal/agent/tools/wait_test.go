@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	fsnotify "github.com/fsnotify/fsnotify"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // testWaitConfig returns a minimal config with Wait tool enabled.

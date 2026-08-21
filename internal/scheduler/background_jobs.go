@@ -5,10 +5,9 @@ import (
 	"sync"
 	"time"
 
+	config "github.com/inference-gateway/cli/config"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // BackgroundJobManager manages background tasks
