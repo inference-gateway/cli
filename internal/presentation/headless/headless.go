@@ -30,6 +30,9 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
+// fileRefPattern matches @file references in the task description.
+var fileRefPattern = regexp.MustCompile(`@([^\s]+)`)
+
 // startScreenshotServer starts the screenshot capture server and
 // registers the "screen" frame source so GetLatestFrame is available, exactly
 // as interactive chat does. It logs instead of printing: headless stdout
@@ -62,6 +65,10 @@ type Options struct {
 	Format          string
 }
 
+// Run is the composition root for headless mode: it builds the service
+// container directly, so this presentation package intentionally depends
+// on internal/container (the depguard leaf rule only polices imports into
+// presentation, not out of it). cmd/headless.go stays thin flag plumbing.
 func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop,funlen
 	switch opts.Format {
 	case "json", "json-pretty", "ag-ui", "text":
@@ -246,8 +253,7 @@ func selectModel(models []string, modelFlag, defaultModel string) (string, error
 }
 
 func expandFileReferences(content string, files []string, fileSvc agentdomain.FileService, imageSvc agentdomain.ImageService, model string) (string, error) {
-	re := regexp.MustCompile(`@([^\s]+)`)
-	matches := re.FindAllStringSubmatch(content, -1)
+	matches := fileRefPattern.FindAllStringSubmatch(content, -1)
 
 	expanded := content
 	for _, match := range matches {
@@ -294,6 +300,8 @@ func expandFileReferences(content string, files []string, fileSvc agentdomain.Fi
 // honours --no-save, and returns prior history when resuming an existing
 // --session-id (empty when starting fresh or storage is not persistent).
 func prepareConversation(ctx context.Context, repo convdomain.ConversationRepository, sessionID string, resume, noSave bool) []sdk.Message {
+	// SetConversationID/SetAutoSave/LoadConversation are not on the port, so
+	// the concrete persistent repo is required. The container always injects it.
 	persistentRepo, ok := repo.(*conversation.PersistentConversationRepository)
 	if !ok {
 		return nil

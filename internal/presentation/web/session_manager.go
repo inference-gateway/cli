@@ -105,7 +105,10 @@ func (sm *SessionManager) cleanupInactiveSessions() {
 
 	for _, sessionID := range toRemove {
 		if entry, exists := sm.sessions[sessionID]; exists {
-			logger.Info("cleaning up inactive session", "id", sessionID, "inactive_duration", now.Sub(entry.lastActive), "threshold", inactiveThreshold)
+			entry.mu.Lock()
+			inactive := now.Sub(entry.lastActive)
+			entry.mu.Unlock()
+			logger.Info("cleaning up inactive session", "id", sessionID, "inactive_duration", inactive, "threshold", inactiveThreshold)
 			if err := entry.session.Close(); err != nil {
 				logger.Warn("error stopping inactive session", "id", sessionID, "error", err)
 			}
@@ -189,7 +192,8 @@ func (sm *SessionManager) GetScreenshotPort(sessionID string) (int, bool) {
 	return port, true
 }
 
-// Shutdown stops all sessions and the cleanup goroutine
+// Shutdown stops all sessions and the cleanup goroutine.
+// Call exactly once: a second call panics on close of the done channel.
 func (sm *SessionManager) Shutdown() {
 	close(sm.done)
 

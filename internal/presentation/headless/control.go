@@ -59,24 +59,33 @@ func (c *headlessControl) readLines(in io.Reader) {
 }
 
 func (c *headlessControl) dispatchLine(line []byte) {
-	var resp ipc.ApprovalResponse
-	if json.Unmarshal(line, &resp) == nil && resp.Type == "approval_response" {
-		c.approvals <- resp
+	var msg struct {
+		Type string `json:"type"`
+	}
+	if json.Unmarshal(line, &msg) != nil {
 		return
 	}
-	var ctrl ipc.ComputerUseControlMessage
-	if json.Unmarshal(line, &ctrl) != nil || ctrl.Type != "computer_use_control" {
-		return
-	}
-	switch ctrl.Action {
-	case "pause":
-		_ = c.agentService.CancelRequest(c.sessionID)
-		c.pauseState.SetComputerUsePaused(true, c.sessionID)
-		c.ctrlEvents <- agentdomain.ComputerUsePausedEvent{RequestID: c.sessionID, Timestamp: time.Now()}
-	case "resume":
-		c.ctrlEvents <- agentdomain.ComputerUseResumedEvent{RequestID: c.sessionID, Timestamp: time.Now()}
-	default:
-		logger.Warn("ignoring unknown computer_use_control action", "action", ctrl.Action)
+	switch msg.Type {
+	case "approval_response":
+		var resp ipc.ApprovalResponse
+		if json.Unmarshal(line, &resp) == nil {
+			c.approvals <- resp
+		}
+	case "computer_use_control":
+		var ctrl ipc.ComputerUseControlMessage
+		if json.Unmarshal(line, &ctrl) != nil {
+			return
+		}
+		switch ctrl.Action {
+		case "pause":
+			_ = c.agentService.CancelRequest(c.sessionID)
+			c.pauseState.SetComputerUsePaused(true, c.sessionID)
+			c.ctrlEvents <- agentdomain.ComputerUsePausedEvent{RequestID: c.sessionID, Timestamp: time.Now()}
+		case "resume":
+			c.ctrlEvents <- agentdomain.ComputerUseResumedEvent{RequestID: c.sessionID, Timestamp: time.Now()}
+		default:
+			logger.Warn("ignoring unknown computer_use_control action", "action", ctrl.Action)
+		}
 	}
 }
 

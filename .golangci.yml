@@ -38,7 +38,7 @@ linters:
             - pkg: github.com/inference-gateway/cli/internal/presentation
               desc: "domain, capability and platform contexts must not depend on a UI surface; internal/container is the composition root and is exempt"
             - pkg: charm.land/bubbletea
-              desc: "bubbletea belongs to internal/presentation and cmd only"
+              desc: "bubbletea belongs to internal/presentation, cmd and internal/container only"
         telegram-only-in-presentation:
           list-mode: lax
           files:
