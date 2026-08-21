@@ -343,10 +343,6 @@ func (c *ServiceContainer) initializeAgentManager() {
 		c.uiNotifier.Notify(tui.AgentStatusUpdateEvent{AgentName: name, State: agentdomain.AgentStatePullingImage})
 	})
 
-	ctx := context.Background()
-	if err := c.agentManager.StartAgents(ctx); err != nil {
-		logger.Warn("failed to start agents in background", "error", err)
-	}
 }
 
 // initializeMCPManager creates and starts MCP manager if enabled
