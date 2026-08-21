@@ -264,9 +264,9 @@ func TestGitBackend_SyncInFailureSurfacesGitOutput(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("expected one 'remote unreachable' warning, got %d", len(entries))
 	}
-	out, _ := entries[0].ContextMap()["output"].(string)
-	if strings.TrimSpace(out) == "" {
-		t.Fatal("expected the warning to surface git's stderr in the 'output' field, but it was empty")
+	gotErr, _ := entries[0].ContextMap()["error"].(string)
+	if !strings.Contains(gotErr, "fatal:") {
+		t.Fatalf("expected the warning to surface git's stderr, got %q", gotErr)
 	}
 }
 
