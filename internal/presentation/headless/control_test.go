@@ -1,4 +1,4 @@
-package cmd
+package headless
 
 import (
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"

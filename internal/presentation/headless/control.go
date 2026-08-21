@@ -1,4 +1,4 @@
-package cmd
+package headless
 
 import (
 	"bufio"
@@ -185,9 +185,9 @@ func (c *headlessControl) startResume(merged chan<- agentdomain.ChatEvent, resum
 	return next
 }
 
-// resumeHeadlessRun appends the hidden continue message the chat coordinator
+// resumeRun appends the hidden continue message the chat coordinator
 // uses on resume and starts a new agent run over the full conversation.
-func resumeHeadlessRun(ctx context.Context, agentService agentdomain.AgentService, repo convdomain.ConversationRepository, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) {
+func resumeRun(ctx context.Context, agentService agentdomain.AgentService, repo convdomain.ConversationRepository, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) {
 	entry := convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,

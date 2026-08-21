@@ -32,6 +32,7 @@ import (
 	app "github.com/inference-gateway/cli/internal/presentation/tui/app"
 	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 	web "github.com/inference-gateway/cli/internal/presentation/web"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 var chatCmd = &cobra.Command{
@@ -193,7 +194,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		resumeChatSession(conversationRepo, sessionRolloverManager, sessionID)
 	}
 
-	if mode := inheritedSubagentMode(); mode != agentdomain.AgentModeStandard {
+	if mode := scheddomain.InheritedAgentMode(); mode != agentdomain.AgentModeStandard {
 		stateManager.SetAgentMode(mode)
 	}
 
