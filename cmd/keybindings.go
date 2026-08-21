@@ -7,8 +7,8 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	config "github.com/inference-gateway/cli/config"
-	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
-	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	keybinding "github.com/inference-gateway/cli/internal/presentation/tui/keybinding"
+	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )
 
 var keybindingsCmd = &cobra.Command{

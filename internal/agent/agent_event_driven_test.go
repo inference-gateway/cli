@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	statesmocks "github.com/inference-gateway/cli/tests/mocks/states"
@@ -23,7 +23,7 @@ type testMocks struct {
 	stateMachine *statesmocks.FakeAgentStateMachine
 	queue        *convmocks.FakeMessageQueue
 	repo         *convmocks.FakeConversationRepository
-	stateManager *services.StateManager
+	stateManager *statemanager.StateManager
 	approval     *agentdomainmocks.FakeApprovalPolicy
 }
 
@@ -33,7 +33,7 @@ func setupTestMocks() *testMocks {
 		stateMachine: &statesmocks.FakeAgentStateMachine{},
 		queue:        &convmocks.FakeMessageQueue{},
 		repo:         &convmocks.FakeConversationRepository{},
-		stateManager: services.NewStateManager(false),
+		stateManager: statemanager.NewStateManager(false),
 		approval:     &agentdomainmocks.FakeApprovalPolicy{},
 	}
 }

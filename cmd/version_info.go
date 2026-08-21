@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	ui "github.com/inference-gateway/cli/internal/ui"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // GetVersionInfo returns the current version information
-func GetVersionInfo() ui.VersionInfo {
-	return ui.VersionInfo{
+func GetVersionInfo() tui.VersionInfo {
+	return tui.VersionInfo{
 		Version: version,
 	}
 }

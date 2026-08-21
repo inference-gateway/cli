@@ -1,0 +1,541 @@
+package handlers
+
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+
+	tea "charm.land/bubbletea/v2"
+	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+)
+
+// issueRefRe matches `#<digits>` only at start-of-line or after whitespace, so
+// fragments like "phone-555#anchor" or "abc#1" don't get expanded. Word boundary
+// at the tail prevents partial-number false matches inside longer strings.
+var issueRefRe = regexp.MustCompile(`(^|\s)#([0-9]+)\b`)
+
+// dynamicSkillsDirDisplay is the session-scoped directory catalog skills are
+// downloaded into; it is wiped when the session ends.
+const dynamicSkillsDirDisplay = ".infer/tmp/skills/"
+
+// ChatMessageProcessor handles message processing logic
+type ChatMessageProcessor struct {
+	handler *ChatHandler
+	// declinedSkills remembers catalog skills the user refused to install, so
+	// re-sending the same message does not re-open the prompt in a loop.
+	// ponytail: session-scoped and never cleared - `infer skills install`
+	// remains the way to change your mind.
+	declinedSkills map[string]bool
+}
+
+// NewChatMessageProcessor creates a new message processor
+func NewChatMessageProcessor(handler *ChatHandler) *ChatMessageProcessor {
+	return &ChatMessageProcessor{
+		handler:        handler,
+		declinedSkills: make(map[string]bool),
+	}
+}
+
+// handleUserInput processes user input messages
+func (p *ChatMessageProcessor) handleUserInput(
+	msg agentdomain.UserInputEvent,
+) tea.Cmd {
+	if cmd := p.confirmCatalogInstall(msg); cmd != nil {
+		return cmd
+	}
+
+	if strings.HasPrefix(msg.Content, "/") && !p.isSkillInvocation(msg.Content) {
+		return p.handler.HandleCommand(msg.Content)
+	}
+
+	if strings.HasPrefix(msg.Content, "!!") {
+		return p.handler.HandleToolCommand(msg.Content)
+	}
+
+	if strings.HasPrefix(msg.Content, "!") {
+		return p.handler.HandleBashCommand(msg.Content)
+	}
+
+	content, err := p.expandFileReferences(msg.Content)
+	if err != nil {
+		return func() tea.Msg {
+			return tui.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to expand file references: %v", err),
+				Sticky: false,
+			}
+		}
+	}
+
+	content = p.expandIssueReferences(context.Background(), content)
+
+	return p.processChatMessage(content, msg.Images)
+}
+
+// isSkillInvocation reports whether content is a "/<name> ..." where <name> is
+// a loaded skill. Such input is sent to the agent (which deterministically
+// flags the skill as active via buildActiveSkillInfo) rather than dispatched as
+// a chat shortcut - otherwise "/maintainer" would dead-end as "Unknown
+// shortcut". Returns false when no skills service is wired or the token isn't a
+// known skill, leaving normal shortcut handling untouched.
+func (p *ChatMessageProcessor) isSkillInvocation(content string) bool {
+	if p.handler.skillsService == nil {
+		return false
+	}
+	fields := strings.Fields(content)
+	if len(fields) == 0 {
+		return false
+	}
+	name, ok := strings.CutPrefix(fields[0], "/")
+	if !ok {
+		return false
+	}
+	lower := strings.ToLower(name)
+
+	if parts := strings.SplitN(lower, ":", 2); len(parts) == 2 {
+		_, found := p.handler.skillsService.Get(parts[1])
+		return found
+	}
+
+	_, found := p.handler.skillsService.Get(lower)
+	return found
+}
+
+// pendingCatalogSkills returns the names of "/<name>" tokens in content that
+// resolve to a catalog skill whose body has not been downloaded yet, skipping
+// ones the user already declined this session. Order is first-seen, duplicates
+// removed.
+func (p *ChatMessageProcessor) pendingCatalogSkills(content string) []string {
+	if p.handler.skillsService == nil {
+		return nil
+	}
+
+	var names []string
+	seen := make(map[string]bool)
+	for _, field := range strings.Fields(content) {
+		name, ok := strings.CutPrefix(field, "/")
+		if !ok {
+			continue
+		}
+		name = strings.ToLower(name)
+		if _, _, isPlugin := strings.Cut(name, ":"); isPlugin {
+			continue
+		}
+		if seen[name] || p.declinedSkills[name] {
+			continue
+		}
+		sk, found := p.handler.skillsService.Get(name)
+		if !found || sk.Path != "" {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	return names
+}
+
+// confirmCatalogInstall gates the download of catalog skills behind an explicit
+// user approval, and returns nil when there is nothing to install (the common
+// case) so normal input handling proceeds untouched.
+//
+// This lives in the chat input path on purpose: it is the only skill-activation
+// route a human is watching. Headless runs (`infer headless`, channels, heartbeat)
+// have no approver, so they install directly in buildActiveSkillInfo.
+//
+// The returned cmds run concurrently: the first renders the question form, the
+// second blocks on the answer, performs the install, and re-submits the
+// original input so the message is processed normally once the skill is on disk.
+func (p *ChatMessageProcessor) confirmCatalogInstall(msg agentdomain.UserInputEvent) tea.Cmd {
+	names := p.pendingCatalogSkills(msg.Content)
+	if len(names) == 0 {
+		return nil
+	}
+
+	responseChan := make(chan []agentdomain.UserQuestionAnswer, 1)
+	question := agentdomain.UserQuestion{
+		Header:   "Install skill",
+		Question: fmt.Sprintf("%s is not installed locally. Download it from the skills catalog into %s for this session?", strings.Join(names, ", "), dynamicSkillsDirDisplay),
+		Options: []agentdomain.UserQuestionOption{
+			{Label: "Install", Description: "Fetch the SKILL.md now and activate the skill"},
+			{Label: "Skip", Description: "Send the message without the skill; you will not be asked again this session"},
+		},
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return agentdomain.UserQuestionRequestedEvent{
+				Timestamp:    time.Now(),
+				Questions:    []agentdomain.UserQuestion{question},
+				ResponseChan: responseChan,
+			}
+		},
+		func() tea.Msg {
+			answers, open := <-responseChan
+			if !open || !approvedInstall(answers) {
+				for _, name := range names {
+					p.declinedSkills[name] = true
+				}
+				return msg
+			}
+			for _, name := range names {
+				if _, ok := p.handler.skillsService.Discover(context.Background(), name); !ok {
+					logger.Warn("failed to install skill from catalog", "name", name)
+					p.declinedSkills[name] = true
+				}
+			}
+			return msg
+		},
+	)
+}
+
+// approvedInstall reports whether the user picked the install option.
+func approvedInstall(answers []agentdomain.UserQuestionAnswer) bool {
+	for _, answer := range answers {
+		for _, label := range answer.SelectedLabels {
+			if label == "Install" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ExtractMarkdownSummary extracts the "## Summary" section from markdown content (exposed for testing)
+func (p *ChatMessageProcessor) ExtractMarkdownSummary(content string) (string, bool) {
+	lines := strings.Split(content, "\n")
+	var summaryLines []string
+	inSummary := false
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "## Summary" {
+			inSummary = true
+			summaryLines = append(summaryLines, line)
+			continue
+		}
+
+		if inSummary {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "## ") || trimmed == "---" {
+				break
+			}
+			summaryLines = append(summaryLines, line)
+		}
+	}
+
+	if len(summaryLines) > 1 {
+		result := strings.Join(summaryLines, "\n")
+		result = strings.TrimRight(result, " \t\n") + "\n"
+		return result, true
+	}
+
+	return "", false
+}
+
+// expandFileReferences expands @filename references: text files are inlined,
+// images are referenced by path only ("[Image: <path>]").
+func (p *ChatMessageProcessor) expandFileReferences(content string) (string, error) {
+	re := regexp.MustCompile(`@([^\s]+)`)
+	matches := re.FindAllStringSubmatch(content, -1)
+
+	if len(matches) == 0 {
+		return content, nil
+	}
+
+	expandedContent := content
+
+	for _, match := range matches {
+		fullMatch := match[0]
+		filename := match[1]
+
+		if err := p.handler.fileService.ValidateFile(filename); err != nil {
+			continue
+		}
+
+		if p.handler.imageService != nil && p.handler.imageService.IsImageFile(filename) {
+			supportsVision := p.handler.modelService != nil && models.SupportsVision(p.handler.modelService.GetCurrentModel())
+			imageRef := agentdomain.ImageFileRef(filename, supportsVision)
+			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
+			continue
+		}
+
+		fileContent, err := p.handler.fileService.ReadFile(filename)
+		if err != nil {
+			continue
+		}
+
+		contentToInclude := fileContent
+		if strings.HasSuffix(strings.ToLower(filename), ".md") {
+			if summaryContent, hasSummary := p.ExtractMarkdownSummary(fileContent); hasSummary {
+				contentToInclude = summaryContent
+			}
+		}
+
+		fileBlock := fmt.Sprintf("File: %s\n```%s\n%s\n```\n", filename, filename, contentToInclude)
+		expandedContent = strings.Replace(expandedContent, fullMatch, fileBlock, 1)
+	}
+
+	return expandedContent, nil
+}
+
+// expandIssueReferences replaces `#N` tokens in the user's message with an
+// inline block containing the issue's title, body, and (capped) recent
+// comments. Mirrors expandFileReferences for `@<path>` - the substitution
+// happens before the message reaches the SDK so the LLM gets full context
+// without spending an extra turn shelling out to `gh issue view`. A failed
+// fetch leaves the raw token in place so the LLM can still attempt a
+// best-effort response or fall back to gh on its own.
+func (p *ChatMessageProcessor) expandIssueReferences(ctx context.Context, content string) string {
+	if p.handler.githubIssueService == nil {
+		return content
+	}
+	matches := issueRefRe.FindAllStringSubmatch(content, -1)
+	if len(matches) == 0 {
+		return content
+	}
+
+	fetched := map[int]string{}
+	for _, m := range matches {
+		n, err := strconv.Atoi(m[2])
+		if err != nil {
+			continue
+		}
+		if _, ok := fetched[n]; ok {
+			continue
+		}
+		fetchCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		iss, err := p.handler.githubIssueService.GetIssue(fetchCtx, n)
+		cancel()
+		if err != nil || iss == nil {
+			logger.Debug("issue expansion: GetIssue failed - leaving token in place",
+				"number", n, "err", err)
+			continue
+		}
+		fetched[n] = p.formatIssueBlock(iss)
+	}
+
+	if len(fetched) == 0 {
+		return content
+	}
+
+	return issueRefRe.ReplaceAllStringFunc(content, func(match string) string {
+		sub := issueRefRe.FindStringSubmatch(match)
+		n, err := strconv.Atoi(sub[2])
+		if err != nil {
+			return match
+		}
+		block, ok := fetched[n]
+		if !ok {
+			return match
+		}
+		return sub[1] + block
+	})
+}
+
+func (p *ChatMessageProcessor) formatIssueBlock(iss *agentdomain.GitHubIssue) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "GitHub Issue #%d (%s): %s\nURL: %s\n\n%s\n",
+		iss.Number, iss.State, iss.Title, iss.URL, iss.Body)
+	if len(iss.Comments) > 0 {
+		fmt.Fprintf(&b, "\n--- Comments (last %d) ---\n", len(iss.Comments))
+		for _, c := range iss.Comments {
+			fmt.Fprintf(&b, "[@%s, %s]: %s\n",
+				c.Author, c.CreatedAt.Format("2006-01-02"), c.Body)
+		}
+	}
+	return b.String()
+}
+
+// buildUserMessage assembles the outgoing user message; image attachments
+// become image content parts.
+func (p *ChatMessageProcessor) buildUserMessage(
+	content string,
+	images []agentdomain.ImageAttachment,
+) (sdk.Message, tea.Cmd) {
+	if len(images) == 0 {
+		return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(content)}, nil
+	}
+
+	textPart, err := sdk.NewTextContentPart(content)
+	if err != nil {
+		return sdk.Message{}, showErrorCmd(fmt.Sprintf("Failed to create text content: %v", err))
+	}
+	contentParts := []sdk.ContentPart{textPart}
+	supportsVision := models.SupportsVision(p.handler.modelService.GetCurrentModel())
+
+	for _, img := range images {
+		if !supportsVision {
+			if note := agentdomain.ImagePathNote(img); note != "" {
+				if notePart, err := sdk.NewTextContentPart(note); err == nil {
+					contentParts = append(contentParts, notePart)
+				}
+			}
+			continue
+		}
+		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
+		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
+		if err != nil {
+			return sdk.Message{}, showErrorCmd(fmt.Sprintf("Failed to create image content: %v", err))
+		}
+		contentParts = append(contentParts, imagePart)
+	}
+
+	return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(contentParts)}, nil
+}
+
+func showErrorCmd(msg string) tea.Cmd {
+	return func() tea.Msg {
+		return tui.ShowErrorEvent{Error: msg, Sticky: false}
+	}
+}
+
+// processChatMessage processes a regular chat message with optional image attachments
+func (p *ChatMessageProcessor) processChatMessage(
+	content string,
+	images []agentdomain.ImageAttachment,
+) tea.Cmd {
+	message, errCmd := p.buildUserMessage(content, images)
+	if errCmd != nil {
+		return errCmd
+	}
+
+	if p.handler.stateManager.IsAgentBusy() {
+		requestID := fmt.Sprintf("queued-%d", time.Now().UnixNano())
+		p.handler.messageQueue.Enqueue(message, requestID)
+		logger.Info("chat input queued - agent busy",
+			"request_id", requestID,
+			"queue_size_after_enqueue", p.handler.messageQueue.Size())
+
+		return func() tea.Msg {
+			return tui.SetStatusEvent{
+				Message:    "Message queued - agent is currently busy",
+				Spinner:    false,
+				StatusType: tui.StatusDefault,
+			}
+		}
+	}
+
+	// Auto-rollover BEFORE appending the new user message - otherwise the new
+	// message resets the idle clock and never triggers. Mirrors what /compact
+	// does manually: produces a summary, starts a new conversation file, and
+	// the new user message lands in the new file via AddMessage in the tail
+	// helper below.
+	if p.shouldRolloverNow() {
+		return p.compactThenContinue(message, images)
+	}
+
+	return p.appendUserMessageAndStartCompletion(message, images)
+}
+
+// shouldRolloverNow is a cheap pre-check on the synchronous Update path so
+// that the vast majority of user messages (where no rollover is due) skip
+// the async dispatch entirely. The real ShouldRollover/PerformRollover run
+// inside MaybeRollover on the goroutine; a false negative here just means
+// we skip a one-message rollover that would otherwise fire, and the next
+// message will catch it.
+func (p *ChatMessageProcessor) shouldRolloverNow() bool {
+	return p.handler.sessionRolloverManager != nil &&
+		p.handler.sessionRolloverManager.ShouldRollover(p.handler.modelService.GetCurrentModel())
+}
+
+// compactThenContinue runs the rollover asynchronously so the Bubble Tea
+// Update loop stays responsive (the summary LLM call takes a few seconds and
+// would otherwise freeze the UI with no spinner). The flow:
+//
+//  1. SetChatPending so IsAgentBusy() queues any further user input arriving
+//     while the rollover is in flight.
+//  2. Emit a "Compacting conversation..." status (spinner on) for the user.
+//  3. Run MaybeRollover on a goroutine via a tea.Cmd; on completion dispatch
+//     a RolloverCompletedEvent that the chat handler routes back into
+//     appendUserMessageAndStartCompletion to resume the deferred work.
+func (p *ChatMessageProcessor) compactThenContinue(message sdk.Message, images []agentdomain.ImageAttachment) tea.Cmd {
+	p.handler.stateManager.SetChatPending()
+	logger.Info("chat rollover: deferring user message, kicking off async MaybeRollover",
+		"queue_size_before", p.handler.messageQueue.Size(),
+		"agent_busy_now", p.handler.stateManager.IsAgentBusy())
+
+	statusCmd := func() tea.Msg {
+		return tui.SetStatusEvent{
+			Message:    "Compacting conversation...",
+			Spinner:    true,
+			StatusType: tui.StatusPreparing,
+		}
+	}
+
+	rolloverCmd := func() tea.Msg {
+		newID, fired := p.handler.sessionRolloverManager.MaybeRollover(
+			context.Background(),
+			p.handler.modelService.GetCurrentModel(),
+			"",
+		)
+		logger.Info("chat rollover: MaybeRollover returned",
+			"fired", fired,
+			"new_session_id", newID,
+			"queue_size_after", p.handler.messageQueue.Size())
+		return tui.RolloverCompletedEvent{
+			Message: message,
+			Images:  images,
+		}
+	}
+
+	return tea.Batch(statusCmd, rolloverCmd)
+}
+
+// appendUserMessageAndStartCompletion is the synchronous tail of
+// processChatMessage. It persists the user message, fires the history
+// refresh and optional optimization status, and kicks off the chat
+// completion. Called directly when no rollover is due, and via
+// HandleRolloverCompletedEvent after an async rollover finishes.
+func (p *ChatMessageProcessor) appendUserMessageAndStartCompletion(message sdk.Message, images []agentdomain.ImageAttachment) tea.Cmd {
+	userEntry := convdomain.ConversationEntry{
+		Message: message,
+		Time:    time.Now(),
+		Images:  images,
+	}
+
+	if err := p.handler.conversationRepo.AddMessage(userEntry); err != nil {
+		logger.Error("chat: failed to AddMessage in appendUserMessageAndStartCompletion", "error", err)
+		return func() tea.Msg {
+			return tui.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to save message: %v", err),
+				Sticky: false,
+			}
+		}
+	}
+
+	logger.Info("chat: AddMessage + startChatCompletion",
+		"repo_messages_after_add", len(p.handler.conversationRepo.GetMessages()),
+		"queue_size", p.handler.messageQueue.Size())
+
+	p.handler.stateManager.SetChatPending()
+
+	cmds := []tea.Cmd{
+		func() tea.Msg {
+			return tui.UpdateHistoryEvent{
+				History: p.handler.conversationRepo.GetMessages(),
+			}
+		},
+	}
+
+	if len(p.handler.conversationRepo.GetMessages()) > 10 {
+		cmds = append(cmds, func() tea.Msg {
+			return tui.SetStatusEvent{
+				Message:    fmt.Sprintf("Optimizing conversation history (%d messages)...", len(p.handler.conversationRepo.GetMessages())),
+				Spinner:    true,
+				StatusType: tui.StatusPreparing,
+			}
+		})
+	}
+
+	cmds = append(cmds, p.handler.startChatCompletion())
+
+	return tea.Batch(cmds...)
+}

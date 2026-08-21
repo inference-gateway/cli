@@ -8,8 +8,8 @@ import (
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/agent/domain"
 	domaina "github.com/inference-gateway/cli/internal/conversation/domain"
-	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/keybinding"
+	"github.com/inference-gateway/cli/internal/presentation/tui"
+	"github.com/inference-gateway/cli/internal/presentation/tui/keybinding"
 )
 
 type FakeKeyHandlerContext struct {
@@ -23,15 +23,15 @@ type FakeKeyHandlerContext struct {
 	getAgentServiceReturnsOnCall map[int]struct {
 		result1 domain.AgentService
 	}
-	GetAutocompleteStub        func() ui.AutocompleteComponent
+	GetAutocompleteStub        func() tui.AutocompleteComponent
 	getAutocompleteMutex       sync.RWMutex
 	getAutocompleteArgsForCall []struct {
 	}
 	getAutocompleteReturns struct {
-		result1 ui.AutocompleteComponent
+		result1 tui.AutocompleteComponent
 	}
 	getAutocompleteReturnsOnCall map[int]struct {
-		result1 ui.AutocompleteComponent
+		result1 tui.AutocompleteComponent
 	}
 	GetConfigStub        func() *config.Config
 	getConfigMutex       sync.RWMutex
@@ -63,15 +63,15 @@ type FakeKeyHandlerContext struct {
 	getConversationRepositoryReturnsOnCall map[int]struct {
 		result1 domaina.ConversationRepository
 	}
-	GetConversationViewStub        func() ui.ConversationRenderer
+	GetConversationViewStub        func() tui.ConversationRenderer
 	getConversationViewMutex       sync.RWMutex
 	getConversationViewArgsForCall []struct {
 	}
 	getConversationViewReturns struct {
-		result1 ui.ConversationRenderer
+		result1 tui.ConversationRenderer
 	}
 	getConversationViewReturnsOnCall map[int]struct {
-		result1 ui.ConversationRenderer
+		result1 tui.ConversationRenderer
 	}
 	GetImageServiceStub        func() domain.ImageService
 	getImageServiceMutex       sync.RWMutex
@@ -83,15 +83,15 @@ type FakeKeyHandlerContext struct {
 	getImageServiceReturnsOnCall map[int]struct {
 		result1 domain.ImageService
 	}
-	GetInputViewStub        func() ui.InputComponent
+	GetInputViewStub        func() tui.InputComponent
 	getInputViewMutex       sync.RWMutex
 	getInputViewArgsForCall []struct {
 	}
 	getInputViewReturns struct {
-		result1 ui.InputComponent
+		result1 tui.InputComponent
 	}
 	getInputViewReturnsOnCall map[int]struct {
-		result1 ui.InputComponent
+		result1 tui.InputComponent
 	}
 	GetMouseEnabledStub        func() bool
 	getMouseEnabledMutex       sync.RWMutex
@@ -123,15 +123,15 @@ type FakeKeyHandlerContext struct {
 	getStateManagerReturnsOnCall map[int]struct {
 		result1 keybinding.StateManager
 	}
-	GetStatusViewStub        func() ui.StatusComponent
+	GetStatusViewStub        func() tui.StatusComponent
 	getStatusViewMutex       sync.RWMutex
 	getStatusViewArgsForCall []struct {
 	}
 	getStatusViewReturns struct {
-		result1 ui.StatusComponent
+		result1 tui.StatusComponent
 	}
 	getStatusViewReturnsOnCall map[int]struct {
-		result1 ui.StatusComponent
+		result1 tui.StatusComponent
 	}
 	SendMessageStub        func() tea.Cmd
 	sendMessageMutex       sync.RWMutex
@@ -217,7 +217,7 @@ func (fake *FakeKeyHandlerContext) GetAgentServiceReturnsOnCall(i int, result1 d
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetAutocomplete() ui.AutocompleteComponent {
+func (fake *FakeKeyHandlerContext) GetAutocomplete() tui.AutocompleteComponent {
 	fake.getAutocompleteMutex.Lock()
 	ret, specificReturn := fake.getAutocompleteReturnsOnCall[len(fake.getAutocompleteArgsForCall)]
 	fake.getAutocompleteArgsForCall = append(fake.getAutocompleteArgsForCall, struct {
@@ -241,32 +241,32 @@ func (fake *FakeKeyHandlerContext) GetAutocompleteCallCount() int {
 	return len(fake.getAutocompleteArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetAutocompleteCalls(stub func() ui.AutocompleteComponent) {
+func (fake *FakeKeyHandlerContext) GetAutocompleteCalls(stub func() tui.AutocompleteComponent) {
 	fake.getAutocompleteMutex.Lock()
 	defer fake.getAutocompleteMutex.Unlock()
 	fake.GetAutocompleteStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetAutocompleteReturns(result1 ui.AutocompleteComponent) {
+func (fake *FakeKeyHandlerContext) GetAutocompleteReturns(result1 tui.AutocompleteComponent) {
 	fake.getAutocompleteMutex.Lock()
 	defer fake.getAutocompleteMutex.Unlock()
 	fake.GetAutocompleteStub = nil
 	fake.getAutocompleteReturns = struct {
-		result1 ui.AutocompleteComponent
+		result1 tui.AutocompleteComponent
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetAutocompleteReturnsOnCall(i int, result1 ui.AutocompleteComponent) {
+func (fake *FakeKeyHandlerContext) GetAutocompleteReturnsOnCall(i int, result1 tui.AutocompleteComponent) {
 	fake.getAutocompleteMutex.Lock()
 	defer fake.getAutocompleteMutex.Unlock()
 	fake.GetAutocompleteStub = nil
 	if fake.getAutocompleteReturnsOnCall == nil {
 		fake.getAutocompleteReturnsOnCall = make(map[int]struct {
-			result1 ui.AutocompleteComponent
+			result1 tui.AutocompleteComponent
 		})
 	}
 	fake.getAutocompleteReturnsOnCall[i] = struct {
-		result1 ui.AutocompleteComponent
+		result1 tui.AutocompleteComponent
 	}{result1}
 }
 
@@ -429,7 +429,7 @@ func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturnsOnCall(i int,
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationView() ui.ConversationRenderer {
+func (fake *FakeKeyHandlerContext) GetConversationView() tui.ConversationRenderer {
 	fake.getConversationViewMutex.Lock()
 	ret, specificReturn := fake.getConversationViewReturnsOnCall[len(fake.getConversationViewArgsForCall)]
 	fake.getConversationViewArgsForCall = append(fake.getConversationViewArgsForCall, struct {
@@ -453,32 +453,32 @@ func (fake *FakeKeyHandlerContext) GetConversationViewCallCount() int {
 	return len(fake.getConversationViewArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationViewCalls(stub func() ui.ConversationRenderer) {
+func (fake *FakeKeyHandlerContext) GetConversationViewCalls(stub func() tui.ConversationRenderer) {
 	fake.getConversationViewMutex.Lock()
 	defer fake.getConversationViewMutex.Unlock()
 	fake.GetConversationViewStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationViewReturns(result1 ui.ConversationRenderer) {
+func (fake *FakeKeyHandlerContext) GetConversationViewReturns(result1 tui.ConversationRenderer) {
 	fake.getConversationViewMutex.Lock()
 	defer fake.getConversationViewMutex.Unlock()
 	fake.GetConversationViewStub = nil
 	fake.getConversationViewReturns = struct {
-		result1 ui.ConversationRenderer
+		result1 tui.ConversationRenderer
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetConversationViewReturnsOnCall(i int, result1 ui.ConversationRenderer) {
+func (fake *FakeKeyHandlerContext) GetConversationViewReturnsOnCall(i int, result1 tui.ConversationRenderer) {
 	fake.getConversationViewMutex.Lock()
 	defer fake.getConversationViewMutex.Unlock()
 	fake.GetConversationViewStub = nil
 	if fake.getConversationViewReturnsOnCall == nil {
 		fake.getConversationViewReturnsOnCall = make(map[int]struct {
-			result1 ui.ConversationRenderer
+			result1 tui.ConversationRenderer
 		})
 	}
 	fake.getConversationViewReturnsOnCall[i] = struct {
-		result1 ui.ConversationRenderer
+		result1 tui.ConversationRenderer
 	}{result1}
 }
 
@@ -535,7 +535,7 @@ func (fake *FakeKeyHandlerContext) GetImageServiceReturnsOnCall(i int, result1 d
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetInputView() ui.InputComponent {
+func (fake *FakeKeyHandlerContext) GetInputView() tui.InputComponent {
 	fake.getInputViewMutex.Lock()
 	ret, specificReturn := fake.getInputViewReturnsOnCall[len(fake.getInputViewArgsForCall)]
 	fake.getInputViewArgsForCall = append(fake.getInputViewArgsForCall, struct {
@@ -559,32 +559,32 @@ func (fake *FakeKeyHandlerContext) GetInputViewCallCount() int {
 	return len(fake.getInputViewArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetInputViewCalls(stub func() ui.InputComponent) {
+func (fake *FakeKeyHandlerContext) GetInputViewCalls(stub func() tui.InputComponent) {
 	fake.getInputViewMutex.Lock()
 	defer fake.getInputViewMutex.Unlock()
 	fake.GetInputViewStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetInputViewReturns(result1 ui.InputComponent) {
+func (fake *FakeKeyHandlerContext) GetInputViewReturns(result1 tui.InputComponent) {
 	fake.getInputViewMutex.Lock()
 	defer fake.getInputViewMutex.Unlock()
 	fake.GetInputViewStub = nil
 	fake.getInputViewReturns = struct {
-		result1 ui.InputComponent
+		result1 tui.InputComponent
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetInputViewReturnsOnCall(i int, result1 ui.InputComponent) {
+func (fake *FakeKeyHandlerContext) GetInputViewReturnsOnCall(i int, result1 tui.InputComponent) {
 	fake.getInputViewMutex.Lock()
 	defer fake.getInputViewMutex.Unlock()
 	fake.GetInputViewStub = nil
 	if fake.getInputViewReturnsOnCall == nil {
 		fake.getInputViewReturnsOnCall = make(map[int]struct {
-			result1 ui.InputComponent
+			result1 tui.InputComponent
 		})
 	}
 	fake.getInputViewReturnsOnCall[i] = struct {
-		result1 ui.InputComponent
+		result1 tui.InputComponent
 	}{result1}
 }
 
@@ -747,7 +747,7 @@ func (fake *FakeKeyHandlerContext) GetStateManagerReturnsOnCall(i int, result1 k
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetStatusView() ui.StatusComponent {
+func (fake *FakeKeyHandlerContext) GetStatusView() tui.StatusComponent {
 	fake.getStatusViewMutex.Lock()
 	ret, specificReturn := fake.getStatusViewReturnsOnCall[len(fake.getStatusViewArgsForCall)]
 	fake.getStatusViewArgsForCall = append(fake.getStatusViewArgsForCall, struct {
@@ -771,32 +771,32 @@ func (fake *FakeKeyHandlerContext) GetStatusViewCallCount() int {
 	return len(fake.getStatusViewArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetStatusViewCalls(stub func() ui.StatusComponent) {
+func (fake *FakeKeyHandlerContext) GetStatusViewCalls(stub func() tui.StatusComponent) {
 	fake.getStatusViewMutex.Lock()
 	defer fake.getStatusViewMutex.Unlock()
 	fake.GetStatusViewStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetStatusViewReturns(result1 ui.StatusComponent) {
+func (fake *FakeKeyHandlerContext) GetStatusViewReturns(result1 tui.StatusComponent) {
 	fake.getStatusViewMutex.Lock()
 	defer fake.getStatusViewMutex.Unlock()
 	fake.GetStatusViewStub = nil
 	fake.getStatusViewReturns = struct {
-		result1 ui.StatusComponent
+		result1 tui.StatusComponent
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetStatusViewReturnsOnCall(i int, result1 ui.StatusComponent) {
+func (fake *FakeKeyHandlerContext) GetStatusViewReturnsOnCall(i int, result1 tui.StatusComponent) {
 	fake.getStatusViewMutex.Lock()
 	defer fake.getStatusViewMutex.Unlock()
 	fake.GetStatusViewStub = nil
 	if fake.getStatusViewReturnsOnCall == nil {
 		fake.getStatusViewReturnsOnCall = make(map[int]struct {
-			result1 ui.StatusComponent
+			result1 tui.StatusComponent
 		})
 	}
 	fake.getStatusViewReturnsOnCall[i] = struct {
-		result1 ui.StatusComponent
+		result1 tui.StatusComponent
 	}{result1}
 }
 

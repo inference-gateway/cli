@@ -20,7 +20,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	app "github.com/inference-gateway/cli/internal/app"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	clipboard "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
@@ -30,8 +29,9 @@ import (
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
-	web "github.com/inference-gateway/cli/internal/web"
+	app "github.com/inference-gateway/cli/internal/presentation/tui/app"
+	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
+	web "github.com/inference-gateway/cli/internal/presentation/web"
 )
 
 var chatCmd = &cobra.Command{

@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"sync"
 	"testing"
 	"time"
@@ -15,7 +16,6 @@ import (
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conv "github.com/inference-gateway/cli/internal/conversation"
-	services "github.com/inference-gateway/cli/internal/services"
 	agentappmocks "github.com/inference-gateway/cli/tests/mocks/agentapp"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
@@ -245,7 +245,7 @@ func TestAgentServiceImpl_StreamingDeltaAccumulation(t *testing.T) {
 func TestNewAgentService(t *testing.T) {
 	fakeToolService := &agentdomainmocks.FakeToolService{}
 	fakeConversationRepo := &convmocks.FakeConversationRepository{}
-	fakeStateManager := services.NewStateManager(false)
+	fakeStateManager := statemanager.NewStateManager(false)
 
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
@@ -559,10 +559,10 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 				},
 			}
 
-			fakeStateManager := services.NewStateManager(false)
+			fakeStateManager := statemanager.NewStateManager(false)
 			fakeStateManager.SetAgentMode(tt.agentMode)
 
-			approvalPolicy := services.NewStandardApprovalPolicy(cfg, fakeStateManager)
+			approvalPolicy := NewStandardApprovalPolicy(cfg, fakeStateManager)
 
 			result := approvalPolicy.ShouldRequireApproval(context.Background(), tt.toolCall, tt.isChatMode)
 
@@ -1227,7 +1227,7 @@ func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
 			}
 
 			if !tt.nilStateManager {
-				fakeStateManager := services.NewStateManager(false)
+				fakeStateManager := statemanager.NewStateManager(false)
 				fakeStateManager.SetAgentMode(tt.agentMode)
 				agentService.stateManager = fakeStateManager
 			}

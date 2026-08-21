@@ -1,0 +1,817 @@
+package handlers
+
+import (
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	"strings"
+	"testing"
+	"time"
+
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+
+	tea "charm.land/bubbletea/v2"
+	sdk "github.com/inference-gateway/sdk"
+	assert "github.com/stretchr/testify/assert"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+)
+
+func TestChatHandler_extractMarkdownSummary_BasicCases(t *testing.T) {
+	handler := &ChatHandler{}
+
+	tests := []struct {
+		name            string
+		content         string
+		expectedSummary string
+		expectedFound   bool
+	}{
+		{
+			name: "Basic summary section",
+			content: `# Document Title
+
+## Summary
+This is a summary of the document.
+It has multiple lines.
+
+## Details
+More content here.`,
+			expectedSummary: `## Summary
+This is a summary of the document.
+It has multiple lines.
+`,
+			expectedFound: true,
+		},
+		{
+			name: "Summary with next section",
+			content: `## Summary
+Brief overview of the project.
+Key features included.
+
+## Installation
+Follow these steps...`,
+			expectedSummary: `## Summary
+Brief overview of the project.
+Key features included.
+`,
+			expectedFound: true,
+		},
+		{
+			name: "Summary with document separator",
+			content: `## Summary
+Project overview here.
+Some bullet points.
+
+---
+
+More content after separator.`,
+			expectedSummary: `## Summary
+Project overview here.
+Some bullet points.
+`,
+			expectedFound: true,
+		},
+		{
+			name: "Summary at end of document",
+			content: `# Main Title
+
+## Summary
+This is the final summary.
+End of document.`,
+			expectedSummary: `## Summary
+This is the final summary.
+End of document.
+`,
+			expectedFound: true,
+		},
+		{
+			name: "No summary section",
+			content: `# Document
+
+## Introduction
+Some content.
+
+## Details
+More content.`,
+			expectedSummary: "",
+			expectedFound:   false,
+		},
+		{
+			name: "Empty summary section",
+			content: `## Summary
+
+## Next Section
+Content here.`,
+			expectedSummary: `## Summary
+`,
+			expectedFound: true,
+		},
+		{
+			name: "Summary with only heading",
+			content: `## Summary
+## Next Section`,
+			expectedSummary: "",
+			expectedFound:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			summary, found := handler.ExtractMarkdownSummary(tt.content)
+
+			assert.Equal(t, tt.expectedFound, found, "Found flag should match expected")
+			if tt.expectedFound {
+				assert.Equal(t, tt.expectedSummary, summary, "Summary content should match expected")
+			} else {
+				assert.Empty(t, summary, "Summary should be empty when not found")
+			}
+		})
+	}
+}
+
+func TestChatHandler_extractMarkdownSummary_ComplexCases(t *testing.T) {
+	handler := &ChatHandler{}
+
+	tests := []struct {
+		name            string
+		content         string
+		expectedSummary string
+		expectedFound   bool
+	}{
+		{
+			name: "Multiple summary sections (first one wins)",
+			content: `## Summary
+First summary content.
+
+## Details
+Some details.
+
+## Summary
+Second summary content.`,
+			expectedSummary: `## Summary
+First summary content.
+`,
+			expectedFound: true,
+		},
+		{
+			name: "Summary with subsections",
+			content: `## Summary
+Main summary content.
+
+### Key Points
+- Point 1
+- Point 2
+
+## Next Section
+Other content.`,
+			expectedSummary: `## Summary
+Main summary content.
+
+### Key Points
+- Point 1
+- Point 2
+`,
+			expectedFound: true,
+		},
+		{
+			name: "Summary with extra whitespace",
+			content: `   ## Summary
+Content with spaces.
+More content.
+
+  ## Next Section
+Other stuff.`,
+			expectedSummary: `   ## Summary
+Content with spaces.
+More content.
+`,
+			expectedFound: true,
+		},
+		{
+			name: "Case sensitivity test",
+			content: `## summary
+Lowercase summary.
+
+## Details
+Content.`,
+			expectedSummary: "",
+			expectedFound:   false,
+		},
+		{
+			name: "Summary with code blocks",
+			content: `## Summary
+This project includes:
+
+` + "```go" + `
+func main() {
+    fmt.Println("Hello")
+}
+` + "```" + `
+
+## Usage
+Instructions here.`,
+			expectedSummary: `## Summary
+This project includes:
+
+` + "```go" + `
+func main() {
+    fmt.Println("Hello")
+}
+` + "```" + `
+`,
+			expectedFound: true,
+		},
+		{
+			name: "Summary with horizontal rule at end",
+			content: `## Summary
+Project summary here.
+---`,
+			expectedSummary: `## Summary
+Project summary here.
+`,
+			expectedFound: true,
+		},
+		{
+			name:            "Empty content",
+			content:         "",
+			expectedSummary: "",
+			expectedFound:   false,
+		},
+		{
+			name: "Only newlines",
+			content: `
+
+
+`,
+			expectedSummary: "",
+			expectedFound:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			summary, found := handler.ExtractMarkdownSummary(tt.content)
+
+			assert.Equal(t, tt.expectedFound, found, "Found flag should match expected")
+			if tt.expectedFound {
+				assert.Equal(t, tt.expectedSummary, summary, "Summary content should match expected")
+			} else {
+				assert.Empty(t, summary, "Summary should be empty when not found")
+			}
+		})
+	}
+}
+
+func TestChatHandler_extractMarkdownSummary_ExportFormat(t *testing.T) {
+	handler := &ChatHandler{}
+
+	tests := []struct {
+		name            string
+		content         string
+		expectedSummary string
+		expectedFound   bool
+	}{
+		{
+			name: "Export file format with summary until separator",
+			content: `# Chat Conversation Export
+
+**Generated:** August 19, 2025 at 3:29 PM
+**Total Messages:** 8
+
+---
+
+## Summary
+
+**Conversation Summary:**
+
+**Main Topics:**
+- Introduction and availability for software engineering assistance
+
+---
+
+## Full Conversation
+
+Message content here...`,
+			expectedSummary: `## Summary
+
+**Conversation Summary:**
+
+**Main Topics:**
+- Introduction and availability for software engineering assistance
+`,
+			expectedFound: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			summary, found := handler.ExtractMarkdownSummary(tt.content)
+
+			assert.Equal(t, tt.expectedFound, found, "Found flag should match expected")
+			if tt.expectedFound {
+				assert.Equal(t, tt.expectedSummary, summary, "Summary content should match expected")
+			} else {
+				assert.Empty(t, summary, "Summary should be empty when not found")
+			}
+		})
+	}
+}
+
+// Test edge cases and boundary conditions
+func TestChatHandler_extractMarkdownSummary_EdgeCases(t *testing.T) {
+	handler := &ChatHandler{}
+
+	t.Run("Very large summary", func(t *testing.T) {
+		largeContent := "## Summary\n"
+		for i := range 1000 {
+			largeContent += "This is line " + string(rune(i)) + " of the summary.\n"
+		}
+		largeContent += "\n## Next Section\nOther content."
+
+		summary, found := handler.ExtractMarkdownSummary(largeContent)
+
+		assert.True(t, found)
+		assert.Contains(t, summary, "## Summary")
+		assert.NotContains(t, summary, "## Next Section")
+	})
+
+	t.Run("Summary with special characters", func(t *testing.T) {
+		content := `## Summary
+Special chars: !@#$%^&*()
+Unicode: 你好世界 🚀
+Emojis work too! ✨
+
+## Details
+More content.`
+
+		summary, found := handler.ExtractMarkdownSummary(content)
+
+		assert.True(t, found)
+		assert.Contains(t, summary, "Special chars: !@#$%^&*()")
+		assert.Contains(t, summary, "Unicode: 你好世界 🚀")
+		assert.Contains(t, summary, "Emojis work too! ✨")
+		assert.NotContains(t, summary, "## Details")
+	})
+
+	t.Run("Mixed line endings", func(t *testing.T) {
+		content := "## Summary\r\nWindows line ending content.\nUnix line ending.\r\n\r\n## Next Section\r\nMore content."
+
+		summary, found := handler.ExtractMarkdownSummary(content)
+
+		assert.True(t, found)
+		assert.Contains(t, summary, "Windows line ending content.")
+		assert.Contains(t, summary, "Unix line ending.")
+	})
+}
+
+func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
+	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
+	shortcutRegistry := shortcuts.NewRegistry()
+
+	messageQueue := conversation.NewMessageQueueService()
+
+	handler := NewChatHandler(
+		nil, // agentService
+		conversationRepo,
+		nil, // conversationOptimizer
+		nil, // sessionRolloverManager
+		nil, // modelService
+		nil, // toolService
+		nil, // fileService
+		nil, // imageService
+		nil, // skillsService
+		nil, // githubIssueService
+		shortcutRegistry,
+		nil, // stateManager
+		messageQueue,
+		nil, // taskRetentionService
+		nil, // backgroundTaskService
+		nil, // backgroundShellService
+		nil, // agentManager
+		config.DefaultConfig(),
+		nil, // a2aTaskCoordinator
+		nil, // approvalCoordinator
+		nil, // completionRunner
+		nil, // directExec
+		nil, // toolCoordinator
+	)
+
+	err := conversationRepo.AddTokenUsage("test-model", 100, 50, 150, 0, 0)
+	if err != nil {
+		t.Fatalf("Failed to add token usage: %v", err)
+	}
+
+	metrics := &agentdomain.ChatMetrics{
+		Duration: 1 * time.Second,
+		Usage: &sdk.CompletionUsage{
+			PromptTokens:     25,
+			CompletionTokens: 15,
+			TotalTokens:      40,
+		},
+	}
+
+	result := handler.FormatMetrics(metrics)
+
+	if !strings.Contains(result, "Input: 25 tokens") {
+		t.Errorf("Expected current input tokens in result, got: %s", result)
+	}
+
+	if !strings.Contains(result, "Output: 15 tokens") {
+		t.Errorf("Expected current output tokens in result, got: %s", result)
+	}
+
+	if !strings.Contains(result, "Total: 40 tokens") {
+		t.Errorf("Expected current total tokens in result, got: %s", result)
+	}
+
+	if strings.Contains(result, "Session Input") {
+		t.Errorf("Session Input tokens should not be in status bar, got: %s", result)
+	}
+
+	if strings.Contains(result, "Session Output") {
+		t.Errorf("Session Output tokens should not be in status bar, got: %s", result)
+	}
+
+	if strings.Contains(result, "Cached:") {
+		t.Errorf("Cached tokens should be hidden without prompt token details, got: %s", result)
+	}
+
+	cached := int64(20)
+	metrics.Usage.PromptTokensDetails = &struct {
+		AudioTokens  *int64 `json:"audio_tokens,omitempty"`
+		CachedTokens *int64 `json:"cached_tokens,omitempty"`
+	}{CachedTokens: &cached}
+
+	result = handler.FormatMetrics(metrics)
+	if !strings.Contains(result, "Cached: 20 tokens") {
+		t.Errorf("Expected cached tokens in result, got: %s", result)
+	}
+}
+
+func TestChatHandler_Handle(t *testing.T) {
+	tests := getChatHandlerTestCases()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stateManager := statemanager.NewStateManager(false)
+			handler := setupTestChatHandler(t, tt.setupMocks, stateManager)
+
+			cmd := handler.Handle(tt.msg)
+
+			if tt.expectedCmd {
+				assert.NotNil(t, cmd, "Expected command for %T", tt.msg)
+			} else {
+				assert.Nil(t, cmd, "Expected no command for %T", tt.msg)
+			}
+
+			if tt.validateResult != nil {
+				tt.validateResult(t, cmd)
+			}
+		})
+	}
+}
+
+type chatHandlerTestCase struct {
+	name           string
+	msg            tea.Msg
+	setupMocks     func(*agentdomainmocks.FakeAgentService, *convmocks.FakeModelService, *agentdomainmocks.FakeToolService, *agentdomainmocks.FakeFileService, *config.Config)
+	expectedCmd    bool
+	validateResult func(*testing.T, tea.Cmd)
+}
+
+func getChatHandlerTestCases() []chatHandlerTestCase {
+	userInputCases := getUserInputTestCases()
+	fileSelectionCases := getFileSelectionTestCases()
+	chatEventCases := getChatEventTestCases()
+	toolExecutionCases := getToolExecutionTestCases()
+
+	allCases := make([]chatHandlerTestCase, 0, len(userInputCases)+len(fileSelectionCases)+len(chatEventCases)+len(toolExecutionCases))
+	allCases = append(allCases, userInputCases...)
+	allCases = append(allCases, fileSelectionCases...)
+	allCases = append(allCases, chatEventCases...)
+	allCases = append(allCases, toolExecutionCases...)
+
+	return allCases
+}
+
+func getUserInputTestCases() []chatHandlerTestCase {
+	return []chatHandlerTestCase{
+		{
+			name: "UserInputEvent - normal message",
+			msg: agentdomain.UserInputEvent{
+				Content: "Hello, how are you?",
+			},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+				model.GetCurrentModelReturns("test-model")
+				eventCh := make(chan agentdomain.ChatEvent, 1)
+				close(eventCh)
+				agent.RunWithStreamReturns(eventCh, nil)
+			},
+			expectedCmd: true,
+		},
+		{
+			name: "UserInputEvent - slash command",
+			msg: agentdomain.UserInputEvent{
+				Content: "/help",
+			},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+			},
+			expectedCmd: true,
+		},
+		{
+			name: "UserInputEvent - bash command",
+			msg: agentdomain.UserInputEvent{
+				Content: "!ls -la",
+			},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+				tool.IsToolEnabledReturns(true)
+			},
+			expectedCmd: true,
+		},
+		{
+			name: "UserInputEvent - tool command",
+			msg: agentdomain.UserInputEvent{
+				Content: "!!Read(file_path=\"test.txt\")",
+			},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+				tool.IsToolEnabledReturns(true)
+			},
+			expectedCmd: true,
+		},
+	}
+}
+
+func getFileSelectionTestCases() []chatHandlerTestCase {
+	return []chatHandlerTestCase{
+		{
+			name: "FileSelectionRequestEvent - with files",
+			msg:  tui.FileSelectionRequestEvent{},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+				file.ListProjectFilesReturns([]string{"file1.go", "file2.go"}, nil)
+			},
+			expectedCmd: true,
+		},
+		{
+			name: "FileSelectionRequestEvent - no files",
+			msg:  tui.FileSelectionRequestEvent{},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+				file.ListProjectFilesReturns([]string{}, nil)
+			},
+			expectedCmd: true,
+		},
+	}
+}
+
+func getChatEventTestCases() []chatHandlerTestCase {
+	return []chatHandlerTestCase{
+		{
+			name: "ChatStartEvent",
+			msg: agentdomain.ChatStartEvent{
+				RequestID: "test-123",
+				Timestamp: time.Now(),
+			},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+			},
+			expectedCmd: true,
+		},
+		{
+			// Note: post-refactor (#529) this dispatch case now delegates to
+			// ChatCompletionRunner.HandleChatChunk via the fake runner, which
+			// always returns a non-nil cmd. The "no session returns nil" path
+			// is tested directly in chatcompletion/runner_test.go.
+			name: "ChatChunkEvent - with content (no session)",
+			msg: agentdomain.ChatChunkEvent{
+				RequestID: "test-123",
+				Content:   "Response chunk",
+				Timestamp: time.Now(),
+			},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+				model.GetCurrentModelReturns("test-model")
+			},
+			expectedCmd: true,
+		},
+		{
+			name: "ChatChunkEvent - with reasoning",
+			msg: agentdomain.ChatChunkEvent{
+				RequestID:        "test-123",
+				ReasoningContent: "Thinking...",
+				Timestamp:        time.Now(),
+			},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+			},
+			expectedCmd: true,
+		},
+		{
+			name: "ChatCompleteEvent - without tools",
+			msg: agentdomain.ChatCompleteEvent{
+				RequestID: "test-123",
+				Timestamp: time.Now(),
+				Metrics: &agentdomain.ChatMetrics{
+					Duration: time.Second,
+					Usage: &sdk.CompletionUsage{
+						PromptTokens:     100,
+						CompletionTokens: 50,
+						TotalTokens:      150,
+					},
+				},
+			},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+			},
+			expectedCmd: true,
+		},
+		{
+			name: "ChatErrorEvent",
+			msg: agentdomain.ChatErrorEvent{
+				RequestID: "test-123",
+				Error:     assert.AnError,
+				Timestamp: time.Now(),
+			},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+			},
+			expectedCmd: true,
+		},
+	}
+}
+
+func getToolExecutionTestCases() []chatHandlerTestCase {
+	return []chatHandlerTestCase{
+		{
+			name: "ToolExecutionStartedEvent",
+			msg: tui.ToolExecutionStartedEvent{
+				SessionID:  "test-123",
+				TotalTools: 2,
+			},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+			},
+			expectedCmd: true,
+		},
+		{
+			// Note: post-refactor (#529) this dispatch case delegates to
+			// ToolExecutionCoordinator.HandleToolExecutionProgress via the
+			// fake, which always returns a non-nil cmd. The "unknown status
+			// returns nil" path is tested directly in
+			// toolcoordinator/coordinator_test.go.
+			name: "ToolExecutionProgressEvent",
+			msg: agentdomain.ToolExecutionProgressEvent{
+				BaseChatEvent: agentdomain.BaseChatEvent{
+					RequestID: "test-123",
+				},
+				ToolCallID: "test_tool_call",
+				Status:     "executing",
+				Message:    "Read tool executing",
+			},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+			},
+			expectedCmd: true,
+		},
+		{
+			name: "ToolExecutionCompletedEvent",
+			msg: agentdomain.ToolExecutionCompletedEvent{
+				SessionID:     "test-123",
+				TotalExecuted: 2,
+				SuccessCount:  2,
+			},
+			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
+				model.GetCurrentModelReturns("test-model")
+				eventCh := make(chan agentdomain.ChatEvent, 1)
+				close(eventCh)
+				agent.RunWithStreamReturns(eventCh, nil)
+			},
+			expectedCmd: true,
+		},
+	}
+}
+
+func setupTestChatHandler(_ *testing.T, setupMocks func(*agentdomainmocks.FakeAgentService, *convmocks.FakeModelService, *agentdomainmocks.FakeToolService, *agentdomainmocks.FakeFileService, *config.Config), stateManager *statemanager.StateManager) *ChatHandler {
+	mockAgent := &agentdomainmocks.FakeAgentService{}
+	mockModel := &convmocks.FakeModelService{}
+	mockTool := &agentdomainmocks.FakeToolService{}
+	mockFile := &agentdomainmocks.FakeFileService{}
+	cfg := config.DefaultConfig()
+
+	if setupMocks != nil {
+		setupMocks(mockAgent, mockModel, mockTool, mockFile, cfg)
+	}
+
+	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
+	shortcutRegistry := shortcuts.NewRegistry()
+	messageQueue := conversation.NewMessageQueueService()
+
+	// Configure the fake services to return non-nil cmds so the handler's
+	// Handle() dispatcher returns non-nil for the events that delegate.
+	// Individual cmd contents are exercised by the per-service tests.
+	nonNilCmd := func() tea.Msg { return nil }
+	fakeRunner := &tuimocks.FakeChatCompletionRunner{}
+	fakeRunner.HandleChatStartReturns(nonNilCmd)
+	fakeRunner.HandleChatChunkReturns(nonNilCmd)
+	fakeRunner.HandleChatCompleteReturns(nonNilCmd)
+	fakeRunner.HandleChatErrorReturns(nonNilCmd)
+	fakeRunner.HandleOptimizationStatusReturns(nonNilCmd)
+	fakeRunner.StartReturns(nonNilCmd)
+
+	fakeDirect := &tuimocks.FakeDirectExecutionService{}
+	fakeDirect.HandleBashCommandReturns(nonNilCmd)
+	fakeDirect.HandleToolCommandReturns(nonNilCmd)
+	fakeDirect.HandleBashOutputChunkReturns(nonNilCmd)
+	fakeDirect.HandleBashCommandCompletedReturns(nonNilCmd)
+	fakeDirect.HandleBackgroundShellRequestReturns(nonNilCmd)
+
+	fakeToolCoord := &tuimocks.FakeToolExecutionCoordinator{}
+	fakeToolCoord.HandleToolCallUpdateReturns(nonNilCmd)
+	fakeToolCoord.HandleToolCallReadyReturns(nonNilCmd)
+	fakeToolCoord.HandleToolApprovalRequestedReturns(nonNilCmd)
+	fakeToolCoord.HandleToolApprovalResponseReturns(nonNilCmd)
+	fakeToolCoord.HandleToolExecutionStartedReturns(nonNilCmd)
+	fakeToolCoord.HandleToolExecutionProgressReturns(nonNilCmd)
+	fakeToolCoord.HandleToolExecutionCompletedReturns(nonNilCmd)
+	fakeToolCoord.HandleToolCancelledReturns(nonNilCmd)
+
+	return NewChatHandler(
+		mockAgent,
+		conversationRepo,
+		nil, // conversationOptimizer
+		nil, // sessionRolloverManager
+		mockModel,
+		mockTool,
+		mockFile,
+		nil,
+		nil, // skillsService
+		nil, // githubIssueService
+		shortcutRegistry,
+		stateManager,
+		messageQueue,
+		nil,
+		nil,
+		nil,
+		nil,
+		cfg,
+		nil, // a2aTaskCoordinator
+		nil, // approvalCoordinator
+		fakeRunner,
+		fakeDirect,
+		fakeToolCoord,
+	)
+}
+
+func TestChatHandler_shouldInjectSystemReminder(t *testing.T) {
+	tests := []struct {
+		name                    string
+		assistantMessageCounter int
+		configEnabled           bool
+		configInterval          int
+		expectedResult          bool
+	}{
+		{
+			name:                    "Should inject at interval 4",
+			assistantMessageCounter: 4,
+			configEnabled:           true,
+			configInterval:          4,
+			expectedResult:          true,
+		},
+		{
+			name:                    "Should not inject when disabled",
+			assistantMessageCounter: 4,
+			configEnabled:           false,
+			configInterval:          4,
+			expectedResult:          false,
+		},
+		{
+			name:                    "Should not inject at non-interval",
+			assistantMessageCounter: 3,
+			configEnabled:           true,
+			configInterval:          4,
+			expectedResult:          false,
+		},
+		{
+			name:                    "Should not inject when counter is 0",
+			assistantMessageCounter: 0,
+			configEnabled:           true,
+			configInterval:          4,
+			expectedResult:          false,
+		},
+		{
+			name:                    "Should inject at multiple of interval",
+			assistantMessageCounter: 8,
+			configEnabled:           true,
+			configInterval:          4,
+			expectedResult:          true,
+		},
+		{
+			name:                    "Should use default interval 4 when 0",
+			assistantMessageCounter: 4,
+			configEnabled:           true,
+			configInterval:          0,
+			expectedResult:          true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_ = tt
+		})
+	}
+}

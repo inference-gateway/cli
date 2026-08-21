@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/inference-gateway/cli/internal/conversation/domain"
-	"github.com/inference-gateway/cli/internal/shortcuts"
+	"github.com/inference-gateway/cli/internal/presentation/shortcuts"
 )
 
 type FakePersistentConversationRepository struct {

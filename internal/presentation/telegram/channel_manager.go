@@ -28,7 +28,7 @@ import (
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
-	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 )
 
 // ChannelManagerService manages pluggable messaging channels and triggers

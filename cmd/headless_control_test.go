@@ -1,17 +1,17 @@
 package cmd
 
 import (
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
-func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *services.StateManager) {
+func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *statemanager.StateManager) {
 	agent := &agentdomainmocks.FakeAgentService{}
-	sm := services.NewStateManager(false)
+	sm := statemanager.NewStateManager(false)
 	return newHeadlessControl(agent, sm, "sess-1"), agent, sm
 }
 

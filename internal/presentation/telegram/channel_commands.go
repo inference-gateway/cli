@@ -15,7 +15,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 )
 
 // ChannelBuiltinCommands are the shortcuts the daemon implements natively for

@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/shortcuts"
+	"github.com/inference-gateway/cli/internal/presentation/shortcuts"
 )
 
 type FakeShortcut struct {

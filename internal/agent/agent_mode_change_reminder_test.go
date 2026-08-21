@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"strings"
 	"testing"
 
@@ -12,7 +13,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
@@ -20,7 +20,7 @@ import (
 // config (which carries the on_mode_change entry) and a fake state manager
 // reporting the given live mode.
 func modeChangeSvc(enabled bool, liveMode agentdomain.AgentMode) *AgentServiceImpl {
-	sm := services.NewStateManager(false)
+	sm := statemanager.NewStateManager(false)
 	sm.SetAgentMode(liveMode)
 	cfg := &config.Config{Reminders: *config.DefaultRemindersConfig()}
 	cfg.Reminders.Enabled = enabled
@@ -206,7 +206,7 @@ func TestModeChangeReminder_PersistsHiddenViaRepo(t *testing.T) {
 // After a change is recorded, the new mode becomes the baseline; a later turn
 // in that same mode must not re-inject.
 func TestModeChangeReminder_BaselineAdvancesAfterChange(t *testing.T) {
-	sm := services.NewStateManager(false)
+	sm := statemanager.NewStateManager(false)
 	cfg := &config.Config{Reminders: *config.DefaultRemindersConfig()}
 	svc := &AgentServiceImpl{stateManager: sm, config: cfg}
 	withDebugStreamWriter(t)

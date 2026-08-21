@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -13,7 +14,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
-	services "github.com/inference-gateway/cli/internal/services"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 )
 
@@ -262,7 +262,7 @@ func TestInjectDueReminders_StalledTodosContinuation(t *testing.T) {
 		Name: "todo-continuation", Text: "continue your todos: {todo_list}",
 		Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Threshold: 3,
 	})
-	sm := services.NewStateManager(false)
+	sm := statemanager.NewStateManager(false)
 	sm.SetTodos([]agentdomain.TodoItem{
 		{ID: "1", Content: "done thing", Status: "completed"},
 		{ID: "2", Content: "open thing", Status: "pending"},
@@ -302,7 +302,7 @@ func TestInjectDueReminders_TruncationTakesPriority(t *testing.T) {
 			Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnTruncation,
 		},
 	)
-	sm := services.NewStateManager(false)
+	sm := statemanager.NewStateManager(false)
 	sm.SetTodos([]agentdomain.TodoItem{{ID: "1", Content: "open", Status: "pending"}})
 	svc := &AgentServiceImpl{config: cfg, stateManager: sm}
 

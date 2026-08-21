@@ -26,7 +26,6 @@ import (
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 	plugins "github.com/inference-gateway/cli/internal/services/plugins"
 )
 
@@ -355,7 +354,7 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []convdomain.Conv
 // NewAgentService creates a new agent service with pre-configured client
 // stateManager is the narrow slice of the app state manager the agent core
 // needs: the current agent mode, computer-use pause state, retry-status
-// updates, and the session todo list (reminder gating). *services.StateManager
+// updates, and the session todo list (reminder gating). *statemanager.StateManager
 // satisfies it.
 type stateManager interface {
 	agentdomain.AgentModeManager
@@ -380,7 +379,7 @@ func NewAgent(
 ) *AgentServiceImpl {
 	tokenizer := conv.NewTokenizerService(conv.DefaultTokenizerConfig())
 
-	approvalPolicy := services.NewStandardApprovalPolicy(cfg, stateManager)
+	approvalPolicy := NewStandardApprovalPolicy(cfg, stateManager)
 
 	hookProvider := agentdomain.HookCommandProvider(cfg.Hooks)
 	if pluginProvider := plugins.NewPluginHookCommandProvider(cfg); pluginProvider != nil {

@@ -14,7 +14,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 )
 
 // cleanerChannel combines the generated Channel and HistoryCleaner fakes so the

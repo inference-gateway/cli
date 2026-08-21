@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 	"strings"
 	"time"
 
@@ -14,8 +15,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
-	services "github.com/inference-gateway/cli/internal/services"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
 var toolsCmd = &cobra.Command{
@@ -145,7 +145,7 @@ func ExecTool(cfg *config.Config, args []string, format string) error {
 	}
 
 	styleProvider := styles.NewProvider(serviceContainer.GetThemeService())
-	formatterService := services.NewToolFormatterService(toolRegistry, styleProvider)
+	formatterService := toolformatter.NewToolFormatterService(toolRegistry, styleProvider)
 
 	fmt.Print(formatterService.FormatToolResultExpanded(result, 80))
 	return nil

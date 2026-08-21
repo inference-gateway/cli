@@ -2,6 +2,7 @@ package infrastructure
 
 import (
 	"context"
+	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 	"io"
 	"net/http"
 	"os"
@@ -22,7 +23,6 @@ import (
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	services "github.com/inference-gateway/cli/internal/services"
 )
 
 // readFrameOfType reads frames until one with the given type arrives, failing
@@ -245,7 +245,7 @@ func startBridgeWithSkills(t *testing.T, cfg *config.BrowserUseConfig, skills ag
 
 // newBridgeRepo builds a persistent repo backed by in-memory storage.
 func newBridgeRepo() *conversation.PersistentConversationRepository {
-	return conversation.NewPersistentConversationRepository(&services.ToolFormatterService{}, nil, storage.NewMemoryStorage())
+	return conversation.NewPersistentConversationRepository(&toolformatter.ToolFormatterService{}, nil, storage.NewMemoryStorage())
 }
 
 // seedConversation starts, fills, and saves a conversation, returning its id.

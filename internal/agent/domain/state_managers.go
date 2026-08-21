@@ -1,8 +1,8 @@
 // State accessor contracts and session state implemented by
-// ui.ApplicationState / services.StateManager. The agent core, coordinator
+// tui.ApplicationState / statemanager.StateManager. The agent core, coordinator
 // services, and handlers all consume narrow slices of them, so they live in
 // the shared kernel rather than in any single consumer. ViewManager stays in
-// internal/ui — view transitions are presentation.
+// internal/presentation/tui — view transitions are presentation.
 
 package domain
 

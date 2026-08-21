@@ -20,13 +20,13 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	telegram "github.com/inference-gateway/cli/internal/presentation/telegram"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	heartbeat "github.com/inference-gateway/cli/internal/scheduler/heartbeat"
 	services "github.com/inference-gateway/cli/internal/services"
 	githubsetup "github.com/inference-gateway/cli/internal/services/githubsetup"
-	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 )
 
 var daemonCmd = &cobra.Command{
