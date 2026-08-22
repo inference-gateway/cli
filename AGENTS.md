@@ -4,7 +4,7 @@ A README for coding agents working on the Inference Gateway CLI.
 
 ## Stack
 
-- **Go 1.26**, module `github.com/inference-gateway/cli`. Entry point: `main.go` → `cmd.Execute()`.
+- **Go 1.26**, module `github.com/inference-gateway/cli`. Entry point: `cmd/infer/main.go` -> `root.Execute()`.
 - **Cobra** for CLI structure. Root subcommands share a dependency-injected service container (`internal/container/container.go`).
 - Dev environment managed via **flox** (`.flox/env/manifest.toml` pins Go, `go-task`, `golangci-lint`, `gopls`, `ripgrep`, `markdownlint-cli`, `gh`). Run everything through `flox activate --`.
 
@@ -12,7 +12,7 @@ A README for coding agents working on the Inference Gateway CLI.
 
 ```bash
 task build                    # → ./infer binary
-task run -- <args>            # go run . <args> (e.g. task run -- status)
+task run -- <args>            # go run ./cmd/infer <args> (e.g. task run -- status)
 task test                     # go test ./...
 task test:coverage            # go test -cover ./...
 task test:verbose             # go test -v ./...
@@ -43,7 +43,7 @@ The agent is an **event-driven state machine** (`internal/agent/agent_state_mach
 - `internal/mcp/` — MCP server registry: the manager implementing `agentdomain.MCPManager`/`MCPClient` and its SSE transport.
 - `internal/skills/`, `internal/plugins/` — Agent Skills discovery/catalog/installer (with embedded builtins) and the plugin installer implementing `agentdomain.HookCommandProvider`.
 - `internal/github/` — `issues/` (`agentdomain.GitHubIssueService`) and `setup/` (workflow scaffolding, org secrets); two packages because both export `Service`.
-- `internal/provisioner/` — GPU pod provisioning, a leaf consumed only by `cmd/gpu.go`.
+- `internal/provisioner/` — GPU pod provisioning, a leaf consumed only by `cmd/gpu/gpu.go`.
 - `internal/presentation/` — every user-facing surface, and the only place bubbletea, go-telegram and terminal styling appear:
   - `tui/` (package `tui`) — `ApplicationState`, view/manager contracts, UI events, theming; `tui/app` is the Bubble Tea root model, `tui/handlers` the event handlers, `tui/{a2acoord,approvalcoord,chatcompletion,directexec,eventlistener,toolcoordinator}` the `tea.Cmd` coordinators, `tui/statemanager` the shared chat state, `tui/toolformatter` the styled tool renderer.
   - `shortcuts/` — the `/`-command registry, shared by the TUI and Telegram.
@@ -121,7 +121,7 @@ the alias rule by `task lint:imports`, which `task lint` runs first.
 
 **Never start the gateway or A2A agent containers by hand** (`docker run
 ghcr.io/inference-gateway/inference-gateway`, manual `docker pull`, etc.) when
-manually testing the CLI. `go run . chat` and `go run . agent <prompt>` are
+manually testing the CLI. `go run ./cmd/infer chat` and `go run ./cmd/infer headless <prompt>` are
 self-contained: the CLI auto-starts the local gateway and every `run: true`
 agent from `agents.yaml` (pulling images as needed) and tears them down on
 session end. Just run the command; the only manual inputs are the model flag
@@ -145,7 +145,7 @@ and split a pane in the **current** session instead of starting a new one.
 
 ```bash
 tmux new-session -d -s infer-tui -x 200 -y 50 \
-  'INFER_GATEWAY_MOCK=true go run . chat'
+  'INFER_GATEWAY_MOCK=true go run ./cmd/infer chat'
 ```
 
 - Wait ~3s for `go run` to compile and the TUI to render before the first capture.
@@ -201,7 +201,7 @@ Config is **split across multiple YAML files** under `.infer/` (project) and `~/
 
 Env var override format: `INFER_<PATH_WITH_UNDERSCORES>` (e.g. `INFER_AGENT_MODEL`).
 
-**After editing config defaults**: run `go run . init --overwrite`, then **restore `agents.yaml`** (`git checkout -- .infer/agents.yaml`) — it contains user-curated A2A registrations and `init --overwrite` nukes it. Same caution applies to `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`.
+**After editing config defaults**: run `go run ./cmd/infer init --overwrite`, then **restore `agents.yaml`** (`git checkout -- .infer/agents.yaml`) — it contains user-curated A2A registrations and `init --overwrite` nukes it. Same caution applies to `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`.
 
 ## Security Gotchas
 

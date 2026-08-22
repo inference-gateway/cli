@@ -56,10 +56,12 @@
 
           tags = [ "purego" ];
 
+          subPackages = [ "cmd/infer" ];
+
           ldflags = [
             "-s"
             "-w"
-            "-X=github.com/inference-gateway/cli/cmd.version=${version}"
+            "-X=github.com/inference-gateway/cli/cmd/version.version=${version}"
           ];
 
           preCheck = ''

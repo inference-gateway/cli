@@ -9,6 +9,8 @@
 flox.*-linux.*
 /.task
 infer
+!cmd/infer/
+!cmd/infer/main.go
 
 # Nix build artifacts
 result

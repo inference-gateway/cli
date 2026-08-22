@@ -503,7 +503,7 @@ grep "Embedded file found" server.log
 ```bash
 task build
 # Or
-go build -o infer .
+go build -o infer ./cmd/infer
 ```
 
 ### Terminal Size Issues
@@ -676,7 +676,7 @@ Used by Docker containers spawned by agents/MCP servers.
 Signal handling ensures cleanup:
 
 ```go
-// cmd/chat.go
+// cmd/chat/chat.go
 sigChan := make(chan os.Signal, 1)
 signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 

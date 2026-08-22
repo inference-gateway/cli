@@ -107,8 +107,8 @@ jobs:
         go build -tags purego \
           -ldflags "\
             -w -s \
-            -X github.com/inference-gateway/cli/cmd.version=${{ github.ref_name }}" \
-          -o infer .
+            -X github.com/inference-gateway/cli/cmd/version.version=${{ github.ref_name }}" \
+          -o infer ./cmd/infer
 
   build-macos:
     needs:
@@ -128,7 +128,7 @@ jobs:
         cache: true
 
     - name: Build project (darwin, cgo-free via -tags purego)
-      run: go build -tags purego -o infer .
+      run: go build -tags purego -o infer ./cmd/infer
 
   test:
     needs:
@@ -161,13 +161,13 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
-    # The e2e harness builds the CLI with a plain `go build .` (no tags, cgo on),
+    # The e2e harness builds the CLI main package without tags (cgo on),
     # which selects robotgo's cgo backend and fails where X11 headers are absent.
     # Prebuild with the purego tag and hand the binary over via INFER_E2E_BINARY.
     - name: Build the CLI under test
       env:
         CGO_ENABLED: "0"
-      run: go build -tags purego -o "${RUNNER_TEMP}/infer-e2e" .
+      run: go build -tags purego -o "${RUNNER_TEMP}/infer-e2e" ./cmd/infer
 
     - name: Run hermetic end-to-end tests against the mock gateway
       env:

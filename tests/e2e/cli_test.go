@@ -37,7 +37,7 @@ const (
 func TestMain(m *testing.M) {
 	var cleanup func()
 	var err error
-	binPath, cleanup, err = tokenless.BuildBinary(repoRoot(), "INFER_E2E_BINARY")
+	binPath, cleanup, err = tokenless.BuildBinary(filepath.Join(repoRoot(), "cmd", "infer"), "INFER_E2E_BINARY")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
