@@ -2,6 +2,7 @@ package computer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -13,15 +14,17 @@ import (
 )
 
 var actionKinds = map[string]computerdomain.ActionKind{
-	"screenshot":   computerdomain.ActionScreenshot,
-	"cursor":       computerdomain.ActionCursor,
-	"move":         computerdomain.ActionMove,
-	"click":        computerdomain.ActionClick,
-	"double_click": computerdomain.ActionDoubleClick,
-	"triple_click": computerdomain.ActionTripleClick,
-	"scroll":       computerdomain.ActionScroll,
-	"type":         computerdomain.ActionType,
-	"key":          computerdomain.ActionKey,
+	"screenshot":    computerdomain.ActionScreenshot,
+	"accessibility": computerdomain.ActionAccessibility,
+	"cursor":        computerdomain.ActionCursor,
+	"move":          computerdomain.ActionMove,
+	"click":         computerdomain.ActionClick,
+	"double_click":  computerdomain.ActionDoubleClick,
+	"triple_click":  computerdomain.ActionTripleClick,
+	"scroll":        computerdomain.ActionScroll,
+	"type":          computerdomain.ActionType,
+	"key":           computerdomain.ActionKey,
+	"press":         computerdomain.ActionPress,
 }
 
 // ComputerTool is the single computer-use tool: it drives the mouse,
@@ -50,11 +53,16 @@ func (t *ComputerTool) Definition() sdk.ChatCompletionTool {
 				"properties": map[string]any{
 					"action": map[string]any{
 						"type":        "string",
-						"enum":        []string{"screenshot", "cursor", "move", "click", "double_click", "triple_click", "scroll", "type", "key"},
-						"description": "What to do: screenshot (capture the screen, optionally a region), cursor (report the cursor position), move / click / double_click / triple_click (pointer, needs x and y), scroll, type (needs text), key (needs combo).",
+						"enum":        []string{"accessibility", "press", "screenshot", "cursor", "move", "click", "double_click", "triple_click", "scroll", "type", "key"},
+						"description": "What to do: accessibility (preferred first observation: compact UI tree with clickable bounding boxes), press (invoke a labelled element without moving the cursor), screenshot (visual fallback, optionally a region), cursor, pointer actions, scroll, type, or key.",
 					},
-					"x": map[string]any{"type": "integer", "description": "Pointer target X in the frame coordinate space (same space as screenshots)."},
-					"y": map[string]any{"type": "integer", "description": "Pointer target Y in the frame coordinate space."},
+					"target": map[string]any{
+						"type":        "string",
+						"description": "accessibility/press only: frontmost (default), dock, menubar, pid:<number>, app:<name>, or a bare application name.",
+					},
+					"label": map[string]any{"type": "string", "description": "press only: exact label returned by the accessibility action (first pressable match wins)."},
+					"x":     map[string]any{"type": "integer", "description": "Pointer target X in the frame coordinate space (same space as screenshots)."},
+					"y":     map[string]any{"type": "integer", "description": "Pointer target Y in the frame coordinate space."},
 					"region": map[string]any{
 						"type":        "object",
 						"description": "screenshot only: capture just this rectangle of the frame space at native resolution, so small UI becomes readable.",
@@ -88,6 +96,8 @@ func parseAction(args map[string]any) (computerdomain.Action, error) {
 
 	a := computerdomain.Action{Kind: kind}
 	a.Text, _ = args["text"].(string)
+	a.Label, _ = args["label"].(string)
+	a.Scope, _ = args["target"].(string)
 	a.Combo, _ = args["combo"].(string)
 	a.Button, _ = args["button"].(string)
 	a.Direction, _ = args["direction"].(string)
@@ -120,6 +130,10 @@ func parseAction(args map[string]any) (computerdomain.Action, error) {
 	case computerdomain.ActionKey:
 		if a.Combo == "" {
 			return a, fmt.Errorf("action \"key\" requires combo")
+		}
+	case computerdomain.ActionPress:
+		if a.Label == "" {
+			return a, fmt.Errorf("action \"press\" requires label")
 		}
 	}
 	return a, nil
@@ -207,6 +221,11 @@ func (t *ComputerTool) FormatForLLM(result *agentdomain.ToolExecutionResult) str
 		return "Computer action done"
 	}
 	msg := obs.Message
+	if len(obs.Elements) > 0 {
+		if elements, err := json.Marshal(obs.Elements); err == nil {
+			msg += "\n" + string(elements)
+		}
+	}
 	if obs.Image != nil {
 		msg += ". Image is attached"
 		if obs.Image.Path != "" {

@@ -572,6 +572,27 @@ tools:
 
 ## Vision Tools
 
+### Computer Tool
+
+`Computer` is the action-based desktop tool, enabled by `computer_use.enabled`.
+
+- `accessibility` - preferred first observation. Returns compact `{role,label,state,bbox}` elements
+  for the frontmost application or another target. Bounding boxes use the same frame coordinate space
+  as screenshots and pointer actions. Read-only; no screenshot or vision annotator is invoked.
+- `press` - performs the accessibility `press` action on the first element with an exact `label`,
+  without moving the cursor or taking a screenshot.
+- `screenshot` - captures a fresh screen image or a native-resolution `region`. Use this when the
+  accessibility result says the tree is empty, unavailable, unsupported, or insufficient.
+- `cursor`, `move`, `click`, `double_click`, `triple_click`, `scroll`, `type`, and `key` - inspect or
+  operate the pointer and keyboard.
+
+The `accessibility` and `press` actions accept an optional `target`: `frontmost` (default), `dock`,
+`menubar`, `pid:<number>`, `app:<name>`, or a bare application name. `press` also requires the exact
+`label` returned by `accessibility`.
+
+Under `computer_use.approval: destructive`, `accessibility`, `screenshot`, and `cursor` bypass
+approval; `press` and the input actions require approval.
+
 ### GetLatestFrame Tool
 
 Fetch the most recent frame from a named frame source: the built-in `screen` source (computer-use
@@ -611,41 +632,17 @@ vision:
 
 ---
 
-## Accessibility Tools
+## Accessibility Provider
 
-Computer-use tools that read the platform accessibility tree instead of pixels - exact element
-positions and titles with no vision model round-trip, so text-only models can locate and operate
-UI directly. Currently backed by macOS AXUIElement (requires the Accessibility permission for the
-process, granted in System Settings > Privacy & Security > Accessibility); Linux (AT-SPI2) and
-Windows (UIA) backends are planned. On unsupported platforms, without the permission, or for apps
-that expose no accessibility tree (some custom-drawn UIs), the tools degrade to a message steering
-the model to the `GetLatestFrame` vision pipeline instead of failing.
+The macOS provider uses PureGo to call CoreFoundation, CoreGraphics, and AXUIElement directly; it has
+no cgo, Swift, or Objective-C source. Native calls run in a short-lived helper process using JSON over
+standard I/O. A helper crash, timeout, missing Accessibility permission, or unavailable tree returns
+screenshot fallback guidance to the agent instead of terminating the CLI. Grant the `infer` process
+permission in System Settings > Privacy & Security > Accessibility.
 
-Gated by `computer_use.enabled` plus per-tool flags (`computer_use.tools.get_ui_elements.enabled`,
-`computer_use.tools.press_ui_element.enabled`).
-
-### GetUIElements Tool
-
-List the pressable elements of an accessibility tree as a numbered list (role, title, center,
-bounding box). Coordinates are mapped into the same frame space as `GetLatestFrame` images, so a
-center can be passed straight to `MouseClick`. Read-only - it does not move the cursor and does not
-take the screen lock, so background sessions can use it for non-invasive UI inspection.
-
-**Parameters:**
-
-- `target` (optional): `frontmost` (default, the focused application), `dock` (the macOS Dock),
-  or `menubar` (the frontmost app's menu bar titles)
-
-### PressUIElement Tool
-
-Press a UI element by its title via its accessibility default action - no cursor movement, no
-coordinate risk. Under `computer_use.approval: destructive` this tool requires approval (like
-`MouseClick` and `ActivateApp`).
-
-**Parameters:**
-
-- `label` (required): The element title exactly as shown by `GetUIElements` (first exact match wins)
-- `target` (optional): Same values as `GetUIElements`; use the tree that listed the element
+Linux AT-SPI and Windows UIA providers can implement the same provider contract later. Until then,
+those platforms report `unsupported; use screenshot` for accessibility actions while the other
+`Computer` actions continue to work.
 
 ---
 

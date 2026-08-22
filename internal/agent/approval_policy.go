@@ -77,7 +77,7 @@ func (p *StandardApprovalPolicy) requiresComputerUseApproval(toolCall *sdk.ChatC
 			return true
 		}
 		action, _ := args["action"].(string)
-		return action != "screenshot" && action != "cursor"
+		return action != "screenshot" && action != "cursor" && action != "accessibility"
 	default:
 		return true
 	}

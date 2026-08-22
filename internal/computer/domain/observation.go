@@ -2,12 +2,13 @@ package domain
 
 // Observation is what the computer reports back after an action.
 type Observation struct {
-	Message string // LLM-facing outcome description
-	CursorX int
-	CursorY int
-	Width   int // frame-space dimensions
-	Height  int
-	Image   *Image // set by screenshot actions
+	Message  string // LLM-facing outcome description
+	CursorX  int
+	CursorY  int
+	Width    int // frame-space dimensions
+	Height   int
+	Image    *Image      // set by screenshot actions
+	Elements []UIElement // set by accessibility observations
 }
 
 // Image is a captured frame.
