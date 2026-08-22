@@ -451,13 +451,13 @@ shortcuts:
 With the configuration above, you can use:
 
 - `/tests` - Runs `go test ./...`
-- `/build` - Runs `go build -o infer .`
+- `/build` - Runs `go build -o infer ./cmd/infer`
 - `/lint` - Runs `golangci-lint run`
 
 You can also pass additional arguments:
 
 - `/tests -v` - Runs `go test ./... -v`
-- `/build --race` - Runs `go build -o infer . --race`
+- `/build --race` - Runs `go build -race -o infer ./cmd/infer`
 
 ---
 

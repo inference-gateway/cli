@@ -458,7 +458,7 @@ func (c *MyChannel) Stop() error { return nil }
 
 2. **Add config types** to `config/config.go`
 
-3. **Register in the channels command** in `cmd/channels.go`:
+3. **Register in the daemon command** in `cmd/daemon/daemon.go`:
 
 ```go
 if cfg.Channels.MyChannel.Enabled {

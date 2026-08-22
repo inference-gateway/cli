@@ -2,7 +2,7 @@ version: '3'
 
 vars:
   BINARY_NAME: infer
-  MAIN_PACKAGE: .
+  MAIN_PACKAGE: ./cmd/infer
   GOTAGS: purego
   VERSION:
     sh: echo "${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo "dev")}"
@@ -20,7 +20,7 @@ tasks:
   build:
     desc: Build the CLI binary
     cmds:
-      - CGO_ENABLED=0 go build -tags "{{.GOTAGS}}" -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" -o {{.BINARY_NAME}} {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=0 go build -tags "{{.GOTAGS}}" -ldflags "-w -s -X github.com/inference-gateway/cli/cmd/version.version={{.VERSION}}" -o {{.BINARY_NAME}} {{.MAIN_PACKAGE}}
     sources:
       - "**/*.go"
       - go.mod
@@ -31,7 +31,7 @@ tasks:
   install:
     desc: Install the CLI from source
     cmds:
-      - CGO_ENABLED=0 go build -tags "{{.GOTAGS}}" -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" -o $(go env GOPATH)/bin/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=0 go build -tags "{{.GOTAGS}}" -ldflags "-w -s -X github.com/inference-gateway/cli/cmd/version.version={{.VERSION}}" -o $(go env GOPATH)/bin/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
 
   build:mockgateway:
     desc: Build the mock inference-gateway binary for manual and terminal-automation testing
@@ -68,11 +68,11 @@ tasks:
   test:e2e:
     desc: Run hermetic end-to-end tests of the built CLI against the mock gateway
     cmds:
-      # The harness builds the CLI with a plain `go build .` (no tags, cgo on), which
+      # The harness builds the CLI main package without tags (cgo on), which
       # selects robotgo's cgo backend and fails where X11 headers are absent. Prebuild
       # with the purego tag and hand it over via INFER_E2E_BINARY.
       - mkdir -p .infer/bin
-      - CGO_ENABLED=0 go build -tags "{{.GOTAGS}}" -o .infer/bin/infer-e2e .
+      - CGO_ENABLED=0 go build -tags "{{.GOTAGS}}" -o .infer/bin/infer-e2e {{.MAIN_PACKAGE}}
       - INFER_E2E_BINARY=$PWD/.infer/bin/infer-e2e go test -race -tags "e2e {{.GOTAGS}}" -timeout 5m ./tests/e2e/...
 
   lint:
@@ -162,7 +162,7 @@ tasks:
         echo "Building for native platform..."
         GOOS=$(go env GOOS)
         GOARCH=$(go env GOARCH)
-        go build -tags "{{.GOTAGS}}" -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" -o dist/{{.BINARY_NAME}}-${GOOS}-${GOARCH} {{.MAIN_PACKAGE}}
+        go build -tags "{{.GOTAGS}}" -ldflags "-w -s -X github.com/inference-gateway/cli/cmd/version.version={{.VERSION}}" -o dist/{{.BINARY_NAME}}-${GOOS}-${GOARCH} {{.MAIN_PACKAGE}}
         echo "✓ Built dist/{{.BINARY_NAME}}-${GOOS}-${GOARCH}"
       - cd dist && sha256sum {{.BINARY_NAME}}-* > checksums.txt
       - |
@@ -180,7 +180,7 @@ tasks:
         sh: go env GOARCH
     cmds:
       - mkdir -p dist
-      - GOOS=darwin GOARCH={{.GOARCH}} go build -tags mac -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" -o dist/{{.BINARY_NAME}}-darwin-{{.GOARCH}} {{.MAIN_PACKAGE}}
+      - GOOS=darwin GOARCH={{.GOARCH}} go build -tags mac -ldflags "-w -s -X github.com/inference-gateway/cli/cmd/version.version={{.VERSION}}" -o dist/{{.BINARY_NAME}}-darwin-{{.GOARCH}} {{.MAIN_PACKAGE}}
 
   release:build:linux:
     desc: Build portable Linux binary using Docker
@@ -197,8 +197,8 @@ tasks:
           golang:1.26-alpine \
           sh -c 'CGO_ENABLED=0 GOOS=linux GOARCH={{.GOARCH}} \
             go build \
-            -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" \
-            -o dist/{{.BINARY_NAME}}-linux-{{.GOARCH}} .'
+            -ldflags "-w -s -X github.com/inference-gateway/cli/cmd/version.version={{.VERSION}}" \
+            -o dist/{{.BINARY_NAME}}-linux-{{.GOARCH}} ./cmd/infer'
         echo "✓ Built portable dist/{{.BINARY_NAME}}-linux-{{.GOARCH}} (pure Go, all storage backends supported)"
 
   release:build:windows:
@@ -208,7 +208,7 @@ tasks:
         sh: go env GOARCH
     cmds:
       - mkdir -p dist
-      - GOOS=windows GOARCH={{.GOARCH}} go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}}" -o dist/{{.BINARY_NAME}}-windows-{{.GOARCH}} {{.MAIN_PACKAGE}}
+      - GOOS=windows GOARCH={{.GOARCH}} go build -ldflags "-w -s -X github.com/inference-gateway/cli/cmd/version.version={{.VERSION}}" -o dist/{{.BINARY_NAME}}-windows-{{.GOARCH}} {{.MAIN_PACKAGE}}
       - echo "✓ Built dist/{{.BINARY_NAME}}-windows-{{.GOARCH}}"
 
   container:build:

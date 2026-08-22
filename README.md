@@ -139,20 +139,10 @@ infer --help
 ### Using Go Install
 
 ```bash
-go install github.com/inference-gateway/cli@latest
+go install github.com/inference-gateway/cli/cmd/infer@latest
 ```
 
-This installs the binary as `cli`. To rename it to `infer`:
-
-```bash
-mv $(go env GOPATH)/bin/cli $(go env GOPATH)/bin/infer
-```
-
-Or use an alias:
-
-```bash
-alias infer="$(go env GOPATH)/bin/cli"
-```
+This installs the binary as `infer`.
 
 ### Using Nix Flake / Flox
 
@@ -269,7 +259,7 @@ For advanced verification with Cosign signatures, see [Binary Verification Guide
 ```bash
 git clone https://github.com/inference-gateway/cli.git
 cd cli
-go build -o infer cmd/infer/main.go
+go build -o infer ./cmd/infer
 sudo mv infer /usr/local/bin/
 ```
 
@@ -278,7 +268,7 @@ On Windows, build with:
 ```powershell
 git clone https://github.com/inference-gateway/cli.git
 cd cli
-go build -o infer.exe cmd/infer/main.go
+go build -o infer.exe ./cmd/infer
 # The binary is at .\infer.exe
 ```
 
