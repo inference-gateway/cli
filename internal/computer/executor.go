@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -14,6 +15,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
+	accessibility "github.com/inference-gateway/cli/internal/computer/infrastructure/accessibility"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 )
 
@@ -23,15 +25,22 @@ const maxTypeTextLength = 10000
 // Action and observation coordinates are in the frame coordinate space (the
 // space screenshots and their annotations use).
 type Executor struct {
-	cfg *config.Config
+	cfg           *config.Config
+	accessibility accessibility.Provider
 }
 
 // NewExecutor creates an Executor.
 func NewExecutor(cfg *config.Config) *Executor {
-	return &Executor{cfg: cfg}
+	return newExecutor(cfg, accessibility.NewProvider())
+}
+
+func newExecutor(cfg *config.Config, provider accessibility.Provider) *Executor {
+	return &Executor{cfg: cfg, accessibility: provider}
 }
 
 // Do executes one action and returns the resulting observation.
+//
+//nolint:cyclop // The single switch keeps all Computer action dispatch in one auditable place.
 func (e *Executor) Do(ctx context.Context, a computerdomain.Action) (*computerdomain.Observation, error) {
 	if err := acquireScreenLock(); err != nil {
 		return nil, err
@@ -59,6 +68,8 @@ func (e *Executor) Do(ctx context.Context, a computerdomain.Action) (*computerdo
 	switch a.Kind {
 	case computerdomain.ActionScreenshot:
 		err = e.screenshot(ctx, controller, a.Target, obs, screenW, screenH)
+	case computerdomain.ActionAccessibility:
+		e.observeAccessibility(ctx, a.Scope, obs, screenW, screenH)
 	case computerdomain.ActionCursor:
 		var x, y int
 		if x, y, err = controller.GetCursorPosition(ctx); err == nil {
@@ -96,6 +107,8 @@ func (e *Executor) Do(ctx context.Context, a computerdomain.Action) (*computerdo
 		if err = controller.SendKeyCombo(ctx, a.Combo); err == nil {
 			obs.Message = "pressed " + a.Combo
 		}
+	case computerdomain.ActionPress:
+		e.pressAccessibility(ctx, a.Scope, a.Label, obs)
 	default:
 		return nil, fmt.Errorf("unknown action %q", a.Kind)
 	}
@@ -103,6 +116,65 @@ func (e *Executor) Do(ctx context.Context, a computerdomain.Action) (*computerdo
 		return nil, err
 	}
 	return obs, nil
+}
+
+func (e *Executor) observeAccessibility(ctx context.Context, target string, obs *computerdomain.Observation, screenW, screenH int) {
+	target = defaultAccessibilityTarget(target)
+	elements, err := e.accessibility.Elements(ctx, target)
+	if err != nil {
+		obs.Message = accessibilityFallback("Accessibility tree unavailable", err)
+		return
+	}
+	if len(elements) == 0 {
+		obs.Message = "Accessibility tree returned no useful elements. Use the Computer screenshot action as fallback."
+		return
+	}
+	scaleAccessibilityElements(elements, obs.Width, obs.Height, screenW, screenH)
+	obs.Elements = elements
+	obs.Message = fmt.Sprintf("accessibility tree for %s: %d elements in the %dx%d frame space", target, len(elements), obs.Width, obs.Height)
+}
+
+func (e *Executor) pressAccessibility(ctx context.Context, target, label string, obs *computerdomain.Observation) {
+	target = defaultAccessibilityTarget(target)
+	if err := e.accessibility.Press(ctx, target, label); err != nil {
+		obs.Message = accessibilityFallback("Nothing was pressed", err)
+		return
+	}
+	obs.Message = fmt.Sprintf("pressed accessibility element %q in %s without taking a screenshot", label, target)
+}
+
+func defaultAccessibilityTarget(target string) string {
+	if target == "" {
+		return "frontmost"
+	}
+	return target
+}
+
+func accessibilityFallback(prefix string, err error) string {
+	detail := err.Error()
+	switch {
+	case errors.Is(err, accessibility.ErrPermission):
+		detail = "macOS Accessibility permission is not granted to infer"
+	case errors.Is(err, accessibility.ErrUnsupported):
+		detail = "the platform accessibility provider is not implemented"
+	case errors.Is(err, accessibility.ErrElementNotFound):
+		detail = "no pressable element matched that label"
+	}
+	return prefix + ": " + detail + ". Use the Computer screenshot action as fallback."
+}
+
+func scaleAccessibilityElements(elements []computerdomain.UIElement, frameW, frameH, screenW, screenH int) {
+	if frameW == screenW && frameH == screenH {
+		return
+	}
+	scaleX := float64(frameW) / float64(screenW)
+	scaleY := float64(frameH) / float64(screenH)
+	for i := range elements {
+		elements[i].BBox[0] = int(math.Round(float64(elements[i].BBox[0]) * scaleX))
+		elements[i].BBox[1] = int(math.Round(float64(elements[i].BBox[1]) * scaleY))
+		elements[i].BBox[2] = int(math.Round(float64(elements[i].BBox[2]) * scaleX))
+		elements[i].BBox[3] = int(math.Round(float64(elements[i].BBox[3]) * scaleY))
+	}
 }
 
 // pointer handles move and the click actions: scale the frame-space target to

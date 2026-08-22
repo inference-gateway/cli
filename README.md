@@ -542,10 +542,7 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 
 | Tool | Purpose | Approval |
 | ------ | --------- | ---------- |
-| **MouseMove** / **MouseClick** / **MouseScroll** | Control the mouse | No |
-| **KeyboardType** | Type text or send key combinations | No |
-| **GetFocusedApp** / **ActivateApp** | Query or focus an application | No |
-| **GetUIElements** / **PressUIElement** | Read the accessibility tree / press an element by title without moving the cursor (macOS) | No |
+| **Computer** | Read the accessibility tree, press labelled controls, capture screenshots, and control mouse/keyboard | Configurable |
 | **GetLatestFrame** | Read the latest frame from a named source (screen, camera directory) | No |
 
 **Memory, scheduling & A2A** (each gated by its own flag):
@@ -1203,9 +1200,9 @@ infer skills uninstall pdf                 # Remove a skill folder by name
 
 ## Computer Use
 
-When enabled, the agent can control the desktop - move and click the mouse, scroll, type text and key
-combinations, focus applications, and read screenshots. The display backend is detected automatically
-across **macOS**, **X11**, and **Wayland**.
+When enabled, the agent can inspect and control the desktop - read accessible controls, press them by
+label, capture screenshots, move and click the mouse, scroll, and type text or key combinations. The
+display backend is detected automatically across **macOS**, **Linux**, and **Windows**.
 
 Computer Use is **off by default**. Turn it on in `computer_use.yaml` (or `infer config set computer_use.enabled true`):
 
@@ -1218,19 +1215,20 @@ screenshot:
   streaming_enabled: true   # also registers the GetLatestFrame tool
 ```
 
-Tools: `MouseMove`, `MouseClick`, `MouseScroll`, `KeyboardType`, `GetFocusedApp`, `ActivateApp`,
-`GetUIElements`, `PressUIElement`, and
-`GetLatestFrame`. On macOS, `GetUIElements` and `PressUIElement` read the accessibility tree
-directly - exact element titles and positions with no vision round-trip, and presses that never
-move the cursor. They run silently in the background (bypassing the approval prompt) and are
-governed by `computer_use.enabled` plus the configured rate limits. The
+Tools: `Computer` and `GetLatestFrame`. `Computer` is action-based. Its `accessibility` action is the
+preferred first observation on macOS: it returns compact `{role,label,state,bbox}` text in the same
+coordinate space as screenshots, without a screenshot or vision-model call. Its `press` action invokes
+an element's accessibility action by exact label without moving the cursor. Use `screenshot` only when
+the accessibility tree is unavailable, empty, or insufficient; the remaining actions control the
+pointer and keyboard.
+
+The macOS AX bridge is implemented in Go with PureGo and runs in a short-lived helper process, so a
+native accessibility failure degrades to screenshot guidance without taking down the CLI. Linux AT-SPI
+and Windows UIA providers are not implemented yet and report that fallback explicitly. Computer-use
+actions are governed by `computer_use.enabled`, rate limits, and `computer_use.approval`. The
 [desktop app](https://github.com/inference-gateway/desktop) visualizes what the agent is doing
 (monitor, screen overlay, approvals). For a sandboxed desktop to drive, see
 [examples/computer-use](examples/computer-use/).
-
-> **⚠️ Windows note:** Computer use (mouse, keyboard, screenshot tools) is **not supported on Windows**.
-> The agent will log a warning and disable these tools when running on Windows. All other features
-> work normally.
 
 ## Frame Sources & Vision Annotation
 

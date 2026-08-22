@@ -145,6 +145,8 @@ func TestStandardApprovalPolicy_ComputerUseApprovalLevels(t *testing.T) {
 		{"destructive gates type", config.ComputerUseApprovalDestructive, "Computer", `{"action": "type", "text": "hi"}`, true},
 		{"destructive bypasses screenshot", config.ComputerUseApprovalDestructive, "Computer", screenshot, false},
 		{"destructive bypasses cursor", config.ComputerUseApprovalDestructive, "Computer", `{"action": "cursor"}`, false},
+		{"destructive bypasses accessibility", config.ComputerUseApprovalDestructive, "Computer", `{"action": "accessibility"}`, false},
+		{"destructive gates accessibility press", config.ComputerUseApprovalDestructive, "Computer", `{"action": "press", "label": "Save"}`, true},
 		{"destructive bypasses GetLatestFrame", config.ComputerUseApprovalDestructive, "GetLatestFrame", "{}", false},
 		{"always gates screenshot", config.ComputerUseApprovalAlways, "Computer", screenshot, true},
 		{"unknown value fails closed", "alway", "Computer", screenshot, true},

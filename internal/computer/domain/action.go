@@ -8,15 +8,17 @@ package domain
 type ActionKind string
 
 const (
-	ActionScreenshot  ActionKind = "screenshot"
-	ActionCursor      ActionKind = "cursor"
-	ActionMove        ActionKind = "move"
-	ActionClick       ActionKind = "click"
-	ActionDoubleClick ActionKind = "double_click"
-	ActionTripleClick ActionKind = "triple_click"
-	ActionScroll      ActionKind = "scroll"
-	ActionType        ActionKind = "type"
-	ActionKey         ActionKind = "key"
+	ActionScreenshot    ActionKind = "screenshot"
+	ActionAccessibility ActionKind = "accessibility"
+	ActionCursor        ActionKind = "cursor"
+	ActionMove          ActionKind = "move"
+	ActionClick         ActionKind = "click"
+	ActionDoubleClick   ActionKind = "double_click"
+	ActionTripleClick   ActionKind = "triple_click"
+	ActionScroll        ActionKind = "scroll"
+	ActionType          ActionKind = "type"
+	ActionKey           ActionKind = "key"
+	ActionPress         ActionKind = "press"
 )
 
 // Action is one computer-use request: what to do and, where relevant, on
@@ -25,6 +27,8 @@ type Action struct {
 	Kind      ActionKind
 	Target    *Target
 	Text      string // type: the text to type
+	Label     string // press: exact accessibility label
+	Scope     string // accessibility/press: frontmost, dock, menubar, app:<name>, or pid:<n>
 	Combo     string // key: a combo such as "cmd+shift+t"
 	Button    string // click kinds: left (default), right, middle
 	Direction string // scroll: vertical (default) or horizontal
