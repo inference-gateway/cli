@@ -417,8 +417,8 @@ func (p *ChatMessageProcessor) processChatMessage(
 		return func() tea.Msg {
 			return tui.SetStatusEvent{
 				Message:    "Message queued - agent is currently busy",
-				Spinner:    false,
-				StatusType: tui.StatusDefault,
+				Spinner:    true,
+				StatusType: tui.StatusProcessing,
 			}
 		}
 	}
