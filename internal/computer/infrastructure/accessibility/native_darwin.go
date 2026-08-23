@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"unicode"
 	"unsafe"
 
 	purego "github.com/ebitengine/purego"
@@ -58,9 +59,10 @@ type bridge struct {
 	axSetMessagingTimeout      func(uintptr, float32) int32
 	cgWindowListCopyWindowInfo func(uint32, uint32) uintptr
 
-	attrs     map[string]uintptr
-	ownerName uintptr
-	ownerPID  uintptr
+	attrs       map[string]uintptr
+	ownerName   uintptr
+	ownerPID    uintptr
+	windowLayer uintptr
 }
 
 func runNative(req request) ([]computerdomain.UIElement, error) {
@@ -176,6 +178,10 @@ func (b *bridge) bindCoreGraphics(handle uintptr) error {
 		return err
 	}
 	b.ownerPID, err = dataSymbol(handle, "kCGWindowOwnerPID")
+	if err != nil {
+		return err
+	}
+	b.windowLayer, err = dataSymbol(handle, "kCGWindowLayer")
 	return err
 }
 
@@ -491,10 +497,13 @@ func (b *bridge) frontmostApplication() (uintptr, error) {
 	}
 	defer b.cfRelease(system)
 	application, ok := b.copyAttribute(system, "AXFocusedApplication")
-	if !ok {
-		return 0, fmt.Errorf("%w: no focused application", ErrUnavailable)
+	if ok {
+		return application, nil
 	}
-	return application, nil
+	if pid := b.pidForFrontmostApplication(); pid != 0 {
+		return b.axCreateApplication(pid), nil
+	}
+	return 0, fmt.Errorf("%w: no focused application or frontmost window", ErrUnavailable)
 }
 
 func (b *bridge) applicationNamed(name string) (uintptr, int, error) {
@@ -518,16 +527,62 @@ func (b *bridge) pidForApplication(name string) int32 {
 	for i := range b.cfArrayGetCount(windows) {
 		window := b.cfArrayGetValueAtIndex(windows, i)
 		owner := b.cfDictionaryGetValue(window, b.ownerName)
-		if !strings.EqualFold(b.goString(owner), name) {
+		if !applicationNamesMatch(b.goString(owner), name) {
 			continue
 		}
-		pidValue := b.cfDictionaryGetValue(window, b.ownerPID)
-		var pid int32
-		if pidValue != 0 && b.cfNumberGetValue(pidValue, cfNumberSInt32Type, unsafe.Pointer(&pid)) {
+		if pid := b.windowPID(window); pid != 0 {
 			return pid
 		}
 	}
 	return 0
+}
+
+func (b *bridge) pidForFrontmostApplication() int32 {
+	options := uint32(cgWindowListOptionOnScreenOnly | cgWindowListExcludeDesktopItems)
+	windows := b.cgWindowListCopyWindowInfo(options, 0)
+	if windows == 0 {
+		return 0
+	}
+	defer b.cfRelease(windows)
+	for i := range b.cfArrayGetCount(windows) {
+		window := b.cfArrayGetValueAtIndex(windows, i)
+		layerValue := b.cfDictionaryGetValue(window, b.windowLayer)
+		var layer int32
+		if layerValue == 0 || !b.cfNumberGetValue(layerValue, cfNumberSInt32Type, unsafe.Pointer(&layer)) || layer != 0 {
+			continue
+		}
+		if pid := b.windowPID(window); pid != 0 {
+			return pid
+		}
+	}
+	return 0
+}
+
+func (b *bridge) windowPID(window uintptr) int32 {
+	pidValue := b.cfDictionaryGetValue(window, b.ownerPID)
+	var pid int32
+	if pidValue == 0 || !b.cfNumberGetValue(pidValue, cfNumberSInt32Type, unsafe.Pointer(&pid)) {
+		return 0
+	}
+	return pid
+}
+
+func applicationNamesMatch(owner, requested string) bool {
+	if strings.EqualFold(strings.TrimSpace(owner), strings.TrimSpace(requested)) {
+		return true
+	}
+	normalizedRequested := normalizeApplicationName(requested)
+	return normalizedRequested != "" && normalizeApplicationName(owner) == normalizedRequested
+}
+
+func normalizeApplicationName(name string) string {
+	var normalized strings.Builder
+	for _, char := range name {
+		if unicode.IsLetter(char) || unicode.IsDigit(char) {
+			normalized.WriteRune(unicode.ToLower(char))
+		}
+	}
+	return normalized.String()
 }
 
 func normalizeAXName(value string) string {
