@@ -15,13 +15,8 @@ import (
 func setupWriterTest(t *testing.T) (string, FileWriter, context.Context) {
 	tempDir := t.TempDir()
 
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tempDir},
-			},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Directories = []string{tempDir}
 
 	validator := NewPathValidator(cfg)
 	backupMgr := NewBackupManager(tempDir)
@@ -197,7 +192,7 @@ func TestSafeFileWriter_Write_Errors(t *testing.T) {
 		result, err := writer.Write(ctx, req)
 		require.Error(t, err)
 		require.Nil(t, result)
-		require.Contains(t, err.Error(), "path is protected")
+		require.Contains(t, err.Error(), "excluded for security")
 	})
 
 	t.Run("error on path outside sandbox", func(t *testing.T) {
