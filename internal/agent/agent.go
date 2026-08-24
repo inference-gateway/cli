@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -24,6 +26,7 @@ import (
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	plugins "github.com/inference-gateway/cli/internal/plugins"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -1220,11 +1223,102 @@ func (s *AgentServiceImpl) executeTool(
 	return s.executeToolInternal(ctx, tc, eventPublisher, wasApproved, startTime)
 }
 
-// executeToolInternal performs the actual tool execution without approval checks
-// This is used by both executeTool() (after approval) and processNextTool() (approval already obtained)
+// executeToolInternal runs the tool once and, when the failure is a sandbox
+// denial and a user can answer prompts (chat TUI or IPC broker), asks them to
+// grant the denied directory and retries. Used by both executeTool() (after
+// approval) and processNextTool() (approval already obtained).
+func (s *AgentServiceImpl) executeToolInternal(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+	wasApproved bool,
+	startTime time.Time,
+) convdomain.ConversationEntry {
+	entry := s.executeToolOnce(ctx, tc, eventPublisher, wasApproved, startTime)
+	lastGrant := ""
+	for entry.ToolExecution != nil && !entry.ToolExecution.Success && agentdomain.SandboxApprovalAvailable(ctx) {
+		path, denied := config.SandboxDeniedPath(entry.ToolExecution.Error)
+		if !denied {
+			break
+		}
+		dir := sandboxGrantDir(path)
+		if dir == lastGrant {
+			break
+		}
+		allow, always := s.requestSandboxApproval(ctx, tc, eventPublisher, dir)
+		if !allow {
+			break
+		}
+		lastGrant = dir
+		config.AddSandboxDirectory(dir)
+		logger.Info("sandbox extended by user approval", "dir", dir, "tool", tc.Function.Name, "persisted", always)
+		if always {
+			if err := utils.PersistSandboxDirectory(dir, s.config.Tools.Sandbox.Directories); err != nil {
+				logger.Error("failed to persist sandbox directory", "dir", dir, "error", err)
+			}
+		}
+		entry = s.executeToolOnce(ctx, tc, eventPublisher, wasApproved, startTime)
+	}
+	return entry
+}
+
+// sandboxGrantDir maps a denied path to the directory worth granting: the path
+// itself when it is an existing directory, otherwise its parent.
+func sandboxGrantDir(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	if info, err := os.Stat(abs); err == nil && info.IsDir() {
+		return abs
+	}
+	return filepath.Dir(abs)
+}
+
+// requestSandboxApproval asks the user - through the standard approval
+// pipeline, as a synthetic SandboxAccess tool call - to allow dir outside the
+// sandbox. Approve grants it for this session; auto-accept ("always") also
+// persists it to the userspace config.
+func (s *AgentServiceImpl) requestSandboxApproval(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+	dir string,
+) (allow, always bool) {
+	args, err := json.Marshal(map[string]string{"path": dir, "tool": tc.Function.Name})
+	if err != nil {
+		return false, false
+	}
+
+	responseChan := make(chan agentdomain.ApprovalAction, 1)
+	eventPublisher.chatEvents <- agentdomain.ToolApprovalRequestedEvent{
+		RequestID: eventPublisher.requestID,
+		Timestamp: time.Now(),
+		ToolCall: sdk.ChatCompletionMessageToolCall{
+			ID:   tc.ID + "-sandbox",
+			Type: tc.Type,
+			Function: sdk.ChatCompletionMessageToolCallFunction{
+				Name:      "SandboxAccess",
+				Arguments: string(args),
+			},
+		},
+		ResponseChan: responseChan,
+	}
+
+	select {
+	case response := <-responseChan:
+		allow = response == agentdomain.ApprovalApprove || response == agentdomain.ApprovalAutoAccept
+		return allow, response == agentdomain.ApprovalAutoAccept
+	case <-ctx.Done():
+	case <-time.After(constants.ApprovalTimeout):
+	}
+	return false, false
+}
+
+// executeToolOnce performs the actual tool execution without approval checks
 //
 //nolint:funlen,gocyclo,cyclop // Tool execution requires comprehensive error handling and status updates
-func (s *AgentServiceImpl) executeToolInternal(
+func (s *AgentServiceImpl) executeToolOnce(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,

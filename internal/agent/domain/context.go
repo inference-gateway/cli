@@ -56,6 +56,11 @@ const ToolCallIDKey ContextKey = "tool_call_id"
 // TraceEnvKey is the context key for the W3C trace-context subprocess environment
 const TraceEnvKey ContextKey = "trace_env"
 
+// SandboxApprovalKey is the context key marking that a user can answer a
+// sandbox-extension prompt in this run (chat TUI, or headless with an IPC
+// approval broker attached). When unset, sandbox denials fail as before.
+const SandboxApprovalKey ContextKey = "sandbox_approval"
+
 // UserQuestionBrokerKey is the context key for the interactive question broker.
 // It is injected only on the chat path (where a TUI event loop exists), so the
 // AskUserQuestion tool sees a nil broker on headless/no-TTY runs and degrades

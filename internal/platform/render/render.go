@@ -132,9 +132,12 @@ func answerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan i
 		if resp.ToolCallID != "" && resp.ToolCallID != e.ToolCall.ID {
 			continue
 		}
-		if resp.Approved {
+		switch {
+		case resp.Approved && resp.Scope == "always":
+			e.ResponseChan <- agentdomain.ApprovalAutoAccept
+		case resp.Approved:
 			e.ResponseChan <- agentdomain.ApprovalApprove
-		} else {
+		default:
 			e.ResponseChan <- agentdomain.ApprovalReject
 		}
 		return
