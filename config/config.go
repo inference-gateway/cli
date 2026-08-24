@@ -1589,7 +1589,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		(c.Plugins.Enabled && c.isWithinPluginsDir(absPath)) ||
-		c.isWithinConfigSubdir(absPath, "tmp", "plans", ArtifactsDirName) ||
+		c.isWithinConfigSubdir(absPath, "tmp", "plans", ArtifactsDirName, "projects.json") ||
 		isWithinMemoryDir(absPath, c.Memory) ||
 		isWithinGoLibDirs(absPath)
 
@@ -1673,7 +1673,7 @@ func isWithinSkillsDir(absPath string) bool {
 // subdirectories of the config dir. It checks both the project-relative
 // ConfigDirName (./.infer/<name>) and the resolved config dir
 // (GetConfigDir()/<name>) so that operational areas - tmp scratch, persisted
-// plans - stay reachable even when the config was loaded from the userspace
+// plans, the desktop's projects.json - stay reachable even when the config was loaded from the userspace
 // location (~/.infer). This keeps the rest of .infer/ protected as a whole.
 func (c *Config) isWithinConfigSubdir(absPath string, names ...string) bool {
 	configDirs := []string{ConfigDirName}
