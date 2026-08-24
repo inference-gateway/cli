@@ -1134,6 +1134,7 @@ func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
 	allowed := []string{
 		filepath.Join(userspaceConfigDir, "tmp", "scratch.txt"),
 		filepath.Join(userspaceConfigDir, "plans", "2026-06-01-do-thing.md"),
+		filepath.Join(userspaceConfigDir, "projects.json"),
 	}
 	for _, p := range allowed {
 		t.Run("allow "+p, func(t *testing.T) {
@@ -1155,6 +1156,13 @@ func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("projects.json is writable", func(t *testing.T) {
+		p := filepath.Join(userspaceConfigDir, "projects.json")
+		if err := cfg.ValidatePathInSandboxWrite(p); err != nil {
+			t.Fatalf("expected %s writable, got %v", p, err)
+		}
+	})
 }
 
 func TestSkillsRepository(t *testing.T) {
