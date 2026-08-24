@@ -11,15 +11,15 @@ import (
 func TestPathValidator_Validate(t *testing.T) {
 	tempDir := t.TempDir()
 
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tempDir},
-			},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Directories = []string{tempDir}
 
 	validator := NewPathValidator(cfg)
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
 
 	tests := []struct {
 		name      string
@@ -54,25 +54,36 @@ func TestPathValidator_Validate(t *testing.T) {
 			name:      "protected .git directory",
 			path:      filepath.Join(tempDir, ".git/config"),
 			wantError: true,
-			errorMsg:  "path is protected",
+			errorMsg:  "excluded for security",
 		},
 		{
 			name:      "protected .env file",
 			path:      filepath.Join(tempDir, ".env"),
 			wantError: true,
-			errorMsg:  "path is protected",
+			errorMsg:  "excluded for security",
 		},
 		{
 			name:      "protected key file",
 			path:      filepath.Join(tempDir, "private.key"),
 			wantError: true,
-			errorMsg:  "path is protected",
+			errorMsg:  "excluded for security",
 		},
 		{
 			name:      "protected .infer directory",
 			path:      filepath.Join(tempDir, config.DefaultConfigPath),
 			wantError: true,
-			errorMsg:  "path is protected",
+			errorMsg:  "excluded for security",
+		},
+		{
+			name:      "projects.json carve-out under the config dir",
+			path:      filepath.Join(cwd, config.ConfigDirName, "projects.json"),
+			wantError: false,
+		},
+		{
+			name:      "auth.json under the config dir stays protected",
+			path:      filepath.Join(cwd, config.ConfigDirName, "auth.json"),
+			wantError: true,
+			errorMsg:  "excluded for security",
 		},
 	}
 
@@ -104,13 +115,8 @@ func validateTestResult(t *testing.T, err error, wantError bool, errorMsg string
 func TestPathValidator_IsWritable(t *testing.T) {
 	tempDir := t.TempDir()
 
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tempDir},
-			},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Directories = []string{tempDir}
 
 	validator := NewPathValidator(cfg)
 
@@ -164,13 +170,8 @@ func TestPathValidator_IsWritable(t *testing.T) {
 func TestPathValidator_IsInSandbox(t *testing.T) {
 	tempDir := t.TempDir()
 
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tempDir},
-			},
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Directories = []string{tempDir}
 
 	validator := NewPathValidator(cfg)
 

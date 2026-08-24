@@ -45,10 +45,6 @@ func (v *DefaultPathValidator) Validate(path string) error {
 		return err
 	}
 
-	if v.isProtectedPath(absPath) {
-		return fmt.Errorf("path is protected and cannot be modified: %s", path)
-	}
-
 	return nil
 }
 
@@ -107,37 +103,6 @@ func (v *DefaultPathValidator) IsInSandbox(path string) bool {
 	}
 
 	return v.config.ValidatePathInSandbox(absPath) == nil
-}
-
-// isProtectedPath checks if a path is in the protected list
-func (v *DefaultPathValidator) isProtectedPath(path string) bool {
-	protectedPatterns := []string{
-		".infer/",
-		".git/",
-		".env",
-		".environment",
-		"*.key",
-		"*.pem",
-		"id_rsa",
-		"id_dsa",
-		"id_ecdsa",
-		"id_ed25519",
-	}
-
-	cleanPath := filepath.Clean(path)
-
-	for _, pattern := range protectedPatterns {
-		if strings.Contains(cleanPath, pattern) {
-			return true
-		}
-
-		filename := filepath.Base(cleanPath)
-		if matched, _ := filepath.Match(pattern, filename); matched {
-			return true
-		}
-	}
-
-	return false
 }
 
 // canCreatePath checks if we can create a directory path
