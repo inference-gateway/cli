@@ -1487,6 +1487,10 @@ func (c *Config) GetTimeout() int {
 	return c.Gateway.Timeout
 }
 
+// GetSandboxDirectories returns only the configured directories, without
+// runtime grants (AddSandboxDirectory): it feeds the system prompt, which must
+// stay byte-stable within a session to keep the provider prompt cache warm.
+// Validation consults the grants separately.
 func (c *Config) GetSandboxDirectories() []string {
 	return c.Tools.Sandbox.Directories
 }
@@ -1605,7 +1609,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		return nil
 	}
 
-	for _, sandboxDir := range c.Tools.Sandbox.Directories {
+	for _, sandboxDir := range append(grantedSandboxDirectories(), c.Tools.Sandbox.Directories...) {
 		absSandboxDir, err := filepath.Abs(sandboxDir)
 		if err != nil {
 			continue
@@ -1621,7 +1625,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		}
 	}
 
-	return fmt.Errorf("path '%s' is outside configured sandbox directories", path)
+	return &SandboxPathError{Path: path}
 }
 
 // ValidatePathInSandboxWrite is like ValidatePathInSandbox but additionally

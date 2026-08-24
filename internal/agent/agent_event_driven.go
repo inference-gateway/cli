@@ -77,6 +77,8 @@ func NewEventDrivenAgent(
 ) *EventDrivenAgent {
 	stateMachine := NewAgentStateMachine()
 
+	ctx = agentdomain.WithSandboxApprovalAvailable(ctx, req.IsChatMode || req.ApprovalBrokerAttached)
+
 	agentCtx := &states.AgentContext{
 		RequestID:        req.RequestID,
 		Conversation:     conversation,

@@ -22,6 +22,19 @@ func IsToolApproved(ctx context.Context) bool {
 	return ok && val
 }
 
+// WithSandboxApprovalAvailable marks whether a user can answer a
+// sandbox-extension prompt in this run.
+func WithSandboxApprovalAvailable(ctx context.Context, available bool) context.Context {
+	return context.WithValue(ctx, SandboxApprovalKey, available)
+}
+
+// SandboxApprovalAvailable reports whether a sandbox-extension prompt can be
+// answered by a user in this run. Defaults to false when unset.
+func SandboxApprovalAvailable(ctx context.Context) bool {
+	val, ok := ctx.Value(SandboxApprovalKey).(bool)
+	return ok && val
+}
+
 // ========================================
 // Direct Execution
 // ========================================

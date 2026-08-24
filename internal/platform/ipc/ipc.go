@@ -14,6 +14,7 @@ type ApprovalResponse struct {
 	Type       string `json:"type"` // "approval_response"
 	ToolCallID string `json:"tool_call_id"`
 	Approved   bool   `json:"approved"`
+	Scope      string `json:"scope,omitempty"`
 }
 
 // ComputerUseControlMessage is written to the agent's stdin by a host UI to
