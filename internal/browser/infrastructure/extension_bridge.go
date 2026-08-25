@@ -508,8 +508,6 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 		case "resume_conversation":
 			b.resumeConversation(conn, msg.ID)
 		case "tool_request":
-			// Own goroutine: it may block on an approval_response
-			// that arrives on this very readLoop.
 			go b.handleToolRequest(conn, stop, msg)
 		case "approval_response":
 			if !b.answerToolRequestApproval(conn, msg.RequestID, msg.Action) {
