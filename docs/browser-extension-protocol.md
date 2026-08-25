@@ -174,6 +174,27 @@ CLI → extension, the discovered skills (empty when skills are unavailable):
   conflicts are already resolved by precedence, so each name appears once.
   Unknown scopes are ignored by the extension.
 
+## Models
+
+The extension offers model pickers (e.g. the default model when installing the
+task workflow). It asks the CLI for the models the CLI itself is configured
+with, so the extension never hardcodes a model list.
+
+Extension → CLI:
+
+```json
+{"type": "list_models"}
+```
+
+CLI → extension, the configured model ids (empty when unavailable):
+
+```json
+{"type": "models", "models": ["anthropic/claude-sonnet-4-5", "ollama_cloud/deepseek-v4"]}
+```
+
+- Each entry is a `provider/model` id exactly as the CLI would accept it.
+- The first entry is the CLI's default model.
+
 ## Artifacts (generated images)
 
 Chat text can reference files the agent saved under the artifacts dir
@@ -225,6 +246,45 @@ CLI → extension, when the request is no longer pending (answered in the panel
   seen) MUST be ignored. Duplicate `approval_resolved` for the same id is fine.
 - An `approval_response` for an unknown/already-answered `request_id` is ignored
   by the CLI.
+
+## Tool calls (extension → CLI)
+
+The extension can invoke any of the CLI's tools (see `docs/tools-reference.md`)
+through the bridge. The CLI routes each request through its **normal tool
+execution pipeline** — the same permissions, allowlists, and approval flow as a
+tool call made by the agent. The protocol stays generic: new capabilities need
+no new frame types.
+
+Extension → CLI:
+
+```json
+{"type": "tool_request", "id": "<uuid>", "tool_name": "Bash", "tool_args": "{\"command\":\"gh api user\"}"}
+```
+
+CLI → extension, exactly one result per request id:
+
+```json
+{"type": "tool_result", "id": "<uuid>", "success": true, "output": "...", "error": ""}
+```
+
+- `tool_name`/`tool_args` use the same vocabulary as `approval_request`:
+  `tool_args` is the raw tool-arguments JSON string.
+- The approval flow applies: an `approval_request` (with its own `request_id`)
+  may precede the result; a denial produces `{"success": false, "error": ...}`
+  — never a dropped id.
+- `success: false` / `error != ""` means failure. For `Bash`, `output` is the
+  combined stdout/stderr; a non-zero exit sets `success: false` with `output`
+  still populated.
+- An unknown `tool_name` yields one failed result, not a closed socket.
+- The extension enforces its own timeout and MUST ignore a late `tool_result`
+  with an unknown id (same rule as stale `approval_resolved`). If the socket
+  drops before the result, the CLI drops it — no queuing or replay; the
+  extension fails its pending calls on disconnect, and a reconnect does not
+  resurrect old ids.
+- Primary consumer: the extension performs all GitHub API access as `Bash`
+  requests running `gh api ...` with the user's own `gh` auth. Allowlisting
+  `gh api` in the CLI's bash-allow configuration avoids an approval prompt per
+  call.
 
 ## Extension-side checklist
 

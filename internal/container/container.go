@@ -451,6 +451,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.toolService = telemetry.NewToolService(c.toolService, c.telemetryRecorder)
 	}
 
+	if c.extensionBridge != nil {
+		c.extensionBridge.SetToolExecution(c.toolService,
+			agent.NewStandardApprovalPolicy(c.config, c.stateManager),
+			c.modelService, c.config.Agent.Model)
+	}
+
 	if c.tokenizer == nil {
 		c.tokenizer = conversation.NewTokenizerService(conversation.DefaultTokenizerConfig())
 	}

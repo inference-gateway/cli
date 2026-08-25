@@ -21,6 +21,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 )
@@ -42,6 +43,8 @@ type extInbound struct {
 	Image            string                     `json:"image,omitempty"` // base64 screenshot bytes
 	ImageMimeType    string                     `json:"image_mime_type,omitempty"`
 	Tabs             []browserdomain.BrowserTab `json:"tabs,omitempty"`
+	ToolName         string                     `json:"tool_name,omitempty"`
+	ToolArgs         string                     `json:"tool_args,omitempty"`
 }
 
 type extApprovalRequest struct {
@@ -54,6 +57,19 @@ type extApprovalRequest struct {
 type extApprovalResolved struct {
 	Type      string `json:"type"`
 	RequestID string `json:"request_id"`
+}
+
+type extToolResult struct {
+	Type    string `json:"type"`
+	ID      string `json:"id"`
+	Success bool   `json:"success"`
+	Output  string `json:"output"`
+	Error   string `json:"error"`
+}
+
+type extModels struct {
+	Type   string   `json:"type"`
+	Models []string `json:"models"`
 }
 
 type extHelloAck struct {
@@ -114,15 +130,22 @@ type ExtensionBridge struct {
 	sessionID    string
 	artifactsDir string
 
+	// Injected late via SetToolExecution; all nilable.
+	toolSvc      agentdomain.ToolService
+	approval     agentdomain.ApprovalPolicy
+	models       convdomain.ModelService
+	defaultModel string
+
 	server   *http.Server
 	addr     string
 	startErr error
 
-	mu               sync.Mutex // guards conn, connStop, pending, pendingApprovals
-	conn             *websocket.Conn
-	connStop         chan struct{}
-	pending          map[string]chan extInbound
-	pendingApprovals map[string]sdk.ChatCompletionMessageToolCall
+	mu                   sync.Mutex // guards conn, connStop, pending, pendingApprovals, pendingToolApprovals
+	conn                 *websocket.Conn
+	connStop             chan struct{}
+	pending              map[string]chan extInbound
+	pendingApprovals     map[string]sdk.ChatCompletionMessageToolCall
+	pendingToolApprovals map[string]chan bool // approvals for extension-initiated tool_requests
 
 	writeMu sync.Mutex // serializes writes to conn
 }
@@ -142,7 +165,19 @@ func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier agentdomain.UINot
 		artifactsDir:     artifactsDir,
 		pending:          make(map[string]chan extInbound),
 		pendingApprovals: make(map[string]sdk.ChatCompletionMessageToolCall),
+
+		pendingToolApprovals: make(map[string]chan bool),
 	}
+}
+
+// SetToolExecution wires the deps answering tool_request and list_models
+// frames - after construction, because the container builds the bridge before
+// the tool and model services exist. Any argument may be nil/empty.
+func (b *ExtensionBridge) SetToolExecution(toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, defaultModel string) {
+	b.toolSvc = toolSvc
+	b.approval = approval
+	b.models = models
+	b.defaultModel = defaultModel
 }
 
 // Start listens on 127.0.0.1:<port> and serves the /ws endpoint. Errors are
@@ -233,6 +268,7 @@ func (b *ExtensionBridge) adopt(conn *websocket.Conn) {
 	b.connStop = stop
 
 	b.pendingApprovals = make(map[string]sdk.ChatCompletionMessageToolCall)
+	b.pendingToolApprovals = make(map[string]chan bool)
 	b.mu.Unlock()
 
 	go b.readLoop(conn, stop)
@@ -320,6 +356,127 @@ func (b *ExtensionBridge) sendSkillList(conn *websocket.Conn) {
 	b.write(conn, extSkills{Type: "skills", Skills: out})
 }
 
+// sendModelList answers list_models with the models the gateway serves, the
+// CLI's configured default model first, so the panel's pickers mirror the CLI.
+// Sends an empty list when models are unavailable.
+func (b *ExtensionBridge) sendModelList(conn *websocket.Conn) {
+	out := []string{}
+	if b.models != nil {
+		listed, err := b.models.ListModels(context.Background())
+		if err != nil {
+			logger.Debug("extension bridge failed to list models", "error", err)
+		}
+		if b.defaultModel != "" {
+			out = append(out, b.defaultModel)
+		}
+		for _, m := range listed {
+			if m != b.defaultModel {
+				out = append(out, m)
+			}
+		}
+	}
+	b.write(conn, extModels{Type: "models", Models: out})
+}
+
+// handleToolRequest executes an extension-initiated tool call through the
+// standard pipeline (enabled check, the agent's approval policy, execution)
+// and writes exactly one tool_result per request id. A dead connection drops
+// the write - no queuing or replay. approval_behaviour (prompt/ipc/block) is
+// ignored: the extension itself is the prompt surface.
+func (b *ExtensionBridge) handleToolRequest(conn *websocket.Conn, stop chan struct{}, msg extInbound) {
+	reply := func(success bool, output, errStr string) {
+		b.write(conn, extToolResult{Type: "tool_result", ID: msg.ID, Success: success, Output: output, Error: errStr})
+	}
+
+	if b.toolSvc == nil || !b.toolSvc.IsToolEnabled(msg.ToolName) {
+		reply(false, "", "unknown or disabled tool: "+msg.ToolName)
+		return
+	}
+
+	toolCall := sdk.ChatCompletionMessageToolCall{
+		ID:   msg.ID,
+		Type: sdk.Function,
+		Function: sdk.ChatCompletionMessageToolCallFunction{
+			Name:      msg.ToolName,
+			Arguments: msg.ToolArgs,
+		},
+	}
+
+	ctx := context.Background()
+	if b.approval != nil && b.approval.ShouldRequireApproval(ctx, &toolCall, true) {
+		if !b.awaitToolRequestApproval(conn, stop, toolCall) {
+			reply(false, "", "tool call denied")
+			return
+		}
+	}
+
+	result, err := b.toolSvc.ExecuteToolDirect(agentdomain.WithToolApproved(ctx), toolCall.Function)
+	if err != nil {
+		reply(false, "", err.Error())
+		return
+	}
+	reply(result.Success, b.toolResultOutput(result), result.Error)
+}
+
+// awaitToolRequestApproval sends an approval_request for an extension-initiated
+// tool call and blocks until the panel answers, the connection dies, or the
+// approval times out. Anything but an explicit approve is a denial.
+func (b *ExtensionBridge) awaitToolRequestApproval(conn *websocket.Conn, stop chan struct{}, toolCall sdk.ChatCompletionMessageToolCall) bool {
+	requestID := uuid.NewString()
+	decision := make(chan bool, 1)
+	b.mu.Lock()
+	b.pendingToolApprovals[requestID] = decision
+	b.mu.Unlock()
+	b.write(conn, extApprovalRequest{
+		Type:      "approval_request",
+		RequestID: requestID,
+		ToolName:  toolCall.Function.Name,
+		ToolArgs:  toolCall.Function.Arguments,
+	})
+	select {
+	case approved := <-decision:
+		return approved
+	case <-stop:
+	case <-time.After(constants.ApprovalTimeout):
+	}
+	b.mu.Lock()
+	delete(b.pendingToolApprovals, requestID)
+	b.mu.Unlock()
+	return false
+}
+
+// answerToolRequestApproval resolves an approval_response that belongs to an
+// extension-initiated tool_request. Returns false when the id is not ours so
+// the caller can fall through to the agent-approval path.
+func (b *ExtensionBridge) answerToolRequestApproval(conn *websocket.Conn, requestID, action string) bool {
+	b.mu.Lock()
+	decision, ok := b.pendingToolApprovals[requestID]
+	delete(b.pendingToolApprovals, requestID)
+	b.mu.Unlock()
+	if !ok {
+		return false
+	}
+	decision <- action == "approve"
+	b.write(conn, extApprovalResolved{Type: "approval_resolved", RequestID: requestID})
+	return true
+}
+
+// toolResultOutput extracts the human-facing output of a tool result: combined
+// stdout/stderr for Bash, the canonical LLM formatting otherwise.
+func (b *ExtensionBridge) toolResultOutput(result *agentdomain.ToolExecutionResult) string {
+	if bash, ok := result.Data.(*agentdomain.BashToolResult); ok {
+		return bash.Output
+	}
+	if b.repo != nil {
+		return b.repo.FormatToolResultForLLM(result)
+	}
+	data, err := json.Marshal(result.Data)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
 // readLoop handles frames from the extension until the connection dies or is
 // replaced.
 func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
@@ -346,10 +503,18 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			b.sendConversationList(conn)
 		case "list_skills":
 			b.sendSkillList(conn)
+		case "list_models":
+			b.sendModelList(conn)
 		case "resume_conversation":
 			b.resumeConversation(conn, msg.ID)
+		case "tool_request":
+			// Own goroutine: it may block on an approval_response
+			// that arrives on this very readLoop.
+			go b.handleToolRequest(conn, stop, msg)
 		case "approval_response":
-			b.answerApproval(conn, msg.RequestID, msg.Action)
+			if !b.answerToolRequestApproval(conn, msg.RequestID, msg.Action) {
+				b.answerApproval(conn, msg.RequestID, msg.Action)
+			}
 		default:
 			// Unknown frame types are ignored for forward compatibility.
 		}
