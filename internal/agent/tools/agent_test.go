@@ -173,7 +173,7 @@ func TestBuildChatPaneCommand_EmitsSubagentMode(t *testing.T) {
 // assistant message so the parent can harvest the real result (not pane chrome).
 func TestBuildChatPaneCommand_PassesResultFile(t *testing.T) {
 	tool := newTestAgentTool(t)
-	got := tool.buildChatPaneCommand(AgentTaskSpec{}, "sess-xyz")
+	got := tool.buildChatPaneCommand(AgentTaskSpec{}, "", "sess-xyz")
 	if !strings.Contains(got, "INFER_SUBAGENT_RESULT_FILE=") || !strings.Contains(got, "infer-subagent-sess-xyz.json") {
 		t.Fatalf("expected the result-file env var for the session; cmd = %q", got)
 	}
@@ -185,13 +185,13 @@ func TestBuildChatPaneCommand_PassesResultFile(t *testing.T) {
 func TestBuildChatPaneCommand_SlugifiesHistoryName(t *testing.T) {
 	tool := newTestAgentTool(t)
 
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{Label: "Refactor Auth"}, "sess"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='refactor-auth'") {
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{Label: "Refactor Auth"}, "", "sess"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='refactor-auth'") {
 		t.Fatalf("label must be slugified to dashcase; cmd = %q", got)
 	}
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{Label: "a/../../../tmp/pwned"}, "sess"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='a-tmp-pwned'") {
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{Label: "a/../../../tmp/pwned"}, "", "sess"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='a-tmp-pwned'") {
 		t.Fatalf("path separators/traversal must be sanitized out; cmd = %q", got)
 	}
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{}, "subagent-parent-uuid"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='"+scheddomain.SubagentHistoryMemoryOnly+"'") {
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{}, "", "subagent-parent-uuid"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='"+scheddomain.SubagentHistoryMemoryOnly+"'") {
 		t.Fatalf("unlabeled subagent must use the memory-only sentinel, not the session id; cmd = %q", got)
 	}
 }

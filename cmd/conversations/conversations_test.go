@@ -394,25 +394,29 @@ func TestBuildConversationShowText_Empty(t *testing.T) {
 	}
 }
 
-func TestBuildConversationShowJSON_OneObjectPerLine(t *testing.T) {
+func TestBuildConversationShowJSON_MetadataAndEntries(t *testing.T) {
 	entries := makeShowEntries()
-	out, err := buildConversationShowJSON(entries)
+	metadata := convdomain.ConversationMetadata{
+		ID:              "sess-1",
+		Title:           "hello",
+		ParentSessionID: "parent-1",
+		InvokedBy:       "agent",
+	}
+	out, err := buildConversationShowJSON(entries, metadata)
 	if err != nil {
 		t.Fatalf("buildConversationShowJSON() failed: %v", err)
 	}
 
-	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
-	if len(lines) != len(entries) {
-		t.Fatalf("expected %d JSON lines, got %d", len(entries), len(lines))
+	var decodedOut showConversationOutput
+	if err := json.Unmarshal([]byte(out), &decodedOut); err != nil {
+		t.Fatalf("output not valid JSON: %v (%q)", err, out)
 	}
-
-	decoded := make([]conversationShowEntry, 0, len(lines))
-	for i, line := range lines {
-		var e conversationShowEntry
-		if err := json.Unmarshal([]byte(line), &e); err != nil {
-			t.Fatalf("line %d not valid JSON object: %v (%q)", i, err, line)
-		}
-		decoded = append(decoded, e)
+	if decodedOut.Metadata.ID != "sess-1" || decodedOut.Metadata.ParentSessionID != "parent-1" || decodedOut.Metadata.InvokedBy != "agent" {
+		t.Errorf("unexpected metadata: %+v", decodedOut.Metadata)
+	}
+	decoded := decodedOut.Entries
+	if len(decoded) != len(entries) {
+		t.Fatalf("expected %d entries, got %d", len(entries), len(decoded))
 	}
 
 	if decoded[0].Role != "user" || decoded[0].Content != "hello world" || decoded[0].Time != "2026-05-29T10:00:00Z" {
@@ -434,7 +438,7 @@ func TestBuildConversationShowJSON_OmitsEmptyOptionalFields(t *testing.T) {
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hey")},
 		Time:    time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC),
 	}
-	out, err := buildConversationShowJSON([]convdomain.ConversationEntry{entry})
+	out, err := buildConversationShowJSON([]convdomain.ConversationEntry{entry}, convdomain.ConversationMetadata{})
 	if err != nil {
 		t.Fatalf("buildConversationShowJSON() failed: %v", err)
 	}
@@ -447,12 +451,19 @@ func TestBuildConversationShowJSON_OmitsEmptyOptionalFields(t *testing.T) {
 }
 
 func TestBuildConversationShowJSON_Empty(t *testing.T) {
-	out, err := buildConversationShowJSON(nil)
+	out, err := buildConversationShowJSON(nil, convdomain.ConversationMetadata{})
 	if err != nil {
 		t.Fatalf("buildConversationShowJSON() failed: %v", err)
 	}
-	if out != "" {
-		t.Errorf("expected empty output for no entries, got %q", out)
+	var decoded showConversationOutput
+	if err := json.Unmarshal([]byte(out), &decoded); err != nil {
+		t.Fatalf("output not valid JSON: %v (%q)", err, out)
+	}
+	if len(decoded.Entries) != 0 {
+		t.Errorf("expected no entries, got %d", len(decoded.Entries))
+	}
+	if decoded.Metadata.InvokedBy != "human" {
+		t.Errorf("expected invoked_by to default to human, got %q", decoded.Metadata.InvokedBy)
 	}
 }
 

@@ -247,11 +247,6 @@ func showConversation(state *runtime.State, cmd *cobra.Command, rawID string) er
 
 	entries = filterConversationEntries(entries, includeHidden)
 
-	// Graceful degradation for existing sessions without explicit metadata
-	if metadata.InvokedBy == "" {
-		metadata.InvokedBy = "human"
-	}
-
 	if format == "json" {
 		return printConversationShowJSON(entries, metadata)
 	}
