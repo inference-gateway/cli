@@ -146,6 +146,12 @@ func listConversations(state *runtime.State, renderer *output.Renderer, cmd *cob
 }
 
 func renderConversationsJSON(conversations []convdomain.ConversationSummary) error {
+	// Normalize default values for graceful degradation
+	for i := range conversations {
+		if conversations[i].InvokedBy == "" {
+			conversations[i].InvokedBy = "human"
+		}
+	}
 	output := struct {
 		Conversations []convdomain.ConversationSummary `json:"conversations"`
 		Count         int                              `json:"count"`
@@ -234,15 +240,20 @@ func showConversation(state *runtime.State, cmd *cobra.Command, rawID string) er
 	sessionID := resolveConversationSessionID(services, rawID)
 
 	ctx := context.Background()
-	entries, _, err := store.LoadConversation(ctx, sessionID)
+	entries, metadata, err := store.LoadConversation(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("failed to load conversation: %w", err)
 	}
 
 	entries = filterConversationEntries(entries, includeHidden)
 
+	// Graceful degradation for existing sessions without explicit metadata
+	if metadata.InvokedBy == "" {
+		metadata.InvokedBy = "human"
+	}
+
 	if format == "json" {
-		return printConversationShowJSON(entries)
+		return printConversationShowJSON(entries, metadata)
 	}
 	return printConversationShowText(entries, sessionID)
 }
@@ -341,19 +352,56 @@ func toConversationShowEntry(e convdomain.ConversationEntry) conversationShowEnt
 	return out
 }
 
-// buildConversationShowJSON returns newline-joined compact JSON, one object per
-// entry (NDJSON), matching the 'infer headless' stdout shape. Pure function.
-func buildConversationShowJSON(entries []convdomain.ConversationEntry) (string, error) {
-	var b strings.Builder
-	for _, e := range entries {
-		line, err := json.Marshal(toConversationShowEntry(e))
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal conversation entry: %w", err)
-		}
-		b.Write(line)
-		b.WriteByte('\n')
+// showConversationOutput is the JSON structure for 'conversations show --format json'.
+type showConversationOutput struct {
+	Metadata metadataProjection      `json:"metadata"`
+	Entries  []conversationShowEntry `json:"entries"`
+}
+
+// metadataProjection exposes the metadata fields consumers need, including
+// parent_session_id and invoked_by.
+type metadataProjection struct {
+	ID              string `json:"id"`
+	Title           string `json:"title"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
+	MessageCount    int    `json:"message_count"`
+	ParentSessionID string `json:"parent_session_id"`
+	InvokedBy       string `json:"invoked_by"`
+}
+
+func toMetadataProjection(m convdomain.ConversationMetadata) metadataProjection {
+	invokedBy := m.InvokedBy
+	if invokedBy == "" {
+		invokedBy = "human"
 	}
-	return b.String(), nil
+	return metadataProjection{
+		ID:              m.ID,
+		Title:           m.Title,
+		CreatedAt:       m.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:       m.UpdatedAt.Format(time.RFC3339),
+		MessageCount:    m.MessageCount,
+		ParentSessionID: m.ParentSessionID,
+		InvokedBy:       invokedBy,
+	}
+}
+
+// buildConversationShowJSON returns the JSON representation of a conversation
+// including metadata and entries.
+func buildConversationShowJSON(entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) (string, error) {
+	entryProjections := make([]conversationShowEntry, 0, len(entries))
+	for _, e := range entries {
+		entryProjections = append(entryProjections, toConversationShowEntry(e))
+	}
+	out := showConversationOutput{
+		Metadata: toMetadataProjection(metadata),
+		Entries:  entryProjections,
+	}
+	jsonBytes, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal conversation show output: %w", err)
+	}
+	return string(jsonBytes), nil
 }
 
 func printConversationShowText(entries []convdomain.ConversationEntry, sessionID string) error {
@@ -361,8 +409,8 @@ func printConversationShowText(entries []convdomain.ConversationEntry, sessionID
 	return nil
 }
 
-func printConversationShowJSON(entries []convdomain.ConversationEntry) error {
-	out, err := buildConversationShowJSON(entries)
+func printConversationShowJSON(entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
+	out, err := buildConversationShowJSON(entries, metadata)
 	if err != nil {
 		return err
 	}

@@ -44,6 +44,14 @@ type ConversationMetadata struct {
 	TitleInvalidated    bool              `json:"title_invalidated,omitempty"`
 	TitleGenerationTime *time.Time        `json:"title_generation_time,omitempty"`
 	ContextID           string            `json:"context_id,omitempty"`
+
+	// ParentSessionID is the orchestrator session that spawned this one
+	// (e.g. a subagent's parent). Empty for top-level sessions.
+	ParentSessionID string `json:"parent_session_id"`
+
+	// InvokedBy indicates who started the session: "human" or "agent".
+	// Defaults to "human" for sessions with no explicit invoker.
+	InvokedBy string `json:"invoked_by"`
 }
 
 // ConversationSummary contains summary information about a conversation
@@ -61,4 +69,10 @@ type ConversationSummary struct {
 	TitleGenerated      bool              `json:"title_generated,omitempty"`
 	TitleInvalidated    bool              `json:"title_invalidated,omitempty"`
 	TitleGenerationTime *time.Time        `json:"title_generation_time,omitempty"`
+
+	// ParentSessionID is the orchestrator session that spawned this one.
+	ParentSessionID string `json:"parent_session_id"`
+
+	// InvokedBy indicates who started the session: "human" or "agent".
+	InvokedBy string `json:"invoked_by"`
 }
