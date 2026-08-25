@@ -5,6 +5,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.181.0](https://github.com/inference-gateway/cli/compare/v0.180.1...v0.181.0) (2026-08-25)
+
+### 🚀 Features
+
+* **conversations:** expose parent_session_id and invoked_by in metadata ([#1108](https://github.com/inference-gateway/cli/issues/1108)) ([403e67b](https://github.com/inference-gateway/cli/commit/403e67bfddc7cc092bc882df935b8e2952118f43)), closes [#1105](https://github.com/inference-gateway/cli/issues/1105)
+* **browser:** handle tool_request and list_models frames in the extension bridge ([#1107](https://github.com/inference-gateway/cli/issues/1107)) ([777c8f2](https://github.com/inference-gateway/cli/commit/777c8f20e26162428e38356d3ad7e329da31ea45)), closes [#1106](https://github.com/inference-gateway/cli/issues/1106), references [inference-gateway/opentask#155](https://github.com/inference-gateway/opentask/issues/155) [inference-gateway/opentask#156](https://github.com/inference-gateway/opentask/issues/156)
+
+### 🧹 Maintenance
+
+* update claude-code and infer versions ([230c1f3](https://github.com/inference-gateway/cli/commit/230c1f3c65612d2cfe980e959fa225ef14b38656))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.181.0 --help
+npx @inference-gateway/cli@0.181.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.181.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.181.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.181.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.181.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.181.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.180.1](https://github.com/inference-gateway/cli/compare/v0.180.0...v0.180.1) (2026-08-24)
 
 ### 🐛 Bug Fixes
