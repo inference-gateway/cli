@@ -12,6 +12,7 @@ import (
 	"time"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
 	websocket "github.com/gorilla/websocket"
 
@@ -645,5 +646,154 @@ func TestExtensionBridgeListSkillsWithoutServiceIsEmpty(t *testing.T) {
 	frame := readFrameOfType(t, conn, "skills")
 	if raw, ok := frame["skills"].([]any); ok && len(raw) != 0 {
 		t.Fatalf("expected no skills, got %v", frame["skills"])
+	}
+}
+
+func startBridgeWithTools(t *testing.T, cfg *config.BrowserUseConfig, toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, defaultModel string) *ExtensionBridge {
+	t.Helper()
+	bridge := startBridge(t, cfg, nil, nil)
+	bridge.SetToolExecution(toolSvc, approval, models, defaultModel)
+	return bridge
+}
+
+func TestExtensionBridgeToolRequestUnknownToolKeepsSocketOpen(t *testing.T) {
+	toolSvc := &agentdomainmocks.FakeToolService{}
+	toolSvc.IsToolEnabledReturns(false)
+	bridge := startBridgeWithTools(t, bridgeConfig(), toolSvc, nil, nil, "")
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "tool_request", "id": "req-1", "tool_name": "Nope", "tool_args": "{}"}); err != nil {
+		t.Fatalf("write tool_request: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "tool_result")
+	if frame["id"] != "req-1" || frame["success"] != false || frame["error"] == "" {
+		t.Fatalf("unexpected tool_result: %v", frame)
+	}
+
+	if err := conn.WriteJSON(map[string]string{"type": "list_skills"}); err != nil {
+		t.Fatalf("write list_skills: %v", err)
+	}
+	readFrameOfType(t, conn, "skills")
+}
+
+func TestExtensionBridgeToolRequestApproved(t *testing.T) {
+	toolSvc := &agentdomainmocks.FakeToolService{}
+	toolSvc.IsToolEnabledReturns(true)
+	toolSvc.ExecuteToolDirectReturns(&agentdomain.ToolExecutionResult{
+		Success: true,
+		Data:    &agentdomain.BashToolResult{Output: "hi\n"},
+	}, nil)
+	approval := &agentdomainmocks.FakeApprovalPolicy{}
+	approval.ShouldRequireApprovalReturns(true)
+	bridge := startBridgeWithTools(t, bridgeConfig(), toolSvc, approval, nil, "")
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "tool_request", "id": "req-2", "tool_name": "Bash", "tool_args": `{"command":"echo hi"}`}); err != nil {
+		t.Fatalf("write tool_request: %v", err)
+	}
+
+	req := readFrameOfType(t, conn, "approval_request")
+	if req["tool_name"] != "Bash" {
+		t.Fatalf("unexpected approval_request: %v", req)
+	}
+	if err := conn.WriteJSON(map[string]string{"type": "approval_response", "request_id": req["request_id"].(string), "action": "approve"}); err != nil {
+		t.Fatalf("write approval_response: %v", err)
+	}
+	readFrameOfType(t, conn, "approval_resolved")
+
+	frame := readFrameOfType(t, conn, "tool_result")
+	if frame["id"] != "req-2" || frame["success"] != true || frame["output"] != "hi\n" {
+		t.Fatalf("unexpected tool_result: %v", frame)
+	}
+
+	ctx, fn := toolSvc.ExecuteToolDirectArgsForCall(0)
+	if fn.Name != "Bash" || !agentdomain.IsToolApproved(ctx) {
+		t.Fatalf("expected approved Bash execution, got %v approved=%v", fn.Name, agentdomain.IsToolApproved(ctx))
+	}
+}
+
+func TestExtensionBridgeToolRequestDenied(t *testing.T) {
+	toolSvc := &agentdomainmocks.FakeToolService{}
+	toolSvc.IsToolEnabledReturns(true)
+	approval := &agentdomainmocks.FakeApprovalPolicy{}
+	approval.ShouldRequireApprovalReturns(true)
+	bridge := startBridgeWithTools(t, bridgeConfig(), toolSvc, approval, nil, "")
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "tool_request", "id": "req-3", "tool_name": "Bash", "tool_args": "{}"}); err != nil {
+		t.Fatalf("write tool_request: %v", err)
+	}
+
+	req := readFrameOfType(t, conn, "approval_request")
+	if err := conn.WriteJSON(map[string]string{"type": "approval_response", "request_id": req["request_id"].(string), "action": "reject"}); err != nil {
+		t.Fatalf("write approval_response: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "tool_result")
+	if frame["id"] != "req-3" || frame["success"] != false {
+		t.Fatalf("unexpected tool_result: %v", frame)
+	}
+	if toolSvc.ExecuteToolDirectCallCount() != 0 {
+		t.Fatalf("denied tool call was executed")
+	}
+}
+
+func TestExtensionBridgeToolRequestWithoutApprovalNeeded(t *testing.T) {
+	toolSvc := &agentdomainmocks.FakeToolService{}
+	toolSvc.IsToolEnabledReturns(true)
+	toolSvc.ExecuteToolDirectReturns(&agentdomain.ToolExecutionResult{
+		Success: false,
+		Error:   "exit status 1",
+		Data:    &agentdomain.BashToolResult{Output: "boom\n", ExitCode: 1},
+	}, nil)
+	approval := &agentdomainmocks.FakeApprovalPolicy{}
+	bridge := startBridgeWithTools(t, bridgeConfig(), toolSvc, approval, nil, "")
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "tool_request", "id": "req-4", "tool_name": "Bash", "tool_args": "{}"}); err != nil {
+		t.Fatalf("write tool_request: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "tool_result")
+	if frame["id"] != "req-4" || frame["success"] != false || frame["output"] != "boom\n" || frame["error"] != "exit status 1" {
+		t.Fatalf("unexpected tool_result: %v", frame)
+	}
+}
+
+func TestExtensionBridgeListModelsDefaultFirst(t *testing.T) {
+	models := &convmocks.FakeModelService{}
+	models.ListModelsReturns([]string{"a/x", "b/y"}, nil)
+	bridge := startBridgeWithTools(t, bridgeConfig(), nil, nil, models, "b/y")
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "list_models"}); err != nil {
+		t.Fatalf("write list_models: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "models")
+	raw, ok := frame["models"].([]any)
+	if !ok || len(raw) != 2 || raw[0] != "b/y" || raw[1] != "a/x" {
+		t.Fatalf("unexpected models: %v", frame["models"])
+	}
+}
+
+func TestExtensionBridgeListModelsWithoutServiceIsEmpty(t *testing.T) {
+	bridge := startBridge(t, bridgeConfig(), nil, nil)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "list_models"}); err != nil {
+		t.Fatalf("write list_models: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "models")
+	if raw, ok := frame["models"].([]any); ok && len(raw) != 0 {
+		t.Fatalf("expected no models, got %v", frame["models"])
 	}
 }

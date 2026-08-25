@@ -746,7 +746,11 @@ read-only `gh` subcommands (`gh issue/pr/... list|view`, `gh project
 list|view|item-list|field-list`, `gh search`), not a raw `gh api <path>`
 wildcard. `gh api` is **not** auto-approved by default; prefer the structured
 subcommands, or add a narrowly-scoped `gh api` regex to a mode's `allow` if you
-genuinely need the raw API.
+genuinely need the raw API. One notable consumer: the opentask browser
+extension performs its GitHub access as `gh api` tool requests over the bridge
+(see [browser-extension-protocol.md](browser-extension-protocol.md)), so
+allowlist `gh api( .*)?` in the modes you use it with to avoid a per-call
+approval prompt.
 
 The one exception to YAML-only configuration is an **append override** for the
 `mode.all` baseline, so CI (and `infer-action`) can add a few commands without
