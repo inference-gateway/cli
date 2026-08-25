@@ -161,10 +161,10 @@ func TestParseAgentTasks(t *testing.T) {
 func TestBuildChatPaneCommand_EmitsSubagentMode(t *testing.T) {
 	tool := newTestAgentTool(t)
 
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{Mode: agentdomain.AgentModeReadOnly}, "sess"); !strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE='readonly'") {
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{Mode: agentdomain.AgentModeReadOnly}, "", "sess"); !strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE='readonly'") {
 		t.Fatalf("ReadOnly subagent must emit readonly mode; cmd = %q", got)
 	}
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{Mode: agentdomain.AgentModeStandard}, "sess"); strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE") {
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{Mode: agentdomain.AgentModeStandard}, "", "sess"); strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE") {
 		t.Fatalf("ReadWrite (Standard) subagent must NOT emit the mode var; cmd = %q", got)
 	}
 }
@@ -173,7 +173,7 @@ func TestBuildChatPaneCommand_EmitsSubagentMode(t *testing.T) {
 // assistant message so the parent can harvest the real result (not pane chrome).
 func TestBuildChatPaneCommand_PassesResultFile(t *testing.T) {
 	tool := newTestAgentTool(t)
-	got := tool.buildChatPaneCommand(AgentTaskSpec{}, "sess-xyz")
+	got := tool.buildChatPaneCommand(AgentTaskSpec{}, "", "sess-xyz")
 	if !strings.Contains(got, "INFER_SUBAGENT_RESULT_FILE=") || !strings.Contains(got, "infer-subagent-sess-xyz.json") {
 		t.Fatalf("expected the result-file env var for the session; cmd = %q", got)
 	}
@@ -185,13 +185,13 @@ func TestBuildChatPaneCommand_PassesResultFile(t *testing.T) {
 func TestBuildChatPaneCommand_SlugifiesHistoryName(t *testing.T) {
 	tool := newTestAgentTool(t)
 
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{Label: "Refactor Auth"}, "sess"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='refactor-auth'") {
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{Label: "Refactor Auth"}, "", "sess"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='refactor-auth'") {
 		t.Fatalf("label must be slugified to dashcase; cmd = %q", got)
 	}
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{Label: "a/../../../tmp/pwned"}, "sess"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='a-tmp-pwned'") {
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{Label: "a/../../../tmp/pwned"}, "", "sess"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='a-tmp-pwned'") {
 		t.Fatalf("path separators/traversal must be sanitized out; cmd = %q", got)
 	}
-	if got := tool.buildChatPaneCommand(AgentTaskSpec{}, "subagent-parent-uuid"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='"+scheddomain.SubagentHistoryMemoryOnly+"'") {
+	if got := tool.buildChatPaneCommand(AgentTaskSpec{}, "", "subagent-parent-uuid"); !strings.Contains(got, "INFER_SUBAGENT_HISTORY_NAME='"+scheddomain.SubagentHistoryMemoryOnly+"'") {
 		t.Fatalf("unlabeled subagent must use the memory-only sentinel, not the session id; cmd = %q", got)
 	}
 }
@@ -218,7 +218,7 @@ func TestSubagentMockModePropagation(t *testing.T) {
 	if env := strings.Join(tool.subagentExtraEnv(context.Background(), AgentTaskSpec{}), " "); strings.Contains(env, "INFER_GATEWAY_MOCK") {
 		t.Fatalf("non-mock parent must not set the mock var; got %q", env)
 	}
-	if cmd := tool.buildChatPaneCommand(AgentTaskSpec{}, "sess"); strings.Contains(cmd, "INFER_GATEWAY_MOCK") {
+	if cmd := tool.buildChatPaneCommand(AgentTaskSpec{}, "", "sess"); strings.Contains(cmd, "INFER_GATEWAY_MOCK") {
 		t.Fatalf("non-mock parent must not set the mock var in pane command; got %q", cmd)
 	}
 
@@ -226,7 +226,7 @@ func TestSubagentMockModePropagation(t *testing.T) {
 	if env := strings.Join(tool.subagentExtraEnv(context.Background(), AgentTaskSpec{}), " "); !strings.Contains(env, "INFER_GATEWAY_MOCK=true") {
 		t.Fatalf("mock parent must propagate INFER_GATEWAY_MOCK=true to headless env; got %q", env)
 	}
-	if cmd := tool.buildChatPaneCommand(AgentTaskSpec{}, "sess"); !strings.Contains(cmd, "INFER_GATEWAY_MOCK=true") {
+	if cmd := tool.buildChatPaneCommand(AgentTaskSpec{}, "", "sess"); !strings.Contains(cmd, "INFER_GATEWAY_MOCK=true") {
 		t.Fatalf("mock parent must propagate INFER_GATEWAY_MOCK=true to pane command; got %q", cmd)
 	}
 
@@ -234,7 +234,7 @@ func TestSubagentMockModePropagation(t *testing.T) {
 	if env := strings.Join(tool.subagentExtraEnv(context.Background(), AgentTaskSpec{}), " "); strings.Contains(env, "INFER_GATEWAY_MOCK") {
 		t.Fatalf("inherit_mock=false must opt subagents out of mock propagation; got %q", env)
 	}
-	if cmd := tool.buildChatPaneCommand(AgentTaskSpec{}, "sess"); strings.Contains(cmd, "INFER_GATEWAY_MOCK") {
+	if cmd := tool.buildChatPaneCommand(AgentTaskSpec{}, "", "sess"); strings.Contains(cmd, "INFER_GATEWAY_MOCK") {
 		t.Fatalf("inherit_mock=false must opt pane subagents out of mock propagation; got %q", cmd)
 	}
 }

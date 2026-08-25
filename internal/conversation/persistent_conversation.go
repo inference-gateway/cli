@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -86,7 +87,7 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 
 	r.metadataMutex.Lock()
 	r.conversationID = conversationID
-	r.metadata = convdomain.ConversationMetadata{
+	r.metadata = subagentMetadataFromEnv(convdomain.ConversationMetadata{
 		ID:               conversationID,
 		Title:            title,
 		CreatedAt:        now,
@@ -96,7 +97,7 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 		Tags:             []string{},
 		TitleGenerated:   false,
 		TitleInvalidated: false,
-	}
+	})
 	r.metadataMutex.Unlock()
 
 	if r.taskTracker != nil {
@@ -255,7 +256,7 @@ func (r *PersistentConversationRepository) AddMessage(msg convdomain.Conversatio
 
 		r.metadataMutex.Lock()
 		r.conversationID = conversationID
-		r.metadata = convdomain.ConversationMetadata{
+		r.metadata = subagentMetadataFromEnv(convdomain.ConversationMetadata{
 			ID:           conversationID,
 			Title:        title,
 			CreatedAt:    now,
@@ -269,7 +270,7 @@ func (r *PersistentConversationRepository) AddMessage(msg convdomain.Conversatio
 			Tags:             []string{},
 			TitleGenerated:   false,
 			TitleInvalidated: false,
-		}
+		})
 		r.metadataMutex.Unlock()
 	}
 
@@ -396,7 +397,7 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 
 		r.metadataMutex.Lock()
 		r.conversationID = conversationID
-		r.metadata = convdomain.ConversationMetadata{
+		r.metadata = subagentMetadataFromEnv(convdomain.ConversationMetadata{
 			ID:           conversationID,
 			Title:        title,
 			CreatedAt:    now,
@@ -410,7 +411,7 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 			Tags:             []string{},
 			TitleGenerated:   false,
 			TitleInvalidated: false,
-		}
+		})
 		r.metadataMutex.Unlock()
 	}
 
@@ -451,4 +452,19 @@ func (r *PersistentConversationRepository) GetCurrentConversationTitle() string 
 	r.metadataMutex.RLock()
 	defer r.metadataMutex.RUnlock()
 	return r.metadata.Title
+}
+
+// subagentMetadataFromEnv reads INFER_PARENT_SESSION_ID and INFER_INVOKED_BY
+// environment variables and applies them to the metadata. This is how the
+// Agent tool tells a spawned subagent process who its parent is.
+func subagentMetadataFromEnv(m convdomain.ConversationMetadata) convdomain.ConversationMetadata {
+	if parentID := os.Getenv("INFER_PARENT_SESSION_ID"); parentID != "" {
+		m.ParentSessionID = parentID
+	}
+	if invokedBy := os.Getenv("INFER_INVOKED_BY"); invokedBy != "" {
+		m.InvokedBy = invokedBy
+	} else if m.InvokedBy == "" {
+		m.InvokedBy = "human"
+	}
+	return m
 }

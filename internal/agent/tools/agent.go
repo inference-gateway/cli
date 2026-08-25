@@ -365,7 +365,7 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 		}
 		_ = os.Remove(subagentResultFilePath(sessionID))
 		_ = os.Remove(subagentApprovalFilePath(sessionID))
-		paneID, err := t.launchPane(ctx, title, t.buildChatPaneCommand(spec, sessionID))
+		paneID, err := t.launchPane(ctx, title, t.buildChatPaneCommand(spec, parentSession, sessionID))
 		if err != nil {
 			logger.Error("failed to open tmux pane for interactive subagent", "label", labelOrSession(spec.Label, sessionID), "session_id", sessionID, "error", err)
 			notes = append(notes, fmt.Sprintf("%s: failed to open tmux pane: %v", labelOrSession(spec.Label, sessionID), err))
@@ -436,9 +436,13 @@ func labelOrSession(label, sessionID string) string {
 
 // buildChatPaneCommand assembles the shell command run inside the tmux pane: a
 // live `infer chat` using the parent model (via INFER_AGENT_MODEL so no model
-// dropdown appears) plus the depth guard.
-func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) string {
+// dropdown appears) plus the depth guard and invocation metadata.
+func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, parentSession, sessionID string) string {
 	parts := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
+	if parentSession != "" {
+		parts = append(parts, "INFER_PARENT_SESSION_ID="+shellQuote(parentSession))
+	}
+	parts = append(parts, "INFER_INVOKED_BY=agent")
 	if spec.SystemPrompt != "" {
 		parts = append(parts, subagentSystemPromptEnv+"="+shellQuote(spec.SystemPrompt))
 	}
@@ -465,10 +469,15 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, sessionID string) s
 }
 
 // subagentExtraEnv builds the environment passed to a headless subagent: the
-// depth guard plus an optional per-subagent system prompt and trace context.
+// depth guard plus an optional per-subagent system prompt and trace context,
+// and invocation metadata (parent session, invoked_by).
 func (t *AgentTool) subagentExtraEnv(ctx context.Context, spec AgentTaskSpec) []string {
 	env := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
 	env = append(env, agentdomain.GetTraceEnv(ctx)...)
+	if parentSession := agentdomain.GetSessionID(ctx); parentSession != "" {
+		env = append(env, "INFER_PARENT_SESSION_ID="+parentSession)
+	}
+	env = append(env, "INFER_INVOKED_BY=agent")
 	if spec.SystemPrompt != "" {
 		env = append(env, subagentSystemPromptEnv+"="+spec.SystemPrompt)
 	}
