@@ -256,4 +256,22 @@ func TestCoordinator_HandleToolExecutionCompleted(t *testing.T) {
 			t.Errorf("expected activeToolCallID cleared")
 		}
 	})
+
+	t.Run("status is idle without a chat session, preparing with one", func(t *testing.T) {
+		c, _, state, _ := newCoordinatorForTest()
+		event := agentdomain.ToolExecutionCompletedEvent{TotalExecuted: 1, SuccessCount: 1}
+
+		status := c.toolsCompletedStatus(event).(tui.SetStatusEvent)
+		if status.StatusType != tui.StatusDefault || status.Spinner {
+			t.Errorf("expected idle status without a chat session, got %+v", status)
+		}
+
+		if err := state.StartChatSession("req-1", "m", make(chan agentdomain.ChatEvent)); err != nil {
+			t.Fatalf("StartChatSession: %v", err)
+		}
+		status = c.toolsCompletedStatus(event).(tui.SetStatusEvent)
+		if status.StatusType != tui.StatusPreparing || !status.Spinner {
+			t.Errorf("expected preparing status with a chat session, got %+v", status)
+		}
+	})
 }

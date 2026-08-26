@@ -467,8 +467,12 @@ func (b *ExtensionBridge) recordDirectTool(toolCall sdk.ChatCompletionMessageToo
 	now := time.Now()
 	if b.repo != nil {
 		assistantEntry, toolEntry := convdomain.NewToolCallEntries(toolCall, result, b.repo.FormatToolResultForLLM(result), now)
-		_ = b.repo.AddMessage(assistantEntry)
-		_ = b.repo.AddMessage(toolEntry)
+		func() {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			_ = b.repo.AddMessage(assistantEntry)
+			_ = b.repo.AddMessage(toolEntry)
+		}()
 	}
 	completed := agentdomain.ToolExecutionCompletedEvent{
 		SessionID:     b.sessionID,
