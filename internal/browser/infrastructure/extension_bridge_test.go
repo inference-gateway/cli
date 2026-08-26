@@ -763,7 +763,6 @@ func TestExtensionBridgeToolRequestRecordedInConversation(t *testing.T) {
 		t.Fatalf("tool entry content should carry the formatted result for the LLM, got %q (%v)", text, err)
 	}
 
-	// The snapshot keeps tool_calls on the assistant entry and reports success per id.
 	if err := conn.WriteJSON(map[string]string{"type": "resume_conversation", "id": repo.GetCurrentConversationID()}); err != nil {
 		t.Fatalf("write resume_conversation: %v", err)
 	}
