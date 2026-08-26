@@ -15,6 +15,14 @@ type BaseChatEvent struct {
 func (e BaseChatEvent) GetRequestID() string    { return e.RequestID }
 func (e BaseChatEvent) GetTimestamp() time.Time { return e.Timestamp }
 
+// UserMessageChatEvent mirrors a user message that entered the conversation
+// (typed in the TUI, queued, or sent from the extension) so external consumers
+// such as the extension bridge can render it. Content is the plain text.
+type UserMessageChatEvent struct {
+	BaseChatEvent
+	Content string
+}
+
 // ToolExecutionProgressEvent indicates progress in tool execution
 type ToolExecutionProgressEvent struct {
 	BaseChatEvent

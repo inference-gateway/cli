@@ -11,6 +11,9 @@ import (
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
+	lipgloss "charm.land/lipgloss/v2"
+	ansi "github.com/charmbracelet/x/ansi"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
@@ -1000,6 +1003,8 @@ func TestInputStatusBar_FocusedRenderHighlightsSelection(t *testing.T) {
 	fakeTheme.GetDimColorReturns("#888888")
 	fakeTheme.GetAccentColorReturns("#ff9e64")
 	fakeTheme.GetBorderColorReturns("#3b4261")
+	fakeTheme.GetWarningColorReturns("#e0af68")
+	fakeTheme.GetSuccessColorReturns("#9ece6a")
 	themeService := &tuimocks.FakeThemeService{}
 	themeService.GetCurrentThemeReturns(fakeTheme)
 
@@ -1010,6 +1015,28 @@ func TestInputStatusBar_FocusedRenderHighlightsSelection(t *testing.T) {
 	if !strings.Contains(unfocused, "test-model") {
 		t.Fatalf("render should contain the model indicator, got %q", unfocused)
 	}
+	if strings.Contains(unfocused, "●") {
+		t.Fatalf("bridge dot should be hidden unless the extension backend is configured, got %q", unfocused)
+	}
+	statusBar.config = config.DefaultConfig()
+	statusBar.config.BrowserUse.Enabled = true
+	statusBar.config.BrowserUse.Backend = config.BrowserBackendExtension
+	statusBar.SetWidth(80)
+	waiting := strings.Split(statusBar.Render(), "\n")[0]
+	if !strings.HasSuffix(ansi.Strip(waiting), "● Browser") || lipgloss.Width(waiting) != 75 {
+		t.Fatalf("bridge marker should be right-aligned with its label on a wide row, got %q (width %d)", waiting, lipgloss.Width(waiting))
+	}
+	statusBar.SetWidth(40)
+	if narrow := ansi.Strip(strings.Split(statusBar.Render(), "\n")[0]); !strings.HasSuffix(narrow, "●") || strings.Contains(narrow, "Browser") {
+		t.Fatalf("narrow row should fall back to the bare dot, got %q", narrow)
+	}
+	statusBar.SetWidth(80)
+	statusBar.SetBrowserConnected(true)
+	if connected := strings.Split(statusBar.Render(), "\n")[0]; connected == waiting || !strings.HasSuffix(ansi.Strip(connected), "● Browser") {
+		t.Fatalf("connected dot should be styled differently, got %q", connected)
+	}
+	statusBar.SetBrowserConnected(false)
+	statusBar.config = nil
 
 	if !statusBar.Focus() {
 		t.Fatal("Focus should succeed")

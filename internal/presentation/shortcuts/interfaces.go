@@ -41,9 +41,11 @@ const (
 	SideEffectSetInput
 	SideEffectGenerateSnippet
 	SideEffectCompactConversation
-	SideEffectShowInitGithubActionSetup
+	SideEffectShowInstallOpentaskSetup
 	SideEffectEmbedImages
 	SideEffectSendMessageWithModel
+	// SideEffectSendMessage submits Data (a string) as a regular chat message.
+	SideEffectSendMessage
 	SideEffectShowDiffViewer
 	SideEffectShowExplorer
 	SideEffectShowToolsList

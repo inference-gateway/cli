@@ -229,8 +229,8 @@ type AgentStatusUpdateEvent struct {
 
 // GitHub App Setup Events
 
-// TriggerGithubActionSetupEvent triggers the GitHub App setup flow
-type TriggerGithubActionSetupEvent struct{}
+// TriggerOpentaskSetupEvent triggers the GitHub App setup flow
+type TriggerOpentaskSetupEvent struct{}
 
 // TriggerHelpViewEvent opens the full-screen, scrollable help overlay that
 // lists every slash command and keybinding in two tables.

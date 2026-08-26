@@ -483,6 +483,8 @@ func (p *Provider) GetThemeColor(colorName string) string {
 		return theme.GetErrorColor()
 	case "success":
 		return theme.GetSuccessColor()
+	case "warning":
+		return theme.GetWarningColor()
 	case "status":
 		return theme.GetStatusColor()
 	case "accent":

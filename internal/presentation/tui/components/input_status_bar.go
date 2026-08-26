@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -43,6 +44,7 @@ type InputStatusBar struct {
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	mcpStatus              *agentdomain.MCPServerStatus
+	browserConnected       bool
 	styleProvider          *styles.Provider
 	currentInputText       string
 
@@ -142,6 +144,11 @@ func (isb *InputStatusBar) UpdateMCPStatus(status *agentdomain.MCPServerStatus) 
 	isb.mcpStatus = status
 }
 
+// SetBrowserConnected toggles the browser-extension indicator.
+func (isb *InputStatusBar) SetBrowserConnected(connected bool) {
+	isb.browserConnected = connected
+}
+
 // SetInputText sets the current input text for mode detection
 func (isb *InputStatusBar) SetInputText(text string) {
 	isb.currentInputText = text
@@ -231,7 +238,34 @@ func (isb *InputStatusBar) Render() string {
 	}
 
 	lines := isb.buildStatusLines()
+	if dot := isb.buildBridgeDot(); dot != "" {
+		const label = " Browser"
+		marker := dot
+		pad := isb.width - 6 - lipgloss.Width(lines[0])
+		if pad-len(label) >= 2 {
+			marker += isb.styleProvider.RenderWithColor(label, isb.styleProvider.GetThemeColor("dim"))
+			pad -= len(label)
+		}
+		if pad > 0 {
+			lines[0] += strings.Repeat(" ", pad) + marker
+		}
+	}
 	return strings.Join(lines, "\n")
+}
+
+// buildBridgeDot is the extension-bridge marker: green when the extension is
+// connected, yellow while the bridge waits for one, nothing when the extension
+// backend is not configured.
+func (isb *InputStatusBar) buildBridgeDot() string {
+	if isb.config == nil || isb.styleProvider == nil || !isb.config.BrowserUse.Enabled ||
+		isb.config.BrowserUse.Backend != config.BrowserBackendExtension {
+		return ""
+	}
+	color := isb.styleProvider.GetThemeColor("warning")
+	if isb.browserConnected {
+		color = isb.styleProvider.GetThemeColor("success")
+	}
+	return isb.styleProvider.RenderWithColor("●", color)
 }
 
 // buildStatusLines builds the status bar content. Indicators are packed onto up

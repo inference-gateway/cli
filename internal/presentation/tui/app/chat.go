@@ -97,7 +97,7 @@ type ChatApplication struct {
 	fileSelectionView    *components.FileSelectionView
 	taskManager          *components.TaskManagerImpl
 	toolCallRenderer     *components.ToolCallRenderer
-	initGithubActionView *components.InitGithubActionView
+	installOpentaskView  *components.InstallOpentaskView
 	diffViewer           *components.DiffViewerImpl
 	fileExplorer         *components.FileExplorerImpl
 	helpView             *components.HelpViewImpl
@@ -316,9 +316,9 @@ func NewChatApplication(
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.toolsView = components.NewToolsView(app.toolService, app.stateManager, styleProvider)
 	app.a2aAgentsView = components.NewA2AAgentsView(app.stateManager, styleProvider)
-	app.initGithubActionView = components.NewInitGithubActionView(styleProvider)
+	app.installOpentaskView = components.NewInstallOpentaskView(styleProvider)
 
-	app.initGithubActionView.SetSecretsExistChecker(func(appID string) bool {
+	app.installOpentaskView.SetSecretsExistChecker(func(appID string) bool {
 		repo, err := app.githubSetupService.GetCurrentRepo()
 		if err != nil {
 			return false
@@ -496,6 +496,16 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	cmds = append(cmds, app.updateUIComponentsForUIMessages(msg, viewBefore)...)
 
+	if _, ok := msg.(agentdomain.ModelSelectedEvent); ok && viewBefore == tui.ViewStateModelSelection {
+		if err := app.stateManager.TransitionToView(tui.ViewStateChat); err == nil {
+			app.focusedComponent = app.inputView
+		}
+	}
+
+	if event, ok := msg.(agentdomain.BrowserExtensionStatusEvent); ok {
+		app.inputStatusBar.SetBrowserConnected(event.Connected)
+	}
+
 	if event, ok := msg.(agentdomain.MCPServerStatusUpdateEvent); ok {
 		if cmd := app.handleMCPStatusUpdate(event); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -622,8 +632,8 @@ func isDomainEvent(msg tea.Msg) bool {
 // handleAppEvents handles application-level events (not component-specific)
 func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
-	case tui.TriggerGithubActionSetupEvent:
-		return tea.Batch(app.handleGithubActionSetupTrigger()...)
+	case tui.TriggerOpentaskSetupEvent:
+		return tea.Batch(app.handleOpentaskSetupTrigger()...)
 
 	case githubSetupCheckedMsg:
 		return tea.Batch(app.handleGithubSetupChecked(m)...)
@@ -709,8 +719,8 @@ func (app *ChatApplication) dispatchViewMessage(currentView tui.ViewState, msg t
 		return app.handleThemeSelectionView(msg)
 	case tui.ViewStateA2ATaskManagement:
 		return app.handleA2ATaskManagementView(msg)
-	case tui.ViewStateGithubActionSetup:
-		return app.handleInitGithubActionView(msg)
+	case tui.ViewStateOpentaskSetup:
+		return app.handleInstallOpentaskView(msg)
 	case tui.ViewStateDiffViewer:
 		return app.handleDiffViewerView(msg)
 	case tui.ViewStateExplorer:
@@ -1069,8 +1079,8 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderThemeSelection()
 	case tui.ViewStateA2ATaskManagement:
 		return app.renderA2ATaskManagement()
-	case tui.ViewStateGithubActionSetup:
-		return app.renderGithubActionSetup()
+	case tui.ViewStateOpentaskSetup:
+		return app.renderOpentaskSetup()
 	case tui.ViewStateDiffViewer:
 		return app.renderDiffViewer()
 	case tui.ViewStateExplorer:
@@ -1086,28 +1096,28 @@ func (app *ChatApplication) viewContent() string {
 	}
 }
 
-func (app *ChatApplication) handleInitGithubActionView(msg tea.Msg) []tea.Cmd {
+func (app *ChatApplication) handleInstallOpentaskView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	model, cmd := app.initGithubActionView.Update(msg)
-	app.initGithubActionView = model.(*components.InitGithubActionView)
+	model, cmd := app.installOpentaskView.Update(msg)
+	app.installOpentaskView = model.(*components.InstallOpentaskView)
 
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
-	if app.initGithubActionView.IsDone() {
-		if app.initGithubActionView.IsCancelled() {
-			return app.handleInitGithubActionCancelled(cmds)
+	if app.installOpentaskView.IsDone() {
+		if app.installOpentaskView.IsCancelled() {
+			return app.handleInstallOpentaskCancelled(cmds)
 		}
-		return app.handleInitGithubActionCompleted(cmds)
+		return app.handleInstallOpentaskCompleted(cmds)
 	}
 
 	return cmds
 }
 
-func (app *ChatApplication) handleInitGithubActionCompleted(cmds []tea.Cmd) []tea.Cmd {
-	appID, privateKeyPath, err := app.initGithubActionView.GetResult()
+func (app *ChatApplication) handleInstallOpentaskCompleted(cmds []tea.Cmd) []tea.Cmd {
+	appID, privateKeyPath, err := app.installOpentaskView.GetResult()
 
 	if err != nil {
 		cmds = append(cmds, func() tea.Msg {
@@ -1125,11 +1135,11 @@ func (app *ChatApplication) handleInitGithubActionCompleted(cmds []tea.Cmd) []te
 			}
 		})
 
-		cmds = append(cmds, app.performGithubActionSetup(appID, privateKeyPath))
+		cmds = append(cmds, app.performOpentaskSetup(appID, privateKeyPath))
 	}
 
-	app.initGithubActionView.Reset()
-	if cmd := app.initGithubActionView.Init(); cmd != nil {
+	app.installOpentaskView.Reset()
+	if cmd := app.installOpentaskView.Init(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
@@ -1146,7 +1156,7 @@ func (app *ChatApplication) handleInitGithubActionCompleted(cmds []tea.Cmd) []te
 	return cmds
 }
 
-func (app *ChatApplication) handleInitGithubActionCancelled(cmds []tea.Cmd) []tea.Cmd {
+func (app *ChatApplication) handleInstallOpentaskCancelled(cmds []tea.Cmd) []tea.Cmd {
 	cmds = append(cmds, func() tea.Msg {
 		return tui.SetStatusEvent{
 			Message:    "Init Github Action setup cancelled",
@@ -1155,8 +1165,8 @@ func (app *ChatApplication) handleInitGithubActionCancelled(cmds []tea.Cmd) []te
 		}
 	})
 
-	app.initGithubActionView.Reset()
-	if cmd := app.initGithubActionView.Init(); cmd != nil {
+	app.installOpentaskView.Reset()
+	if cmd := app.installOpentaskView.Init(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
@@ -1182,7 +1192,7 @@ type githubSetupCheckedMsg struct {
 	err          error
 }
 
-func (app *ChatApplication) handleGithubActionSetupTrigger() []tea.Cmd {
+func (app *ChatApplication) handleOpentaskSetupTrigger() []tea.Cmd {
 	return []tea.Cmd{
 		func() tea.Msg {
 			return tui.SetStatusEvent{
@@ -1242,19 +1252,19 @@ func (app *ChatApplication) handleGithubSetupChecked(msg githubSetupCheckedMsg) 
 			}
 		})
 
-		cmds = append(cmds, app.performGithubActionSetup("", ""))
+		cmds = append(cmds, app.performOpentaskSetup("", ""))
 
 		return cmds
 	}
 
 	owner := strings.Split(msg.repo, "/")[0]
-	app.initGithubActionView.SetRepositoryInfo(owner, msg.isOrg)
-	app.initGithubActionView.Reset()
-	if cmd := app.initGithubActionView.Init(); cmd != nil {
+	app.installOpentaskView.SetRepositoryInfo(owner, msg.isOrg)
+	app.installOpentaskView.Reset()
+	if cmd := app.installOpentaskView.Init(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
-	if err := app.stateManager.TransitionToView(tui.ViewStateGithubActionSetup); err != nil {
+	if err := app.stateManager.TransitionToView(tui.ViewStateOpentaskSetup); err != nil {
 		cmds = append(cmds, func() tea.Msg {
 			return tui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to show Init Github Action setup: %v", err),
@@ -1275,7 +1285,7 @@ func (app *ChatApplication) handleGithubSetupChecked(msg githubSetupCheckedMsg) 
 	return cmds
 }
 
-func (app *ChatApplication) performGithubActionSetup(appID, privateKeyPath string) tea.Cmd {
+func (app *ChatApplication) performOpentaskSetup(appID, privateKeyPath string) tea.Cmd {
 	return func() tea.Msg {
 		repo, err := app.githubSetupService.GetCurrentRepo()
 		if err != nil {
@@ -1301,21 +1311,25 @@ func (app *ChatApplication) performGithubActionSetup(appID, privateKeyPath strin
 	}
 }
 
-func (app *ChatApplication) setupStandardWorkflow(repo string) tea.Msg {
-	workflowContent := app.githubSetupService.GenerateStandardWorkflowContent()
-	workflowPath := ".github/workflows/infer.yml"
-
-	if err := app.githubSetupService.WriteWorkflowFile(workflowPath, workflowContent); err != nil {
-		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
-			Sticky: true,
+// installModel is the model the workflow-install agent runs with: the
+// session's currently selected model, falling back to the configured default.
+func (app *ChatApplication) installModel() string {
+	if app.modelService != nil {
+		if m := app.modelService.GetCurrentModel(); m != "" {
+			return m
 		}
 	}
+	return app.config.Agent.Model
+}
 
-	prURL, err := app.githubSetupService.PreparePRCreation(repo, workflowPath)
+func (app *ChatApplication) setupStandardWorkflow(repo string) tea.Msg {
+	prURL, err := app.githubSetupService.InstallWorkflow(context.Background(), agentdomain.InstallWorkflowOptions{
+		Repo:  repo,
+		Model: app.installModel(),
+	})
 	if err != nil {
 		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
+			Error:  fmt.Sprintf("Failed to install workflow: %v", err),
 			Sticky: true,
 		}
 	}
@@ -1340,20 +1354,14 @@ func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string)
 		}
 	}
 
-	workflowContent := app.githubSetupService.GenerateGithubActionWorkflowContent()
-	workflowPath := ".github/workflows/infer.yml"
-
-	if err := app.githubSetupService.WriteWorkflowFile(workflowPath, workflowContent); err != nil {
-		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
-			Sticky: true,
-		}
-	}
-
-	prURL, err := app.githubSetupService.PreparePRCreation(repo, workflowPath)
+	prURL, err := app.githubSetupService.InstallWorkflow(context.Background(), agentdomain.InstallWorkflowOptions{
+		Repo:      repo,
+		Model:     app.installModel(),
+		GitHubApp: true,
+	})
 	if err != nil {
 		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
+			Error:  fmt.Sprintf("Failed to install workflow: %v", err),
 			Sticky: true,
 		}
 	}
@@ -1395,7 +1403,7 @@ func (app *ChatApplication) createSuccessMessage(repo, prURL, successMsg string)
 		repoOwner = parts[0]
 		repoName = parts[1]
 	}
-	installURL := app.initGithubActionView.GetInstallationURL(repoOwner, repoName)
+	installURL := app.installOpentaskView.GetInstallationURL(repoOwner, repoName)
 
 	messageText := fmt.Sprintf("%s\n\n"+
 		"Next steps:\n"+
@@ -1772,11 +1780,11 @@ func (app *ChatApplication) renderA2ATaskManagement() string {
 	return app.taskManager.View().Content
 }
 
-func (app *ChatApplication) renderGithubActionSetup() string {
+func (app *ChatApplication) renderOpentaskSetup() string {
 	width, height := app.stateManager.GetDimensions()
-	app.initGithubActionView.SetWidth(width)
-	app.initGithubActionView.SetHeight(height)
-	return app.initGithubActionView.View().Content
+	app.installOpentaskView.SetWidth(width)
+	app.installOpentaskView.SetHeight(height)
+	return app.installOpentaskView.View().Content
 }
 
 // handleHelpViewTrigger fills the help overlay with the current commands and

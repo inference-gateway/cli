@@ -421,7 +421,7 @@ func buildChannelShortcutRegistry(cfg *config.Config) *shortcuts.Registry {
 	reg.Register(shortcuts.NewTracesShortcut())
 	reg.Register(shortcuts.NewConversationSelectShortcut(nil))
 	reg.Register(shortcuts.NewNewShortcut(nil, nil))
-	reg.Register(shortcuts.NewInitGithubActionShortcut())
+	reg.Register(shortcuts.NewInstallOpentaskShortcut())
 	reg.Register(shortcuts.NewInitShortcut(cfg))
 	if cfg.IsA2AToolsEnabled() {
 		reg.Register(shortcuts.NewA2ATaskManagementShortcut(cfg))

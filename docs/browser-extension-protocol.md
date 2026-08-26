@@ -130,7 +130,22 @@ CLI → extension, the resumed conversation's history:
 ```
 
 - `messages` are the gateway SDK message objects of the resumed conversation.
+  Assistant entries keep their `tool_calls` (id, function name, arguments) and
+  tool entries their `tool_call_id`, so the panel can rebuild tool rows.
+- `tool_results` maps `tool_call_id` to whether that execution succeeded, for
+  entries the CLI has an execution record for.
 - An unknown or empty `id` is ignored (no snapshot is sent).
+
+Extension → CLI, start a fresh conversation (the panel's "new session" and the
+Install flow use this instead of a `/clear` chat message — the frame is handled
+synchronously in the read loop, so a `user_message` sent immediately after is
+guaranteed to land in the new session):
+
+```json
+{"type": "new_session"}
+```
+
+The CLI answers with an empty `conversation_snapshot` for the new conversation.
 
 After the snapshot the CLI streams live chat activity for the active
 conversation, one frame per
@@ -150,6 +165,38 @@ agent is busy, exactly like typing in the TUI):
 ```json
 {"type": "user_message", "content": "please also check the docs page"}
 ```
+
+Extension → CLI, to stop the turn currently streaming (same as `esc` in the
+TUI; a no-op when nothing is running):
+
+```json
+{"type": "interrupt"}
+```
+
+The agent then emits its usual cancelled completion; the panel sees the stream
+end and no separate acknowledgement frame.
+
+## Input history
+
+The panel's arrow-up recall shares the CLI's shell-style input history: the CLI
+appends panel-sent `user_message` frames to the same store the TUI's arrow-up
+navigation uses (trimmed, consecutive duplicates skipped), and serves the
+combined history back on request.
+
+Extension → CLI, list recent input history (typically sent after the hello ack):
+
+```json
+{"type": "list_history"}
+```
+
+CLI → extension, the most recent entries, oldest first (empty when history
+storage is unavailable; capped at 1000 entries):
+
+```json
+{"type": "history", "history": ["fix the tests", "task check"]}
+```
+
+Multi-line entries round-trip with real newlines in the JSON strings.
 
 ## Skills
 
@@ -189,11 +236,38 @@ Extension → CLI:
 CLI → extension, the configured model ids (empty when unavailable):
 
 ```json
-{"type": "models", "models": ["anthropic/claude-sonnet-4-5", "ollama_cloud/deepseek-v4"]}
+{"type": "models", "models": ["anthropic/claude-sonnet-4-5", "ollama_cloud/deepseek-v4"], "current": "anthropic/claude-sonnet-4-5"}
 ```
 
 - Each entry is a `provider/model` id exactly as the CLI would accept it.
 - The first entry is the CLI's default model.
+
+Extension → CLI, switch the CLI's active model (same effect as `/model` in the
+TUI). The CLI answers with a fresh `models` frame; `current` shows whether the
+switch took effect:
+
+```json
+{"type": "select_model", "model": "openai/gpt-4o"}
+```
+
+## Agent mode
+
+The panel can toggle the CLI's agent mode (the same shared state as the TUI's
+shift+tab cycle; it also governs `tool_request` approvals). Modes travel as
+their allowlist keys: `standard`, `plan`, `auto`.
+
+CLI → extension, sent on hello and after every `set_mode`:
+
+```json
+{"type": "mode", "mode": "standard"}
+```
+
+Extension → CLI, switch the mode. Unknown values are ignored; the CLI answers
+with a fresh `mode` frame either way:
+
+```json
+{"type": "set_mode", "mode": "auto"}
+```
 
 ## Artifacts (generated images)
 

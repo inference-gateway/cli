@@ -132,7 +132,7 @@ type GitHubIssueService interface {
 }
 
 // GitHubSetupService handles git/gh/CI operations for the GitHub Action CI setup
-// flow triggered from the init-github-action wizard. Every shell invocation carries
+// flow triggered from the install-opentask wizard. Every shell invocation carries
 // a context so a wedged subprocess cannot hang the UI.
 type GitHubSetupService interface {
 	GetCurrentRepo() (string, error)
@@ -143,6 +143,19 @@ type GitHubSetupService interface {
 	WriteWorkflowFile(path, content string) error
 	GenerateStandardWorkflowContent() string
 	GenerateGithubActionWorkflowContent() string
+	InstallWorkflow(ctx context.Context, opts InstallWorkflowOptions) (string, error)
+}
+
+// InstallWorkflowOptions parameterizes GitHubSetupService.InstallWorkflow.
+type InstallWorkflowOptions struct {
+	// Repo is "owner/name"; empty means the current repository.
+	Repo string
+	// Model runs the install agent and becomes the workflow's default model.
+	Model string
+	// Context is extra user-supplied guidance appended to the agent prompt.
+	Context string
+	// GitHubApp selects the GitHub App token variant of the workflow.
+	GitHubApp bool
 }
 
 // MCPDiscoveredTool represents a tool discovered from an MCP server

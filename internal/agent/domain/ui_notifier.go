@@ -26,10 +26,14 @@ func (NoopUINotifier) Notify(any) {}
 
 // Events sent through UINotifier by non-UI code (capabilities, job supervisor).
 
-// UserInputEvent represents user input submission
+// UserInputEvent represents user input submission. FromExtension marks input
+// injected over the browser-extension bridge: the sender watches the side
+// panel, which has no terminal question UI, so interactive gates (like the
+// catalog-skill install confirmation) must not block on it.
 type UserInputEvent struct {
-	Content string
-	Images  []ImageAttachment
+	Content       string
+	Images        []ImageAttachment
+	FromExtension bool
 }
 
 // ToolApprovalResponseEvent captures the user's approval decision

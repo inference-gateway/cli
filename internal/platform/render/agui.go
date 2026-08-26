@@ -85,6 +85,16 @@ func (e *aguiEncoder) streamReasoning(delta string) {
 	e.emit(aguievents.NewReasoningMessageContentEvent(e.msgID, delta))
 }
 
+// emitUserMessage frames a complete user message (role "user") as its own
+// AG-UI text message, closing anything the assistant had open first.
+func (e *aguiEncoder) emitUserMessage(content string) {
+	e.closeMessage()
+	id := uuid.New().String()
+	e.emit(aguievents.NewTextMessageStartEvent(id, aguievents.WithRole("user")))
+	e.emit(aguievents.NewTextMessageContentEvent(id, content))
+	e.emit(aguievents.NewTextMessageEndEvent(id))
+}
+
 // closeMessage ends any open text/reasoning framing and resets the per-turn
 // message ID so the next delta starts a fresh AG-UI message. Safe to call
 // when nothing is open.

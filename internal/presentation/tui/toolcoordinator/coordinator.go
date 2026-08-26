@@ -370,7 +370,10 @@ func (c *Coordinator) runningProgressCmds(msg agentdomain.ToolExecutionProgressE
 
 // HandleToolExecutionCompleted finalizes the tool round-trip: clears the
 // active-tool indicator, refreshes history, optionally fires a todo-update
-// command, and emits a "Tools completed" status.
+// command, and emits a "Tools completed" status. The "preparing response"
+// spinner only makes sense when an agent turn will follow; without an active
+// chat session (extension-initiated tool calls) the status resets to idle,
+// since no response will ever arrive to clear it.
 func (c *Coordinator) HandleToolExecutionCompleted(msg agentdomain.ToolExecutionCompletedEvent) tea.Cmd {
 	c.SetActiveToolCallID("")
 
@@ -381,14 +384,7 @@ func (c *Coordinator) HandleToolExecutionCompleted(msg agentdomain.ToolExecution
 				History: history,
 			}
 		},
-		func() tea.Msg {
-			return tui.SetStatusEvent{
-				Message: fmt.Sprintf("Tools completed (%d/%d successful) - preparing response...",
-					msg.SuccessCount, msg.TotalExecuted),
-				Spinner:    true,
-				StatusType: tui.StatusPreparing,
-			}
-		},
+		func() tea.Msg { return c.toolsCompletedStatus(msg) },
 	}
 
 	if todoUpdateCmd := extractTodoUpdateCmd(msg.Results); todoUpdateCmd != nil {
@@ -397,6 +393,22 @@ func (c *Coordinator) HandleToolExecutionCompleted(msg agentdomain.ToolExecution
 
 	cmds = c.appendChatListener(cmds)
 	return tea.Sequence(cmds...)
+}
+
+// toolsCompletedStatus picks the post-tool status: "preparing response" only
+// when an agent turn is pending; with no active chat session (extension-
+// initiated tool calls) it resets to idle, since no response will follow to
+// clear a spinner.
+func (c *Coordinator) toolsCompletedStatus(msg agentdomain.ToolExecutionCompletedEvent) tea.Msg {
+	if c.stateManager.GetChatSession() == nil {
+		return tui.SetStatusEvent{StatusType: tui.StatusDefault}
+	}
+	return tui.SetStatusEvent{
+		Message: fmt.Sprintf("Tools completed (%d/%d successful) - preparing response...",
+			msg.SuccessCount, msg.TotalExecuted),
+		Spinner:    true,
+		StatusType: tui.StatusPreparing,
+	}
 }
 
 // HandleToolCancelled refreshes the conversation view so the synthetic

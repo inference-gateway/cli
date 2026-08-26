@@ -217,32 +217,10 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 			return
 		}
 
-		toolCalls := []sdk.ChatCompletionMessageToolCall{
-			{
-				ID:       toolCallID,
-				Type:     "function",
-				Function: toolCallFunc,
-			},
-		}
-		assistantEntry := convdomain.ConversationEntry{
-			Message: sdk.Message{
-				Role:      sdk.Assistant,
-				Content:   sdk.NewMessageContent(""),
-				ToolCalls: &toolCalls,
-			},
-			Time: time.Now(),
-		}
+		assistantEntry, toolEntry := convdomain.NewToolCallEntries(
+			sdk.ChatCompletionMessageToolCall{ID: toolCallID, Type: "function", Function: toolCallFunc},
+			result, s.conversationRepo.FormatToolResultForLLM(result), time.Now())
 		_ = s.conversationRepo.AddMessage(assistantEntry)
-
-		toolEntry := convdomain.ConversationEntry{
-			Message: sdk.Message{
-				Role:       sdk.Tool,
-				Content:    sdk.NewMessageContent(""),
-				ToolCallID: &toolCallID,
-			},
-			ToolExecution: result,
-			Time:          time.Now(),
-		}
 		_ = s.conversationRepo.AddMessage(toolEntry)
 
 		status := "completed"

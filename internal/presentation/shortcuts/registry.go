@@ -159,14 +159,14 @@ func parseShortcutLine(input string) ([]string, error) {
 		case inQuotes && char == quoteChar:
 			inQuotes = false
 			quoteChar = 0
-		case !inQuotes && (char == ' ' || char == '\t'):
+		case !inQuotes && (char == ' ' || char == '\t' || char == '\n' || char == '\r'):
 			if current.Len() > 0 {
 				arg := current.String()
 				args = append(args, arg)
 				current.Reset()
 			}
 
-			for i+1 < len(input) && (input[i+1] == ' ' || input[i+1] == '\t') {
+			for i+1 < len(input) && (input[i+1] == ' ' || input[i+1] == '\t' || input[i+1] == '\n' || input[i+1] == '\r') {
 				i++
 			}
 		case inQuotes && char == '\\' && i+1 < len(input):

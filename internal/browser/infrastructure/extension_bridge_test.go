@@ -24,7 +24,6 @@ import (
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 )
 
 // readFrameOfType reads frames until one with the given type arrives, failing
@@ -247,7 +246,7 @@ func startBridgeWithSkills(t *testing.T, cfg *config.BrowserUseConfig, skills ag
 
 // newBridgeRepo builds a persistent repo backed by in-memory storage.
 func newBridgeRepo() *conversation.PersistentConversationRepository {
-	return conversation.NewPersistentConversationRepository(&toolformatter.ToolFormatterService{}, nil, storage.NewMemoryStorage())
+	return conversation.NewPersistentConversationRepository(nil, nil, storage.NewMemoryStorage())
 }
 
 // seedConversation starts, fills, and saves a conversation, returning its id.
@@ -652,7 +651,7 @@ func TestExtensionBridgeListSkillsWithoutServiceIsEmpty(t *testing.T) {
 func startBridgeWithTools(t *testing.T, cfg *config.BrowserUseConfig, toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, defaultModel string) *ExtensionBridge {
 	t.Helper()
 	bridge := startBridge(t, cfg, nil, nil)
-	bridge.SetToolExecution(toolSvc, approval, models, defaultModel)
+	bridge.SetToolExecution(toolSvc, approval, models, nil, defaultModel)
 	return bridge
 }
 
@@ -715,6 +714,94 @@ func TestExtensionBridgeToolRequestApproved(t *testing.T) {
 	}
 }
 
+func TestExtensionBridgeToolRequestRecordedInConversation(t *testing.T) {
+	toolSvc := &agentdomainmocks.FakeToolService{}
+	toolSvc.IsToolEnabledReturns(true)
+	toolSvc.ExecuteToolDirectReturns(&agentdomain.ToolExecutionResult{
+		ToolName: "Bash",
+		Success:  true,
+		Data:     &agentdomain.BashToolResult{Output: "hi\n"},
+	}, nil)
+	repo := newBridgeRepo()
+	events := conversation.NewEventBridge()
+	bridge := NewExtensionBridge(bridgeConfig(), nil, repo, events, nil, "test-session", "")
+	if err := bridge.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(bridge.Close)
+	bridge.SetToolExecution(toolSvc, nil, nil, nil, "")
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "tool_request", "id": "req-4", "tool_name": "Bash", "tool_args": `{"command":"echo hi"}`}); err != nil {
+		t.Fatalf("write tool_request: %v", err)
+	}
+	seen := map[string]bool{}
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	for !seen["tool_result"] || !seen["TOOL_CALL_RESULT"] {
+		var frame map[string]any
+		if err := conn.ReadJSON(&frame); err != nil {
+			t.Fatalf("read frames: %v (seen %v)", err, seen)
+		}
+		seen[frame["type"].(string)] = true
+		if ev, ok := frame["event"].(map[string]any); ok {
+			seen[ev["type"].(string)] = true
+		}
+	}
+	if !seen["TOOL_CALL_START"] {
+		t.Fatalf("expected TOOL_CALL_START, saw %v", seen)
+	}
+
+	msgs := repo.GetMessages()
+	if len(msgs) != 2 || msgs[0].Message.Role != sdk.Assistant || msgs[1].Message.Role != sdk.Tool {
+		t.Fatalf("expected assistant tool_call + tool result entries, got %d: %+v", len(msgs), msgs)
+	}
+	if msgs[1].ToolExecution == nil || !msgs[1].ToolExecution.Success || msgs[1].ToolExecution.ToolCallID != "req-4" {
+		t.Fatalf("unexpected tool entry: %+v", msgs[1].ToolExecution)
+	}
+	if text, err := msgs[1].Message.Content.AsMessageContent0(); err != nil || text == "" {
+		t.Fatalf("tool entry content should carry the formatted result for the LLM, got %q (%v)", text, err)
+	}
+
+	if err := conn.WriteJSON(map[string]string{"type": "resume_conversation", "id": repo.GetCurrentConversationID()}); err != nil {
+		t.Fatalf("write resume_conversation: %v", err)
+	}
+	snap := readFrameOfType(t, conn, "conversation_snapshot")
+	first := snap["messages"].([]any)[0].(map[string]any)
+	if calls, _ := first["tool_calls"].([]any); len(calls) != 1 {
+		t.Fatalf("expected tool_calls on the assistant snapshot entry, got %v", first)
+	}
+	if res, _ := snap["tool_results"].(map[string]any); res["req-4"] != true {
+		t.Fatalf("expected tool_results[req-4]=true, got %v", snap["tool_results"])
+	}
+}
+
+func TestExtensionBridgeInterruptCancelsActiveTurn(t *testing.T) {
+	agentSvc := &agentdomainmocks.FakeAgentService{}
+	events := conversation.NewEventBridge()
+	bridge := startBridge(t, bridgeConfig(), nil, events)
+	bridge.SetAgentService(agentSvc)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	// chatPump subscribes asynchronously after adopt; republish until it has seen the start.
+	deadline := time.Now().Add(2 * time.Second)
+	for id, _ := bridge.activeRequestID.Load().(string); id != "turn-1" && time.Now().Before(deadline); id, _ = bridge.activeRequestID.Load().(string) {
+		events.Publish(agentdomain.ChatStartEvent{RequestID: "turn-1", Timestamp: time.Now()})
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := conn.WriteJSON(map[string]string{"type": "interrupt"}); err != nil {
+		t.Fatalf("write interrupt: %v", err)
+	}
+	deadline = time.Now().Add(2 * time.Second)
+	for agentSvc.CancelRequestCallCount() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if agentSvc.CancelRequestCallCount() != 1 || agentSvc.CancelRequestArgsForCall(0) != "turn-1" {
+		t.Fatalf("expected one CancelRequest(turn-1), got %d calls", agentSvc.CancelRequestCallCount())
+	}
+}
+
 func TestExtensionBridgeToolRequestDenied(t *testing.T) {
 	toolSvc := &agentdomainmocks.FakeToolService{}
 	toolSvc.IsToolEnabledReturns(true)
@@ -768,7 +855,11 @@ func TestExtensionBridgeToolRequestWithoutApprovalNeeded(t *testing.T) {
 func TestExtensionBridgeListModelsDefaultFirst(t *testing.T) {
 	models := &convmocks.FakeModelService{}
 	models.ListModelsReturns([]string{"a/x", "b/y"}, nil)
-	bridge := startBridgeWithTools(t, bridgeConfig(), nil, nil, models, "b/y")
+	models.GetCurrentModelReturns("b/y")
+	models.SelectModelCalls(func(m string) error { models.GetCurrentModelReturns(m); return nil })
+	notified := make(chan any, 4)
+	bridge := startBridge(t, bridgeConfig(), notifierFunc(func(e any) { notified <- e }), nil)
+	bridge.SetToolExecution(nil, nil, models, nil, "b/y")
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
@@ -781,7 +872,37 @@ func TestExtensionBridgeListModelsDefaultFirst(t *testing.T) {
 	if !ok || len(raw) != 2 || raw[0] != "b/y" || raw[1] != "a/x" {
 		t.Fatalf("unexpected models: %v", frame["models"])
 	}
+	if frame["current"] != "b/y" {
+		t.Fatalf("expected current b/y, got %v", frame["current"])
+	}
+
+	if err := conn.WriteJSON(map[string]string{"type": "select_model", "model": "a/x"}); err != nil {
+		t.Fatalf("write select_model: %v", err)
+	}
+	frame = readFrameOfType(t, conn, "models")
+	if models.SelectModelCallCount() != 1 || models.SelectModelArgsForCall(0) != "a/x" || frame["current"] != "a/x" {
+		t.Fatalf("expected SelectModel(a/x) and current a/x, got calls=%d current=%v", models.SelectModelCallCount(), frame["current"])
+	}
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case e := <-notified:
+			if ev, ok := e.(agentdomain.ModelSelectedEvent); ok {
+				if ev.Model != "a/x" {
+					t.Fatalf("expected ModelSelectedEvent{a/x}, got %#v", ev)
+				}
+				return
+			}
+		case <-deadline:
+			t.Fatal("expected the TUI to be notified of the model switch")
+		}
+	}
 }
+
+// notifierFunc adapts a func to agentdomain.UINotifier for tests.
+type notifierFunc func(any)
+
+func (f notifierFunc) Notify(e any) { f(e) }
 
 func TestExtensionBridgeListModelsWithoutServiceIsEmpty(t *testing.T) {
 	bridge := startBridge(t, bridgeConfig(), nil, nil)
@@ -795,5 +916,99 @@ func TestExtensionBridgeListModelsWithoutServiceIsEmpty(t *testing.T) {
 	frame := readFrameOfType(t, conn, "models")
 	if raw, ok := frame["models"].([]any); ok && len(raw) != 0 {
 		t.Fatalf("expected no models, got %v", frame["models"])
+	}
+}
+
+// fakeHistoryStore is an in-memory storage.ShellHistoryStorage.
+type fakeHistoryStore struct {
+	mu      sync.Mutex
+	entries []string
+}
+
+func (f *fakeHistoryStore) AppendHistory(_ context.Context, command string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.entries = append(f.entries, command)
+	return nil
+}
+
+func (f *fakeHistoryStore) LoadHistory(_ context.Context, limit int) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := f.entries
+	if limit > 0 && len(out) > limit {
+		out = out[len(out)-limit:]
+	}
+	return append([]string{}, out...), nil
+}
+
+func TestExtensionBridgeHistoryRoundTrip(t *testing.T) {
+	store := &fakeHistoryStore{entries: []string{"from the tui"}}
+	bridge := startBridge(t, bridgeConfig(), nil, nil)
+	bridge.SetHistoryStorage(store)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	for _, msg := range []string{"first", "first", "  ", "second"} {
+		if err := conn.WriteJSON(map[string]string{"type": "user_message", "content": msg}); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	if err := conn.WriteJSON(map[string]string{"type": "list_history"}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "history")
+	raw, ok := frame["history"].([]any)
+	if !ok {
+		t.Fatalf("missing history: %v", frame)
+	}
+	got := make([]string, 0, len(raw))
+	for _, v := range raw {
+		got = append(got, v.(string))
+	}
+	want := []string{"from the tui", "first", "second"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestExtensionBridgeHistoryWithoutStoreSendsEmpty(t *testing.T) {
+	bridge := startBridge(t, bridgeConfig(), nil, nil)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "list_history"}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	frame := readFrameOfType(t, conn, "history")
+	if raw, ok := frame["history"].([]any); ok && len(raw) != 0 {
+		t.Fatalf("expected no history, got %v", frame["history"])
+	}
+}
+
+func TestExtensionBridgeNewSessionStartsFreshConversation(t *testing.T) {
+	repo := newBridgeRepo()
+	oldID := seedConversation(t, repo, "Current convo", "old message")
+
+	bridge := startBridgeWithRepo(t, bridgeConfig(), repo)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "new_session"}); err != nil {
+		t.Fatalf("write new_session: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "conversation_snapshot")
+	if msgs, ok := frame["messages"].([]any); ok && len(msgs) != 0 {
+		t.Fatalf("expected empty snapshot, got %v", frame["messages"])
+	}
+	if got := repo.GetCurrentConversationID(); got == oldID {
+		t.Fatalf("active conversation still %s, want a fresh one", oldID)
 	}
 }

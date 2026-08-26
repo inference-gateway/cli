@@ -454,7 +454,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 	if c.extensionBridge != nil {
 		c.extensionBridge.SetToolExecution(c.toolService,
 			agent.NewStandardApprovalPolicy(c.config, c.stateManager),
-			c.modelService, c.config.Agent.Model)
+			c.modelService, c.stateManager, c.config.Agent.Model)
+		c.extensionBridge.SetHistoryStorage(c.GetShellHistoryStorage())
 	}
 
 	if c.tokenizer == nil {
@@ -507,6 +508,9 @@ func (c *ServiceContainer) initializeDomainServices() {
 	agentImpl.SetMemoryBackend(c.memoryBackend)
 	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
 	c.agent = agentImpl
+	if c.extensionBridge != nil {
+		c.extensionBridge.SetAgentService(c.agent)
+	}
 }
 
 // initializeStorageBackend wires the conversation repository for the configured
@@ -685,7 +689,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(persistentRepo, c.backgroundTaskRegistry))
 	}
 
-	c.shortcutRegistry.Register(shortcuts.NewInitGithubActionShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewInstallOpentaskShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewInitShortcut(c.config))
 
 	if c.config.IsA2AToolsEnabled() {

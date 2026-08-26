@@ -291,6 +291,8 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 			}
 		case agentdomain.ChatErrorEvent:
 			runErr = ev.Error
+		case agentdomain.UserMessageChatEvent:
+			e.emitUserMessage(ev.Content)
 		case agentdomain.ToolExecutionCompletedEvent:
 			for _, r := range ev.Results {
 				if r != nil {

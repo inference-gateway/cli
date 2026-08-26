@@ -14,6 +14,7 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
@@ -158,6 +159,20 @@ func (p *ChatMessageProcessor) confirmCatalogInstall(msg agentdomain.UserInputEv
 	names := p.pendingCatalogSkills(msg.Content)
 	if len(names) == 0 {
 		return nil
+	}
+
+	// Extension-originated input has no terminal question UI to answer on -
+	// install directly, like headless runs do in buildActiveSkillInfo.
+	if msg.FromExtension {
+		return func() tea.Msg {
+			for _, name := range names {
+				if _, ok := p.handler.skillsService.Discover(context.Background(), name); !ok {
+					logger.Warn("failed to install skill from catalog", "name", name)
+					p.declinedSkills[name] = true
+				}
+			}
+			return msg
+		}
 	}
 
 	responseChan := make(chan []agentdomain.UserQuestionAnswer, 1)
@@ -510,6 +525,11 @@ func (p *ChatMessageProcessor) appendUserMessageAndStartCompletion(message sdk.M
 			}
 		}
 	}
+
+	p.handler.stateManager.BroadcastEvent(agentdomain.UserMessageChatEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{Timestamp: time.Now()},
+		Content:       formatting.ExtractTextFromContent(userEntry.Message.Content, images),
+	})
 
 	logger.Info("chat: AddMessage + startChatCompletion",
 		"repo_messages_after_add", len(p.handler.conversationRepo.GetMessages()),

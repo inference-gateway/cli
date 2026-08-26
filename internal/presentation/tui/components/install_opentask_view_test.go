@@ -9,7 +9,7 @@ import (
 )
 
 func TestInitWizard_RendersTitleAndConfirm(t *testing.T) {
-	v := NewInitGithubActionView(createMockStyleProviderForHelpBar())
+	v := NewInstallOpentaskView(createMockStyleProviderForHelpBar())
 	v.Init() // the chat app initializes the form when the wizard is shown
 	out := v.View().Content
 	if !strings.Contains(out, "Init GitHub Action Setup Wizard") {
@@ -21,10 +21,10 @@ func TestInitWizard_RendersTitleAndConfirm(t *testing.T) {
 }
 
 func TestInitWizard_CtrlCCancels(t *testing.T) {
-	v := NewInitGithubActionView(createMockStyleProviderForHelpBar())
+	v := NewInstallOpentaskView(createMockStyleProviderForHelpBar())
 
 	model, _ := v.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
-	v = model.(*InitGithubActionView)
+	v = model.(*InstallOpentaskView)
 
 	if !v.IsCancelled() || !v.IsDone() {
 		t.Fatalf("expected ctrl+c to cancel the wizard, got cancelled=%v done=%v", v.IsCancelled(), v.IsDone())
@@ -32,7 +32,7 @@ func TestInitWizard_CtrlCCancels(t *testing.T) {
 }
 
 func TestInitWizard_ResetClearsState(t *testing.T) {
-	v := NewInitGithubActionView(createMockStyleProviderForHelpBar())
+	v := NewInstallOpentaskView(createMockStyleProviderForHelpBar())
 	v.done = true
 	v.cancelled = true
 	v.phase = phaseDetails
@@ -64,7 +64,7 @@ func TestInitWizard_ResetClearsState(t *testing.T) {
 }
 
 func TestInitWizard_GithubURLs(t *testing.T) {
-	v := NewInitGithubActionView(createMockStyleProviderForHelpBar())
+	v := NewInstallOpentaskView(createMockStyleProviderForHelpBar())
 
 	if got := v.getGithubActionsURL(); got != "https://github.com/settings/apps" {
 		t.Fatalf("expected personal apps URL, got %q", got)
@@ -82,7 +82,7 @@ func TestInitWizard_GithubURLs(t *testing.T) {
 }
 
 func TestResolvePrivateKeyPath(t *testing.T) {
-	v := NewInitGithubActionView(createMockStyleProviderForHelpBar())
+	v := NewInstallOpentaskView(createMockStyleProviderForHelpBar())
 
 	v.keyChoice = "/tmp/scanned.pem"
 	v.resolvePrivateKeyPath()
