@@ -136,6 +136,17 @@ CLI → extension, the resumed conversation's history:
   entries the CLI has an execution record for.
 - An unknown or empty `id` is ignored (no snapshot is sent).
 
+Extension → CLI, start a fresh conversation (the panel's "new session" and the
+Install flow use this instead of a `/clear` chat message — the frame is handled
+synchronously in the read loop, so a `user_message` sent immediately after is
+guaranteed to land in the new session):
+
+```json
+{"type": "new_session"}
+```
+
+The CLI answers with an empty `conversation_snapshot` for the new conversation.
+
 After the snapshot the CLI streams live chat activity for the active
 conversation, one frame per
 [AG-UI](https://docs.ag-ui.com/) event (same encoding as

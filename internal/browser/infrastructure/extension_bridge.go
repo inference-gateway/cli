@@ -364,6 +364,22 @@ func (b *ExtensionBridge) sendConversationList(conn *websocket.Conn) {
 	b.write(conn, extConversations{Type: "conversations", Conversations: out})
 }
 
+// newSession starts a fresh conversation synchronously in the read loop
+// (mirroring the /clear shortcut's repo call) and snapshots the now-empty
+// conversation to the panel. Handling it inline - not via the async notifier -
+// guarantees a user_message frame sent right after lands in the new session
+// instead of racing the clear.
+func (b *ExtensionBridge) newSession(conn *websocket.Conn) {
+	if b.repo == nil {
+		return
+	}
+	if err := b.repo.StartNewConversation("New Conversation"); err != nil {
+		logger.Debug("extension bridge failed to start new conversation", "error", err)
+		return
+	}
+	b.sendSnapshot(conn)
+}
+
 // resumeConversation switches the active conversation to id and snapshots it to
 // the panel; the running chat pump then streams live events into it.
 func (b *ExtensionBridge) resumeConversation(conn *websocket.Conn, id string) {
@@ -660,6 +676,8 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 				b.notifier.Notify(agentdomain.UserInputEvent{Content: msg.Content, FromExtension: true})
 			}
 			b.appendHistory(msg.Content)
+		case "new_session":
+			b.newSession(conn)
 		case "list_history":
 			b.sendHistory(conn)
 		case "list_conversations":

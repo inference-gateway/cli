@@ -991,3 +991,24 @@ func TestExtensionBridgeHistoryWithoutStoreSendsEmpty(t *testing.T) {
 		t.Fatalf("expected no history, got %v", frame["history"])
 	}
 }
+
+func TestExtensionBridgeNewSessionStartsFreshConversation(t *testing.T) {
+	repo := newBridgeRepo()
+	oldID := seedConversation(t, repo, "Current convo", "old message")
+
+	bridge := startBridgeWithRepo(t, bridgeConfig(), repo)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "new_session"}); err != nil {
+		t.Fatalf("write new_session: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "conversation_snapshot")
+	if msgs, ok := frame["messages"].([]any); ok && len(msgs) != 0 {
+		t.Fatalf("expected empty snapshot, got %v", frame["messages"])
+	}
+	if got := repo.GetCurrentConversationID(); got == oldID {
+		t.Fatalf("active conversation still %s, want a fresh one", oldID)
+	}
+}
