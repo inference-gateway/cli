@@ -80,6 +80,26 @@ func TestRenderAGUI_SingleRunLifecycle(t *testing.T) {
 	}
 }
 
+func TestRenderAGUI_UserMessageIsFramedWithUserRole(t *testing.T) {
+	var out strings.Builder
+	err := RenderAGUI(stream(
+		agentdomain.UserMessageChatEvent{Content: "what's up"},
+		agentdomain.ChatStartEvent{},
+		agentdomain.ChatChunkEvent{RequestID: "r1", Content: "not much"},
+		agentdomain.ChatCompleteEvent{},
+	), &out, nil, "session-1", "")
+	if err != nil {
+		t.Fatalf("RenderAGUI() err = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, `"role":"user"`) || !strings.Contains(got, `"delta":"what's up"`) {
+		t.Errorf("user message not framed with role user\n%s", got)
+	}
+	if n := strings.Count(got, `"TEXT_MESSAGE_END"`); n != 2 {
+		t.Errorf("TEXT_MESSAGE_END count = %d, want 2 (user + assistant)\n%s", n, got)
+	}
+}
+
 func TestRenderAGUI_ErrorEmitsSingleRunError(t *testing.T) {
 	var out strings.Builder
 	err := RenderAGUI(stream(

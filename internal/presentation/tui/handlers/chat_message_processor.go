@@ -14,6 +14,7 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
@@ -509,6 +510,13 @@ func (p *ChatMessageProcessor) appendUserMessageAndStartCompletion(message sdk.M
 				Sticky: false,
 			}
 		}
+	}
+
+	if bc, ok := p.handler.stateManager.(interface{ BroadcastEvent(agentdomain.ChatEvent) }); ok {
+		bc.BroadcastEvent(agentdomain.UserMessageChatEvent{
+			BaseChatEvent: agentdomain.BaseChatEvent{Timestamp: time.Now()},
+			Content:       formatting.ExtractTextFromContent(userEntry.Message.Content, images),
+		})
 	}
 
 	logger.Info("chat: AddMessage + startChatCompletion",
