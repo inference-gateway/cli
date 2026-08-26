@@ -35,6 +35,7 @@ import (
 	tools "github.com/inference-gateway/cli/cmd/tools"
 	traces "github.com/inference-gateway/cli/cmd/traces"
 	version "github.com/inference-gateway/cli/cmd/version"
+	workflow "github.com/inference-gateway/cli/cmd/workflow"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
@@ -102,6 +103,7 @@ deployment, monitoring, and management of inference services.`,
 		tools.NewCommand(state),
 		traces.NewCommand(renderer),
 		version.NewCommand(),
+		workflow.NewCommand(state),
 	)
 	return command
 }

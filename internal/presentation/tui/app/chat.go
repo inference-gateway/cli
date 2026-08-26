@@ -1312,20 +1312,13 @@ func (app *ChatApplication) performGithubActionSetup(appID, privateKeyPath strin
 }
 
 func (app *ChatApplication) setupStandardWorkflow(repo string) tea.Msg {
-	workflowContent := app.githubSetupService.GenerateStandardWorkflowContent()
-	workflowPath := ".github/workflows/infer.yml"
-
-	if err := app.githubSetupService.WriteWorkflowFile(workflowPath, workflowContent); err != nil {
-		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
-			Sticky: true,
-		}
-	}
-
-	prURL, err := app.githubSetupService.PreparePRCreation(repo, workflowPath)
+	prURL, err := app.githubSetupService.InstallWorkflow(context.Background(), agentdomain.InstallWorkflowOptions{
+		Repo:  repo,
+		Model: app.config.Agent.Model,
+	})
 	if err != nil {
 		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
+			Error:  fmt.Sprintf("Failed to install workflow: %v", err),
 			Sticky: true,
 		}
 	}
@@ -1350,20 +1343,14 @@ func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string)
 		}
 	}
 
-	workflowContent := app.githubSetupService.GenerateGithubActionWorkflowContent()
-	workflowPath := ".github/workflows/infer.yml"
-
-	if err := app.githubSetupService.WriteWorkflowFile(workflowPath, workflowContent); err != nil {
-		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
-			Sticky: true,
-		}
-	}
-
-	prURL, err := app.githubSetupService.PreparePRCreation(repo, workflowPath)
+	prURL, err := app.githubSetupService.InstallWorkflow(context.Background(), agentdomain.InstallWorkflowOptions{
+		Repo:      repo,
+		Model:     app.config.Agent.Model,
+		GitHubApp: true,
+	})
 	if err != nil {
 		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
+			Error:  fmt.Sprintf("Failed to install workflow: %v", err),
 			Sticky: true,
 		}
 	}
