@@ -820,8 +820,6 @@ func (b *ExtensionBridge) send(ctx context.Context, cmd extBrowserCommand) (extI
 
 	b.write(conn, cmd)
 
-	// The extension enforces timeout_ms per action; the grace period covers
-	// transport latency and dead service workers.
 	timer := time.NewTimer(time.Duration(b.timeoutSeconds()+5) * time.Second)
 	defer timer.Stop()
 
