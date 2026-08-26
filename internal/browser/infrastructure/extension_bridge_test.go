@@ -841,6 +841,8 @@ func TestExtensionBridgeToolRequestWithoutApprovalNeeded(t *testing.T) {
 func TestExtensionBridgeListModelsDefaultFirst(t *testing.T) {
 	models := &convmocks.FakeModelService{}
 	models.ListModelsReturns([]string{"a/x", "b/y"}, nil)
+	models.GetCurrentModelReturns("b/y")
+	models.SelectModelCalls(func(m string) error { models.GetCurrentModelReturns(m); return nil })
 	bridge := startBridgeWithTools(t, bridgeConfig(), nil, nil, models, "b/y")
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
@@ -853,6 +855,17 @@ func TestExtensionBridgeListModelsDefaultFirst(t *testing.T) {
 	raw, ok := frame["models"].([]any)
 	if !ok || len(raw) != 2 || raw[0] != "b/y" || raw[1] != "a/x" {
 		t.Fatalf("unexpected models: %v", frame["models"])
+	}
+	if frame["current"] != "b/y" {
+		t.Fatalf("expected current b/y, got %v", frame["current"])
+	}
+
+	if err := conn.WriteJSON(map[string]string{"type": "select_model", "model": "a/x"}); err != nil {
+		t.Fatalf("write select_model: %v", err)
+	}
+	frame = readFrameOfType(t, conn, "models")
+	if models.SelectModelCallCount() != 1 || models.SelectModelArgsForCall(0) != "a/x" || frame["current"] != "a/x" {
+		t.Fatalf("expected SelectModel(a/x) and current a/x, got calls=%d current=%v", models.SelectModelCallCount(), frame["current"])
 	}
 }
 

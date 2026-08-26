@@ -199,11 +199,19 @@ Extension → CLI:
 CLI → extension, the configured model ids (empty when unavailable):
 
 ```json
-{"type": "models", "models": ["anthropic/claude-sonnet-4-5", "ollama_cloud/deepseek-v4"]}
+{"type": "models", "models": ["anthropic/claude-sonnet-4-5", "ollama_cloud/deepseek-v4"], "current": "anthropic/claude-sonnet-4-5"}
 ```
 
 - Each entry is a `provider/model` id exactly as the CLI would accept it.
 - The first entry is the CLI's default model.
+
+Extension → CLI, switch the CLI's active model (same effect as `/model` in the
+TUI). The CLI answers with a fresh `models` frame; `current` shows whether the
+switch took effect:
+
+```json
+{"type": "select_model", "model": "openai/gpt-4o"}
+```
 
 ## Artifacts (generated images)
 

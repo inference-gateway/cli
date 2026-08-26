@@ -41,6 +41,7 @@ type extInbound struct {
 	Error            string                     `json:"error,omitempty"`
 	RequestID        string                     `json:"request_id,omitempty"`
 	Action           string                     `json:"action,omitempty"`
+	Model            string                     `json:"model,omitempty"` // select_model
 	Image            string                     `json:"image,omitempty"` // base64 screenshot bytes
 	ImageMimeType    string                     `json:"image_mime_type,omitempty"`
 	Tabs             []browserdomain.BrowserTab `json:"tabs,omitempty"`
@@ -69,8 +70,9 @@ type extToolResult struct {
 }
 
 type extModels struct {
-	Type   string   `json:"type"`
-	Models []string `json:"models"`
+	Type    string   `json:"type"`
+	Models  []string `json:"models"`
+	Current string   `json:"current,omitempty"` // the model the CLI will use for the next turn
 }
 
 type extHelloAck struct {
@@ -397,7 +399,23 @@ func (b *ExtensionBridge) sendModelList(conn *websocket.Conn) {
 			}
 		}
 	}
-	b.write(conn, extModels{Type: "models", Models: out})
+	current := ""
+	if b.models != nil {
+		current = b.models.GetCurrentModel()
+	}
+	b.write(conn, extModels{Type: "models", Models: out, Current: current})
+}
+
+// selectModel switches the CLI's active model (same as the TUI's /model) and
+// re-sends the model list so the panel reflects the outcome, whether or not
+// the switch was accepted.
+func (b *ExtensionBridge) selectModel(conn *websocket.Conn, model string) {
+	if b.models != nil && model != "" {
+		if err := b.models.SelectModel(model); err != nil {
+			logger.Debug("extension bridge failed to select model", "model", model, "error", err)
+		}
+	}
+	b.sendModelList(conn)
 }
 
 // handleToolRequest executes an extension-initiated tool call through the
@@ -576,6 +594,8 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			b.sendConversationList(conn)
 		case "list_skills":
 			b.sendSkillList(conn)
+		case "select_model":
+			b.selectModel(conn, msg.Model)
 		case "list_models":
 			b.sendModelList(conn)
 		case "resume_conversation":
