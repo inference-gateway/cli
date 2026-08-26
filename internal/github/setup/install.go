@@ -53,8 +53,6 @@ func (s *Service) InstallWorkflow(ctx context.Context, opts agentdomain.InstallW
 		repo = current
 	}
 
-	// Clone under /tmp: the default tool sandbox allows /tmp, so the headless
-	// agent can read and write the checkout by absolute path.
 	dir, err := os.MkdirTemp("/tmp", "infer-install-*")
 	if err != nil {
 		return "", fmt.Errorf("create temp dir: %w", err)
