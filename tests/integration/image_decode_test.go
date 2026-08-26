@@ -51,6 +51,7 @@ scenarios:
 	require.NoError(t, err)
 
 	e := newEnvWithScenarios(t, defs, func(cfg *config.Config) {
+		cfg.Image.AllowLocal = true
 		cfg.Vision.Annotator.Enabled = true
 		cfg.Vision.Annotator.Model = "openai/gpt-4o"
 		cfg.Vision.Annotator.MaxTokens = 256

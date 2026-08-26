@@ -32,14 +32,18 @@ type WebFetchTool struct {
 
 // NewWebFetchTool creates a new fetch tool
 func NewWebFetchTool(cfg *config.Config) *WebFetchTool {
-	return &WebFetchTool{
-		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Tools.WebFetch.Enabled,
-		client: &http.Client{
-			Timeout: time.Duration(cfg.Tools.WebFetch.Safety.Timeout) * time.Second,
-		},
+	t := &WebFetchTool{
+		config:    cfg,
+		enabled:   cfg.Tools.Enabled && cfg.Tools.WebFetch.Enabled,
 		formatter: agentinfra.NewBaseFormatter("WebFetch"),
 	}
+	t.client = &http.Client{
+		Timeout: time.Duration(cfg.Tools.WebFetch.Safety.Timeout) * time.Second,
+		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+			return t.validateURL(req.URL.String())
+		},
+	}
+	return t
 }
 
 // Definition returns the tool definition for the LLM
@@ -279,14 +283,30 @@ func (t *WebFetchTool) validateURL(url string) error {
 	return t.validateURLDomain(url)
 }
 
-// validateURLDomain checks if URL domain is in allowed list
-func (t *WebFetchTool) validateURLDomain(url string) error {
-	if isTrustedAgentHost(t.config, url) {
+// validateURLDomain checks if the URL's hostname is in the allowed list. The
+// match is against the parsed hostname only — exact or as a subdomain suffix —
+// never a substring of the whole URL, so `https://evil.com/?x=github.com` and
+// `https://github.com.evil.com` are both rejected.
+func (t *WebFetchTool) validateURLDomain(rawURL string) error {
+	if isTrustedAgentHost(t.config, rawURL) {
 		return nil
 	}
 
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if host == "" {
+		return fmt.Errorf("URL has no hostname")
+	}
+
 	for _, domain := range t.config.Tools.WebFetch.AllowedDomains {
-		if strings.Contains(url, domain) {
+		d := strings.ToLower(strings.TrimSpace(domain))
+		if d == "" {
+			continue
+		}
+		if host == d || strings.HasSuffix(host, "."+d) {
 			return nil
 		}
 	}

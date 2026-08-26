@@ -24,6 +24,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // IsImageModel reports whether the model generates images rather than text.
@@ -267,11 +268,22 @@ func (s *ImageService) IsImageFile(filePath string) bool {
 	return supportedExts[ext]
 }
 
-// ReadImageFromURL fetches an image from a URL and returns it as a base64 attachment
+// ReadImageFromURL fetches an image from a URL and returns it as a base64
+// attachment. URLs reach this from untrusted sources (LLM tool arguments), so
+// only http(s) to public addresses is allowed.
 func (s *ImageService) ReadImageFromURL(imageURL string) (*agentdomain.ImageAttachment, error) {
+	parsedURL, err := url.Parse(imageURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URL: %w", err)
+	}
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported image URL scheme %q (only http and https are allowed)", parsedURL.Scheme)
+	}
+
 	timeout := time.Duration(s.config.Image.Timeout) * time.Second
-	client := &http.Client{
-		Timeout: timeout,
+	client := utils.NewPublicOnlyHTTPClient(timeout)
+	if s.config.Image.AllowLocal {
+		client = &http.Client{Timeout: timeout}
 	}
 
 	resp, err := client.Get(imageURL)
@@ -298,10 +310,6 @@ func (s *ImageService) ReadImageFromURL(imageURL string) (*agentdomain.ImageAtta
 		return nil, fmt.Errorf("image exceeds maximum size of %d bytes", maxSize)
 	}
 
-	parsedURL, err := url.Parse(imageURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL: %w", err)
-	}
 	filename := filepath.Base(parsedURL.Path)
 	if filename == "" || filename == "." || filename == "/" {
 		filename = "image"

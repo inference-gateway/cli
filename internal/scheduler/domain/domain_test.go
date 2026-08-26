@@ -163,3 +163,24 @@ func TestNewShellInfo(t *testing.T) {
 		})
 	}
 }
+
+func TestValidJobID(t *testing.T) {
+	tests := []struct {
+		id   string
+		want bool
+	}{
+		{"6f1c0f6e-2f7a-4d3e-9a1b-0c2d3e4f5a6b", true},
+		{"job-1", true},
+		{"", false},
+		{".", false},
+		{"..", false},
+		{"../escape", false},
+		{"a/b", false},
+		{`a\b`, false},
+	}
+	for _, tt := range tests {
+		if got := ValidJobID(tt.id); got != tt.want {
+			t.Errorf("ValidJobID(%q) = %v, want %v", tt.id, got, tt.want)
+		}
+	}
+}

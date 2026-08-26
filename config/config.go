@@ -158,8 +158,13 @@ type ArchiveConfig struct {
 
 // ImageConfig contains image service settings
 type ImageConfig struct {
-	MaxSize           int64                        `yaml:"max_size" mapstructure:"max_size"`
-	Timeout           int                          `yaml:"timeout" mapstructure:"timeout"`
+	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
+	Timeout int   `yaml:"timeout" mapstructure:"timeout"`
+	// AllowLocal permits image downloads from loopback/private/link-local
+	// addresses. Off by default: image URLs arrive as LLM tool arguments, so
+	// non-public destinations are refused (SSRF guard). Enable it only when
+	// images are served from a trusted local host.
+	AllowLocal        bool                         `yaml:"allow_local" mapstructure:"allow_local"`
 	ClipboardOptimize ClipboardImageOptimizeConfig `yaml:"clipboard_optimize" mapstructure:"clipboard_optimize"`
 }
 

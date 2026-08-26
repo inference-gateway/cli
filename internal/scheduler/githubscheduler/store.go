@@ -96,6 +96,9 @@ func (s *Store) SaveJob(ctx context.Context, job *scheddomain.ScheduledJob) erro
 // DeleteJob removes the job's workflow from the repo (skipped when the file
 // is absent), then deletes the job locally.
 func (s *Store) DeleteJob(ctx context.Context, id string) error {
+	if !scheddomain.ValidJobID(id) {
+		return fmt.Errorf("invalid job ID %q", id)
+	}
 	job, err := s.inner.LoadJob(ctx, id)
 	if err != nil {
 		return err

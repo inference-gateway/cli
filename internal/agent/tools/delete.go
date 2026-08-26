@@ -243,6 +243,10 @@ func (t *DeleteTool) executeWildcardDelete(pattern string, recursive, force bool
 
 // executeSingleDelete handles deletion of a single file or directory
 func (t *DeleteTool) executeSingleDelete(path string, recursive, force bool, result *DeleteResult) (*DeleteResult, error) {
+	if err := t.validatePathSecurity(path); err != nil {
+		return nil, err
+	}
+
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) && force {
