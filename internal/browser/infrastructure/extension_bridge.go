@@ -91,9 +91,8 @@ type extBrowserCommand struct {
 }
 
 type extSnapshot struct {
-	Type     string        `json:"type"`
-	Messages []sdk.Message `json:"messages"`
-	// tool_call_id -> success, for tool entries that carry an execution record.
+	Type        string          `json:"type"`
+	Messages    []sdk.Message   `json:"messages"`
 	ToolResults map[string]bool `json:"tool_results,omitempty"`
 }
 
