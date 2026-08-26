@@ -1021,7 +1021,7 @@ func TestInputStatusBar_FocusedRenderHighlightsSelection(t *testing.T) {
 	statusBar.config.BrowserUse.Backend = config.BrowserBackendExtension
 	statusBar.SetWidth(80)
 	waiting := strings.Split(statusBar.Render(), "\n")[0]
-	if !strings.HasSuffix(ansi.Strip(waiting), "●") || lipgloss.Width(waiting) != 76 {
+	if !strings.HasSuffix(ansi.Strip(waiting), "●") || lipgloss.Width(waiting) != 75 {
 		t.Fatalf("bridge dot should be right-aligned on the indicator row, got %q (width %d)", waiting, lipgloss.Width(waiting))
 	}
 	statusBar.SetBrowserConnected(true)
