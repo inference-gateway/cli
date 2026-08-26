@@ -123,39 +123,30 @@ type extChatEvent struct {
 // extension dials into. It implements browserdomain.BrowserDriver by forwarding the
 // browser-use verbs to the connected extension, and it mirrors the chat
 // conversation to the extension (AG-UI event stream out, user messages in).
-//
-// ponytail: one connection, one implied tab - multi-tab / multi-CLI routing
-// when someone actually needs it.
 type ExtensionBridge struct {
-	cfg          *config.BrowserUseConfig
-	notifier     agentdomain.UINotifier
-	repo         convdomain.ConversationRepository
-	events       agentdomain.EventBridge
-	skills       agentdomain.SkillsService
-	sessionID    string
-	artifactsDir string
-
-	// Injected late via SetToolExecution; all nilable.
-	toolSvc      agentdomain.ToolService
-	approval     agentdomain.ApprovalPolicy
-	models       convdomain.ModelService
-	defaultModel string
-	agentSvc     agentdomain.AgentService // for interrupt; injected via SetAgentService
-
-	activeRequestID atomic.Value // string: the in-flight chat turn, from ChatStartEvent
-
-	server   *http.Server
-	addr     string
-	startErr error
-
-	mu                   sync.Mutex // guards conn, connStop, pending, pendingApprovals, pendingToolApprovals
+	cfg                  *config.BrowserUseConfig
+	notifier             agentdomain.UINotifier
+	repo                 convdomain.ConversationRepository
+	events               agentdomain.EventBridge
+	skills               agentdomain.SkillsService
+	sessionID            string
+	artifactsDir         string
+	toolSvc              agentdomain.ToolService
+	approval             agentdomain.ApprovalPolicy
+	models               convdomain.ModelService
+	defaultModel         string
+	agentSvc             agentdomain.AgentService
+	activeRequestID      atomic.Value
+	server               *http.Server
+	addr                 string
+	startErr             error
+	mu                   sync.Mutex
 	conn                 *websocket.Conn
 	connStop             chan struct{}
 	pending              map[string]chan extInbound
 	pendingApprovals     map[string]sdk.ChatCompletionMessageToolCall
-	pendingToolApprovals map[string]chan bool // approvals for extension-initiated tool_requests
-
-	writeMu sync.Mutex // serializes writes to conn
+	pendingToolApprovals map[string]chan bool
+	writeMu              sync.Mutex
 }
 
 // NewExtensionBridge builds the bridge. notifier, repo, events, and skills may
