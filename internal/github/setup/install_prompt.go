@@ -73,3 +73,27 @@ When the workflow file is written, reply with ONLY a JSON object:
 {"title": "<Conventional Commit PR title, e.g. ci: bump infer-action to the latest version>", "body": "<markdown PR body describing exactly what changed in the workflow and why>"}`)
 	return b.String()
 }
+
+// InstallChatPrompt builds the install task submitted as a regular chat
+// message - the single canonical prompt for installing the OpenTask workflow,
+// used by the /install-opentask shortcut and (via that shortcut) the browser
+// extension's Install tab. repo may be empty (the agent detects the current
+// checkout's repo); context carries extra user/workflow configuration.
+func InstallChatPrompt(repo, context string) string {
+	target := "the repository of the current checkout (detect it with `gh repo view`)"
+	if strings.TrimSpace(repo) != "" {
+		target = repo
+	}
+	lines := []string{
+		"/" + InstallSkill,
+		fmt.Sprintf("Install or update the OpenTask GitHub workflow in %s. Read the /%s skill's guide and its bundled example workflows FIRST - they are the canonical infer-action usage patterns. Do not fetch infer-action docs or examples from the network.", target, InstallSkill),
+		"1. If the current checkout already is the target repo, add a git worktree under /tmp for the install branch so the checked-out branch stays untouched; otherwise clone the target repo (shallow) into a temp dir under /tmp.",
+		fmt.Sprintf("2. Check out branch %s, on top of origin's if it already exists (a re-install must update the open PR, not open a duplicate).", InstallBranch),
+		"3. Create or update .github/workflows/tasks.yml for infer-action following the skill's canonical workflow and the repo's existing CI conventions, preserving any repo-specific customizations.",
+		"4. Show me a short summary of the changes, then commit, push the branch, and open (or update) the pull request. Wait for my approval on the push and PR creation.",
+	}
+	if strings.TrimSpace(context) != "" {
+		lines = append(lines, "", "Workflow configuration:", strings.TrimSpace(context))
+	}
+	return strings.Join(lines, "\n")
+}

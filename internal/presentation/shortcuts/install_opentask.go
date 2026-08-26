@@ -3,14 +3,19 @@ package shortcuts
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	setup "github.com/inference-gateway/cli/internal/github/setup"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )
 
-// InstallOpentaskShortcut helps setup Init GitHub Action for infer-action
+// InstallOpentaskShortcut submits the canonical OpenTask workflow-install task
+// as a regular chat message, so the run streams in the conversation like any
+// other turn. The browser extension's Install tab sends this same shortcut,
+// making the CLI the single source of truth for the install prompt.
 type InstallOpentaskShortcut struct{}
 
-// NewInstallOpentaskShortcut creates a new Init GitHub Action setup shortcut
+// NewInstallOpentaskShortcut creates the /install-opentask shortcut.
 func NewInstallOpentaskShortcut() *InstallOpentaskShortcut {
 	return &InstallOpentaskShortcut{}
 }
@@ -20,21 +25,28 @@ func (g *InstallOpentaskShortcut) GetName() string {
 }
 
 func (g *InstallOpentaskShortcut) GetDescription() string {
-	return "Setup GitHub Action (interactive wizard)"
+	return "Install the OpenTask GitHub workflow via the chat agent"
 }
 
 func (g *InstallOpentaskShortcut) GetUsage() string {
-	return "/install-opentask"
+	return "/install-opentask [owner/repo] [extra context...]"
 }
 
 func (g *InstallOpentaskShortcut) CanExecute(args []string) bool {
-	return len(args) == 0
+	return true
 }
 
 func (g *InstallOpentaskShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+	repo := ""
+	rest := args
+	if len(args) > 0 && strings.Contains(args[0], "/") {
+		repo = args[0]
+		rest = args[1:]
+	}
 	return ShortcutResult{
-		Output:     fmt.Sprintf("%s Launching GitHub App Setup Wizard...", icons.Robot),
+		Output:     fmt.Sprintf("%s Sending the OpenTask install task to the agent...", icons.Robot),
 		Success:    true,
-		SideEffect: SideEffectShowInstallOpentaskSetup,
+		SideEffect: SideEffectSendMessage,
+		Data:       setup.InstallChatPrompt(repo, strings.Join(rest, " ")),
 	}, nil
 }

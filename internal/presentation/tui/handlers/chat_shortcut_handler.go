@@ -231,6 +231,11 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleEmbedImagesSideEffect(data)
 	case shortcuts.SideEffectSendMessageWithModel:
 		return s.handleSendMessageWithModelSideEffect(data)
+	case shortcuts.SideEffectSendMessage:
+		if prompt, ok := data.(string); ok && prompt != "" {
+			return agentdomain.UserInputEvent{Content: prompt}
+		}
+		return tui.SetStatusEvent{Message: "Nothing to send", Spinner: false, StatusType: tui.StatusDefault}
 	default:
 		return tui.SetStatusEvent{
 			Message:    "Shortcut completed",
