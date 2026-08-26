@@ -2,11 +2,9 @@ package shortcuts
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	setup "github.com/inference-gateway/cli/internal/github/setup"
-	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )
 
 // InstallOpentaskShortcut submits the canonical OpenTask workflow-install task
@@ -44,7 +42,7 @@ func (g *InstallOpentaskShortcut) Execute(ctx context.Context, args []string) (S
 		rest = args[1:]
 	}
 	return ShortcutResult{
-		Output:     fmt.Sprintf("%s Sending the OpenTask install task to the agent...", icons.Robot),
+		Output:     "Sending the OpenTask install task to the agent...",
 		Success:    true,
 		SideEffect: SideEffectSendMessage,
 		Data:       setup.InstallChatPrompt(repo, strings.Join(rest, " ")),
