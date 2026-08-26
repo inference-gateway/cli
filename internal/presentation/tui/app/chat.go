@@ -1311,10 +1311,21 @@ func (app *ChatApplication) performOpentaskSetup(appID, privateKeyPath string) t
 	}
 }
 
+// installModel is the model the workflow-install agent runs with: the
+// session's currently selected model, falling back to the configured default.
+func (app *ChatApplication) installModel() string {
+	if app.modelService != nil {
+		if m := app.modelService.GetCurrentModel(); m != "" {
+			return m
+		}
+	}
+	return app.config.Agent.Model
+}
+
 func (app *ChatApplication) setupStandardWorkflow(repo string) tea.Msg {
 	prURL, err := app.githubSetupService.InstallWorkflow(context.Background(), agentdomain.InstallWorkflowOptions{
 		Repo:  repo,
-		Model: app.config.Agent.Model,
+		Model: app.installModel(),
 	})
 	if err != nil {
 		return tui.ShowErrorEvent{
@@ -1345,7 +1356,7 @@ func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string)
 
 	prURL, err := app.githubSetupService.InstallWorkflow(context.Background(), agentdomain.InstallWorkflowOptions{
 		Repo:      repo,
-		Model:     app.config.Agent.Model,
+		Model:     app.installModel(),
 		GitHubApp: true,
 	})
 	if err != nil {
