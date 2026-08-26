@@ -140,13 +140,13 @@ func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry scheddomain.Backgr
 }
 
 // UpdateMCPStatus updates the MCP server status (called by event handler)
+func (isb *InputStatusBar) UpdateMCPStatus(status *agentdomain.MCPServerStatus) {
+	isb.mcpStatus = status
+}
+
 // SetBrowserConnected toggles the browser-extension indicator.
 func (isb *InputStatusBar) SetBrowserConnected(connected bool) {
 	isb.browserConnected = connected
-}
-
-func (isb *InputStatusBar) UpdateMCPStatus(status *agentdomain.MCPServerStatus) {
-	isb.mcpStatus = status
 }
 
 // SetInputText sets the current input text for mode detection

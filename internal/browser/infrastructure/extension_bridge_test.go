@@ -24,7 +24,6 @@ import (
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 )
 
 // readFrameOfType reads frames until one with the given type arrives, failing
@@ -247,7 +246,7 @@ func startBridgeWithSkills(t *testing.T, cfg *config.BrowserUseConfig, skills ag
 
 // newBridgeRepo builds a persistent repo backed by in-memory storage.
 func newBridgeRepo() *conversation.PersistentConversationRepository {
-	return conversation.NewPersistentConversationRepository(&toolformatter.ToolFormatterService{}, nil, storage.NewMemoryStorage())
+	return conversation.NewPersistentConversationRepository(nil, nil, storage.NewMemoryStorage())
 }
 
 // seedConversation starts, fills, and saves a conversation, returning its id.
@@ -759,6 +758,9 @@ func TestExtensionBridgeToolRequestRecordedInConversation(t *testing.T) {
 	}
 	if msgs[1].ToolExecution == nil || !msgs[1].ToolExecution.Success || msgs[1].ToolExecution.ToolCallID != "req-4" {
 		t.Fatalf("unexpected tool entry: %+v", msgs[1].ToolExecution)
+	}
+	if text, err := msgs[1].Message.Content.AsMessageContent0(); err != nil || text == "" {
+		t.Fatalf("tool entry content should carry the formatted result for the LLM, got %q (%v)", text, err)
 	}
 
 	// The snapshot keeps tool_calls on the assistant entry and reports success per id.

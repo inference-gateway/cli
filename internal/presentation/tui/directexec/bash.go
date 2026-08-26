@@ -262,38 +262,16 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 			Message:    message,
 		}
 
-		toolCalls := []sdk.ChatCompletionMessageToolCall{
-			{
-				ID:       toolCallID,
-				Type:     "function",
-				Function: toolCallFunc,
-			},
-		}
-		assistantEntry := convdomain.ConversationEntry{
-			Message: sdk.Message{
-				Role:      sdk.Assistant,
-				Content:   sdk.NewMessageContent(""),
-				ToolCalls: &toolCalls,
-			},
-			Time: time.Now(),
-		}
-		_ = s.conversationRepo.AddMessage(assistantEntry)
-
 		var formattedContent string
 		if result != nil {
 			formattedContent = s.conversationRepo.FormatToolResultForLLM(result)
 		} else {
 			formattedContent = "Tool execution failed: no result returned"
 		}
-		toolEntry := convdomain.ConversationEntry{
-			Message: sdk.Message{
-				Role:       sdk.Tool,
-				Content:    sdk.NewMessageContent(formattedContent),
-				ToolCallID: &toolCallID,
-			},
-			ToolExecution: result,
-			Time:          time.Now(),
-		}
+		assistantEntry, toolEntry := convdomain.NewToolCallEntries(
+			sdk.ChatCompletionMessageToolCall{ID: toolCallID, Type: "function", Function: toolCallFunc},
+			result, formattedContent, time.Now())
+		_ = s.conversationRepo.AddMessage(assistantEntry)
 		_ = s.conversationRepo.AddMessage(toolEntry)
 
 		isUserInitiated := strings.HasPrefix(toolCallID, "user-bash-")

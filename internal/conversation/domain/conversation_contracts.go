@@ -32,6 +32,24 @@ type ConversationEntry struct {
 	PlanApprovalStatus PlanApprovalStatus `json:"plan_approval_status,omitempty"`
 }
 
+// NewToolCallEntries builds the assistant tool_call entry and its paired tool
+// result entry for a single directly-executed tool call, as persisted by the
+// TUI direct-exec path and the browser extension bridge. content is what the
+// LLM sees as the tool result on later turns.
+func NewToolCallEntries(toolCall sdk.ChatCompletionMessageToolCall, result *agentdomain.ToolExecutionResult, content string, now time.Time) (ConversationEntry, ConversationEntry) {
+	toolCalls := []sdk.ChatCompletionMessageToolCall{toolCall}
+	assistantEntry := ConversationEntry{
+		Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent(""), ToolCalls: &toolCalls},
+		Time:    now,
+	}
+	toolEntry := ConversationEntry{
+		Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent(content), ToolCallID: &toolCall.ID},
+		ToolExecution: result,
+		Time:          now,
+	}
+	return assistantEntry, toolEntry
+}
+
 // PlanApprovalStatus represents the approval status of a plan
 type PlanApprovalStatus int
 

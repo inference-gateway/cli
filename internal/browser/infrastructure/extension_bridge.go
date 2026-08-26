@@ -188,8 +188,6 @@ func (b *ExtensionBridge) SetToolExecution(toolSvc agentdomain.ToolService, appr
 	b.defaultModel = defaultModel
 }
 
-// Start listens on 127.0.0.1:<port> and serves the /ws endpoint. Errors are
-// also stored so later tool calls surface them instead of a silent no-op.
 // SetAgentService wires the agent so an `interrupt` frame can cancel the
 // in-flight turn. Late, like SetToolExecution: the agent is built after the
 // bridge.
@@ -207,6 +205,8 @@ func (b *ExtensionBridge) interrupt() {
 	_ = b.agentSvc.CancelRequest(id)
 }
 
+// Start listens on 127.0.0.1:<port> and serves the /ws endpoint. Errors are
+// also stored so later tool calls surface them instead of a silent no-op.
 func (b *ExtensionBridge) Start() error {
 	if b.cfg.Extension.Token == "" {
 		b.startErr = errors.New("browser_use.extension.token is empty - set a shared secret in browser_use.yaml and in the opentask extension options")
@@ -461,12 +461,11 @@ func (b *ExtensionBridge) handleToolRequest(conn *websocket.Conn, stop chan stru
 	result, err := b.toolSvc.ExecuteToolDirect(agentdomain.WithToolApproved(ctx), toolCall.Function)
 	if err != nil {
 		result = &agentdomain.ToolExecutionResult{ToolName: msg.ToolName, ToolCallID: msg.ID, Success: false, Error: err.Error()}
-	}
-	b.recordDirectTool(toolCall, result)
-	if err != nil {
+		b.recordDirectTool(toolCall, result)
 		reply(false, "", err.Error())
 		return
 	}
+	b.recordDirectTool(toolCall, result)
 	reply(result.Success, b.toolResultOutput(result), result.Error)
 }
 
@@ -481,16 +480,9 @@ func (b *ExtensionBridge) recordDirectTool(toolCall sdk.ChatCompletionMessageToo
 	}
 	now := time.Now()
 	if b.repo != nil {
-		toolCalls := []sdk.ChatCompletionMessageToolCall{toolCall}
-		_ = b.repo.AddMessage(convdomain.ConversationEntry{
-			Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent(""), ToolCalls: &toolCalls},
-			Time:    now,
-		})
-		_ = b.repo.AddMessage(convdomain.ConversationEntry{
-			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent(""), ToolCallID: &toolCall.ID},
-			ToolExecution: result,
-			Time:          now,
-		})
+		assistantEntry, toolEntry := convdomain.NewToolCallEntries(toolCall, result, b.repo.FormatToolResultForLLM(result), now)
+		_ = b.repo.AddMessage(assistantEntry)
+		_ = b.repo.AddMessage(toolEntry)
 	}
 	completed := agentdomain.ToolExecutionCompletedEvent{
 		SessionID:     b.sessionID,
