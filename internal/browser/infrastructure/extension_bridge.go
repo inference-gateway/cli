@@ -41,8 +41,8 @@ type extInbound struct {
 	Error            string                     `json:"error,omitempty"`
 	RequestID        string                     `json:"request_id,omitempty"`
 	Action           string                     `json:"action,omitempty"`
-	Model            string                     `json:"model,omitempty"` // select_model
-	Image            string                     `json:"image,omitempty"` // base64 screenshot bytes
+	Model            string                     `json:"model,omitempty"`
+	Image            string                     `json:"image,omitempty"`
 	ImageMimeType    string                     `json:"image_mime_type,omitempty"`
 	Tabs             []browserdomain.BrowserTab `json:"tabs,omitempty"`
 	ToolName         string                     `json:"tool_name,omitempty"`
@@ -72,7 +72,7 @@ type extToolResult struct {
 type extModels struct {
 	Type    string   `json:"type"`
 	Models  []string `json:"models"`
-	Current string   `json:"current,omitempty"` // the model the CLI will use for the next turn
+	Current string   `json:"current,omitempty"`
 }
 
 type extHelloAck struct {
@@ -242,10 +242,6 @@ func (b *ExtensionBridge) Addr() string {
 }
 
 var extUpgrader = websocket.Upgrader{
-	// Browser WebSocket clients cannot set custom headers; auth happens via
-	// the token in the first message. Origin gating is defense in depth:
-	// extension service workers send a *-extension:// origin, local web pages
-	// send http(s) origins and are rejected.
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
 		return origin == "" ||
