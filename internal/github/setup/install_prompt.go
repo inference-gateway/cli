@@ -8,7 +8,7 @@ import (
 // InstallSkill is the catalog skill carrying the infer-action workflow
 // authoring guide and its bundled examples. Mentioning it as "/<name>" in the
 // agent prompt activates it (downloaded from the skills catalog on demand).
-const InstallSkill = "github-workflow"
+const InstallSkill = "opentask"
 
 // installPromptParams feeds installPrompt; every field is plain data so the
 // builder is trivially unit-testable.
