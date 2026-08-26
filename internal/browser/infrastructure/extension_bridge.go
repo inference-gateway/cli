@@ -47,6 +47,12 @@ type extInbound struct {
 	Tabs             []browserdomain.BrowserTab `json:"tabs,omitempty"`
 	ToolName         string                     `json:"tool_name,omitempty"`
 	ToolArgs         string                     `json:"tool_args,omitempty"`
+	Mode             string                     `json:"mode,omitempty"`
+}
+
+type extMode struct {
+	Type string `json:"type"`
+	Mode string `json:"mode"`
 }
 
 type extApprovalRequest struct {
@@ -133,6 +139,7 @@ type ExtensionBridge struct {
 	toolSvc              agentdomain.ToolService
 	approval             agentdomain.ApprovalPolicy
 	models               convdomain.ModelService
+	modes                agentdomain.AgentModeManager
 	defaultModel         string
 	agentSvc             agentdomain.AgentService
 	activeRequestID      atomic.Value
@@ -171,10 +178,11 @@ func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier agentdomain.UINot
 // SetToolExecution wires the deps answering tool_request and list_models
 // frames - after construction, because the container builds the bridge before
 // the tool and model services exist. Any argument may be nil/empty.
-func (b *ExtensionBridge) SetToolExecution(toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, defaultModel string) {
+func (b *ExtensionBridge) SetToolExecution(toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, modes agentdomain.AgentModeManager, defaultModel string) {
 	b.toolSvc = toolSvc
 	b.approval = approval
 	b.models = models
+	b.modes = modes
 	b.defaultModel = defaultModel
 }
 
@@ -398,6 +406,27 @@ func (b *ExtensionBridge) sendModelList(conn *websocket.Conn) {
 	b.write(conn, extModels{Type: "models", Models: out, Current: current})
 }
 
+// sendMode reports the CLI's current agent mode as its allowlist key
+// (standard/plan/auto), so the panel's auto-mode toggle mirrors the CLI.
+func (b *ExtensionBridge) sendMode(conn *websocket.Conn) {
+	if b.modes == nil {
+		return
+	}
+	b.write(conn, extMode{Type: "mode", Mode: b.modes.GetAgentMode().AllowedlistKey()})
+}
+
+// setMode switches the CLI's agent mode (same shared state as the TUI's
+// shift+tab cycle - it also governs tool_request approvals) and echoes the
+// resulting mode so the panel reflects the outcome either way.
+func (b *ExtensionBridge) setMode(conn *websocket.Conn, mode string) {
+	if b.modes != nil {
+		if m, ok := agentdomain.ParseAgentMode(mode); ok && m != agentdomain.AgentModeReadOnly {
+			b.modes.SetAgentMode(m)
+		}
+	}
+	b.sendMode(conn)
+}
+
 // selectModel switches the CLI's active model (same as the TUI's /model) and
 // re-sends the model list so the panel reflects the outcome, whether or not
 // the switch was accepted.
@@ -410,6 +439,7 @@ func (b *ExtensionBridge) selectModel(conn *websocket.Conn, model string) {
 		}
 	}
 	b.sendModelList(conn)
+	b.sendMode(conn)
 }
 
 // handleToolRequest executes an extension-initiated tool call through the
@@ -588,6 +618,8 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			b.selectModel(conn, msg.Model)
 		case "list_models":
 			b.sendModelList(conn)
+		case "set_mode":
+			b.setMode(conn, msg.Mode)
 		case "resume_conversation":
 			b.resumeConversation(conn, msg.ID)
 		case "interrupt":

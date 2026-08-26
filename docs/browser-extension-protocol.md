@@ -217,6 +217,25 @@ switch took effect:
 {"type": "select_model", "model": "openai/gpt-4o"}
 ```
 
+## Agent mode
+
+The panel can toggle the CLI's agent mode (the same shared state as the TUI's
+shift+tab cycle; it also governs `tool_request` approvals). Modes travel as
+their allowlist keys: `standard`, `plan`, `auto`.
+
+CLI → extension, sent on hello and after every `set_mode`:
+
+```json
+{"type": "mode", "mode": "standard"}
+```
+
+Extension → CLI, switch the mode. Unknown values are ignored; the CLI answers
+with a fresh `mode` frame either way:
+
+```json
+{"type": "set_mode", "mode": "auto"}
+```
+
 ## Artifacts (generated images)
 
 Chat text can reference files the agent saved under the artifacts dir

@@ -651,7 +651,7 @@ func TestExtensionBridgeListSkillsWithoutServiceIsEmpty(t *testing.T) {
 func startBridgeWithTools(t *testing.T, cfg *config.BrowserUseConfig, toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, defaultModel string) *ExtensionBridge {
 	t.Helper()
 	bridge := startBridge(t, cfg, nil, nil)
-	bridge.SetToolExecution(toolSvc, approval, models, defaultModel)
+	bridge.SetToolExecution(toolSvc, approval, models, nil, defaultModel)
 	return bridge
 }
 
@@ -729,7 +729,7 @@ func TestExtensionBridgeToolRequestRecordedInConversation(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 	t.Cleanup(bridge.Close)
-	bridge.SetToolExecution(toolSvc, nil, nil, "")
+	bridge.SetToolExecution(toolSvc, nil, nil, nil, "")
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
@@ -859,7 +859,7 @@ func TestExtensionBridgeListModelsDefaultFirst(t *testing.T) {
 	models.SelectModelCalls(func(m string) error { models.GetCurrentModelReturns(m); return nil })
 	notified := make(chan any, 4)
 	bridge := startBridge(t, bridgeConfig(), notifierFunc(func(e any) { notified <- e }), nil)
-	bridge.SetToolExecution(nil, nil, models, "b/y")
+	bridge.SetToolExecution(nil, nil, models, nil, "b/y")
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
