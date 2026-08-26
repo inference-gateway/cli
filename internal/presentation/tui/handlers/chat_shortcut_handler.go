@@ -209,8 +209,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowConversationSelectionSideEffect()
 	case shortcuts.SideEffectStartNewConversation:
 		return s.handleStartNewConversationSideEffect(data)
-	case shortcuts.SideEffectShowInitGithubActionSetup:
-		return s.handleShowGithubActionSetupSideEffect()
+	case shortcuts.SideEffectShowInstallOpentaskSetup:
+		return s.handleShowOpentaskSetupSideEffect()
 	case shortcuts.SideEffectShowA2ATaskManagement:
 		return s.handleShowA2ATaskManagementSideEffect()
 	case shortcuts.SideEffectShowDiffViewer:
@@ -347,8 +347,8 @@ func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect() tea.Ms
 	}
 }
 
-func (s *ChatShortcutHandler) handleShowGithubActionSetupSideEffect() tea.Msg {
-	return tui.TriggerGithubActionSetupEvent{}
+func (s *ChatShortcutHandler) handleShowOpentaskSetupSideEffect() tea.Msg {
+	return tui.TriggerOpentaskSetupEvent{}
 }
 
 func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea.Msg {

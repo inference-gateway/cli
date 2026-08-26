@@ -41,7 +41,7 @@ const (
 	SideEffectSetInput
 	SideEffectGenerateSnippet
 	SideEffectCompactConversation
-	SideEffectShowInitGithubActionSetup
+	SideEffectShowInstallOpentaskSetup
 	SideEffectEmbedImages
 	SideEffectSendMessageWithModel
 	SideEffectShowDiffViewer

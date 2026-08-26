@@ -689,7 +689,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(persistentRepo, c.backgroundTaskRegistry))
 	}
 
-	c.shortcutRegistry.Register(shortcuts.NewInitGithubActionShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewInstallOpentaskShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewInitShortcut(c.config))
 
 	if c.config.IsA2AToolsEnabled() {

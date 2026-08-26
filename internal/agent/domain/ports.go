@@ -132,7 +132,7 @@ type GitHubIssueService interface {
 }
 
 // GitHubSetupService handles git/gh/CI operations for the GitHub Action CI setup
-// flow triggered from the init-github-action wizard. Every shell invocation carries
+// flow triggered from the install-opentask wizard. Every shell invocation carries
 // a context so a wedged subprocess cannot hang the UI.
 type GitHubSetupService interface {
 	GetCurrentRepo() (string, error)

@@ -23,12 +23,12 @@ const (
 	phaseDetails
 )
 
-// InitGithubActionView drives the GitHub App setup wizard with huh forms. The
+// InstallOpentaskView drives the GitHub App setup wizard with huh forms. The
 // flow is split across two forms so that the browser can be opened between the
 // "create a new app?" answer and the App ID prompt: confirm -> (open browser
 // when creating new) -> App ID -> private key (skipped when org secrets already
 // exist for that App ID).
-type InitGithubActionView struct {
+type InstallOpentaskView struct {
 	width         int
 	height        int
 	styleProvider *styles.Provider
@@ -61,9 +61,9 @@ type InitGithubActionView struct {
 	checkSecretsExist func(appID string) bool
 }
 
-// NewInitGithubActionView creates a new GitHub App setup wizard.
-func NewInitGithubActionView(styleProvider *styles.Provider) *InitGithubActionView {
-	v := &InitGithubActionView{
+// NewInstallOpentaskView creates a new GitHub App setup wizard.
+func NewInstallOpentaskView(styleProvider *styles.Provider) *InstallOpentaskView {
+	v := &InstallOpentaskView{
 		width:         80,
 		height:        24,
 		styleProvider: styleProvider,
@@ -73,7 +73,7 @@ func NewInitGithubActionView(styleProvider *styles.Provider) *InitGithubActionVi
 	return v
 }
 
-func (v *InitGithubActionView) buildConfirmForm() *huh.Form {
+func (v *InstallOpentaskView) buildConfirmForm() *huh.Form {
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
@@ -93,7 +93,7 @@ const (
 	keyChoiceBrowse = "__browse__"
 )
 
-func (v *InitGithubActionView) buildDetailsForm() *huh.Form {
+func (v *InstallOpentaskView) buildDetailsForm() *huh.Form {
 	appIDInput := huh.NewInput().
 		Key("appID").
 		Title("GitHub App ID").
@@ -153,7 +153,7 @@ func (v *InitGithubActionView) buildDetailsForm() *huh.Form {
 // resolvePrivateKeyPath maps the completed details form onto privateKeyPath,
 // depending on whether the user picked a scanned candidate, typed a path, or
 // browsed for the file.
-func (v *InitGithubActionView) resolvePrivateKeyPath() {
+func (v *InstallOpentaskView) resolvePrivateKeyPath() {
 	switch v.keyChoice {
 	case keyChoiceManual:
 		v.privateKeyPath = expandHomePath(v.manualKeyPath)
@@ -211,11 +211,11 @@ func validatePemPath(s string) error {
 	return nil
 }
 
-func (v *InitGithubActionView) Init() tea.Cmd {
+func (v *InstallOpentaskView) Init() tea.Cmd {
 	return v.form.Init()
 }
 
-func (v *InitGithubActionView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (v *InstallOpentaskView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
 		v.width = wsm.Width
 		v.height = wsm.Height
@@ -242,7 +242,7 @@ func (v *InitGithubActionView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // confirm form it opens the GitHub App creation page in the browser (only when
 // the user is creating a new app) and switches to the details form; after the
 // details form the wizard is done.
-func (v *InitGithubActionView) advance() tea.Cmd {
+func (v *InstallOpentaskView) advance() tea.Cmd {
 	if v.phase == phaseConfirm {
 		if !v.hasExisting && !v.browserOpened {
 			_ = openGithubActionCreationURL(v.repoOwner, v.isOrgRepo)
@@ -259,7 +259,7 @@ func (v *InitGithubActionView) advance() tea.Cmd {
 	return nil
 }
 
-func (v *InitGithubActionView) View() tea.View {
+func (v *InstallOpentaskView) View() tea.View {
 	if v.done {
 		if v.cancelled {
 			return tea.NewView("Setup cancelled.\n")
@@ -289,43 +289,43 @@ func validateAppID(s string) error {
 }
 
 // IsDone returns whether the wizard is complete.
-func (v *InitGithubActionView) IsDone() bool {
+func (v *InstallOpentaskView) IsDone() bool {
 	return v.done
 }
 
 // IsCancelled returns whether the wizard was cancelled.
-func (v *InitGithubActionView) IsCancelled() bool {
+func (v *InstallOpentaskView) IsCancelled() bool {
 	return v.cancelled
 }
 
 // GetResult returns the wizard result.
-func (v *InitGithubActionView) GetResult() (appID, privateKeyPath string, err error) {
+func (v *InstallOpentaskView) GetResult() (appID, privateKeyPath string, err error) {
 	return v.appID, v.privateKeyPath, v.err
 }
 
 // SetWidth sets the width of the view.
-func (v *InitGithubActionView) SetWidth(width int) {
+func (v *InstallOpentaskView) SetWidth(width int) {
 	v.width = width
 }
 
 // SetHeight sets the height of the view.
-func (v *InitGithubActionView) SetHeight(height int) {
+func (v *InstallOpentaskView) SetHeight(height int) {
 	v.height = height
 }
 
 // SetSecretsExistChecker sets the callback to check if org secrets exist.
-func (v *InitGithubActionView) SetSecretsExistChecker(checker func(appID string) bool) {
+func (v *InstallOpentaskView) SetSecretsExistChecker(checker func(appID string) bool) {
 	v.checkSecretsExist = checker
 }
 
 // SetRepositoryInfo sets the repository owner and whether it's an org.
-func (v *InitGithubActionView) SetRepositoryInfo(owner string, isOrg bool) {
+func (v *InstallOpentaskView) SetRepositoryInfo(owner string, isOrg bool) {
 	v.repoOwner = owner
 	v.isOrgRepo = isOrg
 }
 
 // getGithubActionsURL returns the appropriate GitHub Apps URL based on whether this is an org repo
-func (v *InitGithubActionView) getGithubActionsURL() string {
+func (v *InstallOpentaskView) getGithubActionsURL() string {
 	if v.isOrgRepo && v.repoOwner != "" {
 		return fmt.Sprintf("https://github.com/organizations/%s/settings/apps", v.repoOwner)
 	}
@@ -333,7 +333,7 @@ func (v *InitGithubActionView) getGithubActionsURL() string {
 }
 
 // Reset resets the view state for reuse.
-func (v *InitGithubActionView) Reset() {
+func (v *InstallOpentaskView) Reset() {
 	v.done = false
 	v.cancelled = false
 	v.phase = phaseConfirm
@@ -393,7 +393,7 @@ func openBrowser(url string) error {
 }
 
 // GetInstallationURL returns the URL to install the GitHub App on a repository
-func (v *InitGithubActionView) GetInstallationURL(repoOwner, repoName string) string {
+func (v *InstallOpentaskView) GetInstallationURL(repoOwner, repoName string) string {
 	if repoOwner != "" && repoName != "" {
 		return fmt.Sprintf("https://github.com/apps/infer-bot/installations/new/permissions?target_id=%s&repository=%s", repoOwner, repoName)
 	}
