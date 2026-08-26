@@ -25,6 +25,7 @@ import (
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	render "github.com/inference-gateway/cli/internal/platform/render"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 // Bridge wire messages. One flat envelope per frame, discriminated by Type;
@@ -119,6 +120,11 @@ type extSkills struct {
 	Skills []agentdomain.SkillSummary `json:"skills"`
 }
 
+type extHistory struct {
+	Type    string   `json:"type"`
+	History []string `json:"history"`
+}
+
 type extChatEvent struct {
 	Type  string          `json:"type"`
 	Event json.RawMessage `json:"event"`
@@ -142,6 +148,7 @@ type ExtensionBridge struct {
 	modes                agentdomain.AgentModeManager
 	defaultModel         string
 	agentSvc             agentdomain.AgentService
+	history              storage.ShellHistoryStorage
 	activeRequestID      atomic.Value
 	server               *http.Server
 	addr                 string
@@ -189,6 +196,13 @@ func (b *ExtensionBridge) SetToolExecution(toolSvc agentdomain.ToolService, appr
 // SetAgentService wires the agent so an `interrupt` frame can cancel the
 // in-flight turn. Late, like SetToolExecution: the agent is built after the
 // bridge.
+// SetHistoryStorage wires the shared shell-history store so panel-sent messages
+// land in the same input history the TUI's arrow-up navigation uses, and the
+// panel can list it via list_history. nil disables both.
+func (b *ExtensionBridge) SetHistoryStorage(store storage.ShellHistoryStorage) {
+	b.history = store
+}
+
 func (b *ExtensionBridge) SetAgentService(svc agentdomain.AgentService) {
 	b.agentSvc = svc
 }
@@ -378,6 +392,41 @@ func (b *ExtensionBridge) sendSkillList(conn *websocket.Conn) {
 		out = append(out, sk.Summary())
 	}
 	b.write(conn, extSkills{Type: "skills", Skills: out})
+}
+
+// historyListLimit caps list_history replies; the panel only needs recent
+// entries for arrow-up recall.
+const historyListLimit = 1000
+
+// sendHistory answers list_history with the shared shell input history - the
+// same entries the TUI's arrow-up navigation walks. Sends an empty list when
+// history storage is unavailable.
+func (b *ExtensionBridge) sendHistory(conn *websocket.Conn) {
+	out := []string{}
+	if b.history != nil {
+		loaded, err := b.history.LoadHistory(context.Background(), historyListLimit)
+		if err != nil {
+			logger.Debug("extension bridge failed to load history", "error", err)
+		} else {
+			out = loaded
+		}
+	}
+	b.write(conn, extHistory{Type: "history", History: out})
+}
+
+// appendHistory records a panel-sent message in the shared shell history,
+// mirroring the TUI submit path (trimmed, consecutive duplicates skipped).
+func (b *ExtensionBridge) appendHistory(content string) {
+	content = strings.TrimSpace(content)
+	if b.history == nil || content == "" {
+		return
+	}
+	if last, err := b.history.LoadHistory(context.Background(), 1); err == nil && len(last) > 0 && last[len(last)-1] == content {
+		return
+	}
+	if err := b.history.AppendHistory(context.Background(), content); err != nil {
+		logger.Warn("extension bridge failed to append history", "error", err)
+	}
 }
 
 // sendModelList answers list_models with the models the gateway serves, the
@@ -610,6 +659,9 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			if b.notifier != nil && msg.Content != "" {
 				b.notifier.Notify(agentdomain.UserInputEvent{Content: msg.Content, FromExtension: true})
 			}
+			b.appendHistory(msg.Content)
+		case "list_history":
+			b.sendHistory(conn)
 		case "list_conversations":
 			b.sendConversationList(conn)
 		case "list_skills":

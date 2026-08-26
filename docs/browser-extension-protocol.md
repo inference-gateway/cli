@@ -165,6 +165,28 @@ TUI; a no-op when nothing is running):
 The agent then emits its usual cancelled completion; the panel sees the stream
 end and no separate acknowledgement frame.
 
+## Input history
+
+The panel's arrow-up recall shares the CLI's shell-style input history: the CLI
+appends panel-sent `user_message` frames to the same store the TUI's arrow-up
+navigation uses (trimmed, consecutive duplicates skipped), and serves the
+combined history back on request.
+
+Extension → CLI, list recent input history (typically sent after the hello ack):
+
+```json
+{"type": "list_history"}
+```
+
+CLI → extension, the most recent entries, oldest first (empty when history
+storage is unavailable; capped at 1000 entries):
+
+```json
+{"type": "history", "history": ["fix the tests", "task check"]}
+```
+
+Multi-line entries round-trip with real newlines in the JSON strings.
+
 ## Skills
 
 The panel offers a "/" autocomplete of the agent's skills. It asks the CLI for

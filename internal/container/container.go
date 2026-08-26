@@ -455,6 +455,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.extensionBridge.SetToolExecution(c.toolService,
 			agent.NewStandardApprovalPolicy(c.config, c.stateManager),
 			c.modelService, c.stateManager, c.config.Agent.Model)
+		c.extensionBridge.SetHistoryStorage(c.GetShellHistoryStorage())
 	}
 
 	if c.tokenizer == nil {

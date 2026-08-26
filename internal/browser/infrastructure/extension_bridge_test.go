@@ -918,3 +918,76 @@ func TestExtensionBridgeListModelsWithoutServiceIsEmpty(t *testing.T) {
 		t.Fatalf("expected no models, got %v", frame["models"])
 	}
 }
+
+// fakeHistoryStore is an in-memory storage.ShellHistoryStorage.
+type fakeHistoryStore struct {
+	mu      sync.Mutex
+	entries []string
+}
+
+func (f *fakeHistoryStore) AppendHistory(_ context.Context, command string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.entries = append(f.entries, command)
+	return nil
+}
+
+func (f *fakeHistoryStore) LoadHistory(_ context.Context, limit int) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := f.entries
+	if limit > 0 && len(out) > limit {
+		out = out[len(out)-limit:]
+	}
+	return append([]string{}, out...), nil
+}
+
+func TestExtensionBridgeHistoryRoundTrip(t *testing.T) {
+	store := &fakeHistoryStore{entries: []string{"from the tui"}}
+	bridge := startBridge(t, bridgeConfig(), nil, nil)
+	bridge.SetHistoryStorage(store)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	for _, msg := range []string{"first", "first", "  ", "second"} {
+		if err := conn.WriteJSON(map[string]string{"type": "user_message", "content": msg}); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	if err := conn.WriteJSON(map[string]string{"type": "list_history"}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	frame := readFrameOfType(t, conn, "history")
+	raw, ok := frame["history"].([]any)
+	if !ok {
+		t.Fatalf("missing history: %v", frame)
+	}
+	got := make([]string, 0, len(raw))
+	for _, v := range raw {
+		got = append(got, v.(string))
+	}
+	want := []string{"from the tui", "first", "second"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestExtensionBridgeHistoryWithoutStoreSendsEmpty(t *testing.T) {
+	bridge := startBridge(t, bridgeConfig(), nil, nil)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "list_history"}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	frame := readFrameOfType(t, conn, "history")
+	if raw, ok := frame["history"].([]any); ok && len(raw) != 0 {
+		t.Fatalf("expected no history, got %v", frame["history"])
+	}
+}
