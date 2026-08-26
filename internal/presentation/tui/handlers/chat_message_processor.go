@@ -161,6 +161,20 @@ func (p *ChatMessageProcessor) confirmCatalogInstall(msg agentdomain.UserInputEv
 		return nil
 	}
 
+	// Extension-originated input has no terminal question UI to answer on -
+	// install directly, like headless runs do in buildActiveSkillInfo.
+	if msg.FromExtension {
+		return func() tea.Msg {
+			for _, name := range names {
+				if _, ok := p.handler.skillsService.Discover(context.Background(), name); !ok {
+					logger.Warn("failed to install skill from catalog", "name", name)
+					p.declinedSkills[name] = true
+				}
+			}
+			return msg
+		}
+	}
+
 	responseChan := make(chan []agentdomain.UserQuestionAnswer, 1)
 	question := agentdomain.UserQuestion{
 		Header:   "Install skill",

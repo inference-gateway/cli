@@ -578,7 +578,7 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			}
 		case "user_message":
 			if b.notifier != nil && msg.Content != "" {
-				b.notifier.Notify(agentdomain.UserInputEvent{Content: msg.Content})
+				b.notifier.Notify(agentdomain.UserInputEvent{Content: msg.Content, FromExtension: true})
 			}
 		case "list_conversations":
 			b.sendConversationList(conn)
