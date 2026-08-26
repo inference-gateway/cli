@@ -239,8 +239,6 @@ func (isb *InputStatusBar) Render() string {
 
 	lines := isb.buildStatusLines()
 	if dot := isb.buildBridgeDot(); dot != "" {
-		// Right-align the marker on the indicator row, under the input box's
-		// corner; spell out "● Browser" when the row has room, else just the dot.
 		const label = " Browser"
 		marker := dot
 		pad := isb.width - 6 - lipgloss.Width(lines[0])
