@@ -49,6 +49,7 @@ type Theme interface {
 	GetAssistantColor() string
 	GetErrorColor() string
 	GetSuccessColor() string
+	GetWarningColor() string
 	GetStatusColor() string
 	GetAccentColor() string
 	GetDimColor() string
@@ -165,6 +166,7 @@ func (t *DefaultTheme) GetUserColor() string       { return colors.UserColor.ANS
 func (t *DefaultTheme) GetAssistantColor() string  { return colors.AssistantColor.ANSI }
 func (t *DefaultTheme) GetErrorColor() string      { return colors.ErrorColor.ANSI }
 func (t *DefaultTheme) GetSuccessColor() string    { return colors.SuccessColor.ANSI }
+func (t *DefaultTheme) GetWarningColor() string    { return colors.WarningColor.ANSI }
 func (t *DefaultTheme) GetStatusColor() string     { return colors.StatusColor.ANSI }
 func (t *DefaultTheme) GetAccentColor() string     { return colors.AccentColor.ANSI }
 func (t *DefaultTheme) GetDimColor() string        { return colors.DimColor.ANSI }

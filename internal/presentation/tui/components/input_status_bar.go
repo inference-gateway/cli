@@ -261,7 +261,7 @@ func (isb *InputStatusBar) buildBridgeDot() string {
 		isb.config.BrowserUse.Backend != config.BrowserBackendExtension {
 		return ""
 	}
-	color := "#e5c07b" // ponytail: themes have no "warning" color; add one if this clashes
+	color := isb.styleProvider.GetThemeColor("warning")
 	if isb.browserConnected {
 		color = isb.styleProvider.GetThemeColor("success")
 	}

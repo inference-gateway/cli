@@ -49,6 +49,7 @@ const (
 	GithubGray      = "#586069"
 	GithubLightGray = "#d0d7de"
 	GithubGreen     = "#28a745"
+	GithubYellow    = "#9a6700"
 
 	// Dracula Theme Colors
 	DraculaCyan       = "#8be9fd"
@@ -59,6 +60,7 @@ const (
 	DraculaComment    = "#6272a4"
 	DraculaSelection  = "#44475a"
 	DraculaGreen      = "#50fa7b"
+	DraculaYellow     = "#f1fa8c"
 )
 
 // Color represents a color that can be used in both ANSI and Lipgloss contexts
@@ -89,6 +91,7 @@ var (
 	GithubAssistantColor  = Color{ANSI: "\033[38;2;36;41;46m", Lipgloss: GithubDarkGray}
 	GithubErrorColor      = Color{ANSI: "\033[38;2;215;58;73m", Lipgloss: GithubRed}
 	GithubSuccessColor    = Color{ANSI: "\033[38;2;40;167;69m", Lipgloss: GithubGreen}
+	GithubWarningColor    = Color{ANSI: "\033[38;2;154;103;0m", Lipgloss: GithubYellow}
 	GithubStatusColor     = Color{ANSI: "\033[38;2;130;87;223m", Lipgloss: GithubPurple}
 	GithubAccentColor     = Color{ANSI: "\033[38;2;3;102;214m", Lipgloss: GithubBlue}
 	GithubDimColor        = Color{ANSI: "\033[38;2;88;96;105m", Lipgloss: GithubGray}
@@ -101,6 +104,7 @@ var (
 	DraculaAssistantColor  = Color{ANSI: "\033[38;2;248;248;242m", Lipgloss: DraculaForeground}
 	DraculaErrorColor      = Color{ANSI: "\033[38;2;255;85;85m", Lipgloss: DraculaRed}
 	DraculaSuccessColor    = Color{ANSI: "\033[38;2;80;250;123m", Lipgloss: DraculaGreen}
+	DraculaWarningColor    = Color{ANSI: "\033[38;2;241;250;140m", Lipgloss: DraculaYellow}
 	DraculaStatusColor     = Color{ANSI: "\033[38;2;189;147;249m", Lipgloss: DraculaPurple}
 	DraculaAccentColor     = Color{ANSI: "\033[38;2;255;121;198m", Lipgloss: DraculaPink}
 	DraculaDimColor        = Color{ANSI: "\033[38;2;98;114;164m", Lipgloss: DraculaComment}

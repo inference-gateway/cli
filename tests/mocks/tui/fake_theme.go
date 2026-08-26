@@ -108,6 +108,16 @@ type FakeTheme struct {
 	getUserColorReturnsOnCall map[int]struct {
 		result1 string
 	}
+	GetWarningColorStub        func() string
+	getWarningColorMutex       sync.RWMutex
+	getWarningColorArgsForCall []struct {
+	}
+	getWarningColorReturns struct {
+		result1 string
+	}
+	getWarningColorReturnsOnCall map[int]struct {
+		result1 string
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -638,6 +648,59 @@ func (fake *FakeTheme) GetUserColorReturnsOnCall(i int, result1 string) {
 		})
 	}
 	fake.getUserColorReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeTheme) GetWarningColor() string {
+	fake.getWarningColorMutex.Lock()
+	ret, specificReturn := fake.getWarningColorReturnsOnCall[len(fake.getWarningColorArgsForCall)]
+	fake.getWarningColorArgsForCall = append(fake.getWarningColorArgsForCall, struct {
+	}{})
+	stub := fake.GetWarningColorStub
+	fakeReturns := fake.getWarningColorReturns
+	fake.recordInvocation("GetWarningColor", []interface{}{})
+	fake.getWarningColorMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeTheme) GetWarningColorCallCount() int {
+	fake.getWarningColorMutex.RLock()
+	defer fake.getWarningColorMutex.RUnlock()
+	return len(fake.getWarningColorArgsForCall)
+}
+
+func (fake *FakeTheme) GetWarningColorCalls(stub func() string) {
+	fake.getWarningColorMutex.Lock()
+	defer fake.getWarningColorMutex.Unlock()
+	fake.GetWarningColorStub = stub
+}
+
+func (fake *FakeTheme) GetWarningColorReturns(result1 string) {
+	fake.getWarningColorMutex.Lock()
+	defer fake.getWarningColorMutex.Unlock()
+	fake.GetWarningColorStub = nil
+	fake.getWarningColorReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeTheme) GetWarningColorReturnsOnCall(i int, result1 string) {
+	fake.getWarningColorMutex.Lock()
+	defer fake.getWarningColorMutex.Unlock()
+	fake.GetWarningColorStub = nil
+	if fake.getWarningColorReturnsOnCall == nil {
+		fake.getWarningColorReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getWarningColorReturnsOnCall[i] = struct {
 		result1 string
 	}{result1}
 }

@@ -93,6 +93,7 @@ func (t *TokyoNightTheme) GetUserColor() string       { return colors.UserColor.
 func (t *TokyoNightTheme) GetAssistantColor() string  { return colors.AssistantColor.Lipgloss }
 func (t *TokyoNightTheme) GetErrorColor() string      { return colors.ErrorColor.Lipgloss }
 func (t *TokyoNightTheme) GetSuccessColor() string    { return colors.SuccessColor.Lipgloss }
+func (t *TokyoNightTheme) GetWarningColor() string    { return colors.WarningColor.Lipgloss }
 func (t *TokyoNightTheme) GetStatusColor() string     { return colors.StatusColor.Lipgloss }
 func (t *TokyoNightTheme) GetAccentColor() string     { return colors.AccentColor.Lipgloss }
 func (t *TokyoNightTheme) GetDimColor() string        { return colors.DimColor.Lipgloss }
@@ -111,6 +112,7 @@ func (t *GithubLightTheme) GetUserColor() string       { return colors.GithubUse
 func (t *GithubLightTheme) GetAssistantColor() string  { return colors.GithubAssistantColor.Lipgloss }
 func (t *GithubLightTheme) GetErrorColor() string      { return colors.GithubErrorColor.Lipgloss }
 func (t *GithubLightTheme) GetSuccessColor() string    { return colors.GithubSuccessColor.Lipgloss }
+func (t *GithubLightTheme) GetWarningColor() string    { return colors.GithubWarningColor.Lipgloss }
 func (t *GithubLightTheme) GetStatusColor() string     { return colors.GithubStatusColor.Lipgloss }
 func (t *GithubLightTheme) GetAccentColor() string     { return colors.GithubAccentColor.Lipgloss }
 func (t *GithubLightTheme) GetDimColor() string        { return colors.GithubDimColor.Lipgloss }
@@ -129,6 +131,7 @@ func (t *DraculaTheme) GetUserColor() string       { return colors.DraculaUserCo
 func (t *DraculaTheme) GetAssistantColor() string  { return colors.DraculaAssistantColor.Lipgloss }
 func (t *DraculaTheme) GetErrorColor() string      { return colors.DraculaErrorColor.Lipgloss }
 func (t *DraculaTheme) GetSuccessColor() string    { return colors.DraculaSuccessColor.Lipgloss }
+func (t *DraculaTheme) GetWarningColor() string    { return colors.DraculaWarningColor.Lipgloss }
 func (t *DraculaTheme) GetStatusColor() string     { return colors.DraculaStatusColor.Lipgloss }
 func (t *DraculaTheme) GetAccentColor() string     { return colors.DraculaAccentColor.Lipgloss }
 func (t *DraculaTheme) GetDimColor() string        { return colors.DraculaDimColor.Lipgloss }
@@ -150,6 +153,7 @@ func (t *CharmTheme) GetUserColor() string       { return charmtone.Sapphire.Hex
 func (t *CharmTheme) GetAssistantColor() string  { return charmtone.Salt.Hex() }
 func (t *CharmTheme) GetErrorColor() string      { return charmtone.Cherry.Hex() }
 func (t *CharmTheme) GetSuccessColor() string    { return charmtone.Julep.Hex() }
+func (t *CharmTheme) GetWarningColor() string    { return charmtone.Mustard.Hex() }
 func (t *CharmTheme) GetStatusColor() string     { return charmtone.Charple.Hex() }
 func (t *CharmTheme) GetAccentColor() string     { return charmtone.Sapphire.Hex() }
 func (t *CharmTheme) GetDimColor() string        { return charmtone.Smoke.Hex() }

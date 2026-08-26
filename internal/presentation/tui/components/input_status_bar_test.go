@@ -1003,6 +1003,8 @@ func TestInputStatusBar_FocusedRenderHighlightsSelection(t *testing.T) {
 	fakeTheme.GetDimColorReturns("#888888")
 	fakeTheme.GetAccentColorReturns("#ff9e64")
 	fakeTheme.GetBorderColorReturns("#3b4261")
+	fakeTheme.GetWarningColorReturns("#e0af68")
+	fakeTheme.GetSuccessColorReturns("#9ece6a")
 	themeService := &tuimocks.FakeThemeService{}
 	themeService.GetCurrentThemeReturns(fakeTheme)
 

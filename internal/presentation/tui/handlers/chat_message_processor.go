@@ -512,12 +512,10 @@ func (p *ChatMessageProcessor) appendUserMessageAndStartCompletion(message sdk.M
 		}
 	}
 
-	if bc, ok := p.handler.stateManager.(interface{ BroadcastEvent(agentdomain.ChatEvent) }); ok {
-		bc.BroadcastEvent(agentdomain.UserMessageChatEvent{
-			BaseChatEvent: agentdomain.BaseChatEvent{Timestamp: time.Now()},
-			Content:       formatting.ExtractTextFromContent(userEntry.Message.Content, images),
-		})
-	}
+	p.handler.stateManager.BroadcastEvent(agentdomain.UserMessageChatEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{Timestamp: time.Now()},
+		Content:       formatting.ExtractTextFromContent(userEntry.Message.Content, images),
+	})
 
 	logger.Info("chat: AddMessage + startChatCompletion",
 		"repo_messages_after_add", len(p.handler.conversationRepo.GetMessages()),

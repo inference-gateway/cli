@@ -18,12 +18,14 @@ import (
 
 // stateManager is the narrow slice of the app state manager the chat handler
 // and its sub-handlers need: chat-session lifecycle, view transitions, the
-// plan-approval overlay, and the todo list. *statemanager.StateManager satisfies it.
+// plan-approval overlay, the todo list, and event broadcast to external
+// consumers. *statemanager.StateManager satisfies it.
 type stateManager interface {
 	agentdomain.ChatSessionManager
 	tui.ViewManager
 	agentdomain.PlanApprovalUIManager
 	agentdomain.TodoManager
+	BroadcastEvent(event agentdomain.ChatEvent)
 }
 
 type ChatHandler struct {
