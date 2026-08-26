@@ -1010,6 +1010,14 @@ func TestInputStatusBar_FocusedRenderHighlightsSelection(t *testing.T) {
 	if !strings.Contains(unfocused, "test-model") {
 		t.Fatalf("render should contain the model indicator, got %q", unfocused)
 	}
+	if strings.Contains(unfocused, "browser") {
+		t.Fatalf("browser indicator should be hidden while no extension is connected, got %q", unfocused)
+	}
+	statusBar.SetBrowserConnected(true)
+	if r := statusBar.Render(); !strings.Contains(r, "🌐 browser") {
+		t.Fatalf("browser indicator should render once connected, got %q", r)
+	}
+	statusBar.SetBrowserConnected(false)
 
 	if !statusBar.Focus() {
 		t.Fatal("Focus should succeed")

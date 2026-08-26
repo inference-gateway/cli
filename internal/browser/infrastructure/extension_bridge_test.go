@@ -770,12 +770,16 @@ func TestExtensionBridgeInterruptCancelsActiveTurn(t *testing.T) {
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
-	events.Publish(agentdomain.ChatStartEvent{RequestID: "turn-1", Timestamp: time.Now()})
-	readFrameOfType(t, conn, "chat_event") // RUN_STARTED, proves the pump saw the start
+	// chatPump subscribes asynchronously after adopt; republish until it has seen the start.
+	deadline := time.Now().Add(2 * time.Second)
+	for id, _ := bridge.activeRequestID.Load().(string); id != "turn-1" && time.Now().Before(deadline); id, _ = bridge.activeRequestID.Load().(string) {
+		events.Publish(agentdomain.ChatStartEvent{RequestID: "turn-1", Timestamp: time.Now()})
+		time.Sleep(10 * time.Millisecond)
+	}
 	if err := conn.WriteJSON(map[string]string{"type": "interrupt"}); err != nil {
 		t.Fatalf("write interrupt: %v", err)
 	}
-	deadline := time.Now().Add(2 * time.Second)
+	deadline = time.Now().Add(2 * time.Second)
 	for agentSvc.CancelRequestCallCount() == 0 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}

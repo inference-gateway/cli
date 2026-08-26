@@ -291,6 +291,7 @@ func (b *ExtensionBridge) adopt(conn *websocket.Conn) {
 	b.pendingApprovals = make(map[string]sdk.ChatCompletionMessageToolCall)
 	b.pendingToolApprovals = make(map[string]chan bool)
 	b.mu.Unlock()
+	b.notifyConnected(true)
 
 	go b.readLoop(conn, stop)
 	go b.chatPump(conn, stop)
@@ -756,7 +757,8 @@ func (b *ExtensionBridge) pingLoop(conn *websocket.Conn, stop chan struct{}) {
 // dropConn clears conn if it is still the active connection.
 func (b *ExtensionBridge) dropConn(conn *websocket.Conn, stop chan struct{}) {
 	b.mu.Lock()
-	if b.conn == conn {
+	dropped := b.conn == conn
+	if dropped {
 		b.conn = nil
 		select {
 		case <-stop:
@@ -766,6 +768,16 @@ func (b *ExtensionBridge) dropConn(conn *websocket.Conn, stop chan struct{}) {
 	}
 	b.mu.Unlock()
 	_ = conn.Close()
+	if dropped {
+		b.notifyConnected(false)
+	}
+}
+
+// notifyConnected tells the TUI status bar whether an extension is attached.
+func (b *ExtensionBridge) notifyConnected(connected bool) {
+	if b.notifier != nil {
+		b.notifier.Notify(agentdomain.BrowserExtensionStatusEvent{Connected: connected})
+	}
 }
 
 func (b *ExtensionBridge) write(conn *websocket.Conn, v any) {

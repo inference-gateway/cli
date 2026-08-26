@@ -18,3 +18,9 @@ type MCPServerStatusUpdateEvent struct {
 	TotalTools       int
 	Tools            []MCPDiscoveredTool
 }
+
+// BrowserExtensionStatusEvent is pushed through the UI notifier when the
+// browser extension connects to or drops off the CLI bridge.
+type BrowserExtensionStatusEvent struct {
+	Connected bool
+}
