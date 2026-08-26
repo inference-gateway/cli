@@ -239,10 +239,17 @@ func (isb *InputStatusBar) Render() string {
 
 	lines := isb.buildStatusLines()
 	if dot := isb.buildBridgeDot(); dot != "" {
-		// Right-align the dot on the indicator row, under the input box's corner.
+		// Right-align the marker on the indicator row, under the input box's
+		// corner; spell out "● Browser" when the row has room, else just the dot.
+		const label = " Browser"
+		marker := dot
 		pad := isb.width - 6 - lipgloss.Width(lines[0])
+		if pad-len(label) >= 2 {
+			marker += isb.styleProvider.RenderWithColor(label, isb.styleProvider.GetThemeColor("dim"))
+			pad -= len(label)
+		}
 		if pad > 0 {
-			lines[0] += strings.Repeat(" ", pad) + dot
+			lines[0] += strings.Repeat(" ", pad) + marker
 		}
 	}
 	return strings.Join(lines, "\n")

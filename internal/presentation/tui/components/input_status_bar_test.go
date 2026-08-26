@@ -1021,11 +1021,16 @@ func TestInputStatusBar_FocusedRenderHighlightsSelection(t *testing.T) {
 	statusBar.config.BrowserUse.Backend = config.BrowserBackendExtension
 	statusBar.SetWidth(80)
 	waiting := strings.Split(statusBar.Render(), "\n")[0]
-	if !strings.HasSuffix(ansi.Strip(waiting), "●") || lipgloss.Width(waiting) != 75 {
-		t.Fatalf("bridge dot should be right-aligned on the indicator row, got %q (width %d)", waiting, lipgloss.Width(waiting))
+	if !strings.HasSuffix(ansi.Strip(waiting), "● Browser") || lipgloss.Width(waiting) != 75 {
+		t.Fatalf("bridge marker should be right-aligned with its label on a wide row, got %q (width %d)", waiting, lipgloss.Width(waiting))
 	}
+	statusBar.SetWidth(40)
+	if narrow := ansi.Strip(strings.Split(statusBar.Render(), "\n")[0]); !strings.HasSuffix(narrow, "●") || strings.Contains(narrow, "Browser") {
+		t.Fatalf("narrow row should fall back to the bare dot, got %q", narrow)
+	}
+	statusBar.SetWidth(80)
 	statusBar.SetBrowserConnected(true)
-	if connected := strings.Split(statusBar.Render(), "\n")[0]; connected == waiting || !strings.HasSuffix(ansi.Strip(connected), "●") {
+	if connected := strings.Split(statusBar.Render(), "\n")[0]; connected == waiting || !strings.HasSuffix(ansi.Strip(connected), "● Browser") {
 		t.Fatalf("connected dot should be styled differently, got %q", connected)
 	}
 	statusBar.SetBrowserConnected(false)
