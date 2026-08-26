@@ -762,6 +762,28 @@ func TestExtensionBridgeToolRequestRecordedInConversation(t *testing.T) {
 	}
 }
 
+func TestExtensionBridgeInterruptCancelsActiveTurn(t *testing.T) {
+	agentSvc := &agentdomainmocks.FakeAgentService{}
+	events := conversation.NewEventBridge()
+	bridge := startBridge(t, bridgeConfig(), nil, events)
+	bridge.SetAgentService(agentSvc)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	events.Publish(agentdomain.ChatStartEvent{RequestID: "turn-1", Timestamp: time.Now()})
+	readFrameOfType(t, conn, "chat_event") // RUN_STARTED, proves the pump saw the start
+	if err := conn.WriteJSON(map[string]string{"type": "interrupt"}); err != nil {
+		t.Fatalf("write interrupt: %v", err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for agentSvc.CancelRequestCallCount() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if agentSvc.CancelRequestCallCount() != 1 || agentSvc.CancelRequestArgsForCall(0) != "turn-1" {
+		t.Fatalf("expected one CancelRequest(turn-1), got %d calls", agentSvc.CancelRequestCallCount())
+	}
+}
+
 func TestExtensionBridgeToolRequestDenied(t *testing.T) {
 	toolSvc := &agentdomainmocks.FakeToolService{}
 	toolSvc.IsToolEnabledReturns(true)

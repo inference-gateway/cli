@@ -151,6 +151,16 @@ agent is busy, exactly like typing in the TUI):
 {"type": "user_message", "content": "please also check the docs page"}
 ```
 
+Extension → CLI, to stop the turn currently streaming (same as `esc` in the
+TUI; a no-op when nothing is running):
+
+```json
+{"type": "interrupt"}
+```
+
+The agent then emits its usual cancelled completion; the panel sees the stream
+end and no separate acknowledgement frame.
+
 ## Skills
 
 The panel offers a "/" autocomplete of the agent's skills. It asks the CLI for

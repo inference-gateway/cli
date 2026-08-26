@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -135,6 +136,9 @@ type ExtensionBridge struct {
 	approval     agentdomain.ApprovalPolicy
 	models       convdomain.ModelService
 	defaultModel string
+	agentSvc     agentdomain.AgentService // for interrupt; injected via SetAgentService
+
+	activeRequestID atomic.Value // string: the in-flight chat turn, from ChatStartEvent
 
 	server   *http.Server
 	addr     string
@@ -182,6 +186,23 @@ func (b *ExtensionBridge) SetToolExecution(toolSvc agentdomain.ToolService, appr
 
 // Start listens on 127.0.0.1:<port> and serves the /ws endpoint. Errors are
 // also stored so later tool calls surface them instead of a silent no-op.
+// SetAgentService wires the agent so an `interrupt` frame can cancel the
+// in-flight turn. Late, like SetToolExecution: the agent is built after the
+// bridge.
+func (b *ExtensionBridge) SetAgentService(svc agentdomain.AgentService) {
+	b.agentSvc = svc
+}
+
+// interrupt cancels the chat turn currently streaming, if any. Idempotent;
+// a stale or unknown id is a no-op in AgentService.CancelRequest.
+func (b *ExtensionBridge) interrupt() {
+	id, _ := b.activeRequestID.Load().(string)
+	if b.agentSvc == nil || id == "" {
+		return
+	}
+	_ = b.agentSvc.CancelRequest(id)
+}
+
 func (b *ExtensionBridge) Start() error {
 	if b.cfg.Extension.Token == "" {
 		b.startErr = errors.New("browser_use.extension.token is empty - set a shared secret in browser_use.yaml and in the opentask extension options")
@@ -558,6 +579,8 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			b.sendModelList(conn)
 		case "resume_conversation":
 			b.resumeConversation(conn, msg.ID)
+		case "interrupt":
+			b.interrupt()
 		case "tool_request":
 			go b.handleToolRequest(conn, stop, msg)
 		case "approval_response":
@@ -590,6 +613,14 @@ func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
 			case ev, ok := <-sub:
 				if !ok {
 					return
+				}
+				switch e := ev.(type) {
+				case agentdomain.ChatStartEvent:
+					b.activeRequestID.Store(e.RequestID)
+				case agentdomain.ChatCompleteEvent:
+					if len(e.ToolCalls) == 0 || e.Cancelled {
+						b.activeRequestID.Store("")
+					}
 				}
 				if req, isApproval := ev.(agentdomain.ToolApprovalRequestedEvent); isApproval {
 					b.requestApproval(conn, req)

@@ -507,6 +507,9 @@ func (c *ServiceContainer) initializeDomainServices() {
 	agentImpl.SetMemoryBackend(c.memoryBackend)
 	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
 	c.agent = agentImpl
+	if c.extensionBridge != nil {
+		c.extensionBridge.SetAgentService(c.agent)
+	}
 }
 
 // initializeStorageBackend wires the conversation repository for the configured
