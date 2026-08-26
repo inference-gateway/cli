@@ -143,9 +143,6 @@ type GitHubSetupService interface {
 	WriteWorkflowFile(path, content string) error
 	GenerateStandardWorkflowContent() string
 	GenerateGithubActionWorkflowContent() string
-	// InstallWorkflow has an LLM agent create or update the infer-action
-	// workflow in the target repo (preserving repo customizations) and opens
-	// - or updates - the install PR, returning its URL.
 	InstallWorkflow(ctx context.Context, opts InstallWorkflowOptions) (string, error)
 }
 
