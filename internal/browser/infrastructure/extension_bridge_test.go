@@ -715,6 +715,54 @@ func TestExtensionBridgeToolRequestApproved(t *testing.T) {
 	}
 }
 
+func TestExtensionBridgeToolRequestRecordedInConversation(t *testing.T) {
+	toolSvc := &agentdomainmocks.FakeToolService{}
+	toolSvc.IsToolEnabledReturns(true)
+	toolSvc.ExecuteToolDirectReturns(&agentdomain.ToolExecutionResult{
+		ToolName: "Bash",
+		Success:  true,
+		Data:     &agentdomain.BashToolResult{Output: "hi\n"},
+	}, nil)
+	repo := newBridgeRepo()
+	events := conversation.NewEventBridge()
+	bridge := NewExtensionBridge(bridgeConfig(), nil, repo, events, nil, "test-session", "")
+	if err := bridge.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(bridge.Close)
+	bridge.SetToolExecution(toolSvc, nil, nil, "")
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	if err := conn.WriteJSON(map[string]string{"type": "tool_request", "id": "req-4", "tool_name": "Bash", "tool_args": `{"command":"echo hi"}`}); err != nil {
+		t.Fatalf("write tool_request: %v", err)
+	}
+	// The chat pump streams asynchronously, so frame order vs. tool_result varies.
+	seen := map[string]bool{}
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	for !seen["tool_result"] || !seen["TOOL_CALL_RESULT"] {
+		var frame map[string]any
+		if err := conn.ReadJSON(&frame); err != nil {
+			t.Fatalf("read frames: %v (seen %v)", err, seen)
+		}
+		seen[frame["type"].(string)] = true
+		if ev, ok := frame["event"].(map[string]any); ok {
+			seen[ev["type"].(string)] = true
+		}
+	}
+	if !seen["TOOL_CALL_START"] {
+		t.Fatalf("expected TOOL_CALL_START, saw %v", seen)
+	}
+
+	msgs := repo.GetMessages()
+	if len(msgs) != 2 || msgs[0].Message.Role != sdk.Assistant || msgs[1].Message.Role != sdk.Tool {
+		t.Fatalf("expected assistant tool_call + tool result entries, got %d: %+v", len(msgs), msgs)
+	}
+	if msgs[1].ToolExecution == nil || !msgs[1].ToolExecution.Success || msgs[1].ToolExecution.ToolCallID != "req-4" {
+		t.Fatalf("unexpected tool entry: %+v", msgs[1].ToolExecution)
+	}
+}
+
 func TestExtensionBridgeToolRequestDenied(t *testing.T) {
 	toolSvc := &agentdomainmocks.FakeToolService{}
 	toolSvc.IsToolEnabledReturns(true)

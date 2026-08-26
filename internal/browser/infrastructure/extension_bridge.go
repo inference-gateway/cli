@@ -412,10 +412,61 @@ func (b *ExtensionBridge) handleToolRequest(conn *websocket.Conn, stop chan stru
 
 	result, err := b.toolSvc.ExecuteToolDirect(agentdomain.WithToolApproved(ctx), toolCall.Function)
 	if err != nil {
+		result = &agentdomain.ToolExecutionResult{ToolName: msg.ToolName, ToolCallID: msg.ID, Success: false, Error: err.Error()}
+	}
+	b.recordDirectTool(toolCall, result)
+	if err != nil {
 		reply(false, "", err.Error())
 		return
 	}
 	reply(result.Success, b.toolResultOutput(result), result.Error)
+}
+
+// recordDirectTool makes an extension-initiated tool call part of the
+// conversation, mirroring the TUI's direct-exec path: persist the assistant
+// tool_call + tool result entries, refresh the TUI history, and stream the
+// call/result to the panel through the chat pump. Denied/disabled calls never
+// reach here - nothing ran.
+func (b *ExtensionBridge) recordDirectTool(toolCall sdk.ChatCompletionMessageToolCall, result *agentdomain.ToolExecutionResult) {
+	if result.ToolCallID == "" {
+		result.ToolCallID = toolCall.ID
+	}
+	now := time.Now()
+	if b.repo != nil {
+		toolCalls := []sdk.ChatCompletionMessageToolCall{toolCall}
+		_ = b.repo.AddMessage(convdomain.ConversationEntry{
+			Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent(""), ToolCalls: &toolCalls},
+			Time:    now,
+		})
+		_ = b.repo.AddMessage(convdomain.ConversationEntry{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent(""), ToolCallID: &toolCall.ID},
+			ToolExecution: result,
+			Time:          now,
+		})
+	}
+	completed := agentdomain.ToolExecutionCompletedEvent{
+		SessionID:     b.sessionID,
+		RequestID:     toolCall.ID,
+		Timestamp:     now,
+		TotalExecuted: 1,
+		Results:       []*agentdomain.ToolExecutionResult{result},
+	}
+	if result.Success {
+		completed.SuccessCount = 1
+	} else {
+		completed.FailureCount = 1
+	}
+	if b.notifier != nil {
+		b.notifier.Notify(completed)
+	}
+	if b.events != nil {
+		b.events.Publish(agentdomain.ChatCompleteEvent{
+			RequestID: toolCall.ID,
+			Timestamp: now,
+			ToolCalls: []sdk.ChatCompletionMessageToolCall{toolCall},
+		})
+		b.events.Publish(completed)
+	}
 }
 
 // awaitToolRequestApproval sends an approval_request for an extension-initiated
