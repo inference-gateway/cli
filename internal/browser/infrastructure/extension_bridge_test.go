@@ -737,7 +737,6 @@ func TestExtensionBridgeToolRequestRecordedInConversation(t *testing.T) {
 	if err := conn.WriteJSON(map[string]string{"type": "tool_request", "id": "req-4", "tool_name": "Bash", "tool_args": `{"command":"echo hi"}`}); err != nil {
 		t.Fatalf("write tool_request: %v", err)
 	}
-	// The chat pump streams asynchronously, so frame order vs. tool_result varies.
 	seen := map[string]bool{}
 	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	for !seen["tool_result"] || !seen["TOOL_CALL_RESULT"] {
