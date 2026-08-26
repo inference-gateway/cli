@@ -413,6 +413,8 @@ func (b *ExtensionBridge) selectModel(conn *websocket.Conn, model string) {
 	if b.models != nil && model != "" {
 		if err := b.models.SelectModel(model); err != nil {
 			logger.Debug("extension bridge failed to select model", "model", model, "error", err)
+		} else if b.notifier != nil {
+			b.notifier.Notify(agentdomain.ModelSelectedEvent{Model: model})
 		}
 	}
 	b.sendModelList(conn)

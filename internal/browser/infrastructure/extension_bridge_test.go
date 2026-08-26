@@ -843,7 +843,9 @@ func TestExtensionBridgeListModelsDefaultFirst(t *testing.T) {
 	models.ListModelsReturns([]string{"a/x", "b/y"}, nil)
 	models.GetCurrentModelReturns("b/y")
 	models.SelectModelCalls(func(m string) error { models.GetCurrentModelReturns(m); return nil })
-	bridge := startBridgeWithTools(t, bridgeConfig(), nil, nil, models, "b/y")
+	notified := make(chan any, 4)
+	bridge := startBridge(t, bridgeConfig(), notifierFunc(func(e any) { notified <- e }), nil)
+	bridge.SetToolExecution(nil, nil, models, "b/y")
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
@@ -867,7 +869,26 @@ func TestExtensionBridgeListModelsDefaultFirst(t *testing.T) {
 	if models.SelectModelCallCount() != 1 || models.SelectModelArgsForCall(0) != "a/x" || frame["current"] != "a/x" {
 		t.Fatalf("expected SelectModel(a/x) and current a/x, got calls=%d current=%v", models.SelectModelCallCount(), frame["current"])
 	}
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case e := <-notified:
+			if ev, ok := e.(agentdomain.ModelSelectedEvent); ok {
+				if ev.Model != "a/x" {
+					t.Fatalf("expected ModelSelectedEvent{a/x}, got %#v", ev)
+				}
+				return
+			}
+		case <-deadline:
+			t.Fatal("expected the TUI to be notified of the model switch")
+		}
+	}
 }
+
+// notifierFunc adapts a func to agentdomain.UINotifier for tests.
+type notifierFunc func(any)
+
+func (f notifierFunc) Notify(e any) { f(e) }
 
 func TestExtensionBridgeListModelsWithoutServiceIsEmpty(t *testing.T) {
 	bridge := startBridge(t, bridgeConfig(), nil, nil)

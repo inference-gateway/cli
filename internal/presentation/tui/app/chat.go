@@ -496,6 +496,13 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	cmds = append(cmds, app.updateUIComponentsForUIMessages(msg, viewBefore)...)
 
+	if _, ok := msg.(agentdomain.ModelSelectedEvent); ok && viewBefore == tui.ViewStateModelSelection {
+		// The extension picked a model while the startup selector was open.
+		if err := app.stateManager.TransitionToView(tui.ViewStateChat); err == nil {
+			app.focusedComponent = app.inputView
+		}
+	}
+
 	if event, ok := msg.(agentdomain.BrowserExtensionStatusEvent); ok {
 		app.inputStatusBar.SetBrowserConnected(event.Connected)
 	}
