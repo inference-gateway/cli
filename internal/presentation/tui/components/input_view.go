@@ -61,6 +61,7 @@ type InputView struct {
 	focused              bool
 	usageHint            string
 	customHint           string
+	browserConnected     bool // extension attached to the CLI bridge
 	gitBranchCache       string
 	gitBranchCacheTime   time.Time
 	gitBranchCacheTTL    time.Duration
@@ -388,9 +389,29 @@ func (iv *InputView) Render() string {
 	inputContent := fmt.Sprintf("> %s", displayText)
 
 	focused := isBashMode || isToolsMode
-	borderedInput := iv.styleProvider.RenderInputField(inputContent, iv.width-4, focused, iv.buildGitBranchLabel())
+	borderedInput := iv.styleProvider.RenderInputField(inputContent, iv.width-4, focused, iv.buildGitBranchLabel(), iv.buildBridgeDot())
 
 	return borderedInput
+}
+
+// SetBrowserConnected records whether the browser extension is attached.
+func (iv *InputView) SetBrowserConnected(connected bool) {
+	iv.browserConnected = connected
+}
+
+// buildBridgeDot is the extension-bridge marker for the input's top-right
+// corner: green when the extension is connected, yellow while the bridge waits
+// for one, and nothing when the extension backend is not configured.
+func (iv *InputView) buildBridgeDot() string {
+	if iv.config == nil || iv.styleProvider == nil || !iv.config.BrowserUse.Enabled ||
+		iv.config.BrowserUse.Backend != config.BrowserBackendExtension {
+		return ""
+	}
+	color := "#e5c07b" // ponytail: themes have no "warning" color; add one if this clashes
+	if iv.browserConnected {
+		color = iv.styleProvider.GetThemeColor("success")
+	}
+	return iv.styleProvider.RenderWithColor("●", color)
 }
 
 // buildGitBranchLabel returns the "⎇ <branch>" label embedded in the input box

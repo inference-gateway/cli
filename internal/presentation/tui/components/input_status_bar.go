@@ -43,7 +43,6 @@ type InputStatusBar struct {
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	mcpStatus              *agentdomain.MCPServerStatus
-	browserConnected       bool
 	styleProvider          *styles.Provider
 	currentInputText       string
 
@@ -139,11 +138,6 @@ func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry scheddomain.Backgr
 }
 
 // UpdateMCPStatus updates the MCP server status (called by event handler)
-// SetBrowserConnected toggles the browser-extension indicator.
-func (isb *InputStatusBar) SetBrowserConnected(connected bool) {
-	isb.browserConnected = connected
-}
-
 func (isb *InputStatusBar) UpdateMCPStatus(status *agentdomain.MCPServerStatus) {
 	isb.mcpStatus = status
 }
@@ -412,10 +406,6 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 		if mcpPart := isb.buildMCPIndicator(); mcpPart != "" {
 			parts = append(parts, indicatorPart{text: mcpPart})
 		}
-	}
-
-	if isb.browserConnected {
-		parts = append(parts, indicatorPart{text: "🌐 browser", color: isb.styleProvider.GetThemeColor("success")})
 	}
 
 	if isb.shouldShowIndicator("context_usage") {

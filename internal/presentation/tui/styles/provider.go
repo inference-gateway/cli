@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	lipgloss "charm.land/lipgloss/v2"
+	ansi "github.com/charmbracelet/x/ansi"
 
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
@@ -225,7 +226,9 @@ func (p *Provider) RenderListItemWithDescription(title, description string, sele
 // RenderInputField renders an input field with border. When branchLabel is
 // non-empty it is embedded in the top border, right-aligned, as a titled border
 // (e.g. "╭──────── ⎇ main ─╮"); pass "" for a plain border.
-func (p *Provider) RenderInputField(content string, width int, focused bool, branchLabel string) string {
+// corner, when non-empty, is a pre-styled single-cell marker placed just
+// inside the top-right corner (e.g. the browser-bridge status dot).
+func (p *Provider) RenderInputField(content string, width int, focused bool, branchLabel, corner string) string {
 	theme := p.themeService.GetCurrentTheme()
 
 	style := p.styles().inputField
@@ -236,11 +239,28 @@ func (p *Provider) RenderInputField(content string, width int, focused bool, bra
 	}
 
 	rendered := style.Width(width).Render(content)
-	if branchLabel == "" {
-		return rendered
+	if branchLabel != "" {
+		rendered = p.spliceBranchIntoTopBorder(rendered, branchLabel, borderColor, theme.GetStatusColor())
 	}
+	if corner != "" {
+		rendered = p.spliceCornerIntoTopBorder(rendered, corner, borderColor)
+	}
+	return rendered
+}
 
-	return p.spliceBranchIntoTopBorder(rendered, branchLabel, borderColor, theme.GetStatusColor())
+// spliceCornerIntoTopBorder replaces the last border cell before ╮ on the top
+// line with marker (pre-styled, one cell wide), keeping the measured width.
+func (p *Provider) spliceCornerIntoTopBorder(box, marker, borderColor string) string {
+	lines := strings.Split(box, "\n")
+	if len(lines) == 0 {
+		return box
+	}
+	w := lipgloss.Width(lines[0])
+	if w < 4 {
+		return box
+	}
+	lines[0] = ansi.Truncate(lines[0], w-2, "") + marker + p.RenderWithColor("╮", borderColor)
+	return strings.Join(lines, "\n")
 }
 
 // spliceBranchIntoTopBorder rebuilds the top border line of an already-rendered
