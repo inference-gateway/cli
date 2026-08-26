@@ -63,6 +63,8 @@ func (t *teaInputStatusBarComponent) SetInputText(string) {}
 
 func (t *teaInputStatusBarComponent) UpdateMCPStatus(*agentdomain.MCPServerStatus) {}
 
+func (t *teaInputStatusBarComponent) SetBrowserConnected(bool) {}
+
 func (t *teaInputStatusBarComponent) Focus() bool { return false }
 
 func (t *teaInputStatusBarComponent) Blur() {}

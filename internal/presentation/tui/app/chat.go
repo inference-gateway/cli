@@ -497,9 +497,7 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, app.updateUIComponentsForUIMessages(msg, viewBefore)...)
 
 	if event, ok := msg.(agentdomain.BrowserExtensionStatusEvent); ok {
-		if iv, ok := app.inputView.(*components.InputView); ok {
-			iv.SetBrowserConnected(event.Connected)
-		}
+		app.inputStatusBar.SetBrowserConnected(event.Connected)
 	}
 
 	if event, ok := msg.(agentdomain.MCPServerStatusUpdateEvent); ok {

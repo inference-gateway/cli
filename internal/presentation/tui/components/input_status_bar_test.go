@@ -11,6 +11,9 @@ import (
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
+	lipgloss "charm.land/lipgloss/v2"
+	ansi "github.com/charmbracelet/x/ansi"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
@@ -1010,6 +1013,23 @@ func TestInputStatusBar_FocusedRenderHighlightsSelection(t *testing.T) {
 	if !strings.Contains(unfocused, "test-model") {
 		t.Fatalf("render should contain the model indicator, got %q", unfocused)
 	}
+	if strings.Contains(unfocused, "●") {
+		t.Fatalf("bridge dot should be hidden unless the extension backend is configured, got %q", unfocused)
+	}
+	statusBar.config = config.DefaultConfig()
+	statusBar.config.BrowserUse.Enabled = true
+	statusBar.config.BrowserUse.Backend = config.BrowserBackendExtension
+	statusBar.SetWidth(80)
+	waiting := strings.Split(statusBar.Render(), "\n")[0]
+	if !strings.HasSuffix(ansi.Strip(waiting), "●") || lipgloss.Width(waiting) != 78 {
+		t.Fatalf("bridge dot should be right-aligned on the indicator row, got %q (width %d)", waiting, lipgloss.Width(waiting))
+	}
+	statusBar.SetBrowserConnected(true)
+	if connected := strings.Split(statusBar.Render(), "\n")[0]; connected == waiting || !strings.HasSuffix(ansi.Strip(connected), "●") {
+		t.Fatalf("connected dot should be styled differently, got %q", connected)
+	}
+	statusBar.SetBrowserConnected(false)
+	statusBar.config = nil
 
 	if !statusBar.Focus() {
 		t.Fatal("Focus should succeed")

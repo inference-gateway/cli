@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -43,6 +44,7 @@ type InputStatusBar struct {
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	mcpStatus              *agentdomain.MCPServerStatus
+	browserConnected       bool
 	styleProvider          *styles.Provider
 	currentInputText       string
 
@@ -138,6 +140,11 @@ func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry scheddomain.Backgr
 }
 
 // UpdateMCPStatus updates the MCP server status (called by event handler)
+// SetBrowserConnected toggles the browser-extension indicator.
+func (isb *InputStatusBar) SetBrowserConnected(connected bool) {
+	isb.browserConnected = connected
+}
+
 func (isb *InputStatusBar) UpdateMCPStatus(status *agentdomain.MCPServerStatus) {
 	isb.mcpStatus = status
 }
@@ -231,7 +238,29 @@ func (isb *InputStatusBar) Render() string {
 	}
 
 	lines := isb.buildStatusLines()
+	if dot := isb.buildBridgeDot(); dot != "" {
+		// Right-align the dot on the indicator row, under the input box's corner.
+		pad := isb.width - 3 - lipgloss.Width(lines[0])
+		if pad > 0 {
+			lines[0] += strings.Repeat(" ", pad) + dot
+		}
+	}
 	return strings.Join(lines, "\n")
+}
+
+// buildBridgeDot is the extension-bridge marker: green when the extension is
+// connected, yellow while the bridge waits for one, nothing when the extension
+// backend is not configured.
+func (isb *InputStatusBar) buildBridgeDot() string {
+	if isb.config == nil || isb.styleProvider == nil || !isb.config.BrowserUse.Enabled ||
+		isb.config.BrowserUse.Backend != config.BrowserBackendExtension {
+		return ""
+	}
+	color := "#e5c07b" // ponytail: themes have no "warning" color; add one if this clashes
+	if isb.browserConnected {
+		color = isb.styleProvider.GetThemeColor("success")
+	}
+	return isb.styleProvider.RenderWithColor("●", color)
 }
 
 // buildStatusLines builds the status bar content. Indicators are packed onto up

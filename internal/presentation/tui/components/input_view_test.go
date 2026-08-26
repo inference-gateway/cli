@@ -12,8 +12,6 @@ import (
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
-	lipgloss "charm.land/lipgloss/v2"
-	ansi "github.com/charmbracelet/x/ansi"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -634,28 +632,6 @@ func TestInputView_BuildGitBranchLabel(t *testing.T) {
 			require.Equal(t, tt.want, iv.buildGitBranchLabel())
 		})
 	}
-}
-
-func TestInputView_RenderBridgeDotInTopRightCorner(t *testing.T) {
-	iv := newInputViewWithBranch(t, "main")
-	iv.SetWidth(80)
-	cfg := config.DefaultConfig()
-	iv.config = cfg
-
-	top := func() string { return strings.Split(iv.Render(), "\n")[0] }
-
-	require.NotContains(t, top(), "●", "no dot when the extension backend is not configured")
-
-	cfg.BrowserUse.Enabled = true
-	cfg.BrowserUse.Backend = config.BrowserBackendExtension
-	line := top()
-	require.Contains(t, line, "●", "yellow dot while waiting for the extension")
-	require.True(t, strings.HasSuffix(ansi.Strip(line), "●╮"), "dot sits just inside the top-right corner: %q", ansi.Strip(line))
-	require.Equal(t, 76, lipgloss.Width(line), "border width unchanged")
-
-	iv.SetBrowserConnected(true)
-	require.NotEqual(t, line, top(), "connected dot is styled differently")
-	require.Contains(t, top(), "●")
 }
 
 func TestInputView_RenderBranchInTopBorder(t *testing.T) {
