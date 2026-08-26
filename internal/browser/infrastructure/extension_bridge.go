@@ -93,6 +93,8 @@ type extBrowserCommand struct {
 type extSnapshot struct {
 	Type     string        `json:"type"`
 	Messages []sdk.Message `json:"messages"`
+	// tool_call_id -> success, for tool entries that carry an execution record.
+	ToolResults map[string]bool `json:"tool_results,omitempty"`
 }
 
 type extConversationSummary struct {
@@ -308,10 +310,14 @@ func (b *ExtensionBridge) sendSnapshot(conn *websocket.Conn) {
 	}
 	entries := b.repo.GetMessages()
 	messages := make([]sdk.Message, 0, len(entries))
+	results := map[string]bool{}
 	for _, entry := range entries {
 		messages = append(messages, entry.Message)
+		if entry.ToolExecution != nil && entry.Message.ToolCallID != nil {
+			results[*entry.Message.ToolCallID] = entry.ToolExecution.Success
+		}
 	}
-	b.write(conn, extSnapshot{Type: "conversation_snapshot", Messages: messages})
+	b.write(conn, extSnapshot{Type: "conversation_snapshot", Messages: messages, ToolResults: results})
 }
 
 // conversationListLimit caps list_conversations, mirroring the TUI selector.

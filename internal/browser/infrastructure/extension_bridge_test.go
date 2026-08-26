@@ -760,6 +760,19 @@ func TestExtensionBridgeToolRequestRecordedInConversation(t *testing.T) {
 	if msgs[1].ToolExecution == nil || !msgs[1].ToolExecution.Success || msgs[1].ToolExecution.ToolCallID != "req-4" {
 		t.Fatalf("unexpected tool entry: %+v", msgs[1].ToolExecution)
 	}
+
+	// The snapshot keeps tool_calls on the assistant entry and reports success per id.
+	if err := conn.WriteJSON(map[string]string{"type": "resume_conversation", "id": repo.GetCurrentConversationID()}); err != nil {
+		t.Fatalf("write resume_conversation: %v", err)
+	}
+	snap := readFrameOfType(t, conn, "conversation_snapshot")
+	first := snap["messages"].([]any)[0].(map[string]any)
+	if calls, _ := first["tool_calls"].([]any); len(calls) != 1 {
+		t.Fatalf("expected tool_calls on the assistant snapshot entry, got %v", first)
+	}
+	if res, _ := snap["tool_results"].(map[string]any); res["req-4"] != true {
+		t.Fatalf("expected tool_results[req-4]=true, got %v", snap["tool_results"])
+	}
 }
 
 func TestExtensionBridgeInterruptCancelsActiveTurn(t *testing.T) {

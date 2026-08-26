@@ -130,6 +130,10 @@ CLI → extension, the resumed conversation's history:
 ```
 
 - `messages` are the gateway SDK message objects of the resumed conversation.
+  Assistant entries keep their `tool_calls` (id, function name, arguments) and
+  tool entries their `tool_call_id`, so the panel can rebuild tool rows.
+- `tool_results` maps `tool_call_id` to whether that execution succeeded, for
+  entries the CLI has an execution record for.
 - An unknown or empty `id` is ignored (no snapshot is sent).
 
 After the snapshot the CLI streams live chat activity for the active
