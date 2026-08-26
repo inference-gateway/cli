@@ -240,7 +240,7 @@ func (isb *InputStatusBar) Render() string {
 	lines := isb.buildStatusLines()
 	if dot := isb.buildBridgeDot(); dot != "" {
 		// Right-align the dot on the indicator row, under the input box's corner.
-		pad := isb.width - 3 - lipgloss.Width(lines[0])
+		pad := isb.width - 5 - lipgloss.Width(lines[0])
 		if pad > 0 {
 			lines[0] += strings.Repeat(" ", pad) + dot
 		}
