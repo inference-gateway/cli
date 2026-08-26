@@ -753,7 +753,7 @@ func BenchmarkGrepTool_SimplePattern(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := tool.Execute(ctx, args)
 		if err != nil {
 			b.Fatalf("Execute failed: %v", err)
@@ -780,7 +780,7 @@ func BenchmarkGrepTool_ComplexRegex(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := tool.Execute(ctx, args)
 		if err != nil {
 			b.Fatalf("Execute failed: %v", err)
@@ -807,7 +807,7 @@ func BenchmarkGrepTool_FileTypeFilter(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := tool.Execute(ctx, args)
 		if err != nil {
 			b.Fatalf("Execute failed: %v", err)
@@ -834,7 +834,7 @@ func BenchmarkGrepTool_GlobPattern(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := tool.Execute(ctx, args)
 		if err != nil {
 			b.Fatalf("Execute failed: %v", err)
@@ -861,7 +861,7 @@ func BenchmarkGrepTool_CaseInsensitive(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := tool.Execute(ctx, args)
 		if err != nil {
 			b.Fatalf("Execute failed: %v", err)
@@ -889,7 +889,7 @@ func BenchmarkGrepTool_WithContext(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := tool.Execute(ctx, args)
 		if err != nil {
 			b.Fatalf("Execute failed: %v", err)
@@ -916,7 +916,7 @@ func BenchmarkGrepTool_HeadLimit(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := tool.Execute(ctx, args)
 		if err != nil {
 			b.Fatalf("Execute failed: %v", err)
@@ -943,7 +943,7 @@ func BenchmarkRipgrepComparison_SimplePattern(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := tool.Execute(ctx, args)
 			if err != nil {
 				b.Fatalf("Execute failed: %v", err)
@@ -958,7 +958,7 @@ func BenchmarkRipgrepComparison_SimplePattern(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			cmd := exec.Command(rgPath, "--files-with-matches", "func", ".")
 			_, err := cmd.Output()
 			if err != nil {
@@ -988,7 +988,7 @@ func BenchmarkRipgrepComparison_ComplexRegex(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := tool.Execute(ctx, args)
 			if err != nil {
 				b.Fatalf("Execute failed: %v", err)
@@ -1003,7 +1003,7 @@ func BenchmarkRipgrepComparison_ComplexRegex(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			cmd := exec.Command(rgPath, "-n", `func\s+\w+\s*\([^)]*\)\s*\{`, ".")
 			_, err := cmd.Output()
 			if err != nil {
@@ -1033,7 +1033,7 @@ func BenchmarkRipgrepComparison_FileTypeFilter(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := tool.Execute(ctx, args)
 			if err != nil {
 				b.Fatalf("Execute failed: %v", err)
@@ -1048,7 +1048,7 @@ func BenchmarkRipgrepComparison_FileTypeFilter(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			cmd := exec.Command(rgPath, "--files-with-matches", "--type", "go", "import", ".")
 			_, err := cmd.Output()
 			if err != nil {
@@ -1077,7 +1077,7 @@ func BenchmarkGrepTool_MemoryAllocs(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := tool.Execute(ctx, args)
 		if err != nil {
 			b.Fatalf("Execute failed: %v", err)

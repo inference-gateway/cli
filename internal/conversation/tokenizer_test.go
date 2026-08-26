@@ -437,7 +437,7 @@ func BenchmarkEstimateTokenCount(b *testing.B) {
 	text := "The quick brown fox jumps over the lazy dog. This is a common pangram used for testing."
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		tokenizer.EstimateTokenCount(text)
 	}
 }
@@ -456,7 +456,7 @@ func BenchmarkCalculateUsagePolyfill(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		tokenizer.CalculateUsagePolyfill(messages, "The capital of France is Paris.", nil, nil)
 	}
 }
