@@ -135,9 +135,10 @@ func (t *AskUserQuestionTool) Execute(ctx context.Context, args map[string]any) 
 		logger.Debug("AskUserQuestion: no interactive broker in context - degrading", "questions", len(questions))
 		return t.result(args, start, map[string]any{
 			"available": false,
-			"message": "No interactive user is available to answer questions in this session " +
-				"(headless/non-interactive run). Proceed using your best judgment and clearly " +
-				"state the assumptions you are making, or stop and report what you need from the user.",
+			"message": "No interactive user form is available in this session. STOP: restate your " +
+				"questions to the user in plain text as your final reply and END YOUR TURN without " +
+				"further tool calls. Wait for the user's next message before continuing. Do not " +
+				"answer the questions yourself or proceed on assumptions.",
 		}), nil
 	}
 
