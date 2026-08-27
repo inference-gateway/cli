@@ -236,6 +236,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 		result, err := s.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
+			s.addHiddenBashOutputEntry(command, fmt.Sprintf("Failed to execute command: %v", err))
 			eventChan <- tui.BashCommandCompletedEvent{
 				History:       s.conversationRepo.GetMessages(),
 				Failed:        true,
@@ -273,6 +274,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 			result, formattedContent, time.Now())
 		_ = s.conversationRepo.AddMessage(assistantEntry)
 		_ = s.conversationRepo.AddMessage(toolEntry)
+		s.addHiddenBashOutputEntry(command, formattedContent)
 
 		isUserInitiated := strings.HasPrefix(toolCallID, "user-bash-")
 		failed := result != nil && !result.Success
@@ -285,6 +287,22 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 	}()
 
 	return s.listener.ListenForEvents(eventChan)
+}
+
+// addHiddenBashOutputEntry persists the output of a user-typed `!command` as a
+// hidden user message so the model can see it: the synthesized user-bash- tool
+// pair is dropped from LLM history (BuildAgentMessagesFromEntries, issue #474),
+// while hidden entries are invisible in the TUI but still sent to the model.
+func (s *Service) addHiddenBashOutputEntry(command, output string) {
+	_ = s.conversationRepo.AddMessage(convdomain.ConversationEntry{
+		Message: sdk.Message{
+			Role: sdk.User,
+			Content: sdk.NewMessageContent(fmt.Sprintf(
+				"<system-reminder>\nOutput of the shell command the user ran directly with `!%s`:\n%s\n</system-reminder>", command, output)),
+		},
+		Time:   time.Now(),
+		Hidden: true,
+	})
 }
 
 // executeBashCommandInBackground runs the bash command immediately under the
