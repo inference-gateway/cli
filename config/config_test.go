@@ -810,6 +810,8 @@ func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
 		"gh project list --owner o", "gh project view 7", "gh project item-list 7",
 		"gh api repos/inference-gateway/.github/contents/ISSUE_TEMPLATE",
 		"gh api repos/o/r/contents/docs/README.md",
+		"gh api 'user/repos?per_page=100' --paginate --jq '.[].full_name'",
+		"gh api user/repos --paginate",
 	}
 	for _, cmd := range allowed {
 		if !cfg.IsBashCommandAllowed(cmd, "standard") {
@@ -827,6 +829,7 @@ func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
 		"gh api repos/o/r/issues -X POST",
 		"gh api repos/o/r/contents/x -X PUT", "gh api repos/o/r/contents/x -f content=y",
 		"gh api user",
+		"gh api user/repos -X POST", "gh api user/repos -f name=x",
 		"env", "printenv", "printenv PATH",
 	}
 	for _, cmd := range denied {

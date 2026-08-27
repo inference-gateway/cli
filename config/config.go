@@ -990,6 +990,7 @@ func DefaultConfig() *Config { //nolint:funlen
 						`gh search (issues|code|prs|repos|commits)( .*)?`,
 						`gh project (list|view|item-list|field-list)( .*)?`,
 						`gh api repos/[^ ]+/contents/[^ ]+`,
+						`gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?`,
 					}},
 					Plan:     BashModeAllowConfig{Allow: []string{}},
 					Standard: BashModeAllowConfig{Allow: []string{}},
