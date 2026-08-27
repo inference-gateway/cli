@@ -18,7 +18,7 @@
         pkgs = import nixpkgs { inherit system; };
         inherit (pkgs) lib;
 
-        version = "0.182.1";
+        version = "0.183.0";
 
         infer = pkgs.buildGoModule (finalAttrs: {
           __structuredAttrs = true;
