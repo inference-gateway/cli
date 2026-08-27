@@ -117,6 +117,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*agen
 	} else {
 		limit = t.config.Tools.WebSearch.MaxResults
 	}
+	limit = min(max(limit, 1), 50)
 
 	var searchResult *agentdomain.WebSearchResponse
 	var err error

@@ -937,8 +937,8 @@ func (s *JsonlStorage) SaveJob(_ context.Context, job *scheddomain.ScheduledJob)
 	if job == nil {
 		return errors.New("job is nil")
 	}
-	if job.ID == "" {
-		return errors.New("job ID is required")
+	if !scheddomain.ValidJobID(job.ID) {
+		return fmt.Errorf("invalid job ID %q", job.ID)
 	}
 	dir := s.schedulesDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -962,8 +962,8 @@ func (s *JsonlStorage) SaveJob(_ context.Context, job *scheddomain.ScheduledJob)
 
 // LoadJob reads a single job by ID. Returns ErrJobNotFound if the file does not exist.
 func (s *JsonlStorage) LoadJob(_ context.Context, id string) (*scheddomain.ScheduledJob, error) {
-	if id == "" {
-		return nil, errors.New("job ID is required")
+	if !scheddomain.ValidJobID(id) {
+		return nil, fmt.Errorf("invalid job ID %q", id)
 	}
 	data, err := os.ReadFile(s.jobFilePath(id))
 	if err != nil {
@@ -1009,8 +1009,8 @@ func (s *JsonlStorage) ListJobs(_ context.Context) ([]*scheddomain.ScheduledJob,
 
 // DeleteJob removes a job by ID. Returns ErrJobNotFound if it did not exist.
 func (s *JsonlStorage) DeleteJob(_ context.Context, id string) error {
-	if id == "" {
-		return errors.New("job ID is required")
+	if !scheddomain.ValidJobID(id) {
+		return fmt.Errorf("invalid job ID %q", id)
 	}
 	if err := os.Remove(s.jobFilePath(id)); err != nil {
 		if os.IsNotExist(err) {

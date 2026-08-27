@@ -381,7 +381,7 @@ func BenchmarkWrite_Small(b *testing.B) {
 
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = rb.Write(data)
 	}
 }
@@ -396,7 +396,7 @@ func BenchmarkWrite_Large(b *testing.B) {
 
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = rb.Write(data)
 	}
 }
@@ -411,7 +411,7 @@ func BenchmarkReadFrom(b *testing.B) {
 	b.ResetTimer()
 
 	offset := int64(0)
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, offset = rb.ReadFrom(offset)
 		if offset >= rb.TotalWritten() {
 			offset = 0
@@ -428,7 +428,7 @@ func BenchmarkRecent(b *testing.B) {
 
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		rb.Recent(1024)
 	}
 }

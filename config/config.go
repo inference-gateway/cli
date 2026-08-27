@@ -160,6 +160,7 @@ type ArchiveConfig struct {
 type ImageConfig struct {
 	MaxSize           int64                        `yaml:"max_size" mapstructure:"max_size"`
 	Timeout           int                          `yaml:"timeout" mapstructure:"timeout"`
+	AllowLocal        bool                         `yaml:"allow_local" mapstructure:"allow_local"`
 	ClipboardOptimize ClipboardImageOptimizeConfig `yaml:"clipboard_optimize" mapstructure:"clipboard_optimize"`
 }
 

@@ -1,8 +1,18 @@
 package domain
 
 import (
+	"strings"
 	"time"
 )
+
+// ValidJobID reports whether id is safe to use as a single file-name
+// component. Job IDs are UUIDs at creation, but they also arrive as raw LLM
+// tool arguments and become file paths (schedules dir, workflow files), so
+// anything containing path separators or dot-segments is rejected to prevent
+// path traversal.
+func ValidJobID(id string) bool {
+	return id != "" && id != "." && id != ".." && !strings.ContainsAny(id, `/\`)
+}
 
 // ScheduledJob describes a task that the LLM has asked the system to run on a
 // cron schedule. Jobs are persisted through the configured storage backend and

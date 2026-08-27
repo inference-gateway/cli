@@ -37,7 +37,7 @@ func TestImageDecodeFromURL(t *testing.T) {
 
 	imageURL := imgSrv.URL + "/test.png"
 
-	defs, err := mockgateway.Load([]byte(fmt.Sprintf(`
+	defs, err := mockgateway.Load(fmt.Appendf(nil, `
 fallback:
   content: '{"summary":"A test image.","elements":[{"index":1,"label":"pixel","text":"single pixel","bbox":[0,0,1,1]}]}'
 scenarios:
@@ -47,10 +47,11 @@ scenarios:
       - tool_calls:
           - { name: ImageDecode, args: { image: "%s" } }
       - content: "Image decoded successfully."
-`, imageURL)))
+`, imageURL))
 	require.NoError(t, err)
 
 	e := newEnvWithScenarios(t, defs, func(cfg *config.Config) {
+		cfg.Image.AllowLocal = true
 		cfg.Vision.Annotator.Enabled = true
 		cfg.Vision.Annotator.Model = "openai/gpt-4o"
 		cfg.Vision.Annotator.MaxTokens = 256

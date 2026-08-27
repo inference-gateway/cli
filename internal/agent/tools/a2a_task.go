@@ -417,7 +417,7 @@ func (t *A2ASubmitTaskTool) extractTextFromParts(parts []adk.Part) string {
 
 // emitStatusUpdate records the latest remote task state on the polling state
 // (read by the task view) and emits it as a non-terminal JobSignal for the UI.
-func (t *A2ASubmitTaskTool) emitStatusUpdate(state *agentdomain.TaskPollingState, taskID, agentURL string, currentTask adk.Task, emit func(scheddomain.JobSignal)) {
+func (t *A2ASubmitTaskTool) emitStatusUpdate(state *agentdomain.TaskPollingState, _, agentURL string, currentTask adk.Task, emit func(scheddomain.JobSignal)) {
 	statusMessage := ""
 	if currentTask.Status.Message != nil {
 		statusMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)

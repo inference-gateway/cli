@@ -520,6 +520,14 @@ func (t *WaitTool) waitFile(ctx context.Context, args map[string]any) map[string
 		}
 	}
 
+	if err := t.config.ValidatePathInSandbox(absPath); err != nil {
+		return map[string]any{
+			"condition": "file",
+			"reason":    "error",
+			"error":     err.Error(),
+		}
+	}
+
 	if eventStr == "create" {
 		if _, err := os.Stat(absPath); err == nil {
 			return map[string]any{

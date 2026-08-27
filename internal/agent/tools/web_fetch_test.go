@@ -447,3 +447,39 @@ func TestFetchTool_Validate_ConfiguredAgentHosts(t *testing.T) {
 		}
 	})
 }
+
+func TestFetchTool_ValidateURLDomain_HostnameMatching(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			WebFetch: config.WebFetchToolConfig{
+				Enabled:        true,
+				AllowedDomains: []string{"github.com", "localhost"},
+			},
+		},
+	}
+	tool := NewWebFetchTool(cfg)
+
+	tests := []struct {
+		name      string
+		url       string
+		wantError bool
+	}{
+		{"exact host", "https://github.com/owner/repo", false},
+		{"subdomain", "https://api.github.com/repos", false},
+		{"localhost", "http://localhost:8080/x", false},
+		{"allowed domain in query only", "https://evil.com/?x=github.com", true},
+		{"allowed domain as prefix of attacker host", "https://github.com.evil.com/", true},
+		{"allowed domain in path only", "https://evil.com/github.com", true},
+		{"suffix without dot boundary", "https://evilgithub.com/", true},
+		{"unrelated host", "https://example.org/", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tool.validateURLDomain(tt.url)
+			if (err != nil) != tt.wantError {
+				t.Fatalf("validateURLDomain(%q) err = %v, wantError %v", tt.url, err, tt.wantError)
+			}
+		})
+	}
+}

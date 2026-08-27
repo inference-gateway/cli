@@ -445,9 +445,10 @@ func TestWaitTool_Execute_CommandSuccess(t *testing.T) {
 
 func TestWaitTool_Execute_FileEvent(t *testing.T) {
 	cfg := testWaitConfig()
+	tmpDir := t.TempDir()
+	cfg.Tools.Sandbox.Directories = append(cfg.Tools.Sandbox.Directories, tmpDir)
 	tool := NewWaitTool(cfg, nil)
 
-	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test-wait.txt")
 
 	type waitResult struct {
