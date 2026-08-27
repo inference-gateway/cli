@@ -441,8 +441,6 @@ func TestExtensionBridgeNormalCompletionDoesNotSendInterrupted(t *testing.T) {
 	events.Publish(agentdomain.ChatCompleteEvent{RequestID: "req-1"})
 	events.Publish(agentdomain.ChatChunkEvent{Content: "after"})
 
-	// The chunk's chat_event arriving proves the completion was processed
-	// without an interrupted frame in between.
 	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	for {
 		var frame map[string]any
