@@ -418,6 +418,46 @@ func TestExtensionBridgeMirrorsChatEvents(t *testing.T) {
 	}
 }
 
+func TestExtensionBridgeCancelledTurnSendsInterrupted(t *testing.T) {
+	events := conversation.NewEventBridge()
+	bridge := startBridge(t, bridgeConfig(), nil, events)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	time.Sleep(50 * time.Millisecond)
+	events.Publish(agentdomain.ChatStartEvent{RequestID: "req-1"})
+	events.Publish(agentdomain.ChatCompleteEvent{RequestID: "req-1", Cancelled: true})
+
+	readFrameOfType(t, conn, "interrupted")
+}
+
+func TestExtensionBridgeNormalCompletionDoesNotSendInterrupted(t *testing.T) {
+	events := conversation.NewEventBridge()
+	bridge := startBridge(t, bridgeConfig(), nil, events)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	time.Sleep(50 * time.Millisecond)
+	events.Publish(agentdomain.ChatCompleteEvent{RequestID: "req-1"})
+	events.Publish(agentdomain.ChatChunkEvent{Content: "after"})
+
+	// The chunk's chat_event arriving proves the completion was processed
+	// without an interrupted frame in between.
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	for {
+		var frame map[string]any
+		if err := conn.ReadJSON(&frame); err != nil {
+			t.Fatalf("read: %v", err)
+		}
+		if frame["type"] == "interrupted" {
+			t.Fatal("unexpected interrupted frame for a normal completion")
+		}
+		if frame["type"] == "chat_event" {
+			return
+		}
+	}
+}
+
 func TestExtensionBridgeReplacesConnection(t *testing.T) {
 	bridge := startBridge(t, bridgeConfig(), nil, nil)
 
