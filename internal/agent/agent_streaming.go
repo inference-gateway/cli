@@ -174,15 +174,23 @@ func (a *EventDrivenAgent) openStream(requestCtx context.Context, cancel context
 }
 
 // outboundConversation returns the request payload: the shared conversation
-// plus the ephemeral volatile-context tail. The shared slice is cloned before
-// appending so the tail never leaks into persistence, the TUI, or later turns.
-// The tail decision lives here — per request, after ensureConversationIntegrity
-// has repaired the conversation — and is skipped while an assistant tool_call
-// is still unanswered, where a trailing user message would orphan it.
+// plus the ephemeral volatile-context tail, rebuilt here per request so the
+// volatile sections (git branch, tree, memory, active skill, date) stay fresh
+// across a long agent loop instead of freezing at RunWithStream time. The
+// shared slice is cloned before appending so the tail never leaks into
+// persistence, the TUI, or later turns. The tail decision lives here — per
+// request, after ensureConversationIntegrity has repaired the conversation —
+// and is skipped while an assistant tool_call is still unanswered, where a
+// trailing user message would orphan it. Rebuilding is prompt-cache-safe: the
+// tail always trails the newest messages, so it is never part of a reusable
+// token prefix.
 func (a *EventDrivenAgent) outboundConversation() []sdk.Message {
 	conversation := *a.agentCtx.Conversation
-	if len(a.volatileTail) > 0 && !conversationAwaitsToolResults(conversation) {
-		conversation = append(slices.Clone(conversation), a.volatileTail...)
+	if conversationAwaitsToolResults(conversation) {
+		return conversation
+	}
+	if tail, ok := a.service.volatileTailMessage(conversation, a.req.IsChatMode); ok {
+		conversation = append(slices.Clone(conversation), tail)
 	}
 	return conversation
 }

@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -603,6 +604,57 @@ func TestPolyfillTokensIdenticalAcrossSyncAndStreamWithTail(t *testing.T) {
 	require.Equal(t, syncStats.TotalInputTokens, finalStats.TotalInputTokens-syncStats.TotalInputTokens,
 		"stream polyfill must count the same inputs (incl. the volatile tail) as sync")
 	require.Equal(t, syncStats.TotalOutputTokens, finalStats.TotalOutputTokens-syncStats.TotalOutputTokens)
+}
+
+// TestStreamVolatileTailRefreshesGitBranchMidRun is the e2e acceptance check
+// for the stale "Current branch" fix: within a single RunWithStream session,
+// a tool call that switches branches must be reflected in the next request's
+// volatile <system-reminder> tail — the tail is rebuilt per request, not
+// frozen at session start.
+func TestStreamVolatileTailRefreshesGitBranchMidRun(t *testing.T) {
+	defs, err := mockgateway.Load([]byte(`
+fallback:
+  content: "Done."
+scenarios:
+  - name: branch-switch
+    match: '(?i)switch to a new branch'
+    turns:
+      - tool_calls:
+          - { name: Bash, args: { command: "git checkout -b fix/issue-155" } }
+      - content: "Switched."
+`))
+	require.NoError(t, err)
+	e := newEnvWithScenarios(t, defs, func(cfg *config.Config) {
+		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
+		cfg.Tools.Bash.Mode.Standard.Allow = append(cfg.Tools.Bash.Mode.Standard.Allow, "git checkout -b .*")
+	})
+
+	for _, args := range [][]string{
+		{"init", "-b", "main"},
+		{"-c", "user.email=t@t", "-c", "user.name=t", "commit", "--allow-empty", "-m", "init"},
+	} {
+		out, err := exec.Command("git", args...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+
+	res := e.runStream(context.Background(), t, "switch to a new branch")
+	require.Empty(t, res.errs)
+	require.Equal(t, "Switched.", res.content())
+
+	bodies := e.completionBodies()
+	require.Len(t, bodies, 2, "tool round-trip must trigger exactly one follow-up request")
+
+	tailOf := func(body sdk.CreateChatCompletionRequest) string {
+		last := body.Messages[len(body.Messages)-1]
+		require.Equal(t, sdk.User, last.Role, "request must end with the volatile tail")
+		content, err := last.Content.AsMessageContent0()
+		require.NoError(t, err)
+		return content
+	}
+
+	require.Contains(t, tailOf(bodies[0]), "Current branch: main")
+	require.Contains(t, tailOf(bodies[1]), "Current branch: fix/issue-155",
+		"the follow-up request's tail must reflect the branch the tool call switched to")
 }
 
 // TestModelMetadataFromGateway verifies /v1/models metadata (context window +
