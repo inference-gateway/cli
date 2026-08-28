@@ -79,14 +79,20 @@ func (t *TextToSpeechTool) Validate(args map[string]any) error {
 	}
 
 	if sample, ok := args["voice_sample"].(string); ok && strings.TrimSpace(sample) != "" {
-		safeSamplePath, err := filepath.Abs(sample)
+		rawSample := strings.TrimSpace(sample)
+		cleanSample := filepath.Clean(rawSample)
+		if cleanSample == ".." || strings.HasPrefix(cleanSample, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("invalid voice_sample path %q", sample)
+		}
+
+		safeSamplePath, err := filepath.Abs(cleanSample)
 		if err != nil {
 			return fmt.Errorf("invalid voice_sample path %q: %w", sample, err)
 		}
 		if err := t.config.ValidatePathInSandbox(safeSamplePath); err != nil {
 			return err
 		}
-		f, err := os.Open(safeSamplePath) // nolint:gosec // path is canonicalized and validated against the sandbox above
+		f, err := os.Open(safeSamplePath) // nolint:gosec // path is normalized and validated against the sandbox above
 		if err != nil {
 			return fmt.Errorf("voice_sample %q must be an existing, readable WAV file: %w", safeSamplePath, err)
 		}
