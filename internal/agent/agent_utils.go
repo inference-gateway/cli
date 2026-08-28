@@ -212,9 +212,10 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 // carrying the volatile context (git, tree, active skill, memory, current
 // date), appended to the outbound payload only — never persisted — so the
 // system prompt at message[0] stays byte-stable for KV-cache prefix reuse.
-// messages is the pre-system-prompt conversation (turn = len/2, matching the
-// old in-prompt refresh cadence); ok=false means append nothing. Callers gate
-// the append on conversationAwaitsToolResults at payload-finalization time
+// Called once per outbound request; messages is the conversation being sent
+// (turn ≈ len/2, driving the turn-window caches of the expensive sections);
+// ok=false means append nothing. Callers gate the append on
+// conversationAwaitsToolResults at payload-finalization time
 // (outboundConversation for streaming, Run for sync), after conversation
 // repair — not here, where the input may still carry orphaned tool_calls.
 func (s *AgentServiceImpl) volatileTailMessage(messages []sdk.Message, isChat bool) (sdk.Message, bool) {
@@ -870,15 +871,22 @@ func (s *AgentServiceImpl) buildWorkingDirectoryInfo() string {
 	return fmt.Sprintf("\n\nWORKING DIRECTORY: %s", workingDir)
 }
 
-// buildGitContextInfo creates dynamic git repository information for the system prompt
+// buildGitContextInfo creates dynamic git repository information for the system
+// prompt. The cache is keyed on the current branch as well as the turn window:
+// a checkout mid-run invalidates it immediately (at the cost of one cheap
+// `git branch --show-current` per request), so the model never reads a stale
+// "Current branch" line after switching branches.
 func (s *AgentServiceImpl) buildGitContextInfo(currentTurn int) string {
 	cfg := s.config.GetAgentConfig()
 	if !cfg.Context.GitContextEnabled {
 		return ""
 	}
 
+	branch := getGitBranch()
+
 	s.contextCacheMux.RLock()
-	if s.gitContextCache != "" && currentTurn-s.gitContextTurn < cfg.Context.GitContextRefreshTurns {
+	if s.gitContextCache != "" && branch == s.gitContextBranch &&
+		currentTurn-s.gitContextTurn < cfg.Context.GitContextRefreshTurns {
 		defer s.contextCacheMux.RUnlock()
 		return s.gitContextCache
 	}
@@ -888,6 +896,7 @@ func (s *AgentServiceImpl) buildGitContextInfo(currentTurn int) string {
 		s.contextCacheMux.Lock()
 		s.gitContextCache = ""
 		s.gitContextTurn = currentTurn
+		s.gitContextBranch = branch
 		s.contextCacheMux.Unlock()
 		return ""
 	}
@@ -899,7 +908,7 @@ func (s *AgentServiceImpl) buildGitContextInfo(currentTurn int) string {
 		fmt.Fprintf(&gitInfo, "\nRepository: %s", repoName)
 	}
 
-	if branch := getGitBranch(); branch != "" {
+	if branch != "" {
 		fmt.Fprintf(&gitInfo, "\nCurrent branch: %s", branch)
 	}
 
@@ -920,6 +929,7 @@ func (s *AgentServiceImpl) buildGitContextInfo(currentTurn int) string {
 	s.contextCacheMux.Lock()
 	s.gitContextCache = result
 	s.gitContextTurn = currentTurn
+	s.gitContextBranch = branch
 	s.contextCacheMux.Unlock()
 
 	return result

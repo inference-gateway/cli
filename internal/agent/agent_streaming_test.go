@@ -2,14 +2,17 @@ package agent
 
 import (
 	"context"
+	"os/exec"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
 )
@@ -148,30 +151,38 @@ func TestPersistPartialAssistantMessage_SkipsEmpty(t *testing.T) {
 	assert.Equal(t, 0, repo.AddMessageCallCount())
 }
 
+// tailAgent builds an EventDrivenAgent whose service produces a minimal
+// volatile tail (system prompt set, defaults off → just the Current date line).
+func tailAgent(conv *[]sdk.Message, systemPrompt string) *EventDrivenAgent {
+	cfg := &config.Config{}
+	cfg.Prompts.Agent.SystemPrompt = systemPrompt
+	return &EventDrivenAgent{
+		service:  &AgentServiceImpl{config: cfg},
+		agentCtx: &states.AgentContext{Conversation: conv},
+		req:      &agentdomain.AgentRequest{RequestID: "r1", IsChatMode: true},
+	}
+}
+
 func TestOutboundConversation_AppendsTailWithoutMutatingShared(t *testing.T) {
 	conv := []sdk.Message{
 		{Role: sdk.System, Content: sdk.NewMessageContent("system")},
 		{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
 	}
-	tail := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("<system-reminder>\nCurrent date: today\n</system-reminder>")}
 
-	a := &EventDrivenAgent{
-		agentCtx:     &states.AgentContext{Conversation: &conv},
-		volatileTail: []sdk.Message{tail},
-	}
-
-	out := a.outboundConversation()
+	out := tailAgent(&conv, "base prompt").outboundConversation()
 
 	assert.Len(t, out, 3)
-	assert.Equal(t, tail, out[2])
+	content, err := out[2].Content.AsMessageContent0()
+	assert.NoError(t, err)
+	assert.Contains(t, content, "<system-reminder>")
+	assert.Contains(t, content, "Current date:")
 	assert.Len(t, conv, 2, "shared conversation must not grow the ephemeral tail")
 }
 
 func TestOutboundConversation_NoTailReturnsSharedAsIs(t *testing.T) {
 	conv := []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("hi")}}
-	a := &EventDrivenAgent{agentCtx: &states.AgentContext{Conversation: &conv}}
 
-	assert.Equal(t, conv, a.outboundConversation())
+	assert.Equal(t, conv, tailAgent(&conv, "").outboundConversation())
 }
 
 func TestOutboundConversation_SkipsTailWhileAwaitingToolResults(t *testing.T) {
@@ -180,11 +191,49 @@ func TestOutboundConversation_SkipsTailWhileAwaitingToolResults(t *testing.T) {
 		{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
 		{Role: sdk.Assistant, ToolCalls: &toolCalls},
 	}
-	tail := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("<system-reminder>\nCurrent date: today\n</system-reminder>")}
-	a := &EventDrivenAgent{
-		agentCtx:     &states.AgentContext{Conversation: &conv},
-		volatileTail: []sdk.Message{tail},
+
+	assert.Equal(t, conv, tailAgent(&conv, "base prompt").outboundConversation(),
+		"a trailing user tail would orphan the open tool_calls")
+}
+
+// TestOutboundConversation_TailRefreshesPerRequest locks in the fix for stale
+// volatile context: the tail is rebuilt on every call, not frozen at
+// RunWithStream time (#stale "Current branch" in headless runs).
+func TestOutboundConversation_TailRefreshesPerRequest(t *testing.T) {
+	tmp := t.TempDir()
+	t.Chdir(tmp)
+	for _, args := range [][]string{
+		{"init", "-b", "main"},
+		{"-c", "user.email=t@t", "-c", "user.name=t", "commit", "--allow-empty", "-m", "init"},
+	} {
+		out, err := exec.Command("git", args...).CombinedOutput()
+		require.NoError(t, err, string(out))
 	}
 
-	assert.Equal(t, conv, a.outboundConversation(), "a trailing user tail would orphan the open tool_calls")
+	cfg := &config.Config{}
+	cfg.Prompts.Agent.SystemPrompt = "base prompt"
+	cfg.Agent.SystemPromptWithDefaults = true
+	cfg.Agent.Context = config.AgentContextConfig{GitContextEnabled: true, GitContextRefreshTurns: 10}
+	conv := []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("hi")}}
+	a := &EventDrivenAgent{
+		service:  &AgentServiceImpl{config: cfg},
+		agentCtx: &states.AgentContext{Conversation: &conv},
+		req:      &agentdomain.AgentRequest{RequestID: "r1"},
+	}
+
+	tail := func() string {
+		out := a.outboundConversation()
+		require.Len(t, out, 2)
+		content, err := out[1].Content.AsMessageContent0()
+		require.NoError(t, err)
+		return content
+	}
+
+	require.Contains(t, tail(), "Current branch: main")
+
+	out, err := exec.Command("git", "checkout", "-b", "fix/issue-155").CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	require.Contains(t, tail(), "Current branch: fix/issue-155",
+		"branch change must invalidate the git context cache on the next request")
 }

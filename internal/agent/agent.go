@@ -89,6 +89,7 @@ type AgentServiceImpl struct {
 	// Context caching
 	gitContextCache    string
 	gitContextTurn     int
+	gitContextBranch   string
 	treeContextCache   string
 	treeContextTurn    int
 	memoryContextCache string
@@ -866,7 +867,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *agentdomain.A
 	context.AfterFunc(sessionCtx, sc.Cancel)
 
 	conversation := s.addSystemPrompt(req.Messages)
-	volatileTail, hasTail := s.volatileTailMessage(req.Messages, req.IsChatMode)
 
 	provider, model, err := s.parseProvider(req.Model)
 	if err != nil {
@@ -906,9 +906,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *agentdomain.A
 			model,
 			s.bgRegistry,
 		)
-		if hasTail {
-			agent.volatileTail = []sdk.Message{volatileTail}
-		}
 
 		agent.Start()
 		agent.Wait()
