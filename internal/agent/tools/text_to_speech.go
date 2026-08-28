@@ -129,6 +129,16 @@ func (t *TextToSpeechTool) Execute(ctx context.Context, args map[string]any) (*a
 		}
 	}
 
+	if err := t.config.ValidatePathInSandboxWrite(outPath); err != nil {
+		return &agentdomain.ToolExecutionResult{
+			ToolName:  "TextToSpeech",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     err.Error(),
+		}, nil
+	}
+
 	if err := t.synth.Synthesize(ctx, text, voiceSample, outPath); err != nil {
 		return &agentdomain.ToolExecutionResult{
 			ToolName:  "TextToSpeech",
