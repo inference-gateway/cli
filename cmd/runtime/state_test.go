@@ -96,11 +96,24 @@ func TestWebFetchAllowedDomainsEnvironmentVariable(t *testing.T) {
 // entry: viper's GetStringSlice whitespace-splits an env string, which used to
 // shred the desktop's project-dir grant into garbage and deny every write.
 func TestSandboxDirectoriesEnvironmentVariableWithSpaces(t *testing.T) {
-	t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", ".,/tmp,/Users/x/Documents/Inference Gateway Desktop/Test")
+	tests := []struct {
+		name string
+		env  string
+	}{
+		{name: "comma separated", env: ".,/tmp,/Users/x/Documents/Inference Gateway Desktop/Test"},
+		{name: "newline separated", env: ".\n/tmp\n/Users/x/Documents/Inference Gateway Desktop/Test"},
+		{name: "mixed separators with blanks", env: "., /tmp,\n\n/Users/x/Documents/Inference Gateway Desktop/Test\n"},
+	}
 
-	initConfig()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", tt.env)
 
-	assert.Equal(t, []string{".", "/tmp", "/Users/x/Documents/Inference Gateway Desktop/Test"}, Cfg.Tools.Sandbox.Directories)
+			initConfig()
+
+			assert.Equal(t, []string{".", "/tmp", "/Users/x/Documents/Inference Gateway Desktop/Test"}, Cfg.Tools.Sandbox.Directories)
+		})
+	}
 }
 
 // bashAllowAppendEnv / bashAllowAppendFlag are the override knobs reintroduced so
