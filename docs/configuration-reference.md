@@ -163,6 +163,7 @@ tools:
     enabled: true
     allowed_domains:
       - golang.org
+      - agents.md
     safety:
       max_size: 8192 # 8KB
       timeout: 30 # 30 seconds
