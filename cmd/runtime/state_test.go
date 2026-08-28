@@ -73,8 +73,7 @@ func TestA2AAgentsEnvironmentVariable(t *testing.T) {
 			initConfig()
 
 			if tt.expectedAgents != nil {
-				agents := V.GetStringSlice("a2a.agents")
-				assert.Equal(t, tt.expectedAgents, agents, "Agents should match expected")
+				assert.Equal(t, tt.expectedAgents, Cfg.A2A.Agents, "Agents should match expected")
 			}
 
 			assert.NoError(t, os.Unsetenv("INFER_A2A_AGENTS"))
@@ -90,12 +89,31 @@ func TestWebFetchAllowedDomainsEnvironmentVariable(t *testing.T) {
 
 	initConfig()
 
-	domains := V.GetStringSlice("tools.web_fetch.allowed_domains")
-	assert.Equal(t, []string{"github.com", "raw.githubusercontent.com", "user-images.githubusercontent.com"}, domains)
+	assert.Equal(t, []string{"github.com", "raw.githubusercontent.com", "user-images.githubusercontent.com"}, Cfg.Tools.WebFetch.AllowedDomains)
+}
 
-	cfg, err := loadConfigFromViper(V, rootCmd)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"github.com", "raw.githubusercontent.com", "user-images.githubusercontent.com"}, cfg.Tools.WebFetch.AllowedDomains)
+// A sandbox directory containing spaces must survive the env round-trip as one
+// entry: viper's GetStringSlice whitespace-splits an env string, which used to
+// shred the desktop's project-dir grant into garbage and deny every write.
+func TestSandboxDirectoriesEnvironmentVariableWithSpaces(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+	}{
+		{name: "comma separated", env: ".,/tmp,/Users/x/Documents/Inference Gateway Desktop/Test"},
+		{name: "newline separated", env: ".\n/tmp\n/Users/x/Documents/Inference Gateway Desktop/Test"},
+		{name: "mixed separators with blanks", env: "., /tmp,\n\n/Users/x/Documents/Inference Gateway Desktop/Test\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", tt.env)
+
+			initConfig()
+
+			assert.Equal(t, []string{".", "/tmp", "/Users/x/Documents/Inference Gateway Desktop/Test"}, Cfg.Tools.Sandbox.Directories)
+		})
+	}
 }
 
 // bashAllowAppendEnv / bashAllowAppendFlag are the override knobs reintroduced so

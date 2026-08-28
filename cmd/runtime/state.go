@@ -37,12 +37,6 @@ func (s *State) Initialize(root *cobra.Command) error {
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	if agents := os.Getenv("INFER_A2A_AGENTS"); agents != "" {
-		v.Set("a2a.agents", parseDelimitedList(agents))
-	}
-	if domains := os.Getenv("INFER_TOOLS_WEB_FETCH_ALLOWED_DOMAINS"); domains != "" {
-		v.Set("tools.web_fetch.allowed_domains", parseDelimitedList(domains))
-	}
 	if err := v.BindPFlag("verbose", root.PersistentFlags().Lookup("verbose")); err != nil {
 		return fmt.Errorf("binding verbose flag: %w", err)
 	}
