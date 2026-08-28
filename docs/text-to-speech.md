@@ -85,12 +85,13 @@ With `text_to_speech.enabled` set, the agent gains a `TextToSpeech` tool:
 - **Stock voice** - ask it to "say X out loud" or "write X as speech to
   say.wav"; the model calls `TextToSpeech` with just `text`.
 - **Cloned voice** - give it a reference recording of the target speaker
-  (`voice_sample`), around 10-30 seconds of clean single-speaker speech. The
-  sample is normalized with ffmpeg (16kHz mono, capped at 30s) and passed to
-  the engine's `--tts-speaker-file` for zero-shot cloning.
-- **Where files go** - `output_path` chooses the destination; otherwise a
-  timestamped WAV is written to `output_dir` (default `~/.infer/tts/`). The
-  result reports the path and audio duration.
+  (`voice_sample`, a file name inside the working directory), around 10-30
+  seconds of clean single-speaker speech. The sample is normalized with ffmpeg
+  (16kHz mono, capped at 30s) and passed to the engine's `--tts-speaker-file`
+  for zero-shot cloning.
+- **Where files go** - `output_path` chooses the destination as a bare file
+  name inside `output_dir` (default `~/.infer/tts/`); otherwise a timestamped
+  WAV is written there. The result reports the path and audio duration.
 
 Voice cloning quality depends entirely on the reference sample: one speaker,
 minimal background noise, no music.

@@ -219,6 +219,8 @@ Env var override format: `INFER_<PATH_WITH_UNDERSCORES>` (e.g. `INFER_AGENT_MODE
 
 ## Security Gotchas
 
+- **LLM-supplied paths in tools must be reduced at the tool boundary.** Tool args come from `json.Unmarshal` of the model's tool call, which CodeQL treats as untrusted for `go/path-injection`. Custom guards (`ValidatePathInSandbox`, `filepath.Clean`, prefix checks) do NOT break that taint tracking - seven Copilot autofix rounds on PR #1118 failed that way. The fix that works: reduce the value to a bare file name with `filepath.Base` (the query's documented sanitizer) and join it onto a trusted directory (`os.Getwd()`, a resolved config dir), then keep the explicit rejection of absolute paths/separators/`..` for actionable errors. See `TextToSpeechTool.resolveSamplePath` / `resolveOutputPath`. Resolve with `filepath.EvalSymlinks` and re-validate when the file must pre-exist, so a planted symlink cannot escape the sandbox.
+
 - **Bash allow-list is default-deny.** Anything not matched is blocked (headless) or sent to approval (chat). The allow-list is **per agent mode** under `tools.bash.mode.{all,plan,standard,auto}.allow`. The effective list for a mode = `mode.all.allow` (baseline) ∪ that mode's own entries. By default, only `mode.auto` (YOLO mode, shift+tab in chat) carries `.*` (unrestricted). Standard (headless default) and Plan are read-only.
 - **Tool approval is two-layer:** `tools.safety.require_approval` decides *whether* approval is needed; `tools.safety.approval_behaviour` (`prompt` | `ipc` | `block`) decides *how*. Headless mode blocks by default when no approver is reachable.
 - Never commit real secrets. Use `.env` for credentials; `.env.example` as a template.

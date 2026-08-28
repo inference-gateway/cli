@@ -579,8 +579,8 @@ tool when the user asks to say something aloud or to clone a voice; synthesis sh
 **Parameters:**
 
 - `text` (required): The text to speak
-- `voice_sample` (optional): Path to a WAV of the target speaker (~10-30s of clean speech) to clone
-- `output_path` (optional): Destination WAV; defaults to a timestamped file under `text_to_speech.output_dir`
+- `voice_sample` (optional): File name (inside the working directory) of a WAV of the target speaker (~10-30s of clean speech) to clone
+- `output_path` (optional): File name for the generated WAV, placed inside `text_to_speech.output_dir`; defaults to a timestamped file
 
 **Configuration:**
 

@@ -98,10 +98,11 @@ func TestTextToSpeechTool_Definition(t *testing.T) {
 }
 
 func TestTextToSpeechTool_Validate(t *testing.T) {
+	tmp := t.TempDir()
+	t.Chdir(tmp)
 	tool := newTestTTSTool(t, true, &fakeVoiceSynthesizer{})
 
-	sample := filepath.Join(t.TempDir(), "speaker.wav")
-	if err := os.WriteFile(sample, []byte("wav"), 0o644); err != nil {
+	if err := os.WriteFile("speaker.wav", []byte("wav"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -111,11 +112,18 @@ func TestTextToSpeechTool_Validate(t *testing.T) {
 		wantErr bool
 	}{
 		{"text only", map[string]any{"text": "hello"}, false},
-		{"text with existing voice sample", map[string]any{"text": "hello", "voice_sample": sample}, false},
-		{"text with output path", map[string]any{"text": "hello", "output_path": filepath.Join(t.TempDir(), "out.wav")}, false},
+		{"bare voice sample file", map[string]any{"text": "hello", "voice_sample": "speaker.wav"}, false},
+		{"bare output path", map[string]any{"text": "hello", "output_path": "out.wav"}, false},
 		{"missing text", map[string]any{}, true},
 		{"empty text", map[string]any{"text": "  "}, true},
-		{"missing voice sample file", map[string]any{"text": "hello", "voice_sample": filepath.Join(t.TempDir(), "nope.wav")}, true},
+		{"missing voice sample file", map[string]any{"text": "hello", "voice_sample": "nope.wav"}, true},
+		{"voice sample traversal", map[string]any{"text": "hello", "voice_sample": "../escape.wav"}, true},
+		{"voice sample absolute", map[string]any{"text": "hello", "voice_sample": "/etc/passwd"}, true},
+		{"voice sample nested", map[string]any{"text": "hello", "voice_sample": "sub/dir/speaker.wav"}, true},
+		{"voice sample directory", map[string]any{"text": "hello", "voice_sample": "."}, true},
+		{"output path traversal", map[string]any{"text": "hello", "output_path": "../escape.wav"}, true},
+		{"output path absolute", map[string]any{"text": "hello", "output_path": "/tmp/out.wav"}, true},
+		{"output path nested", map[string]any{"text": "hello", "output_path": "sub/out.wav"}, true},
 	}
 
 	for _, tt := range tests {
@@ -129,37 +137,39 @@ func TestTextToSpeechTool_Validate(t *testing.T) {
 func TestTextToSpeechTool_ExecuteStockVoice(t *testing.T) {
 	fake := &fakeVoiceSynthesizer{}
 	tool := newTestTTSTool(t, true, fake)
-	out := filepath.Join(t.TempDir(), "speech.wav")
+	outName := "speech.wav"
 
-	result, err := tool.Execute(context.Background(), map[string]any{"text": "hello there", "output_path": out})
+	result, err := tool.Execute(context.Background(), map[string]any{"text": "hello there", "output_path": outName})
 
 	assert.NoError(t, err)
 	assert.True(t, result.Success)
-	assert.Equal(t, out, fake.out)
+	outPath := filepath.Join(tool.config.TextToSpeech.OutputDir, outName)
+	assert.Equal(t, outPath, fake.out)
 	assert.Equal(t, "hello there", fake.text)
 	assert.Empty(t, fake.sample)
 
 	data := result.Data.(map[string]any)
-	assert.Equal(t, out, data["path"])
+	assert.Equal(t, outPath, data["path"])
 	assert.Greater(t, data["duration_seconds"].(float64), 0.0)
 	assert.Equal(t, false, data["voice_cloned"])
 }
 
 func TestTextToSpeechTool_ExecuteVoiceClone(t *testing.T) {
+	tmp := t.TempDir()
+	t.Chdir(tmp)
 	fake := &fakeVoiceSynthesizer{}
 	tool := newTestTTSTool(t, true, fake)
-	sample := filepath.Join(t.TempDir(), "speaker.wav")
-	if err := os.WriteFile(sample, []byte("wav"), 0o644); err != nil {
+	if err := os.WriteFile("speaker.wav", []byte("wav"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	result, err := tool.Execute(context.Background(), map[string]any{
-		"text": "hello", "voice_sample": sample,
+		"text": "hello", "voice_sample": "speaker.wav",
 	})
 
 	assert.NoError(t, err)
 	assert.True(t, result.Success)
-	assert.Equal(t, sample, fake.sample)
+	assert.Equal(t, filepath.Join(tmp, "speaker.wav"), fake.sample)
 
 	data := result.Data.(map[string]any)
 	assert.Equal(t, true, data["voice_cloned"])
@@ -184,7 +194,7 @@ func TestTextToSpeechTool_ExecuteSynthesisFailure(t *testing.T) {
 	fake := &fakeVoiceSynthesizer{err: fmt.Errorf("engine crashed")}
 	tool := newTestTTSTool(t, true, fake)
 
-	result, err := tool.Execute(context.Background(), map[string]any{"text": "hello", "output_path": filepath.Join(t.TempDir(), "out.wav")})
+	result, err := tool.Execute(context.Background(), map[string]any{"text": "hello", "output_path": "out.wav"})
 
 	assert.NoError(t, err)
 	assert.False(t, result.Success)

@@ -57,11 +57,11 @@ func (t *TextToSpeechTool) Definition() sdk.ChatCompletionTool {
 					},
 					"voice_sample": map[string]any{
 						"type":        "string",
-						"description": "Optional path to a WAV recording of the target speaker; when set, the output clones that voice. Around 10-30 seconds of clean single-speaker speech works best",
+						"description": "Optional file name (inside the working directory) of a WAV recording of the target speaker; when set, the output clones that voice. Around 10-30 seconds of clean single-speaker speech works best",
 					},
 					"output_path": map[string]any{
 						"type":        "string",
-						"description": "Optional path for the generated WAV file; defaults to a timestamped file under the configured output directory",
+						"description": "Optional file name for the generated WAV file, placed in the configured output directory; defaults to a timestamped file",
 					},
 				},
 				"required":             []string{"text"},
@@ -78,33 +78,79 @@ func (t *TextToSpeechTool) Validate(args map[string]any) error {
 		return fmt.Errorf("text is required and must be a non-empty string")
 	}
 
-	if sample, ok := args["voice_sample"].(string); ok && strings.TrimSpace(sample) != "" {
-		rawSample := strings.TrimSpace(sample)
-		if filepath.IsAbs(rawSample) || strings.Contains(rawSample, "/") || strings.Contains(rawSample, "\\") || strings.Contains(rawSample, "..") {
-			return fmt.Errorf("invalid voice_sample path %q", sample)
-		}
-
-		safeSamplePath, err := filepath.Abs(rawSample)
-		if err != nil {
-			return fmt.Errorf("invalid voice_sample path %q: %w", sample, err)
-		}
-		if err := t.config.ValidatePathInSandbox(safeSamplePath); err != nil {
-			return err
-		}
-		f, err := os.Open(safeSamplePath) // nolint:gosec // path is validated as a single filename and against the sandbox above
-		if err != nil {
-			return fmt.Errorf("voice_sample %q must be an existing, readable WAV file: %w", safeSamplePath, err)
-		}
-		_ = f.Close()
+	rawSample, _ := args["voice_sample"].(string)
+	if _, err := t.resolveSamplePath(rawSample); err != nil {
+		return err
 	}
 
-	if out, ok := args["output_path"].(string); ok && strings.TrimSpace(out) != "" {
-		if err := t.config.ValidatePathInSandboxWrite(out); err != nil {
-			return err
-		}
+	rawOut, _ := args["output_path"].(string)
+	_, err := t.resolveOutputPath(rawOut)
+	return err
+}
+
+// resolveSamplePath turns an LLM-supplied voice_sample into a safe path: the
+// value is reduced to its base file name (never a traversal) and resolved
+// inside the working directory, then checked against the sandbox and required
+// to be a readable file. Empty means stock voice and yields "".
+func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
+	name := strings.TrimSpace(raw)
+	if name == "" {
+		return "", nil
+	}
+	if filepath.IsAbs(name) || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+		return "", fmt.Errorf("invalid voice_sample path %q: pass a bare file name inside the working directory", raw)
 	}
 
-	return nil
+	workDir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("resolving working directory: %w", err)
+	}
+	safePath := filepath.Join(workDir, filepath.Base(name))
+
+	if err := t.config.ValidatePathInSandbox(safePath); err != nil {
+		return "", err
+	}
+	// Resolve symlinks so a planted link cannot point the read outside the
+	// sandbox: validate the real target, then open that.
+	if resolved, err := filepath.EvalSymlinks(safePath); err == nil {
+		if err := t.config.ValidatePathInSandbox(resolved); err != nil {
+			return "", err
+		}
+		safePath = resolved
+	}
+	info, err := os.Stat(safePath)
+	if err != nil {
+		return "", fmt.Errorf("voice_sample %q must be an existing WAV file: %w", safePath, err)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("voice_sample %q is a directory, not a WAV file", safePath)
+	}
+	f, err := os.Open(safePath) // nolint:gosec // single file name resolved inside the working directory above
+	if err != nil {
+		return "", fmt.Errorf("voice_sample %q must be readable: %w", safePath, err)
+	}
+	_ = f.Close()
+	return safePath, nil
+}
+
+// resolveOutputPath returns the WAV target: an LLM-supplied bare file name
+// placed inside the configured output directory (never elsewhere), or a
+// timestamped default when empty. The base-name reduction is what confines -
+// and sanitizes - the path.
+func (t *TextToSpeechTool) resolveOutputPath(raw string) (string, error) {
+	dir, err := t.config.TextToSpeech.ResolveOutputDir()
+	if err != nil {
+		return "", err
+	}
+
+	name := strings.TrimSpace(raw)
+	if name == "" {
+		return filepath.Join(dir, "speech-"+time.Now().Format("20060102-150405.000")+".wav"), nil
+	}
+	if filepath.IsAbs(name) || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+		return "", fmt.Errorf("invalid output_path %q: pass a bare file name for the output directory", raw)
+	}
+	return filepath.Join(dir, filepath.Base(name)), nil
 }
 
 // Execute executes the TextToSpeech tool
@@ -114,44 +160,23 @@ func (t *TextToSpeechTool) Execute(ctx context.Context, args map[string]any) (*a
 	}
 
 	text, _ := args["text"].(string)
-	voiceSample, _ := args["voice_sample"].(string)
-	outputPath, _ := args["output_path"].(string)
+	rawSample, _ := args["voice_sample"].(string)
+	rawOut, _ := args["output_path"].(string)
 
 	start := time.Now()
 
-	outPath := strings.TrimSpace(outputPath)
-	if outPath == "" {
-		var err error
-		outPath, err = t.defaultOutputPath()
-		if err != nil {
-			return &agentdomain.ToolExecutionResult{
-				ToolName:  "TextToSpeech",
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(start),
-				Error:     err.Error(),
-			}, nil
-		}
+	sample, err := t.resolveSamplePath(rawSample)
+	if err != nil {
+		return t.failure(start, args, err), nil
 	}
 
-	if err := t.config.ValidatePathInSandboxWrite(outPath); err != nil {
-		return &agentdomain.ToolExecutionResult{
-			ToolName:  "TextToSpeech",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     err.Error(),
-		}, nil
+	outPath, err := t.resolveOutputPath(rawOut)
+	if err != nil {
+		return t.failure(start, args, err), nil
 	}
 
-	if err := t.synth.Synthesize(ctx, text, voiceSample, outPath); err != nil {
-		return &agentdomain.ToolExecutionResult{
-			ToolName:  "TextToSpeech",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     err.Error(),
-		}, nil
+	if err := t.synth.Synthesize(ctx, text, sample, outPath); err != nil {
+		return t.failure(start, args, err), nil
 	}
 
 	duration := 0.0
@@ -168,22 +193,20 @@ func (t *TextToSpeechTool) Execute(ctx context.Context, args map[string]any) (*a
 			"path":             outPath,
 			"text":             text,
 			"duration_seconds": duration,
-			"voice_cloned":     strings.TrimSpace(voiceSample) != "",
+			"voice_cloned":     sample != "",
 		},
 	}, nil
 }
 
-// defaultOutputPath returns a timestamped WAV path under the configured
-// output directory (~/.infer/tts by default), creating the directory.
-func (t *TextToSpeechTool) defaultOutputPath() (string, error) {
-	dir, err := t.config.TextToSpeech.ResolveOutputDir()
-	if err != nil {
-		return "", err
+// failure builds the failed ToolExecutionResult for Execute.
+func (t *TextToSpeechTool) failure(start time.Time, args map[string]any, err error) *agentdomain.ToolExecutionResult {
+	return &agentdomain.ToolExecutionResult{
+		ToolName:  "TextToSpeech",
+		Arguments: args,
+		Success:   false,
+		Duration:  time.Since(start),
+		Error:     err.Error(),
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("creating output directory: %w", err)
-	}
-	return filepath.Join(dir, "speech-"+time.Now().Format("20060102-150405.000")+".wav"), nil
 }
 
 // IsEnabled returns whether the tool is enabled: the feature flag must be on
