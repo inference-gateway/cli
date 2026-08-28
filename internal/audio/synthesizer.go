@@ -71,7 +71,22 @@ func (s *Synthesizer) Synthesize(ctx context.Context, text, voiceSamplePath, out
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+	resolvedOutPath, err := filepath.Abs(filepath.Clean(outPath))
+	if err != nil {
+		return fmt.Errorf("resolving output path: %w", err)
+	}
+	if base := strings.TrimSpace(s.cfg.OutputDir); base != "" {
+		baseAbs, err := filepath.Abs(filepath.Clean(base))
+		if err != nil {
+			return fmt.Errorf("resolving output base directory: %w", err)
+		}
+		rel, err := filepath.Rel(baseAbs, resolvedOutPath)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("output path %q must be within configured output directory %q", outPath, base)
+		}
+	}
+
+	if err := os.MkdirAll(filepath.Dir(resolvedOutPath), 0o755); err != nil {
 		return fmt.Errorf("creating output directory: %w", err)
 	}
 
@@ -96,7 +111,7 @@ func (s *Synthesizer) Synthesize(ctx context.Context, text, voiceSamplePath, out
 	if sample != "" {
 		args = append(args, "--tts-speaker-file", sample)
 	}
-	args = append(args, "-o", outPath)
+	args = append(args, "-o", resolvedOutPath)
 
 	if _, err := s.run(ctx, bin, args...); err != nil {
 		return fmt.Errorf("tts synthesis failed: %w", err)
