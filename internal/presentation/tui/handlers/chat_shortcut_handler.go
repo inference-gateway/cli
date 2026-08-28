@@ -356,18 +356,14 @@ func (s *ChatShortcutHandler) handleShowOpentaskSetupSideEffect() tea.Msg {
 	return tui.TriggerOpentaskSetupEvent{}
 }
 
+// handleStartNewConversationSideEffect refreshes the view after /new or /clear.
+// The shortcut itself already switched the conversation in Execute, so this only
+// catches the UI up - starting another one here would leave an empty session
+// behind on every /clear.
 func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea.Msg {
 	title, ok := data.(string)
 	if !ok {
 		title = "New Conversation"
-	}
-
-	if err := s.handler.conversationRepo.StartNewConversation(title); err != nil {
-		return tui.SetStatusEvent{
-			Message:    fmt.Sprintf("Failed to start new conversation: %v", err),
-			Spinner:    false,
-			StatusType: tui.StatusDefault,
-		}
 	}
 
 	return tea.Batch(
