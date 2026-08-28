@@ -124,8 +124,22 @@ ghcr.io/inference-gateway/inference-gateway`, manual `docker pull`, etc.) when
 manually testing the CLI. `go run ./cmd/infer chat` and `go run ./cmd/infer headless <prompt>` are
 self-contained: the CLI auto-starts the local gateway and every `run: true`
 agent from `agents.yaml` (pulling images as needed) and tears them down on
-session end. Just run the command; the only manual inputs are the model flag
-(`-m provider/model`) and any `INFER_*` env overrides.
+session end. Run manual tests from the repo root — API keys are configured
+there and the gateway auto-start picks them up. Prefix with `flox activate --`
+so `go` is on PATH.
+
+For the headless path use:
+
+```bash
+flox activate -- go run ./cmd/infer/main.go headless --model deepseek/deepseek-v4-flash "<prompt>"
+```
+
+`-m`/`--model` is a **headless-only** flag; `infer chat` has no model flag —
+it uses the configured `agent.model` (override with `INFER_AGENT_MODEL=...`)
+or the in-TUI model picker. `--tools-bash-allow-append "<pattern>"` extends
+the bash allow-list for a single headless run (headless defaults to the
+read-only standard mode and blocks anything else). Other knobs ride the usual
+`INFER_*` env overrides.
 
 ### Driving the chat TUI via tmux
 
