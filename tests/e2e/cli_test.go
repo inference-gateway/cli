@@ -277,3 +277,44 @@ func TestChatPipedInputStreamsPlainText(t *testing.T) {
 	require.Len(t, reqs, 1)
 	require.True(t, reqs[0].Stream, "chat uses the SSE streaming path")
 }
+
+// TestHeadlessSlashCommands covers both halves of the non-interactive shortcut
+// contract: a command that answers by itself never reaches the model, and a
+// prompt-producing one runs its prompt rather than the literal "/name".
+func TestHeadlessSlashCommands(t *testing.T) {
+	t.Run("self-answering command skips the model", func(t *testing.T) {
+		m := startMock(t)
+
+		stdout, code := runAgent(t, m.URL, t.TempDir(), "/help")
+		require.Zero(t, code)
+		require.Empty(t, m.Requests(), "/help answers from the registry and must not call the model")
+
+		answer := strings.Join(contentsByRole(jsonLines(t, stdout), "assistant"), "\n")
+		require.Contains(t, answer, "/init - ", "the command list must name the registered shortcuts")
+	})
+
+	t.Run("prompt command runs its prompt", func(t *testing.T) {
+		m := startMock(t)
+
+		_, code := runAgent(t, m.URL, t.TempDir(), "/init")
+		require.Zero(t, code)
+		require.NotEmpty(t, m.Requests(), "/init produces a prompt, which must reach the model")
+
+		var sent strings.Builder
+		for _, msg := range m.Requests()[0].Body.Messages {
+			sent.WriteString(msg.Content.Text())
+		}
+		require.Contains(t, sent.String(), "AGENTS.md", "the model must receive the init prompt, not the literal /init")
+	})
+
+	t.Run("interactive-only command is reported, not sent", func(t *testing.T) {
+		m := startMock(t)
+
+		stdout, code := runAgent(t, m.URL, t.TempDir(), "/explorer")
+		require.Zero(t, code)
+		require.Empty(t, m.Requests(), "a TUI panel must not become a prompt")
+
+		answer := strings.Join(contentsByRole(jsonLines(t, stdout), "assistant"), "\n")
+		require.Contains(t, answer, "opens a panel in the chat TUI")
+	})
+}

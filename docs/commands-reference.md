@@ -366,6 +366,27 @@ for SCM tickets like GitHub issues, CI/CD pipelines, and automated workflows.
 - **Multiple output formats**: `--format json|ag-ui|text` for different consumption patterns
 - **Multimodal support**: Process images and files with vision-capable models
 - **Session resumption**: Resume previous sessions to continue work from where it left off
+- **Slash commands**: The chat shortcuts work here too - see below
+
+**Slash commands:**
+
+A task that starts with a registered shortcut runs that command instead of being sent
+to the model verbatim:
+
+- Commands that produce a prompt (`/init`, a custom shortcut with a snippet) run that
+  prompt as the task.
+- Commands that answer by themselves (`/help`, `/context`, `/cost`, `/stats`, `/traces`,
+  `/clear`, `/new`, `/compact`, custom shortcuts) print their output and exit without
+  calling a model.
+- Commands that only open a TUI panel (`/diff`, `/explorer`, `/tools`, `/conversations`)
+  say so and exit 0.
+- Anything else keeping a leading slash - a skill invocation like `/maintainer`, a file
+  path - is passed to the model unchanged.
+
+```bash
+infer headless "/init"      # writes AGENTS.md from the configured init prompt
+infer headless "/cost"      # prints the session cost breakdown, no model call
+```
 
 **Options:**
 

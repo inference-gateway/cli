@@ -29,6 +29,7 @@ import (
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -129,6 +130,12 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		return err
 	}
 
+	// Point the model service at the run's model: /context, /cost and /model all
+	// read the "current" model from it, and nothing else in headless sets it.
+	if err := svc.GetModelService().SelectModel(selectedModel); err != nil {
+		logger.Warn("failed to record the selected model", "model", selectedModel, "error", err)
+	}
+
 	if opts.Heartbeat && cfg.Prompts.Agent.SystemPromptHeartbeat != "" {
 		cfg.Prompts.Agent.SystemPrompt = cfg.Prompts.Agent.SystemPromptHeartbeat
 	}
@@ -176,7 +183,35 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		history = conversation.BuildAgentMessagesFromEntries(conversationRepo.GetMessages())
 	}
 
-	expanded, err := expandFileReferences(opts.Task, opts.Files, svc.GetFileService(), svc.GetImageService(), selectedModel)
+	deps := shortcuts.Deps{SessionID: sessionID}
+	if rolloverMgr != nil {
+		deps.Compact = func(ctx context.Context) (string, error) {
+			return compactSession(ctx, rolloverMgr, selectedModel, groupKey)
+		}
+	}
+
+	out, handled, err := shortcuts.Run(ctx, svc.GetShortcutRegistry(), opts.Task, deps)
+	if err != nil {
+		return err
+	}
+
+	task := opts.Task
+	switch {
+	case out.Prompt != "":
+		task = out.Prompt
+		if out.Model != "" {
+			selectedModel = out.Model
+		}
+	case handled:
+		rendered = true
+		err = emitCommandResult(opts.Format, conversationRepo, sessionID, selectedModel, cfg, out.Text)
+		if opts.ResultFile != "" {
+			writeResultFile(opts.ResultFile, conversationRepo, sessionID, err)
+		}
+		return err
+	}
+
+	expanded, err := expandFileReferences(task, opts.Files, svc.GetFileService(), svc.GetImageService(), selectedModel)
 	if err != nil {
 		return fmt.Errorf("failed to expand file references: %w", err)
 	}
@@ -219,16 +254,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		})
 	}
 	rendered = true
-	switch opts.Format {
-	case "json":
-		err = render.RenderJSON(renderEvents, os.Stdout, approvals, sessionID, selectedModel, cfg, conversationRepo)
-	case "json-pretty":
-		err = render.RenderJSONPretty(renderEvents, os.Stdout, approvals, sessionID, selectedModel, cfg, conversationRepo)
-	case "ag-ui":
-		err = render.RenderAGUI(renderEvents, os.Stdout, approvals, sessionID, selectedModel)
-	case "text":
-		err = render.RenderText(events, os.Stdout)
-	}
+	err = renderStream(opts.Format, renderEvents, approvals, sessionID, selectedModel, cfg, conversationRepo)
 
 	endSessionSpan(sessionOutcome(err))
 	rec.RecordSession("headless", sessionOutcome(err), time.Since(sessionStart))
@@ -257,6 +283,51 @@ func selectModel(models []string, modelFlag, defaultModel string) (string, error
 		return "", fmt.Errorf("default model %q not available. Available: %v", defaultModel, models)
 	}
 	return "", fmt.Errorf("no model specified; use --model or set agent.model in config")
+}
+
+// renderStream writes an event stream in the requested --format. Both an agent
+// run and a slash command's output go through it, so every format keeps the
+// same contract whichever produced the events.
+func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals <-chan ipc.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
+	switch format {
+	case "json":
+		return render.RenderJSON(events, os.Stdout, approvals, sessionID, model, cfg, repo)
+	case "json-pretty":
+		return render.RenderJSONPretty(events, os.Stdout, approvals, sessionID, model, cfg, repo)
+	case "ag-ui":
+		return render.RenderAGUI(events, os.Stdout, approvals, sessionID, model)
+	default:
+		return render.RenderText(events, os.Stdout)
+	}
+}
+
+// emitCommandResult reports a slash command that answered by itself - /context,
+// /clear, /help - as the assistant turn, the way the chat TUI records shortcut
+// output in the conversation. No model is called.
+func emitCommandResult(format string, repo convdomain.ConversationRepository, sessionID, model string, cfg *config.Config, text string) error {
+	if err := repo.AddMessage(convdomain.ConversationEntry{
+		Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent(text)},
+		Time:    time.Now(),
+	}); err != nil {
+		logger.Warn("failed to persist shortcut output", "error", err)
+	}
+
+	events := make(chan agentdomain.ChatEvent, 2)
+	events <- agentdomain.ChatChunkEvent{RequestID: sessionID, Timestamp: time.Now(), Content: text}
+	events <- agentdomain.ChatCompleteEvent{RequestID: sessionID, Timestamp: time.Now(), Message: text}
+	close(events)
+
+	return renderStream(format, events, nil, sessionID, model, cfg, repo)
+}
+
+// compactSession is /compact outside the TUI: the rollover manager already runs
+// the same optimizer-summarise-reseed the chat handler does.
+func compactSession(ctx context.Context, mgr *conversation.SessionRolloverManager, model, groupKey string) (string, error) {
+	newID, err := mgr.PerformRollover(ctx, model, groupKey)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Compacted the conversation into a new session with a summary: %s", newID), nil
 }
 
 func expandFileReferences(content string, files []string, fileSvc agentdomain.FileService, imageSvc agentdomain.ImageService, model string) (string, error) {
@@ -307,8 +378,6 @@ func expandFileReferences(content string, files []string, fileSvc agentdomain.Fi
 // honours --no-save, and returns prior history when resuming an existing
 // --session-id (empty when starting fresh or storage is not persistent).
 func prepareConversation(ctx context.Context, repo convdomain.ConversationRepository, sessionID string, resume, noSave bool) []sdk.Message {
-	// SetConversationID/SetAutoSave/LoadConversation are not on the port, so
-	// the concrete persistent repo is required. The container always injects it.
 	persistentRepo, ok := repo.(*conversation.PersistentConversationRepository)
 	if !ok {
 		return nil
