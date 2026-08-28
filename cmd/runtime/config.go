@@ -73,7 +73,7 @@ func resolveViperEnvironmentVariables(v *viper.Viper, cfg any, keyPrefix string)
 			}
 		case reflect.Slice:
 			if v.IsSet(key) && field.Type().Elem().Kind() == reflect.String {
-				field.Set(reflect.ValueOf(v.GetStringSlice(key)))
+				field.Set(reflect.ValueOf(stringSliceFromViper(v, key)))
 			}
 		case reflect.Pointer:
 			if !field.IsNil() && field.Elem().Kind() == reflect.Struct {
@@ -83,6 +83,16 @@ func resolveViperEnvironmentVariables(v *viper.Viper, cfg any, keyPrefix string)
 			resolveViperEnvironmentVariables(v, field.Addr().Interface(), key)
 		}
 	}
+}
+
+// stringSliceFromViper reads a []string key, comma-splitting a raw string
+// value: viper's GetStringSlice whitespace-splits env strings, which shreds
+// entries containing spaces (e.g. sandbox directory paths).
+func stringSliceFromViper(v *viper.Viper, key string) []string {
+	if raw, ok := v.Get(key).(string); ok {
+		return parseDelimitedList(raw)
+	}
+	return v.GetStringSlice(key)
 }
 
 // getEffectiveMCPConfigPath returns the path to the MCP config file
