@@ -56,6 +56,13 @@ type extMode struct {
 	Mode string `json:"mode"`
 }
 
+// extInterrupted tells the panel the current turn ended cancelled (terminal
+// Esc/Ctrl+C or the panel's own Stop), so it can clear its "Working" state
+// even when no TEXT_MESSAGE_END reaches it - e.g. a cancel mid tool call.
+type extInterrupted struct {
+	Type string `json:"type"`
+}
+
 type extApprovalRequest struct {
 	Type      string `json:"type"`
 	RequestID string `json:"request_id"`
@@ -733,6 +740,9 @@ func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
 				case agentdomain.ChatCompleteEvent:
 					if len(e.ToolCalls) == 0 || e.Cancelled {
 						b.activeRequestID.Store("")
+					}
+					if e.Cancelled {
+						b.write(conn, extInterrupted{Type: "interrupted"})
 					}
 				}
 				if req, isApproval := ev.(agentdomain.ToolApprovalRequestedEvent); isApproval {

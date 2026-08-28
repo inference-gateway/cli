@@ -173,8 +173,14 @@ TUI; a no-op when nothing is running):
 {"type": "interrupt"}
 ```
 
-The agent then emits its usual cancelled completion; the panel sees the stream
-end and no separate acknowledgement frame.
+Whenever a turn ends cancelled - whether stopped from the panel or from the
+terminal (`esc`/Ctrl+C) - the CLI sends an explicit frame so the panel can
+clear its working state even when the cancel happened mid tool call and no
+`TEXT_MESSAGE_END` chat event follows:
+
+```json
+{"type": "interrupted"}
+```
 
 ## Input history
 
