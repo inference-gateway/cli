@@ -130,8 +130,6 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		return err
 	}
 
-	// Point the model service at the run's model: /context, /cost and /model all
-	// read the "current" model from it, and nothing else in headless sets it.
 	if err := svc.GetModelService().SelectModel(selectedModel); err != nil {
 		logger.Warn("failed to record the selected model", "model", selectedModel, "error", err)
 	}
