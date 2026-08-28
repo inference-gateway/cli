@@ -323,6 +323,15 @@ func (c *NewShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 		c.taskTracker.ClearAllAgents()
 	}
 
+	if c.repo != nil {
+		if err := c.repo.StartNewConversation(title); err != nil {
+			return ShortcutResult{
+				Output:  fmt.Sprintf("Failed to start new conversation: %v", err),
+				Success: false,
+			}, nil
+		}
+	}
+
 	return ShortcutResult{
 		Output:     fmt.Sprintf("• Starting new conversation: %s", title),
 		Success:    true,
