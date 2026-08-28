@@ -15,6 +15,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	audio "github.com/inference-gateway/cli/internal/audio"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	project "github.com/inference-gateway/cli/internal/platform/project"
@@ -201,6 +202,10 @@ func (r *Registry) registerTools() {
 
 	if cfg.Tools.ImageVariation.Enabled && r.imageService != nil {
 		r.tools["ImageVariation"] = NewImageVariationTool(cfg, r.imageService)
+	}
+
+	if cfg.TextToSpeech.Enabled {
+		r.tools["TextToSpeech"] = NewTextToSpeechTool(cfg, audio.NewSynthesizer(cfg.TextToSpeech))
 	}
 
 	if cfg.IsA2AToolsEnabled() {
