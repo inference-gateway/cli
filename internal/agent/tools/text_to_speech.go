@@ -110,8 +110,6 @@ func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
 	if err := t.config.ValidatePathInSandbox(safePath); err != nil {
 		return "", err
 	}
-	// Resolve symlinks so a planted link cannot point the read outside the
-	// sandbox: validate the real target, then open that.
 	if resolved, err := filepath.EvalSymlinks(safePath); err == nil {
 		if err := t.config.ValidatePathInSandbox(resolved); err != nil {
 			return "", err
