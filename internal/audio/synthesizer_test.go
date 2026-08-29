@@ -5,8 +5,11 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -244,6 +247,57 @@ func TestWAVDurationSeconds(t *testing.T) {
 			t.Error("expected error for non-WAV content")
 		}
 	})
+}
+
+// TestEnsureModelsRefetchesTruncatedBackbone pins the review finding on issue
+// #1115: a half-downloaded model sitting in the cache (size differing from the
+// server copy) must be re-fetched instead of being handed to llama-tts forever.
+func TestEnsureModelsRefetchesTruncatedBackbone(t *testing.T) {
+	backbone, mmproj := ttsModelFiles("")
+	bodies := map[string]string{backbone: "backbone-gguf-bytes", mmproj: "mmproj-gguf-bytes"}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		body, ok := bodies[strings.TrimPrefix(req.URL.Path, "/")]
+		if !ok {
+			http.NotFound(w, req)
+			return
+		}
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		if req.Method == http.MethodHead {
+			return
+		}
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	for name, body := range bodies {
+		content := body
+		if name == backbone {
+			content = "trunc" // simulated truncated first fetch
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	m := NewTTSModelManager(config.TextToSpeechConfig{ModelsDir: dir, AutoDownload: true})
+	m.baseURL = srv.URL
+	m.client = srv.Client()
+
+	gotBackbone, gotMmproj, err := m.EnsureModels(context.Background())
+	if err != nil {
+		t.Fatalf("EnsureModels: %v", err)
+	}
+	if gotBackbone != filepath.Join(dir, backbone) || gotMmproj != filepath.Join(dir, mmproj) {
+		t.Errorf("EnsureModels = (%q, %q), want files inside %q", gotBackbone, gotMmproj, dir)
+	}
+	data, err := os.ReadFile(gotBackbone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != bodies[backbone] {
+		t.Errorf("backbone content = %q, want %q (truncated cache entry was kept)", data, bodies[backbone])
+	}
 }
 
 // writeTestWAV writes a minimal valid 16-bit mono PCM WAV.

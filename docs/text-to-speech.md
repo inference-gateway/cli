@@ -103,6 +103,10 @@ minimal background noise, no music.
 - **"ffmpeg not found"** - install ffmpeg or set `text_to_speech.ffmpeg_path`.
 - **"tts model ... not found ... auto_download is disabled"** - either enable
   `auto_download` or place the backbone and mmproj GGUFs in `models_dir`.
+- **Suspect a corrupt or half-downloaded model** - with `auto_download: true`
+  cached models are size-checked against the server before each synthesis and
+  anything truncated is re-downloaded automatically; delete the offending file
+  under `~/.infer/models/tts/` to force a fresh download manually.
 - **Slow first call** - the models download once (~1 GB by default);
   subsequent runs use the cache.
 - **Clone sounds wrong** - use a cleaner/longer reference sample (10-30s of

@@ -3,7 +3,6 @@ package audio
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -67,16 +66,18 @@ func (m *ModelManager) modelURL() string {
 }
 
 // EnsureModel returns the local path to the model file, downloading it on first
-// use when AutoDownload is enabled. Downloads are cached; an existing file is
-// returned as-is.
+// use when AutoDownload is enabled. A cached file whose size no longer matches
+// the server's copy (truncated/corrupt download) is re-fetched; when the size
+// cannot be checked (e.g. offline) the cache is used as-is.
 func (m *ModelManager) EnsureModel(ctx context.Context) (string, error) {
 	dir, err := m.modelsDir()
 	if err != nil {
 		return "", err
 	}
+	url := m.modelURL()
 	path := filepath.Join(dir, modelFileName(m.cfg.Model))
 
-	if _, err := os.Stat(path); err == nil {
+	if _, err := os.Stat(path); err == nil && !cachedModelStale(ctx, m.client, url, path, m.cfg.AutoDownload) {
 		return path, nil
 	}
 
@@ -88,48 +89,8 @@ func (m *ModelManager) EnsureModel(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("creating models directory: %w", err)
 	}
 
-	if err := m.download(ctx, m.modelURL(), path); err != nil {
+	if err := downloadToFile(ctx, m.client, url, path, "whisper model"); err != nil {
 		return "", err
 	}
 	return path, nil
-}
-
-// download fetches url into dstPath atomically (download to a temp file, then
-// rename) so an interrupted download never leaves a half-written model behind.
-func (m *ModelManager) download(ctx context.Context, url, dstPath string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return fmt.Errorf("creating request for %s: %w", url, err)
-	}
-	req.Header.Set("User-Agent", "inference-gateway-cli")
-
-	resp, err := m.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("downloading whisper model: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("downloading whisper model: status %d from %s", resp.StatusCode, url)
-	}
-
-	tmp, err := os.CreateTemp(filepath.Dir(dstPath), ".ggml-*.partial")
-	if err != nil {
-		return fmt.Errorf("creating temp file: %w", err)
-	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
-
-	if _, err := io.Copy(tmp, resp.Body); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("writing whisper model: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("closing whisper model: %w", err)
-	}
-
-	if err := os.Rename(tmpName, dstPath); err != nil {
-		return fmt.Errorf("finalizing whisper model: %w", err)
-	}
-	return nil
 }
