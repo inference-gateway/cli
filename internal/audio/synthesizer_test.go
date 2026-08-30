@@ -180,7 +180,6 @@ func TestSynthesizeVoiceClone(t *testing.T) {
 		t.Errorf("voice clone must pass --tts-speaker-file, got %q", calls[1])
 	}
 
-	// The normalized temp sample is removed after synthesis.
 	var samplePath string
 	for _, call := range calls {
 		fields := strings.Fields(call)
