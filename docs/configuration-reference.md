@@ -94,11 +94,7 @@ gateway:
   run: true    # Automatically run the gateway (enabled by default)
   docker: true  # Use Docker mode by default (set to false for binary mode)
   include_models: []  # Optional: only allow specific models (allowlist)
-  exclude_models:
-    - ollama_cloud/cogito-2.1:671b
-    - ollama_cloud/kimi-k2:1t
-    - ollama_cloud/kimi-k2-thinking
-    - ollama_cloud/deepseek-v3.1:671b # Block specific models by default
+  exclude_models: []  # Optional: blocklist of specific models (opt-in; the picker already hides non-chat models by modalities)
 client:
   timeout: 200
   stall_threshold_sec: 30
@@ -271,6 +267,12 @@ compact:
   - Example: `["deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-flash"]`
   - This is passed to the gateway as the `ALLOWED_MODELS` environment variable
 - **gateway.exclude_models**: Block specific models (blocklist approach, default: `[]`, blocks none)
+  - The model picker itself lists only chat-capable models: it filters on the modalities the gateway
+    reports (models that accept text input and produce text output), so speech-to-text
+    (e.g. `groq/whisper-*`), text-to-speech (e.g. `groq/playai-tts*`), and image-generation models
+    are hidden without any configuration
+  - Opt-in only: `exclude_models` starts empty and is a user knob for hiding specific models the
+    gateway reports (large or costly chat models, for example) - there is no shipped default blocklist
   - When set, all models are allowed except those in the list
   - Example: `["openai/gpt-4", "anthropic/claude-4-opus"]`
   - This is passed to the gateway as the `DISALLOWED_MODELS` environment variable
