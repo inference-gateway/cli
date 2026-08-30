@@ -143,9 +143,9 @@ func (s *sqlStore) loadConversationMetadata(ctx context.Context, conversationID 
 	var titleGenerationTime sql.NullTime
 
 	err := s.db.QueryRowContext(ctx, s.rebind(`
-		SELECT id, title, count, messages, total_input_tokens, total_output_tokens,
+		SELECT id, project, title, count, messages, total_input_tokens, total_output_tokens,
 		       request_count, cost_stats, models, tags, title_generated, title_invalidated, title_generation_time,
-		       created_at, updated_at, project
+		       created_at, updated_at
 		FROM conversations WHERE id = ?
 	`), conversationID).Scan(
 		&metadata.ID, &metadata.Project, &metadata.Title, &metadata.MessageCount,

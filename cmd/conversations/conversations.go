@@ -54,6 +54,7 @@ Examples:
 	listCommand.Flags().IntP("limit", "l", 50, "Maximum number of conversations to display")
 	listCommand.Flags().Int("offset", 0, "Number of conversations to skip (for pagination)")
 	listCommand.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	listCommand.Flags().Bool("all-projects", false, "List conversations across all projects instead of only the current one")
 
 	deleteCommand := &cobra.Command{
 		Use:   "delete <session-id>",

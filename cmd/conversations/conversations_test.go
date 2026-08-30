@@ -481,6 +481,16 @@ func TestToConversationShowEntry_Multimodal(t *testing.T) {
 	}
 }
 
+func TestConversationsListCmd_AllProjectsFlag(t *testing.T) {
+	command, _, err := NewCommand(runtime.NewState(), output.NewRenderer()).Find([]string{"list"})
+	if err != nil {
+		t.Fatalf("find list command: %v", err)
+	}
+	if cmd := command.Flags().Lookup("all-projects"); cmd == nil {
+		t.Error("expected list to register the --all-projects flag")
+	}
+}
+
 func TestConversationsDeleteCmd_Definition(t *testing.T) {
 	command, _, err := NewCommand(runtime.NewState(), output.NewRenderer()).Find([]string{"delete"})
 	if err != nil {
