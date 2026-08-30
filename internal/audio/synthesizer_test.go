@@ -273,7 +273,7 @@ func TestEnsureModelsRefetchesTruncatedBackbone(t *testing.T) {
 	for name, body := range bodies {
 		content := body
 		if name == backbone {
-			content = "trunc" // simulated truncated first fetch
+			content = "trunc"
 		}
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
 			t.Fatal(err)

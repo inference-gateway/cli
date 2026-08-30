@@ -76,9 +76,6 @@ func (s *Synthesizer) Synthesize(ctx context.Context, text, voiceSamplePath, out
 		return fmt.Errorf("resolving output path: %w", err)
 	}
 
-	// Path confinement is the caller's contract: the TextToSpeech tool resolves
-	// every output to a bare file name inside the configured output directory.
-
 	if err := os.MkdirAll(filepath.Dir(resolvedOutPath), 0o755); err != nil {
 		return fmt.Errorf("creating output directory: %w", err)
 	}
@@ -215,8 +212,6 @@ func WAVDurationSeconds(path string) (float64, error) {
 		size := binary.LittleEndian.Uint32(chunk[4:8])
 		switch string(chunk[0:4]) {
 		case "fmt ":
-			// ponytail: bounds the allocation below; a hostile header cannot
-			// make us allocate gigabytes. Real fmt chunks are 16-40 bytes.
 			if size < 16 || size > 4096 {
 				return 0, fmt.Errorf("invalid wav fmt chunk size %d: %s", size, path)
 			}

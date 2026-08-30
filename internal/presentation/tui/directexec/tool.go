@@ -209,8 +209,6 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 				Status:     "running",
 				Message:    message,
 			}
-			// Never block the tool on a UI that is behind: a dropped progress
-			// tick costs nothing, a stalled download costs the user minutes.
 			select {
 			case eventChan <- progress:
 			default:

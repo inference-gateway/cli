@@ -88,8 +88,6 @@ func (r *Recorder) startToolSpan(ctx context.Context, toolName string) (context.
 	if toolCallID := agentdomain.GetToolCallID(ctx); toolCallID != "" {
 		attrs = append(attrs, attribute.String("gen_ai.tool.call.id", toolCallID))
 	}
-	// Mark user-typed `!!` runs so a trace tree distinguishes them from the
-	// model's own calls - otherwise the two are indistinguishable after the fact.
 	if agentdomain.IsDirectExecution(ctx) {
 		attrs = append(attrs, attribute.Bool("infer.tool.direct", true))
 	}
