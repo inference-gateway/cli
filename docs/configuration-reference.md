@@ -100,7 +100,7 @@ client:
     retryable_status_codes: [408, 429, 500, 502, 503, 504]
 logging:
   debug: false
-  dir: "" # Override log directory (defaults to <config-dir>/logs)
+  dir: "" # Override log directory (defaults to ~/.infer/logs)
   stdout: false # Also write logs to stdout/stderr in addition to the log file
   archive:
     enabled: true # Automatically archive oversized log files (default: true)
@@ -283,7 +283,7 @@ compact:
 ### Logging Settings
 
 - **logging.debug**: Enable debug logging for verbose output
-- **logging.dir**: Override the log directory (defaults to `<config-dir>/logs`)
+- **logging.dir**: Override the log directory (defaults to `~/.infer/logs`)
 - **logging.stdout**: Also write logs to stdout/stderr in addition to the log file (default: `false`)
 - **logging.archive.enabled**: Enable automatic log archiving (default: `true`).
   When enabled, log files exceeding the size threshold are gzip-compressed and
@@ -672,7 +672,7 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 ### Logging Configuration
 
 - `INFER_LOGGING_DEBUG`: Enable debug logging (default: `false`)
-- `INFER_LOGGING_DIR`: Log directory path (default: `.infer/logs`)
+- `INFER_LOGGING_DIR`: Log directory path (default: `~/.infer/logs`)
 - `INFER_LOGGING_STDOUT`: Also write logs to stdout/stderr (default: `false`)
 
 ### Agent Configuration

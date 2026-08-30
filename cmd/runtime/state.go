@@ -58,7 +58,7 @@ func (s *State) Initialize(root *cobra.Command) error {
 
 	logDir := v.GetString("logging.dir")
 	if logDir == "" {
-		logDir = config.DefaultLogsPath
+		logDir = config.DefaultLogsDir()
 	}
 	s.loggerCfg = logger.Config{
 		Verbose:          v.GetBool("verbose"),
@@ -82,11 +82,6 @@ func (s *State) DisableStdoutLogging() {
 }
 
 func (s *State) ConfigureDaemonLogging() {
-	if s.v.GetString("logging.dir") == "" {
-		if home, err := os.UserHomeDir(); err == nil {
-			s.loggerCfg.LogDir = filepath.Join(home, config.ConfigDirName, config.LogsDirName)
-		}
-	}
 	s.loggerCfg.FilePrefix = "daemon"
 	s.loggerCfg.Stdout = true
 	logger.Init(s.loggerCfg)

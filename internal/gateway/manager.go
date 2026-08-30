@@ -249,13 +249,16 @@ func (gm *Manager) killGateway() {
 	}
 }
 
+// inferHomeDir returns a path under the userspace ~/.infer directory.
+// $HOME is always set on supported platforms; no project-relative fallback.
+func inferHomeDir(part string) string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, config.ConfigDirName, part)
+}
+
 // inferRunDir returns the runtime state directory (~/.infer/run).
 func (gm *Manager) inferRunDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".infer", "run")
-	}
-	return filepath.Join(home, ".infer", "run")
+	return inferHomeDir("run")
 }
 
 // pidsDir returns the consumer PID registry directory (~/.infer/run/pids).
@@ -574,7 +577,7 @@ func (gm *Manager) isBinaryRunning() bool {
 // GitHub, authenticating the API call with GITHUB_TOKEN/GH_TOKEN when
 // available to avoid the 60 req/hour unauthenticated rate limit
 func (gm *Manager) downloadBinary(ctx context.Context) (string, error) {
-	binaryDir := filepath.Join(".infer", "bin")
+	binaryDir := inferHomeDir("bin")
 	if err := os.MkdirAll(binaryDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create binary directory: %w", err)
 	}
@@ -901,7 +904,10 @@ func (gm *Manager) runBinary(binaryPath string) error {
 
 // configureGatewayOutput sets up stdout/stderr redirection for the gateway binary
 func (gm *Manager) configureGatewayOutput(cmd *exec.Cmd) error {
-	logDir := filepath.Join(".infer", "logs")
+	logDir := gm.config.Logging.Dir
+	if logDir == "" {
+		logDir = config.DefaultLogsDir()
+	}
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return fmt.Errorf("failed to create gateway log directory: %w", err)
 	}
