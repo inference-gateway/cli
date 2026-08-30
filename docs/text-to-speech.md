@@ -20,7 +20,7 @@ binary):
 
 | Tool | Used for | Install |
 | --- | --- | --- |
-| `llama-tts` | Synthesis | Build the `llama-tts` target from [llama.cpp](https://github.com/ggml-org/llama.cpp) or set `text_to_speech.binary_path` |
+| `llama-tts` | Synthesis | Build the `llama-tts` target from [llama.cpp](https://github.com/ggml-org/llama.cpp) or set `text_to_speech.binary_path`. **Needs a build with `qwen3tts` architecture support** - see below |
 | `ffmpeg` | Normalizing the voice sample (16kHz mono WAV, capped at 30s) | macOS: `brew install ffmpeg` · Debian/Ubuntu: `apt install ffmpeg` |
 
 ffmpeg is only needed for voice cloning (stock-voice synthesis passes text
@@ -31,6 +31,21 @@ error naming what to install - it never fails silently.
 
 Building `llama-tts` from llama.cpp is one cmake invocation, e.g.
 `cmake -B build -DGGML_NATIVE=ON && cmake --build build --target llama-tts`.
+
+### llama.cpp version
+
+Qwen3-TTS needs a recent llama.cpp: the build must know the `qwen3tts` model
+architecture *and* accept `-mm/--mmproj` for the `llama-tts` tool (upstream
+added `LLAMA_EXAMPLE_TTS` to that flag's example list). Older packaged builds -
+Homebrew's `llama.cpp` at build `10210`, for instance - satisfy neither and
+fail with the two errors listed under Troubleshooting. Build from a current
+checkout of master, or upgrade your package (`brew upgrade llama.cpp`), and
+verify with:
+
+```console
+$ llama-tts --help | grep -- --mmproj
+-mm,   --mmproj FILE                    path to a multimodal projector file.
+```
 
 ## Enabling
 
@@ -100,6 +115,11 @@ minimal background noise, no music.
 
 - **"llama-tts binary not found"** - install llama.cpp with TTS support
   (build the `llama-tts` target) or set `text_to_speech.binary_path`.
+- **"error: invalid argument: -mm"** - your `llama-tts` predates mmproj support
+  for the TTS tool. Upgrade llama.cpp (see [llama.cpp version](#llamacpp-version)).
+- **"unknown model architecture: 'qwen3tts'"** - same cause, one layer down:
+  the build cannot load the Qwen3-TTS GGUF at all. Upgrade llama.cpp. The
+  downloaded models under `~/.infer/models/tts/` are fine and are reused.
 - **"ffmpeg not found"** - install ffmpeg or set `text_to_speech.ffmpeg_path`.
 - **"tts model ... not found ... auto_download is disabled"** - either enable
   `auto_download` or place the backbone and mmproj GGUFs in `models_dir`.
@@ -107,8 +127,9 @@ minimal background noise, no music.
   cached models are size-checked against the server before each synthesis and
   anything truncated is re-downloaded automatically; delete the offending file
   under `~/.infer/models/tts/` to force a fresh download manually.
-- **Slow first call** - the models download once (~1 GB by default);
-  subsequent runs use the cache.
+- **Slow first call** - the models download once (~1.4 GB by default). The
+  status line reports download progress while this happens; subsequent runs
+  use the cache.
 - **Clone sounds wrong** - use a cleaner/longer reference sample (10-30s of
   clean single-speaker speech) and consider the `q8` or `bf16` model preset.
 - **Timeouts on long text** - raise `timeout`; long passages synthesize in
