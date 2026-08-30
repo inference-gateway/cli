@@ -72,9 +72,13 @@ func TestHTTPModelService_ValidateModel(t *testing.T) {
 			if tt.listErr != nil {
 				fake.ListModelsReturns(nil, tt.listErr)
 			} else {
+				chatMods := sdk.ModelModalities{
+					Input:  []sdk.Modality{sdk.ModalityText},
+					Output: []sdk.Modality{sdk.ModalityText},
+				}
 				data := make([]sdk.Model, 0, len(tt.fetchedIDs))
 				for _, id := range tt.fetchedIDs {
-					data = append(data, sdk.Model{ID: id})
+					data = append(data, sdk.Model{ID: id, Modalities: &chatMods})
 				}
 				fake.ListModelsReturns(&sdk.ListModelsResponse{Object: "list", Data: data}, nil)
 			}

@@ -267,10 +267,12 @@ compact:
   - Example: `["deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-flash"]`
   - This is passed to the gateway as the `ALLOWED_MODELS` environment variable
 - **gateway.exclude_models**: Block specific models (blocklist approach, default: `[]`, blocks none)
-  - The model picker itself lists only chat-capable models: it filters on the modalities the gateway
-    reports (models that accept text input and produce text output), so speech-to-text
-    (e.g. `groq/whisper-*`), text-to-speech (e.g. `groq/playai-tts*`), and image-generation models
-    are hidden without any configuration
+  - The model picker itself lists only chat-capable models: it keeps a model only when the gateway
+    reports modalities for it *and* those modalities are text in, text out. Speech-to-text
+    (e.g. `groq/whisper-*`), text-to-speech (e.g. `openai/tts-*`, `groq/playai-tts*`),
+    image-generation and embedding models are hidden without any configuration
+  - A model the gateway reports no modalities for (`"modalities": null`) is treated as not
+    chat-capable and hidden too, since that is how most speech and embedding models arrive
   - Opt-in only: `exclude_models` starts empty and is a user knob for hiding specific models the
     gateway reports (large or costly chat models, for example) - there is no shipped default blocklist
   - When set, all models are allowed except those in the list

@@ -22,12 +22,17 @@ func TestHTTPModelService_ListModelsPublishesMetadata(t *testing.T) {
 	defer setGatewayPricing(nil)
 
 	cache := "0.00000025"
+	chatMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText},
+		Output: []sdk.Modality{sdk.ModalityText},
+	}
 	fake := &sdkmocks.FakeClient{}
 	fake.ListModelsReturns(&sdk.ListModelsResponse{
 		Object: "list",
 		Data: []sdk.Model{
 			{
 				ID:            "prov/metadata-model",
+				Modalities:    &chatMods,
 				ContextWindow: &sdk.ContextWindow{Tokens: 424242, Source: sdk.ContextWindowSourceProvider},
 				Pricing: &sdk.Pricing{
 					InputPerToken:     "0.0000025",
@@ -37,7 +42,7 @@ func TestHTTPModelService_ListModelsPublishesMetadata(t *testing.T) {
 					Source:            sdk.PricingSourceProvider,
 				},
 			},
-			{ID: "prov/bare-model"},
+			{ID: "prov/bare-model", Modalities: &chatMods},
 		},
 	}, nil)
 
@@ -106,11 +111,12 @@ func TestHTTPModelService_ListModelsFiltersNonChatModels(t *testing.T) {
 	assert.Equal(t, []string{"deepseek/deepseek-v4-flash"}, ids)
 }
 
-// TestHTTPModelService_ListModelsKeepsUnknownModalities verifies that models
-// whose modalities the gateway does not report (nil) or reports as empty stay
-// selectable: the chat-capability filter must never empty the picker for
-// providers that do not populate the field.
-func TestHTTPModelService_ListModelsKeepsUnknownModalities(t *testing.T) {
+// TestHTTPModelService_ListModelsDropsUnknownModalities verifies that models
+// whose modalities the gateway does not report (nil) or reports as empty are
+// hidden: the gateway reports "modalities": null for most of its catalog
+// (speech, embedding and moderation models included), so an unreported
+// capability is treated as "cannot chat" rather than kept on trust.
+func TestHTTPModelService_ListModelsDropsUnknownModalities(t *testing.T) {
 	defer models.SetGatewayModalities(nil)
 
 	emptyMods := sdk.ModelModalities{}
@@ -127,7 +133,7 @@ func TestHTTPModelService_ListModelsKeepsUnknownModalities(t *testing.T) {
 	svc := NewHTTPModelService(fake)
 	ids, err := svc.ListModels(context.Background())
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"prov/nil-modalities", "prov/empty-modalities"}, ids)
+	assert.Empty(t, ids)
 }
 
 // TestHTTPModelService_ListModelsKeepsVisionModels verifies that models with
