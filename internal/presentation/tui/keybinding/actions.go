@@ -333,7 +333,7 @@ func handleTabKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 // handleImagePaste processes clipboard image data and adds it as an attachment
 func handleImagePaste(app KeyHandlerContext, imageService agentdomain.ImageService, inputView tui.InputComponent, imageData []byte) bool {
 	timestamp := time.Now().Format("20060102-150405")
-	tmpDir := filepath.Join(app.GetConfigDir(), "tmp")
+	tmpDir := config.ProjectTmpDir()
 
 	if err := os.MkdirAll(tmpDir, 0755); err != nil {
 		logger.Warn("failed to create tmp directory", "path", tmpDir, "error", err)

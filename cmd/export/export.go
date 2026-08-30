@@ -10,6 +10,7 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
+	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -68,7 +69,7 @@ func runExport(state *runtime.State, sessionID string) error {
 
 	outputDir := cfg.Export.OutputDir
 	if outputDir == "" {
-		outputDir = ".infer"
+		outputDir = filepath.Join(config.ProjectRuntimeDir(), "exports")
 	}
 
 	if err := os.MkdirAll(outputDir, 0755); err != nil {

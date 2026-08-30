@@ -139,7 +139,8 @@ it recognises the intent:
    (`tools.image_generation.model`, default `openai/gpt-image-2`) - no system
    prompt, no tools
 3. The returned image is decoded (base64 payload) or downloaded (URL), written to
-   `.infer/tmp/image-<timestamp>.png`, and the saved path is returned
+   `~/.infer/projects/<project-slug>/tmp/image-<timestamp>.png`, and the saved path is
+   returned
 
 Editing and variations work the same way. Ask to edit an existing image and the
 chat model calls the `ImageEdit` tool, which reads the image from a local file

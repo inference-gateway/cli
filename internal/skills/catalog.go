@@ -315,10 +315,11 @@ func (c *CatalogClient) ResolveInstallURL(ctx context.Context, input string) (st
 }
 
 // dynamicSkillsDir returns the directory where dynamically downloaded skills
-// are stored. It lives under the project's .infer/tmp/skills/ so it is
-// ephemeral and cleaned up after the session.
+// are stored. It lives under the project's runtime tmp dir
+// (~/.infer/projects/<project-slug>/tmp/skills) so it is ephemeral and
+// cleaned up after the session.
 func dynamicSkillsDir() (string, error) {
-	base := filepath.Join(config.ConfigDirName, "tmp", "skills")
+	base := filepath.Join(config.ProjectTmpDir(), "skills")
 	abs, err := filepath.Abs(base)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve dynamic skills dir: %w", err)

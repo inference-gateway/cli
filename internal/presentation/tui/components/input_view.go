@@ -93,10 +93,10 @@ func NewInputView(modelService convdomain.ModelService) *InputView {
 // NewInputViewWithName creates the input view. The main agent's history
 // (name == "") goes through the storage backend when a store is provided;
 // named subagent histories and the no-store fallback stay file-based under
-// <configDir>/history/.
+// the project runtime dir (<configDir>/history/).
 func NewInputViewWithName(modelService convdomain.ModelService, configDir, name string, store storage.ShellHistoryStorage) *InputView {
 	if configDir == "" {
-		configDir = ".infer"
+		configDir = config.ProjectRuntimeDir()
 	}
 
 	var historyManager *history.HistoryManager

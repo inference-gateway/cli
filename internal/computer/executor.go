@@ -269,7 +269,7 @@ func (e *Executor) screenshot(ctx context.Context, controller display.DisplayCon
 		return fmt.Errorf("failed to encode screenshot: %w", err)
 	}
 
-	path := filepath.Join(e.cfg.GetConfigDir(), "tmp", "screenshots", fmt.Sprintf("computer-%d.jpeg", time.Now().UnixNano()))
+	path := filepath.Join(config.ProjectTmpDir(), "screenshots", fmt.Sprintf("computer-%d.jpeg", time.Now().UnixNano()))
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		path = ""
 	} else if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {

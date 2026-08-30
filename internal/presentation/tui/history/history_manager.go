@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -17,9 +18,10 @@ type HistoryManager struct {
 	allHistory      []string
 }
 
-// NewHistoryManager creates a new history manager
+// NewHistoryManager creates a new history manager rooted at the per-project
+// runtime dir (~/.infer/projects/<project-slug>/history).
 func NewHistoryManager(maxInMemory int) (*HistoryManager, error) {
-	return NewHistoryManagerWithName(maxInMemory, ".infer", "")
+	return NewHistoryManagerWithName(maxInMemory, config.ProjectRuntimeDir(), "")
 }
 
 // NewHistoryManagerWithName creates a new history manager with a custom config directory

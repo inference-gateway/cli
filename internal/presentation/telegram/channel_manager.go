@@ -459,7 +459,7 @@ func (cm *ChannelManagerService) getSenderMutex(key string) *sync.Mutex {
 
 // imageBaseDir is the root directory for session images. Tests may override this
 // to use t.TempDir() so no files leak into the working tree.
-var imageBaseDir = filepath.Join(config.ConfigDirName, "tmp", "channel-images")
+var imageBaseDir = filepath.Join(config.ProjectTmpDir(), "channel-images")
 
 // sessionImageDir returns the directory for storing session images under <imageBaseDir>/<sessionID>/.
 func sessionImageDir(sessionID string) string {

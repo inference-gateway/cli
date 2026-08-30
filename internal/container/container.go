@@ -192,10 +192,6 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 
 	cfg.SetConfigDir(config.ResolveConfigDir())
 
-	if err := config.EnsureProjectGitignore(); err != nil {
-		logger.Warn("failed to ensure project .infer/.gitignore", "error", err)
-	}
-
 	if cfg.Gateway.Mock {
 		container.startMockGateway()
 	}

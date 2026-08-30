@@ -54,13 +54,7 @@ for the full precedence rules.
 │   ├── shells.yaml
 │   ├── export.yaml
 │   └── a2a.yaml
-├── skills/               # Agent Skills - SKILL.md folders, see docs/skills.md
-├── .gitignore            # ignores the runtime-generated files below
-│
-│   # --- created at runtime, not by `infer init` ---
-├── tmp/                  # scratch space for tools (exports, streamed writes, ...)
-├── plans/                # plan-mode plans saved by RequestPlanApproval (one .md per plan)
-└── history               # chat input history (one entry per line)
+└── skills/               # Agent Skills - SKILL.md folders, see docs/skills.md
 
 .agents/                  # open-standard project layer (cross-tool skills)
 └── skills/               # Agent Skills - SKILL.md folders (read-only discovery)
@@ -69,11 +63,18 @@ for the full precedence rules.
 ~/.infer/                 # userspace layer - same set of config files,
                           # plus these runtime extras:
 ├── schedules/            # cron-driven scheduled jobs (one YAML per job)
+├── plans/                # plan-mode plans saved by RequestPlanApproval (one .md per plan)
 ├── logs/                 # CLI + gateway logs (app/debug/daemon/gateway <date>.log)
 ├── bin/                  # downloaded gateway binary, one shared copy per machine
 ├── conversations.db      # shared SQLite conversation store (type: sqlite)
-└── projects/             # per-project JSONL conversation stores (type: jsonl)
-    └── <project-slug>/conversations/
+└── projects/             # per-project runtime state, grouped by project
+    └── <project-slug>/
+        ├── conversations/  # JSONL conversation stores (type: jsonl)
+        ├── history/        # chat input history (one entry per line)
+        ├── backups/        # file-write tool backups
+        ├── tmp/            # scratch space (streamed writes, dynamic skills, ...)
+        ├── artifacts/      # agent deliverables (images, downloads, ...)
+        └── exports/        # `infer export` chat markdown exports
 ```
 
 ---
@@ -110,8 +111,6 @@ them exist in both layers (project and userspace).
 - **`skills/`** - Agent Skills directory. Drop a `SKILL.md` folder here (or
   into the cross-tool `.agents/skills/` open standard) to extend the agent.
   See [Skills](skills.md).
-- **`.gitignore`** - pre-populated to exclude the runtime-generated files
-  below.
 
 The split into separate YAML files (rather than one giant `config.yaml`) is
 deliberate: each concern has its own file so changes stay focused and
@@ -122,7 +121,9 @@ reviews stay readable.
 ## Created at Runtime
 
 These are written by the CLI as you use it - `infer init` does **not**
-create them, and the seeded `.gitignore` already excludes them.
+create them. They are runtime output, not configuration, so they default to
+`~/.infer/projects/<project-slug>/` (grouped by project) and never land in
+the project-local `.infer/`.
 
 - **`~/.infer/conversations.db`** *(userspace)* - shared SQLite conversation store, active
   when `storage.type: sqlite`. See
@@ -131,23 +132,34 @@ create them, and the seeded `.gitignore` already excludes them.
   active when `storage.type: jsonl`. One file per conversation.
 - **`~/.infer/logs/`** *(userspace)* - debug and error logs (CLI and gateway).
   Path configurable via `logging.dir` / `INFER_LOGGING_DIR`.
-- **`tmp/`** *(project)* - scratch space for tools (Write streaming chunks,
-  exports, ...). Safe to delete when the CLI is idle.
-- **`history`** *(project)* - chat input history, one command per line.
+- **`~/.infer/projects/<project-slug>/tmp/`** - scratch space for tools
+  (Write streaming chunks, dynamic skills, clipboard images, screenshots,
+  ...). Safe to delete when the CLI is idle.
+- **`~/.infer/projects/<project-slug>/history/history`** - chat input
+  history, one command per line (per-agent files: `history-<name>`).
   Powers inline auto-completion.
-- **`plans/<timestamp>-<slug>.md`** *(project)* - plans persisted by the
-  `RequestPlanApproval` tool when the agent runs in [Plan Mode](plan-mode.md).
-  Both accepted and rejected plans are kept as an audit trail.
-- **`schedules/<id>.yaml`** *(userspace)* - one YAML per scheduled job.
-  Written by the `Schedule` tool, hot-reloaded by the daemon
+- **`~/.infer/projects/<project-slug>/backups/`** - file backups created by
+  the Write/Edit tools before overwriting an existing file.
+- **`~/.infer/projects/<project-slug>/artifacts/`** - agent deliverables
+  (generated images, downloads, A2A artifacts), grouped per session.
+- **`~/.infer/projects/<project-slug>/exports/`** - `chat_export_*.md`
+  files written by `infer export` (default when `export.output_dir` is
+  unset).
+- **`~/.infer/plans/<timestamp>-<slug>.md`** *(userspace)* - plans persisted
+  by the `RequestPlanApproval` tool when the agent runs in
+  [Plan Mode](plan-mode.md). Both accepted and rejected plans are kept as
+  an audit trail.
+- **`~/.infer/schedules/<id>.yaml`** *(userspace)* - one YAML per scheduled job.
+  Written by the `Schedule` tool, hot-reloaded by the
   daemon. See [Scheduling](scheduling.md).
 
 ---
 
 ## What to Commit, What to Ignore
 
-The seeded `.gitignore` (inside `.infer/`) already excludes the runtime
-files. The general guidance:
+Configuration is project-shareable; the runtime artifacts above live under
+`~/.infer/projects/` and are never written to the project directory. The
+general guidance:
 
 **Commit** (project-shareable configuration):
 
@@ -155,7 +167,6 @@ files. The general guidance:
   `channels.yaml`, `computer_use.yaml`, `browser_use.yaml`, `agents.yaml`,
   `mcp.yaml`
 - `.infer/shortcuts/`
-- `.infer/.gitignore`
 
 **Don't commit** (machine-local or contains secrets):
 

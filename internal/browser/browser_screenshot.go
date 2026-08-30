@@ -95,7 +95,7 @@ func (t *BrowserScreenshotTool) Validate(map[string]any) error {
 // retention-managed scratch dir the computer-use screenshot server uses and
 // which is carved out of the tool sandbox so ImageDecode can read it back.
 func (t *BrowserScreenshotTool) persistScreenshot(data []byte) (string, error) {
-	dir := filepath.Join(t.config.GetConfigDir(), "tmp", "screenshots")
+	dir := filepath.Join(config.ProjectTmpDir(), "screenshots")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}

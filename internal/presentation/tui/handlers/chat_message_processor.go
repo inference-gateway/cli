@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
@@ -27,7 +29,7 @@ var issueRefRe = regexp.MustCompile(`(^|\s)#([0-9]+)\b`)
 
 // dynamicSkillsDirDisplay is the session-scoped directory catalog skills are
 // downloaded into; it is wiped when the session ends.
-const dynamicSkillsDirDisplay = ".infer/tmp/skills/"
+var dynamicSkillsDirDisplay = filepath.Join(config.ProjectTmpDir(), "skills") + "/"
 
 // ChatMessageProcessor handles message processing logic
 type ChatMessageProcessor struct {

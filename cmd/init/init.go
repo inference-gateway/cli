@@ -61,7 +61,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	homeBrowserUsePath := filepath.Join(homeCfgDir, config.BrowserUseFileName)
 	homeMemoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
+	var configPath, scmShortcutsPath, gitShortcutsPath,
 		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
 		envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, promptsPath,
 		hooksPath, agentsPath, skillsDirPath string
@@ -76,7 +76,6 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 
 	if project {
 		configPath = config.DefaultConfigPath
-		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
 		scmShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "scm.yaml")
 		gitShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "git.yaml")
 		mcpShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "mcp.yaml")
@@ -92,7 +91,6 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		skillsDirPath = filepath.Join(config.ConfigDirName, "skills")
 	} else {
 		configPath = filepath.Join(homeCfgDir, config.ConfigFileName)
-		gitignorePath = filepath.Join(homeCfgDir, config.GitignoreFileName)
 		scmShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "scm.yaml")
 		gitShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "git.yaml")
 		mcpShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "mcp.yaml")
@@ -110,7 +108,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 
 	if !overwrite {
 		pathsToCheck := []string{
-			configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath,
+			configPath, scmShortcutsPath, gitShortcutsPath,
 			mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
 			envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath,
 			mcpPath, promptsPath, hooksPath, agentsPath,
@@ -132,10 +130,6 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		if err := configutils.SaveYAML(configPath, "config", config.DefaultConfig()); err != nil {
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
-	}
-
-	if err := os.WriteFile(gitignorePath, []byte(config.InferGitignoreContent), 0o644); err != nil {
-		return fmt.Errorf("failed to create .gitignore file: %w", err)
 	}
 
 	if err := createSCMShortcutsFile(scmShortcutsPath); err != nil {
@@ -256,7 +250,6 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 
 	fmt.Printf("%s Successfully initialized Inference Gateway CLI %s configuration\n", icons.CheckMarkStyle.Render(icons.CheckMark), scopeDesc)
 	fmt.Printf("   Created: %s\n", configPath)
-	fmt.Printf("   Created: %s\n", gitignorePath)
 	fmt.Printf("   Created: %s\n", scmShortcutsPath)
 	fmt.Printf("   Created: %s\n", gitShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpShortcutsPath)
@@ -394,7 +387,7 @@ func checkFileExists(path, description string) error {
 
 // validateFilesNotExist validates that required files do not exist
 func validateFilesNotExist(paths ...string) error {
-	descriptions := []string{"configuration file", ".gitignore file", "shortcuts file"}
+	descriptions := []string{"configuration file", "shortcuts file"}
 	for i, path := range paths {
 		desc := "file"
 		if i < len(descriptions) {

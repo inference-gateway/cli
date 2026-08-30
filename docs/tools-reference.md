@@ -500,7 +500,7 @@ editing the file.
 
 ### ImageGeneration Tool
 
-Generate an image from a text prompt and save it as a PNG under `.infer/tmp/`. The
+Generate an image from a text prompt and save it as a PNG under `~/.infer/projects/<project-slug>/artifacts/`. The
 chat model calls the tool when the user asks for an image; the tool sends the prompt as a plain
 one-off request to `/v1/images/generations` using the configured image model - no system prompt,
 no tools, independent of the model selected for the chat session. Image models never appear in
@@ -524,7 +524,7 @@ tools:
 
 ### ImageEdit Tool
 
-Edit an existing image and save the result as a PNG under `.infer/tmp/`. The chat model calls the tool
+Edit an existing image and save the result as a PNG under `~/.infer/projects/<project-slug>/artifacts/`. The chat model calls the tool
 when the user asks to edit an image; the tool reads the input image from a local file path and sends a plain
 one-off request to `/v1/images/edits` using the configured image model - no system prompt, no tools,
 independent of the model selected for the chat session.
@@ -548,7 +548,7 @@ tools:
 
 ### ImageVariation Tool
 
-Create a variation of an existing image and save the result as a PNG under `.infer/tmp/`. The chat model
+Create a variation of an existing image and save the result as a PNG under `~/.infer/projects/<project-slug>/artifacts/`. The chat model
 calls the tool when the user asks for a variation; the tool reads the input image from a local file path and
 sends a plain one-off request to `/v1/images/variations` using the configured image model - no system
 prompt, no tools, independent of the model selected for the chat session.

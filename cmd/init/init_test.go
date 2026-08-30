@@ -59,7 +59,7 @@ func runInit(t *testing.T, flags map[string]bool) error {
 // files into ./.infer/ and keeps userspace-only files in ~/.infer/.
 func TestInitializeProject(t *testing.T) {
 	projectOverridable := []string{
-		".infer/config.yaml", ".infer/.gitignore", ".infer/prompts.yaml",
+		".infer/config.yaml", ".infer/prompts.yaml",
 		".infer/hooks.yaml", ".infer/agents.yaml", ".infer/mcp.yaml",
 		".infer/shortcuts/scm.yaml",
 	}
@@ -73,7 +73,7 @@ func TestInitializeProject(t *testing.T) {
 
 		require.NoError(t, runInit(t, map[string]bool{"skip-migrations": true}))
 
-		for _, f := range []string{"config.yaml", ".gitignore", "prompts.yaml", "keybindings.yaml", "computer_use.yaml", "channels.yaml"} {
+		for _, f := range []string{"config.yaml", "prompts.yaml", "keybindings.yaml", "computer_use.yaml", "channels.yaml"} {
 			require.FileExists(t, filepath.Join(homeDir, config.ConfigDirName, f))
 		}
 		require.NoDirExists(t, filepath.Join(projectDir, config.ConfigDirName))

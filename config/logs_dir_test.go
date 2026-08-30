@@ -18,10 +18,34 @@ func TestDefaultLogsDir(t *testing.T) {
 	})
 }
 
-func TestInferGitignoreContent(t *testing.T) {
-	for _, forbidden := range []string{"bin/", "logs/*.log"} {
-		if strings.Contains(config.InferGitignoreContent, forbidden) {
-			t.Errorf("seeded gitignore lists %q; gateway binary and logs are machine-scoped and live under ~/.infer", forbidden)
+func TestProjectRuntimeDir(t *testing.T) {
+	t.Run("defaults to ~/.infer/projects/<cwd-slug>", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+
+		cwd, err := filepath.EvalSymlinks(".")
+		if err != nil {
+			t.Fatalf("eval symlinks: %v", err)
 		}
-	}
+		cwd, _ = filepath.Abs(cwd)
+		slug := strings.ReplaceAll(cwd, string(filepath.Separator), "-")
+
+		want := filepath.Join(home, ".infer", "projects", slug)
+		if got := config.ProjectRuntimeDir(); got != want {
+			t.Fatalf("ProjectRuntimeDir() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("tmp scratch lives under the project runtime root", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+
+		cwd, _ := filepath.Abs(".")
+		slug := strings.ReplaceAll(cwd, string(filepath.Separator), "-")
+
+		want := filepath.Join(home, ".infer", "projects", slug, "tmp")
+		if got := config.ProjectTmpDir(); got != want {
+			t.Fatalf("ProjectTmpDir() = %q, want %q", got, want)
+		}
+	})
 }
