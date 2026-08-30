@@ -1382,6 +1382,9 @@ func (s *AgentServiceImpl) executeToolOnce(
 		execCtx = agentdomain.WithToolApproved(execCtx)
 	}
 	execCtx = agentdomain.WithToolCallID(execCtx, tc.ID)
+	execCtx = agentdomain.WithToolProgressCallback(execCtx, func(message string) {
+		eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "running", message, nil)
+	})
 
 	if tc.Function.Name == "Bash" {
 		bashCallback := func(line string) {

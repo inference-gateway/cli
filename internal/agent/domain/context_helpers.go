@@ -101,6 +101,23 @@ func HasBashOutputCallback(ctx context.Context) bool {
 }
 
 // ========================================
+// Tool Progress Callback
+// ========================================
+
+// WithToolProgressCallback returns a new context carrying a tool progress callback
+func WithToolProgressCallback(ctx context.Context, callback ToolProgressCallback) context.Context {
+	return context.WithValue(ctx, ToolProgressCallbackKey, callback)
+}
+
+// GetToolProgressCallback retrieves the tool progress callback from context.
+// Returns nil if the key is not set or holds another type, so callers guard
+// with a nil check rather than assuming a reporter is always present.
+func GetToolProgressCallback(ctx context.Context) ToolProgressCallback {
+	callback, _ := ctx.Value(ToolProgressCallbackKey).(ToolProgressCallback)
+	return callback
+}
+
+// ========================================
 // Bash Detach Channel
 // ========================================
 
