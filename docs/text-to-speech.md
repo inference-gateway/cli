@@ -26,7 +26,9 @@ binary):
 ffmpeg is only needed for voice cloning (stock-voice synthesis passes text
 straight to `llama-tts`). If ffmpeg is missing and `auto_download` is on, a
 prebuilt binary is downloaded into `~/.infer/bin` as a last resort, mirroring
-speech-to-text. If a required tool is missing, the CLI reports an actionable
+speech-to-text - but that release currently publishes Linux assets only, so on
+macOS install ffmpeg yourself (`brew install ffmpeg`). `llama-tts` is never
+auto-downloaded on any platform; install it or set `binary_path`. If a required tool is missing, the CLI reports an actionable
 error naming what to install - it never fails silently.
 
 Building `llama-tts` from llama.cpp is one cmake invocation, e.g.
@@ -64,6 +66,7 @@ text_to_speech:
   models_dir: ""         # model cache; empty = ~/.infer/models/tts
   timeout: 300           # synthesis timeout (seconds)
   ffmpeg_path: ""        # explicit ffmpeg path; empty = resolve on PATH
+  require_approval: true # ask before synthesizing; unset = no approval, like the image tools
 ```
 
 Every field can also be set via environment variables, e.g.

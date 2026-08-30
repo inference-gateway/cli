@@ -110,12 +110,6 @@ func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
 	if err := t.config.ValidatePathInSandbox(safePath); err != nil {
 		return "", err
 	}
-	if resolved, err := filepath.EvalSymlinks(safePath); err == nil {
-		if err := t.config.ValidatePathInSandbox(resolved); err != nil {
-			return "", err
-		}
-		safePath = resolved
-	}
 	info, err := os.Stat(safePath)
 	if err != nil {
 		return "", fmt.Errorf("voice_sample %q must be an existing WAV file: %w", safePath, err)

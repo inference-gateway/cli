@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,10 @@ import (
 // ttsBinaryCandidates are the binary names tried, in order, when no explicit
 // text_to_speech.binary_path is configured.
 var ttsBinaryCandidates = []string{"llama-tts"}
+
+// defaultSynthesisTimeoutSeconds is the fallback when text_to_speech.timeout is
+// unset; DefaultConfig sets the same value for a config written to disk.
+const defaultSynthesisTimeoutSeconds = 300
 
 // maxVoiceSampleSeconds caps the ffmpeg-normalized voice sample length so a
 // long reference recording cannot balloon cloning time.
@@ -80,9 +85,10 @@ func (s *Synthesizer) Synthesize(ctx context.Context, text, voiceSamplePath, out
 		return fmt.Errorf("creating output directory: %w", err)
 	}
 
+	// Not cmp.Or: a negative timeout must fall back too, not expire instantly.
 	timeout := s.cfg.Timeout
 	if timeout <= 0 {
-		timeout = 300
+		timeout = defaultSynthesisTimeoutSeconds
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer cancel()
@@ -110,10 +116,13 @@ func (s *Synthesizer) Synthesize(ctx context.Context, text, voiceSamplePath, out
 }
 
 // resolveBinary returns the llama-tts binary to invoke: an explicit configured
-// path first, then a PATH lookup, then a prebuilt binary in ~/.infer/bin
-// (downloaded on first use when auto_download is enabled, when the platform
-// release hosts one).
-func (s *Synthesizer) resolveBinary(ctx context.Context) (string, error) {
+// path first, then a PATH lookup.
+//
+// ponytail: no auto-download fallback - the stt-binaries release hosts only
+// ffmpeg and whisper-cli, so an EnsureBinary("llama-tts") call could never
+// succeed and only delayed this function's error by a wasted round-trip. Add
+// the fallback back the day that release ships a llama-tts asset.
+func (s *Synthesizer) resolveBinary(_ context.Context) (string, error) {
 	if p := strings.TrimSpace(s.cfg.BinaryPath); p != "" {
 		if _, err := s.lookPath(p); err == nil {
 			return p, nil
@@ -127,12 +136,6 @@ func (s *Synthesizer) resolveBinary(ctx context.Context) (string, error) {
 	for _, name := range ttsBinaryCandidates {
 		if _, err := s.lookPath(name); err == nil {
 			return name, nil
-		}
-	}
-
-	if s.cfg.AutoDownload && s.binaries != nil {
-		if path, err := s.binaries.EnsureBinary(ctx, "llama-tts"); err == nil {
-			return path, nil
 		}
 	}
 
@@ -165,7 +168,7 @@ func (s *Synthesizer) normalizeVoiceSample(ctx context.Context, srcPath string) 
 	args := []string{
 		"-hide_banner", "-loglevel", "error", "-y",
 		"-i", srcPath,
-		"-t", fmt.Sprintf("%d", maxVoiceSampleSeconds),
+		"-t", strconv.Itoa(maxVoiceSampleSeconds),
 		"-ar", "16000", "-ac", "1", "-f", "wav", out,
 	}
 	if _, err := s.run(ctx, ffmpeg, args...); err != nil {

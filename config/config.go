@@ -133,6 +133,12 @@ type TextToSpeechConfig struct {
 	AutoDownload bool   `yaml:"auto_download" mapstructure:"auto_download"` // download models (and ffmpeg) on first use if missing
 	Timeout      int    `yaml:"timeout" mapstructure:"timeout"`             // synthesis timeout (seconds)
 	FFmpegPath   string `yaml:"ffmpeg_path" mapstructure:"ffmpeg_path"`     // "" -> resolve ffmpeg on PATH
+
+	// RequireApproval overrides the tool's approval policy. Unset (the default)
+	// means no approval, matching the image tools: output is confined to a bare
+	// file name inside output_dir. Set it to true to be asked before the tool
+	// writes a file and shells out to the synthesis engine.
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // ResolveOutputDir returns the directory where generated WAV files are
@@ -1423,6 +1429,9 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		}
 		return false
 	case "TextToSpeech":
+		if c.TextToSpeech.RequireApproval != nil {
+			return *c.TextToSpeech.RequireApproval
+		}
 		return false
 	case "Memory":
 		return false

@@ -264,6 +264,32 @@ func (p *eventPublisher) publishToolStatusChange(callID string, toolName string,
 	p.chatEvents <- event
 }
 
+// publishToolProgress publishes a "running" ToolExecutionProgressEvent carrying
+// a progress line from a long-running tool. Unlike publishToolStatusChange this
+// send is non-blocking: progress ticks are high-frequency chatter (once a second
+// for the whole of a multi-hundred-megabyte model download), and a dropped tick
+// costs nothing while blocking on a lagging UI would stall the transfer being
+// reported. Terminal statuses keep the blocking send - losing one of those would
+// leave the tool showing as "running" forever.
+func (p *eventPublisher) publishToolProgress(callID string, toolName string, message string) {
+	event := agentdomain.ToolExecutionProgressEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		ToolCallID: callID,
+		ToolName:   toolName,
+		Status:     "running",
+		Message:    message,
+	}
+
+	select {
+	case p.chatEvents <- event:
+	default:
+		logger.Warn("tool progress update dropped - channel full")
+	}
+}
+
 // publishBashOutputChunk publishes a BashOutputChunkEvent for streaming bash output
 func (p *eventPublisher) publishBashOutputChunk(callID string, output string, isComplete bool) {
 	event := agentdomain.BashOutputChunkEvent{
@@ -1383,7 +1409,7 @@ func (s *AgentServiceImpl) executeToolOnce(
 	}
 	execCtx = agentdomain.WithToolCallID(execCtx, tc.ID)
 	execCtx = agentdomain.WithToolProgressCallback(execCtx, func(message string) {
-		eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "running", message, nil)
+		eventPublisher.publishToolProgress(tc.ID, tc.Function.Name, message)
 	})
 
 	if tc.Function.Name == "Bash" {

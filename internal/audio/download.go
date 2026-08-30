@@ -59,6 +59,10 @@ func megabytes(n int64) string {
 	return fmt.Sprintf("%.0f MB", float64(n)/(1<<20))
 }
 
+// staleProbeTimeout bounds the HEAD request cachedModelStale uses to compare
+// the cached model against the server copy.
+const staleProbeTimeout = 5 * time.Second
+
 // downloadToFile fetches url into dstPath atomically (temp file + rename, so an
 // interrupted download never leaves a half-written model at the final path) and
 // verifies the received byte count against the response Content-Length, so a
@@ -125,6 +129,13 @@ func cachedModelStale(ctx context.Context, client *http.Client, url, path string
 	if err != nil {
 		return false
 	}
+
+	// The probe runs before every transcription and synthesis, on a client with
+	// no timeout of its own, so bound it here: a slow or blackholed network must
+	// cost a few seconds, not the whole run. Timing out lands on the same branch
+	// as any other probe failure - trust the cache.
+	ctx, cancel := context.WithTimeout(ctx, staleProbeTimeout)
+	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {

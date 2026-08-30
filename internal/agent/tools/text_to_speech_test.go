@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -141,8 +142,8 @@ func TestTextToSpeechTool_ExecuteStockVoice(t *testing.T) {
 
 	result, err := tool.Execute(context.Background(), map[string]any{"text": "hello there", "output_path": outName})
 
-	assert.NoError(t, err)
-	assert.True(t, result.Success)
+	require.NoError(t, err)
+	require.True(t, result.Success)
 	outPath := filepath.Join(tool.config.TextToSpeech.OutputDir, outName)
 	assert.Equal(t, outPath, fake.out)
 	assert.Equal(t, "hello there", fake.text)
@@ -167,8 +168,8 @@ func TestTextToSpeechTool_ExecuteVoiceClone(t *testing.T) {
 		"text": "hello", "voice_sample": "speaker.wav",
 	})
 
-	assert.NoError(t, err)
-	assert.True(t, result.Success)
+	require.NoError(t, err)
+	require.True(t, result.Success)
 	assert.Equal(t, filepath.Join(tmp, "speaker.wav"), fake.sample)
 
 	data := result.Data.(map[string]any)
@@ -182,8 +183,8 @@ func TestTextToSpeechTool_ExecuteDefaultOutputPath(t *testing.T) {
 
 	result, err := tool.Execute(context.Background(), map[string]any{"text": "hello"})
 
-	assert.NoError(t, err)
-	assert.True(t, result.Success)
+	require.NoError(t, err)
+	require.True(t, result.Success)
 	outDir := tool.config.TextToSpeech.OutputDir
 	assert.True(t, strings.HasPrefix(fake.out, outDir), "output %s should live under %s", fake.out, outDir)
 	assert.True(t, strings.HasSuffix(fake.out, ".wav"))
@@ -196,7 +197,7 @@ func TestTextToSpeechTool_ExecuteSynthesisFailure(t *testing.T) {
 
 	result, err := tool.Execute(context.Background(), map[string]any{"text": "hello", "output_path": "out.wav"})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, result.Success)
 	assert.Contains(t, result.Error, "engine crashed")
 }

@@ -62,6 +62,33 @@ func TestValidateTextToSpeechEngine(t *testing.T) {
 	})
 }
 
+func TestTextToSpeechRequireApproval(t *testing.T) {
+	t.Run("unset means no approval", func(t *testing.T) {
+		cfg := config.DefaultConfig()
+		if cfg.IsApprovalRequired("TextToSpeech") {
+			t.Error("TextToSpeech should not require approval by default")
+		}
+	})
+
+	t.Run("opt in via config", func(t *testing.T) {
+		cfg := config.DefaultConfig()
+		require := true
+		cfg.TextToSpeech.RequireApproval = &require
+		if !cfg.IsApprovalRequired("TextToSpeech") {
+			t.Error("text_to_speech.require_approval: true must be honoured")
+		}
+	})
+
+	t.Run("explicit false stays exempt", func(t *testing.T) {
+		cfg := config.DefaultConfig()
+		require := false
+		cfg.TextToSpeech.RequireApproval = &require
+		if cfg.IsApprovalRequired("TextToSpeech") {
+			t.Error("text_to_speech.require_approval: false must be honoured")
+		}
+	})
+}
+
 func TestDefaultConfigTextToSpeech(t *testing.T) {
 	cfg := config.DefaultConfig()
 	if cfg.TextToSpeech.Enabled {

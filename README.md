@@ -94,6 +94,8 @@ An agentic command-line assistant that writes code, understands project context,
 - **Remote Messaging Channels**: Control the agent from Telegram, WhatsApp, and other platforms via a pluggable channel system - [Learn more →](docs/channels.md)
 - **Speech-to-Text (Whisper)**: Dictate into chat with `/voice` and transcribe inbound Telegram voice messages, locally and offline -
   off by default - [Learn more →](docs/speech-to-text.md)
+- **Text-to-Speech (Qwen3-TTS)**: Turn text into a spoken WAV locally and offline, with zero-shot voice cloning
+  from a short reference recording - off by default - [Learn more →](docs/text-to-speech.md)
 - **Scheduled Tasks**: Ask the agent (over Telegram, etc.) to run a prompt on a cron schedule and deliver the result back through the same channel -
   recurring ("send me a quote every morning") or one-off ("remind me at 6pm today") - [Learn more →](docs/scheduling.md)
 - **Heartbeat (Periodic Wake-Up)**: Wake the agent on a fixed interval to check for pending todos and background work,
@@ -545,6 +547,15 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 | **Computer** | Read the accessibility tree, press labelled controls, capture screenshots, and control mouse/keyboard | Configurable |
 | **GetLatestFrame** | Read the latest frame from a named source (screen, camera directory) | No |
 
+**Media** (each gated by its own flag; all output is written to disk, never played aloud):
+
+| Tool | Purpose | Approval | Enabled by |
+| ------ | --------- | ---------- | ------------ |
+| **ImageGeneration** | Generate an image from a prompt into `.infer/artifacts/` | No | `tools.image_generation.enabled` |
+| **ImageEdit** | Edit an existing image and save the result | No | `tools.image_edit.enabled` |
+| **ImageVariation** | Produce a variation of an existing image | No | `tools.image_variation.enabled` |
+| **TextToSpeech** | Synthesize speech to a WAV locally, optionally cloning a voice | No | `text_to_speech.enabled` |
+
 **Memory, scheduling & A2A** (each gated by its own flag):
 
 | Tool | Purpose | Approval | Enabled by |
@@ -829,6 +840,8 @@ approval**; override per tool with `tools.<name>.require_approval`.
 | Wait | No | Passive utility - blocks until condition met, no side effects |
 | Read, Grep, Tree | No | Read-only operations |
 | Memory, TodoWrite | No | Local agent state (explicitly exempt) |
+| Image tools | No | Output confined to `.infer/artifacts/` - override with `tools.<name>.require_approval` |
+| TextToSpeech | No | Output confined to `text_to_speech.output_dir` - override with `text_to_speech.require_approval` |
 | Computer-use tools | No | Run silently in the background |
 | A2A_QueryAgent, A2A_QueryTask | No | Read-only A2A queries |
 

@@ -587,6 +587,7 @@ tool when the user asks to say something aloud or to clone a voice; synthesis sh
 ```yaml
 text_to_speech:
   enabled: true
+  require_approval: true # optional; unset = no approval, like the image tools
 ```
 
 ---
