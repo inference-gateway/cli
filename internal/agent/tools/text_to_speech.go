@@ -22,11 +22,8 @@ type voiceSynthesizer interface {
 	Synthesize(ctx context.Context, text, voiceSamplePath, outPath string) error
 }
 
-// TextToSpeechTool synthesizes speech from text with the configured local TTS
-// engine and saves it to a WAV file. With a voice_sample it clones that voice
-// (zero-shot); without one it uses the stock voice. It is opt-in via
-// text_to_speech.enabled: when disabled the tool is not registered and its
-// definition never reaches the LLM tools payload.
+// TextToSpeechTool synthesizes speech with the configured local engine and
+// saves it to a WAV file, optionally cloning a supplied voice sample.
 type TextToSpeechTool struct {
 	config *config.Config
 	synth  voiceSynthesizer
@@ -91,10 +88,8 @@ func (t *TextToSpeechTool) Validate(args map[string]any) error {
 	return err
 }
 
-// resolveSamplePath turns an LLM-supplied voice_sample into a safe path: the
-// value is reduced to its base file name (never a traversal) and resolved
-// inside the working directory, then checked against the sandbox and required
-// to be a readable file. Empty means stock voice and yields "".
+// resolveSamplePath confines an optional voice sample to a readable file in
+// the working directory and returns an empty path for the stock voice.
 func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
 	name := strings.TrimSpace(raw)
 	if name == "" {
@@ -128,10 +123,8 @@ func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
 	return safePath, nil
 }
 
-// resolveOutputPath returns the WAV target: an LLM-supplied bare file name
-// placed inside the configured output directory (never elsewhere), or a unique
-// timestamped default when empty. The base-name reduction is what confines and
-// sanitizes an explicit path.
+// resolveOutputPath confines a supplied file name to the configured output
+// directory or creates a unique timestamped target when empty.
 func (t *TextToSpeechTool) resolveOutputPath(raw string) (string, error) {
 	dir, err := t.config.TextToSpeech.ResolveOutputDir()
 	if err != nil {
@@ -219,10 +212,7 @@ func (t *TextToSpeechTool) failure(start time.Time, args map[string]any, err err
 	}
 }
 
-// IsEnabled returns whether the tool is enabled: the feature flag must be on
-// and the configured engine must be one this build supports. Because the
-// registry only includes enabled tools in the chat-completion tools payload,
-// a disabled tool costs zero prompt tokens.
+// IsEnabled reports whether the feature is enabled with a supported engine.
 func (t *TextToSpeechTool) IsEnabled() bool {
 	if !t.config.TextToSpeech.Enabled || t.synth == nil {
 		return false

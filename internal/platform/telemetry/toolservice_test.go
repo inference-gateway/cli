@@ -28,9 +28,8 @@ func (s *stubToolService) ExecuteToolDirect(ctx context.Context, tool sdk.ChatCo
 	return &agentdomain.ToolExecutionResult{ToolName: tool.Name, Success: true}, nil
 }
 
-// Both entry points must emit an execute_tool span: a `!!` invocation went
-// through ExecuteToolDirect, which used to pass through the decorator
-// uninstrumented and left `infer traces` showing a childless session.
+// TestToolServiceInstrumentsBothEntryPoints verifies regular and direct tool
+// calls emit the same execution span.
 func TestToolServiceInstrumentsBothEntryPoints(t *testing.T) {
 	tests := []struct {
 		name       string

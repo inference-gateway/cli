@@ -33,8 +33,7 @@ func (f *fakeVoiceSynthesizer) Synthesize(ctx context.Context, text, voiceSample
 	if f.err != nil {
 		return f.err
 	}
-	// Produce a short valid WAV so duration parsing has something to read.
-	data := make([]byte, 48000) // 1s of 24kHz 16-bit mono
+	data := make([]byte, 48000)
 	var buf bytes.Buffer
 	buf.WriteString("RIFF")
 	_ = binary.Write(&buf, binary.LittleEndian, uint32(36+len(data)))

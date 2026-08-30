@@ -264,13 +264,8 @@ func (p *eventPublisher) publishToolStatusChange(callID string, toolName string,
 	p.chatEvents <- event
 }
 
-// publishToolProgress publishes a "running" ToolExecutionProgressEvent carrying
-// a progress line from a long-running tool. Unlike publishToolStatusChange this
-// send is non-blocking: progress ticks are high-frequency chatter (once a second
-// for the whole of a multi-hundred-megabyte model download), and a dropped tick
-// costs nothing while blocking on a lagging UI would stall the transfer being
-// reported. Terminal statuses keep the blocking send - losing one of those would
-// leave the tool showing as "running" forever.
+// publishToolProgress sends a non-blocking running-status update so a lagging
+// consumer cannot stall the long-running tool reporting it.
 func (p *eventPublisher) publishToolProgress(callID string, toolName string, message string) {
 	event := agentdomain.ToolExecutionProgressEvent{
 		BaseChatEvent: agentdomain.BaseChatEvent{

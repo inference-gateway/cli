@@ -53,8 +53,6 @@ func TestDownloadToFileRejectsIncompleteDownload(t *testing.T) {
 	dir := t.TempDir()
 	dst := filepath.Join(dir, "model.gguf")
 
-	// A body shorter than the advertised Content-Length must be rejected,
-	// never cached, and leave no temp file behind.
 	c := &http.Client{Transport: stubTransport(func(*http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode:    http.StatusOK,

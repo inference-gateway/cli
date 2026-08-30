@@ -7,12 +7,10 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// A progress tick must never park the tool goroutine on a lagging UI: model
-// downloads report once a second for minutes, and blocking here would stall the
-// very transfer being reported. Terminal statuses keep the blocking send, so
-// they are asserted to still arrive.
+// TestPublishToolProgressDropsInsteadOfBlocking verifies progress updates do
+// not stall their tool when the consumer falls behind.
 func TestPublishToolProgressDropsInsteadOfBlocking(t *testing.T) {
-	events := make(chan agentdomain.ChatEvent) // unbuffered, nobody receiving
+	events := make(chan agentdomain.ChatEvent)
 	p := newEventPublisher("req-1", events)
 
 	done := make(chan struct{})

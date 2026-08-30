@@ -31,15 +31,12 @@ type Synthesizer struct {
 	models   *TTSModelManager
 	binaries *BinaryManager
 
-	// run and lookPath are overridable in tests.
 	run      commandRunner
 	lookPath func(string) (string, error)
 }
 
 // NewSynthesizer creates a synthesizer from the text-to-speech config.
 func NewSynthesizer(cfg config.TextToSpeechConfig) *Synthesizer {
-	// The STT BinaryManager is reused parameterized for TTS: it hosts prebuilt
-	// ffmpeg (and may host llama-tts later) with per-platform checksums.
 	binaries := NewBinaryManager(config.SpeechToTextConfig{AutoDownload: cfg.AutoDownload})
 	return &Synthesizer{
 		cfg:      cfg,
@@ -50,10 +47,8 @@ func NewSynthesizer(cfg config.TextToSpeechConfig) *Synthesizer {
 	}
 }
 
-// Synthesize converts text into a spoken WAV at outPath (the parent directory
-// is created if needed). An empty voiceSamplePath speaks with the stock
-// voice; a non-empty path (a short WAV recording of the target speaker)
-// enables zero-shot voice cloning.
+// Synthesize converts text into a WAV at outPath, using the stock voice when
+// voiceSamplePath is empty and cloning the supplied voice otherwise.
 func (s *Synthesizer) Synthesize(ctx context.Context, text, voiceSamplePath, outPath string) error {
 	bin, err := s.resolveBinary(ctx)
 	if err != nil {
@@ -74,7 +69,6 @@ func (s *Synthesizer) Synthesize(ctx context.Context, text, voiceSamplePath, out
 		return fmt.Errorf("creating output directory: %w", err)
 	}
 
-	// Not cmp.Or: a negative timeout must fall back too, not expire instantly.
 	timeout := s.cfg.Timeout
 	if timeout <= 0 {
 		timeout = defaultSynthesisTimeoutSeconds
@@ -104,13 +98,9 @@ func (s *Synthesizer) Synthesize(ctx context.Context, text, voiceSamplePath, out
 	return nil
 }
 
-// resolveBinary returns the llama-tts binary to invoke: an explicit configured
-// path first, then a PATH lookup.
-//
-// ponytail: no auto-download fallback - the stt-binaries release hosts only
-// ffmpeg and whisper-cli, so an EnsureBinary("llama-tts") call could never
-// succeed and only delayed this function's error by a wasted round-trip. Add
-// the fallback back the day that release ships a llama-tts asset.
+// resolveBinary returns the configured llama-tts binary or finds it on PATH.
+// ponytail: no auto-download until stt-binaries ships llama-tts; add the
+// fallback then.
 func (s *Synthesizer) resolveBinary(_ context.Context) (string, error) {
 	if p := strings.TrimSpace(s.cfg.BinaryPath); p != "" {
 		if _, err := s.lookPath(p); err == nil {
@@ -131,10 +121,8 @@ func (s *Synthesizer) resolveBinary(_ context.Context) (string, error) {
 		"https://github.com/ggml-org/llama.cpp) or set text_to_speech.binary_path")
 }
 
-// normalizeVoiceSample converts the reference sample into a 16kHz mono WAV
-// capped at maxVoiceSampleSeconds via ffmpeg, so the engine always receives a
-// consistent format. It reuses convert.go's ffmpeg resolution (with a
-// prebuilt-ffmpeg download fallback) and command seams.
+// normalizeVoiceSample converts the reference into a 16kHz mono WAV capped at
+// maxVoiceSampleSeconds using ffmpeg.
 func (s *Synthesizer) normalizeVoiceSample(ctx context.Context, srcPath string) (string, error) {
 	ffmpeg, err := resolveFFmpeg(s.cfg.FFmpegPath, s.lookPath)
 	if err != nil && s.cfg.AutoDownload {
@@ -175,7 +163,7 @@ func (s *Synthesizer) normalizeVoiceSample(ctx context.Context, srcPath string) 
 // reading its fmt and data chunk headers. It lets callers report the duration
 // of synthesized speech without external tools.
 func WAVDurationSeconds(path string) (float64, error) {
-	f, err := os.Open(path) // nolint:gosec // path comes from config/args, not user-supplied patterns
+	f, err := os.Open(path) //nolint:gosec
 	if err != nil {
 		return 0, fmt.Errorf("opening wav: %w", err)
 	}

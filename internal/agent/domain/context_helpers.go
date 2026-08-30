@@ -100,10 +100,6 @@ func HasBashOutputCallback(ctx context.Context) bool {
 	return GetBashOutputCallback(ctx) != nil
 }
 
-// ========================================
-// Tool Progress Callback
-// ========================================
-
 // WithToolProgressCallback returns a new context carrying a tool progress callback
 func WithToolProgressCallback(ctx context.Context, callback ToolProgressCallback) context.Context {
 	return context.WithValue(ctx, ToolProgressCallbackKey, callback)

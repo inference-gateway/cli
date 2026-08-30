@@ -12,10 +12,8 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// progressReader reports how far a transfer has got through the context's tool
-// progress callback. Models here run to hundreds of megabytes, so without this
-// the UI sits on a motionless "Executing..." for minutes. Reporting is
-// throttled to once a second so a chunked body cannot flood the event stream.
+// progressReader reports transfer progress through the context callback,
+// throttled to once per second.
 type progressReader struct {
 	src    io.Reader
 	report agentdomain.ToolProgressCallback
@@ -59,11 +57,8 @@ func megabytes(n int64) string {
 	return fmt.Sprintf("%.0f MB", float64(n)/(1<<20))
 }
 
-// downloadToFile fetches url into dstPath atomically (temp file + rename, so an
-// interrupted download never leaves a half-written model at the final path) and
-// verifies the received byte count against the response Content-Length, so a
-// silently truncated response is never cached either. label names the model
-// kind in error messages ("whisper model", "tts model").
+// downloadToFile atomically fetches url into dstPath and rejects transfers
+// shorter than their declared Content-Length.
 func downloadToFile(ctx context.Context, client *http.Client, url, dstPath, label string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

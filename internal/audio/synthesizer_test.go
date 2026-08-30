@@ -290,18 +290,18 @@ func TestEnsureModelsCoalescesConcurrentDownloads(t *testing.T) {
 
 // writeTestWAV writes a minimal valid 16-bit mono PCM WAV.
 func writeTestWAV(path string, sampleRate int, seconds float64) error {
-	n := int(float64(sampleRate) * seconds * 2) // 16-bit mono
+	n := int(float64(sampleRate) * seconds * 2)
 	var buf bytes.Buffer
 	buf.WriteString("RIFF")
 	_ = binary.Write(&buf, binary.LittleEndian, uint32(36+n))
 	buf.WriteString("WAVEfmt ")
 	_ = binary.Write(&buf, binary.LittleEndian, uint32(16))
-	_ = binary.Write(&buf, binary.LittleEndian, uint16(1))            // PCM
-	_ = binary.Write(&buf, binary.LittleEndian, uint16(1))            // mono
-	_ = binary.Write(&buf, binary.LittleEndian, uint32(sampleRate))   // sample rate
-	_ = binary.Write(&buf, binary.LittleEndian, uint32(sampleRate*2)) // byte rate
-	_ = binary.Write(&buf, binary.LittleEndian, uint16(2))            // block align
-	_ = binary.Write(&buf, binary.LittleEndian, uint16(16))           // bits per sample
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(1))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(1))
+	_ = binary.Write(&buf, binary.LittleEndian, uint32(sampleRate))
+	_ = binary.Write(&buf, binary.LittleEndian, uint32(sampleRate*2))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(2))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(16))
 	buf.WriteString("data")
 	_ = binary.Write(&buf, binary.LittleEndian, uint32(n))
 	buf.Write(make([]byte, n))

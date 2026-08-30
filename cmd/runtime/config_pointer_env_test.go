@@ -62,10 +62,8 @@ func TestPointerOptionsHonourEnvOverrides(t *testing.T) {
 	}
 }
 
-// registerConfigDefaults stores non-nil *bool defaults as pointers, so these
-// keys read as set and get re-derived through viper on every load. That round
-// trip must be value-preserving: if it ever stopped dereferencing, "approval
-// required" would silently become "approval not required" for every write tool.
+// TestPointerDefaultsSurviveWithoutEnvOverride verifies registered pointer
+// defaults remain value-preserving when Viper reloads them.
 func TestPointerDefaultsSurviveWithoutEnvOverride(t *testing.T) {
 	cfg := config.DefaultConfig()
 
@@ -119,10 +117,8 @@ func TestPointerOptionsStayNilWithoutEnv(t *testing.T) {
 	}
 }
 
-// The precedence chain for a pointer option, exercised the way the binary
-// assembles it (defaults -> config file -> env, env wins) rather than by
-// shelling out: registerConfigDefaults, then Unmarshal, then the env pass -
-// the same sequence loadConfigFromViper runs.
+// TestPointerOptionPrecedence verifies the binary's defaults, config file, and
+// environment precedence chain.
 func TestPointerOptionPrecedence(t *testing.T) {
 	const yaml = `
 tools:
@@ -183,7 +179,6 @@ text_to_speech:
 				t.Errorf("tools.write.require_approval = %v, want %v", deref(got), tt.wantWr)
 			}
 
-			// The resolved config is what the approval gate actually reads.
 			if got := cfg.IsApprovalRequired("TextToSpeech"); got != tt.wantTTS {
 				t.Errorf("IsApprovalRequired(TextToSpeech) = %v, want %v", got, tt.wantTTS)
 			}

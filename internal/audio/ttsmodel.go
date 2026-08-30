@@ -20,10 +20,8 @@ const qwen3TTSBase = "https://huggingface.co/ggml-org/Qwen3-TTS-12Hz-1.7B-Base-G
 // backbone filename to derive the paired mmproj filename.
 var ttsQuantSuffixes = []string{"-Q4_K_M", "-Q8_0", "-Q4_0", "-bf16", "-F16"}
 
-// ttsModelFiles returns the backbone and mmproj GGUF filenames for a model id.
-// Accepted values: "" (or "base", the default Q4_K_M preset), "q8", "bf16", or
-// explicit "<backbone>.gguf" / "<backbone>.gguf,<mmproj>.gguf" filenames from
-// the same repository.
+// ttsModelFiles returns the backbone and mmproj GGUF filenames for a preset or
+// explicit model filename pair.
 func ttsModelFiles(model string) (backbone, mmproj string) {
 	switch strings.ToLower(strings.TrimSpace(model)) {
 	case "", "base":
@@ -55,7 +53,6 @@ type TTSModelManager struct {
 	cfg config.TextToSpeechConfig
 	mu  sync.Mutex
 
-	// baseURL and client are overridable in tests.
 	baseURL string
 	client  *http.Client
 }

@@ -15,10 +15,8 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// resolveViperEnvironmentVariables recursively resolves INFER_* environment
-// variables into cfg's fields, running after v.Unmarshal so env wins over the
-// config file. Scalars are read straight from viper; pointer options (*bool and
-// friends) go through setPointerOption, which allocates them on demand.
+// resolveViperEnvironmentVariables applies INFER_* overrides to cfg after
+// unmarshalling, including pointer options Viper cannot set directly.
 func resolveViperEnvironmentVariables(v *viper.Viper, cfg any, keyPrefix string) {
 	rv := reflect.ValueOf(cfg)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
@@ -76,14 +74,8 @@ func resolveViperEnvironmentVariables(v *viper.Viper, cfg any, keyPrefix string)
 	}
 }
 
-// setPointerOption resolves a key into a pointer-to-scalar option - the
-// tri-state *bool behind every require_approval, auto_install and cleanup key -
-// allocating the pointer on demand. These fields used to be skipped outright,
-// so every documented INFER_*_REQUIRE_APPROVAL silently did nothing.
-//
-// An unset key leaves the pointer alone, which is what keeps "unset" distinct
-// from "explicitly false" and lets IsApprovalRequired fall through to the
-// global tools.safety.require_approval default.
+// setPointerOption applies a Viper key to a pointer-to-scalar field while
+// preserving nil for unset tri-state options.
 func setPointerOption(v *viper.Viper, key string, field reflect.Value) {
 	if !v.IsSet(key) {
 		return

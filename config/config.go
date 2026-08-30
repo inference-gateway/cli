@@ -115,30 +115,18 @@ type SpeechToTextConfig struct {
 // Qwen3-TTS GGUF models run through a local llama.cpp llama-tts binary.
 const TextToSpeechEngineQwen3 = "qwen3-tts"
 
-// TextToSpeechConfig contains text-to-speech synthesis settings. It mirrors
-// SpeechToTextConfig and is an opt-in feature flag: when Enabled, the
-// TextToSpeech agent tool becomes available; when false (the default) the
-// tool definition is not included in the tools payload sent to the LLM.
-// Synthesis shells out to a local llama.cpp llama-tts binary running
-// Qwen3-TTS GGUF models (stock voice or zero-shot voice cloning from a
-// reference WAV) and uses ffmpeg to normalize reference samples. None of
-// this adds CGO to the Go binary.
+// TextToSpeechConfig contains opt-in settings for local Qwen3-TTS synthesis.
 type TextToSpeechConfig struct {
-	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`             // feature flag (default: false) - tool absent from the LLM payload when false
-	Engine       string `yaml:"engine" mapstructure:"engine"`               // "qwen3-tts" (only engine for now; empty = default)
-	BinaryPath   string `yaml:"binary_path" mapstructure:"binary_path"`     // "" -> resolve llama-tts on PATH
-	Model        string `yaml:"model" mapstructure:"model"`                 // preset ("" -> base) or explicit "<backbone>[,<mmproj>].gguf" filenames
-	ModelsDir    string `yaml:"models_dir" mapstructure:"models_dir"`       // "" -> ~/.infer/models/tts
-	OutputDir    string `yaml:"output_dir" mapstructure:"output_dir"`       // "" -> ~/.infer/tts
-	AutoDownload bool   `yaml:"auto_download" mapstructure:"auto_download"` // download models (and ffmpeg) on first use if missing
-	Timeout      int    `yaml:"timeout" mapstructure:"timeout"`             // synthesis timeout (seconds)
-	FFmpegPath   string `yaml:"ffmpeg_path" mapstructure:"ffmpeg_path"`     // "" -> resolve ffmpeg on PATH
-
-	// RequireApproval overrides the tool's approval policy. Unset (the default)
-	// means no approval, matching the image tools: output is confined to a bare
-	// file name inside output_dir. Set it to true to be asked before the tool
-	// writes a file and shells out to the synthesis engine.
-	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Engine          string `yaml:"engine" mapstructure:"engine"`
+	BinaryPath      string `yaml:"binary_path" mapstructure:"binary_path"`
+	Model           string `yaml:"model" mapstructure:"model"`
+	ModelsDir       string `yaml:"models_dir" mapstructure:"models_dir"`
+	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
+	AutoDownload    bool   `yaml:"auto_download" mapstructure:"auto_download"`
+	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
+	FFmpegPath      string `yaml:"ffmpeg_path" mapstructure:"ffmpeg_path"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // ResolveOutputDir returns the directory where generated WAV files are

@@ -14,9 +14,8 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// toolService decorates a agentdomain.ToolService, recording one metric and one
-// span per execution. It embeds the interface so every other method passes
-// through unchanged - only the two execute entry points are overridden.
+// toolService decorates a ToolService with metrics and tracing for both
+// execution entry points.
 type toolService struct {
 	agentdomain.ToolService
 	rec *Recorder
@@ -33,16 +32,12 @@ func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMe
 	return t.record(ctx, tool, t.ToolService.ExecuteTool)
 }
 
-// ExecuteToolDirect is instrumented exactly like ExecuteTool: a user-typed `!!`
-// invocation is a tool execution like any other, and leaving it uninstrumented
-// made direct runs invisible in `infer traces` - a session whose only activity
-// was `!!` produced a root span with no children.
+// ExecuteToolDirect instruments direct tool execution like regular execution.
 func (t *toolService) ExecuteToolDirect(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	return t.record(ctx, tool, t.ToolService.ExecuteToolDirect)
 }
 
-// record wraps one execution in the span and metric shared by both entry
-// points, so instrumentation cannot drift between them.
+// record wraps one execution in the shared span and metric instrumentation.
 func (t *toolService) record(
 	ctx context.Context,
 	tool sdk.ChatCompletionMessageToolCallFunction,

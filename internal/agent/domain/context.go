@@ -21,9 +21,6 @@ const BashOutputCallbackKey ContextKey = "bash_output_callback"
 type BashOutputCallback func(output string)
 
 // ToolProgressCallbackKey is the context key for a tool progress callback.
-// When set, a long-running tool reports human-readable progress lines through
-// it so the UI can replace a motionless "Executing..." status while work that
-// takes minutes - a multi-hundred-megabyte model download, say - is underway.
 const ToolProgressCallbackKey ContextKey = "tool_progress_callback"
 
 // ToolProgressCallback receives a progress line describing what a tool is
