@@ -58,8 +58,6 @@ for the full precedence rules.
 ├── .gitignore            # ignores the runtime-generated files below
 │
 │   # --- created at runtime, not by `infer init` ---
-├── conversations.db      # SQLite conversation store (when storage.type=sqlite)
-├── conversations/        # JSONL conversation store (when storage.type=jsonl)
 ├── logs/                 # debug / error logs
 ├── tmp/                  # scratch space for tools (exports, streamed writes, ...)
 ├── bin/                  # downloaded gateway binary (binary mode)
@@ -71,8 +69,11 @@ for the full precedence rules.
     └── <name>/SKILL.md   # e.g. .agents/skills/pdf/SKILL.md
 
 ~/.infer/                 # userspace layer - same set of config files,
-                          # plus one extra:
-└── schedules/            # cron-driven scheduled jobs (one YAML per job)
+                          # plus these runtime extras:
+├── schedules/            # cron-driven scheduled jobs (one YAML per job)
+├── conversations.db      # shared SQLite conversation store (type: sqlite)
+└── projects/             # per-project JSONL conversation stores (type: jsonl)
+    └── <project-slug>/conversations/
 ```
 
 ---
@@ -123,10 +124,10 @@ reviews stay readable.
 These are written by the CLI as you use it - `infer init` does **not**
 create them, and the seeded `.gitignore` already excludes them.
 
-- **`conversations.db`** *(project)* - SQLite conversation store, active
+- **`~/.infer/conversations.db`** *(userspace)* - shared SQLite conversation store, active
   when `storage.type: sqlite`. See
   [Conversation Storage](conversation-storage.md).
-- **`conversations/*.jsonl`** *(project)* - JSONL conversation store,
+- **`~/.infer/projects/<project-slug>/conversations/*.jsonl`** *(userspace)* -
   active when `storage.type: jsonl`. One file per conversation.
 - **`logs/`** *(project)* - debug and error logs. Path configurable via
   `logging.dir` / `INFER_LOGGING_DIR`.

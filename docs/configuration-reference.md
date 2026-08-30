@@ -826,7 +826,7 @@ tools:
 
 **SQLite Storage:**
 
-- `INFER_STORAGE_SQLITE_PATH`: SQLite database path (default: `.infer/conversations.db`)
+- `INFER_STORAGE_SQLITE_PATH`: SQLite database path (default: `~/.infer/conversations.db`)
 
 **PostgreSQL Storage:**
 
