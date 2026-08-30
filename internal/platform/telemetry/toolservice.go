@@ -15,8 +15,8 @@ import (
 )
 
 // toolService decorates a agentdomain.ToolService, recording one metric and one
-// span per ExecuteTool call. It embeds the interface so every other method
-// passes through unchanged - only ExecuteTool is overridden.
+// span per execution. It embeds the interface so every other method passes
+// through unchanged - only the two execute entry points are overridden.
 type toolService struct {
 	agentdomain.ToolService
 	rec *Recorder
@@ -30,6 +30,24 @@ func NewToolService(inner agentdomain.ToolService, rec *Recorder) agentdomain.To
 }
 
 func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
+	return t.record(ctx, tool, t.ToolService.ExecuteTool)
+}
+
+// ExecuteToolDirect is instrumented exactly like ExecuteTool: a user-typed `!!`
+// invocation is a tool execution like any other, and leaving it uninstrumented
+// made direct runs invisible in `infer traces` - a session whose only activity
+// was `!!` produced a root span with no children.
+func (t *toolService) ExecuteToolDirect(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
+	return t.record(ctx, tool, t.ToolService.ExecuteToolDirect)
+}
+
+// record wraps one execution in the span and metric shared by both entry
+// points, so instrumentation cannot drift between them.
+func (t *toolService) record(
+	ctx context.Context,
+	tool sdk.ChatCompletionMessageToolCallFunction,
+	execute func(context.Context, sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error),
+) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	ctx, span := t.rec.startToolSpan(ctx, tool.Name)
@@ -40,7 +58,7 @@ func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMe
 		ctx = agentdomain.WithTraceEnv(ctx, env)
 	}
 
-	res, err := t.ToolService.ExecuteTool(ctx, tool)
+	res, err := execute(ctx, tool)
 	outcome, errType := classify(res, err)
 	t.rec.RecordTool(tool.Name, outcome, errType, time.Since(start))
 
@@ -69,6 +87,11 @@ func (r *Recorder) startToolSpan(ctx context.Context, toolName string) (context.
 	}
 	if toolCallID := agentdomain.GetToolCallID(ctx); toolCallID != "" {
 		attrs = append(attrs, attribute.String("gen_ai.tool.call.id", toolCallID))
+	}
+	// Mark user-typed `!!` runs so a trace tree distinguishes them from the
+	// model's own calls - otherwise the two are indistinguishable after the fact.
+	if agentdomain.IsDirectExecution(ctx) {
+		attrs = append(attrs, attribute.Bool("infer.tool.direct", true))
 	}
 	return r.Tracer().Start(ctx, "execute_tool "+toolName,
 		trace.WithAttributes(attrs...),
