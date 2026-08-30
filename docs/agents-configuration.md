@@ -53,11 +53,11 @@ agents:
 Create a new `agents.yaml` file:
 
 ```bash
-# Initialize in current project
+# Initialize the userspace baseline (~/.infer/agents.yaml)
 infer agents init
 
-# Initialize in userspace
-infer agents init --userspace
+# Initialize a project override instead (./.infer/agents.yaml)
+infer agents init --project
 ```
 
 ### Add an Agent
@@ -78,8 +78,8 @@ infer agents add analyzer https://agent.example.com \
   --environment API_KEY=secret \
   --environment MODEL=gpt-4
 
-# Add to userspace configuration
-infer agents add global-helper https://helper.example.com --userspace
+# Add to the project configuration instead of the userspace baseline
+infer agents add project-helper https://helper.example.com --project
 ```
 
 ### List Agents
@@ -93,8 +93,8 @@ infer agents list
 # List agents in JSON format
 infer agents list --format json
 
-# List userspace agents
-infer agents list --userspace
+# List the project override's agents
+infer agents list --project
 ```
 
 ### Show Agent Details
@@ -117,8 +117,8 @@ Remove an agent from the configuration:
 # Remove agent
 infer agents remove code-reviewer
 
-# Remove from userspace configuration
-infer agents remove global-helper --userspace
+# Remove from the project configuration
+infer agents remove project-helper --project
 ```
 
 ## Environment Variable Substitution

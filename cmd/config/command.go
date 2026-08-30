@@ -18,8 +18,6 @@ func NewCommand(state *runtime.State) *cobra.Command {
 		Short: "Manage CLI configuration",
 		Long:  `Manage the Inference Gateway CLI configuration settings.`,
 	}
-	command.PersistentFlags().Bool("project", false,
-		"Apply to the project configuration (./.infer/) instead of the userspace baseline (~/.infer/)")
 	command.AddCommand(newInitCommand(), newGetCommand(state), newSetCommand())
 	return command
 }
@@ -28,13 +26,15 @@ func newInitCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a new configuration file",
-		Long: `Initialize a new config.yaml with default settings.
+		Long: `Initialize the userspace baseline ~/.infer/config.yaml with default settings.
 
-By default this writes the userspace baseline at ~/.infer/config.yaml. Pass
---project to write a project-level ./.infer/config.yaml that overrides the
-baseline key-by-key instead.
+A project ./.infer/config.yaml is an override layer, not a second full config:
+create it with 'infer config set --project <key> <value>', which writes only the
+keys you set. Seeding a full default config into a project would shadow the
+entire userspace baseline, because project values replace userspace ones
+key-by-key (and project lists replace, rather than extend, userspace lists).
 
-For complete project initialization, use 'infer init' instead.`,
+For complete initialization, use 'infer init' instead.`,
 		RunE: initialize,
 	}
 	command.Flags().Bool("overwrite", false, "Overwrite existing configuration file")
@@ -42,17 +42,14 @@ For complete project initialization, use 'infer init' instead.`,
 }
 
 func initialize(cmd *cobra.Command, _ []string) error {
-	project := runtime.ProjectFlag(cmd)
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 
-	configPath := config.DefaultConfigPath
-	if !project {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get user home directory: %w", err)
-		}
-		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get user home directory: %w", err)
 	}
+	configPath := filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+
 	if _, err := os.Stat(configPath); err == nil && !overwrite {
 		return fmt.Errorf("configuration file %s already exists (use --overwrite to replace)", configPath)
 	}
@@ -60,17 +57,9 @@ func initialize(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
 
-	scope := "userspace "
-	if project {
-		scope = "project "
-	}
-	fmt.Printf("Successfully created %sconfiguration: %s\n", scope, configPath)
-	if project {
-		fmt.Println("This project configuration overrides your userspace baseline (~/.infer/) key-by-key.")
-	} else {
-		fmt.Println("This userspace configuration is the shared baseline for all your projects.")
-		fmt.Println("Project-level configurations are merged on top when present.")
-	}
-	fmt.Println("Tip: Use 'infer init' for complete project initialization including additional setup files.")
+	fmt.Printf("Successfully created userspace configuration: %s\n", configPath)
+	fmt.Println("This userspace configuration is the shared baseline for all your projects.")
+	fmt.Println("To override a setting for one project: infer config set --project <key> <value>")
+	fmt.Println("Tip: Use 'infer init' for complete initialization including additional setup files.")
 	return nil
 }

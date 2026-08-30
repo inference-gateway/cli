@@ -29,14 +29,19 @@ supporting multiple configuration sources with proper precedence handling.
 ## Configuration Layers
 
 1. **Userspace Configuration** (`~/.infer/config.yaml`)
-   - Global configuration for the user across all projects
-   - Used as a fallback when no project-level configuration exists
-   - Can be created with: `infer init --userspace` or `infer config init --userspace`
+   - The shared baseline for every project, and the CLI's only default write
+     location - all runtime state (conversations, logs, history, artifacts)
+     lives under `~/.infer/` too
+   - Created with: `infer init` (full baseline) or `infer config init`
+     (`config.yaml` only)
 
 2. **Project Configuration** (`.infer/config.yaml` in current directory)
-   - Project-specific configuration that takes precedence over userspace config
-   - Default location for most commands
-   - Can be created with: `infer init` or `infer config init`
+   - An *optional*, sparse override layer that takes precedence over the
+     userspace baseline. It only exists if you create it; the CLI never
+     populates a project `.infer/` on its own
+   - Created with: `infer config set --project <key> <value>`, which writes
+     only the keys you set (or by hand). Include just the keys you want to
+     override - everything else is inherited
 
 ---
 
@@ -54,16 +59,22 @@ Configuration values are resolved in the following order (highest to lowest prio
 sets `agent.model: "deepseek/deepseek-v4-pro"`, the project config wins. However, if you also set
 `INFER_AGENT_MODEL="openai/gpt-4"`, the environment variable takes precedence over both config files.
 
+> **List-valued keys replace, they do not merge.** Viper's `MergeInConfig`
+> deep-merges maps but substitutes slices wholesale, so a list in the project
+> layer (e.g. `tools.sandbox.directories`, `tools.bash.mode.*.allow`,
+> `tools.web_fetch.allowed_domains`) *replaces* the userspace value rather than
+> extending it. Keep project overrides sparse for this reason.
+
 ### Usage Examples
 
 ```bash
-# Create userspace configuration (global fallback)
-infer init --userspace
-
-# Create project configuration (takes precedence)
+# Seed the userspace baseline (shared across all projects)
 infer init
 
-# Both configurations will be automatically merged when commands are run
+# Add a sparse project override on top (takes precedence)
+infer config set agent.model "deepseek/deepseek-v4-pro" --project
+
+# Both layers are automatically merged when commands are run
 ```
 
 You can also specify a custom config file using the `--config` flag which will override the automatic 2-layer loading.
@@ -371,8 +382,9 @@ vision:
 
 System reminders inject short `<system-reminder>` messages into the conversation at
 defined points of the agent loop, keeping durable guidance in context without bloating
-the system prompt. They live in their own file, **`reminders.yaml`** (project
-`./.infer/reminders.yaml` or userspace `~/.infer/reminders.yaml`), seeded by `infer init`.
+the system prompt. They live in their own file, **`reminders.yaml`** (userspace
+`~/.infer/reminders.yaml`, seeded by `infer init`, with an optional project
+`./.infer/reminders.yaml` override).
 When the file is absent the built-in defaults are used.
 
 ```yaml
@@ -511,9 +523,9 @@ chat:
 
 ### Keybinding Configuration
 
-Keybindings live in their own file at `<configDir>/keybindings.yaml` (project:
-`.infer/keybindings.yaml`, userspace: `~/.infer/keybindings.yaml`). `infer init`
-seeds it with the defaults. The main `config.yaml` no longer contains a
+Keybindings live in their own file at `<configDir>/keybindings.yaml` (userspace:
+`~/.infer/keybindings.yaml`, seeded by `infer init`; an optional project
+`.infer/keybindings.yaml` overrides it when present). The main `config.yaml` no longer contains a
 `chat.keybindings` block.
 
 - **enabled**: Enable/disable custom keybindings (default: `true` in the
@@ -976,19 +988,22 @@ This allows sensitive values to be stored as environment variables while keeping
 
 ### Organization
 
-- Use **project config** (`.infer/config.yaml`) for project-specific settings
-- Use **userspace config** (`~/.infer/config.yaml`) for personal preferences
-- Commit project configs to version control, exclude userspace configs
+- Use **userspace config** (`~/.infer/config.yaml`) for your baseline and
+  personal preferences - it is the default write target
+- Use a **project config** (`.infer/config.yaml`) only for the handful of keys a
+  repo genuinely needs to override; keep it sparse
+- Commit project configs to version control; userspace configs stay on your
+  machine
 
 ### Example Workflow
 
 ```bash
-# 1. Setup userspace defaults
-infer config set agent.model "deepseek/deepseek-v4-pro" --userspace
+# 1. Setup userspace defaults (the shared baseline)
+infer config set agent.model "deepseek/deepseek-v4-pro"
 
 # 2. Project-specific overrides
-infer config set agent.model "deepseek/deepseek-v4-pro"  # Project-specific model
-infer config set tools.bash.enabled true                 # Enable bash tools for this project
+infer config set agent.model "openai/gpt-4o" --project    # Project-specific model
+infer config set tools.bash.enabled true --project        # Enable bash tools for this project
 
 # 3. Runtime overrides
 INFER_AGENT_MAX_TURNS=100 infer chat  # Temporary turn limit

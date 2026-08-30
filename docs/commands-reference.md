@@ -84,29 +84,25 @@ subcommands - every `config.yaml` key is reachable by its dotted path.
 
 ### `infer config init`
 
-Initialize a new configuration file with default settings. By default this
-writes the userspace baseline at `~/.infer/config.yaml`; pass `--project` to
-write a project-level `./.infer/config.yaml` override instead -
-project config always wins over the userspace baseline key-by-key, and list
-values in the project file replace (not extend) the userspace lists.
+Initialize the userspace baseline `~/.infer/config.yaml` with default settings.
+
+A project `./.infer/config.yaml` is an *override* layer, not a second full
+config - create it with `infer config set --project <key> <value>`, which writes
+only the keys you set. Seeding a full default config into a project would shadow
+the entire userspace baseline, because project values win key-by-key and project
+lists replace (rather than extend) userspace lists.
 
 For complete initialization of the full baseline, use `infer init` instead.
 
 **Options:**
 
 - `--overwrite`: Overwrite existing configuration file
-- `--project`: Write the project-level `.infer/config.yaml` override instead
-  of the userspace baseline
 
 **Examples:**
 
 ```bash
-# Initialize the userspace baseline (default)
 infer config init
 infer config init --overwrite
-
-# Create a project-level override instead
-infer config init --project
 ```
 
 ### `infer config get [key]`

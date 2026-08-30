@@ -51,42 +51,29 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to get user home directory: %w", err)
 	}
 	homeCfgDir := filepath.Join(homeDir, config.ConfigDirName)
+	shortcutsDir := filepath.Join(homeCfgDir, "shortcuts")
 
-	homeKeybindingsPath := filepath.Join(homeCfgDir, config.KeybindingsFileName)
-	homeremindersPath := filepath.Join(homeCfgDir, config.RemindersFileName)
-	homeChannelsPath := filepath.Join(homeCfgDir, config.ChannelsFileName)
-	homeHeartbeatPath := filepath.Join(homeCfgDir, config.HeartbeatFileName)
-	homeComputerUsePath := filepath.Join(homeCfgDir, config.ComputerUseFileName)
-	homeBrowserUsePath := filepath.Join(homeCfgDir, config.BrowserUseFileName)
-	homeMemoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
-
-	var configPath, scmShortcutsPath, gitShortcutsPath,
-		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
-		envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, promptsPath,
-		hooksPath, agentsPath, skillsDirPath string
-
-	keybindingsPath := homeKeybindingsPath
-	remindersPath := homeremindersPath
-	channelsPath := homeChannelsPath
-	heartbeatPath := homeHeartbeatPath
-	computerUsePath := homeComputerUsePath
-	browserUsePath := homeBrowserUsePath
-	memoryConfigPath := homeMemoryConfigPath
-
-	configPath = filepath.Join(homeCfgDir, config.ConfigFileName)
-	scmShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "scm.yaml")
-	gitShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "git.yaml")
-	mcpShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "mcp.yaml")
-	shellsShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "shells.yaml")
-	exportShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "export.yaml")
-	envShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "env.yaml")
-	a2aShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "a2a.yaml")
-	skillsShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "skills.yaml")
-	mcpPath = filepath.Join(homeCfgDir, config.MCPFileName)
-	promptsPath = filepath.Join(homeCfgDir, config.PromptsFileName)
-	hooksPath = filepath.Join(homeCfgDir, config.HooksFileName)
-	agentsPath = filepath.Join(homeCfgDir, config.AgentsFileName)
-	skillsDirPath = filepath.Join(homeCfgDir, "skills")
+	configPath := filepath.Join(homeCfgDir, config.ConfigFileName)
+	scmShortcutsPath := filepath.Join(shortcutsDir, "scm.yaml")
+	gitShortcutsPath := filepath.Join(shortcutsDir, "git.yaml")
+	mcpShortcutsPath := filepath.Join(shortcutsDir, "mcp.yaml")
+	shellsShortcutsPath := filepath.Join(shortcutsDir, "shells.yaml")
+	exportShortcutsPath := filepath.Join(shortcutsDir, "export.yaml")
+	envShortcutsPath := filepath.Join(shortcutsDir, "env.yaml")
+	a2aShortcutsPath := filepath.Join(shortcutsDir, "a2a.yaml")
+	skillsShortcutsPath := filepath.Join(shortcutsDir, "skills.yaml")
+	mcpPath := filepath.Join(homeCfgDir, config.MCPFileName)
+	promptsPath := filepath.Join(homeCfgDir, config.PromptsFileName)
+	hooksPath := filepath.Join(homeCfgDir, config.HooksFileName)
+	agentsPath := filepath.Join(homeCfgDir, config.AgentsFileName)
+	skillsDirPath := filepath.Join(homeCfgDir, "skills")
+	keybindingsPath := filepath.Join(homeCfgDir, config.KeybindingsFileName)
+	remindersPath := filepath.Join(homeCfgDir, config.RemindersFileName)
+	channelsPath := filepath.Join(homeCfgDir, config.ChannelsFileName)
+	heartbeatPath := filepath.Join(homeCfgDir, config.HeartbeatFileName)
+	computerUsePath := filepath.Join(homeCfgDir, config.ComputerUseFileName)
+	browserUsePath := filepath.Join(homeCfgDir, config.BrowserUseFileName)
+	memoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
 
 	if !overwrite {
 		pathsToCheck := []string{
@@ -205,13 +192,14 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to create memory config file: %w", err)
 	}
 
-	fmt.Printf("%s Successfully initialized Inference Gateway CLI %s configuration\n", icons.CheckMarkStyle.Render(icons.CheckMark), "userspace")
+	fmt.Printf("%s Successfully initialized Inference Gateway CLI userspace configuration\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 	fmt.Printf("   Created: %s\n", configPath)
 	fmt.Printf("   Created: %s\n", scmShortcutsPath)
 	fmt.Printf("   Created: %s\n", gitShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpShortcutsPath)
 	fmt.Printf("   Created: %s\n", shellsShortcutsPath)
 	fmt.Printf("   Created: %s\n", exportShortcutsPath)
+	fmt.Printf("   Created: %s\n", envShortcutsPath)
 	fmt.Printf("   Created: %s\n", a2aShortcutsPath)
 	fmt.Printf("   Created: %s\n", skillsShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpPath)
@@ -252,7 +240,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	fmt.Println("You can now customize the configuration:")
 	fmt.Println("  - Set default model: infer config set agent.model <model-name>")
 	fmt.Println("  - Configure tools: infer config tools --help")
-	fmt.Println("  - Customize shortcuts: Edit .infer/shortcuts/scm.yaml or add your own")
+	fmt.Printf("  - Customize shortcuts: Edit %s or add your own\n", scmShortcutsPath)
 	fmt.Println("  - Start chatting: infer chat")
 	fmt.Println("")
 	fmt.Println("Tip: Use /init in chat mode to generate an AGENTS.md file interactively")
