@@ -1039,8 +1039,11 @@ func TestValidatePathInSandbox_AgentsSkillsCarveOut(t *testing.T) {
 // TestValidatePathInSandbox_ConfigDir locks in the directory-wide protection of
 // the config dir: sensitive config files are denied wholesale, and the old
 // project-local .infer/tmp is no longer a sandbox carve-out (runtime
-// artifacts moved to ~/.infer/projects/<project-slug>/); plans stay
-// reachable, and hard protections like *.env apply everywhere.
+// artifacts moved to ~/.infer/projects/<project-slug>/). This config has no
+// configDir set, so GetConfigDir() is the relative ".infer" - the case where a
+// config-relative check would miss the userspace runtime dirs entirely, so the
+// ~/.infer plans and artifacts entries below are the ones that matter here.
+// Hard protections like *.env apply everywhere.
 func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
 	cfg := DefaultConfig()
 
@@ -1065,6 +1068,7 @@ func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
 		filepath.Join(ProjectRuntimeDir(), "tmp", "scratch.txt"),
 		filepath.Join(ProjectRuntimeDir(), "backups", "main.go.backup"),
 		filepath.Join(UserSpaceConfigDir(), ArtifactsDirName, "run-1", "report.md"),
+		filepath.Join(UserSpaceConfigDir(), "plans", "2026-06-01-do-thing.md"),
 	}
 	for _, p := range allowed {
 		t.Run("allow "+p, func(t *testing.T) {

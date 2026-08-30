@@ -1662,7 +1662,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		(c.Plugins.Enabled && c.isWithinPluginsDir(absPath)) ||
-		isWithinProjectRuntimeDirs(absPath) ||
+		isWithinRuntimeDirs(absPath) ||
 		c.isWithinConfigSubdir(absPath, "plans", "projects.json") ||
 		isWithinMemoryDir(absPath, c.Memory) ||
 		isWithinGoLibDirs(absPath)
@@ -1757,23 +1757,37 @@ func isWithinDir(absPath, dir string) bool {
 	return absPath == absDir || strings.HasPrefix(absPath, absDir+string(filepath.Separator))
 }
 
-// isWithinProjectRuntimeDirs reports whether absPath lives inside one of the
+// userspaceRuntimeDirNames are runtime dirs pinned directly under ~/.infer no
+// matter where config resolves: the artifact poller's GitHub download dir
+// (cmd/daemon) and the plan store (storage.userPlansDir). Anchoring them to
+// the userspace dir rather than GetConfigDir() is what keeps them reachable
+// when a project supplies its own ./.infer/config.yaml - GetConfigDir() is the
+// relative ".infer" then, so a config-relative check would only ever look at
+// the project directory.
+var userspaceRuntimeDirNames = []string{ArtifactsDirName, "plans"}
+
+// isWithinRuntimeDirs reports whether absPath lives inside one of the
 // runtime-artifact subdirectories of the current project's runtime root
 // (~/.infer/projects/<project-slug>) - tmp scratch, artifacts, history,
-// backups, and exports - or inside the machine-scoped ~/.infer/artifacts that
-// the scheduler's artifact poller extracts GitHub run deliverables into
-// (cmd/daemon: that dir is cross-project, so it does not live under a slug).
-// Those are runtime output the agent must be able to read and write even
-// though the broader .infer/ directory, and the rest of ~/.infer, stays
-// protected.
-func isWithinProjectRuntimeDirs(absPath string) bool {
+// backups, and exports - or inside one of the machine-scoped userspace runtime
+// dirs above. Those are runtime output the agent must be able to read and
+// write even though the broader .infer/ directory, and the rest of ~/.infer,
+// stays protected.
+func isWithinRuntimeDirs(absPath string) bool {
 	runtimeRoot := ProjectRuntimeDir()
 	for _, name := range runtimeArtifactDirNames {
 		if isWithinDir(absPath, filepath.Join(runtimeRoot, name)) {
 			return true
 		}
 	}
-	return isWithinDir(absPath, filepath.Join(UserSpaceConfigDir(), ArtifactsDirName))
+
+	userSpace := UserSpaceConfigDir()
+	for _, name := range userspaceRuntimeDirNames {
+		if isWithinDir(absPath, filepath.Join(userSpace, name)) {
+			return true
+		}
+	}
+	return false
 }
 
 // isWithinConfigSubdir reports whether absPath lives inside one of the named
@@ -1783,7 +1797,7 @@ func isWithinProjectRuntimeDirs(absPath string) bool {
 // desktop's projects.json - stay reachable even when the config was loaded from
 // the userspace location (~/.infer). This keeps the rest of .infer/ protected
 // as a whole. Runtime artifacts (tmp, artifacts, history, backups, exports) are
-// covered by isWithinProjectRuntimeDirs instead.
+// covered by isWithinRuntimeDirs instead.
 func (c *Config) isWithinConfigSubdir(absPath string, names ...string) bool {
 	configDirs := []string{ConfigDirName}
 	if resolved := c.GetConfigDir(); resolved != "" && resolved != ConfigDirName {
