@@ -22,12 +22,17 @@ func TestHTTPModelService_ListModelsPublishesMetadata(t *testing.T) {
 	defer setGatewayPricing(nil)
 
 	cache := "0.00000025"
+	chatMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText},
+		Output: []sdk.Modality{sdk.ModalityText},
+	}
 	fake := &sdkmocks.FakeClient{}
 	fake.ListModelsReturns(&sdk.ListModelsResponse{
 		Object: "list",
 		Data: []sdk.Model{
 			{
 				ID:            "prov/metadata-model",
+				Modalities:    &chatMods,
 				ContextWindow: &sdk.ContextWindow{Tokens: 424242, Source: sdk.ContextWindowSourceProvider},
 				Pricing: &sdk.Pricing{
 					InputPerToken:     "0.0000025",
@@ -37,7 +42,7 @@ func TestHTTPModelService_ListModelsPublishesMetadata(t *testing.T) {
 					Source:            sdk.PricingSourceProvider,
 				},
 			},
-			{ID: "prov/bare-model"},
+			{ID: "prov/bare-model", Modalities: &chatMods},
 		},
 	}, nil)
 
@@ -62,10 +67,11 @@ func TestHTTPModelService_ListModelsPublishesMetadata(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// TestHTTPModelService_ListModelsFiltersImageModels verifies that image-generation
-// models (output modalities include "image" but not "text") are excluded from the
-// selectable list; vision models (both "text" and "image") are kept.
-func TestHTTPModelService_ListModelsFiltersImageModels(t *testing.T) {
+// TestHTTPModelService_ListModelsFiltersNonChatModels verifies that models
+// that cannot serve /chat/completions are excluded from the selectable list:
+// image generation (text in, image out), speech-to-text (audio in, text out)
+// and text-to-speech (text in, audio out).
+func TestHTTPModelService_ListModelsFiltersNonChatModels(t *testing.T) {
 	defer models.SetGatewayModalities(nil)
 
 	imageMods := sdk.ModelModalities{
@@ -76,6 +82,14 @@ func TestHTTPModelService_ListModelsFiltersImageModels(t *testing.T) {
 		Input:  []sdk.Modality{sdk.ModalityText},
 		Output: []sdk.Modality{sdk.ModalityText},
 	}
+	audioInMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityAudio},
+		Output: []sdk.Modality{sdk.ModalityText},
+	}
+	audioOutMods := sdk.ModelModalities{
+		Input:  []sdk.Modality{sdk.ModalityText},
+		Output: []sdk.Modality{sdk.ModalityAudio},
+	}
 
 	fake := &sdkmocks.FakeClient{}
 	fake.ListModelsReturns(&sdk.ListModelsResponse{
@@ -83,8 +97,11 @@ func TestHTTPModelService_ListModelsFiltersImageModels(t *testing.T) {
 		Data: []sdk.Model{
 			{ID: "deepseek/deepseek-v4-flash", Modalities: &textMods},
 			{ID: "openai/gpt-image-2", Modalities: &imageMods},
-			{ID: "openai/dall-e-3", Modalities: &imageMods},
 			{ID: "black-forest-labs/flux-1.1-pro", Modalities: &imageMods},
+			{ID: "groq/whisper-large-v3", Modalities: &audioInMods},
+			{ID: "groq/whisper-large-v3-turbo", Modalities: &audioInMods},
+			{ID: "groq/playai-tts", Modalities: &audioOutMods},
+			{ID: "groq/playai-tts-arabic", Modalities: &audioOutMods},
 		},
 	}, nil)
 
@@ -92,6 +109,31 @@ func TestHTTPModelService_ListModelsFiltersImageModels(t *testing.T) {
 	ids, err := svc.ListModels(context.Background())
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"deepseek/deepseek-v4-flash"}, ids)
+}
+
+// TestHTTPModelService_ListModelsDropsUnknownModalities verifies that models
+// whose modalities the gateway does not report (nil) or reports as empty are
+// hidden: the gateway reports "modalities": null for most of its catalog
+// (speech, embedding and moderation models included), so an unreported
+// capability is treated as "cannot chat" rather than kept on trust.
+func TestHTTPModelService_ListModelsDropsUnknownModalities(t *testing.T) {
+	defer models.SetGatewayModalities(nil)
+
+	emptyMods := sdk.ModelModalities{}
+
+	fake := &sdkmocks.FakeClient{}
+	fake.ListModelsReturns(&sdk.ListModelsResponse{
+		Object: "list",
+		Data: []sdk.Model{
+			{ID: "prov/nil-modalities"},
+			{ID: "prov/empty-modalities", Modalities: &emptyMods},
+		},
+	}, nil)
+
+	svc := NewHTTPModelService(fake)
+	ids, err := svc.ListModels(context.Background())
+	assert.NoError(t, err)
+	assert.Empty(t, ids)
 }
 
 // TestHTTPModelService_ListModelsKeepsVisionModels verifies that models with
