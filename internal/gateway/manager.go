@@ -249,13 +249,11 @@ func (gm *Manager) killGateway() {
 	}
 }
 
-// inferHomeDir returns a path under the userspace ~/.infer directory (or its
-// project-relative fallback when $HOME is unknown).
-func inferHomeDir(parts ...string) string {
-	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(append([]string{home, config.ConfigDirName}, parts...)...)
-	}
-	return filepath.Join(append([]string{config.ConfigDirName}, parts...)...)
+// inferHomeDir returns a path under the userspace ~/.infer directory.
+// ponytail: $HOME is always set on supported platforms; no project-relative fallback.
+func inferHomeDir(part string) string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, config.ConfigDirName, part)
 }
 
 // inferRunDir returns the runtime state directory (~/.infer/run).
@@ -908,7 +906,7 @@ func (gm *Manager) runBinary(binaryPath string) error {
 func (gm *Manager) configureGatewayOutput(cmd *exec.Cmd) error {
 	logDir := gm.config.Logging.Dir
 	if logDir == "" {
-		logDir = inferHomeDir("logs")
+		logDir = config.DefaultLogsDir()
 	}
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return fmt.Errorf("failed to create gateway log directory: %w", err)
