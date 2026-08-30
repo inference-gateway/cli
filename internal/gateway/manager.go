@@ -250,7 +250,7 @@ func (gm *Manager) killGateway() {
 }
 
 // inferHomeDir returns a path under the userspace ~/.infer directory.
-// ponytail: $HOME is always set on supported platforms; no project-relative fallback.
+// $HOME is always set on supported platforms; no project-relative fallback.
 func inferHomeDir(part string) string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, config.ConfigDirName, part)

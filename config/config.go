@@ -1632,7 +1632,6 @@ func ResolveConfigDir() string {
 // DefaultLogsDir is the userspace log store (~/.infer/logs). Logs (CLI and
 // gateway) are machine-scoped runtime state, not project state, and an
 // explicit logging.dir config value still wins over this default.
-// ponytail: $HOME is always set on supported platforms; no project-relative fallback.
 func DefaultLogsDir() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ConfigDirName, LogsDirName)
