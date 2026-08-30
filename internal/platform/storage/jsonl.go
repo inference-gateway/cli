@@ -17,6 +17,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	project "github.com/inference-gateway/cli/internal/platform/project"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -390,12 +391,16 @@ func (s *JsonlStorage) conversationDirs(project string) []string {
 	return dirs
 }
 
-// ListConversationsNeedingTitles returns conversations that need title generation
+// ListConversationsNeedingTitles returns conversations that need title
+// generation, scoped to the current project's store (basePath). The title
+// worker can only load and update conversations under that directory, so an
+// all-projects scan would just re-fail sibling projects' conversations every
+// run.
 func (s *JsonlStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]convdomain.ConversationSummary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	allSummaries, err := s.ListConversations(ctx, "", 0, 0)
+	allSummaries, err := s.ListConversations(ctx, project.Path(), 0, 0)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,7 +22,7 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 		return StorageConfig{
 			Type: config.StorageTypeSQLite,
 			SQLite: SQLiteConfig{
-				Path: orDefault(cfg.Storage.SQLite.Path, defaultSQLitePath()),
+				Path: cmp.Or(cfg.Storage.SQLite.Path, defaultSQLitePath()),
 			},
 		}
 	case config.StorageTypePostgres:
@@ -81,15 +82,6 @@ func homeConfigDir() string {
 		return config.ConfigDirName
 	}
 	return filepath.Join(home, config.ConfigDirName)
-}
-
-// orDefault returns the explicit path when set, else the derived default:
-// an empty storage.*.path always means "use the default location".
-func orDefault(explicit, fallback string) string {
-	if explicit != "" {
-		return explicit
-	}
-	return fallback
 }
 
 // defaultProjectsDir is the root of the per-project conversation layout.

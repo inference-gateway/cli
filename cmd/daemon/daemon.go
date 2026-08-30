@@ -286,10 +286,10 @@ func startArtifactPoller(ctx context.Context, cfg *config.Config) (*githubschedu
 		return nil, err
 	}
 
-	conversationsDir := cfg.Storage.Jsonl.Path
-	if strings.HasPrefix(conversationsDir, "~") {
+	conversationsDir := storage.NewStorageFromConfig(cfg).Jsonl.Path
+	if rest, ok := strings.CutPrefix(conversationsDir, "~"); ok {
 		if home, err := os.UserHomeDir(); err == nil {
-			conversationsDir = filepath.Join(home, strings.TrimPrefix(conversationsDir, "~"))
+			conversationsDir = filepath.Join(home, rest)
 		}
 	}
 	statePath := ""

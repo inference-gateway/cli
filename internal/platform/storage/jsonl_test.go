@@ -857,6 +857,48 @@ func TestJsonlStorage_SessionGroups_AtomicWrite(t *testing.T) {
 	assert.Len(t, all, 2)
 }
 
+// TestJsonlStorage_ListConversationsAcrossProjects covers the default
+// per-project layout: an empty project scope walks every sibling project store
+// under projectsPath (deduping basePath), while a non-empty scope lists only
+// this store's own directory.
+func TestJsonlStorage_ListConversationsAcrossProjects(t *testing.T) {
+	ctx := context.Background()
+	projects := filepath.Join(t.TempDir(), "projects")
+
+	newStore := func(slug, projectsPath string) *JsonlStorage {
+		s, err := NewJsonlStorage(JsonlStorageConfig{
+			Path:         filepath.Join(projects, slug, "conversations"),
+			ProjectsPath: projectsPath,
+		})
+		require.NoError(t, err)
+		return s
+	}
+
+	storeA := newStore("proj-a", projects)
+	storeB := newStore("proj-b", "")
+
+	metaA := createTestMetadata("conv-a")
+	metaA.Project = "/home/alice/proj-a"
+	require.NoError(t, storeA.SaveConversation(ctx, "conv-a", createTestEntries(), metaA))
+
+	metaB := createTestMetadata("conv-b")
+	metaB.Project = "/home/alice/proj-b"
+	require.NoError(t, storeB.SaveConversation(ctx, "conv-b", createTestEntries(), metaB))
+
+	all, err := storeA.ListConversations(ctx, "", 0, 0)
+	require.NoError(t, err)
+	ids := make([]string, 0, len(all))
+	for _, s := range all {
+		ids = append(ids, s.ID)
+	}
+	assert.ElementsMatch(t, []string{"conv-a", "conv-b"}, ids, "empty scope walks sibling stores without duplicating basePath")
+
+	scoped, err := storeA.ListConversations(ctx, "/home/alice/proj-a", 0, 0)
+	require.NoError(t, err)
+	require.Len(t, scoped, 1, "non-empty scope lists only this store's directory")
+	assert.Equal(t, "conv-a", scoped[0].ID)
+}
+
 // newConformanceJsonlStorage returns a jsonl backend rooted in an isolated
 // temp dir. HOME is overridden because schedules are machine-global and
 // resolve against the user's home config dir.

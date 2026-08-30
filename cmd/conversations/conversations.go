@@ -15,6 +15,7 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	project "github.com/inference-gateway/cli/internal/platform/project"
 )
 
 func NewCommand(state *runtime.State, renderer *output.Renderer) *cobra.Command {
@@ -133,15 +134,13 @@ func listConversations(state *runtime.State, renderer *output.Renderer, cmd *cob
 	offset, _ := cmd.Flags().GetInt("offset")
 	format, _ := cmd.Flags().GetString("format")
 
-	project := ""
+	scope := ""
 	if allProjects, _ := cmd.Flags().GetBool("all-projects"); !allProjects {
-		if wd, err := os.Getwd(); err == nil {
-			project = wd
-		}
+		scope = project.Path()
 	}
 
 	ctx := context.Background()
-	conversations, err := store.ListConversations(ctx, project, limit, offset)
+	conversations, err := store.ListConversations(ctx, scope, limit, offset)
 	if err != nil {
 		return fmt.Errorf("failed to list conversations: %w", err)
 	}
