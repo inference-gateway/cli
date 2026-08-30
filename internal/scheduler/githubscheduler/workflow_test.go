@@ -50,6 +50,8 @@ func TestRenderWorkflow(t *testing.T) {
 		"github-app-slug: ${{ steps.app-token.outputs.app-slug }}",
 		uploadArtifactAction,
 		ArtifactNamePrefix + "${{ github.run_id }}",
+		"~/.infer/projects/*/conversations/*",
+		"~/.infer/projects/*/artifacts/*",
 		"workflow_dispatch",
 		"# original cron: @daily",
 		"\non:\n",

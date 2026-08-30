@@ -19,6 +19,16 @@ const (
 	workflowTimeoutMinutes = 30
 )
 
+// collectStepRun gathers the run's output into the bundle the upload step
+// ships and the poller unpacks: every conversation *.jsonl at the bundle root,
+// every other deliverable under .artifacts/. Both live under the per-project
+// runtime root (~/.infer/projects/<project-slug>/), so the globs span projects
+// rather than naming one - a headless CI run resolves its slug from the
+// workspace path.
+const collectStepRun = `mkdir -p "$GITHUB_WORKSPACE/.infer-conversations/.artifacts"
+cp -rn ~/.infer/projects/*/conversations/* "$GITHUB_WORKSPACE/.infer-conversations/" 2>/dev/null || true
+cp -rn ~/.infer/projects/*/artifacts/* "$GITHUB_WORKSPACE/.infer-conversations/.artifacts/" 2>/dev/null || true`
+
 // WorkflowPath returns the repo-relative path of a job's workflow file.
 func WorkflowPath(jobID string) string {
 	return ".github/workflows/" + jobID + ".yml"
@@ -184,7 +194,7 @@ func RenderWorkflow(job *scheddomain.ScheduledJob, ghCron, defaultModel string, 
 		{
 			Name: "Collect conversation and output files",
 			If:   "always()",
-			Run:  "cp -r ~/.infer/conversations \"$GITHUB_WORKSPACE/.infer-conversations\" 2>/dev/null || true\nmkdir -p \"$GITHUB_WORKSPACE/.infer-conversations/.artifacts\"\ncp -rn \"$GITHUB_WORKSPACE\"/.infer/artifacts/* ~/.infer/artifacts/* \"$GITHUB_WORKSPACE/.infer-conversations/.artifacts/\" 2>/dev/null || true",
+			Run:  collectStepRun,
 		},
 		{
 			Name: "Upload conversation artifact",

@@ -141,7 +141,6 @@ type ChatApplication struct {
 	availableModels []string
 
 	// Configuration
-	configDir string
 }
 
 // nolint: funlen // NewChatApplication creates a new chat application
@@ -230,7 +229,6 @@ func NewChatApplication(
 	app.toolCallRenderer.SetToolFormatter(toolFormatterService)
 
 	configDir := cfg.GetConfigDir()
-	app.configDir = configDir
 
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
@@ -243,7 +241,7 @@ func NewChatApplication(
 	}
 
 	historyName := os.Getenv(scheddomain.EnvSubagentHistoryName)
-	app.inputView = factory.CreateInputViewWithName(app.modelService, configDir, historyName, shellHistoryStore)
+	app.inputView = factory.CreateInputViewWithName(app.modelService, config.ProjectRuntimeDir(), historyName, shellHistoryStore)
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetThemeService(app.themeService)
 		iv.SetStateManager(app.stateManager)
@@ -2485,11 +2483,6 @@ func (app *ChatApplication) GetImageService() agentdomain.ImageService {
 // GetConfig returns the configuration for keybinding context
 func (app *ChatApplication) GetConfig() *config.Config {
 	return app.config
-}
-
-// GetConfigDir returns the configuration directory path
-func (app *ChatApplication) GetConfigDir() string {
-	return app.configDir
 }
 
 // GetStateManager returns the current state manager as the narrow slice key

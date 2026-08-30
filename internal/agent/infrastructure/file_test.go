@@ -71,8 +71,6 @@ func TestFileServiceImpl_ListProjectFiles(t *testing.T) {
 		"README.md",
 		"main.go",
 		".infer/chat_export.md",
-		".infer/tmp/image-123.png",
-		".infer/tmp/artifact.txt",
 		"src/file.go",
 	}
 

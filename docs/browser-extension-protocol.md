@@ -278,7 +278,8 @@ with a fresh `mode` frame either way:
 ## Artifacts (generated images)
 
 Chat text can reference files the agent saved under the artifacts dir
-(`~/.infer/artifacts/<...>`, e.g. `ImageGeneration` output). An MV3 extension
+(`~/.infer/projects/<project-slug>/artifacts/<...>`, e.g. `ImageGeneration`
+output). An MV3 extension
 cannot load a local file path in `<img>`, so alongside `/ws` the CLI serves that
 directory read-only over HTTP:
 
@@ -286,7 +287,7 @@ directory read-only over HTTP:
 GET http://127.0.0.1:<port>/artifacts/<relative-path>
 ```
 
-The extension rewrites a markdown image whose URL contains `/.infer/artifacts/`
+The extension rewrites a markdown image whose URL contains `/artifacts/`
 to this route (stripping the prefix through and including `artifacts/`) and
 renders it inline. The route is loopback-only and unauthenticated (the artifacts
 are the user's own generated files); path traversal is blocked by `http.Dir`.

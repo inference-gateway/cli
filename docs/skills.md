@@ -80,7 +80,7 @@ spot. The index fetch and the download both use `GITHUB_TOKEN` / `GH_TOKEN`
 when set, which raises GitHub's 60-requests-per-hour anonymous rate limit; the
 token is only ever sent to GitHub hosts.
 
-Dynamically downloaded skills are stored under `.infer/tmp/skills/` and are
+Dynamically downloaded skills are stored under `~/.infer/projects/<project-slug>/tmp/skills/` and are
 **cleaned up after the session ends** by default. Set
 `agent.skills.discovery.cleanup: false` to retain them across sessions.
 

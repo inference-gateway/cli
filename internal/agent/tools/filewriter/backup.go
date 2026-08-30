@@ -15,12 +15,10 @@ type DefaultBackupManager struct {
 	backupDir string
 }
 
-// NewBackupManager creates a new DefaultBackupManager
-func NewBackupManager(baseDir string) *DefaultBackupManager {
-	backupDir := filepath.Join(baseDir, ".infer", "backups")
-	return &DefaultBackupManager{
-		backupDir: backupDir,
-	}
+// NewBackupManager creates a new DefaultBackupManager writing into backupDir -
+// the per-project runtime backups dir (~/.infer/projects/<project-slug>/backups).
+func NewBackupManager(backupDir string) *DefaultBackupManager {
+	return &DefaultBackupManager{backupDir: backupDir}
 }
 
 // CreateBackup creates a backup of the original file

@@ -27,7 +27,7 @@ services:
     pull_policy: always
     tty: true
     volumes:
-      - ./downloads:/home/infer/.infer/tmp
+      - ./downloads:/home/infer/.infer/projects
     environment:
       INFER_GATEWAY_URL: http://inference-gateway:8080
       INFER_AGENT_MODEL: deepseek/deepseek-v4-pro

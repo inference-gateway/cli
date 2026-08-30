@@ -8,6 +8,8 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	mockgateway "github.com/inference-gateway/tokenless/gateway"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 // TestImageGenerationToolHitsImagesEndpoint drives the full loop: the chat
@@ -53,7 +55,7 @@ scenarios:
 	require.NotNil(t, rec.ImagesBody.Size)
 	require.Equal(t, "1024x1024", string(*rec.ImagesBody.Size))
 
-	saved, err := filepath.Glob(filepath.Join(".infer", "artifacts", "*", "image-*.png"))
+	saved, err := filepath.Glob(filepath.Join(config.ProjectRuntimeDir(), "artifacts", "*", "image-*.png"))
 	require.NoError(t, err)
 	require.Len(t, saved, 1, "expected exactly one saved PNG in the session artifacts dir")
 }

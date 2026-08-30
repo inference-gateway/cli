@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -33,9 +34,10 @@ type WriteTool struct {
 // NewWriteTool creates a new write tool with clean architecture
 func NewWriteTool(cfg *config.Config) *WriteTool {
 	pathValidator := filewriter.NewPathValidator(cfg)
-	backupManager := filewriter.NewBackupManager(".")
+	runtimeDir := config.ProjectRuntimeDir()
+	backupManager := filewriter.NewBackupManager(filepath.Join(runtimeDir, "backups"))
 	fileWriter := filewriter.NewSafeFileWriter(pathValidator, backupManager)
-	chunkManager := filewriter.NewStreamingChunkManager("./.infer/tmp", fileWriter)
+	chunkManager := filewriter.NewStreamingChunkManager(config.ProjectTmpDir(), fileWriter)
 	paramExtractor := NewParameterExtractor()
 
 	return &WriteTool{

@@ -13,7 +13,8 @@ import (
 
 func TestBackupManager_CreateBackup(t *testing.T) {
 	tempDir := t.TempDir()
-	backupMgr := NewBackupManager(tempDir)
+	backupDir := filepath.Join(tempDir, "backups")
+	backupMgr := NewBackupManager(backupDir)
 
 	testFile := filepath.Join(tempDir, "test.txt")
 	testContent := "test content"
@@ -47,7 +48,7 @@ func TestBackupManager_CreateBackup(t *testing.T) {
 			t.Errorf("Backup content = %q, want %q", string(backupContent), testContent)
 		}
 
-		expectedDir := filepath.Join(tempDir, ".infer", "backups")
+		expectedDir := backupDir
 		if !strings.HasPrefix(backupPath, expectedDir) {
 			t.Errorf("Backup path %q not in expected directory %q", backupPath, expectedDir)
 		}
@@ -136,9 +137,9 @@ func TestBackupManager_RestoreBackup(t *testing.T) {
 
 func TestBackupManager_CleanupBackup(t *testing.T) {
 	tempDir := t.TempDir()
-	backupMgr := NewBackupManager(tempDir)
+	backupDir := filepath.Join(tempDir, "backups")
+	backupMgr := NewBackupManager(backupDir)
 
-	backupDir := filepath.Join(tempDir, ".infer", "backups")
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
 		t.Fatalf("Failed to create backup directory: %v", err)
 	}

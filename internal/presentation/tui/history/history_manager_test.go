@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	config "github.com/inference-gateway/cli/config"
 	history "github.com/inference-gateway/cli/internal/presentation/tui/history"
 )
 
@@ -32,13 +33,10 @@ func TestHistoryManager_PublicAPI(t *testing.T) {
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("Failed to change to temp directory: %v", err)
 	}
+	t.Setenv("HOME", tempDir)
 
-	inferDir := ".infer"
-	if err := os.MkdirAll(inferDir, 0755); err != nil {
-		t.Fatalf("Failed to create .infer directory: %v", err)
-	}
-
-	historyDir := filepath.Join(inferDir, "history")
+	runtimeDir := config.ProjectRuntimeDir()
+	historyDir := filepath.Join(runtimeDir, "history")
 	if err := os.MkdirAll(historyDir, 0755); err != nil {
 		t.Fatalf("Failed to create history directory: %v", err)
 	}
@@ -114,13 +112,10 @@ func TestNewHistoryManager_Integration(t *testing.T) {
 	if err := os.Chdir(tempDir); err != nil {
 		t.Fatalf("Failed to change to temp directory: %v", err)
 	}
+	t.Setenv("HOME", tempDir)
 
-	inferDir := ".infer"
-	if err := os.MkdirAll(inferDir, 0755); err != nil {
-		t.Fatalf("Failed to create .infer directory: %v", err)
-	}
-
-	historyDir := filepath.Join(inferDir, "history")
+	runtimeDir := config.ProjectRuntimeDir()
+	historyDir := filepath.Join(runtimeDir, "history")
 	if err := os.MkdirAll(historyDir, 0755); err != nil {
 		t.Fatalf("Failed to create history directory: %v", err)
 	}

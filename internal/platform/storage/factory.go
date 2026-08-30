@@ -3,12 +3,9 @@ package storage
 import (
 	"cmp"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	config "github.com/inference-gateway/cli/config"
-	project "github.com/inference-gateway/cli/internal/platform/project"
 )
 
 // NewStorageFromConfig creates a storage configuration from app config
@@ -74,48 +71,27 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 	}
 }
 
-// homeConfigDir returns ~/.infer, or the bare project-relative .infer when no
-// home directory can be resolved (paths then land next to the working dir).
-func homeConfigDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return config.ConfigDirName
-	}
-	return filepath.Join(home, config.ConfigDirName)
-}
-
 // defaultProjectsDir is the root of the per-project conversation layout.
 func defaultProjectsDir() string {
-	return filepath.Join(homeConfigDir(), "projects")
-}
-
-// projectSlug maps the absolute working directory to a flat directory name,
-// the scheme Claude Code uses: /home/alice/repo -> -home-alice-repo. Headless
-// and scheduler runs share the cwd of interactive runs, so they resolve the
-// same slug.
-func projectSlug() string {
-	slug := strings.ReplaceAll(project.Path(), string(filepath.Separator), "-")
-	if strings.TrimSpace(slug) == "" {
-		return "default"
-	}
-	return slug
+	return filepath.Join(config.UserSpaceConfigDir(), config.ProjectsDirName)
 }
 
 // defaultConversationsDir is where the current project's conversations go when
 // storage.jsonl.path is unset: ~/.infer/projects/<project-slug>/conversations.
+// The slug scheme lives in config.ProjectRuntimeDir so every consumer shares it.
 func defaultConversationsDir() string {
-	return filepath.Join(defaultProjectsDir(), projectSlug(), "conversations")
+	return filepath.Join(config.ProjectRuntimeDir(), "conversations")
 }
 
 // defaultSQLitePath is the shared machine-global SQLite database:
 // ~/.infer/conversations.db.
 func defaultSQLitePath() string {
-	return filepath.Join(homeConfigDir(), "conversations.db")
+	return filepath.Join(config.UserSpaceConfigDir(), "conversations.db")
 }
 
 // userPlansDir returns the userspace plans directory (~/.infer/plans).
 func userPlansDir() string {
-	return filepath.Join(homeConfigDir(), "plans")
+	return filepath.Join(config.UserSpaceConfigDir(), "plans")
 }
 
 // fullBackend is the set of storage interfaces every backend implements; it

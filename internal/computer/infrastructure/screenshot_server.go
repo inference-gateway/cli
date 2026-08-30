@@ -61,7 +61,7 @@ func (s *ScreenshotServer) Start() error {
 
 	tempDir := s.cfg.ComputerUse.Screenshot.TempDir
 	if tempDir == "" {
-		tempDir = filepath.Join(s.cfg.GetConfigDir(), "tmp", "screenshots")
+		tempDir = filepath.Join(config.ProjectTmpDir(), "screenshots")
 	}
 
 	absTempDir, err := filepath.Abs(tempDir)

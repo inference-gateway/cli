@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
@@ -101,17 +100,17 @@ func (s *FileServiceImpl) handleDirectory(d os.DirEntry, path, cwd string) error
 	return nil
 }
 
-// shouldIncludeFile determines if a file should be included in the list
+// shouldIncludeFile determines if a file should be included in the list.
+// Under ./.infer/ only markdown context files are indexed; runtime artifacts
+// (tmp scratch, artifacts) live under ~/.infer/projects/<project-slug>/ and so
+// are never walked here at all.
 func (s *FileServiceImpl) shouldIncludeFile(d os.DirEntry, relPath string) bool {
 	if !d.Type().IsRegular() {
 		return false
 	}
 
 	if strings.HasPrefix(relPath, ".infer"+string(filepath.Separator)) || relPath == ".infer" {
-		inferTmp := filepath.Join(".infer", "tmp") + string(filepath.Separator)
-		inferArtifacts := filepath.Join(".infer", config.ArtifactsDirName) + string(filepath.Separator)
-		ext := strings.ToLower(filepath.Ext(relPath))
-		if !strings.HasPrefix(relPath, inferTmp) && !strings.HasPrefix(relPath, inferArtifacts) && ext != ".md" {
+		if strings.ToLower(filepath.Ext(relPath)) != ".md" {
 			return false
 		}
 	} else if strings.HasPrefix(d.Name(), ".") {

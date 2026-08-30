@@ -4,15 +4,20 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 func TestNewShellHistory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
 	sh, err := NewShellHistory()
 	if err != nil {
 		t.Fatalf("Failed to create shell history: %v", err)
 	}
 
-	expectedPath := filepath.Join(".infer", "history", "history")
+	expectedPath := filepath.Join(config.ProjectRuntimeDir(), "history", "history")
 	if sh.historyFile != expectedPath {
 		t.Errorf("Expected history file path %s, got %s", expectedPath, sh.historyFile)
 	}
@@ -203,12 +208,15 @@ func TestSaveToHistory(t *testing.T) {
 }
 
 func TestGetHistoryFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
 	sh, err := NewShellHistory()
 	if err != nil {
 		t.Fatalf("Failed to create shell history: %v", err)
 	}
 
-	expectedPath := filepath.Join(".infer", "history", "history")
+	expectedPath := filepath.Join(config.ProjectRuntimeDir(), "history", "history")
 	if sh.GetHistoryFile() != expectedPath {
 		t.Errorf("Expected GetHistoryFile() to return %s, got %s", expectedPath, sh.GetHistoryFile())
 	}

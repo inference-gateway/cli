@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	config "github.com/inference-gateway/cli/config"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
@@ -23,17 +24,18 @@ type ShellHistory struct {
 	historyFile string
 }
 
-// NewShellHistory creates a new shell history provider
+// NewShellHistory creates a new shell history provider rooted at the
+// per-project runtime dir (~/.infer/projects/<project-slug>/history).
 func NewShellHistory() (*ShellHistory, error) {
-	return NewShellHistoryWithName(".infer", "")
+	return NewShellHistoryWithName(config.ProjectRuntimeDir(), "")
 }
 
-// NewShellHistoryWithName creates a new shell history provider with a custom config
-// directory and an optional name. When name is empty, the history file is stored at
-// <configDir>/history/history (the main agent). When name is non-empty, the history
-// file is stored at <configDir>/history/history-<name> (e.g. for subagents).
-func NewShellHistoryWithName(configDir, name string) (*ShellHistory, error) {
-	historyDir := filepath.Join(configDir, "history")
+// NewShellHistoryWithName creates a new shell history provider rooted at baseDir
+// with an optional name. When name is empty, the history file is stored at
+// <baseDir>/history/history (the main agent). When name is non-empty, the history
+// file is stored at <baseDir>/history/history-<name> (e.g. for subagents).
+func NewShellHistoryWithName(baseDir, name string) (*ShellHistory, error) {
+	historyDir := filepath.Join(baseDir, "history")
 
 	var historyFile string
 	if name == "" {

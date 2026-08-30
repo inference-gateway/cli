@@ -1000,7 +1000,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Enabled:        true,
 			MaxResultBytes: 250000,
 			Sandbox: SandboxConfig{
-				Directories: []string{".", "/tmp", ConfigDirName + "/tmp"},
+				Directories: []string{".", "/tmp"},
 				ProtectedPaths: []string{
 					ConfigDirName + "/",
 					".git/",
@@ -1154,9 +1154,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				ConvertJPEG: true,
 			},
 		},
-		Export: ExportConfig{
-			OutputDir: ConfigDirName + "/tmp",
-		},
+		Export: ExportConfig{},
 		Agent: AgentConfig{
 			Model: "",
 			Context: AgentContextConfig{
@@ -1596,9 +1594,10 @@ func (c *Config) GetConfigDir() string {
 
 // ArtifactsDir returns the directory for intended agent deliverables
 // (generated images, downloads, A2A artifacts) — separate from the tmp
-// scratch dir so artifact collection never picks up transient files.
+// scratch dir so artifact collection never picks up transient files. It
+// resolves under the per-project runtime root, not the config dir.
 func (c *Config) ArtifactsDir() string {
-	return filepath.Join(c.GetConfigDir(), ArtifactsDirName)
+	return filepath.Join(ProjectRuntimeDir(), ArtifactsDirName)
 }
 
 // SessionArtifactsDir returns the per-session subdirectory of ArtifactsDir so
@@ -1663,7 +1662,8 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		(c.Plugins.Enabled && c.isWithinPluginsDir(absPath)) ||
-		c.isWithinConfigSubdir(absPath, "tmp", "plans", ArtifactsDirName, "projects.json") ||
+		isWithinRuntimeDirs(absPath) ||
+		c.isWithinConfigSubdir(absPath, "plans", "projects.json") ||
 		isWithinMemoryDir(absPath, c.Memory) ||
 		isWithinGoLibDirs(absPath)
 
@@ -1743,12 +1743,61 @@ func isWithinSkillsDir(absPath string) bool {
 	return false
 }
 
+// runtimeArtifactDirNames are the subdirectories of the per-project runtime
+// root that hold process output rather than configuration.
+var runtimeArtifactDirNames = []string{"history", "backups", "tmp", ArtifactsDirName, "exports"}
+
+// isWithinDir reports whether absPath is dir itself or lives beneath it.
+// dir may be relative; it is resolved before comparison.
+func isWithinDir(absPath, dir string) bool {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return false
+	}
+	return absPath == absDir || strings.HasPrefix(absPath, absDir+string(filepath.Separator))
+}
+
+// userspaceRuntimeDirNames are runtime dirs pinned directly under ~/.infer no
+// matter where config resolves: the artifact poller's GitHub download dir
+// (cmd/daemon) and the plan store (storage.userPlansDir). Anchoring them to
+// the userspace dir rather than GetConfigDir() is what keeps them reachable
+// when a project supplies its own ./.infer/config.yaml - GetConfigDir() is the
+// relative ".infer" then, so a config-relative check would only ever look at
+// the project directory.
+var userspaceRuntimeDirNames = []string{ArtifactsDirName, "plans"}
+
+// isWithinRuntimeDirs reports whether absPath lives inside one of the
+// runtime-artifact subdirectories of the current project's runtime root
+// (~/.infer/projects/<project-slug>) - tmp scratch, artifacts, history,
+// backups, and exports - or inside one of the machine-scoped userspace runtime
+// dirs above. Those are runtime output the agent must be able to read and
+// write even though the broader .infer/ directory, and the rest of ~/.infer,
+// stays protected.
+func isWithinRuntimeDirs(absPath string) bool {
+	runtimeRoot := ProjectRuntimeDir()
+	for _, name := range runtimeArtifactDirNames {
+		if isWithinDir(absPath, filepath.Join(runtimeRoot, name)) {
+			return true
+		}
+	}
+
+	userSpace := UserSpaceConfigDir()
+	for _, name := range userspaceRuntimeDirNames {
+		if isWithinDir(absPath, filepath.Join(userSpace, name)) {
+			return true
+		}
+	}
+	return false
+}
+
 // isWithinConfigSubdir reports whether absPath lives inside one of the named
 // subdirectories of the config dir. It checks both the project-relative
 // ConfigDirName (./.infer/<name>) and the resolved config dir
-// (GetConfigDir()/<name>) so that operational areas - tmp scratch, persisted
-// plans, the desktop's projects.json - stay reachable even when the config was loaded from the userspace
-// location (~/.infer). This keeps the rest of .infer/ protected as a whole.
+// (GetConfigDir()/<name>) so that operational areas - persisted plans, the
+// desktop's projects.json - stay reachable even when the config was loaded from
+// the userspace location (~/.infer). This keeps the rest of .infer/ protected
+// as a whole. Runtime artifacts (tmp, artifacts, history, backups, exports) are
+// covered by isWithinRuntimeDirs instead.
 func (c *Config) isWithinConfigSubdir(absPath string, names ...string) bool {
 	configDirs := []string{ConfigDirName}
 	if resolved := c.GetConfigDir(); resolved != "" && resolved != ConfigDirName {
@@ -1757,11 +1806,7 @@ func (c *Config) isWithinConfigSubdir(absPath string, names ...string) bool {
 
 	for _, name := range names {
 		for _, base := range configDirs {
-			dir, err := filepath.Abs(filepath.Join(base, name))
-			if err != nil {
-				continue
-			}
-			if absPath == dir || strings.HasPrefix(absPath, dir+string(filepath.Separator)) {
+			if isWithinDir(absPath, filepath.Join(base, name)) {
 				return true
 			}
 		}

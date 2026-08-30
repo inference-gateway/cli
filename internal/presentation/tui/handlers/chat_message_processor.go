@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
@@ -24,10 +26,6 @@ import (
 // fragments like "phone-555#anchor" or "abc#1" don't get expanded. Word boundary
 // at the tail prevents partial-number false matches inside longer strings.
 var issueRefRe = regexp.MustCompile(`(^|\s)#([0-9]+)\b`)
-
-// dynamicSkillsDirDisplay is the session-scoped directory catalog skills are
-// downloaded into; it is wiped when the session ends.
-const dynamicSkillsDirDisplay = ".infer/tmp/skills/"
 
 // ChatMessageProcessor handles message processing logic
 type ChatMessageProcessor struct {
@@ -178,7 +176,7 @@ func (p *ChatMessageProcessor) confirmCatalogInstall(msg agentdomain.UserInputEv
 	responseChan := make(chan []agentdomain.UserQuestionAnswer, 1)
 	question := agentdomain.UserQuestion{
 		Header:   "Install skill",
-		Question: fmt.Sprintf("%s is not installed locally. Download it from the skills catalog into %s for this session?", strings.Join(names, ", "), dynamicSkillsDirDisplay),
+		Question: fmt.Sprintf("%s is not installed locally. Download it from the skills catalog into %s for this session?", strings.Join(names, ", "), filepath.Join(config.ProjectTmpDir(), "skills")),
 		Options: []agentdomain.UserQuestionOption{
 			{Label: "Install", Description: "Fetch the SKILL.md now and activate the skill"},
 			{Label: "Skip", Description: "Send the message without the skill; you will not be asked again this session"},

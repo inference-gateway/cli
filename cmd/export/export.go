@@ -10,6 +10,7 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
+	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -66,11 +67,7 @@ func runExport(state *runtime.State, sessionID string) error {
 		return fmt.Errorf("failed to export conversation: %w", err)
 	}
 
-	outputDir := cfg.Export.OutputDir
-	if outputDir == "" {
-		outputDir = ".infer"
-	}
-
+	outputDir := exportOutputDir(cfg)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
@@ -84,4 +81,15 @@ func runExport(state *runtime.State, sessionID string) error {
 
 	fmt.Printf("• Conversation exported to: %s\n", filePath)
 	return nil
+}
+
+// exportOutputDir resolves where chat exports are written: an explicit
+// export.output_dir always wins, and the default is the per-project runtime
+// exports dir (~/.infer/projects/<project-slug>/exports) rather than the
+// project-local .infer.
+func exportOutputDir(cfg *config.Config) string {
+	if cfg.Export.OutputDir != "" {
+		return cfg.Export.OutputDir
+	}
+	return filepath.Join(config.ProjectRuntimeDir(), "exports")
 }

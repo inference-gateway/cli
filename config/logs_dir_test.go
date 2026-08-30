@@ -2,7 +2,6 @@ package config_test
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
@@ -16,12 +15,4 @@ func TestDefaultLogsDir(t *testing.T) {
 			t.Fatalf("DefaultLogsDir() = %q, want %q", got, want)
 		}
 	})
-}
-
-func TestInferGitignoreContent(t *testing.T) {
-	for _, forbidden := range []string{"bin/", "logs/*.log"} {
-		if strings.Contains(config.InferGitignoreContent, forbidden) {
-			t.Errorf("seeded gitignore lists %q; gateway binary and logs are machine-scoped and live under ~/.infer", forbidden)
-		}
-	}
 }

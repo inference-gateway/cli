@@ -126,8 +126,8 @@ func testWebSearchEngineValidation(t *testing.T, cfg *Config) {
 }
 
 func testExportDefaults(t *testing.T, cfg *Config) {
-	if cfg.Export.OutputDir != ".infer/tmp" {
-		t.Errorf("Expected export output dir to be '.infer/tmp', got %q", cfg.Export.OutputDir)
+	if cfg.Export.OutputDir != "" {
+		t.Errorf("Expected export output dir to default to empty (resolved to the project runtime exports dir at write time), got %q", cfg.Export.OutputDir)
 	}
 }
 
@@ -1037,9 +1037,13 @@ func TestValidatePathInSandbox_AgentsSkillsCarveOut(t *testing.T) {
 }
 
 // TestValidatePathInSandbox_ConfigDir locks in the directory-wide protection of
-// the config dir: sensitive config files are denied wholesale, while the
-// operational subdirs (tmp, plans) stay reachable - except for files that match
-// a hard protection like *.env.
+// the config dir: sensitive config files are denied wholesale, and the old
+// project-local .infer/tmp is no longer a sandbox carve-out (runtime
+// artifacts moved to ~/.infer/projects/<project-slug>/). This config has no
+// configDir set, so GetConfigDir() is the relative ".infer" - the case where a
+// config-relative check would miss the userspace runtime dirs entirely, so the
+// ~/.infer plans and artifacts entries below are the ones that matter here.
+// Hard protections like *.env apply everywhere.
 func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
 	cfg := DefaultConfig()
 
@@ -1048,6 +1052,7 @@ func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
 		ConfigDirName + "/agents.yaml",
 		ConfigDirName + "/conversations.db",
 		ConfigDirName + "/shortcuts/git.yaml",
+		ConfigDirName + "/tmp/scratch.txt",
 		ConfigDirName + "/tmp/leaked.env",
 	}
 	for _, p := range denied {
@@ -1059,8 +1064,11 @@ func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
 	}
 
 	allowed := []string{
-		ConfigDirName + "/tmp/scratch.txt",
 		ConfigDirName + "/plans/2026-06-01-do-thing.md",
+		filepath.Join(ProjectRuntimeDir(), "tmp", "scratch.txt"),
+		filepath.Join(ProjectRuntimeDir(), "backups", "main.go.backup"),
+		filepath.Join(UserSpaceConfigDir(), ArtifactsDirName, "run-1", "report.md"),
+		filepath.Join(UserSpaceConfigDir(), "plans", "2026-06-01-do-thing.md"),
 	}
 	for _, p := range allowed {
 		t.Run("allow "+p, func(t *testing.T) {
@@ -1135,9 +1143,11 @@ func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
 	cfg.SetConfigDir(userspaceConfigDir)
 
 	allowed := []string{
-		filepath.Join(userspaceConfigDir, "tmp", "scratch.txt"),
 		filepath.Join(userspaceConfigDir, "plans", "2026-06-01-do-thing.md"),
 		filepath.Join(userspaceConfigDir, "projects.json"),
+		filepath.Join(ProjectRuntimeDir(), "artifacts", "sess-1", "image.png"),
+		filepath.Join(ProjectRuntimeDir(), "exports", "chat_export_1.md"),
+		filepath.Join(userspaceConfigDir, ArtifactsDirName, "run-1", "report.md"),
 	}
 	for _, p := range allowed {
 		t.Run("allow "+p, func(t *testing.T) {
@@ -1150,6 +1160,7 @@ func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
 	denied := []string{
 		filepath.Join(userspaceConfigDir, "config.yaml"),
 		filepath.Join(userspaceConfigDir, "agents.yaml"),
+		filepath.Join(userspaceConfigDir, "tmp", "scratch.txt"),
 		filepath.Join(userspaceConfigDir, "tmp", "leaked.env"),
 	}
 	for _, p := range denied {
