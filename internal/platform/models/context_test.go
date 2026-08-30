@@ -3,6 +3,8 @@ package models
 import (
 	"testing"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 )
 
@@ -81,5 +83,32 @@ func TestLookupContextWindow_MatchedFlag(t *testing.T) {
 		if known || size != 0 {
 			t.Errorf("Model %s: got (%d, %v), expected (0, false)", model, size, known)
 		}
+	}
+}
+
+// TestIsChatCapableModalities covers the chat-capability predicate used to
+// filter the model picker: a model must accept text input and produce text
+// output. Vision chat models pass; image generation, speech-to-text,
+// text-to-speech, and empty/unknown modality sets do not.
+func TestIsChatCapableModalities(t *testing.T) {
+	testCases := []struct {
+		name string
+		mods sdk.ModelModalities
+		want bool
+	}{
+		{"text to text chat", sdk.ModelModalities{Input: []sdk.Modality{sdk.ModalityText}, Output: []sdk.Modality{sdk.ModalityText}}, true},
+		{"vision chat (image in, text out)", sdk.ModelModalities{Input: []sdk.Modality{sdk.ModalityText, sdk.ModalityImage}, Output: []sdk.Modality{sdk.ModalityText}}, true},
+		{"image generation (text in, image out)", sdk.ModelModalities{Input: []sdk.Modality{sdk.ModalityText}, Output: []sdk.Modality{sdk.ModalityImage}}, false},
+		{"speech-to-text (audio in, text out)", sdk.ModelModalities{Input: []sdk.Modality{sdk.ModalityAudio}, Output: []sdk.Modality{sdk.ModalityText}}, false},
+		{"text-to-speech (text in, audio out)", sdk.ModelModalities{Input: []sdk.Modality{sdk.ModalityText}, Output: []sdk.Modality{sdk.ModalityAudio}}, false},
+		{"empty modalities (unknown)", sdk.ModelModalities{}, false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsChatCapableModalities(tc.mods); got != tc.want {
+				t.Errorf("IsChatCapableModalities(%v) = %v, expected %v", tc.mods, got, tc.want)
+			}
+		})
 	}
 }

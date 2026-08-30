@@ -52,6 +52,24 @@ func IsImageGenModalities(mods sdk.ModelModalities) bool {
 		!slices.Contains(mods.Output, sdk.ModalityText)
 }
 
+// IsChatCapableModalities reports whether a modality set describes a model
+// that can serve /chat/completions: it accepts "text" input and produces
+// "text" output. Speech-to-text (audio in), text-to-speech (audio out),
+// image generation and video models all fail this predicate. Modality sets
+// that do not include text at all are naturally rejected.
+func IsChatCapableModalities(mods sdk.ModelModalities) bool {
+	return slices.Contains(mods.Input, sdk.ModalityText) &&
+		slices.Contains(mods.Output, sdk.ModalityText)
+}
+
+// HasReportedModalities reports whether a modality set carries any data at
+// all. An empty set means the gateway did not report modalities for the
+// model, so callers must treat it as unknown and keep it listed instead of
+// filtering on a capability nobody reported.
+func HasReportedModalities(mods sdk.ModelModalities) bool {
+	return len(mods.Input) > 0 || len(mods.Output) > 0
+}
+
 // modelModalities returns the registry entry for a model; the zero value
 // (empty input/output) stands in for unknown models, making every predicate
 // below false.

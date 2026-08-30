@@ -60,7 +60,7 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 	for _, model := range resp.Data {
 		if model.Modalities != nil {
 			modalities[model.ID] = *model.Modalities
-			if models.IsImageGenModalities(*model.Modalities) {
+			if mods := *model.Modalities; models.HasReportedModalities(mods) && !models.IsChatCapableModalities(mods) {
 				continue
 			}
 		}
