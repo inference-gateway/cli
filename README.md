@@ -276,13 +276,16 @@ go build -o infer.exe ./cmd/infer
 
 ## Quick Start
 
-1. **Initialize your project**:
+1. **Initialize the userspace baseline**:
 
 ```bash
 infer init
 ```
 
-This creates a `.infer/` directory with configuration and shortcuts.
+This creates the shared `~/.infer/` configuration directory. All state
+(conversations, logs, history, artifacts) lives under `~/.infer/` too; a
+project `.infer/` is an optional config override layer you create with
+`infer config set --project` when a project needs different settings.
 
 2. **Set up your environment** (create `.env` file):
 
@@ -318,11 +321,11 @@ The CLI provides several commands for different workflows. For detailed document
 
 ### Core Commands
 
-**`infer init`** - Initialize a new project with configuration and shortcuts
+**`infer init`** - Initialize the userspace baseline configuration
 
 ```bash
-infer init              # Initialize project configuration
-infer init --userspace  # Initialize user-level configuration
+infer init              # Seed the shared ~/.infer/ baseline
+infer init --overwrite  # Re-seed the baseline files
 ```
 
 **`infer chat`** - Start an interactive chat session with model selection
@@ -385,8 +388,8 @@ infer config set tools.enabled true
 infer config set tools.bash.enabled true
 infer config set tools.safety.require_approval true
 
-# Write to userspace (~/.infer/config.yaml) instead of the project
-infer config set agent.model "openai/gpt-4o" --userspace
+# Write a project-level override into ./.infer/config.yaml instead
+infer config set agent.model "openai/gpt-4o" --project
 ```
 
 > System prompts live in `prompts.yaml` (e.g. `prompts.agent.system_prompt`), not
@@ -464,7 +467,7 @@ See [docs/plugins.md](docs/plugins.md) for the mapping and security model.
 
 ```bash
 infer conversations list      # Find the session ID
-infer export <session-id>     # Writes .infer/chat_export_<timestamp>.md
+infer export <session-id>     # Writes ~/.infer/projects/<slug>/exports/chat_export_<timestamp>.md
 ```
 
 **`infer version`** - Display CLI version information

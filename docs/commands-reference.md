@@ -18,30 +18,28 @@ This document provides comprehensive documentation for all commands available in
 
 ### `infer init`
 
-Initialize a new project with Inference Gateway CLI. This creates:
+Initializes the Inference Gateway CLI configuration in your userspace home
+directory. This creates:
 
-- `.infer/` directory with:
-  - `config.yaml` - Main configuration file for the project
-  - `.gitignore` - Ensures sensitive files are not committed to version control
-- `.env.example` - Template with all provider API environment variables (if not already exists)
+- `.infer/` under `~/.infer/` with:
+  - `config.yaml` - Main configuration file (the shared baseline)
+  - `prompts.yaml`, `keybindings.yaml`, `channels.yaml`, `heartbeat.yaml`,
+    `computer_use.yaml`, `browser_use.yaml`, `agents.yaml`, `mcp.yaml`,
+    `shortcuts/`, `skills/` - the split config files and directories
+- `.env.example` template for provider API keys is written by `infer env`,
+  not by init.
+
+All state (conversations, logs, history, artifacts, ...) is written under
+`~/.infer/`, never into a project directory. To override a setting for a
+single project, use `infer config set --project`, which writes a sparse
+`./.infer/config.yaml` override on top of the userspace baseline.
 
 This is the recommended command to start working with Inference Gateway CLI in a new project.
 
 **Options:**
 
 - `--overwrite`: Overwrite existing files if they already exist
-- `--userspace`: Initialize configuration in user home directory (`~/.infer/`)
-
-**Examples:**
-
-```bash
-# Initialize project-level configuration (default)
-infer init
-infer init --overwrite
-
-# Initialize userspace configuration (global fallback)
-infer init --userspace
-```
+- `--skip-migrations`: Skip running database migrations
 
 ### `infer env`
 
@@ -86,33 +84,37 @@ subcommands - every `config.yaml` key is reachable by its dotted path.
 
 ### `infer config init`
 
-Initialize a new `.infer/config.yaml` configuration file in the current directory. This creates only the
-configuration file with default settings.
+Initialize a new configuration file with default settings. By default this
+writes the userspace baseline at `~/.infer/config.yaml`; pass `--project` to
+write a project-level `./.infer/config.yaml` override instead -
+project config always wins over the userspace baseline key-by-key, and list
+values in the project file replace (not extend) the userspace lists.
 
-For complete project initialization, use `infer init` instead.
+For complete initialization of the full baseline, use `infer init` instead.
 
 **Options:**
 
 - `--overwrite`: Overwrite existing configuration file
-- `--userspace`: Initialize configuration in user home directory (`~/.infer/`)
+- `--project`: Write the project-level `.infer/config.yaml` override instead
+  of the userspace baseline
 
 **Examples:**
 
 ```bash
-# Initialize project-level configuration (default)
+# Initialize the userspace baseline (default)
 infer config init
 infer config init --overwrite
 
-# Initialize userspace configuration (global fallback)
-infer config init --userspace
+# Create a project-level override instead
+infer config init --project
 ```
 
 ### `infer config get [key]`
 
 Print the effective value of a configuration key, or the whole config when no key is given. The
 value reflects what the CLI actually runs with: built-in defaults, the global `~/.infer/config.yaml`
-and the local `.infer/config.yaml` (sandbox directories are merged), and `INFER_*` environment
-overrides. Keys are dotted paths into `config.yaml`.
+merged key-by-key with the local `.infer/config.yaml` override when present, and `INFER_*`
+environment overrides. Keys are dotted paths into `config.yaml`.
 
 **Options:**
 
@@ -134,8 +136,10 @@ Set a configuration value in `config.yaml`. The value is parsed to the field's t
 number or string); list keys take a comma-separated value that replaces the whole list. Unknown keys
 are rejected.
 
-By default the project `.infer/config.yaml` is updated; pass `--userspace` to update
-`~/.infer/config.yaml` instead.
+By default the userspace `~/.infer/config.yaml` baseline is updated; pass
+`--project` to write a sparse override into the project `.infer/config.yaml`
+instead. Project overrides are meant to be committed; they never receive
+runtime-generated files.
 
 **Examples:**
 
@@ -157,8 +161,8 @@ infer config set tools.safety.require_approval true
 infer config set tools.sandbox.directories ".,/tmp,/data"
 infer config set tools.web_fetch.allowed_domains "example.com,github.com"
 
-# Write to userspace (~/.infer/config.yaml) instead of the project
-infer config set agent.model "openai/gpt-4o" --userspace
+# Write a project-level override into ./.infer/config.yaml instead
+infer config set agent.model "openai/gpt-4o" --project
 ```
 
 > System prompts and per-tool descriptions live in `prompts.yaml` (e.g.
