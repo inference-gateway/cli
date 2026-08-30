@@ -927,7 +927,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Run:              true,
 			StandaloneBinary: true,
 			IncludeModels:    []string{},
-			ExcludeModels:    []string{}, // opt-in blocklist; non-chat models are filtered client-side by modalities
+			ExcludeModels:    []string{},
 			VisionEnabled:    true,
 		},
 		SpeechToText: SpeechToTextConfig{
