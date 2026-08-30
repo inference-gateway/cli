@@ -45,7 +45,6 @@ func runInit(t *testing.T, flags map[string]bool) error {
 	t.Helper()
 	cmd := &cobra.Command{}
 	cmd.Flags().Bool("overwrite", false, "")
-	cmd.Flags().Bool("project", false, "")
 	cmd.Flags().Bool("skip-migrations", false, "")
 	for name, val := range flags {
 		require.NoError(t, cmd.Flags().Set(name, strconv.FormatBool(val)))
@@ -53,52 +52,20 @@ func runInit(t *testing.T, flags map[string]bool) error {
 	return initializeProject(runtime.NewState(), cmd)
 }
 
-// TestInitializeProject pins the userspace-first model (issue #680): a plain
-// `infer init` seeds the full baseline into ~/.infer/ and writes nothing into
-// the project, while `infer init --project` seeds only the project-overridable
-// files into ./.infer/ and keeps userspace-only files in ~/.infer/.
+// TestInitializeProject pins the userspace-first model (issues #680/#1125):
+// a plain `infer init` seeds the full baseline into ~/.infer/ and writes
+// nothing into the project. A project override layer is created only by
+// explicit `infer config set --project` writes, never by init.
 func TestInitializeProject(t *testing.T) {
-	projectOverridable := []string{
-		".infer/config.yaml", ".infer/prompts.yaml",
-		".infer/hooks.yaml", ".infer/agents.yaml", ".infer/mcp.yaml",
-		".infer/shortcuts/scm.yaml",
+	homeDir, projectDir := splitHomeProjectEnv(t)
+
+	require.NoError(t, runInit(t, map[string]bool{"skip-migrations": true}))
+
+	for _, f := range []string{"config.yaml", "prompts.yaml", "keybindings.yaml", "computer_use.yaml", "channels.yaml"} {
+		require.FileExists(t, filepath.Join(homeDir, config.ConfigDirName, f))
 	}
-	userspaceOnly := []string{
-		"keybindings.yaml", "reminders.yaml", "channels.yaml",
-		"heartbeat.yaml", "computer_use.yaml",
-	}
-
-	t.Run("default seeds userspace baseline, nothing in project", func(t *testing.T) {
-		homeDir, projectDir := splitHomeProjectEnv(t)
-
-		require.NoError(t, runInit(t, map[string]bool{"skip-migrations": true}))
-
-		for _, f := range []string{"config.yaml", "prompts.yaml", "keybindings.yaml", "computer_use.yaml", "channels.yaml"} {
-			require.FileExists(t, filepath.Join(homeDir, config.ConfigDirName, f))
-		}
-		require.NoDirExists(t, filepath.Join(projectDir, config.ConfigDirName))
-		require.NoFileExists(t, filepath.Join(projectDir, "AGENTS.md"))
-	})
-
-	t.Run("project seeds override layer, userspace-only files stay home", func(t *testing.T) {
-		homeDir, projectDir := splitHomeProjectEnv(t)
-
-		require.NoError(t, runInit(t, map[string]bool{"project": true, "skip-migrations": true}))
-
-		for _, f := range projectOverridable {
-			require.FileExists(t, filepath.Join(projectDir, f))
-		}
-		for _, f := range userspaceOnly {
-			require.NoFileExists(t, filepath.Join(projectDir, config.ConfigDirName, f))
-			require.FileExists(t, filepath.Join(homeDir, config.ConfigDirName, f))
-		}
-		require.NoFileExists(t, filepath.Join(projectDir, "AGENTS.md"))
-
-		data, err := os.ReadFile(filepath.Join(projectDir, config.DefaultConfigPath))
-		require.NoError(t, err)
-		require.Contains(t, string(data), "Project-level configuration overrides")
-		require.NotContains(t, string(data), "gateway:")
-	})
+	require.NoDirExists(t, filepath.Join(projectDir, config.ConfigDirName))
+	require.NoFileExists(t, filepath.Join(projectDir, "AGENTS.md"))
 }
 
 func TestInitWritesConfigYAMLWithDocMarker(t *testing.T) {

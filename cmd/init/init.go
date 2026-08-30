@@ -10,7 +10,6 @@ import (
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
 
-	envcmd "github.com/inference-gateway/cli/cmd/env"
 	migrate "github.com/inference-gateway/cli/cmd/migrate"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
@@ -25,10 +24,12 @@ func NewCommand(state *runtime.State) *cobra.Command {
 		Short: "Initialize Inference Gateway CLI configuration",
 		Long: `Initialize Inference Gateway CLI configuration in the user home directory (~/.infer/).
 
-By default, this seeds the full baseline configuration to ~/.infer/ so it is shared
-across all of your projects.  Pass --project to create a project-level override layer
-in ./.infer/ instead - only project-overridable files are seeded there as a sparse
-scaffold; personal, machine-, or secret-scoped files always live in ~/.infer/.
+This seeds the full baseline configuration to ~/.infer/ so it is shared
+across all of your projects. To override settings for a single project,
+use 'infer config set --project <key> <value>' to write a sparse override
+into ./.infer/config.yaml - project config always wins over the userspace
+baseline, which stays the only default storage location (state, logs,
+history and other runtime artifacts are never written to a project .infer/).
 
 To generate an AGENTS.md file, use the /init shortcut in interactive chat mode,
 which allows you to see the agent's analysis in real-time.
@@ -37,14 +38,12 @@ This is the recommended command to start working with Inference Gateway CLI.`,
 		RunE: func(cmd *cobra.Command, args []string) error { return initializeProject(state, cmd) },
 	}
 	command.Flags().Bool("overwrite", false, "Overwrite existing files if they already exist")
-	command.Flags().Bool("project", false, "Initialize a project override layer in ./.infer/ (sparse scaffold only)")
 	command.Flags().Bool("skip-migrations", false, "Skip running database migrations")
 	return command
 }
 
-func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclop,gocognit
+func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolint:funlen,gocyclo,cyclop
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
-	project, _ := cmd.Flags().GetBool("project")
 	skipMigrations, _ := cmd.Flags().GetBool("skip-migrations")
 
 	homeDir, err := os.UserHomeDir()
@@ -52,59 +51,29 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to get user home directory: %w", err)
 	}
 	homeCfgDir := filepath.Join(homeDir, config.ConfigDirName)
+	shortcutsDir := filepath.Join(homeCfgDir, "shortcuts")
 
-	homeKeybindingsPath := filepath.Join(homeCfgDir, config.KeybindingsFileName)
-	homeremindersPath := filepath.Join(homeCfgDir, config.RemindersFileName)
-	homeChannelsPath := filepath.Join(homeCfgDir, config.ChannelsFileName)
-	homeHeartbeatPath := filepath.Join(homeCfgDir, config.HeartbeatFileName)
-	homeComputerUsePath := filepath.Join(homeCfgDir, config.ComputerUseFileName)
-	homeBrowserUsePath := filepath.Join(homeCfgDir, config.BrowserUseFileName)
-	homeMemoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
-
-	var configPath, scmShortcutsPath, gitShortcutsPath,
-		mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
-		envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath, mcpPath, promptsPath,
-		hooksPath, agentsPath, skillsDirPath string
-
-	keybindingsPath := homeKeybindingsPath
-	remindersPath := homeremindersPath
-	channelsPath := homeChannelsPath
-	heartbeatPath := homeHeartbeatPath
-	computerUsePath := homeComputerUsePath
-	browserUsePath := homeBrowserUsePath
-	memoryConfigPath := homeMemoryConfigPath
-
-	if project {
-		configPath = config.DefaultConfigPath
-		scmShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "scm.yaml")
-		gitShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "git.yaml")
-		mcpShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "mcp.yaml")
-		shellsShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "shells.yaml")
-		exportShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "export.yaml")
-		envShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "env.yaml")
-		a2aShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "a2a.yaml")
-		skillsShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "skills.yaml")
-		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
-		promptsPath = filepath.Join(config.ConfigDirName, config.PromptsFileName)
-		hooksPath = filepath.Join(config.ConfigDirName, config.HooksFileName)
-		agentsPath = filepath.Join(config.ConfigDirName, config.AgentsFileName)
-		skillsDirPath = filepath.Join(config.ConfigDirName, "skills")
-	} else {
-		configPath = filepath.Join(homeCfgDir, config.ConfigFileName)
-		scmShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "scm.yaml")
-		gitShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "git.yaml")
-		mcpShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "mcp.yaml")
-		shellsShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "shells.yaml")
-		exportShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "export.yaml")
-		envShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "env.yaml")
-		a2aShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "a2a.yaml")
-		skillsShortcutsPath = filepath.Join(homeCfgDir, "shortcuts", "skills.yaml")
-		mcpPath = filepath.Join(homeCfgDir, config.MCPFileName)
-		promptsPath = filepath.Join(homeCfgDir, config.PromptsFileName)
-		hooksPath = filepath.Join(homeCfgDir, config.HooksFileName)
-		agentsPath = filepath.Join(homeCfgDir, config.AgentsFileName)
-		skillsDirPath = filepath.Join(homeCfgDir, "skills")
-	}
+	configPath := filepath.Join(homeCfgDir, config.ConfigFileName)
+	scmShortcutsPath := filepath.Join(shortcutsDir, "scm.yaml")
+	gitShortcutsPath := filepath.Join(shortcutsDir, "git.yaml")
+	mcpShortcutsPath := filepath.Join(shortcutsDir, "mcp.yaml")
+	shellsShortcutsPath := filepath.Join(shortcutsDir, "shells.yaml")
+	exportShortcutsPath := filepath.Join(shortcutsDir, "export.yaml")
+	envShortcutsPath := filepath.Join(shortcutsDir, "env.yaml")
+	a2aShortcutsPath := filepath.Join(shortcutsDir, "a2a.yaml")
+	skillsShortcutsPath := filepath.Join(shortcutsDir, "skills.yaml")
+	mcpPath := filepath.Join(homeCfgDir, config.MCPFileName)
+	promptsPath := filepath.Join(homeCfgDir, config.PromptsFileName)
+	hooksPath := filepath.Join(homeCfgDir, config.HooksFileName)
+	agentsPath := filepath.Join(homeCfgDir, config.AgentsFileName)
+	skillsDirPath := filepath.Join(homeCfgDir, "skills")
+	keybindingsPath := filepath.Join(homeCfgDir, config.KeybindingsFileName)
+	remindersPath := filepath.Join(homeCfgDir, config.RemindersFileName)
+	channelsPath := filepath.Join(homeCfgDir, config.ChannelsFileName)
+	heartbeatPath := filepath.Join(homeCfgDir, config.HeartbeatFileName)
+	computerUsePath := filepath.Join(homeCfgDir, config.ComputerUseFileName)
+	browserUsePath := filepath.Join(homeCfgDir, config.BrowserUseFileName)
+	memoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
 
 	if !overwrite {
 		pathsToCheck := []string{
@@ -113,23 +82,13 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 			envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath,
 			mcpPath, promptsPath, hooksPath, agentsPath,
 		}
-		if !project {
-			pathsToCheck = append(pathsToCheck,
-				keybindingsPath, remindersPath, channelsPath, heartbeatPath, computerUsePath)
-		}
 		if err := validateFilesNotExist(pathsToCheck...); err != nil {
 			return err
 		}
 	}
 
-	if project {
-		if err := createSparseConfigScaffold(configPath); err != nil {
-			return fmt.Errorf("failed to create config file: %w", err)
-		}
-	} else {
-		if err := configutils.SaveYAML(configPath, "config", config.DefaultConfig()); err != nil {
-			return fmt.Errorf("failed to create config file: %w", err)
-		}
+	if err := configutils.SaveYAML(configPath, "config", config.DefaultConfig()); err != nil {
+		return fmt.Errorf("failed to create config file: %w", err)
 	}
 
 	if err := createSCMShortcutsFile(scmShortcutsPath); err != nil {
@@ -184,22 +143,18 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to create skills directory: %w", err)
 	}
 
-	userspaceOverwrite := overwrite && !project
-
-	if !project {
-		if err := skills.SeedBuiltins(skillsDirPath, userspaceOverwrite); err != nil {
-			return fmt.Errorf("failed to seed built-in skills: %w", err)
-		}
+	if err := skills.SeedBuiltins(skillsDirPath, overwrite); err != nil {
+		return fmt.Errorf("failed to seed built-in skills: %w", err)
 	}
 
-	kbCreated, err := createFileIfAbsent(keybindingsPath, userspaceOverwrite, func(p string) error {
+	kbCreated, err := createFileIfAbsent(keybindingsPath, overwrite, func(p string) error {
 		return createKeybindingsConfigFile(p)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create keybindings config file: %w", err)
 	}
 
-	remindersCreated, err := createFileIfAbsent(remindersPath, userspaceOverwrite, func(p string) error {
+	remindersCreated, err := createFileIfAbsent(remindersPath, overwrite, func(p string) error {
 		return createRemindersConfigFile(p)
 	})
 	if err != nil {
@@ -212,14 +167,14 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	}
 	channelsCreated := !fileExists(channelsPath) || migrated
 
-	hbCreated, err := createFileIfAbsent(heartbeatPath, userspaceOverwrite, func(p string) error {
+	hbCreated, err := createFileIfAbsent(heartbeatPath, overwrite, func(p string) error {
 		return createHeartbeatConfigFile(p)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create heartbeat config file: %w", err)
 	}
 
-	_, err = createFileIfAbsent(browserUsePath, userspaceOverwrite, func(p string) error {
+	_, err = createFileIfAbsent(browserUsePath, overwrite, func(p string) error {
 		return createBrowserUseConfigFile(p)
 	})
 	if err != nil {
@@ -237,24 +192,14 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to create memory config file: %w", err)
 	}
 
-	envExamplePath := envcmd.ExampleFileName
-	envExampleCreated := false
-	if project {
-		envExampleCreated = createProjectEnvExample()
-	}
-
-	scopeDesc := "userspace"
-	if project {
-		scopeDesc = "project"
-	}
-
-	fmt.Printf("%s Successfully initialized Inference Gateway CLI %s configuration\n", icons.CheckMarkStyle.Render(icons.CheckMark), scopeDesc)
+	fmt.Printf("%s Successfully initialized Inference Gateway CLI userspace configuration\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 	fmt.Printf("   Created: %s\n", configPath)
 	fmt.Printf("   Created: %s\n", scmShortcutsPath)
 	fmt.Printf("   Created: %s\n", gitShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpShortcutsPath)
 	fmt.Printf("   Created: %s\n", shellsShortcutsPath)
 	fmt.Printf("   Created: %s\n", exportShortcutsPath)
+	fmt.Printf("   Created: %s\n", envShortcutsPath)
 	fmt.Printf("   Created: %s\n", a2aShortcutsPath)
 	fmt.Printf("   Created: %s\n", skillsShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpPath)
@@ -280,9 +225,6 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	if memoryCreated {
 		fmt.Printf("   Created: %s\n", memoryConfigPath)
 	}
-	if envExampleCreated {
-		fmt.Printf("   Created: %s\n", envExamplePath)
-	}
 	if migrated {
 		fmt.Printf("\n%s Migrated legacy `channels:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), channelsPath)
 		fmt.Printf("   You can now remove the `channels:` block from %s.\n", configPath)
@@ -292,19 +234,13 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		fmt.Printf("   You can now remove the `computer_use:` block from %s.\n", configPath)
 	}
 	fmt.Println("")
-	if project {
-		fmt.Println("This project configuration overrides your userspace baseline (~/.infer/).")
-		fmt.Println("Only the settings you include here take effect; everything else is inherited.")
-		fmt.Println("")
-	} else {
-		fmt.Println("This userspace configuration is the shared baseline for all your projects.")
-		fmt.Println("Run 'infer init --project' in a repo to add project-specific overrides.")
-		fmt.Println("")
-	}
+	fmt.Println("This userspace configuration is the shared baseline for all your projects.")
+	fmt.Println("To override a setting for one project, use 'infer config set --project'.")
+	fmt.Println("")
 	fmt.Println("You can now customize the configuration:")
 	fmt.Println("  - Set default model: infer config set agent.model <model-name>")
 	fmt.Println("  - Configure tools: infer config tools --help")
-	fmt.Println("  - Customize shortcuts: Edit .infer/shortcuts/scm.yaml or add your own")
+	fmt.Printf("  - Customize shortcuts: Edit %s or add your own\n", scmShortcutsPath)
 	fmt.Println("  - Start chatting: infer chat")
 	fmt.Println("")
 	fmt.Println("Tip: Use /init in chat mode to generate an AGENTS.md file interactively")
@@ -316,49 +252,6 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	return nil
 }
 
-// createProjectEnvExample writes .env.example and registers it in .gitignore
-// when it does not already exist, returning whether a new file was created.
-// It is best-effort - failures print a warning but never abort init - and is
-// only invoked in --project mode, where a local .env.example is useful
-// scaffolding for per-project secrets.
-func createProjectEnvExample() bool {
-	if _, err := os.Stat(envcmd.ExampleFileName); !os.IsNotExist(err) {
-		return false
-	}
-
-	if err := os.WriteFile(envcmd.ExampleFileName, []byte(envcmd.ExampleContent()), 0644); err != nil {
-		fmt.Printf("%s Warning: failed to create %s: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), envcmd.ExampleFileName, err)
-		return false
-	}
-
-	if err := envcmd.EnsureEnvInGitignore(); err != nil {
-		fmt.Printf("%s Warning: failed to add .env to .gitignore: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), err)
-	}
-
-	return true
-}
-
-// createSparseConfigScaffold writes a minimal config.yaml that signals it is a
-// project-level override. Settings in this file merge onto ~/.infer/config.yaml
-// key-by-key, so only the keys a project actually overrides need to be present.
-func createSparseConfigScaffold(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	content := `---
-# Project-level configuration overrides.
-# Settings here merge onto ~/.infer/config.yaml key-by-key.
-# Only include the keys you want to override; everything else
-# is inherited from your userspace baseline.
-#
-# Example:
-#   agent:
-#     model: anthropic/claude-sonnet-4-20250514
-`
-	return os.WriteFile(path, []byte(content), 0o644)
-}
-
 // fileExists reports whether a path exists on disk.
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
@@ -366,10 +259,8 @@ func fileExists(path string) bool {
 }
 
 // createFileIfAbsent runs fn(path) when the file does not yet exist, or when
-// overwrite is set - so `init --overwrite` regenerates userspace-only files, not
-// just the project-overridable ones. Returns whether it wrote the file. Callers
-// pass overwrite=false in --project mode so a project init never clobbers files
-// that belong to a prior home init.
+// overwrite is set - so `init --overwrite` regenerates the seeded files.
+// Returns whether it wrote the file.
 func createFileIfAbsent(path string, overwrite bool, fn func(string) error) (bool, error) {
 	if fileExists(path) && !overwrite {
 		return false, nil

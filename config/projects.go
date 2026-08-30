@@ -20,6 +20,27 @@ func UserSpaceConfigDir() string {
 	return filepath.Join(home, ConfigDirName)
 }
 
+// ConfigLookupDirs returns the config directories that directory-shaped assets
+// (shortcuts/) must be read from, in apply order: the userspace baseline first,
+// then the project override when one exists, so later entries overlay earlier
+// ones by name.
+//
+// ResolveConfigDir picks a SINGLE dir, project-first, which is right for
+// whole-file lookups (config.yaml) but wrong for a directory of many files:
+// creating any ./.infer/config.yaml would otherwise flip resolution to the
+// project and hide everything `infer init` seeded into ~/.infer/shortcuts/.
+func ConfigLookupDirs() []string {
+	dirs := []string{UserSpaceConfigDir()}
+	if _, err := os.Stat(ConfigDirName); err != nil {
+		return dirs
+	}
+	abs, err := filepath.Abs(ConfigDirName)
+	if err != nil || abs == dirs[0] {
+		return dirs
+	}
+	return append(dirs, ConfigDirName)
+}
+
 // projectRuntimeSlug maps the absolute working directory to a flat directory
 // name, the scheme the conversation store uses: /home/alice/repo becomes
 // -home-alice-repo. "default" is used when the cwd cannot be resolved.

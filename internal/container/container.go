@@ -701,10 +701,10 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		))
 	}
 
-	configDir := c.config.GetConfigDir()
+	configDirs := config.ConfigLookupDirs()
 	customShortcutClient := c.createRawSDKClient()
-	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir, customShortcutClient, c.modelService, c.imageService, c.toolService); err != nil {
-		logger.Error("failed to load custom shortcuts", "error", err, "config_dir", configDir)
+	if err := c.shortcutRegistry.LoadCustomShortcuts(configDirs, customShortcutClient, c.modelService, c.imageService, c.toolService); err != nil {
+		logger.Error("failed to load custom shortcuts", "error", err, "config_dirs", configDirs)
 	}
 }
 

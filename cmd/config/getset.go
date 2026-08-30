@@ -39,7 +39,7 @@ Keys are dotted paths into config.yaml:
 }
 
 func newSetCommand() *cobra.Command {
-	return &cobra.Command{
+	command := &cobra.Command{
 		Use:   "set <key> <value>",
 		Short: "Set a configuration value",
 		Long: `Set a configuration value in config.yaml.
@@ -56,6 +56,9 @@ to write a sparse override into the project .infer/config.yaml instead.`,
 		Args: cobra.ExactArgs(2),
 		RunE: setConfigValue,
 	}
+	command.Flags().Bool("project", false,
+		"Write a sparse override into the project ./.infer/config.yaml instead of the userspace baseline (~/.infer/)")
+	return command
 }
 
 // getConfigValue prints the effective value of a config key. The effective

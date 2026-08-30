@@ -117,6 +117,17 @@ func applyBashAllowAppends(v *viper.Viper, root *cobra.Command) {
 	}
 }
 
+// loadLayeredConfig seeds defaults, then reads the userspace baseline
+// (~/.infer/config.yaml) with an optional project override (./.infer/config.yaml)
+// merged on top. The project layer is READ-ONLY override material: nothing
+// writes to a project .infer/ by default - the only exception is a config
+// write explicitly requested via --project (ConfigWriteTarget(toProject)).
+//
+// Precedence: defaults < ~/.infer/config.yaml < ./.infer/config.yaml.
+//
+// Viper's MergeInConfig deep-merges maps but replaces slices wholesale, so a
+// list-valued key (e.g. an allowlist) in a project override REPLACES the
+// userspace value rather than extending it.
 func loadLayeredConfig(v *viper.Viper) error {
 	homeConfigPath := ""
 	if homeDir, err := os.UserHomeDir(); err == nil {

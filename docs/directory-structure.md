@@ -11,7 +11,7 @@ which documents what each *option* does - this page documents where each
 
 - [The Two Layers](#the-two-layers)
 - [At a Glance](#at-a-glance)
-- [Files Seeded by `infer init`](#files-seeded-by-infer-init)
+- [Userspace Files Seeded by `infer init`](#userspace-files-seeded-by-infer-init)
 - [Created at Runtime](#created-at-runtime)
 - [What to Commit, What to Ignore](#what-to-commit-what-to-ignore)
 
@@ -19,17 +19,23 @@ which documents what each *option* does - this page documents where each
 
 ## The Two Layers
 
-The CLI keeps state in two locations:
+The CLI keeps everything in two locations:
 
-- **Project layer** - `.infer/`, sitting next to your code. Scoped to the
-  current project.
-- **Userspace layer** - `~/.infer/`, in your home directory. A global
-  fallback shared across all projects.
+- **Userspace layer** - `~/.infer/`, in your home directory. The default
+  home of all configuration *and* all state: conversations, logs, history,
+  tmp, artifacts, exports. This is the only location the CLI writes to by
+  default.
+- **Project layer** - `.infer/`, sitting next to your code. An *optional*
+  config override layer that exists only if you create it. The CLI never
+  writes to a project `.infer/` on its own; the only way files appear there
+  is a config write you explicitly request with
+  `infer config set --project ...` (or hand-editing).
 
-Both layers contain the same *set* of files. Project values override
-userspace values. Run `infer init` for the project layer or
-`infer init --userspace` for the userspace layer - both create an
-identical seed set. See
+Run `infer init` to seed the userspace baseline. Project values override
+userspace values: defaults < `~/.infer/<file>` < `./.infer/<file>` (project
+always wins). Note that list-valued keys (e.g. allowlists) in a project
+override *replace* the userspace value wholesale - viper's `MergeInConfig`
+deep-merges maps but substitutes slices. See
 [Configuration Layers](configuration-reference.md#configuration-layers)
 for the full precedence rules.
 
@@ -38,7 +44,7 @@ for the full precedence rules.
 ## At a Glance
 
 ```text
-.infer/                   # project layer (also mirrored at ~/.infer/)
+~/.infer/                 # userspace layer - the default and only written location
 ├── config.yaml           # main configuration
 ├── prompts.yaml          # LLM system prompts (agent, git, conversation, tools, ...)
 ├── keybindings.yaml      # chat UI keyboard shortcuts
@@ -54,14 +60,7 @@ for the full precedence rules.
 │   ├── shells.yaml
 │   ├── export.yaml
 │   └── a2a.yaml
-└── skills/               # Agent Skills - SKILL.md folders, see docs/skills.md
-
-.agents/                  # open-standard project layer (cross-tool skills)
-└── skills/               # Agent Skills - SKILL.md folders (read-only discovery)
-    └── <name>/SKILL.md   # e.g. .agents/skills/pdf/SKILL.md
-
-~/.infer/                 # userspace layer - same set of config files,
-                          # plus these runtime extras:
+├── skills/               # Agent Skills - SKILL.md folders, see docs/skills.md
 ├── schedules/            # cron-driven scheduled jobs (one YAML per job)
 ├── plans/                # plan-mode plans saved by RequestPlanApproval (one .md per plan)
 ├── logs/                 # CLI + gateway logs (app/debug/daemon/gateway <date>.log)
@@ -75,14 +74,30 @@ for the full precedence rules.
         ├── tmp/            # scratch space (streamed writes, dynamic skills, ...)
         ├── artifacts/      # agent deliverables (images, downloads, ...)
         └── exports/        # `infer export` chat markdown exports
+
+.infer/                   # OPTIONAL project layer - config overrides only,
+│                         # created by you / `infer config set --project`
+│                         # (the CLI never writes here on its own)
+├── config.yaml           # sparse override of ~/.infer/config.yaml
+├── mcp.yaml              # project MCP servers (project-then-home lookup)
+├── keybindings.yaml      # project keybindings (project-then-home lookup)
+├── shortcuts/            # project shortcuts, overlaid by name onto ~/.infer/shortcuts/
+└── skills/               # project skills, still discovered when present
+
+.agents/                  # open-standard project layer (cross-tool skills)
+└── skills/               # Agent Skills - SKILL.md folders (read-only discovery)
+    └── <name>/SKILL.md   # e.g. .agents/skills/pdf/SKILL.md
 ```
 
 ---
 
-## Files Seeded by `infer init`
+## Userspace Files Seeded by `infer init`
 
-These are the files `infer init` writes once and then leaves to you. All of
-them exist in both layers (project and userspace).
+These are the files `infer init` writes once and then leaves to you. They
+all live in `~/.infer/` - init never writes into a project directory. If a
+project wants to override a config file it commits its own sparse
+`.infer/<file>`, created with `infer config set --project` (see
+[The Two Layers](#the-two-layers)).
 
 - **`config.yaml`** - gateway, tools, storage, agent, chat, web and pricing
   settings. Edit by hand or via `infer config ...`. Full option-by-option
@@ -101,13 +116,15 @@ them exist in both layers (project and userspace).
 - **`browser_use.yaml`** - browser automation tool settings (Playwright
   browser channel / CDP endpoint, per-tool enable flags, rate limiting).
 - **`agents.yaml`** - A2A agent registry (URLs, models, env vars). Manage
-  via `infer agents add/remove/list` (or `--userspace`). See
+  via `infer agents add/remove/list`. See
   [A2A Agents](agents-configuration.md).
 - **`mcp.yaml`** - MCP server registry and liveness probe settings. Manage
   via `infer mcp ...` or by hand. See [MCP Integration](mcp-integration.md).
 - **`shortcuts/*.yaml`** - `/git`, `/scm`, `/mcp`, `/shells`, `/export`, `/env`,
   `/agents`, `/skills` shortcuts plus any you add. Drop new YAML files into
-  `shortcuts/`. See [Shortcuts Guide](shortcuts-guide.md).
+  `shortcuts/`. A project `./.infer/shortcuts/` is overlaid on top by shortcut
+  name, so it adds to (or replaces individual entries of) the userspace set
+  rather than hiding it. See [Shortcuts Guide](shortcuts-guide.md).
 - **`skills/`** - Agent Skills directory. Drop a `SKILL.md` folder here (or
   into the cross-tool `.agents/skills/` open standard) to extend the agent.
   See [Skills](skills.md).
@@ -157,9 +174,10 @@ the project-local `.infer/`.
 
 ## What to Commit, What to Ignore
 
-Configuration is project-shareable; the runtime artifacts above live under
-`~/.infer/projects/` and are never written to the project directory. The
-general guidance:
+Any committed configuration lives in the *optional* project `.infer/` - which
+only exists if you created overrides there (the CLI never populates it).
+Runtime artifacts live under `~/.infer/projects/` and are never written to
+the project directory. The general guidance:
 
 **Commit** (project-shareable configuration):
 
