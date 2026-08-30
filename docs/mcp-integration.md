@@ -932,10 +932,10 @@ Monitor MCP tool usage:
 
 ```bash
 # Count MCP tool calls
-cat .infer/logs/*.log | grep "MCP_" | wc -l
+cat ~/.infer/logs/*.log | grep "MCP_" | wc -l
 
 # Failed MCP calls
-cat .infer/logs/*.log | grep "MCP.*failed"
+cat ~/.infer/logs/*.log | grep "MCP.*failed"
 ```
 
 ## References

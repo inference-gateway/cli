@@ -48,7 +48,7 @@ func Init(cfg Config) {
 func NewLogger(cfg Config) (*zap.Logger, error) {
 	logDir := cfg.LogDir
 	if logDir == "" {
-		logDir = config.DefaultLogsPath
+		logDir = config.DefaultLogsDir()
 	}
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return zap.NewNop(), err

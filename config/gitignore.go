@@ -6,15 +6,15 @@ import (
 )
 
 // InferGitignoreContent is the .gitignore seeded into a project-local ./.infer/
-// so runtime artifacts (logs, conversations, downloaded binaries, backups) are
+// so project runtime artifacts (history, exports, session groups, backups) are
 // never committed. Shared by `infer init` and the runtime auto-provisioner so
-// both stay in lockstep.
+// both stay in lockstep. Logs and the downloaded gateway binary are
+// machine-scoped and live under ~/.infer (logs/, bin/); they are never written
+// to the project directory.
 const InferGitignoreContent = `# inference-gateway CLI runtime artifacts - do not commit
-logs/*.log
 history
 chat_export_*
 session_groups.json
-bin/
 backups/
 tmp/
 plans/
@@ -25,9 +25,8 @@ plans/
 // `infer init --project` output and user edits are preserved.
 //
 // It targets the bare project-relative ConfigDirName (not GetConfigDir()) on
-// purpose: the runtime artifacts it guards - logs, conversations, the gateway
-// binary, backups - always land in the project-local ./.infer/ regardless of
-// where config itself resolves.
+// purpose: the artifacts it guards are the ones still written to the
+// project-local ./.infer/ regardless of where config itself resolves.
 func EnsureProjectGitignore() error {
 	path := filepath.Join(ConfigDirName, GitignoreFileName)
 	if _, err := os.Stat(path); err == nil {

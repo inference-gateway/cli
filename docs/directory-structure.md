@@ -58,9 +58,7 @@ for the full precedence rules.
 ├── .gitignore            # ignores the runtime-generated files below
 │
 │   # --- created at runtime, not by `infer init` ---
-├── logs/                 # debug / error logs
 ├── tmp/                  # scratch space for tools (exports, streamed writes, ...)
-├── bin/                  # downloaded gateway binary (binary mode)
 ├── plans/                # plan-mode plans saved by RequestPlanApproval (one .md per plan)
 └── history               # chat input history (one entry per line)
 
@@ -71,6 +69,8 @@ for the full precedence rules.
 ~/.infer/                 # userspace layer - same set of config files,
                           # plus these runtime extras:
 ├── schedules/            # cron-driven scheduled jobs (one YAML per job)
+├── logs/                 # CLI + gateway logs (app/debug/daemon/gateway <date>.log)
+├── bin/                  # downloaded gateway binary, one shared copy per machine
 ├── conversations.db      # shared SQLite conversation store (type: sqlite)
 └── projects/             # per-project JSONL conversation stores (type: jsonl)
     └── <project-slug>/conversations/
@@ -129,12 +129,10 @@ create them, and the seeded `.gitignore` already excludes them.
   [Conversation Storage](conversation-storage.md).
 - **`~/.infer/projects/<project-slug>/conversations/*.jsonl`** *(userspace)* -
   active when `storage.type: jsonl`. One file per conversation.
-- **`logs/`** *(project)* - debug and error logs. Path configurable via
-  `logging.dir` / `INFER_LOGGING_DIR`.
+- **`~/.infer/logs/`** *(userspace)* - debug and error logs (CLI and gateway).
+  Path configurable via `logging.dir` / `INFER_LOGGING_DIR`.
 - **`tmp/`** *(project)* - scratch space for tools (Write streaming chunks,
   exports, ...). Safe to delete when the CLI is idle.
-- **`bin/`** *(project)* - downloaded gateway binary, used when running in
-  binary mode (`gateway.docker: false`).
 - **`history`** *(project)* - chat input history, one command per line.
   Powers inline auto-completion.
 - **`plans/<timestamp>-<slug>.md`** *(project)* - plans persisted by the

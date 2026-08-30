@@ -288,7 +288,7 @@ INFER_LOGGING_DEBUG=true infer chat
 Check the logs:
 
 ```bash
-tail -f .infer/logs/debug-*.log
+tail -f ~/.infer/logs/debug-*.log
 ```
 
 ### Task Tracking

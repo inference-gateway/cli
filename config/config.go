@@ -21,7 +21,6 @@ const (
 	MemoryIndexFileName = "MEMORY.md"
 
 	DefaultConfigPath           = ConfigDirName + "/" + ConfigFileName
-	DefaultLogsPath             = ConfigDirName + "/" + LogsDirName
 	DefaultMemoryMaxChars       = 2000
 	DefaultMemoryMaxEntryChars  = 2000
 	DefaultSkillsMaxChars       = 4000
@@ -1628,6 +1627,18 @@ func ResolveConfigDir() string {
 		}
 	}
 	return ConfigDirName
+}
+
+// DefaultLogsDir is the userspace log store (~/.infer/logs). Logs (CLI and
+// gateway) are machine-scoped runtime state, not project state, and an
+// explicit logging.dir config value still wins over this default.
+// Falls back to a relative path only when $HOME is unknown.
+func DefaultLogsDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(ConfigDirName, LogsDirName)
+	}
+	return filepath.Join(home, ConfigDirName, LogsDirName)
 }
 
 // TelemetryDir is the userspace telemetry store (~/.infer/telemetry). Telemetry
