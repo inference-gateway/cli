@@ -2,13 +2,11 @@ package audio
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -77,49 +75,6 @@ func TestDownloadToFileRejectsIncompleteDownload(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Errorf("leftover files after failed download: %d", len(entries))
-	}
-}
-
-func TestCachedModelStale(t *testing.T) {
-	const remoteBody = "server-copy-bytes"
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Length", strconv.Itoa(len(remoteBody)))
-	}))
-	defer srv.Close()
-
-	offline := &http.Client{Transport: stubTransport(func(*http.Request) (*http.Response, error) {
-		return nil, errors.New("offline")
-	})}
-
-	tests := []struct {
-		name      string
-		autoDL    bool
-		file      bool
-		content   string
-		client    *http.Client
-		wantStale bool
-	}{
-		{"manual models are never re-fetched", false, true, "trunc", srv.Client(), false},
-		{"missing file is not stale", true, false, "", srv.Client(), false},
-		{"size matching server is fresh", true, true, remoteBody, srv.Client(), false},
-		{"truncated cache is stale", true, true, "trunc", srv.Client(), true},
-		{"probe outage trusts cache", true, true, "whatever", offline, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "m.gguf")
-			if tt.file {
-				if err := os.WriteFile(path, []byte(tt.content), 0o644); err != nil {
-					t.Fatal(err)
-				}
-			}
-			got := cachedModelStale(context.Background(), tt.client, srv.URL+"/m.gguf", path, tt.autoDL)
-			if got != tt.wantStale {
-				t.Errorf("cachedModelStale(autoDL=%v, file=%v, content=%q) = %v, want %v",
-					tt.autoDL, tt.file, tt.content, got, tt.wantStale)
-			}
-		})
 	}
 }
 

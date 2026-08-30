@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
@@ -105,48 +104,5 @@ func TestEnsureModelDownloadBadStatus(t *testing.T) {
 	// Failed download must not leave a partial model behind.
 	if _, err := os.Stat(filepath.Join(dir, "ggml-tiny.bin")); !os.IsNotExist(err) {
 		t.Errorf("expected no model file after failed download, stat err = %v", err)
-	}
-}
-
-func TestEnsureModelRefetchesTruncatedCache(t *testing.T) {
-	const body = "ggml-model-bytes"
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.URL.Path != "/ggml-tiny.bin" {
-			http.NotFound(w, req)
-			return
-		}
-		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-		if req.Method == http.MethodHead {
-			return
-		}
-		_, _ = w.Write([]byte(body))
-	}))
-	defer srv.Close()
-
-	dir := t.TempDir()
-	modelPath := filepath.Join(dir, "ggml-tiny.bin")
-	// Simulate a half-downloaded model in the cache: its size does not match
-	// the server copy, so EnsureModel must re-fetch instead of using it.
-	if err := os.WriteFile(modelPath, []byte("trunc"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	m := NewModelManager(config.SpeechToTextConfig{Model: "tiny", ModelsDir: dir, AutoDownload: true})
-	m.baseURL = srv.URL
-	m.client = srv.Client()
-
-	got, err := m.EnsureModel(context.Background())
-	if err != nil {
-		t.Fatalf("EnsureModel: %v", err)
-	}
-	if got != modelPath {
-		t.Errorf("EnsureModel = %q, want %q", got, modelPath)
-	}
-	data, err := os.ReadFile(got)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != body {
-		t.Errorf("model content = %q, want %q (truncated cache entry was kept)", data, body)
 	}
 }

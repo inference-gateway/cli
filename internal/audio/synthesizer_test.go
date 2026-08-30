@@ -9,9 +9,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 )
@@ -81,18 +82,6 @@ func TestResolveTTSBinaryNotFound(t *testing.T) {
 	}
 	if err != nil && !strings.Contains(err.Error(), "text_to_speech.binary_path") {
 		t.Errorf("error should name the config escape hatch, got %v", err)
-	}
-}
-
-func TestEnsureTTSAvailable(t *testing.T) {
-	s := NewSynthesizer(config.TextToSpeechConfig{})
-	s.lookPath = found
-	if err := s.EnsureAvailable(); err != nil {
-		t.Errorf("expected available, got %v", err)
-	}
-	s.lookPath = notFound
-	if err := s.EnsureAvailable(); err == nil {
-		t.Error("expected error when llama-tts is missing")
 	}
 }
 
@@ -248,54 +237,54 @@ func TestWAVDurationSeconds(t *testing.T) {
 	})
 }
 
-// TestEnsureModelsRefetchesTruncatedBackbone pins the review finding on issue
-// #1115: a half-downloaded model sitting in the cache (size differing from the
-// server copy) must be re-fetched instead of being handed to llama-tts forever.
-func TestEnsureModelsRefetchesTruncatedBackbone(t *testing.T) {
+func TestEnsureModelsCoalescesConcurrentDownloads(t *testing.T) {
 	backbone, mmproj := ttsModelFiles("")
 	bodies := map[string]string{backbone: "backbone-gguf-bytes", mmproj: "mmproj-gguf-bytes"}
+	var gets atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		body, ok := bodies[strings.TrimPrefix(req.URL.Path, "/")]
 		if !ok {
 			http.NotFound(w, req)
 			return
 		}
-		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-		if req.Method == http.MethodHead {
-			return
-		}
+		gets.Add(1)
+		time.Sleep(50 * time.Millisecond)
 		_, _ = w.Write([]byte(body))
 	}))
 	defer srv.Close()
 
 	dir := t.TempDir()
-	for name, body := range bodies {
-		content := body
-		if name == backbone {
-			content = "trunc"
-		}
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-
 	m := NewTTSModelManager(config.TextToSpeechConfig{ModelsDir: dir, AutoDownload: true})
 	m.baseURL = srv.URL
 	m.client = srv.Client()
 
-	gotBackbone, gotMmproj, err := m.EnsureModels(context.Background())
-	if err != nil {
-		t.Fatalf("EnsureModels: %v", err)
+	type result struct {
+		backbone string
+		mmproj   string
+		err      error
 	}
-	if gotBackbone != filepath.Join(dir, backbone) || gotMmproj != filepath.Join(dir, mmproj) {
-		t.Errorf("EnsureModels = (%q, %q), want files inside %q", gotBackbone, gotMmproj, dir)
+	start := make(chan struct{})
+	results := make(chan result, 2)
+	for range 2 {
+		go func() {
+			<-start
+			gotBackbone, gotMmproj, err := m.EnsureModels(context.Background())
+			results <- result{gotBackbone, gotMmproj, err}
+		}()
 	}
-	data, err := os.ReadFile(gotBackbone)
-	if err != nil {
-		t.Fatal(err)
+	close(start)
+
+	for range 2 {
+		got := <-results
+		if got.err != nil {
+			t.Fatalf("EnsureModels: %v", got.err)
+		}
+		if got.backbone != filepath.Join(dir, backbone) || got.mmproj != filepath.Join(dir, mmproj) {
+			t.Errorf("EnsureModels = (%q, %q), want files inside %q", got.backbone, got.mmproj, dir)
+		}
 	}
-	if string(data) != bodies[backbone] {
-		t.Errorf("backbone content = %q, want %q (truncated cache entry was kept)", data, bodies[backbone])
+	if got := gets.Load(); got != 2 {
+		t.Errorf("download GETs = %d, want one per model", got)
 	}
 }
 

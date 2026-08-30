@@ -84,6 +84,9 @@ func (t *TextToSpeechTool) Validate(args map[string]any) error {
 	}
 
 	rawOut, _ := args["output_path"].(string)
+	if strings.TrimSpace(rawOut) == "" {
+		return nil
+	}
 	_, err := t.resolveOutputPath(rawOut)
 	return err
 }
@@ -126,9 +129,9 @@ func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
 }
 
 // resolveOutputPath returns the WAV target: an LLM-supplied bare file name
-// placed inside the configured output directory (never elsewhere), or a
-// timestamped default when empty. The base-name reduction is what confines -
-// and sanitizes - the path.
+// placed inside the configured output directory (never elsewhere), or a unique
+// timestamped default when empty. The base-name reduction is what confines and
+// sanitizes an explicit path.
 func (t *TextToSpeechTool) resolveOutputPath(raw string) (string, error) {
 	dir, err := t.config.TextToSpeech.ResolveOutputDir()
 	if err != nil {
@@ -137,7 +140,19 @@ func (t *TextToSpeechTool) resolveOutputPath(raw string) (string, error) {
 
 	name := strings.TrimSpace(raw)
 	if name == "" {
-		return filepath.Join(dir, "speech-"+time.Now().Format("20060102-150405.000")+".wav"), nil
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return "", fmt.Errorf("creating output directory: %w", err)
+		}
+		file, err := os.CreateTemp(dir, "speech-"+time.Now().Format("20060102-150405")+"-*.wav")
+		if err != nil {
+			return "", fmt.Errorf("allocating output file: %w", err)
+		}
+		path := file.Name()
+		if err := file.Close(); err != nil {
+			_ = os.Remove(path)
+			return "", fmt.Errorf("closing output file: %w", err)
+		}
+		return path, nil
 	}
 	if filepath.IsAbs(name) || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
 		return "", fmt.Errorf("invalid output_path %q: pass a bare file name for the output directory", raw)
@@ -168,6 +183,9 @@ func (t *TextToSpeechTool) Execute(ctx context.Context, args map[string]any) (*a
 	}
 
 	if err := t.synth.Synthesize(ctx, text, sample, outPath); err != nil {
+		if strings.TrimSpace(rawOut) == "" {
+			_ = os.Remove(outPath)
+		}
 		return t.failure(start, args, err), nil
 	}
 

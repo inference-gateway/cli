@@ -15,10 +15,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
-// ttsBinaryCandidates are the binary names tried, in order, when no explicit
-// text_to_speech.binary_path is configured.
-var ttsBinaryCandidates = []string{"llama-tts"}
-
 // defaultSynthesisTimeoutSeconds is the fallback when text_to_speech.timeout is
 // unset; DefaultConfig sets the same value for a config written to disk.
 const defaultSynthesisTimeoutSeconds = 300
@@ -52,13 +48,6 @@ func NewSynthesizer(cfg config.TextToSpeechConfig) *Synthesizer {
 		run:      execRun,
 		lookPath: exec.LookPath,
 	}
-}
-
-// EnsureAvailable reports whether the llama-tts binary can be resolved
-// (possibly by downloading it), without synthesizing or downloading models.
-func (s *Synthesizer) EnsureAvailable() error {
-	_, err := s.resolveBinary(context.Background())
-	return err
 }
 
 // Synthesize converts text into a spoken WAV at outPath (the parent directory
@@ -133,16 +122,13 @@ func (s *Synthesizer) resolveBinary(_ context.Context) (string, error) {
 		return "", fmt.Errorf("configured text_to_speech.binary_path %q not found or not executable", p)
 	}
 
-	for _, name := range ttsBinaryCandidates {
-		if _, err := s.lookPath(name); err == nil {
-			return name, nil
-		}
+	if _, err := s.lookPath("llama-tts"); err == nil {
+		return "llama-tts", nil
 	}
 
-	return "", fmt.Errorf("llama-tts binary not found (tried %s): install llama.cpp with TTS support "+
-		"(e.g. `brew install llama.cpp`, or build the llama-tts target from "+
-		"https://github.com/ggml-org/llama.cpp) or set text_to_speech.binary_path",
-		strings.Join(ttsBinaryCandidates, ", "))
+	return "", fmt.Errorf("llama-tts binary not found: install llama.cpp with TTS support " +
+		"(e.g. `brew install llama.cpp`, or build the llama-tts target from " +
+		"https://github.com/ggml-org/llama.cpp) or set text_to_speech.binary_path")
 }
 
 // normalizeVoiceSample converts the reference sample into a 16kHz mono WAV

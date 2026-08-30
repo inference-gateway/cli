@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	config "github.com/inference-gateway/cli/config"
 )
@@ -52,6 +53,7 @@ func ttsModelFiles(model string) (backbone, mmproj string) {
 // (backbone + mmproj) into the models dir, mirroring ModelManager for whisper.
 type TTSModelManager struct {
 	cfg config.TextToSpeechConfig
+	mu  sync.Mutex
 
 	// baseURL and client are overridable in tests.
 	baseURL string
@@ -81,10 +83,12 @@ func (m *TTSModelManager) modelsDir() (string, error) {
 }
 
 // EnsureModels returns local paths to the backbone and mmproj GGUF files,
-// downloading them on first use when AutoDownload is enabled. Cached files keep
-// their size checked against the server copy, so truncated entries are
-// re-fetched instead of breaking synthesis on every run.
+// downloading them on first use when AutoDownload is enabled. Concurrent
+// callers are serialized so each model is downloaded once.
 func (m *TTSModelManager) EnsureModels(ctx context.Context) (backbone, mmproj string, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	backboneName, mmprojName := ttsModelFiles(m.cfg.Model)
 
 	if backbone, err = m.ensureFile(ctx, backboneName); err != nil {
@@ -97,18 +101,15 @@ func (m *TTSModelManager) EnsureModels(ctx context.Context) (backbone, mmproj st
 }
 
 // ensureFile returns the local path to the named GGUF file, downloading it on
-// first use when AutoDownload is enabled. A cached file whose size no longer
-// matches the server's copy (a truncated or otherwise corrupt download) is
-// dropped and re-fetched instead of being handed to the engine on every run.
+// first use when AutoDownload is enabled.
 func (m *TTSModelManager) ensureFile(ctx context.Context, name string) (string, error) {
 	dir, err := m.modelsDir()
 	if err != nil {
 		return "", err
 	}
 	path := filepath.Join(dir, name)
-	url := m.baseURL + "/" + name
 
-	if _, err := os.Stat(path); err == nil && !cachedModelStale(ctx, m.client, url, path, m.cfg.AutoDownload) {
+	if _, err := os.Stat(path); err == nil {
 		return path, nil
 	}
 
@@ -120,7 +121,7 @@ func (m *TTSModelManager) ensureFile(ctx context.Context, name string) (string, 
 		return "", fmt.Errorf("creating models directory: %w", err)
 	}
 
-	if err := downloadToFile(ctx, m.client, url, path, "tts model"); err != nil {
+	if err := downloadToFile(ctx, m.client, m.baseURL+"/"+name, path, "tts model"); err != nil {
 		return "", err
 	}
 	return path, nil

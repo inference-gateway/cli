@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	config "github.com/inference-gateway/cli/config"
 )
@@ -32,6 +33,7 @@ func modelFileName(model string) string {
 // ModelManager resolves and (optionally) downloads the GGML model file.
 type ModelManager struct {
 	cfg config.SpeechToTextConfig
+	mu  sync.Mutex
 
 	// baseURL and client are overridable in tests.
 	baseURL string
@@ -66,18 +68,19 @@ func (m *ModelManager) modelURL() string {
 }
 
 // EnsureModel returns the local path to the model file, downloading it on first
-// use when AutoDownload is enabled. A cached file whose size no longer matches
-// the server's copy (truncated/corrupt download) is re-fetched; when the size
-// cannot be checked (e.g. offline) the cache is used as-is.
+// use when AutoDownload is enabled. Concurrent callers are serialized so a
+// cold cache triggers one download.
 func (m *ModelManager) EnsureModel(ctx context.Context) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	dir, err := m.modelsDir()
 	if err != nil {
 		return "", err
 	}
-	url := m.modelURL()
 	path := filepath.Join(dir, modelFileName(m.cfg.Model))
 
-	if _, err := os.Stat(path); err == nil && !cachedModelStale(ctx, m.client, url, path, m.cfg.AutoDownload) {
+	if _, err := os.Stat(path); err == nil {
 		return path, nil
 	}
 
@@ -89,7 +92,7 @@ func (m *ModelManager) EnsureModel(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("creating models directory: %w", err)
 	}
 
-	if err := downloadToFile(ctx, m.client, url, path, "whisper model"); err != nil {
+	if err := downloadToFile(ctx, m.client, m.modelURL(), path, "whisper model"); err != nil {
 		return "", err
 	}
 	return path, nil

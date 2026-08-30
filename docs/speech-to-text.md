@@ -100,7 +100,5 @@ pruned automatically once the cap is exceeded. `retain_recordings: 0` (the defau
   with `ffmpeg -f avfoundation -list_devices true -i ""`, then set `input_device` to the index.
 - **Wrong language** - set `language` to the ISO code instead of relying on auto-detect.
 - **First `/voice` is slow** - the model downloads once; subsequent runs use the cache.
-- **Suspect a corrupt model file** - with `speech_to_text.auto_download` enabled,
-  the cached GGML model is size-checked against the server before each run and
-  re-downloaded if truncated; delete the file under `~/.infer/models/whisper/`
-  to force a fresh download manually.
+- **Suspect a corrupt model file** - delete the file under
+  `~/.infer/models/whisper/` to download a fresh copy on the next run.

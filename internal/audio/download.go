@@ -59,10 +59,6 @@ func megabytes(n int64) string {
 	return fmt.Sprintf("%.0f MB", float64(n)/(1<<20))
 }
 
-// staleProbeTimeout bounds the HEAD request cachedModelStale uses to compare
-// the cached model against the server copy.
-const staleProbeTimeout = 5 * time.Second
-
 // downloadToFile fetches url into dstPath atomically (temp file + rename, so an
 // interrupted download never leaves a half-written model at the final path) and
 // verifies the received byte count against the response Content-Length, so a
@@ -107,50 +103,4 @@ func downloadToFile(ctx context.Context, client *http.Client, url, dstPath, labe
 		return fmt.Errorf("finalizing %s: %w", label, err)
 	}
 	return nil
-}
-
-// cachedModelStale reports whether an existing cache entry should be discarded
-// and re-fetched: it HEADs the download URL and compares the local size with
-// the server's Content-Length, so a truncated model (interrupted manual fetch,
-// early-close response, partial copy from an older tool) is re-downloaded
-// instead of failing synthesis on every run. Unknown sizes - probe outage,
-// non-200, missing Content-Length - always trust the cache, so an offline
-// machine keeps working from its cache. auto_download is false only for
-// manually managed models, which are never re-fetched behind the user's back.
-//
-// ponytail: size comparison rather than a content sha256 (HF's tree API exposes
-// lfs.oid if a real checksum is ever needed) - same-size corruption of a GGUF
-// is not detected here; llama.cpp still rejects malformed models.
-func cachedModelStale(ctx context.Context, client *http.Client, url, path string, autoDownload bool) bool {
-	if !autoDownload {
-		return false
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	// The probe runs before every transcription and synthesis, on a client with
-	// no timeout of its own, so bound it here: a slow or blackholed network must
-	// cost a few seconds, not the whole run. Timing out lands on the same branch
-	// as any other probe failure - trust the cache.
-	ctx, cancel := context.WithTimeout(ctx, staleProbeTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
-	if err != nil {
-		return false
-	}
-	req.Header.Set("User-Agent", "inference-gateway-cli")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK || resp.ContentLength <= 0 {
-		return false
-	}
-	return info.Size() != resp.ContentLength
 }

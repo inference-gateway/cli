@@ -133,6 +133,12 @@ func TestTextToSpeechTool_Validate(t *testing.T) {
 			assert.Equal(t, tt.wantErr, err != nil, "err = %v", err)
 		})
 	}
+
+	outputDir := filepath.Join(t.TempDir(), "not-created")
+	tool.config.TextToSpeech.OutputDir = outputDir
+	require.NoError(t, tool.Validate(map[string]any{"text": "hello"}))
+	_, err := os.Stat(outputDir)
+	assert.True(t, os.IsNotExist(err), "validation must not create the default output directory")
 }
 
 func TestTextToSpeechTool_ExecuteStockVoice(t *testing.T) {
@@ -191,15 +197,56 @@ func TestTextToSpeechTool_ExecuteDefaultOutputPath(t *testing.T) {
 	assert.FileExists(t, fake.out)
 }
 
+func TestTextToSpeechTool_DefaultOutputPathsAreUnique(t *testing.T) {
+	tool := newTestTTSTool(t, true, &fakeVoiceSynthesizer{})
+	type result struct {
+		path string
+		err  error
+	}
+	results := make(chan result, 10)
+	for range 10 {
+		go func() {
+			path, err := tool.resolveOutputPath("")
+			results <- result{path, err}
+		}()
+	}
+
+	seen := make(map[string]struct{}, 10)
+	for range 10 {
+		got := <-results
+		require.NoError(t, got.err)
+		if _, exists := seen[got.path]; exists {
+			t.Errorf("duplicate default output path %q", got.path)
+		}
+		seen[got.path] = struct{}{}
+		assert.FileExists(t, got.path)
+	}
+}
+
 func TestTextToSpeechTool_ExecuteSynthesisFailure(t *testing.T) {
 	fake := &fakeVoiceSynthesizer{err: fmt.Errorf("engine crashed")}
 	tool := newTestTTSTool(t, true, fake)
+	outPath := filepath.Join(tool.config.TextToSpeech.OutputDir, "out.wav")
+	require.NoError(t, os.WriteFile(outPath, []byte("existing"), 0o644))
 
 	result, err := tool.Execute(context.Background(), map[string]any{"text": "hello", "output_path": "out.wav"})
 
 	require.NoError(t, err)
 	assert.False(t, result.Success)
 	assert.Contains(t, result.Error, "engine crashed")
+	assert.FileExists(t, outPath, "an explicitly named output must survive synthesis failure")
+}
+
+func TestTextToSpeechTool_DefaultOutputIsRemovedOnFailure(t *testing.T) {
+	fake := &fakeVoiceSynthesizer{err: fmt.Errorf("engine crashed")}
+	tool := newTestTTSTool(t, true, fake)
+
+	result, err := tool.Execute(context.Background(), map[string]any{"text": "hello"})
+
+	require.NoError(t, err)
+	assert.False(t, result.Success)
+	assert.NotEmpty(t, fake.out)
+	assert.NoFileExists(t, fake.out)
 }
 
 func TestTextToSpeechTool_ExecuteInvalidArgs(t *testing.T) {
