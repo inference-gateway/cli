@@ -90,11 +90,12 @@ func (s *sqlStore) SaveConversation(ctx context.Context, conversationID string, 
 	}
 
 	_, err = s.db.ExecContext(ctx, s.rebind(`
-		INSERT INTO conversations (id, title, count, messages, total_input_tokens, total_output_tokens,
+		INSERT INTO conversations (id, project, title, count, messages, total_input_tokens, total_output_tokens,
 		                          request_count, cost_stats, models, tags, title_generated, title_invalidated, title_generation_time,
 		                          created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
+			project = excluded.project,
 			title = excluded.title,
 			count = excluded.count,
 			messages = excluded.messages,
@@ -108,7 +109,7 @@ func (s *sqlStore) SaveConversation(ctx context.Context, conversationID string, 
 			title_invalidated = excluded.title_invalidated,
 			title_generation_time = excluded.title_generation_time,
 			updated_at = excluded.updated_at
-	`), conversationID, metadata.Title, len(entries), string(messagesJSON),
+	`), conversationID, metadata.Project, metadata.Title, len(entries), string(messagesJSON),
 		metadata.TokenStats.TotalInputTokens, metadata.TokenStats.TotalOutputTokens, metadata.TokenStats.RequestCount,
 		string(costStatsJSON), string(modelsJSON), string(tagsJSON), metadata.TitleGenerated, metadata.TitleInvalidated,
 		metadata.TitleGenerationTime, metadata.CreatedAt.Format(time.RFC3339), metadata.UpdatedAt.Format(time.RFC3339))
@@ -144,10 +145,10 @@ func (s *sqlStore) loadConversationMetadata(ctx context.Context, conversationID 
 	err := s.db.QueryRowContext(ctx, s.rebind(`
 		SELECT id, title, count, messages, total_input_tokens, total_output_tokens,
 		       request_count, cost_stats, models, tags, title_generated, title_invalidated, title_generation_time,
-		       created_at, updated_at
+		       created_at, updated_at, project
 		FROM conversations WHERE id = ?
 	`), conversationID).Scan(
-		&metadata.ID, &metadata.Title, &metadata.MessageCount,
+		&metadata.ID, &metadata.Project, &metadata.Title, &metadata.MessageCount,
 		&messagesJSON, &totalInputTokens, &totalOutputTokens,
 		&requestCount, &costStatsJSON, &modelsJSON, &tagsJSON,
 		&metadata.TitleGenerated, &metadata.TitleInvalidated, &titleGenerationTime,
@@ -192,13 +193,14 @@ func (s *sqlStore) loadConversationMetadata(ctx context.Context, conversationID 
 }
 
 // ListConversations returns a list of conversation summaries.
-func (s *sqlStore) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
+func (s *sqlStore) ListConversations(ctx context.Context, project string, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	rows, err := s.db.QueryContext(ctx, s.rebind(`
-		SELECT id, title, created_at, updated_at, count, total_input_tokens, total_output_tokens, request_count, cost_stats
+		SELECT id, title, created_at, updated_at, count, total_input_tokens, total_output_tokens, request_count, cost_stats, project
 		FROM conversations
+		WHERE (? = '' OR project = ?)
 		ORDER BY updated_at DESC
 		LIMIT ? OFFSET ?
-	`), limit, offset)
+	`), project, project, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query conversations: %w", err)
 	}
@@ -212,7 +214,7 @@ func (s *sqlStore) ListConversations(ctx context.Context, limit, offset int) ([]
 
 		err := rows.Scan(
 			&summary.ID, &summary.Title, &summary.CreatedAt, &summary.UpdatedAt,
-			&summary.MessageCount, &totalInputTokens, &totalOutputTokens, &requestCount, &costStatsJSON,
+			&summary.MessageCount, &totalInputTokens, &totalOutputTokens, &requestCount, &costStatsJSON, &summary.Project,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan conversation: %w", err)

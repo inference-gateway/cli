@@ -39,6 +39,9 @@ func runConversationStorageConformance(t *testing.T, newStorage func(t *testing.
 	t.Run("ListConversationsNeedingTitles", func(t *testing.T) {
 		conformanceListNeedingTitles(t, newStorage(t))
 	})
+	t.Run("ProjectScoping", func(t *testing.T) {
+		conformanceProjectScoping(t, newStorage(t))
+	})
 	t.Run("SessionGroups", func(t *testing.T) {
 		groups, ok := newStorage(t).(SessionGroupStorage)
 		if !ok {
@@ -46,6 +49,37 @@ func runConversationStorageConformance(t *testing.T, newStorage func(t *testing.
 		}
 		conformanceSessionGroups(t, groups)
 	})
+}
+
+// conformanceProjectScoping guards per-project grouping: conversations saved
+// with different metadata projects are only visible in their own project scope
+// (jsonl scopes by its storage directory instead, so it skips the metadata
+// path), and the "" scope lists every project.
+func conformanceProjectScoping(t *testing.T, storage ConversationStorage) {
+	if _, isJsonl := storage.(*JsonlStorage); isJsonl {
+		t.Skip("jsonl scopes per project by storage directory, not metadata")
+	}
+
+	ctx := context.Background()
+	for i, id := range []string{"proj-a-1", "proj-b-1"} {
+		project := "/home/alice/repo-a"
+		if i == 1 {
+			project = "/home/alice/repo-b"
+		}
+		metadata := createTestMetadata(id)
+		metadata.Project = project
+		require.NoError(t, storage.SaveConversation(ctx, id, createTestEntries(), metadata))
+	}
+
+	onlyA, err := storage.ListConversations(ctx, "/home/alice/repo-a", 10, 0)
+	require.NoError(t, err)
+	require.Len(t, onlyA, 1)
+	assert.Equal(t, "proj-a-1", onlyA[0].ID)
+	assert.Equal(t, "/home/alice/repo-a", onlyA[0].Project)
+
+	all, err := storage.ListConversations(ctx, "", 10, 0)
+	require.NoError(t, err)
+	assert.Len(t, all, 2, "empty project scope must list every project")
 }
 
 func conformanceBasicOperations(t *testing.T, storage ConversationStorage) {
@@ -129,7 +163,7 @@ func conformanceConversationManagement(t *testing.T, storage ConversationStorage
 			require.NoError(t, storage.SaveConversation(ctx, id, entries, metadata))
 		}
 
-		summaries, err := storage.ListConversations(ctx, 10, 0)
+		summaries, err := storage.ListConversations(ctx, "", 10, 0)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(summaries), 3)
 

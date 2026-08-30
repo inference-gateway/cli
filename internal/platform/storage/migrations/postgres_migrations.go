@@ -125,5 +125,18 @@ func GetPostgresMigrations() []Migration {
 				DROP TABLE IF EXISTS scheduled_job_runs;
 			`,
 		},
+		{
+			Version:     "007",
+			Description: "Conversation project column for per-project grouping",
+			UpSQL: `
+				ALTER TABLE conversations ADD COLUMN project TEXT NOT NULL DEFAULT '';
+
+				CREATE INDEX IF NOT EXISTS idx_conversations_project ON conversations(project);
+			`,
+			DownSQL: `
+				DROP INDEX IF EXISTS idx_conversations_project;
+				ALTER TABLE conversations DROP COLUMN project;
+			`,
+		},
 	}
 }

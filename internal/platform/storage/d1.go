@@ -313,11 +313,12 @@ func (s *D1Storage) SaveConversation(ctx context.Context, conversationID string,
 	}
 
 	_, err = s.exec(ctx, `
-		INSERT INTO conversations (id, title, count, messages, total_input_tokens, total_output_tokens,
+		INSERT INTO conversations (id, project, title, count, messages, total_input_tokens, total_output_tokens,
 		                          request_count, cost_stats, models, tags, title_generated, title_invalidated, title_generation_time,
 		                          created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
+			project = excluded.project,
 			title = excluded.title,
 			count = excluded.count,
 			messages = excluded.messages,
@@ -331,7 +332,7 @@ func (s *D1Storage) SaveConversation(ctx context.Context, conversationID string,
 			title_invalidated = excluded.title_invalidated,
 			title_generation_time = excluded.title_generation_time,
 			updated_at = excluded.updated_at
-	`, conversationID, metadata.Title, len(entries), string(messagesJSON), metadata.TokenStats.TotalInputTokens, metadata.TokenStats.TotalOutputTokens,
+	`, conversationID, metadata.Project, metadata.Title, len(entries), string(messagesJSON), metadata.TokenStats.TotalInputTokens, metadata.TokenStats.TotalOutputTokens,
 		metadata.TokenStats.RequestCount, string(costStatsJSON), string(modelsJSON), string(tagsJSON), metadata.TitleGenerated, metadata.TitleInvalidated,
 		metadata.TitleGenerationTime, metadata.CreatedAt, metadata.UpdatedAt)
 	if err != nil {
@@ -363,7 +364,7 @@ func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID
 	rows, err := s.queryRows(ctx, `
 		SELECT id, title, count, messages, total_input_tokens, total_output_tokens,
 		       request_count, cost_stats, models, tags, title_generated, title_invalidated, title_generation_time,
-		       created_at, updated_at
+		       created_at, updated_at, project
 		FROM conversations WHERE id = ?
 	`, conversationID)
 	if err != nil {
@@ -375,6 +376,7 @@ func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID
 	r := rows[0]
 
 	metadata.ID = asString(r["id"])
+	metadata.Project = asString(r["project"])
 	metadata.Title = asString(r["title"])
 	metadata.MessageCount = asInt(r["count"])
 	metadata.TitleGenerated = asBool(r["title_generated"])
@@ -416,13 +418,14 @@ func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID
 }
 
 // ListConversations returns a list of conversation summaries (lean: no models/tags/title fields).
-func (s *D1Storage) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
+func (s *D1Storage) ListConversations(ctx context.Context, project string, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	rows, err := s.queryRows(ctx, `
-		SELECT id, title, created_at, updated_at, count, total_input_tokens, total_output_tokens, request_count, cost_stats
+		SELECT id, project, title, created_at, updated_at, count, total_input_tokens, total_output_tokens, request_count, cost_stats
 		FROM conversations
+		WHERE (? = '' OR project = ?)
 		ORDER BY updated_at DESC
 		LIMIT ? OFFSET ?
-	`, limit, offset)
+	`, project, project, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query conversations: %w", err)
 	}
@@ -431,6 +434,7 @@ func (s *D1Storage) ListConversations(ctx context.Context, limit, offset int) ([
 	for _, r := range rows {
 		var summary convdomain.ConversationSummary
 		summary.ID = asString(r["id"])
+		summary.Project = asString(r["project"])
 		summary.Title = asString(r["title"])
 		summary.CreatedAt = asTime(r["created_at"])
 		summary.UpdatedAt = asTime(r["updated_at"])

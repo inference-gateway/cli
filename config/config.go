@@ -1190,12 +1190,8 @@ func DefaultConfig() *Config { //nolint:funlen
 		Storage: StorageConfig{
 			Enabled: true,
 			Type:    "jsonl",
-			Jsonl: JsonlStorageConfig{
-				Path: ConfigDirName + "/conversations",
-			},
-			SQLite: SQLiteStorageConfig{
-				Path: ConfigDirName + "/conversations.db",
-			},
+			Jsonl:   JsonlStorageConfig{},
+			SQLite:  SQLiteStorageConfig{},
 			Postgres: PostgresStorageConfig{
 				Host:     "localhost",
 				Port:     5432,

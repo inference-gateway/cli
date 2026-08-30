@@ -165,7 +165,7 @@ func TestJsonlStorage_List(t *testing.T) {
 	}
 
 	t.Run("list all conversations", func(t *testing.T) {
-		summaries, err := storage.ListConversations(ctx, 0, 0)
+		summaries, err := storage.ListConversations(ctx, "", 0, 0)
 		require.NoError(t, err)
 		assert.Equal(t, 5, len(summaries))
 
@@ -175,25 +175,25 @@ func TestJsonlStorage_List(t *testing.T) {
 	})
 
 	t.Run("pagination with limit", func(t *testing.T) {
-		summaries, err := storage.ListConversations(ctx, 2, 0)
+		summaries, err := storage.ListConversations(ctx, "", 2, 0)
 		require.NoError(t, err)
 		assert.Equal(t, 2, len(summaries))
 	})
 
 	t.Run("pagination with offset", func(t *testing.T) {
-		summaries, err := storage.ListConversations(ctx, 0, 3)
+		summaries, err := storage.ListConversations(ctx, "", 0, 3)
 		require.NoError(t, err)
 		assert.Equal(t, 2, len(summaries))
 	})
 
 	t.Run("pagination with limit and offset", func(t *testing.T) {
-		summaries, err := storage.ListConversations(ctx, 2, 2)
+		summaries, err := storage.ListConversations(ctx, "", 2, 2)
 		require.NoError(t, err)
 		assert.Equal(t, 2, len(summaries))
 	})
 
 	t.Run("offset beyond available conversations", func(t *testing.T) {
-		summaries, err := storage.ListConversations(ctx, 0, 10)
+		summaries, err := storage.ListConversations(ctx, "", 0, 10)
 		require.NoError(t, err)
 		assert.Equal(t, 0, len(summaries))
 	})
@@ -435,7 +435,7 @@ func TestJsonlStorage_ConcurrentAccess(t *testing.T) {
 			<-done
 		}
 
-		summaries, err := storage.ListConversations(ctx, 0, 0)
+		summaries, err := storage.ListConversations(ctx, "", 0, 0)
 		require.NoError(t, err)
 		assert.Equal(t, 3, len(summaries))
 	})
@@ -591,7 +591,7 @@ func TestJsonlStorage_MetadataOnlyUpdatePersists(t *testing.T) {
 
 	require.NoError(t, storage.SaveConversation(ctx, conversationID, entries, freshMetadata))
 
-	summaries, err := storage.ListConversations(ctx, 10, 0)
+	summaries, err := storage.ListConversations(ctx, "", 10, 0)
 	require.NoError(t, err)
 	require.Len(t, summaries, 1)
 	assert.Equal(t, 6510, summaries[0].TokenStats.TotalInputTokens)
@@ -800,7 +800,7 @@ func TestJsonlStorage_ListV2Conversations(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	summaries, err := storage.ListConversations(ctx, 0, 0)
+	summaries, err := storage.ListConversations(ctx, "", 0, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 3, len(summaries))
 

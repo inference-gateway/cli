@@ -79,14 +79,18 @@ func (m *MemoryStorage) LoadConversation(ctx context.Context, conversationID str
 }
 
 // ListConversations returns a list of conversation summaries
-func (m *MemoryStorage) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
+func (m *MemoryStorage) ListConversations(ctx context.Context, project string, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
 	summaries := make([]convdomain.ConversationSummary, 0, len(m.conversations))
 
 	for _, data := range m.conversations {
+		if project != "" && data.metadata.Project != project {
+			continue
+		}
 		summary := convdomain.ConversationSummary{
+			Project:             data.metadata.Project,
 			ID:                  data.metadata.ID,
 			Title:               data.metadata.Title,
 			CreatedAt:           data.metadata.CreatedAt,

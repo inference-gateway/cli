@@ -182,7 +182,7 @@ func (s *RedisStorage) LoadConversation(ctx context.Context, conversationID stri
 }
 
 // ListConversations returns a list of conversation summaries
-func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
+func (s *RedisStorage) ListConversations(ctx context.Context, project string, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	indexKey := s.conversationIndexKey()
 
 	conversationIDs, err := s.client.ZRevRange(ctx, indexKey, int64(offset), int64(offset+limit-1)).Result()
@@ -237,6 +237,12 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 			TitleGenerationTime: metadata.TitleGenerationTime,
 		}
 
+		if project != "" && metadata.Project != project {
+			// ponytail: filter after the paged ZRANGE means sparse pages when
+			// projects share the index; paginate per project only if offset
+			// exactness ever matters.
+			continue
+		}
 		summaries = append(summaries, summary)
 	}
 

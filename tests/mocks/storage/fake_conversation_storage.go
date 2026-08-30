@@ -43,12 +43,13 @@ type FakeConversationStorage struct {
 	healthReturnsOnCall map[int]struct {
 		result1 error
 	}
-	ListConversationsStub        func(context.Context, int, int) ([]domain.ConversationSummary, error)
+	ListConversationsStub        func(context.Context, string, int, int) ([]domain.ConversationSummary, error)
 	listConversationsMutex       sync.RWMutex
 	listConversationsArgsForCall []struct {
 		arg1 context.Context
-		arg2 int
+		arg2 string
 		arg3 int
+		arg4 int
 	}
 	listConversationsReturns struct {
 		result1 []domain.ConversationSummary
@@ -295,20 +296,21 @@ func (fake *FakeConversationStorage) HealthReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeConversationStorage) ListConversations(arg1 context.Context, arg2 int, arg3 int) ([]domain.ConversationSummary, error) {
+func (fake *FakeConversationStorage) ListConversations(arg1 context.Context, arg2 string, arg3 int, arg4 int) ([]domain.ConversationSummary, error) {
 	fake.listConversationsMutex.Lock()
 	ret, specificReturn := fake.listConversationsReturnsOnCall[len(fake.listConversationsArgsForCall)]
 	fake.listConversationsArgsForCall = append(fake.listConversationsArgsForCall, struct {
 		arg1 context.Context
-		arg2 int
+		arg2 string
 		arg3 int
-	}{arg1, arg2, arg3})
+		arg4 int
+	}{arg1, arg2, arg3, arg4})
 	stub := fake.ListConversationsStub
 	fakeReturns := fake.listConversationsReturns
-	fake.recordInvocation("ListConversations", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("ListConversations", []interface{}{arg1, arg2, arg3, arg4})
 	fake.listConversationsMutex.Unlock()
 	if stub != nil {
-		return stub(arg1, arg2, arg3)
+		return stub(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -322,17 +324,17 @@ func (fake *FakeConversationStorage) ListConversationsCallCount() int {
 	return len(fake.listConversationsArgsForCall)
 }
 
-func (fake *FakeConversationStorage) ListConversationsCalls(stub func(context.Context, int, int) ([]domain.ConversationSummary, error)) {
+func (fake *FakeConversationStorage) ListConversationsCalls(stub func(context.Context, string, int, int) ([]domain.ConversationSummary, error)) {
 	fake.listConversationsMutex.Lock()
 	defer fake.listConversationsMutex.Unlock()
 	fake.ListConversationsStub = stub
 }
 
-func (fake *FakeConversationStorage) ListConversationsArgsForCall(i int) (context.Context, int, int) {
+func (fake *FakeConversationStorage) ListConversationsArgsForCall(i int) (context.Context, string, int, int) {
 	fake.listConversationsMutex.RLock()
 	defer fake.listConversationsMutex.RUnlock()
 	argsForCall := fake.listConversationsArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
 }
 
 func (fake *FakeConversationStorage) ListConversationsReturns(result1 []domain.ConversationSummary, result2 error) {
