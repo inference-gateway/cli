@@ -133,8 +133,6 @@ func listConversations(state *runtime.State, renderer *output.Renderer, cmd *cob
 	offset, _ := cmd.Flags().GetInt("offset")
 	format, _ := cmd.Flags().GetString("format")
 
-	// Scope to the current project (absolute cwd) unless --all-projects; ""
-	// means "every project" for the storage backends.
 	project := ""
 	if allProjects, _ := cmd.Flags().GetBool("all-projects"); !allProjects {
 		if wd, err := os.Getwd(); err == nil {

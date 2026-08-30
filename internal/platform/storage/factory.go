@@ -21,8 +21,6 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 		return StorageConfig{
 			Type: config.StorageTypeSQLite,
 			SQLite: SQLiteConfig{
-				// Shared machine-global database; grouping by project
-				// happens via the metadata project field, not per-project files.
 				Path: orDefault(cfg.Storage.SQLite.Path, defaultSQLitePath()),
 			},
 		}
@@ -61,7 +59,6 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 	case config.StorageTypeJsonl:
 		jsonl := JsonlStorageConfig{PlansPath: userPlansDir()}
 		if path := cfg.Storage.Jsonl.Path; path != "" {
-			// Explicit user-set path wins as-is and only ever lists itself.
 			jsonl.Path = path
 		} else {
 			jsonl.Path = defaultConversationsDir()
