@@ -123,7 +123,7 @@ func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
 	if info.IsDir() {
 		return "", fmt.Errorf("voice_sample %q is a directory, not a WAV file", safePath)
 	}
-	f, err := os.Open(safePath) // nolint:gosec // single file name resolved inside the working directory above
+	f, err := os.Open(safePath) // nolint:gosec
 	if err != nil {
 		return "", fmt.Errorf("voice_sample %q must be readable: %w", safePath, err)
 	}
