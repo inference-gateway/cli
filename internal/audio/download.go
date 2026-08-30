@@ -38,8 +38,6 @@ func newProgressReader(ctx context.Context, src io.Reader, label string, total i
 func (p *progressReader) Read(b []byte) (int, error) {
 	n, err := p.src.Read(b)
 	p.read += int64(n)
-	// The zero next time makes the first read report immediately, so the user
-	// sees the download start rather than a second of silence.
 	if now := time.Now(); now.After(p.next) {
 		p.next = now.Add(time.Second)
 		p.report(p.message())
