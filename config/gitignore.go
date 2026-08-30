@@ -13,8 +13,6 @@ const InferGitignoreContent = `# inference-gateway CLI runtime artifacts - do no
 logs/*.log
 history
 chat_export_*
-conversations.db*
-conversations
 session_groups.json
 bin/
 backups/

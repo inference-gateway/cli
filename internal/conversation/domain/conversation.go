@@ -52,6 +52,11 @@ type ConversationMetadata struct {
 	// InvokedBy indicates who started the session: "human" or "agent".
 	// Defaults to "human" for sessions with no explicit invoker.
 	InvokedBy string `json:"invoked_by"`
+
+	// Project is the absolute path of the working directory the session
+	// runs in. Storage backends group conversations by it so listing can
+	// be scoped to the current project.
+	Project string `json:"project"`
 }
 
 // ConversationSummary contains summary information about a conversation
@@ -75,4 +80,8 @@ type ConversationSummary struct {
 
 	// InvokedBy indicates who started the session: "human" or "agent".
 	InvokedBy string `json:"invoked_by"`
+
+	// Project is the absolute path of the working directory the session runs
+	// in; empty for legacy records.
+	Project string `json:"project,omitempty"`
 }

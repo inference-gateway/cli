@@ -489,6 +489,7 @@ rather than reading files directly).
 **Subcommands:**
 
 - `list`: List saved conversations with metadata (id, title, message/request counts, tokens, cost).
+     Scoped to the current project by default; pass `--all-projects` for every project's conversations.
 - `show <session-id>`: Print a single conversation's entries in chronological order.
 
 **`show` flags:**

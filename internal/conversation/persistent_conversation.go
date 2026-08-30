@@ -14,6 +14,7 @@ import (
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	project "github.com/inference-gateway/cli/internal/platform/project"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -167,12 +168,13 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 	metadata := r.metadata
 	r.metadataMutex.Unlock()
 
+	metadata.Project = project.Path()
 	return r.storage.SaveConversation(ctx, conversationID, entries, metadata)
 }
 
 // ListSavedConversations returns a list of saved conversations
 func (r *PersistentConversationRepository) ListSavedConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
-	return r.storage.ListConversations(ctx, limit, offset)
+	return r.storage.ListConversations(ctx, project.Path(), limit, offset)
 }
 
 // DeleteSavedConversation deletes a saved conversation

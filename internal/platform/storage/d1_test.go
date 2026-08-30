@@ -159,6 +159,26 @@ func setupTestD1Storage(t *testing.T) *D1Storage {
 	return storage
 }
 
+// TestD1Storage_MigrationsAreIdempotent proves the migration runner tracks
+// applied versions: constructing the storage twice against the same database
+// must not re-run migration 007's ALTER TABLE ADD COLUMN, which would fail with
+// "duplicate column name" under the mock's real SQLite semantics.
+func TestD1Storage_MigrationsAreIdempotent(t *testing.T) {
+	srv := newD1MockServer(t)
+	cfg := D1Config{
+		AccountID:  "test-acct",
+		DatabaseID: "test-db",
+		APIToken:   "test-token",
+		BaseURL:    srv.URL,
+	}
+
+	_, err := NewD1Storage(cfg)
+	require.NoError(t, err, "first construction applies migrations")
+
+	_, err = NewD1Storage(cfg)
+	require.NoError(t, err, "second construction must skip already-applied migrations")
+}
+
 // TestD1Storage_Conformance runs the shared storage suite against the D1 driver,
 // backed by the httptest mock over real SQLite (unconditional in CI). D1 uses
 // the same single-table schema as SQLite/Postgres (see #839).

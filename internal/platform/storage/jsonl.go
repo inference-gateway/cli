@@ -17,6 +17,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	project "github.com/inference-gateway/cli/internal/platform/project"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -24,6 +25,7 @@ import (
 type JsonlStorage struct {
 	basePath        string
 	plansPath       string
+	projectsPath    string
 	mu              sync.RWMutex
 	persistedCounts map[string]int
 	persistedMutex  sync.RWMutex
@@ -75,6 +77,7 @@ func NewJsonlStorage(config JsonlStorageConfig) (*JsonlStorage, error) {
 	return &JsonlStorage{
 		basePath:        path,
 		plansPath:       expandHome(config.PlansPath),
+		projectsPath:    expandHome(config.ProjectsPath),
 		persistedCounts: make(map[string]int),
 	}, nil
 }
@@ -89,14 +92,20 @@ func expandHome(path string) string {
 	return path
 }
 
-// conversationFilePath returns the path to a conversation's JSONL file.
-// The ID is reduced to its base name and the result verified to stay under
-// basePath, so a crafted ID (e.g. "../../x") can never escape the
-// conversations directory.
+// conversationFilePath returns the path to a conversation's JSONL file under
+// the storage's base directory.
 func (s *JsonlStorage) conversationFilePath(conversationID string) string {
-	p := filepath.Join(s.basePath, filepath.Base(conversationID)+".jsonl")
-	if !strings.HasPrefix(p, filepath.Clean(s.basePath)+string(os.PathSeparator)) {
-		return filepath.Join(s.basePath, "invalid.jsonl")
+	return s.conversationFilePathIn(s.basePath, conversationID)
+}
+
+// conversationFilePathIn returns the path to a conversation's JSONL file under
+// dir. The ID is reduced to its base name and the result verified to stay
+// under dir, so a crafted ID (e.g. "../../x") can never escape the target
+// directory - the same protection conversationFilePath applies to basePath.
+func (s *JsonlStorage) conversationFilePathIn(dir, conversationID string) string {
+	p := filepath.Join(dir, filepath.Base(conversationID)+".jsonl")
+	if !strings.HasPrefix(p, filepath.Clean(dir)+string(os.PathSeparator)) {
+		return filepath.Join(dir, "invalid.jsonl")
 	}
 	return p
 }
@@ -289,46 +298,58 @@ func (s *JsonlStorage) scanV2Metadata(firstLine []byte, scanner *bufio.Scanner) 
 	return lastMetadata, nil
 }
 
-// ListConversations returns a list of conversation summaries
-func (s *JsonlStorage) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
+// ListConversations returns a list of conversation summaries. A non-empty
+// project scopes the listing to this storage's conversations directory (the
+// per-project store it is rooted at); "" additionally walks sibling project
+// stores under projectsPath. Explicitly configured paths only ever list
+// themselves - there is no per-project layout to walk.  # ponytail: custom
+// paths opt out of cross-project listing; thread a flag through config if
+// that is ever needed.
+func (s *JsonlStorage) ListConversations(ctx context.Context, project string, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	entries, err := os.ReadDir(s.basePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read conversations directory: %w", err)
-	}
-
 	var summaries []convdomain.ConversationSummary
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
-			continue
-		}
-
-		conversationID := strings.TrimSuffix(entry.Name(), ".jsonl")
-		filePath := s.conversationFilePath(conversationID)
-
-		metadata, err := s.readMetadataFromFile(filePath)
+	for _, dir := range s.conversationDirs(project) {
+		entries, err := os.ReadDir(dir)
 		if err != nil {
-			continue
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("failed to read conversations directory: %w", err)
 		}
 
-		summaries = append(summaries, convdomain.ConversationSummary{
-			ID:                  metadata.ID,
-			Title:               metadata.Title,
-			CreatedAt:           metadata.CreatedAt,
-			UpdatedAt:           metadata.UpdatedAt,
-			MessageCount:        metadata.MessageCount,
-			TokenStats:          metadata.TokenStats,
-			CostStats:           metadata.CostStats,
-			Model:               metadata.Model,
-			Tags:                metadata.Tags,
-			TitleGenerated:      metadata.TitleGenerated,
-			TitleInvalidated:    metadata.TitleInvalidated,
-			TitleGenerationTime: metadata.TitleGenerationTime,
-			ParentSessionID:     metadata.ParentSessionID,
-			InvokedBy:           metadata.InvokedBy,
-		})
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
+				continue
+			}
+
+			conversationID := strings.TrimSuffix(entry.Name(), ".jsonl")
+			filePath := s.conversationFilePathIn(dir, conversationID)
+
+			metadata, err := s.readMetadataFromFile(filePath)
+			if err != nil {
+				continue
+			}
+
+			summaries = append(summaries, convdomain.ConversationSummary{
+				ID:                  metadata.ID,
+				Title:               metadata.Title,
+				CreatedAt:           metadata.CreatedAt,
+				UpdatedAt:           metadata.UpdatedAt,
+				MessageCount:        metadata.MessageCount,
+				TokenStats:          metadata.TokenStats,
+				CostStats:           metadata.CostStats,
+				Model:               metadata.Model,
+				Tags:                metadata.Tags,
+				TitleGenerated:      metadata.TitleGenerated,
+				TitleInvalidated:    metadata.TitleInvalidated,
+				TitleGenerationTime: metadata.TitleGenerationTime,
+				ParentSessionID:     metadata.ParentSessionID,
+				InvokedBy:           metadata.InvokedBy,
+				Project:             metadata.Project,
+			})
+		}
 	}
 
 	slices.SortFunc(summaries, func(a, b convdomain.ConversationSummary) int {
@@ -346,12 +367,40 @@ func (s *JsonlStorage) ListConversations(ctx context.Context, limit, offset int)
 	return summaries, nil
 }
 
-// ListConversationsNeedingTitles returns conversations that need title generation
+// conversationDirs returns the directories to scan for a list call: the
+// storage directory itself, plus every sibling project's conversations dir
+// when listing across projects under the default layout.
+func (s *JsonlStorage) conversationDirs(project string) []string {
+	dirs := []string{s.basePath}
+	if project != "" || s.projectsPath == "" {
+		return dirs
+	}
+	siblings, err := os.ReadDir(s.projectsPath)
+	if err != nil {
+		return dirs
+	}
+	for _, sibling := range siblings {
+		if !sibling.IsDir() {
+			continue
+		}
+		dir := filepath.Join(s.projectsPath, sibling.Name(), "conversations")
+		if !slices.Contains(dirs, dir) {
+			dirs = append(dirs, dir)
+		}
+	}
+	return dirs
+}
+
+// ListConversationsNeedingTitles returns conversations that need title
+// generation, scoped to the current project's store (basePath). The title
+// worker can only load and update conversations under that directory, so an
+// all-projects scan would just re-fail sibling projects' conversations every
+// run.
 func (s *JsonlStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]convdomain.ConversationSummary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	allSummaries, err := s.ListConversations(ctx, 0, 0)
+	allSummaries, err := s.ListConversations(ctx, project.Path(), 0, 0)
 	if err != nil {
 		return nil, err
 	}

@@ -44,8 +44,10 @@ type ConversationStorage interface {
 	// LoadConversation loads a conversation by its ID
 	LoadConversation(ctx context.Context, conversationID string) ([]convdomain.ConversationEntry, convdomain.ConversationMetadata, error)
 
-	// ListConversations returns a list of conversation summaries
-	ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error)
+	// ListConversations returns a list of conversation summaries. A non-empty
+	// project (absolute working-directory path) scopes the listing to that
+	// project's conversations; "" lists every project.
+	ListConversations(ctx context.Context, project string, limit, offset int) ([]convdomain.ConversationSummary, error)
 
 	// DeleteConversation removes a conversation by its ID
 	DeleteConversation(ctx context.Context, conversationID string) error
@@ -194,6 +196,11 @@ type JsonlStorageConfig struct {
 	// PlansPath is the directory plan markdown files are stored in. When
 	// empty, plans land next to the conversations directory (dir(Path)/plans).
 	PlansPath string `json:"plans_path,omitempty" yaml:"plans_path,omitempty"`
+	// ProjectsPath is the root of the default per-project layout
+	// (<ConfigDirName>/projects). Set only when Path is the derived
+	// default, so listing across projects can walk sibling project
+	// stores; explicitly configured paths only ever list themselves.
+	ProjectsPath string `json:"projects_path,omitempty" yaml:"projects_path,omitempty"`
 }
 
 // D1Config contains Cloudflare D1-specific configuration. D1 is SQLite exposed

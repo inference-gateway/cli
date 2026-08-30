@@ -71,9 +71,9 @@ type d1Envelope struct {
 	Result  []d1QueryResult `json:"result"`
 }
 
-// NewD1Storage creates a new Cloudflare D1 storage instance and ensures the
-// schema exists (idempotent CREATE ... IF NOT EXISTS, byte-for-byte identical
-// to the SQLite migrations).
+// NewD1Storage creates a new Cloudflare D1 storage instance and applies any
+// pending migrations over HTTP (tracked in schema_migrations, reusing the
+// SQLite migration set for schema parity).
 func NewD1Storage(config D1Config) (*D1Storage, error) {
 	if config.AccountID == "" || config.DatabaseID == "" || config.APIToken == "" {
 		return nil, fmt.Errorf("d1 storage requires account_id, database_id, and api_token")
@@ -101,16 +101,44 @@ func NewD1Storage(config D1Config) (*D1Storage, error) {
 	return s, nil
 }
 
-// runMigrations applies the SQLite schema over HTTP. The migration SQL is
-// reused verbatim from the SQLite migrations to guarantee schema parity; each
+// runMigrations applies the SQLite schema over HTTP, tracking applied versions
+// in a schema_migrations table so each migration runs exactly once. D1 has no
+// database/sql MigrationRunner, so this mirrors that table over HTTP; without
+// it, a non-idempotent migration (e.g. ALTER TABLE ADD COLUMN) would re-run on
+// the next startup and fail ("duplicate column"). The migration SQL is reused
+// verbatim from the SQLite migrations to guarantee schema parity; each
 // statement is sent individually so it works whether or not D1 accepts
 // multi-statement queries.
 func (s *D1Storage) runMigrations(ctx context.Context) error {
+	if _, err := s.exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+		version VARCHAR(255) PRIMARY KEY,
+		description TEXT NOT NULL,
+		applied_at DATETIME NOT NULL
+	)`); err != nil {
+		return fmt.Errorf("failed to create schema_migrations table: %w", err)
+	}
+
+	rows, err := s.queryRows(ctx, `SELECT version FROM schema_migrations`)
+	if err != nil {
+		return fmt.Errorf("failed to query applied migrations: %w", err)
+	}
+	applied := make(map[string]bool, len(rows))
+	for _, r := range rows {
+		applied[asString(r["version"])] = true
+	}
+
 	for _, m := range migrations.GetSQLiteMigrations() {
+		if applied[m.Version] {
+			continue
+		}
 		for _, stmt := range splitSQLStatements(m.UpSQL) {
 			if _, err := s.exec(ctx, stmt); err != nil {
 				return fmt.Errorf("migration %s (%s) failed: %w", m.Version, m.Description, err)
 			}
+		}
+		if _, err := s.exec(ctx, `INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?)`,
+			m.Version, m.Description, time.Now()); err != nil {
+			return fmt.Errorf("failed to record migration %s: %w", m.Version, err)
 		}
 	}
 	return nil
@@ -313,11 +341,12 @@ func (s *D1Storage) SaveConversation(ctx context.Context, conversationID string,
 	}
 
 	_, err = s.exec(ctx, `
-		INSERT INTO conversations (id, title, count, messages, total_input_tokens, total_output_tokens,
+		INSERT INTO conversations (id, project, title, count, messages, total_input_tokens, total_output_tokens,
 		                          request_count, cost_stats, models, tags, title_generated, title_invalidated, title_generation_time,
 		                          created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
+			project = excluded.project,
 			title = excluded.title,
 			count = excluded.count,
 			messages = excluded.messages,
@@ -331,7 +360,7 @@ func (s *D1Storage) SaveConversation(ctx context.Context, conversationID string,
 			title_invalidated = excluded.title_invalidated,
 			title_generation_time = excluded.title_generation_time,
 			updated_at = excluded.updated_at
-	`, conversationID, metadata.Title, len(entries), string(messagesJSON), metadata.TokenStats.TotalInputTokens, metadata.TokenStats.TotalOutputTokens,
+	`, conversationID, metadata.Project, metadata.Title, len(entries), string(messagesJSON), metadata.TokenStats.TotalInputTokens, metadata.TokenStats.TotalOutputTokens,
 		metadata.TokenStats.RequestCount, string(costStatsJSON), string(modelsJSON), string(tagsJSON), metadata.TitleGenerated, metadata.TitleInvalidated,
 		metadata.TitleGenerationTime, metadata.CreatedAt, metadata.UpdatedAt)
 	if err != nil {
@@ -363,7 +392,7 @@ func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID
 	rows, err := s.queryRows(ctx, `
 		SELECT id, title, count, messages, total_input_tokens, total_output_tokens,
 		       request_count, cost_stats, models, tags, title_generated, title_invalidated, title_generation_time,
-		       created_at, updated_at
+		       created_at, updated_at, project
 		FROM conversations WHERE id = ?
 	`, conversationID)
 	if err != nil {
@@ -375,6 +404,7 @@ func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID
 	r := rows[0]
 
 	metadata.ID = asString(r["id"])
+	metadata.Project = asString(r["project"])
 	metadata.Title = asString(r["title"])
 	metadata.MessageCount = asInt(r["count"])
 	metadata.TitleGenerated = asBool(r["title_generated"])
@@ -416,13 +446,14 @@ func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID
 }
 
 // ListConversations returns a list of conversation summaries (lean: no models/tags/title fields).
-func (s *D1Storage) ListConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error) {
+func (s *D1Storage) ListConversations(ctx context.Context, project string, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	rows, err := s.queryRows(ctx, `
-		SELECT id, title, created_at, updated_at, count, total_input_tokens, total_output_tokens, request_count, cost_stats
+		SELECT id, project, title, created_at, updated_at, count, total_input_tokens, total_output_tokens, request_count, cost_stats
 		FROM conversations
+		WHERE (? = '' OR project = ?)
 		ORDER BY updated_at DESC
 		LIMIT ? OFFSET ?
-	`, limit, offset)
+	`, project, project, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query conversations: %w", err)
 	}
@@ -431,6 +462,7 @@ func (s *D1Storage) ListConversations(ctx context.Context, limit, offset int) ([
 	for _, r := range rows {
 		var summary convdomain.ConversationSummary
 		summary.ID = asString(r["id"])
+		summary.Project = asString(r["project"])
 		summary.Title = asString(r["title"])
 		summary.CreatedAt = asTime(r["created_at"])
 		summary.UpdatedAt = asTime(r["updated_at"])

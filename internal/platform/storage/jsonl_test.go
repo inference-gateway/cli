@@ -165,7 +165,7 @@ func TestJsonlStorage_List(t *testing.T) {
 	}
 
 	t.Run("list all conversations", func(t *testing.T) {
-		summaries, err := storage.ListConversations(ctx, 0, 0)
+		summaries, err := storage.ListConversations(ctx, "", 0, 0)
 		require.NoError(t, err)
 		assert.Equal(t, 5, len(summaries))
 
@@ -175,25 +175,25 @@ func TestJsonlStorage_List(t *testing.T) {
 	})
 
 	t.Run("pagination with limit", func(t *testing.T) {
-		summaries, err := storage.ListConversations(ctx, 2, 0)
+		summaries, err := storage.ListConversations(ctx, "", 2, 0)
 		require.NoError(t, err)
 		assert.Equal(t, 2, len(summaries))
 	})
 
 	t.Run("pagination with offset", func(t *testing.T) {
-		summaries, err := storage.ListConversations(ctx, 0, 3)
+		summaries, err := storage.ListConversations(ctx, "", 0, 3)
 		require.NoError(t, err)
 		assert.Equal(t, 2, len(summaries))
 	})
 
 	t.Run("pagination with limit and offset", func(t *testing.T) {
-		summaries, err := storage.ListConversations(ctx, 2, 2)
+		summaries, err := storage.ListConversations(ctx, "", 2, 2)
 		require.NoError(t, err)
 		assert.Equal(t, 2, len(summaries))
 	})
 
 	t.Run("offset beyond available conversations", func(t *testing.T) {
-		summaries, err := storage.ListConversations(ctx, 0, 10)
+		summaries, err := storage.ListConversations(ctx, "", 0, 10)
 		require.NoError(t, err)
 		assert.Equal(t, 0, len(summaries))
 	})
@@ -435,7 +435,7 @@ func TestJsonlStorage_ConcurrentAccess(t *testing.T) {
 			<-done
 		}
 
-		summaries, err := storage.ListConversations(ctx, 0, 0)
+		summaries, err := storage.ListConversations(ctx, "", 0, 0)
 		require.NoError(t, err)
 		assert.Equal(t, 3, len(summaries))
 	})
@@ -591,7 +591,7 @@ func TestJsonlStorage_MetadataOnlyUpdatePersists(t *testing.T) {
 
 	require.NoError(t, storage.SaveConversation(ctx, conversationID, entries, freshMetadata))
 
-	summaries, err := storage.ListConversations(ctx, 10, 0)
+	summaries, err := storage.ListConversations(ctx, "", 10, 0)
 	require.NoError(t, err)
 	require.Len(t, summaries, 1)
 	assert.Equal(t, 6510, summaries[0].TokenStats.TotalInputTokens)
@@ -800,7 +800,7 @@ func TestJsonlStorage_ListV2Conversations(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	summaries, err := storage.ListConversations(ctx, 0, 0)
+	summaries, err := storage.ListConversations(ctx, "", 0, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 3, len(summaries))
 
@@ -855,6 +855,48 @@ func TestJsonlStorage_SessionGroups_AtomicWrite(t *testing.T) {
 	all, err := s.ListSessionGroups(ctx)
 	require.NoError(t, err)
 	assert.Len(t, all, 2)
+}
+
+// TestJsonlStorage_ListConversationsAcrossProjects covers the default
+// per-project layout: an empty project scope walks every sibling project store
+// under projectsPath (deduping basePath), while a non-empty scope lists only
+// this store's own directory.
+func TestJsonlStorage_ListConversationsAcrossProjects(t *testing.T) {
+	ctx := context.Background()
+	projects := filepath.Join(t.TempDir(), "projects")
+
+	newStore := func(slug, projectsPath string) *JsonlStorage {
+		s, err := NewJsonlStorage(JsonlStorageConfig{
+			Path:         filepath.Join(projects, slug, "conversations"),
+			ProjectsPath: projectsPath,
+		})
+		require.NoError(t, err)
+		return s
+	}
+
+	storeA := newStore("proj-a", projects)
+	storeB := newStore("proj-b", "")
+
+	metaA := createTestMetadata("conv-a")
+	metaA.Project = "/home/alice/proj-a"
+	require.NoError(t, storeA.SaveConversation(ctx, "conv-a", createTestEntries(), metaA))
+
+	metaB := createTestMetadata("conv-b")
+	metaB.Project = "/home/alice/proj-b"
+	require.NoError(t, storeB.SaveConversation(ctx, "conv-b", createTestEntries(), metaB))
+
+	all, err := storeA.ListConversations(ctx, "", 0, 0)
+	require.NoError(t, err)
+	ids := make([]string, 0, len(all))
+	for _, s := range all {
+		ids = append(ids, s.ID)
+	}
+	assert.ElementsMatch(t, []string{"conv-a", "conv-b"}, ids, "empty scope walks sibling stores without duplicating basePath")
+
+	scoped, err := storeA.ListConversations(ctx, "/home/alice/proj-a", 0, 0)
+	require.NoError(t, err)
+	require.Len(t, scoped, 1, "non-empty scope lists only this store's directory")
+	assert.Equal(t, "conv-a", scoped[0].ID)
 }
 
 // newConformanceJsonlStorage returns a jsonl backend rooted in an isolated

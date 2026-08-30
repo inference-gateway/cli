@@ -47,10 +47,11 @@ storage:
 
 **File Structure:**
 
-Each conversation is stored in a separate JSONL file in the configured directory:
+Each conversation is stored in a separate JSONL file. With the default (unset)
+`path`, each project gets its own directory under `~/.infer/projects/`:
 
 ```text
-~/.infer/conversations/
+~/.infer/projects/<project-slug>/conversations/
 ├── <conversation-id-1>.jsonl
 ├── <conversation-id-2>.jsonl
 └── <conversation-id-3>.jsonl
@@ -72,7 +73,7 @@ backward compatibility.
 Simply copy the conversations directory:
 
 ```bash
-cp -r ~/.infer/conversations ~/backups/conversations-$(date +%Y%m%d)
+cp -r ~/.infer/projects/<project-slug>/conversations ~/backups/conversations-$(date +%Y%m%d)
 ```
 
 **Version Control:**
@@ -80,7 +81,7 @@ cp -r ~/.infer/conversations ~/backups/conversations-$(date +%Y%m%d)
 Works well with Git:
 
 ```bash
-cd ~/.infer/conversations
+cd ~/.infer/projects/<project-slug>/conversations
 git init
 git add *.jsonl
 git commit -m "Save conversations"
@@ -88,7 +89,9 @@ git commit -m "Save conversations"
 
 ### SQLite (Alternative for local use)
 
-SQLite provides a lightweight, file-based storage solution perfect for personal use:
+SQLite provides a lightweight, file-based storage solution perfect for personal use. By default the database lives at
+`~/.infer/conversations.db` - one shared file across projects; each conversation records its `project` so listings
+scope to the current one:
 
 ```yaml
 storage:
@@ -206,11 +209,11 @@ storage:
 
   # JSONL configuration (used when type: jsonl)
   jsonl:
-    path: ~/.infer/conversations  # Directory for JSONL files
+    path: ~/.infer/projects/<project-slug>/conversations  # optional; unset = per-project default
 
   # SQLite configuration (used when type: sqlite)
   sqlite:
-    path: conversations.db  # Relative to .infer directory or absolute path
+    path: ~/.infer/conversations.db  # optional; default when unset
 
   # PostgreSQL configuration (used when type: postgres)
   postgres:
@@ -228,6 +231,24 @@ storage:
     password: "%REDIS_PASSWORD%"  # Can use environment variables
     db: 0  # Redis database number
 ```
+
+### Per-Project Grouping
+
+Every session records the project it ran in (the absolute working directory).
+Listings scope to that project by default:
+
+- The `/conversations` TUI picker shows only the current project's conversations.
+- `infer conversations list` does the same; pass `--all-projects` to list
+  every project's conversations.
+- JSONL (default) keeps one store per project under
+  `~/.infer/projects/<project-slug>/conversations/`; SQLite keeps one shared
+  database (`~/.infer/conversations.db`) and groups rows by the `project`
+  column; server backends (PostgreSQL, Redis, D1) group by the same field in
+  conversation metadata.
+- An explicit `storage.jsonl.path` or `storage.sqlite.path` always wins and
+  only ever lists itself.
+- Nothing conversation-related is written to the project directory anymore;
+  old project-dir stores are simply orphaned (delete them manually).
 
 ### Enabling Storage
 
@@ -354,6 +375,7 @@ Delete a conversation:
 Each conversation includes:
 
 - **ID**: Unique identifier (UUID)
+- **Project**: absolute working directory of the session; scopes listings per project
 - **Title**: Human-readable title
 - **Created/Updated**: Timestamps
 - **Message Count**: Number of messages
@@ -387,6 +409,7 @@ dialects differ only in placeholder style and datetime type). PostgreSQL uses
 -- Conversations table (messages embedded as a JSON array in `messages`)
 CREATE TABLE conversations (
     id TEXT PRIMARY KEY,
+    project TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL,
     count INTEGER NOT NULL DEFAULT 0,
     messages TEXT NOT NULL,
@@ -506,7 +529,7 @@ type ConversationStorage interface {
         entries []domain.ConversationEntry, metadata ConversationMetadata) error
     LoadConversation(ctx context.Context, conversationID string) (
         []domain.ConversationEntry, ConversationMetadata, error)
-    ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error)
+    ListConversations(ctx context.Context, project string, limit, offset int) ([]ConversationSummary, error)
     DeleteConversation(ctx context.Context, conversationID string) error
     UpdateConversationMetadata(ctx context.Context, conversationID string,
         metadata ConversationMetadata) error

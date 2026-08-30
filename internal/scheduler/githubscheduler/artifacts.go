@@ -82,6 +82,9 @@ func NewArtifactPoller(opts ArtifactPollerOptions) (*ArtifactPoller, error) {
 	if opts.Repo == "" {
 		return nil, errors.New("artifact poller: repo is required")
 	}
+	if opts.ConversationsDir == "" {
+		return nil, errors.New("artifact poller: conversations dir is required")
+	}
 	if opts.MaxAttempts <= 0 {
 		opts.MaxAttempts = 3
 	}

@@ -1,11 +1,14 @@
 package storage
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	config "github.com/inference-gateway/cli/config"
+	project "github.com/inference-gateway/cli/internal/platform/project"
 )
 
 // NewStorageFromConfig creates a storage configuration from app config
@@ -19,7 +22,7 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 		return StorageConfig{
 			Type: config.StorageTypeSQLite,
 			SQLite: SQLiteConfig{
-				Path: absPath(cfg.Storage.SQLite.Path),
+				Path: cmp.Or(cfg.Storage.SQLite.Path, defaultSQLitePath()),
 			},
 		}
 	case config.StorageTypePostgres:
@@ -55,39 +58,64 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 			},
 		}
 	case config.StorageTypeJsonl:
+		jsonl := JsonlStorageConfig{PlansPath: userPlansDir()}
+		if path := cfg.Storage.Jsonl.Path; path != "" {
+			jsonl.Path = path
+		} else {
+			jsonl.Path = defaultConversationsDir()
+			jsonl.ProjectsPath = defaultProjectsDir()
+		}
 		return StorageConfig{
-			Type: config.StorageTypeJsonl,
-			Jsonl: JsonlStorageConfig{
-				Path:      absPath(cfg.Storage.Jsonl.Path),
-				PlansPath: userPlansDir(),
-			},
+			Type:  config.StorageTypeJsonl,
+			Jsonl: jsonl,
 		}
 	default:
 		return StorageConfig{Type: config.StorageTypeMemory}
 	}
 }
 
-// userPlansDir returns the userspace plans directory (~/.infer/plans), or ""
-// when the home directory can't be resolved (plans then fall back to the
-// storage-rooted default next to the conversations directory).
-func userPlansDir() string {
+// homeConfigDir returns ~/.infer, or the bare project-relative .infer when no
+// home directory can be resolved (paths then land next to the working dir).
+func homeConfigDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ""
+		return config.ConfigDirName
 	}
-	return filepath.Join(home, config.ConfigDirName, "plans")
+	return filepath.Join(home, config.ConfigDirName)
 }
 
-// absPath resolves a relative storage path against the working directory,
-// falling back to the input when resolution fails.
-func absPath(path string) string {
-	if filepath.IsAbs(path) {
-		return path
+// defaultProjectsDir is the root of the per-project conversation layout.
+func defaultProjectsDir() string {
+	return filepath.Join(homeConfigDir(), "projects")
+}
+
+// projectSlug maps the absolute working directory to a flat directory name,
+// the scheme Claude Code uses: /home/alice/repo -> -home-alice-repo. Headless
+// and scheduler runs share the cwd of interactive runs, so they resolve the
+// same slug.
+func projectSlug() string {
+	slug := strings.ReplaceAll(project.Path(), string(filepath.Separator), "-")
+	if strings.TrimSpace(slug) == "" {
+		return "default"
 	}
-	if abs, err := filepath.Abs(path); err == nil {
-		return abs
-	}
-	return path
+	return slug
+}
+
+// defaultConversationsDir is where the current project's conversations go when
+// storage.jsonl.path is unset: ~/.infer/projects/<project-slug>/conversations.
+func defaultConversationsDir() string {
+	return filepath.Join(defaultProjectsDir(), projectSlug(), "conversations")
+}
+
+// defaultSQLitePath is the shared machine-global SQLite database:
+// ~/.infer/conversations.db.
+func defaultSQLitePath() string {
+	return filepath.Join(homeConfigDir(), "conversations.db")
+}
+
+// userPlansDir returns the userspace plans directory (~/.infer/plans).
+func userPlansDir() string {
+	return filepath.Join(homeConfigDir(), "plans")
 }
 
 // fullBackend is the set of storage interfaces every backend implements; it

@@ -28,6 +28,9 @@ var (
 	detectOnce sync.Once
 	detected   Identity
 
+	pathOnce sync.Once
+	cwdPath  string
+
 	slugInvalidChars = regexp.MustCompile(`[^a-z0-9]+`)
 	httpsPattern     = regexp.MustCompile(`^https?://[^/]+/([^/]+/[^/]+?)(?:\.git)?$`)
 	sshPattern       = regexp.MustCompile(`^git@[^:]+:([^/]+/[^/]+?)(?:\.git)?$`)
@@ -40,6 +43,17 @@ var (
 func Detect() Identity {
 	detectOnce.Do(func() { detected = detect() })
 	return detected
+}
+
+// Path returns the absolute working directory, cached for the process
+// lifetime. It identifies the project in conversation metadata and drives the
+// per-project storage slug; an empty result means the cwd could not be
+// resolved (process runs without a filesystem context).
+func Path() string {
+	pathOnce.Do(func() {
+		cwdPath, _ = os.Getwd()
+	})
+	return cwdPath
 }
 
 func detect() Identity {

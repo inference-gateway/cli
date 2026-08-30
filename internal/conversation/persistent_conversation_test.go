@@ -227,7 +227,7 @@ func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 		assert.Contains(t, titles, "Another Test")
 
 		assert.Equal(t, 1, mockStorage.ListConversationsCallCount())
-		ctxArg, limitArg, offsetArg := mockStorage.ListConversationsArgsForCall(0)
+		ctxArg, _, limitArg, offsetArg := mockStorage.ListConversationsArgsForCall(0)
 		assert.Equal(t, ctx, ctxArg)
 		assert.Equal(t, 10, limitArg)
 		assert.Equal(t, 0, offsetArg)

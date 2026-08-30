@@ -99,7 +99,7 @@ func TestMemoryStorage_ListConversations(t *testing.T) {
 		}
 	}
 
-	summaries, err := storage.ListConversations(ctx, 0, 0)
+	summaries, err := storage.ListConversations(ctx, "", 0, 0)
 	if err != nil {
 		t.Fatalf("ListConversations failed: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestMemoryStorage_ListConversations(t *testing.T) {
 		t.Errorf("Expected %d summaries, got %d", len(conversations), len(summaries))
 	}
 
-	summaries, err = storage.ListConversations(ctx, 2, 0)
+	summaries, err = storage.ListConversations(ctx, "", 2, 0)
 	if err != nil {
 		t.Fatalf("ListConversations with limit failed: %v", err)
 	}

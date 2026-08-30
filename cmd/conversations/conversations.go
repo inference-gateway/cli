@@ -15,6 +15,7 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	project "github.com/inference-gateway/cli/internal/platform/project"
 )
 
 func NewCommand(state *runtime.State, renderer *output.Renderer) *cobra.Command {
@@ -54,6 +55,7 @@ Examples:
 	listCommand.Flags().IntP("limit", "l", 50, "Maximum number of conversations to display")
 	listCommand.Flags().Int("offset", 0, "Number of conversations to skip (for pagination)")
 	listCommand.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	listCommand.Flags().Bool("all-projects", false, "List conversations across all projects instead of only the current one")
 
 	deleteCommand := &cobra.Command{
 		Use:   "delete <session-id>",
@@ -132,8 +134,13 @@ func listConversations(state *runtime.State, renderer *output.Renderer, cmd *cob
 	offset, _ := cmd.Flags().GetInt("offset")
 	format, _ := cmd.Flags().GetString("format")
 
+	scope := ""
+	if allProjects, _ := cmd.Flags().GetBool("all-projects"); !allProjects {
+		scope = project.Path()
+	}
+
 	ctx := context.Background()
-	conversations, err := store.ListConversations(ctx, limit, offset)
+	conversations, err := store.ListConversations(ctx, scope, limit, offset)
 	if err != nil {
 		return fmt.Errorf("failed to list conversations: %w", err)
 	}
