@@ -27,18 +27,23 @@ func NewRegistry() *Registry {
 	}
 }
 
-// LoadCustomShortcuts loads user-defined shortcuts from the specified base directory
-func (r *Registry) LoadCustomShortcuts(baseDir string, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) error {
+// LoadCustomShortcuts loads user-defined shortcuts from each base directory in
+// turn, so config.ConfigLookupDirs() can pass the userspace baseline followed by
+// the project override: later directories overlay earlier ones by shortcut name
+// rather than replacing the whole set.
+func (r *Registry) LoadCustomShortcuts(baseDirs []string, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	customShortcuts, err := LoadCustomShortcuts(baseDir, client, modelService, imageService, toolService)
-	if err != nil {
-		return fmt.Errorf("failed to load custom shortcuts: %w", err)
-	}
+	for _, baseDir := range baseDirs {
+		customShortcuts, err := LoadCustomShortcuts(baseDir, client, modelService, imageService, toolService)
+		if err != nil {
+			return fmt.Errorf("failed to load custom shortcuts from %s: %w", baseDir, err)
+		}
 
-	for _, shortcut := range customShortcuts {
-		r.shortcuts[shortcut.GetName()] = shortcut
+		for _, shortcut := range customShortcuts {
+			r.shortcuts[shortcut.GetName()] = shortcut
+		}
 	}
 
 	return nil

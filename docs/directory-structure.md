@@ -81,6 +81,7 @@ for the full precedence rules.
 ├── config.yaml           # sparse override of ~/.infer/config.yaml
 ├── mcp.yaml              # project MCP servers (project-then-home lookup)
 ├── keybindings.yaml      # project keybindings (project-then-home lookup)
+├── shortcuts/            # project shortcuts, overlaid by name onto ~/.infer/shortcuts/
 └── skills/               # project skills, still discovered when present
 
 .agents/                  # open-standard project layer (cross-tool skills)
@@ -121,7 +122,9 @@ project wants to override a config file it commits its own sparse
   via `infer mcp ...` or by hand. See [MCP Integration](mcp-integration.md).
 - **`shortcuts/*.yaml`** - `/git`, `/scm`, `/mcp`, `/shells`, `/export`, `/env`,
   `/agents`, `/skills` shortcuts plus any you add. Drop new YAML files into
-  `shortcuts/`. See [Shortcuts Guide](shortcuts-guide.md).
+  `shortcuts/`. A project `./.infer/shortcuts/` is overlaid on top by shortcut
+  name, so it adds to (or replaces individual entries of) the userspace set
+  rather than hiding it. See [Shortcuts Guide](shortcuts-guide.md).
 - **`skills/`** - Agent Skills directory. Drop a `SKILL.md` folder here (or
   into the cross-tool `.agents/skills/` open standard) to extend the agent.
   See [Skills](skills.md).

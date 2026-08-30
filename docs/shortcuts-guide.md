@@ -163,7 +163,7 @@ Inline terminal rendering and the `n` option are not supported yet.
 
 ## Git Shortcuts
 
-When you run `infer init`, a `.infer/shortcuts/git.yaml` file is created with common git operations:
+When you run `infer init`, a `~/.infer/shortcuts/git.yaml` file is created with common git operations:
 
 - `/git status` - Show working tree status
 - `/git pull` - Pull changes from remote repository
@@ -204,7 +204,7 @@ The AI will generate a commit message following the conventional commit format (
 
 The SCM (Source Control Management) shortcuts provide seamless integration with GitHub and git workflows.
 
-When you run `infer init`, a `.infer/shortcuts/scm.yaml` file is created with the following shortcuts:
+When you run `infer init`, a `~/.infer/shortcuts/scm.yaml` file is created with the following shortcuts:
 
 - `/scm issues` - List all GitHub issues for the repository
 - `/scm issue <number>` - Show details for a specific GitHub issue with comments
@@ -251,7 +251,7 @@ This provides a deterministic way to fetch GitHub data and AI assistance for PR 
 
 ### Customization
 
-You can customize these shortcuts by editing `.infer/shortcuts/scm.yaml`:
+You can customize these shortcuts by editing `~/.infer/shortcuts/scm.yaml`:
 
 ```yaml
 shortcuts:
@@ -282,7 +282,7 @@ shortcuts:
 ## Init-Created Shortcuts
 
 Beyond `/git` and `/scm`, `infer init` seeds several more shortcut files in
-`.infer/shortcuts/` that wrap common `infer` subcommands and tools:
+`~/.infer/shortcuts/` that wrap common `infer` subcommands and tools:
 
 | Shortcut | File | Description |
 | -------- | ---- | ----------- |
@@ -294,7 +294,7 @@ Beyond `/git` and `/scm`, `infer init` seeds several more shortcut files in
 | `/skills <list\|install\|uninstall>` | `skills.yaml` | Manage Agent Skills |
 
 These are regular YAML shortcuts - edit or remove them like any other file in
-`.infer/shortcuts/`.
+`~/.infer/shortcuts/`.
 
 ---
 
@@ -406,11 +406,14 @@ template: "{llm}"                      # Just displays the result
 
 ## User-Defined Shortcuts
 
-You can create custom shortcuts by adding YAML configuration files in the `.infer/shortcuts/` directory.
+You can create custom shortcuts by adding YAML configuration files in the
+`~/.infer/shortcuts/` directory. A project `./.infer/shortcuts/` is also read and
+overlaid on top by shortcut name, so a repo can add its own or replace a single
+userspace entry without losing the rest.
 
 ### Configuration File Format
 
-Create files named `custom-*.yaml` (e.g., `custom-1.yaml`, `custom-dev.yaml`) in `.infer/shortcuts/`:
+Create files named `custom-*.yaml` (e.g., `custom-1.yaml`, `custom-dev.yaml`) in `~/.infer/shortcuts/`:
 
 ```yaml
 shortcuts:
@@ -552,7 +555,7 @@ shortcuts:
 
 - **Check YAML syntax**: Ensure your configuration file is valid YAML
 - **Check file naming**: Files must be named `custom-*.yaml` (not `shortcut-*.yaml` or other patterns)
-- **Check location**: Files must be in `.infer/shortcuts/` directory
+- **Check location**: Files must be in `~/.infer/shortcuts/` (or the project `./.infer/shortcuts/`)
 - **Restart chat**: Restart the chat session to reload shortcuts
 
 ### Command Not Found

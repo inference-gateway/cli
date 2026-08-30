@@ -428,9 +428,9 @@ func buildChannelShortcutRegistry(cfg *config.Config) *shortcuts.Registry {
 		reg.Register(shortcuts.NewA2AAgentsShortcut())
 	}
 
-	configDir := cfg.GetConfigDir()
-	if err := reg.LoadCustomShortcuts(configDir, nil, nil, nil, nil); err != nil {
-		logger.Warn("failed to load custom shortcuts for channels", "error", err, "config_dir", configDir)
+	configDirs := config.ConfigLookupDirs()
+	if err := reg.LoadCustomShortcuts(configDirs, nil, nil, nil, nil); err != nil {
+		logger.Warn("failed to load custom shortcuts for channels", "error", err, "config_dirs", configDirs)
 	}
 	return reg
 }

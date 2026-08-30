@@ -944,7 +944,7 @@ actions.
 Create shortcuts that use LLMs to transform data:
 
 ```yaml
-# .infer/shortcuts/custom-example.yaml
+# ~/.infer/shortcuts/custom-example.yaml
 shortcuts:
   - name: analyze-diff
     description: "Analyze git diff with AI"
@@ -967,10 +967,11 @@ shortcuts:
 
 ### Custom Shortcuts
 
-Create custom shortcuts by adding YAML files to `.infer/shortcuts/`:
+Create custom shortcuts by adding YAML files to `~/.infer/shortcuts/` (a
+project `./.infer/shortcuts/` is overlaid on top by name):
 
 ```yaml
-# .infer/shortcuts/custom-dev.yaml
+# ~/.infer/shortcuts/custom-dev.yaml
 shortcuts:
   - name: tests
     description: "Run all tests"
