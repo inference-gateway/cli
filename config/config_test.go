@@ -1064,6 +1064,7 @@ func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
 		ConfigDirName + "/plans/2026-06-01-do-thing.md",
 		filepath.Join(ProjectRuntimeDir(), "tmp", "scratch.txt"),
 		filepath.Join(ProjectRuntimeDir(), "backups", "main.go.backup"),
+		filepath.Join(UserSpaceConfigDir(), ArtifactsDirName, "run-1", "report.md"),
 	}
 	for _, p := range allowed {
 		t.Run("allow "+p, func(t *testing.T) {
@@ -1142,6 +1143,7 @@ func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
 		filepath.Join(userspaceConfigDir, "projects.json"),
 		filepath.Join(ProjectRuntimeDir(), "artifacts", "sess-1", "image.png"),
 		filepath.Join(ProjectRuntimeDir(), "exports", "chat_export_1.md"),
+		filepath.Join(userspaceConfigDir, ArtifactsDirName, "run-1", "report.md"),
 	}
 	for _, p := range allowed {
 		t.Run("allow "+p, func(t *testing.T) {

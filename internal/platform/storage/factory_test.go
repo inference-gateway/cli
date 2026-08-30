@@ -1,12 +1,15 @@
 package storage
 
 import (
+	"path/filepath"
+	"strings"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
+	project "github.com/inference-gateway/cli/internal/platform/project"
 )
 
 func TestStorageFactory(t *testing.T) {
@@ -96,4 +99,18 @@ func TestStorageFactory(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported storage type")
 	})
+}
+
+// TestDefaultConversationsDirMatchesProjectPath pins the runtime slug that
+// config.ProjectRuntimeDir derives to the one project.Path reports. They are
+// independent os.Getwd call sites: if they ever disagree, conversations written
+// under one slug become invisible to the lookups that filter on the other.
+func TestDefaultConversationsDirMatchesProjectPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	slug := strings.ReplaceAll(project.Path(), string(filepath.Separator), "-")
+	want := filepath.Join(home, config.ConfigDirName, config.ProjectsDirName, slug, "conversations")
+
+	require.Equal(t, want, defaultConversationsDir())
 }

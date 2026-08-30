@@ -100,14 +100,15 @@ func (s *FileServiceImpl) handleDirectory(d os.DirEntry, path, cwd string) error
 	return nil
 }
 
-// shouldIncludeFile determines if a file should be included in the list
+// shouldIncludeFile determines if a file should be included in the list.
+// Under ./.infer/ only markdown context files are indexed; runtime artifacts
+// (tmp scratch, artifacts) live under ~/.infer/projects/<project-slug>/ and so
+// are never walked here at all.
 func (s *FileServiceImpl) shouldIncludeFile(d os.DirEntry, relPath string) bool {
 	if !d.Type().IsRegular() {
 		return false
 	}
 
-	// Under ./.infer/ only markdown context files are indexed; runtime artifacts
-	// (tmp scratch, artifacts) now live under ~/.infer/projects/<project-slug>/.
 	if strings.HasPrefix(relPath, ".infer"+string(filepath.Separator)) || relPath == ".infer" {
 		if strings.ToLower(filepath.Ext(relPath)) != ".md" {
 			return false

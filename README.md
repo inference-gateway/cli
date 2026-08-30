@@ -551,7 +551,7 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 
 | Tool | Purpose | Approval | Enabled by |
 | ------ | --------- | ---------- | ------------ |
-| **ImageGeneration** | Generate an image from a prompt into `.infer/artifacts/` | No | `tools.image_generation.enabled` |
+| **ImageGeneration** | Generate an image from a prompt into `~/.infer/projects/<project-slug>/artifacts/` | No | `tools.image_generation.enabled` |
 | **ImageEdit** | Edit an existing image and save the result | No | `tools.image_edit.enabled` |
 | **ImageVariation** | Produce a variation of an existing image | No | `tools.image_variation.enabled` |
 | **TextToSpeech** | Synthesize speech to a WAV locally, optionally cloning a voice | No | `text_to_speech.enabled` |
@@ -840,7 +840,7 @@ approval**; override per tool with `tools.<name>.require_approval`.
 | Wait | No | Passive utility - blocks until condition met, no side effects |
 | Read, Grep, Tree | No | Read-only operations |
 | Memory, TodoWrite | No | Local agent state (explicitly exempt) |
-| Image tools | No | Output confined to `.infer/artifacts/` - override with `tools.<name>.require_approval` |
+| Image tools | No | Output confined to `~/.infer/projects/<project-slug>/artifacts/` - override with `tools.<name>.require_approval` |
 | TextToSpeech | No | Output confined to `text_to_speech.output_dir` - override with `text_to_speech.require_approval` |
 | Computer-use tools | No | Run silently in the background |
 | A2A_QueryAgent, A2A_QueryTask | No | Read-only A2A queries |

@@ -121,7 +121,6 @@ tools:
   safety:
     require_approval: true
 compact:
-  output_dir: .infer
 agent:
   model: ""
   system_prompt: ""

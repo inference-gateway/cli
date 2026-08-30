@@ -42,7 +42,6 @@ tools:
     directories:
       - .
       - /tmp
-      - .infer/tmp
     protected_paths:
       - .infer/
       - .git/
@@ -152,7 +151,6 @@ image:
     quality: 75
     convert_jpeg: true
 export:
-  output_dir: .infer/tmp
   summary_model: ""
 agent:
   model: ""

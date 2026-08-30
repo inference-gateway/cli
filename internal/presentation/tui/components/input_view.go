@@ -95,9 +95,9 @@ func NewInputView(modelService convdomain.ModelService) *InputView {
 // named subagent histories and the no-store fallback stay file-based under
 // the given dir's history/ (the TUI passes the per-project runtime dir,
 // ~/.infer/projects/<project-slug>/).
-func NewInputViewWithName(modelService convdomain.ModelService, configDir, name string, store storage.ShellHistoryStorage) *InputView {
-	if configDir == "" {
-		configDir = config.ProjectRuntimeDir()
+func NewInputViewWithName(modelService convdomain.ModelService, baseDir, name string, store storage.ShellHistoryStorage) *InputView {
+	if baseDir == "" {
+		baseDir = config.ProjectRuntimeDir()
 	}
 
 	var historyManager *history.HistoryManager
@@ -107,7 +107,7 @@ func NewInputViewWithName(modelService convdomain.ModelService, configDir, name 
 	case store != nil && name == "":
 		historyManager = history.NewHistoryManagerWithProvider(maxInMemoryHistory, history.NewStoreShellHistory(store))
 	default:
-		if hm, err := history.NewHistoryManagerWithName(maxInMemoryHistory, configDir, name); err != nil {
+		if hm, err := history.NewHistoryManagerWithName(maxInMemoryHistory, baseDir, name); err != nil {
 			historyManager = history.NewMemoryOnlyHistoryManager(maxInMemoryHistory)
 		} else {
 			historyManager = hm

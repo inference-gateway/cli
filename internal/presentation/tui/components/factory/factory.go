@@ -26,8 +26,8 @@ func CreateInputView(modelService convdomain.ModelService) tui.InputComponent {
 // directory and name. When store is non-nil and name is empty (the main agent),
 // input history goes through the storage backend. Named subagent histories are
 // file-based at <baseDir>/history/history-<name>.
-func CreateInputViewWithName(modelService convdomain.ModelService, configDir, name string, store storage.ShellHistoryStorage) tui.InputComponent {
-	return components.NewInputViewWithName(modelService, configDir, name, store)
+func CreateInputViewWithName(modelService convdomain.ModelService, baseDir, name string, store storage.ShellHistoryStorage) tui.InputComponent {
+	return components.NewInputViewWithName(modelService, baseDir, name, store)
 }
 
 // CreateAutocomplete creates a new autocomplete component

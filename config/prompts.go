@@ -759,7 +759,7 @@ Optionally pass mask: a local file path to a PNG whose fully transparent areas (
 Cost control: quality defaults to "auto" and size to "1024x1024". Keep those defaults unless the user explicitly asks for a different tier or size - higher tiers cost significantly more and take longer.`,
 		},
 		ImageVariation: PromptsToolDescription{
-			Description: `Create a variation of an existing image and save the result as a PNG under .infer/artifacts/. Returns the saved file path.
+			Description: `Create a variation of an existing image and save the result as a PNG under ~/.infer/projects/<project-slug>/artifacts/. Returns the saved file path.
 
 Provide the local file path of the image to base the variation on. The request goes to /v1/images/variations using the image model configured for this tool (not the chat model), so do not ask which model to use.
 

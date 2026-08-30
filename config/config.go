@@ -1743,23 +1743,37 @@ func isWithinSkillsDir(absPath string) bool {
 	return false
 }
 
+// runtimeArtifactDirNames are the subdirectories of the per-project runtime
+// root that hold process output rather than configuration.
+var runtimeArtifactDirNames = []string{"history", "backups", "tmp", ArtifactsDirName, "exports"}
+
+// isWithinDir reports whether absPath is dir itself or lives beneath it.
+// dir may be relative; it is resolved before comparison.
+func isWithinDir(absPath, dir string) bool {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return false
+	}
+	return absPath == absDir || strings.HasPrefix(absPath, absDir+string(filepath.Separator))
+}
+
 // isWithinProjectRuntimeDirs reports whether absPath lives inside one of the
 // runtime-artifact subdirectories of the current project's runtime root
 // (~/.infer/projects/<project-slug>) - tmp scratch, artifacts, history,
-// backups, and exports. Those are runtime output the agent must be able to
-// read and write even though the broader .infer/ directory, and the rest of
-// ~/.infer, stays protected.
+// backups, and exports - or inside the machine-scoped ~/.infer/artifacts that
+// the scheduler's artifact poller extracts GitHub run deliverables into
+// (cmd/daemon: that dir is cross-project, so it does not live under a slug).
+// Those are runtime output the agent must be able to read and write even
+// though the broader .infer/ directory, and the rest of ~/.infer, stays
+// protected.
 func isWithinProjectRuntimeDirs(absPath string) bool {
-	for _, name := range []string{"history", "backups", "tmp", ArtifactsDirName, "exports"} {
-		dir, err := filepath.Abs(filepath.Join(ProjectRuntimeDir(), name))
-		if err != nil {
-			continue
-		}
-		if absPath == dir || strings.HasPrefix(absPath, dir+string(filepath.Separator)) {
+	runtimeRoot := ProjectRuntimeDir()
+	for _, name := range runtimeArtifactDirNames {
+		if isWithinDir(absPath, filepath.Join(runtimeRoot, name)) {
 			return true
 		}
 	}
-	return false
+	return isWithinDir(absPath, filepath.Join(UserSpaceConfigDir(), ArtifactsDirName))
 }
 
 // isWithinConfigSubdir reports whether absPath lives inside one of the named
@@ -1778,11 +1792,7 @@ func (c *Config) isWithinConfigSubdir(absPath string, names ...string) bool {
 
 	for _, name := range names {
 		for _, base := range configDirs {
-			dir, err := filepath.Abs(filepath.Join(base, name))
-			if err != nil {
-				continue
-			}
-			if absPath == dir || strings.HasPrefix(absPath, dir+string(filepath.Separator)) {
+			if isWithinDir(absPath, filepath.Join(base, name)) {
 				return true
 			}
 		}
