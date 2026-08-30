@@ -20,6 +20,14 @@ const BashOutputCallbackKey ContextKey = "bash_output_callback"
 // separately by the tool and is unaffected.
 type BashOutputCallback func(output string)
 
+// ToolProgressCallbackKey is the context key for a tool progress callback.
+const ToolProgressCallbackKey ContextKey = "tool_progress_callback"
+
+// ToolProgressCallback receives a progress line describing what a tool is
+// currently doing. Callers throttle their own reporting; a callback must be
+// safe to invoke from the goroutine running the tool.
+type ToolProgressCallback func(message string)
+
 // BashDetachChannelKey is the context key for the bash detach signal channel
 // When this key is set in the context, the bash tool can signal when a command
 // should be detached to the background (e.g., via keyboard shortcut)

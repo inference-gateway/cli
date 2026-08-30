@@ -264,6 +264,27 @@ func (p *eventPublisher) publishToolStatusChange(callID string, toolName string,
 	p.chatEvents <- event
 }
 
+// publishToolProgress sends a non-blocking running-status update so a lagging
+// consumer cannot stall the long-running tool reporting it.
+func (p *eventPublisher) publishToolProgress(callID string, toolName string, message string) {
+	event := agentdomain.ToolExecutionProgressEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		ToolCallID: callID,
+		ToolName:   toolName,
+		Status:     "running",
+		Message:    message,
+	}
+
+	select {
+	case p.chatEvents <- event:
+	default:
+		logger.Warn("tool progress update dropped - channel full")
+	}
+}
+
 // publishBashOutputChunk publishes a BashOutputChunkEvent for streaming bash output
 func (p *eventPublisher) publishBashOutputChunk(callID string, output string, isComplete bool) {
 	event := agentdomain.BashOutputChunkEvent{
@@ -1382,6 +1403,9 @@ func (s *AgentServiceImpl) executeToolOnce(
 		execCtx = agentdomain.WithToolApproved(execCtx)
 	}
 	execCtx = agentdomain.WithToolCallID(execCtx, tc.ID)
+	execCtx = agentdomain.WithToolProgressCallback(execCtx, func(message string) {
+		eventPublisher.publishToolProgress(tc.ID, tc.Function.Name, message)
+	})
 
 	if tc.Function.Name == "Bash" {
 		bashCallback := func(line string) {

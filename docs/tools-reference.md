@@ -568,6 +568,28 @@ tools:
     require_approval: false
 ```
 
+### TextToSpeech Tool
+
+Synthesize speech from text with a local TTS engine and save it as a WAV file. The chat model calls the
+tool when the user asks to say something aloud or to clone a voice; synthesis shells out to llama.cpp's
+`llama-tts` binary running Qwen3-TTS GGUF models, fully local. Disabled by default: while
+`text_to_speech.enabled` is false the tool definition is not sent to the LLM at all. See
+[text-to-speech](text-to-speech.md) for setup and voice cloning.
+
+**Parameters:**
+
+- `text` (required): The text to speak
+- `voice_sample` (optional): File name (inside the working directory) of a WAV of the target speaker (~10-30s of clean speech) to clone
+- `output_path` (optional): File name for the generated WAV, placed inside `text_to_speech.output_dir`; defaults to a timestamped file
+
+**Configuration:**
+
+```yaml
+text_to_speech:
+  enabled: true
+  require_approval: true # optional; unset = no approval, like the image tools
+```
+
 ---
 
 ## Vision Tools

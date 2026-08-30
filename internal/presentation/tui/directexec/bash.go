@@ -251,6 +251,9 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 		if result != nil && !result.Success {
 			status = "failed"
 			message = "Execution failed"
+			if result.Error != "" {
+				message += ": " + result.Error
+			}
 		}
 
 		eventChan <- agentdomain.ToolExecutionProgressEvent{

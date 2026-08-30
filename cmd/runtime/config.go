@@ -15,7 +15,8 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// resolveViperEnvironmentVariables recursively resolves environment variables for all string fields using Viper
+// resolveViperEnvironmentVariables applies INFER_* overrides to cfg after
+// unmarshalling, including pointer options Viper cannot set directly.
 func resolveViperEnvironmentVariables(v *viper.Viper, cfg any, keyPrefix string) {
 	rv := reflect.ValueOf(cfg)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
@@ -51,38 +52,59 @@ func resolveViperEnvironmentVariables(v *viper.Viper, cfg any, keyPrefix string)
 		}
 
 		switch field.Kind() {
-		case reflect.String:
-			if v.IsSet(key) {
-				field.SetString(v.GetString(key))
-			}
-		case reflect.Bool:
-			if v.IsSet(key) {
-				field.SetBool(v.GetBool(key))
-			}
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			if v.IsSet(key) {
-				field.SetInt(v.GetInt64(key))
-			}
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			if v.IsSet(key) {
-				field.SetUint(v.GetUint64(key))
-			}
-		case reflect.Float32, reflect.Float64:
-			if v.IsSet(key) {
-				field.SetFloat(v.GetFloat64(key))
-			}
 		case reflect.Slice:
 			if v.IsSet(key) && field.Type().Elem().Kind() == reflect.String {
 				field.Set(reflect.ValueOf(stringSliceFromViper(v, key)))
 			}
 		case reflect.Pointer:
-			if !field.IsNil() && field.Elem().Kind() == reflect.Struct {
-				resolveViperEnvironmentVariables(v, field.Interface(), key)
+			if field.Type().Elem().Kind() == reflect.Struct {
+				if !field.IsNil() {
+					resolveViperEnvironmentVariables(v, field.Interface(), key)
+				}
+				break
 			}
+			setPointerOption(v, key, field)
 		case reflect.Struct:
 			resolveViperEnvironmentVariables(v, field.Addr().Interface(), key)
+		default:
+			if v.IsSet(key) {
+				setScalarFromViper(v, key, field)
+			}
 		}
 	}
+}
+
+// setPointerOption applies a Viper key to a pointer-to-scalar field while
+// preserving nil for unset tri-state options.
+func setPointerOption(v *viper.Viper, key string, field reflect.Value) {
+	if !v.IsSet(key) {
+		return
+	}
+	ptr := reflect.New(field.Type().Elem())
+	if !setScalarFromViper(v, key, ptr.Elem()) {
+		return
+	}
+	field.Set(ptr)
+}
+
+// setScalarFromViper writes v's value for key into a settable scalar, reporting
+// whether the kind was one it knows how to convert.
+func setScalarFromViper(v *viper.Viper, key string, field reflect.Value) bool {
+	switch field.Kind() {
+	case reflect.String:
+		field.SetString(v.GetString(key))
+	case reflect.Bool:
+		field.SetBool(v.GetBool(key))
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		field.SetInt(v.GetInt64(key))
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		field.SetUint(v.GetUint64(key))
+	case reflect.Float32, reflect.Float64:
+		field.SetFloat(v.GetFloat64(key))
+	default:
+		return false
+	}
+	return true
 }
 
 // stringSliceFromViper reads a []string key, comma-splitting a raw string

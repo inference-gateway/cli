@@ -87,6 +87,7 @@ words:
   - funlen
   - ggerganov
   - ggml
+  - gguf
   - gjson
   - GOARCH
   - gocognit
@@ -160,6 +161,7 @@ words:
   - mimeapps
   - minicpm
   - mixtral
+  - mmproj
   - mockdomain
   - mocksdomain
   - modelcontextprotocol

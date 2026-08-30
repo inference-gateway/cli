@@ -198,6 +198,22 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 		ctx := agentdomain.WithToolApproved(context.Background())
 		ctx = agentdomain.WithDirectExecution(ctx)
 		ctx = agentdomain.WithUserQuestionBroker(ctx, &directQuestionBroker{events: eventChan, requestID: toolCallID})
+		ctx = agentdomain.WithToolProgressCallback(ctx, func(message string) {
+			progress := agentdomain.ToolExecutionProgressEvent{
+				BaseChatEvent: agentdomain.BaseChatEvent{
+					RequestID: toolCallID,
+					Timestamp: time.Now(),
+				},
+				ToolCallID: toolCallID,
+				ToolName:   toolName,
+				Status:     "running",
+				Message:    message,
+			}
+			select {
+			case eventChan <- progress:
+			default:
+			}
+		})
 		result, err := s.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 		if err != nil {
 			eventChan <- tui.ShowErrorEvent{
@@ -212,7 +228,7 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 				ToolCallID: toolCallID,
 				ToolName:   toolName,
 				Status:     "failed",
-				Message:    "Execution failed",
+				Message:    fmt.Sprintf("Execution failed: %v", err),
 			}
 			return
 		}
@@ -228,6 +244,9 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 		if result != nil && !result.Success {
 			status = "failed"
 			message = "Execution failed"
+			if result.Error != "" {
+				message += ": " + result.Error
+			}
 		}
 
 		var images []agentdomain.ImageAttachment

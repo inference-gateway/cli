@@ -14,9 +14,8 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// toolService decorates a agentdomain.ToolService, recording one metric and one
-// span per ExecuteTool call. It embeds the interface so every other method
-// passes through unchanged - only ExecuteTool is overridden.
+// toolService decorates a ToolService with metrics and tracing for both
+// execution entry points.
 type toolService struct {
 	agentdomain.ToolService
 	rec *Recorder
@@ -30,6 +29,20 @@ func NewToolService(inner agentdomain.ToolService, rec *Recorder) agentdomain.To
 }
 
 func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
+	return t.record(ctx, tool, t.ToolService.ExecuteTool)
+}
+
+// ExecuteToolDirect instruments direct tool execution like regular execution.
+func (t *toolService) ExecuteToolDirect(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
+	return t.record(ctx, tool, t.ToolService.ExecuteToolDirect)
+}
+
+// record wraps one execution in the shared span and metric instrumentation.
+func (t *toolService) record(
+	ctx context.Context,
+	tool sdk.ChatCompletionMessageToolCallFunction,
+	execute func(context.Context, sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error),
+) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 
 	ctx, span := t.rec.startToolSpan(ctx, tool.Name)
@@ -40,7 +53,7 @@ func (t *toolService) ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMe
 		ctx = agentdomain.WithTraceEnv(ctx, env)
 	}
 
-	res, err := t.ToolService.ExecuteTool(ctx, tool)
+	res, err := execute(ctx, tool)
 	outcome, errType := classify(res, err)
 	t.rec.RecordTool(tool.Name, outcome, errType, time.Since(start))
 
@@ -69,6 +82,9 @@ func (r *Recorder) startToolSpan(ctx context.Context, toolName string) (context.
 	}
 	if toolCallID := agentdomain.GetToolCallID(ctx); toolCallID != "" {
 		attrs = append(attrs, attribute.String("gen_ai.tool.call.id", toolCallID))
+	}
+	if agentdomain.IsDirectExecution(ctx) {
+		attrs = append(attrs, attribute.Bool("infer.tool.direct", true))
 	}
 	return r.Tracer().Start(ctx, "execute_tool "+toolName,
 		trace.WithAttributes(attrs...),

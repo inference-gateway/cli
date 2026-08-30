@@ -35,6 +35,7 @@ type Config struct {
 	ContainerRuntime ContainerRuntimeConfig `yaml:"container_runtime" mapstructure:"container_runtime"`
 	Gateway          GatewayConfig          `yaml:"gateway" mapstructure:"gateway"`
 	SpeechToText     SpeechToTextConfig     `yaml:"speech_to_text" mapstructure:"speech_to_text"`
+	TextToSpeech     TextToSpeechConfig     `yaml:"text_to_speech" mapstructure:"text_to_speech"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
 	Tools            ToolsConfig            `yaml:"tools" mapstructure:"tools"`
@@ -108,6 +109,37 @@ type SpeechToTextConfig struct {
 	InputDevice         string `yaml:"input_device" mapstructure:"input_device"`                   // "" -> platform default mic
 	RetainRecordings    int    `yaml:"retain_recordings" mapstructure:"retain_recordings"`         // keep last N inbound voice/audio files (0 = keep none)
 	RecordingsDir       string `yaml:"recordings_dir" mapstructure:"recordings_dir"`               // "" -> ~/.infer/voice
+}
+
+// TextToSpeechEngineQwen3 is the only supported text-to-speech engine for now:
+// Qwen3-TTS GGUF models run through a local llama.cpp llama-tts binary.
+const TextToSpeechEngineQwen3 = "qwen3-tts"
+
+// TextToSpeechConfig contains opt-in settings for local Qwen3-TTS synthesis.
+type TextToSpeechConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Engine          string `yaml:"engine" mapstructure:"engine"`
+	BinaryPath      string `yaml:"binary_path" mapstructure:"binary_path"`
+	Model           string `yaml:"model" mapstructure:"model"`
+	ModelsDir       string `yaml:"models_dir" mapstructure:"models_dir"`
+	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
+	AutoDownload    bool   `yaml:"auto_download" mapstructure:"auto_download"`
+	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
+	FFmpegPath      string `yaml:"ffmpeg_path" mapstructure:"ffmpeg_path"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// ResolveOutputDir returns the directory where generated WAV files are
+// stored, defaulting to ~/.infer/tts when OutputDir is unset.
+func (c TextToSpeechConfig) ResolveOutputDir() (string, error) {
+	if strings.TrimSpace(c.OutputDir) != "" {
+		return c.OutputDir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home directory: %w", err)
+	}
+	return filepath.Join(home, ConfigDirName, "tts"), nil
 }
 
 // ResolveRecordingsDir returns the directory where retained inbound voice/audio
@@ -924,6 +956,17 @@ func DefaultConfig() *Config { //nolint:funlen
 			RetainRecordings:    0,
 			RecordingsDir:       "",
 		},
+		TextToSpeech: TextToSpeechConfig{
+			Enabled:      false,
+			Engine:       TextToSpeechEngineQwen3,
+			BinaryPath:   "",
+			Model:        "",
+			ModelsDir:    "",
+			OutputDir:    "",
+			AutoDownload: true,
+			Timeout:      300,
+			FFmpegPath:   "",
+		},
 		Vision: VisionConfig{
 			Annotator: VisionAnnotatorConfig{
 				Enabled:   false,
@@ -1373,6 +1416,11 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 			return *c.Tools.ImageVariation.RequireApproval
 		}
 		return false
+	case "TextToSpeech":
+		if c.TextToSpeech.RequireApproval != nil {
+			return *c.TextToSpeech.RequireApproval
+		}
+		return false
 	case "Memory":
 		return false
 	case "Computer", "GetLatestFrame":
@@ -1436,6 +1484,16 @@ func (c *Config) Validate() error {
 		return fmt.Errorf(
 			"invalid speech_to_text.retain_recordings %d: must be >= 0",
 			c.SpeechToText.RetainRecordings,
+		)
+	}
+
+	switch engine := strings.TrimSpace(c.TextToSpeech.Engine); engine {
+	case "", TextToSpeechEngineQwen3:
+	default:
+		return fmt.Errorf(
+			"invalid text_to_speech.engine %q: only %q is supported",
+			engine,
+			TextToSpeechEngineQwen3,
 		)
 	}
 
