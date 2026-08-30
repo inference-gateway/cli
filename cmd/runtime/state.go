@@ -82,8 +82,6 @@ func (s *State) DisableStdoutLogging() {
 }
 
 func (s *State) ConfigureDaemonLogging() {
-	// The default log dir is already the userspace one (config.DefaultLogsDir);
-	// an explicit logging.dir config value wins over it.
 	s.loggerCfg.FilePrefix = "daemon"
 	s.loggerCfg.Stdout = true
 	logger.Init(s.loggerCfg)
