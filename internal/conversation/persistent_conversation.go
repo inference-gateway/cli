@@ -168,9 +168,6 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 	metadata := r.metadata
 	r.metadataMutex.Unlock()
 
-	// Stamp the owning project (absolute cwd) so storage can group and
-	// scope listings per project. Interactive, headless, scheduler and
-	// subagent runs all resolve the same cwd -> same project.
 	metadata.Project = project.Path()
 	return r.storage.SaveConversation(ctx, conversationID, entries, metadata)
 }
