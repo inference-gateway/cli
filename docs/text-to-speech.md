@@ -70,7 +70,10 @@ text_to_speech:
 ```
 
 Every field can also be set via environment variables, e.g.
-`INFER_TEXT_TO_SPEECH_ENABLED=true`, `INFER_TEXT_TO_SPEECH_MODEL=q8`.
+`INFER_TEXT_TO_SPEECH_ENABLED=true`, `INFER_TEXT_TO_SPEECH_MODEL=q8`,
+`INFER_TEXT_TO_SPEECH_REQUIRE_APPROVAL=true`. Leaving `require_approval` unset is
+not the same as setting it to `false`: unset keeps the tool's own default (no
+approval), an explicit value pins the policy.
 
 ## Models
 

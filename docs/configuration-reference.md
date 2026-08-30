@@ -732,6 +732,12 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 - `INFER_TOOLS_EDIT_REQUIRE_APPROVAL`: Require approval for Edit tool (default: `true`)
 - `INFER_TOOLS_DELETE_REQUIRE_APPROVAL`: Require approval for Delete tool (default:
   `true`)
+- `INFER_TEXT_TO_SPEECH_REQUIRE_APPROVAL`: Require approval for the TextToSpeech tool
+  (default: unset, meaning no approval)
+
+Approval variables are tri-state: leaving one unset is not the same as setting it to
+`false`. An unset tool falls back to the policy baked into the tool, while an explicit
+value pins it either way.
 
 **Bash Tool Allow-List Configuration:**
 
