@@ -557,7 +557,7 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 | **ImageGeneration** | Generate an image from a prompt into `~/.infer/projects/<project-slug>/artifacts/` | No | `tools.image_generation.enabled` |
 | **ImageEdit** | Edit an existing image and save the result | No | `tools.image_edit.enabled` |
 | **ImageVariation** | Produce a variation of an existing image | No | `tools.image_variation.enabled` |
-| **TextToSpeech** | Synthesize speech to a WAV locally, optionally cloning a voice | No | `text_to_speech.enabled` |
+| **TextToSpeech** | Synthesize speech to a WAV (local llama-tts or gateway Audio API), optionally cloning a voice | No | `text_to_speech.enabled` |
 
 **Memory, scheduling & A2A** (each gated by its own flag):
 

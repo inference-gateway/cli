@@ -127,6 +127,10 @@ func (a *AnthropicMessages) CreateImageVariation(ctx context.Context, provider s
 	return a.inner.CreateImageVariation(ctx, provider, request)
 }
 
+func (a *AnthropicMessages) CreateSpeech(ctx context.Context, provider sdk.Provider, request sdk.CreateSpeechRequest) ([]byte, error) {
+	return a.inner.CreateSpeech(ctx, provider, request)
+}
+
 // GenerateContent routes Anthropic requests through /v1/messages and
 // translates the response back into the chat-completions shape.
 func (a *AnthropicMessages) GenerateContent(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {

@@ -473,6 +473,10 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 		args = append(args, "-e", "ENABLE_IMAGES=true")
 	}
 
+	if gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() {
+		args = append(args, "-e", "ENABLE_AUDIO=true")
+	}
+
 	if gm.config.Gateway.Debug {
 		args = append(args, "-e", "ENVIRONMENT=development")
 	}
@@ -883,6 +887,10 @@ func (gm *Manager) runBinary(binaryPath string) error {
 
 	if gm.config.Tools.ImageGeneration.Enabled || gm.config.Tools.ImageEdit.Enabled || gm.config.Tools.ImageVariation.Enabled {
 		cmd.Env = append(cmd.Env, "ENABLE_IMAGES=true")
+	}
+
+	if gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() {
+		cmd.Env = append(cmd.Env, "ENABLE_AUDIO=true")
 	}
 
 	if gm.config.Gateway.Debug {

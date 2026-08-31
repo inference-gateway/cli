@@ -1,4 +1,4 @@
-# Text-to-Speech (Qwen3-TTS via llama.cpp)
+# Text-to-Speech
 
 The CLI can turn text into spoken audio in two modes:
 
@@ -7,13 +7,51 @@ The CLI can turn text into spoken audio in two modes:
   (a ~10-30s `.wav` of the target speaker), spoken WAV out in that voice. This
   is the interesting mode for video-editing and dubbing workflows.
 
-Everything runs fully local: the agent tool shells out to llama.cpp's
-`llama-tts` binary running [Qwen3-TTS](https://huggingface.co/ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF)
-GGUF models, the same GGUF ecosystem as whisper.cpp. The feature is **disabled
-by default**: while `text_to_speech.enabled` is false, the `TextToSpeech` tool
-definition is not sent to the LLM at all, so it costs zero prompt tokens.
+Two synthesis engines are available, selected by `text_to_speech.engine`:
 
-## Prerequisites
+- **`qwen3-tts` (default, direct/local)** - the agent tool shells out to
+  llama.cpp's `llama-tts` binary running
+  [Qwen3-TTS](https://huggingface.co/ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF)
+  GGUF models, the same GGUF ecosystem as whisper.cpp. Fully local, works
+  offline, free - but you install and maintain a second inference engine.
+- **`gateway`** - synthesis goes through the gateway's Audio API
+  (`POST /v1/audio/speech`), using provider-hosted models. Requests appear in
+  gateway logs and `infer traces` like any other request, nothing extra to
+  install locally. Pick this when your models already run behind the gateway.
+
+The feature is **disabled by default**: while `text_to_speech.enabled` is
+false, the `TextToSpeech` tool definition is not sent to the LLM at all, so it
+costs zero prompt tokens.
+
+## Gateway engine
+
+```yaml
+text_to_speech:
+  enabled: true
+  engine: gateway
+  model: openai/gpt-4o-mini-tts # provider/model, like the image tools
+  voice: alloy                  # provider voice id (OpenAI: alloy, echo, nova, ...)
+  output_dir: ""                # where generated wavs go; empty = ~/.infer/tts
+  require_approval: true        # optional; unset = no approval
+```
+
+Only `model`, `voice`, `output_dir` and `require_approval` matter here - the
+local-exec keys (`binary_path`, `models_dir`, `auto_download`, `ffmpeg_path`
+and the Qwen3 `model` presets) apply to the `qwen3-tts` engine only and are
+ignored under `gateway`. Voice cloning still works where the provider supports
+it: the `voice_sample` recording is forwarded as a reference sample
+(`reference_audio`) for zero-shot cloning; providers without cloning support
+(e.g. OpenAI) ignore or reject it.
+
+The CLI-managed local gateway is started with `ENABLE_AUDIO=true` automatically
+when this engine is configured. If you point the CLI at an externally managed
+gateway, set `ENABLE_AUDIO=true` on it yourself - and note that only providers
+with Audio API support (currently OpenAI, or OpenAI-compatible speech backends
+via custom provider config) can serve the endpoint.
+
+The rest of this page covers the local `qwen3-tts` engine.
+
+## Prerequisites (qwen3-tts engine)
 
 Synthesis shells out to external programs (no CGO is added to the `infer`
 binary):
@@ -57,7 +95,7 @@ Add a `text_to_speech` section to `.infer/config.yaml` (or
 ```yaml
 text_to_speech:
   enabled: true          # feature flag (default: false) - tool absent from the LLM payload when false
-  engine: qwen3-tts      # synthesis engine (only engine for now)
+  engine: qwen3-tts      # qwen3-tts (default, local) | gateway (see above)
   model: ""              # "" = base preset; q8 | bf16 | or explicit "<backbone>[,<mmproj>].gguf" filenames
   auto_download: true    # download models (and ffmpeg) on first use if missing
   output_dir: ""         # where generated wavs go; empty = ~/.infer/tts

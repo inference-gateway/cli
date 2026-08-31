@@ -218,7 +218,7 @@ func (t *TextToSpeechTool) IsEnabled() bool {
 		return false
 	}
 	engine := strings.TrimSpace(t.config.TextToSpeech.Engine)
-	return engine == "" || engine == config.TextToSpeechEngineQwen3
+	return engine == "" || engine == config.TextToSpeechEngineQwen3 || engine == config.TextToSpeechEngineGateway
 }
 
 // FormatPreview formats the result for display preview

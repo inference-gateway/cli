@@ -68,6 +68,7 @@ func TestTextToSpeechTool_IsEnabled(t *testing.T) {
 	}{
 		{"enabled with default engine", true, "", true},
 		{"enabled with qwen3-tts engine", true, "qwen3-tts", true},
+		{"enabled with gateway engine", true, "gateway", true},
 		{"unsupported engine", true, "piper", false},
 		{"disabled in config", false, "qwen3-tts", false},
 	}
@@ -298,7 +299,7 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 	t.Run("disabled by default: not registered", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToSpeech.Enabled = false
-		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 
 		assert.NotContains(t, registry.ListAvailableTools(), "TextToSpeech")
 		for _, def := range registry.GetToolDefinitions() {
@@ -311,7 +312,7 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 	t.Run("enabled: present in the tools payload", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToSpeech.Enabled = true
-		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 
 		assert.Contains(t, registry.ListAvailableTools(), "TextToSpeech")
 
@@ -322,5 +323,28 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 			}
 		}
 		assert.True(t, found, "TextToSpeech definition should be in the tools payload")
+	})
+
+	t.Run("gateway engine uses the injected speech service", func(t *testing.T) {
+		cfg := config.DefaultConfig()
+		cfg.TextToSpeech.Enabled = true
+		cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
+		cfg.TextToSpeech.Model = "openai/gpt-4o-mini-tts"
+		synth := &fakeVoiceSynthesizer{}
+		registry := NewRegistry(cfg, nil, synth, nil, nil, nil, nil, nil)
+
+		tool, err := registry.GetTool("TextToSpeech")
+		require.NoError(t, err)
+		assert.Same(t, synth, tool.(*TextToSpeechTool).synth)
+	})
+
+	t.Run("gateway engine without a speech service: not registered", func(t *testing.T) {
+		cfg := config.DefaultConfig()
+		cfg.TextToSpeech.Enabled = true
+		cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
+		cfg.TextToSpeech.Model = "openai/gpt-4o-mini-tts"
+		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
+
+		assert.NotContains(t, registry.ListAvailableTools(), "TextToSpeech")
 	})
 }

@@ -110,22 +110,39 @@ type SpeechToTextConfig struct {
 	RecordingsDir       string `yaml:"recordings_dir" mapstructure:"recordings_dir"`               // "" -> ~/.infer/voice
 }
 
-// TextToSpeechEngineQwen3 is the only supported text-to-speech engine for now:
-// Qwen3-TTS GGUF models run through a local llama.cpp llama-tts binary.
+// TextToSpeechEngineQwen3 is the default text-to-speech engine: Qwen3-TTS
+// GGUF models run through a local llama.cpp llama-tts binary (direct mode).
 const TextToSpeechEngineQwen3 = "qwen3-tts"
 
-// TextToSpeechConfig contains opt-in settings for local Qwen3-TTS synthesis.
+// TextToSpeechEngineGateway synthesizes through the gateway's Audio API
+// (POST /v1/audio/speech), so requests appear in gateway logs and traces.
+const TextToSpeechEngineGateway = "gateway"
+
+// TextToSpeechConfig contains opt-in settings for speech synthesis. Engine
+// selects the backend: qwen3-tts (default, local llama-tts) or gateway.
+// BinaryPath, ModelsDir, AutoDownload and FFmpegPath apply to qwen3-tts only
+// and are ignored under gateway. Model is engine-specific: a Qwen3 preset
+// (""/base, q8, bf16 or explicit GGUF filenames) for qwen3-tts, a
+// "provider/model" id (like the image tools) for gateway. Voice applies to
+// the gateway engine only.
 type TextToSpeechConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
 	Engine          string `yaml:"engine" mapstructure:"engine"`
 	BinaryPath      string `yaml:"binary_path" mapstructure:"binary_path"`
 	Model           string `yaml:"model" mapstructure:"model"`
+	Voice           string `yaml:"voice" mapstructure:"voice"`
 	ModelsDir       string `yaml:"models_dir" mapstructure:"models_dir"`
 	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
 	AutoDownload    bool   `yaml:"auto_download" mapstructure:"auto_download"`
 	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
 	FFmpegPath      string `yaml:"ffmpeg_path" mapstructure:"ffmpeg_path"`
 	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// IsGatewayEngine reports whether synthesis routes through the gateway's
+// Audio API instead of the local llama-tts binary.
+func (c TextToSpeechConfig) IsGatewayEngine() bool {
+	return strings.TrimSpace(c.Engine) == TextToSpeechEngineGateway
 }
 
 // ResolveOutputDir returns the directory where generated WAV files are
@@ -951,6 +968,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Engine:       TextToSpeechEngineQwen3,
 			BinaryPath:   "",
 			Model:        "",
+			Voice:        "",
 			ModelsDir:    "",
 			OutputDir:    "",
 			AutoDownload: true,
@@ -1473,11 +1491,21 @@ func (c *Config) Validate() error {
 
 	switch engine := strings.TrimSpace(c.TextToSpeech.Engine); engine {
 	case "", TextToSpeechEngineQwen3:
+	case TextToSpeechEngineGateway:
+		model := strings.TrimSpace(c.TextToSpeech.Model)
+		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
+			return fmt.Errorf(
+				"invalid text_to_speech.model %q for the %q engine: must be of the form 'provider/model', e.g. 'openai/gpt-4o-mini-tts'",
+				model,
+				TextToSpeechEngineGateway,
+			)
+		}
 	default:
 		return fmt.Errorf(
-			"invalid text_to_speech.engine %q: only %q is supported",
+			"invalid text_to_speech.engine %q: supported engines are %q and %q",
 			engine,
 			TextToSpeechEngineQwen3,
+			TextToSpeechEngineGateway,
 		)
 	}
 
