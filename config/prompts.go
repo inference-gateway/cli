@@ -177,22 +177,22 @@ func (c *PromptsAgentConfig) UnmarshalYAML(value *yaml.Node) error {
 	type promptsAgentPlain PromptsAgentConfig
 	plain := promptsAgentPlain{}
 	if err := value.Decode(&plain); err != nil {
-        return err
+		return err
 	}
 	*c = PromptsAgentConfig(plain)
 
 	legacy := struct {
-        SystemPromptPlan string `yaml:"system_prompt_plan"`
-        SystemPromptAuto string `yaml:"system_prompt_auto"`
+		SystemPromptPlan string `yaml:"system_prompt_plan"`
+		SystemPromptAuto string `yaml:"system_prompt_auto"`
 	}{}
 	if err := value.Decode(&legacy); err != nil {
-        return err
+		return err
 	}
 	if c.ModeAdjustmentPlan == "" {
-        c.ModeAdjustmentPlan = legacy.SystemPromptPlan
+		c.ModeAdjustmentPlan = legacy.SystemPromptPlan
 	}
 	if c.ModeAdjustmentAuto == "" {
-        c.ModeAdjustmentAuto = legacy.SystemPromptAuto
+		c.ModeAdjustmentAuto = legacy.SystemPromptAuto
 	}
 	return nil
 }

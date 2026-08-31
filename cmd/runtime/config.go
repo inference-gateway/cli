@@ -560,8 +560,8 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 	}
 	envOverrides := map[string]*string{
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT":                         &cfg.Prompts.Agent.SystemPrompt,
-		"INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN":                    &cfg.Prompts.Agent.ModeAdjustmentPlan,
-		"INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO":&cfg.Prompts.Agent.ModeAdjustmentAuto,
+		"INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN":                  &cfg.Prompts.Agent.ModeAdjustmentPlan,
+		"INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO":                  &cfg.Prompts.Agent.ModeAdjustmentAuto,
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE":                  &cfg.Prompts.Agent.SystemPromptRemote,
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT":               &cfg.Prompts.Agent.SystemPromptHeartbeat,
 		"INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS":                   &cfg.Prompts.Agent.CustomInstructions,
