@@ -17,12 +17,9 @@ import (
 
 // LLMToolService implements ToolService with the new tools package architecture
 type LLMToolService struct {
-	registry *tools.Registry
-	enabled  bool
-	config   *config.Config
-	// currentModel, when wired, reports the active model so tools can be
-	// filtered per model capability (nil in tests and headless paths that
-	// never set it).
+	registry     *tools.Registry
+	enabled      bool
+	config       *config.Config
 	currentModel func() string
 }
 
@@ -39,6 +36,27 @@ func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry)
 		enabled:  cfg.Tools.Enabled,
 		config:   cfg,
 	}
+}
+
+// planModeAllowedTools is the default-deny set of tools executable in plan
+// mode. It gates execution and approval, not advertisement: all modes
+// advertise the same tool list so a mode switch never invalidates the
+// provider's prompt cache.
+var planModeAllowedTools = map[string]bool{
+	"Read":                true,
+	"Grep":                true,
+	"Tree":                true,
+	"A2A_QueryAgent":      true,
+	"TodoWrite":           true,
+	"RequestPlanApproval": true,
+	"AskUserQuestion":     true,
+	"Wait":                true,
+}
+
+// planOnlyTools are executable only in plan mode.
+var planOnlyTools = map[string]bool{
+	"RequestPlanApproval": true,
+	"AskUserQuestion":     true,
 }
 
 // isToolEnabled checks if a tool should be included based on its type and configuration
@@ -77,21 +95,10 @@ func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
 // ListToolsForMode returns definitions for enabled tools filtered by agent mode
 func (s *LLMToolService) ListToolsForMode(mode agentdomain.AgentMode) []sdk.ChatCompletionTool {
 	if mode == agentdomain.AgentModePlan {
-		allowedTools := map[string]bool{
-			"Read":                true,
-			"Grep":                true,
-			"Tree":                true,
-			"A2A_QueryAgent":      true,
-			"TodoWrite":           true,
-			"RequestPlanApproval": true,
-			"AskUserQuestion":     true,
-			"Wait":                true,
-		}
-
 		var definitions []sdk.ChatCompletionTool
 		allTools := s.registry.GetToolDefinitions()
 		for _, tool := range allTools {
-			if s.isToolAdvertised(tool.Function.Name) && allowedTools[tool.Function.Name] {
+			if s.isToolAdvertised(tool.Function.Name) && planModeAllowedTools[tool.Function.Name] {
 				definitions = append(definitions, tool)
 			}
 		}
@@ -118,11 +125,6 @@ func (s *LLMToolService) ListToolsForMode(mode agentdomain.AgentMode) []sdk.Chat
 			}
 		}
 		return definitions
-	}
-
-	planOnlyTools := map[string]bool{
-		"RequestPlanApproval": true,
-		"AskUserQuestion":     true,
 	}
 
 	var definitions []sdk.ChatCompletionTool
@@ -156,6 +158,15 @@ func (s *LLMToolService) isA2ATool(toolName string) bool {
 
 // ExecuteTool executes a tool with the given arguments
 func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
+	if mode, ok := agentdomain.AgentModeFromContext(ctx); ok {
+		if mode == agentdomain.AgentModePlan && !planModeAllowedTools[toolCall.Name] {
+			return nil, fmt.Errorf("tool not allowed: %s is disabled in plan mode (read-only) - use Read/Grep/Tree to research, AskUserQuestion to clarify, and RequestPlanApproval to submit the plan; do not retry this tool until the plan is approved", toolCall.Name)
+		}
+		if mode != agentdomain.AgentModePlan && planOnlyTools[toolCall.Name] {
+			return nil, fmt.Errorf("tool not allowed: %s is only available in plan mode", toolCall.Name)
+		}
+	}
+
 	if !s.isToolEnabled(toolCall.Name) {
 		if s.isA2ATool(toolCall.Name) {
 			return nil, fmt.Errorf("A2A tools are not enabled")

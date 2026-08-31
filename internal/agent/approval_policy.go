@@ -53,6 +53,10 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 		return false
 	}
 
+	if p.stateManager != nil && p.stateManager.GetAgentMode() == agentdomain.AgentModePlan && !planModeAllowedTools[toolCall.Function.Name] {
+		return false
+	}
+
 	if toolCall.Function.Name == "Bash" {
 		return !p.isBashCommandAllowed(toolCall)
 	}

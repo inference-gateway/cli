@@ -255,13 +255,18 @@ func (t *TokenizerService) AdjustedEstimate(text string) int {
 	return baseEstimate
 }
 
-// GetToolStats returns token count and tool count for a given agent mode
+// GetToolStats returns token count and tool count for the tools advertised to
+// the model in the given agent mode; all mid-session modes advertise the full
+// list, ReadOnly keeps its filtered one (see AgentServiceImpl.advertisedTools).
 func (t *TokenizerService) GetToolStats(toolService agentdomain.ToolService, agentMode agentdomain.AgentMode) (tokens int, count int) {
 	if toolService == nil {
 		return 0, 0
 	}
 
-	tools := toolService.ListToolsForMode(agentMode)
+	tools := toolService.ListTools()
+	if agentMode == agentdomain.AgentModeReadOnly {
+		tools = toolService.ListToolsForMode(agentMode)
+	}
 	if len(tools) == 0 {
 		return 0, 0
 	}

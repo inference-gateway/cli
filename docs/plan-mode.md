@@ -4,7 +4,10 @@
 
 Plan Mode is a read-only operating mode for the agent. The model can use
 `Read`, `Grep`, `Tree`, and `TodoWrite` to investigate the codebase, but it
-cannot write, edit, delete, or run shell commands. Instead, it produces a
+cannot write, edit, delete, or run shell commands - those tools stay
+advertised in the tool-use API (so the request's tool definitions, and with
+them the provider's prompt cache, survive a mode switch) but are disabled at
+execution time and return an error if called. Instead, it produces a
 **plan** for the proposed change, persists that plan through the configured
 storage backend (on jsonl as a Markdown file under `~/.infer/plans/`), and
 surfaces it to you for approval before any real work happens.

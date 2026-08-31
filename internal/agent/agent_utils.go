@@ -409,14 +409,11 @@ func (s *AgentServiceImpl) buildBashAllowInfo() string {
 	return b.String()
 }
 
-// buildToolsInfo lists the tools available to the model for the active agent
-// mode as a lightweight name + one-line-description roster. The list is derived
-// from the same toolService.ListToolsForMode(mode) call that populates the
-// request's native tool definitions, so the prose can never drift from what the
-// model can actually call. It rides in the volatile tail (not the static
-// system prompt) so a mode switch never rewrites message[0]. Empty when tools
-// are disabled or none are registered (e.g. NoOpToolService, or before MCP
-// tools finish async registration).
+// buildToolsInfo lists the tools executable in the active agent mode as a
+// name + one-line-description roster; the request advertises the full list,
+// so anything absent here is advertised but disabled. It rides in the
+// volatile tail so a mode switch never rewrites message[0]; empty when tools
+// are disabled or none are registered.
 func (s *AgentServiceImpl) buildToolsInfo() string {
 	if s.toolService == nil {
 		return ""
@@ -447,6 +444,8 @@ func (s *AgentServiceImpl) buildToolsInfo() string {
 			fmt.Fprintf(&b, "- %s\n", def.Function.Name)
 		}
 	}
+	b.WriteString("Any other tool advertised via the tool-use API is disabled " +
+		"in the current mode and will return an error if called.\n")
 	return b.String()
 }
 

@@ -151,8 +151,8 @@ The agent mode has changed mid-session from {prev_mode} to {new_mode}. {guidance
 // (see resolveModeChangeText).
 var defaultModeChangeGuidance = map[string]string{
 	"plan": "You are now in Plan Mode: a read-only mode. Analyze the user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them. " +
-		"TOOL SET: only Read, Grep, Tree, TodoWrite, AskUserQuestion, RequestPlanApproval, A2A_QueryAgent, and Wait remain available - " +
-		"Write, Edit, MultiEdit, Delete, Bash, and the web/other tools are no longer offered; do NOT attempt to make changes to files or the system, and do NOT attempt to implement the plan. " +
+		"TOOL SET: only Read, Grep, Tree, TodoWrite, AskUserQuestion, RequestPlanApproval, A2A_QueryAgent, and Wait remain executable - " +
+		"Write, Edit, MultiEdit, Delete, Bash, and the web/other tools stay listed in the tool-use API but are DISABLED in plan mode and any call to them returns an error; do NOT attempt to make changes to files or the system, and do NOT attempt to implement the plan. " +
 		"WORKFLOW: investigate with the read-only tools until you understand the codebase; identify ALL requirements; " +
 		"if a decision hinges on a discrete choice (approach, scope, format, naming, trade-off), call AskUserQuestion (1-4 multiple-choice questions, 2-4 options each) instead of guessing, and ask open-ended questions in a regular assistant turn; " +
 		"iterate until the plan is complete, then call RequestPlanApproval with a short title AND the Markdown plan body. Plans that are not actionable are NOT plans - if accepted, YOU will execute it step-by-step. " +
@@ -166,9 +166,9 @@ var defaultModeChangeGuidance = map[string]string{
 		"Before any high-risk action, STOP and confirm with the user in a normal message - state exactly what you will run and why - instead of relying on the (now-disabled) approval gate; proceed only once they agree, or when the task you were given already authorised it explicitly. " +
 		"If no user is reachable (headless/unattended run), do NOT take a high-risk action on your own initiative: prefer the reversible path, narrow the scope, or stop and report what you would have done and why. " +
 		"Low-risk, reversible work (reads, builds, tests, and edits within the working directory) proceeds normally - do not over-ask on routine steps. Never echo, print, or publish the value of a secret or environment variable. " +
-		"The full tool set is available again (Write/Edit/Delete/Bash included); plan-only tools (RequestPlanApproval, AskUserQuestion) are no longer offered.",
+		"The full tool set is available again (Write/Edit/Delete/Bash included); plan-only tools (RequestPlanApproval, AskUserQuestion) are disabled and will be rejected.",
 	"standard": "You are now in Standard mode: per-call tool approvals apply as configured - do not assume auto-acceptance; wait for each approval prompt (in agent mode, out-of-allow-list commands are rejected and must be reworked). " +
-		"The full tool set is available again (Bash, Write/Edit/Delete included); plan-only tools (RequestPlanApproval, AskUserQuestion) are no longer offered. Check the BASH ALLOW-LIST in the current context reminder before proposing shell commands.",
+		"The full tool set is available again (Bash, Write/Edit/Delete included); plan-only tools (RequestPlanApproval, AskUserQuestion) are disabled and will be rejected. Check the BASH ALLOW-LIST in the current context reminder before proposing shell commands.",
 }
 
 const defaultMemoryConsultReminderText = `<system-reminder>

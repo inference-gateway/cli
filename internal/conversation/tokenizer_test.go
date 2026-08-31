@@ -487,7 +487,7 @@ func TestGetToolStats(t *testing.T) {
 			name: "empty tools list",
 			toolService: func() agentdomain.ToolService {
 				fake := &agentdomainmocks.FakeToolService{}
-				fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{})
+				fake.ListToolsReturns([]sdk.ChatCompletionTool{})
 				return fake
 			}(),
 			agentMode:         agentdomain.AgentModeStandard,
@@ -499,7 +499,7 @@ func TestGetToolStats(t *testing.T) {
 			name: "single tool",
 			toolService: func() agentdomain.ToolService {
 				fake := &agentdomainmocks.FakeToolService{}
-				fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{
+				fake.ListToolsReturns([]sdk.ChatCompletionTool{
 					{
 						Type: sdk.Function,
 						Function: sdk.FunctionObject{
@@ -519,7 +519,7 @@ func TestGetToolStats(t *testing.T) {
 			name: "multiple tools",
 			toolService: func() agentdomain.ToolService {
 				fake := &agentdomainmocks.FakeToolService{}
-				fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{
+				fake.ListToolsReturns([]sdk.ChatCompletionTool{
 					{
 						Type: sdk.Function,
 						Function: sdk.FunctionObject{
@@ -543,10 +543,10 @@ func TestGetToolStats(t *testing.T) {
 			expectedCount:     2,
 		},
 		{
-			name: "plan mode filtering",
+			name: "plan mode advertises full list",
 			toolService: func() agentdomain.ToolService {
 				fake := &agentdomainmocks.FakeToolService{}
-				fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{
+				fake.ListToolsReturns([]sdk.ChatCompletionTool{
 					{
 						Type: sdk.Function,
 						Function: sdk.FunctionObject{

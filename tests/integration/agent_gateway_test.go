@@ -499,6 +499,60 @@ func TestStreamSystemPromptStableWithVolatileTail(t *testing.T) {
 	}
 }
 
+// TestStreamToolsStableAcrossModeSwitch verifies a mid-session standard→plan
+// switch keeps the cached prefix intact: identical tools array, byte-identical
+// system prompt, and mode instructions delivered as an appended reminder.
+func TestStreamToolsStableAcrossModeSwitch(t *testing.T) {
+	e := newEnv(t, func(cfg *config.Config) {
+		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
+		cfg.Reminders = *config.DefaultRemindersConfig()
+	})
+
+	res := e.runStream(context.Background(), t, "say hello")
+	require.Empty(t, res.errs)
+
+	e.container.GetStateManager().SetAgentMode(agentdomain.AgentModePlan)
+
+	res2 := e.runStream(context.Background(), t, "say hello")
+	require.Empty(t, res2.errs)
+
+	bodies := e.completionBodies()
+	require.Len(t, bodies, 2)
+
+	require.NotNil(t, bodies[0].Tools)
+	require.Equal(t, bodies[0].Tools, bodies[1].Tools,
+		"tools array must be identical across a mode switch or the provider prompt cache is invalidated")
+
+	names := make(map[string]bool)
+	for _, tool := range *bodies[1].Tools {
+		names[tool.Function.Name] = true
+	}
+	for _, want := range []string{"Write", "Bash", "RequestPlanApproval", "AskUserQuestion"} {
+		require.True(t, names[want], "all modes must advertise the union tool list (missing %s)", want)
+	}
+
+	firstSystem, err := bodies[0].Messages[0].Content.AsMessageContent0()
+	require.NoError(t, err)
+	secondSystem, err := bodies[1].Messages[0].Content.AsMessageContent0()
+	require.NoError(t, err)
+	require.Equal(t, firstSystem, secondSystem, "system prompt must be byte-identical across a mode switch")
+
+	require.Equal(t, bodies[0].Messages[1], bodies[1].Messages[1],
+		"the user message must not be mutated by a mode switch")
+
+	var sawModeReminder bool
+	for _, msg := range bodies[1].Messages {
+		content, err := msg.Content.AsMessageContent0()
+		if err != nil {
+			continue
+		}
+		if strings.Contains(content, "agent mode has changed mid-session") {
+			sawModeReminder = true
+		}
+	}
+	require.True(t, sawModeReminder, "mode-change instructions must arrive as an appended reminder")
+}
+
 // TestSyncRunAppendsVolatileTail covers the non-streaming path.
 func TestSyncRunAppendsVolatileTail(t *testing.T) {
 	e := newEnv(t, func(cfg *config.Config) {
