@@ -21,7 +21,7 @@ func TestLoadConfigFromViper_PromptsDefaultsWhenFileAbsent(t *testing.T) {
 
 	defaults := config.DefaultPromptsConfig()
 	require.Equal(t, defaults.Agent.SystemPrompt, cfg.Prompts.Agent.SystemPrompt)
-	require.Equal(t, defaults.Agent.SystemPromptPlan, cfg.Prompts.Agent.SystemPromptPlan)
+	require.Empty(t, cfg.Prompts.Agent.ModeAdjustmentPlan, "mode adjustments ship empty; built-ins live in the mode-change reminder guidance")
 	require.Equal(t, defaults.Agent.SystemPromptRemote, cfg.Prompts.Agent.SystemPromptRemote)
 	require.Equal(t, defaults.Agent.SystemPromptHeartbeat, cfg.Prompts.Agent.SystemPromptHeartbeat)
 	require.NotEmpty(t, cfg.Prompts.Agent.SystemPromptHeartbeat, "heartbeat prompt must have a non-empty default")
@@ -52,7 +52,7 @@ func TestLoadConfigFromViper_PromptsPartialFileFallsBackForUnsetFields(t *testin
 
 	defaults := config.DefaultPromptsConfig()
 	require.Equal(t, "USER OVERRIDE: only this is set", cfg.Prompts.Agent.SystemPrompt)
-	require.Equal(t, defaults.Agent.SystemPromptPlan, cfg.Prompts.Agent.SystemPromptPlan, "unset plan prompt should fall back to default")
+	require.Empty(t, cfg.Prompts.Agent.ModeAdjustmentPlan, "mode adjustments must NOT be backfilled - built-ins live in the reminder guidance")
 	require.Equal(t, defaults.Agent.SystemPromptHeartbeat, cfg.Prompts.Agent.SystemPromptHeartbeat, "unset heartbeat prompt should fall back to default")
 	require.Equal(t, defaults.Git.CommitMessage.SystemPrompt, cfg.Prompts.Git.CommitMessage.SystemPrompt, "unset git prompt should fall back to default")
 	require.Equal(t, defaults.Init.Prompt, cfg.Prompts.Init.Prompt, "unset init prompt should fall back to default")
@@ -115,4 +115,18 @@ func TestLoadConfigFromViper_ToolDescriptionsDefaultWhenFileAbsent(t *testing.T)
 	require.Equal(t, defaults.Tools.Read.Description, cfg.Prompts.Tools.Read.Description)
 	require.Equal(t, defaults.Tools.Edit.Description, cfg.Prompts.Tools.Edit.Description)
 	require.Equal(t, defaults.Tools.GetLatestFrame.Description, cfg.Prompts.Tools.GetLatestFrame.Description)
+}
+
+// The renamed env vars bind to the mode-adjustment slots so per-mode
+// instructions can be injected at deploy time without editing prompts.yaml.
+func TestLoadConfigFromViper_PromptsModeAdjustmentEnvOverride(t *testing.T) {
+	withHermeticEnv(t)
+
+	t.Setenv("INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN", "plan from env")
+	t.Setenv("INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO", "auto from env")
+	initConfig()
+	cfg := Cfg
+
+	require.Equal(t, "plan from env", cfg.Prompts.Agent.ModeAdjustmentPlan)
+	require.Equal(t, "auto from env", cfg.Prompts.Agent.ModeAdjustmentAuto)
 }

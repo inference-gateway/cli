@@ -101,7 +101,11 @@ const defaultStalledTodosThreshold = 3
 // Guidance is consulted only by the on_mode_change trigger: it maps a mode key
 // ("standard"/"plan"/"auto", the same keys as tools.bash.mode.<key>) to the
 // text substituted for the {guidance} placeholder when that mode is entered.
-// Keys the user omits keep their built-in defaults (per-key merge).
+// Since the mode-change reminder is the sole carrier of per-mode instructions
+// (the system prompt stays byte-stable across mode switches for the KV cache),
+// the default texts below carry the full mode behaviour the old per-mode
+// system prompts used to hold. Keys the user omits keep their built-in
+// defaults (per-key merge with effective()).
 type ReminderConfig struct {
 	Name      string                `yaml:"name" mapstructure:"name"`
 	Text      string                `yaml:"text" mapstructure:"text"`
@@ -139,16 +143,32 @@ The agent mode has changed mid-session from {prev_mode} to {new_mode}. {guidance
 </system-reminder>`
 
 // defaultModeChangeGuidance is the built-in {guidance} text per target-mode
-// key. Users override individual keys via the reminder's guidance map; omitted
-// keys keep these defaults (see effective).
+// key. Mode adjustments - the old per-mode system prompts (restrictions,
+// workflow, tool set, plan format, destructive-action policy) - live here so
+// users override them in one place: the reminder's guidance map in
+// reminders.yaml. prompts.yaml's agent.mode_adjustment_plan/_auto act as
+// per-mode overrides layered through ReminderQuery.ModeGuidance when set
+// (see resolveModeChangeText).
 var defaultModeChangeGuidance = map[string]string{
-	"plan": "You are now in Plan Mode: a read-only mode. " +
-		"Writing, editing, deleting, and shell-execution tools are no longer available - " +
-		"do NOT attempt to make changes. Use the read-only tools (Read, Grep, Tree, TodoWrite) " +
-		"to investigate, then call RequestPlanApproval with a written plan. Do not write code.",
-	"auto": "You are now in Auto-Accept mode: tool approvals are bypassed. " +
-		"You may execute tools freely without waiting for per-call approval.",
-	"standard": "You are now in Standard mode: per-call tool approvals apply as configured.",
+	"plan": "You are now in Plan Mode: a read-only mode. Analyze the user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them. " +
+		"TOOL SET: only Read, Grep, Tree, TodoWrite, AskUserQuestion, RequestPlanApproval, A2A_QueryAgent, and Wait remain executable - " +
+		"Write, Edit, MultiEdit, Delete, Bash, and the web/other tools stay listed in the tool-use API but are DISABLED in plan mode and any call to them returns an error; do NOT attempt to make changes to files or the system, and do NOT attempt to implement the plan. " +
+		"WORKFLOW: investigate with the read-only tools until you understand the codebase; identify ALL requirements; " +
+		"if a decision hinges on a discrete choice (approach, scope, format, naming, trade-off), call AskUserQuestion (1-4 multiple-choice questions, 2-4 options each) instead of guessing, and ask open-ended questions in a regular assistant turn; " +
+		"iterate until the plan is complete, then call RequestPlanApproval with a short title AND the Markdown plan body. Plans that are not actionable are NOT plans - if accepted, YOU will execute it step-by-step. " +
+		"PLAN FORMAT: the 'plan' argument MUST be a Markdown document using these H2 sections, in this order, omitting the ones that do not apply and never inventing extra top-level sections: " +
+		"## Context (why the change is being made); ## Files to Modify (exact paths, one-line note each); ## Current Code (short snippets with file:line refs - skip for brand-new files); " +
+		"## Changes (the concrete edits, per file or concern); ## Performance Impact (expected runtime, memory, I/O, or token-usage impact - write Negligible. if there is none); " +
+		"## Critical Files (backward-compat-sensitive code); ## Edge Cases; ## Verification (concrete end-to-end steps). " +
+		"The 'title' argument must be a short human-readable phrase (60 chars max, no slashes) that names the plan file. If you need clarification, ASK - do not guess and do not request approval yet.",
+	"auto": "You are now in Auto-Accept mode: tool approvals are bypassed. You may execute tools freely without waiting for per-call approval; with that autonomy comes a duty of care around destructive or irreversible actions. " +
+		"DESTRUCTIVE-ACTION POLICY: treat as high-risk deleting or overwriting files or data, force operations (git push --force, git reset --hard), dropping or altering databases and cloud resources, mass or recursive removals (rm -rf), publishing externally (releases, comments, channel messages), and anything you cannot easily undo. " +
+		"Before any high-risk action, STOP and confirm with the user in a normal message - state exactly what you will run and why - instead of relying on the (now-disabled) approval gate; proceed only once they agree, or when the task you were given already authorised it explicitly. " +
+		"If no user is reachable (headless/unattended run), do NOT take a high-risk action on your own initiative: prefer the reversible path, narrow the scope, or stop and report what you would have done and why. " +
+		"Low-risk, reversible work (reads, builds, tests, and edits within the working directory) proceeds normally - do not over-ask on routine steps. Never echo, print, or publish the value of a secret or environment variable. " +
+		"The full tool set is available again (Write/Edit/Delete/Bash included); plan-only tools (RequestPlanApproval, AskUserQuestion) are disabled and will be rejected.",
+	"standard": "You are now in Standard mode: per-call tool approvals apply as configured - do not assume auto-acceptance; wait for each approval prompt (in agent mode, out-of-allow-list commands are rejected and must be reworked). " +
+		"The full tool set is available again (Bash, Write/Edit/Delete included); plan-only tools (RequestPlanApproval, AskUserQuestion) are disabled and will be rejected. Check the BASH ALLOW-LIST in the current context reminder before proposing shell commands.",
 }
 
 const defaultMemoryConsultReminderText = `<system-reminder>
@@ -364,8 +384,17 @@ func (r RemindersConfig) RemindersDue(q agentdomain.ReminderQuery) []agentdomain
 
 // resolveModeChangeText substitutes the {prev_mode}/{new_mode}/{guidance}
 // placeholders of an on_mode_change reminder from the query's mode transition.
+// Guidance precedence: a user-edited guidance key on the reminder wins, then
+// the per-mode adjustment instructions carried on the query (prompts.yaml
+// agent.mode_adjustment_plan/_auto), then the built-in default for the mode.
 func resolveModeChangeText(rc ReminderConfig, q agentdomain.ReminderQuery) string {
-	guidance := rc.Guidance[q.Mode.AllowedlistKey()]
+	key := q.Mode.AllowedlistKey()
+	guidance := rc.Guidance[key]
+	if guidance == "" || guidance == defaultModeChangeGuidance[key] {
+		if override := q.ModeGuidance[key]; override != "" {
+			guidance = override
+		}
+	}
 	if guidance == "" {
 		guidance = "You are now in " + q.Mode.DisplayName() + " mode."
 	}

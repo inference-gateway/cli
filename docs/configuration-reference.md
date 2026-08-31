@@ -373,10 +373,11 @@ vision:
 ### Agent Settings
 
 - **agent.model**: Default model for agent operations
-- **agent.system_prompt**: System prompt included with every agent session
-- **agent.system_prompt_plan**: System prompt used in plan mode (falls back to `system_prompt` when empty)
-- **agent.system_prompt_auto**: System prompt used in auto-accept mode; layers a destructive-action policy (confirm or avoid irreversible
-  actions) on top of full autonomy (falls back to `system_prompt` when empty)
+- **agent.system_prompt**: System prompt included with every agent session. It stays byte-stable for the whole session - including
+  across agent-mode switches (Shift+Tab) - so local LLM servers keep KV-cache prefix hits
+- **agent.mode_adjustment_plan**: Optional per-mode instructions (NOT a system prompt) delivered as the `{guidance}` of the mode-change
+  reminder when the agent enters Plan Mode. Ships empty; the built-ins live in the mode-change-reminder guidance in reminders.yaml.
+- **agent.mode_adjustment_auto**: Same for auto-accept mode, carrying the destructive-action policy.
 - System reminders are configured in their own `reminders.yaml`, not under `agent:` - see [System Reminders](#system-reminders-remindersyaml) below.
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
@@ -695,16 +696,17 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 
 - `INFER_AGENT_MODEL`: Default model for agent operations (e.g., `deepseek/deepseek-v4-pro`)
 - `INFER_PROMPTS_AGENT_SYSTEM_PROMPT`: Custom system prompt for agent
-- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN`: Custom system prompt for plan mode
-- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE`: Custom system prompt for remote agent
 - `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT`: Custom system prompt for heartbeat
+- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE`: Custom system prompt for remote agent
+- `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN`: Custom plan-mode adjustment instructions (delivered by the mode-change reminder, not the system prompt)
+- `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO`: Custom auto-accept adjustment instructions (delivered by the mode-change reminder, not the system prompt)
 - `INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS`: Custom instructions for agent
 
 > **Migration note (v0.105.0+):** The old `INFER_AGENT_SYSTEM_PROMPT` and
 > `INFER_AGENT_SYSTEM_PROMPT_PLAN` env vars were renamed to
-> `INFER_PROMPTS_AGENT_SYSTEM_PROMPT` and `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN`
+> `INFER_PROMPTS_AGENT_SYSTEM_PROMPT` and `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN`
 > respectively when agent prompts moved under the `prompts.agent.*` config tree.
-> The old names are silently ignored — if you are migrating an existing
+> Set `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO` for the auto-accept counterpart - if you are migrating an existing
 > configuration, update your env vars to the new names above.
 
 - `INFER_AGENT_MAX_TURNS`: Maximum agent turns (default: `100`)

@@ -4,7 +4,10 @@
 
 Plan Mode is a read-only operating mode for the agent. The model can use
 `Read`, `Grep`, `Tree`, and `TodoWrite` to investigate the codebase, but it
-cannot write, edit, delete, or run shell commands. Instead, it produces a
+cannot write, edit, delete, or run shell commands - those tools stay
+advertised in the tool-use API (so the request's tool definitions, and with
+them the provider's prompt cache, survive a mode switch) but are disabled at
+execution time and return an error if called. Instead, it produces a
 **plan** for the proposed change, persists that plan through the configured
 storage backend (on jsonl as a Markdown file under `~/.infer/plans/`), and
 surfaces it to you for approval before any real work happens.
@@ -41,9 +44,11 @@ executing.
 
 ## What the model is told to do
 
-The default plan-mode system prompt (defined in
-`config/prompts.go::DefaultPromptsConfig`, key `agent.system_prompt_plan`)
-instructs the model to:
+The plan-mode instructions are delivered by the mode-change system reminder
+(defined in `config/reminders.go::defaultModeChangeGuidance`, key `plan`) that
+is injected when the agent switches into Plan Mode - the system prompt itself
+stays byte-stable across mode switches so the prompt/KV cache keeps its prefix
+hits. They instruct the model to:
 
 1. Use `Read`, `Grep`, `Tree` to investigate.
 2. Ask clarifying questions in regular assistant turns first - **not**
@@ -180,24 +185,27 @@ flow:
 ## Configuration
 
 Plan mode itself has no separate config - it ships with the CLI. You can
-customise the system prompt and the tool description in
+customise the per-mode adjustment instructions (delivered by the mode-change
+reminder, not the system prompt) and the tool description in
 `.infer/prompts.yaml`:
 
 ```yaml
 agent:
-  system_prompt_plan: |-
-    # your custom plan-mode prompt
+  mode_adjustment_plan: |-
+    # your custom plan-mode adjustment instructions
 tools:
   RequestPlanApproval:
     description: |-
       # your custom tool description
 ```
 
-Empty fields fall back to the in-code defaults (see
-`config/prompts.go::DefaultPromptsConfig`). Environment-variable
-overrides:
+Empty fields fall back to the built-in reminder guidance (see
+`config/reminders.go::defaultModeChangeGuidance`; it is user-overridable via
+the `guidance.plan` key of the mode-change reminder in reminders.yaml).
+Because these instructions ride the mode-change reminder, they are not
+delivered when `reminders.enabled: false`. Environment-variable overrides:
 
-- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN`
+- `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN`
 - `INFER_PROMPTS_TOOLS_REQUEST_PLAN_APPROVAL_DESCRIPTION`
 
 ## Related

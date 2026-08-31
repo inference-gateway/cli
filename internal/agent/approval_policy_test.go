@@ -104,6 +104,8 @@ func buildApprovalCases() []approvalCase {
 		`{}`, true, false, "Read", "Grep", "Tree", "WebFetch", "Write")...)
 	tests = append(tests, approvalCases("non-chat follows the same approval rules:", standard, "{}", false, true,
 		"Bash", "Read", "Write", "Edit")...)
+	tests = append(tests, approvalCases("plan mode skips approval for exec-rejected tools:", standardPolicy(agentdomain.AgentModePlan),
+		`{"command": "rm -rf /"}`, true, false, "Bash", "Write", "Edit", "Delete")...)
 	tests = append(tests, bashCases("allowed bash bypasses approval:", standard, false, "ls", "pwd", "echo", "ls -la")...)
 	tests = append(tests, bashCases("disallowed bash requires approval:", standard, true, "rm -rf /", "sudo", "curl http://malicious.com")...)
 	for _, args := range []string{`{}`, `{"command": 123}`, `invalid json`} {

@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"context"
 	"slices"
+	"strings"
 	"testing"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
@@ -54,6 +56,47 @@ func TestListToolsForMode_AskUserQuestionPlanOnly(t *testing.T) {
 	}
 	if slices.Contains(toolNamesForMode(svc, agentdomain.AgentModeAutoAccept), "AskUserQuestion") {
 		t.Error("expected AskUserQuestion to be excluded from auto-accept mode")
+	}
+}
+
+// TestExecuteTool_ModeGuard verifies execution-time mode enforcement: plan
+// mode rejects tools outside the plan allow-set, other modes reject plan-only
+// tools, and a context without a mode fails open.
+func TestExecuteTool_ModeGuard(t *testing.T) {
+	cfg := config.DefaultConfig()
+	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	svc := NewLLMToolServiceWithRegistry(cfg, registry)
+
+	tests := []struct {
+		name    string
+		mode    agentdomain.AgentMode
+		hasMode bool
+		tool    string
+		wantErr string
+	}{
+		{"plan rejects Write", agentdomain.AgentModePlan, true, "Write", "disabled in plan mode"},
+		{"plan rejects Bash", agentdomain.AgentModePlan, true, "Bash", "disabled in plan mode"},
+		{"standard rejects RequestPlanApproval", agentdomain.AgentModeStandard, true, "RequestPlanApproval", "only available in plan mode"},
+		{"auto rejects AskUserQuestion", agentdomain.AgentModeAutoAccept, true, "AskUserQuestion", "only available in plan mode"},
+		{"no mode fails open", agentdomain.AgentModeStandard, false, "Write", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			if tt.hasMode {
+				ctx = agentdomain.WithAgentMode(ctx, tt.mode)
+			}
+			_, err := svc.ExecuteTool(ctx, sdk.ChatCompletionMessageToolCallFunction{Name: tt.tool, Arguments: "{}"})
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("ExecuteTool(%s) err = %v, want containing %q", tt.tool, err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil && strings.Contains(err.Error(), "tool not allowed") {
+				t.Fatalf("ExecuteTool(%s) without mode must not hit the mode guard, got %v", tt.tool, err)
+			}
+		})
 	}
 }
 

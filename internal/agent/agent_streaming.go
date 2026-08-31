@@ -53,11 +53,7 @@ func (a *EventDrivenAgent) startStreaming() {
 	}
 	a.service.dispatchHooks(a.agentCtx, agentdomain.HookPreStream)
 
-	mode := agentdomain.AgentModeStandard
-	if a.service.stateManager != nil {
-		mode = a.service.stateManager.GetAgentMode()
-	}
-	a.availableTools = a.service.toolService.ListToolsForMode(mode)
+	a.availableTools = a.service.advertisedTools()
 
 	client := a.service.client.
 		WithOptions(&sdk.CreateChatCompletionRequest{

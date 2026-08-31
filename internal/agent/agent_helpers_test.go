@@ -9,10 +9,8 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 // TestAccumulateToolCalls tests tool call accumulation
@@ -75,44 +73,10 @@ func TestClearToolCallsMap(t *testing.T) {
 // config/reminders_test.go); injection/emission lives in
 // agent_reminder_emission_test.go.
 
-// TestGetSystemPromptForMode tests system prompt selection based on mode
-func TestGetSystemPromptForMode(t *testing.T) {
-	tests := []struct {
-		name         string
-		mode         agentdomain.AgentMode
-		systemPrompt string
-		planPrompt   string
-		expected     string
-	}{
-		{"standard_mode", agentdomain.AgentModeStandard, "standard prompt", "plan prompt", "standard prompt"},
-		{"plan_mode", agentdomain.AgentModePlan, "standard prompt", "plan prompt", "plan prompt"},
-		{"auto_accept_mode", agentdomain.AgentModeAutoAccept, "standard prompt", "plan prompt", "standard prompt"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.Config{
-				Prompts: config.PromptsConfig{
-					Agent: config.PromptsAgentConfig{
-						SystemPrompt:     tt.systemPrompt,
-						SystemPromptPlan: tt.planPrompt,
-					},
-				},
-			}
-
-			fakeStateManager := statemanager.NewStateManager(false)
-			fakeStateManager.SetAgentMode(tt.mode)
-
-			agentService := &AgentServiceImpl{
-				config:       cfg,
-				stateManager: fakeStateManager,
-			}
-
-			result := agentService.getSystemPromptForMode()
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
+// Per-mode system prompt selection (getSystemPromptForMode) was removed:
+// message[0] stays byte-stable across mode switches. That contract is pinned
+// by TestAgentServiceImpl_BuildSystemPromptByteStableAcrossModeSwitch in
+// agent_test.go; the per-mode instructions ride the on_mode_change reminder.
 
 // TestCheckToolResultsStatus tests checking tool results for rejection and plan content
 func TestCheckToolResultsStatus(t *testing.T) {

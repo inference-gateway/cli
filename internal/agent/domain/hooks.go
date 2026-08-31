@@ -105,6 +105,7 @@ type ReminderQuery struct {
 	ModeChanged      bool
 	PrevMode         AgentMode
 	Mode             AgentMode
+	ModeGuidance     map[string]string
 }
 
 // HookCommand is a resolved command hook ready to run at a hook point: a named

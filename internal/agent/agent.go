@@ -513,6 +513,21 @@ type turnExec func(ctx context.Context, client sdk.Client, provider sdk.Provider
 // prep, timeout + span, client + tool construction, metrics, response assembly -
 // and delegates the model call itself to exec. Run and RunStreaming differ only
 // in exec (and whether streaming usage is requested).
+// advertisedTools returns the tool definitions to send with a request. All
+// mid-session modes advertise the same full list so a mode switch never
+// invalidates the provider's prompt cache; restrictions apply at execution
+// time. ReadOnly subagents keep their filtered list - their mode never
+// changes mid-session, so there is no cache to break.
+func (s *AgentServiceImpl) advertisedTools() []sdk.ChatCompletionTool {
+	if s.toolService == nil {
+		return nil
+	}
+	if s.stateManager != nil && s.stateManager.GetAgentMode() == agentdomain.AgentModeReadOnly {
+		return s.toolService.ListToolsForMode(agentdomain.AgentModeReadOnly)
+	}
+	return s.toolService.ListTools()
+}
+
 func (s *AgentServiceImpl) runTurn(ctx context.Context, req *agentdomain.AgentRequest, stream bool, exec turnExec) (*agentdomain.ChatSyncResponse, error) {
 	if err := s.validateRequest(req); err != nil {
 		return nil, err
@@ -552,11 +567,7 @@ func (s *AgentServiceImpl) runTurn(ctx context.Context, req *agentdomain.AgentRe
 
 	var availableTools []sdk.ChatCompletionTool
 	if s.toolService != nil {
-		mode := agentdomain.AgentModeStandard
-		if s.stateManager != nil {
-			mode = s.stateManager.GetAgentMode()
-		}
-		availableTools = s.toolService.ListToolsForMode(mode)
+		availableTools = s.advertisedTools()
 		if len(availableTools) > 0 {
 			client = client.WithTools(&availableTools)
 		}
