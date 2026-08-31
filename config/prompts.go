@@ -32,9 +32,6 @@ func mergePromptDefaults(loaded, defaults *PromptsConfig) {
 	if loaded.Agent.SystemPrompt == "" {
 		loaded.Agent.SystemPrompt = defaults.Agent.SystemPrompt
 	}
-	// agent.mode_adjustment_plan/_auto are deliberately NOT backfilled: they
-	// are optional per-mode overrides and their built-in defaults live in the
-	// mode-change reminder guidance (config/reminders.go).
 	if loaded.Agent.SystemPromptRemote == "" {
 		loaded.Agent.SystemPromptRemote = defaults.Agent.SystemPromptRemote
 	}
@@ -150,16 +147,8 @@ type PromptsAgentConfig struct {
 	SystemPromptRemote    string `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
 	SystemPromptHeartbeat string `yaml:"system_prompt_heartbeat" mapstructure:"system_prompt_heartbeat"`
 	CustomInstructions    string `yaml:"custom_instructions" mapstructure:"custom_instructions"`
-	// ModeAdjustmentPlan / ModeAdjustmentAuto carry per-mode adjustment
-	// instructions - NOT system prompts. The system prompt at message[0] stays
-	// byte-stable across mode switches (Shift+Tab) to keep the prompt/KV cache
-	// warm; these texts are injected instead as the {guidance} of the
-	// mode-change <system-reminder> user message when the agent switches into
-	// plan / auto-accept mode. They have no in-code default: the built-ins
-	// live in the mode-change-reminder guidance map in reminders.go, so an
-	// empty value here means "use the reminders defaults".
-	ModeAdjustmentPlan string `yaml:"mode_adjustment_plan,omitempty" mapstructure:"mode_adjustment_plan"`
-	ModeAdjustmentAuto string `yaml:"mode_adjustment_auto,omitempty" mapstructure:"mode_adjustment_auto"`
+	ModeAdjustmentPlan    string `yaml:"mode_adjustment_plan,omitempty" mapstructure:"mode_adjustment_plan"`
+	ModeAdjustmentAuto    string `yaml:"mode_adjustment_auto,omitempty" mapstructure:"mode_adjustment_auto"`
 }
 
 type PromptsGitConfig struct {
@@ -249,9 +238,6 @@ func DefaultPromptsConfig() *PromptsConfig { //nolint:funlen
 	return &PromptsConfig{
 		Agent: PromptsAgentConfig{
 			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion. For GitHub operations (issues, pull requests, releases, the API), use the gh CLI via the Bash tool - there is no built-in GitHub tool. When the user types "#N" in chat (e.g. "#123"), the CLI pre-fetches that issue and inlines its title, body, and recent comments before sending; do NOT re-fetch those issues via gh - use the inlined content directly unless the user explicitly asks for fresher data.`,
-			// Per-mode adjustment instructions (plan / auto-accept) have their
-			// built-in texts in the mode-change-reminder guidance map
-			// (config/reminders.go); leave these empty unless overriding.
 			SystemPromptRemote: `Remote-control assistant. You are responding through a messaging channel (e.g. Telegram).
 
 STYLE:

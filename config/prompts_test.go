@@ -52,10 +52,10 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 	}
 }
 
-// The plan Markdown template no longer ships as a system prompt (issue
-// #1134): the built-in plan guidance lives in the mode-change reminder
-// (reminders.go) and is asserted in reminders_mode_change_test.go. The tool
-// description contract stays here.
+// The plan Markdown template no longer ships as a system prompt: the built-in
+// plan guidance lives in the mode-change reminder (reminders.go) and is
+// asserted in reminders_mode_change_test.go. The tool description contract
+// stays here.
 func TestDefaultPromptsConfig_RequestPlanApprovalDescription(t *testing.T) {
 	cfg := config.DefaultPromptsConfig()
 
@@ -69,10 +69,9 @@ func TestDefaultPromptsConfig_RequestPlanApprovalDescription(t *testing.T) {
 }
 
 // custom_instructions and the per-mode adjustment overrides are intentionally
-// empty - they're user-supplied opt-ins. The mode adjustments' built-in texts
-// live in the mode-change reminder guidance (reminders.go) since issue #1134.
-// This guards them in the opposite direction so a future "fill in a default"
-// change is intentional.
+// empty - they're user-supplied opt-ins whose built-in texts live in the
+// mode-change reminder guidance (reminders.go). This guards them in the
+// opposite direction so a future "fill in a default" change is intentional.
 func TestDefaultPromptsConfig_OptionalPromptsBlank(t *testing.T) {
 	cfg := config.DefaultPromptsConfig()
 

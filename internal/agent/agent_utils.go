@@ -142,11 +142,9 @@ func (s *AgentServiceImpl) clearToolCallsMap() {
 
 // BuildSystemPrompt assembles the static system prompt sent as message[0]
 // (base prompt + custom instructions + AGENTS.md + plugins + static context).
-// It is deliberately byte-identical across turns - and across agent-mode
-// switches (Shift+Tab) - within a session so local LLM servers get KV-cache
-// prefix hits. Volatile context (git, tree, memory, active skill, date, the
-// live mode's tool roster and bash allow-list) rides in volatileTailMessage
-// instead; per-mode behaviour is carried by the mode-change system reminder.
+// It is deliberately byte-identical across turns and agent-mode switches so
+// LLM servers get KV-cache prefix hits; volatile context rides in
+// volatileTailMessage and per-mode behaviour in the mode-change reminder.
 // Returns "" when no base prompt is configured.
 func (s *AgentServiceImpl) BuildSystemPrompt() string {
 	baseSystemPrompt := s.config.Prompts.Agent.SystemPrompt
@@ -213,14 +211,10 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 // volatileTailMessage builds the per-request <system-reminder> user message
 // carrying the volatile context (git, tree, active skill, memory, current
 // date, live-mode tool roster and bash allow-list), appended to the outbound
-// payload only — never persisted — so the system prompt at message[0] stays
-// byte-stable for KV-cache prefix reuse.
-// Called once per outbound request; messages is the conversation being sent
-// (turn ≈ len/2, driving the turn-window caches of the expensive sections);
-// ok=false means append nothing. Callers gate the append on
-// conversationAwaitsToolResults at payload-finalization time
-// (outboundConversation for streaming, Run for sync), after conversation
-// repair — not here, where the input may still carry orphaned tool_calls.
+// payload only — never persisted — so message[0] stays byte-stable for
+// KV-cache prefix reuse. Called once per outbound request; ok=false means
+// append nothing. Callers gate the append on conversationAwaitsToolResults at
+// payload-finalization time, after conversation repair.
 func (s *AgentServiceImpl) volatileTailMessage(messages []sdk.Message, isChat bool) (sdk.Message, bool) {
 	if s.config.Prompts.Agent.SystemPrompt == "" {
 		return sdk.Message{}, false
@@ -345,13 +339,11 @@ func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
 }
 
 // buildBashAllowInfo lists the bash commands auto-approved in the active agent
-// mode so the model knows its sandbox up front. It reads the live mode (the
-// same one the approval check uses) and is delivered via the volatile tail, so
-// toggling auto/plan in chat updates it on the next turn WITHOUT rewriting the
-// byte-stable system prompt. Empty when the Bash tool is disabled or filtered
-// out of the current mode (e.g. plan mode). An unrestricted mode
-// (allow-list ".*") is described in prose rather than dumping a meaningless
-// pattern.
+// mode so the model knows its sandbox up front. It reads the live mode and is
+// delivered via the volatile tail, so toggling auto/plan updates it on the
+// next turn without rewriting the byte-stable system prompt. Empty when the
+// Bash tool is disabled or filtered out of the current mode; an unrestricted
+// mode (".*") is described in prose.
 func (s *AgentServiceImpl) buildBashAllowInfo() string {
 	if !s.config.Tools.Bash.Enabled || s.toolService == nil {
 		return ""

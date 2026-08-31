@@ -696,10 +696,10 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 
 - `INFER_AGENT_MODEL`: Default model for agent operations (e.g., `deepseek/deepseek-v4-pro`)
 - `INFER_PROMPTS_AGENT_SYSTEM_PROMPT`: Custom system prompt for agent
+- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT`: Custom system prompt for heartbeat
+- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE`: Custom system prompt for remote agent
 - `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN`: Custom plan-mode adjustment instructions (delivered by the mode-change reminder, not the system prompt)
 - `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO`: Custom auto-accept adjustment instructions (delivered by the mode-change reminder, not the system prompt)
-- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE`: Custom system prompt for remote agent
-- `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT`: Custom system prompt for heartbeat
 - `INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS`: Custom instructions for agent
 
 > **Migration note (v0.105.0+):** The old `INFER_AGENT_SYSTEM_PROMPT` and

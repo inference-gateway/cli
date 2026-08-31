@@ -157,9 +157,9 @@ func TestModeChangeTrigger_Validate(t *testing.T) {
 	assert.NoError(t, DefaultRemindersConfig().Validate())
 }
 
-// Since issue #1134 the plan-mode Markdown template is carried by the
-// mode-change reminder guidance (not a per-mode system prompt). This is the
-// contract with docs/plan-mode.md, moved from prompts_test.go.
+// The plan-mode Markdown template is carried by the mode-change reminder
+// guidance (not a per-mode system prompt). This is the contract with
+// docs/plan-mode.md, moved from prompts_test.go.
 func TestModeChangeTrigger_PlanGuidanceKeepsPlanFormat(t *testing.T) {
 	plan := defaultModeChangeGuidance["plan"]
 	require.NotEmpty(t, plan)
@@ -178,13 +178,10 @@ func TestModeChangeTrigger_PlanGuidanceKeepsPlanFormat(t *testing.T) {
 		assert.Contains(t, plan, section, "plan guidance missing section heading %q", section)
 	}
 
-	// Workflow: clarify first, then RequestPlanApproval; plus the tool-set
-	// delta consistent with llm_tool_service.ListToolsForMode plan-mode output.
 	for _, want := range []string{"RequestPlanApproval", "AskUserQuestion", "Read", "Grep", "Tree", "TodoWrite", "title"} {
 		assert.Contains(t, plan, want)
 	}
 
-	// The auto-accept guidance must keep carrying the destructive-action policy.
 	for _, want := range []string{"DESTRUCTIVE-ACTION POLICY", "rm -rf"} {
 		assert.Contains(t, defaultModeChangeGuidance["auto"], want)
 	}

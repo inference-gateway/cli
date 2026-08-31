@@ -73,12 +73,10 @@ func TestClearToolCallsMap(t *testing.T) {
 // config/reminders_test.go); injection/emission lives in
 // agent_reminder_emission_test.go.
 
-// Per-mode system prompt selection (getSystemPromptForMode) was removed for
-// issue #1134: message[0] stays byte-stable across mode switches.
-// That contract is pinned by
-// TestAgentServiceImpl_BuildSystemPromptByteStableAcrossModeSwitch in
-// agent_test.go; the per-mode instructions ride the on_mode_change reminder
-// (agent_mode_change_reminder_test.go, config/reminders_mode_change_test.go).
+// Per-mode system prompt selection (getSystemPromptForMode) was removed:
+// message[0] stays byte-stable across mode switches. That contract is pinned
+// by TestAgentServiceImpl_BuildSystemPromptByteStableAcrossModeSwitch in
+// agent_test.go; the per-mode instructions ride the on_mode_change reminder.
 
 // TestCheckToolResultsStatus tests checking tool results for rejection and plan content
 func TestCheckToolResultsStatus(t *testing.T) {

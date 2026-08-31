@@ -1168,12 +1168,10 @@ func TestSessionCancel_OnlyClosesOnce(t *testing.T) {
 }
 
 // TestAgentServiceImpl_BuildSystemPromptByteStableAcrossModeSwitch pins the
-// KV-cache contract from issue #1134: message[0] must be byte-identical no
-// matter which agent mode is live mid-session - even when per-mode adjustment
-// instructions are configured. (The removed getSystemPromptForMode used to
-// swap message[0] on Shift+Tab, invalidating the prompt cache.) Mode-specific
-// instructions ride the on_mode_change system reminder instead - see
-// agent_mode_change_reminder_test.go.
+// KV-cache contract: message[0] must be byte-identical no matter which agent
+// mode is live mid-session, even when per-mode adjustment instructions are
+// configured. Mode-specific instructions ride the on_mode_change system
+// reminder instead - see agent_mode_change_reminder_test.go.
 func TestAgentServiceImpl_BuildSystemPromptByteStableAcrossModeSwitch(t *testing.T) {
 	cfg := &config.Config{
 		Prompts: config.PromptsConfig{

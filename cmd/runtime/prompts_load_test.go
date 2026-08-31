@@ -21,7 +21,7 @@ func TestLoadConfigFromViper_PromptsDefaultsWhenFileAbsent(t *testing.T) {
 
 	defaults := config.DefaultPromptsConfig()
 	require.Equal(t, defaults.Agent.SystemPrompt, cfg.Prompts.Agent.SystemPrompt)
-	require.Empty(t, cfg.Prompts.Agent.ModeAdjustmentPlan, "mode adjustments ship empty; built-ins live in the mode-change reminder guidance (issue #1134)")
+	require.Empty(t, cfg.Prompts.Agent.ModeAdjustmentPlan, "mode adjustments ship empty; built-ins live in the mode-change reminder guidance")
 	require.Equal(t, defaults.Agent.SystemPromptRemote, cfg.Prompts.Agent.SystemPromptRemote)
 	require.Equal(t, defaults.Agent.SystemPromptHeartbeat, cfg.Prompts.Agent.SystemPromptHeartbeat)
 	require.NotEmpty(t, cfg.Prompts.Agent.SystemPromptHeartbeat, "heartbeat prompt must have a non-empty default")
@@ -52,7 +52,7 @@ func TestLoadConfigFromViper_PromptsPartialFileFallsBackForUnsetFields(t *testin
 
 	defaults := config.DefaultPromptsConfig()
 	require.Equal(t, "USER OVERRIDE: only this is set", cfg.Prompts.Agent.SystemPrompt)
-	require.Empty(t, cfg.Prompts.Agent.ModeAdjustmentPlan, "mode adjustments must NOT be backfilled - built-ins live in the reminder guidance (issue #1134)")
+	require.Empty(t, cfg.Prompts.Agent.ModeAdjustmentPlan, "mode adjustments must NOT be backfilled - built-ins live in the reminder guidance")
 	require.Equal(t, defaults.Agent.SystemPromptHeartbeat, cfg.Prompts.Agent.SystemPromptHeartbeat, "unset heartbeat prompt should fall back to default")
 	require.Equal(t, defaults.Git.CommitMessage.SystemPrompt, cfg.Prompts.Git.CommitMessage.SystemPrompt, "unset git prompt should fall back to default")
 	require.Equal(t, defaults.Init.Prompt, cfg.Prompts.Init.Prompt, "unset init prompt should fall back to default")
