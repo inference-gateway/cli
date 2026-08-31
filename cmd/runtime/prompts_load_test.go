@@ -117,28 +117,16 @@ func TestLoadConfigFromViper_ToolDescriptionsDefaultWhenFileAbsent(t *testing.T)
 	require.Equal(t, defaults.Tools.GetLatestFrame.Description, cfg.Prompts.Tools.GetLatestFrame.Description)
 }
 
-// The deprecated pre-#1134 env aliases still load into the mode-adjustment
-// slots so existing deployments keeping the old names keep working.
-func TestLoadConfigFromViper_PromptsModeAdjustmentLegacyEnvAliases(t *testing.T) {
+// The renamed env vars bind to the mode-adjustment slots so per-mode
+// instructions can be injected at deploy time without editing prompts.yaml.
+func TestLoadConfigFromViper_PromptsModeAdjustmentEnvOverride(t *testing.T) {
 	withHermeticEnv(t)
 
-	t.Setenv("INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN", "legacy plan alias")
-	t.Setenv("INFER_PROMPTS_AGENT_SYSTEM_PROMPT_AUTO", "legacy auto alias")
+	t.Setenv("INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN", "plan from env")
+	t.Setenv("INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO", "auto from env")
 	initConfig()
 	cfg := Cfg
 
-	require.Equal(t, "legacy plan alias", cfg.Prompts.Agent.ModeAdjustmentPlan, "deprecated env alias must still load")
-	require.Equal(t, "legacy auto alias", cfg.Prompts.Agent.ModeAdjustmentAuto, "deprecated env alias must still load")
-}
-
-// When both the deprecated alias and the renamed env var are set, the renamed
-// INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_* var wins.
-func TestLoadConfigFromViper_PromptsModeAdjustmentRenamedEnvWins(t *testing.T) {
-	withHermeticEnv(t)
-
-	t.Setenv("INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN", "legacy plan alias")
-	t.Setenv("INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN", "renamed plan")
-	initConfig()
-
-	require.Equal(t, "renamed plan", Cfg.Prompts.Agent.ModeAdjustmentPlan, "renamed env must win over the deprecated alias")
+	require.Equal(t, "plan from env", cfg.Prompts.Agent.ModeAdjustmentPlan)
+	require.Equal(t, "auto from env", cfg.Prompts.Agent.ModeAdjustmentAuto)
 }

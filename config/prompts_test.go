@@ -99,7 +99,7 @@ func checkPromptsValidYAML(t *testing.T, cfg *config.PromptsConfig) {
 		t.Errorf("Expected custom system_prompt, got %q", cfg.Agent.SystemPrompt)
 	}
 	if cfg.Agent.ModeAdjustmentPlan != "custom plan prompt" {
-		t.Errorf("Expected deprecated system_prompt_plan key to decode into mode_adjustment_plan, got %q", cfg.Agent.ModeAdjustmentPlan)
+		t.Errorf("Expected custom mode_adjustment_plan key to decode into ModeAdjustmentPlan, got %q", cfg.Agent.ModeAdjustmentPlan)
 	}
 	if cfg.Git.CommitMessage.SystemPrompt != "custom commit prompt" {
 		t.Errorf("Expected custom commit prompt, got %q", cfg.Git.CommitMessage.SystemPrompt)
@@ -133,7 +133,7 @@ func TestLoadPrompts(t *testing.T) {
 			yaml: `---
 agent:
   system_prompt: custom agent prompt
-  system_prompt_plan: custom plan prompt
+  mode_adjustment_plan: custom plan prompt
 git:
   commit_message:
     system_prompt: custom commit prompt
@@ -141,24 +141,6 @@ init:
   prompt: custom init prompt
 `,
 			check: checkPromptsValidYAML,
-		},
-		{
-			name: "legacy and new agent mode-adjustment keys",
-			yaml: `---
-agent:
-  system_prompt: custom agent prompt
-  system_prompt_plan: legacy plan key
-  mode_adjustment_plan: new plan key
-  system_prompt_auto: legacy auto key
-`,
-			check: func(t *testing.T, cfg *config.PromptsConfig) {
-				if cfg.Agent.ModeAdjustmentPlan != "new plan key" {
-					t.Errorf("Expected mode_adjustment_plan to win over the deprecated system_prompt_plan, got %q", cfg.Agent.ModeAdjustmentPlan)
-				}
-				if cfg.Agent.ModeAdjustmentAuto != "legacy auto key" {
-					t.Errorf("Expected deprecated system_prompt_auto to decode into mode_adjustment_auto, got %q", cfg.Agent.ModeAdjustmentAuto)
-				}
-			},
 		},
 		{
 			name: "partial yaml backfills unset prompts",

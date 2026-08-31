@@ -198,10 +198,9 @@ tools:
 
 Empty fields fall back to the built-in reminder guidance (see
 `config/reminders.go::defaultModeChangeGuidance`; it is user-overridable via
-the `guidance.plan` key of the mode-change reminder in reminders.yaml). The
-deprecated `system_prompt_plan` key and its env var still load. Because these
-instructions ride the mode-change reminder, they are not delivered when
-`reminders.enabled: false`. Environment-variable overrides:
+the `guidance.plan` key of the mode-change reminder in reminders.yaml).
+Because these instructions ride the mode-change reminder, they are not
+delivered when `reminders.enabled: false`. Environment-variable overrides:
 
 - `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN`
 - `INFER_PROMPTS_TOOLS_REQUEST_PLAN_APPROVAL_DESCRIPTION`

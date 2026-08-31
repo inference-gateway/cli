@@ -1,8 +1,6 @@
 package config
 
 import (
-	yaml "gopkg.in/yaml.v3"
-
 	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
@@ -159,42 +157,9 @@ type PromptsAgentConfig struct {
 	// mode-change <system-reminder> user message when the agent switches into
 	// plan / auto-accept mode. They have no in-code default: the built-ins
 	// live in the mode-change-reminder guidance map in reminders.go, so an
-	// empty value here means "use the reminders defaults". The deprecated
-	// system_prompt_plan / system_prompt_auto keys (and
-	// INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN / _AUTO) still load into these
-	// fields - see UnmarshalYAML and the INFER_PROMPTS_* bindings in
-	// cmd/runtime/config.go.
+	// empty value here means "use the reminders defaults".
 	ModeAdjustmentPlan string `yaml:"mode_adjustment_plan,omitempty" mapstructure:"mode_adjustment_plan"`
 	ModeAdjustmentAuto string `yaml:"mode_adjustment_auto,omitempty" mapstructure:"mode_adjustment_auto"`
-}
-
-// UnmarshalYAML keeps the deprecated `agent.system_prompt_plan` /
-// `agent.system_prompt_auto` keys loading after the mode-adjustment rename
-// (issue #1134): they decode into ModeAdjustmentPlan/ModeAdjustmentAuto
-// unless the new keys are set. A deprecation/migration note lives in
-// docs/configuration-reference.md.
-func (c *PromptsAgentConfig) UnmarshalYAML(value *yaml.Node) error {
-	type promptsAgentPlain PromptsAgentConfig
-	plain := promptsAgentPlain{}
-	if err := value.Decode(&plain); err != nil {
-		return err
-	}
-	*c = PromptsAgentConfig(plain)
-
-	legacy := struct {
-		SystemPromptPlan string `yaml:"system_prompt_plan"`
-		SystemPromptAuto string `yaml:"system_prompt_auto"`
-	}{}
-	if err := value.Decode(&legacy); err != nil {
-		return err
-	}
-	if c.ModeAdjustmentPlan == "" {
-		c.ModeAdjustmentPlan = legacy.SystemPromptPlan
-	}
-	if c.ModeAdjustmentAuto == "" {
-		c.ModeAdjustmentAuto = legacy.SystemPromptAuto
-	}
-	return nil
 }
 
 type PromptsGitConfig struct {

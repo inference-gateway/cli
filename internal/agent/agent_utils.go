@@ -1340,10 +1340,9 @@ func (s *AgentServiceImpl) modeChangeSinceLastStream() (changed bool, prev, cur 
 
 // modeGuidanceOverrides maps mode allowedlist keys ("plan"/"auto") to the
 // per-mode adjustment instructions from prompts.yaml
-// (agent.mode_adjustment_plan/_auto, or the deprecated system_prompt_plan/
-// system_prompt_auto keys), so a customized mode prompt overrides the built-in
-// mode-change guidance for its mode (unless the user edited the guidance key
-// in reminders.yaml). Nil when nothing is set.
+// (agent.mode_adjustment_plan/_auto), so a customized mode prompt overrides
+// the built-in mode-change guidance for its mode (unless the user edited the
+// guidance key in reminders.yaml). Nil when nothing is set.
 func (s *AgentServiceImpl) modeGuidanceOverrides() map[string]string {
 	if s.config == nil {
 		return nil

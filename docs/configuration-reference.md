@@ -377,9 +377,7 @@ vision:
   across agent-mode switches (Shift+Tab) - so local LLM servers keep KV-cache prefix hits
 - **agent.mode_adjustment_plan**: Optional per-mode instructions (NOT a system prompt) delivered as the `{guidance}` of the mode-change
   reminder when the agent enters Plan Mode. Ships empty; the built-ins live in the mode-change-reminder guidance in reminders.yaml.
-  Replaces the deprecated `agent.system_prompt_plan` key, which still loads
-- **agent.mode_adjustment_auto**: Same for auto-accept mode, carrying the destructive-action policy. Replaces the deprecated
-  `agent.system_prompt_auto` key, which still loads
+- **agent.mode_adjustment_auto**: Same for auto-accept mode, carrying the destructive-action policy.
 - System reminders are configured in their own `reminders.yaml`, not under `agent:` - see [System Reminders](#system-reminders-remindersyaml) below.
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
@@ -706,19 +704,10 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 
 > **Migration note (v0.105.0+):** The old `INFER_AGENT_SYSTEM_PROMPT` and
 > `INFER_AGENT_SYSTEM_PROMPT_PLAN` env vars were renamed to
-> `INFER_PROMPTS_AGENT_SYSTEM_PROMPT` and `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN`
+> `INFER_PROMPTS_AGENT_SYSTEM_PROMPT` and `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN`
 > respectively when agent prompts moved under the `prompts.agent.*` config tree.
-> The old names are silently ignored — if you are migrating an existing
+> Set `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO` for the auto-accept counterpart - if you are migrating an existing
 > configuration, update your env vars to the new names above.
->
-> **Migration note (mode adjustments, issue #1134):** `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN`
-> and `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_AUTO` were superseded by
-> `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN` and `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO`
-> (`agent.system_prompt_plan` / `agent.system_prompt_auto` in prompts.yaml were renamed to
-> `agent.mode_adjustment_plan` / `agent.mode_adjustment_auto`). The deprecated names still load
-> with a warning and lose when both are set. Because mode-specific instructions now ride the
-> mode-change reminder (the system prompt stays byte-stable across mode switches), setting
-> `reminders.enabled: false` disables mode-specific instructions entirely.
 
 - `INFER_AGENT_MAX_TURNS`: Maximum agent turns (default: `100`)
 - `INFER_AGENT_MAX_TOKENS`: Maximum tokens per response (default: `8192`)

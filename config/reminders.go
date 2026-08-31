@@ -146,9 +146,9 @@ The agent mode has changed mid-session from {prev_mode} to {new_mode}. {guidance
 // key. Mode adjustments - the old per-mode system prompts (restrictions,
 // workflow, tool set, plan format, destructive-action policy) - live here so
 // users override them in one place: the reminder's guidance map in
-// reminders.yaml. prompts.yaml's agent.mode_adjustment_plan/_auto (and the
-// deprecated system_prompt_plan/_auto keys) act as per-mode overrides layered
-// through ReminderQuery.ModeGuidance when set (see resolveModeChangeText).
+// reminders.yaml. prompts.yaml's agent.mode_adjustment_plan/_auto act as
+// per-mode overrides layered through ReminderQuery.ModeGuidance when set
+// (see resolveModeChangeText).
 var defaultModeChangeGuidance = map[string]string{
 	"plan": "You are now in Plan Mode: a read-only mode. Analyze the user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them. " +
 		"TOOL SET: only Read, Grep, Tree, TodoWrite, AskUserQuestion, RequestPlanApproval, A2A_QueryAgent, and Wait remain available - " +
@@ -386,8 +386,7 @@ func (r RemindersConfig) RemindersDue(q agentdomain.ReminderQuery) []agentdomain
 // placeholders of an on_mode_change reminder from the query's mode transition.
 // Guidance precedence: a user-edited guidance key on the reminder wins, then
 // the per-mode adjustment instructions carried on the query (prompts.yaml
-// agent.mode_adjustment_plan/_auto, or their deprecated system_prompt_plan/
-// system_prompt_auto aliases), then the built-in default for the mode.
+// agent.mode_adjustment_plan/_auto), then the built-in default for the mode.
 func resolveModeChangeText(rc ReminderConfig, q agentdomain.ReminderQuery) string {
 	key := q.Mode.AllowedlistKey()
 	guidance := rc.Guidance[key]

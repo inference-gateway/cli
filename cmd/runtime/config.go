@@ -546,18 +546,6 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 // environment. Run AFTER cfg.Prompts has been populated from
 // prompts.yaml so envs win over the file.
 func applyPromptsEnvOverrides(cfg *config.Config) {
-	// Deprecated pre-rename env aliases (issue #1134) still load into the
-	// mode-adjustment slots; they go first so the renamed
-	// INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_* vars below win when both are set
-	// (and both beat prompts.yaml - env > file).
-	if val, ok := os.LookupEnv("INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN"); ok {
-		logger.Warn("environment variable is deprecated; use INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN", "var", "INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN")
-		cfg.Prompts.Agent.ModeAdjustmentPlan = val
-	}
-	if val, ok := os.LookupEnv("INFER_PROMPTS_AGENT_SYSTEM_PROMPT_AUTO"); ok {
-		logger.Warn("environment variable is deprecated; use INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO", "var", "INFER_PROMPTS_AGENT_SYSTEM_PROMPT_AUTO")
-		cfg.Prompts.Agent.ModeAdjustmentAuto = val
-	}
 	envOverrides := map[string]*string{
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT":                         &cfg.Prompts.Agent.SystemPrompt,
 		"INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN":                  &cfg.Prompts.Agent.ModeAdjustmentPlan,
@@ -616,7 +604,7 @@ func warnDeadPromptEnvVars() {
 	}
 	for _, name := range deadVars {
 		if _, ok := os.LookupEnv(name); ok {
-			logger.Warn("environment variable is no longer supported (renamed in v0.105.0); see INFER_PROMPTS_AGENT_SYSTEM_PROMPT / INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN in docs/configuration-reference.md", "var", name)
+			logger.Warn("environment variable is no longer supported (renamed in v0.105.0); see INFER_PROMPTS_AGENT_SYSTEM_PROMPT / INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN in docs/configuration-reference.md", "var", name)
 		}
 	}
 }
