@@ -460,7 +460,6 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 	}
 	cfg.Prompts = *prompts
 	applyPromptsEnvOverrides(cfg)
-	warnDeadPromptEnvVars()
 
 	remindersCfg, err := resolveRemindersConfig(root)
 	if err != nil {
@@ -548,10 +547,10 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 func applyPromptsEnvOverrides(cfg *config.Config) {
 	envOverrides := map[string]*string{
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT":                         &cfg.Prompts.Agent.SystemPrompt,
-		"INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN":                  &cfg.Prompts.Agent.ModeAdjustmentPlan,
-		"INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO":                  &cfg.Prompts.Agent.ModeAdjustmentAuto,
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE":                  &cfg.Prompts.Agent.SystemPromptRemote,
 		"INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT":               &cfg.Prompts.Agent.SystemPromptHeartbeat,
+		"INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN":                  &cfg.Prompts.Agent.ModeAdjustmentPlan,
+		"INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO":                  &cfg.Prompts.Agent.ModeAdjustmentAuto,
 		"INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS":                   &cfg.Prompts.Agent.CustomInstructions,
 		"INFER_PROMPTS_GIT_COMMIT_MESSAGE_SYSTEM_PROMPT":            &cfg.Prompts.Git.CommitMessage.SystemPrompt,
 		"INFER_PROMPTS_CONVERSATION_TITLE_GENERATION_SYSTEM_PROMPT": &cfg.Prompts.Conversation.TitleGeneration.SystemPrompt,
@@ -590,21 +589,6 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 	for envKey, target := range envOverrides {
 		if val, ok := os.LookupEnv(envKey); ok {
 			*target = val
-		}
-	}
-}
-
-// warnDeadPromptEnvVars logs a warning when a known-dead env var (renamed
-// in v0.105.0) is set, so consumers following stale docs get a visible
-// signal instead of silent ignore.
-func warnDeadPromptEnvVars() {
-	deadVars := []string{
-		"INFER_AGENT_SYSTEM_PROMPT",
-		"INFER_AGENT_SYSTEM_PROMPT_PLAN",
-	}
-	for _, name := range deadVars {
-		if _, ok := os.LookupEnv(name); ok {
-			logger.Warn("environment variable is no longer supported (renamed in v0.105.0); see INFER_PROMPTS_AGENT_SYSTEM_PROMPT / INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN in docs/configuration-reference.md", "var", name)
 		}
 	}
 }
