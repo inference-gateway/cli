@@ -142,12 +142,14 @@ func (s *AgentServiceImpl) clearToolCallsMap() {
 
 // BuildSystemPrompt assembles the static system prompt sent as message[0]
 // (base prompt + custom instructions + AGENTS.md + plugins + static context).
-// It is deliberately byte-identical across turns within a session so local LLM
-// servers get KV-cache prefix hits; volatile context (git, tree, memory,
-// active skill, date) rides in volatileTailMessage instead. Returns "" when no
-// base prompt is configured for the current mode.
+// It is deliberately byte-identical across turns - and across agent-mode
+// switches (Shift+Tab) - within a session so local LLM servers get KV-cache
+// prefix hits. Volatile context (git, tree, memory, active skill, date, the
+// live mode's tool roster and bash allow-list) rides in volatileTailMessage
+// instead; per-mode behaviour is carried by the mode-change system reminder.
+// Returns "" when no base prompt is configured.
 func (s *AgentServiceImpl) BuildSystemPrompt() string {
-	baseSystemPrompt := s.getSystemPromptForMode()
+	baseSystemPrompt := s.config.Prompts.Agent.SystemPrompt
 	if baseSystemPrompt == "" {
 		return ""
 	}
@@ -210,8 +212,9 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 
 // volatileTailMessage builds the per-request <system-reminder> user message
 // carrying the volatile context (git, tree, active skill, memory, current
-// date), appended to the outbound payload only — never persisted — so the
-// system prompt at message[0] stays byte-stable for KV-cache prefix reuse.
+// date, live-mode tool roster and bash allow-list), appended to the outbound
+// payload only — never persisted — so the system prompt at message[0] stays
+// byte-stable for KV-cache prefix reuse.
 // Called once per outbound request; messages is the conversation being sent
 // (turn ≈ len/2, driving the turn-window caches of the expensive sections);
 // ok=false means append nothing. Callers gate the append on
@@ -219,7 +222,7 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 // (outboundConversation for streaming, Run for sync), after conversation
 // repair — not here, where the input may still carry orphaned tool_calls.
 func (s *AgentServiceImpl) volatileTailMessage(messages []sdk.Message, isChat bool) (sdk.Message, bool) {
-	if s.getSystemPromptForMode() == "" {
+	if s.config.Prompts.Agent.SystemPrompt == "" {
 		return sdk.Message{}, false
 	}
 
@@ -250,8 +253,10 @@ type PromptSection struct {
 
 // contextSections lists the static context builders in prompt order; it is
 // the single source for both prompt assembly and diagnostics. Only sections
-// that are stable across turns belong here — anything that changes as the
-// agent works goes in volatileContextSections so message[0] stays byte-stable.
+// that are stable for the WHOLE chat session belong here - anything that
+// changes as the agent works (git, tree, skill, memory) or with the live
+// agent mode (tool roster, bash allow-list) goes in volatileContextSections
+// so message[0] stays byte-stable across mode switches.
 func (s *AgentServiceImpl) contextSections() []PromptSection {
 	return []PromptSection{
 		{Name: "sandbox", Text: s.buildSandboxInfo()},
@@ -259,21 +264,22 @@ func (s *AgentServiceImpl) contextSections() []PromptSection {
 		{Name: "os", Text: s.buildOSInfo()},
 		{Name: "working_directory", Text: s.buildWorkingDirectoryInfo()},
 		{Name: "github_guidance", Text: s.buildGitHubGuidanceInfo()},
-		{Name: "bash_allow_list", Text: s.buildBashAllowInfo()},
-		{Name: "tools", Text: s.buildToolsInfo()},
 		{Name: "skills", Text: s.buildSkillsInfo()},
 	}
 }
 
 // volatileContextSections lists the context builders whose output changes as
-// the session progresses; they are delivered per request via
-// volatileTailMessage rather than in the system prompt.
+// the session progresses (or with an agent-mode switch, since the tool roster
+// and bash allow-list advertise the live mode); they are delivered per request
+// via volatileTailMessage rather than in the system prompt.
 func (s *AgentServiceImpl) volatileContextSections(currentTurn int, messages []sdk.Message, isChat bool) []PromptSection {
 	return []PromptSection{
 		{Name: "git_context", Text: s.buildGitContextInfo(currentTurn), Volatile: true},
 		{Name: "project_structure", Text: s.buildProjectTreeInfo(currentTurn), Volatile: true},
 		{Name: "active_skill", Text: s.buildActiveSkillInfo(messages, isChat), Volatile: true},
 		{Name: "memory", Text: s.buildMemoryInfo(currentTurn), Volatile: true},
+		{Name: "bash_allow_list", Text: s.buildBashAllowInfo(), Volatile: true},
+		{Name: "tools", Text: s.buildToolsInfo(), Volatile: true},
 	}
 }
 
@@ -291,14 +297,13 @@ func (s *AgentServiceImpl) buildContextInfo() string {
 // the Volatile-marked tail sections — with empty parts omitted. Exposed for
 // the `infer debug agent system_prompt --tokens` breakdown.
 func (s *AgentServiceImpl) SystemPromptSections() []PromptSection {
-	agentConfig := s.config.GetAgentConfig()
 	sections := []PromptSection{
-		{Name: "base_prompt", Text: s.getSystemPromptForMode()},
+		{Name: "base_prompt", Text: s.config.Prompts.Agent.SystemPrompt},
 		{Name: "custom_instructions", Text: s.config.Prompts.Agent.CustomInstructions},
 		{Name: "agents_md", Text: s.buildAgentsMDInfo()},
 		{Name: "plugins", Text: plugins.InstructionsBlock(s.config)},
 	}
-	if agentConfig.SystemPromptWithDefaults {
+	if s.config.GetAgentConfig().SystemPromptWithDefaults {
 		sections = append(sections, s.contextSections()...)
 		sections = append(sections, s.volatileContextSections(0, nil, true)...)
 	}
@@ -340,12 +345,13 @@ func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
 }
 
 // buildBashAllowInfo lists the bash commands auto-approved in the active agent
-// mode so the model knows its sandbox up front. It reads the live mode (the same
-// one the approval check uses), so toggling auto/plan in chat updates it on the
-// next turn; in agent mode it is simply present from the start. Empty when the
-// Bash tool is disabled or filtered out of the current mode (e.g. plan mode). An
-// unrestricted mode (allow-list ".*") is described in prose rather than dumping a
-// meaningless pattern.
+// mode so the model knows its sandbox up front. It reads the live mode (the
+// same one the approval check uses) and is delivered via the volatile tail, so
+// toggling auto/plan in chat updates it on the next turn WITHOUT rewriting the
+// byte-stable system prompt. Empty when the Bash tool is disabled or filtered
+// out of the current mode (e.g. plan mode). An unrestricted mode
+// (allow-list ".*") is described in prose rather than dumping a meaningless
+// pattern.
 func (s *AgentServiceImpl) buildBashAllowInfo() string {
 	if !s.config.Tools.Bash.Enabled || s.toolService == nil {
 		return ""
@@ -407,8 +413,10 @@ func (s *AgentServiceImpl) buildBashAllowInfo() string {
 // mode as a lightweight name + one-line-description roster. The list is derived
 // from the same toolService.ListToolsForMode(mode) call that populates the
 // request's native tool definitions, so the prose can never drift from what the
-// model can actually call. Empty when tools are disabled or none are registered
-// (e.g. NoOpToolService, or before MCP tools finish async registration).
+// model can actually call. It rides in the volatile tail (not the static
+// system prompt) so a mode switch never rewrites message[0]. Empty when tools
+// are disabled or none are registered (e.g. NoOpToolService, or before MCP
+// tools finish async registration).
 func (s *AgentServiceImpl) buildToolsInfo() string {
 	if s.toolService == nil {
 		return ""
@@ -440,39 +448,6 @@ func (s *AgentServiceImpl) buildToolsInfo() string {
 		}
 	}
 	return b.String()
-}
-
-// getSystemPromptForMode returns the appropriate system prompt based on current agent mode
-func (s *AgentServiceImpl) getSystemPromptForMode() string {
-	prompts := s.config.Prompts.Agent
-
-	if s.stateManager == nil {
-		return prompts.SystemPrompt
-	}
-
-	mode := s.stateManager.GetAgentMode()
-	switch mode {
-	case agentdomain.AgentModePlan:
-		if prompts.SystemPromptPlan != "" {
-			return prompts.SystemPromptPlan
-		}
-		return prompts.SystemPrompt
-
-	case agentdomain.AgentModeAutoAccept:
-		if prompts.SystemPromptAuto != "" {
-			return prompts.SystemPromptAuto
-		}
-		return prompts.SystemPrompt
-
-	case agentdomain.AgentModeStandard:
-		return prompts.SystemPrompt
-
-	case agentdomain.AgentModeReadOnly:
-		return prompts.SystemPrompt
-
-	default:
-		return prompts.SystemPrompt
-	}
 }
 
 // buildSkillsInfo lists discovered Agent Skills with their absolute SKILL.md
@@ -1268,6 +1243,7 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *states.AgentContext, hoo
 	}
 	if hook == agentdomain.HookPreStream {
 		q.ModeChanged, q.PrevMode, q.Mode = s.modeChangeSinceLastStream()
+		q.ModeGuidance = s.modeGuidanceOverrides()
 	}
 	InjectDueReminders(provider, q, func(r agentdomain.SystemReminder) {
 		if r.AppendToToolResult {
@@ -1360,6 +1336,29 @@ func (s *AgentServiceImpl) modeChangeSinceLastStream() (changed bool, prev, cur 
 	prev = s.lastStreamedMode
 	s.lastStreamedMode = cur
 	return prev != cur, prev, cur
+}
+
+// modeGuidanceOverrides maps mode allowedlist keys ("plan"/"auto") to the
+// per-mode adjustment instructions from prompts.yaml
+// (agent.mode_adjustment_plan/_auto, or the deprecated system_prompt_plan/
+// system_prompt_auto keys), so a customized mode prompt overrides the built-in
+// mode-change guidance for its mode (unless the user edited the guidance key
+// in reminders.yaml). Nil when nothing is set.
+func (s *AgentServiceImpl) modeGuidanceOverrides() map[string]string {
+	if s.config == nil {
+		return nil
+	}
+	overrides := map[string]string{}
+	if s.config.Prompts.Agent.ModeAdjustmentPlan != "" {
+		overrides["plan"] = s.config.Prompts.Agent.ModeAdjustmentPlan
+	}
+	if s.config.Prompts.Agent.ModeAdjustmentAuto != "" {
+		overrides["auto"] = s.config.Prompts.Agent.ModeAdjustmentAuto
+	}
+	if len(overrides) == 0 {
+		return nil
+	}
+	return overrides
 }
 
 // isCompleteJSON checks if a string is a complete, valid JSON

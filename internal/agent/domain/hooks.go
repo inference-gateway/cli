@@ -105,6 +105,13 @@ type ReminderQuery struct {
 	ModeChanged      bool
 	PrevMode         AgentMode
 	Mode             AgentMode
+	// ModeGuidance carries per-mode adjustment instructions keyed by
+	// AllowedlistKey (e.g. "plan"/"auto"), layered onto the on_mode_change
+	// trigger from prompts.yaml (agent.mode_adjustment_plan/_auto, legacy
+	// system_prompt_plan/_auto). It is consulted only when the reminder's own
+	// guidance for the mode is unset or still the built-in default, so a
+	// user-edited reminders.yaml guidance key keeps precedence.
+	ModeGuidance map[string]string
 }
 
 // HookCommand is a resolved command hook ready to run at a hook point: a named

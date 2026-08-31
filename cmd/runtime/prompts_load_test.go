@@ -21,7 +21,7 @@ func TestLoadConfigFromViper_PromptsDefaultsWhenFileAbsent(t *testing.T) {
 
 	defaults := config.DefaultPromptsConfig()
 	require.Equal(t, defaults.Agent.SystemPrompt, cfg.Prompts.Agent.SystemPrompt)
-	require.Equal(t, defaults.Agent.SystemPromptPlan, cfg.Prompts.Agent.SystemPromptPlan)
+	require.Empty(t, cfg.Prompts.Agent.ModeAdjustmentPlan, "mode adjustments ship empty; built-ins live in the mode-change reminder guidance (issue #1134)")
 	require.Equal(t, defaults.Agent.SystemPromptRemote, cfg.Prompts.Agent.SystemPromptRemote)
 	require.Equal(t, defaults.Agent.SystemPromptHeartbeat, cfg.Prompts.Agent.SystemPromptHeartbeat)
 	require.NotEmpty(t, cfg.Prompts.Agent.SystemPromptHeartbeat, "heartbeat prompt must have a non-empty default")
@@ -52,7 +52,7 @@ func TestLoadConfigFromViper_PromptsPartialFileFallsBackForUnsetFields(t *testin
 
 	defaults := config.DefaultPromptsConfig()
 	require.Equal(t, "USER OVERRIDE: only this is set", cfg.Prompts.Agent.SystemPrompt)
-	require.Equal(t, defaults.Agent.SystemPromptPlan, cfg.Prompts.Agent.SystemPromptPlan, "unset plan prompt should fall back to default")
+	require.Empty(t, cfg.Prompts.Agent.ModeAdjustmentPlan, "mode adjustments must NOT be backfilled - built-ins live in the reminder guidance (issue #1134)")
 	require.Equal(t, defaults.Agent.SystemPromptHeartbeat, cfg.Prompts.Agent.SystemPromptHeartbeat, "unset heartbeat prompt should fall back to default")
 	require.Equal(t, defaults.Git.CommitMessage.SystemPrompt, cfg.Prompts.Git.CommitMessage.SystemPrompt, "unset git prompt should fall back to default")
 	require.Equal(t, defaults.Init.Prompt, cfg.Prompts.Init.Prompt, "unset init prompt should fall back to default")
@@ -115,4 +115,30 @@ func TestLoadConfigFromViper_ToolDescriptionsDefaultWhenFileAbsent(t *testing.T)
 	require.Equal(t, defaults.Tools.Read.Description, cfg.Prompts.Tools.Read.Description)
 	require.Equal(t, defaults.Tools.Edit.Description, cfg.Prompts.Tools.Edit.Description)
 	require.Equal(t, defaults.Tools.GetLatestFrame.Description, cfg.Prompts.Tools.GetLatestFrame.Description)
+}
+
+// The deprecated pre-#1134 env aliases still load into the mode-adjustment
+// slots so existing deployments keeping the old names keep working.
+func TestLoadConfigFromViper_PromptsModeAdjustmentLegacyEnvAliases(t *testing.T) {
+	withHermeticEnv(t)
+
+	t.Setenv("INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN", "legacy plan alias")
+	t.Setenv("INFER_PROMPTS_AGENT_SYSTEM_PROMPT_AUTO", "legacy auto alias")
+	initConfig()
+	cfg := Cfg
+
+	require.Equal(t, "legacy plan alias", cfg.Prompts.Agent.ModeAdjustmentPlan, "deprecated env alias must still load")
+	require.Equal(t, "legacy auto alias", cfg.Prompts.Agent.ModeAdjustmentAuto, "deprecated env alias must still load")
+}
+
+// When both the deprecated alias and the renamed env var are set, the renamed
+// INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_* var wins.
+func TestLoadConfigFromViper_PromptsModeAdjustmentRenamedEnvWins(t *testing.T) {
+	withHermeticEnv(t)
+
+	t.Setenv("INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN", "legacy plan alias")
+	t.Setenv("INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN", "renamed plan")
+	initConfig()
+
+	require.Equal(t, "renamed plan", Cfg.Prompts.Agent.ModeAdjustmentPlan, "renamed env must win over the deprecated alias")
 }

@@ -17,8 +17,6 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 
 	cases := map[string]string{
 		"agent.system_prompt":                         cfg.Agent.SystemPrompt,
-		"agent.system_prompt_plan":                    cfg.Agent.SystemPromptPlan,
-		"agent.system_prompt_auto":                    cfg.Agent.SystemPromptAuto,
 		"agent.system_prompt_remote":                  cfg.Agent.SystemPromptRemote,
 		"agent.system_prompt_heartbeat":               cfg.Agent.SystemPromptHeartbeat,
 		"git.commit_message.system_prompt":            cfg.Git.CommitMessage.SystemPrompt,
@@ -54,32 +52,12 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 	}
 }
 
-// The plan-mode prompt advertises a fixed Markdown section template to
-// the model. This guards the template against accidental edits and makes
-// the contract with docs/plan-mode.md explicit.
-func TestDefaultPromptsConfig_PlanPromptStructure(t *testing.T) {
+// The plan Markdown template no longer ships as a system prompt (issue
+// #1134): the built-in plan guidance lives in the mode-change reminder
+// (reminders.go) and is asserted in reminders_mode_change_test.go. The tool
+// description contract stays here.
+func TestDefaultPromptsConfig_RequestPlanApprovalDescription(t *testing.T) {
 	cfg := config.DefaultPromptsConfig()
-	plan := cfg.Agent.SystemPromptPlan
-
-	wantSections := []string{
-		"## Context",
-		"## Files to Modify",
-		"## Current Code",
-		"## Changes",
-		"## Performance Impact",
-		"## Critical Files",
-		"## Edge Cases",
-		"## Verification",
-	}
-	for _, section := range wantSections {
-		if !strings.Contains(plan, section) {
-			t.Errorf("plan-mode system prompt missing section heading %q", section)
-		}
-	}
-
-	if !strings.Contains(plan, "title") {
-		t.Errorf("plan-mode system prompt should mention the 'title' parameter")
-	}
 
 	desc := cfg.Tools.RequestPlanApproval.Description
 	if !strings.Contains(desc, "title") || !strings.Contains(desc, "plan") {
@@ -90,14 +68,22 @@ func TestDefaultPromptsConfig_PlanPromptStructure(t *testing.T) {
 	}
 }
 
-// custom_instructions is intentionally empty - it's a user-supplied
-// opt-in. This guards it in the opposite direction so a future "fill in
-// a default" change is intentional.
+// custom_instructions and the per-mode adjustment overrides are intentionally
+// empty - they're user-supplied opt-ins. The mode adjustments' built-in texts
+// live in the mode-change reminder guidance (reminders.go) since issue #1134.
+// This guards them in the opposite direction so a future "fill in a default"
+// change is intentional.
 func TestDefaultPromptsConfig_OptionalPromptsBlank(t *testing.T) {
 	cfg := config.DefaultPromptsConfig()
 
 	if cfg.Agent.CustomInstructions != "" {
 		t.Errorf("agent.custom_instructions should ship empty, got %q", cfg.Agent.CustomInstructions)
+	}
+	if cfg.Agent.ModeAdjustmentPlan != "" {
+		t.Errorf("agent.mode_adjustment_plan should ship empty (built-ins live in the reminder guidance), got %q", cfg.Agent.ModeAdjustmentPlan)
+	}
+	if cfg.Agent.ModeAdjustmentAuto != "" {
+		t.Errorf("agent.mode_adjustment_auto should ship empty (built-ins live in the reminder guidance), got %q", cfg.Agent.ModeAdjustmentAuto)
 	}
 }
 
@@ -112,8 +98,8 @@ func checkPromptsValidYAML(t *testing.T, cfg *config.PromptsConfig) {
 	if cfg.Agent.SystemPrompt != "custom agent prompt" {
 		t.Errorf("Expected custom system_prompt, got %q", cfg.Agent.SystemPrompt)
 	}
-	if cfg.Agent.SystemPromptPlan != "custom plan prompt" {
-		t.Errorf("Expected custom plan prompt, got %q", cfg.Agent.SystemPromptPlan)
+	if cfg.Agent.ModeAdjustmentPlan != "custom plan prompt" {
+		t.Errorf("Expected deprecated system_prompt_plan key to decode into mode_adjustment_plan, got %q", cfg.Agent.ModeAdjustmentPlan)
 	}
 	if cfg.Git.CommitMessage.SystemPrompt != "custom commit prompt" {
 		t.Errorf("Expected custom commit prompt, got %q", cfg.Git.CommitMessage.SystemPrompt)
@@ -137,9 +123,6 @@ func TestLoadPrompts(t *testing.T) {
 				if cfg.Agent.SystemPrompt == "" {
 					t.Error("Default prompts config should populate agent.system_prompt")
 				}
-				if cfg.Agent.SystemPromptPlan == "" {
-					t.Error("Default prompts config should populate agent.system_prompt_plan")
-				}
 				if cfg.Git.CommitMessage.SystemPrompt == "" {
 					t.Error("Default prompts config should populate git.commit_message.system_prompt")
 				}
@@ -160,6 +143,24 @@ init:
 			check: checkPromptsValidYAML,
 		},
 		{
+			name: "legacy and new agent mode-adjustment keys",
+			yaml: `---
+agent:
+  system_prompt: custom agent prompt
+  system_prompt_plan: legacy plan key
+  mode_adjustment_plan: new plan key
+  system_prompt_auto: legacy auto key
+`,
+			check: func(t *testing.T, cfg *config.PromptsConfig) {
+				if cfg.Agent.ModeAdjustmentPlan != "new plan key" {
+					t.Errorf("Expected mode_adjustment_plan to win over the deprecated system_prompt_plan, got %q", cfg.Agent.ModeAdjustmentPlan)
+				}
+				if cfg.Agent.ModeAdjustmentAuto != "legacy auto key" {
+					t.Errorf("Expected deprecated system_prompt_auto to decode into mode_adjustment_auto, got %q", cfg.Agent.ModeAdjustmentAuto)
+				}
+			},
+		},
+		{
 			name: "partial yaml backfills unset prompts",
 			yaml: `---
 agent:
@@ -169,8 +170,8 @@ agent:
 				if cfg.Agent.SystemPrompt != "only this field is set" {
 					t.Errorf("Expected user override to be preserved, got %q", cfg.Agent.SystemPrompt)
 				}
-				if cfg.Agent.SystemPromptPlan != defaults.Agent.SystemPromptPlan {
-					t.Errorf("Expected unset plan prompt to be backfilled with default, got %q", cfg.Agent.SystemPromptPlan)
+				if cfg.Agent.ModeAdjustmentPlan != "" {
+					t.Errorf("unset mode adjustments must not be backfilled (built-ins live in the reminder guidance), got %q", cfg.Agent.ModeAdjustmentPlan)
 				}
 				if cfg.Git.CommitMessage.SystemPrompt != defaults.Git.CommitMessage.SystemPrompt {
 					t.Errorf("Expected unset commit prompt to be backfilled with default, got %q", cfg.Git.CommitMessage.SystemPrompt)

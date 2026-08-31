@@ -1167,77 +1167,42 @@ func TestSessionCancel_OnlyClosesOnce(t *testing.T) {
 	}
 }
 
-func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
-	tests := []struct {
-		name            string
-		agentMode       agentdomain.AgentMode
-		systemPrompt    string
-		planPrompt      string
-		expectedPrompt  string
-		nilStateManager bool
-	}{
-		{
-			name:            "nil_state_manager_returns_default",
-			nilStateManager: true,
-			systemPrompt:    "Default prompt",
-			planPrompt:      "Plan prompt",
-			expectedPrompt:  "Default prompt",
-		},
-		{
-			name:           "standard_mode_returns_default",
-			agentMode:      agentdomain.AgentModeStandard,
-			systemPrompt:   "Default prompt",
-			planPrompt:     "Plan prompt",
-			expectedPrompt: "Default prompt",
-		},
-		{
-			name:           "plan_mode_returns_plan_prompt",
-			agentMode:      agentdomain.AgentModePlan,
-			systemPrompt:   "Default prompt",
-			planPrompt:     "Plan prompt",
-			expectedPrompt: "Plan prompt",
-		},
-		{
-			name:           "plan_mode_falls_back_to_default_if_plan_empty",
-			agentMode:      agentdomain.AgentModePlan,
-			systemPrompt:   "Default prompt",
-			planPrompt:     "",
-			expectedPrompt: "Default prompt",
-		},
-		{
-			name:           "auto_accept_mode_returns_default",
-			agentMode:      agentdomain.AgentModeAutoAccept,
-			systemPrompt:   "Default prompt",
-			planPrompt:     "Plan prompt",
-			expectedPrompt: "Default prompt",
+// TestAgentServiceImpl_BuildSystemPromptByteStableAcrossModeSwitch pins the
+// KV-cache contract from issue #1134: message[0] must be byte-identical no
+// matter which agent mode is live mid-session - even when per-mode adjustment
+// instructions are configured. (The removed getSystemPromptForMode used to
+// swap message[0] on Shift+Tab, invalidating the prompt cache.) Mode-specific
+// instructions ride the on_mode_change system reminder instead - see
+// agent_mode_change_reminder_test.go.
+func TestAgentServiceImpl_BuildSystemPromptByteStableAcrossModeSwitch(t *testing.T) {
+	cfg := &config.Config{
+		Prompts: config.PromptsConfig{
+			Agent: config.PromptsAgentConfig{
+				SystemPrompt:       "Default prompt",
+				ModeAdjustmentPlan: "Plan adjustments",
+				ModeAdjustmentAuto: "Auto adjustments",
+			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.Config{
-				Prompts: config.PromptsConfig{
-					Agent: config.PromptsAgentConfig{
-						SystemPrompt:     tt.systemPrompt,
-						SystemPromptPlan: tt.planPrompt,
-					},
-				},
-			}
+	fakeStateManager := statemanager.NewStateManager(false)
+	fakeStateManager.SetAgentMode(agentdomain.AgentModeStandard)
+	agentService := &AgentServiceImpl{config: cfg, stateManager: fakeStateManager}
 
-			agentService := &AgentServiceImpl{
-				config: cfg,
-			}
+	userMsg := []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("hi")}}
+	before := agentService.addSystemPrompt(userMsg)
+	require.Len(t, before, 2)
 
-			if !tt.nilStateManager {
-				fakeStateManager := statemanager.NewStateManager(false)
-				fakeStateManager.SetAgentMode(tt.agentMode)
-				agentService.stateManager = fakeStateManager
-			}
+	for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModePlan, agentdomain.AgentModeAutoAccept, agentdomain.AgentModeStandard} {
+		fakeStateManager.SetAgentMode(mode)
+		after := agentService.addSystemPrompt(userMsg)
+		require.Len(t, after, 2)
 
-			result := agentService.getSystemPromptForMode()
-
-			assert.Equal(t, tt.expectedPrompt, result)
-		})
+		beforeContent, err := before[0].Content.AsMessageContent0()
+		require.NoError(t, err)
+		afterContent, err := after[0].Content.AsMessageContent0()
+		require.NoError(t, err)
+		require.Equal(t, beforeContent, afterContent, "message[0] must be byte-identical across a mode switch, even with mode adjustments configured")
 	}
 }
 

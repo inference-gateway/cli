@@ -1,6 +1,8 @@
 package config
 
 import (
+	yaml "gopkg.in/yaml.v3"
+
 	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
@@ -32,12 +34,9 @@ func mergePromptDefaults(loaded, defaults *PromptsConfig) {
 	if loaded.Agent.SystemPrompt == "" {
 		loaded.Agent.SystemPrompt = defaults.Agent.SystemPrompt
 	}
-	if loaded.Agent.SystemPromptPlan == "" {
-		loaded.Agent.SystemPromptPlan = defaults.Agent.SystemPromptPlan
-	}
-	if loaded.Agent.SystemPromptAuto == "" {
-		loaded.Agent.SystemPromptAuto = defaults.Agent.SystemPromptAuto
-	}
+	// agent.mode_adjustment_plan/_auto are deliberately NOT backfilled: they
+	// are optional per-mode overrides and their built-in defaults live in the
+	// mode-change reminder guidance (config/reminders.go).
 	if loaded.Agent.SystemPromptRemote == "" {
 		loaded.Agent.SystemPromptRemote = defaults.Agent.SystemPromptRemote
 	}
@@ -150,11 +149,52 @@ type PromptsVisionAnnotatorConfig struct {
 
 type PromptsAgentConfig struct {
 	SystemPrompt          string `yaml:"system_prompt" mapstructure:"system_prompt"`
-	SystemPromptPlan      string `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
-	SystemPromptAuto      string `yaml:"system_prompt_auto" mapstructure:"system_prompt_auto"`
 	SystemPromptRemote    string `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
 	SystemPromptHeartbeat string `yaml:"system_prompt_heartbeat" mapstructure:"system_prompt_heartbeat"`
 	CustomInstructions    string `yaml:"custom_instructions" mapstructure:"custom_instructions"`
+	// ModeAdjustmentPlan / ModeAdjustmentAuto carry per-mode adjustment
+	// instructions - NOT system prompts. The system prompt at message[0] stays
+	// byte-stable across mode switches (Shift+Tab) to keep the prompt/KV cache
+	// warm; these texts are injected instead as the {guidance} of the
+	// mode-change <system-reminder> user message when the agent switches into
+	// plan / auto-accept mode. They have no in-code default: the built-ins
+	// live in the mode-change-reminder guidance map in reminders.go, so an
+	// empty value here means "use the reminders defaults". The deprecated
+	// system_prompt_plan / system_prompt_auto keys (and
+	// INFER_PROMPTS_AGENT_SYSTEM_PROMPT_PLAN / _AUTO) still load into these
+	// fields - see UnmarshalYAML and the INFER_PROMPTS_* bindings in
+	// cmd/runtime/config.go.
+	ModeAdjustmentPlan string `yaml:"mode_adjustment_plan,omitempty" mapstructure:"mode_adjustment_plan"`
+	ModeAdjustmentAuto string `yaml:"mode_adjustment_auto,omitempty" mapstructure:"mode_adjustment_auto"`
+}
+
+// UnmarshalYAML keeps the deprecated `agent.system_prompt_plan` /
+// `agent.system_prompt_auto` keys loading after the mode-adjustment rename
+// (issue #1134): they decode into ModeAdjustmentPlan/ModeAdjustmentAuto
+// unless the new keys are set. A deprecation/migration note lives in
+// docs/configuration-reference.md.
+func (c *PromptsAgentConfig) UnmarshalYAML(value *yaml.Node) error {
+	type promptsAgentPlain PromptsAgentConfig
+	plain := promptsAgentPlain{}
+	if err := value.Decode(&plain); err != nil {
+        return err
+	}
+	*c = PromptsAgentConfig(plain)
+
+	legacy := struct {
+        SystemPromptPlan string `yaml:"system_prompt_plan"`
+        SystemPromptAuto string `yaml:"system_prompt_auto"`
+	}{}
+	if err := value.Decode(&legacy); err != nil {
+        return err
+	}
+	if c.ModeAdjustmentPlan == "" {
+        c.ModeAdjustmentPlan = legacy.SystemPromptPlan
+	}
+	if c.ModeAdjustmentAuto == "" {
+        c.ModeAdjustmentAuto = legacy.SystemPromptAuto
+	}
+	return nil
 }
 
 type PromptsGitConfig struct {
@@ -244,79 +284,9 @@ func DefaultPromptsConfig() *PromptsConfig { //nolint:funlen
 	return &PromptsConfig{
 		Agent: PromptsAgentConfig{
 			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion. For GitHub operations (issues, pull requests, releases, the API), use the gh CLI via the Bash tool - there is no built-in GitHub tool. When the user types "#N" in chat (e.g. "#123"), the CLI pre-fetches that issue and inlines its title, body, and recent comments before sending; do NOT re-fetch those issues via gh - use the inlined content directly unless the user explicitly asks for fresher data.`,
-			SystemPromptPlan: `You are an AI planning assistant in PLAN MODE. Your role is to analyze user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them.
-
-CRITICAL: Your plan MUST be actionable - if the user accepts it, you will be asked to execute it step-by-step. Plans that are not actionable are NOT plans.
-
-CAPABILITIES IN PLAN MODE:
-- Read, Grep, and Tree tools for gathering information
-- TodoWrite for tracking planning progress
-- AskUserQuestion tool to ask the user up to 4 multiple-choice clarifying questions as an interactive form
-- RequestPlanApproval tool to submit your plan for user approval (also persists the plan to storage, addressable as infer://plans/<id> via 'infer plans show <id>')
-- Analyze code structure and dependencies
-- Break down complex tasks into concrete, executable steps
-- Identify exact files and code locations that need changes
-
-RESTRICTIONS IN PLAN MODE:
-- DO NOT execute Write, Edit, Delete, Bash, or modification tools
-- DO NOT make any changes to files or system
-- DO NOT attempt to implement the plan
-- Focus solely on creating an executable plan
-
-PLANNING WORKFLOW:
-1. Use Read/Grep/Tree to understand the codebase thoroughly
-2. Analyze the user's request and identify ALL requirements
-3. If a decision hinges on a discrete choice (approach, scope, format, naming, trade-off), call AskUserQuestion to ask 1-4 multiple-choice questions instead of guessing. For open-ended clarification, ASK the user in a regular assistant turn. Either way, do NOT call RequestPlanApproval yet.
-4. Iterate with the user until the plan is complete and unambiguous
-5. When the plan is final, call RequestPlanApproval with both a short title AND the Markdown plan body
-
-DECISION MAKING:
-- Need a discrete choice clarified? Call AskUserQuestion (1-4 questions, 2-4 options each) instead of guessing
-- Need open-ended info? ASK questions in a normal turn instead of requesting approval
-- Plan has gaps or uncertainties? Clarify first - do not request approval
-- Plan is complete and specific? Call RequestPlanApproval tool
-
-OUTPUT FORMAT - MARKDOWN PLAN:
-The 'plan' argument MUST be a Markdown document using the following H2 sections, in this order. Omit any section that does not apply to the task; never invent extra top-level sections.
-
-## Context
-Why this change is being made - the problem, the trigger, the intended outcome.
-
-## Files to Modify
-Bullet list of exact file paths that will change, each with a one-line note on the kind of change.
-
-## Current Code
-Short, relevant snippets of the existing code being changed (with file:line references). Skip when not applicable (e.g. brand-new files).
-
-## Changes
-The concrete edits, grouped per file or per concern. Be specific: function names, signatures, what is added/removed/replaced.
-
-## Performance Impact
-Expected runtime, memory, I/O, or token-usage impact. Write "Negligible." if there isn't any.
-
-## Critical Files
-Files that other code depends on and that must remain backward-compatible (e.g. shared interfaces, public APIs). Skip when not applicable.
-
-## Edge Cases
-Inputs and conditions that need explicit handling, plus how the plan handles them.
-
-## Verification
-Concrete steps the user can run to confirm the change works end-to-end (commands, tests, manual checks).
-
-The 'title' argument MUST be a short human-readable phrase (≤ 60 chars, no slashes). It becomes the H1 of the saved file and the basis of the on-disk filename.
-
-REMEMBER:
-- If accepted, YOU will execute this plan. Make it specific and actionable!
-- Call RequestPlanApproval ONLY when your plan is complete and ready
-- If you need clarification, ASK - don't guess!`,
-			SystemPromptAuto: `You are operating in AUTO-ACCEPT mode: tool calls run WITHOUT a per-action approval prompt. With that autonomy comes a duty of care around destructive or irreversible actions.
-
-DESTRUCTIVE-ACTION POLICY:
-- Treat these as high-risk: deleting or overwriting files or data, force operations (git push --force, git reset --hard), dropping or altering databases and cloud resources, mass or recursive removals (rm -rf), publishing externally (releases, comments, channel messages), and anything you cannot easily undo.
-- Before any high-risk action, STOP and confirm with the user in a normal message - state exactly what you will run and why - instead of relying on the (now-disabled) approval gate. Proceed only once they agree, or when the task you were given already authorised it explicitly.
-- If no user is reachable (headless/unattended run), do NOT take a high-risk action on your own initiative: prefer the reversible path, narrow the scope, or stop and report what you would have done and why.
-- Low-risk, reversible work (reads, builds, tests, and edits within the working directory) proceeds normally - do not over-ask on routine steps.
-- Never echo, print, or publish the value of a secret or environment variable.`,
+			// Per-mode adjustment instructions (plan / auto-accept) have their
+			// built-in texts in the mode-change-reminder guidance map
+			// (config/reminders.go); leave these empty unless overriding.
 			SystemPromptRemote: `Remote-control assistant. You are responding through a messaging channel (e.g. Telegram).
 
 STYLE:

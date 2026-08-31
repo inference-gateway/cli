@@ -156,3 +156,60 @@ func TestModeChangeTrigger_Validate(t *testing.T) {
 
 	assert.NoError(t, DefaultRemindersConfig().Validate())
 }
+
+// Since issue #1134 the plan-mode Markdown template is carried by the
+// mode-change reminder guidance (not a per-mode system prompt). This is the
+// contract with docs/plan-mode.md, moved from prompts_test.go.
+func TestModeChangeTrigger_PlanGuidanceKeepsPlanFormat(t *testing.T) {
+	plan := defaultModeChangeGuidance["plan"]
+	require.NotEmpty(t, plan)
+
+	wantSections := []string{
+		"## Context",
+		"## Files to Modify",
+		"## Current Code",
+		"## Changes",
+		"## Performance Impact",
+		"## Critical Files",
+		"## Edge Cases",
+		"## Verification",
+	}
+	for _, section := range wantSections {
+		assert.Contains(t, plan, section, "plan guidance missing section heading %q", section)
+	}
+
+	// Workflow: clarify first, then RequestPlanApproval; plus the tool-set
+	// delta consistent with llm_tool_service.ListToolsForMode plan-mode output.
+	for _, want := range []string{"RequestPlanApproval", "AskUserQuestion", "Read", "Grep", "Tree", "TodoWrite", "title"} {
+		assert.Contains(t, plan, want)
+	}
+
+	// The auto-accept guidance must keep carrying the destructive-action policy.
+	for _, want := range []string{"DESTRUCTIVE-ACTION POLICY", "rm -rf"} {
+		assert.Contains(t, defaultModeChangeGuidance["auto"], want)
+	}
+}
+
+// Guidance precedence (resolveModeChangeText): prompts.yaml mode adjustments
+// ("plan" key" on the query) override the built-in default, but a guidance key
+// the user actually edited in reminders.yaml keeps precedence.
+func TestModeChangeTrigger_ModeGuidancePrecedence(t *testing.T) {
+	q := modeChangeQuery(true, agentdomain.AgentModeStandard, agentdomain.AgentModePlan)
+	q.ModeGuidance = map[string]string{"plan": "PROMPTS-CONFIG PLAN ADJUSTMENT"}
+
+	due := DefaultRemindersConfig().RemindersDue(q)
+	require.Len(t, due, 1)
+	assert.Contains(t, due[0].Text, "PROMPTS-CONFIG PLAN ADJUSTMENT",
+		"prompts.yaml mode adjustments override the built-in guidance")
+
+	user := DefaultRemindersConfig()
+	for i := range user.Reminders {
+		if user.Reminders[i].Name == DefaultModeChangeReminderName {
+			user.Reminders[i].Guidance["plan"] = "USER-EDITED PLAN GUIDANCE"
+		}
+	}
+	due = user.RemindersDue(q)
+	require.Len(t, due, 1)
+	assert.Contains(t, due[0].Text, "USER-EDITED PLAN GUIDANCE",
+		"a user-edited reminders.yaml guidance key keeps precedence over prompts.yaml")
+}
