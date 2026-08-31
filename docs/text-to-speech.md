@@ -49,6 +49,35 @@ gateway, set `ENABLE_AUDIO=true` on it yourself - and note that only providers
 with Audio API support (currently OpenAI, or OpenAI-compatible speech backends
 via custom provider config) can serve the endpoint.
 
+### Example: voice cloning with llama-server behind the gateway
+
+OpenAI's Speech API has no cloning, but the gateway forwards the request body -
+including `reference_audio` - byte-for-byte to the provider, so any
+OpenAI-compatible speech backend that supports audio-conditioned cloning works.
+llama.cpp's `llama-server` exposes `POST /v1/audio/speech` when started with a
+TTS model, and the gateway ships a first-class `llamacpp` provider for it:
+
+```bash
+# 1. Serve Qwen3-TTS with llama.cpp (same GGUFs the local engine uses)
+llama-server -m Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf \
+  --mmproj mmproj-Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf --port 8081
+
+# 2. Point the gateway at it (for the CLI-managed local gateway, put this in .env)
+LLAMACPP_API_URL=http://localhost:8081/v1
+```
+
+```yaml
+text_to_speech:
+  enabled: true
+  engine: gateway
+  model: llamacpp/qwen3-tts
+```
+
+The tool's `voice_sample` recording (a clean mono ~10-30s WAV) is sent as
+`reference_audio` and the synthesized speech mimics that speaker - the same
+voice-to-voice flow as the local engine, but served over HTTP and visible in
+`infer traces`.
+
 The rest of this page covers the local `qwen3-tts` engine.
 
 ## Prerequisites (qwen3-tts engine)
