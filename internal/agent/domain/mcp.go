@@ -1,6 +1,3 @@
-// Model Context Protocol ports: client and manager interfaces, discovery and
-// configuration DTOs, and the status events pushed through the UI notifier.
-
 package domain
 
 import "context"
