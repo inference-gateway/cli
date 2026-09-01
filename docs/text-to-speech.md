@@ -43,9 +43,9 @@ it: the `voice_sample` recording is forwarded as a reference sample
 (`reference_audio`) for zero-shot cloning; providers without cloning support
 (e.g. OpenAI) ignore or reject it.
 
-The CLI-managed local gateway is started with `ENABLE_AUDIO=true` automatically
+The CLI-managed local gateway is started with `AUDIO_ENABLED=true` automatically
 when this engine is configured. If you point the CLI at an externally managed
-gateway, set `ENABLE_AUDIO=true` on it yourself - and note that only providers
+gateway, set `AUDIO_ENABLED=true` on it yourself - and note that only providers
 with Audio API support (currently OpenAI, or OpenAI-compatible speech backends
 via custom provider config) can serve the endpoint.
 

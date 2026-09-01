@@ -474,7 +474,7 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 	}
 
 	if gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() {
-		args = append(args, "-e", "ENABLE_AUDIO=true")
+		args = append(args, "-e", "AUDIO_ENABLED=true")
 	}
 
 	if gm.config.Gateway.Debug {
@@ -890,7 +890,7 @@ func (gm *Manager) runBinary(binaryPath string) error {
 	}
 
 	if gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() {
-		cmd.Env = append(cmd.Env, "ENABLE_AUDIO=true")
+		cmd.Env = append(cmd.Env, "AUDIO_ENABLED=true")
 	}
 
 	if gm.config.Gateway.Debug {
