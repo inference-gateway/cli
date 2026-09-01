@@ -54,11 +54,11 @@ func (t *TextToSpeechTool) Definition() sdk.ChatCompletionTool {
 					},
 					"voice_sample": map[string]any{
 						"type":        "string",
-						"description": "Optional file name (inside the working directory) of a WAV recording of the target speaker; when set, the output clones that voice. Around 10-30 seconds of clean single-speaker speech works best",
+						"description": "Optional bare file name (no directories or absolute paths) of a WAV in the working directory recording the target speaker; when set, the output clones that voice. Around 10-30 seconds of clean single-speaker speech works best",
 					},
 					"output_path": map[string]any{
 						"type":        "string",
-						"description": "Optional file name for the generated WAV file, placed in the configured output directory; defaults to a timestamped file",
+						"description": "Optional bare file name (no directories or absolute paths) for the generated WAV; it is always placed in the configured output directory. Defaults to a timestamped file",
 					},
 				},
 				"required":             []string{"text"},
