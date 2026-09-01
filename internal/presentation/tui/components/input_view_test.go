@@ -594,7 +594,7 @@ func TestInputView_BuildGitBranchLabel(t *testing.T) {
 			name:   "branch label with PR",
 			branch: "fix/issue-785",
 			pr:     "792",
-			want:   "⎇ fix/issue-785  #792",
+			want:   "⎇ fix/issue-785 ─ #792",
 		},
 		{
 			name:      "branch label with PR disabled by config",
