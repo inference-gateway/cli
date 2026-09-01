@@ -160,8 +160,6 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()
 
-	// ponytail: fetched once at startup; add a refresh tea.Cmd only if external
-	// gateways hot-swapping versions mid-session ever matters.
 	versionInfo := version.GetVersionInfo()
 	versionInfo.GatewayVersion = services.GetGatewayManager().Version(ctx)
 
