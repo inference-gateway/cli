@@ -333,6 +333,7 @@ func onePixelPNG(t *testing.T) []byte {
 }
 
 func TestImageService_GenerateImage(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	pngBytes := onePixelPNG(t)
 	b64 := base64.StdEncoding.EncodeToString(pngBytes)
 
@@ -412,6 +413,7 @@ func TestImageService_GenerateImage(t *testing.T) {
 }
 
 func TestImageService_EditImage(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	pngBytes := onePixelPNG(t)
 	b64 := base64.StdEncoding.EncodeToString(pngBytes)
 
@@ -522,6 +524,7 @@ func TestImageService_EditImage(t *testing.T) {
 }
 
 func TestImageService_CreateImageVariation(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	pngBytes := onePixelPNG(t)
 	b64 := base64.StdEncoding.EncodeToString(pngBytes)
 
