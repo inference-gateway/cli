@@ -1504,9 +1504,6 @@ func (c *Config) Validate() error {
 		)
 	}
 
-	// Only validated when the feature is on: a disabled text_to_speech never
-	// consults its engine, and an unknown engine written by a newer binary
-	// sharing the same ~/.infer/config.yaml must not break config loading.
 	if c.TextToSpeech.Enabled {
 		switch engine := strings.TrimSpace(c.TextToSpeech.Engine); engine {
 		case TextToSpeechEngineQwen3:
