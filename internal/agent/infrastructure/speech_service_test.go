@@ -49,6 +49,19 @@ func TestSpeechService_Synthesize(t *testing.T) {
 	assert.Equal(t, []byte("fake-wav-bytes"), written)
 }
 
+func TestSpeechService_SynthesizeDefaultModel(t *testing.T) {
+	client := &sdkmocks.FakeClient{}
+	client.CreateSpeechReturns([]byte("wav"), nil)
+	svc := newTestSpeechService("", "", client)
+	outPath := filepath.Join(t.TempDir(), "out.wav")
+
+	require.NoError(t, svc.Synthesize(context.Background(), "hi", "", outPath))
+
+	_, provider, req := client.CreateSpeechArgsForCall(0)
+	assert.Equal(t, sdk.Provider("local"), provider)
+	assert.Equal(t, "qwen3-tts", req.Model)
+}
+
 func TestSpeechService_SynthesizeVoiceClone(t *testing.T) {
 	client := &sdkmocks.FakeClient{}
 	client.CreateSpeechReturns([]byte("cloned"), nil)

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"fmt"
 	"net"
 	"os"
@@ -110,21 +111,27 @@ type SpeechToTextConfig struct {
 	RecordingsDir       string `yaml:"recordings_dir" mapstructure:"recordings_dir"`               // "" -> ~/.infer/voice
 }
 
-// TextToSpeechEngineQwen3 is the default text-to-speech engine: Qwen3-TTS
-// GGUF models run through a local llama.cpp llama-tts binary (direct mode).
+// TextToSpeechEngineQwen3 runs Qwen3-TTS GGUF models locally through a
+// llama.cpp llama-tts binary; the CLI auto-downloads the binary and models.
 const TextToSpeechEngineQwen3 = "qwen3-tts"
 
-// TextToSpeechEngineGateway synthesizes through the gateway's Audio API
-// (POST /v1/audio/speech), so requests appear in gateway logs and traces.
+// TextToSpeechEngineGateway is the default text-to-speech engine: it
+// synthesizes through the gateway's Audio API (POST /v1/audio/speech), and the
+// gateway auto-downloads whatever its engine needs.
 const TextToSpeechEngineGateway = "gateway"
 
+// TextToSpeechGatewayDefaultModel is the model used by the gateway engine
+// when text_to_speech.model is unset: the gateway's built-in local engine.
+const TextToSpeechGatewayDefaultModel = "local/qwen3-tts"
+
 // TextToSpeechConfig contains opt-in settings for speech synthesis. Engine
-// selects the backend: qwen3-tts (default, local llama-tts) or gateway.
-// BinaryPath, ModelsDir, AutoDownload and FFmpegPath apply to qwen3-tts only
-// and are ignored under gateway. Model is engine-specific: a Qwen3 preset
-// (""/base, q8, bf16 or explicit GGUF filenames) for qwen3-tts, a
-// "provider/model" id (like the image tools) for gateway. Voice applies to
-// the gateway engine only.
+// selects the backend: gateway (default) or qwen3-tts (local llama-tts).
+// BinaryPath, ModelsDir and FFmpegPath apply to qwen3-tts only and are
+// ignored under gateway. AutoDownload governs whichever side downloads: the
+// CLI under qwen3-tts, the gateway (via AUDIO_LOCAL_AUTO_DOWNLOAD) under
+// gateway. Model is engine-specific: a "provider/model" id for gateway
+// (default local/qwen3-tts), a Qwen3 preset (""/base, q8, bf16 or explicit
+// GGUF filenames) for qwen3-tts. Voice applies to the gateway engine only.
 type TextToSpeechConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
 	Engine          string `yaml:"engine" mapstructure:"engine"`
@@ -140,9 +147,17 @@ type TextToSpeechConfig struct {
 }
 
 // IsGatewayEngine reports whether synthesis routes through the gateway's
-// Audio API instead of the local llama-tts binary.
+// Audio API instead of the local llama-tts binary. An empty engine means
+// gateway, the default.
 func (c TextToSpeechConfig) IsGatewayEngine() bool {
-	return strings.TrimSpace(c.Engine) == TextToSpeechEngineGateway
+	engine := strings.TrimSpace(c.Engine)
+	return engine == TextToSpeechEngineGateway || engine == ""
+}
+
+// ResolveGatewayModel returns the "provider/model" id used by the gateway
+// engine, defaulting to the gateway's built-in local/qwen3-tts.
+func (c TextToSpeechConfig) ResolveGatewayModel() string {
+	return cmp.Or(strings.TrimSpace(c.Model), TextToSpeechGatewayDefaultModel)
 }
 
 // ResolveOutputDir returns the directory where generated WAV files are
@@ -965,7 +980,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		TextToSpeech: TextToSpeechConfig{
 			Enabled:      false,
-			Engine:       TextToSpeechEngineQwen3,
+			Engine:       TextToSpeechEngineGateway,
 			BinaryPath:   "",
 			Model:        "",
 			Voice:        "",
@@ -1490,9 +1505,9 @@ func (c *Config) Validate() error {
 	}
 
 	switch engine := strings.TrimSpace(c.TextToSpeech.Engine); engine {
-	case "", TextToSpeechEngineQwen3:
-	case TextToSpeechEngineGateway:
-		model := strings.TrimSpace(c.TextToSpeech.Model)
+	case TextToSpeechEngineQwen3:
+	case "", TextToSpeechEngineGateway:
+		model := c.TextToSpeech.ResolveGatewayModel()
 		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
 			return fmt.Errorf(
 				"invalid text_to_speech.model %q for the %q engine: must be of the form 'provider/model', e.g. 'openai/gpt-4o-mini-tts'",

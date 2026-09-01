@@ -312,7 +312,7 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 	t.Run("enabled: present in the tools payload", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToSpeech.Enabled = true
-		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, &fakeVoiceSynthesizer{}, nil, nil, nil, nil, nil)
 
 		assert.Contains(t, registry.ListAvailableTools(), "TextToSpeech")
 

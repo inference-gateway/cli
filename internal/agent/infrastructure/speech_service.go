@@ -32,7 +32,7 @@ func NewSpeechService(cfg *config.Config, client sdk.Client) *SpeechService {
 // outPath. A non-empty voiceSamplePath is sent as a reference sample for
 // zero-shot voice cloning on providers that support it.
 func (s *SpeechService) Synthesize(ctx context.Context, text, voiceSamplePath, outPath string) error {
-	model := strings.TrimSpace(s.config.TextToSpeech.Model)
+	model := s.config.TextToSpeech.ResolveGatewayModel()
 	provider, modelName, ok := strings.Cut(model, "/")
 	if !ok || provider == "" || modelName == "" {
 		return fmt.Errorf("invalid text_to_speech.model %q (expected 'provider/model')", model)

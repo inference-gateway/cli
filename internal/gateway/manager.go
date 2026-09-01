@@ -475,6 +475,7 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 
 	if gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() {
 		args = append(args, "-e", "AUDIO_ENABLED=true")
+		args = append(args, "-e", fmt.Sprintf("AUDIO_LOCAL_AUTO_DOWNLOAD=%t", gm.config.TextToSpeech.AutoDownload))
 	}
 
 	if gm.config.Gateway.Debug {
@@ -891,6 +892,7 @@ func (gm *Manager) runBinary(binaryPath string) error {
 
 	if gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() {
 		cmd.Env = append(cmd.Env, "AUDIO_ENABLED=true")
+		cmd.Env = append(cmd.Env, fmt.Sprintf("AUDIO_LOCAL_AUTO_DOWNLOAD=%t", gm.config.TextToSpeech.AutoDownload))
 	}
 
 	if gm.config.Gateway.Debug {

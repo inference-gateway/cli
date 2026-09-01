@@ -98,10 +98,10 @@ func (s *Synthesizer) Synthesize(ctx context.Context, text, voiceSamplePath, out
 	return nil
 }
 
-// resolveBinary returns the configured llama-tts binary or finds it on PATH.
-// ponytail: no auto-download until stt-binaries ships llama-tts; add the
-// fallback then.
-func (s *Synthesizer) resolveBinary(_ context.Context) (string, error) {
+// resolveBinary returns the configured llama-tts binary, finds it on PATH, or
+// auto-downloads it from the binaries release into ~/.infer/bin — the same
+// resolution order and cache the gateway's local engine uses.
+func (s *Synthesizer) resolveBinary(ctx context.Context) (string, error) {
 	if p := strings.TrimSpace(s.cfg.BinaryPath); p != "" {
 		if _, err := s.lookPath(p); err == nil {
 			return p, nil
@@ -116,9 +116,17 @@ func (s *Synthesizer) resolveBinary(_ context.Context) (string, error) {
 		return "llama-tts", nil
 	}
 
-	return "", fmt.Errorf("llama-tts binary not found: install llama.cpp with TTS support " +
-		"(e.g. `brew install llama.cpp`, or build the llama-tts target from " +
-		"https://github.com/ggml-org/llama.cpp) or set text_to_speech.binary_path")
+	if s.cfg.AutoDownload {
+		path, err := s.binaries.EnsureBinary(ctx, "llama-tts")
+		if err != nil {
+			return "", fmt.Errorf("downloading llama-tts: %w", err)
+		}
+		return path, nil
+	}
+
+	return "", fmt.Errorf("llama-tts binary not found and text_to_speech.auto_download is disabled: " +
+		"enable auto_download, install llama.cpp with TTS support (e.g. `brew install llama.cpp`), " +
+		"or set text_to_speech.binary_path")
 }
 
 // normalizeVoiceSample converts the reference into a 16kHz mono WAV capped at

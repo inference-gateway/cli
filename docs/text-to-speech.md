@@ -9,15 +9,21 @@ The CLI can turn text into spoken audio in two modes:
 
 Two synthesis engines are available, selected by `text_to_speech.engine`:
 
-- **`qwen3-tts` (default, direct/local)** - the agent tool shells out to
-  llama.cpp's `llama-tts` binary running
+- **`gateway` (default)** - synthesis goes through the gateway's Audio API
+  (`POST /v1/audio/speech`). The default model is the gateway's built-in
+  `local/qwen3-tts` engine, so it works with the auto-started local gateway and
+  zero provider config; any `provider/model` with Audio API support works too.
+  Requests appear in gateway logs and `infer traces` like any other request,
+  and the gateway downloads whatever its engine needs.
+- **`qwen3-tts` (direct/local)** - the agent tool shells out to llama.cpp's
+  `llama-tts` binary running
   [Qwen3-TTS](https://huggingface.co/ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF)
-  GGUF models, the same GGUF ecosystem as whisper.cpp. Fully local, works
-  offline, free - but you install and maintain a second inference engine.
-- **`gateway`** - synthesis goes through the gateway's Audio API
-  (`POST /v1/audio/speech`), using provider-hosted models. Requests appear in
-  gateway logs and `infer traces` like any other request, nothing extra to
-  install locally. Pick this when your models already run behind the gateway.
+  GGUF models, the same GGUF ecosystem as whisper.cpp. Fully local, no gateway
+  in the path; the CLI downloads the binary and models itself.
+
+Whichever side synthesizes also owns the downloads, and both fill the same
+caches (`~/.infer/bin`, `~/.infer/models/tts`), so switching engines never
+re-downloads what the other already fetched.
 
 The feature is **disabled by default**: while `text_to_speech.enabled` is
 false, the `TextToSpeech` tool definition is not sent to the LLM at all, so it
@@ -28,26 +34,29 @@ costs zero prompt tokens.
 ```yaml
 text_to_speech:
   enabled: true
-  engine: gateway
-  model: openai/gpt-4o-mini-tts # provider/model, like the image tools
-  voice: alloy                  # provider voice id (OpenAI: alloy, echo, nova, ...)
+  engine: gateway               # the default; may be omitted
+  model: ""                     # "" = local/qwen3-tts; or provider/model, e.g. openai/gpt-4o-mini-tts
+  voice: ""                     # provider voice id (OpenAI: alloy, echo, nova, ...); unused by local/qwen3-tts
   output_dir: ""                # where generated wavs go; empty = ~/.infer/tts
   require_approval: true        # optional; unset = no approval
 ```
 
-Only `model`, `voice`, `output_dir` and `require_approval` matter here - the
-local-exec keys (`binary_path`, `models_dir`, `auto_download`, `ffmpeg_path`
+Only `model`, `voice`, `auto_download`, `output_dir` and `require_approval`
+matter here - the local-exec keys (`binary_path`, `models_dir`, `ffmpeg_path`
 and the Qwen3 `model` presets) apply to the `qwen3-tts` engine only and are
-ignored under `gateway`. Voice cloning still works where the provider supports
+ignored under `gateway`. Voice cloning still works where the backend supports
 it: the `voice_sample` recording is forwarded as a reference sample
 (`reference_audio`) for zero-shot cloning; providers without cloning support
 (e.g. OpenAI) ignore or reject it.
 
-The CLI-managed local gateway is started with `AUDIO_ENABLED=true` automatically
-when this engine is configured. If you point the CLI at an externally managed
-gateway, set `AUDIO_ENABLED=true` on it yourself - and note that only providers
-with Audio API support (currently OpenAI, or OpenAI-compatible speech backends
-via custom provider config) can serve the endpoint.
+The CLI-managed local gateway is started with `AUDIO_ENABLED=true` and
+`AUDIO_LOCAL_AUTO_DOWNLOAD=<text_to_speech.auto_download>` automatically when
+this engine is configured, so the gateway fetches the `local/qwen3-tts` binary
+and models on first use (requests get a 503 + Retry-After while it warms up).
+If you point the CLI at an externally managed gateway, set `AUDIO_ENABLED=true`
+on it yourself - and for non-local models note that only providers with Audio
+API support (currently OpenAI, or OpenAI-compatible speech backends via custom
+provider config) can serve the endpoint.
 
 The rest of this page covers the local `qwen3-tts` engine.
 
@@ -58,18 +67,18 @@ binary):
 
 | Tool | Used for | Install |
 | --- | --- | --- |
-| `llama-tts` | Synthesis | Build the `llama-tts` target from [llama.cpp](https://github.com/ggml-org/llama.cpp) or set `text_to_speech.binary_path`. **Needs a build with `qwen3tts` architecture support** - see below |
-| `ffmpeg` | Normalizing the voice sample (16kHz mono WAV, capped at 30s) | macOS: `brew install ffmpeg` · Debian/Ubuntu: `apt install ffmpeg` |
+| `llama-tts` | Synthesis | Auto-downloaded from the [binaries release](https://github.com/inference-gateway/binaries/releases) into `~/.infer/bin` when `auto_download` is on; or install llama.cpp yourself and set `text_to_speech.binary_path`. **A self-built binary needs `qwen3tts` architecture support** - see below |
+| `ffmpeg` | Normalizing the voice sample (16kHz mono WAV, 30s cap) | Auto-downloaded the same way; or `brew install ffmpeg` / `apt install ffmpeg` |
 
 ffmpeg is only needed for voice cloning (stock-voice synthesis passes text
-straight to `llama-tts`). If ffmpeg is missing and `auto_download` is on, a
-prebuilt binary is downloaded into `~/.infer/bin` as a last resort, mirroring
-speech-to-text - but that release currently publishes Linux assets only, so on
-macOS install ffmpeg yourself (`brew install ffmpeg`). `llama-tts` is never
-auto-downloaded on any platform; install it or set `binary_path`. If a required tool is missing, the CLI reports an actionable
-error naming what to install - it never fails silently.
+straight to `llama-tts`). Both binaries are resolved from config/`PATH` first
+and only downloaded (sha256-verified, per-platform assets for Linux, macOS and
+Windows) as a fallback - the same release and `~/.infer/bin` cache the
+gateway's `local/qwen3-tts` engine uses. If a required tool is missing and
+`auto_download` is off, the CLI reports an actionable error naming what to
+install - it never fails silently.
 
-Building `llama-tts` from llama.cpp is one cmake invocation, e.g.
+Building `llama-tts` from llama.cpp yourself is one cmake invocation, e.g.
 `cmake -B build -DGGML_NATIVE=ON && cmake --build build --target llama-tts`.
 
 ### llama.cpp version
@@ -95,9 +104,9 @@ Add a `text_to_speech` section to `.infer/config.yaml` (or
 ```yaml
 text_to_speech:
   enabled: true          # feature flag (default: false) - tool absent from the LLM payload when false
-  engine: qwen3-tts      # qwen3-tts (default, local) | gateway (see above)
+  engine: qwen3-tts      # gateway (default, see above) | qwen3-tts (local)
   model: ""              # "" = base preset; q8 | bf16 | or explicit "<backbone>[,<mmproj>].gguf" filenames
-  auto_download: true    # download models (and ffmpeg) on first use if missing
+  auto_download: true    # download llama-tts, models (and ffmpeg) on first use if missing
   output_dir: ""         # where generated wavs go; empty = ~/.infer/tts
   # Optional overrides:
   binary_path: ""        # explicit llama-tts path; empty = resolve on PATH
@@ -132,10 +141,10 @@ automatically. You can also pass explicit filenames as
 manually, and set `auto_download: false`.
 
 The `llama-tts` binary itself is resolved from `binary_path`, then from
-`PATH`. The STT binary release currently hosts no prebuilt `llama-tts`, so
-build it once from llama.cpp (or point `binary_path` at your build); if a
-prebuilt asset is added later it is downloaded into `~/.infer/bin`
-automatically on first use, like ffmpeg.
+`PATH`, and finally auto-downloaded from the
+[binaries release](https://github.com/inference-gateway/binaries/releases)
+into `~/.infer/bin` (sha256-verified), like ffmpeg. Set `auto_download: false`
+to require a locally installed build instead.
 
 ## Using the agent tool
 
@@ -157,8 +166,9 @@ minimal background noise, no music.
 
 ## Troubleshooting
 
-- **"llama-tts binary not found"** - install llama.cpp with TTS support
-  (build the `llama-tts` target) or set `text_to_speech.binary_path`.
+- **"llama-tts binary not found"** - enable `auto_download`, install llama.cpp
+  with TTS support (build the `llama-tts` target), or set
+  `text_to_speech.binary_path`.
 - **"error: invalid argument: -mm"** - your `llama-tts` predates mmproj support
   for the TTS tool. Upgrade llama.cpp (see [llama.cpp version](#llamacpp-version)).
 - **"unknown model architecture: 'qwen3tts'"** - same cause, one layer down:
