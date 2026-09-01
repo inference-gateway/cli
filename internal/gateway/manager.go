@@ -89,7 +89,7 @@ func (gm *Manager) startBinary(ctx context.Context) error {
 	if gm.isBinaryRunning() {
 		if !gm.needsAudioRestart() {
 			logger.Info("gateway is already running on port")
-			fmt.Println("• Gateway is already running")
+			fmt.Printf("• Gateway%s is already running\n", gm.versionLabel(ctx))
 			gm.isRunning = true
 			gm.registerPID()
 			logger.Debug("registered PID on existing gateway")
@@ -133,7 +133,7 @@ func (gm *Manager) startBinary(ctx context.Context) error {
 	gm.isRunning = true
 	gm.registerPID()
 	gm.writeGatewayPID()
-	fmt.Printf("• Gateway is ready at %s\n\n", gm.config.Gateway.URL)
+	fmt.Printf("• Gateway%s is ready at %s\n\n", gm.versionLabel(ctx), gm.config.Gateway.URL)
 	logger.Info("gateway binary started successfully", "url", gm.config.Gateway.URL)
 	return nil
 }
@@ -149,7 +149,7 @@ func (gm *Manager) startContainer(ctx context.Context) error {
 	if gm.isContainerRunning() {
 		if !gm.needsAudioRestart() {
 			logger.Info("gateway container is already running")
-			fmt.Println("• Gateway container is already running")
+			fmt.Printf("• Gateway container%s is already running\n", gm.versionLabel(ctx))
 			gm.isRunning = true
 			return nil
 		}
@@ -193,7 +193,7 @@ func (gm *Manager) startContainer(ctx context.Context) error {
 	}
 
 	actualURL := gm.GetGatewayURL()
-	fmt.Printf("• Gateway is ready at %s\n\n", actualURL)
+	fmt.Printf("• Gateway%s is ready at %s\n\n", gm.versionLabel(ctx), actualURL)
 	logger.Info("gateway container started successfully", "session", gm.sessionID, "url", actualURL, "port", gm.assignedPort)
 	return nil
 }
@@ -614,6 +614,128 @@ func (gm *Manager) waitForStopped(ctx context.Context) {
 	}
 }
 
+// Version reports the version of the gateway serving at the managed URL, or ""
+// when it cannot be determined. The gateway's /version endpoint wins; managed
+// modes fall back to the cached binary or the configured container image tag.
+// Externally managed gateways (Gateway.Run off) have no local source to ask.
+func (gm *Manager) Version(ctx context.Context) string {
+	if v := probeVersionEndpoint(ctx, gm.GetGatewayURL()); v != "" {
+		return v
+	}
+
+	if !gm.config.Gateway.Run {
+		return ""
+	}
+
+	if gm.config.Gateway.OCI != "" && !gm.config.Gateway.StandaloneBinary {
+		return imageVersion(gm.config.Gateway.OCI)
+	}
+
+	return binaryVersion(ctx, gatewayBinaryPath())
+}
+
+// versionLabel renders " v0.50.0" for the startup lines, or "" when unknown.
+func (gm *Manager) versionLabel(ctx context.Context) string {
+	if v := gm.Version(ctx); v != "" {
+		return " v" + v
+	}
+	return ""
+}
+
+// probeVersionEndpoint asks the gateway's /version endpoint, accepting a JSON
+// payload with a "version" field or a plain-text body. Anything else (a 404
+// on gateways without the endpoint, HTML, connection errors) yields "".
+func probeVersionEndpoint(ctx context.Context, gatewayURL string) string {
+	probeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(probeCtx, http.MethodGet, strings.TrimSuffix(gatewayURL, "/")+"/version", nil)
+	if err != nil {
+		return ""
+	}
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if err != nil {
+		return ""
+	}
+
+	var payload struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(body, &payload); err == nil && payload.Version != "" {
+		return cleanVersion(payload.Version)
+	}
+
+	return cleanVersion(string(body))
+}
+
+// binaryVersion runs the managed gateway binary's --version, mirroring the
+// parsing (and failure tolerance) of gatewayBinaryIsStale.
+func binaryVersion(ctx context.Context, binaryPath string) string {
+	if _, err := os.Stat(binaryPath); err != nil {
+		return ""
+	}
+
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	out, err := exec.CommandContext(checkCtx, binaryPath, "--version").Output()
+	fields := strings.Fields(string(out))
+	if err != nil || len(fields) == 0 {
+		return ""
+	}
+
+	return cleanVersion(fields[len(fields)-1])
+}
+
+// imageVersion extracts the version from the configured container image tag,
+// e.g. ghcr.io/inference-gateway/inference-gateway:v0.50.0 -> "0.50.0".
+// Floating references (:latest, digests) say nothing and yield "".
+func imageVersion(image string) string {
+	tag := image[strings.LastIndex(image, "/")+1:]
+	if idx := strings.Index(tag, ":"); idx >= 0 {
+		tag = tag[idx+1:]
+	}
+	return cleanVersion(tag)
+}
+
+// cleanVersion normalizes a version ("v0.50.0" -> "0.50.0") and rejects values
+// that do not look like one (HTML bodies, "latest", "sha256:...").
+func cleanVersion(v string) string {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	if v == "" || len(v) > 32 || v[0] < '0' || v[0] > '9' {
+		return ""
+	}
+	for _, r := range v {
+		switch {
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r == '.', r == '-', r == '+':
+		default:
+			return ""
+		}
+	}
+	return v
+}
+
+// gatewayBinaryPath returns where the managed gateway binary lives.
+func gatewayBinaryPath() string {
+	name := "inference-gateway"
+	if runtime.GOOS == "windows" {
+		name = "inference-gateway.exe"
+	}
+	return filepath.Join(inferHomeDir("bin"), name)
+}
+
 // isBinaryRunning checks if the gateway is already running on the port
 func (gm *Manager) isBinaryRunning() bool {
 	healthURL := strings.TrimSuffix(gm.config.Gateway.URL, "/") + "/health"
@@ -630,16 +752,10 @@ func (gm *Manager) isBinaryRunning() bool {
 // GitHub, authenticating the API call with GITHUB_TOKEN/GH_TOKEN when
 // available to avoid the 60 req/hour unauthenticated rate limit
 func (gm *Manager) downloadBinary(ctx context.Context) (string, error) {
-	binaryDir := inferHomeDir("bin")
-	if err := os.MkdirAll(binaryDir, 0755); err != nil {
+	binaryPath := gatewayBinaryPath()
+	if err := os.MkdirAll(filepath.Dir(binaryPath), 0755); err != nil {
 		return "", fmt.Errorf("failed to create binary directory: %w", err)
 	}
-
-	binaryName := "inference-gateway"
-	if runtime.GOOS == "windows" {
-		binaryName = "inference-gateway.exe"
-	}
-	binaryPath := filepath.Join(binaryDir, binaryName)
 
 	if _, err := os.Stat(binaryPath); err == nil {
 		if !gatewayBinaryIsStale(ctx, binaryPath) {
