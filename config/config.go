@@ -1504,24 +1504,29 @@ func (c *Config) Validate() error {
 		)
 	}
 
-	switch engine := strings.TrimSpace(c.TextToSpeech.Engine); engine {
-	case TextToSpeechEngineQwen3:
-	case "", TextToSpeechEngineGateway:
-		model := c.TextToSpeech.ResolveGatewayModel()
-		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
+	// Only validated when the feature is on: a disabled text_to_speech never
+	// consults its engine, and an unknown engine written by a newer binary
+	// sharing the same ~/.infer/config.yaml must not break config loading.
+	if c.TextToSpeech.Enabled {
+		switch engine := strings.TrimSpace(c.TextToSpeech.Engine); engine {
+		case TextToSpeechEngineQwen3:
+		case "", TextToSpeechEngineGateway:
+			model := c.TextToSpeech.ResolveGatewayModel()
+			if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
+				return fmt.Errorf(
+					"invalid text_to_speech.model %q for the %q engine: must be of the form 'provider/model', e.g. 'openai/gpt-4o-mini-tts'",
+					model,
+					TextToSpeechEngineGateway,
+				)
+			}
+		default:
 			return fmt.Errorf(
-				"invalid text_to_speech.model %q for the %q engine: must be of the form 'provider/model', e.g. 'openai/gpt-4o-mini-tts'",
-				model,
+				"invalid text_to_speech.engine %q: supported engines are %q and %q",
+				engine,
+				TextToSpeechEngineQwen3,
 				TextToSpeechEngineGateway,
 			)
 		}
-	default:
-		return fmt.Errorf(
-			"invalid text_to_speech.engine %q: supported engines are %q and %q",
-			engine,
-			TextToSpeechEngineQwen3,
-			TextToSpeechEngineGateway,
-		)
 	}
 
 	if repo := strings.TrimSpace(c.Agent.Skills.Repository); repo != "" {

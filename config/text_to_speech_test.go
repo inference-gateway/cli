@@ -76,6 +76,7 @@ func TestValidateTextToSpeechEngine(t *testing.T) {
 	t.Run("gateway rejects a model without a provider", func(t *testing.T) {
 		for _, model := range []string{"q8", "openai/", "/tts-1"} {
 			cfg := &config.Config{}
+			cfg.TextToSpeech.Enabled = true
 			cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
 			cfg.TextToSpeech.Model = model
 			if err := cfg.Validate(); err == nil {
@@ -86,9 +87,32 @@ func TestValidateTextToSpeechEngine(t *testing.T) {
 
 	t.Run("unknown engine is rejected", func(t *testing.T) {
 		cfg := &config.Config{}
+		cfg.TextToSpeech.Enabled = true
 		cfg.TextToSpeech.Engine = "piper"
 		if err := cfg.Validate(); err == nil {
 			t.Error("expected error for unknown text_to_speech.engine")
+		}
+	})
+
+	t.Run("unknown engine or bad model is ignored when disabled", func(t *testing.T) {
+		for _, tt := range []struct {
+			name   string
+			engine string
+			model  string
+		}{
+			{"engine from a newer binary", config.TextToSpeechEngineGateway, ""},
+			{"unknown engine", "piper", ""},
+			{"bad gateway model", config.TextToSpeechEngineGateway, "q8"},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				cfg := &config.Config{}
+				cfg.TextToSpeech.Enabled = false
+				cfg.TextToSpeech.Engine = tt.engine
+				cfg.TextToSpeech.Model = tt.model
+				if err := cfg.Validate(); err != nil {
+					t.Errorf("unexpected error for disabled text_to_speech: %v", err)
+				}
+			})
 		}
 	})
 }
