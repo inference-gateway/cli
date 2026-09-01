@@ -45,6 +45,7 @@ type InputStatusBar struct {
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	mcpStatus              *agentdomain.MCPServerStatus
 	browserConnected       bool
+	versionInfo            tui.VersionInfo
 	styleProvider          *styles.Provider
 	currentInputText       string
 
@@ -144,6 +145,11 @@ func (isb *InputStatusBar) UpdateMCPStatus(status *agentdomain.MCPServerStatus) 
 	isb.mcpStatus = status
 }
 
+// SetVersionInfo sets the CLI and gateway versions shown right-aligned in the bar.
+func (isb *InputStatusBar) SetVersionInfo(info tui.VersionInfo) {
+	isb.versionInfo = info
+}
+
 // SetBrowserConnected toggles the browser-extension indicator.
 func (isb *InputStatusBar) SetBrowserConnected(connected bool) {
 	isb.browserConnected = connected
@@ -238,19 +244,64 @@ func (isb *InputStatusBar) Render() string {
 	}
 
 	lines := isb.buildStatusLines()
-	if dot := isb.buildBridgeDot(); dot != "" {
-		const label = " Browser"
-		marker := dot
-		pad := isb.width - 6 - lipgloss.Width(lines[0])
-		if pad-len(label) >= 2 {
-			marker += isb.styleProvider.RenderWithColor(label, isb.styleProvider.GetThemeColor("dim"))
-			pad -= len(label)
-		}
-		if pad > 0 {
-			lines[0] += strings.Repeat(" ", pad) + marker
-		}
+	if right := isb.renderRightSegment(lipgloss.Width(lines[0])); right != "" {
+		lines[0] += right
 	}
 	return strings.Join(lines, "\n")
+}
+
+// renderRightSegment right-aligns "cli vX • gw vY • ● Browser" after the given
+// line width, dropping pieces until the rest fits: gateway version first, then
+// CLI version, then the Browser label (bare dot last). Empty when nothing fits.
+func (isb *InputStatusBar) renderRightSegment(lineWidth int) string {
+	if isb.styleProvider == nil {
+		return ""
+	}
+	dim := func(s string) string {
+		return isb.styleProvider.RenderWithColor(s, isb.styleProvider.GetThemeColor("dim"))
+	}
+
+	var cli, gw string
+	if v := isb.versionInfo.Version; v != "" {
+		cli = dim("cli " + versionLabel(v))
+	}
+	if v := isb.versionInfo.GatewayVersion; v != "" {
+		gw = dim("gw " + versionLabel(v))
+	}
+	dot := isb.buildBridgeDot()
+	browser := dot
+	if dot != "" {
+		browser += dim(" Browser")
+	}
+
+	join := func(parts ...string) string {
+		var kept []string
+		for _, p := range parts {
+			if p != "" {
+				kept = append(kept, p)
+			}
+		}
+		return strings.Join(kept, dim(" • "))
+	}
+
+	for _, candidate := range []string{join(cli, gw, browser), join(cli, browser), browser, dot} {
+		if candidate == "" {
+			continue
+		}
+		if pad := isb.width - 5 - lineWidth - lipgloss.Width(candidate); pad >= 2 {
+			return strings.Repeat(" ", pad) + candidate
+		}
+	}
+	return ""
+}
+
+// versionLabel prefixes a numeric version with "v"; non-numeric values
+// (e.g. "dev") pass through unchanged.
+func versionLabel(v string) string {
+	if v == "" || v[0] < '0' || v[0] > '9' {
+		return v
+	}
+	return "v" + v
 }
 
 // buildBridgeDot is the extension-bridge marker: green when the extension is

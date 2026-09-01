@@ -267,6 +267,7 @@ func NewChatApplication(
 		isb.SetThemeService(app.themeService)
 		isb.SetStateManager(app.stateManager)
 		isb.SetConfig(app.config)
+		isb.SetVersionInfo(versionInfo)
 		isb.SetConversationRepo(app.conversationRepo)
 		isb.SetToolService(app.toolService)
 		isb.SetTokenEstimator(conversation.NewTokenizerService(conversation.DefaultTokenizerConfig()))

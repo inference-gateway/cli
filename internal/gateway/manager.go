@@ -89,7 +89,7 @@ func (gm *Manager) startBinary(ctx context.Context) error {
 	if gm.isBinaryRunning() {
 		if !gm.needsAudioRestart() {
 			logger.Info("gateway is already running on port")
-			fmt.Printf("• Gateway%s is already running\n", gm.versionLabel(ctx))
+			fmt.Println("• Gateway is already running")
 			gm.isRunning = true
 			gm.registerPID()
 			logger.Debug("registered PID on existing gateway")
@@ -133,7 +133,7 @@ func (gm *Manager) startBinary(ctx context.Context) error {
 	gm.isRunning = true
 	gm.registerPID()
 	gm.writeGatewayPID()
-	fmt.Printf("• Gateway%s is ready at %s\n\n", gm.versionLabel(ctx), gm.config.Gateway.URL)
+	fmt.Printf("• Gateway is ready at %s\n\n", gm.config.Gateway.URL)
 	logger.Info("gateway binary started successfully", "url", gm.config.Gateway.URL)
 	return nil
 }
@@ -149,7 +149,7 @@ func (gm *Manager) startContainer(ctx context.Context) error {
 	if gm.isContainerRunning() {
 		if !gm.needsAudioRestart() {
 			logger.Info("gateway container is already running")
-			fmt.Printf("• Gateway container%s is already running\n", gm.versionLabel(ctx))
+			fmt.Println("• Gateway container is already running")
 			gm.isRunning = true
 			return nil
 		}
@@ -193,7 +193,7 @@ func (gm *Manager) startContainer(ctx context.Context) error {
 	}
 
 	actualURL := gm.GetGatewayURL()
-	fmt.Printf("• Gateway%s is ready at %s\n\n", gm.versionLabel(ctx), actualURL)
+	fmt.Printf("• Gateway is ready at %s\n\n", actualURL)
 	logger.Info("gateway container started successfully", "session", gm.sessionID, "url", actualURL, "port", gm.assignedPort)
 	return nil
 }
@@ -632,14 +632,6 @@ func (gm *Manager) Version(ctx context.Context) string {
 	}
 
 	return binaryVersion(ctx, gatewayBinaryPath())
-}
-
-// versionLabel renders " v0.50.0" for the startup lines, or "" when unknown.
-func (gm *Manager) versionLabel(ctx context.Context) string {
-	if v := gm.Version(ctx); v != "" {
-		return " v" + v
-	}
-	return ""
 }
 
 // probeVersionEndpoint asks the gateway's /version endpoint, accepting a JSON
