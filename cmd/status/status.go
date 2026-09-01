@@ -32,8 +32,6 @@ func NewCommand(state *runtime.State) *cobra.Command {
 
 			loaded := state.Config()
 
-			// The full Gateway section (not just URL/APIKey/Timeout) so the
-			// version detector knows which managed mode would serve it.
 			cfg := &config.Config{
 				Gateway: loaded.Gateway,
 			}
