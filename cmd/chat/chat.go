@@ -160,6 +160,9 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()
 
+	versionInfo := version.GetVersionInfo()
+	versionInfo.GatewayVersion = services.GetGatewayManager().Version(ctx)
+
 	models, err := services.GetModelService().ListModels(ctx)
 	if err != nil {
 		return fmt.Errorf("inference gateway is not available: %w", err)
@@ -220,7 +223,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		cfg,
 		models,
 		defaultModel,
-		version.GetVersionInfo(),
+		versionInfo,
 		agentManager,
 		agentService,
 		backgroundTaskService,

@@ -278,10 +278,21 @@ func (p *Provider) spliceBranchIntoTopBorder(box, label, borderColor, labelColor
 	leftDashes := max(boxWidth-corners-rightMargin-labelWidth, minLeftDashes)
 
 	lines[0] = p.RenderWithColor("╭"+strings.Repeat("─", leftDashes), borderColor) +
-		p.RenderWithColor(label, labelColor) +
+		p.renderBorderLabel(label, borderColor, labelColor) +
 		p.RenderWithColor(strings.Repeat("─", rightMargin)+"╮", borderColor)
 
 	return strings.Join(lines, "\n")
+}
+
+// renderBorderLabel styles the label text, keeping any " ─ " separator (between
+// the branch and the PR number) in the border color so both segments read as
+// separate titles hanging on the border line.
+func (p *Provider) renderBorderLabel(label, borderColor, labelColor string) string {
+	parts := strings.Split(label, " ─ ")
+	for i, part := range parts {
+		parts[i] = p.RenderWithColor(part, labelColor)
+	}
+	return strings.Join(parts, p.RenderWithColor(" ─ ", borderColor))
 }
 
 // truncateBorderLabel shortens s to at most maxWidth display columns, appending

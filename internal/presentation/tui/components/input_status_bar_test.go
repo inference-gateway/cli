@@ -1190,3 +1190,43 @@ func TestInputStatusBar_A2AIndicatorCountsDown(t *testing.T) {
 		t.Fatalf("after recovery: got %q, want %q", got, "A2A: 1/1")
 	}
 }
+
+func TestInputStatusBar_RenderRightSegmentDropOrder(t *testing.T) {
+	statusBar := NewInputStatusBar(agentStartupProvider())
+	statusBar.config = config.DefaultConfig()
+	statusBar.config.BrowserUse.Enabled = true
+	statusBar.config.BrowserUse.Backend = config.BrowserBackendExtension
+	statusBar.SetVersionInfo(tui.VersionInfo{Version: "0.186.0", GatewayVersion: "0.50.0"})
+
+	tests := []struct {
+		name      string
+		width     int
+		lineWidth int
+		want      string
+	}{
+		{"wide fits everything", 80, 20, "cli v0.186.0 • gw v0.50.0 • ● Browser"},
+		{"medium drops gateway version", 80, 45, "cli v0.186.0 • ● Browser"},
+		{"tight drops cli version", 80, 58, "● Browser"},
+		{"narrow keeps bare dot", 80, 70, "●"},
+		{"no space at all", 80, 76, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := strings.TrimLeft(ansi.Strip(statusBar.renderRightSegment(tt.lineWidth)), " ")
+			if got != tt.want {
+				t.Fatalf("renderRightSegment(%d) = %q, want %q", tt.lineWidth, got, tt.want)
+			}
+		})
+	}
+
+	statusBar.config.BrowserUse.Enabled = false
+	got := strings.TrimLeft(ansi.Strip(statusBar.renderRightSegment(20)), " ")
+	if got != "cli v0.186.0 • gw v0.50.0" {
+		t.Fatalf("without browser indicator got %q", got)
+	}
+
+	statusBar.SetVersionInfo(tui.VersionInfo{Version: "dev"})
+	if got := strings.TrimLeft(ansi.Strip(statusBar.renderRightSegment(20)), " "); got != "cli dev" {
+		t.Fatalf("dev build got %q", got)
+	}
+}
