@@ -1,6 +1,3 @@
-// Media and filesystem ports: file listing/reading with metadata, image
-// loading/encoding/generation, and speech synthesis.
-
 package domain
 
 import "context"
