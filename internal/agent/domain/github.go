@@ -1,6 +1,3 @@
-// GitHub ports: cached issue access behind the chat input's "#" autocomplete
-// and the git/gh/CI operations behind the install workflow wizard.
-
 package domain
 
 import (
