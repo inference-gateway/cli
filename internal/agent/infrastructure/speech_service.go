@@ -38,6 +38,10 @@ func (s *SpeechService) Synthesize(ctx context.Context, text, voiceSamplePath, o
 		return fmt.Errorf("invalid text_to_speech.model %q (expected 'provider/model')", model)
 	}
 
+	if provider == "local" {
+		provider, modelName = "", model
+	}
+
 	format := sdk.Wav
 	request := sdk.CreateSpeechRequest{
 		Input:          text,

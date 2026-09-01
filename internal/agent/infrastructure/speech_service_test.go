@@ -58,8 +58,8 @@ func TestSpeechService_SynthesizeDefaultModel(t *testing.T) {
 	require.NoError(t, svc.Synthesize(context.Background(), "hi", "", outPath))
 
 	_, provider, req := client.CreateSpeechArgsForCall(0)
-	assert.Equal(t, sdk.Provider("local"), provider)
-	assert.Equal(t, "qwen3-tts", req.Model)
+	assert.Equal(t, sdk.Provider(""), provider)
+	assert.Equal(t, "local/qwen3-tts", req.Model)
 }
 
 func TestSpeechService_SynthesizeVoiceClone(t *testing.T) {
