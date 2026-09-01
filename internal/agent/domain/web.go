@@ -1,5 +1,3 @@
-// Result types for the web fetch and web search tools.
-
 package domain
 
 import "time"
