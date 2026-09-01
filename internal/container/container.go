@@ -82,6 +82,7 @@ type ServiceContainer struct {
 	toolService            agentdomain.ToolService
 	fileService            agentdomain.FileService
 	imageService           agentdomain.ImageService
+	speechService          agentdomain.SpeechService
 	imageAnnotator         agentdomain.ImageAnnotator
 	pricingService         convdomain.PricingService
 	telemetryRecorder      *telemetry.Recorder
@@ -379,6 +380,7 @@ func (c *ServiceContainer) hasAutoStartMCPServers() bool {
 func (c *ServiceContainer) initializeDomainServices() {
 	c.fileService = agentinfra.NewFileService()
 	c.imageService = agentinfra.NewImageService(c.config, c.createRawSDKClient())
+	c.speechService = agentinfra.NewSpeechService(c.config, c.createRawSDKClient())
 	c.messageQueue = conversation.NewMessageQueueService()
 
 	c.initializeMCPManager()
@@ -394,7 +396,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.stores = stores
 
 	c.imageAnnotator = c.createImageAnnotator()
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.mcpManager, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
 	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator))
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 

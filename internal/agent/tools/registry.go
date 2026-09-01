@@ -49,6 +49,7 @@ type Registry struct {
 	jobStopper      scheddomain.JobStopper
 	jobLiveness     scheddomain.JobLivenessReporter
 	imageService    agentdomain.ImageService
+	speechService   agentdomain.SpeechService
 	mcpManager      agentdomain.MCPManager
 	shellService    scheddomain.BackgroundShellService
 	annotator       agentdomain.ImageAnnotator
@@ -65,21 +66,22 @@ type Registry struct {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}
 	registry := &Registry{
-		config:       cfg,
-		tools:        make(map[string]agentdomain.Tool),
-		shellService: shellService,
-		readFiles:    make(map[string]fileReadSnapshot),
-		taskTracker:  taskTracker,
-		imageService: imageService,
-		mcpManager:   mcpManager,
-		annotator:    annotator,
-		frameSources: make(map[string]agentdomain.FrameSource),
-		stores:       stores,
+		config:        cfg,
+		tools:         make(map[string]agentdomain.Tool),
+		shellService:  shellService,
+		readFiles:     make(map[string]fileReadSnapshot),
+		taskTracker:   taskTracker,
+		imageService:  imageService,
+		speechService: speechService,
+		mcpManager:    mcpManager,
+		annotator:     annotator,
+		frameSources:  make(map[string]agentdomain.FrameSource),
+		stores:        stores,
 	}
 	if st, ok := taskTracker.(scheddomain.SubagentTracker); ok {
 		registry.subagentTracker = st
@@ -205,7 +207,7 @@ func (r *Registry) registerTools() {
 	}
 
 	if cfg.TextToSpeech.Enabled {
-		r.tools["TextToSpeech"] = NewTextToSpeechTool(cfg, audio.NewSynthesizer(cfg.TextToSpeech))
+		r.registerTextToSpeech(cfg)
 	}
 
 	if cfg.IsA2AToolsEnabled() {
@@ -221,6 +223,19 @@ func (r *Registry) registerTools() {
 	if cfg.Memory.Enabled {
 		r.tools["Memory"] = NewMemoryTool(cfg, r.memoryBackend, project.Detect())
 	}
+}
+
+// registerTextToSpeech selects the synthesis backend from the configured
+// engine: the injected gateway speech service, or the local llama-tts
+// synthesizer (the default).
+func (r *Registry) registerTextToSpeech(cfg *config.Config) {
+	if cfg.TextToSpeech.IsGatewayEngine() {
+		if r.speechService != nil {
+			r.tools["TextToSpeech"] = NewTextToSpeechTool(cfg, r.speechService)
+		}
+		return
+	}
+	r.tools["TextToSpeech"] = NewTextToSpeechTool(cfg, audio.NewSynthesizer(cfg.TextToSpeech))
 }
 
 // RegisterTools installs capability tools constructed outside this package

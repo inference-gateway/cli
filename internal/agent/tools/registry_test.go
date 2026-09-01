@@ -36,7 +36,7 @@ func createTestRegistry() *Registry {
 		},
 	}
 
-	return NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	return NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestRegistry_GetTool_Unknown(t *testing.T) {
@@ -67,7 +67,7 @@ func TestRegistry_DisabledTools(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 
 	tools := registry.ListAvailableTools()
 
@@ -118,7 +118,7 @@ func TestRegistry_NewRegistry(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 
 	if registry == nil {
 		t.Fatal("Expected non-nil registry")
@@ -152,7 +152,7 @@ func TestRegistry_GetTool(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -300,7 +300,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			registry := NewRegistry(tt.config, nil, nil, nil, nil, nil, nil)
+			registry := NewRegistry(tt.config, nil, nil, nil, nil, nil, nil, nil)
 			tools := registry.ListAvailableTools()
 
 			if len(tools) < tt.expectedMin || len(tools) > tt.expectedMax {
@@ -353,7 +353,7 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 		Prompts: *config.DefaultPromptsConfig(),
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 	definitions := registry.GetToolDefinitions()
 
 	if len(definitions) < 5 || len(definitions) > 15 {
@@ -402,7 +402,7 @@ func TestRegistry_IsToolEnabled(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -454,7 +454,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 
 	fakeTool := &agentdomainmocks.FakeTool{}
 	fakeTool.IsEnabledReturns(true)
@@ -593,7 +593,7 @@ func TestRegistry_NewRegistry_DoesNotBlockOnMCP(t *testing.T) {
 
 	done := make(chan *Registry, 1)
 	go func() {
-		done <- NewRegistry(cfg, nil, blocker, nil, nil, nil, nil)
+		done <- NewRegistry(cfg, nil, nil, blocker, nil, nil, nil, nil)
 	}()
 
 	select {
@@ -654,7 +654,7 @@ func TestRegistry_ConcurrentMCPToolAccess(t *testing.T) {
 		Prompts: *config.DefaultPromptsConfig(),
 	}
 
-	registry := NewRegistry(cfg, nil, &stubMCPManager{client: &agentdomainmocks.FakeMCPClient{}}, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, &stubMCPManager{client: &agentdomainmocks.FakeMCPClient{}}, nil, nil, nil, nil)
 
 	discovered := []agentdomain.MCPDiscoveredTool{
 		{ServerName: "flappy", Name: "alpha", Description: "a", InputSchema: map[string]any{}},

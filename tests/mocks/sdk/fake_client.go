@@ -84,6 +84,21 @@ type FakeClient struct {
 		result1 <-chan sdk.SSEvent
 		result2 error
 	}
+	CreateSpeechStub        func(context.Context, sdk.Provider, sdk.CreateSpeechRequest) ([]byte, error)
+	createSpeechMutex       sync.RWMutex
+	createSpeechArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateSpeechRequest
+	}
+	createSpeechReturns struct {
+		result1 []byte
+		result2 error
+	}
+	createSpeechReturnsOnCall map[int]struct {
+		result1 []byte
+		result2 error
+	}
 	GenerateContentStub        func(context.Context, sdk.Provider, string, []sdk.Message) (*sdk.CreateChatCompletionResponse, error)
 	generateContentMutex       sync.RWMutex
 	generateContentArgsForCall []struct {
@@ -566,6 +581,72 @@ func (fake *FakeClient) CreateMessageStreamReturnsOnCall(i int, result1 <-chan s
 	}
 	fake.createMessageStreamReturnsOnCall[i] = struct {
 		result1 <-chan sdk.SSEvent
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateSpeech(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateSpeechRequest) ([]byte, error) {
+	fake.createSpeechMutex.Lock()
+	ret, specificReturn := fake.createSpeechReturnsOnCall[len(fake.createSpeechArgsForCall)]
+	fake.createSpeechArgsForCall = append(fake.createSpeechArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateSpeechRequest
+	}{arg1, arg2, arg3})
+	stub := fake.CreateSpeechStub
+	fakeReturns := fake.createSpeechReturns
+	fake.recordInvocation("CreateSpeech", []interface{}{arg1, arg2, arg3})
+	fake.createSpeechMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) CreateSpeechCallCount() int {
+	fake.createSpeechMutex.RLock()
+	defer fake.createSpeechMutex.RUnlock()
+	return len(fake.createSpeechArgsForCall)
+}
+
+func (fake *FakeClient) CreateSpeechCalls(stub func(context.Context, sdk.Provider, sdk.CreateSpeechRequest) ([]byte, error)) {
+	fake.createSpeechMutex.Lock()
+	defer fake.createSpeechMutex.Unlock()
+	fake.CreateSpeechStub = stub
+}
+
+func (fake *FakeClient) CreateSpeechArgsForCall(i int) (context.Context, sdk.Provider, sdk.CreateSpeechRequest) {
+	fake.createSpeechMutex.RLock()
+	defer fake.createSpeechMutex.RUnlock()
+	argsForCall := fake.createSpeechArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) CreateSpeechReturns(result1 []byte, result2 error) {
+	fake.createSpeechMutex.Lock()
+	defer fake.createSpeechMutex.Unlock()
+	fake.CreateSpeechStub = nil
+	fake.createSpeechReturns = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateSpeechReturnsOnCall(i int, result1 []byte, result2 error) {
+	fake.createSpeechMutex.Lock()
+	defer fake.createSpeechMutex.Unlock()
+	fake.CreateSpeechStub = nil
+	if fake.createSpeechReturnsOnCall == nil {
+		fake.createSpeechReturnsOnCall = make(map[int]struct {
+			result1 []byte
+			result2 error
+		})
+	}
+	fake.createSpeechReturnsOnCall[i] = struct {
+		result1 []byte
 		result2 error
 	}{result1, result2}
 }

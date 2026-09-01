@@ -1,12 +1,15 @@
 package gateway
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"testing"
 
+	config "github.com/inference-gateway/cli/config"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
@@ -78,4 +81,56 @@ func startSleep(t *testing.T) *exec.Cmd {
 		t.Fatal(err)
 	}
 	return cmd
+}
+
+// TestNeedsAudioRestart verifies an already-running gateway is only restarted
+// when the gateway TTS engine is configured and the Audio API answers 404.
+func TestNeedsAudioRestart(t *testing.T) {
+	tests := []struct {
+		name        string
+		enabled     bool
+		engine      string
+		audioStatus int
+		want        bool
+	}{
+		{"tts disabled", false, "gateway", http.StatusNotFound, false},
+		{"local engine", true, "qwen3-tts", http.StatusNotFound, false},
+		{"audio missing", true, "gateway", http.StatusNotFound, true},
+		{"default engine, audio missing", true, "", http.StatusNotFound, true},
+		{"audio enabled (bad request)", true, "gateway", http.StatusBadRequest, false},
+		{"audio warming up (503)", true, "gateway", http.StatusServiceUnavailable, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/v1/audio/speech" {
+					w.WriteHeader(tt.audioStatus)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+
+			cfg := config.DefaultConfig()
+			cfg.Gateway.URL = srv.URL
+			cfg.TextToSpeech.Enabled = tt.enabled
+			cfg.TextToSpeech.Engine = tt.engine
+			gm := NewManager("test-session", cfg, nil)
+
+			if got := gm.needsAudioRestart(); got != tt.want {
+				t.Errorf("needsAudioRestart() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestAudioAPIEnabledUnreachable pins that an unreachable gateway never
+// triggers a restart - that failure belongs to the normal start flow.
+func TestAudioAPIEnabledUnreachable(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Gateway.URL = "http://127.0.0.1:1"
+	gm := NewManager("test-session", cfg, nil)
+	if !gm.audioAPIEnabled() {
+		t.Error("audioAPIEnabled() = false for an unreachable gateway, want true")
+	}
 }

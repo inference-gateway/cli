@@ -73,6 +73,38 @@ func TestResolveTTSBinaryCandidateFallback(t *testing.T) {
 	}
 }
 
+func TestResolveTTSBinaryAutoDownload(t *testing.T) {
+	sum := sha256hex("#!fake-llama-tts")
+	asset := assetName("llama-tts")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/checksums.txt"):
+			_, _ = w.Write([]byte(sum + "  " + asset + "\n"))
+		case strings.HasSuffix(r.URL.Path, "/"+asset):
+			_, _ = w.Write([]byte("#!fake-llama-tts"))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	t.Setenv("HOME", t.TempDir())
+	s := NewSynthesizer(config.TextToSpeechConfig{AutoDownload: true})
+	s.binaries.baseURL = srv.URL
+	s.lookPath = notFound
+
+	got, err := s.resolveBinary(context.Background())
+	if err != nil {
+		t.Fatalf("resolveBinary: %v", err)
+	}
+	if !strings.HasSuffix(got, filepath.Join(".infer", "bin", "llama-tts")+exeSuffix()) {
+		t.Errorf("resolveBinary = %q, want the ~/.infer/bin cache path", got)
+	}
+	if _, err := os.Stat(got); err != nil {
+		t.Errorf("downloaded binary missing: %v", err)
+	}
+}
+
 func TestResolveTTSBinaryNotFound(t *testing.T) {
 	s := NewSynthesizer(config.TextToSpeechConfig{})
 	s.lookPath = notFound

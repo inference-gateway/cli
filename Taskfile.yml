@@ -281,6 +281,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ToolService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain FileService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ImageService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain SpeechService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain FrameSource
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ImageAnnotator
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain GitHubIssueService

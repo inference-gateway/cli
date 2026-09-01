@@ -526,11 +526,8 @@ func (dv *DiffView) lineContent(in string, ls LineStyle) (string, bool) {
 	// Pull the background color out of the lipgloss v2 style as RGB hex so
 	// the chroma formatter can preserve it across tokens.
 	bg := ""
-	if c := ls.Code.GetBackground(); c != nil {
-		r, g, bch, a := c.RGBA()
-		if a > 0 {
-			bg = fmt.Sprintf("#%02x%02x%02x", uint8(r>>8), uint8(g>>8), uint8(bch>>8))
-		}
+	if r, g, bch, a := ls.Code.GetBackground().RGBA(); a > 0 {
+		bg = fmt.Sprintf("#%02x%02x%02x", uint8(r>>8), uint8(g>>8), uint8(bch>>8))
 	}
 	content = dv.highlightCode(content, bg)
 	return content, false

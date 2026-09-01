@@ -49,6 +49,13 @@ type ImageService interface {
 	CreateImageVariation(ctx context.Context, model, imagePath, size string) (string, error)
 }
 
+// SpeechService synthesizes speech through the gateway's Audio API, writing
+// the audio to outPath; a non-empty voiceSamplePath is forwarded as a
+// reference sample for zero-shot voice cloning.
+type SpeechService interface {
+	Synthesize(ctx context.Context, text, voiceSamplePath, outPath string) error
+}
+
 // FileInfo contains file metadata
 type FileInfo struct {
 	Path  string

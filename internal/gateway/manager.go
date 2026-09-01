@@ -87,12 +87,19 @@ func (gm *Manager) startBinary(ctx context.Context) error {
 	logger.Info("starting gateway from binary")
 
 	if gm.isBinaryRunning() {
-		logger.Info("gateway is already running on port")
-		fmt.Println("• Gateway is already running")
-		gm.isRunning = true
-		gm.registerPID()
-		logger.Debug("registered PID on existing gateway")
-		return nil
+		if !gm.needsAudioRestart() {
+			logger.Info("gateway is already running on port")
+			fmt.Println("• Gateway is already running")
+			gm.isRunning = true
+			gm.registerPID()
+			logger.Debug("registered PID on existing gateway")
+			return nil
+		}
+		logger.Info("running gateway lacks the Audio API, restarting with AUDIO_ENABLED=true")
+		fmt.Println("• Restarting gateway to enable the Audio API...")
+		gm.killGateway()
+		gm.removeGatewayPID()
+		gm.waitForStopped(ctx)
 	}
 
 	binaryPath, err := gm.downloadBinary(ctx)
@@ -140,10 +147,17 @@ func (gm *Manager) startContainer(ctx context.Context) error {
 	logger.Info("starting gateway container", "image", gm.config.Gateway.OCI)
 
 	if gm.isContainerRunning() {
-		logger.Info("gateway container is already running")
-		fmt.Println("• Gateway container is already running")
-		gm.isRunning = true
-		return nil
+		if !gm.needsAudioRestart() {
+			logger.Info("gateway container is already running")
+			fmt.Println("• Gateway container is already running")
+			gm.isRunning = true
+			return nil
+		}
+		logger.Info("running gateway container lacks the Audio API, restarting with AUDIO_ENABLED=true")
+		fmt.Println("• Restarting gateway container to enable the Audio API...")
+		if err := gm.stopContainer(ctx); err != nil {
+			logger.Warn("failed to stop gateway container for audio restart", "error", err)
+		}
 	}
 
 	if gm.containerRuntime != nil {
@@ -473,6 +487,11 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 		args = append(args, "-e", "ENABLE_IMAGES=true")
 	}
 
+	if gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() {
+		args = append(args, "-e", "AUDIO_ENABLED=true")
+		args = append(args, "-e", fmt.Sprintf("AUDIO_LOCAL_AUTO_DOWNLOAD=%t", gm.config.TextToSpeech.AutoDownload))
+	}
+
 	if gm.config.Gateway.Debug {
 		args = append(args, "-e", "ENVIRONMENT=development")
 	}
@@ -557,6 +576,40 @@ func (gm *Manager) waitForReady(ctx context.Context) error {
 					return nil
 				}
 			}
+		}
+	}
+}
+
+// needsAudioRestart reports whether an already-running gateway must be
+// restarted because the configured text-to-speech engine needs its Audio API
+// but the running instance was started without AUDIO_ENABLED.
+func (gm *Manager) needsAudioRestart() bool {
+	return gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() && !gm.audioAPIEnabled()
+}
+
+// audioAPIEnabled probes POST /v1/audio/speech on the running gateway. The
+// route only exists when the gateway runs with AUDIO_ENABLED, so a 404 means
+// audio is off; any other response (400, 401, 503, ...) means it is served.
+func (gm *Manager) audioAPIEnabled() bool {
+	url := strings.TrimSuffix(gm.config.Gateway.URL, "/") + "/v1/audio/speech"
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Post(url, "application/json", strings.NewReader("{}"))
+	if err != nil {
+		return true
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return resp.StatusCode != http.StatusNotFound
+}
+
+// waitForStopped waits briefly for a killed gateway to stop answering health
+// checks so the replacement can bind the port.
+func (gm *Manager) waitForStopped(ctx context.Context) {
+	deadline := time.Now().Add(5 * time.Second)
+	for gm.isBinaryRunning() && time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(200 * time.Millisecond):
 		}
 	}
 }
@@ -883,6 +936,11 @@ func (gm *Manager) runBinary(binaryPath string) error {
 
 	if gm.config.Tools.ImageGeneration.Enabled || gm.config.Tools.ImageEdit.Enabled || gm.config.Tools.ImageVariation.Enabled {
 		cmd.Env = append(cmd.Env, "ENABLE_IMAGES=true")
+	}
+
+	if gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() {
+		cmd.Env = append(cmd.Env, "AUDIO_ENABLED=true")
+		cmd.Env = append(cmd.Env, fmt.Sprintf("AUDIO_LOCAL_AUTO_DOWNLOAD=%t", gm.config.TextToSpeech.AutoDownload))
 	}
 
 	if gm.config.Gateway.Debug {

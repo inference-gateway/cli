@@ -53,6 +53,37 @@ func TestValidateTextToSpeechEngine(t *testing.T) {
 		}
 	})
 
+	t.Run("gateway is supported with a provider/model", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
+		cfg.TextToSpeech.Model = "openai/gpt-4o-mini-tts"
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("gateway defaults an empty model to local/qwen3-tts", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if got := cfg.TextToSpeech.ResolveGatewayModel(); got != config.TextToSpeechGatewayDefaultModel {
+			t.Errorf("ResolveGatewayModel() = %q, want %q", got, config.TextToSpeechGatewayDefaultModel)
+		}
+	})
+
+	t.Run("gateway rejects a model without a provider", func(t *testing.T) {
+		for _, model := range []string{"q8", "openai/", "/tts-1"} {
+			cfg := &config.Config{}
+			cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
+			cfg.TextToSpeech.Model = model
+			if err := cfg.Validate(); err == nil {
+				t.Errorf("expected error for gateway engine with model %q", model)
+			}
+		}
+	})
+
 	t.Run("unknown engine is rejected", func(t *testing.T) {
 		cfg := &config.Config{}
 		cfg.TextToSpeech.Engine = "piper"
@@ -100,7 +131,7 @@ func TestDefaultConfigTextToSpeech(t *testing.T) {
 	if cfg.TextToSpeech.Timeout != 300 {
 		t.Errorf("text_to_speech.timeout = %d, want 300", cfg.TextToSpeech.Timeout)
 	}
-	if cfg.TextToSpeech.Engine != config.TextToSpeechEngineQwen3 {
-		t.Errorf("text_to_speech.engine = %q, want %q", cfg.TextToSpeech.Engine, config.TextToSpeechEngineQwen3)
+	if cfg.TextToSpeech.Engine != config.TextToSpeechEngineGateway {
+		t.Errorf("text_to_speech.engine = %q, want %q", cfg.TextToSpeech.Engine, config.TextToSpeechEngineGateway)
 	}
 }

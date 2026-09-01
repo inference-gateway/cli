@@ -15,14 +15,15 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
-// sttBinariesBase is the release hosting prebuilt static STT binaries
-// (whisper-cli, ffmpeg), published as <base>/<name>-<GOOS>-<GOARCH> plus a
-// checksums.txt with sha256 sums. Releases are immutable; bump the tag here
-// to adopt a newer stt-binaries release.
-const sttBinariesBase = "https://github.com/inference-gateway/stt-binaries/releases/download/v0.1.0"
+// binariesBase is the release hosting prebuilt speech binaries (whisper-cli,
+// ffmpeg, llama-tts), published as <base>/<name>-<GOOS>-<GOARCH>[.exe] plus a
+// checksums.txt with sha256 sums. It tracks the latest release, matching the
+// gateway's own downloader so both fill the same ~/.infer/bin cache.
+const binariesBase = "https://github.com/inference-gateway/binaries/releases/latest/download"
 
-// BinaryManager downloads prebuilt STT helper binaries (whisper-cli, ffmpeg)
-// into ~/.infer/bin on demand, mirroring ModelManager for GGML models.
+// BinaryManager downloads prebuilt speech helper binaries (whisper-cli,
+// ffmpeg, llama-tts) into ~/.infer/bin on demand, mirroring ModelManager for
+// GGML models.
 type BinaryManager struct {
 	cfg config.SpeechToTextConfig
 
@@ -35,7 +36,7 @@ type BinaryManager struct {
 func NewBinaryManager(cfg config.SpeechToTextConfig) *BinaryManager {
 	return &BinaryManager{
 		cfg:     cfg,
-		baseURL: sttBinariesBase,
+		baseURL: binariesBase,
 		client:  http.DefaultClient,
 	}
 }
@@ -51,7 +52,16 @@ func binDir() (string, error) {
 
 // assetName returns the release asset name for a binary on this platform.
 func assetName(name string) string {
-	return fmt.Sprintf("%s-%s-%s", name, runtime.GOOS, runtime.GOARCH)
+	return fmt.Sprintf("%s-%s-%s%s", name, runtime.GOOS, runtime.GOARCH, exeSuffix())
+}
+
+// exeSuffix returns ".exe" on Windows, matching both the release asset names
+// and the gateway's ~/.infer/bin cache layout.
+func exeSuffix() string {
+	if runtime.GOOS == "windows" {
+		return ".exe"
+	}
+	return ""
 }
 
 // EnsureBinary returns the local path to the named binary under ~/.infer/bin,
@@ -62,14 +72,14 @@ func (b *BinaryManager) EnsureBinary(ctx context.Context, name string) (string, 
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, name)
+	path := filepath.Join(dir, name+exeSuffix())
 
 	if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
 		return path, nil
 	}
 
 	if !b.cfg.AutoDownload {
-		return "", fmt.Errorf("%s not found at %s and speech_to_text.auto_download is disabled", name, path)
+		return "", fmt.Errorf("%s not found at %s and auto_download is disabled", name, path)
 	}
 
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -94,13 +104,13 @@ func (b *BinaryManager) EnsureBinary(ctx context.Context, name string) (string, 
 func (b *BinaryManager) fetchChecksum(ctx context.Context, asset string) (string, error) {
 	body, err := b.get(ctx, b.baseURL+"/checksums.txt")
 	if err != nil {
-		return "", fmt.Errorf("fetching STT binary checksums: %w", err)
+		return "", fmt.Errorf("fetching binary checksums: %w", err)
 	}
 	defer func() { _ = body.Close() }()
 
 	data, err := io.ReadAll(io.LimitReader(body, 1<<20))
 	if err != nil {
-		return "", fmt.Errorf("reading STT binary checksums: %w", err)
+		return "", fmt.Errorf("reading binary checksums: %w", err)
 	}
 
 	for line := range strings.SplitSeq(string(data), "\n") {

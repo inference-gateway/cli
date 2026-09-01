@@ -570,11 +570,14 @@ tools:
 
 ### TextToSpeech Tool
 
-Synthesize speech from text with a local TTS engine and save it as a WAV file. The chat model calls the
-tool when the user asks to say something aloud or to clone a voice; synthesis shells out to llama.cpp's
-`llama-tts` binary running Qwen3-TTS GGUF models, fully local. Disabled by default: while
+Synthesize speech from text and save it as a WAV file. The chat model calls the
+tool when the user asks to say something aloud or to clone a voice. Two engines are available:
+`gateway` (default) sends the request through the gateway's Audio API (`/v1/audio/speech`) - the
+built-in `local/qwen3-tts` model works with the auto-started local gateway, and provider-hosted
+models work too; `qwen3-tts` shells out to llama.cpp's `llama-tts` binary running Qwen3-TTS GGUF
+models, fully local. Disabled by default: while
 `text_to_speech.enabled` is false the tool definition is not sent to the LLM at all. See
-[text-to-speech](text-to-speech.md) for setup and voice cloning.
+[text-to-speech](text-to-speech.md) for setup, engine choice and voice cloning.
 
 **Parameters:**
 
@@ -587,6 +590,10 @@ tool when the user asks to say something aloud or to clone a voice; synthesis sh
 ```yaml
 text_to_speech:
   enabled: true
+  engine: gateway # gateway (default) | qwen3-tts (local)
+  # gateway engine only ("" = local/qwen3-tts):
+  # model: openai/gpt-4o-mini-tts
+  # voice: alloy
   require_approval: true # optional; unset = no approval, like the image tools
 ```
 
