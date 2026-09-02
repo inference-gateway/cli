@@ -78,8 +78,13 @@ type ToolExecutionResult struct {
 	Data       any               `json:"data,omitempty"`
 	Metadata   map[string]string `json:"metadata,omitempty"`
 	Diff       string            `json:"diff,omitempty"`
-	Rejected   bool              `json:"rejected,omitempty"`
-	Images     []ImageAttachment `json:"images,omitempty"`
+	// Rejected marks a human rejection of the tool call. It ends the agent
+	// turn: states.AnyToolRejected clears HasToolResults so the run completes
+	// and control returns to the user. A judge rejection is NOT Rejected; it
+	// is a plain failure (Success=false, Error="rejected by judge: <reason>")
+	// so the driver continues and the model can adjust.
+	Rejected bool              `json:"rejected,omitempty"`
+	Images   []ImageAttachment `json:"images,omitempty"`
 }
 
 // BashToolResult represents the result of a bash command execution

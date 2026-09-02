@@ -244,8 +244,9 @@ func (s *ApprovingToolsState) flushLocked(round *toolRound) {
 //
 // A user rejection ends the turn: HasToolResults is cleared so canComplete
 // lets PostToolExecution transition to Completing instead of streaming
-// another LLM turn, returning control to the user (same semantics as the
-// non-approval route's "tool was rejected - stopping agent loop", issue #786).
+// another LLM turn, returning control to the user (issue #786). This is the
+// only place a rejection ends the turn; the no-approval route in
+// AgentServiceImpl.executeToolCallsParallel never sees rejections (issue #1153).
 func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 	round.wg.Wait()
 	s.flushReady(round)
@@ -260,8 +261,9 @@ func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 	s.ctx.Events <- AllToolsProcessedEvent{}
 }
 
-// buildRejectionEntry constructs the Tool-role result for a rejected tool
-// and publishes the rejection event. reason is non-empty only for judge
+// buildRejectionEntry is the single rejection-entry builder for every approval
+// path. It constructs the Tool-role result for a rejected tool and publishes
+// the rejection event. reason is non-empty only for judge
 // rejections: those carry the verdict reason and do not end the turn, so the
 // driver can adjust. The entry is appended to the conversation in order by
 // the flush.

@@ -21,7 +21,7 @@ func (a *EventDrivenAgent) executeTools() {
 	}
 
 	logger.Debug("running tools in parallel...")
-	toolResults := a.service.executeToolCallsParallel(a.agentCtx.Ctx, toolCallsSlice, a.eventPublisher, a.req.IsChatMode)
+	toolResults := a.service.executeToolCallsParallel(a.agentCtx.Ctx, toolCallsSlice, a.eventPublisher)
 	logger.Debug("tool execution completed", "result_count", len(toolResults))
 
 	stop := a.service.handleToolResults(toolResults, a.agentCtx.Conversation, a.eventPublisher, a.req)
