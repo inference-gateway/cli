@@ -30,28 +30,10 @@ const (
 	AgentModeReadOnly
 )
 
-// AllowedlistKey maps the agent mode to the bash allow-list mode key used in
-// config (tools.bash.mode.<key>.allow): AutoAccept -> "auto", Plan -> "plan",
-// AutoWithJudge -> "standard" (the judge only sees commands the standard
-// allow-list already gates), Standard (and any unknown) -> "standard".
-func (m AgentMode) AllowedlistKey() string {
-	switch m {
-	case AgentModePlan:
-		return "plan"
-	case AgentModeAutoAccept:
-		return "auto"
-	case AgentModeReadOnly:
-		return "readonly"
-	default:
-		return "standard"
-	}
-}
-
 // ModeKey returns the canonical mode key - the inverse of ParseAgentMode:
-// "standard", "plan", "auto", "auto-with-judge", "readonly". Unlike
-// AllowedlistKey (which shares the standard allow-list with AutoWithJudge)
-// it identifies the mode itself; the mode-change reminder guidance map and
-// the extension bridge use it.
+// "standard", "plan", "auto", "auto-with-judge", "readonly". It identifies the
+// mode itself (reminder guidance, telemetry, subagent env, extension bridge);
+// the bash allow-list bucket is resolved from the AgentMode inside config.
 func (m AgentMode) ModeKey() string {
 	switch m {
 	case AgentModePlan:
@@ -67,8 +49,8 @@ func (m AgentMode) ModeKey() string {
 	}
 }
 
-// ParseAgentMode is the inverse of AllowedlistKey: it maps a mode key
-// ("standard"/"plan"/"auto"/"auto-with-judge") back to an AgentMode. Matching
+// ParseAgentMode is the inverse of ModeKey: it maps a mode key
+// ("standard"/"plan"/"auto"/"auto-with-judge"/"readonly") back to an AgentMode. Matching
 // is case-insensitive and tolerant of surrounding whitespace. ok is false for
 // an empty or unrecognized key, in which case callers should keep
 // AgentModeStandard.

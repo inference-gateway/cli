@@ -56,8 +56,9 @@ func IsDirectExecution(ctx context.Context) bool {
 // ========================================
 
 // WithAgentMode returns a new context carrying the agent mode in effect for a
-// tool execution. The Bash tool reads it (via BashAllowModeKey) to pick the
-// per-mode allow-list that governs the command.
+// tool execution. The Bash tool reads it (AgentModeFromContext) and hands it to
+// config.IsBashCommandAllowed, which picks the per-mode allow-list. The zero
+// value is AgentModeStandard, so a missing mode defaults to standard.
 func WithAgentMode(ctx context.Context, mode AgentMode) context.Context {
 	return context.WithValue(ctx, AgentModeKey, mode)
 }
@@ -67,16 +68,6 @@ func WithAgentMode(ctx context.Context, mode AgentMode) context.Context {
 func AgentModeFromContext(ctx context.Context) (AgentMode, bool) {
 	mode, ok := ctx.Value(AgentModeKey).(AgentMode)
 	return mode, ok
-}
-
-// BashAllowModeKey returns the bash allow-list mode key for the agent mode in
-// ctx, defaulting to "standard" when no mode is set. Convenience for the Bash
-// tool and the approval policy so they resolve the same per-mode allow-list.
-func BashAllowModeKey(ctx context.Context) string {
-	if mode, ok := AgentModeFromContext(ctx); ok {
-		return mode.AllowedlistKey()
-	}
-	return "standard"
 }
 
 // ========================================

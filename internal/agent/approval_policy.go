@@ -100,14 +100,14 @@ func (p *StandardApprovalPolicy) isBashCommandAllowed(toolCall *sdk.ChatCompleti
 		return false
 	}
 
-	return p.config.IsBashCommandAllowed(command, p.agentModeKey())
+	return p.config.IsBashCommandAllowed(command, p.agentMode())
 }
 
-// agentModeKey resolves the bash allow-list mode key from the current agent mode,
-// defaulting to standard when no state manager is wired.
-func (p *StandardApprovalPolicy) agentModeKey() string {
+// agentMode resolves the current agent mode, defaulting to standard when no
+// state manager is wired.
+func (p *StandardApprovalPolicy) agentMode() agentdomain.AgentMode {
 	if p.stateManager != nil {
-		return p.stateManager.GetAgentMode().AllowedlistKey()
+		return p.stateManager.GetAgentMode()
 	}
-	return "standard"
+	return agentdomain.AgentModeStandard
 }

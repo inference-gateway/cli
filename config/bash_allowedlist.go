@@ -3,6 +3,8 @@ package config
 import (
 	"regexp"
 	"strings"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // benignTrailingRedirectRe matches a single trailing shell redirection that only
@@ -18,23 +20,25 @@ var benignTrailingRedirectRe = regexp.MustCompile(
 )
 
 // bashAllowFor returns the effective bash allow-list for mode: the shared
-// mode.all baseline unioned with that mode's own entries. An unrecognized mode
-// (anything other than plan/standard/auto) gets just the baseline.
-func (c *Config) bashAllowFor(mode string) []string {
+// mode.all baseline unioned with that mode's own bucket. This is the ONE place
+// an AgentMode maps to a tools.bash.mode.<bucket> list: Plan -> plan,
+// AutoAccept -> auto, Standard/AutoWithJudge/unknown -> standard (the judge only
+// sees commands the standard list already gates), ReadOnly -> baseline only.
+func (c *Config) bashAllowFor(mode agentdomain.AgentMode) []string {
 	m := c.Tools.Bash.Mode
 	out := make([]string, 0, len(m.All.Allow)+4)
 	out = append(out, m.All.Allow...)
 	switch mode {
-	case "plan":
+	case agentdomain.AgentModePlan:
 		out = append(out, m.Plan.Allow...)
-	case "standard":
-		out = append(out, m.Standard.Allow...)
-	case "auto":
+	case agentdomain.AgentModeAutoAccept:
 		out = append(out, m.Auto.Allow...)
-	case "readonly":
+	case agentdomain.AgentModeReadOnly:
 		// ReadOnly subagents are never offered the Bash tool (ListToolsForMode), so
 		// this is unreachable in practice; keep an explicit case (baseline only) so a
 		// future Bash entry can't silently fall through to the wrong list.
+	default:
+		out = append(out, m.Standard.Allow...)
 	}
 	return out
 }
@@ -42,12 +46,12 @@ func (c *Config) bashAllowFor(mode string) []string {
 // BashAllowedCommands returns the effective allow-list entries for mode. It is
 // used to surface the model's bash sandbox in the system prompt so the agent
 // knows up front what it may run unattended.
-func (c *Config) BashAllowedCommands(mode string) []string {
+func (c *Config) BashAllowedCommands(mode agentdomain.AgentMode) []string {
 	return c.bashAllowFor(mode)
 }
 
 // IsBashCommandAllowed reports whether command is auto-approved in the given
-// agent mode ("all", "plan", "standard", or "auto"). The model is a pure
+// agent mode (see bashAllowFor for the mode-to-bucket mapping). The model is a pure
 // allow-list with no separate deny list: anything the effective list does not
 // match is denied - in chat mode it falls through to user approval, in headless
 // agent mode it is rejected with a reason (see BashCommandRejectionHint).
@@ -69,7 +73,7 @@ func (c *Config) BashAllowedCommands(mode string) []string {
 // It is the single source of truth consulted by the Bash tool, the approval
 // policy, and agent auto-approval, so all three agree on exactly what runs
 // without prompting.
-func (c *Config) IsBashCommandAllowed(command, mode string) bool {
+func (c *Config) IsBashCommandAllowed(command string, mode agentdomain.AgentMode) bool {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return false

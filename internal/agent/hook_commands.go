@@ -28,12 +28,12 @@ const hookCommandOutputLimit = 4096
 //
 // Both the event-driven chat agent and the headless `infer headless` loop call this
 // from their dispatchHooks seam so the gate and observability cannot drift apart.
-// cfg supplies the allow-list and the fallback provider; modeKey is the resolved
-// per-mode allow-list key (standard/plan/auto); sessionID and turn populate the
+// cfg supplies the allow-list and the fallback provider; mode selects the
+// per-mode allow-list; sessionID and turn populate the
 // command's stdin JSON context. Commands run synchronously; their output is
 // emitted as a hook_command stream event and logged, never fed back into the
 // conversation or used to alter the loop (that feedback is a later iteration).
-func RunCommandHooks(ctx context.Context, cfg *config.Config, provider agentdomain.HookCommandProvider, modeKey string, hook agentdomain.HookPoint, turn int, sessionID string) {
+func RunCommandHooks(ctx context.Context, cfg *config.Config, provider agentdomain.HookCommandProvider, mode agentdomain.AgentMode, hook agentdomain.HookPoint, turn int, sessionID string) {
 	if provider == nil {
 		if cfg == nil {
 			return
@@ -45,13 +45,13 @@ func RunCommandHooks(ctx context.Context, cfg *config.Config, provider agentdoma
 		return
 	}
 	for _, hc := range due {
-		if cfg == nil || !cfg.IsBashCommandAllowed(hc.Command, modeKey) {
+		if cfg == nil || !cfg.IsBashCommandAllowed(hc.Command, mode) {
 			hint := config.BashCommandRejectionHint(hc.Command)
 			logger.Warn("hook command not allow-listed; skipping",
-				"name", hc.Name, "hook", string(hook), "command", hc.Command, "mode", modeKey, "hint", hint)
+				"name", hc.Name, "hook", string(hook), "command", hc.Command, "mode", mode.ModeKey(), "hint", hint)
 			streamevent.EmitDebugEvent("hook_command_skipped", map[string]any{
 				"name": hc.Name, "hook": string(hook), "command": hc.Command,
-				"mode": modeKey, "reason": "not_allowlisted", "hint": hint,
+				"mode": mode.ModeKey(), "reason": "not_allowlisted", "hint": hint,
 			})
 			continue
 		}

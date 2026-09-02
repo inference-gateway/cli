@@ -367,10 +367,9 @@ func (s *AgentServiceImpl) buildBashAllowInfo() string {
 		return ""
 	}
 
-	modeKey := mode.AllowedlistKey()
-	allow := s.config.BashAllowedCommands(modeKey)
+	allow := s.config.BashAllowedCommands(mode)
 
-	header := "\n\nBASH ALLOW-LIST (" + modeKey + " mode):\n"
+	header := "\n\nBASH ALLOW-LIST (" + mode.ModeKey() + " mode):\n"
 
 	for _, e := range allow {
 		switch strings.TrimSpace(e) {
@@ -1060,7 +1059,7 @@ func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 
 // dispatchHooks runs the actions attached to a hook point: system-reminder
 // injection (text action) and command hooks (executable action, #270). Both
-// agents flow every loop point through this single seam. The mode key and
+// agents flow every loop point through this single seam. The agent mode and
 // session id are resolved here (from the live chat mode / request context) and
 // handed to the shared, allow-list-gated command runner.
 func (s *AgentServiceImpl) dispatchHooks(agentCtx *states.AgentContext, hook agentdomain.HookPoint) {
@@ -1070,15 +1069,15 @@ func (s *AgentServiceImpl) dispatchHooks(agentCtx *states.AgentContext, hook age
 
 	s.injectDueReminders(agentCtx, hook)
 
-	modeKey := agentdomain.AgentModeStandard.AllowedlistKey()
+	mode := agentdomain.AgentModeStandard
 	if s.stateManager != nil {
-		modeKey = s.stateManager.GetAgentMode().AllowedlistKey()
+		mode = s.stateManager.GetAgentMode()
 	}
 	sessionID := ""
 	if agentCtx.Ctx != nil {
 		sessionID = agentdomain.GetSessionID(agentCtx.Ctx)
 	}
-	RunCommandHooks(agentCtx.Ctx, s.config, s.hookProvider, modeKey, hook, agentCtx.Turns, sessionID)
+	RunCommandHooks(agentCtx.Ctx, s.config, s.hookProvider, mode, hook, agentCtx.Turns, sessionID)
 }
 
 // waitForBackgroundTasks blocks until in-flight background work (A2A tasks,
