@@ -169,10 +169,6 @@ func (r *Registry) registerTools() {
 		r.tools["AskUserQuestion"] = NewAskUserQuestionTool(cfg)
 	}
 
-	// RequestApproval escalates judge rejections to the user (issue #1156). It
-	// is only OFFERED when the judge is the active approver (IsEnabled); the
-	// state manager is wired later by SetAgentModeManager so the runtime mode
-	// (Shift+Tab cycle) also drives availability.
 	r.tools["RequestApproval"] = NewRequestApprovalTool(cfg, r.stateManager)
 
 	if cfg.Tools.Schedule.Enabled {
