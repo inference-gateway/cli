@@ -26,6 +26,11 @@ func TestResolveApprovalDelivery(t *testing.T) {
 		{"block chat", ApprovalBehaviourBlock, false, true, ApprovalBehaviourBlock},
 		{"block headless+broker", ApprovalBehaviourBlock, true, false, ApprovalBehaviourBlock},
 
+		// judge: always reachable, never downgraded to block, even in CI.
+		{"judge chat", ApprovalBehaviourJudge, false, true, ApprovalBehaviourJudge},
+		{"judge headless+broker", ApprovalBehaviourJudge, true, false, ApprovalBehaviourJudge},
+		{"judge headless no broker -> still judge", ApprovalBehaviourJudge, false, false, ApprovalBehaviourJudge},
+
 		// unrecognised value resolves to the safe prompt default.
 		{"unknown chat -> prompt", "bogus", false, true, ApprovalBehaviourPrompt},
 		{"unknown headless no broker -> block", "bogus", false, false, ApprovalBehaviourBlock},
@@ -52,6 +57,7 @@ func TestApprovalBehaviourFor(t *testing.T) {
 		{ApprovalBehaviourPrompt, ApprovalBehaviourPrompt},
 		{ApprovalBehaviourIPC, ApprovalBehaviourIPC},
 		{ApprovalBehaviourBlock, ApprovalBehaviourBlock},
+		{ApprovalBehaviourJudge, ApprovalBehaviourJudge},
 		{"", ApprovalBehaviourPrompt},      // unset -> safe default
 		{"bogus", ApprovalBehaviourPrompt}, // unknown -> safe default
 	}
@@ -65,6 +71,7 @@ func TestApprovalBehaviourFor(t *testing.T) {
 }
 
 func TestConfigValidate_ApprovalBehaviour(t *testing.T) {
+	// judge is valid but needs a resolvable model (see TestConfigValidate_JudgeFailFast).
 	valid := []string{"", ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock}
 	for _, v := range valid {
 		cfg := DefaultConfig()
@@ -78,6 +85,46 @@ func TestConfigValidate_ApprovalBehaviour(t *testing.T) {
 	cfg.Tools.Safety.ApprovalBehaviour = "bogus"
 	if err := cfg.Validate(); err == nil {
 		t.Error("Validate() with approval_behaviour \"bogus\" should return an error")
+	}
+}
+
+func TestConfigValidate_JudgeFailFast(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Tools.Safety.ApprovalBehaviour = ApprovalBehaviourJudge
+	if err := cfg.Validate(); err == nil {
+		t.Error("Validate() with judge behaviour and no resolvable model should fail fast")
+	}
+
+	cfg.Judge.Model = "openai/gpt-5"
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("Validate() with judge.model set returned error: %v", err)
+	}
+
+	cfg.Judge.Model = ""
+	cfg.Agent.Model = "anthropic/claude"
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("Validate() with agent.model fallback returned error: %v", err)
+	}
+}
+
+func TestJudgeRequired(t *testing.T) {
+	t.Setenv("INFER_AGENT_MODE", "")
+
+	if (DefaultConfig()).JudgeRequired() {
+		t.Error("JudgeRequired() on defaults should be false")
+	}
+
+	cfg := DefaultConfig()
+	cfg.Tools.Safety.ApprovalBehaviour = ApprovalBehaviourJudge
+	if !cfg.JudgeRequired() {
+		t.Error("JudgeRequired() with approval_behaviour judge should be true")
+	}
+
+	for _, mode := range []string{"auto-with-judge", " AUTO-WITH-JUDGE ", "Auto-With-Judge"} {
+		t.Setenv("INFER_AGENT_MODE", mode)
+		if !(DefaultConfig()).JudgeRequired() {
+			t.Errorf("JudgeRequired() with INFER_AGENT_MODE=%q should be true", mode)
+		}
 	}
 }
 
