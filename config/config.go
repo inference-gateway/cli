@@ -1485,7 +1485,7 @@ func (c *Config) JudgeRequired() bool {
 // Validate checks cross-cutting config invariants after load so a typo fails fast
 // instead of silently falling back. It currently validates
 // tools.safety.approval_behaviour; extend it as new validated settings are added.
-func (c *Config) Validate() error { // nolint:cyclop // one switch per validated setting; splitting would scatter the fail-fast list
+func (c *Config) Validate() error { // nolint:cyclop
 	switch c.Tools.Safety.ApprovalBehaviour {
 	case "", ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock, ApprovalBehaviourJudge:
 	default:

@@ -71,7 +71,6 @@ func TestApprovalBehaviourFor(t *testing.T) {
 }
 
 func TestConfigValidate_ApprovalBehaviour(t *testing.T) {
-	// judge is valid but needs a resolvable model (see TestConfigValidate_JudgeFailFast).
 	valid := []string{"", ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock}
 	for _, v := range valid {
 		cfg := DefaultConfig()
