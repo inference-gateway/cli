@@ -1,7 +1,3 @@
-// Approval escalation value types: the RequestApproval tool's round trip that
-// asks the user to override a judge-rejected tool call through the interactive
-// question UI (issue #1156).
-
 package domain
 
 import (
