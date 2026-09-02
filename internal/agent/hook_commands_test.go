@@ -86,7 +86,7 @@ func TestRunCommandHooks_SkipsOffListCommand(t *testing.T) {
 	buf := withDebugStreamWriter(t)
 	fake := &agentdomainmocks.FakeHookCommandProvider{}
 	fake.CommandsDueReturns([]agentdomain.HookCommand{{Name: "fmt", Command: "gofmt -w ."}})
-	cfg := allowCfg() // empty allow-list -> gofmt is off-list
+	cfg := allowCfg()
 
 	RunCommandHooks(context.Background(), cfg, fake, agentdomain.AgentModeStandard, agentdomain.HookPostSession, 2, "sess")
 
