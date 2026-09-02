@@ -29,8 +29,6 @@ const (
 type JudgeVerdict struct {
 	Decision JudgeDecision
 	Reason   string
-	// Usage is the judge call's token usage (nil when the call never
-	// completed) so the session totals include it.
 	Usage *sdk.CompletionUsage `json:"-"`
 }
 
@@ -46,7 +44,6 @@ func (v JudgeVerdict) Approved() bool {
 func ParseJudgeVerdict(raw string) (JudgeVerdict, error) {
 	trimmed := strings.TrimSpace(raw)
 
-	// Keep only the outermost JSON object, ignoring surrounding prose.
 	start := strings.IndexByte(trimmed, '{')
 	end := strings.LastIndexByte(trimmed, '}')
 	if start < 0 || end <= start {

@@ -26,12 +26,10 @@ func TestResolveApprovalDelivery(t *testing.T) {
 		{"block chat", ApprovalBehaviourBlock, false, true, ApprovalBehaviourBlock},
 		{"block headless+broker", ApprovalBehaviourBlock, true, false, ApprovalBehaviourBlock},
 
-		// judge: always reachable, never downgraded to block, even in CI.
 		{"judge chat", ApprovalBehaviourJudge, false, true, ApprovalBehaviourJudge},
 		{"judge headless+broker", ApprovalBehaviourJudge, true, false, ApprovalBehaviourJudge},
 		{"judge headless no broker -> still judge", ApprovalBehaviourJudge, false, false, ApprovalBehaviourJudge},
 
-		// unrecognised value resolves to the safe prompt default.
 		{"unknown chat -> prompt", "bogus", false, true, ApprovalBehaviourPrompt},
 		{"unknown headless no broker -> block", "bogus", false, false, ApprovalBehaviourBlock},
 	}
@@ -58,7 +56,7 @@ func TestApprovalBehaviourFor(t *testing.T) {
 		{ApprovalBehaviourIPC, ApprovalBehaviourIPC},
 		{ApprovalBehaviourBlock, ApprovalBehaviourBlock},
 		{ApprovalBehaviourJudge, ApprovalBehaviourJudge},
-		{"", ApprovalBehaviourPrompt},      // unset -> safe default
+		{"", ApprovalBehaviourPrompt},
 		{"bogus", ApprovalBehaviourPrompt}, // unknown -> safe default
 	}
 	for _, tt := range tests {

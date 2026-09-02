@@ -279,9 +279,6 @@ func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageTo
 		Message:    "rejected",
 	})
 
-	// A human rejection (Rejected=true) ends the turn so the user can redirect;
-	// a judge rejection is a plain failed result so the driver reads the reason
-	// and continues.
 	rejectionMessage := fmt.Sprintf("Tool execution rejected by user: %s", tc.Function.Name)
 	errText := "rejected by user"
 	if reason != "" {

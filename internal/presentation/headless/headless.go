@@ -102,8 +102,6 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 	if err != nil {
 		return err
 	}
-	// Fail fast before the gateway or agent starts: the judge is the approver
-	// in this mode, so an unresolvable model would leave the run with none.
 	if mode == agentdomain.AgentModeAutoWithJudge && cfg.Judge.ResolveModel(cfg.Agent.Model) == "" {
 		return fmt.Errorf("auto-with-judge mode selected but no judge model is resolvable: set judge.model in %s or agent.model", config.DefaultJudgePath)
 	}

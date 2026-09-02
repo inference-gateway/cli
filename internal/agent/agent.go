@@ -1820,8 +1820,6 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	root, latest := userIntents(s.conversationRepo)
 	verdict, err := s.judge.Judge(ctx, agentdomain.JudgeInput{Model: model, RootIntent: root, Intent: latest, Action: judgeActionInput(tc)})
 	if err != nil {
-		// Fail closed like the no-approver path; the reason is distinguishable
-		// so the driver can retry or route around it.
 		verdict = agentdomain.JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "judge unavailable: " + err.Error()}
 	}
 	if !verdict.Approved() {
