@@ -16,7 +16,7 @@ import (
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 )
 
-// Judge input bounds: the intent is the latest user message and the action the
+// Judge input bounds: the intents are the first and latest user messages and the action the
 // pending tool call; both are truncated so one giant payload cannot blow up the
 // judge call. 2000 matches the summarizer's per-message cap.
 const (
@@ -54,7 +54,8 @@ func NewLLMJudge(client sdk.Client, cfg *config.Config) *LLMJudge {
 
 // Judge decides one pending tool call: does it serve the user's intent and is
 // it safe to run? The verdict contract is enforced by ParseJudgeVerdict.
-func (j *LLMJudge) Judge(ctx context.Context, model, intent, action string) (agentdomain.JudgeVerdict, error) {
+func (j *LLMJudge) Judge(ctx context.Context, in agentdomain.JudgeInput) (agentdomain.JudgeVerdict, error) {
+	model := in.Model
 	if model == "" {
 		return agentdomain.JudgeVerdict{}, fmt.Errorf("no judge model configured: set judge.model in %s or agent.model", config.DefaultJudgePath)
 	}
@@ -66,8 +67,9 @@ func (j *LLMJudge) Judge(ctx context.Context, model, intent, action string) (age
 
 	jcfg := j.config.Judge.Effective()
 	prompt := strings.NewReplacer(
-		"{intent}", truncateForJudge(intent, maxJudgeIntentLength),
-		"{action}", truncateForJudge(action, maxJudgeActionLength),
+		"{root_intent}", truncateForJudge(in.RootIntent, maxJudgeIntentLength),
+		"{intent}", truncateForJudge(in.Intent, maxJudgeIntentLength),
+		"{action}", truncateForJudge(in.Action, maxJudgeActionLength),
 	).Replace(jcfg.Prompt)
 	messages := []sdk.Message{
 		{Role: sdk.System, Content: sdk.NewMessageContent(jcfg.SystemPrompt)},
@@ -127,15 +129,15 @@ func truncateForJudge(s string, maxLen int) string {
 	return s[:maxLen] + "... [truncated]"
 }
 
-// latestUserIntent returns the latest non-hidden user message from the
-// conversation: the task in headless, the last human message in chat.
-func latestUserIntent(repo convdomain.ConversationRepository) string {
+// userIntents returns the first and the latest non-hidden user messages of
+// the conversation: the session's root task and the most recent ask (which
+// may be a bare "continue" that only makes sense next to the root). With a
+// single user message root is empty so the judge is not shown it twice.
+func userIntents(repo convdomain.ConversationRepository) (root, latest string) {
 	if repo == nil {
-		return ""
+		return "", ""
 	}
-	entries := repo.GetMessages()
-	for i := len(entries) - 1; i >= 0; i-- {
-		entry := entries[i]
+	for _, entry := range repo.GetMessages() {
 		if entry.Hidden || entry.Message.Role != sdk.User {
 			continue
 		}
@@ -143,9 +145,16 @@ func latestUserIntent(repo convdomain.ConversationRepository) string {
 		if err != nil || strings.TrimSpace(content) == "" {
 			continue
 		}
-		return content
+		if root == "" {
+			root = content
+			continue
+		}
+		latest = content
 	}
-	return ""
+	if latest == "" {
+		return "", root
+	}
+	return root, latest
 }
 
 // judgeActionInput renders the pending tool call (name + arguments) for the

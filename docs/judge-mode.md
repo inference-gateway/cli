@@ -85,10 +85,14 @@ max_tokens: 2048 # response budget; reasoning models spend their thinking agains
 on_error: deny # what a failed judge call means: deny (default) or allow
 system_prompt: |- # judge instructions (system message)
   You are the approver for an autonomous coding agent. ...
-prompt: |- # user message template; {intent} and {action} are filled in
-  <user_request>
+prompt: |- # user message template; {root_intent}, {intent} and {action} are filled in
+  <root_request>
+  {root_intent}
+  </root_request>
+
+  <latest_request>
   {intent}
-  </user_request>
+  </latest_request>
 
   <tool_call>
   {action}

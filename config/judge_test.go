@@ -21,7 +21,7 @@ func TestDefaultJudgeConfig(t *testing.T) {
 	if cfg.OnError != JudgeOnErrorDeny {
 		t.Errorf("default judge on_error = %q, want %q", cfg.OnError, JudgeOnErrorDeny)
 	}
-	for _, placeholder := range []string{"{intent}", "{action}"} {
+	for _, placeholder := range []string{"{root_intent}", "{intent}", "{action}"} {
 		if !strings.Contains(cfg.Prompt, placeholder) {
 			t.Errorf("default judge prompt missing %s placeholder", placeholder)
 		}

@@ -12,6 +12,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
@@ -46,7 +47,7 @@ func TestLLMJudge_VerdictAndPromptShaping(t *testing.T) {
 	client := newJudgeClient(judgeResponse("```json\n{\"decision\": \"approved\", \"reason\": \"matches the request\"}\n```"), nil)
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
-	verdict, err := judge.Judge(context.Background(), "test/judge-model", "install the dependency", `Bash: {"command": "go get"}`)
+	verdict, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "test/judge-model", RootIntent: "set up the project", Intent: "install the dependency", Action: `Bash: {"command": "go get"}`})
 	if err != nil {
 		t.Fatalf("Judge() error = %v", err)
 	}
@@ -69,7 +70,8 @@ func TestLLMJudge_VerdictAndPromptShaping(t *testing.T) {
 	if perr != nil {
 		t.Fatalf("prompt content: %v", perr)
 	}
-	if !strings.Contains(prompt, "<user_request>\ninstall the dependency\n</user_request>") ||
+	if !strings.Contains(prompt, "<root_request>\nset up the project\n</root_request>") ||
+		!strings.Contains(prompt, "<latest_request>\ninstall the dependency\n</latest_request>") ||
 		!strings.Contains(prompt, "<tool_call>\nBash: {\"command\": \"go get\"}\n</tool_call>") {
 		t.Errorf("prompt missing tagged intent/action: %q", prompt)
 	}
@@ -93,7 +95,7 @@ func TestLLMJudge_OnError(t *testing.T) {
 			client := newJudgeClient(nil, errors.New("gateway down"))
 			judge := NewLLMJudge(client, judgeTestConfig(tt.onError))
 
-			verdict, err := judge.Judge(context.Background(), "test/judge-model", "intent", "action")
+			verdict, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "test/judge-model", Intent: "intent", Action: "action"})
 			if err != nil {
 				t.Fatalf("Judge() error = %v, want nil (on_error decides)", err)
 			}
@@ -111,7 +113,7 @@ func TestLLMJudge_UnparseableOutputDenies(t *testing.T) {
 	client := newJudgeClient(judgeResponse("no verdict here"), nil)
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
-	verdict, err := judge.Judge(context.Background(), "test/judge-model", "intent", "action")
+	verdict, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "test/judge-model", Intent: "intent", Action: "action"})
 	if err != nil {
 		t.Fatalf("Judge() error = %v, want nil (on_error handles it)", err)
 	}
@@ -123,25 +125,34 @@ func TestLLMJudge_UnparseableOutputDenies(t *testing.T) {
 func TestLLMJudge_InvalidModelFormat(t *testing.T) {
 	judge := NewLLMJudge(&sdkmocks.FakeClient{}, judgeTestConfig(""))
 
-	if _, err := judge.Judge(context.Background(), "no-slash", "intent", "action"); err == nil || !strings.Contains(err.Error(), "provider/model") {
+	if _, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "no-slash", Intent: "intent", Action: "action"}); err == nil || !strings.Contains(err.Error(), "provider/model") {
 		t.Fatalf("Judge() error = %v, want provider/model format error", err)
 	}
 }
 
-func TestLatestUserIntent_SkipsHiddenAndNonUser(t *testing.T) {
+func TestUserIntents_RootAndLatest(t *testing.T) {
 	repo := &conversationmocks.FakeConversationRepository{}
 	repo.GetMessagesReturns([]convdomain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("first ask")}},
 		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("answer")}},
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hidden ask")}, Hidden: true},
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("real ask")}},
+		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("done?")}},
+		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("continue")}},
 	})
-	if got := latestUserIntent(repo); got != "real ask" {
-		t.Errorf("latestUserIntent() = %q, want real ask", got)
+	if root, latest := userIntents(repo); root != "first ask" || latest != "continue" {
+		t.Errorf("userIntents() = %q/%q, want first ask/continue", root, latest)
 	}
 
-	if got := latestUserIntent(nil); got != "" {
-		t.Errorf("latestUserIntent(nil) = %q, want empty", got)
+	repo.GetMessagesReturns([]convdomain.ConversationEntry{
+		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("only ask")}},
+	})
+	if root, latest := userIntents(repo); root != "" || latest != "only ask" {
+		t.Errorf("single message: userIntents() = %q/%q, want empty root and only ask", root, latest)
+	}
+
+	if root, latest := userIntents(nil); root != "" || latest != "" {
+		t.Errorf("userIntents(nil) = %q/%q, want empty", root, latest)
 	}
 }
 
@@ -150,7 +161,7 @@ func TestLLMJudge_TokenBudgetExhaustedDenies(t *testing.T) {
 	resp.Choices[0].FinishReason = sdk.Length
 	judge := NewLLMJudge(newJudgeClient(resp, nil), judgeTestConfig(""))
 
-	verdict, err := judge.Judge(context.Background(), "test/judge-model", "intent", "action")
+	verdict, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "test/judge-model", Intent: "intent", Action: "action"})
 	if err != nil {
 		t.Fatalf("Judge() error = %v, want nil (on_error handles it)", err)
 	}

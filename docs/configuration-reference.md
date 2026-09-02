@@ -490,10 +490,14 @@ max_tokens: 2048 # response budget; reasoning models spend their thinking agains
 on_error: deny # what a failed judge call means: deny (default) or allow
 system_prompt: |- # judge instructions (system message)
       You are the approver for an autonomous coding agent. ...
-prompt: |- # user message template with {intent} (latest user message) and {action} (tool call)
-      <user_request>
+prompt: |- # user message template with {root_intent} (first user message), {intent} (latest) and {action} (tool call)
+      <root_request>
+      {root_intent}
+      </root_request>
+
+      <latest_request>
       {intent}
-      </user_request>
+      </latest_request>
 
       <tool_call>
       {action}
@@ -509,8 +513,9 @@ prompt: |- # user message template with {intent} (latest user message) and {acti
       same default as the no-approver block path) or `allow`
 - **judge.system_prompt**: the judge's instructions, sent as the system message so
       the user text and tool arguments stay data rather than instructions
-- **judge.prompt**: user-message template; `{intent}` is the latest non-hidden user
-      message and `{action}` the pending tool call
+- **judge.prompt**: user-message template; `{root_intent}` is the first non-hidden
+      user message of the session, `{intent}` the latest one (a bare "continue" is
+      judged next to the root it continues) and `{action}` the pending tool call
 
 Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDGE_GATEWAY_URL`,
 `INFER_JUDGE_TIMEOUT`, `INFER_JUDGE_MAX_TOKENS`, `INFER_JUDGE_ON_ERROR`,

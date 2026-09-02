@@ -1817,7 +1817,8 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	eventPublisher *eventPublisher,
 ) (bool, string, error) {
 	model := s.judgeModel()
-	verdict, err := s.judge.Judge(ctx, model, latestUserIntent(s.conversationRepo), judgeActionInput(tc))
+	root, latest := userIntents(s.conversationRepo)
+	verdict, err := s.judge.Judge(ctx, agentdomain.JudgeInput{Model: model, RootIntent: root, Intent: latest, Action: judgeActionInput(tc)})
 	if err != nil {
 		// Fail closed like the no-approver path; the reason is distinguishable
 		// so the driver can retry or route around it.
