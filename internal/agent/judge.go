@@ -94,6 +94,9 @@ func (j *LLMJudge) Judge(ctx context.Context, model, intent, action string) (age
 	if err != nil {
 		return j.onError(fmt.Errorf("extracting judge content: %w", err), jcfg.OnError)
 	}
+	if response.Choices[0].FinishReason == sdk.Length && strings.TrimSpace(raw) == "" {
+		return j.onError(fmt.Errorf("judge spent all %d max_tokens before answering (reasoning models think against this budget); raise judge.max_tokens", jcfg.MaxTokens), jcfg.OnError)
+	}
 
 	verdict, parseErr := agentdomain.ParseJudgeVerdict(raw)
 	if parseErr != nil {

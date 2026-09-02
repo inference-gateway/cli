@@ -81,7 +81,7 @@ absent the built-in defaults are used). It is the decision-sibling of `hooks.yam
 model: "" # "provider/model" id for judge calls; empty falls back to agent.model
 gateway_url: "" # send judge calls to another gateway (e.g. real judge, mock driver); empty shares the agent's
 timeout: 30 # per-call timeout in seconds
-max_tokens: 256 # response budget - the verdict is a tiny JSON object
+max_tokens: 2048 # response budget; reasoning models spend their thinking against it too
 on_error: deny # what a failed judge call means: deny (default) or allow
 system_prompt: |- # judge instructions (system message)
   You are the approver for an autonomous coding agent. ...
@@ -101,7 +101,7 @@ Environment overrides (env wins over the file):
   `INFER_JUDGE_ON_ERROR`, `INFER_JUDGE_SYSTEM_PROMPT`, `INFER_JUDGE_PROMPT`
 
 Defaults: the agent's own model decides, calls time out after 30s, responses are
-capped at 256 tokens, and a failing judge **denies**.
+capped at 2048 tokens, and a failing judge **denies**.
 
 **`on_error` semantics.** A judge call can fail (timeout, gateway error, unparseable
 output) or return garbage. `on_error: deny` (default) rejects the call with a

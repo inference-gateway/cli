@@ -486,7 +486,7 @@ absent the built-in defaults are used).
 model: "" # "provider/model" id for judge calls; empty falls back to agent.model
 gateway_url: "" # send judge calls to another gateway (e.g. real judge, mock driver); empty shares the agent's
 timeout: 30 # per-call timeout in seconds
-max_tokens: 256 # response budget - the verdict is a tiny JSON object
+max_tokens: 2048 # response budget; reasoning models spend their thinking against it too
 on_error: deny # what a failed judge call means: deny (default) or allow
 system_prompt: |- # judge instructions (system message)
       You are the approver for an autonomous coding agent. ...
@@ -504,7 +504,7 @@ prompt: |- # user message template with {intent} (latest user message) and {acti
       `agent.model` (same precedent as conversation title generation). Selecting the
       judge with neither resolvable fails config validation at startup.
 - **judge.timeout**: per-call timeout in seconds (default: 30)
-- **judge.max_tokens**: response budget per judge call (default: 256)
+- **judge.max_tokens**: response budget per judge call (default: 2048; reasoning models spend their thinking against it)
 - **judge.on_error**: what a failed judge call means - `deny` (default, fail closed,
       same default as the no-approver block path) or `allow`
 - **judge.system_prompt**: the judge's instructions, sent as the system message so

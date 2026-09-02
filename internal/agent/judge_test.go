@@ -144,3 +144,17 @@ func TestLatestUserIntent_SkipsHiddenAndNonUser(t *testing.T) {
 		t.Errorf("latestUserIntent(nil) = %q, want empty", got)
 	}
 }
+
+func TestLLMJudge_TokenBudgetExhaustedDenies(t *testing.T) {
+	resp := judgeResponse("")
+	resp.Choices[0].FinishReason = sdk.Length
+	judge := NewLLMJudge(newJudgeClient(resp, nil), judgeTestConfig(""))
+
+	verdict, err := judge.Judge(context.Background(), "test/judge-model", "intent", "action")
+	if err != nil {
+		t.Fatalf("Judge() error = %v, want nil (on_error handles it)", err)
+	}
+	if verdict.Approved() || !strings.Contains(verdict.Reason, "max_tokens") {
+		t.Errorf("exhausted budget should deny naming max_tokens, got %+v", verdict)
+	}
+}

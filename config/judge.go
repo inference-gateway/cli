@@ -20,10 +20,12 @@ const (
 
 // Default judge settings: the agent's own model decides, calls time out after
 // 30s, and a failing judge denies - this is an approval gate and the existing
-// no-approver behaviour is also block.
+// no-approver behaviour is also block. The verdict itself is tiny, but on
+// reasoning models (deepseek, o-series, ...) thinking tokens count against
+// max_tokens, and 256 was exhausted before any JSON came out.
 const (
 	DefaultJudgeTimeoutSeconds = 30
-	DefaultJudgeMaxTokens      = 256
+	DefaultJudgeMaxTokens      = 2048
 )
 
 // DefaultJudgeSystemPrompt carries the judge's instructions. It is sent as the
