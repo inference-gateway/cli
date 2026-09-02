@@ -38,6 +38,47 @@ func TestRenderTitledCard(t *testing.T) {
 	}
 }
 
+// TestRenderInputFieldIconColor checks that iconColor colors only the leading
+// branch icon, that "" leaves the whole label in the status color, and that the
+// colored icon and PR number both survive truncation of a long branch name.
+func TestRenderInputFieldIconColor(t *testing.T) {
+	p := NewProvider(NewThemeProvider())
+	status, warning := p.GetThemeColor("status"), p.GetThemeColor("warning")
+	coloredIcon := p.RenderWithColor("⎇", warning)
+
+	tests := []struct {
+		name      string
+		width     int
+		label     string
+		iconColor string
+		wantIcon  string
+		wantText  []string
+		wantGone  []string
+	}{
+		{"default color", 60, "⎇ main", "", p.RenderWithColor(" ⎇ main ", status), nil, []string{coloredIcon}},
+		{"colored icon", 60, "⎇ main ─ #12", warning, coloredIcon, []string{p.RenderWithColor(" main", status), "#12"}, nil},
+		{"truncated keeps icon and pr", 30, "⎇ feature/this-branch-name-goes-on-and-on ─ #12", warning, coloredIcon, []string{"...", "#12"}, []string{"goes-on-and-on"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			top, _, _ := strings.Cut(p.RenderInputField("> ", tt.width, false, tt.label, tt.iconColor), "\n")
+			if !strings.Contains(top, tt.wantIcon) {
+				t.Errorf("top border %q missing %q", top, tt.wantIcon)
+			}
+			for _, w := range tt.wantText {
+				if !strings.Contains(top, w) {
+					t.Errorf("top border %q missing %q", top, w)
+				}
+			}
+			for _, g := range tt.wantGone {
+				if strings.Contains(top, g) {
+					t.Errorf("top border %q should not contain %q", top, g)
+				}
+			}
+		})
+	}
+}
+
 func stripSGR(s string) string {
 	var b strings.Builder
 	inEsc := false

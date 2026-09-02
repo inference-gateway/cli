@@ -196,6 +196,15 @@ type GitPRResolvedEvent struct {
 	PR string
 }
 
+// GitStatusResolvedEvent carries the workspace state for the branch icon,
+// resolved asynchronously by the input view's fetch command. Dirty means the
+// tree has uncommitted changes; Unpushed means local commits are ahead of the
+// upstream (or there is no upstream). The zero value means clean or not a repo.
+type GitStatusResolvedEvent struct {
+	Dirty    bool
+	Unpushed bool
+}
+
 // BashCommandCompletedEvent indicates a direct bash command (! prefix) has completed
 type BashCommandCompletedEvent struct {
 	History       []convdomain.ConversationEntry
