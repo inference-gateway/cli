@@ -167,6 +167,10 @@ var defaultModeChangeGuidance = map[string]string{
 		"If no user is reachable (headless/unattended run), do NOT take a high-risk action on your own initiative: prefer the reversible path, narrow the scope, or stop and report what you would have done and why. " +
 		"Low-risk, reversible work (reads, builds, tests, and edits within the working directory) proceeds normally - do not over-ask on routine steps. Never echo, print, or publish the value of a secret or environment variable. " +
 		"The full tool set is available again (Write/Edit/Delete/Bash included); plan-only tools (RequestPlanApproval, AskUserQuestion) are disabled and will be rejected.",
+	"auto-with-judge": "You are now in Auto+Judge mode: no human approves tool calls - an LLM judge decides every gated call against the user's latest request (config in judge.yaml). " +
+		"Allow-listed commands still run for free; anything off-list is judged, and a rejection arrives as a rejection tool result explaining why - change the approach instead of retrying the same call. " +
+		"Destructive or irreversible actions (rm -rf, force pushes, deleting data, publishing) are likely to be rejected unless the user's request clearly authorises them, and a failing judge also denies (fail closed) - if that happens, use an allow-listed command or stop and report. " +
+		"The full tool set is available (Write/Edit/Delete/Bash included); plan-only tools (RequestPlanApproval, AskUserQuestion) are disabled and will be rejected.",
 	"standard": "You are now in Standard mode: per-call tool approvals apply as configured - do not assume auto-acceptance; wait for each approval prompt (in agent mode, out-of-allow-list commands are rejected and must be reworked). " +
 		"The full tool set is available again (Bash, Write/Edit/Delete included); plan-only tools (RequestPlanApproval, AskUserQuestion) are disabled and will be rejected. Check the BASH ALLOW-LIST in the current context reminder before proposing shell commands.",
 }
@@ -502,7 +506,7 @@ func (r RemindersConfig) Validate() error {
 		}
 		for key := range rc.Guidance {
 			if _, ok := agentdomain.ParseAgentMode(key); !ok {
-				return fmt.Errorf("reminders[%d] (%s): unknown guidance mode key %q (valid: standard, plan, auto)", i, rc.Name, key)
+				return fmt.Errorf("reminders[%d] (%s): unknown guidance mode key %q (valid: standard, plan, auto, auto-with-judge, readonly)", i, rc.Name, key)
 			}
 		}
 	}

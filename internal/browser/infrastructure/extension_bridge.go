@@ -478,13 +478,14 @@ func (b *ExtensionBridge) sendModelList(conn *websocket.Conn) {
 	b.write(conn, extModels{Type: "models", Models: out, Current: current})
 }
 
-// sendMode reports the CLI's current agent mode as its allowlist key
-// (standard/plan/auto), so the panel's auto-mode toggle mirrors the CLI.
+// sendMode reports the CLI's current agent mode as its canonical mode key
+// (standard/plan/auto/auto-with-judge), so the panel's auto-mode toggle
+// mirrors the CLI.
 func (b *ExtensionBridge) sendMode(conn *websocket.Conn) {
 	if b.modes == nil {
 		return
 	}
-	b.write(conn, extMode{Type: "mode", Mode: b.modes.GetAgentMode().AllowedlistKey()})
+	b.write(conn, extMode{Type: "mode", Mode: b.modes.GetAgentMode().ModeKey()})
 }
 
 // setMode switches the CLI's agent mode (same shared state as the TUI's

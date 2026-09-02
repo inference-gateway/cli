@@ -137,6 +137,14 @@ func (e *aguiEncoder) emitApprovalRequest(req ipc.ApprovalRequest) {
 	e.emit(aguievents.NewCustomEvent("approval_request", aguievents.WithValue(req)))
 }
 
+// emitJudgeVerdict reports the LLM judge's decision for a gated tool call
+// as a custom AG-UI event (see judge.yaml).
+func (e *aguiEncoder) emitJudgeVerdict(ev agentdomain.JudgeVerdictChatEvent) {
+	e.emit(aguievents.NewCustomEvent("judge_verdict", aguievents.WithValue(map[string]any{
+		"tool": ev.Tool, "decision": ev.Decision, "reason": ev.Reason, "turn": ev.Turn,
+	})))
+}
+
 func (e *aguiEncoder) emitComputerUsePaused(reqID string) {
 	e.emit(aguievents.NewCustomEvent("computer_use_paused",
 		aguievents.WithValue(map[string]string{"request_id": reqID})))

@@ -116,7 +116,7 @@ type StateContext struct {
 	ApprovalDelivery      func(toolCall *sdk.ChatCompletionMessageToolCall) string
 	AddMessage            func(entry convdomain.ConversationEntry) error
 	BatchDrainQueue       func() int
-	RequestToolApproval   func(toolCall sdk.ChatCompletionMessageToolCall) (bool, error)
+	RequestToolApproval   func(toolCall sdk.ChatCompletionMessageToolCall) (bool, string, error)
 	ExecuteToolInternal   func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) convdomain.ConversationEntry
 	GetAgentMode          func() agentdomain.AgentMode
 	PublishChatEvent      func(event agentdomain.ChatEvent)

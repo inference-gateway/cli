@@ -25,6 +25,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	models "github.com/inference-gateway/cli/internal/platform/models"
+	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	plugins "github.com/inference-gateway/cli/internal/plugins"
@@ -46,6 +47,7 @@ type AgentServiceImpl struct {
 	optimizer        convdomain.ConversationOptimizer
 	tokenizer        *conv.TokenizerService
 	approvalPolicy   agentdomain.ApprovalPolicy
+	judge            agentdomain.JudgeApprover
 	bgRegistry       scheddomain.BackgroundTaskRegistry
 	rolloverManager  *conv.SessionRolloverManager
 	reminderProvider agentdomain.SystemReminderProvider
@@ -425,6 +427,7 @@ func NewAgent(
 		optimizer:        optimizer,
 		tokenizer:        tokenizer,
 		approvalPolicy:   approvalPolicy,
+		judge:            NewLLMJudge(client, cfg),
 		bgRegistry:       bgRegistry,
 		rolloverManager:  rolloverManager,
 		reminderProvider: cfg.Reminders,
@@ -1237,14 +1240,14 @@ func (s *AgentServiceImpl) executeTool(
 	if isAutoAcceptMode {
 		wasApproved = true
 	} else if requiresApproval {
-		approved, err := s.requestToolApproval(ctx, tc, eventPublisher)
+		approved, reason, err := s.requestToolApproval(ctx, tc, eventPublisher)
 		if err != nil {
 			logger.Error("failed to request tool approval", "tool", tc.Function.Name, "error", err)
 			return s.createErrorEntry(tc, err, startTime)
 		}
 		if !approved {
 			eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "failed", "rejected", nil)
-			return s.createRejectionEntry(tc, startTime)
+			return s.createRejectionEntry(tc, startTime, reason)
 		}
 		wasApproved = true
 	}
@@ -1729,12 +1732,20 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []convd
 	}
 }
 
-// requestToolApproval requests user approval for a tool and waits for response
+// requestToolApproval requests approval for a tool and waits for the response.
+// The auto-with-judge mode (or approval_behaviour "judge") hands the decision
+// to the LLM judge instead of a human; it returns (false, judgeReason, nil)
+// so the rejection tool result can carry the judge's reasoning. Human
+// decisions return an empty reason.
 func (s *AgentServiceImpl) requestToolApproval(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
-) (bool, error) {
+) (bool, string, error) {
+	if s.judgeDecides(tc) {
+		return s.requestJudgeApproval(ctx, tc, eventPublisher)
+	}
+
 	responseChan := make(chan agentdomain.ApprovalAction, 1)
 
 	eventPublisher.chatEvents <- agentdomain.ToolApprovalRequestedEvent{
@@ -1764,7 +1775,54 @@ func (s *AgentServiceImpl) requestToolApproval(
 		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
 	}
 
-	return approved, err
+	return approved, "", err
+}
+
+// judgeDecides reports whether the LLM judge answers this approval instead
+// of a human: the auto-with-judge mode forces the judge, or the config
+// selects approval_behaviour "judge". The judge is always reachable, so
+// broker/chat delivery details never downgrade it.
+func (s *AgentServiceImpl) judgeDecides(tc sdk.ChatCompletionMessageToolCall) bool {
+	if s.stateManager != nil && s.stateManager.GetAgentMode() == agentdomain.AgentModeAutoWithJudge {
+		return true
+	}
+	return s.config != nil && s.config.ApprovalBehaviourFor(tc.Function.Name) == config.ApprovalBehaviourJudge
+}
+
+// requestJudgeApproval asks the judge to decide one pending tool call against
+// the user's latest request, publishes the verdict as a chat event (mirrored
+// on the hidden debug channel), and maps a rejection onto the standard
+// refusal path so the driver sees the judge's reason and adjusts.
+func (s *AgentServiceImpl) requestJudgeApproval(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+) (bool, string, error) {
+	verdict, err := s.judge.Judge(ctx, latestUserIntent(s.conversationRepo), judgeActionInput(tc))
+	if err != nil {
+		// Fail closed like the no-approver path; the reason is distinguishable
+		// so the driver can retry or route around it.
+		verdict = agentdomain.JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "judge unavailable: " + err.Error()}
+	}
+	if !verdict.Approved() {
+		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
+	}
+
+	eventPublisher.chatEvents <- agentdomain.JudgeVerdictChatEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{RequestID: eventPublisher.requestID, Timestamp: time.Now()},
+		Tool:          tc.Function.Name,
+		Decision:      verdict.Decision,
+		Reason:        verdict.Reason,
+		Turn:          int(s.sessionTurns.Load()),
+	}
+	streamevent.EmitDebugEvent("judge_verdict", map[string]any{
+		"tool": tc.Function.Name, "decision": verdict.Decision, "reason": verdict.Reason, "turn": s.sessionTurns.Load(),
+	})
+	if !verdict.Approved() {
+		logger.Warn("judge rejected tool call", "tool", tc.Function.Name, "reason", verdict.Reason)
+	}
+
+	return verdict.Approved(), verdict.Reason, nil
 }
 
 // trackRepeatedFailure counts identical failing tool calls (same name and
@@ -1833,7 +1891,7 @@ func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall
 	}
 }
 
-func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageToolCall, startTime time.Time) convdomain.ConversationEntry {
+func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageToolCall, startTime time.Time, reason string) convdomain.ConversationEntry {
 	var args map[string]any
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 		args = make(map[string]any)
@@ -1843,6 +1901,9 @@ func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageTool
 		"Tool call rejected by user: %s\n\nYou can provide alternative instructions or ask me to proceed differently.",
 		tc.Function.Name,
 	)
+	if reason != "" {
+		rejectionMessage += fmt.Sprintf("\n\nRejection reason: %s", reason)
+	}
 
 	return convdomain.ConversationEntry{
 		Message: sdk.Message{
