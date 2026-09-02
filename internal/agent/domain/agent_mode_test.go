@@ -23,6 +23,27 @@ func TestAgentModeReadOnly_StringDisplayName(t *testing.T) {
 	}
 }
 
+func TestAgentModeAutoWithJudge_Values(t *testing.T) {
+	if got := AgentModeAutoWithJudge.String(); got != "AutoWithJudge" {
+		t.Fatalf("AgentModeAutoWithJudge.String() = %q, want AutoWithJudge", got)
+	}
+	if got := AgentModeAutoWithJudge.DisplayName(); got != "Auto+Judge" {
+		t.Fatalf("AgentModeAutoWithJudge.DisplayName() = %q, want Auto+Judge", got)
+	}
+	// Shares the standard allow-list: only commands the standard list already
+	// gates reach the judge.
+	if got := AgentModeAutoWithJudge.AllowedlistKey(); got != "standard" {
+		t.Fatalf("AgentModeAutoWithJudge.AllowedlistKey() = %q, want standard", got)
+	}
+	if got := AgentModeAutoWithJudge.ModeKey(); got != "auto-with-judge" {
+		t.Fatalf("AgentModeAutoWithJudge.ModeKey() = %q, want auto-with-judge", got)
+	}
+	got, ok := ParseAgentMode("auto-with-judge")
+	if !ok || got != AgentModeAutoWithJudge {
+		t.Fatalf("ParseAgentMode(%q) = (%v,%v), want (AutoWithJudge,true)", "auto-with-judge", got, ok)
+	}
+}
+
 func TestParseAgentMode_CaseWhitespaceAndUnknown(t *testing.T) {
 	if got, ok := ParseAgentMode("  AUTO "); !ok || got != AgentModeAutoAccept {
 		t.Fatalf(`ParseAgentMode("  AUTO ") = (%v,%v), want (AutoAccept,true)`, got, ok)
