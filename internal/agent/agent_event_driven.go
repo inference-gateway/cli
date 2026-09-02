@@ -142,9 +142,6 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 			if a.service.config == nil {
 				return config.ApprovalBehaviourPrompt
 			}
-			// auto-with-judge forces the judge: it is always reachable (headless and
-			// CI included), so the prompt->block downgrade for a missing broker must
-			// not swallow the gated calls.
 			if a.service.stateManager != nil && a.service.stateManager.GetAgentMode() == agentdomain.AgentModeAutoWithJudge {
 				return config.ApprovalBehaviourJudge
 			}
