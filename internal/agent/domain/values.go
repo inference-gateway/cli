@@ -18,6 +18,11 @@ const (
 	AgentModePlan
 	// AgentModeAutoAccept bypasses all approval checks (YOLO mode)
 	AgentModeAutoAccept
+	// AgentModeAutoWithJudge keeps the standard approval rules but hands every
+	// gated call to an LLM judge (see judge.yaml) instead of a human: allow-listed
+	// commands still pass for free, anything off-list is decided by one judge
+	// call. The no-human approver for headless/CI runs.
+	AgentModeAutoWithJudge
 	// AgentModeReadOnly is an Explore-like capability for subagents: only
 	// read/search tools are offered and approval is bypassed (the toolset is
 	// read-only by construction). It is a subagent capability selected by the
@@ -27,7 +32,8 @@ const (
 
 // AllowedlistKey maps the agent mode to the bash allow-list mode key used in
 // config (tools.bash.mode.<key>.allow): AutoAccept -> "auto", Plan -> "plan",
-// Standard (and any unknown) -> "standard".
+// AutoWithJudge -> "standard" (the judge only sees commands the standard
+// allow-list already gates), Standard (and any unknown) -> "standard".
 func (m AgentMode) AllowedlistKey() string {
 	switch m {
 	case AgentModePlan:
@@ -41,10 +47,31 @@ func (m AgentMode) AllowedlistKey() string {
 	}
 }
 
+// ModeKey returns the canonical mode key - the inverse of ParseAgentMode:
+// "standard", "plan", "auto", "auto-with-judge", "readonly". Unlike
+// AllowedlistKey (which shares the standard allow-list with AutoWithJudge)
+// it identifies the mode itself; the mode-change reminder guidance map and
+// the extension bridge use it.
+func (m AgentMode) ModeKey() string {
+	switch m {
+	case AgentModePlan:
+		return "plan"
+	case AgentModeAutoAccept:
+		return "auto"
+	case AgentModeAutoWithJudge:
+		return "auto-with-judge"
+	case AgentModeReadOnly:
+		return "readonly"
+	default:
+		return "standard"
+	}
+}
+
 // ParseAgentMode is the inverse of AllowedlistKey: it maps a mode key
-// ("standard"/"plan"/"auto") back to an AgentMode. Matching is case-insensitive
-// and tolerant of surrounding whitespace. ok is false for an empty or
-// unrecognized key, in which case callers should keep AgentModeStandard.
+// ("standard"/"plan"/"auto"/"auto-with-judge") back to an AgentMode. Matching
+// is case-insensitive and tolerant of surrounding whitespace. ok is false for
+// an empty or unrecognized key, in which case callers should keep
+// AgentModeStandard.
 func ParseAgentMode(s string) (AgentMode, bool) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "standard":
@@ -53,6 +80,8 @@ func ParseAgentMode(s string) (AgentMode, bool) {
 		return AgentModePlan, true
 	case "auto":
 		return AgentModeAutoAccept, true
+	case "auto-with-judge":
+		return AgentModeAutoWithJudge, true
 	case "readonly":
 		return AgentModeReadOnly, true
 	default:
@@ -68,6 +97,8 @@ func (m AgentMode) String() string {
 		return "Plan"
 	case AgentModeAutoAccept:
 		return "AutoAccept"
+	case AgentModeAutoWithJudge:
+		return "AutoWithJudge"
 	case AgentModeReadOnly:
 		return "ReadOnly"
 	default:
@@ -84,6 +115,8 @@ func (m AgentMode) DisplayName() string {
 		return "Plan Mode"
 	case AgentModeAutoAccept:
 		return "Auto-Accept"
+	case AgentModeAutoWithJudge:
+		return "Auto+Judge"
 	case AgentModeReadOnly:
 		return "Read-Only"
 	default:

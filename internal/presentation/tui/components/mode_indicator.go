@@ -48,6 +48,8 @@ func (mi *ModeIndicator) Render() string {
 		modeText = "▶ PLAN"
 	case agentdomain.AgentModeAutoAccept:
 		modeText = "▸ AUTO"
+	case agentdomain.AgentModeAutoWithJudge:
+		modeText = "▸ AUTO+JUDGE"
 	case agentdomain.AgentModeReadOnly:
 		modeText = "▸ READ-ONLY"
 	}

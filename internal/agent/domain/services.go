@@ -67,6 +67,16 @@ type HookCommandProvider interface {
 	CommandsDue(hook HookPoint) []HookCommand
 }
 
+// JudgeApprover decides one pending tool call by asking a small LLM whether it
+// serves the user's intent and is safe. intent is the latest non-hidden user
+// message and action the pending tool call (name + arguments). The judge is
+// the approver selected by approval_behaviour "judge" / agent mode
+// auto-with-judge: it is always reachable, so headless and CI get a real
+// approver instead of blocking.
+type JudgeApprover interface {
+	Judge(ctx context.Context, intent, action string) (JudgeVerdict, error)
+}
+
 // BashDetachChannelHolder manages the bash detach channel for background shell operations
 type BashDetachChannelHolder interface {
 	SetBashDetachChan(chan<- struct{})
