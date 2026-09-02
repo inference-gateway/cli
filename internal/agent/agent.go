@@ -50,7 +50,7 @@ type AgentServiceImpl struct {
 	approvalPolicy   agentdomain.ApprovalPolicy
 	judge            agentdomain.JudgeApprover
 	currentModel     func() string
-	escalations *judgeEscalations
+	escalations      *judgeEscalations
 
 	bgRegistry       scheddomain.BackgroundTaskRegistry
 	rolloverManager  *conv.SessionRolloverManager
