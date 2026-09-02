@@ -1,8 +1,3 @@
-// Judge-rejection escalation: the one-shot registry that tracks calls the LLM
-// judge rejected and the bypass markers its user-approved escalations create
-// (issue #1156). The RequestApproval tool escalates through the interactive
-// question form; the judge approver honours bypass markers without a judge call.
-
 package agent
 
 import (
