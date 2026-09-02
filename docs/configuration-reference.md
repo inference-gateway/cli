@@ -555,7 +555,7 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
     - **git_branch**: Current Git branch name (default: `true`)
       - Only displays when in a Git repository
       - Uses 5-second cache for performance
-      - Automatically updates after Git operations in bash mode and after every tool run
+      - Automatically updates after Git operations in bash mode, after every tool run, and every 20 seconds
       - The `⎇` icon turns the theme warning color when there are uncommitted changes, and the accent color
         when local commits are unpushed (or the branch has no upstream); uncommitted wins when both apply
       - Long branch names are truncated with "..." indicator

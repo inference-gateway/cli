@@ -822,6 +822,14 @@ func TestInputView_GitStatusResolvedEventStoresFlags(t *testing.T) {
 	require.True(t, iv.gitUnpushed)
 }
 
+func TestInputView_GitStatusTickRefetchesAndRearms(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "")
+
+	_, cmd := iv.Update(gitStatusTickMsg{})
+
+	require.NotNil(t, cmd, "the tick must refetch git status and schedule the next tick")
+}
+
 func TestInputView_GitIconColor(t *testing.T) {
 	tests := []struct {
 		name     string
