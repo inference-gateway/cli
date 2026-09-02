@@ -197,6 +197,22 @@ func TestFormatToolResultForUI_NoBodyOmitsPreview(t *testing.T) {
 	}
 }
 
+func TestFormatToolResultForUI_JudgeRejectionShowsReason(t *testing.T) {
+	tool := &fakeTool{name: "Bash", preview: "Execution failed"}
+	svc := newTestService(tool)
+
+	res := &agentdomain.ToolExecutionResult{
+		ToolName:  "Bash",
+		Success:   false,
+		Error:     "rejected by judge: curl was not requested",
+		Arguments: map[string]any{"command": "curl x"},
+	}
+	out := stripCard(stripANSI(svc.FormatToolResultForUI(res, 80)))
+	if !strings.Contains(out, "rejected by judge: curl was not requested") {
+		t.Errorf("collapsed card must show the error when the tool produced no data, got:\n%s", out)
+	}
+}
+
 func TestFormatToolResultForUI_RejectedShowsStatusAndHintOnly(t *testing.T) {
 	tool := &fakeTool{name: "Bash", preview: "Execution failed"}
 	svc := newTestService(tool)

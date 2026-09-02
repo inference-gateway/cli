@@ -27,6 +27,11 @@ type ResultBodyProvider interface {
 // It prefers a ResultBodyProvider (full, untruncated) and falls back to the tool's
 // short FormatPreview summary.
 func (s *ToolFormatterService) resultBody(result *agentdomain.ToolExecutionResult) string {
+	// A failure that never produced tool data (judge rejection, pre-exec error)
+	// has only its error to show; the tool's preview would just say "failed".
+	if !result.Success && result.Data == nil && result.Error != "" {
+		return result.Error
+	}
 	tool, err := s.toolRegistry.GetTool(result.ToolName)
 	if err != nil {
 		return ""
