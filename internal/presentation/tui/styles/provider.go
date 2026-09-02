@@ -2,6 +2,7 @@ package styles
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	lipgloss "charm.land/lipgloss/v2"
 
@@ -224,8 +225,9 @@ func (p *Provider) RenderListItemWithDescription(title, description string, sele
 
 // RenderInputField renders an input field with border. When branchLabel is
 // non-empty it is embedded in the top border, right-aligned, as a titled border
-// (e.g. "╭──────── ⎇ main ─╮"); pass "" for a plain border.
-func (p *Provider) RenderInputField(content string, width int, focused bool, branchLabel string) string {
+// (e.g. "╭──────── ⎇ main ─╮"); pass "" for a plain border. A non-empty iconColor
+// colors only the label's leading icon rune (workspace dirty/unpushed signal).
+func (p *Provider) RenderInputField(content string, width int, focused bool, branchLabel, iconColor string) string {
 	theme := p.themeService.GetCurrentTheme()
 
 	style := p.styles().inputField
@@ -240,7 +242,7 @@ func (p *Provider) RenderInputField(content string, width int, focused bool, bra
 		return rendered
 	}
 
-	return p.spliceBranchIntoTopBorder(rendered, branchLabel, borderColor, theme.GetStatusColor())
+	return p.spliceBranchIntoTopBorder(rendered, branchLabel, borderColor, theme.GetStatusColor(), iconColor)
 }
 
 // spliceBranchIntoTopBorder rebuilds the top border line of an already-rendered
@@ -248,7 +250,7 @@ func (p *Provider) RenderInputField(content string, width int, focused bool, bra
 // border. The label is truncated with an ellipsis when the box is narrow and
 // dropped entirely when there is no reasonable room for it. The rebuilt line
 // keeps the original measured width so the sides and bottom border stay aligned.
-func (p *Provider) spliceBranchIntoTopBorder(box, label, borderColor, labelColor string) string {
+func (p *Provider) spliceBranchIntoTopBorder(box, label, borderColor, labelColor, iconColor string) string {
 	lines := strings.Split(box, "\n")
 	if len(lines) == 0 {
 		return box
@@ -278,7 +280,7 @@ func (p *Provider) spliceBranchIntoTopBorder(box, label, borderColor, labelColor
 	leftDashes := max(boxWidth-corners-rightMargin-labelWidth, minLeftDashes)
 
 	lines[0] = p.RenderWithColor("╭"+strings.Repeat("─", leftDashes), borderColor) +
-		p.renderBorderLabel(label, borderColor, labelColor) +
+		p.renderBorderLabel(label, borderColor, labelColor, iconColor) +
 		p.RenderWithColor(strings.Repeat("─", rightMargin)+"╮", borderColor)
 
 	return strings.Join(lines, "\n")
@@ -286,10 +288,19 @@ func (p *Provider) spliceBranchIntoTopBorder(box, label, borderColor, labelColor
 
 // renderBorderLabel styles the label text, keeping any " ─ " separator (between
 // the branch and the PR number) in the border color so both segments read as
-// separate titles hanging on the border line.
-func (p *Provider) renderBorderLabel(label, borderColor, labelColor string) string {
+// separate titles hanging on the border line. When iconColor is set, the first
+// non-space rune of the label (the branch icon) is rendered in that color instead
+// of labelColor. Called after truncation, which never cuts the leading rune.
+func (p *Provider) renderBorderLabel(label, borderColor, labelColor, iconColor string) string {
 	parts := strings.Split(label, " ─ ")
 	for i, part := range parts {
+		if i == 0 && iconColor != "" {
+			lead := strings.TrimLeft(part, " ")
+			pad := part[:len(part)-len(lead)]
+			_, size := utf8.DecodeRuneInString(lead)
+			parts[i] = pad + p.RenderWithColor(lead[:size], iconColor) + p.RenderWithColor(lead[size:], labelColor)
+			continue
+		}
 		parts[i] = p.RenderWithColor(part, labelColor)
 	}
 	return strings.Join(parts, p.RenderWithColor(" ─ ", borderColor))
@@ -664,7 +675,7 @@ func (p *Provider) RenderTitledCard(content, title, borderColor, titleColor stri
 	if title == "" {
 		return box
 	}
-	return p.spliceBranchIntoTopBorder(box, title, borderColor, titleColor)
+	return p.spliceBranchIntoTopBorder(box, title, borderColor, titleColor, "")
 }
 
 // ToolTitleColor returns the accent hex color used to differentiate a tool type on

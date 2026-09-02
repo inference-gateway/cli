@@ -27,6 +27,7 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
@@ -261,6 +262,10 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		go forwardControlEventsToBubbleTea(notifier, eventBridge)
 	}
 
+	heartbeatCtx, stopHeartbeat := context.WithCancel(context.Background())
+	defer stopHeartbeat()
+	go runUIHeartbeat(heartbeatCtx, notifier, constants.UIHeartbeatInterval)
+
 	if _, err := program.Run(); err != nil {
 		return fmt.Errorf("error running chat interface: %w", err)
 	}
@@ -481,6 +486,25 @@ type programNotifier struct{ program *tea.Program }
 // producer captures this notifier at construction and calls it from its own
 // goroutine; keep it that way.
 func (p programNotifier) Notify(event any) { p.program.Send(event) }
+
+// runUIHeartbeat is the app's one periodic producer: it pushes a
+// HeartbeatEvent through the UI notifier every interval until ctx is done. It
+// is the only clock feeding the Update loop, so components needing a periodic
+// freshness check subscribe to this event rather than re-arming their own
+// tea.Tick. Notify blocks until Update consumes the message, so a slow Update
+// simply delays the next beat instead of piling up.
+func runUIHeartbeat(ctx context.Context, notifier agentdomain.UINotifier, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case t := <-ticker.C:
+			notifier.Notify(agentdomain.HeartbeatEvent{At: t})
+		}
+	}
+}
 
 // forwardControlEventsToBubbleTea forwards control events from EventBridge to the
 // Bubble Tea loop through the single UI notifier. This ensures control events

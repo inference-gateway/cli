@@ -809,7 +809,66 @@ func TestInputView_ToolExecutionCompletedRefetchesPROnBash(t *testing.T) {
 	_, cmd = iv.Update(agentdomain.ToolExecutionCompletedEvent{
 		Results: []*agentdomain.ToolExecutionResult{{ToolName: "Read"}},
 	})
-	require.Nil(t, cmd, "non-Bash tool results must not refetch")
+	require.NotNil(t, cmd, "any tool result must still trigger the async git status refetch")
+}
+
+func TestInputView_GitStatusResolvedEventStoresFlags(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "")
+
+	_, cmd := iv.Update(tui.GitStatusResolvedEvent{Dirty: true, Unpushed: true})
+
+	require.Nil(t, cmd)
+	require.True(t, iv.gitDirty)
+	require.True(t, iv.gitUnpushed)
+}
+
+func TestInputView_HeartbeatRefetchesGitStatus(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "")
+
+	_, cmd := iv.Update(agentdomain.HeartbeatEvent{At: time.Now()})
+	require.NotNil(t, cmd, "the app heartbeat must trigger the async git status refetch")
+
+	cfg := config.DefaultConfig()
+	cfg.Chat.StatusBar.Indicators.GitBranch = false
+	iv.config = cfg
+	require.Nil(t, iv.gitStatusCmd(), "no git process when the branch indicator is disabled")
+}
+
+func TestInputView_GitIconColor(t *testing.T) {
+	tests := []struct {
+		name     string
+		dirty    bool
+		unpushed bool
+		want     string
+	}{
+		{"clean", false, false, ""},
+		{"unpushed only", false, true, "accent"},
+		{"dirty only", true, false, "warning"},
+		{"dirty wins over unpushed", true, true, "warning"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			iv := newInputViewWithPR(t, "main", "")
+			iv.gitDirty, iv.gitUnpushed = tt.dirty, tt.unpushed
+
+			want := ""
+			if tt.want != "" {
+				want = iv.styleProvider.GetThemeColor(tt.want)
+			}
+			require.Equal(t, want, iv.gitIconColor())
+		})
+	}
+}
+
+func TestInputView_DirtyIconRendersInWarningColor(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "")
+	iv.SetWidth(80)
+	iv.gitDirty = true
+
+	topLine, _, _ := strings.Cut(iv.Render(), "\n")
+
+	require.Contains(t, topLine, iv.styleProvider.RenderWithColor("⎇", iv.styleProvider.GetThemeColor("warning")))
+	require.Contains(t, topLine, "main")
 }
 
 func TestInputView_InitFetchesPR(t *testing.T) {
