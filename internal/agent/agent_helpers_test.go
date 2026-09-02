@@ -78,75 +78,31 @@ func TestClearToolCallsMap(t *testing.T) {
 // by TestAgentServiceImpl_BuildSystemPromptByteStableAcrossModeSwitch in
 // agent_test.go; the per-mode instructions ride the on_mode_change reminder.
 
-// TestCheckToolResultsStatus tests checking tool results for rejection and plan content
-func TestCheckToolResultsStatus(t *testing.T) {
+// TestCheckPlanApproval tests pulling plan content out of tool results.
+func TestCheckPlanApproval(t *testing.T) {
 	agentService := &AgentServiceImpl{}
 
 	tests := []struct {
-		name              string
-		toolResults       []convdomain.ConversationEntry
-		expectedRejection bool
-		expectedPlan      string
-		expectedID        string
+		name         string
+		toolResults  []convdomain.ConversationEntry
+		expectedPlan string
+		expectedID   string
 	}{
 		{
-			name:              "no_results",
-			toolResults:       []convdomain.ConversationEntry{},
-			expectedRejection: false,
-			expectedPlan:      "",
+			name:        "no_results",
+			toolResults: []convdomain.ConversationEntry{},
 		},
 		{
-			name: "with_rejection",
-			toolResults: []convdomain.ConversationEntry{
-				{
-					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("rejected")},
-					ToolExecution: &agentdomain.ToolExecutionResult{
-						ToolName: "Write",
-						Success:  false,
-						Rejected: true,
-					},
-				},
-			},
-			expectedRejection: true,
-			expectedPlan:      "",
-		},
-		{
-			name: "without_rejection",
+			name: "without_plan",
 			toolResults: []convdomain.ConversationEntry{
 				{
 					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("result")},
 					ToolExecution: &agentdomain.ToolExecutionResult{
 						ToolName: "Read",
 						Success:  true,
-						Rejected: false,
 					},
 				},
 			},
-			expectedRejection: false,
-			expectedPlan:      "",
-		},
-		{
-			name: "multiple_results_with_rejection",
-			toolResults: []convdomain.ConversationEntry{
-				{
-					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("result1")},
-					ToolExecution: &agentdomain.ToolExecutionResult{
-						ToolName: "Read",
-						Success:  true,
-						Rejected: false,
-					},
-				},
-				{
-					Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("rejected")},
-					ToolExecution: &agentdomain.ToolExecutionResult{
-						ToolName: "Write",
-						Success:  false,
-						Rejected: true,
-					},
-				},
-			},
-			expectedRejection: true,
-			expectedPlan:      "",
 		},
 		{
 			name: "with_plan_approval",
@@ -163,16 +119,14 @@ func TestCheckToolResultsStatus(t *testing.T) {
 					},
 				},
 			},
-			expectedRejection: false,
-			expectedPlan:      "# Plan\n- step 1",
-			expectedID:        "2026-06-28-090000-plan",
+			expectedPlan: "# Plan\n- step 1",
+			expectedID:   "2026-06-28-090000-plan",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hasRejection, planContent, planID := agentService.checkToolResultsStatus(tt.toolResults)
-			assert.Equal(t, tt.expectedRejection, hasRejection)
+			planContent, planID := agentService.checkPlanApproval(tt.toolResults)
 			assert.Equal(t, tt.expectedPlan, planContent)
 			assert.Equal(t, tt.expectedID, planID)
 		})

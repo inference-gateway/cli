@@ -1037,6 +1037,55 @@ func TestExecuteToolInternal_PublishesTerminalStatus(t *testing.T) {
 	}
 }
 
+// TestExecuteToolCallsParallel_NeverRequestsApproval pins that the no-approval
+// route does not consult the approval policy or prompt. Approval
+// is decided once, by states.EvaluatingToolsState, which never hands a batch
+// that needs approval to this route.
+func TestExecuteToolCallsParallel_NeverRequestsApproval(t *testing.T) {
+	fakePolicy := &agentdomainmocks.FakeApprovalPolicy{}
+	fakePolicy.ShouldRequireApprovalReturns(true)
+
+	fakeToolService := &agentdomainmocks.FakeToolService{}
+	fakeToolService.ExecuteToolReturns(&agentdomain.ToolExecutionResult{ToolName: "Write", Success: true}, nil)
+
+	fakeRepo := &convmocks.FakeConversationRepository{}
+	fakeRepo.FormatToolResultForLLMReturns("formatted result")
+
+	s := &AgentServiceImpl{
+		config:           &config.Config{Agent: config.AgentConfig{MaxConcurrentTools: 2}},
+		toolService:      fakeToolService,
+		conversationRepo: fakeRepo,
+		approvalPolicy:   fakePolicy,
+	}
+
+	chatEvents := make(chan agentdomain.ChatEvent, 64)
+	publisher := newEventPublisher("request-123", chatEvents)
+
+	tc := &sdk.ChatCompletionMessageToolCall{
+		ID:       "call-1",
+		Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write", Arguments: "{}"},
+	}
+
+	results := s.executeToolCallsParallel(context.Background(), []*sdk.ChatCompletionMessageToolCall{tc}, publisher)
+
+	require.Len(t, results, 1)
+	require.NotNil(t, results[0].ToolExecution)
+	assert.True(t, results[0].ToolExecution.Success)
+	assert.False(t, results[0].ToolExecution.Rejected)
+	assert.Equal(t, 0, fakePolicy.ShouldRequireApprovalCallCount(), "approval policy is EvaluatingToolsState's job")
+	assert.Equal(t, 1, fakeToolService.ExecuteToolCallCount())
+
+	for {
+		select {
+		case event := <-chatEvents:
+			_, isApproval := event.(agentdomain.ToolApprovalRequestedEvent)
+			assert.False(t, isApproval, "no approval prompt on the no-approval route")
+		default:
+			return
+		}
+	}
+}
+
 func TestAgentServiceImpl_CancelRequest_WithCancelChannel(t *testing.T) {
 	agentService := &AgentServiceImpl{
 		activeSessions: make(map[string]*sessionCancel),

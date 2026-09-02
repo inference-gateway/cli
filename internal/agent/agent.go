@@ -1102,11 +1102,13 @@ type IndexedToolResult struct {
 	Result convdomain.ConversationEntry
 }
 
-func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
+// executeToolCallsParallel runs a batch that needs no approval. Approval is
+// decided upstream by states.EvaluatingToolsState: batches with a tool that
+// requires approval go to ApprovingTools/BlockingTools and never reach here.
+func (s *AgentServiceImpl) executeToolCallsParallel(
 	ctx context.Context,
 	toolCalls []*sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
-	isChatMode bool,
 ) []convdomain.ConversationEntry {
 
 	if len(toolCalls) == 0 {
@@ -1125,97 +1127,63 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 
 	results := make([]convdomain.ConversationEntry, len(toolCalls))
 
-	var approvalTools []struct {
-		index int
-		tool  *sdk.ChatCompletionMessageToolCall
-	}
-	var parallelTools []struct {
-		index int
-		tool  *sdk.ChatCompletionMessageToolCall
-	}
+	resultsChan := make(chan IndexedToolResult, len(toolCalls))
+	semaphore := make(chan struct{}, s.config.GetAgentConfig().MaxConcurrentTools)
+	panicked := make(chan any, 1)
 
+	var wg sync.WaitGroup
 	for i, tc := range toolCalls {
-		requiresApproval := s.approvalPolicy.ShouldRequireApproval(ctx, tc, isChatMode)
-		if requiresApproval {
-			approvalTools = append(approvalTools, struct {
-				index int
-				tool  *sdk.ChatCompletionMessageToolCall
-			}{i, tc})
-		} else {
-			parallelTools = append(parallelTools, struct {
-				index int
-				tool  *sdk.ChatCompletionMessageToolCall
-			}{i, tc})
-		}
-	}
-
-	for _, at := range approvalTools {
-
-		time.Sleep(constants.AgentToolExecutionDelay)
-
-		result := s.executeTool(ctx, *at.tool, eventPublisher, isChatMode)
-		results[at.index] = result
-	}
-
-	if len(parallelTools) > 0 {
-		resultsChan := make(chan IndexedToolResult, len(parallelTools))
-		semaphore := make(chan struct{}, s.config.GetAgentConfig().MaxConcurrentTools)
-		panicked := make(chan any, 1)
-
-		var wg sync.WaitGroup
-		for _, pt := range parallelTools {
-			wg.Add(1)
-			go func(index int, toolCall *sdk.ChatCompletionMessageToolCall) {
-				defer func() {
-					wg.Done()
-				}()
-				defer func() {
-					if r := recover(); r != nil {
-						logger.Error("tool goroutine panic", "tool", toolCall.Function.Name, "panic", r, "stack", string(debug.Stack()))
-						select {
-						case panicked <- r:
-						default:
-						}
+		wg.Add(1)
+		go func(index int, toolCall *sdk.ChatCompletionMessageToolCall) {
+			defer func() {
+				wg.Done()
+			}()
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("tool goroutine panic", "tool", toolCall.Function.Name, "panic", r, "stack", string(debug.Stack()))
+					select {
+					case panicked <- r:
+					default:
 					}
-				}()
-
-				semaphore <- struct{}{}
-				defer func() {
-					<-semaphore
-				}()
-
-				eventPublisher.publishToolStatusChange(
-					toolCall.ID,
-					toolCall.Function.Name, "starting",
-					fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
-					nil,
-				)
-
-				time.Sleep(constants.AgentToolExecutionDelay)
-
-				result := s.executeTool(ctx, *toolCall, eventPublisher, isChatMode)
-
-				resultsChan <- IndexedToolResult{
-					Index:  index,
-					Result: result,
 				}
-			}(pt.index, pt.tool)
-		}
+			}()
 
-		go func() {
-			wg.Wait()
-			close(resultsChan)
-		}()
+			semaphore <- struct{}{}
+			defer func() {
+				<-semaphore
+			}()
 
-		for res := range resultsChan {
-			results[res.Index] = res.Result
-		}
+			eventPublisher.publishToolStatusChange(
+				toolCall.ID,
+				toolCall.Function.Name, "starting",
+				fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
+				nil,
+			)
 
-		select {
-		case r := <-panicked:
-			panic(r)
-		default:
-		}
+			time.Sleep(constants.AgentToolExecutionDelay)
+
+			result := s.executeTool(ctx, *toolCall, eventPublisher)
+
+			resultsChan <- IndexedToolResult{
+				Index:  index,
+				Result: result,
+			}
+		}(i, tc)
+	}
+
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	for res := range resultsChan {
+		results[res.Index] = res.Result
+	}
+
+	select {
+	case r := <-panicked:
+		panic(r)
+	default:
 	}
 
 	if err := s.batchSaveToolResults(results); err != nil {
@@ -1227,40 +1195,19 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 	return results
 }
 
-//nolint:funlen,gocyclo,cyclop // Tool execution requires comprehensive error handling and status updates
 func (s *AgentServiceImpl) executeTool(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
-	isChatMode bool,
 ) convdomain.ConversationEntry {
-	startTime := time.Now()
-
-	requiresApproval := s.approvalPolicy.ShouldRequireApproval(ctx, &tc, isChatMode)
-	wasApproved := false
-	isAutoAcceptMode := s.stateManager != nil && s.stateManager.GetAgentMode() == agentdomain.AgentModeAutoAccept
-	if isAutoAcceptMode {
-		wasApproved = true
-	} else if requiresApproval {
-		approved, reason, err := s.requestToolApproval(ctx, tc, eventPublisher)
-		if err != nil {
-			logger.Error("failed to request tool approval", "tool", tc.Function.Name, "error", err)
-			return s.createErrorEntry(tc, err, startTime)
-		}
-		if !approved {
-			eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "failed", "rejected", nil)
-			return s.createRejectionEntry(tc, startTime, reason)
-		}
-		wasApproved = true
-	}
-
-	return s.executeToolInternal(ctx, tc, eventPublisher, wasApproved, startTime)
+	wasApproved := s.stateManager != nil && s.stateManager.GetAgentMode() == agentdomain.AgentModeAutoAccept
+	return s.executeToolInternal(ctx, tc, eventPublisher, wasApproved, time.Now())
 }
 
 // executeToolInternal runs the tool once and, when the failure is a sandbox
 // denial and a user can answer prompts (chat TUI or IPC broker), asks them to
-// grant the denied directory and retries. Used by both executeTool() (after
-// approval) and processNextTool() (approval already obtained).
+// grant the denied directory and retries. Used by both executeTool() (no
+// approval needed) and processNextTool() (approval already obtained).
 func (s *AgentServiceImpl) executeToolInternal(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
@@ -1534,22 +1481,19 @@ func (s *AgentServiceImpl) executeToolOnce(
 	return entry
 }
 
-// handleToolResults processes tool execution results and returns true if agent should stop
+// handleToolResults appends tool results to the conversation and returns true
+// when the agent should stop (a plan is awaiting approval). Rejections cannot
+// occur on this route; the state machine's ApprovingToolsState is the only
+// place a rejection ends the turn.
 func (s *AgentServiceImpl) handleToolResults(
 	toolResults []convdomain.ConversationEntry,
 	conversation *[]sdk.Message,
 	eventPublisher *eventPublisher,
 	req *agentdomain.AgentRequest,
 ) bool {
-	hasRejection, planContent, planID := s.checkToolResultsStatus(toolResults)
+	planContent, planID := s.checkPlanApproval(toolResults)
 
 	s.addToolResultsToConversation(toolResults, conversation, req.Model)
-
-	if hasRejection {
-		logger.Info("tool was rejected - stopping agent loop")
-		eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
-		return true
-	}
 
 	if planContent != "" {
 		s.createPlanMessage(planContent, planID, conversation, eventPublisher, req)
@@ -1559,21 +1503,18 @@ func (s *AgentServiceImpl) handleToolResults(
 	return false
 }
 
-// checkToolResultsStatus checks for rejections and plan approval in tool results
-func (s *AgentServiceImpl) checkToolResultsStatus(toolResults []convdomain.ConversationEntry) (hasRejection bool, planContent, planID string) {
+// checkPlanApproval returns the plan content and ID when a RequestPlanApproval
+// tool succeeded in the batch.
+func (s *AgentServiceImpl) checkPlanApproval(toolResults []convdomain.ConversationEntry) (planContent, planID string) {
 	for _, entry := range toolResults {
-		if entry.ToolExecution != nil {
-			if entry.ToolExecution.Rejected {
-				return true, "", ""
-			}
-			if entry.ToolExecution.ToolName == "RequestPlanApproval" && entry.ToolExecution.Success {
-				planContent = extractPlanContent(entry.ToolExecution)
-				planID = extractPlanID(entry.ToolExecution)
-				logger.Info("requestPlanApproval tool executed - stopping agent loop to wait for user approval", "planLength", len(planContent))
-			}
+		if entry.ToolExecution == nil || entry.ToolExecution.ToolName != "RequestPlanApproval" || !entry.ToolExecution.Success {
+			continue
 		}
+		planContent = extractPlanContent(entry.ToolExecution)
+		planID = extractPlanID(entry.ToolExecution)
+		logger.Info("requestPlanApproval tool executed - stopping agent loop to wait for user approval", "planLength", len(planContent))
 	}
-	return false, planContent, planID
+	return planContent, planID
 }
 
 // addToolResultsToConversation adds tool results and images to the conversation
@@ -1923,40 +1864,6 @@ func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall
 			Success:   false,
 			Duration:  time.Since(startTime),
 			Error:     err.Error(),
-		},
-	}
-}
-
-func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageToolCall, startTime time.Time, reason string) convdomain.ConversationEntry {
-	var args map[string]any
-	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-		args = make(map[string]any)
-	}
-
-	rejectionMessage := fmt.Sprintf(
-		"Tool call rejected by user: %s\n\nYou can provide alternative instructions or ask me to proceed differently.",
-		tc.Function.Name,
-	)
-	errText := "rejected by user"
-	if reason != "" {
-		rejectionMessage = fmt.Sprintf("Tool call rejected by judge: %s\n\nRejection reason: %s", tc.Function.Name, reason)
-		errText = "rejected by judge: " + reason
-	}
-
-	return convdomain.ConversationEntry{
-		Message: sdk.Message{
-			Role:       sdk.Tool,
-			Content:    sdk.NewMessageContent(rejectionMessage),
-			ToolCallID: &tc.ID,
-		},
-		Time: time.Now(),
-		ToolExecution: &agentdomain.ToolExecutionResult{
-			ToolName:  tc.Function.Name,
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(startTime),
-			Error:     errText,
-			Rejected:  reason == "",
 		},
 	}
 }
