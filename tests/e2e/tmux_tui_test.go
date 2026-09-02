@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -24,10 +25,9 @@ func TestChatTUIViaTmux(t *testing.T) {
 	}
 
 	const session = "infer-e2e-tui"
-	_ = exec.Command("tmux", "kill-session", "-t", session).Run()
-	t.Cleanup(func() { _ = exec.Command("tmux", "kill-session", "-t", session).Run() })
+	home := startTmuxHome(t, session)
 
-	launch := "env HOME=" + t.TempDir() +
+	launch := "env HOME=" + home +
 		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
 		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
 		" " + binPath + " chat"
@@ -58,10 +58,9 @@ func TestChatTUIBackgroundShellOutput(t *testing.T) {
 	}
 
 	const session = "infer-e2e-shell-output"
-	_ = exec.Command("tmux", "kill-session", "-t", session).Run()
-	t.Cleanup(func() { _ = exec.Command("tmux", "kill-session", "-t", session).Run() })
+	home := startTmuxHome(t, session)
 
-	launch := "env HOME=" + t.TempDir() +
+	launch := "env HOME=" + home +
 		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
 		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
 		" " + binPath + " chat"
@@ -99,10 +98,9 @@ func TestChatTUIBackgroundSubagentOutput(t *testing.T) {
 	}
 
 	const session = "infer-e2e-subagent-output"
-	_ = exec.Command("tmux", "kill-session", "-t", session).Run()
-	t.Cleanup(func() { _ = exec.Command("tmux", "kill-session", "-t", session).Run() })
+	home := startTmuxHome(t, session)
 
-	launch := "env HOME=" + t.TempDir() +
+	launch := "env HOME=" + home +
 		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
 		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
 		" INFER_TOOLS_AGENT_MODE=headless INFER_TOOLS_AGENT_WAIT=false" +
@@ -133,6 +131,25 @@ func TestChatTUIBackgroundSubagentOutput(t *testing.T) {
 
 	require.True(t, waitForPane(t, session, "hello-from-subagent-probe", 15*time.Second),
 		"the subagent output never appeared in the detail panel; last frame:\n%s", capturePane(session))
+}
+
+// startTmuxHome returns a temp HOME for a chat process driven in the tmux
+// session and registers its teardown. HOME is created before the kill-session
+// cleanup so cleanups (LIFO) kill the process before TempDir removes the dir,
+// and the kill waits for the process to let go of HOME: kill-session only sends
+// SIGHUP, so an immediate RemoveAll races the exiting infer ("directory not empty").
+func startTmuxHome(t *testing.T, session string) string {
+	t.Helper()
+	home := t.TempDir()
+	_ = exec.Command("tmux", "kill-session", "-t", session).Run()
+	t.Cleanup(func() {
+		_ = exec.Command("tmux", "kill-session", "-t", session).Run()
+		deadline := time.Now().Add(5 * time.Second)
+		for os.RemoveAll(home) != nil && time.Now().Before(deadline) {
+			time.Sleep(50 * time.Millisecond)
+		}
+	})
+	return home
 }
 
 func capturePane(session string) string {
