@@ -106,9 +106,6 @@ func buildApprovalCases() []approvalCase {
 		"Bash", "Read", "Write", "Edit")...)
 	tests = append(tests, approvalCases("plan mode skips approval for exec-rejected tools:", standardPolicy(agentdomain.AgentModePlan),
 		`{"command": "rm -rf /"}`, true, false, "Bash", "Write", "Edit", "Delete")...)
-	// auto-with-judge keeps the standard rules: it neither bypasses like
-	// auto-accept nor changes the allow-list, so gated calls route to the judge
-	// while allow-listed commands never reach it.
 	judge := standardPolicy(agentdomain.AgentModeAutoWithJudge)
 	tests = append(tests, approvalCases("judge mode follows standard rules:", judge,
 		"{}", true, true, "Read", "Write", "Edit", "Grep")...)
