@@ -117,7 +117,7 @@ func TestGetEffectiveChannelsConfigPath_PrefersProject(t *testing.T) {
 	projectPath := config.DefaultChannelsPath
 	require.NoError(t, os.WriteFile(projectPath, []byte("---\nenabled: true\n"), 0644))
 
-	got := getEffectiveChannelsConfigPath()
+	got := sidecarPath(config.ChannelsFileName)
 	require.Equal(t, projectPath, got)
 }
 
@@ -135,13 +135,13 @@ func TestGetEffectiveChannelsConfigPath_FallsBackToUserspace(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(userPath), 0755))
 	require.NoError(t, os.WriteFile(userPath, []byte("---\nenabled: true\n"), 0644))
 
-	got := getEffectiveChannelsConfigPath()
+	got := sidecarPath(config.ChannelsFileName)
 	require.Equal(t, userPath, got)
 }
 
 func TestGetEffectiveChannelsConfigPath_NeitherExists(t *testing.T) {
 	withHermeticEnv(t)
 
-	got := getEffectiveChannelsConfigPath()
+	got := sidecarPath(config.ChannelsFileName)
 	require.Equal(t, config.DefaultChannelsPath, got)
 }

@@ -88,19 +88,42 @@ func setPointerOption(v *viper.Viper, key string, field reflect.Value) {
 }
 
 // setScalarFromViper writes v's value for key into a settable scalar, reporting
-// whether the kind was one it knows how to convert.
+// whether it wrote one. Bool and number values are trimmed and parsed strictly
+// so a typo like INFER_X_REQUIRE_APPROVAL=maybe is ignored rather than cast to
+// false and silently flipping a safety default.
 func setScalarFromViper(v *viper.Viper, key string, field reflect.Value) bool {
 	switch field.Kind() {
 	case reflect.String:
 		field.SetString(v.GetString(key))
+		return true
+	}
+
+	raw := strings.TrimSpace(v.GetString(key))
+	switch field.Kind() {
 	case reflect.Bool:
-		field.SetBool(v.GetBool(key))
+		b, err := strconv.ParseBool(raw)
+		if err != nil {
+			return false
+		}
+		field.SetBool(b)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		field.SetInt(v.GetInt64(key))
+		n, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return false
+		}
+		field.SetInt(n)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		field.SetUint(v.GetUint64(key))
+		n, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil {
+			return false
+		}
+		field.SetUint(n)
 	case reflect.Float32, reflect.Float64:
-		field.SetFloat(v.GetFloat64(key))
+		f, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			return false
+		}
+		field.SetFloat(f)
 	default:
 		return false
 	}
@@ -117,193 +140,35 @@ func stringSliceFromViper(v *viper.Viper, key string) []string {
 	return v.GetStringSlice(key)
 }
 
-// getEffectiveMCPConfigPath returns the path to the MCP config file
-// Searches in this order: 1) project .infer/mcp.yaml, 2) user home ~/.infer/mcp.yaml
-func getEffectiveMCPConfigPath() string {
-	searchPaths := []string{
-		".infer/mcp.yaml",
-	}
-
+// sidecarPath returns the effective path of a sidecar config file:
+// project .infer/<fileName> if it exists, else ~/.infer/<fileName> if it
+// exists, else the project path (the loader then falls back to defaults).
+func sidecarPath(fileName string) string {
+	projectPath := config.ConfigDirName + "/" + fileName
+	candidates := []string{projectPath}
 	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, ".infer", "mcp.yaml")
-		searchPaths = append(searchPaths, homePath)
+		candidates = append(candidates, filepath.Join(homeDir, config.ConfigDirName, fileName))
 	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p
 		}
 	}
-
-	return ".infer/mcp.yaml"
+	return projectPath
 }
 
-// getEffectiveKeybindingsConfigPath returns the path to the keybindings config file
-// Searches in this order: 1) project .infer/keybindings.yaml, 2) user home ~/.infer/keybindings.yaml
-func getEffectiveKeybindingsConfigPath() string {
-	searchPaths := []string{
-		config.DefaultKeybindingsPath,
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName)
-		searchPaths = append(searchPaths, homePath)
-	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return config.DefaultKeybindingsPath
-}
-
-// getEffectiveChannelsConfigPath returns the path to the channels config file
-// Searches in this order: 1) project .infer/channels.yaml, 2) user home ~/.infer/channels.yaml
-func getEffectiveChannelsConfigPath() string {
-	searchPaths := []string{
-		config.DefaultChannelsPath,
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, config.ConfigDirName, config.ChannelsFileName)
-		searchPaths = append(searchPaths, homePath)
-	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return config.DefaultChannelsPath
-}
-
-// getEffectiveHeartbeatConfigPath returns the path to the heartbeat config file
-// Searches in this order: 1) project .infer/heartbeat.yaml, 2) user home ~/.infer/heartbeat.yaml
-func getEffectiveHeartbeatConfigPath() string {
-	searchPaths := []string{
-		config.DefaultHeartbeatPath,
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, config.ConfigDirName, config.HeartbeatFileName)
-		searchPaths = append(searchPaths, homePath)
-	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return config.DefaultHeartbeatPath
-}
-
-// getEffectiveMemoryConfigPath returns the path to the memory config file
-// Searches in this order: 1) project .infer/memory.yaml, 2) user home ~/.infer/memory.yaml
-func getEffectiveMemoryConfigPath() string {
-	searchPaths := []string{
-		config.DefaultMemoryConfigPath,
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, config.ConfigDirName, config.MemoryConfigFileName)
-		searchPaths = append(searchPaths, homePath)
-	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return config.DefaultMemoryConfigPath
-}
-
-// getEffectiveComputerUseConfigPath returns the path to the computer_use config file
-// Searches in this order: 1) project .infer/computer_use.yaml, 2) user home ~/.infer/computer_use.yaml
-func getEffectiveComputerUseConfigPath() string {
-	searchPaths := []string{
-		config.DefaultComputerUsePath,
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, config.ConfigDirName, config.ComputerUseFileName)
-		searchPaths = append(searchPaths, homePath)
-	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return config.DefaultComputerUsePath
-}
-
-// getEffectiveBrowserUseConfigPath returns the path to the browser_use config file
-// Searches in this order: 1) project .infer/browser_use.yaml, 2) user home ~/.infer/browser_use.yaml
-func getEffectiveBrowserUseConfigPath() string {
-	searchPaths := []string{
-		config.DefaultBrowserUsePath,
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, config.ConfigDirName, config.BrowserUseFileName)
-		searchPaths = append(searchPaths, homePath)
-	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return config.DefaultBrowserUsePath
-}
-
-// getEffectivePromptsConfigPath returns the path to the prompts config file
-// Searches in this order: 1) project .infer/prompts.yaml, 2) user home ~/.infer/prompts.yaml
-func getEffectivePromptsConfigPath() string {
-	searchPaths := []string{
-		config.DefaultPromptsPath,
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, config.ConfigDirName, config.PromptsFileName)
-		searchPaths = append(searchPaths, homePath)
-	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return config.DefaultPromptsPath
-}
-
-// getEffectiveRemindersConfigPath returns the path to the reminders config file
-// Searches in this order: 1) project .infer/reminders.yaml, 2) user home ~/.infer/reminders.yaml
-func getEffectiveRemindersConfigPath() string {
-	searchPaths := []string{
-		config.DefaultRemindersPath,
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, config.ConfigDirName, config.RemindersFileName)
-		searchPaths = append(searchPaths, homePath)
-	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return config.DefaultRemindersPath
+// applySidecarEnv applies INFER_<PREFIX>_* env vars onto a sidecar config
+// through the same walker the main config uses. Sidecars are excluded from the
+// main viper (mapstructure:"-") so legacy blocks in config.yaml cannot leak in;
+// an env-only viper keeps that guarantee while still honouring env overrides.
+// AllowEmptyEnv matches the previous os.LookupEnv semantics (set-but-empty wins).
+func applySidecarEnv(cfg any, prefix string) {
+	v := viper.New()
+	v.SetEnvPrefix("INFER")
+	v.AutomaticEnv()
+	v.AllowEmptyEnv(true)
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	resolveViperEnvironmentVariables(v, cfg, prefix)
 }
 
 // resolveRemindersConfig resolves the reminders configuration, layering the
@@ -313,7 +178,7 @@ func getEffectiveRemindersConfigPath() string {
 //     never has to write ~/.infer/reminders.yaml.
 //  2. --reminders-file - an arbitrary path, not constrained to ~/.infer/.
 //  3. project .infer/reminders.yaml, then ~/.infer/reminders.yaml
-//     (getEffectiveRemindersConfigPath).
+//     (sidecarPath).
 //  4. built-in defaults (LoadReminders returns them when the file is missing).
 //
 // Env wins over the flag, matching the documented flags < env layering.
@@ -330,7 +195,7 @@ func resolveRemindersConfig(root *cobra.Command) (*config.RemindersConfig, error
 	} else if path := remindersFileOverride(root); path != "" {
 		cfg, err = config.LoadReminders(path)
 	} else {
-		cfg, err = config.LoadReminders(getEffectiveRemindersConfigPath())
+		cfg, err = config.LoadReminders(sidecarPath(config.RemindersFileName))
 	}
 	if err != nil {
 		return nil, err
@@ -357,48 +222,6 @@ func remindersFileOverride(root *cobra.Command) string {
 	return strings.TrimSpace(path)
 }
 
-// getEffectiveHooksConfigPath returns the path to the hooks config file.
-// Searches in this order: 1) project .infer/hooks.yaml, 2) user home ~/.infer/hooks.yaml
-func getEffectiveHooksConfigPath() string {
-	searchPaths := []string{
-		config.DefaultHooksPath,
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, config.ConfigDirName, config.HooksFileName)
-		searchPaths = append(searchPaths, homePath)
-	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return config.DefaultHooksPath
-}
-
-// getEffectiveJudgeConfigPath returns the path to the judge config file.
-// Searches in this order: 1) project .infer/judge.yaml, 2) user home ~/.infer/judge.yaml
-func getEffectiveJudgeConfigPath() string {
-	searchPaths := []string{
-		config.DefaultJudgePath,
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homePath := filepath.Join(homeDir, config.ConfigDirName, config.JudgeFileName)
-		searchPaths = append(searchPaths, homePath)
-	}
-
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return config.DefaultJudgePath
-}
-
 // getPluginsConfigPath returns the path of the plugins registry. Plugins are
 // userspace-only, so unlike other sidecars there is no project-first search.
 func PluginsConfigPath() string {
@@ -407,18 +230,6 @@ func PluginsConfigPath() string {
 		return filepath.Join(config.ConfigDirName, config.PluginsFileName)
 	}
 	return filepath.Join(homeDir, config.ConfigDirName, config.PluginsFileName)
-}
-
-// applyPluginsEnvOverrides applies INFER_PLUGINS_* env overrides.
-func applyPluginsEnvOverrides(cfg *config.Config) {
-	if v, ok := os.LookupEnv("INFER_PLUGINS_ENABLED"); ok {
-		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
-			cfg.Plugins.Enabled = b
-		}
-	}
-	if v, ok := os.LookupEnv("INFER_PLUGINS_DIR"); ok && strings.TrimSpace(v) != "" {
-		cfg.Plugins.Dir = strings.TrimSpace(v)
-	}
 }
 
 // getKeybindingsConfigWritePath returns the path to write keybindings to.
@@ -449,7 +260,7 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 
 	resolveViperEnvironmentVariables(v, cfg, "")
 
-	mcpConfigPath := getEffectiveMCPConfigPath()
+	mcpConfigPath := sidecarPath(config.MCPFileName)
 	mcpConfig, err := config.LoadMCP(mcpConfigPath)
 	if err != nil {
 		logger.Warn("failed to load MCP config, using defaults", "error", err, "path", mcpConfigPath)
@@ -457,7 +268,7 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 	}
 	cfg.MCP = *mcpConfig
 
-	kbPath := getEffectiveKeybindingsConfigPath()
+	kbPath := sidecarPath(config.KeybindingsFileName)
 	kbConfig, err := config.LoadKeybindings(kbPath)
 	if err != nil {
 		logger.Warn("failed to load keybindings config, using defaults", "error", err, "path", kbPath)
@@ -473,7 +284,7 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 		}
 	}
 
-	promptsPath := getEffectivePromptsConfigPath()
+	promptsPath := sidecarPath(config.PromptsFileName)
 	prompts, err := config.LoadPrompts(promptsPath)
 	if err != nil {
 		logger.Warn("failed to load prompts config, using defaults", "error", err, "path", promptsPath)
@@ -488,71 +299,71 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 		remindersCfg = config.DefaultRemindersConfig()
 	}
 	cfg.Reminders = *remindersCfg
-	applyRemindersEnvOverrides(cfg)
+	applySidecarEnv(&cfg.Reminders, "reminders")
 
-	hooksPath := getEffectiveHooksConfigPath()
+	hooksPath := sidecarPath(config.HooksFileName)
 	hooksCfg, err := config.LoadHooks(hooksPath)
 	if err != nil {
 		logger.Warn("failed to load hooks config, using defaults", "error", err, "path", hooksPath)
 		hooksCfg = config.DefaultHooksConfig()
 	}
 	cfg.Hooks = *hooksCfg
-	applyHooksEnvOverrides(cfg)
+	applySidecarEnv(&cfg.Hooks, "hooks")
 
-	judgePath := getEffectiveJudgeConfigPath()
+	judgePath := sidecarPath(config.JudgeFileName)
 	judgeCfg, err := config.LoadJudge(judgePath)
 	if err != nil {
 		logger.Warn("failed to load judge config, using defaults", "error", err, "path", judgePath)
 		judgeCfg = config.DefaultJudgeConfig()
 	}
 	cfg.Judge = *judgeCfg
-	applyJudgeEnvOverrides(cfg)
+	applySidecarEnv(&cfg.Judge, "judge")
 
-	channelsPath := getEffectiveChannelsConfigPath()
+	channelsPath := sidecarPath(config.ChannelsFileName)
 	channelsCfg, err := config.LoadChannels(channelsPath)
 	if err != nil {
 		logger.Warn("failed to load channels config, using defaults", "error", err, "path", channelsPath)
 		channelsCfg = config.DefaultChannelsConfig()
 	}
 	cfg.Channels = *channelsCfg
-	applyChannelsEnvOverrides(cfg)
+	applySidecarEnv(&cfg.Channels, "channels")
 
-	heartbeatPath := getEffectiveHeartbeatConfigPath()
+	heartbeatPath := sidecarPath(config.HeartbeatFileName)
 	heartbeatCfg, err := config.LoadHeartbeat(heartbeatPath)
 	if err != nil {
 		logger.Warn("failed to load heartbeat config, using defaults", "error", err, "path", heartbeatPath)
 		heartbeatCfg = config.DefaultHeartbeatConfig()
 	}
 	cfg.Heartbeat = *heartbeatCfg
-	applyHeartbeatEnvOverrides(cfg)
+	applySidecarEnv(&cfg.Heartbeat, "heartbeat")
 
-	cuPath := getEffectiveComputerUseConfigPath()
+	cuPath := sidecarPath(config.ComputerUseFileName)
 	cuCfg, err := config.LoadComputerUse(cuPath)
 	if err != nil {
 		logger.Warn("failed to load computer_use config, using defaults", "error", err, "path", cuPath)
 		cuCfg = config.DefaultComputerUseConfig()
 	}
 	cfg.ComputerUse = *cuCfg
-	applyComputerUseEnvOverrides(cfg)
+	applySidecarEnv(&cfg.ComputerUse, "computer_use")
 
-	buPath := getEffectiveBrowserUseConfigPath()
+	buPath := sidecarPath(config.BrowserUseFileName)
 	buCfg, err := config.LoadBrowserUse(buPath)
 	if err != nil {
 		logger.Warn("failed to load browser_use config, using defaults", "error", err, "path", buPath)
 		buCfg = config.DefaultBrowserUseConfig()
 	}
 	cfg.BrowserUse = *buCfg
-	applyBrowserUseEnvOverrides(cfg)
+	applySidecarEnv(&cfg.BrowserUse, "browser_use")
 	cfg.BrowserUse.Extension.Port = cfg.BrowserUse.Extension.EffectivePort()
 
-	memoryPath := getEffectiveMemoryConfigPath()
+	memoryPath := sidecarPath(config.MemoryConfigFileName)
 	memoryCfg, err := config.LoadMemory(memoryPath)
 	if err != nil {
 		logger.Warn("failed to load memory config, using defaults", "error", err, "path", memoryPath)
 		memoryCfg = config.DefaultMemoryConfig()
 	}
 	cfg.Memory = *memoryCfg
-	applyMemoryEnvOverrides(cfg)
+	applySidecarEnv(&cfg.Memory, "memory")
 	pruneMemoryRemindersIfDisabled(cfg)
 
 	pluginsPath := PluginsConfigPath()
@@ -562,7 +373,7 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 		pluginsCfg = config.DefaultPluginsConfig()
 	}
 	cfg.Plugins = *pluginsCfg
-	applyPluginsEnvOverrides(cfg)
+	applySidecarEnv(&cfg.Plugins, "plugins")
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -687,160 +498,6 @@ func applyKeybindingEnvOverrides(cfg *config.Config) {
 	}
 }
 
-// applyChannelsEnvOverrides applies INFER_CHANNELS_* env vars onto the
-// in-memory channels config. Run AFTER LoadChannels so envs win over
-// channels.yaml. The channels config now lives in its own file
-// (yaml:"-" mapstructure:"-" on Config.Channels), so viper does not bind
-// these env vars itself - this function is the single source of env-var
-// support. Mirrors applyKeybindingEnvOverrides / applyPromptsEnvOverrides.
-func applyChannelsEnvOverrides(cfg *config.Config) {
-	setBool := func(env string, target *bool) {
-		val, ok := os.LookupEnv(env)
-		if !ok {
-			return
-		}
-		if b, err := strconv.ParseBool(strings.TrimSpace(val)); err == nil {
-			*target = b
-		}
-	}
-	setInt := func(env string, target *int) {
-		val, ok := os.LookupEnv(env)
-		if !ok {
-			return
-		}
-		if n, err := strconv.Atoi(strings.TrimSpace(val)); err == nil {
-			*target = n
-		}
-	}
-	setString := func(env string, target *string) {
-		if val, ok := os.LookupEnv(env); ok {
-			*target = val
-		}
-	}
-	setStringSlice := func(env string, target *[]string) {
-		val, ok := os.LookupEnv(env)
-		if !ok {
-			return
-		}
-		var out []string
-		for item := range strings.SplitSeq(val, ",") {
-			if trimmed := strings.TrimSpace(item); trimmed != "" {
-				out = append(out, trimmed)
-			}
-		}
-		if out == nil {
-			out = []string{}
-		}
-		*target = out
-	}
-
-	setBool("INFER_CHANNELS_ENABLED", &cfg.Channels.Enabled)
-	setBool("INFER_CHANNELS_REQUIRE_APPROVAL", &cfg.Channels.RequireApproval)
-	setInt("INFER_CHANNELS_MAX_WORKERS", &cfg.Channels.MaxWorkers)
-	setInt("INFER_CHANNELS_IMAGE_RETENTION", &cfg.Channels.ImageRetention)
-
-	setBool("INFER_CHANNELS_TELEGRAM_ENABLED", &cfg.Channels.Telegram.Enabled)
-	setString("INFER_CHANNELS_TELEGRAM_BOT_TOKEN", &cfg.Channels.Telegram.BotToken)
-	setStringSlice("INFER_CHANNELS_TELEGRAM_ALLOWED_USERS", &cfg.Channels.Telegram.AllowedUsers)
-	setInt("INFER_CHANNELS_TELEGRAM_POLL_TIMEOUT", &cfg.Channels.Telegram.PollTimeout)
-
-	setBool("INFER_CHANNELS_WHATSAPP_ENABLED", &cfg.Channels.WhatsApp.Enabled)
-	setString("INFER_CHANNELS_WHATSAPP_PHONE_NUMBER_ID", &cfg.Channels.WhatsApp.PhoneNumberID)
-	setString("INFER_CHANNELS_WHATSAPP_ACCESS_TOKEN", &cfg.Channels.WhatsApp.AccessToken)
-	setString("INFER_CHANNELS_WHATSAPP_VERIFY_TOKEN", &cfg.Channels.WhatsApp.VerifyToken)
-	setInt("INFER_CHANNELS_WHATSAPP_WEBHOOK_PORT", &cfg.Channels.WhatsApp.WebhookPort)
-	setStringSlice("INFER_CHANNELS_WHATSAPP_ALLOWED_USERS", &cfg.Channels.WhatsApp.AllowedUsers)
-}
-
-// applyHeartbeatEnvOverrides applies INFER_HEARTBEAT_* env vars onto
-// the in-memory heartbeat config. Run AFTER LoadHeartbeat so envs win
-// over heartbeat.yaml. The heartbeat config lives in its own file
-// (yaml:"-" mapstructure:"-" on Config.Heartbeat), so viper does not
-// bind these env vars itself - this function is the single source of
-// env-var support. Mirrors applyChannelsEnvOverrides.
-func applyHeartbeatEnvOverrides(cfg *config.Config) {
-	setBool := func(env string, target *bool) {
-		val, ok := os.LookupEnv(env)
-		if !ok {
-			return
-		}
-		if b, err := strconv.ParseBool(strings.TrimSpace(val)); err == nil {
-			*target = b
-		}
-	}
-	setString := func(env string, target *string) {
-		if val, ok := os.LookupEnv(env); ok {
-			*target = val
-		}
-	}
-
-	setBool("INFER_HEARTBEAT_ENABLED", &cfg.Heartbeat.Enabled)
-	setString("INFER_HEARTBEAT_INTERVAL", &cfg.Heartbeat.Interval)
-	setString("INFER_HEARTBEAT_INITIAL_DELAY", &cfg.Heartbeat.InitialDelay)
-	setString("INFER_HEARTBEAT_MODEL", &cfg.Heartbeat.Model)
-	setString("INFER_HEARTBEAT_PROMPT", &cfg.Heartbeat.Prompt)
-}
-
-// applyRemindersEnvOverrides applies INFER_REMINDERS_* env vars onto the
-// in-memory reminders config. Run AFTER LoadReminders so envs win over
-// reminders.yaml. The reminders list itself is file-driven (like other complex
-// lists); only the master switch takes a scalar env override.
-func applyRemindersEnvOverrides(cfg *config.Config) {
-	if v, ok := os.LookupEnv("INFER_REMINDERS_ENABLED"); ok {
-		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
-			cfg.Reminders.Enabled = b
-		}
-	}
-}
-
-// applyMemoryEnvOverrides applies INFER_MEMORY_* env vars onto the in-memory
-// memory config. Run AFTER LoadMemory so envs win over memory.yaml. The memory
-// config lives in its own file (yaml:"-" mapstructure:"-" on Config.Memory), so
-// viper does not bind these env vars itself. Mirrors applyHeartbeatEnvOverrides.
-func applyMemoryEnvOverrides(cfg *config.Config) {
-	if v, ok := os.LookupEnv("INFER_MEMORY_ENABLED"); ok {
-		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
-			cfg.Memory.Enabled = b
-		}
-	}
-	if v, ok := os.LookupEnv("INFER_MEMORY_DIR"); ok {
-		cfg.Memory.Dir = v
-	}
-	if v, ok := os.LookupEnv("INFER_MEMORY_MAX_CHARS"); ok {
-		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
-			cfg.Memory.MaxChars = n
-		}
-	}
-	if v, ok := os.LookupEnv("INFER_MEMORY_MAX_ENTRY_CHARS"); ok {
-		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
-			cfg.Memory.MaxEntryChars = n
-		}
-	}
-	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_TYPE"); ok {
-		cfg.Memory.Backend.Type = v
-	}
-	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_REPO"); ok {
-		cfg.Memory.Backend.Git.Repo = v
-	}
-	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_BRANCH"); ok {
-		cfg.Memory.Backend.Git.Branch = v
-	}
-	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_COMMIT_MESSAGE"); ok {
-		cfg.Memory.Backend.Git.CommitMessage = v
-	}
-	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_TIMEOUT"); ok {
-		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
-			cfg.Memory.Backend.Git.Timeout = n
-		}
-	}
-	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_SYNC_ON_START"); ok {
-		cfg.Memory.Backend.Git.Sync.OnStart = v
-	}
-	if v, ok := os.LookupEnv("INFER_MEMORY_BACKEND_GIT_SYNC_ON_FINISH"); ok {
-		cfg.Memory.Backend.Git.Sync.OnFinish = v
-	}
-}
-
 // pruneMemoryRemindersIfDisabled drops the built-in memory reminders (see
 // config.MemoryReminders) when memory is disabled, so the enabled-by-default
 // reminder set does not tell the agent to consult or record memory that isn't
@@ -863,147 +520,6 @@ func pruneMemoryRemindersIfDisabled(cfg *config.Config) {
 		kept = append(kept, r)
 	}
 	cfg.Reminders.Reminders = kept
-}
-
-// applyHooksEnvOverrides applies INFER_HOOKS_* env vars onto the in-memory hooks
-// config. Run AFTER LoadHooks so envs win over hooks.yaml. The hooks list itself
-// is file-driven; only the master switch takes a scalar env override. Mirrors
-// applyRemindersEnvOverrides.
-func applyHooksEnvOverrides(cfg *config.Config) {
-	if v, ok := os.LookupEnv("INFER_HOOKS_ENABLED"); ok {
-		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
-			cfg.Hooks.Enabled = b
-		}
-	}
-}
-
-// applyJudgeEnvOverrides applies INFER_JUDGE_* env vars onto the in-memory
-// judge config. Run AFTER LoadJudge so envs win over judge.yaml. The judge
-// config lives in its own file (yaml:"-" mapstructure:"-" on Config.Judge),
-// so viper does not bind these env vars itself - this function is the single
-// source of env-var support. Mirrors applyHeartbeatEnvOverrides.
-func applyJudgeEnvOverrides(cfg *config.Config) {
-	setString := func(env string, target *string) {
-		if val, ok := os.LookupEnv(env); ok {
-			*target = val
-		}
-	}
-	setInt := func(env string, target *int) {
-		val, ok := os.LookupEnv(env)
-		if !ok {
-			return
-		}
-		if n, err := strconv.Atoi(strings.TrimSpace(val)); err == nil {
-			*target = n
-		}
-	}
-
-	setString("INFER_JUDGE_MODEL", &cfg.Judge.Model)
-	setString("INFER_JUDGE_GATEWAY_URL", &cfg.Judge.GatewayURL)
-	setInt("INFER_JUDGE_TIMEOUT", &cfg.Judge.Timeout)
-	setInt("INFER_JUDGE_MAX_TOKENS", &cfg.Judge.MaxTokens)
-	setString("INFER_JUDGE_ON_ERROR", &cfg.Judge.OnError)
-	setString("INFER_JUDGE_SYSTEM_PROMPT", &cfg.Judge.SystemPrompt)
-	setString("INFER_JUDGE_PROMPT", &cfg.Judge.Prompt)
-}
-
-// applyComputerUseEnvOverrides applies INFER_COMPUTER_USE_* env vars onto
-// the in-memory computer_use config. Run AFTER LoadComputerUse so envs win
-// over computer_use.yaml. The computer_use config now lives in its own
-// file (yaml:"-" mapstructure:"-" on Config.ComputerUse), so viper does not
-// bind these env vars itself - this function is the single source of
-// env-var support. Mirrors applyChannelsEnvOverrides.
-func applyComputerUseEnvOverrides(cfg *config.Config) {
-	setBool := func(env string, target *bool) {
-		val, ok := os.LookupEnv(env)
-		if !ok {
-			return
-		}
-		if b, err := strconv.ParseBool(strings.TrimSpace(val)); err == nil {
-			*target = b
-		}
-	}
-	setInt := func(env string, target *int) {
-		val, ok := os.LookupEnv(env)
-		if !ok {
-			return
-		}
-		if n, err := strconv.Atoi(strings.TrimSpace(val)); err == nil {
-			*target = n
-		}
-	}
-	setString := func(env string, target *string) {
-		if val, ok := os.LookupEnv(env); ok {
-			*target = val
-		}
-	}
-
-	setBool("INFER_COMPUTER_USE_ENABLED", &cfg.ComputerUse.Enabled)
-	setString("INFER_COMPUTER_USE_APPROVAL", &cfg.ComputerUse.Approval)
-
-	setBool("INFER_COMPUTER_USE_SCREENSHOT_ENABLED", &cfg.ComputerUse.Screenshot.Enabled)
-	setInt("INFER_COMPUTER_USE_SCREENSHOT_TARGET_WIDTH", &cfg.ComputerUse.Screenshot.TargetWidth)
-	setInt("INFER_COMPUTER_USE_SCREENSHOT_TARGET_HEIGHT", &cfg.ComputerUse.Screenshot.TargetHeight)
-	setString("INFER_COMPUTER_USE_SCREENSHOT_FORMAT", &cfg.ComputerUse.Screenshot.Format)
-	setInt("INFER_COMPUTER_USE_SCREENSHOT_QUALITY", &cfg.ComputerUse.Screenshot.Quality)
-	setBool("INFER_COMPUTER_USE_SCREENSHOT_STREAMING_ENABLED", &cfg.ComputerUse.Screenshot.StreamingEnabled)
-	setInt("INFER_COMPUTER_USE_SCREENSHOT_CAPTURE_INTERVAL", &cfg.ComputerUse.Screenshot.CaptureInterval)
-	setInt("INFER_COMPUTER_USE_SCREENSHOT_BUFFER_SIZE", &cfg.ComputerUse.Screenshot.BufferSize)
-	setString("INFER_COMPUTER_USE_SCREENSHOT_TEMP_DIR", &cfg.ComputerUse.Screenshot.TempDir)
-
-	setBool("INFER_COMPUTER_USE_RATE_LIMIT_ENABLED", &cfg.ComputerUse.RateLimit.Enabled)
-	setInt("INFER_COMPUTER_USE_RATE_LIMIT_MAX_ACTIONS_PER_MINUTE", &cfg.ComputerUse.RateLimit.MaxActionsPerMinute)
-	setInt("INFER_COMPUTER_USE_RATE_LIMIT_WINDOW_SECONDS", &cfg.ComputerUse.RateLimit.WindowSeconds)
-
-}
-
-// applyBrowserUseEnvOverrides applies INFER_BROWSER_USE_* env vars onto the
-// in-memory browser_use config. Run AFTER LoadBrowserUse so envs win over
-// browser_use.yaml. Mirrors applyComputerUseEnvOverrides.
-func applyBrowserUseEnvOverrides(cfg *config.Config) {
-	setBool := func(env string, target *bool) {
-		val, ok := os.LookupEnv(env)
-		if !ok {
-			return
-		}
-		if b, err := strconv.ParseBool(strings.TrimSpace(val)); err == nil {
-			*target = b
-		}
-	}
-	setInt := func(env string, target *int) {
-		val, ok := os.LookupEnv(env)
-		if !ok {
-			return
-		}
-		if n, err := strconv.Atoi(strings.TrimSpace(val)); err == nil {
-			*target = n
-		}
-	}
-	setString := func(env string, target *string) {
-		if val, ok := os.LookupEnv(env); ok {
-			*target = val
-		}
-	}
-
-	setBool("INFER_BROWSER_USE_ENABLED", &cfg.BrowserUse.Enabled)
-	setString("INFER_BROWSER_USE_BACKEND", &cfg.BrowserUse.Backend)
-
-	setString("INFER_BROWSER_USE_BROWSER_CHANNEL", &cfg.BrowserUse.Browser.Channel)
-	setBool("INFER_BROWSER_USE_BROWSER_HEADLESS", &cfg.BrowserUse.Browser.Headless)
-	setString("INFER_BROWSER_USE_BROWSER_CDP_ENDPOINT", &cfg.BrowserUse.Browser.CDPEndpoint)
-	setInt("INFER_BROWSER_USE_BROWSER_TIMEOUT_SECONDS", &cfg.BrowserUse.Browser.TimeoutSeconds)
-
-	setInt("INFER_BROWSER_USE_EXTENSION_PORT", &cfg.BrowserUse.Extension.Port)
-	setString("INFER_BROWSER_USE_EXTENSION_TOKEN", &cfg.BrowserUse.Extension.Token)
-
-	setBool("INFER_BROWSER_USE_RATE_LIMIT_ENABLED", &cfg.BrowserUse.RateLimit.Enabled)
-	setInt("INFER_BROWSER_USE_RATE_LIMIT_MAX_ACTIONS_PER_MINUTE", &cfg.BrowserUse.RateLimit.MaxActionsPerMinute)
-	setInt("INFER_BROWSER_USE_RATE_LIMIT_WINDOW_SECONDS", &cfg.BrowserUse.RateLimit.WindowSeconds)
-
-	setBool("INFER_BROWSER_USE_TOOLS_NAVIGATE_ENABLED", &cfg.BrowserUse.Tools.Navigate.Enabled)
-	setBool("INFER_BROWSER_USE_TOOLS_CLICK_ENABLED", &cfg.BrowserUse.Tools.Click.Enabled)
-	setBool("INFER_BROWSER_USE_TOOLS_TYPE_ENABLED", &cfg.BrowserUse.Tools.Type.Enabled)
-	setBool("INFER_BROWSER_USE_TOOLS_READ_ENABLED", &cfg.BrowserUse.Tools.Read.Enabled)
 }
 
 // GetProjectFlag checks for the --project flag on the current command or any

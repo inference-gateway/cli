@@ -16,7 +16,7 @@ func TestApplyMemoryEnvOverrides_Backend(t *testing.T) {
 	t.Setenv("INFER_MEMORY_BACKEND_GIT_SYNC_ON_FINISH", "push")
 
 	cfg := &config.Config{}
-	applyMemoryEnvOverrides(cfg)
+	applySidecarEnv(&cfg.Memory, "memory")
 
 	g := cfg.Memory.Backend
 	if g.Type != "git" {
@@ -44,7 +44,7 @@ func TestApplyMemoryEnvOverrides_Caps(t *testing.T) {
 	t.Setenv("INFER_MEMORY_MAX_ENTRY_CHARS", "6000")
 
 	cfg := &config.Config{}
-	applyMemoryEnvOverrides(cfg)
+	applySidecarEnv(&cfg.Memory, "memory")
 
 	if cfg.Memory.MaxChars != 1500 {
 		t.Errorf("MaxChars = %d, want 1500", cfg.Memory.MaxChars)

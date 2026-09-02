@@ -90,7 +90,7 @@ func TestResolveRemindersConfig_EnvBeatsFlag(t *testing.T) {
 func TestApplyRemindersEnvOverrides_Enabled(t *testing.T) {
 	cfg := &config.Config{Reminders: *config.DefaultRemindersConfig()}
 	t.Setenv("INFER_REMINDERS_ENABLED", "false")
-	applyRemindersEnvOverrides(cfg)
+	applySidecarEnv(&cfg.Reminders, "reminders")
 	if cfg.Reminders.Enabled {
 		t.Error("INFER_REMINDERS_ENABLED=false should disable reminders")
 	}
