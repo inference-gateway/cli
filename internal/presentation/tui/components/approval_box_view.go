@@ -216,10 +216,13 @@ func (av *ApprovalBoxView) Forward(msg tea.Msg) tea.Cmd {
 func (av *ApprovalBoxView) renderApprovalBox(state *agentdomain.ApprovalUIState) string {
 	accentColor := av.styleProvider.GetThemeColor("accent")
 
-	title := av.styleProvider.RenderWithColorAndBold("Approval required", accentColor)
-	body := av.renderBody(state.PendingToolCall)
+	parts := []string{av.styleProvider.RenderWithColorAndBold("Approval required", accentColor)}
+	if state.Context != "" {
+		parts = append(parts, av.styleProvider.RenderDimText(formatting.WrapText(state.Context, av.summaryBudget())))
+	}
+	parts = append(parts, av.renderBody(state.PendingToolCall), av.form.View())
 
-	content := strings.Join([]string{title, body, av.form.View()}, "\n")
+	content := strings.Join(parts, "\n")
 	return av.styleProvider.RenderBorderedBox(content, accentColor, 0, 1)
 }
 

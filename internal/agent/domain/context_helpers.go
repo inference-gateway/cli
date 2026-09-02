@@ -223,3 +223,22 @@ func GetUserQuestionBroker(ctx context.Context) UserQuestionBroker {
 func HasUserQuestionBroker(ctx context.Context) bool {
 	return GetUserQuestionBroker(ctx) != nil
 }
+
+// ========================================
+// Approval Escalation
+// ========================================
+
+// WithApprovalEscalation returns a new context carrying the judge-rejection
+// escalation gate used by the RequestApproval tool. Injected only on the chat
+// path so headless/no-TTY runs see a nil gate and the tool degrades with a
+// distinguishable "no approver reachable" result.
+func WithApprovalEscalation(ctx context.Context, gate ApprovalEscalation) context.Context {
+	return context.WithValue(ctx, ApprovalEscalationKey, gate)
+}
+
+// GetApprovalEscalation retrieves the escalation gate from context.
+// Returns nil if the key is not set or the value is not an ApprovalEscalation.
+func GetApprovalEscalation(ctx context.Context) ApprovalEscalation {
+	gate, _ := ctx.Value(ApprovalEscalationKey).(ApprovalEscalation)
+	return gate
+}

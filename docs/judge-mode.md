@@ -58,6 +58,30 @@ changes only *who answers the gate*:
   reason and adjusts (the mode guidance tells it to change approach rather than
   retry the same call). Only a human rejection ends the turn.
 
+## Overriding a rejection (RequestApproval)
+
+The judge can reject a legitimate call when it lacks context (a `git push` judged
+against a bare "continue", say). Every rejection result therefore ends with a hint
+that the model may call the `RequestApproval` tool to ask you directly. The tool
+takes the rejected call (tool name + arguments), what the permission is needed for,
+and why; the chat TUI shows the regular approval box for the rejected call with the
+judge's reason and the model's justification above it.
+
+- **Approve** arms a one-shot bypass: the model re-issues the exact same call and it
+  runs without a judge call. The bypass covers that single invocation only.
+  **Auto-Approve** does the same and switches the session to Auto-Accept mode, as
+  it does for any approval.
+- **Reject** returns the decision to the model as a normal tool result, so the turn
+  continues and the model adjusts; explain in your next message if you want to
+  steer it.
+- Each rejected call can be escalated once; a second `RequestApproval` for the same
+  call is refused, and calls the judge never rejected cannot be escalated at all.
+- Headless runs have no interactive approver, so the tool returns a distinguishable
+  `no_approver` result and tells the model not to retry.
+
+The tool is always advertised (so the tool list, and the provider prompt cache, do
+not change with the mode) but only does anything after a judge rejection.
+
 ## The verdict contract
 
 The judge must answer with exactly one JSON object:

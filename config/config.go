@@ -1407,6 +1407,8 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		return false
 	case "AskUserQuestion":
 		return false
+	case "RequestApproval":
+		return false
 	case "A2A_QueryAgent":
 		if c.A2A.Tools.QueryAgent.RequireApproval != nil {
 			return *c.A2A.Tools.QueryAgent.RequireApproval

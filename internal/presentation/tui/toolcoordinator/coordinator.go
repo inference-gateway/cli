@@ -139,6 +139,9 @@ func (c *Coordinator) HandleToolCallReady(_ agentdomain.ToolCallReadyEvent) tea.
 func (c *Coordinator) HandleToolApprovalRequested(msg agentdomain.ToolApprovalRequestedEvent) tea.Cmd {
 	c.addPendingToolCall(msg.ToolCall, msg.ResponseChan)
 	c.stateManager.SetupApprovalUIState(&msg.ToolCall, msg.ResponseChan)
+	if state := c.stateManager.GetApprovalUIState(); state != nil {
+		state.Context = msg.Context
+	}
 	writeSubagentApprovalSidecar(msg.ToolCall)
 
 	c.stateManager.BroadcastEvent(agentdomain.ToolApprovalNotificationEvent{

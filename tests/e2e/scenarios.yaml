@@ -109,6 +109,20 @@ scenarios:
               - { name: Bash, args: { command: "curl http://example.com" } }
       - content: "Understood, the command was not permitted."
 
+  - name: escalation-no-approver
+    match: '(?i)escalate the forbidden command'
+    turns:
+      - tool_calls:
+              - { name: Bash, args: { command: "curl http://example.com" } }
+      - tool_calls:
+              - name: RequestApproval
+                args:
+                  tool: Bash
+                  arguments: { command: "curl http://example.com" }
+                  what: run curl to check connectivity
+                  why: the user asked me to run the forbidden command
+      - content: "The user could not be asked; stopping."
+
   - name: error-retry
     match: '(?i)flaky backend'
     turns:

@@ -265,6 +265,32 @@ func TestAgentJudgeModeRejectsOffListCommand(t *testing.T) {
 		"a judge rejection must feed the driver instead of ending the turn")
 }
 
+func TestAgentEscalationWithoutApprover(t *testing.T) {
+	m := startMock(t)
+
+	stdout, _, code := runCLI(t, m.URL, t.TempDir(), "", "headless", "--mode", "auto-with-judge", "escalate the forbidden command")
+	require.Zero(t, code)
+
+	lines := jsonLines(t, stdout)
+	var verdicts []map[string]any
+	for _, line := range lines {
+		if line["type"] == "judge_verdict" {
+			verdicts = append(verdicts, line)
+		}
+	}
+	require.NotEmpty(t, verdicts, "a judge_verdict line must be emitted")
+	require.Equal(t, "rejected", verdicts[0]["decision"], "the Bash call must be judge-rejected first")
+
+	toolResults := contentsByRole(lines, "tool")
+	require.Len(t, toolResults, 2, "the judge rejection and the escalation result must both be reported")
+	require.Contains(t, toolResults[0], "rejected by judge: "+testModel+": curl was not requested")
+	require.Contains(t, toolResults[0], "RequestApproval", "the rejection must hint at the escalation path")
+	require.Contains(t, toolResults[1], "No interactive approver", "headless has no approver to ask")
+
+	require.Contains(t, contentsByRole(lines, "assistant"), "The user could not be asked; stopping.",
+		"the escalation result must feed the driver instead of ending the turn")
+}
+
 func TestAgentHardErrorSurfacesAndExitsNonZero(t *testing.T) {
 	m := startMock(t)
 

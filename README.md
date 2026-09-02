@@ -524,6 +524,7 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 | **TodoWrite** | Create and manage task lists | No |
 | **RequestPlanApproval** | Submit a plan for approval and persist it (plan mode) | No |
 | **AskUserQuestion** | Ask the user multiple-choice questions (plan mode) | No |
+| **RequestApproval** | Ask the user to override a judge rejection once (judge mode) | No |
 
 **Web** (`WebSearch`/`WebFetch` need their respective config flag):
 

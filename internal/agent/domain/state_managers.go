@@ -103,6 +103,7 @@ type ToolExecutionSession struct {
 // ApprovalUIState represents the state of approval UI
 type ApprovalUIState struct {
 	PendingToolCall *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call"`
+	Context         string                             `json:"context,omitempty"`
 	ResponseChan    chan ApprovalAction                `json:"-"`
 }
 

@@ -168,6 +168,8 @@ func (r *Registry) registerTools() {
 		r.tools["AskUserQuestion"] = NewAskUserQuestionTool(cfg)
 	}
 
+	r.tools["RequestApproval"] = NewRequestApprovalTool(cfg)
+
 	if cfg.Tools.Schedule.Enabled {
 		r.tools["Schedule"] = NewScheduleTool(cfg, jobStore)
 	}

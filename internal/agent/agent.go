@@ -50,6 +50,8 @@ type AgentServiceImpl struct {
 	approvalPolicy   agentdomain.ApprovalPolicy
 	judge            agentdomain.JudgeApprover
 	currentModel     func() string
+	escalations      *judgeEscalations
+
 	bgRegistry       scheddomain.BackgroundTaskRegistry
 	rolloverManager  *conv.SessionRolloverManager
 	reminderProvider agentdomain.SystemReminderProvider
@@ -430,6 +432,7 @@ func NewAgent(
 		tokenizer:        tokenizer,
 		approvalPolicy:   approvalPolicy,
 		judge:            NewLLMJudge(client, cfg),
+		escalations:      newJudgeEscalations(),
 		bgRegistry:       bgRegistry,
 		rolloverManager:  rolloverManager,
 		reminderProvider: cfg.Reminders,
@@ -1391,6 +1394,10 @@ func (s *AgentServiceImpl) executeToolOnce(
 		execCtx = agentdomain.WithUserQuestionBroker(execCtx, &chatQuestionBroker{publisher: eventPublisher})
 	}
 
+	if tc.Function.Name == "RequestApproval" && agentdomain.GetChatHandler(ctx) != nil {
+		execCtx = agentdomain.WithApprovalEscalation(execCtx, &approvalEscalator{svc: s, publisher: eventPublisher})
+	}
+
 	resultChan := make(chan struct {
 		result *agentdomain.ToolExecutionResult
 		err    error
@@ -1689,12 +1696,25 @@ func (s *AgentServiceImpl) requestToolApproval(
 		return s.requestJudgeApproval(ctx, tc, eventPublisher)
 	}
 
-	responseChan := make(chan agentdomain.ApprovalAction, 1)
+	return s.requestHumanApproval(ctx, tc, eventPublisher, "")
+}
 
+// requestHumanApproval publishes the approval prompt for tc and waits for the
+// human decision. note is optional context rendered above the call (the
+// RequestApproval escalation uses it for the judge's reason and the agent's
+// justification). A closed response channel counts as a rejection.
+func (s *AgentServiceImpl) requestHumanApproval(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+	note string,
+) (bool, string, error) {
+	responseChan := make(chan agentdomain.ApprovalAction, 1)
 	eventPublisher.chatEvents <- agentdomain.ToolApprovalRequestedEvent{
 		RequestID:    eventPublisher.requestID,
 		Timestamp:    time.Now(),
 		ToolCall:     tc,
+		Context:      note,
 		ResponseChan: responseChan,
 	}
 
@@ -1702,7 +1722,10 @@ func (s *AgentServiceImpl) requestToolApproval(
 	var err error
 
 	select {
-	case response := <-responseChan:
+	case response, open := <-responseChan:
+		if !open {
+			break
+		}
 		if response == agentdomain.ApprovalAutoAccept {
 			logger.Info("switching to auto-accept mode from approval response")
 			s.stateManager.SetAgentMode(agentdomain.AgentModeAutoAccept)
@@ -1757,6 +1780,10 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 ) (bool, string, error) {
+	if s.consumeJudgeBypass(tc) {
+		return true, "", nil
+	}
+
 	model := s.judgeModel()
 	root, latest := userIntents(s.conversationRepo)
 	verdict, err := s.judge.Judge(ctx, agentdomain.JudgeInput{Model: model, RootIntent: root, Intent: latest, Action: judgeActionInput(tc)})
@@ -1765,6 +1792,7 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	}
 	if !verdict.Approved() {
 		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
+		s.escalations.record(tc.Function.Name, tc.Function.Arguments, verdict.Reason)
 	}
 	s.recordJudgeUsage(verdict.Usage)
 
@@ -1784,7 +1812,12 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	}
 
 	// The tool-result reason names the judge so the driver and the user see who decided.
-	return verdict.Approved(), model + ": " + verdict.Reason, nil
+	// Rejections carry the escalation hint so the driver learns it can ask the
+	// user to override (issue #1156).
+	if verdict.Approved() {
+		return true, "", nil
+	}
+	return false, model + ": " + verdict.Reason + judgeEscalationHint, nil
 }
 
 // recordJudgeUsage adds the judge call's tokens to the session totals and the

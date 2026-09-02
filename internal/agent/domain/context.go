@@ -74,3 +74,9 @@ const SandboxApprovalKey ContextKey = "sandbox_approval"
 // AskUserQuestion tool sees a nil broker on headless/no-TTY runs and degrades
 // gracefully instead of blocking forever.
 const UserQuestionBrokerKey ContextKey = "user_question_broker"
+
+// ApprovalEscalationKey is the context key for the judge-rejection escalation
+// gate used by the RequestApproval tool. Injected only on the chat path, where
+// the tool approval box can reach the user; headless/no-TTY runs see a
+// nil gate and the tool returns a distinguishable "no approver reachable" result.
+const ApprovalEscalationKey ContextKey = "approval_escalation"

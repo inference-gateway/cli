@@ -25,6 +25,7 @@ is enabled in the Inference Gateway CLI.
 - [Workflow Tools](#workflow-tools)
   - [TodoWrite Tool](#todowrite-tool)
   - [RequestPlanApproval Tool](#requestplanapproval-tool)
+  - [RequestApproval Tool](#requestapproval-tool)
   - [Schedule Tool](#schedule-tool)
 - [Agent-to-Agent Communication](#agent-to-agent-communication)
   - [A2A_SubmitTask Tool](#a2a_submittask-tool)
@@ -768,6 +769,46 @@ is in **Plan Mode** (toggle via Shift+Tab in the chat TUI).
 **Configuration:**
 
 The tool is auto-registered and always enabled in plan mode. No config knobs.
+
+### RequestApproval Tool
+
+Asks the user to override a tool call the LLM judge rejected (Auto+Judge mode or
+`tools.safety.approval_behaviour: judge`). Every judge rejection result hints at
+this tool; see [Judge Mode](judge-mode.md#overriding-a-rejection-requestapproval).
+
+**How it works:**
+
+- Only calls the judge actually rejected can be escalated, and each one only once.
+- The chat TUI shows the regular approval box for the rejected call, with the
+  judge's reason and the model's justification above it.
+- Approve arms a one-shot bypass: the model re-issues the identical call and it runs
+  without a judge call. Reject returns the decision to the model as a tool result;
+  the turn continues.
+- Headless runs have no approver, so the tool returns `status: no_approver` and the
+  model is told not to retry.
+
+**Parameters:**
+
+- `tool` (required): Name of the rejected tool.
+- `arguments` (required): The exact arguments of the rejected call (`{}` if none).
+- `what` (required): What permission is needed, one sentence.
+- `why` (required): Why the action serves the user's request.
+
+**Example:**
+
+```json
+{
+  "tool": "Bash",
+  "arguments": { "command": "git push origin feature" },
+  "what": "push the feature branch",
+  "why": "the user asked me to ship the change"
+}
+```
+
+**Configuration:**
+
+Auto-registered and always advertised. The description is overridable in
+`prompts.yaml` under `tools.RequestApproval`.
 
 ### Schedule Tool
 
