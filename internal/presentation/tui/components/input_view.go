@@ -489,19 +489,6 @@ func fetchGitPRCmd() tea.Cmd {
 	}
 }
 
-// gitStatusRefreshInterval paces the slow background refetch that catches
-// changes made outside the TUI (editor saves, commits from another terminal).
-const gitStatusRefreshInterval = 20 * time.Second
-
-// gitStatusTickMsg re-arms the slow git status refetch. Its name must contain
-// "Tick" so the chat application routes it to UI components. Only Init and the
-// tick itself schedule it, so exactly one chain runs per input view.
-type gitStatusTickMsg struct{}
-
-func gitStatusTickCmd() tea.Cmd {
-	return tea.Tick(gitStatusRefreshInterval, func(time.Time) tea.Msg { return gitStatusTickMsg{} })
-}
-
 // fetchGitStatusCmd resolves the workspace state off the UI goroutine: dirty
 // via "git status --porcelain", unpushed via "git rev-list --count @{u}..HEAD"
 // (a missing upstream counts as unpushed). Outside a git repository the status
@@ -883,7 +870,7 @@ func (iv *InputView) ClearCustomHint() {
 
 // Bubble Tea interface
 func (iv *InputView) Init() tea.Cmd {
-	return tea.Batch(iv.ta.Focus(), fetchGitPRCmd(), fetchGitStatusCmd(), gitStatusTickCmd())
+	return tea.Batch(iv.ta.Focus(), fetchGitPRCmd(), fetchGitStatusCmd())
 }
 
 func (iv *InputView) View() tea.View { return tea.NewView(iv.Render()) }
@@ -927,8 +914,6 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tui.GitStatusResolvedEvent:
 		iv.gitDirty, iv.gitUnpushed = msg.Dirty, msg.Unpushed
 		return iv, cmd
-	case gitStatusTickMsg:
-		return iv, tea.Batch(cmd, fetchGitStatusCmd(), gitStatusTickCmd())
 	case tui.BashCommandCompletedEvent:
 		iv.InvalidateGitBranchCache()
 		return iv, tea.Batch(cmd, fetchGitPRCmd(), fetchGitStatusCmd())
