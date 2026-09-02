@@ -74,6 +74,7 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.TodoWrite, &defaults.TodoWrite)
 	mergeToolDescription(&loaded.RequestPlanApproval, &defaults.RequestPlanApproval)
 	mergeToolDescription(&loaded.AskUserQuestion, &defaults.AskUserQuestion)
+	mergeToolDescription(&loaded.RequestApproval, &defaults.RequestApproval)
 	mergeToolDescription(&loaded.WebFetch, &defaults.WebFetch)
 	mergeToolDescription(&loaded.WebSearch, &defaults.WebSearch)
 	mergeToolDescription(&loaded.Schedule, &defaults.Schedule)
@@ -201,6 +202,7 @@ type PromptsToolsConfig struct {
 	TodoWrite           PromptsToolDescription `yaml:"TodoWrite" mapstructure:"TodoWrite"`
 	RequestPlanApproval PromptsToolDescription `yaml:"RequestPlanApproval" mapstructure:"RequestPlanApproval"`
 	AskUserQuestion     PromptsToolDescription `yaml:"AskUserQuestion" mapstructure:"AskUserQuestion"`
+	RequestApproval     PromptsToolDescription `yaml:"RequestApproval" mapstructure:"RequestApproval"`
 	WebFetch            PromptsToolDescription `yaml:"WebFetch" mapstructure:"WebFetch"`
 	WebSearch           PromptsToolDescription `yaml:"WebSearch" mapstructure:"WebSearch"`
 	Schedule            PromptsToolDescription `yaml:"Schedule" mapstructure:"Schedule"`
@@ -529,6 +531,17 @@ The UI always adds an "Other" free-text choice, so you do not need an "Other" op
 Notes:
 - Ask only what you genuinely need - prefer one focused round of questions over many.
 - If no interactive user is available (headless run), you will be told to proceed with stated assumptions instead.`,
+		},
+		RequestApproval: PromptsToolDescription{
+			Description: `Ask the user to override a judge rejection so the rejected tool call can run once.
+
+Call this ONLY after the judge rejected a tool call (the rejection result names the judge and hints at this tool). Pass the exact rejected call (tool + arguments), what you need permission for, and why - the judge's rejection reason is shown to the user alongside your justification.
+
+The user is prompted with the existing approval path and can approve, deny, or type a free-text answer:
+- APPROVED: the tool result tells you to re-issue the exact same call; it runs without another prompt (the judge is bypassed for that one invocation).
+- DENIED (with or without an answer): the tool result carries the user's answer; adjust your next step instead of asking again - each rejected call can be escalated only once.
+
+If no interactive approver is reachable (headless run), the result says so and you must not retry.`,
 		},
 		WebFetch: PromptsToolDescription{
 			Description: `Fetch content from allowed URLs. Set download=true to save the file to disk automatically. Useful for downloading A2A task artifacts or other files.`,

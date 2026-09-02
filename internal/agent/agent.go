@@ -50,6 +50,12 @@ type AgentServiceImpl struct {
 	approvalPolicy   agentdomain.ApprovalPolicy
 	judge            agentdomain.JudgeApprover
 	currentModel     func() string
+
+	// escalations tracks judge-rejected tool calls so the RequestApproval tool
+	// can escalate them to the user once each, and holds the bypass markers
+	// its approved escalations create (issue #1156).
+	escalations *judgeEscalations
+
 	bgRegistry       scheddomain.BackgroundTaskRegistry
 	rolloverManager  *conv.SessionRolloverManager
 	reminderProvider agentdomain.SystemReminderProvider
@@ -430,6 +436,7 @@ func NewAgent(
 		tokenizer:        tokenizer,
 		approvalPolicy:   approvalPolicy,
 		judge:            NewLLMJudge(client, cfg),
+		escalations:      newJudgeEscalations(),
 		bgRegistry:       bgRegistry,
 		rolloverManager:  rolloverManager,
 		reminderProvider: cfg.Reminders,
@@ -1391,6 +1398,13 @@ func (s *AgentServiceImpl) executeToolOnce(
 		execCtx = agentdomain.WithUserQuestionBroker(execCtx, &chatQuestionBroker{publisher: eventPublisher})
 	}
 
+	// RequestApproval escalates judge rejections to the user through the
+	// interactive question form; only the chat path has an approver, so
+	// headless runs degrade to a distinguishable "no approver" result.
+	if tc.Function.Name == "RequestApproval" && agentdomain.GetChatHandler(ctx) != nil {
+		execCtx = agentdomain.WithApprovalEscalation(execCtx, &approvalEscalator{svc: s, publisher: eventPublisher})
+	}
+
 	resultChan := make(chan struct {
 		result *agentdomain.ToolExecutionResult
 		err    error
@@ -1757,6 +1771,12 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 ) (bool, string, error) {
+	// A user-approved escalation (RequestApproval) overrides the judge for
+	// exactly the next matching decision - that single invocation.
+	if s.consumeJudgeBypass(tc) {
+		return true, "", nil
+	}
+
 	model := s.judgeModel()
 	root, latest := userIntents(s.conversationRepo)
 	verdict, err := s.judge.Judge(ctx, agentdomain.JudgeInput{Model: model, RootIntent: root, Intent: latest, Action: judgeActionInput(tc)})
@@ -1765,6 +1785,9 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	}
 	if !verdict.Approved() {
 		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
+	}
+	if !verdict.Approved() {
+		s.escalations.record(tc.Function.Name, tc.Function.Arguments, verdict.Reason)
 	}
 	s.recordJudgeUsage(verdict.Usage)
 
@@ -1784,7 +1807,12 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	}
 
 	// The tool-result reason names the judge so the driver and the user see who decided.
-	return verdict.Approved(), model + ": " + verdict.Reason, nil
+	// Rejections carry the escalation hint so the driver learns it can ask the
+	// user to override (issue #1156).
+	if verdict.Approved() {
+		return true, "", nil
+	}
+	return false, model + ": " + verdict.Reason + judgeEscalationHint, nil
 }
 
 // recordJudgeUsage adds the judge call's tokens to the session totals and the

@@ -57,6 +57,7 @@ type Registry struct {
 	frameSourcesMu  sync.RWMutex
 	memoryBackend   memory.MemoryBackend
 	stores          *storage.Stores
+	stateManager    agentdomain.AgentModeManager
 }
 
 // NewRegistry creates a new tool registry with self-contained tools.
@@ -168,6 +169,12 @@ func (r *Registry) registerTools() {
 		r.tools["AskUserQuestion"] = NewAskUserQuestionTool(cfg)
 	}
 
+	// RequestApproval escalates judge rejections to the user (issue #1156). It
+	// is only OFFERED when the judge is the active approver (IsEnabled); the
+	// state manager is wired later by SetAgentModeManager so the runtime mode
+	// (Shift+Tab cycle) also drives availability.
+	r.tools["RequestApproval"] = NewRequestApprovalTool(cfg, r.stateManager)
+
 	if cfg.Tools.Schedule.Enabled {
 		r.tools["Schedule"] = NewScheduleTool(cfg, jobStore)
 	}
@@ -264,6 +271,17 @@ func (r *Registry) SetMemoryBackend(backend memory.MemoryBackend) {
 		r.tools["Memory"] = NewMemoryTool(r.config, backend, project.Detect())
 		r.toolsMu.Unlock()
 	}
+}
+
+// SetAgentModeManager wires the runtime agent-mode manager into the
+// RequestApproval tool so its availability follows the active mode: a mid-session
+// Shift+Tab cycle into/out of auto-with-judge shows/hides it on the next turn.
+// The container calls this once after constructing the state manager.
+func (r *Registry) SetAgentModeManager(sm agentdomain.AgentModeManager) {
+	r.stateManager = sm
+	r.toolsMu.Lock()
+	defer r.toolsMu.Unlock()
+	r.tools["RequestApproval"] = NewRequestApprovalTool(r.config, sm)
 }
 
 // GetTool retrieves a tool by name
