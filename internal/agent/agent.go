@@ -50,10 +50,6 @@ type AgentServiceImpl struct {
 	approvalPolicy   agentdomain.ApprovalPolicy
 	judge            agentdomain.JudgeApprover
 	currentModel     func() string
-
-	// escalations tracks judge-rejected tool calls so the RequestApproval tool
-	// can escalate them to the user once each, and holds the bypass markers
-	// its approved escalations create (issue #1156).
 	escalations *judgeEscalations
 
 	bgRegistry       scheddomain.BackgroundTaskRegistry
