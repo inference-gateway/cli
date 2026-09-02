@@ -53,9 +53,10 @@ changes only *who answers the gate*:
   per-tool `require_approval` - gets exactly one judge call.
 - The judge prompt carries the latest non-hidden user message (the intent) and the
   pending tool call (name + arguments).
-- An approved call executes; a rejection flows through the standard rejection path, so
-  the model sees a rejection tool result ending with `Rejection reason: <judge reason>`
-  and is told to change the approach instead of retrying the same call.
+- An approved call executes; a rejection becomes a failed tool result
+  (`rejected by judge: <reason>`) and the turn continues, so the model reads the
+  reason and adjusts (the mode guidance tells it to change approach rather than
+  retry the same call). Only a human rejection ends the turn.
 
 ## The verdict contract
 

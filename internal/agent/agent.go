@@ -1735,8 +1735,8 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []convd
 // requestToolApproval requests approval for a tool and waits for the response.
 // The auto-with-judge mode (or approval_behaviour "judge") hands the decision
 // to the LLM judge instead of a human; it returns (false, judgeReason, nil)
-// so the rejection tool result can carry the judge's reasoning. Human
-// decisions return an empty reason.
+// so the rejection tool result can carry the judge's reasoning and, unlike a
+// human rejection, not end the turn. Human decisions return an empty reason.
 func (s *AgentServiceImpl) requestToolApproval(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
@@ -1919,8 +1919,8 @@ func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageTool
 	)
 	errText := "rejected by user"
 	if reason != "" {
-		rejectionMessage += fmt.Sprintf("\n\nRejection reason: %s", reason)
-		errText += ": " + reason
+		rejectionMessage = fmt.Sprintf("Tool call rejected by judge: %s\n\nRejection reason: %s", tc.Function.Name, reason)
+		errText = "rejected by judge: " + reason
 	}
 
 	return convdomain.ConversationEntry{
@@ -1936,7 +1936,7 @@ func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageTool
 			Success:   false,
 			Duration:  time.Since(startTime),
 			Error:     errText,
-			Rejected:  true,
+			Rejected:  reason == "",
 		},
 	}
 }

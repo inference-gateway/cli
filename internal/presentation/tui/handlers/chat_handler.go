@@ -345,21 +345,26 @@ func (h *ChatHandler) HandleToolExecutionProgressEvent(
 }
 
 // HandleJudgeVerdictChatEvent flashes the LLM judge's decision for the pending
-// tool call. Approvals proceed silently; a rejection surfaces as a flash
-// status so the user sees what the judge refused and why.
+// tool call and re-arms the chat listener. Approvals proceed silently; a
+// rejection surfaces as a flash status so the user sees what the judge refused
+// and why.
 func (h *ChatHandler) HandleJudgeVerdictChatEvent(
 	msg agentdomain.JudgeVerdictChatEvent,
 ) tea.Cmd {
-	if msg.Decision != agentdomain.JudgeDecisionRejected {
-		return nil
+	var cmds []tea.Cmd
+	if msg.Decision == agentdomain.JudgeDecisionRejected {
+		cmds = append(cmds, func() tea.Msg {
+			return tui.SetStatusEvent{
+				Message:    fmt.Sprintf("Action rejected by judge policy: %s", msg.Reason),
+				Spinner:    false,
+				StatusType: tui.StatusError,
+			}
+		})
 	}
-	return func() tea.Msg {
-		return tui.SetStatusEvent{
-			Message:    fmt.Sprintf("Action rejected by judge policy: %s", msg.Reason),
-			Spinner:    false,
-			StatusType: tui.StatusError,
-		}
+	if chatSession := h.stateManager.GetChatSession(); chatSession != nil {
+		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
 	}
+	return tea.Batch(cmds...)
 }
 
 func (h *ChatHandler) HandleBashOutputChunkEvent(

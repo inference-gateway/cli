@@ -58,9 +58,10 @@ func TestApprovingToolsState_JudgeRejectionCarriesReason(t *testing.T) {
 
 	content, err := entry.Message.Content.AsMessageContent0()
 	require.NoError(t, err)
-	assert.Contains(t, content, "Tool execution rejected by user: Bash")
+	assert.Contains(t, content, "Tool execution rejected by judge: Bash")
 	assert.Contains(t, content, "Rejection reason: judge unavailable: timeout")
 	require.NotNil(t, entry.ToolExecution)
-	assert.True(t, entry.ToolExecution.Rejected)
-	assert.Equal(t, "rejected by user: judge unavailable: timeout", entry.ToolExecution.Error)
+	assert.False(t, entry.ToolExecution.Rejected, "a judge rejection must not end the turn")
+	assert.False(t, entry.ToolExecution.Success)
+	assert.Equal(t, "rejected by judge: judge unavailable: timeout", entry.ToolExecution.Error)
 }

@@ -615,6 +615,7 @@ func isDomainEvent(msg tea.Msg) bool {
 	case agentdomain.MessageQueuedEvent,
 		agentdomain.ToolCancelledEvent,
 		agentdomain.TodoUpdateChatEvent,
+		agentdomain.JudgeVerdictChatEvent,
 		tui.AgentStatusUpdateEvent,
 		agentdomain.DrainQueueEvent,
 		tui.DrainQueueRetryEvent,

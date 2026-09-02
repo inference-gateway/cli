@@ -503,6 +503,9 @@ func (s *ToolFormatterService) formatFallback(result *agentdomain.ToolExecutionR
 		if result.Success {
 			return "Execution completed successfully"
 		}
+		if result.Error != "" {
+			return "Execution failed: " + result.Error
+		}
 		return "Execution failed"
 	}
 }
