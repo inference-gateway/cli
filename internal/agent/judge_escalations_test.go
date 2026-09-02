@@ -321,7 +321,6 @@ func TestRequestJudgeApprovalHonoursUserApprovalBypass(t *testing.T) {
 	svc.escalations.record("Bash", `{"command":"git push"}`, "needs context")
 	svc.escalations.approve("Bash", `{"command":"git push"}`)
 
-	// judge and publisher stay nil: the bypass must short-circuit before either is touched.
 	approved, reason, err := svc.requestJudgeApproval(context.Background(), escalationToolCall("tc-1"), nil)
 	if err != nil {
 		t.Fatalf("requestJudgeApproval: %v", err)
