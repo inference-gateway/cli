@@ -10,18 +10,22 @@ import (
 	"strings"
 )
 
+// JudgeDecision is the verdict value the LLM judge returns for one pending
+// tool call.
+type JudgeDecision string
+
 // Judge verdict decisions. The judge must answer with exactly one JSON object
 // {"decision": "<one of these literals>", "reason": "<short text>"}.
 const (
-	JudgeDecisionApproved = "approved"
-	JudgeDecisionRejected = "rejected"
+	JudgeDecisionApproved JudgeDecision = "approved"
+	JudgeDecisionRejected JudgeDecision = "rejected"
 )
 
 // JudgeVerdict is the parsed decision of the LLM judge for one pending tool
-// call. Decision is always one of the JudgeDecision* literals once parsed;
+// call. Decision is always one of the JudgeDecision values once parsed;
 // nothing downstream reads the judge's raw output.
 type JudgeVerdict struct {
-	Decision string
+	Decision JudgeDecision
 	Reason   string
 }
 

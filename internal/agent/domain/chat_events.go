@@ -54,7 +54,7 @@ type TodoUpdateChatEvent struct {
 type JudgeVerdictChatEvent struct {
 	BaseChatEvent
 	Tool     string
-	Decision string // agentdomain.JudgeDecisionApproved | JudgeDecisionRejected
+	Decision JudgeDecision
 	Reason   string
 	Turn     int
 }

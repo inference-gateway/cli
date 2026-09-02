@@ -6,7 +6,7 @@ func TestParseJudgeVerdict(t *testing.T) {
 	tests := []struct {
 		name         string
 		raw          string
-		wantDecision string
+		wantDecision JudgeDecision
 		wantReason   string
 		wantErr      bool
 	}{
