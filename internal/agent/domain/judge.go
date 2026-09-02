@@ -29,7 +29,7 @@ const (
 type JudgeVerdict struct {
 	Decision JudgeDecision
 	Reason   string
-	Usage *sdk.CompletionUsage `json:"-"`
+	Usage    *sdk.CompletionUsage `json:"-"`
 }
 
 // Approved reports whether the judge approved the action.
