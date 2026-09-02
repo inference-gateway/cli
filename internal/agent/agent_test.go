@@ -1037,8 +1037,8 @@ func TestExecuteToolInternal_PublishesTerminalStatus(t *testing.T) {
 	}
 }
 
-// TestExecuteToolCallsParallel_NeverRequestsApproval pins issue #1153: the
-// no-approval route does not consult the approval policy or prompt. Approval
+// TestExecuteToolCallsParallel_NeverRequestsApproval pins that the no-approval
+// route does not consult the approval policy or prompt. Approval
 // is decided once, by states.EvaluatingToolsState, which never hands a batch
 // that needs approval to this route.
 func TestExecuteToolCallsParallel_NeverRequestsApproval(t *testing.T) {

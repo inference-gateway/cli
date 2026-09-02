@@ -1104,8 +1104,7 @@ type IndexedToolResult struct {
 
 // executeToolCallsParallel runs a batch that needs no approval. Approval is
 // decided upstream by states.EvaluatingToolsState: batches with a tool that
-// requires approval go to ApprovingTools/BlockingTools and never reach here
-// (issue #1153).
+// requires approval go to ApprovingTools/BlockingTools and never reach here.
 func (s *AgentServiceImpl) executeToolCallsParallel(
 	ctx context.Context,
 	toolCalls []*sdk.ChatCompletionMessageToolCall,
