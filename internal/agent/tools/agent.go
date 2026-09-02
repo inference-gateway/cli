@@ -447,7 +447,7 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, parentSession, sess
 		parts = append(parts, subagentSystemPromptEnv+"="+shellQuote(spec.SystemPrompt))
 	}
 	if spec.Mode != agentdomain.AgentModeStandard {
-		parts = append(parts, scheddomain.EnvSubagentAgentMode+"="+shellQuote(spec.Mode.AllowedlistKey()))
+		parts = append(parts, scheddomain.EnvSubagentAgentMode+"="+shellQuote(spec.Mode.ModeKey()))
 	}
 	if spec.Model != "" {
 		parts = append(parts, "INFER_AGENT_MODEL="+shellQuote(spec.Model))
@@ -482,7 +482,7 @@ func (t *AgentTool) subagentExtraEnv(ctx context.Context, spec AgentTaskSpec) []
 		env = append(env, subagentSystemPromptEnv+"="+spec.SystemPrompt)
 	}
 	if spec.Mode != agentdomain.AgentModeStandard {
-		env = append(env, scheddomain.EnvSubagentAgentMode+"="+spec.Mode.AllowedlistKey())
+		env = append(env, scheddomain.EnvSubagentAgentMode+"="+spec.Mode.ModeKey())
 	}
 	if t.config.Gateway.Mock && t.config.Tools.Agent.InheritMock {
 		env = append(env, "INFER_GATEWAY_MOCK=true")

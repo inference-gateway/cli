@@ -62,4 +62,5 @@ func TestApprovingToolsState_JudgeRejectionCarriesReason(t *testing.T) {
 	assert.Contains(t, content, "Rejection reason: judge unavailable: timeout")
 	require.NotNil(t, entry.ToolExecution)
 	assert.True(t, entry.ToolExecution.Rejected)
+	assert.Equal(t, "rejected by user: judge unavailable: timeout", entry.ToolExecution.Error)
 }

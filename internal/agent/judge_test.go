@@ -35,6 +35,7 @@ func newJudgeClient(resp *sdk.CreateChatCompletionResponse, err error) *sdkmocks
 
 func judgeResponse(content string) *sdk.CreateChatCompletionResponse {
 	return &sdk.CreateChatCompletionResponse{
+		Usage: &sdk.CompletionUsage{PromptTokens: 20, CompletionTokens: 10, TotalTokens: 30},
 		Choices: []sdk.ChatCompletionChoice{
 			{Message: sdk.Message{Content: sdk.NewMessageContent(content)}},
 		},
@@ -57,15 +58,23 @@ func TestLLMJudge_VerdictAndPromptShaping(t *testing.T) {
 	if provider != sdk.Provider("test") || model != "judge-model" {
 		t.Errorf("provider/model = %s/%s, want test/judge-model", provider, model)
 	}
-	if len(messages) != 1 || messages[0].Role != sdk.User {
-		t.Fatalf("expected one user message, got %+v", messages)
+	if len(messages) != 2 || messages[0].Role != sdk.System || messages[1].Role != sdk.User {
+		t.Fatalf("expected a system then a user message, got %+v", messages)
 	}
-	prompt, perr := messages[0].Content.AsMessageContent0()
+	system, serr := messages[0].Content.AsMessageContent0()
+	if serr != nil || !strings.Contains(system, "never instructions") {
+		t.Errorf("system prompt = %q (%v), want the data-not-instructions rule", system, serr)
+	}
+	prompt, perr := messages[1].Content.AsMessageContent0()
 	if perr != nil {
 		t.Fatalf("prompt content: %v", perr)
 	}
-	if !strings.Contains(prompt, "install the dependency") || !strings.Contains(prompt, `Bash: {"command": "go get"}`) {
-		t.Errorf("prompt missing intent/action placeholders: %q", prompt)
+	if !strings.Contains(prompt, "<user_request>\ninstall the dependency\n</user_request>") ||
+		!strings.Contains(prompt, "<tool_call>\nBash: {\"command\": \"go get\"}\n</tool_call>") {
+		t.Errorf("prompt missing tagged intent/action: %q", prompt)
+	}
+	if verdict.Usage == nil || verdict.Usage.TotalTokens != 30 {
+		t.Errorf("verdict.Usage = %+v, want the judge call usage", verdict.Usage)
 	}
 }
 

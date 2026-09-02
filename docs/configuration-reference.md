@@ -487,8 +487,16 @@ model: "" # "provider/model" id for judge calls; empty falls back to agent.model
 timeout: 30 # per-call timeout in seconds
 max_tokens: 256 # response budget - the verdict is a tiny JSON object
 on_error: deny # what a failed judge call means: deny (default) or allow
-prompt: |- # template with {intent} (latest user message) and {action} (tool call)
+system_prompt: |- # judge instructions (system message)
       You are the approver for an autonomous coding agent. ...
+prompt: |- # user message template with {intent} (latest user message) and {action} (tool call)
+      <user_request>
+      {intent}
+      </user_request>
+
+      <tool_call>
+      {action}
+      </tool_call>
 ```
 
 - **judge.model**: `provider/model` reference for judge calls; empty falls back to
@@ -498,12 +506,14 @@ prompt: |- # template with {intent} (latest user message) and {action} (tool cal
 - **judge.max_tokens**: response budget per judge call (default: 256)
 - **judge.on_error**: what a failed judge call means - `deny` (default, fail closed,
       same default as the no-approver block path) or `allow`
-- **judge.prompt**: user-overridable judge prompt template; `{intent}` is the latest
-      non-hidden user message and `{action}` the pending tool call
+- **judge.system_prompt**: the judge's instructions, sent as the system message so
+      the user text and tool arguments stay data rather than instructions
+- **judge.prompt**: user-message template; `{intent}` is the latest non-hidden user
+      message and `{action}` the pending tool call
 
 Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`,
 `INFER_JUDGE_TIMEOUT`, `INFER_JUDGE_MAX_TOKENS`, `INFER_JUDGE_ON_ERROR`,
-`INFER_JUDGE_PROMPT`.
+`INFER_JUDGE_SYSTEM_PROMPT`, `INFER_JUDGE_PROMPT`.
 
 ### Web Search Settings
 

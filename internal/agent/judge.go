@@ -12,6 +12,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 )
 
 // Judge input bounds: the intent is the latest user message and the action the
@@ -56,6 +57,13 @@ func (j *LLMJudge) Judge(ctx context.Context, intent, action string) (agentdomai
 		"{intent}", truncateForJudge(intent, maxJudgeIntentLength),
 		"{action}", truncateForJudge(action, maxJudgeActionLength),
 	).Replace(jcfg.Prompt)
+	messages := []sdk.Message{
+		{Role: sdk.System, Content: sdk.NewMessageContent(jcfg.SystemPrompt)},
+		{Role: sdk.User, Content: sdk.NewMessageContent(prompt)},
+	}
+	streamevent.EmitDebugEvent("judge_request", map[string]any{
+		"model": model, "system": jcfg.SystemPrompt, "prompt": prompt,
+	})
 
 	jctx, cancel := context.WithTimeout(ctx, time.Duration(jcfg.Timeout)*time.Second)
 	defer cancel()
@@ -63,9 +71,7 @@ func (j *LLMJudge) Judge(ctx context.Context, intent, action string) (agentdomai
 	response, err := j.client.
 		WithOptions(&sdk.CreateChatCompletionRequest{MaxTokens: &jcfg.MaxTokens}).
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{SkipMCP: true}).
-		GenerateContent(jctx, sdk.Provider(model[:slashIndex]), model[slashIndex+1:], []sdk.Message{
-			{Role: sdk.User, Content: sdk.NewMessageContent(prompt)},
-		})
+		GenerateContent(jctx, sdk.Provider(model[:slashIndex]), model[slashIndex+1:], messages)
 	if err != nil {
 		return j.onError(fmt.Errorf("judge call failed: %w", err), jcfg.OnError)
 	}
@@ -81,6 +87,7 @@ func (j *LLMJudge) Judge(ctx context.Context, intent, action string) (agentdomai
 	if parseErr != nil {
 		return j.onError(parseErr, jcfg.OnError)
 	}
+	verdict.Usage = response.Usage
 	return verdict, nil
 }
 

@@ -280,8 +280,10 @@ func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageTo
 	})
 
 	rejectionMessage := fmt.Sprintf("Tool execution rejected by user: %s", tc.Function.Name)
+	errText := "rejected by user"
 	if reason != "" {
 		rejectionMessage += fmt.Sprintf("\n\nRejection reason: %s", reason)
+		errText += ": " + reason
 	}
 
 	message := sdk.Message{
@@ -302,7 +304,7 @@ func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageTo
 			ToolName:  tc.Function.Name,
 			Arguments: args,
 			Success:   false,
-			Error:     "rejected by user",
+			Error:     errText,
 			Rejected:  true,
 		},
 	}

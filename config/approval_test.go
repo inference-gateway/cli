@@ -107,8 +107,6 @@ func TestConfigValidate_JudgeFailFast(t *testing.T) {
 }
 
 func TestJudgeRequired(t *testing.T) {
-	t.Setenv("INFER_AGENT_MODE", "")
-
 	if (DefaultConfig()).JudgeRequired() {
 		t.Error("JudgeRequired() on defaults should be false")
 	}
@@ -117,13 +115,6 @@ func TestJudgeRequired(t *testing.T) {
 	cfg.Tools.Safety.ApprovalBehaviour = ApprovalBehaviourJudge
 	if !cfg.JudgeRequired() {
 		t.Error("JudgeRequired() with approval_behaviour judge should be true")
-	}
-
-	for _, mode := range []string{"auto-with-judge", " AUTO-WITH-JUDGE ", "Auto-With-Judge"} {
-		t.Setenv("INFER_AGENT_MODE", mode)
-		if !(DefaultConfig()).JudgeRequired() {
-			t.Errorf("JudgeRequired() with INFER_AGENT_MODE=%q should be true", mode)
-		}
 	}
 }
 

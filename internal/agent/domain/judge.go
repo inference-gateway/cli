@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // JudgeDecision is the verdict value the LLM judge returns for one pending
@@ -27,6 +29,9 @@ const (
 type JudgeVerdict struct {
 	Decision JudgeDecision
 	Reason   string
+	// Usage is the judge call's token usage (nil when the call never
+	// completed) so the session totals include it.
+	Usage *sdk.CompletionUsage `json:"-"`
 }
 
 // Approved reports whether the judge approved the action.
@@ -35,18 +40,11 @@ func (v JudgeVerdict) Approved() bool {
 }
 
 // ParseJudgeVerdict extracts the verdict JSON object from the judge's raw
-// output. The parser strips code fences and surrounding prose, requires
+// output. Keeping only the outermost {...} drops code fences and prose; it requires
 // decision to be one of the two literals, and rejects anything else so a
 // malformed judge response flows into on_error handling.
 func ParseJudgeVerdict(raw string) (JudgeVerdict, error) {
 	trimmed := strings.TrimSpace(raw)
-	// Strip a ```json ... ``` code fence if the model added one.
-	if strings.HasPrefix(trimmed, "```") {
-		trimmed = strings.TrimPrefix(trimmed, "```json")
-		trimmed = strings.TrimPrefix(trimmed, "```")
-		trimmed = strings.TrimSuffix(strings.TrimSuffix(trimmed, "```"), "\n")
-		trimmed = strings.TrimSpace(trimmed)
-	}
 
 	// Keep only the outermost JSON object, ignoring surrounding prose.
 	start := strings.IndexByte(trimmed, '{')

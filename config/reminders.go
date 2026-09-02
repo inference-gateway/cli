@@ -392,7 +392,7 @@ func (r RemindersConfig) RemindersDue(q agentdomain.ReminderQuery) []agentdomain
 // the per-mode adjustment instructions carried on the query (prompts.yaml
 // agent.mode_adjustment_plan/_auto), then the built-in default for the mode.
 func resolveModeChangeText(rc ReminderConfig, q agentdomain.ReminderQuery) string {
-	key := q.Mode.AllowedlistKey()
+	key := q.Mode.ModeKey()
 	guidance := rc.Guidance[key]
 	if guidance == "" || guidance == defaultModeChangeGuidance[key] {
 		if override := q.ModeGuidance[key]; override != "" {

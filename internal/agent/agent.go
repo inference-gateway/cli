@@ -1807,6 +1807,7 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	if !verdict.Approved() {
 		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
 	}
+	s.recordJudgeUsage(verdict.Usage)
 
 	eventPublisher.chatEvents <- agentdomain.JudgeVerdictChatEvent{
 		BaseChatEvent: agentdomain.BaseChatEvent{RequestID: eventPublisher.requestID, Timestamp: time.Now()},
@@ -1823,6 +1824,21 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	}
 
 	return verdict.Approved(), verdict.Reason, nil
+}
+
+// recordJudgeUsage adds the judge call's tokens to the session totals and the
+// telemetry recorder so the status bar and cost reports include judge spend.
+func (s *AgentServiceImpl) recordJudgeUsage(usage *sdk.CompletionUsage) {
+	if usage == nil {
+		return
+	}
+	model := s.config.Judge.ResolveModel(s.config.Agent.Model)
+	if err := s.conversationRepo.AddTokenUsage(model, int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens), 0, 0); err != nil {
+		logger.Error("failed to add judge token usage to session", "error", err)
+	}
+	if s.recorder != nil {
+		s.recorder.RecordUsage(model, int(usage.PromptTokens), int(usage.CompletionTokens), 0, 0)
+	}
 }
 
 // trackRepeatedFailure counts identical failing tool calls (same name and
@@ -1901,8 +1917,10 @@ func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageTool
 		"Tool call rejected by user: %s\n\nYou can provide alternative instructions or ask me to proceed differently.",
 		tc.Function.Name,
 	)
+	errText := "rejected by user"
 	if reason != "" {
 		rejectionMessage += fmt.Sprintf("\n\nRejection reason: %s", reason)
+		errText += ": " + reason
 	}
 
 	return convdomain.ConversationEntry{
@@ -1917,7 +1935,7 @@ func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageTool
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
-			Error:     "rejected by user",
+			Error:     errText,
 			Rejected:  true,
 		},
 	}

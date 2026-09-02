@@ -1470,16 +1470,12 @@ func (c *Config) ApprovalBehaviourFor(toolName string) string {
 	}
 }
 
-// JudgeRequired reports whether the configuration has selected the LLM judge
-// as the approval delivery: either tools.safety.approval_behaviour=judge or the
-// auto-with-judge agent mode requested through INFER_AGENT_MODE (the mode
-// selection that is visible at config-validation time; the headless --mode
-// flag is checked by the headless runner itself).
+// JudgeRequired reports whether tools.safety.approval_behaviour selects the
+// LLM judge. The auto-with-judge agent mode is a runtime choice (headless
+// --mode / INFER_AGENT_MODE / Shift+Tab); the headless runner fail-fasts on
+// the model itself.
 func (c *Config) JudgeRequired() bool {
-	if c.Tools.Safety.ApprovalBehaviour == ApprovalBehaviourJudge {
-		return true
-	}
-	return strings.EqualFold(strings.TrimSpace(os.Getenv("INFER_AGENT_MODE")), "auto-with-judge")
+	return c.Tools.Safety.ApprovalBehaviour == ApprovalBehaviourJudge
 }
 
 // Validate checks cross-cutting config invariants after load so a typo fails fast
@@ -1502,7 +1498,7 @@ func (c *Config) Validate() error { // nolint:cyclop
 
 	if c.JudgeRequired() && c.Judge.ResolveModel(c.Agent.Model) == "" {
 		return fmt.Errorf(
-			"the judge approver is selected (tools.safety.approval_behaviour=judge or agent mode auto-with-judge) but no judge model is resolvable: set judge.model in %s or agent.model",
+			"tools.safety.approval_behaviour=judge but no judge model is resolvable: set judge.model in %s or agent.model",
 			DefaultJudgePath,
 		)
 	}

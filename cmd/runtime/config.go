@@ -902,6 +902,7 @@ func applyJudgeEnvOverrides(cfg *config.Config) {
 	setInt("INFER_JUDGE_TIMEOUT", &cfg.Judge.Timeout)
 	setInt("INFER_JUDGE_MAX_TOKENS", &cfg.Judge.MaxTokens)
 	setString("INFER_JUDGE_ON_ERROR", &cfg.Judge.OnError)
+	setString("INFER_JUDGE_SYSTEM_PROMPT", &cfg.Judge.SystemPrompt)
 	setString("INFER_JUDGE_PROMPT", &cfg.Judge.Prompt)
 }
 

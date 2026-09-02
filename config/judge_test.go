@@ -80,7 +80,7 @@ func TestLoadJudge(t *testing.T) {
 		if eff.Timeout != DefaultJudgeTimeoutSeconds || eff.MaxTokens != DefaultJudgeMaxTokens {
 			t.Errorf("effective timeout/max_tokens = %d/%d, want defaults", eff.Timeout, eff.MaxTokens)
 		}
-		if eff.OnError != JudgeOnErrorDeny || eff.Prompt != DefaultJudgePrompt {
+		if eff.OnError != JudgeOnErrorDeny || eff.Prompt != DefaultJudgePrompt || eff.SystemPrompt != DefaultJudgeSystemPrompt {
 			t.Errorf("effective on_error/prompt not defaulted: %+v", eff)
 		}
 	})

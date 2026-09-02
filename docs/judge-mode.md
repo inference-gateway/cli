@@ -81,14 +81,22 @@ model: "" # "provider/model" id for judge calls; empty falls back to agent.model
 timeout: 30 # per-call timeout in seconds
 max_tokens: 256 # response budget - the verdict is a tiny JSON object
 on_error: deny # what a failed judge call means: deny (default) or allow
-prompt: |- # user prompt template; {intent} and {action} are filled in
+system_prompt: |- # judge instructions (system message)
   You are the approver for an autonomous coding agent. ...
+prompt: |- # user message template; {intent} and {action} are filled in
+  <user_request>
+  {intent}
+  </user_request>
+
+  <tool_call>
+  {action}
+  </tool_call>
 ```
 
 Environment overrides (env wins over the file):
 
 - `INFER_JUDGE_MODEL`, `INFER_JUDGE_TIMEOUT`, `INFER_JUDGE_MAX_TOKENS`,
-  `INFER_JUDGE_ON_ERROR`, `INFER_JUDGE_PROMPT`
+  `INFER_JUDGE_ON_ERROR`, `INFER_JUDGE_SYSTEM_PROMPT`, `INFER_JUDGE_PROMPT`
 
 Defaults: the agent's own model decides, calls time out after 30s, responses are
 capped at 256 tokens, and a failing judge **denies**.
@@ -119,8 +127,11 @@ auto-with-judge mode forces the judge regardless of `approval_behaviour`.
 - `--format ag-ui` mirrors it as a custom event.
 - `--format text` prints a line for rejections.
 - TUI users see the status line flash `Action rejected by judge policy: <reason>`.
-- All verdicts are also emitted on the hidden debug channel (`EmitDebugEvent`) for
-  `infer debug`.
+- With debug logging on, every judge call is also emitted on the hidden debug
+  channel: `judge_request` (model, system prompt, rendered user prompt) and
+  `judge_verdict`.
+- Judge token usage is added to the session totals and telemetry, so the status
+  bar and cost reports include it.
 
 ## Related
 
