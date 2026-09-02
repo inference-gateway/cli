@@ -196,7 +196,8 @@ tools:
   safety:
     require_approval: true
     # How an action that needs approval is delivered: prompt (TUI in chat, IPC
-    # under the channel manager, else blocked), ipc (force IPC), or block (reject).
+    # under the channel manager, else blocked), ipc (force IPC), judge (LLM
+    # judge decides, see judge.yaml), or block (reject).
     approval_behaviour: prompt
 agent:
   model: "" # Default model for agent operations
@@ -319,6 +320,8 @@ compact:
   - `prompt` - ask an interactive approver via whatever channel is attached: a TUI prompt in chat, IPC under the channel manager
     (Telegram); if none is reachable (CI/heartbeat) the action is **blocked** with a reason.
   - `ipc` - force stdin/stdout IPC approval; blocked when no broker is attached.
+  - `judge` - one LLM judge call decides (see [Judge Approval](#judge-approval-judgeyaml)). The judge is always reachable
+    (headless and CI included), so unlike `ipc` it is never downgraded to block.
   - `block` - reject immediately with a reason, never ask.
 
   The default makes headless runs **secure by default**: an off-allow-list or mutating action is blocked in CI and sent for approval under
@@ -468,6 +471,39 @@ correctly against the merged list.
 > **even if you overrode its content via `merge: true`**. If you override a
 > memory-named reminder and need it to survive with memory off, either rename it
 > or enable memory (`memory.enabled: true` in `memory.yaml`).
+
+### Judge Approval (judge.yaml)
+
+Tool calls that need approval can be decided by an LLM judge instead of a human -
+selected by the `auto-with-judge` agent mode or by `tools.safety.approval_behaviour:
+judge`. The judge call is a one-shot side call through the configured gateway; see
+[Judge Mode](judge-mode.md) for the behaviour and the verdict contract.
+The judge is configured in its own file, **`judge.yaml`** (project
+`./.infer/judge.yaml` overrides userspace `~/.infer/judge.yaml`; when the file is
+absent the built-in defaults are used).
+
+```yaml
+model: "" # "provider/model" id for judge calls; empty falls back to agent.model
+timeout: 30 # per-call timeout in seconds
+max_tokens: 256 # response budget - the verdict is a tiny JSON object
+on_error: deny # what a failed judge call means: deny (default) or allow
+prompt: |- # template with {intent} (latest user message) and {action} (tool call)
+      You are the approver for an autonomous coding agent. ...
+```
+
+- **judge.model**: `provider/model` reference for judge calls; empty falls back to
+      `agent.model` (same precedent as conversation title generation). Selecting the
+      judge with neither resolvable fails config validation at startup.
+- **judge.timeout**: per-call timeout in seconds (default: 30)
+- **judge.max_tokens**: response budget per judge call (default: 256)
+- **judge.on_error**: what a failed judge call means - `deny` (default, fail closed,
+      same default as the no-approver block path) or `allow`
+- **judge.prompt**: user-overridable judge prompt template; `{intent}` is the latest
+      non-hidden user message and `{action}` the pending tool call
+
+Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`,
+`INFER_JUDGE_TIMEOUT`, `INFER_JUDGE_MAX_TOKENS`, `INFER_JUDGE_ON_ERROR`,
+`INFER_JUDGE_PROMPT`.
 
 ### Web Search Settings
 

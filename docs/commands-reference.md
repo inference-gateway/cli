@@ -291,7 +291,7 @@ select models and have conversations.
 - **shift+↑/shift+↓**: Half-page scrolling
 - **ctrl+o** (default): Toggle expanded view of tool results (configurable via `tools_toggle_tool_expansion`)
 - **ctrl+k** (default): Toggle expanded view of model thinking blocks (configurable via `display_toggle_thinking`)
-- **shift+tab**: Cycle agent mode (Standard → Plan → Auto-Accept)
+- **shift+tab**: Cycle agent mode (Standard → Plan → Auto-Accept → Auto+Judge)
 - **↓** (when not navigating input history): Select the status indicators below the input.
   `←`/`→` (or `tab`/`shift+tab`) move between the actionable indicators, **enter** opens the
   matching view (model indicator → model selection, theme indicator → theme selection,
@@ -301,7 +301,7 @@ select models and have conversations.
 
 **Agent Modes:**
 
-The chat interface supports three operational modes that can be toggled with **shift+tab**:
+The chat interface supports four operational modes that can be toggled with **shift+tab**:
 
 - **Standard Mode** (default): Normal operation with all configured tools and approval checks enabled.
   The agent has access to all tools defined in your configuration and will request approval for
@@ -323,6 +323,13 @@ The chat interface supports three operational modes that can be toggled with **s
   - Executes modifications immediately without confirmation
   - Ideal for trusted workflows or when rapid iteration is needed
   - **Use with caution** - ensure you have backups and version control
+
+- **⚖ Auto+Judge Mode**: Autonomous with a gate: tool calls that would prompt a human are decided by an LLM judge
+  (one call per gated tool) instead of a human, so the agent runs unattended but not unrestricted:
+  - Uses the standard approval rules - allow-listed bash commands pass without a judge call
+  - Gated calls are decided by the judge against your latest request; rejections arrive with the judge's reason
+  - Configured in `judge.yaml` (`model`, `timeout`, `max_tokens`, `on_error`, `prompt`) - see [Judge Mode](judge-mode.md)
+  - Ideal for CI and headless runs where an approval prompt would deadlock
 
 The current mode is displayed below the input field when not in Standard mode. Toggle between modes
 anytime during a chat session.
@@ -399,6 +406,8 @@ infer headless "/cost"      # prints the session cost breakdown, no model call
 - `--remote`: Use remote-control system prompt (used by the daemon)
 - `--result-file`: Write the final assistant message and outcome as JSON to this path on exit
 - `--format json|ag-ui|text`: Output format (default json)
+- `--mode`: Agent mode: standard, plan, auto, auto-with-judge (env: `INFER_AGENT_MODE`); a value that fails
+     validation, or `auto-with-judge` with no resolvable judge model, fails before the gateway or agent starts
 
 **Examples:**
 
