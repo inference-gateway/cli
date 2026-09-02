@@ -899,6 +899,7 @@ func applyJudgeEnvOverrides(cfg *config.Config) {
 	}
 
 	setString("INFER_JUDGE_MODEL", &cfg.Judge.Model)
+	setString("INFER_JUDGE_GATEWAY_URL", &cfg.Judge.GatewayURL)
 	setInt("INFER_JUDGE_TIMEOUT", &cfg.Judge.Timeout)
 	setInt("INFER_JUDGE_MAX_TOKENS", &cfg.Judge.MaxTokens)
 	setString("INFER_JUDGE_ON_ERROR", &cfg.Judge.OnError)

@@ -153,7 +153,7 @@ func judgeStderr(e agentdomain.JudgeVerdictChatEvent) {
 	if e.Decision != agentdomain.JudgeDecisionRejected {
 		return
 	}
-	_, _ = fmt.Fprintf(os.Stderr, "Action rejected by judge policy: %s\n", e.Reason)
+	_, _ = fmt.Fprintf(os.Stderr, "Action rejected by judge policy (%s): %s\n", e.Model, e.Reason)
 }
 
 // judgeVerdictMessage builds the JSON line for one judge decision.
@@ -161,6 +161,7 @@ func judgeVerdictMessage(e agentdomain.JudgeVerdictChatEvent) map[string]any {
 	return map[string]any{
 		"type":      "judge_verdict",
 		"tool":      e.Tool,
+		"model":     e.Model,
 		"decision":  e.Decision,
 		"reason":    e.Reason,
 		"turn":      e.Turn,

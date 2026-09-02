@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -35,7 +36,19 @@ type LLMJudge struct {
 
 // NewLLMJudge creates the judge approver. Config validation fails fast at
 // startup when no model is resolvable, so an empty model here is a hard error.
+// judge.gateway_url gives the judge its own client (same API key and timeout
+// as the agent's) so it can answer from a different gateway than the driver.
 func NewLLMJudge(client sdk.Client, cfg *config.Config) *LLMJudge {
+	if url := cfg.Judge.GatewayURL; url != "" {
+		if !strings.HasSuffix(url, "/v1") {
+			url = strings.TrimSuffix(url, "/") + "/v1"
+		}
+		client = sdk.NewClient(&sdk.ClientOptions{
+			BaseURL: url,
+			APIKey:  cfg.Gateway.APIKey,
+			Timeout: time.Duration(cmp.Or(cfg.Client.Timeout, 200)) * time.Second,
+		})
+	}
 	return &LLMJudge{client: client, config: cfg}
 }
 

@@ -1798,6 +1798,7 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 ) (bool, string, error) {
+	model := s.config.Judge.ResolveModel(s.config.Agent.Model)
 	verdict, err := s.judge.Judge(ctx, latestUserIntent(s.conversationRepo), judgeActionInput(tc))
 	if err != nil {
 		// Fail closed like the no-approver path; the reason is distinguishable
@@ -1812,18 +1813,20 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	eventPublisher.chatEvents <- agentdomain.JudgeVerdictChatEvent{
 		BaseChatEvent: agentdomain.BaseChatEvent{RequestID: eventPublisher.requestID, Timestamp: time.Now()},
 		Tool:          tc.Function.Name,
+		Model:         model,
 		Decision:      verdict.Decision,
 		Reason:        verdict.Reason,
 		Turn:          int(s.sessionTurns.Load()),
 	}
 	streamevent.EmitDebugEvent("judge_verdict", map[string]any{
-		"tool": tc.Function.Name, "decision": verdict.Decision, "reason": verdict.Reason, "turn": s.sessionTurns.Load(),
+		"tool": tc.Function.Name, "model": model, "decision": verdict.Decision, "reason": verdict.Reason, "turn": s.sessionTurns.Load(),
 	})
 	if !verdict.Approved() {
-		logger.Warn("judge rejected tool call", "tool", tc.Function.Name, "reason", verdict.Reason)
+		logger.Warn("judge rejected tool call", "tool", tc.Function.Name, "model", model, "reason", verdict.Reason)
 	}
 
-	return verdict.Approved(), verdict.Reason, nil
+	// The tool-result reason names the judge so the driver and the user see who decided.
+	return verdict.Approved(), model + ": " + verdict.Reason, nil
 }
 
 // recordJudgeUsage adds the judge call's tokens to the session totals and the

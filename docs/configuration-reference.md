@@ -484,6 +484,7 @@ absent the built-in defaults are used).
 
 ```yaml
 model: "" # "provider/model" id for judge calls; empty falls back to agent.model
+gateway_url: "" # send judge calls to another gateway (e.g. real judge, mock driver); empty shares the agent's
 timeout: 30 # per-call timeout in seconds
 max_tokens: 256 # response budget - the verdict is a tiny JSON object
 on_error: deny # what a failed judge call means: deny (default) or allow
@@ -511,7 +512,7 @@ prompt: |- # user message template with {intent} (latest user message) and {acti
 - **judge.prompt**: user-message template; `{intent}` is the latest non-hidden user
       message and `{action}` the pending tool call
 
-Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`,
+Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDGE_GATEWAY_URL`,
 `INFER_JUDGE_TIMEOUT`, `INFER_JUDGE_MAX_TOKENS`, `INFER_JUDGE_ON_ERROR`,
 `INFER_JUDGE_SYSTEM_PROMPT`, `INFER_JUDGE_PROMPT`.
 

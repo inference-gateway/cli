@@ -355,7 +355,7 @@ func (h *ChatHandler) HandleJudgeVerdictChatEvent(
 	if msg.Decision == agentdomain.JudgeDecisionRejected {
 		cmds = append(cmds, func() tea.Msg {
 			return tui.SetStatusEvent{
-				Message:    fmt.Sprintf("Action rejected by judge policy: %s", msg.Reason),
+				Message:    fmt.Sprintf("Action rejected by judge policy (%s): %s", msg.Model, msg.Reason),
 				Spinner:    false,
 				StatusType: tui.StatusError,
 			}

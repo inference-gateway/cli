@@ -259,7 +259,8 @@ func TestAgentJudgeModeRejectsOffListCommand(t *testing.T) {
 
 	toolResults := contentsByRole(lines, "tool")
 	require.Len(t, toolResults, 1)
-	require.Contains(t, toolResults[0], "rejected by judge: curl was not requested")
+	require.Contains(t, toolResults[0], "rejected by judge: "+testModel+": curl was not requested")
+	require.Equal(t, testModel, verdict["model"])
 	require.Contains(t, contentsByRole(lines, "assistant"), "Understood, the command was not permitted.",
 		"a judge rejection must feed the driver instead of ending the turn")
 }

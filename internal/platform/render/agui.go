@@ -141,7 +141,7 @@ func (e *aguiEncoder) emitApprovalRequest(req ipc.ApprovalRequest) {
 // as a custom AG-UI event (see judge.yaml).
 func (e *aguiEncoder) emitJudgeVerdict(ev agentdomain.JudgeVerdictChatEvent) {
 	e.emit(aguievents.NewCustomEvent("judge_verdict", aguievents.WithValue(map[string]any{
-		"tool": ev.Tool, "decision": ev.Decision, "reason": ev.Reason, "turn": ev.Turn,
+		"tool": ev.Tool, "model": ev.Model, "decision": ev.Decision, "reason": ev.Reason, "turn": ev.Turn,
 	})))
 }
 

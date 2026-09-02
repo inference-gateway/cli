@@ -79,6 +79,7 @@ absent the built-in defaults are used). It is the decision-sibling of `hooks.yam
 
 ```yaml
 model: "" # "provider/model" id for judge calls; empty falls back to agent.model
+gateway_url: "" # send judge calls to another gateway (e.g. real judge, mock driver); empty shares the agent's
 timeout: 30 # per-call timeout in seconds
 max_tokens: 256 # response budget - the verdict is a tiny JSON object
 on_error: deny # what a failed judge call means: deny (default) or allow
@@ -96,7 +97,7 @@ prompt: |- # user message template; {intent} and {action} are filled in
 
 Environment overrides (env wins over the file):
 
-- `INFER_JUDGE_MODEL`, `INFER_JUDGE_TIMEOUT`, `INFER_JUDGE_MAX_TOKENS`,
+- `INFER_JUDGE_MODEL`, `INFER_JUDGE_GATEWAY_URL`, `INFER_JUDGE_TIMEOUT`, `INFER_JUDGE_MAX_TOKENS`,
   `INFER_JUDGE_ON_ERROR`, `INFER_JUDGE_SYSTEM_PROMPT`, `INFER_JUDGE_PROMPT`
 
 Defaults: the agent's own model decides, calls time out after 30s, responses are
@@ -127,7 +128,9 @@ auto-with-judge mode forces the judge regardless of `approval_behaviour`.
   turn).
 - `--format ag-ui` mirrors it as a custom event.
 - `--format text` prints a line for rejections.
-- TUI users see the status line flash `Action rejected by judge policy: <reason>`.
+- TUI users see the status line flash `Action rejected by judge policy (<model>): <reason>`,
+  the judge model next to the `AUTO+JUDGE` mode indicator, and the model in each
+  rejected tool card.
 - With debug logging on, every judge call is also emitted on the hidden debug
   channel: `judge_request` (model, system prompt, rendered user prompt) and
   `judge_verdict`.

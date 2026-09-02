@@ -50,6 +50,10 @@ type JudgeConfig struct {
 	// Model is the "provider/model" id used for judge calls. Empty falls
 	// back to agent.model (same precedent as conversation.title_generation.model).
 	Model string `yaml:"model" mapstructure:"model"`
+	// GatewayURL sends judge calls to a different gateway than the agent's
+	// (e.g. a real gateway while the driver runs against the mock). Empty
+	// shares the agent's client.
+	GatewayURL string `yaml:"gateway_url" mapstructure:"gateway_url"`
 	// Timeout is the per-call timeout in seconds; 0 -> default.
 	Timeout int `yaml:"timeout" mapstructure:"timeout"`
 	// MaxTokens bounds each judge response; 0 -> default.

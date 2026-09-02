@@ -54,6 +54,7 @@ type TodoUpdateChatEvent struct {
 type JudgeVerdictChatEvent struct {
 	BaseChatEvent
 	Tool     string
+	Model    string // the judge model that decided
 	Decision JudgeDecision
 	Reason   string
 	Turn     int
