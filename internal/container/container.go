@@ -397,7 +397,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.imageAnnotator = c.createImageAnnotator()
 	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.mcpManager, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
-	c.toolRegistry.SetAgentModeManager(c.stateManager)
 	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator))
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 

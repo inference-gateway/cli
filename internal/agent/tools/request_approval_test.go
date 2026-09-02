@@ -25,15 +25,6 @@ func (f *fakeEscalationGate) Escalate(ctx context.Context, req agentdomain.Appro
 	return f.outcome, nil
 }
 
-// fakeModeManager pins the agent mode for IsEnabled tests.
-type fakeModeManager struct {
-	mode agentdomain.AgentMode
-}
-
-func (f *fakeModeManager) GetAgentMode() agentdomain.AgentMode     { return f.mode }
-func (f *fakeModeManager) SetAgentMode(mode agentdomain.AgentMode) { f.mode = mode }
-func (f *fakeModeManager) CycleAgentMode() agentdomain.AgentMode   { return f.mode }
-
 func escalationArgs() map[string]any {
 	return map[string]any{
 		"tool":      "Bash",
@@ -45,7 +36,7 @@ func escalationArgs() map[string]any {
 
 func executeEscalation(t *testing.T, gate agentdomain.ApprovalEscalation, args map[string]any) *agentdomain.ToolExecutionResult {
 	t.Helper()
-	tool := NewRequestApprovalTool(config.DefaultConfig(), nil)
+	tool := NewRequestApprovalTool(config.DefaultConfig())
 	ctx := context.Background()
 	if gate != nil {
 		ctx = agentdomain.WithApprovalEscalation(ctx, gate)
@@ -114,9 +105,9 @@ func TestRequestApprovalApprovedResult(t *testing.T) {
 	}
 }
 
-func TestRequestApprovalDeniedCarriesAnswer(t *testing.T) {
+func TestRequestApprovalDenied(t *testing.T) {
 	gate := &fakeEscalationGate{outcome: agentdomain.ApprovalEscalationResult{
-		Status: agentdomain.EscalationDenied, Answer: "not yet, run the e2e suite first", JudgeReason: "needs context",
+		Status: agentdomain.EscalationDenied, JudgeReason: "needs context",
 	}}
 	result := executeEscalation(t, gate, escalationArgs())
 
@@ -127,11 +118,8 @@ func TestRequestApprovalDeniedCarriesAnswer(t *testing.T) {
 	if data["approved"] != false {
 		t.Fatalf("approved = %v, want false", data["approved"])
 	}
-	if data["answer"] != "not yet, run the e2e suite first" {
-		t.Fatalf("answer = %v, want the user's text", data["answer"])
-	}
-	if msg, _ := data["message"].(string); !strings.Contains(msg, "not yet, run the e2e suite first") {
-		t.Fatalf("message %q must carry the user's answer to the agent", msg)
+	if msg, _ := data["message"].(string); !strings.Contains(msg, "DENIED") || !strings.Contains(msg, "do not call RequestApproval for this call again") {
+		t.Fatalf("message %q must tell the agent the user denied and not to retry", msg)
 	}
 }
 
@@ -191,7 +179,7 @@ func TestRequestApprovalValidate(t *testing.T) {
 		{name: "valid empty arguments", args: map[string]any{"tool": "Bash", "arguments": map[string]any{}, "what": "w", "why": "y"}},
 		{name: "valid trimmed fields", args: map[string]any{"tool": " Bash ", "arguments": map[string]any{"command": "git push"}, "what": " push ", "why": " ship "}},
 	}
-	tool := NewRequestApprovalTool(config.DefaultConfig(), nil)
+	tool := NewRequestApprovalTool(config.DefaultConfig())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tool.Validate(tt.args)
@@ -208,36 +196,13 @@ func TestRequestApprovalValidate(t *testing.T) {
 	}
 }
 
-func TestRequestApprovalIsEnabled(t *testing.T) {
-	tests := []struct {
-		name        string
-		behaviour   string
-		mode        agentdomain.AgentMode
-		wantEnabled bool
-	}{
-		{name: "default config, standard mode", behaviour: "", mode: agentdomain.AgentModeStandard},
-		{name: "judge behaviour in config", behaviour: config.ApprovalBehaviourJudge, mode: agentdomain.AgentModeStandard, wantEnabled: true},
-		{name: "runtime auto-with-judge mode", behaviour: "", mode: agentdomain.AgentModeAutoWithJudge, wantEnabled: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.DefaultConfig()
-			cfg.Tools.Safety.ApprovalBehaviour = tt.behaviour
-			tool := NewRequestApprovalTool(cfg, &fakeModeManager{mode: tt.mode})
-			if got := tool.IsEnabled(); got != tt.wantEnabled {
-				t.Fatalf("IsEnabled = %v, want %v", got, tt.wantEnabled)
-			}
-		})
-	}
-}
-
 func TestRequestApprovalFormats(t *testing.T) {
-	tool := NewRequestApprovalTool(config.DefaultConfig(), nil)
+	tool := NewRequestApprovalTool(config.DefaultConfig())
 	approved := executeEscalation(t, &fakeEscalationGate{outcome: agentdomain.ApprovalEscalationResult{
 		Status: agentdomain.EscalationApproved, Approved: true,
 	}}, escalationArgs())
 	denied := executeEscalation(t, &fakeEscalationGate{outcome: agentdomain.ApprovalEscalationResult{
-		Status: agentdomain.EscalationDenied, Answer: "run tests first",
+		Status: agentdomain.EscalationDenied,
 	}}, escalationArgs())
 	noApprover := executeEscalation(t, nil, escalationArgs())
 	failed := executeEscalation(t, &fakeEscalationGate{outcome: agentdomain.ApprovalEscalationResult{

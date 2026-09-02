@@ -1696,12 +1696,25 @@ func (s *AgentServiceImpl) requestToolApproval(
 		return s.requestJudgeApproval(ctx, tc, eventPublisher)
 	}
 
-	responseChan := make(chan agentdomain.ApprovalAction, 1)
+	return s.requestHumanApproval(ctx, tc, eventPublisher, "")
+}
 
+// requestHumanApproval publishes the approval prompt for tc and waits for the
+// human decision. note is optional context rendered above the call (the
+// RequestApproval escalation uses it for the judge's reason and the agent's
+// justification). A closed response channel counts as a rejection.
+func (s *AgentServiceImpl) requestHumanApproval(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+	note string,
+) (bool, string, error) {
+	responseChan := make(chan agentdomain.ApprovalAction, 1)
 	eventPublisher.chatEvents <- agentdomain.ToolApprovalRequestedEvent{
 		RequestID:    eventPublisher.requestID,
 		Timestamp:    time.Now(),
 		ToolCall:     tc,
+		Context:      note,
 		ResponseChan: responseChan,
 	}
 
@@ -1709,7 +1722,10 @@ func (s *AgentServiceImpl) requestToolApproval(
 	var err error
 
 	select {
-	case response := <-responseChan:
+	case response, open := <-responseChan:
+		if !open {
+			break
+		}
 		if response == agentdomain.ApprovalAutoAccept {
 			logger.Info("switching to auto-accept mode from approval response")
 			s.stateManager.SetAgentMode(agentdomain.AgentModeAutoAccept)

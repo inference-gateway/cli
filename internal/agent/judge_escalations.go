@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"sync"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -15,15 +14,7 @@ import (
 
 // judgeEscalationHint is appended to every judge rejection tool result so the
 // driver learns the escalation path exists.
-const judgeEscalationHint = "\n\nThe user can override this rejection: call the RequestApproval tool with the rejected call, what you need the permission for and why."
-
-// The two question-form options of an escalation prompt; only picking the
-// Approve label overrides the judge. A free-text "Other" answer is a denial
-// whose text steers the agent's next step.
-const (
-	escalationApproveLabel = "Approve"
-	escalationDenyLabel    = "Deny"
-)
+const judgeEscalationHint = "\n\nThe judge is advisory, not a hard block: the user can override it. If the user explicitly asked for this action, call the RequestApproval tool now with the rejected call, what you need the permission for and why."
 
 // judgeEscalation is one judge-rejected tool call that the agent may escalate
 // to the user via RequestApproval.
@@ -37,6 +28,9 @@ type judgeEscalation struct {
 // canonical arguments. Each rejected call may be escalated once; an approved
 // escalation sets a bypass marker that makes the next matching judge decision
 // approve without consulting the judge (that single invocation only).
+//
+// ponytail: entries live for the session and are never pruned; add eviction
+// if a long session ever accumulates thousands of distinct rejections.
 type judgeEscalations struct {
 	mu    sync.Mutex
 	byKey map[string]*judgeEscalation
@@ -69,30 +63,22 @@ func (j *judgeEscalations) record(name, args, reason string) {
 	}
 }
 
-// state reports the tracked escalation for the call, if any.
-func (j *judgeEscalations) state(name, args string) (judgeEscalation, bool) {
+// claim consumes the single escalation attempt for a rejected call and returns
+// the judge's reason. status is "" on success, EscalationNotRejected when the
+// call was never rejected, or EscalationAlreadyAsked when the attempt is spent.
+func (j *judgeEscalations) claim(name, args string) (reason, status string) {
 	key := escalationKey(name, args)
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	esc, ok := j.byKey[key]
 	if !ok {
-		return judgeEscalation{}, false
+		return "", agentdomain.EscalationNotRejected
 	}
-	return *esc, true
-}
-
-// claim consumes the single escalation attempt for a rejected call, returning
-// the judge's reason. ok=false when the call has no unconsumed rejection.
-func (j *judgeEscalations) claim(name, args string) (string, bool) {
-	key := escalationKey(name, args)
-	j.mu.Lock()
-	defer j.mu.Unlock()
-	esc, ok := j.byKey[key]
-	if !ok || esc.asked {
-		return "", false
+	if esc.asked {
+		return esc.reason, agentdomain.EscalationAlreadyAsked
 	}
 	esc.asked = true
-	return esc.reason, true
+	return esc.reason, ""
 }
 
 // approve records the user's approval; takeBypass consumes it once.
@@ -106,7 +92,9 @@ func (j *judgeEscalations) approve(name, args string) {
 }
 
 // takeBypass consumes the approval marker recorded for this call, reporting
-// whether one existed. Called by requestJudgeApproval ahead of the judge.
+// whether one existed. Called by requestJudgeApproval ahead of the judge. The
+// entry is dropped so a later judge rejection of the same call starts fresh
+// and can be escalated again; only denials stick for the session.
 func (j *judgeEscalations) takeBypass(name, args string) bool {
 	key := escalationKey(name, args)
 	j.mu.Lock()
@@ -115,14 +103,14 @@ func (j *judgeEscalations) takeBypass(name, args string) bool {
 	if !ok || !esc.bypass {
 		return false
 	}
-	esc.bypass = false
+	delete(j.byKey, key)
 	return true
 }
 
 // approvalEscalator implements agentdomain.ApprovalEscalation for one tool
 // execution. It reads the shared judge-rejection registry and prompts the user
-// through the interactive question form (chatQuestionBroker), mirroring the
-// AskUserQuestion flow.
+// through the regular tool approval box (requestHumanApproval), so an
+// escalation looks and behaves like any other gated call.
 type approvalEscalator struct {
 	svc       *AgentServiceImpl
 	publisher *eventPublisher
@@ -130,50 +118,34 @@ type approvalEscalator struct {
 
 // Escalate answers the RequestApproval tool: is the call judge-rejected and not
 // yet escalated (the attempt is consumed first), and what did the user decide?
-// Only picking the Approve option overrides the judge; Deny or a free-text
-// answer denies, with the text carried back to the agent.
+// Approve (or Auto-Approve) overrides the judge for one invocation; Reject,
+// dismissal, or a timeout denies.
 func (e *approvalEscalator) Escalate(ctx context.Context, req agentdomain.ApprovalEscalationRequest) (agentdomain.ApprovalEscalationResult, error) {
 	tc := req.ToolCall
-	esc, exists := e.svc.escalations.state(tc.Function.Name, tc.Function.Arguments)
-	if !exists {
-		return agentdomain.ApprovalEscalationResult{Status: agentdomain.EscalationNotRejected}, nil
-	}
-	reason, claimed := e.svc.escalations.claim(tc.Function.Name, tc.Function.Arguments)
-	if !claimed {
-		return agentdomain.ApprovalEscalationResult{Status: agentdomain.EscalationAlreadyAsked, JudgeReason: esc.reason}, nil
+	reason, status := e.svc.escalations.claim(tc.Function.Name, tc.Function.Arguments)
+	if status != "" {
+		return agentdomain.ApprovalEscalationResult{Status: status, JudgeReason: reason}, nil
 	}
 
-	answers, ok, err := (&chatQuestionBroker{publisher: e.publisher}).
-		AskUserQuestions(ctx, []agentdomain.UserQuestion{escalationQuestion(tc, req, reason)})
+	// The escalated call gets its own ID so the pending entry the TUI records
+	// for the approval box never collides with the RequestApproval call itself.
+	tc.ID = agentdomain.GetToolCallID(ctx) + "-escalation"
+	approved, _, err := e.svc.requestHumanApproval(ctx, tc, e.publisher, escalationNote(req, reason))
 	if err != nil {
 		return agentdomain.ApprovalEscalationResult{}, fmt.Errorf("escalation request failed: %w", err)
 	}
-	if !ok || len(answers) == 0 {
+	if !approved {
 		return agentdomain.ApprovalEscalationResult{Status: agentdomain.EscalationDenied, JudgeReason: reason}, nil
 	}
-
-	answer := answers[0]
-	if slices.Contains(answer.SelectedLabels, escalationApproveLabel) {
-		e.svc.escalations.approve(tc.Function.Name, tc.Function.Arguments)
-		return agentdomain.ApprovalEscalationResult{Status: agentdomain.EscalationApproved, Approved: true, JudgeReason: reason}, nil
-	}
-	return agentdomain.ApprovalEscalationResult{Status: agentdomain.EscalationDenied, Answer: answer.OtherText, JudgeReason: reason}, nil
+	e.svc.escalations.approve(tc.Function.Name, tc.Function.Arguments)
+	return agentdomain.ApprovalEscalationResult{Status: agentdomain.EscalationApproved, Approved: true, JudgeReason: reason}, nil
 }
 
-// escalationQuestion renders the approval question for the question form: the
-// pending call, the judge's rejection reason (both sides), and the agent's
-// what/why, with approve and deny options plus the UI's free-text choice.
-func escalationQuestion(tc sdk.ChatCompletionMessageToolCall, req agentdomain.ApprovalEscalationRequest, judgeReason string) agentdomain.UserQuestion {
-	question := fmt.Sprintf("The judge rejected %s(%s): %s\n\nNeeded for: %s\nBecause: %s\n\nApprove running this call once, bypassing the judge?",
-		tc.Function.Name, tc.Function.Arguments, judgeReason, req.What, req.Why)
-	return agentdomain.UserQuestion{
-		Header:   "Approval",
-		Question: question,
-		Options: []agentdomain.UserQuestionOption{
-			{Label: escalationApproveLabel, Description: fmt.Sprintf("Run %s once with the judge bypassed for this call", tc.Function.Name)},
-			{Label: escalationDenyLabel, Description: "Reject it; any free text you add is sent back to the agent"},
-		},
-	}
+// escalationNote is the context block shown above the call in the approval
+// box: the judge's rejection reason (both sides) and the agent's what/why.
+func escalationNote(req agentdomain.ApprovalEscalationRequest, judgeReason string) string {
+	return fmt.Sprintf("Rejected by judge: %s\nNeeded for: %s\nBecause: %s\nApprove runs this call once with the judge bypassed.",
+		judgeReason, req.What, req.Why)
 }
 
 // consumeJudgeBypass checks the shared registry for a user-approved escalation

@@ -328,6 +328,9 @@ The chat interface supports four operational modes that can be toggled with **sh
   (one call per gated tool) instead of a human, so the agent runs unattended but not unrestricted:
   - Uses the standard approval rules - allow-listed bash commands pass without a judge call
   - Gated calls are decided by the judge against your latest request; rejections arrive with the judge's reason
+  - The model can ask you to override a rejection with the `RequestApproval` tool: the regular approval box
+    opens with the judge's reason; approve runs that one call with the judge bypassed, reject feeds the
+    decision back to the model
   - Configured in `judge.yaml` (`model`, `timeout`, `max_tokens`, `on_error`, `prompt`) - see [Judge Mode](judge-mode.md)
   - Ideal for CI and headless runs where an approval prompt would deadlock
 

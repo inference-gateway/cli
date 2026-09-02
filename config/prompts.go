@@ -535,11 +535,11 @@ Notes:
 		RequestApproval: PromptsToolDescription{
 			Description: `Ask the user to override a judge rejection so the rejected tool call can run once.
 
-Call this ONLY after the judge rejected a tool call (the rejection result names the judge and hints at this tool). Pass the exact rejected call (tool + arguments), what you need permission for, and why - the judge's rejection reason is shown to the user alongside your justification.
+Call this ONLY after the judge rejected a tool call (the rejection result names the judge and hints at this tool). Never call it pre-emptively: off-list commands and other gated calls are not blocked - the judge decides them when you make the call, so make the call first. Pass the exact rejected call (tool + arguments), what you need permission for, and why - the judge's rejection reason is shown to the user alongside your justification.
 
-The user is prompted with the existing approval path and can approve, deny, or type a free-text answer:
+The user sees the regular approval prompt with the judge's reason and your justification:
 - APPROVED: the tool result tells you to re-issue the exact same call; it runs without another prompt (the judge is bypassed for that one invocation).
-- DENIED (with or without an answer): the tool result carries the user's answer; adjust your next step instead of asking again - each rejected call can be escalated only once.
+- DENIED: adjust your next step instead of asking again - each rejected call can be escalated only once; the user may explain in their next message.
 
 If no interactive approver is reachable (headless run), the result says so and you must not retry.`,
 		},

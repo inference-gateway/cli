@@ -102,11 +102,6 @@ scenarios:
     turns:
       - content: '{"decision": "approved", "reason": "serves the request"}'
 
-  - name: judge-approve-escalation
-    match: '(?s)<tool_call>\nRequestApproval:'
-    turns:
-      - content: '{"decision": "approved", "reason": "asking the user to override a rejection is allowed"}'
-
   - name: bash-blocked
     match: '(?i)run the forbidden command'
     turns:

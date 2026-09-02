@@ -27,20 +27,18 @@ type ApprovalEscalationRequest struct {
 	Why      string
 }
 
-// ApprovalEscalationResult is the user's decision. Answer carries the user's
-// free-text answer (empty when they only picked an option or dismissed);
-// JudgeReason echoes the judge's rejection reason so the tool result can show
-// the user and the judge both sides of the disagreement.
+// ApprovalEscalationResult is the user's decision. JudgeReason echoes the
+// judge's rejection reason so the tool result can show the user and the judge
+// both sides of the disagreement.
 type ApprovalEscalationResult struct {
 	Approved    bool
-	Answer      string
 	Status      string
 	JudgeReason string
 }
 
 // ApprovalEscalation lets the RequestApproval tool ask the user to override a
 // judge rejection. It is implemented by the agent service, which owns the
-// judge-rejection registry and prompts through the interactive question UI;
+// judge-rejection registry and prompts through the regular tool approval box;
 // it is injected into the tool's execution context on the chat path only, so
 // headless runs degrade to a distinguishable "no approver reachable" result.
 type ApprovalEscalation interface {

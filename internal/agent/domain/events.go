@@ -252,9 +252,13 @@ func (e MessageQueuedEvent) GetTimestamp() time.Time { return e.Timestamp }
 // ToolApprovalRequestedEvent is used for standard tool approval workflow.
 // Computer-use tools use a separate pause/resume mechanism.
 type ToolApprovalRequestedEvent struct {
-	RequestID    string
-	Timestamp    time.Time
-	ToolCall     sdk.ChatCompletionMessageToolCall
+	RequestID string
+	Timestamp time.Time
+	ToolCall  sdk.ChatCompletionMessageToolCall
+	// Context is optional text shown above the call in the approval prompt.
+	// RequestApproval escalations use it for the judge's reason and the
+	// agent's justification; regular approvals leave it empty.
+	Context      string
 	ResponseChan chan ApprovalAction `json:"-"`
 }
 

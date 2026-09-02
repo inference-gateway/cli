@@ -17,29 +17,26 @@ import (
 
 // RequestApprovalTool lets the agent ask the user to override a judge-rejected
 // tool call (issue #1156): it presents the rejected call, the judge's reason
-// and the agent's justification through the interactive question form, and
+// and the agent's justification through the regular tool approval box, and
 // returns the user's decision. An approval sets a one-shot bypass so the next
 // matching judge decision approves without a judge call.
 //
 // The escalation gate is injected into the execution context only on the chat
-// path (where the question form can reach the user); headless/no-TTY runs see
+// path (where the approval box can reach the user); headless/no-TTY runs see
 // a nil gate and degrade with a distinguishable "no approver reachable" result
 // instead of blocking, mirroring the AskUserQuestion degrade.
 type RequestApprovalTool struct {
-	config       *config.Config
-	stateManager agentdomain.AgentModeManager
-	enabled      bool
-	formatter    agentinfra.BaseFormatter
+	config    *config.Config
+	enabled   bool
+	formatter agentinfra.BaseFormatter
 }
 
-// NewRequestApprovalTool creates a new RequestApproval tool. The agent-mode
-// manager may be nil; IsEnabled then falls back to the config-only judge check.
-func NewRequestApprovalTool(cfg *config.Config, stateManager agentdomain.AgentModeManager) *RequestApprovalTool {
+// NewRequestApprovalTool creates a new RequestApproval tool.
+func NewRequestApprovalTool(cfg *config.Config) *RequestApprovalTool {
 	return &RequestApprovalTool{
-		config:       cfg,
-		stateManager: stateManager,
-		enabled:      true,
-		formatter:    agentinfra.NewBaseFormatter("RequestApproval"),
+		config:    cfg,
+		enabled:   true,
+		formatter: agentinfra.NewBaseFormatter("RequestApproval"),
 	}
 }
 
@@ -94,7 +91,7 @@ func (t *RequestApprovalTool) Execute(ctx context.Context, args map[string]any) 
 	gate := agentdomain.GetApprovalEscalation(ctx)
 	if gate == nil {
 		logger.Debug("RequestApproval: no interactive approver in context - degrading")
-		return t.result(args, start, agentdomain.EscalationNoApprover, false, "", map[string]any{
+		return t.result(args, start, agentdomain.EscalationNoApprover, false, map[string]any{
 			"available": false,
 			"message": "No interactive approver is reachable in this session (headless/no-TTY run), so the " +
 				"escalation cannot be asked. STOP: do not call RequestApproval again; either proceed without " +
@@ -107,28 +104,19 @@ func (t *RequestApprovalTool) Execute(ctx context.Context, args map[string]any) 
 		return t.failure(args, start, err.Error()), nil
 	}
 
-	data := map[string]any{
-		"judge_reason": outcome.JudgeReason,
-	}
-	if outcome.Answer != "" {
-		data["answer"] = outcome.Answer
-	}
+	data := map[string]any{"judge_reason": outcome.JudgeReason}
 
 	switch outcome.Status {
 	case agentdomain.EscalationApproved:
 		data["message"] = fmt.Sprintf("The user APPROVED running %s. Re-issue the exact same tool call (same name and arguments) now; it runs without another approval prompt - the judge is bypassed for that one invocation.", req.ToolCall.Function.Name)
-		return t.result(args, start, outcome.Status, true, outcome.Answer, data), nil
+		return t.result(args, start, outcome.Status, true, data), nil
 
 	case agentdomain.EscalationDenied:
-		answer := outcome.Answer
-		if answer == "" {
-			answer = "(no answer text)"
-		}
-		data["message"] = fmt.Sprintf("The user DENIED running %s. Their answer: %s Adjust your next step accordingly; do not call RequestApproval for this call again.", req.ToolCall.Function.Name, answer)
-		return t.result(args, start, outcome.Status, false, outcome.Answer, data), nil
+		data["message"] = fmt.Sprintf("The user DENIED running %s. Adjust your next step accordingly (the user may explain in their next message); do not call RequestApproval for this call again.", req.ToolCall.Function.Name)
+		return t.result(args, start, outcome.Status, false, data), nil
 
 	case agentdomain.EscalationNotRejected:
-		return t.failure(args, start, "RequestApproval only escalates calls the judge rejected; no judge rejection is pending for "+req.ToolCall.Function.Name+" with these arguments."), nil
+		return t.failure(args, start, "RequestApproval only escalates calls the judge rejected; no judge rejection is pending for "+req.ToolCall.Function.Name+" with these arguments. Make the call first - the judge decides it - and escalate only if the result says it was rejected by the judge."), nil
 
 	case agentdomain.EscalationAlreadyAsked:
 		return t.failure(args, start, "This rejected call was already escalated once; the user's decision stands. Do not ask again."), nil
@@ -144,14 +132,11 @@ func (t *RequestApprovalTool) Validate(args map[string]any) error {
 	return err
 }
 
-// IsEnabled reports whether the tool is offered: only when the judge is the
-// active approver, i.e. the runtime agent mode is auto-with-judge or the
-// configured approval_behaviour selects the judge.
+// IsEnabled is always true: every mode advertises the same tool list so a
+// mode switch never invalidates the provider prompt cache. Outside judge mode
+// no rejection is tracked, so Execute answers "not_rejected".
 func (t *RequestApprovalTool) IsEnabled() bool {
-	if t.stateManager != nil && t.stateManager.GetAgentMode() == agentdomain.AgentModeAutoWithJudge {
-		return true
-	}
-	return t.config.JudgeRequired()
+	return t.enabled
 }
 
 // extractEscalationRequest parses and validates the tool arguments into the
@@ -192,7 +177,7 @@ func extractEscalationRequest(args map[string]any) (agentdomain.ApprovalEscalati
 	}, nil
 }
 
-func (t *RequestApprovalTool) result(args map[string]any, start time.Time, status string, approved bool, answer string, data map[string]any) *agentdomain.ToolExecutionResult {
+func (t *RequestApprovalTool) result(args map[string]any, start time.Time, status string, approved bool, data map[string]any) *agentdomain.ToolExecutionResult {
 	data["status"] = status
 	data["approved"] = approved
 	return &agentdomain.ToolExecutionResult{
