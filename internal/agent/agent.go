@@ -1764,8 +1764,6 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 ) (bool, string, error) {
-	// A user-approved escalation (RequestApproval) overrides the judge for
-	// exactly the next matching decision - that single invocation.
 	if s.consumeJudgeBypass(tc) {
 		return true, "", nil
 	}
