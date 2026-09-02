@@ -1398,9 +1398,6 @@ func (s *AgentServiceImpl) executeToolOnce(
 		execCtx = agentdomain.WithUserQuestionBroker(execCtx, &chatQuestionBroker{publisher: eventPublisher})
 	}
 
-	// RequestApproval escalates judge rejections to the user through the
-	// interactive question form; only the chat path has an approver, so
-	// headless runs degrade to a distinguishable "no approver" result.
 	if tc.Function.Name == "RequestApproval" && agentdomain.GetChatHandler(ctx) != nil {
 		execCtx = agentdomain.WithApprovalEscalation(execCtx, &approvalEscalator{svc: s, publisher: eventPublisher})
 	}
