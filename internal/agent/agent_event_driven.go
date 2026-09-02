@@ -142,6 +142,9 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 			if a.service.config == nil {
 				return config.ApprovalBehaviourPrompt
 			}
+			if a.service.stateManager != nil && a.service.stateManager.GetAgentMode() == agentdomain.AgentModeAutoWithJudge {
+				return config.ApprovalBehaviourJudge
+			}
 			behaviour := a.service.config.ApprovalBehaviourFor(toolCall.Function.Name)
 			return config.ResolveApprovalDelivery(behaviour, a.req.ApprovalBrokerAttached, a.req.IsChatMode)
 		},
@@ -149,7 +152,7 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		BatchDrainQueue: func() int {
 			return a.service.batchDrainQueue(a.agentCtx.Conversation, a.eventPublisher)
 		},
-		RequestToolApproval: func(toolCall sdk.ChatCompletionMessageToolCall) (bool, error) {
+		RequestToolApproval: func(toolCall sdk.ChatCompletionMessageToolCall) (bool, string, error) {
 			return a.service.requestToolApproval(a.agentCtx.Ctx, toolCall, a.eventPublisher)
 		},
 		ExecuteToolInternal: func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) (entry convdomain.ConversationEntry) {

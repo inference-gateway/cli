@@ -505,6 +505,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	)
 	agentImpl.SetMemoryBackend(c.memoryBackend)
 	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
+	agentImpl.SetCurrentModelFn(c.modelService.GetCurrentModel)
 	c.agent = agentImpl
 	if c.extensionBridge != nil {
 		c.extensionBridge.SetAgentService(c.agent)

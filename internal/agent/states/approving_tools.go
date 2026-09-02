@@ -112,7 +112,7 @@ func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 
 	logger.Debug("requesting approval for tool", "tool", tc.Function.Name)
 
-	approved, err := s.ctx.RequestToolApproval(*tc)
+	approved, reason, err := s.ctx.RequestToolApproval(*tc)
 	if err != nil {
 		logger.Error("approval request failed", "tool", tc.Function.Name, "error", err)
 		s.ctx.Events <- ApprovalFailedEvent{Error: err}
@@ -120,7 +120,7 @@ func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 	}
 
 	if !approved {
-		s.completeSlot(round, idx, s.buildRejectionEntry(*tc))
+		s.completeSlot(round, idx, s.buildRejectionEntry(*tc, reason))
 		s.continueToNextTool(round)
 		return
 	}
@@ -260,10 +260,12 @@ func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 	s.ctx.Events <- AllToolsProcessedEvent{}
 }
 
-// buildRejectionEntry constructs the Tool-role result for a user-rejected tool
-// and publishes the rejection event. The entry is appended to the conversation
-// in order by the flush.
-func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageToolCall) convdomain.ConversationEntry {
+// buildRejectionEntry constructs the Tool-role result for a rejected tool
+// and publishes the rejection event. reason is non-empty only for judge
+// rejections: those carry the verdict reason and do not end the turn, so the
+// driver can adjust. The entry is appended to the conversation in order by
+// the flush.
+func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageToolCall, reason string) convdomain.ConversationEntry {
 	logger.Debug("tool rejected by user", "tool", tc.Function.Name)
 
 	s.ctx.PublishChatEvent(agentdomain.ToolExecutionProgressEvent{
@@ -277,9 +279,16 @@ func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageTo
 		Message:    "rejected",
 	})
 
-	rejectionMessage := sdk.Message{
+	rejectionMessage := fmt.Sprintf("Tool execution rejected by user: %s", tc.Function.Name)
+	errText := "rejected by user"
+	if reason != "" {
+		rejectionMessage = fmt.Sprintf("Tool execution rejected by judge: %s\n\nRejection reason: %s", tc.Function.Name, reason)
+		errText = "rejected by judge: " + reason
+	}
+
+	message := sdk.Message{
 		Role:       sdk.Tool,
-		Content:    sdk.NewMessageContent(fmt.Sprintf("Tool execution rejected by user: %s", tc.Function.Name)),
+		Content:    sdk.NewMessageContent(rejectionMessage),
 		ToolCallID: &tc.ID,
 	}
 
@@ -289,14 +298,14 @@ func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageTo
 	}
 
 	return convdomain.ConversationEntry{
-		Message: rejectionMessage,
+		Message: message,
 		Time:    time.Now(),
 		ToolExecution: &agentdomain.ToolExecutionResult{
 			ToolName:  tc.Function.Name,
 			Arguments: args,
 			Success:   false,
-			Error:     "rejected by user",
-			Rejected:  true,
+			Error:     errText,
+			Rejected:  reason == "",
 		},
 	}
 }

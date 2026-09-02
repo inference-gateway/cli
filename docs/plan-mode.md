@@ -35,7 +35,7 @@ The status line shows the current mode; cycle until it reads
 The cycle is:
 
 ```text
-Standard → Plan Mode → Auto-Accept → Standard → …
+Standard → Plan Mode → Auto-Accept → Auto+Judge → Standard → …
 ```
 
 When a plan is **accepted**, the mode automatically switches to Auto-Accept

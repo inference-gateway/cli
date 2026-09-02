@@ -378,6 +378,27 @@ func getEffectiveHooksConfigPath() string {
 	return config.DefaultHooksPath
 }
 
+// getEffectiveJudgeConfigPath returns the path to the judge config file.
+// Searches in this order: 1) project .infer/judge.yaml, 2) user home ~/.infer/judge.yaml
+func getEffectiveJudgeConfigPath() string {
+	searchPaths := []string{
+		config.DefaultJudgePath,
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, config.ConfigDirName, config.JudgeFileName)
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return config.DefaultJudgePath
+}
+
 // getPluginsConfigPath returns the path of the plugins registry. Plugins are
 // userspace-only, so unlike other sidecars there is no project-first search.
 func PluginsConfigPath() string {
@@ -477,6 +498,15 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 	}
 	cfg.Hooks = *hooksCfg
 	applyHooksEnvOverrides(cfg)
+
+	judgePath := getEffectiveJudgeConfigPath()
+	judgeCfg, err := config.LoadJudge(judgePath)
+	if err != nil {
+		logger.Warn("failed to load judge config, using defaults", "error", err, "path", judgePath)
+		judgeCfg = config.DefaultJudgeConfig()
+	}
+	cfg.Judge = *judgeCfg
+	applyJudgeEnvOverrides(cfg)
 
 	channelsPath := getEffectiveChannelsConfigPath()
 	channelsCfg, err := config.LoadChannels(channelsPath)
@@ -845,6 +875,36 @@ func applyHooksEnvOverrides(cfg *config.Config) {
 			cfg.Hooks.Enabled = b
 		}
 	}
+}
+
+// applyJudgeEnvOverrides applies INFER_JUDGE_* env vars onto the in-memory
+// judge config. Run AFTER LoadJudge so envs win over judge.yaml. The judge
+// config lives in its own file (yaml:"-" mapstructure:"-" on Config.Judge),
+// so viper does not bind these env vars itself - this function is the single
+// source of env-var support. Mirrors applyHeartbeatEnvOverrides.
+func applyJudgeEnvOverrides(cfg *config.Config) {
+	setString := func(env string, target *string) {
+		if val, ok := os.LookupEnv(env); ok {
+			*target = val
+		}
+	}
+	setInt := func(env string, target *int) {
+		val, ok := os.LookupEnv(env)
+		if !ok {
+			return
+		}
+		if n, err := strconv.Atoi(strings.TrimSpace(val)); err == nil {
+			*target = n
+		}
+	}
+
+	setString("INFER_JUDGE_MODEL", &cfg.Judge.Model)
+	setString("INFER_JUDGE_GATEWAY_URL", &cfg.Judge.GatewayURL)
+	setInt("INFER_JUDGE_TIMEOUT", &cfg.Judge.Timeout)
+	setInt("INFER_JUDGE_MAX_TOKENS", &cfg.Judge.MaxTokens)
+	setString("INFER_JUDGE_ON_ERROR", &cfg.Judge.OnError)
+	setString("INFER_JUDGE_SYSTEM_PROMPT", &cfg.Judge.SystemPrompt)
+	setString("INFER_JUDGE_PROMPT", &cfg.Judge.Prompt)
 }
 
 // applyComputerUseEnvOverrides applies INFER_COMPUTER_USE_* env vars onto

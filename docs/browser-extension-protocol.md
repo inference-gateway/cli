@@ -260,7 +260,7 @@ switch took effect:
 
 The panel can toggle the CLI's agent mode (the same shared state as the TUI's
 shift+tab cycle; it also governs `tool_request` approvals). Modes travel as
-their allowlist keys: `standard`, `plan`, `auto`.
+their canonical keys: `standard`, `plan`, `auto`, `auto-with-judge`.
 
 CLI → extension, sent on hello and after every `set_mode`:
 

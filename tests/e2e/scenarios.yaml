@@ -92,6 +92,16 @@ scenarios:
               - { name: Bash, args: { command: "echo hello-from-bash" } }
       - content: "The echo command ran."
 
+  - name: judge-reject-curl
+    match: '(?s)<tool_call>\s*Bash: .*curl'
+    turns:
+      - content: '{"decision": "rejected", "reason": "curl was not requested"}'
+
+  - name: judge-approve
+    match: '^<user_request>'
+    turns:
+      - content: '{"decision": "approved", "reason": "serves the request"}'
+
   - name: bash-blocked
     match: '(?i)run the forbidden command'
     turns:

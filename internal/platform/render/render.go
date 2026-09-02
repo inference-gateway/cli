@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -145,6 +146,29 @@ func answerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan i
 	e.ResponseChan <- agentdomain.ApprovalReject
 }
 
+// judgeStderr echoes a judge rejection to stderr in every headless format: the
+// TUI flash equivalent for unattended runs. CI consumers watching stdout keep
+// the machine-readable judge_verdict line.
+func judgeStderr(e agentdomain.JudgeVerdictChatEvent) {
+	if e.Decision != agentdomain.JudgeDecisionRejected {
+		return
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "Action rejected by judge policy (%s): %s\n", e.Model, e.Reason)
+}
+
+// judgeVerdictMessage builds the JSON line for one judge decision.
+func judgeVerdictMessage(e agentdomain.JudgeVerdictChatEvent) map[string]any {
+	return map[string]any{
+		"type":      "judge_verdict",
+		"tool":      e.Tool,
+		"model":     e.Model,
+		"decision":  e.Decision,
+		"reason":    e.Reason,
+		"turn":      e.Turn,
+		"timestamp": e.Timestamp,
+	}
+}
+
 // RenderJSON renders events as JSON lines, streaming each message as its turn
 // completes: assistant messages on ChatCompleteEvent, tool results on
 // ToolExecutionCompletedEvent, approval requests and errors in real time.
@@ -210,6 +234,9 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 			runErr = nil
 		case agentdomain.TodoUpdateChatEvent:
 			emit(map[string]any{"type": "notification", "message": "Todos updated", "todos": e.Todos})
+		case agentdomain.JudgeVerdictChatEvent:
+			emit(judgeVerdictMessage(e))
+			judgeStderr(e)
 		}
 	}
 
@@ -254,6 +281,8 @@ func RenderText(events <-chan agentdomain.ChatEvent, w io.Writer) error {
 			}
 		case agentdomain.ChatErrorEvent:
 			runErr = fmt.Errorf("agent error: %w", e.Error)
+		case agentdomain.JudgeVerdictChatEvent:
+			judgeStderr(e)
 		}
 	}
 	return runErr
@@ -301,6 +330,9 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 			}
 		case agentdomain.TodoUpdateChatEvent:
 			e.emitTodos(ev.Todos)
+		case agentdomain.JudgeVerdictChatEvent:
+			e.emitJudgeVerdict(ev)
+			judgeStderr(ev)
 		case agentdomain.ToolApprovalRequestedEvent:
 			e.emitApprovalRequest(ipc.ApprovalRequest{
 				Type: "approval_request", ToolName: ev.ToolCall.Function.Name,

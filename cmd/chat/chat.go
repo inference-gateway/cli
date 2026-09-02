@@ -135,12 +135,12 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 
 	telemetryRec := services.GetTelemetryRecorder()
 	sessionStart := time.Now()
-	endSessionSpan := telemetryRec.StartSession(services.GetStateManager().GetAgentMode().AllowedlistKey())
+	endSessionSpan := telemetryRec.StartSession(services.GetStateManager().GetAgentMode().ModeKey())
 
 	doShutdown := sync.OnceFunc(func() {
 		logger.Info("received shutdown signal, cleaning up...")
 		endSessionSpan(telemetry.RunSuccess)
-		telemetryRec.RecordSession(services.GetStateManager().GetAgentMode().AllowedlistKey(), telemetry.RunSuccess, time.Since(sessionStart))
+		telemetryRec.RecordSession(services.GetStateManager().GetAgentMode().ModeKey(), telemetry.RunSuccess, time.Since(sessionStart))
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		if err := services.Shutdown(ctx); err != nil {

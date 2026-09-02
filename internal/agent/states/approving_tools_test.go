@@ -49,7 +49,7 @@ func newApprovingCtx(
 	tools []*sdk.ChatCompletionMessageToolCall,
 	mode agentdomain.AgentMode,
 	execStub func(sdk.ChatCompletionMessageToolCall, bool) convdomain.ConversationEntry,
-	approveStub func(sdk.ChatCompletionMessageToolCall) (bool, error),
+	approveStub func(sdk.ChatCompletionMessageToolCall) (bool, string, error),
 ) (*states.StateContext, *[]convdomain.ConversationEntry, *[]sdk.Message, chan states.AgentEvent) {
 	tna := []sdk.ChatCompletionMessageToolCall{}
 	idx := 0
@@ -126,7 +126,7 @@ func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 		}
 		return toolEntry(tc)
 	}
-	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, error) { return true, nil }
+	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, string, error) { return true, "", nil }
 
 	ctx, _, _, events := newApprovingCtx(makeTools(n), agentdomain.AgentModeStandard, execStub, approveStub)
 	s := states.NewApprovingToolsState(ctx)
@@ -155,7 +155,7 @@ func TestApprovingToolsState_PreservesToolCallOrder(t *testing.T) {
 		}
 		return toolEntry(tc)
 	}
-	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, error) { return true, nil }
+	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, string, error) { return true, "", nil }
 
 	ctx, results, conv, events := newApprovingCtx(makeTools(3), agentdomain.AgentModeStandard, execStub, approveStub)
 	s := states.NewApprovingToolsState(ctx)
@@ -187,7 +187,7 @@ func TestApprovingToolsState_FlushesResultsIncrementally(t *testing.T) {
 		}
 		return toolEntry(tc)
 	}
-	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, error) { return true, nil }
+	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, string, error) { return true, "", nil }
 
 	ctx, _, _, events := newApprovingCtx(makeTools(3), agentdomain.AgentModeStandard, execStub, approveStub)
 
@@ -226,8 +226,8 @@ func TestApprovingToolsState_RejectionStopsTurn(t *testing.T) {
 	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
 		return toolEntry(tc)
 	}
-	approveStub := func(tc sdk.ChatCompletionMessageToolCall) (bool, error) {
-		return tc.ID != "call-0", nil
+	approveStub := func(tc sdk.ChatCompletionMessageToolCall) (bool, string, error) {
+		return tc.ID != "call-0", "", nil
 	}
 
 	ctx, results, conv, events := newApprovingCtx(makeTools(2), agentdomain.AgentModeStandard, execStub, approveStub)
@@ -262,7 +262,7 @@ func TestApprovingToolsState_ApprovedBatchKeepsToolResults(t *testing.T) {
 	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
 		return toolEntry(tc)
 	}
-	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, error) { return true, nil }
+	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, string, error) { return true, "", nil }
 
 	ctx, results, _, events := newApprovingCtx(makeTools(2), agentdomain.AgentModeStandard, execStub, approveStub)
 	s := states.NewApprovingToolsState(ctx)
@@ -287,7 +287,7 @@ func TestApprovingToolsState_AutoAcceptExecutesAll(t *testing.T) {
 		mu.Unlock()
 		return toolEntry(tc)
 	}
-	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, error) { return true, nil }
+	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, string, error) { return true, "", nil }
 
 	ctx, results, _, events := newApprovingCtx(makeTools(3), agentdomain.AgentModeAutoAccept, execStub, approveStub)
 	s := states.NewApprovingToolsState(ctx)

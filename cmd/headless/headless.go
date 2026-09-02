@@ -17,6 +17,7 @@ iteratively until the task is considered complete.
 Examples:
   infer headless "fix issue #42"
   infer headless --model openai/gpt-4 "implement feature"
+  infer headless --mode auto-with-judge "fix issue #42"
   infer headless --files screenshot.png "analyze this"
   infer headless --session-id abc-123 "continue working"
 
@@ -36,6 +37,7 @@ Exit Codes:
 			opts.Remote, _ = cmd.Flags().GetBool("remote")
 			opts.ResultFile, _ = cmd.Flags().GetString("result-file")
 			opts.Format, _ = cmd.Flags().GetString("format")
+			opts.Mode, _ = cmd.Flags().GetString("mode")
 			return presentation.Run(state.Config(), opts)
 		},
 	}
@@ -49,5 +51,6 @@ Exit Codes:
 	command.Flags().Bool("remote", false, "Use remote-control system prompt")
 	command.Flags().String("result-file", "", "Write final result JSON to this path")
 	command.Flags().String("format", "json", "Output format: json, json-pretty, ag-ui, text")
+	command.Flags().String("mode", "", "Agent mode: standard, plan, auto, auto-with-judge (env: INFER_AGENT_MODE)")
 	return command
 }

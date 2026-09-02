@@ -180,9 +180,9 @@ func (s *ApplicationState) SetAgentMode(mode agentdomain.AgentMode) {
 }
 
 // CycleAgentMode cycles to the next agent mode. The human shift+tab cycle is
-// deliberately three-way (Standard -> Plan -> AutoAccept); AgentModeReadOnly is a
-// subagent-only capability set by the Agent tool's `type` parameter, not a mode a
-// user can toggle their own chat into.
+// deliberately four-way (Standard -> Plan -> AutoAccept -> AutoWithJudge);
+// AgentModeReadOnly is a subagent-only capability set by the Agent tool's
+// `type` parameter, not a mode a user can toggle their own chat into.
 func (s *ApplicationState) CycleAgentMode() agentdomain.AgentMode {
 	switch s.agentMode {
 	case agentdomain.AgentModeStandard:
@@ -190,6 +190,8 @@ func (s *ApplicationState) CycleAgentMode() agentdomain.AgentMode {
 	case agentdomain.AgentModePlan:
 		s.agentMode = agentdomain.AgentModeAutoAccept
 	case agentdomain.AgentModeAutoAccept:
+		s.agentMode = agentdomain.AgentModeAutoWithJudge
+	case agentdomain.AgentModeAutoWithJudge:
 		s.agentMode = agentdomain.AgentModeStandard
 	default:
 		s.agentMode = agentdomain.AgentModeStandard

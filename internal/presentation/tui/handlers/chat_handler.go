@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -178,6 +179,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 		return h.HandleToolApprovalRequestedEvent(m)
 	case agentdomain.ToolApprovalResponseEvent:
 		return h.HandleToolApprovalResponseEvent(m)
+	case agentdomain.JudgeVerdictChatEvent:
+		return h.HandleJudgeVerdictChatEvent(m)
 	case agentdomain.PlanApprovalRequestedEvent:
 		return h.HandlePlanApprovalRequestedEvent(m)
 	case tui.PlanApprovalResponseEvent:
@@ -339,6 +342,29 @@ func (h *ChatHandler) HandleToolExecutionProgressEvent(
 	msg agentdomain.ToolExecutionProgressEvent,
 ) tea.Cmd {
 	return h.toolCoordinator.HandleToolExecutionProgress(msg)
+}
+
+// HandleJudgeVerdictChatEvent flashes the LLM judge's decision for the pending
+// tool call and re-arms the chat listener. Approvals proceed silently; a
+// rejection surfaces as a flash status so the user sees what the judge refused
+// and why.
+func (h *ChatHandler) HandleJudgeVerdictChatEvent(
+	msg agentdomain.JudgeVerdictChatEvent,
+) tea.Cmd {
+	var cmds []tea.Cmd
+	if msg.Decision == agentdomain.JudgeDecisionRejected {
+		cmds = append(cmds, func() tea.Msg {
+			return tui.SetStatusEvent{
+				Message:    fmt.Sprintf("Action rejected by judge policy (%s): %s", msg.Model, msg.Reason),
+				Spinner:    false,
+				StatusType: tui.StatusError,
+			}
+		})
+	}
+	if chatSession := h.stateManager.GetChatSession(); chatSession != nil {
+		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
+	}
+	return tea.Batch(cmds...)
 }
 
 func (h *ChatHandler) HandleBashOutputChunkEvent(

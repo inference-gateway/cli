@@ -26,7 +26,10 @@ func TestResolveApprovalDelivery(t *testing.T) {
 		{"block chat", ApprovalBehaviourBlock, false, true, ApprovalBehaviourBlock},
 		{"block headless+broker", ApprovalBehaviourBlock, true, false, ApprovalBehaviourBlock},
 
-		// unrecognised value resolves to the safe prompt default.
+		{"judge chat", ApprovalBehaviourJudge, false, true, ApprovalBehaviourJudge},
+		{"judge headless+broker", ApprovalBehaviourJudge, true, false, ApprovalBehaviourJudge},
+		{"judge headless no broker -> still judge", ApprovalBehaviourJudge, false, false, ApprovalBehaviourJudge},
+
 		{"unknown chat -> prompt", "bogus", false, true, ApprovalBehaviourPrompt},
 		{"unknown headless no broker -> block", "bogus", false, false, ApprovalBehaviourBlock},
 	}
@@ -52,7 +55,8 @@ func TestApprovalBehaviourFor(t *testing.T) {
 		{ApprovalBehaviourPrompt, ApprovalBehaviourPrompt},
 		{ApprovalBehaviourIPC, ApprovalBehaviourIPC},
 		{ApprovalBehaviourBlock, ApprovalBehaviourBlock},
-		{"", ApprovalBehaviourPrompt},      // unset -> safe default
+		{ApprovalBehaviourJudge, ApprovalBehaviourJudge},
+		{"", ApprovalBehaviourPrompt},
 		{"bogus", ApprovalBehaviourPrompt}, // unknown -> safe default
 	}
 	for _, tt := range tests {
@@ -78,6 +82,37 @@ func TestConfigValidate_ApprovalBehaviour(t *testing.T) {
 	cfg.Tools.Safety.ApprovalBehaviour = "bogus"
 	if err := cfg.Validate(); err == nil {
 		t.Error("Validate() with approval_behaviour \"bogus\" should return an error")
+	}
+}
+
+func TestConfigValidate_JudgeFailFast(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Tools.Safety.ApprovalBehaviour = ApprovalBehaviourJudge
+	if err := cfg.Validate(); err == nil {
+		t.Error("Validate() with judge behaviour and no resolvable model should fail fast")
+	}
+
+	cfg.Judge.Model = "openai/gpt-5"
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("Validate() with judge.model set returned error: %v", err)
+	}
+
+	cfg.Judge.Model = ""
+	cfg.Agent.Model = "anthropic/claude"
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("Validate() with agent.model fallback returned error: %v", err)
+	}
+}
+
+func TestJudgeRequired(t *testing.T) {
+	if (DefaultConfig()).JudgeRequired() {
+		t.Error("JudgeRequired() on defaults should be false")
+	}
+
+	cfg := DefaultConfig()
+	cfg.Tools.Safety.ApprovalBehaviour = ApprovalBehaviourJudge
+	if !cfg.JudgeRequired() {
+		t.Error("JudgeRequired() with approval_behaviour judge should be true")
 	}
 }
 

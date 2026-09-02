@@ -245,6 +245,26 @@ func TestAgentBashOffListCommandIsBlocked(t *testing.T) {
 	require.Contains(t, toolResults[0], "Blocked:", "off-allowlist Bash must not execute headless")
 }
 
+func TestAgentJudgeModeRejectsOffListCommand(t *testing.T) {
+	m := startMock(t)
+
+	stdout, _, code := runCLI(t, m.URL, t.TempDir(), "", "headless", "--mode", "auto-with-judge", "run the forbidden command")
+	require.Zero(t, code)
+
+	lines := jsonLines(t, stdout)
+	verdict := statusOfType(lines, "judge_verdict")
+	require.NotNil(t, verdict, "a judge_verdict line must be emitted")
+	require.Equal(t, "rejected", verdict["decision"])
+	require.Equal(t, "curl was not requested", verdict["reason"])
+
+	toolResults := contentsByRole(lines, "tool")
+	require.Len(t, toolResults, 1)
+	require.Contains(t, toolResults[0], "rejected by judge: "+testModel+": curl was not requested")
+	require.Equal(t, testModel, verdict["model"])
+	require.Contains(t, contentsByRole(lines, "assistant"), "Understood, the command was not permitted.",
+		"a judge rejection must feed the driver instead of ending the turn")
+}
+
 func TestAgentHardErrorSurfacesAndExitsNonZero(t *testing.T) {
 	m := startMock(t)
 

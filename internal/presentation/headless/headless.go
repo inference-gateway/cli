@@ -66,6 +66,25 @@ type Options struct {
 	Remote          bool
 	ResultFile      string
 	Format          string
+	Mode            string
+}
+
+// resolveAgentMode picks the coding mode for a headless run: the --mode flag
+// wins, then INFER_AGENT_MODE, then the subagent-inherited mode
+// (INFER_SUBAGENT_AGENT_MODE). An invalid --mode is a hard error; unparseable
+// env vars fall through to the next source.
+func resolveAgentMode(flag string) (agentdomain.AgentMode, error) {
+	if strings.TrimSpace(flag) != "" {
+		mode, ok := agentdomain.ParseAgentMode(flag)
+		if !ok {
+			return agentdomain.AgentModeStandard, fmt.Errorf("invalid --mode %q: must be one of standard, plan, auto, auto-with-judge", flag)
+		}
+		return mode, nil
+	}
+	if mode, ok := agentdomain.ParseAgentMode(os.Getenv("INFER_AGENT_MODE")); ok {
+		return mode, nil
+	}
+	return scheddomain.InheritedAgentMode(), nil
 }
 
 // Run is the composition root for headless mode: it builds the service
@@ -77,6 +96,14 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 	case "json", "json-pretty", "ag-ui", "text":
 	default:
 		return fmt.Errorf("invalid --format %q (supported: json, json-pretty, ag-ui, text)", opts.Format)
+	}
+
+	mode, err := resolveAgentMode(opts.Mode)
+	if err != nil {
+		return err
+	}
+	if mode == agentdomain.AgentModeAutoWithJudge && cfg.Judge.ResolveModel(cfg.Agent.Model) == "" {
+		return fmt.Errorf("auto-with-judge mode selected but no judge model is resolvable: set judge.model in %s or agent.model", config.DefaultJudgePath)
 	}
 
 	rendered := false
@@ -146,7 +173,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 	agentService := svc.GetAgentService()
 	conversationRepo := svc.GetConversationRepository()
 
-	svc.GetStateManager().SetAgentMode(scheddomain.InheritedAgentMode())
+	svc.GetStateManager().SetAgentMode(mode)
 
 	sessionID := opts.SessionID
 	if sessionID == "" {

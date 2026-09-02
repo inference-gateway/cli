@@ -281,6 +281,9 @@ func NewChatApplication(
 	app.statusView = factory.CreateStatusView(app.themeService)
 	app.modeIndicator = components.NewModeIndicator(styleProvider)
 	app.modeIndicator.SetStateManager(app.stateManager)
+	app.modeIndicator.SetJudgeModelFn(func() string {
+		return app.config.Judge.ResolveModel(app.installModel())
+	})
 	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.helpView = components.NewHelpView(app.themeService, styleProvider)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
@@ -615,6 +618,7 @@ func isDomainEvent(msg tea.Msg) bool {
 	case agentdomain.MessageQueuedEvent,
 		agentdomain.ToolCancelledEvent,
 		agentdomain.TodoUpdateChatEvent,
+		agentdomain.JudgeVerdictChatEvent,
 		tui.AgentStatusUpdateEvent,
 		agentdomain.DrainQueueEvent,
 		tui.DrainQueueRetryEvent,

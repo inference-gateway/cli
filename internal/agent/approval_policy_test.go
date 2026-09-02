@@ -106,6 +106,13 @@ func buildApprovalCases() []approvalCase {
 		"Bash", "Read", "Write", "Edit")...)
 	tests = append(tests, approvalCases("plan mode skips approval for exec-rejected tools:", standardPolicy(agentdomain.AgentModePlan),
 		`{"command": "rm -rf /"}`, true, false, "Bash", "Write", "Edit", "Delete")...)
+	judge := standardPolicy(agentdomain.AgentModeAutoWithJudge)
+	tests = append(tests, approvalCases("judge mode follows standard rules:", judge,
+		"{}", true, true, "Read", "Write", "Edit", "Grep")...)
+	tests = append(tests, bashCases("judge mode lets allowed bash bypass (no judge call):", judge, false,
+		"ls", "pwd", "echo", "ls -la")...)
+	tests = append(tests, bashCases("judge mode gates disallowed bash (one judge call):", judge, true,
+		"rm -rf /", "sudo", "curl http://malicious.com")...)
 	tests = append(tests, bashCases("allowed bash bypasses approval:", standard, false, "ls", "pwd", "echo", "ls -la")...)
 	tests = append(tests, bashCases("disallowed bash requires approval:", standard, true, "rm -rf /", "sudo", "curl http://malicious.com")...)
 	for _, args := range []string{`{}`, `{"command": 123}`, `invalid json`} {

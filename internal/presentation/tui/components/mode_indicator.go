@@ -12,6 +12,7 @@ type ModeIndicator struct {
 	width         int
 	stateManager  agentdomain.AgentModeManager
 	styleProvider *styles.Provider
+	judgeModel    func() string
 }
 
 // NewModeIndicator creates a new mode indicator
@@ -24,6 +25,13 @@ func NewModeIndicator(styleProvider *styles.Provider) *ModeIndicator {
 // SetWidth sets the width of the mode indicator
 func (mi *ModeIndicator) SetWidth(width int) {
 	mi.width = width
+}
+
+// SetJudgeModelFn names the model that approves tool calls in Auto+Judge mode
+// so the indicator shows who the judge is; resolved at render time so it
+// follows a model switched during the session.
+func (mi *ModeIndicator) SetJudgeModelFn(fn func() string) {
+	mi.judgeModel = fn
 }
 
 // SetStateManager sets the state manager
@@ -48,6 +56,13 @@ func (mi *ModeIndicator) Render() string {
 		modeText = "▶ PLAN"
 	case agentdomain.AgentModeAutoAccept:
 		modeText = "▸ AUTO"
+	case agentdomain.AgentModeAutoWithJudge:
+		modeText = "▸ AUTO+JUDGE"
+		if mi.judgeModel != nil {
+			if m := mi.judgeModel(); m != "" {
+				modeText += " · " + m
+			}
+		}
 	case agentdomain.AgentModeReadOnly:
 		modeText = "▸ READ-ONLY"
 	}

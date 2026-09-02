@@ -64,6 +64,7 @@ type Config struct {
 	Reminders        RemindersConfig        `yaml:"-" mapstructure:"-"`
 	Memory           MemoryConfig           `yaml:"-" mapstructure:"-"`
 	Hooks            HooksConfig            `yaml:"-" mapstructure:"-"`
+	Judge            JudgeConfig            `yaml:"-" mapstructure:"-"`
 	Plugins          PluginsConfig          `yaml:"-" mapstructure:"-"`
 	configDir        string
 }
@@ -487,6 +488,7 @@ const (
 	ApprovalBehaviourPrompt = "prompt"
 	ApprovalBehaviourIPC    = "ipc"
 	ApprovalBehaviourBlock  = "block"
+	ApprovalBehaviourJudge  = "judge"
 )
 
 // SafetyConfig contains safety approval settings
@@ -498,6 +500,9 @@ type SafetyConfig struct {
 	//       is reachable (CI/heartbeat) the action is blocked with a reason.
 	//   "ipc":   force stdin/stdout IPC approval; blocked if no IPC broker.
 	//   "block": reject immediately with a reason, never ask.
+	//   "judge": one LLM call decides (see judge.yaml); always reachable, so
+	//       headless/CI get an approver instead of blocking. Never downgraded
+	//       to block for lack of a broker.
 	// It governs delivery only - whether a tool needs approval at all is decided by
 	// RequireApproval / the per-tool require_approval override / the per-mode bash
 	// allow-list. Resolve via ApprovalBehaviourFor; validated by Config.Validate.
@@ -1451,31 +1456,50 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 
 // ApprovalBehaviourFor returns how an approval-requiring action should be
 // delivered for toolName: one of ApprovalBehaviourPrompt (default),
-// ApprovalBehaviourIPC, or ApprovalBehaviourBlock. It reads the global
-// tools.safety.approval_behaviour; toolName is reserved for a future per-tool
-// override. An empty or unrecognised value resolves to the safe default
-// (prompt). This decides HOW to handle an action that needs approval;
+// ApprovalBehaviourIPC, ApprovalBehaviourBlock, or ApprovalBehaviourJudge. It
+// reads the global tools.safety.approval_behaviour; toolName is reserved for a
+// future per-tool override. An empty or unrecognised value resolves to the safe
+// default (prompt). This decides HOW to handle an action that needs approval;
 // IsApprovalRequired decides WHETHER it does.
 func (c *Config) ApprovalBehaviourFor(toolName string) string {
 	switch c.Tools.Safety.ApprovalBehaviour {
-	case ApprovalBehaviourBlock, ApprovalBehaviourIPC, ApprovalBehaviourPrompt:
+	case ApprovalBehaviourBlock, ApprovalBehaviourIPC, ApprovalBehaviourJudge, ApprovalBehaviourPrompt:
 		return c.Tools.Safety.ApprovalBehaviour
 	default:
 		return ApprovalBehaviourPrompt
 	}
 }
 
+// JudgeRequired reports whether tools.safety.approval_behaviour selects the
+// LLM judge. The auto-with-judge agent mode is a runtime choice (headless
+// --mode / INFER_AGENT_MODE / Shift+Tab); the headless runner fail-fasts on
+// the model itself.
+func (c *Config) JudgeRequired() bool {
+	return c.Tools.Safety.ApprovalBehaviour == ApprovalBehaviourJudge
+}
+
 // Validate checks cross-cutting config invariants after load so a typo fails fast
 // instead of silently falling back. It currently validates
 // tools.safety.approval_behaviour; extend it as new validated settings are added.
-func (c *Config) Validate() error {
+func (c *Config) Validate() error { // nolint:cyclop
 	switch c.Tools.Safety.ApprovalBehaviour {
-	case "", ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock:
+	case "", ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock, ApprovalBehaviourJudge:
 	default:
 		return fmt.Errorf(
-			"invalid tools.safety.approval_behaviour %q: must be one of %q, %q, or %q",
+			"invalid tools.safety.approval_behaviour %q: must be one of %q, %q, %q, or %q",
 			c.Tools.Safety.ApprovalBehaviour,
-			ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock,
+			ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock, ApprovalBehaviourJudge,
+		)
+	}
+
+	if err := c.Judge.Validate(); err != nil {
+		return fmt.Errorf("invalid judge: %w", err)
+	}
+
+	if c.JudgeRequired() && c.Judge.ResolveModel(c.Agent.Model) == "" {
+		return fmt.Errorf(
+			"tools.safety.approval_behaviour=judge but no judge model is resolvable: set judge.model in %s or agent.model",
+			DefaultJudgePath,
 		)
 	}
 

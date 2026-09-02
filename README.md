@@ -68,10 +68,11 @@ An agentic command-line assistant that writes code, understands project context,
 - **Project Initialization**: Set up local project configurations
 - **Tool Execution**: LLMs can execute allowed commands and tools - [See all tools →](docs/tools-reference.md)
 - **Tool Approval System**: User approval workflow for sensitive operations with real-time diff visualization
-- **Agent Modes**: Three operational modes for different workflows:
+- **Agent Modes**: Four operational modes for different workflows:
   - **Standard Mode** (default): Normal operation with all configured tools and approval checks
   - **Plan Mode**: Read-only mode for planning and analysis without execution - [Learn more →](docs/plan-mode.md)
   - **Auto-Accept Mode**: All tools auto-approved for rapid execution (YOLO mode)
+  - **Auto+Judge Mode**: No human approves tool calls - an LLM judge decides gated calls - [Learn more →](docs/judge-mode.md)
   - Toggle between modes with **Shift+Tab**
 - **Token Usage Tracking**: Accurate token counting with polyfill support for providers that don't return usage metrics
 - **Cost Tracking**: Real-time cost calculation for API usage with per-model breakdown and configurable pricing
