@@ -5,6 +5,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.188.0](https://github.com/inference-gateway/cli/compare/v0.187.0...v0.188.0) (2026-09-02)
+
+### 🚀 Features
+
+* **agent:** add auto-with-judge mode with an LLM judge as the tool approver ([#1148](https://github.com/inference-gateway/cli/issues/1148)) ([1dc0d00](https://github.com/inference-gateway/cli/commit/1dc0d00f5bb0049a30a098ac759e1b9c5f1f9d4b)), closes [#1147](https://github.com/inference-gateway/cli/issues/1147), references [inference-gateway/docs#633](https://github.com/inference-gateway/docs/issues/633) [#1151](https://github.com/inference-gateway/cli/issues/1151) [#1152](https://github.com/inference-gateway/cli/issues/1152) [#1153](https://github.com/inference-gateway/cli/issues/1153) [#1154](https://github.com/inference-gateway/cli/issues/1154)
+* **agent:** add RequestApproval tool to escalate judge rejections to the user ([#1162](https://github.com/inference-gateway/cli/issues/1162)) ([7387eac](https://github.com/inference-gateway/cli/commit/7387eaceaecc7d8f8e66f29b25a9ca14d075b11b)), closes [#1156](https://github.com/inference-gateway/cli/issues/1156)
+* **tui:** color the git branch icon when the workspace is dirty or unpushed ([#1164](https://github.com/inference-gateway/cli/issues/1164)) ([2fbed93](https://github.com/inference-gateway/cli/commit/2fbed93a77afed3393fa4a3b1e38828ce3e3047d)), closes [#1157](https://github.com/inference-gateway/cli/issues/1157)
+
+### 🐛 Bug Fixes
+
+* **tests:** isolate HOME in image service tests ([#1145](https://github.com/inference-gateway/cli/issues/1145)) ([466077b](https://github.com/inference-gateway/cli/commit/466077bce27774d791113f77af98d10f24d15e15))
+
+### ♻️ Code Refactoring
+
+* **agent:** collapse AgentMode.AllowedlistKey into a mode-aware allow-list lookup ([#1158](https://github.com/inference-gateway/cli/issues/1158)) ([c234d56](https://github.com/inference-gateway/cli/commit/c234d560c84aa22788d41278c645bcb0efca6307)), closes [#1149](https://github.com/inference-gateway/cli/issues/1149)
+* **config:** dedupe sidecar path resolution and env overrides ([#1161](https://github.com/inference-gateway/cli/issues/1161)) ([3ad2feb](https://github.com/inference-gateway/cli/commit/3ad2feb0b3b1f1bc2cae74256eb196b621df8882))
+* **tui:** re-arm the chat listener centrally and drop isDomainEvent ([#1159](https://github.com/inference-gateway/cli/issues/1159)) ([438c9fb](https://github.com/inference-gateway/cli/commit/438c9fb5bb05852ae19791161d58269636218ad4)), closes [#1150](https://github.com/inference-gateway/cli/issues/1150)
+* **agent:** remove the dead executeTool approval route ([#1160](https://github.com/inference-gateway/cli/issues/1160)) ([1e41d13](https://github.com/inference-gateway/cli/commit/1e41d13c7dcb817f9e602b239d2751c445d50943))
+
+### 🔧 Build System
+
+* **deps:** bump the gomod group with 12 updates ([#1146](https://github.com/inference-gateway/cli/issues/1146)) ([2c136d2](https://github.com/inference-gateway/cli/commit/2c136d219f5aa71f75fa6bae499b6e8e7ac0ea8c))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.188.0 --help
+npx @inference-gateway/cli@0.188.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.188.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.188.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.188.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.188.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.188.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.187.0](https://github.com/inference-gateway/cli/compare/v0.186.1...v0.187.0) (2026-09-01)
 
 ### 🚀 Features
