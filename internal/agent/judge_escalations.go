@@ -155,7 +155,7 @@ func (e *approvalEscalator) Escalate(ctx context.Context, req agentdomain.Approv
 	answers, ok, err := (&chatQuestionBroker{publisher: e.publisher}).
 		AskUserQuestions(ctx, []agentdomain.UserQuestion{escalationQuestion(tc, req, reason)})
 	if err != nil {
-		return agentdomain.ApprovalEscalationResult{}, fmt.Errorf("approval escalation cancelled: %w", err)
+		return agentdomain.ApprovalEscalationResult{}, fmt.Errorf("escalation request failed: %w", err)
 	}
 	if !ok || len(answers) == 0 {
 		return agentdomain.ApprovalEscalationResult{Status: agentdomain.EscalationDenied, JudgeReason: reason}, nil
