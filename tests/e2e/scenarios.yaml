@@ -102,9 +102,6 @@ scenarios:
     turns:
       - content: '{"decision": "approved", "reason": "serves the request"}'
 
-  # The judge prompt embeds the user intent and the action, so a judge call made
-  # while the escalation scenario is active would otherwise match the driver
-  # scenarios below and receive a tool-call turn it cannot parse as a verdict.
   - name: judge-approve-escalation
     match: '(?s)<tool_call>\nRequestApproval:'
     turns:
