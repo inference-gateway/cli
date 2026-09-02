@@ -54,8 +54,7 @@ func NewLLMJudge(client sdk.Client, cfg *config.Config) *LLMJudge {
 
 // Judge decides one pending tool call: does it serve the user's intent and is
 // it safe to run? The verdict contract is enforced by ParseJudgeVerdict.
-func (j *LLMJudge) Judge(ctx context.Context, intent, action string) (agentdomain.JudgeVerdict, error) {
-	model := j.config.Judge.ResolveModel(j.config.Agent.Model)
+func (j *LLMJudge) Judge(ctx context.Context, model, intent, action string) (agentdomain.JudgeVerdict, error) {
 	if model == "" {
 		return agentdomain.JudgeVerdict{}, fmt.Errorf("no judge model configured: set judge.model in %s or agent.model", config.DefaultJudgePath)
 	}

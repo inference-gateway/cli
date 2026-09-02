@@ -281,7 +281,9 @@ func NewChatApplication(
 	app.statusView = factory.CreateStatusView(app.themeService)
 	app.modeIndicator = components.NewModeIndicator(styleProvider)
 	app.modeIndicator.SetStateManager(app.stateManager)
-	app.modeIndicator.SetJudgeModel(app.config.Judge.ResolveModel(app.config.Agent.Model))
+	app.modeIndicator.SetJudgeModelFn(func() string {
+		return app.config.Judge.ResolveModel(app.installModel())
+	})
 	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.helpView = components.NewHelpView(app.themeService, styleProvider)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)

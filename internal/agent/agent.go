@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -48,6 +49,7 @@ type AgentServiceImpl struct {
 	tokenizer        *conv.TokenizerService
 	approvalPolicy   agentdomain.ApprovalPolicy
 	judge            agentdomain.JudgeApprover
+	currentModel     func() string
 	bgRegistry       scheddomain.BackgroundTaskRegistry
 	rolloverManager  *conv.SessionRolloverManager
 	reminderProvider agentdomain.SystemReminderProvider
@@ -1789,6 +1791,22 @@ func (s *AgentServiceImpl) judgeDecides(tc sdk.ChatCompletionMessageToolCall) bo
 	return s.config != nil && s.config.ApprovalBehaviourFor(tc.Function.Name) == config.ApprovalBehaviourJudge
 }
 
+// SetCurrentModelFn wires the session's current-model accessor so the judge
+// follows a model picked at runtime, not only the configured agent.model.
+func (s *AgentServiceImpl) SetCurrentModelFn(fn func() string) {
+	s.currentModel = fn
+}
+
+// judgeModel resolves who judges: judge.model, else the session's current
+// model, else agent.model.
+func (s *AgentServiceImpl) judgeModel() string {
+	current := ""
+	if s.currentModel != nil {
+		current = s.currentModel()
+	}
+	return s.config.Judge.ResolveModel(cmp.Or(current, s.config.Agent.Model))
+}
+
 // requestJudgeApproval asks the judge to decide one pending tool call against
 // the user's latest request, publishes the verdict as a chat event (mirrored
 // on the hidden debug channel), and maps a rejection onto the standard
@@ -1798,8 +1816,8 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 ) (bool, string, error) {
-	model := s.config.Judge.ResolveModel(s.config.Agent.Model)
-	verdict, err := s.judge.Judge(ctx, latestUserIntent(s.conversationRepo), judgeActionInput(tc))
+	model := s.judgeModel()
+	verdict, err := s.judge.Judge(ctx, model, latestUserIntent(s.conversationRepo), judgeActionInput(tc))
 	if err != nil {
 		// Fail closed like the no-approver path; the reason is distinguishable
 		// so the driver can retry or route around it.

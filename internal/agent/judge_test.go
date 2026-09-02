@@ -46,7 +46,7 @@ func TestLLMJudge_VerdictAndPromptShaping(t *testing.T) {
 	client := newJudgeClient(judgeResponse("```json\n{\"decision\": \"approved\", \"reason\": \"matches the request\"}\n```"), nil)
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
-	verdict, err := judge.Judge(context.Background(), "install the dependency", `Bash: {"command": "go get"}`)
+	verdict, err := judge.Judge(context.Background(), "test/judge-model", "install the dependency", `Bash: {"command": "go get"}`)
 	if err != nil {
 		t.Fatalf("Judge() error = %v", err)
 	}
@@ -93,7 +93,7 @@ func TestLLMJudge_OnError(t *testing.T) {
 			client := newJudgeClient(nil, errors.New("gateway down"))
 			judge := NewLLMJudge(client, judgeTestConfig(tt.onError))
 
-			verdict, err := judge.Judge(context.Background(), "intent", "action")
+			verdict, err := judge.Judge(context.Background(), "test/judge-model", "intent", "action")
 			if err != nil {
 				t.Fatalf("Judge() error = %v, want nil (on_error decides)", err)
 			}
@@ -111,7 +111,7 @@ func TestLLMJudge_UnparseableOutputDenies(t *testing.T) {
 	client := newJudgeClient(judgeResponse("no verdict here"), nil)
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
-	verdict, err := judge.Judge(context.Background(), "intent", "action")
+	verdict, err := judge.Judge(context.Background(), "test/judge-model", "intent", "action")
 	if err != nil {
 		t.Fatalf("Judge() error = %v, want nil (on_error handles it)", err)
 	}
@@ -121,11 +121,9 @@ func TestLLMJudge_UnparseableOutputDenies(t *testing.T) {
 }
 
 func TestLLMJudge_InvalidModelFormat(t *testing.T) {
-	cfg := judgeTestConfig("")
-	cfg.Agent.Model = "no-slash"
-	judge := NewLLMJudge(&sdkmocks.FakeClient{}, cfg)
+	judge := NewLLMJudge(&sdkmocks.FakeClient{}, judgeTestConfig(""))
 
-	if _, err := judge.Judge(context.Background(), "intent", "action"); err == nil || !strings.Contains(err.Error(), "provider/model") {
+	if _, err := judge.Judge(context.Background(), "no-slash", "intent", "action"); err == nil || !strings.Contains(err.Error(), "provider/model") {
 		t.Fatalf("Judge() error = %v, want provider/model format error", err)
 	}
 }
