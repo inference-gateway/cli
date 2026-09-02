@@ -612,7 +612,6 @@ func (c *ServiceContainer) initializeChatOrchestrationServices() {
 		ConversationRepo:     c.conversationRepo,
 		StateManager:         c.stateManager,
 		TaskRetentionService: c.taskRetentionService,
-		Listener:             c.chatEventListener,
 	})
 
 	c.approvalCoordinator = approvalcoord.NewService(approvalcoord.Options{

@@ -57,17 +57,12 @@ func (s *Service) HandleBashCommand(commandText string) tea.Cmd {
 }
 
 // HandleBashOutputChunk is invoked after a bash output chunk reaches the UI.
-// It keeps the bash event channel pumping until the command completes; if no
-// bash channel is active, it falls back to the chat event channel.
+// It keeps the bash event channel pumping until the command completes. Chunks
+// that arrived on the chat channel are re-armed by ChatHandler.Handle.
 func (s *Service) HandleBashOutputChunk(_ agentdomain.BashOutputChunkEvent) tea.Cmd {
 	if bashEventChan := s.PendingBashChannel(); bashEventChan != nil {
 		return s.listener.ListenForEvents(bashEventChan)
 	}
-
-	if chatSession := s.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		return s.listener.ListenForChatEvents(chatSession.EventChannel)
-	}
-
 	return nil
 }
 

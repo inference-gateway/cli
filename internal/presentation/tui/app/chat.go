@@ -467,6 +467,11 @@ func (app *ChatApplication) Init() tea.Cmd {
 // UI notifier (program.Send), so this is the one place to measure handler
 // duration: a slow handler in the single-threaded loop is a visible UI freeze.
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	handlerMsg := msg
+	if ev, ok := msg.(tui.ChatChannelEvent); ok {
+		msg = ev.Event
+	}
+
 	start := time.Now()
 	defer logSlowUpdate(start, msg)
 
@@ -486,8 +491,8 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	}
 
-	if isDomainEvent(msg) {
-		if cmd := app.chatHandler.Handle(msg); cmd != nil {
+	if app.chatHandler != nil {
+		if cmd := app.chatHandler.Handle(handlerMsg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
@@ -557,79 +562,6 @@ func (app *ChatApplication) forwardToOverlayForms(msg tea.Msg) []tea.Cmd {
 		cmds = append(cmds, app.approvalBoxView.Forward(msg))
 	}
 	return cmds
-}
-
-// isDomainEvent checks if an event should be handled by ChatHandler (positive filtering).
-// This replaces the negative filtering pattern (isUIOnlyEvent) with an explicit declaration
-// of what ChatHandler SHOULD handle, not what it shouldn't.
-func isDomainEvent(msg tea.Msg) bool {
-	switch msg.(type) {
-	// User input and interaction
-	case agentdomain.UserInputEvent,
-		tui.FileSelectionRequestEvent,
-		tui.ConversationSelectedEvent:
-		return true
-
-	// Chat lifecycle
-	case agentdomain.ChatStartEvent,
-		agentdomain.ChatChunkEvent,
-		agentdomain.ChatCompleteEvent,
-		agentdomain.ChatErrorEvent,
-		agentdomain.OptimizationStatusEvent,
-		tui.RolloverCompletedEvent:
-		return true
-
-	// Tool execution
-	case agentdomain.ToolCallUpdateEvent,
-		agentdomain.ToolCallReadyEvent,
-		tui.ToolExecutionStartedEvent,
-		agentdomain.ToolExecutionProgressEvent,
-		agentdomain.ToolExecutionCompletedEvent:
-		return true
-
-	// Tool and plan approval
-	case agentdomain.ToolApprovalRequestedEvent,
-		agentdomain.ToolApprovalResponseEvent,
-		agentdomain.PlanApprovalRequestedEvent,
-		tui.PlanApprovalResponseEvent,
-		agentdomain.UserQuestionRequestedEvent:
-		return true
-
-	// Bash command execution
-	case agentdomain.BashOutputChunkEvent,
-		tui.BashCommandCompletedEvent,
-		agentdomain.BackgroundShellRequestEvent:
-		return true
-
-	// A2A (Agent-to-Agent) task management
-	case agentdomain.A2AToolCallExecutedEvent,
-		agentdomain.A2ATaskSubmittedEvent,
-		agentdomain.A2ATaskStatusUpdateEvent,
-		agentdomain.A2ATaskCompletedEvent,
-		agentdomain.A2ATaskFailedEvent,
-		agentdomain.A2ATaskInputRequiredEvent:
-		return true
-
-	case agentdomain.SubagentSubmittedEvent,
-		agentdomain.SubagentCompletedEvent,
-		agentdomain.SubagentFailedEvent:
-		return true
-
-	case agentdomain.MessageQueuedEvent,
-		agentdomain.ToolCancelledEvent,
-		agentdomain.TodoUpdateChatEvent,
-		agentdomain.JudgeVerdictChatEvent,
-		tui.AgentStatusUpdateEvent,
-		agentdomain.DrainQueueEvent,
-		tui.DrainQueueRetryEvent,
-		agentdomain.NavigateBackInTimeEvent,
-		agentdomain.MessageHistoryRestoreEvent,
-		agentdomain.ComputerUsePausedEvent,
-		agentdomain.ComputerUseResumedEvent:
-		return true
-	}
-
-	return false
 }
 
 // handleAppEvents handles application-level events (not component-specific)

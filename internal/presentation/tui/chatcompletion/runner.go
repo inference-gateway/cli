@@ -68,8 +68,11 @@ func NewRunner(opts Options) *Runner {
 }
 
 // Start kicks off a streaming chat completion. The returned tea.Cmd performs
-// the request (synchronously in the returned closure) and emits a
-// ChatStartEvent on success or ChatErrorEvent on failure. The holder is
+// the request (synchronously in the returned closure), starts the chat session
+// and reads the first event off the stream (the agent's own ChatStartEvent),
+// or emits a ChatErrorEvent on failure. That first read is the only place a
+// chat listener is armed; ChatHandler.Handle re-arms it after every event
+// read off the channel. The holder is
 // attached to the request context so the agent core can find the
 // BashDetachChannelHolder when launching tools that may need backgrounding.
 func (r *Runner) Start(holder agentdomain.BashDetachChannelHolder) tea.Cmd {
@@ -110,11 +113,7 @@ func (r *Runner) Start(holder agentdomain.BashDetachChannelHolder) tea.Cmd {
 
 		_ = r.stateManager.StartChatSession(requestID, currentModel, eventChan)
 
-		return agentdomain.ChatStartEvent{
-			RequestID: requestID,
-			Model:     currentModel,
-			Timestamp: time.Now(),
-		}
+		return r.listener.ListenForChatEvents(eventChan)()
 	}
 }
 
@@ -132,21 +131,13 @@ func (r *Runner) SetPendingRestoration(originalModel string) {
 func (r *Runner) HandleChatStart(_ agentdomain.ChatStartEvent) tea.Cmd {
 	_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusStarting)
 
-	cmds := []tea.Cmd{
-		func() tea.Msg {
-			return tui.SetStatusEvent{
-				Message:    "Starting response...",
-				Spinner:    true,
-				StatusType: tui.StatusGenerating,
-			}
-		},
+	return func() tea.Msg {
+		return tui.SetStatusEvent{
+			Message:    "Starting response...",
+			Spinner:    true,
+			StatusType: tui.StatusGenerating,
+		}
 	}
-
-	if chatSession := r.stateManager.GetChatSession(); chatSession != nil {
-		cmds = append(cmds, r.listener.ListenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Sequence(cmds...)
 }
 
 // HandleChatChunk forwards a streaming content delta to the UI and adjusts
@@ -159,7 +150,7 @@ func (r *Runner) HandleChatChunk(msg agentdomain.ChatChunkEvent) tea.Cmd {
 	}
 
 	if msg.Content == "" && msg.ReasoningContent == "" {
-		return r.handleEmptyContent(chatSession)
+		return nil
 	}
 
 	cmds := []tea.Cmd{
@@ -174,12 +165,7 @@ func (r *Runner) HandleChatChunk(msg agentdomain.ChatChunkEvent) tea.Cmd {
 		},
 	}
 
-	statusCmds := r.handleStatusUpdate(msg, chatSession)
-	cmds = append(cmds, statusCmds...)
-
-	if cs := r.stateManager.GetChatSession(); cs != nil && cs.EventChannel != nil {
-		cmds = append(cmds, r.listener.ListenForChatEvents(cs.EventChannel))
-	}
+	cmds = append(cmds, r.handleStatusUpdate(msg, chatSession)...)
 
 	return tea.Sequence(cmds...)
 }
@@ -234,10 +220,6 @@ func (r *Runner) HandleChatComplete(msg agentdomain.ChatCompleteEvent) tea.Cmd {
 			StatusType: tui.StatusDefault,
 		}
 	})
-
-	if chatSession := r.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, r.listener.ListenForChatEvents(chatSession.EventChannel))
-	}
 
 	return tea.Sequence(cmds...)
 }
@@ -360,10 +342,6 @@ func (r *Runner) HandleOptimizationStatus(event agentdomain.OptimizationStatusEv
 		},
 	}
 
-	if chatSession := r.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, r.listener.ListenForChatEvents(chatSession.EventChannel))
-	}
-
 	return tea.Sequence(cmds...)
 }
 
@@ -376,13 +354,6 @@ func (r *Runner) handleNoChatSession(msg agentdomain.ChatChunkEvent) tea.Cmd {
 				StatusType: tui.StatusThinking,
 			}
 		}
-	}
-	return nil
-}
-
-func (r *Runner) handleEmptyContent(chatSession *agentdomain.ChatSession) tea.Cmd {
-	if chatSession != nil && chatSession.EventChannel != nil {
-		return r.listener.ListenForChatEvents(chatSession.EventChannel)
 	}
 	return nil
 }
