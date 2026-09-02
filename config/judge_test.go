@@ -139,3 +139,20 @@ func TestJudgeConfig_Validate(t *testing.T) {
 		t.Error(`Validate() with on_error "bogus" should return an error`)
 	}
 }
+
+func TestSaveJudgeRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "judge.yaml")
+	want := DefaultJudgeConfig()
+	want.Model = "openai/gpt-4o-mini"
+
+	if err := SaveJudge(path, want); err != nil {
+		t.Fatalf("SaveJudge: %v", err)
+	}
+	got, err := LoadJudge(path)
+	if err != nil {
+		t.Fatalf("LoadJudge: %v", err)
+	}
+	if *got != *want {
+		t.Fatalf("round trip mismatch:\n got %+v\nwant %+v", got, want)
+	}
+}

@@ -71,6 +71,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	remindersPath := filepath.Join(homeCfgDir, config.RemindersFileName)
 	channelsPath := filepath.Join(homeCfgDir, config.ChannelsFileName)
 	heartbeatPath := filepath.Join(homeCfgDir, config.HeartbeatFileName)
+	judgePath := filepath.Join(homeCfgDir, config.JudgeFileName)
 	computerUsePath := filepath.Join(homeCfgDir, config.ComputerUseFileName)
 	browserUsePath := filepath.Join(homeCfgDir, config.BrowserUseFileName)
 	memoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
@@ -174,6 +175,13 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to create heartbeat config file: %w", err)
 	}
 
+	judgeCreated, err := createFileIfAbsent(judgePath, overwrite, func(p string) error {
+		return createJudgeConfigFile(p)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create judge config file: %w", err)
+	}
+
 	_, err = createFileIfAbsent(browserUsePath, overwrite, func(p string) error {
 		return createBrowserUseConfigFile(p)
 	})
@@ -216,6 +224,9 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	}
 	if hbCreated {
 		fmt.Printf("   Created: %s\n", heartbeatPath)
+	}
+	if judgeCreated {
+		fmt.Printf("   Created: %s\n", judgePath)
 	}
 	if computerUseCreated {
 		fmt.Printf("   Created: %s\n", computerUsePath)
@@ -560,6 +571,16 @@ func createHeartbeatConfigFile(path string) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 	return config.SaveHeartbeat(path, config.DefaultHeartbeatConfig())
+}
+
+// createJudgeConfigFile writes a fresh judge.yaml seeded from the in-code
+// defaults so the knobs are discoverable; the judge only runs when the mode
+// or approval_behaviour selects it.
+func createJudgeConfigFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	return config.SaveJudge(path, config.DefaultJudgeConfig())
 }
 
 // createBrowserUseConfigFile writes a fresh browser_use.yaml from the

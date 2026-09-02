@@ -85,6 +85,12 @@ func LoadJudge(path string) (*JudgeConfig, error) {
 	return configutils.LoadYAML(path, "judge", DefaultJudgeConfig)
 }
 
+// SaveJudge writes the judge configuration to disk, creating any missing
+// parent directories.
+func SaveJudge(path string, cfg *JudgeConfig) error {
+	return configutils.SaveYAML(path, "judge", cfg)
+}
+
 // ResolveModel returns the judge model, falling back to agentModel when the
 // judge-specific model is unset.
 func (j JudgeConfig) ResolveModel(agentModel string) string {

@@ -48,7 +48,7 @@ Single test: `go test ./internal/agent -run TestBashTool`. **Run `task precommit
 - **Bash allow-list is default-deny**, per agent mode (`tools.bash.mode.{all,plan,standard,auto}.allow`; effective list = `mode.all.allow` ∪ the mode's own). Only `auto` is unrestricted; standard/plan are read-only.
 - Tool approval is two-layer: `tools.safety.require_approval` (whether) + `approval_behaviour` `prompt|ipc|block` (how). Headless blocks when no approver is reachable.
 - Never commit secrets; credentials live in `.env` (never committed).
-- `infer init --overwrite` wipes `.infer/agents.yaml` (and `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`) — restore with `git checkout -- .infer/agents.yaml` afterwards.
+- `infer init --overwrite` wipes `.infer/agents.yaml` (and `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`, `judge.yaml`) — restore with `git checkout -- .infer/agents.yaml` afterwards.
 
 ## Config
 

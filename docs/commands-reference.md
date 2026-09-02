@@ -23,7 +23,7 @@ directory. This creates:
 
 - `.infer/` under `~/.infer/` with:
   - `config.yaml` - Main configuration file (the shared baseline)
-  - `prompts.yaml`, `keybindings.yaml`, `channels.yaml`, `heartbeat.yaml`,
+  - `prompts.yaml`, `keybindings.yaml`, `channels.yaml`, `heartbeat.yaml`, `judge.yaml`,
     `computer_use.yaml`, `browser_use.yaml`, `agents.yaml`, `mcp.yaml`,
     `shortcuts/`, `skills/` - the split config files and directories
 - `.env.example` template for provider API keys is written by `infer env`,
