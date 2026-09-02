@@ -822,6 +822,18 @@ func TestInputView_GitStatusResolvedEventStoresFlags(t *testing.T) {
 	require.True(t, iv.gitUnpushed)
 }
 
+func TestInputView_HeartbeatRefetchesGitStatus(t *testing.T) {
+	iv := newInputViewWithPR(t, "main", "")
+
+	_, cmd := iv.Update(agentdomain.HeartbeatEvent{At: time.Now()})
+	require.NotNil(t, cmd, "the app heartbeat must trigger the async git status refetch")
+
+	cfg := config.DefaultConfig()
+	cfg.Chat.StatusBar.Indicators.GitBranch = false
+	iv.config = cfg
+	require.Nil(t, iv.gitStatusCmd(), "no git process when the branch indicator is disabled")
+}
+
 func TestInputView_GitIconColor(t *testing.T) {
 	tests := []struct {
 		name     string

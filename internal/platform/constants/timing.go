@@ -10,6 +10,7 @@ const (
 	AgentToolExecutionDelay   = 20 * time.Millisecond  // Delay during tool execution
 	AgentStatusTickerInterval = 200 * time.Millisecond // Status update ticker interval
 	DrainQueueRetryInterval   = 300 * time.Millisecond // Re-check interval while queued work waits behind a busy agent
+	UIHeartbeatInterval       = 10 * time.Second       // The app's single periodic HeartbeatEvent; every tick wakes Update, keep it slow
 
 	// UI component timing for smooth transitions
 	ToolCallUpdateThrottle = 50 * time.Millisecond // Minimum time between tool call updates

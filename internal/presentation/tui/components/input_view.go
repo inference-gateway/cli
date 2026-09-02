@@ -475,8 +475,8 @@ func (iv *InputView) InvalidateGitBranchCache() {
 // deliberately swallowed because gh exits non-zero for the normal "no PR"
 // case; the label simply omits the number.
 // ponytail: refetch is event-driven (startup, bash commands, Bash tool runs),
-// so a PR opened outside the TUI stays unknown until the next such event; add
-// a slow tea.Tick refetch if that ever matters.
+// so a PR opened outside the TUI stays unknown until the next such event; if
+// that ever matters, ride agentdomain.HeartbeatEvent, never a private tea.Tick.
 func fetchGitPRCmd() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -487,6 +487,16 @@ func fetchGitPRCmd() tea.Cmd {
 		}
 		return tui.GitPRResolvedEvent{PR: strings.TrimSpace(string(output))}
 	}
+}
+
+// gitStatusCmd returns the async git status refetch, or nil when the branch
+// indicator is disabled so no git process is ever spawned for a label that is
+// never rendered.
+func (iv *InputView) gitStatusCmd() tea.Cmd {
+	if iv.config != nil && !iv.config.Chat.StatusBar.Indicators.GitBranch {
+		return nil
+	}
+	return fetchGitStatusCmd()
 }
 
 // fetchGitStatusCmd resolves the workspace state off the UI goroutine: dirty
@@ -870,7 +880,7 @@ func (iv *InputView) ClearCustomHint() {
 
 // Bubble Tea interface
 func (iv *InputView) Init() tea.Cmd {
-	return tea.Batch(iv.ta.Focus(), fetchGitPRCmd(), fetchGitStatusCmd())
+	return tea.Batch(iv.ta.Focus(), fetchGitPRCmd(), iv.gitStatusCmd())
 }
 
 func (iv *InputView) View() tea.View { return tea.NewView(iv.Render()) }
@@ -914,14 +924,18 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tui.GitStatusResolvedEvent:
 		iv.gitDirty, iv.gitUnpushed = msg.Dirty, msg.Unpushed
 		return iv, cmd
+	case agentdomain.HeartbeatEvent:
+		// Catches changes made outside the TUI (editor saves, commits from
+		// another terminal). The git call runs in the returned Cmd, never here.
+		return iv, tea.Batch(cmd, iv.gitStatusCmd())
 	case tui.BashCommandCompletedEvent:
 		iv.InvalidateGitBranchCache()
-		return iv, tea.Batch(cmd, fetchGitPRCmd(), fetchGitStatusCmd())
+		return iv, tea.Batch(cmd, fetchGitPRCmd(), iv.gitStatusCmd())
 	case agentdomain.ToolExecutionCompletedEvent:
 		// Any tool (Write/Edit/Delete, not only Bash) can dirty the tree, so the
 		// status refetch always runs; the PR refetch is a network call and stays
 		// gated on a Bash result.
-		cmds := []tea.Cmd{cmd, fetchGitStatusCmd()}
+		cmds := []tea.Cmd{cmd, iv.gitStatusCmd()}
 		for _, result := range msg.Results {
 			if result != nil && result.ToolName == "Bash" {
 				cmds = append(cmds, fetchGitPRCmd())

@@ -48,6 +48,17 @@ type ToolApprovalResponseEvent struct {
 // polling at render time.
 type BackgroundTasksChangedEvent struct{}
 
+// HeartbeatEvent is the app's single periodic tick, pushed through the UI
+// notifier by one background goroutine (cmd/chat) at a fixed slow interval. It
+// exists so freshness checks that cannot be event-driven (state changed outside
+// the TUI, e.g. git status after an editor save) have one clock to ride instead
+// of each re-arming its own tea.Tick. Handlers must stay cheap: kick off a
+// tea.Cmd for any I/O, never do it inline. Consumers that want a slower cadence
+// compare At against their own last-run time.
+type HeartbeatEvent struct {
+	At time.Time
+}
+
 // DrainQueueEvent asks the orchestrator to start a fresh agent turn when the
 // agent is idle on the chat view and the shared message queue has content
 // (background-job completion notes or user messages typed while busy). Unlike the
