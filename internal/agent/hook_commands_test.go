@@ -66,7 +66,7 @@ func TestRunCommandHooks_RunsAllowListedCommand(t *testing.T) {
 		Name: "echoer", Hook: agentdomain.HookPostSession, Command: "echo hook-ran", Timeout: 5,
 	})
 
-	RunCommandHooks(context.Background(), cfg, provider, "standard", agentdomain.HookPostSession, 1, "sess-1")
+	RunCommandHooks(context.Background(), cfg, provider, agentdomain.AgentModeStandard, agentdomain.HookPostSession, 1, "sess-1")
 
 	events := parseEvents(t, buf)
 	require.Len(t, events, 1)
@@ -88,7 +88,7 @@ func TestRunCommandHooks_SkipsOffListCommand(t *testing.T) {
 	fake.CommandsDueReturns([]agentdomain.HookCommand{{Name: "fmt", Command: "gofmt -w ."}})
 	cfg := allowCfg() // empty allow-list -> gofmt is off-list
 
-	RunCommandHooks(context.Background(), cfg, fake, "standard", agentdomain.HookPostSession, 2, "sess")
+	RunCommandHooks(context.Background(), cfg, fake, agentdomain.AgentModeStandard, agentdomain.HookPostSession, 2, "sess")
 
 	require.Equal(t, 1, fake.CommandsDueCallCount())
 	assert.Equal(t, agentdomain.HookPostSession, fake.CommandsDueArgsForCall(0))
@@ -120,7 +120,7 @@ func TestRunCommandHooks_PluginHookGatedByAllowList(t *testing.T) {
 
 	provider := plugins.NewPluginHookCommandProvider(cfg)
 	require.NotNil(t, provider)
-	RunCommandHooks(context.Background(), cfg, provider, "standard", agentdomain.HookPostSession, 1, "s")
+	RunCommandHooks(context.Background(), cfg, provider, agentdomain.AgentModeStandard, agentdomain.HookPostSession, 1, "s")
 
 	events := parseEvents(t, buf)
 	require.Len(t, events, 2)
@@ -137,14 +137,14 @@ func TestRunCommandHooks_NoOpWhenDisabled(t *testing.T) {
 		Name: "x", Hook: agentdomain.HookPostSession, Command: "echo x", Timeout: 5,
 	})
 
-	RunCommandHooks(context.Background(), allowCfg("echo x"), provider, "standard", agentdomain.HookPostSession, 1, "s")
+	RunCommandHooks(context.Background(), allowCfg("echo x"), provider, agentdomain.AgentModeStandard, agentdomain.HookPostSession, 1, "s")
 
 	assert.Empty(t, parseEvents(t, buf), "a disabled hooks config must run nothing")
 }
 
 func TestRunCommandHooks_NilSafe(t *testing.T) {
 	buf := withDebugStreamWriter(t)
-	RunCommandHooks(context.Background(), nil, nil, "standard", agentdomain.HookPostSession, 1, "s")
+	RunCommandHooks(context.Background(), nil, nil, agentdomain.AgentModeStandard, agentdomain.HookPostSession, 1, "s")
 	assert.Empty(t, parseEvents(t, buf))
 }
 

@@ -9,6 +9,7 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -196,11 +197,11 @@ func TestBashAllowAppendReachesMatcher(t *testing.T) {
 
 	initConfig()
 
-	for _, mode := range []string{"standard", "plan"} {
+	for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModeStandard, agentdomain.AgentModePlan} {
 		assert.True(t, Cfg.IsBashCommandAllowed("docker ps", mode),
 			"appended command should be allowed in %s mode via the mode.all baseline", mode)
 	}
-	assert.False(t, Cfg.IsBashCommandAllowed("docker rm -f box", "standard"),
+	assert.False(t, Cfg.IsBashCommandAllowed("docker rm -f box", agentdomain.AgentModeStandard),
 		"an off-list command must stay denied")
 }
 

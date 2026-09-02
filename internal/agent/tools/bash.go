@@ -156,8 +156,8 @@ func (t *BashTool) Validate(args map[string]any) error {
 		return fmt.Errorf("command parameter is required and must be a string")
 	}
 
-	if !t.config.IsBashCommandAllowed(command, "standard") {
-		return t.notAllowedError(command, "standard")
+	if !t.config.IsBashCommandAllowed(command, agentdomain.AgentModeStandard) {
+		return t.notAllowedError(command, agentdomain.AgentModeStandard)
 	}
 
 	return nil
@@ -185,10 +185,10 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	}
 
 	wasApproved := agentdomain.IsToolApproved(ctx)
-	modeKey := agentdomain.BashAllowModeKey(ctx)
+	mode, _ := agentdomain.AgentModeFromContext(ctx)
 
-	if !wasApproved && !t.config.IsBashCommandAllowed(command, modeKey) {
-		err := t.notAllowedError(command, modeKey)
+	if !wasApproved && !t.config.IsBashCommandAllowed(command, mode) {
+		err := t.notAllowedError(command, mode)
 		result.ExitCode = -1
 		result.Duration = time.Since(start).String()
 		result.Error = err.Error()
@@ -430,11 +430,11 @@ func (t *BashTool) readPipeWithBatching(
 // avoid leaking a $VAR, ...) so the model can correct course rather than retrying
 // blindly. The Bash tool, the approval policy, and agent auto-approval all share
 // config.IsBashCommandAllowed, so they agree on exactly what runs without prompting.
-func (t *BashTool) notAllowedError(command, mode string) error {
+func (t *BashTool) notAllowedError(command string, mode agentdomain.AgentMode) error {
 	if hint := config.BashCommandRejectionHint(command); hint != "" {
 		return fmt.Errorf("command not allowed: %s - %s", command, hint)
 	}
-	return fmt.Errorf("command not allowed: %s (%s mode)", command, mode)
+	return fmt.Errorf("command not allowed: %s (%s mode)", command, mode.ModeKey())
 }
 
 // FormatResult formats tool execution results for different contexts

@@ -2,12 +2,15 @@ package domain
 
 import "testing"
 
-func TestParseAgentMode_RoundTripsAllowedlistKey(t *testing.T) {
-	for _, m := range []AgentMode{AgentModeStandard, AgentModePlan, AgentModeAutoAccept, AgentModeReadOnly} {
-		got, ok := ParseAgentMode(m.AllowedlistKey())
+func TestParseAgentMode_RoundTripsModeKey(t *testing.T) {
+	for _, m := range []AgentMode{AgentModeStandard, AgentModePlan, AgentModeAutoAccept, AgentModeAutoWithJudge, AgentModeReadOnly} {
+		got, ok := ParseAgentMode(m.ModeKey())
 		if !ok || got != m {
-			t.Fatalf("ParseAgentMode(%q) = (%v,%v), want (%v,true)", m.AllowedlistKey(), got, ok, m)
+			t.Fatalf("ParseAgentMode(%q) = (%v,%v), want (%v,true)", m.ModeKey(), got, ok, m)
 		}
+	}
+	if got := AgentMode(99).ModeKey(); got != "standard" {
+		t.Fatalf("AgentMode(99).ModeKey() = %q, want standard", got)
 	}
 }
 
@@ -18,8 +21,8 @@ func TestAgentModeReadOnly_StringDisplayName(t *testing.T) {
 	if got := AgentModeReadOnly.DisplayName(); got != "Read-Only" {
 		t.Fatalf("AgentModeReadOnly.DisplayName() = %q, want Read-Only", got)
 	}
-	if got := AgentModeReadOnly.AllowedlistKey(); got != "readonly" {
-		t.Fatalf("AgentModeReadOnly.AllowedlistKey() = %q, want readonly", got)
+	if got := AgentModeReadOnly.ModeKey(); got != "readonly" {
+		t.Fatalf("AgentModeReadOnly.ModeKey() = %q, want readonly", got)
 	}
 }
 
@@ -29,11 +32,6 @@ func TestAgentModeAutoWithJudge_Values(t *testing.T) {
 	}
 	if got := AgentModeAutoWithJudge.DisplayName(); got != "Auto+Judge" {
 		t.Fatalf("AgentModeAutoWithJudge.DisplayName() = %q, want Auto+Judge", got)
-	}
-	// Shares the standard allow-list: only commands the standard list already
-	// gates reach the judge.
-	if got := AgentModeAutoWithJudge.AllowedlistKey(); got != "standard" {
-		t.Fatalf("AgentModeAutoWithJudge.AllowedlistKey() = %q, want standard", got)
 	}
 	if got := AgentModeAutoWithJudge.ModeKey(); got != "auto-with-judge" {
 		t.Fatalf("AgentModeAutoWithJudge.ModeKey() = %q, want auto-with-judge", got)

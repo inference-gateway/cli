@@ -11,6 +11,8 @@ import (
 
 	viper "github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v3"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -814,7 +816,7 @@ func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
 		"gh api user/repos --paginate",
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, "standard") {
+		if !cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q to be allowed", cmd)
 		}
 	}
@@ -833,7 +835,7 @@ func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
 		"env", "printenv", "printenv PATH",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, "standard") {
+		if cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q NOT to be allowed", cmd)
 		}
 	}

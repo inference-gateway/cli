@@ -106,12 +106,6 @@ func TestAgentStateDisplayName(t *testing.T) {
 	}
 }
 
-func TestAgentModeAllowedlistKeyUnknown(t *testing.T) {
-	if got := AgentMode(99).AllowedlistKey(); got != "standard" {
-		t.Errorf("AgentMode(99).AllowedlistKey() = %q, want standard", got)
-	}
-}
-
 func TestSkillDisplayNameAndSummary(t *testing.T) {
 	tests := []struct {
 		name  string
