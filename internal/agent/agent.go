@@ -1776,8 +1776,6 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 	}
 	if !verdict.Approved() {
 		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
-	}
-	if !verdict.Approved() {
 		s.escalations.record(tc.Function.Name, tc.Function.Arguments, verdict.Reason)
 	}
 	s.recordJudgeUsage(verdict.Usage)

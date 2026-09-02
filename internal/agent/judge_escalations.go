@@ -138,10 +138,6 @@ func (e *approvalEscalator) Escalate(ctx context.Context, req agentdomain.Approv
 	if !exists {
 		return agentdomain.ApprovalEscalationResult{Status: agentdomain.EscalationNotRejected}, nil
 	}
-	if esc.asked {
-		return agentdomain.ApprovalEscalationResult{Status: agentdomain.EscalationAlreadyAsked, JudgeReason: esc.reason}, nil
-	}
-
 	reason, claimed := e.svc.escalations.claim(tc.Function.Name, tc.Function.Arguments)
 	if !claimed {
 		return agentdomain.ApprovalEscalationResult{Status: agentdomain.EscalationAlreadyAsked, JudgeReason: esc.reason}, nil

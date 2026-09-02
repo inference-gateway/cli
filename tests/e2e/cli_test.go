@@ -272,9 +272,14 @@ func TestAgentEscalationWithoutApprover(t *testing.T) {
 	require.Zero(t, code)
 
 	lines := jsonLines(t, stdout)
-	verdict := statusOfType(lines, "judge_verdict")
-	require.NotNil(t, verdict, "a judge_verdict line must be emitted")
-	require.Equal(t, "rejected", verdict["decision"])
+	var verdicts []map[string]any
+	for _, line := range lines {
+		if line["type"] == "judge_verdict" {
+			verdicts = append(verdicts, line)
+		}
+	}
+	require.NotEmpty(t, verdicts, "a judge_verdict line must be emitted")
+	require.Equal(t, "rejected", verdicts[0]["decision"], "the Bash call must be judge-rejected first")
 
 	toolResults := contentsByRole(lines, "tool")
 	require.Len(t, toolResults, 2, "the judge rejection and the escalation result must both be reported")
