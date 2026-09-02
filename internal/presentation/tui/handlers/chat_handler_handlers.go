@@ -160,10 +160,6 @@ func (h *ChatHandler) handleMessageQueued() tea.Cmd {
 		},
 	}
 
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
-	}
-
 	return tea.Sequence(cmds...)
 }
 

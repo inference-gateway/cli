@@ -52,12 +52,20 @@ type ChatEventListener interface {
 	ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd
 }
 
+// ChatChannelEvent is what ListenForChatEvents yields: the event plus the
+// channel it was read from. ChatHandler.Handle unwraps it and re-arms the
+// listener on Source exactly once, so no handler re-arms by hand and a new
+// event type needs no registration to keep the chain alive.
+type ChatChannelEvent struct {
+	Event  agentdomain.ChatEvent
+	Source <-chan agentdomain.ChatEvent
+}
+
 // A2ATaskCoordinator owns the UI side of A2A (agent-to-agent) task lifecycle
 // events. It translates the six A2A event types into status updates,
-// streaming-content events, and conversation-history refreshes, and keeps the
-// chat session listener pumping. Self-contained - depends only on the
-// conversation repo, task retention, the chat state manager, and a chat
-// event listener.
+// streaming-content events, and conversation-history refreshes. Self-contained
+// - depends only on the conversation repo, task retention, and the chat state
+// manager.
 type A2ATaskCoordinator interface {
 	HandleTaskSubmitted(msg agentdomain.A2ATaskSubmittedEvent) tea.Cmd
 	HandleTaskCompleted(msg agentdomain.A2ATaskCompletedEvent) tea.Cmd

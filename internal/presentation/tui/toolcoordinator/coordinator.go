@@ -116,7 +116,6 @@ func (c *Coordinator) HandleToolCallUpdate(msg agentdomain.ToolCallUpdateEvent) 
 		})
 	}
 
-	cmds = c.appendChatListener(cmds)
 	return tea.Sequence(cmds...)
 }
 
@@ -131,7 +130,6 @@ func (c *Coordinator) HandleToolCallReady(_ agentdomain.ToolCallReadyEvent) tea.
 			}
 		},
 	}
-	cmds = c.appendChatListener(cmds)
 	return tea.Sequence(cmds...)
 }
 
@@ -158,7 +156,6 @@ func (c *Coordinator) HandleToolApprovalRequested(msg agentdomain.ToolApprovalRe
 			}
 		},
 	}
-	cmds = c.appendChatListener(cmds)
 	return tea.Sequence(cmds...)
 }
 
@@ -199,7 +196,6 @@ func (c *Coordinator) HandleToolApprovalResponse(msg agentdomain.ToolApprovalRes
 			}
 		},
 	}
-	cmds = c.appendChatListener(cmds)
 	return tea.Batch(cmds...)
 }
 
@@ -227,7 +223,6 @@ func (c *Coordinator) applyAutoAccept(msg agentdomain.ToolApprovalResponseEvent)
 			}
 		},
 	}
-	cmds = c.appendChatListener(cmds)
 	return tea.Batch(cmds...)
 }
 
@@ -269,7 +264,6 @@ func (c *Coordinator) HandleToolExecutionStarted(msg tui.ToolExecutionStartedEve
 			}
 		},
 	}
-	cmds = c.appendChatListener(cmds)
 	return tea.Sequence(cmds...)
 }
 
@@ -288,8 +282,6 @@ func (c *Coordinator) HandleToolExecutionProgress(msg agentdomain.ToolExecutionP
 		cmds = append(cmds, c.listener.ListenForEvents(bashEventChan))
 		return tea.Sequence(cmds...)
 	}
-
-	cmds = c.appendChatListener(cmds)
 
 	if len(cmds) > 0 {
 		return tea.Sequence(cmds...)
@@ -391,7 +383,6 @@ func (c *Coordinator) HandleToolExecutionCompleted(msg agentdomain.ToolExecution
 		cmds = append(cmds, todoUpdateCmd)
 	}
 
-	cmds = c.appendChatListener(cmds)
 	return tea.Sequence(cmds...)
 }
 
@@ -424,16 +415,7 @@ func (c *Coordinator) HandleToolCancelled(_ agentdomain.ToolCancelledEvent) tea.
 			}
 		},
 	}
-	cmds = c.appendChatListener(cmds)
 	return tea.Sequence(cmds...)
-}
-
-func (c *Coordinator) appendChatListener(cmds []tea.Cmd) []tea.Cmd {
-	chatSession := c.stateManager.GetChatSession()
-	if chatSession == nil || chatSession.EventChannel == nil {
-		return cmds
-	}
-	return append(cmds, c.listener.ListenForChatEvents(chatSession.EventChannel))
 }
 
 // addPendingToolCall stores the pending tool call + response channel on the

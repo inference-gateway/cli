@@ -4,6 +4,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // Service is the shared implementation of ui.ChatEventListener used by
@@ -16,12 +17,13 @@ func NewService() *Service {
 }
 
 // ListenForChatEvents returns a tea.Cmd that reads one event off the chat
-// event channel and surfaces it as the next tea.Msg. A closed channel
-// terminates the listener (returns nil).
+// event channel and surfaces it as a tui.ChatChannelEvent, which the chat
+// handler unwraps and re-arms. A closed channel terminates the listener
+// (returns nil).
 func (s *Service) ListenForChatEvents(eventChan <-chan agentdomain.ChatEvent) tea.Cmd {
 	return func() tea.Msg {
 		if event, ok := <-eventChan; ok {
-			return event
+			return tui.ChatChannelEvent{Event: event, Source: eventChan}
 		}
 		return nil
 	}

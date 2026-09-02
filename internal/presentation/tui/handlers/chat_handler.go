@@ -14,6 +14,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	eventlistener "github.com/inference-gateway/cli/internal/presentation/tui/eventlistener"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -115,9 +116,39 @@ func NewChatHandler(
 	return handler
 }
 
-// Handle routes incoming messages to appropriate handler methods based on message type.
-// TODO - refactor this
-func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,funlen
+// Handle dispatches a message to its handler and, when the message was read off
+// the chat event channel (tui.ChatChannelEvent), re-arms the listener once so
+// the next event is read. This is the only re-arm site: handlers just build
+// cmds, and an event type unknown to dispatch still keeps the chain alive.
+func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd {
+	ev, fromChannel := msg.(tui.ChatChannelEvent)
+	if fromChannel {
+		msg = ev.Event
+	}
+	cmd := h.dispatch(msg)
+	if !fromChannel {
+		return cmd
+	}
+	rearm := h.rearmChatListener(ev.Source)
+	if cmd == nil {
+		return rearm
+	}
+	return tea.Sequence(cmd, rearm)
+}
+
+// rearmChatListener re-issues the read on source only while it is still the
+// active session's channel, so a straggler from a cancelled turn cannot add a
+// second reader to the next turn.
+func (h *ChatHandler) rearmChatListener(source <-chan agentdomain.ChatEvent) tea.Cmd {
+	if cs := h.stateManager.GetChatSession(); cs != nil && cs.EventChannel == source {
+		return h.ListenForChatEvents(source)
+	}
+	return nil
+}
+
+// dispatch routes a message to its handler method by type. Unknown types
+// return nil.
+func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,funlen
 	switch m := msg.(type) {
 	case agentdomain.UserInputEvent:
 		return h.HandleUserInputEvent(m)
@@ -165,12 +196,6 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 		return h.HandleA2ATaskFailedEvent(m)
 	case agentdomain.A2ATaskInputRequiredEvent:
 		return h.HandleA2ATaskInputRequiredEvent(m)
-	case agentdomain.SubagentSubmittedEvent:
-		return h.HandleSubagentSubmittedEvent(m)
-	case agentdomain.SubagentCompletedEvent:
-		return h.HandleSubagentCompletedEvent(m)
-	case agentdomain.SubagentFailedEvent:
-		return h.HandleSubagentFailedEvent(m)
 	case agentdomain.MessageQueuedEvent:
 		return h.HandleMessageQueuedEvent(m)
 	case agentdomain.ToolCancelledEvent:
@@ -204,9 +229,6 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,fun
 	case agentdomain.ComputerUseResumedEvent:
 		return h.HandleComputerUseResumedEvent(m)
 	}
-
-	// No default case - unknown events simply pass through
-	// UI events are filtered at the ChatApplication layer via isDomainEvent()
 	return nil
 }
 
@@ -218,15 +240,10 @@ func (h *ChatHandler) startChatCompletion() tea.Cmd {
 }
 
 // ListenForChatEvents creates a tea.Cmd that listens for the next event from
-// the channel. Wraps the shared eventlistener service so callers within this
-// package and the legacy tui.ChatHandler interface continue to work.
+// the channel. Delegates to the shared eventlistener service so the
+// tui.ChatChannelEvent wrapping lives in one place.
 func (h *ChatHandler) ListenForChatEvents(eventChan <-chan agentdomain.ChatEvent) tea.Cmd {
-	return func() tea.Msg {
-		if event, ok := <-eventChan; ok {
-			return event
-		}
-		return nil
-	}
+	return eventlistener.NewService().ListenForChatEvents(eventChan)
 }
 
 func (h *ChatHandler) HandleUserInputEvent(
@@ -345,26 +362,21 @@ func (h *ChatHandler) HandleToolExecutionProgressEvent(
 }
 
 // HandleJudgeVerdictChatEvent flashes the LLM judge's decision for the pending
-// tool call and re-arms the chat listener. Approvals proceed silently; a
-// rejection surfaces as a flash status so the user sees what the judge refused
-// and why.
+// tool call. Approvals proceed silently; a rejection surfaces as a flash status
+// so the user sees what the judge refused and why.
 func (h *ChatHandler) HandleJudgeVerdictChatEvent(
 	msg agentdomain.JudgeVerdictChatEvent,
 ) tea.Cmd {
-	var cmds []tea.Cmd
-	if msg.Decision == agentdomain.JudgeDecisionRejected {
-		cmds = append(cmds, func() tea.Msg {
-			return tui.SetStatusEvent{
-				Message:    fmt.Sprintf("Action rejected by judge policy (%s): %s", msg.Model, msg.Reason),
-				Spinner:    false,
-				StatusType: tui.StatusError,
-			}
-		})
+	if msg.Decision != agentdomain.JudgeDecisionRejected {
+		return nil
 	}
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
+	return func() tea.Msg {
+		return tui.SetStatusEvent{
+			Message:    fmt.Sprintf("Action rejected by judge policy (%s): %s", msg.Model, msg.Reason),
+			Spinner:    false,
+			StatusType: tui.StatusError,
+		}
 	}
-	return tea.Batch(cmds...)
 }
 
 func (h *ChatHandler) HandleBashOutputChunkEvent(
@@ -427,31 +439,6 @@ func (h *ChatHandler) HandleMessageQueuedEvent(
 	return h.handleMessageQueued()
 }
 
-// Subagent lifecycle events drive the live tree in the conversation view
-// (see ConversationView.renderSubagentTree). The handler here only needs to
-// keep the chat event listener pumping, since these events arrive on the chat
-// event channel and the conversation view consumes them for rendering.
-func (h *ChatHandler) HandleSubagentSubmittedEvent(_ agentdomain.SubagentSubmittedEvent) tea.Cmd {
-	return h.rearmChatListener()
-}
-
-func (h *ChatHandler) HandleSubagentCompletedEvent(_ agentdomain.SubagentCompletedEvent) tea.Cmd {
-	return h.rearmChatListener()
-}
-
-func (h *ChatHandler) HandleSubagentFailedEvent(_ agentdomain.SubagentFailedEvent) tea.Cmd {
-	return h.rearmChatListener()
-}
-
-// rearmChatListener re-issues the chat event listener so the Bubble Tea loop
-// keeps reading the next event from the channel.
-func (h *ChatHandler) rearmChatListener() tea.Cmd {
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		return h.ListenForChatEvents(chatSession.EventChannel)
-	}
-	return nil
-}
-
 func (h *ChatHandler) HandleToolCancelledEvent(
 	msg agentdomain.ToolCancelledEvent,
 ) tea.Cmd {
@@ -468,19 +455,9 @@ func (h *ChatHandler) HandleToolApprovalResponseEvent(
 func (h *ChatHandler) HandleTodoUpdateChatEvent(
 	msg agentdomain.TodoUpdateChatEvent,
 ) tea.Cmd {
-	var cmds []tea.Cmd
-
-	cmds = append(cmds, func() tea.Msg {
-		return tui.TodoUpdateEvent{
-			Todos: msg.Todos,
-		}
-	})
-
-	if chatSession := h.stateManager.GetChatSession(); chatSession != nil {
-		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
+	return func() tea.Msg {
+		return tui.TodoUpdateEvent{Todos: msg.Todos}
 	}
-
-	return tea.Batch(cmds...)
 }
 
 func (h *ChatHandler) HandlePlanApprovalRequestedEvent(
@@ -498,9 +475,6 @@ func (h *ChatHandler) HandleUserQuestionRequestedEvent(
 
 	if ch := h.directExec.PendingToolChannel(); ch != nil {
 		return tea.Batch(cmd, h.ListenForEvents(ch))
-	}
-	if cs := h.stateManager.GetChatSession(); cs != nil && cs.EventChannel != nil {
-		return tea.Batch(cmd, h.ListenForChatEvents(cs.EventChannel))
 	}
 	return cmd
 }

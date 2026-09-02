@@ -18,7 +18,6 @@ type Service struct {
 	conversationRepo     convdomain.ConversationRepository
 	stateManager         agentdomain.ChatSessionManager
 	taskRetentionService scheddomain.TaskRetentionService
-	listener             tui.ChatEventListener
 }
 
 // Options bundles the dependencies needed to construct a Service.
@@ -26,7 +25,6 @@ type Options struct {
 	ConversationRepo     convdomain.ConversationRepository
 	StateManager         agentdomain.ChatSessionManager
 	TaskRetentionService scheddomain.TaskRetentionService
-	Listener             tui.ChatEventListener
 }
 
 // NewService creates a new A2A task coordinator.
@@ -35,12 +33,11 @@ func NewService(opts Options) *Service {
 		conversationRepo:     opts.ConversationRepo,
 		stateManager:         opts.StateManager,
 		taskRetentionService: opts.TaskRetentionService,
-		listener:             opts.Listener,
 	}
 }
 
 // HandleTaskSubmitted emits a working status indicating an A2A task was
-// submitted to a remote agent and continues listening on the chat channel.
+// submitted to a remote agent.
 func (s *Service) HandleTaskSubmitted(msg agentdomain.A2ATaskSubmittedEvent) tea.Cmd {
 	return tea.Sequence(s.taskSubmittedCmds(msg)...)
 }
@@ -58,7 +55,7 @@ func (s *Service) HandleTaskFailed(msg agentdomain.A2ATaskFailedEvent) tea.Cmd {
 }
 
 // HandleTaskStatusUpdate emits a working-status update for an in-flight A2A
-// task and keeps the listener pumping.
+// task.
 func (s *Service) HandleTaskStatusUpdate(msg agentdomain.A2ATaskStatusUpdateEvent) tea.Cmd {
 	return tea.Sequence(s.taskStatusUpdateCmds(msg)...)
 }
@@ -88,7 +85,7 @@ func (s *Service) taskSubmittedCmds(msg agentdomain.A2ATaskSubmittedEvent) []tea
 			}
 		},
 	}
-	return s.appendChatListenerCmd(cmds)
+	return cmds
 }
 
 func (s *Service) taskCompletedCmds(msg agentdomain.A2ATaskCompletedEvent) []tea.Cmd {
@@ -119,7 +116,7 @@ func (s *Service) taskCompletedCmds(msg agentdomain.A2ATaskCompletedEvent) []tea
 			}
 		},
 	}
-	return s.appendChatListenerCmd(cmds)
+	return cmds
 }
 
 func (s *Service) taskFailedCmds(msg agentdomain.A2ATaskFailedEvent) []tea.Cmd {
@@ -155,7 +152,7 @@ func (s *Service) taskFailedCmds(msg agentdomain.A2ATaskFailedEvent) []tea.Cmd {
 			}
 		},
 	}
-	return s.appendChatListenerCmd(cmds)
+	return cmds
 }
 
 func (s *Service) taskStatusUpdateCmds(msg agentdomain.A2ATaskStatusUpdateEvent) []tea.Cmd {
@@ -167,7 +164,7 @@ func (s *Service) taskStatusUpdateCmds(msg agentdomain.A2ATaskStatusUpdateEvent)
 			}
 		},
 	}
-	return s.appendChatListenerCmd(cmds)
+	return cmds
 }
 
 func (s *Service) taskInputRequiredCmds(msg agentdomain.A2ATaskInputRequiredEvent) []tea.Cmd {
@@ -180,7 +177,7 @@ func (s *Service) taskInputRequiredCmds(msg agentdomain.A2ATaskInputRequiredEven
 			}
 		},
 	}
-	return s.appendChatListenerCmd(cmds)
+	return cmds
 }
 
 func (s *Service) toolCallExecutedCmds(msg agentdomain.A2AToolCallExecutedEvent) []tea.Cmd {
@@ -193,7 +190,7 @@ func (s *Service) toolCallExecutedCmds(msg agentdomain.A2AToolCallExecutedEvent)
 			}
 		},
 	}
-	return s.appendChatListenerCmd(cmds)
+	return cmds
 }
 
 // retainTaskFromResult pulls the submitted A2A task out of a tool result, hands
@@ -219,14 +216,4 @@ func (s *Service) retainTaskFromResult(result *agentdomain.ToolExecutionResult) 
 	}
 
 	return submitResult.TaskResult
-}
-
-// appendChatListenerCmd adds the chat event channel listener to cmds when a
-// chat session is active. Returns the (possibly unchanged) cmds slice.
-func (s *Service) appendChatListenerCmd(cmds []tea.Cmd) []tea.Cmd {
-	chatSession := s.stateManager.GetChatSession()
-	if chatSession == nil || chatSession.EventChannel == nil {
-		return cmds
-	}
-	return append(cmds, s.listener.ListenForChatEvents(chatSession.EventChannel))
 }
