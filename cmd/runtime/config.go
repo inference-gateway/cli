@@ -88,19 +88,42 @@ func setPointerOption(v *viper.Viper, key string, field reflect.Value) {
 }
 
 // setScalarFromViper writes v's value for key into a settable scalar, reporting
-// whether the kind was one it knows how to convert.
+// whether it wrote one. Bool and number values are trimmed and parsed strictly
+// so a typo like INFER_X_REQUIRE_APPROVAL=maybe is ignored rather than cast to
+// false and silently flipping a safety default.
 func setScalarFromViper(v *viper.Viper, key string, field reflect.Value) bool {
 	switch field.Kind() {
 	case reflect.String:
 		field.SetString(v.GetString(key))
+		return true
+	}
+
+	raw := strings.TrimSpace(v.GetString(key))
+	switch field.Kind() {
 	case reflect.Bool:
-		field.SetBool(v.GetBool(key))
+		b, err := strconv.ParseBool(raw)
+		if err != nil {
+			return false
+		}
+		field.SetBool(b)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		field.SetInt(v.GetInt64(key))
+		n, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return false
+		}
+		field.SetInt(n)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		field.SetUint(v.GetUint64(key))
+		n, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil {
+			return false
+		}
+		field.SetUint(n)
 	case reflect.Float32, reflect.Float64:
-		field.SetFloat(v.GetFloat64(key))
+		f, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			return false
+		}
+		field.SetFloat(f)
 	default:
 		return false
 	}
