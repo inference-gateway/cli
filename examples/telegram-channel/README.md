@@ -238,7 +238,7 @@ vision model your gateway serves, e.g. a local Ollama one). Asking the bot to
 *generate* an image works out of the box via the ImageGeneration tool
 (`openai/gpt-image-2` by default - needs `OPENAI_API_KEY`); generated images are
 sent back to the chat as photos. Image generation/edits/variations go through the
-gateway's Images API, which is opt-in - the compose sets `ENABLE_IMAGES: true` on
+gateway's Images API, which is opt-in - the compose sets `IMAGES_ENABLED: true` on
 the `inference-gateway` service (currently OpenAI-only).
 
 ## Running Without Docker
