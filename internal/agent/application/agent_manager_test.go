@@ -13,6 +13,38 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
+// TestResolveAgentEnv verifies the A2A agent container env resolution order:
+// project .env, system environment, the agent's own config value, and finally
+// the ~/.infer/auth.json fallback (first hit per key wins).
+func TestResolveAgentEnv(t *testing.T) {
+	t.Setenv("INFER_TEST_SYS_KEY", "from-system")
+
+	env := map[string]string{
+		"INFER_TEST_DOTENV_KEY": "",
+		"INFER_TEST_SYS_KEY":    "",
+		"INFER_TEST_CONFIG_KEY": "from-agent-config",
+		"INFER_TEST_AUTH_KEY":   "",
+		"INFER_TEST_UNSET_KEY":  "",
+	}
+	dotEnvVars := map[string]string{
+		"INFER_TEST_DOTENV_KEY": "from-dotenv",
+	}
+	authKeys := map[string]string{
+		"INFER_TEST_DOTENV_KEY": "from-auth",
+		"INFER_TEST_SYS_KEY":    "from-auth",
+		"INFER_TEST_CONFIG_KEY": "from-auth",
+		"INFER_TEST_AUTH_KEY":   "from-auth",
+	}
+
+	resolved := resolveAgentEnv(env, dotEnvVars, authKeys)
+
+	require.Equal(t, "from-dotenv", resolved["INFER_TEST_DOTENV_KEY"])
+	require.Equal(t, "from-system", resolved["INFER_TEST_SYS_KEY"])
+	require.Equal(t, "from-agent-config", resolved["INFER_TEST_CONFIG_KEY"])
+	require.Equal(t, "from-auth", resolved["INFER_TEST_AUTH_KEY"])
+	require.Empty(t, resolved["INFER_TEST_UNSET_KEY"])
+}
+
 func TestAgentManager_loadDotEnvFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
