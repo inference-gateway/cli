@@ -21,30 +21,24 @@ func AuthFilePath() string {
 // LoadAuthKeys reads the userspace auth file as the lowest-precedence
 // fallback source of provider API keys (after the system environment and
 // the project .env). A missing, unreadable, or empty file yields no keys
-// and no warnings; a malformed file yields no keys plus a warning.
-// Warnings (malformed JSON, permissions broader than 0600) are returned
-// for the caller to log, so the fallback degrades silently and never
-// blocks startup. config cannot import the platform logger (the logger
-// imports config), hence the returned warnings instead.
-func LoadAuthKeys() (map[string]string, []string) {
+// and no error; a malformed file yields no keys plus an error. The error
+// is a warning for the caller to log (config cannot import the platform
+// logger, which imports config), so the fallback never blocks startup.
+func LoadAuthKeys() (map[string]string, error) {
 	path := AuthFilePath()
 
 	data, err := os.ReadFile(path)
-	if err != nil {
+	if err != nil || len(bytes.TrimSpace(data)) == 0 {
 		return nil, nil
-	}
-
-	if len(bytes.TrimSpace(data)) == 0 {
-		return map[string]string{}, nil
 	}
 
 	keys := map[string]string{}
 	if err := json.Unmarshal(data, &keys); err != nil {
-		return nil, []string{fmt.Sprintf("ignoring malformed %s: %v", path, err)}
+		return nil, fmt.Errorf("ignoring malformed %s: %w", path, err)
 	}
 
 	if info, err := os.Stat(path); err == nil && info.Mode().Perm()&0077 != 0 {
-		return keys, []string{fmt.Sprintf("%s permissions are broader than 0600 (%s)", path, info.Mode().Perm())}
+		return keys, fmt.Errorf("%s permissions are broader than 0600 (%s)", path, info.Mode().Perm())
 	}
 
 	return keys, nil

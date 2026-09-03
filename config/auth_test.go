@@ -36,10 +36,10 @@ func TestAuthFilePath(t *testing.T) {
 
 func TestLoadAuthKeys(t *testing.T) {
 	tests := []struct {
-		name         string
-		setup        func(t *testing.T)
-		wantKeys     map[string]string
-		wantWarnings []string
+		name     string
+		setup    func(t *testing.T)
+		wantKeys map[string]string
+		wantErr  string
 	}{
 		{
 			name:     "missing file degrades silently",
@@ -51,15 +51,15 @@ func TestLoadAuthKeys(t *testing.T) {
 			setup: func(t *testing.T) {
 				writeAuthFile(t, "", 0600)
 			},
-			wantKeys: map[string]string{},
+			wantKeys: nil,
 		},
 		{
 			name: "malformed file yields warning and no keys",
 			setup: func(t *testing.T) {
 				writeAuthFile(t, `{"OPENAI_API_KEY": 123}`, 0600)
 			},
-			wantKeys:     nil,
-			wantWarnings: []string{"malformed"},
+			wantKeys: nil,
+			wantErr:  "malformed",
 		},
 		{
 			name: "valid file yields keys",
@@ -76,8 +76,8 @@ func TestLoadAuthKeys(t *testing.T) {
 			setup: func(t *testing.T) {
 				writeAuthFile(t, `{"OPENAI_API_KEY": "sk-..."}`, 0644)
 			},
-			wantKeys:     map[string]string{"OPENAI_API_KEY": "sk-..."},
-			wantWarnings: []string{"broader than 0600"},
+			wantKeys: map[string]string{"OPENAI_API_KEY": "sk-..."},
+			wantErr:  "broader than 0600",
 		},
 	}
 
@@ -85,15 +85,12 @@ func TestLoadAuthKeys(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setup(t)
 
-			keys, warnings := LoadAuthKeys()
+			keys, err := LoadAuthKeys()
 
-			if len(tt.wantWarnings) == 0 {
-				require.Empty(t, warnings)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
 			} else {
-				require.Len(t, warnings, len(tt.wantWarnings))
-				for _, want := range tt.wantWarnings {
-					require.Contains(t, warnings[0], want)
-				}
+				require.ErrorContains(t, err, tt.wantErr)
 			}
 			require.Equal(t, tt.wantKeys, keys)
 		})
@@ -103,9 +100,9 @@ func TestLoadAuthKeys(t *testing.T) {
 func TestLoadAuthKeys_UnreadableFile(t *testing.T) {
 	authPath := writeAuthFile(t, `{"OPENAI_API_KEY": "sk-..."}`, 0000)
 
-	keys, warnings := LoadAuthKeys()
+	keys, err := LoadAuthKeys()
 
 	require.Nil(t, keys)
-	require.Empty(t, warnings)
+	require.NoError(t, err)
 	require.FileExists(t, authPath)
 }

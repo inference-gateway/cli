@@ -452,9 +452,9 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 		"OLLAMA_CLOUD_API_KEY",
 	}
 
-	authKeys, authWarnings := config.LoadAuthKeys()
-	for _, warning := range authWarnings {
-		logger.Warn(warning)
+	authKeys, authErr := config.LoadAuthKeys()
+	if authErr != nil {
+		logger.Warn(authErr.Error())
 	}
 
 	dotEnvVars, dotEnvErr := gotenv.Read(".env")
@@ -470,7 +470,7 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 		if _, ok := dotEnvVars[envVar]; ok {
 			continue
 		}
-		if value, ok := authKeys[envVar]; ok && value != "" {
+		if value := authKeys[envVar]; value != "" {
 			args = append(args, "-e", fmt.Sprintf("%s=%s", envVar, value))
 		}
 	}
@@ -1122,23 +1122,18 @@ func (gm *Manager) loadEnvironment() []string {
 		}
 	}
 
-	if envFile, err := os.ReadFile(".env"); err == nil {
-		lines := strings.Split(string(envFile), "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" || strings.HasPrefix(line, "#") || !strings.Contains(line, "=") {
-				continue
-			}
-			if key, _, ok := strings.Cut(line, "="); ok && !seen[key] {
+	if dotEnvVars, err := gotenv.Read(".env"); err == nil {
+		for key, value := range dotEnvVars {
+			if !seen[key] {
 				seen[key] = true
-				envVars = append(envVars, line)
+				envVars = append(envVars, key+"="+value)
 			}
 		}
 	}
 
-	authKeys, authWarnings := config.LoadAuthKeys()
-	for _, warning := range authWarnings {
-		logger.Warn(warning)
+	authKeys, authErr := config.LoadAuthKeys()
+	if authErr != nil {
+		logger.Warn(authErr.Error())
 	}
 	for key, value := range authKeys {
 		if value != "" && !seen[key] {

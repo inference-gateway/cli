@@ -525,9 +525,9 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 		env["A2A_ARTIFACTS_STORAGE_BASE_URL"] = artifactsURL
 	}
 
-	authKeys, authWarnings := config.LoadAuthKeys()
-	for _, warning := range authWarnings {
-		logger.Warn(warning)
+	authKeys, err := config.LoadAuthKeys()
+	if err != nil {
+		logger.Warn(err.Error())
 	}
 
 	resolvedEnv := resolveAgentEnv(env, dotEnvVars, authKeys)
@@ -574,11 +574,8 @@ func resolveAgentEnv(env, dotEnvVars, authKeys map[string]string) map[string]str
 			resolvedEnv[key] = value
 			continue
 		}
-		if value, exists := authKeys[key]; exists && value != "" {
-			resolvedEnv[key] = value
-			continue
-		}
-		resolvedEnv[key] = env[key]
+		// ponytail: unresolved keys are still passed as empty, preserving the old behavior.
+		resolvedEnv[key] = authKeys[key]
 	}
 	return resolvedEnv
 }
