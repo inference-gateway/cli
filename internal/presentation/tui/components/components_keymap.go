@@ -60,6 +60,10 @@ var modelSelectorKeys = struct {
 	tab2      key.Binding
 	tab3      key.Binding
 	tab4      key.Binding
+	tab5      key.Binding
+	tab6      key.Binding
+	tab7      key.Binding
+	tab8      key.Binding
 	search    key.Binding
 	enter     key.Binding
 	navUp     key.Binding
@@ -72,6 +76,10 @@ var modelSelectorKeys = struct {
 	tab2:      key.NewBinding(key.WithKeys("2")),
 	tab3:      key.NewBinding(key.WithKeys("3")),
 	tab4:      key.NewBinding(key.WithKeys("4")),
+	tab5:      key.NewBinding(key.WithKeys("5")),
+	tab6:      key.NewBinding(key.WithKeys("6")),
+	tab7:      key.NewBinding(key.WithKeys("7")),
+	tab8:      key.NewBinding(key.WithKeys("8")),
 	search:    key.NewBinding(key.WithKeys("/")),
 	enter:     key.NewBinding(key.WithKeys("enter")),
 	navUp:     key.NewBinding(key.WithKeys("up")),

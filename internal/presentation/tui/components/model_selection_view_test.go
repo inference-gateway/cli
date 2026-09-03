@@ -1,6 +1,7 @@
 package components
 
 import (
+	"regexp"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -9,6 +10,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	sdk "github.com/inference-gateway/sdk"
+
+	models "github.com/inference-gateway/cli/internal/platform/models"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
@@ -178,6 +182,87 @@ func TestModelSelector_SearchEnterSelectsFilteredMatch(t *testing.T) {
 	assert.Equal(t, "gamma", selected)
 	assert.Equal(t, "gamma", m.GetSelected())
 }
+
+// TestModelSelector_CapabilityFilter covers the capability tab row (keys 5-8):
+// it is ANDed with the pricing tab, and non-chat models from the gateway are
+// listed as view-only rows under their matching capability.
+func TestModelSelector_CapabilityFilter(t *testing.T) {
+	models.SetGatewayModalities(map[string]sdk.ModelModalities{
+		"free-model": {Input: []sdk.Modality{sdk.ModalityText, sdk.ModalityImage}, Output: []sdk.Modality{sdk.ModalityText}},
+		"paid-model": {Input: []sdk.Modality{sdk.ModalityText}, Output: []sdk.Modality{sdk.ModalityText}},
+		"p/whisper":  {Input: []sdk.Modality{sdk.ModalityAudio}, Output: []sdk.Modality{sdk.ModalityText}},
+	})
+	models.SetNonChatModels([]string{"p/whisper"})
+	defer models.SetGatewayModalities(nil)
+	defer models.SetNonChatModels(nil)
+
+	m := newFilterTestSelector([]string{"free-model", "paid-model"})
+
+	assert.ElementsMatch(t, []string{"free-model", "paid-model", "p/whisper"}, m.tabModels())
+
+	typeString(m, "6") // Vision
+	assert.Equal(t, CapabilityVision, m.capability)
+	assert.ElementsMatch(t, []string{"free-model"}, m.tabModels())
+
+	typeString(m, "7") // Audio: only the view-only whisper qualifies
+	assert.ElementsMatch(t, []string{"p/whisper"}, m.tabModels())
+	assert.Contains(t, m.formatModelSuffix("p/whisper"), "view-only")
+
+	typeString(m, "8") // Video: nothing
+	assert.Empty(t, m.tabModels())
+
+	typeString(m, "5") // back to Any
+	assert.Len(t, m.tabModels(), 3)
+
+	// Capability AND pricing: vision + free keeps only the free vision model.
+	typeString(m, "62")
+	assert.ElementsMatch(t, []string{"free-model"}, m.tabModels())
+}
+
+// TestModelSelector_NonChatModelNotSelectable drives Enter on a view-only row
+// and asserts no selection event is emitted, the selector stays open, and the
+// notice explains why.
+func TestModelSelector_NonChatModelNotSelectable(t *testing.T) {
+	models.SetGatewayModalities(map[string]sdk.ModelModalities{
+		"p/whisper": {Input: []sdk.Modality{sdk.ModalityAudio}, Output: []sdk.Modality{sdk.ModalityText}},
+	})
+	models.SetNonChatModels([]string{"p/whisper"})
+	defer models.SetGatewayModalities(nil)
+	defer models.SetNonChatModels(nil)
+
+	ms := &convmocks.FakeModelService{}
+	ms.SelectModelReturns(assert.AnError)
+	pricing := &convmocks.FakePricingService{}
+	m := NewModelSelector(nil, ms, pricing, nil, createMockStyleProvider())
+
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	for cmd != nil {
+		out := cmd()
+		if out == nil {
+			break
+		}
+		_, ok := out.(tui.ModelSelectedEvent)
+		assert.False(t, ok, "view-only model must not emit a selection event")
+		_, cmd = m.Update(out)
+	}
+
+	assert.False(t, m.IsSelected())
+	assert.Contains(t, m.notice, "p/whisper")
+	assert.Contains(t, m.viewContent(), "does not support chat")
+}
+
+// TestModelSelector_TabRowsRendered asserts both tab rows appear in the view
+// (ANSI styling stripped, since the active tab is styled per-cell).
+func TestModelSelector_TabRowsRendered(t *testing.T) {
+	m := newFilterTestSelector([]string{"free-model"})
+	content := ansiRe.ReplaceAllString(m.viewContent(), "")
+
+	for _, label := range []string{"[1] All", "[2] Free", "[3] Pay-as-you-go", "[4] Subscription", "[5] Any", "[6] Vision", "[7] Audio", "[8] Video"} {
+		assert.Contains(t, content, label)
+	}
+}
+
+var ansiRe = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
 // TestModelSelector_FormatModelSuffixSubscription checks the per-row marker: a
 // subscription model shows "subscription" and suppresses the misleading "free"

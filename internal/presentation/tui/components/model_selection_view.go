@@ -8,6 +8,7 @@ import (
 	textinput "charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	huh "charm.land/huh/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -26,9 +27,21 @@ const (
 	ModelViewSubscription
 )
 
+// ModelCapabilityFilter narrows the list by input modality, ANDed with the
+// pricing tab. Only chat-capable models are listed at all, so "text" is not a
+// filter; the dimensions are the extra input modalities a chat model accepts.
+type ModelCapabilityFilter int
+
+const (
+	CapabilityAny ModelCapabilityFilter = iota
+	CapabilityVision
+	CapabilityAudio
+	CapabilityVideo
+)
+
 // modelSelectChromeLines is the vertical space around the huh select: title,
-// tabs, separator, blank lines, and the help row.
-const modelSelectChromeLines = 8
+// both tab rows, separator, blank lines, and the help row.
+const modelSelectChromeLines = 9
 
 // ModelSelectorImpl implements model selection UI as a huh select with the
 // pricing tabs (keys 1-4) layered on top: switching a tab rebuilds the form
@@ -46,12 +59,18 @@ type ModelSelectorImpl struct {
 	pricingService convdomain.PricingService
 	config         *config.Config
 	currentView    ModelViewMode
+	capability     ModelCapabilityFilter
 
 	form       *huh.Form
 	sel        *huh.Select[string]
 	choice     string
 	search     textinput.Model
 	searchMode bool
+	notice     string
+
+	titleStyle       lipgloss.Style
+	tabActiveStyle   lipgloss.Style
+	tabInactiveStyle lipgloss.Style
 }
 
 // NewModelSelector creates a new model selector
@@ -68,6 +87,18 @@ func NewModelSelector(models []string, modelService convdomain.ModelService, pri
 	}
 	m.search = textinput.New()
 	m.search.Prompt = "Search: "
+
+	m.titleStyle = lipgloss.NewStyle().Bold(true)
+	m.tabActiveStyle = lipgloss.NewStyle().Bold(true).Underline(true).Padding(0, 1)
+	m.tabInactiveStyle = lipgloss.NewStyle().Padding(0, 1)
+	if styleProvider != nil {
+		accent := lipgloss.Color(styleProvider.GetThemeColor("accent"))
+		dim := lipgloss.Color(styleProvider.GetThemeColor("dim"))
+		m.titleStyle = m.titleStyle.Foreground(accent)
+		m.tabActiveStyle = m.tabActiveStyle.Foreground(accent)
+		m.tabInactiveStyle = m.tabInactiveStyle.Foreground(dim)
+	}
+
 	m.buildForm()
 	return m
 }
@@ -86,6 +117,7 @@ func (m *ModelSelectorImpl) buildForm() {
 		options = append(options, huh.NewOption(label, model))
 	}
 
+	m.notice = ""
 	m.choice = ""
 	m.sel = huh.NewSelect[string]().
 		Title(fmt.Sprintf("%d models available", len(visible))).
@@ -149,16 +181,28 @@ func (m *ModelSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		switch {
 		case key.Matches(msg, modelSelectorKeys.tab1):
-			m.handleViewSwitch("1")
+			m.setPricingView(ModelViewAll)
 			return m, nil
 		case key.Matches(msg, modelSelectorKeys.tab2):
-			m.handleViewSwitch("2")
+			m.setPricingView(ModelViewFree)
 			return m, nil
 		case key.Matches(msg, modelSelectorKeys.tab3):
-			m.handleViewSwitch("3")
+			m.setPricingView(ModelViewPayAsYouGo)
 			return m, nil
 		case key.Matches(msg, modelSelectorKeys.tab4):
-			m.handleViewSwitch("4")
+			m.setPricingView(ModelViewSubscription)
+			return m, nil
+		case key.Matches(msg, modelSelectorKeys.tab5):
+			m.setCapabilityFilter(CapabilityAny)
+			return m, nil
+		case key.Matches(msg, modelSelectorKeys.tab6):
+			m.setCapabilityFilter(CapabilityVision)
+			return m, nil
+		case key.Matches(msg, modelSelectorKeys.tab7):
+			m.setCapabilityFilter(CapabilityAudio)
+			return m, nil
+		case key.Matches(msg, modelSelectorKeys.tab8):
+			m.setCapabilityFilter(CapabilityVideo)
 			return m, nil
 		case key.Matches(msg, modelSelectorKeys.search):
 			m.searchMode = true
@@ -213,6 +257,9 @@ func (m *ModelSelectorImpl) forwardToForm(msg tea.Msg) tea.Cmd {
 	selectedModel := m.choice
 	if err := m.modelService.SelectModel(selectedModel); err != nil {
 		m.buildForm()
+		if models.IsNonChatModel(selectedModel) {
+			m.notice = fmt.Sprintf("%s does not support chat and cannot be selected", selectedModel)
+		}
 		return nil
 	}
 	m.done = true
@@ -221,17 +268,13 @@ func (m *ModelSelectorImpl) forwardToForm(msg tea.Msg) tea.Cmd {
 	}
 }
 
-func (m *ModelSelectorImpl) handleViewSwitch(key string) {
-	switch key {
-	case "1":
-		m.currentView = ModelViewAll
-	case "2":
-		m.currentView = ModelViewFree
-	case "3":
-		m.currentView = ModelViewPayAsYouGo
-	case "4":
-		m.currentView = ModelViewSubscription
-	}
+func (m *ModelSelectorImpl) setPricingView(view ModelViewMode) {
+	m.currentView = view
+	m.buildForm()
+}
+
+func (m *ModelSelectorImpl) setCapabilityFilter(filter ModelCapabilityFilter) {
+	m.capability = filter
 	m.buildForm()
 }
 
@@ -242,11 +285,16 @@ func (m *ModelSelectorImpl) View() tea.View {
 func (m *ModelSelectorImpl) viewContent() string {
 	var b strings.Builder
 
-	accentColor := m.styleProvider.GetThemeColor("accent")
-	b.WriteString(m.styleProvider.RenderWithColor("Select a Model", accentColor))
+	b.WriteString(m.titleStyle.Render("Select a Model"))
 	b.WriteString("\n\n")
 
 	m.writeViewTabs(&b)
+
+	if m.notice != "" {
+		warningColor := m.styleProvider.GetThemeColor("warning")
+		b.WriteString(m.styleProvider.RenderWithColor(m.notice, warningColor))
+		b.WriteString("\n\n")
+	}
 
 	if m.searchMode || m.search.Value() != "" {
 		b.WriteString(m.search.View())
@@ -267,9 +315,9 @@ func (m *ModelSelectorImpl) viewContent() string {
 	b.WriteString(m.form.View())
 
 	b.WriteString("\n")
-	b.WriteString(strings.Repeat("─", max(m.width, 1)))
+	b.WriteString(m.styleProvider.RenderDimText(strings.Repeat("─", max(m.width, 1))))
 	b.WriteString("\n")
-	b.WriteString(m.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter to select, / to search, esc to clear, 1-4 to switch tabs, Ctrl+C to cancel"))
+	b.WriteString(m.styleProvider.RenderDimText("↑↓ navigate · Enter select · / search · esc clear · 1-4 pricing · 5-8 capability · Ctrl+C cancel"))
 
 	return b.String()
 }
@@ -295,6 +343,10 @@ func (m *ModelSelectorImpl) formatModelSuffix(model string) string {
 		parts = append(parts, label)
 	}
 
+	if models.IsNonChatModel(model) {
+		parts = append(parts, "view-only")
+	}
+
 	return fmt.Sprintf("(%s)", strings.Join(parts, ", "))
 }
 
@@ -316,30 +368,49 @@ func formatContextWindow(tokens int) string {
 	}
 }
 
-// tabModels returns the models visible under the current pricing tab.
+// tabModels returns the models visible under the current pricing tab and
+// capability filter (ANDed). Chat-capable models come first, then the
+// gateway's non-chat models (STT/TTS/image-gen/video) as view-only rows.
 func (m *ModelSelectorImpl) tabModels() []string {
-	switch m.currentView {
-	case ModelViewFree:
-		return m.filterModels(m.isModelFree)
-	case ModelViewPayAsYouGo:
-		return m.filterModels(func(model string) bool {
-			return !m.isModelFree(model) && !m.isModelSubscription(model)
-		})
-	case ModelViewSubscription:
-		return m.filterModels(m.isModelSubscription)
-	default:
-		return m.models
-	}
-}
+	pricing := m.pricingPredicate()
+	capability := m.capabilityPredicate()
+	all := append(append([]string{}, m.models...), models.NonChatModels()...)
 
-func (m *ModelSelectorImpl) filterModels(keep func(string) bool) []string {
-	filtered := make([]string, 0, len(m.models))
-	for _, model := range m.models {
-		if keep(model) {
+	filtered := make([]string, 0, len(all))
+	for _, model := range all {
+		if pricing(model) && capability(model) {
 			filtered = append(filtered, model)
 		}
 	}
 	return filtered
+}
+
+func (m *ModelSelectorImpl) pricingPredicate() func(string) bool {
+	switch m.currentView {
+	case ModelViewFree:
+		return m.isModelFree
+	case ModelViewPayAsYouGo:
+		return func(model string) bool {
+			return !m.isModelFree(model) && !m.isModelSubscription(model)
+		}
+	case ModelViewSubscription:
+		return m.isModelSubscription
+	default:
+		return func(string) bool { return true }
+	}
+}
+
+func (m *ModelSelectorImpl) capabilityPredicate() func(string) bool {
+	switch m.capability {
+	case CapabilityVision:
+		return models.SupportsVision
+	case CapabilityAudio:
+		return models.SupportsAudio
+	case CapabilityVideo:
+		return models.SupportsVideo
+	default:
+		return func(string) bool { return true }
+	}
 }
 
 // isModelFree checks if a model is free (both input and output prices are 0.0).
@@ -410,34 +481,31 @@ func (m *ModelSelectorImpl) SetHeight(height int) {
 	m.height = height
 }
 
-// writeViewTabs writes the view selection tabs
+// writeViewTabs writes the pricing tab row (keys 1-4) and the capability tab
+// row (keys 5-8), active tab highlighted.
 func (m *ModelSelectorImpl) writeViewTabs(b *strings.Builder) {
-	accentColor := m.styleProvider.GetThemeColor("accent")
+	pricingTabs := []string{"[1] All", "[2] Free", "[3] Pay-as-you-go", "[4] Subscription"}
+	capabilityTabs := []string{"[5] Any", "[6] Vision", "[7] Audio", "[8] Video"}
 
-	allStyle := "[1] All"
-	freeStyle := "[2] Free"
-	paygStyle := "[3] Pay-as-you-go"
-	subscriptionStyle := "[4] Subscription"
+	b.WriteString(m.renderTabRow(pricingTabs, int(m.currentView)))
+	b.WriteString("\n")
+	b.WriteString(m.renderTabRow(capabilityTabs, int(m.capability)))
+	b.WriteString("\n")
 
-	switch m.currentView {
-	case ModelViewAll:
-		allStyle = m.styleProvider.RenderWithColor("[1] All", accentColor)
-	case ModelViewFree:
-		freeStyle = m.styleProvider.RenderWithColor("[2] Free", accentColor)
-	case ModelViewPayAsYouGo:
-		paygStyle = m.styleProvider.RenderWithColor("[3] Pay-as-you-go", accentColor)
-	case ModelViewSubscription:
-		subscriptionStyle = m.styleProvider.RenderWithColor("[4] Subscription", accentColor)
-	}
-
-	tabs := fmt.Sprintf("%s  %s  %s  %s", allStyle, freeStyle, paygStyle, subscriptionStyle)
-	dimTabs := m.styleProvider.RenderDimText(tabs)
-	fmt.Fprintf(b, "%s\n", dimTabs)
-
-	separatorWidth := m.width - 4
-	if separatorWidth < 0 {
-		separatorWidth = 40
-	}
-	separator := m.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth))
+	separator := m.styleProvider.RenderDimText(strings.Repeat("─", max(m.width, 1)))
 	fmt.Fprintf(b, "%s\n\n", separator)
+}
+
+// renderTabRow renders one row of tab labels with the active index
+// highlighted.
+func (m *ModelSelectorImpl) renderTabRow(labels []string, active int) string {
+	rendered := make([]string, len(labels))
+	for i, label := range labels {
+		if i == active {
+			rendered[i] = m.tabActiveStyle.Render(label)
+		} else {
+			rendered[i] = m.tabInactiveStyle.Render(label)
+		}
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
 }
