@@ -503,7 +503,6 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 	}
 
 	if gm.config.Tools.ImageGeneration.Enabled || gm.config.Tools.ImageEdit.Enabled || gm.config.Tools.ImageVariation.Enabled {
-		// older gateway images (pre inference-gateway#588) predate this rename and silently ignore the toggle
 		args = append(args, "-e", "IMAGES_ENABLED=true")
 	}
 
