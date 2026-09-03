@@ -1062,7 +1062,6 @@ func (gm *Manager) runBinary(binaryPath string) error {
 	}
 
 	if gm.config.Tools.ImageGeneration.Enabled || gm.config.Tools.ImageEdit.Enabled || gm.config.Tools.ImageVariation.Enabled {
-		// older gateway images (pre inference-gateway#588) predate this rename and silently ignore the toggle
 		cmd.Env = append(cmd.Env, "IMAGES_ENABLED=true")
 	}
 
