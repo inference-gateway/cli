@@ -1,6 +1,6 @@
 module github.com/inference-gateway/cli
 
-go 1.26.4
+go 1.26.7
 
 tool github.com/maxbrunsfeld/counterfeiter/v6
 

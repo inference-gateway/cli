@@ -14,6 +14,7 @@ jobs:
   version:
     name: Compute Version
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: write
       issues: write
@@ -108,6 +109,7 @@ jobs:
     needs: version
     if: needs.version.outputs.new_release_published == 'true'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -150,7 +152,7 @@ jobs:
             -v "$PWD":/workspace \
             -w /workspace \
             -e CGO_ENABLED=0 \
-            golang:1.26-alpine3.23 \
+            golang:1.26.7-alpine3.23 \
             sh -c "go build -tags purego -ldflags '-w -s -X github.com/inference-gateway/cli/cmd/version.version=v${{ needs.version.outputs.new_release_version }}' -o infer-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/infer"
 
       - name: Build binary (macOS - pure Go via -tags purego)
@@ -180,6 +182,7 @@ jobs:
       - build
     if: needs.version.outputs.new_release_published == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: write
       issues: write
@@ -317,6 +320,7 @@ jobs:
       - release
     if: needs.version.outputs.new_release_published == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
