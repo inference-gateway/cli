@@ -189,19 +189,13 @@ func TestPricingService_RequiresPro(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "known pro model from curated set returns true",
+			name:     "gateway-flagged subscription model returns true",
 			enabled:  true,
 			model:    "ollama_cloud/deepseek-v4-pro",
 			expected: true,
 		},
 		{
-			name:     "known flash pro model from curated set returns true",
-			enabled:  true,
-			model:    "ollama_cloud/deepseek-v4-flash",
-			expected: true,
-		},
-		{
-			name:     "previously-default free ollama cloud model returns false",
+			name:     "gateway model without subscription flag returns false",
 			enabled:  true,
 			model:    "ollama_cloud/kimi-k2.5",
 			expected: false,
@@ -213,6 +207,12 @@ func TestPricingService_RequiresPro(t *testing.T) {
 			expected: false,
 		},
 	}
+
+	setGatewayPricing(map[string]gatewayPrice{
+		"ollama_cloud/deepseek-v4-pro": {subscription: true},
+		"ollama_cloud/kimi-k2.5":       {},
+	})
+	defer setGatewayPricing(nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -261,7 +261,7 @@ func TestFormatModelPricingLabel(t *testing.T) {
 		expected     string
 	}{
 		{
-			name:     "known subscription model shows subscription",
+			name:     "gateway-flagged subscription model shows subscription",
 			enabled:  true,
 			model:    "ollama_cloud/deepseek-v4-pro",
 			expected: "subscription",
@@ -306,6 +306,11 @@ func TestFormatModelPricingLabel(t *testing.T) {
 			expected: "",
 		},
 	}
+
+	setGatewayPricing(map[string]gatewayPrice{
+		"ollama_cloud/deepseek-v4-pro": {subscription: true},
+	})
+	defer setGatewayPricing(nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -429,6 +434,12 @@ func TestParseGatewayPricing(t *testing.T) {
 	price, ok = parseGatewayPricing(&sdk.Pricing{InputPerToken: "0.0000025", OutputPerToken: "0.00001"})
 	assert.True(t, ok)
 	assert.Nil(t, price.cacheReadPerMTok)
+	assert.False(t, price.subscription)
+
+	sub := true
+	price, ok = parseGatewayPricing(&sdk.Pricing{InputPerToken: "0", OutputPerToken: "0", Subscription: &sub})
+	assert.True(t, ok)
+	assert.True(t, price.subscription)
 
 	_, ok = parseGatewayPricing(nil)
 	assert.False(t, ok)

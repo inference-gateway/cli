@@ -112,3 +112,70 @@ func TestIsChatCapableModalities(t *testing.T) {
 		})
 	}
 }
+
+// TestCapabilityPredicatesAndLabels covers the per-model capability lookups
+// behind the model picker's capability tabs and row suffixes: vision is
+// image *input*, audio/video match either side (so STT and TTS both count as
+// audio), and ModalitiesLabel comma-joins the extra modalities.
+func TestCapabilityPredicatesAndLabels(t *testing.T) {
+	SetGatewayModalities(map[string]sdk.ModelModalities{
+		"p/chat":      {Input: []sdk.Modality{sdk.ModalityText}, Output: []sdk.Modality{sdk.ModalityText}},
+		"p/vision":    {Input: []sdk.Modality{sdk.ModalityText, sdk.ModalityImage}, Output: []sdk.Modality{sdk.ModalityText}},
+		"p/omni":      {Input: []sdk.Modality{sdk.ModalityText, sdk.ModalityImage, sdk.ModalityAudio, sdk.ModalityVideo}, Output: []sdk.Modality{sdk.ModalityText}},
+		"p/stt":       {Input: []sdk.Modality{sdk.ModalityAudio}, Output: []sdk.Modality{sdk.ModalityText}},
+		"p/tts":       {Input: []sdk.Modality{sdk.ModalityText}, Output: []sdk.Modality{sdk.ModalityAudio}},
+		"p/image-gen": {Input: []sdk.Modality{sdk.ModalityText}, Output: []sdk.Modality{sdk.ModalityImage}},
+	})
+	defer SetGatewayModalities(nil)
+
+	testCases := []struct {
+		model                string
+		vision, audio, video bool
+		label                string
+	}{
+		{"p/chat", false, false, false, ""},
+		{"p/vision", true, false, false, "vision"},
+		{"p/omni", true, true, true, "vision, audio, video"},
+		{"p/stt", false, true, false, "audio"},
+		{"p/tts", false, true, false, "audio"},
+		{"p/image-gen", false, false, false, "image-gen"},
+		{"p/unknown", false, false, false, ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.model, func(t *testing.T) {
+			if got := SupportsVision(tc.model); got != tc.vision {
+				t.Errorf("SupportsVision = %v, expected %v", got, tc.vision)
+			}
+			if got := SupportsAudio(tc.model); got != tc.audio {
+				t.Errorf("SupportsAudio = %v, expected %v", got, tc.audio)
+			}
+			if got := SupportsVideo(tc.model); got != tc.video {
+				t.Errorf("SupportsVideo = %v, expected %v", got, tc.video)
+			}
+			if got := ModalitiesLabel(tc.model); got != tc.label {
+				t.Errorf("ModalitiesLabel = %q, expected %q", got, tc.label)
+			}
+		})
+	}
+}
+
+// TestNonChatModels covers the view-only registry: setters replace the list
+// and callers get a copy they cannot mutate in place.
+func TestNonChatModels(t *testing.T) {
+	SetNonChatModels([]string{"p/stt", "p/tts"})
+	defer SetNonChatModels(nil)
+
+	got := NonChatModels()
+	if len(got) != 2 || got[0] != "p/stt" || got[1] != "p/tts" {
+		t.Errorf("NonChatModels() = %v", got)
+	}
+	got[0] = "mutated"
+	if NonChatModels()[0] != "p/stt" {
+		t.Error("NonChatModels must return a copy")
+	}
+
+	if !IsNonChatModel("p/stt") || IsNonChatModel("p/chat") {
+		t.Error("IsNonChatModel must reflect the registered list")
+	}
+}

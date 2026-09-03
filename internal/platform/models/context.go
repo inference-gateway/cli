@@ -15,6 +15,7 @@ var (
 	gatewayMu         sync.RWMutex
 	gatewayWindows    map[string]int
 	gatewayModalities map[string]sdk.ModelModalities
+	nonChatModels     []string
 )
 
 // SetGatewayContextWindows replaces the gateway-reported context windows
@@ -41,6 +42,31 @@ func SetGatewayModalities(modalities map[string]sdk.ModelModalities) {
 	gatewayMu.Lock()
 	gatewayModalities = normalized
 	gatewayMu.Unlock()
+}
+
+// SetNonChatModels replaces the gateway-reported model ids that cannot serve
+// /chat/completions (speech-to-text, text-to-speech, image-gen, video
+// models). They are listed in pickers for visibility but are not selectable.
+func SetNonChatModels(ids []string) {
+	gatewayMu.Lock()
+	nonChatModels = ids
+	gatewayMu.Unlock()
+}
+
+// NonChatModels returns the gateway-reported non-chat model ids.
+func NonChatModels() []string {
+	gatewayMu.RLock()
+	defer gatewayMu.RUnlock()
+	return slices.Clone(nonChatModels)
+}
+
+// IsNonChatModel reports whether the model is one of the gateway's view-only
+// non-chat models. Models the gateway never reported (e.g. before the first
+// fetch) return false.
+func IsNonChatModel(modelID string) bool {
+	gatewayMu.RLock()
+	defer gatewayMu.RUnlock()
+	return slices.Contains(nonChatModels, modelID)
 }
 
 // IsImageGenModalities reports whether a modality set describes an
@@ -81,6 +107,23 @@ func SupportsVision(modelID string) bool {
 		slices.Contains(mods.Input, sdk.ModalityImage)
 }
 
+// SupportsAudio reports whether the model works with audio on either side
+// (audio input like speech-to-text/multimodal chat, or audio output like
+// text-to-speech). Models not in the registry return false.
+func SupportsAudio(modelID string) bool {
+	mods := modelModalities(modelID)
+	return slices.Contains(mods.Input, sdk.ModalityAudio) ||
+		slices.Contains(mods.Output, sdk.ModalityAudio)
+}
+
+// SupportsVideo reports whether the model works with video on either side.
+// Models not in the registry return false.
+func SupportsVideo(modelID string) bool {
+	mods := modelModalities(modelID)
+	return slices.Contains(mods.Input, sdk.ModalityVideo) ||
+		slices.Contains(mods.Output, sdk.ModalityVideo)
+}
+
 // IsImageGenerationModel reports whether the model generates images rather
 // than text (see IsImageGenModalities). Falls back to false when the model
 // is not in the registry.
@@ -90,17 +133,23 @@ func IsImageGenerationModel(modelID string) bool {
 
 // ModalitiesLabel returns a compact human-readable label for a model's
 // modalities, or "" when the model is not in the registry: "image-gen" for
-// image-generation models, "vision" for image-accepting chat models, ""
-// otherwise.
+// image-generation models, otherwise the model's extra input modalities
+// ("vision", "audio", "video") comma-joined.
 func ModalitiesLabel(modelID string) string {
-	switch {
-	case IsImageGenerationModel(modelID):
+	if IsImageGenerationModel(modelID) {
 		return "image-gen"
-	case SupportsVision(modelID):
-		return "vision"
-	default:
-		return ""
 	}
+	parts := make([]string, 0, 3)
+	if SupportsVision(modelID) {
+		parts = append(parts, "vision")
+	}
+	if SupportsAudio(modelID) {
+		parts = append(parts, "audio")
+	}
+	if SupportsVideo(modelID) {
+		parts = append(parts, "video")
+	}
+	return strings.Join(parts, ", ")
 }
 
 func gatewayContextWindow(fullID string) (int, bool) {

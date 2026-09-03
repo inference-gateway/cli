@@ -54,6 +54,7 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 	}
 
 	ids := make([]string, 0, len(resp.Data))
+	nonChat := make([]string, 0, len(resp.Data))
 	windows := make(map[string]int, len(resp.Data))
 	prices := make(map[string]gatewayPrice, len(resp.Data))
 	modalities := make(map[string]sdk.ModelModalities, len(resp.Data))
@@ -63,6 +64,7 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 		}
 		modalities[model.ID] = *model.Modalities
 		if !models.IsChatCapableModalities(*model.Modalities) {
+			nonChat = append(nonChat, model.ID)
 			continue
 		}
 		ids = append(ids, model.ID)
@@ -88,6 +90,7 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 	if len(modalities) > 0 {
 		models.SetGatewayModalities(modalities)
 	}
+	models.SetNonChatModels(nonChat)
 
 	result := make([]string, len(ids))
 	copy(result, ids)

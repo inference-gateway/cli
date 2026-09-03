@@ -18,6 +18,7 @@ type gatewayPrice struct {
 	outputPerMTok     float64
 	cacheReadPerMTok  *float64
 	cacheWritePerMTok *float64
+	subscription      bool
 }
 
 var (
@@ -51,7 +52,11 @@ func parseGatewayPricing(p *sdk.Pricing) (gatewayPrice, bool) {
 	if errIn != nil || errOut != nil {
 		return gatewayPrice{}, false
 	}
-	price := gatewayPrice{inputPerMTok: input * 1e6, outputPerMTok: output * 1e6}
+	price := gatewayPrice{
+		inputPerMTok:  input * 1e6,
+		outputPerMTok: output * 1e6,
+		subscription:  p.Subscription != nil && *p.Subscription,
+	}
 	if p.CacheReadPerToken != nil {
 		if cacheRead, err := strconv.ParseFloat(*p.CacheReadPerToken, 64); err == nil {
 			perMTok := cacheRead * 1e6
@@ -65,17 +70,6 @@ func parseGatewayPricing(p *sdk.Pricing) (gatewayPrice, bool) {
 		}
 	}
 	return price, true
-}
-
-// knownProModels is the curated set of model IDs that require a Pro subscription.
-// These models have no per-token price ($0/$0) but are not freely available —
-// they are gated server-side. The gateway does not report RequiresPro in its
-// pricing metadata, so this small set is kept here instead.
-// ponytail: add entries here as new Pro-gated models appear. This map is ~4
-// lines, not the 910-line DefaultModelPricing table we deleted.
-var knownProModels = map[string]bool{
-	"ollama_cloud/deepseek-v4-pro":   true,
-	"ollama_cloud/deepseek-v4-flash": true,
 }
 
 // PricingServiceImpl implements the PricingService interface.
@@ -109,16 +103,14 @@ func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64
 }
 
 // resolveRequiresPro returns whether a model is gated behind a Pro subscription.
-// Custom prices take precedence, then the known-Pro set (curated, not exhaustive),
+// Custom prices take precedence, then the gateway-reported subscription flag,
 // matching the precedent of resolvePricing.
 func (p *PricingServiceImpl) resolveRequiresPro(model string) bool {
 	if customPrice, exists := p.config.CustomPrices[model]; exists {
 		return customPrice.RequiresPro
 	}
-	if knownProModels[model] {
-		return true
-	}
-	return false
+	price, exists := gatewayPriceFor(model)
+	return exists && price.subscription
 }
 
 // RequiresPro reports whether the model is gated behind a paid Pro subscription.
