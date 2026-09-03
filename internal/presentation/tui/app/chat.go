@@ -2386,6 +2386,12 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 			app.inputView.SetUsageHint(usageHint)
 		}
 
+		if acMsg.Submit {
+			app.autocomplete.Hide()
+			*cmds = append(*cmds, app.SendMessage())
+			return
+		}
+
 		text := app.inputView.GetInput()
 		cursor := app.inputView.GetCursor()
 		app.autocomplete.Update(text, cursor)
