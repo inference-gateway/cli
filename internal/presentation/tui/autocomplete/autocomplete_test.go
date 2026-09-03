@@ -715,6 +715,83 @@ func TestAutocomplete_TabCompletesWithoutSubmitting(t *testing.T) {
 			"Tab must complete the shortcut text, not signal submission")
 	})
 
+	t.Run("enter completes the selection like tab", func(t *testing.T) {
+		ac := autocomplete.NewAutocomplete(theme, mockRegistry)
+		ac.Update("/cle", 4)
+		assert.True(t, ac.IsVisible())
+
+		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		assert.True(t, handled)
+		assert.Equal(t, "/clear ", completion)
+		assert.False(t, ac.IsVisible())
+		assert.Empty(t, ac.GetUsageHint(),
+			"a no-arg shortcut must not set a usage hint, so Enter can submit it")
+	})
+
+	t.Run("enter on /model completes without drilling into the model list", func(t *testing.T) {
+		modelShortcut := &shortcutsmocks.FakeShortcut{}
+		modelShortcut.GetNameReturns("model")
+		modelShortcut.GetDescriptionReturns("Switch model")
+
+		registry := &tuimocks.FakeShortcutRegistry{}
+		registry.GetAllReturns([]shortcuts.Shortcut{modelShortcut})
+
+		mockModelService := &convmocks.FakeModelService{}
+		mockModelService.ListModelsReturns([]string{"gpt-4o"}, nil)
+
+		ac := autocomplete.NewAutocomplete(theme, registry)
+		ac.SetModelService(mockModelService)
+		ac.Update("/mod", 4)
+		assert.True(t, ac.IsVisible())
+
+		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		assert.True(t, handled)
+		assert.Equal(t, "/model ", completion)
+		assert.False(t, ac.IsVisible(),
+			"Enter must execute /model itself, not open the inline model list")
+	})
+
+	t.Run("tab on /model drills into the model list", func(t *testing.T) {
+		modelShortcut := &shortcutsmocks.FakeShortcut{}
+		modelShortcut.GetNameReturns("model")
+		modelShortcut.GetDescriptionReturns("Switch model")
+
+		registry := &tuimocks.FakeShortcutRegistry{}
+		registry.GetAllReturns([]shortcuts.Shortcut{modelShortcut})
+
+		mockModelService := &convmocks.FakeModelService{}
+		mockModelService.ListModelsReturns([]string{"gpt-4o"}, nil)
+
+		ac := autocomplete.NewAutocomplete(theme, registry)
+		ac.SetModelService(mockModelService)
+		ac.Update("/mod", 4)
+
+		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyTab})
+		assert.True(t, handled)
+		assert.Equal(t, "/model ", completion)
+		assert.True(t, ac.IsVisible(),
+			"Tab must keep the inline model list open")
+	})
+
+	t.Run("arg-requiring shortcut sets usage hint on selection", func(t *testing.T) {
+		argShortcut := &shortcutsmocks.FakeShortcut{}
+		argShortcut.GetNameReturns("export")
+		argShortcut.GetDescriptionReturns("Export conversation <path>")
+
+		registry := &tuimocks.FakeShortcutRegistry{}
+		registry.GetAllReturns([]shortcuts.Shortcut{argShortcut})
+
+		ac := autocomplete.NewAutocomplete(theme, registry)
+		ac.Update("/exp", 4)
+		assert.True(t, ac.IsVisible())
+
+		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		assert.True(t, handled)
+		assert.Equal(t, "/export ", completion)
+		assert.NotEmpty(t, ac.GetUsageHint(),
+			"an arg-requiring shortcut must set a usage hint, so Enter only completes")
+	})
+
 	t.Run("completed shortcut does not re-open the popup", func(t *testing.T) {
 		ac := autocomplete.NewAutocomplete(theme, mockRegistry)
 		ac.Update("/cle", 4)

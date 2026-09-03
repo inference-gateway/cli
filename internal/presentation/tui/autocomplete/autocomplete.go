@@ -721,11 +721,13 @@ func (a *AutocompleteImpl) HandleKey(k tea.KeyPressMsg) (bool, string) {
 		if a.selected >= len(a.filtered) {
 			return true, ""
 		}
-		return a.handleSelection()
+		return a.handleSelection(true)
 
 	case key.Matches(k, autocompleteKeys.enter):
-		a.visible = false
-		return false, ""
+		if a.selected >= len(a.filtered) {
+			return true, ""
+		}
+		return a.handleSelection(false)
 
 	case key.Matches(k, autocompleteKeys.esc):
 		a.visible = false
@@ -760,8 +762,10 @@ func (a *AutocompleteImpl) spliceMidText(selected, prefix, suffix string) (strin
 	return prefix + selected + tail, caret
 }
 
-// handleSelection handles the selected autocomplete item
-func (a *AutocompleteImpl) handleSelection() (bool, string) {
+// handleSelection handles the selected autocomplete item. drill controls
+// whether selecting "/model" opens the inline model list (Tab) or just
+// completes so the shortcut itself runs (Enter).
+func (a *AutocompleteImpl) handleSelection(drill bool) (bool, string) {
 	selected := a.filtered[a.selected].Shortcut
 	usage := a.filtered[a.selected].Usage
 	a.lastCompletionCursor = 0
@@ -781,6 +785,11 @@ func (a *AutocompleteImpl) handleSelection() (bool, string) {
 
 	if a.completionMode == "shortcuts" && selected == "/model" {
 		selected = selected + " "
+		if !drill {
+			a.usageHint = ""
+			a.visible = false
+			return true, selected
+		}
 		a.loadModels()
 		a.completionMode = "models"
 		a.query = ""
@@ -819,6 +828,13 @@ func (a *AutocompleteImpl) handleSelection() (bool, string) {
 			a.filterSuggestions()
 			a.visible = len(a.filtered) > 0
 			return true, selected
+		}
+
+		description := a.filtered[a.selected].Description
+		if strings.Contains(description, "<") || strings.Contains(description, "[") {
+			a.usageHint = a.extractUsageHint(description)
+		} else {
+			a.usageHint = ""
 		}
 
 		selected = selected + " "
@@ -1050,6 +1066,9 @@ func (a *AutocompleteImpl) extractUsageHint(description string) string {
 	// Look for "(usage: ...)" pattern
 	usageStart := strings.Index(description, "(usage:")
 	if usageStart == -1 {
+		if argStart := strings.IndexAny(description, "<["); argStart != -1 {
+			return strings.TrimSpace(description[argStart:])
+		}
 		return ""
 	}
 

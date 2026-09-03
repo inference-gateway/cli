@@ -85,6 +85,7 @@ type AutocompleteHideEvent struct{}
 type AutocompleteCompleteEvent struct {
 	Completion string
 	CursorPos  int
+	Submit     bool
 }
 
 // RolloverCompletedEvent is dispatched when an asynchronous auto-rollover

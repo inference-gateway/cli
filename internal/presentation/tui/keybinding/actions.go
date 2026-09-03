@@ -274,10 +274,14 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 		if handled, completion := autocomplete.HandleKey(keyMsg); handled {
 			if completion != "" {
 				cursorPos := autocomplete.GetCompletionCursorPos()
+				submit := !autocomplete.IsVisible() &&
+					!strings.Contains(autocomplete.GetUsageHint(), "<") &&
+					cursorPos == 0
 				return func() tea.Msg {
 					return tui.AutocompleteCompleteEvent{
 						Completion: completion,
 						CursorPos:  cursorPos,
+						Submit:     submit,
 					}
 				}
 			}
