@@ -1122,7 +1122,6 @@ func (gm *Manager) loadEnvironment() []string {
 		}
 	}
 
-	// Project .env: first hit per key wins, so system env entries stay.
 	if envFile, err := os.ReadFile(".env"); err == nil {
 		lines := strings.Split(string(envFile), "\n")
 		for _, line := range lines {
