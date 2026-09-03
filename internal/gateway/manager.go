@@ -452,10 +452,6 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 		"OLLAMA_CLOUD_API_KEY",
 	}
 
-	// Provider key precedence per key: system environment, project .env,
-	// ~/.infer/auth.json. The whole .env is supplied via --env-file, so -e is
-	// only passed for keys resolved from the system environment or the
-	// auth.json fallback - otherwise -e would override the project .env.
 	authKeys, authWarnings := config.LoadAuthKeys()
 	for _, warning := range authWarnings {
 		logger.Warn(warning)
