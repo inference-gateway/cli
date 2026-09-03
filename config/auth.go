@@ -40,8 +40,6 @@ func LoadAuthKeys() (map[string]string, []string) {
 
 	keys := map[string]string{}
 	if err := json.Unmarshal(data, &keys); err != nil {
-		// Drop everything, even partially-parsed entries: half-trusting a
-		// malformed credential file is worse than ignoring it.
 		return nil, []string{fmt.Sprintf("ignoring malformed %s: %v", path, err)}
 	}
 
