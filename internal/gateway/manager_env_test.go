@@ -21,8 +21,6 @@ func TestManager_loadEnvironment(t *testing.T) {
 		bothKey = "INFER_TEST_BOTH_KEY"
 	)
 
-	// setup isolates the test from the real environment: a fresh HOME (with
-	// an optional auth.json) and an empty project dir (with an optional .env).
 	setup := func(t *testing.T, dotEnv, authJSON string) []string {
 		t.Helper()
 
