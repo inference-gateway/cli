@@ -503,7 +503,8 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 	}
 
 	if gm.config.Tools.ImageGeneration.Enabled || gm.config.Tools.ImageEdit.Enabled || gm.config.Tools.ImageVariation.Enabled {
-		args = append(args, "-e", "ENABLE_IMAGES=true")
+		// older gateway images (pre inference-gateway#588) predate this rename and silently ignore the toggle
+		args = append(args, "-e", "IMAGES_ENABLED=true")
 	}
 
 	if gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() {
@@ -1062,7 +1063,8 @@ func (gm *Manager) runBinary(binaryPath string) error {
 	}
 
 	if gm.config.Tools.ImageGeneration.Enabled || gm.config.Tools.ImageEdit.Enabled || gm.config.Tools.ImageVariation.Enabled {
-		cmd.Env = append(cmd.Env, "ENABLE_IMAGES=true")
+		// older gateway images (pre inference-gateway#588) predate this rename and silently ignore the toggle
+		cmd.Env = append(cmd.Env, "IMAGES_ENABLED=true")
 	}
 
 	if gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() {

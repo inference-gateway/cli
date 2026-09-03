@@ -13,7 +13,7 @@ services:
       SERVER_IDLE_TIMEOUT: 230s
       CLIENT_TIMEOUT: 230s
       CLIENT_RESPONSE_HEADER_TIMEOUT: 230s
-      ENABLE_IMAGES: true
+      IMAGES_ENABLED: true
 
   browser-agent:
     image: ghcr.io/inference-gateway/browser-agent:latest
