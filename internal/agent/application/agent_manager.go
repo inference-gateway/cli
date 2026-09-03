@@ -574,7 +574,6 @@ func resolveAgentEnv(env, dotEnvVars, authKeys map[string]string) map[string]str
 			resolvedEnv[key] = value
 			continue
 		}
-		// ponytail: unresolved keys are still passed as empty, preserving the old behavior.
 		resolvedEnv[key] = authKeys[key]
 	}
 	return resolvedEnv
