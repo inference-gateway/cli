@@ -525,18 +525,12 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 		env["A2A_ARTIFACTS_STORAGE_BASE_URL"] = artifactsURL
 	}
 
-	resolvedEnv := make(map[string]string)
-	for key := range env {
-		if value, exists := dotEnvVars[key]; exists {
-			resolvedEnv[key] = value
-			logger.Warn("using .env value for variable", "key", key)
-		} else if value, exists := os.LookupEnv(key); exists {
-			resolvedEnv[key] = value
-			logger.Warn("using system environment value for variable", "key", key)
-		} else {
-			resolvedEnv[key] = env[key]
-		}
+	authKeys, authWarnings := config.LoadAuthKeys()
+	for _, warning := range authWarnings {
+		logger.Warn(warning)
 	}
+
+	resolvedEnv := resolveAgentEnv(env, dotEnvVars, authKeys)
 
 	for key, value := range resolvedEnv {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", key, value))
@@ -558,6 +552,35 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	am.containers[agent.Name] = containerID
 	am.containersMutex.Unlock()
 	return nil
+}
+
+// resolveAgentEnv resolves each agent-declared env var with first hit per key
+// winning: project .env, system environment, the agent's own config value, and
+// finally the ~/.infer/auth.json fallback for unset keys.
+func resolveAgentEnv(env, dotEnvVars, authKeys map[string]string) map[string]string {
+	resolvedEnv := make(map[string]string, len(env))
+	for key := range env {
+		if value, exists := dotEnvVars[key]; exists {
+			resolvedEnv[key] = value
+			logger.Warn("using .env value for variable", "key", key)
+			continue
+		}
+		if value, exists := os.LookupEnv(key); exists {
+			resolvedEnv[key] = value
+			logger.Warn("using system environment value for variable", "key", key)
+			continue
+		}
+		if value := env[key]; value != "" {
+			resolvedEnv[key] = value
+			continue
+		}
+		if value, exists := authKeys[key]; exists && value != "" {
+			resolvedEnv[key] = value
+			continue
+		}
+		resolvedEnv[key] = env[key]
+	}
+	return resolvedEnv
 }
 
 // loadDotEnvFile loads environment variables from .env file in the current directory

@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	gotenv "github.com/subosito/gotenv"
+
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
@@ -450,8 +452,29 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 		"OLLAMA_CLOUD_API_KEY",
 	}
 
+	// Provider key precedence per key: system environment, project .env,
+	// ~/.infer/auth.json. The whole .env is supplied via --env-file, so -e is
+	// only passed for keys resolved from the system environment or the
+	// auth.json fallback - otherwise -e would override the project .env.
+	authKeys, authWarnings := config.LoadAuthKeys()
+	for _, warning := range authWarnings {
+		logger.Warn(warning)
+	}
+
+	dotEnvVars, dotEnvErr := gotenv.Read(".env")
+	if dotEnvErr != nil {
+		dotEnvVars = nil
+	}
+
 	for _, envVar := range apiKeyEnvVars {
 		if value := os.Getenv(envVar); value != "" {
+			args = append(args, "-e", fmt.Sprintf("%s=%s", envVar, value))
+			continue
+		}
+		if _, ok := dotEnvVars[envVar]; ok {
+			continue
+		}
+		if value, ok := authKeys[envVar]; ok && value != "" {
 			args = append(args, "-e", fmt.Sprintf("%s=%s", envVar, value))
 		}
 	}
@@ -1091,26 +1114,41 @@ func (gm *Manager) configureGatewayOutput(cmd *exec.Cmd) error {
 	return nil
 }
 
-// loadEnvironment loads environment variables from .env file or system environment
+// loadEnvironment assembles the gateway binary environment in precedence
+// order: system environment, then project .env, then the ~/.infer/auth.json
+// fallback (first hit per key wins).
 func (gm *Manager) loadEnvironment() []string {
-	if _, err := os.Stat(".env"); err != nil {
-		return os.Environ()
-	}
-
 	envVars := os.Environ()
-	envFile, err := os.ReadFile(".env")
-	if err != nil {
-		return envVars
+	seen := make(map[string]bool, len(envVars))
+	for _, entry := range envVars {
+		if key, _, ok := strings.Cut(entry, "="); ok {
+			seen[key] = true
+		}
 	}
 
-	lines := strings.Split(string(envFile), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+	// Project .env: first hit per key wins, so system env entries stay.
+	if envFile, err := os.ReadFile(".env"); err == nil {
+		lines := strings.Split(string(envFile), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") || !strings.Contains(line, "=") {
+				continue
+			}
+			if key, _, ok := strings.Cut(line, "="); ok && !seen[key] {
+				seen[key] = true
+				envVars = append(envVars, line)
+			}
 		}
-		if strings.Contains(line, "=") {
-			envVars = append(envVars, line)
+	}
+
+	authKeys, authWarnings := config.LoadAuthKeys()
+	for _, warning := range authWarnings {
+		logger.Warn(warning)
+	}
+	for key, value := range authKeys {
+		if value != "" && !seen[key] {
+			seen[key] = true
+			envVars = append(envVars, key+"="+value)
 		}
 	}
 
