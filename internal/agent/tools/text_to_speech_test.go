@@ -101,7 +101,7 @@ func TestTextToSpeechTool_Definition(t *testing.T) {
 func TestTextToSpeechTool_Validate(t *testing.T) {
 	tmp := t.TempDir()
 	t.Chdir(tmp)
-	t.Setenv("HOME", t.TempDir()) // pin the samples library so bare names resolve deterministically
+	t.Setenv("HOME", t.TempDir())
 	tool := newTestTTSTool(t, true, &fakeVoiceSynthesizer{})
 
 	if err := os.WriteFile("speaker.wav", []byte("wav"), 0o644); err != nil {
