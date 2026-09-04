@@ -499,7 +499,7 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 	}
 
 	if gm.config.Gateway.VisionEnabled {
-		args = append(args, "-e", "ENABLE_VISION=true")
+		args = append(args, "-e", "VISION_ENABLED=true")
 	}
 
 	if gm.config.Tools.ImageGeneration.Enabled || gm.config.Tools.ImageEdit.Enabled || gm.config.Tools.ImageVariation.Enabled {
@@ -1058,7 +1058,7 @@ func (gm *Manager) runBinary(binaryPath string) error {
 	}
 
 	if gm.config.Gateway.VisionEnabled {
-		cmd.Env = append(cmd.Env, "ENABLE_VISION=true")
+		cmd.Env = append(cmd.Env, "VISION_ENABLED=true")
 	}
 
 	if gm.config.Tools.ImageGeneration.Enabled || gm.config.Tools.ImageEdit.Enabled || gm.config.Tools.ImageVariation.Enabled {

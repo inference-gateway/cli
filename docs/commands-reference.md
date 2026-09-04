@@ -476,7 +476,7 @@ The headless command supports multimodal content for vision-capable models:
 - Supported image formats: PNG, JPEG, GIF, WebP
 - Images are automatically encoded as base64 and sent as multimodal content
 - Text files are embedded in code blocks
-- Requires gateway configuration: `ENABLE_VISION=true`
+- Requires gateway configuration: `VISION_ENABLED=true`
 
 ---
 
