@@ -54,7 +54,7 @@ func (t *TextToSpeechTool) Definition() sdk.ChatCompletionTool {
 					},
 					"voice_sample": map[string]any{
 						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) of a WAV in the working directory recording the target speaker; when set, the output clones that voice. Around 10-30 seconds of clean single-speaker speech works best",
+						"description": "Optional bare file name (no directories or absolute paths) of a WAV recording the target speaker; looked up in the working directory, then in the voice samples library (~/.infer/models/tts/samples); when set, the output clones that voice. Around 10-30 seconds of clean single-speaker speech works best",
 					},
 					"output_path": map[string]any{
 						"type":        "string",
@@ -89,7 +89,8 @@ func (t *TextToSpeechTool) Validate(args map[string]any) error {
 }
 
 // resolveSamplePath confines an optional voice sample to a readable file in
-// the working directory and returns an empty path for the stock voice.
+// the working directory, falling back to the desktop voice samples library
+// (~/.infer/models/tts/samples), and returns an empty path for the stock voice.
 func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
 	name := strings.TrimSpace(raw)
 	if name == "" {
@@ -98,29 +99,44 @@ func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
 	if filepath.IsAbs(name) || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
 		return "", fmt.Errorf("invalid voice_sample path %q: pass a bare file name inside the working directory", raw)
 	}
+	base := filepath.Base(name)
 
 	workDir, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("resolving working directory: %w", err)
 	}
-	safePath := filepath.Join(workDir, filepath.Base(name))
-
-	if err := t.config.ValidatePathInSandbox(safePath); err != nil {
+	workPath := filepath.Join(workDir, base)
+	if err := t.config.ValidatePathInSandbox(workPath); err != nil {
 		return "", err
 	}
-	info, err := os.Stat(safePath)
+
+	tried := []string{workPath}
+	if samplesDir, samplesErr := voiceSamplesDir(); samplesErr == nil {
+		tried = append(tried, filepath.Join(samplesDir, base))
+	}
+	for _, path := range tried {
+		info, statErr := os.Stat(path)
+		if statErr != nil || info.IsDir() {
+			continue
+		}
+		f, openErr := os.Open(path) // nolint:gosec
+		if openErr != nil {
+			continue
+		}
+		_ = f.Close()
+		return path, nil
+	}
+	return "", fmt.Errorf("voice_sample %q not found as a readable WAV file (tried: %s)", raw, strings.Join(tried, ", "))
+}
+
+// voiceSamplesDir returns the desktop-managed voice samples library
+// (~/.infer/models/tts/samples) holding uploaded WAV voice references.
+func voiceSamplesDir() (string, error) {
+	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("voice_sample %q must be an existing WAV file: %w", safePath, err)
+		return "", fmt.Errorf("resolving home directory: %w", err)
 	}
-	if info.IsDir() {
-		return "", fmt.Errorf("voice_sample %q is a directory, not a WAV file", safePath)
-	}
-	f, err := os.Open(safePath) // nolint:gosec
-	if err != nil {
-		return "", fmt.Errorf("voice_sample %q must be readable: %w", safePath, err)
-	}
-	_ = f.Close()
-	return safePath, nil
+	return filepath.Join(home, config.ConfigDirName, "models", "tts", "samples"), nil
 }
 
 // resolveOutputPath confines a supplied file name to the configured output
