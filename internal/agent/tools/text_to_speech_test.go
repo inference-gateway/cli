@@ -101,6 +101,7 @@ func TestTextToSpeechTool_Definition(t *testing.T) {
 func TestTextToSpeechTool_Validate(t *testing.T) {
 	tmp := t.TempDir()
 	t.Chdir(tmp)
+	t.Setenv("HOME", t.TempDir()) // pin the samples library so bare names resolve deterministically
 	tool := newTestTTSTool(t, true, &fakeVoiceSynthesizer{})
 
 	if err := os.WriteFile("speaker.wav", []byte("wav"), 0o644); err != nil {
@@ -346,5 +347,40 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 
 		assert.NotContains(t, registry.ListAvailableTools(), "TextToSpeech")
+	})
+}
+
+// TestTextToSpeechTool_SamplePathFallback pins the voice samples library
+// fallback: a bare name missing from the working directory is looked up in
+// ~/.infer/models/tts/samples (the desktop samples library) before failing.
+func TestTextToSpeechTool_SamplePathFallback(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	samplesDir := filepath.Join(home, config.ConfigDirName, "models", "tts", "samples")
+	require.NoError(t, os.MkdirAll(samplesDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(samplesDir, "my-voice.wav"), []byte("wav"), 0o644))
+
+	workDir := t.TempDir()
+	t.Chdir(workDir)
+	tool := newTestTTSTool(t, true, &fakeVoiceSynthesizer{})
+	require.NoError(t, os.WriteFile("speaker.wav", []byte("wav"), 0o644))
+
+	t.Run("cwd sample takes precedence", func(t *testing.T) {
+		path, err := tool.resolveSamplePath("speaker.wav")
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(workDir, "speaker.wav"), path)
+	})
+
+	t.Run("bare name falls back to the samples library", func(t *testing.T) {
+		path, err := tool.resolveSamplePath("my-voice.wav")
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(samplesDir, "my-voice.wav"), path)
+	})
+
+	t.Run("resolves nowhere: error names both paths", func(t *testing.T) {
+		_, err := tool.resolveSamplePath("missing.wav")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), filepath.Join(workDir, "missing.wav"))
+		assert.Contains(t, err.Error(), filepath.Join(samplesDir, "missing.wav"))
 	})
 }
