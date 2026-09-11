@@ -1,8 +1,14 @@
 package tools
 
 import (
+	"context"
 	"testing"
 
+	sdk "github.com/inference-gateway/sdk"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
@@ -36,5 +42,46 @@ func TestRenderToolResultStripsANSIWhenColorsDisabled(t *testing.T) {
 	t.Cleanup(func() { utils.SetColorsDisabled(false) })
 	if got := renderToolResult(styled); got != "│ ok" {
 		t.Fatalf("colors disabled: got %q", got)
+	}
+}
+
+func TestRecordToolCallPersistsCallAndResultUnderSessionID(t *testing.T) {
+	store := storage.NewMemoryStorage()
+	repo := conversation.NewPersistentConversationRepository(nil, nil, store)
+	fn := sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"echo hi"}`}
+	result := &agentdomain.ToolExecutionResult{ToolName: "Bash", Success: true}
+
+	if err := recordToolCall(context.Background(), repo, "sess-1", fn, result); err != nil {
+		t.Fatalf("recordToolCall: %v", err)
+	}
+
+	entries, _, err := store.LoadConversation(context.Background(), "sess-1")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("want 2 entries, got %d", len(entries))
+	}
+	if entries[0].Message.Role != sdk.Assistant || entries[0].Message.ToolCalls == nil || (*entries[0].Message.ToolCalls)[0].ID != result.ToolCallID {
+		t.Fatalf("assistant entry missing matching tool call: %+v", entries[0].Message)
+	}
+	if entries[1].Message.Role != sdk.Tool || *entries[1].Message.ToolCallID != result.ToolCallID {
+		t.Fatalf("tool entry missing matching tool_call_id: %+v", entries[1].Message)
+	}
+
+	if err := recordToolCall(context.Background(), repo, "sess-1", fn, &agentdomain.ToolExecutionResult{ToolName: "Bash"}); err != nil {
+		t.Fatalf("second recordToolCall: %v", err)
+	}
+	entries, _, _ = store.LoadConversation(context.Background(), "sess-1")
+	if len(entries) != 4 {
+		t.Fatalf("second call must append, want 4 entries, got %d", len(entries))
+	}
+}
+
+func TestRecordToolCallRejectsNonPersistentRepo(t *testing.T) {
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
+	err := recordToolCall(context.Background(), repo, "sess-1", sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"}, &agentdomain.ToolExecutionResult{})
+	if err == nil {
+		t.Fatal("expected an error when storage is disabled")
 	}
 }

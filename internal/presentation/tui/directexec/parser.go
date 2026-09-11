@@ -16,6 +16,17 @@ var argPattern = regexp.MustCompile(`(\w+)=("[^"]*"|'[^']*'|\w+)`)
 // arg2="value2"). Exposed for testing and for use by the orchestrator that
 // satisfies the legacy ui.ChatHandler interface.
 func (s *Service) ParseToolCall(input string) (string, map[string]any, error) {
+	return ParseToolCall(input)
+}
+
+// ParseArguments parses `key=value` pairs; see ParseToolCall.
+func (s *Service) ParseArguments(argsStr string) (map[string]any, error) {
+	return ParseArguments(argsStr)
+}
+
+// ParseToolCall is the package-level parser behind Service.ParseToolCall, so
+// non-TUI front ends (headless) accept the same `!!Tool(arg="v")` syntax.
+func ParseToolCall(input string) (string, map[string]any, error) {
 	parenIndex := strings.Index(input, "(")
 	if parenIndex == -1 {
 		return "", nil, fmt.Errorf("missing opening parenthesis")
@@ -46,7 +57,7 @@ func (s *Service) ParseToolCall(input string) (string, map[string]any, error) {
 		return toolName, args, nil
 	}
 
-	parsedArgs, err := s.ParseArguments(argsStr)
+	parsedArgs, err := ParseArguments(argsStr)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to parse arguments: %w", err)
 	}
@@ -57,7 +68,7 @@ func (s *Service) ParseToolCall(input string) (string, map[string]any, error) {
 // ParseArguments parses function arguments in the format key="value",
 // key2="value2". Numeric values are stored as float64; everything else as
 // string.
-func (s *Service) ParseArguments(argsStr string) (map[string]any, error) {
+func ParseArguments(argsStr string) (map[string]any, error) {
 	args := make(map[string]any)
 
 	if argsStr == "" {
