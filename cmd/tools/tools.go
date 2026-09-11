@@ -15,6 +15,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 )
@@ -143,8 +144,17 @@ func ExecTool(cfg *config.Config, args []string, format string) error {
 	styleProvider := styles.NewProvider(serviceContainer.GetThemeService())
 	formatterService := toolformatter.NewToolFormatterService(toolRegistry, styleProvider)
 
-	fmt.Print(formatterService.FormatToolResultExpanded(result, 80))
+	fmt.Print(renderToolResult(formatterService.FormatToolResultExpanded(result, 80)))
 	return nil
+}
+
+// renderToolResult honors --no-colors / NO_COLOR / non-TTY stdout, which the
+// TUI tool formatter does not consult itself.
+func renderToolResult(formatted string) string {
+	if utils.ColorsDisabled() {
+		return utils.StripANSI(formatted)
+	}
+	return formatted
 }
 
 // canonicalToolName resolves a user-supplied tool name to its registered
