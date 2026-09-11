@@ -119,6 +119,28 @@ func TestService_ParseArguments(t *testing.T) {
 		expectError bool
 	}{
 		{
+			name:        "JSON array value",
+			input:       `todos=[{"content":"Verify TodoWrite tool works","status":"pending"}]`,
+			expectArgs:  map[string]any{"todos": []any{map[string]any{"content": "Verify TodoWrite tool works", "status": "pending"}}},
+			expectError: false,
+		},
+		{
+			name:        "JSON object value mixed with plain values",
+			input:       `path="a]b", opts={"depth":2,"tags":["x","}"]}, limit=3`,
+			expectArgs:  map[string]any{"path": "a]b", "opts": map[string]any{"depth": float64(2), "tags": []any{"x", "}"}}, "limit": float64(3)},
+			expectError: false,
+		},
+		{
+			name:        "Unterminated JSON value",
+			input:       `todos=[{"content":"x"}`,
+			expectError: true,
+		},
+		{
+			name:        "Malformed JSON value",
+			input:       `todos=[1,]`,
+			expectError: true,
+		},
+		{
 			name:        "Single quoted argument",
 			input:       `file_path="test.txt"`,
 			expectArgs:  map[string]any{"file_path": "test.txt"},

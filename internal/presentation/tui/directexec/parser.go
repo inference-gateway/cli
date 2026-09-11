@@ -75,6 +75,11 @@ func ParseArguments(argsStr string) (map[string]any, error) {
 		return args, nil
 	}
 
+	argsStr, err := extractJSONValues(argsStr, args)
+	if err != nil {
+		return nil, err
+	}
+
 	matches := argPattern.FindAllStringSubmatch(argsStr, -1)
 
 	for _, match := range matches {
@@ -98,4 +103,83 @@ func ParseArguments(argsStr string) (map[string]any, error) {
 	}
 
 	return args, nil
+}
+
+// extractJSONValues pulls `key=[...]` and `key={...}` pairs out of argsStr -
+// values argPattern cannot express - decodes them into args, and returns the
+// remainder for the regular key=value pass.
+func extractJSONValues(argsStr string, args map[string]any) (string, error) {
+	var rest strings.Builder
+	i := 0
+	for i < len(argsStr) {
+		start, keyEnd, ok := jsonValueStart(argsStr, i)
+		if !ok {
+			rest.WriteString(argsStr[i:])
+			break
+		}
+		end := matchingBracket(argsStr, keyEnd+1)
+		if end < 0 {
+			return "", fmt.Errorf("unterminated JSON value for %q", argsStr[start:keyEnd])
+		}
+		var value any
+		if err := json.Unmarshal([]byte(argsStr[keyEnd+1:end+1]), &value); err != nil {
+			return "", fmt.Errorf("invalid JSON value for %q: %w", argsStr[start:keyEnd], err)
+		}
+		args[argsStr[start:keyEnd]] = value
+		rest.WriteString(argsStr[i:start])
+		i = end + 1
+	}
+	return rest.String(), nil
+}
+
+// jsonValueStart finds the next `key=` followed by `[` or `{` at or after
+// from, skipping over quoted strings so brackets inside them are ignored.
+func jsonValueStart(s string, from int) (keyStart, keyEnd int, ok bool) {
+	for i := from; i < len(s); i++ {
+		switch s[i] {
+		case '"', '\'':
+			if j := strings.IndexByte(s[i+1:], s[i]); j >= 0 {
+				i += j + 1
+			}
+		case '=':
+			if i+1 < len(s) && (s[i+1] == '[' || s[i+1] == '{') {
+				k := i
+				for k > from && isWordByte(s[k-1]) {
+					k--
+				}
+				if k < i {
+					return k, i, true
+				}
+			}
+		}
+	}
+	return 0, 0, false
+}
+
+// matchingBracket returns the index of the bracket closing the one at open,
+// or -1. Brackets inside JSON strings do not count.
+func matchingBracket(s string, open int) int {
+	depth := 0
+	for i := open; i < len(s); i++ {
+		switch s[i] {
+		case '"':
+			for i++; i < len(s) && s[i] != '"'; i++ {
+				if s[i] == '\\' {
+					i++
+				}
+			}
+		case '[', '{':
+			depth++
+		case ']', '}':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func isWordByte(b byte) bool {
+	return b == '_' || (b >= '0' && b <= '9') || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }
