@@ -215,6 +215,11 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		}
 	}
 
+	if direct, derr := runDirect(ctx, opts, svc.GetToolService(), conversationRepo, sessionID, selectedModel, cfg); direct {
+		rendered = true
+		return derr
+	}
+
 	out, handled, err := shortcuts.Run(ctx, svc.GetShortcutRegistry(), opts.Task, deps)
 	if err != nil {
 		return err
