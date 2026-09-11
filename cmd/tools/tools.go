@@ -7,13 +7,17 @@ import (
 	"strings"
 	"time"
 
+	uuid "github.com/google/uuid"
 	cobra "github.com/spf13/cobra"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -55,7 +59,8 @@ Examples:
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			format, _ := cmd.Flags().GetString("format")
-			return ExecTool(state.Config(), args, format)
+			sessionID, _ := cmd.Flags().GetString("session-id")
+			return ExecTool(state.Config(), args, format, sessionID)
 		},
 	}
 	validateCommand := &cobra.Command{
@@ -69,6 +74,7 @@ Examples:
 	}
 
 	executeCommand.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	executeCommand.Flags().String("session-id", "", "Record the call and its result in this conversation so later turns (e.g. infer headless --session-id) see it")
 	command.AddCommand(executeCommand, validateCommand)
 	return command
 }
@@ -98,7 +104,7 @@ func ValidateTool(cfg *config.Config, command string) error {
 }
 
 // ExecTool executes a tool with the given arguments
-func ExecTool(cfg *config.Config, args []string, format string) error {
+func ExecTool(cfg *config.Config, args []string, format, sessionID string) error {
 	if !cfg.Tools.Enabled {
 		return fmt.Errorf("tools are not enabled")
 	}
@@ -141,6 +147,12 @@ func ExecTool(cfg *config.Config, args []string, format string) error {
 		return fmt.Errorf("tool execution failed: %w", err)
 	}
 
+	if sessionID != "" {
+		if err := recordToolCall(ctx, serviceContainer.GetConversationRepository(), sessionID, toolCall, result); err != nil {
+			return err
+		}
+	}
+
 	styleProvider := styles.NewProvider(serviceContainer.GetThemeService())
 	formatterService := toolformatter.NewToolFormatterService(toolRegistry, styleProvider)
 
@@ -155,6 +167,32 @@ func renderToolResult(formatted string) string {
 		return utils.StripANSI(formatted)
 	}
 	return formatted
+}
+
+// recordToolCall persists the assistant tool_call entry and its tool result
+// into the conversation identified by sessionID, mirroring the TUI direct-exec
+// path so a later `infer headless --session-id` turn sees the call. A session
+// that does not exist yet is created under that id, as headless does.
+func recordToolCall(ctx context.Context, repo convdomain.ConversationRepository, sessionID string, fn sdk.ChatCompletionMessageToolCallFunction, result *agentdomain.ToolExecutionResult) error {
+	persistent, ok := repo.(*conversation.PersistentConversationRepository)
+	if !ok {
+		return fmt.Errorf("conversation storage is disabled; cannot record the call in session %s", sessionID)
+	}
+	if err := persistent.LoadConversation(ctx, sessionID); err != nil {
+		persistent.SetConversationID(sessionID)
+	}
+	call := sdk.ChatCompletionMessageToolCall{ID: "call_" + uuid.New().String(), Type: "function", Function: fn}
+	if result != nil && result.ToolCallID == "" {
+		result.ToolCallID = call.ID
+	}
+	assistantEntry, toolEntry := convdomain.NewToolCallEntries(call, result, repo.FormatToolResultForLLM(result), time.Now())
+	if err := repo.AddMessage(assistantEntry); err != nil {
+		return fmt.Errorf("failed to record tool call in session %s: %w", sessionID, err)
+	}
+	if err := repo.AddMessage(toolEntry); err != nil {
+		return fmt.Errorf("failed to record tool result in session %s: %w", sessionID, err)
+	}
+	return nil
 }
 
 // canonicalToolName resolves a user-supplied tool name to its registered
