@@ -13,6 +13,7 @@ import (
 // ApplicationViewRenderer handles rendering of different application views
 type ApplicationViewRenderer struct {
 	styleProvider *styles.Provider
+	heights       componentHeights
 }
 
 // NewApplicationViewRenderer creates a new application view renderer
@@ -30,7 +31,36 @@ type ChatInterfaceData struct {
 	QueuedMessages []convdomain.QueuedMessage
 }
 
-// RenderChatInterface renders the main chat interface
+// Layout computes component heights for the current state and pushes sizes
+// into the components. Call it from Update (not View) whenever state changes;
+// component setters are no-ops when the size is unchanged.
+func (r *ApplicationViewRenderer) Layout(
+	data ChatInterfaceData,
+	conversationView tui.ConversationRenderer,
+	inputView tui.InputComponent,
+	autocomplete tui.AutocompleteComponent,
+	inputStatusBar tui.InputStatusBarComponent,
+	statusView tui.StatusComponent,
+	modeIndicator *ModeIndicator,
+	helpBar tui.HelpBarComponent,
+	queueBoxView *QueueBoxView,
+	todoBoxView *TodoBoxView,
+	approvalBoxView *ApprovalBoxView,
+	questionFormView *QuestionFormView,
+	snippetAttachments *SnippetAttachmentsView,
+) {
+	if data.Width == 0 || data.Height == 0 {
+		return
+	}
+
+	r.heights = r.calculateComponentHeights(data, data.Height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments)
+
+	r.setComponentDimensions(data.Width, conversationView, inputView, autocomplete, inputStatusBar, statusView,
+		modeIndicator, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, r.heights)
+}
+
+// RenderChatInterface renders the main chat interface using the sizes set by
+// the last Layout call.
 func (r *ApplicationViewRenderer) RenderChatInterface(
 	data ChatInterfaceData,
 	conversationView tui.ConversationRenderer,
@@ -46,19 +76,14 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
 ) string {
-	width, height := data.Width, data.Height
-
-	heights := r.calculateComponentHeights(data, height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments)
-
-	r.setComponentDimensions(width, conversationView, inputView, autocomplete, inputStatusBar, statusView,
-		modeIndicator, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, heights)
+	width := data.Width
 
 	header := r.renderHeader(data, width)
 	conversationArea := conversationView.Render()
 	inputArea := inputView.Render()
 
 	components := r.assembleComponents(data, header, conversationArea, inputArea, conversationView, statusView, modeIndicator,
-		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, width, heights.statusHeight)
+		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, width, r.heights.statusHeight)
 
 	return strings.Join(components, "\n")
 }

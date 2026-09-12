@@ -62,7 +62,6 @@ func GetDefaultKeybindings() map[string]KeyBindingEntry {
 	addPlanApprovalBindings(bindings)
 	addModeBindings(bindings)
 	addToolsBindings(bindings)
-	addSelectionBindings(bindings)
 	addHelpBindings(bindings)
 	addDiffViewerBindings(bindings)
 	addExplorerBindings(bindings)
@@ -356,16 +355,6 @@ func addToolsBindings(bindings map[string]KeyBindingEntry) {
 		Keys:        []string{"ctrl+b"},
 		Description: "move running bash command to background",
 		Category:    "tools",
-		Enabled:     &enabled,
-	}
-}
-
-func addSelectionBindings(bindings map[string]KeyBindingEntry) {
-	enabled := true
-	bindings[ActionID(NamespaceSelection, "toggle_mouse_mode")] = KeyBindingEntry{
-		Keys:        []string{"ctrl+s"},
-		Description: "toggle mouse scrolling/text selection",
-		Category:    "selection",
 		Enabled:     &enabled,
 	}
 }

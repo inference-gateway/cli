@@ -83,16 +83,6 @@ type FakeKeyHandlerContext struct {
 	getInputViewReturnsOnCall map[int]struct {
 		result1 tui.InputComponent
 	}
-	GetMouseEnabledStub        func() bool
-	getMouseEnabledMutex       sync.RWMutex
-	getMouseEnabledArgsForCall []struct {
-	}
-	getMouseEnabledReturns struct {
-		result1 bool
-	}
-	getMouseEnabledReturnsOnCall map[int]struct {
-		result1 bool
-	}
 	GetPageSizeStub        func() int
 	getPageSizeMutex       sync.RWMutex
 	getPageSizeArgsForCall []struct {
@@ -132,11 +122,6 @@ type FakeKeyHandlerContext struct {
 	}
 	sendMessageReturnsOnCall map[int]struct {
 		result1 tea.Cmd
-	}
-	SetMouseEnabledStub        func(bool)
-	setMouseEnabledMutex       sync.RWMutex
-	setMouseEnabledArgsForCall []struct {
-		arg1 bool
 	}
 	ToggleRawFormatStub        func()
 	toggleRawFormatMutex       sync.RWMutex
@@ -525,59 +510,6 @@ func (fake *FakeKeyHandlerContext) GetInputViewReturnsOnCall(i int, result1 tui.
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetMouseEnabled() bool {
-	fake.getMouseEnabledMutex.Lock()
-	ret, specificReturn := fake.getMouseEnabledReturnsOnCall[len(fake.getMouseEnabledArgsForCall)]
-	fake.getMouseEnabledArgsForCall = append(fake.getMouseEnabledArgsForCall, struct {
-	}{})
-	stub := fake.GetMouseEnabledStub
-	fakeReturns := fake.getMouseEnabledReturns
-	fake.recordInvocation("GetMouseEnabled", []interface{}{})
-	fake.getMouseEnabledMutex.Unlock()
-	if stub != nil {
-		return stub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeKeyHandlerContext) GetMouseEnabledCallCount() int {
-	fake.getMouseEnabledMutex.RLock()
-	defer fake.getMouseEnabledMutex.RUnlock()
-	return len(fake.getMouseEnabledArgsForCall)
-}
-
-func (fake *FakeKeyHandlerContext) GetMouseEnabledCalls(stub func() bool) {
-	fake.getMouseEnabledMutex.Lock()
-	defer fake.getMouseEnabledMutex.Unlock()
-	fake.GetMouseEnabledStub = stub
-}
-
-func (fake *FakeKeyHandlerContext) GetMouseEnabledReturns(result1 bool) {
-	fake.getMouseEnabledMutex.Lock()
-	defer fake.getMouseEnabledMutex.Unlock()
-	fake.GetMouseEnabledStub = nil
-	fake.getMouseEnabledReturns = struct {
-		result1 bool
-	}{result1}
-}
-
-func (fake *FakeKeyHandlerContext) GetMouseEnabledReturnsOnCall(i int, result1 bool) {
-	fake.getMouseEnabledMutex.Lock()
-	defer fake.getMouseEnabledMutex.Unlock()
-	fake.GetMouseEnabledStub = nil
-	if fake.getMouseEnabledReturnsOnCall == nil {
-		fake.getMouseEnabledReturnsOnCall = make(map[int]struct {
-			result1 bool
-		})
-	}
-	fake.getMouseEnabledReturnsOnCall[i] = struct {
-		result1 bool
-	}{result1}
-}
-
 func (fake *FakeKeyHandlerContext) GetPageSize() int {
 	fake.getPageSizeMutex.Lock()
 	ret, specificReturn := fake.getPageSizeReturnsOnCall[len(fake.getPageSizeArgsForCall)]
@@ -788,38 +720,6 @@ func (fake *FakeKeyHandlerContext) SendMessageReturnsOnCall(i int, result1 tea.C
 	fake.sendMessageReturnsOnCall[i] = struct {
 		result1 tea.Cmd
 	}{result1}
-}
-
-func (fake *FakeKeyHandlerContext) SetMouseEnabled(arg1 bool) {
-	fake.setMouseEnabledMutex.Lock()
-	fake.setMouseEnabledArgsForCall = append(fake.setMouseEnabledArgsForCall, struct {
-		arg1 bool
-	}{arg1})
-	stub := fake.SetMouseEnabledStub
-	fake.recordInvocation("SetMouseEnabled", []interface{}{arg1})
-	fake.setMouseEnabledMutex.Unlock()
-	if stub != nil {
-		fake.SetMouseEnabledStub(arg1)
-	}
-}
-
-func (fake *FakeKeyHandlerContext) SetMouseEnabledCallCount() int {
-	fake.setMouseEnabledMutex.RLock()
-	defer fake.setMouseEnabledMutex.RUnlock()
-	return len(fake.setMouseEnabledArgsForCall)
-}
-
-func (fake *FakeKeyHandlerContext) SetMouseEnabledCalls(stub func(bool)) {
-	fake.setMouseEnabledMutex.Lock()
-	defer fake.setMouseEnabledMutex.Unlock()
-	fake.SetMouseEnabledStub = stub
-}
-
-func (fake *FakeKeyHandlerContext) SetMouseEnabledArgsForCall(i int) bool {
-	fake.setMouseEnabledMutex.RLock()
-	defer fake.setMouseEnabledMutex.RUnlock()
-	argsForCall := fake.setMouseEnabledArgsForCall[i]
-	return argsForCall.arg1
 }
 
 func (fake *FakeKeyHandlerContext) ToggleRawFormat() {

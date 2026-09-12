@@ -179,6 +179,8 @@ func (h *HelpViewImpl) rebuild() {
 	b.WriteString(sectionStyle.Render("Keybindings"))
 	b.WriteString("\n")
 	b.WriteString(h.renderKeybindingsTable(width, accent, dim, border))
+	b.WriteString("\n\n")
+	b.WriteString(subtitleStyle.Render("Select text: hold Shift (Option on macOS terminals) while dragging."))
 
 	h.viewport.SetContent(b.String())
 }
