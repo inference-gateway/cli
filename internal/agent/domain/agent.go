@@ -13,16 +13,13 @@ var ErrMaxTurnsReached = errors.New("max_turns_reached")
 
 // AgentRequest represents a request to the agent service
 type AgentRequest struct {
-	RequestID              string        `json:"request_id"`
-	Model                  string        `json:"model"`
-	Messages               []sdk.Message `json:"messages"`
-	IsChatMode             bool          `json:"is_chat_mode"`
-	ApprovalBrokerAttached bool          `json:"approval_broker_attached"`
-	// UserQuestionBrokerAttached reports that the host answers AskUserQuestion
-	// forms over stdin. Independent of ApprovalBrokerAttached so questions
-	// still reach the user when approvals are automatic.
-	UserQuestionBrokerAttached bool   `json:"user_question_broker_attached"`
-	GroupKey                   string `json:"group_key,omitempty"`
+	RequestID                  string        `json:"request_id"`
+	Model                      string        `json:"model"`
+	Messages                   []sdk.Message `json:"messages"`
+	IsChatMode                 bool          `json:"is_chat_mode"`
+	ApprovalBrokerAttached     bool          `json:"approval_broker_attached"`
+	UserQuestionBrokerAttached bool          `json:"user_question_broker_attached"`
+	GroupKey                   string        `json:"group_key,omitempty"`
 }
 
 // AgentService handles agent operations with both sync and streaming modes
