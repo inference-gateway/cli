@@ -27,8 +27,8 @@ const (
 )
 
 // AskUserQuestionTool presents the user with a small interactive form of 1-4
-// multiple-choice questions during plan mode and returns the chosen answers to
-// the agent so it can fold them into the plan before RequestPlanApproval.
+// multiple-choice questions and returns the chosen answers to the agent.
+// In plan mode the answers fold into the plan before RequestPlanApproval.
 //
 // It is read-only (no approval gate) and only reaches the user when a chat TUI
 // is present: the brokering capability is injected into the execution context
