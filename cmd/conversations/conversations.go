@@ -363,13 +363,15 @@ type showConversationOutput struct {
 // metadataProjection exposes the metadata fields consumers need, including
 // parent_session_id and invoked_by.
 type metadataProjection struct {
-	ID              string `json:"id"`
-	Title           string `json:"title"`
-	CreatedAt       string `json:"created_at"`
-	UpdatedAt       string `json:"updated_at"`
-	MessageCount    int    `json:"message_count"`
-	ParentSessionID string `json:"parent_session_id"`
-	InvokedBy       string `json:"invoked_by"`
+	ID              string                       `json:"id"`
+	Title           string                       `json:"title"`
+	CreatedAt       string                       `json:"created_at"`
+	UpdatedAt       string                       `json:"updated_at"`
+	MessageCount    int                          `json:"message_count"`
+	ParentSessionID string                       `json:"parent_session_id"`
+	InvokedBy       string                       `json:"invoked_by"`
+	TokenStats      convdomain.SessionTokenStats `json:"token_stats"`
+	TotalCost       float64                      `json:"total_cost"`
 }
 
 func toMetadataProjection(m convdomain.ConversationMetadata) metadataProjection {
@@ -385,6 +387,8 @@ func toMetadataProjection(m convdomain.ConversationMetadata) metadataProjection 
 		MessageCount:    m.MessageCount,
 		ParentSessionID: m.ParentSessionID,
 		InvokedBy:       invokedBy,
+		TokenStats:      m.TokenStats,
+		TotalCost:       m.CostStats.TotalCost,
 	}
 }
 
