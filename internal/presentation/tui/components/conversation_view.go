@@ -600,8 +600,6 @@ func (cv *ConversationView) updateViewportContentFull() {
 
 	cv.renderedContent = b.String()
 
-	// Follow the tail only when the user was already there; SetContent keeps
-	// the current offset otherwise, so a scrolled-up reader holds position.
 	atBottom := cv.Viewport.AtBottom()
 	cv.Viewport.SetContent(cv.renderedContent)
 	if atBottom {
