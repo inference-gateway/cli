@@ -22,6 +22,19 @@ func IsToolApproved(ctx context.Context) bool {
 	return ok && val
 }
 
+// WithUserQuestionsAvailable marks whether a user can answer an
+// AskUserQuestion form in this run (chat TUI or a headless host over stdin).
+func WithUserQuestionsAvailable(ctx context.Context, available bool) context.Context {
+	return context.WithValue(ctx, UserQuestionsAvailableKey, available)
+}
+
+// UserQuestionsAvailable reports whether an AskUserQuestion form can be
+// answered by a user in this run. Defaults to false when unset.
+func UserQuestionsAvailable(ctx context.Context) bool {
+	val, ok := ctx.Value(UserQuestionsAvailableKey).(bool)
+	return ok && val
+}
+
 // WithSandboxApprovalAvailable marks whether a user can answer a
 // sandbox-extension prompt in this run.
 func WithSandboxApprovalAvailable(ctx context.Context, available bool) context.Context {

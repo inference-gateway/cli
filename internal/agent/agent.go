@@ -154,7 +154,8 @@ func newEventPublisher(requestID string, chatEvents chan<- agentdomain.ChatEvent
 // running and the answers arrive via the UI. When the user dismisses the form
 // the UI closes the channel (ok=false); session cancellation unblocks ctx.Done.
 type chatQuestionBroker struct {
-	publisher *eventPublisher
+	publisher  *eventPublisher
+	toolCallID string
 }
 
 func (b *chatQuestionBroker) AskUserQuestions(ctx context.Context, questions []agentdomain.UserQuestion) ([]agentdomain.UserQuestionAnswer, bool, error) {
@@ -162,6 +163,7 @@ func (b *chatQuestionBroker) AskUserQuestions(ctx context.Context, questions []a
 
 	b.publisher.chatEvents <- agentdomain.UserQuestionRequestedEvent{
 		RequestID:    b.publisher.requestID,
+		ToolCallID:   b.toolCallID,
 		Timestamp:    time.Now(),
 		Questions:    questions,
 		ResponseChan: responseChan,
@@ -1390,8 +1392,8 @@ func (s *AgentServiceImpl) executeToolOnce(
 		execCtx = agentdomain.WithBashDetachChannel(execCtx, detachChan)
 	}
 
-	if tc.Function.Name == "AskUserQuestion" && agentdomain.GetChatHandler(ctx) != nil {
-		execCtx = agentdomain.WithUserQuestionBroker(execCtx, &chatQuestionBroker{publisher: eventPublisher})
+	if tc.Function.Name == "AskUserQuestion" && (agentdomain.GetChatHandler(ctx) != nil || agentdomain.UserQuestionsAvailable(ctx)) {
+		execCtx = agentdomain.WithUserQuestionBroker(execCtx, &chatQuestionBroker{publisher: eventPublisher, toolCallID: tc.ID})
 	}
 
 	if tc.Function.Name == "RequestApproval" && agentdomain.GetChatHandler(ctx) != nil {

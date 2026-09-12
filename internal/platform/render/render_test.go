@@ -62,7 +62,7 @@ func TestRenderAGUI_SingleRunLifecycle(t *testing.T) {
 		agentdomain.ChatStartEvent{},
 		agentdomain.ChatChunkEvent{RequestID: "r1", Content: "done"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "session-1", "openai/gpt-4o", &convmocks.FakeConversationRepository{})
+	), &out, nil, nil, "session-1", "openai/gpt-4o", &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
 	}
@@ -90,7 +90,7 @@ func TestRenderAGUI_UserMessageIsFramedWithUserRole(t *testing.T) {
 		agentdomain.ChatStartEvent{},
 		agentdomain.ChatChunkEvent{RequestID: "r1", Content: "not much"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "session-1", "", &convmocks.FakeConversationRepository{})
+	), &out, nil, nil, "session-1", "", &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
 	}
@@ -108,7 +108,7 @@ func TestRenderAGUI_ErrorEmitsSingleRunError(t *testing.T) {
 	err := RenderAGUI(stream(
 		agentdomain.ChatCompleteEvent{},
 		agentdomain.ChatErrorEvent{Error: errors.New("boom")},
-	), &out, nil, "session-1", "m", &convmocks.FakeConversationRepository{})
+	), &out, nil, nil, "session-1", "m", &convmocks.FakeConversationRepository{})
 	if err == nil {
 		t.Fatal("RenderAGUI() err = nil, want error")
 	}
@@ -157,7 +157,7 @@ func TestAnswerApproval_RoundTrip(t *testing.T) {
 				ResponseChan: respChan,
 			}
 			var out strings.Builder
-			err := RenderJSON(stream(ev), &out, tt.approvals, "s1", "m", nil, &convmocks.FakeConversationRepository{})
+			err := RenderJSON(stream(ev), &out, tt.approvals, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
 			if err != nil {
 				t.Fatalf("RenderJSON() err = %v", err)
 			}
@@ -176,6 +176,64 @@ func TestAnswerApproval_RoundTrip(t *testing.T) {
 	}
 }
 
+func questionsChan(resps ...ipc.UserQuestionResponse) <-chan ipc.UserQuestionResponse {
+	ch := make(chan ipc.UserQuestionResponse, len(resps))
+	for _, r := range resps {
+		ch <- r
+	}
+	close(ch)
+	return ch
+}
+
+func TestAnswerQuestions_RoundTrip(t *testing.T) {
+	answered := json.RawMessage(`[{"header":"Lang","question":"Which?","selectedLabels":["Go"],"otherText":""}]`)
+	tests := []struct {
+		name      string
+		questions <-chan ipc.UserQuestionResponse
+		want      []string
+		dismissed bool
+	}{
+		{"answered", questionsChan(ipc.UserQuestionResponse{ToolCallID: "tc1", Answers: answered}), []string{"Go"}, false},
+		{"empty tool_call_id matches", questionsChan(ipc.UserQuestionResponse{Answers: answered}), []string{"Go"}, false},
+		{"skips stale tool_call_id", questionsChan(
+			ipc.UserQuestionResponse{ToolCallID: "stale", Cancelled: true},
+			ipc.UserQuestionResponse{ToolCallID: "tc1", Answers: answered},
+		), []string{"Go"}, false},
+		{"cancelled dismisses", questionsChan(ipc.UserQuestionResponse{ToolCallID: "tc1", Cancelled: true}), nil, true},
+		{"malformed answers dismiss", questionsChan(ipc.UserQuestionResponse{ToolCallID: "tc1", Answers: json.RawMessage(`"nope"`)}), nil, true},
+		{"closed broker dismisses", questionsChan(), nil, true},
+		{"nil broker dismisses", nil, nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			respChan := make(chan []agentdomain.UserQuestionAnswer, 1)
+			ev := agentdomain.UserQuestionRequestedEvent{
+				ToolCallID:   "tc1",
+				Questions:    []agentdomain.UserQuestion{{Header: "Lang", Question: "Which?", Options: []agentdomain.UserQuestionOption{{Label: "Go"}, {Label: "Rust"}}}},
+				ResponseChan: respChan,
+			}
+			var out strings.Builder
+			err := RenderAGUI(stream(ev, agentdomain.ChatCompleteEvent{}), &out, nil, tt.questions, "s1", "m", &convmocks.FakeConversationRepository{})
+			if err != nil {
+				t.Fatalf("RenderAGUI() err = %v", err)
+			}
+			answers, open := <-respChan
+			if tt.dismissed {
+				if open {
+					t.Fatalf("expected dismissal (closed channel), got answers %+v", answers)
+				}
+			} else {
+				if !open || len(answers) != 1 || strings.Join(answers[0].SelectedLabels, ",") != strings.Join(tt.want, ",") {
+					t.Fatalf("answers = %+v (open=%v), want labels %v", answers, open, tt.want)
+				}
+			}
+			if !strings.Contains(out.String(), `"user_question_request"`) || !strings.Contains(out.String(), `"tool_call_id":"tc1"`) || !strings.Contains(out.String(), `"label":"Rust"`) {
+				t.Fatalf("user_question_request line not emitted with payload:\n%s", out.String())
+			}
+		})
+	}
+}
+
 func TestRenderAGUI_ApprovalRoundTrip(t *testing.T) {
 	respChan := make(chan agentdomain.ApprovalAction, 1)
 	ev := agentdomain.ToolApprovalRequestedEvent{
@@ -184,7 +242,7 @@ func TestRenderAGUI_ApprovalRoundTrip(t *testing.T) {
 	}
 	approvals := approvalsChan(ipc.ApprovalResponse{ToolCallID: "tc1", Approved: true})
 	var out strings.Builder
-	if err := RenderAGUI(stream(ev, agentdomain.ChatCompleteEvent{}), &out, approvals, "s1", "m", &convmocks.FakeConversationRepository{}); err != nil {
+	if err := RenderAGUI(stream(ev, agentdomain.ChatCompleteEvent{}), &out, approvals, nil, "s1", "m", &convmocks.FakeConversationRepository{}); err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
 	}
 	select {
@@ -210,7 +268,7 @@ func TestRenderJSON_StreamsPerTurn(t *testing.T) {
 		agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolName: "Bash", Success: true}}},
 		agentdomain.ChatChunkEvent{Content: "all done"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
+	), &out, nil, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderJSON() err = %v", err)
 	}
@@ -230,7 +288,7 @@ func TestRenderJSONPretty_Multiline(t *testing.T) {
 	err := RenderJSONPretty(stream(
 		agentdomain.ChatChunkEvent{Content: "hello"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
+	), &out, nil, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderJSONPretty() err = %v", err)
 	}
@@ -245,7 +303,7 @@ func TestRenderJSONPretty_Multiline(t *testing.T) {
 
 func TestRenderJSON_MaxTurns(t *testing.T) {
 	var out strings.Builder
-	err := RenderJSON(stream(agentdomain.ChatCompleteEvent{MaxTurnsReached: true}), &out, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
+	err := RenderJSON(stream(agentdomain.ChatCompleteEvent{MaxTurnsReached: true}), &out, nil, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
 	if !errors.Is(err, agentdomain.ErrMaxTurnsReached) {
 		t.Fatalf("RenderJSON() err = %v, want ErrMaxTurnsReached", err)
 	}
@@ -286,7 +344,7 @@ func TestRenderJSON_ComputerUsePauseResume(t *testing.T) {
 		agentdomain.ComputerUseResumedEvent{RequestID: "s1"},
 		agentdomain.ChatChunkEvent{Content: "back at it"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
+	), &out, nil, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderJSON() err = %v, want nil after resumed run completes", err)
 	}
@@ -305,7 +363,7 @@ func TestRenderAGUI_ComputerUsePauseResume(t *testing.T) {
 		agentdomain.ChatCompleteEvent{Cancelled: true},
 		agentdomain.ComputerUseResumedEvent{RequestID: "s1"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "s1", "m", &convmocks.FakeConversationRepository{})
+	), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderAGUI() err = %v, want nil after resumed run completes", err)
 	}
@@ -356,7 +414,7 @@ func TestRenderAGUI_RunFinishedCarriesSessionStats(t *testing.T) {
 	err := RenderAGUI(stream(
 		agentdomain.ChatChunkEvent{Content: "hi"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "session-1", "openai/gpt-4o", repo)
+	), &out, nil, nil, "session-1", "openai/gpt-4o", repo)
 	if err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
 	}
@@ -398,7 +456,7 @@ func TestRenderAGUI_RunFinishedCarriesSessionStats(t *testing.T) {
 	}
 
 	var plain strings.Builder
-	err = RenderAGUI(stream(agentdomain.ChatCompleteEvent{}), &plain, nil, "s1", "m", &convmocks.FakeConversationRepository{})
+	err = RenderAGUI(stream(agentdomain.ChatCompleteEvent{}), &plain, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
 	}

@@ -24,6 +24,7 @@ a subprocess host reading stdout is a fully valid transport.
 | Tool result | `TOOL_CALL_RESULT` whose `content` is the raw JSON execution result (no `"Result of tool call:"` prefix) |
 | Todo-list change | `STATE_SNAPSHOT` with `{"todos": [...]}` |
 | Approval request (`--require-approval`) | `CUSTOM` event named `approval_request` carrying the legacy payload |
+| AskUserQuestion form | `CUSTOM` event named `user_question_request` with `tool_call_id` and `questions` |
 | Successful exit | `RUN_FINISHED` with a success outcome; `result` carries the session stats (keys below) |
 | Failure or panic | `RUN_ERROR` with the error message and the run id |
 
@@ -47,6 +48,18 @@ cumulative across the session (not just this run). When no model request was mad
 
 The `approval_request` value is the legacy payload (`tool_name`, `tool_args`, `tool_call_id`);
 replies are still `approval_response` JSON lines on stdin, exactly as in `json` mode.
+
+When the agent calls `AskUserQuestion`, the `user_question_request` value carries `tool_call_id` and
+`questions` - the tool's own array of `{header, question, options: [{label, description}], multiSelect}`.
+The host renders the form and answers with one JSON line on stdin, either the collected answers or a
+dismissal; the run then continues with the answers in the tool result. In `text` format no form is
+available and the tool returns its degraded result instead:
+
+```json
+{"type":"user_question_response","tool_call_id":"call-1","answers":[{"header":"Scope","question":"Which?","selectedLabels":["Desktop"],"otherText":""}]}
+{"type":"user_question_response","tool_call_id":"call-1","cancelled":true}
+```
+
 Whole messages are emitted as single-delta triads (the synchronous headless loop produces complete
 messages); live token streaming is a planned follow-up.
 

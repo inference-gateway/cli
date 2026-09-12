@@ -41,6 +41,16 @@ func TestHeadlessControl_DispatchLine(t *testing.T) {
 		t.Fatal("approval_response line not forwarded to approvals channel")
 	}
 
+	ctl.dispatchLine([]byte(`{"type":"user_question_response","tool_call_id":"tc2","answers":[{"header":"H","question":"Q","selectedLabels":["A"]}]}`))
+	select {
+	case resp := <-ctl.questions:
+		if resp.ToolCallID != "tc2" || resp.Cancelled || !strings.Contains(string(resp.Answers), `"A"`) {
+			t.Fatalf("question response = %+v, want tc2 answered", resp)
+		}
+	default:
+		t.Fatal("user_question_response line not forwarded to questions channel")
+	}
+
 	for _, noise := range []string{"not json", `{"type":"other"}`, `{"type":"computer_use_control","action":"nonsense"}`} {
 		ctl.dispatchLine([]byte(noise))
 	}

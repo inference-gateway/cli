@@ -95,9 +95,10 @@ type BashDetachChannelHolder interface {
 }
 
 // UserQuestionBroker publishes an interactive clarifying-question request to the
-// TUI and blocks until the user answers or the context is cancelled. It is
-// injected into the AskUserQuestion tool's execution context only on the chat
-// path (where a TTY/event loop exists). Returns ok=false when the user dismisses
+// user (chat TUI, or a headless host over stdin) and blocks until the user
+// answers or the context is cancelled. It is injected into the AskUserQuestion
+// tool's execution context when UserQuestionsAvailable reports a host that can
+// render the form. Returns ok=false when the user dismisses
 // the form (the response channel is closed without a value) or on cancellation.
 type UserQuestionBroker interface {
 	AskUserQuestions(ctx context.Context, questions []UserQuestion) (answers []UserQuestionAnswer, ok bool, err error)

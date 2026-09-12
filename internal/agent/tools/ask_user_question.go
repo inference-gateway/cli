@@ -30,10 +30,11 @@ const (
 // multiple-choice questions and returns the chosen answers to the agent.
 // In plan mode the answers fold into the plan before RequestPlanApproval.
 //
-// It is read-only (no approval gate) and only reaches the user when a chat TUI
-// is present: the brokering capability is injected into the execution context
-// only on the chat path. On headless/no-TTY runs the broker is absent and the
-// tool degrades gracefully instead of blocking.
+// It is read-only (no approval gate) and only reaches the user when a
+// UserQuestionBroker is in the execution context: the chat TUI, `!!` direct
+// execution, or a headless host (ag-ui/json formats) answering over stdin.
+// Without a broker (text format, no host) the tool degrades gracefully
+// instead of blocking.
 type AskUserQuestionTool struct {
 	config    *config.Config
 	enabled   bool
@@ -135,7 +136,7 @@ func (t *AskUserQuestionTool) Execute(ctx context.Context, args map[string]any) 
 		logger.Debug("AskUserQuestion: no interactive broker in context - degrading", "questions", len(questions))
 		return t.result(args, start, map[string]any{
 			"available": false,
-			"message": "No interactive user form is available in this session. STOP: restate your " +
+			"message": "This session has no interactive user form (no chat UI or host to show one). STOP: restate your " +
 				"questions to the user in plain text as your final reply and END YOUR TURN without " +
 				"further tool calls. Wait for the user's next message before continuing. Do not " +
 				"answer the questions yourself or proceed on assumptions.",

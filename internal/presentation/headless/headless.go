@@ -255,11 +255,12 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 	}
 
 	req := &agentdomain.AgentRequest{
-		RequestID:              sessionID,
-		Model:                  selectedModel,
-		Messages:               append(history, userMsg),
-		ApprovalBrokerAttached: opts.RequireApproval,
-		GroupKey:               groupKey,
+		RequestID:                  sessionID,
+		Model:                      selectedModel,
+		Messages:                   append(history, userMsg),
+		ApprovalBrokerAttached:     opts.RequireApproval,
+		UserQuestionBrokerAttached: opts.Format != "text",
+		GroupKey:                   groupKey,
 	}
 
 	rec := svc.GetTelemetryRecorder()
@@ -275,16 +276,18 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 
 	renderEvents := events
 	var approvals <-chan ipc.ApprovalResponse
+	var questions <-chan ipc.UserQuestionResponse
 	if opts.Format != "text" {
 		ctl := newHeadlessControl(agentService, svc.GetStateManager(), sessionID)
 		go ctl.readLines(os.Stdin)
 		approvals = ctl.approvals
+		questions = ctl.questions
 		renderEvents = ctl.pumpEvents(events, func() (<-chan agentdomain.ChatEvent, error) {
 			return resumeRun(ctx, agentService, conversationRepo, req)
 		})
 	}
 	rendered = true
-	err = renderStream(opts.Format, renderEvents, approvals, sessionID, selectedModel, cfg, conversationRepo)
+	err = renderStream(opts.Format, renderEvents, approvals, questions, sessionID, selectedModel, cfg, conversationRepo)
 
 	endSessionSpan(sessionOutcome(err))
 	rec.RecordSession("headless", sessionOutcome(err), time.Since(sessionStart))
@@ -318,14 +321,14 @@ func selectModel(models []string, modelFlag, defaultModel string) (string, error
 // renderStream writes an event stream in the requested --format. Both an agent
 // run and a slash command's output go through it, so every format keeps the
 // same contract whichever produced the events.
-func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals <-chan ipc.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
+func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
 	switch format {
 	case "json":
-		return render.RenderJSON(events, os.Stdout, approvals, sessionID, model, cfg, repo)
+		return render.RenderJSON(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "json-pretty":
-		return render.RenderJSONPretty(events, os.Stdout, approvals, sessionID, model, cfg, repo)
+		return render.RenderJSONPretty(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "ag-ui":
-		return render.RenderAGUI(events, os.Stdout, approvals, sessionID, model, repo)
+		return render.RenderAGUI(events, os.Stdout, approvals, questions, sessionID, model, repo)
 	default:
 		return render.RenderText(events, os.Stdout)
 	}
@@ -347,7 +350,7 @@ func emitCommandResult(format string, repo convdomain.ConversationRepository, se
 	events <- agentdomain.ChatCompleteEvent{RequestID: sessionID, Timestamp: time.Now(), Message: text}
 	close(events)
 
-	return renderStream(format, events, nil, sessionID, model, cfg, repo)
+	return renderStream(format, events, nil, nil, sessionID, model, cfg, repo)
 }
 
 // compactSession is /compact outside the TUI: the rollover manager already runs

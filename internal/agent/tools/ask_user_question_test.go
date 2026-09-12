@@ -189,7 +189,7 @@ func TestAskUserQuestionTool_Execute_HeadlessDegrade(t *testing.T) {
 	if data["available"] != false {
 		t.Fatalf("expected available=false, got %v", data["available"])
 	}
-	if msg, _ := data["message"].(string); !strings.Contains(msg, "No interactive user") {
+	if msg, _ := data["message"].(string); !strings.Contains(msg, "no interactive user form") {
 		t.Fatalf("expected degrade message, got %q", msg)
 	}
 }

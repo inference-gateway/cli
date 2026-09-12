@@ -147,6 +147,38 @@ func answerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan i
 	e.ResponseChan <- agentdomain.ApprovalReject
 }
 
+// answerQuestions answers the AskUserQuestion tool's pending form on the
+// event's response channel from the broker's questions channel, mirroring
+// answerApproval: stale tool_call_ids are skipped, a cancelled response or a
+// nil/closed channel closes ResponseChan (the tool's "dismissed" path), and
+// an unparseable answers payload counts as a dismissal too.
+func answerQuestions(e agentdomain.UserQuestionRequestedEvent, questions <-chan ipc.UserQuestionResponse) {
+	if e.ResponseChan == nil {
+		return
+	}
+	defer close(e.ResponseChan)
+	if questions == nil {
+		return
+	}
+	for resp := range questions {
+		if resp.ToolCallID != "" && resp.ToolCallID != e.ToolCallID {
+			continue
+		}
+		var answers []agentdomain.UserQuestionAnswer
+		if resp.Cancelled || json.Unmarshal(resp.Answers, &answers) != nil {
+			return
+		}
+		e.ResponseChan <- answers
+		return
+	}
+}
+
+// userQuestionRequest builds the IPC payload for one question form.
+func userQuestionRequest(e agentdomain.UserQuestionRequestedEvent) ipc.UserQuestionRequest {
+	questions, _ := json.Marshal(e.Questions)
+	return ipc.UserQuestionRequest{Type: "user_question_request", ToolCallID: e.ToolCallID, Questions: questions}
+}
+
 // judgeStderr echoes a judge rejection to stderr in every headless format: the
 // TUI flash equivalent for unattended runs. CI consumers watching stdout keep
 // the machine-readable judge_verdict line.
@@ -178,18 +210,18 @@ func judgeVerdictMessage(e agentdomain.JudgeVerdictChatEvent) map[string]any {
 // approval_request line is answered by the next matching ApprovalResponse.
 // A ComputerUseResumedEvent clears any error carried over from the paused
 // (cancelled) run, so a resumed run that completes cleanly exits zero.
-func RenderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
-	return renderJSON(events, w, approvals, sessionID, model, cfg, repo, false)
+func RenderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
+	return renderJSON(events, w, approvals, questions, sessionID, model, cfg, repo, false)
 }
 
 // RenderJSONPretty is RenderJSON with each object indented across multiple
 // lines for human reading. Objects are separated by newlines but are no
 // longer one-per-line, so machine consumers should use RenderJSON.
-func RenderJSONPretty(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
-	return renderJSON(events, w, approvals, sessionID, model, cfg, repo, true)
+func RenderJSONPretty(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
+	return renderJSON(events, w, approvals, questions, sessionID, model, cfg, repo, true)
 }
 
-func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository, pretty bool) error {
+func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository, pretty bool) error {
 	emit := func(msg any) { emitJSON(w, msg, pretty) }
 	emit(map[string]any{
 		"type":       "info",
@@ -228,6 +260,9 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 				"tool_args": e.ToolCall.Function.Arguments, "tool_call_id": e.ToolCall.ID,
 			})
 			answerApproval(e, approvals)
+		case agentdomain.UserQuestionRequestedEvent:
+			emit(userQuestionRequest(e))
+			answerQuestions(e, questions)
 		case agentdomain.ComputerUsePausedEvent:
 			emit(map[string]any{"type": "computer_use_paused", "request_id": e.RequestID})
 		case agentdomain.ComputerUseResumedEvent:
@@ -297,7 +332,7 @@ func RenderText(events <-chan agentdomain.ChatEvent, w io.Writer) error {
 // the paused (cancelled) run, same as RenderJSON. After the channel closes the
 // session stats from repo are attached to RUN_FINISHED's result, the AG-UI
 // counterpart of RenderJSON's session_stats line.
-func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, sessionID, model string, repo convdomain.ConversationRepository) error {
+func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository) error {
 	e := &aguiEncoder{w: w, threadID: sessionID}
 	e.emitRunStarted(sessionID)
 
@@ -342,6 +377,9 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 				ToolArgs: ev.ToolCall.Function.Arguments, ToolCallID: ev.ToolCall.ID,
 			})
 			answerApproval(ev, approvals)
+		case agentdomain.UserQuestionRequestedEvent:
+			e.emitUserQuestionRequest(userQuestionRequest(ev))
+			answerQuestions(ev, questions)
 		case agentdomain.ComputerUsePausedEvent:
 			e.emitComputerUsePaused(ev.RequestID)
 		case agentdomain.ComputerUseResumedEvent:

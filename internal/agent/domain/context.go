@@ -69,6 +69,9 @@ const TraceEnvKey ContextKey = "trace_env"
 // approval broker attached). When unset, sandbox denials fail as before.
 const SandboxApprovalKey ContextKey = "sandbox_approval"
 
+// UserQuestionsAvailableKey marks a run whose host can answer AskUserQuestion forms.
+const UserQuestionsAvailableKey ContextKey = "user_questions_available"
+
 // UserQuestionBrokerKey is the context key for the interactive question broker.
 // It is injected only on the chat path (where a TUI event loop exists), so the
 // AskUserQuestion tool sees a nil broker on headless/no-TTY runs and degrades
