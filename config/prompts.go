@@ -516,9 +516,9 @@ Required parameters:
 Only call this tool when the plan is final. If you need clarification, ask the user in a normal assistant turn first.`,
 		},
 		AskUserQuestion: PromptsToolDescription{
-			Description: `Ask the user 1-4 multiple-choice clarifying questions as an interactive form (plan mode only).
+			Description: `Ask the user 1-4 multiple-choice clarifying questions as an interactive form.
 
-Use this when the plan hinges on a discrete decision the user should make - format, scope, approach, naming, trade-off - instead of guessing or asking in prose. Call it BEFORE RequestPlanApproval; fold the answers into the plan, then submit the plan.
+Use this when a decision hinges on a discrete choice the user should make - format, scope, approach, naming, trade-off - instead of guessing or asking in prose. In plan mode, call it BEFORE RequestPlanApproval and fold the answers into the plan, then submit the plan.
 
 Each question has:
 - header: a short chip/tag (<= 12 chars), e.g. "Scope", "Format"

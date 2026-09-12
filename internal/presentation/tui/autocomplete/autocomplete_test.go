@@ -262,7 +262,7 @@ func TestAutocomplete_ToolsRespectAgentMode(t *testing.T) {
 	ac.SetToolService(mockToolService)
 	ac.SetStateManager(sm)
 
-	// Standard mode: AskUserQuestion is plan-only, so it must not autocomplete.
+	// Standard mode: the stub only returns AskUserQuestion in plan mode, so it must not autocomplete.
 	sm.SetAgentMode(agentdomain.AgentModeStandard)
 	ac.Update("!!AskUser", 9)
 	if ac.IsVisible() {

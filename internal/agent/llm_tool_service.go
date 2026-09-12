@@ -56,7 +56,6 @@ var planModeAllowedTools = map[string]bool{
 // planOnlyTools are executable only in plan mode.
 var planOnlyTools = map[string]bool{
 	"RequestPlanApproval": true,
-	"AskUserQuestion":     true,
 }
 
 // isToolEnabled checks if a tool should be included based on its type and configuration

@@ -43,19 +43,23 @@ func TestListToolsForMode_ReadOnly(t *testing.T) {
 	}
 }
 
-func TestListToolsForMode_AskUserQuestionPlanOnly(t *testing.T) {
+func TestListToolsForMode_AskUserQuestionModes(t *testing.T) {
 	cfg := config.DefaultConfig()
 	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 
-	if !slices.Contains(toolNamesForMode(svc, agentdomain.AgentModePlan), "AskUserQuestion") {
-		t.Error("expected AskUserQuestion to be available in plan mode")
+	for _, mode := range []agentdomain.AgentMode{
+		agentdomain.AgentModePlan,
+		agentdomain.AgentModeStandard,
+		agentdomain.AgentModeAutoAccept,
+		agentdomain.AgentModeAutoWithJudge,
+	} {
+		if !slices.Contains(toolNamesForMode(svc, mode), "AskUserQuestion") {
+			t.Errorf("expected AskUserQuestion to be advertised in %s mode", mode)
+		}
 	}
-	if slices.Contains(toolNamesForMode(svc, agentdomain.AgentModeStandard), "AskUserQuestion") {
-		t.Error("expected AskUserQuestion to be excluded from standard mode")
-	}
-	if slices.Contains(toolNamesForMode(svc, agentdomain.AgentModeAutoAccept), "AskUserQuestion") {
-		t.Error("expected AskUserQuestion to be excluded from auto-accept mode")
+	if slices.Contains(toolNamesForMode(svc, agentdomain.AgentModeReadOnly), "AskUserQuestion") {
+		t.Error("expected AskUserQuestion to be excluded from read-only mode")
 	}
 }
 
@@ -77,7 +81,8 @@ func TestExecuteTool_ModeGuard(t *testing.T) {
 		{"plan rejects Write", agentdomain.AgentModePlan, true, "Write", "disabled in plan mode"},
 		{"plan rejects Bash", agentdomain.AgentModePlan, true, "Bash", "disabled in plan mode"},
 		{"standard rejects RequestPlanApproval", agentdomain.AgentModeStandard, true, "RequestPlanApproval", "only available in plan mode"},
-		{"auto rejects AskUserQuestion", agentdomain.AgentModeAutoAccept, true, "AskUserQuestion", "only available in plan mode"},
+		{"standard allows AskUserQuestion", agentdomain.AgentModeStandard, true, "AskUserQuestion", ""},
+		{"auto allows AskUserQuestion", agentdomain.AgentModeAutoAccept, true, "AskUserQuestion", ""},
 		{"no mode fails open", agentdomain.AgentModeStandard, false, "Write", ""},
 	}
 	for _, tt := range tests {

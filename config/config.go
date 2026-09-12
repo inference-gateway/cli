@@ -355,7 +355,7 @@ type TodoWriteToolConfig struct {
 }
 
 // AskUserQuestionToolConfig contains AskUserQuestion-specific tool settings.
-// The tool is read-only and plan-mode only, so it carries no approval flag.
+// The tool is read-only, so it carries no approval flag.
 type AskUserQuestionToolConfig struct {
 	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 }

@@ -166,13 +166,13 @@ var defaultModeChangeGuidance = map[string]string{
 		"Before any high-risk action, STOP and confirm with the user in a normal message - state exactly what you will run and why - instead of relying on the (now-disabled) approval gate; proceed only once they agree, or when the task you were given already authorised it explicitly. " +
 		"If no user is reachable (headless/unattended run), do NOT take a high-risk action on your own initiative: prefer the reversible path, narrow the scope, or stop and report what you would have done and why. " +
 		"Low-risk, reversible work (reads, builds, tests, and edits within the working directory) proceeds normally - do not over-ask on routine steps. Never echo, print, or publish the value of a secret or environment variable. " +
-		"The full tool set is available again (Write/Edit/Delete/Bash included); plan-only tools (RequestPlanApproval, AskUserQuestion) are disabled and will be rejected.",
+		"The full tool set is available again (Write/Edit/Delete/Bash included); plan-only tools (RequestPlanApproval) are disabled and will be rejected.",
 	"auto-with-judge": "You are now in Auto+Judge mode: no human approves tool calls - an LLM judge decides every gated call against the user's latest request (config in judge.yaml). " +
 		"Allow-listed commands still run for free; anything off-list is judged, and a rejection arrives as a rejection tool result explaining why - change the approach instead of retrying the same call, or, when the user explicitly asked for exactly that action, call RequestApproval so they can override the judge (one attempt per rejected call). " +
 		"Destructive or irreversible actions (rm -rf, force pushes, deleting data, publishing) are likely to be rejected unless the user's request clearly authorises them, and a failing judge also denies (fail closed) - if that happens, use an allow-listed command or stop and report. " +
-		"The full tool set is available (Write/Edit/Delete/Bash included); plan-only tools (RequestPlanApproval, AskUserQuestion) are disabled and will be rejected.",
+		"The full tool set is available (Write/Edit/Delete/Bash included); plan-only tools (RequestPlanApproval) are disabled and will be rejected.",
 	"standard": "You are now in Standard mode: per-call tool approvals apply as configured - do not assume auto-acceptance; wait for each approval prompt (in agent mode, out-of-allow-list commands are rejected and must be reworked). " +
-		"The full tool set is available again (Bash, Write/Edit/Delete included); plan-only tools (RequestPlanApproval, AskUserQuestion) are disabled and will be rejected. Check the BASH ALLOW-LIST in the current context reminder before proposing shell commands.",
+		"The full tool set is available again (Bash, Write/Edit/Delete included); plan-only tools (RequestPlanApproval) are disabled and will be rejected. Check the BASH ALLOW-LIST in the current context reminder before proposing shell commands.",
 }
 
 const defaultMemoryConsultReminderText = `<system-reminder>
