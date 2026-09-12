@@ -20,6 +20,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 )
 
 func emitJSON(w io.Writer, msg any, pretty bool) {
@@ -293,8 +294,10 @@ func RenderText(events <-chan agentdomain.ChatEvent, w io.Writer) error {
 // RUN_ERROR); per-turn events in between carry deltas, tool calls, and results.
 // When approvals is non-nil it acts as the IPC approval broker, same as
 // RenderJSON. A ComputerUseResumedEvent clears any error carried over from
-// the paused (cancelled) run, same as RenderJSON.
-func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, sessionID, model string) error {
+// the paused (cancelled) run, same as RenderJSON. After the channel closes the
+// session stats from repo are attached to RUN_FINISHED's result, the AG-UI
+// counterpart of RenderJSON's session_stats line.
+func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, sessionID, model string, repo convdomain.ConversationRepository) error {
 	e := &aguiEncoder{w: w, threadID: sessionID}
 	e.emitRunStarted(sessionID)
 
@@ -352,8 +355,45 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 		e.emitRunError(runErr.Error())
 		return fmt.Errorf("agent error: %w", runErr)
 	}
-	e.emitRunFinished()
+	e.emitRunFinished(sessionResult(model, repo))
 	return nil
+}
+
+// sessionResult builds the per-session totals the desktop consumes from the
+// terminal RUN_FINISHED event (see docs/ag-ui-output.md), mirroring the
+// session_stats line of RenderJSON. nil when the run made no LLM requests
+// (e.g. a shortcut answer), so the event then carries no result.
+func sessionResult(model string, repo convdomain.ConversationRepository) map[string]any {
+	if repo == nil {
+		return nil
+	}
+	tokens := repo.GetSessionTokens()
+	if tokens.RequestCount <= 0 {
+		return nil
+	}
+	result := map[string]any{
+		"inputTokens":     tokens.TotalInputTokens,
+		"outputTokens":    tokens.TotalOutputTokens,
+		"cacheReadTokens": tokens.TotalCachedTokens,
+		"totalToolCalls":  countToolCalls(repo.GetMessages()),
+		"cost":            repo.GetSessionCostStats().TotalCost,
+		"lastInputTokens": tokens.LastInputTokens,
+	}
+	if window, ok := models.LookupContextWindow(model); ok {
+		result["contextWindow"] = window
+	}
+	return result
+}
+
+// countToolCalls sums the tool calls recorded on the session's assistant messages.
+func countToolCalls(entries []convdomain.ConversationEntry) int {
+	count := 0
+	for _, e := range entries {
+		if e.Message.ToolCalls != nil {
+			count += len(*e.Message.ToolCalls)
+		}
+	}
+	return count
 }
 
 // EmitPreRunError writes a machine-readable failure line for errors that occur

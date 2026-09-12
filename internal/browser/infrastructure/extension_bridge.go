@@ -764,7 +764,7 @@ func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
 	}()
 
 	writer := &chatEventWriter{bridge: b, conn: conn}
-	if err := render.RenderAGUI(filtered, writer, nil, b.sessionID, ""); err != nil {
+	if err := render.RenderAGUI(filtered, writer, nil, b.sessionID, "", b.repo); err != nil {
 		logger.Debug("extension bridge chat pump ended", "error", err)
 	}
 }

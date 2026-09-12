@@ -1,6 +1,7 @@
 package render
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -9,7 +10,9 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 )
 
@@ -59,7 +62,7 @@ func TestRenderAGUI_SingleRunLifecycle(t *testing.T) {
 		agentdomain.ChatStartEvent{},
 		agentdomain.ChatChunkEvent{RequestID: "r1", Content: "done"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "session-1", "openai/gpt-4o")
+	), &out, nil, "session-1", "openai/gpt-4o", &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
 	}
@@ -87,7 +90,7 @@ func TestRenderAGUI_UserMessageIsFramedWithUserRole(t *testing.T) {
 		agentdomain.ChatStartEvent{},
 		agentdomain.ChatChunkEvent{RequestID: "r1", Content: "not much"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "session-1", "")
+	), &out, nil, "session-1", "", &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
 	}
@@ -105,7 +108,7 @@ func TestRenderAGUI_ErrorEmitsSingleRunError(t *testing.T) {
 	err := RenderAGUI(stream(
 		agentdomain.ChatCompleteEvent{},
 		agentdomain.ChatErrorEvent{Error: errors.New("boom")},
-	), &out, nil, "session-1", "m")
+	), &out, nil, "session-1", "m", &convmocks.FakeConversationRepository{})
 	if err == nil {
 		t.Fatal("RenderAGUI() err = nil, want error")
 	}
@@ -181,7 +184,7 @@ func TestRenderAGUI_ApprovalRoundTrip(t *testing.T) {
 	}
 	approvals := approvalsChan(ipc.ApprovalResponse{ToolCallID: "tc1", Approved: true})
 	var out strings.Builder
-	if err := RenderAGUI(stream(ev, agentdomain.ChatCompleteEvent{}), &out, approvals, "s1", "m"); err != nil {
+	if err := RenderAGUI(stream(ev, agentdomain.ChatCompleteEvent{}), &out, approvals, "s1", "m", &convmocks.FakeConversationRepository{}); err != nil {
 		t.Fatalf("RenderAGUI() err = %v", err)
 	}
 	select {
@@ -302,7 +305,7 @@ func TestRenderAGUI_ComputerUsePauseResume(t *testing.T) {
 		agentdomain.ChatCompleteEvent{Cancelled: true},
 		agentdomain.ComputerUseResumedEvent{RequestID: "s1"},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, "s1", "m")
+	), &out, nil, "s1", "m", &convmocks.FakeConversationRepository{})
 	if err != nil {
 		t.Fatalf("RenderAGUI() err = %v, want nil after resumed run completes", err)
 	}
@@ -325,5 +328,81 @@ func TestToolContent_NoLegacyEnvelope(t *testing.T) {
 	failed := toolContent(&agentdomain.ToolExecutionResult{ToolName: "Bash", Success: false, Error: "exit 1"})
 	if failed != "exit 1" {
 		t.Fatalf("failure content = %q, want bare error detail", failed)
+	}
+}
+
+func TestRenderAGUI_RunFinishedCarriesSessionStats(t *testing.T) {
+	config.UserContextWindows = map[string]int{"gpt-4o": 200000}
+	t.Cleanup(func() { config.UserContextWindows = nil })
+
+	repo := &convmocks.FakeConversationRepository{}
+	repo.GetSessionTokensStub = func() convdomain.SessionTokenStats {
+		return convdomain.SessionTokenStats{
+			TotalInputTokens: 4821, TotalOutputTokens: 310, TotalCachedTokens: 3100,
+			TotalTokens: 8231, RequestCount: 2, LastInputTokens: 4821,
+		}
+	}
+	repo.GetSessionCostStatsStub = func() convdomain.SessionCostStats {
+		return convdomain.SessionCostStats{TotalCost: 0.042}
+	}
+	repo.GetMessagesStub = func() []convdomain.ConversationEntry {
+		toolCalls := []sdk.ChatCompletionMessageToolCall{
+			{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"}},
+		}
+		return []convdomain.ConversationEntry{{Message: sdk.Message{Role: sdk.Assistant, ToolCalls: &toolCalls}}}
+	}
+
+	var out strings.Builder
+	err := RenderAGUI(stream(
+		agentdomain.ChatChunkEvent{Content: "hi"},
+		agentdomain.ChatCompleteEvent{},
+	), &out, nil, "session-1", "openai/gpt-4o", repo)
+	if err != nil {
+		t.Fatalf("RenderAGUI() err = %v", err)
+	}
+
+	var result map[string]any
+	for line := range strings.SplitSeq(out.String(), "\n") {
+		if !strings.Contains(line, `"RUN_FINISHED"`) {
+			continue
+		}
+		var finished struct {
+			Type   string         `json:"type"`
+			Result map[string]any `json:"result"`
+		}
+		if err := json.Unmarshal([]byte(line), &finished); err != nil {
+			t.Fatalf("RUN_FINISHED line is not valid JSON: %v\n%s", err, line)
+		}
+		if finished.Type != "RUN_FINISHED" {
+			t.Fatalf("parsed type = %q, want RUN_FINISHED", finished.Type)
+		}
+		result = finished.Result
+		break
+	}
+	if result == nil {
+		t.Fatalf("RUN_FINISHED carries no result:\n%s", out.String())
+	}
+	for key, want := range map[string]float64{
+		"inputTokens":     4821,
+		"outputTokens":    310,
+		"cacheReadTokens": 3100,
+		"totalToolCalls":  1,
+		"cost":            0.042,
+		"lastInputTokens": 4821,
+		"contextWindow":   200000,
+	} {
+		got, ok := result[key].(float64)
+		if !ok || got != want {
+			t.Errorf("result[%q] = %v, want %v", key, result[key], want)
+		}
+	}
+
+	var plain strings.Builder
+	err = RenderAGUI(stream(agentdomain.ChatCompleteEvent{}), &plain, nil, "s1", "m", &convmocks.FakeConversationRepository{})
+	if err != nil {
+		t.Fatalf("RenderAGUI() err = %v", err)
+	}
+	if strings.Contains(plain.String(), `"result"`) {
+		t.Errorf("zero-request run must emit RUN_FINISHED without result:\n%s", plain.String())
 	}
 }
