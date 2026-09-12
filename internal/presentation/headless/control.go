@@ -19,8 +19,8 @@ import (
 const resumeContinuePrompt = "Please continue from where you left off."
 
 // headlessControl is the single reader of the headless process's stdin. It
-// splits the IPC line stream into approval responses for the renderer and
-// computer_use_control actions, mirroring what the chat approval coordinator
+// splits the IPC line stream into approval and user-question responses for the
+// renderer and computer_use_control actions, mirroring what the chat approval coordinator
 // does: pause cancels the in-flight request and sets the paused state; resume
 // restarts the run with a hidden continue message. Control actions surface on
 // ctrlEvents as the same domain events the renderers already handle. Both
@@ -35,6 +35,7 @@ type headlessControl struct {
 	pauseState   agentdomain.ComputerUsePauseManager
 	sessionID    string
 	approvals    chan ipc.ApprovalResponse
+	questions    chan ipc.UserQuestionResponse
 	ctrlEvents   chan agentdomain.ChatEvent
 }
 
@@ -44,6 +45,7 @@ func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentd
 		pauseState:   pauseState,
 		sessionID:    sessionID,
 		approvals:    make(chan ipc.ApprovalResponse, 4),
+		questions:    make(chan ipc.UserQuestionResponse, 4),
 		ctrlEvents:   make(chan agentdomain.ChatEvent, 4),
 	}
 }
@@ -63,6 +65,7 @@ func (c *headlessControl) readLines(in io.Reader) {
 		logger.Warn("headless control stdin reader stopped; approvals now auto-reject", "error", err)
 	}
 	close(c.approvals)
+	close(c.questions)
 	close(c.ctrlEvents)
 }
 
@@ -78,6 +81,11 @@ func (c *headlessControl) dispatchLine(line []byte) {
 		var resp ipc.ApprovalResponse
 		if json.Unmarshal(line, &resp) == nil {
 			c.approvals <- resp
+		}
+	case "user_question_response":
+		var resp ipc.UserQuestionResponse
+		if json.Unmarshal(line, &resp) == nil {
+			c.questions <- resp
 		}
 	case "computer_use_control":
 		var ctrl ipc.ComputerUseControlMessage

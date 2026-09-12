@@ -1,5 +1,9 @@
 package ipc
 
+import (
+	"encoding/json"
+)
+
 // ApprovalRequest is emitted by the agent on stdout when a tool needs user approval.
 // The channel manager detects this JSON line, prompts the user, and writes an ApprovalResponse to stdin.
 type ApprovalRequest struct {
@@ -15,6 +19,25 @@ type ApprovalResponse struct {
 	ToolCallID string `json:"tool_call_id"`
 	Approved   bool   `json:"approved"`
 	Scope      string `json:"scope,omitempty"`
+}
+
+// UserQuestionRequest is emitted on stdout when the AskUserQuestion tool asks
+// the user to pick from a small form. Questions carries the tool's own
+// []agentdomain.UserQuestion, kept as raw JSON so ipc stays dependency-free.
+type UserQuestionRequest struct {
+	Type       string          `json:"type"` // "user_question_request"
+	ToolCallID string          `json:"tool_call_id"`
+	Questions  json.RawMessage `json:"questions"`
+}
+
+// UserQuestionResponse is written to the agent's stdin by the host UI after
+// the user submits or dismisses the form. Answers is the host's
+// []agentdomain.UserQuestionAnswer; Cancelled reports a dismissal.
+type UserQuestionResponse struct {
+	Type       string          `json:"type"` // "user_question_response"
+	ToolCallID string          `json:"tool_call_id"`
+	Answers    json.RawMessage `json:"answers,omitempty"`
+	Cancelled  bool            `json:"cancelled,omitempty"`
 }
 
 // ComputerUseControlMessage is written to the agent's stdin by a host UI to

@@ -18,7 +18,11 @@ type AgentRequest struct {
 	Messages               []sdk.Message `json:"messages"`
 	IsChatMode             bool          `json:"is_chat_mode"`
 	ApprovalBrokerAttached bool          `json:"approval_broker_attached"`
-	GroupKey               string        `json:"group_key,omitempty"`
+	// UserQuestionBrokerAttached reports that the host answers AskUserQuestion
+	// forms over stdin. Independent of ApprovalBrokerAttached so questions
+	// still reach the user when approvals are automatic.
+	UserQuestionBrokerAttached bool   `json:"user_question_broker_attached"`
+	GroupKey                   string `json:"group_key,omitempty"`
 }
 
 // AgentService handles agent operations with both sync and streaming modes

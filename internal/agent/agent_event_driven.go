@@ -72,6 +72,7 @@ func NewEventDrivenAgent(
 	stateMachine := NewAgentStateMachine()
 
 	ctx = agentdomain.WithSandboxApprovalAvailable(ctx, req.IsChatMode || req.ApprovalBrokerAttached)
+	ctx = agentdomain.WithUserQuestionsAvailable(ctx, req.IsChatMode || req.UserQuestionBrokerAttached)
 
 	agentCtx := &states.AgentContext{
 		RequestID:        req.RequestID,

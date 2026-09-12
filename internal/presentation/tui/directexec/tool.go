@@ -31,6 +31,7 @@ func (b *directQuestionBroker) AskUserQuestions(ctx context.Context, questions [
 
 	b.events <- agentdomain.UserQuestionRequestedEvent{
 		RequestID:    b.requestID,
+		ToolCallID:   b.requestID,
 		Timestamp:    time.Now(),
 		Questions:    questions,
 		ResponseChan: responseChan,

@@ -339,6 +339,7 @@ func (e PlanApprovalRequestedEvent) GetTimestamp() time.Time { return e.Timestam
 // value signals cancellation.
 type UserQuestionRequestedEvent struct {
 	RequestID    string
+	ToolCallID   string
 	Timestamp    time.Time
 	Questions    []UserQuestion
 	ResponseChan chan []UserQuestionAnswer `json:"-"`
