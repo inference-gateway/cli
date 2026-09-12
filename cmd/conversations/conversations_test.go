@@ -401,6 +401,8 @@ func TestBuildConversationShowJSON_MetadataAndEntries(t *testing.T) {
 		Title:           "hello",
 		ParentSessionID: "parent-1",
 		InvokedBy:       "agent",
+		TokenStats:      convdomain.SessionTokenStats{TotalInputTokens: 120, TotalOutputTokens: 30, TotalCachedTokens: 100, LastInputTokens: 80},
+		CostStats:       convdomain.SessionCostStats{TotalCost: 0.42},
 	}
 	out, err := buildConversationShowJSON(entries, metadata)
 	if err != nil {
@@ -413,6 +415,9 @@ func TestBuildConversationShowJSON_MetadataAndEntries(t *testing.T) {
 	}
 	if decodedOut.Metadata.ID != "sess-1" || decodedOut.Metadata.ParentSessionID != "parent-1" || decodedOut.Metadata.InvokedBy != "agent" {
 		t.Errorf("unexpected metadata: %+v", decodedOut.Metadata)
+	}
+	if decodedOut.Metadata.TokenStats != metadata.TokenStats || decodedOut.Metadata.TotalCost != 0.42 {
+		t.Errorf("token stats not projected: %+v", decodedOut.Metadata)
 	}
 	decoded := decodedOut.Entries
 	if len(decoded) != len(entries) {
