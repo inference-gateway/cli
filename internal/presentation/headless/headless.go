@@ -325,7 +325,7 @@ func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals 
 	case "json-pretty":
 		return render.RenderJSONPretty(events, os.Stdout, approvals, sessionID, model, cfg, repo)
 	case "ag-ui":
-		return render.RenderAGUI(events, os.Stdout, approvals, sessionID, model)
+		return render.RenderAGUI(events, os.Stdout, approvals, sessionID, model, repo)
 	default:
 		return render.RenderText(events, os.Stdout)
 	}

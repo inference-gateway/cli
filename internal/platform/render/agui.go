@@ -43,8 +43,14 @@ func (e *aguiEncoder) emitRunStarted(sessionID string) {
 	e.emit(aguievents.NewRunStartedEvent(e.threadID, e.runID))
 }
 
-func (e *aguiEncoder) emitRunFinished() {
-	e.emit(aguievents.NewRunFinishedEventWithOptions(e.threadID, e.runID, aguievents.WithSuccessOutcome()))
+// emitRunFinished ends the run; result carries the session stats when the run
+// made at least one LLM request (see docs/ag-ui-output.md).
+func (e *aguiEncoder) emitRunFinished(result map[string]any) {
+	opts := []aguievents.RunFinishedOption{aguievents.WithSuccessOutcome()}
+	if len(result) > 0 {
+		opts = append(opts, aguievents.WithResult(result))
+	}
+	e.emit(aguievents.NewRunFinishedEventWithOptions(e.threadID, e.runID, opts...))
 }
 
 func (e *aguiEncoder) emitRunError(message string) {

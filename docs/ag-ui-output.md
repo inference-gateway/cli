@@ -24,10 +24,27 @@ a subprocess host reading stdout is a fully valid transport.
 | Tool result | `TOOL_CALL_RESULT` whose `content` is the raw JSON execution result (no `"Result of tool call:"` prefix) |
 | Todo-list change | `STATE_SNAPSHOT` with `{"todos": [...]}` |
 | Approval request (`--require-approval`) | `CUSTOM` event named `approval_request` carrying the legacy payload |
-| Successful exit | `RUN_FINISHED` with a success outcome; `result` carries the session stats (tokens, cost) |
+| Successful exit | `RUN_FINISHED` with a success outcome; `result` carries the session stats (keys below) |
 | Failure or panic | `RUN_ERROR` with the error message and the run id |
 
 Every run is bracketed by `RUN_STARTED` and exactly one terminal `RUN_FINISHED` or `RUN_ERROR`.
+
+## `RUN_FINISHED` result
+
+After a run that made at least one model request, `RUN_FINISHED.result` carries the per-session totals,
+cumulative across the session (not just this run). When no model request was made the event has no
+`result`; `contextWindow` is omitted when the model's context window is unknown:
+
+| Key | Meaning |
+| --- | --- |
+| `inputTokens` | Total input tokens across the session |
+| `outputTokens` | Total output tokens across the session |
+| `cacheReadTokens` | Tokens served from the prompt cache |
+| `totalToolCalls` | Tool calls issued across the session |
+| `cost` | Total session cost, in the configured currency |
+| `lastInputTokens` | Input tokens of the most recent request |
+| `contextWindow` | Model context window in tokens (omitted when unknown) |
+
 The `approval_request` value is the legacy payload (`tool_name`, `tool_args`, `tool_call_id`);
 replies are still `approval_response` JSON lines on stdin, exactly as in `json` mode.
 Whole messages are emitted as single-delta triads (the synchronous headless loop produces complete
