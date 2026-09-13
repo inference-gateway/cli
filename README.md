@@ -360,6 +360,7 @@ infer chat --web --port 8080  # Custom port
 ```
 
 **Features:** Model selection, real-time streaming, scrollable history, three agent modes (Standard/Plan/Auto-Accept).
+Select text by holding Shift (Option on macOS terminals) while dragging.
 
 **Web Mode Features:**
 

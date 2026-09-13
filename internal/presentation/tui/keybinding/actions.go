@@ -70,7 +70,6 @@ func defaultActions() []*KeyAction {
 		{ID: config.ActionID(config.NamespaceDisplay, "toggle_raw_format"), Handler: handleToggleRawFormat, Context: chatView()},
 		{ID: config.ActionID(config.NamespaceDisplay, "toggle_todo_box"), Handler: handleToggleTodoBox, Context: chatView()},
 		{ID: config.ActionID(config.NamespaceDisplay, "toggle_thinking"), Handler: handleToggleThinkingExpansion, Context: chatView()},
-		{ID: config.ActionID(config.NamespaceSelection, "toggle_mouse_mode"), Handler: handleToggleMouseMode, Context: chatView()},
 		{ID: config.ActionID(config.NamespaceChat, "tab_key_handler"), Handler: handleTabKey, Context: chatView()},
 		{ID: config.ActionID(config.NamespaceChat, "enter_key_handler"), Handler: handleEnterKey, Context: chatView()},
 		{ID: config.ActionID(config.NamespaceHelp, "toggle_help"), Handler: handleToggleHelp, Context: chatView(inputIsEmpty)},
@@ -740,37 +739,6 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 		},
 		func() tea.Msg {
 			return agentdomain.RefreshAutocompleteEvent{}
-		},
-	)
-}
-
-func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	mouseEnabled := app.GetMouseEnabled()
-	app.SetMouseEnabled(!mouseEnabled)
-
-	if !mouseEnabled {
-		return tea.Batch(
-			// Bubble Tea v2 controls mouse mode via View.MouseMode rather
-			// than a one-shot command; ChatApplication.View() reflects
-			// app.GetMouseEnabled() into View.MouseMode. The status event
-			// here keeps the user feedback unchanged.
-			func() tea.Msg {
-				return tui.SetStatusEvent{
-					Message:    "Mouse scrolling enabled",
-					Spinner:    false,
-					StatusType: tui.StatusDefault,
-				}
-			},
-		)
-	}
-
-	return tea.Batch(
-		func() tea.Msg {
-			return tui.SetStatusEvent{
-				Message:    "Text selection enabled",
-				Spinner:    false,
-				StatusType: tui.StatusDefault,
-			}
 		},
 	)
 }

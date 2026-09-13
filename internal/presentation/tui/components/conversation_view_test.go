@@ -1461,7 +1461,6 @@ func scrollTestView(t *testing.T) *ConversationView {
 func TestRebuildPreservingScroll_AnchorsAboveViewportEntry(t *testing.T) {
 	cv := scrollTestView(t)
 
-	cv.userScrolledUp = true
 	spans := cv.entryLineSpans()
 	cv.Viewport.SetYOffset(spans[2][0])
 	before := cv.Viewport.YOffset()
@@ -1481,7 +1480,6 @@ func TestRebuildPreservingScroll_AnchorsAboveViewportEntry(t *testing.T) {
 func TestRebuildPreservingScroll_IgnoresBelowViewportEntry(t *testing.T) {
 	cv := scrollTestView(t)
 
-	cv.userScrolledUp = true
 	cv.Viewport.SetYOffset(0) // viewport top at the very top; entry 5 is below it
 	before := cv.Viewport.YOffset()
 
@@ -1489,5 +1487,60 @@ func TestRebuildPreservingScroll_IgnoresBelowViewportEntry(t *testing.T) {
 
 	if got := cv.Viewport.YOffset(); got != before {
 		t.Errorf("toggling a below-viewport entry must not move the offset: got %d, want %d", got, before)
+	}
+}
+
+func TestConversationView_AutoFollow(t *testing.T) {
+	appendEntry := func(cv *ConversationView) {
+		conv := append(cv.conversation, convdomain.ConversationEntry{
+			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("x")},
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Bash"},
+			Time:          time.Now(),
+		})
+		cv.SetConversation(conv)
+	}
+
+	tests := []struct {
+		name       string
+		arrange    func(cv *ConversationView)
+		wantBottom bool
+		wantOffset int
+	}{
+		{
+			name:       "at bottom follows new content",
+			arrange:    func(cv *ConversationView) { appendEntry(cv) },
+			wantBottom: true,
+		},
+		{
+			name: "scrolled up holds position",
+			arrange: func(cv *ConversationView) {
+				cv.Viewport.SetYOffset(1)
+				appendEntry(cv)
+			},
+			wantOffset: 1,
+		},
+		{
+			name: "ResetUserScroll pins to bottom",
+			arrange: func(cv *ConversationView) {
+				cv.Viewport.SetYOffset(1)
+				cv.ResetUserScroll()
+			},
+			wantBottom: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cv := scrollTestView(t)
+			if !cv.Viewport.AtBottom() {
+				t.Fatal("fixture should start at bottom")
+			}
+			tt.arrange(cv)
+			if cv.Viewport.AtBottom() != tt.wantBottom {
+				t.Fatalf("AtBottom() = %v, want %v", cv.Viewport.AtBottom(), tt.wantBottom)
+			}
+			if !tt.wantBottom && cv.Viewport.YOffset() != tt.wantOffset {
+				t.Fatalf("YOffset() = %d, want %d", cv.Viewport.YOffset(), tt.wantOffset)
+			}
+		})
 	}
 }

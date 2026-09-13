@@ -2015,7 +2015,6 @@ const (
 	NamespaceMode         KeyNamespace = "mode"
 	NamespaceNavigation   KeyNamespace = "navigation"
 	NamespacePlanApproval KeyNamespace = "plan_approval"
-	NamespaceSelection    KeyNamespace = "selection"
 	NamespaceTextEditing  KeyNamespace = "text_editing"
 	NamespaceTools        KeyNamespace = "tools"
 	NamespaceDiffViewer   KeyNamespace = "diff_viewer"

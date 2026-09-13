@@ -662,7 +662,6 @@ in different namespaces without conflict.
 - **text_editing**: Text manipulation (e.g., `text_editing_move_cursor_left`, `text_editing_history_up`)
 - **navigation**: Viewport navigation (e.g., `navigation_scroll_to_top`, `navigation_page_down`)
 - **clipboard**: Copy/paste operations (e.g., `clipboard_copy_text`, `clipboard_paste_text`)
-- **selection**: Selection mode controls (e.g., `selection_toggle_mouse_mode`)
 - **plan_approval**: Plan approval navigation (e.g.,
   `plan_approval_plan_approval_accept`)
 - **help**: Help system (e.g., `help_toggle_help`)

@@ -99,14 +99,12 @@ type ConversationView struct {
 	defaultExpandedTools   map[string]bool
 	toolFormatter          agentdomain.ToolFormatter
 	lineFormatter          *formatting.ConversationLineFormatter
-	plainTextLines         []string
 	configPath             string
 	versionInfo            *tui.VersionInfo
 	styleProvider          *styles.Provider
 	toolCallRenderer       *ToolCallRenderer
 	markdownRenderer       *markdown.Renderer
 	rawFormat              bool
-	userScrolledUp         bool
 	stateManager           agentdomain.PlanApprovalUIManager
 	renderedContent        string
 
@@ -150,6 +148,9 @@ type ConversationView struct {
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
+	// Keyboard scrolling is routed through the configurable keybindings
+	// (ScrollRequestEvent); the viewport only owns wheel input.
+	vp.KeyMap = viewport.KeyMap{}
 	vp.MouseWheelEnabled = true
 	vp.MouseWheelDelta = 3
 
@@ -171,7 +172,6 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 		allThinkingExpanded:    false,
 		defaultExpandedTools:   map[string]bool{"Edit": true, "MultiEdit": true},
 		lineFormatter:          formatting.NewConversationLineFormatter(80, nil),
-		plainTextLines:         []string{},
 		styleProvider:          styleProvider,
 		markdownRenderer:       mdRenderer,
 		backgroundTasks:        make(map[string]*BackgroundTaskDisplay),
@@ -227,18 +227,13 @@ func (cv *ConversationView) SetAgentModelResolver(resolver func(url string) stri
 }
 
 func (cv *ConversationView) SetConversation(conversation []convdomain.ConversationEntry) {
-	wasAtBottom := cv.Viewport.AtBottom()
 	if len(conversation) < len(cv.conversation) {
 		cv.renderCache = make(map[int]renderCacheEntry)
 	}
 	cv.conversation = conversation
-	cv.updatePlainTextLines()
 
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.updateViewportContentFull()
-		if wasAtBottom {
-			cv.Viewport.GotoBottom()
-		}
 	}
 }
 
@@ -254,10 +249,10 @@ func (cv *ConversationView) CanScrollDown() bool {
 	return !cv.Viewport.AtBottom()
 }
 
-// ResetUserScroll resets the user scroll state, enabling auto-scroll to bottom.
+// ResetUserScroll pins the viewport to the tail so it follows new content.
 // Call this when a new message is sent to ensure the user sees the latest response.
 func (cv *ConversationView) ResetUserScroll() {
-	cv.userScrolledUp = false
+	cv.Viewport.GotoBottom()
 }
 
 func (cv *ConversationView) ToggleToolResultExpansion(index int) {
@@ -298,7 +293,7 @@ func (cv *ConversationView) rebuildPreservingScroll(mutate func(), changed ...in
 		mutate()
 		return
 	}
-	if !cv.userScrolledUp {
+	if cv.Viewport.AtBottom() {
 		mutate()
 		cv.updateViewportContentFull()
 		return
@@ -451,14 +446,11 @@ func (cv *ConversationView) GetPlainTextLines() []string {
 	return lines
 }
 
-// updatePlainTextLines updates the plain text representation of the conversation
-func (cv *ConversationView) updatePlainTextLines() {
-	if cv.lineFormatter != nil {
-		cv.plainTextLines = cv.lineFormatter.FormatConversationToLines(cv.conversation)
-	}
-}
-
+// SetWidth resizes the view and rewraps content; a no-op when unchanged.
 func (cv *ConversationView) SetWidth(width int) {
+	if width == cv.width {
+		return
+	}
 	cv.width = width
 	cv.Viewport.SetWidth(width)
 	if cv.lineFormatter != nil {
@@ -470,36 +462,39 @@ func (cv *ConversationView) SetWidth(width int) {
 	if cv.toolCallRenderer != nil {
 		cv.toolCallRenderer.SetWidth(width)
 	}
+	cv.rebuild()
 }
 
+// SetHeight resizes the view; a no-op when unchanged.
 func (cv *ConversationView) SetHeight(height int) {
+	if height == cv.height {
+		return
+	}
 	cv.height = height
 	cv.Viewport.SetHeight(height)
+	cv.rebuild()
 }
 
-func (cv *ConversationView) Render() string {
+// rebuild re-renders whichever view is active after a size change.
+func (cv *ConversationView) rebuild() {
 	if cv.navigationMode == NavigationModeMessageHistory {
-		viewportContent := cv.Viewport.View()
+		cv.updateMessageHistoryView()
+		return
+	}
+	cv.updateViewportContentFull()
+}
 
-		lines := strings.Split(viewportContent, "\n")
-		leftPadding := "  "
-		for i, line := range lines {
-			lines[i] = leftPadding + strings.TrimRight(line, " ")
-		}
-		result := strings.Join(lines, "\n")
-		return result
+// Render returns the viewport with a two-space left gutter. It never mutates
+// the viewport; sizing and content updates happen in Update/SetWidth/SetHeight.
+func (cv *ConversationView) Render() string {
+	content := cv.Viewport.View()
+	if len(cv.conversation) == 0 && cv.navigationMode != NavigationModeMessageHistory {
+		content = cv.renderWelcome()
 	}
 
-	if len(cv.conversation) == 0 {
-		cv.Viewport.SetContent(cv.renderWelcome())
-	}
-	viewportContent := cv.Viewport.View()
-
-	lines := strings.Split(viewportContent, "\n")
-
-	leftPadding := "  "
+	lines := strings.Split(content, "\n")
 	for i, line := range lines {
-		lines[i] = leftPadding + strings.TrimRight(line, " ")
+		lines[i] = "  " + strings.TrimRight(line, " ")
 	}
 	return strings.Join(lines, "\n")
 }
@@ -605,8 +600,9 @@ func (cv *ConversationView) updateViewportContentFull() {
 
 	cv.renderedContent = b.String()
 
+	atBottom := cv.Viewport.AtBottom()
 	cv.Viewport.SetContent(cv.renderedContent)
-	if !cv.userScrolledUp {
+	if atBottom {
 		cv.Viewport.GotoBottom()
 	}
 }
@@ -1251,14 +1247,6 @@ func (cv *ConversationView) View() tea.View { return tea.NewView(cv.Render()) }
 func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
-	if cmd = cv.handleMouseEvents(msg); cmd != nil {
-		return cv, cmd
-	}
-
-	if cmd = cv.handleWindowSizeEvents(msg); cmd != nil {
-		return cv, cmd
-	}
-
 	switch msg := msg.(type) {
 	case tui.PlanApprovalSelectionChangedEvent:
 		return cv.handlePlanApprovalSelectionChanged(msg, cmd)
@@ -1298,34 +1286,8 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case streamingRenderTickMsg:
 		return cv.handleStreamingRenderTick(cmd)
 	default:
-		return cv.handleDefaultEvents(msg, cmd)
+		return cv.handleDefaultEvents(msg)
 	}
-}
-
-// handleMouseEvents processes mouse wheel events.
-// Bubble Tea v2 split MouseMsg into concrete types - wheel-up events arrive
-// as MouseWheelMsg with Button == MouseWheelUp.
-func (cv *ConversationView) handleMouseEvents(msg tea.Msg) tea.Cmd {
-	if wheel, ok := msg.(tea.MouseWheelMsg); ok {
-		if wheel.Button == tea.MouseWheelUp {
-			cv.userScrolledUp = true
-		}
-	}
-	return nil
-}
-
-// handleWindowSizeEvents processes window resize events
-func (cv *ConversationView) handleWindowSizeEvents(msg tea.Msg) tea.Cmd {
-	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		cv.SetWidth(formatting.GetResponsiveWidth(windowMsg.Width))
-		cv.height = windowMsg.Height
-		if cv.navigationMode != NavigationModeMessageHistory {
-			cv.updateViewportContentFull()
-		} else {
-			cv.updateMessageHistoryView()
-		}
-	}
-	return nil
 }
 
 // handlePlanApprovalSelectionChanged refreshes the conversation viewport so
@@ -2162,35 +2124,21 @@ func computeElapsedString(display *BackgroundTaskDisplay) string {
 }
 
 // handleDefaultEvents processes all other events
-func (cv *ConversationView) handleDefaultEvents(msg tea.Msg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
-	if _, isKeyMsg := msg.(tea.KeyPressMsg); !isKeyMsg {
-		cv.Viewport, cmd = cv.Viewport.Update(msg)
-		if cv.Viewport.AtBottom() {
-			cv.userScrolledUp = false
-		}
-	}
+func (cv *ConversationView) handleDefaultEvents(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	cv.Viewport, cmd = cv.Viewport.Update(msg)
 	return cv, cmd
 }
 
 func (cv *ConversationView) handleScrollRequest(msg tui.ScrollRequestEvent) (tea.Model, tea.Cmd) {
 	switch msg.Direction {
 	case tui.ScrollUp:
-		cv.userScrolledUp = true
-		for i := 0; i < msg.Amount; i++ {
-			cv.Viewport.ScrollUp(1)
-		}
+		cv.Viewport.ScrollUp(msg.Amount)
 	case tui.ScrollDown:
-		for i := 0; i < msg.Amount; i++ {
-			cv.Viewport.ScrollDown(1)
-		}
-		if cv.Viewport.AtBottom() {
-			cv.userScrolledUp = false
-		}
+		cv.Viewport.ScrollDown(msg.Amount)
 	case tui.ScrollToTop:
-		cv.userScrolledUp = true
 		cv.Viewport.GotoTop()
 	case tui.ScrollToBottom:
-		cv.userScrolledUp = false
 		cv.Viewport.GotoBottom()
 	}
 	return cv, nil

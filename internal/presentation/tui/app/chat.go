@@ -77,7 +77,6 @@ type ChatApplication struct {
 	// State management
 	stateManager *statemanager.StateManager
 	messageQueue convdomain.MessageQueue
-	mouseEnabled bool
 
 	// UI components
 	conversationView     tui.ConversationRenderer
@@ -213,7 +212,6 @@ func NewChatApplication(
 		availableModels:          models,
 		stateManager:             stateManager,
 		messageQueue:             messageQueue,
-		mouseEnabled:             true,
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
@@ -526,6 +524,8 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	app.lastView = viewBefore
+
+	app.layoutChatInterface()
 
 	return app, tea.Batch(cmds...)
 }
@@ -986,14 +986,12 @@ func (app *ChatApplication) handleFileSelectionView(msg tea.Msg) []tea.Cmd {
 
 // View renders the current application view using state management.
 // Bubble Tea v2 expects tea.View; viewContent keeps the original
-// string-composition logic and View wraps it. MouseMode is read from
-// the app's mouse-enabled state on every render so the ctrl+s toggle
-// actually takes effect - without this, no mouse/wheel events arrive.
+// string-composition logic and View wraps it. Mouse tracking is always
+// on; terminals bypass it for text selection with Shift+drag
+// (Option+drag on macOS terminals).
 func (app *ChatApplication) View() tea.View {
 	v := tea.NewView(app.viewContent())
-	if app.mouseEnabled {
-		v.MouseMode = tea.MouseModeCellMotion
-	}
+	v.MouseMode = tea.MouseModeCellMotion
 	v.AltScreen = true
 	return v
 }
@@ -1999,23 +1997,43 @@ func (app *ChatApplication) renderExplorerInput() string {
 	return app.inputView.Render()
 }
 
-func (app *ChatApplication) renderChatInterface() string {
-	app.updateHelpBarShortcuts()
-
+func (app *ChatApplication) chatInterfaceData() components.ChatInterfaceData {
 	width, height := app.stateManager.GetDimensions()
-	queuedMessages := app.messageQueue.GetAll()
-
-	data := components.ChatInterfaceData{
+	return components.ChatInterfaceData{
 		Width:          width,
 		Height:         height,
 		ToolExecution:  app.stateManager.GetToolExecution(),
-		QueuedMessages: queuedMessages,
+		QueuedMessages: app.messageQueue.GetAll(),
 	}
+}
 
+// layoutChatInterface sizes the chat components for the current state. It runs
+// at the end of every Update so View() never mutates component dimensions.
+func (app *ChatApplication) layoutChatInterface() {
 	app.syncSnippetAttachmentsView()
 
+	app.applicationViewRenderer.Layout(
+		app.chatInterfaceData(),
+		app.conversationView,
+		app.inputView,
+		app.autocomplete,
+		app.inputStatusBar,
+		app.statusView,
+		app.modeIndicator,
+		app.helpBar,
+		app.queueBoxView,
+		app.todoBoxView,
+		app.approvalBoxView,
+		app.questionFormView,
+		app.snippetAttachmentsView,
+	)
+}
+
+func (app *ChatApplication) renderChatInterface() string {
+	app.updateHelpBarShortcuts()
+
 	chatInterface := app.applicationViewRenderer.RenderChatInterface(
-		data,
+		app.chatInterfaceData(),
 		app.conversationView,
 		app.inputView,
 		app.autocomplete,
@@ -2593,16 +2611,6 @@ func (app *ChatApplication) ToggleThinkingExpansion() {
 // ToggleRawFormat toggles between raw and rendered markdown display
 func (app *ChatApplication) ToggleRawFormat() {
 	app.conversationView.ToggleRawFormat()
-}
-
-// GetMouseEnabled returns the current mouse mode state
-func (app *ChatApplication) GetMouseEnabled() bool {
-	return app.mouseEnabled
-}
-
-// SetMouseEnabled sets the mouse mode state
-func (app *ChatApplication) SetMouseEnabled(enabled bool) {
-	app.mouseEnabled = enabled
 }
 
 // Message History Navigation Helpers

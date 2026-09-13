@@ -50,10 +50,6 @@ type KeyHandlerContext interface {
 	ToggleRawFormat()
 	SendMessage() tea.Cmd
 	GetPageSize() int
-
-	// Mouse mode
-	GetMouseEnabled() bool
-	SetMouseEnabled(bool)
 }
 
 // KeyAction represents a key binding action. Keys, description, and enabled

@@ -36,7 +36,6 @@ func newTestContext(currentView tui.ViewState, inputText string) *keybindingmock
 	fake.GetStatusViewReturns(fakeStatus)
 
 	fake.GetPageSizeReturns(20)
-	fake.GetMouseEnabledReturns(false)
 	fake.GetConfigReturns(nil)
 	fake.GetConversationRepositoryReturns(nil)
 	fake.GetAgentServiceReturns(nil)
