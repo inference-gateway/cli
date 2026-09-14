@@ -1821,12 +1821,13 @@ func isWithinDir(absPath, dir string) bool {
 
 // userspaceRuntimeDirNames are runtime dirs pinned directly under ~/.infer no
 // matter where config resolves: the artifact poller's GitHub download dir
-// (cmd/daemon) and the plan store (storage.userPlansDir). Anchoring them to
-// the userspace dir rather than GetConfigDir() is what keeps them reachable
-// when a project supplies its own ./.infer/config.yaml - GetConfigDir() is the
-// relative ".infer" then, so a config-relative check would only ever look at
-// the project directory.
-var userspaceRuntimeDirNames = []string{ArtifactsDirName, "plans"}
+// (cmd/daemon), the plan store (storage.userPlansDir) and the userspace
+// scratch dir (~/.infer/tmp, where the desktop saves pasted attachments).
+// Anchoring them to the userspace dir rather than GetConfigDir() is what keeps
+// them reachable when a project supplies its own ./.infer/config.yaml -
+// GetConfigDir() is the relative ".infer" then, so a config-relative check
+// would only ever look at the project directory.
+var userspaceRuntimeDirNames = []string{ArtifactsDirName, "plans", "tmp"}
 
 // isWithinRuntimeDirs reports whether absPath lives inside one of the
 // runtime-artifact subdirectories of the current project's runtime root
