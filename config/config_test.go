@@ -1071,6 +1071,7 @@ func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
 		filepath.Join(ProjectRuntimeDir(), "backups", "main.go.backup"),
 		filepath.Join(UserSpaceConfigDir(), ArtifactsDirName, "run-1", "report.md"),
 		filepath.Join(UserSpaceConfigDir(), "plans", "2026-06-01-do-thing.md"),
+		filepath.Join(UserSpaceConfigDir(), "tmp", "uploads", "18d5495ba8b83fb8.jpg"),
 	}
 	for _, p := range allowed {
 		t.Run("allow "+p, func(t *testing.T) {
@@ -1147,6 +1148,7 @@ func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
 	allowed := []string{
 		filepath.Join(userspaceConfigDir, "plans", "2026-06-01-do-thing.md"),
 		filepath.Join(userspaceConfigDir, "projects.json"),
+		filepath.Join(userspaceConfigDir, "tmp", "uploads", "18d5495ba8b83fb8.jpg"),
 		filepath.Join(ProjectRuntimeDir(), "artifacts", "sess-1", "image.png"),
 		filepath.Join(ProjectRuntimeDir(), "exports", "chat_export_1.md"),
 		filepath.Join(userspaceConfigDir, ArtifactsDirName, "run-1", "report.md"),
