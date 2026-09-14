@@ -74,6 +74,10 @@ func safeFilename(name string) string {
 	return name
 }
 
+// modelImageMimeTypes are the image formats providers accept as image content
+// parts; anything else is handed to the agent as a file path instead.
+var modelImageMimeTypes = map[string]bool{"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true}
+
 // saveAttachments writes each attachment into the project tmp dir (where
 // clipboard images also land). Images come back as ImageAttachments with
 // SourcePath set so they flow to the model as image parts; other files come
@@ -105,13 +109,18 @@ func saveAttachments(attachments []agentdomain.ImageAttachment) ([]agentdomain.I
 			logger.Warn("failed to save extension attachment", "path", path, "error", err)
 			continue
 		}
-		if strings.HasPrefix(a.MimeType, "image/") {
+		switch {
+		case modelImageMimeTypes[a.MimeType]:
 			a.DisplayName = a.Filename
 			a.SourcePath = path
 			images = append(images, a)
-			continue
+		case strings.HasPrefix(a.MimeType, "image/"):
+			// ponytail: no in-process decode for HEIC and friends; the agent
+			// converts with a shell tool. Add a decoder if that gets annoying.
+			notes = append(notes, fmt.Sprintf("[%s saved at %s; %s is not a model-readable image format, convert it to PNG first (e.g. sips -s format png on macOS, or magick) and then view the PNG]", name, path, a.MimeType))
+		default:
+			notes = append(notes, fmt.Sprintf("[%s saved at %s]", name, path))
 		}
-		notes = append(notes, fmt.Sprintf("[%s saved at %s]", name, path))
 	}
 	utils.PruneFilesByModTime(tmpDir, 20, 24*time.Hour, func(e os.DirEntry) bool {
 		return strings.HasPrefix(e.Name(), "attachment-")
