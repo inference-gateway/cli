@@ -49,6 +49,9 @@ func projectRuntimeSlug() string {
 	if err != nil || strings.TrimSpace(cwd) == "" {
 		return "default"
 	}
+	if rel, err := filepath.Rel(UserSpaceConfigDir(), cwd); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+		return strings.ReplaceAll(rel, string(filepath.Separator), "-")
+	}
 	return strings.ReplaceAll(cwd, string(filepath.Separator), "-")
 }
 
