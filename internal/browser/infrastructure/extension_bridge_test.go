@@ -408,7 +408,7 @@ func TestExtensionBridgeUserMessageSavesAttachments(t *testing.T) {
 		"content": "look at these",
 		"attachments": []map[string]string{
 			{"filename": "shot.png", "mime_type": "image/png", "data": "iVBORw0KGgo="},
-			{"filename": "notes.txt", "mime_type": "text/plain", "data": "aGVsbG8="},
+			{"filename": "../../notes.txt", "mime_type": "text/plain", "data": "aGVsbG8="},
 		},
 	}
 	if err := conn.WriteJSON(frame); err != nil {

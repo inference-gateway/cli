@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -60,6 +61,19 @@ type extInbound struct {
 // limit, this is the trust-boundary check.
 const maxAttachmentBytes = 10 * 1024 * 1024
 
+// unsafeFilenameChars matches everything outside the portable filename set.
+var unsafeFilenameChars = regexp.MustCompile(`[^A-Za-z0-9._-]`)
+
+// safeFilename reduces a panel-supplied filename to a single path segment made
+// of portable characters, so it can never escape the tmp dir.
+func safeFilename(name string) string {
+	name = unsafeFilenameChars.ReplaceAllString(filepath.Base(name), "_")
+	if name == "" || name == "." || name == ".." {
+		return "file"
+	}
+	return name
+}
+
 // saveAttachments writes each attachment into the project tmp dir (where
 // clipboard images also land). Images come back as ImageAttachments with
 // SourcePath set so they flow to the model as image parts; other files come
@@ -85,7 +99,8 @@ func saveAttachments(attachments []agentdomain.ImageAttachment) ([]agentdomain.I
 			logger.Warn("skipping extension attachment", "filename", a.Filename, "error", err, "bytes", len(data))
 			continue
 		}
-		path := filepath.Join(tmpDir, fmt.Sprintf("attachment-%s-%d-%s", stamp, i, filepath.Base(a.Filename)))
+		name := safeFilename(a.Filename)
+		path := filepath.Join(tmpDir, fmt.Sprintf("attachment-%s-%d-%s", stamp, i, name))
 		if err := os.WriteFile(path, data, 0644); err != nil {
 			logger.Warn("failed to save extension attachment", "path", path, "error", err)
 			continue
@@ -96,7 +111,7 @@ func saveAttachments(attachments []agentdomain.ImageAttachment) ([]agentdomain.I
 			images = append(images, a)
 			continue
 		}
-		notes = append(notes, fmt.Sprintf("[%s saved at %s]", a.Filename, path))
+		notes = append(notes, fmt.Sprintf("[%s saved at %s]", name, path))
 	}
 	utils.PruneFilesByModTime(tmpDir, 20, 24*time.Hour, func(e os.DirEntry) bool {
 		return strings.HasPrefix(e.Name(), "attachment-")
