@@ -82,7 +82,6 @@ jobs:
     uses: inference-gateway/.github/.github/workflows/claude.yml@main
     with:
       language: "go"
-      markdownlint: true
       precommit: true
       plugins: |
         DietrichGebert/ponytail
