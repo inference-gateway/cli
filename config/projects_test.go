@@ -32,6 +32,21 @@ func TestProjectRuntimeDir(t *testing.T) {
 		}
 	})
 
+	t.Run("cwd inside ~/.infer slugs to its relative path", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		workspace := filepath.Join(home, ".infer", "workspace")
+		if err := os.MkdirAll(workspace, 0755); err != nil {
+			t.Fatal(err)
+		}
+		t.Chdir(workspace)
+
+		want := filepath.Join(home, ".infer", "projects", "workspace")
+		if got := config.ProjectRuntimeDir(); got != want {
+			t.Fatalf("ProjectRuntimeDir() = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("tmp scratch lives under the project runtime root", func(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)

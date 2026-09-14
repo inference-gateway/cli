@@ -49,6 +49,12 @@ func projectRuntimeSlug() string {
 	if err != nil || strings.TrimSpace(cwd) == "" {
 		return "default"
 	}
+	// A cwd inside ~/.infer itself (the desktop app's ~/.infer/workspace
+	// fallback) slugs to its relative path, "workspace", instead of a
+	// dash-mangled absolute path that reads like a stray project.
+	if rel, err := filepath.Rel(UserSpaceConfigDir(), cwd); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+		return strings.ReplaceAll(rel, string(filepath.Separator), "-")
+	}
 	return strings.ReplaceAll(cwd, string(filepath.Separator), "-")
 }
 
