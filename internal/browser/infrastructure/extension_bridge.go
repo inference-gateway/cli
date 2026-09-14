@@ -35,27 +35,25 @@ import (
 // Bridge wire messages. One flat envelope per frame, discriminated by Type;
 // unknown types are ignored for forward compatibility.
 type extInbound struct {
-	Type             string                     `json:"type"`
-	Token            string                     `json:"token,omitempty"`
-	ExtensionVersion string                     `json:"extension_version,omitempty"`
-	ID               string                     `json:"id,omitempty"`
-	URL              string                     `json:"url,omitempty"`
-	Title            string                     `json:"title,omitempty"`
-	Content          string                     `json:"content,omitempty"`
-	Events           []string                   `json:"events,omitempty"`
-	Error            string                     `json:"error,omitempty"`
-	RequestID        string                     `json:"request_id,omitempty"`
-	Action           string                     `json:"action,omitempty"`
-	Model            string                     `json:"model,omitempty"`
-	Image            string                     `json:"image,omitempty"`
-	ImageMimeType    string                     `json:"image_mime_type,omitempty"`
-	Tabs             []browserdomain.BrowserTab `json:"tabs,omitempty"`
-	ToolName         string                     `json:"tool_name,omitempty"`
-	ToolArgs         string                     `json:"tool_args,omitempty"`
-	Mode             string                     `json:"mode,omitempty"`
-	// Files attached in the side-panel composer; the panel's field names
-	// mirror ImageAttachment's JSON (data/mime_type/filename).
-	Attachments []agentdomain.ImageAttachment `json:"attachments,omitempty"`
+	Type             string                        `json:"type"`
+	Token            string                        `json:"token,omitempty"`
+	ExtensionVersion string                        `json:"extension_version,omitempty"`
+	ID               string                        `json:"id,omitempty"`
+	URL              string                        `json:"url,omitempty"`
+	Title            string                        `json:"title,omitempty"`
+	Content          string                        `json:"content,omitempty"`
+	Events           []string                      `json:"events,omitempty"`
+	Error            string                        `json:"error,omitempty"`
+	RequestID        string                        `json:"request_id,omitempty"`
+	Action           string                        `json:"action,omitempty"`
+	Model            string                        `json:"model,omitempty"`
+	Image            string                        `json:"image,omitempty"`
+	ImageMimeType    string                        `json:"image_mime_type,omitempty"`
+	Tabs             []browserdomain.BrowserTab    `json:"tabs,omitempty"`
+	ToolName         string                        `json:"tool_name,omitempty"`
+	ToolArgs         string                        `json:"tool_args,omitempty"`
+	Mode             string                        `json:"mode,omitempty"`
+	Attachments      []agentdomain.ImageAttachment `json:"attachments,omitempty"`
 }
 
 // maxAttachmentBytes caps one decoded attachment; the panel enforces the same
