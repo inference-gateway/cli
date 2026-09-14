@@ -115,8 +115,6 @@ func saveAttachments(attachments []agentdomain.ImageAttachment) ([]agentdomain.I
 			a.SourcePath = path
 			images = append(images, a)
 		case strings.HasPrefix(a.MimeType, "image/"):
-			// ponytail: no in-process decode for HEIC and friends; the agent
-			// converts with a shell tool. Add a decoder if that gets annoying.
 			notes = append(notes, fmt.Sprintf("[%s saved at %s; %s is not a model-readable image format, convert it to PNG first (e.g. sips -s format png on macOS, or magick) and then view the PNG]", name, path, a.MimeType))
 		default:
 			notes = append(notes, fmt.Sprintf("[%s saved at %s]", name, path))
