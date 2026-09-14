@@ -241,14 +241,14 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		return err
 	}
 
-	expanded, err := expandFileReferences(task, opts.Files, svc.GetFileService(), svc.GetImageService(), selectedModel)
+	expanded, images, err := expandFileReferences(task, opts.Files, svc.GetFileService(), svc.GetImageService(), selectedModel)
 	if err != nil {
 		return fmt.Errorf("failed to expand file references: %w", err)
 	}
 
-	userMsg := sdk.Message{
-		Role:    sdk.User,
-		Content: sdk.NewMessageContent(expanded),
+	userMsg, err := userMessage(expanded, images)
+	if err != nil {
+		return fmt.Errorf("failed to build user message: %w", err)
 	}
 	if err := conversationRepo.AddMessage(convdomain.ConversationEntry{Message: userMsg, Time: time.Now()}); err != nil {
 		logger.Warn("failed to persist user task message", "error", err)
@@ -363,10 +363,15 @@ func compactSession(ctx context.Context, mgr *conversation.SessionRolloverManage
 	return fmt.Sprintf("Compacted the conversation into a new session with a summary: %s", newID), nil
 }
 
-func expandFileReferences(content string, files []string, fileSvc agentdomain.FileService, imageSvc agentdomain.ImageService, model string) (string, error) {
+// expandFileReferences inlines @file references and --files into the task.
+// Image files given via --files come back as attachments when the model can
+// see images, so they reach it as image parts rather than a path note.
+func expandFileReferences(content string, files []string, fileSvc agentdomain.FileService, imageSvc agentdomain.ImageService, model string) (string, []agentdomain.ImageAttachment, error) {
 	matches := fileRefPattern.FindAllStringSubmatch(content, -1)
+	supportsVision := models.SupportsVision(model)
 
 	expanded := content
+	var images []agentdomain.ImageAttachment
 	for _, match := range matches {
 		fullMatch := match[0]
 		filename := match[1]
@@ -377,7 +382,7 @@ func expandFileReferences(content string, files []string, fileSvc agentdomain.Fi
 		}
 
 		if imageSvc != nil && imageSvc.IsImageFile(filename) {
-			expanded = strings.Replace(expanded, fullMatch, agentdomain.ImageFileRef(filename, models.SupportsVision(model)), 1)
+			expanded = strings.Replace(expanded, fullMatch, agentdomain.ImageFileRef(filename, supportsVision), 1)
 			continue
 		}
 
@@ -392,19 +397,48 @@ func expandFileReferences(content string, files []string, fileSvc agentdomain.Fi
 
 	for _, filename := range files {
 		if err := fileSvc.ValidateFile(filename); err != nil {
-			return "", fmt.Errorf("invalid file %q: %w", filename, err)
+			return "", nil, fmt.Errorf("invalid file %q: %w", filename, err)
 		}
 		if imageSvc != nil && imageSvc.IsImageFile(filename) {
-			expanded += "\n\n" + agentdomain.ImageFileRef(filename, models.SupportsVision(model))
+			if supportsVision {
+				img, err := imageSvc.ReadImageFromFile(filename)
+				if err != nil {
+					return "", nil, fmt.Errorf("failed to read image %q: %w", filename, err)
+				}
+				images = append(images, *img)
+				continue
+			}
+			expanded += "\n\n" + agentdomain.ImageFileRef(filename, supportsVision)
 			continue
 		}
 		fileContent, err := fileSvc.ReadFile(filename)
 		if err != nil {
-			return "", fmt.Errorf("failed to read file %q: %w", filename, err)
+			return "", nil, fmt.Errorf("failed to read file %q: %w", filename, err)
 		}
 		expanded += fmt.Sprintf("\n\nFile: %s\n```%s\n%s\n```\n", filename, filename, fileContent)
 	}
-	return expanded, nil
+	return expanded, images, nil
+}
+
+// userMessage builds the task message: plain text, or text plus one image
+// part per attachment, mirroring how the TUI attaches pasted images.
+func userMessage(content string, images []agentdomain.ImageAttachment) (sdk.Message, error) {
+	if len(images) == 0 {
+		return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(content)}, nil
+	}
+	textPart, err := sdk.NewTextContentPart(content)
+	if err != nil {
+		return sdk.Message{}, err
+	}
+	parts := []sdk.ContentPart{textPart}
+	for _, img := range images {
+		imagePart, err := sdk.NewImageContentPart(fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data), nil)
+		if err != nil {
+			return sdk.Message{}, fmt.Errorf("image %q: %w", img.Filename, err)
+		}
+		parts = append(parts, imagePart)
+	}
+	return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(parts)}, nil
 }
 
 // prepareConversation points the persistent repository at the session,
