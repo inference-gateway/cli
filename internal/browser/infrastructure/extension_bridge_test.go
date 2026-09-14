@@ -396,6 +396,56 @@ func TestExtensionBridgeUserMessageReachesNotifier(t *testing.T) {
 	t.Fatal("notifier never received the user message")
 }
 
+func TestExtensionBridgeUserMessageSavesAttachments(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	notifier := &recordingNotifier{}
+	bridge := startBridge(t, bridgeConfig(), notifier, nil)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	frame := map[string]any{
+		"type":    "user_message",
+		"content": "look at these",
+		"attachments": []map[string]string{
+			{"filename": "shot.png", "mime_type": "image/png", "data": "iVBORw0KGgo="},
+			{"filename": "../../notes.txt", "mime_type": "text/plain", "data": "aGVsbG8="},
+		},
+	}
+	if err := conn.WriteJSON(frame); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, ev := range notifier.all() {
+			input, ok := ev.(agentdomain.UserInputEvent)
+			if !ok {
+				continue
+			}
+			if len(input.Images) != 1 || input.Images[0].SourcePath == "" {
+				t.Fatalf("expected one image with a source path, got %+v", input.Images)
+			}
+			if _, err := os.Stat(input.Images[0].SourcePath); err != nil {
+				t.Fatalf("image not on disk: %v", err)
+			}
+			if !strings.HasPrefix(input.Images[0].SourcePath, config.ProjectTmpDir()) {
+				t.Fatalf("image saved outside project tmp dir: %s", input.Images[0].SourcePath)
+			}
+			_, after, found := strings.Cut(input.Content, "[notes.txt saved at ")
+			if !found {
+				t.Fatalf("content lacks document note: %q", input.Content)
+			}
+			docPath := strings.TrimSuffix(after, "]")
+			if data, err := os.ReadFile(docPath); err != nil || string(data) != "hello" {
+				t.Fatalf("document not on disk at %s: %v %q", docPath, err, data)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("notifier never received the user message")
+}
+
 func TestExtensionBridgeMirrorsChatEvents(t *testing.T) {
 	events := conversation.NewEventBridge()
 	bridge := startBridge(t, bridgeConfig(), nil, events)

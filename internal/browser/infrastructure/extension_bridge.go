@@ -3,11 +3,15 @@ package infrastructure
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -26,29 +30,93 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // Bridge wire messages. One flat envelope per frame, discriminated by Type;
 // unknown types are ignored for forward compatibility.
 type extInbound struct {
-	Type             string                     `json:"type"`
-	Token            string                     `json:"token,omitempty"`
-	ExtensionVersion string                     `json:"extension_version,omitempty"`
-	ID               string                     `json:"id,omitempty"`
-	URL              string                     `json:"url,omitempty"`
-	Title            string                     `json:"title,omitempty"`
-	Content          string                     `json:"content,omitempty"`
-	Events           []string                   `json:"events,omitempty"`
-	Error            string                     `json:"error,omitempty"`
-	RequestID        string                     `json:"request_id,omitempty"`
-	Action           string                     `json:"action,omitempty"`
-	Model            string                     `json:"model,omitempty"`
-	Image            string                     `json:"image,omitempty"`
-	ImageMimeType    string                     `json:"image_mime_type,omitempty"`
-	Tabs             []browserdomain.BrowserTab `json:"tabs,omitempty"`
-	ToolName         string                     `json:"tool_name,omitempty"`
-	ToolArgs         string                     `json:"tool_args,omitempty"`
-	Mode             string                     `json:"mode,omitempty"`
+	Type             string                        `json:"type"`
+	Token            string                        `json:"token,omitempty"`
+	ExtensionVersion string                        `json:"extension_version,omitempty"`
+	ID               string                        `json:"id,omitempty"`
+	URL              string                        `json:"url,omitempty"`
+	Title            string                        `json:"title,omitempty"`
+	Content          string                        `json:"content,omitempty"`
+	Events           []string                      `json:"events,omitempty"`
+	Error            string                        `json:"error,omitempty"`
+	RequestID        string                        `json:"request_id,omitempty"`
+	Action           string                        `json:"action,omitempty"`
+	Model            string                        `json:"model,omitempty"`
+	Image            string                        `json:"image,omitempty"`
+	ImageMimeType    string                        `json:"image_mime_type,omitempty"`
+	Tabs             []browserdomain.BrowserTab    `json:"tabs,omitempty"`
+	ToolName         string                        `json:"tool_name,omitempty"`
+	ToolArgs         string                        `json:"tool_args,omitempty"`
+	Mode             string                        `json:"mode,omitempty"`
+	Attachments      []agentdomain.ImageAttachment `json:"attachments,omitempty"`
+}
+
+// maxAttachmentBytes caps one decoded attachment; the panel enforces the same
+// limit, this is the trust-boundary check.
+const maxAttachmentBytes = 10 * 1024 * 1024
+
+// unsafeFilenameChars matches everything outside the portable filename set.
+var unsafeFilenameChars = regexp.MustCompile(`[^A-Za-z0-9._-]`)
+
+// safeFilename reduces a panel-supplied filename to a single path segment made
+// of portable characters, so it can never escape the tmp dir.
+func safeFilename(name string) string {
+	name = unsafeFilenameChars.ReplaceAllString(filepath.Base(name), "_")
+	if name == "" || name == "." || strings.Contains(name, "..") {
+		return "file"
+	}
+	return name
+}
+
+// saveAttachments writes each attachment into the project tmp dir (where
+// clipboard images also land). Images come back as ImageAttachments with
+// SourcePath set so they flow to the model as image parts; other files come
+// back as text notes naming the saved path so the agent can Read them.
+func saveAttachments(attachments []agentdomain.ImageAttachment) ([]agentdomain.ImageAttachment, []string) {
+	if len(attachments) == 0 {
+		return nil, nil
+	}
+	tmpDir := config.ProjectTmpDir()
+	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+		logger.Warn("failed to create tmp directory", "path", tmpDir, "error", err)
+		return nil, nil
+	}
+	var images []agentdomain.ImageAttachment
+	var notes []string
+	stamp := time.Now().Format("20060102-150405")
+	for i, a := range attachments {
+		if a.Data == "" || a.Filename == "" {
+			continue
+		}
+		data, err := base64.StdEncoding.DecodeString(a.Data)
+		if err != nil || len(data) > maxAttachmentBytes {
+			logger.Warn("skipping extension attachment", "filename", a.Filename, "error", err, "bytes", len(data))
+			continue
+		}
+		name := safeFilename(a.Filename)
+		path := filepath.Join(tmpDir, fmt.Sprintf("attachment-%s-%d-%s", stamp, i, name))
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			logger.Warn("failed to save extension attachment", "path", path, "error", err)
+			continue
+		}
+		if strings.HasPrefix(a.MimeType, "image/") {
+			a.DisplayName = a.Filename
+			a.SourcePath = path
+			images = append(images, a)
+			continue
+		}
+		notes = append(notes, fmt.Sprintf("[%s saved at %s]", name, path))
+	}
+	utils.PruneFilesByModTime(tmpDir, 20, 24*time.Hour, func(e os.DirEntry) bool {
+		return strings.HasPrefix(e.Name(), "attachment-")
+	})
+	return images, notes
 }
 
 type extMode struct {
@@ -681,7 +749,9 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			}
 		case "user_message":
 			if b.notifier != nil && msg.Content != "" {
-				b.notifier.Notify(agentdomain.UserInputEvent{Content: msg.Content, FromExtension: true})
+				images, notes := saveAttachments(msg.Attachments)
+				content := strings.Join(append([]string{msg.Content}, notes...), "\n")
+				b.notifier.Notify(agentdomain.UserInputEvent{Content: content, Images: images, FromExtension: true})
 			}
 			b.appendHistory(msg.Content)
 		case "new_session":
