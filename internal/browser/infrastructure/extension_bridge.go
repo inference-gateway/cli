@@ -3,11 +3,14 @@ package infrastructure
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -26,6 +29,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // Bridge wire messages. One flat envelope per frame, discriminated by Type;
@@ -49,6 +53,57 @@ type extInbound struct {
 	ToolName         string                     `json:"tool_name,omitempty"`
 	ToolArgs         string                     `json:"tool_args,omitempty"`
 	Mode             string                     `json:"mode,omitempty"`
+	// Files attached in the side-panel composer; the panel's field names
+	// mirror ImageAttachment's JSON (data/mime_type/filename).
+	Attachments []agentdomain.ImageAttachment `json:"attachments,omitempty"`
+}
+
+// maxAttachmentBytes caps one decoded attachment; the panel enforces the same
+// limit, this is the trust-boundary check.
+const maxAttachmentBytes = 10 * 1024 * 1024
+
+// saveAttachments writes each attachment into the project tmp dir (where
+// clipboard images also land). Images come back as ImageAttachments with
+// SourcePath set so they flow to the model as image parts; other files come
+// back as text notes naming the saved path so the agent can Read them.
+func saveAttachments(attachments []agentdomain.ImageAttachment) ([]agentdomain.ImageAttachment, []string) {
+	if len(attachments) == 0 {
+		return nil, nil
+	}
+	tmpDir := config.ProjectTmpDir()
+	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+		logger.Warn("failed to create tmp directory", "path", tmpDir, "error", err)
+		return nil, nil
+	}
+	var images []agentdomain.ImageAttachment
+	var notes []string
+	stamp := time.Now().Format("20060102-150405")
+	for i, a := range attachments {
+		if a.Data == "" || a.Filename == "" {
+			continue
+		}
+		data, err := base64.StdEncoding.DecodeString(a.Data)
+		if err != nil || len(data) > maxAttachmentBytes {
+			logger.Warn("skipping extension attachment", "filename", a.Filename, "error", err, "bytes", len(data))
+			continue
+		}
+		path := filepath.Join(tmpDir, fmt.Sprintf("attachment-%s-%d-%s", stamp, i, filepath.Base(a.Filename)))
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			logger.Warn("failed to save extension attachment", "path", path, "error", err)
+			continue
+		}
+		if strings.HasPrefix(a.MimeType, "image/") {
+			a.DisplayName = a.Filename
+			a.SourcePath = path
+			images = append(images, a)
+			continue
+		}
+		notes = append(notes, fmt.Sprintf("[%s saved at %s]", a.Filename, path))
+	}
+	utils.PruneFilesByModTime(tmpDir, 20, 24*time.Hour, func(e os.DirEntry) bool {
+		return strings.HasPrefix(e.Name(), "attachment-")
+	})
+	return images, notes
 }
 
 type extMode struct {
@@ -681,7 +736,9 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			}
 		case "user_message":
 			if b.notifier != nil && msg.Content != "" {
-				b.notifier.Notify(agentdomain.UserInputEvent{Content: msg.Content, FromExtension: true})
+				images, notes := saveAttachments(msg.Attachments)
+				content := strings.Join(append([]string{msg.Content}, notes...), "\n")
+				b.notifier.Notify(agentdomain.UserInputEvent{Content: content, Images: images, FromExtension: true})
 			}
 			b.appendHistory(msg.Content)
 		case "new_session":
