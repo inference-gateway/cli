@@ -409,6 +409,7 @@ func TestExtensionBridgeUserMessageSavesAttachments(t *testing.T) {
 		"attachments": []map[string]string{
 			{"filename": "shot.png", "mime_type": "image/png", "data": "iVBORw0KGgo="},
 			{"filename": "../../notes.txt", "mime_type": "text/plain", "data": "aGVsbG8="},
+			{"filename": "photo.heic", "mime_type": "image/heic", "data": "aGVsbG8="},
 		},
 	}
 	if err := conn.WriteJSON(frame); err != nil {
@@ -435,7 +436,10 @@ func TestExtensionBridgeUserMessageSavesAttachments(t *testing.T) {
 			if !found {
 				t.Fatalf("content lacks document note: %q", input.Content)
 			}
-			docPath := strings.TrimSuffix(after, "]")
+			docPath, _, _ := strings.Cut(after, "]")
+			if !strings.Contains(input.Content, "[photo.heic saved at ") || !strings.Contains(input.Content, "convert it to PNG") {
+				t.Fatalf("heic should be a path note with a conversion hint, got %q", input.Content)
+			}
 			if data, err := os.ReadFile(docPath); err != nil || string(data) != "hello" {
 				t.Fatalf("document not on disk at %s: %v %q", docPath, err, data)
 			}
