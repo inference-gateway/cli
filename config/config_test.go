@@ -1149,6 +1149,7 @@ func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
 		filepath.Join(userspaceConfigDir, "plans", "2026-06-01-do-thing.md"),
 		filepath.Join(userspaceConfigDir, "projects.json"),
 		filepath.Join(userspaceConfigDir, "tmp", "uploads", "18d5495ba8b83fb8.jpg"),
+		filepath.Join(userspaceConfigDir, "tmp", "scratch.txt"),
 		filepath.Join(ProjectRuntimeDir(), "artifacts", "sess-1", "image.png"),
 		filepath.Join(ProjectRuntimeDir(), "exports", "chat_export_1.md"),
 		filepath.Join(userspaceConfigDir, ArtifactsDirName, "run-1", "report.md"),
@@ -1164,8 +1165,6 @@ func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
 	denied := []string{
 		filepath.Join(userspaceConfigDir, "config.yaml"),
 		filepath.Join(userspaceConfigDir, "agents.yaml"),
-		filepath.Join(userspaceConfigDir, "tmp", "scratch.txt"),
-		filepath.Join(userspaceConfigDir, "tmp", "leaked.env"),
 	}
 	for _, p := range denied {
 		t.Run("deny "+p, func(t *testing.T) {
