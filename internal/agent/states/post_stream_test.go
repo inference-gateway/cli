@@ -52,6 +52,44 @@ func TestPostStreamState_Handle(t *testing.T) {
 			},
 		},
 		{
+			name: "headless waits for background tasks and completes when nothing was queued",
+			setup: func(f *stateFixture) {
+				f.ctx.AgentCtx.Turns = 1
+				f.sm.CanTransitionReturns(true)
+				f.ctx.WaitForBackgroundTasks = func() { f.drainCalls++ }
+			},
+			wantTransitions: []states.AgentExecutionState{states.StateCompleting},
+			wantEvents:      []states.AgentEvent{states.CompletionRequestedEvent{}},
+			check: func(t *testing.T, f *stateFixture) {
+				assert.Equal(t, 1, f.drainCalls, "headless must wait for background tasks before completing")
+				require.Len(t, f.completeCalls, 1)
+			},
+		},
+		{
+			name: "headless routes background completion notes back through checking queue",
+			setup: func(f *stateFixture) {
+				f.ctx.AgentCtx.Turns = 1
+				f.sm.CanTransitionReturns(true)
+				f.ctx.WaitForBackgroundTasks = func() { f.queue.IsEmptyReturns(false) }
+			},
+			wantTransitions: []states.AgentExecutionState{states.StateCheckingQueue},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
+			check: func(t *testing.T, f *stateFixture) {
+				assert.Empty(t, f.completeCalls, "run must not complete while a background result is unreported")
+			},
+		},
+		{
+			name: "chat mode never waits for background tasks",
+			setup: func(f *stateFixture) {
+				f.ctx.AgentCtx.Turns = 1
+				f.ctx.Request.IsChatMode = true
+				f.sm.CanTransitionReturns(true)
+				f.ctx.WaitForBackgroundTasks = func() { t.Fatal("chat mode must not block on background tasks") }
+			},
+			wantTransitions: []states.AgentExecutionState{states.StateCompleting},
+			wantEvents:      []states.AgentEvent{states.CompletionRequestedEvent{}},
+		},
+		{
 			name:            "no tools on turn zero continues the loop",
 			wantTransitions: []states.AgentExecutionState{states.StateStreamingLLM},
 			wantEvents:      []states.AgentEvent{states.StartStreamingEvent{}},

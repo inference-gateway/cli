@@ -72,16 +72,32 @@ func (s *PostStreamState) transitionToEvaluatingTools() error {
 	return nil
 }
 
-// handleNoToolCallsScenario handles the scenario when there are no tool calls
+// handleNoToolCallsScenario handles the scenario when there are no tool calls.
+// A headless run waits here for in-flight background jobs (A2A tasks, shells,
+// subagents) before completing; their completion notes land in the queue and
+// route back through CheckingQueue so the model gets a turn to report them.
 func (s *PostStreamState) handleNoToolCallsScenario() error {
 	s.ctx.AgentCtx.HasToolResults = false
 	logger.Debug("no tool calls in response")
 
-	if s.ctx.StateMachine.CanTransition(s.ctx.AgentCtx, StateCompleting) {
-		return s.transitionToCompleting()
+	if !s.ctx.StateMachine.CanTransition(s.ctx.AgentCtx, StateCompleting) {
+		return s.transitionToStreaming()
 	}
 
-	return s.transitionToStreaming()
+	if !s.ctx.Request.IsChatMode && s.ctx.WaitForBackgroundTasks != nil && s.ctx.AgentCtx.Ctx.Err() == nil {
+		s.ctx.WaitForBackgroundTasks()
+		if !s.ctx.AgentCtx.MessageQueue.IsEmpty() {
+			logger.Debug("background tasks completed during wait, returning to checking queue")
+			if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateCheckingQueue); err != nil {
+				logger.Error("failed to transition to checking queue", "error", err)
+				return err
+			}
+			s.ctx.Events <- MessageReceivedEvent{}
+			return nil
+		}
+	}
+
+	return s.transitionToCompleting()
 }
 
 // transitionToCompleting transitions to completing state
