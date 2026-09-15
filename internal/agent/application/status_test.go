@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 )
 
 func TestProbeAgents(t *testing.T) {
@@ -21,5 +22,19 @@ func TestProbeAgents(t *testing.T) {
 	}
 	if report.Agents[1].Name != "127.0.0.1" {
 		t.Fatalf("external agent name should derive from host: %+v", report.Agents[1])
+	}
+}
+
+func TestSharedAgentsReachTheGatewayThroughTheHost(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Gateway.URL = "http://localhost:8080"
+	cfg.Gateway.OCI = "ghcr.io/inference-gateway/inference-gateway:latest"
+
+	shared := NewAgentManager(containerruntime.SharedSessionID, cfg, config.DefaultAgentsConfig(), nil, nil)
+	if got := shared.determineGatewayURL(); got != "http://host.docker.internal:8080/v1" {
+		t.Fatalf("shared gateway URL = %q", got)
+	}
+	if got := sharedAgentContainerName("runner"); got != "inference-agent-runner-shared" {
+		t.Fatalf("shared container name = %q", got)
 	}
 }

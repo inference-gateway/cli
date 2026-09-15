@@ -333,6 +333,21 @@ MCP: 2/3    # 2 connected, 3 total (1 server down)
 
 `infer mcp status` reports the same counts from outside a chat session.
 
+### Detached Servers
+
+A `run: true` server is normally started when a session begins and stopped when it ends. To keep
+it running across sessions (for example when the desktop app starts one `infer headless` process
+per message), start it detached:
+
+```bash
+infer mcp start            # every enabled run: true server
+infer mcp start demo       # one server
+infer mcp stop demo
+```
+
+Detached containers are named `inference-mcp-<server>-shared`. A session that finds one running
+connects to it instead of starting its own copy and leaves it running on exit.
+
 ### Probe Behavior
 
 - **Initial State**: Shows total servers, all marked disconnected

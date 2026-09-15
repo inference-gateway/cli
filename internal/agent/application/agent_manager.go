@@ -298,6 +298,15 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 
 	logger.Info("starting agent container", "name", agent.Name, "image", agent.OCI)
 
+	if am.sessionID != containerruntime.SharedSessionID && am.runningContainerID(sharedAgentContainerName(agent.Name)) != "" {
+		logger.Info("reusing detached agent container", "name", agent.Name, "url", agent.URL)
+		am.notifyStatus(agent.Name, agentdomain.AgentStateReady, "Ready (detached)", agent.URL, agent.OCI)
+		am.containersMutex.Lock()
+		am.agentStates[agent.Name] = agentdomain.AgentStateReady
+		am.containersMutex.Unlock()
+		return nil
+	}
+
 	if am.isAgentRunning(agent.Name) {
 		logger.Info("agent container is already running", "name", agent.Name)
 		am.notifyStatus(agent.Name, agentdomain.AgentStateReady, "Already running", agent.URL, agent.OCI)
@@ -440,6 +449,20 @@ func (am *AgentManager) StopAgents(ctx context.Context) error {
 // IsRunning returns whether any agents are running
 func (am *AgentManager) IsRunning() bool {
 	return am.isRunning
+}
+
+// StopAgentByName stops this session's container for the agent even when this
+// process did not start it. With the shared session id it stops the detached
+// container started by `infer agents start`.
+func (am *AgentManager) StopAgentByName(ctx context.Context, agentName string) error {
+	if !am.isAgentRunning(agentName) {
+		return nil
+	}
+	return am.StopAgent(ctx, agentName)
+}
+
+func sharedAgentContainerName(agentName string) string {
+	return fmt.Sprintf("%s%s-%s", AgentContainerPrefix, agentName, containerruntime.SharedSessionID)
 }
 
 // StopAgent stops a single agent container
@@ -600,35 +623,35 @@ func (am *AgentManager) loadDotEnvFile() (map[string]string, error) {
 	return envMap, nil
 }
 
-// isAgentRunning checks if an agent container is already running
+// isAgentRunning checks if this session's container for the agent is running
+// and records it so StopAgent can stop it.
 func (am *AgentManager) isAgentRunning(agentName string) bool {
-	expectedName := fmt.Sprintf("%s%s-%s", AgentContainerPrefix, agentName, am.sessionID)
+	containerID := am.runningContainerID(fmt.Sprintf("%s%s-%s", AgentContainerPrefix, agentName, am.sessionID))
+	if containerID == "" {
+		return false
+	}
+	am.containersMutex.Lock()
+	am.containers[agentName] = containerID
+	am.containersMutex.Unlock()
+	return true
+}
+
+// runningContainerID returns the id of the running container with exactly
+// that name, or "" when none is running.
+func (am *AgentManager) runningContainerID(expectedName string) string {
 	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", AgentContainerPrefix), "--format", "{{.ID}}\t{{.Names}}")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return false
+		return ""
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		parts := strings.Split(line, "\t")
-		if len(parts) != 2 {
-			continue
-		}
-		containerID := parts[0]
-		foundName := parts[1]
-
-		if foundName == expectedName {
-			am.containersMutex.Lock()
-			am.containers[agentName] = containerID
-			am.containersMutex.Unlock()
-			return true
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		containerID, foundName, ok := strings.Cut(line, "\t")
+		if ok && foundName == expectedName {
+			return containerID
 		}
 	}
-	return false
+	return ""
 }
 
 // waitForReady waits for an agent to become ready
@@ -700,7 +723,7 @@ func (am *AgentManager) determineAgentPort(agent config.AgentEntry) int {
 
 // determineGatewayURL determines the gateway URL that agents should use to connect
 func (am *AgentManager) determineGatewayURL() string {
-	if am.config.Gateway.StandaloneBinary {
+	if am.config.Gateway.StandaloneBinary || am.sessionID == containerruntime.SharedSessionID {
 		gatewayURL := strings.Replace(am.config.Gateway.URL, "localhost", "host.docker.internal", 1)
 		if !strings.HasSuffix(gatewayURL, "/v1") {
 			gatewayURL = strings.TrimSuffix(gatewayURL, "/") + "/v1"

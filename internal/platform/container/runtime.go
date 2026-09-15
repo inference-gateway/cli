@@ -1,6 +1,15 @@
 package container
 
-import "context"
+import (
+	"context"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+)
+
+// SharedSessionID names containers started detached by `infer mcp start` and
+// `infer agents start`. A session reuses a running shared container instead of
+// starting its own and never stops it.
+const SharedSessionID convdomain.SessionID = "shared"
 
 // ContainerRuntime defines the interface for container runtime operations
 // This abstraction allows support for Docker, Podman, or any other container runtime

@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 )
 
 type command struct {
@@ -45,7 +47,21 @@ This allows you to configure remote or local agents that can be used for delegat
 		RunE:  cmd.agentsStatus,
 	}
 
-	agentsCmd.AddCommand(agentsAddCmd, agentsUpdateCmd, agentsListCmd, agentsRemoveCmd, agentsShowCmd, agentsInitCmd, agentsStatusCmd)
+	agentsStartCmd := &cobra.Command{
+		Use:   "start [name]",
+		Short: "Start run:true agents as detached containers",
+		Long:  `Start every run:true agent (or only the named one) as a detached container that outlives this command. Chat and headless sessions reuse it instead of starting their own.`,
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  cmd.startAgents,
+	}
+	agentsStopCmd := &cobra.Command{
+		Use:   "stop [name]",
+		Short: "Stop detached agent containers",
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  cmd.stopAgents,
+	}
+
+	agentsCmd.AddCommand(agentsAddCmd, agentsUpdateCmd, agentsListCmd, agentsRemoveCmd, agentsShowCmd, agentsInitCmd, agentsStatusCmd, agentsStartCmd, agentsStopCmd)
 
 	agentsAddCmd.Flags().String("oci", "", "OCI image reference for local execution")
 	agentsAddCmd.Flags().String("tag", "", "Image tag for the agent's default image (browser-agent: chromium, firefox, webkit, lightpanda)")
@@ -623,6 +639,91 @@ func (c *command) agentsStatus(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println(statusTable.Render())
 	return nil
+}
+
+func (c *command) startAgents(cmd *cobra.Command, args []string) error {
+	cfg, agents, err := c.runnableAgents(cmd, args)
+	if err != nil {
+		return err
+	}
+	rt, err := c.sharedRuntime()
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	if err := rt.EnsureNetwork(ctx); err != nil {
+		return fmt.Errorf("failed to create container network: %w", err)
+	}
+	manager := agentapp.NewAgentManager(containerruntime.SharedSessionID, c.state.Config(), cfg, rt, nil)
+	var failed error
+	for _, agent := range agents {
+		if err := manager.StartAgent(ctx, agent); err != nil {
+			failed = errors.Join(failed, fmt.Errorf("%s: %w", agent.Name, err))
+			fmt.Printf("%s %s\n", c.renderer.StatusIcon(false), agent.Name)
+			continue
+		}
+		fmt.Printf("%s %s %s\n", c.renderer.StatusIcon(true), agent.Name, agent.URL)
+	}
+	return failed
+}
+
+func (c *command) stopAgents(cmd *cobra.Command, args []string) error {
+	cfg, agents, err := c.runnableAgents(cmd, args)
+	if err != nil {
+		return err
+	}
+	rt, err := c.sharedRuntime()
+	if err != nil {
+		return err
+	}
+	manager := agentapp.NewAgentManager(containerruntime.SharedSessionID, c.state.Config(), cfg, rt, nil)
+	for _, agent := range agents {
+		if err := manager.StopAgentByName(context.Background(), agent.Name); err != nil {
+			return fmt.Errorf("%s: %w", agent.Name, err)
+		}
+		fmt.Printf("%s %s stopped\n", c.renderer.StatusIcon(true), agent.Name)
+	}
+	return nil
+}
+
+// runnableAgents returns the run:true agents, narrowed to args[0] when given.
+func (c *command) runnableAgents(cmd *cobra.Command, args []string) (*config.AgentsConfig, []config.AgentEntry, error) {
+	path, err := agentsConfigPath(cmd)
+	if err != nil {
+		return nil, nil, err
+	}
+	cfg, err := config.LoadAgents(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	var agents []config.AgentEntry
+	for _, agent := range cfg.ListEntries() {
+		if len(args) == 1 && agent.Name != args[0] {
+			continue
+		}
+		if !agent.Run {
+			if len(args) == 1 {
+				return nil, nil, fmt.Errorf("agent %q is not a run: true agent", args[0])
+			}
+			continue
+		}
+		agents = append(agents, agent)
+	}
+	if len(args) == 1 && len(agents) == 0 {
+		return nil, nil, fmt.Errorf("agent %q not found", args[0])
+	}
+	return cfg, agents, nil
+}
+
+func (c *command) sharedRuntime() (containerruntime.ContainerRuntime, error) {
+	rt, err := containerruntime.NewContainerRuntime(containerruntime.SharedSessionID, containerruntime.RuntimeType(c.state.Config().ContainerRuntime.Type))
+	if err != nil {
+		return nil, err
+	}
+	if rt == nil {
+		return nil, fmt.Errorf("no container runtime configured (set container_runtime.type to docker or podman)")
+	}
+	return rt, nil
 }
 
 func filterAgents(agents []config.AgentEntry, name string) []config.AgentEntry {

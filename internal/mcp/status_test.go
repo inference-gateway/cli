@@ -42,3 +42,24 @@ func TestProbeStatus(t *testing.T) {
 		t.Fatal("unknown server name should error")
 	}
 }
+
+func TestParseHostPort(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		want   int
+		ok     bool
+	}{
+		{"ipv4 mapping", "3000/tcp -> 0.0.0.0:3001\n", 3001, true},
+		{"ipv6 first", "3000/tcp -> [::]:3002\n3000/tcp -> 0.0.0.0:3002\n", 3002, true},
+		{"no mapping", "", 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := parseHostPort(tt.output)
+			if got != tt.want || ok != tt.ok {
+				t.Fatalf("parseHostPort(%q) = %d, %v; want %d, %v", tt.output, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
