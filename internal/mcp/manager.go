@@ -711,8 +711,19 @@ func (m *Manager) StartServers(ctx context.Context) error {
 	return nil
 }
 
-// StartServer starts a single MCP server container
+// StartServer starts a single MCP server container, or points the client at a
+// detached shared container when one is already running.
 func (m *Manager) StartServer(ctx context.Context, server config.MCPServerEntry) error {
+	if url, ok := m.sharedServerURL(server); ok {
+		logger.Info("reusing detached MCP server container", "session", m.sessionID, "server", server.Name, "url", url)
+		m.mu.Lock()
+		if client, exists := m.clients[server.Name]; exists {
+			client.initializeClient(url)
+		}
+		m.mu.Unlock()
+		return nil
+	}
+
 	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, m.sessionID)
 
 	assignedPort := m.assignPort(server)
@@ -749,6 +760,46 @@ func (m *Manager) StartServer(ctx context.Context, server config.MCPServerEntry)
 	m.mu.Unlock()
 
 	return nil
+}
+
+// StopServer stops this session's container for the named server. With the
+// shared session id it stops the detached container started by `infer mcp start`.
+func (m *Manager) StopServer(ctx context.Context, serverName string) error {
+	return m.stopContainer(ctx, fmt.Sprintf("inference-mcp-%s-%s", serverName, m.sessionID))
+}
+
+// sharedServerURL reports the URL of a running detached container for the
+// server, if any. The shared manager itself never reuses (it is the one starting).
+func (m *Manager) sharedServerURL(server config.MCPServerEntry) (string, bool) {
+	if m.sessionID == containerruntime.SharedSessionID {
+		return "", false
+	}
+	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, containerruntime.SharedSessionID)
+	output, err := exec.Command("docker", "port", containerName).Output()
+	if err != nil {
+		return "", false
+	}
+	port, ok := parseHostPort(string(output))
+	if !ok {
+		return "", false
+	}
+	return fmt.Sprintf("http://localhost:%d%s", port, m.getPath(server)), true
+}
+
+// parseHostPort extracts the first published host port from `docker port`
+// output such as "3000/tcp -> 0.0.0.0:3001".
+func parseHostPort(output string) (int, bool) {
+	for _, line := range strings.Split(output, "\n") {
+		_, host, found := strings.Cut(line, "->")
+		if !found {
+			continue
+		}
+		var port int
+		if _, err := fmt.Sscanf(host[strings.LastIndex(host, ":")+1:], "%d", &port); err == nil && port > 0 {
+			return port, true
+		}
+	}
+	return 0, false
 }
 
 // StopServers stops all running MCP server containers

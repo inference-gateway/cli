@@ -207,6 +207,8 @@ connections to specialized A2A agents for task delegation and distributed proces
 - `list`: List all configured agents
 - `show <name>`: Show details for a specific agent
 - `status [name]`: Probe configured agents and report readiness (`--format json` for scripts)
+- `start [name]`: Start `run: true` agents as detached containers that chat and headless sessions reuse
+- `stop [name]`: Stop those detached containers
 - `remove <name>`: Remove an agent from configuration
 
 **Update Flags:**
@@ -252,6 +254,10 @@ infer agents show browser-agent
 # Probe readiness of every configured agent (or one by name)
 infer agents status
 infer agents status browser-agent --format json
+
+# Keep a run: true agent running across sessions instead of starting one per session
+infer agents start browser-agent
+infer agents stop browser-agent
 
 # Update agent URL
 infer agents update browser-agent --url http://browser-agent:9090

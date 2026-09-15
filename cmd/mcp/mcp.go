@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -15,15 +16,17 @@ import (
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	mcp "github.com/inference-gateway/cli/internal/mcp"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 )
 
 type command struct {
+	state    *runtime.State
 	renderer *output.Renderer
 }
 
 // NewCommand constructs the MCP command tree.
-func NewCommand(renderer *output.Renderer) *cobra.Command {
-	c := &command{renderer: renderer}
+func NewCommand(state *runtime.State, renderer *output.Renderer) *cobra.Command {
+	c := &command{state: state, renderer: renderer}
 	mcpCmd := &cobra.Command{
 		Use:   "mcp",
 		Short: "Manage MCP (Model Context Protocol) server configuration",
@@ -41,6 +44,19 @@ func NewCommand(renderer *output.Renderer) *cobra.Command {
 		Long:  `Dial each enabled MCP server once (or only the named server) and report whether it is reachable and how many tools it exposes.`,
 		Args:  cobra.MaximumNArgs(1),
 		RunE:  c.mcpStatus,
+	}
+	mcpStartCmd := &cobra.Command{
+		Use:   "start [server]",
+		Short: "Start run:true MCP servers as detached containers",
+		Long:  `Start every enabled run:true MCP server (or only the named one) as a detached container that outlives this command. Chat and headless sessions reuse it instead of starting their own.`,
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  c.startMCPServers,
+	}
+	mcpStopCmd := &cobra.Command{
+		Use:   "stop [server]",
+		Short: "Stop detached MCP server containers",
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  c.stopMCPServers,
 	}
 	mcpAddCmd := &cobra.Command{
 		Use:   "add <name> [url]",
@@ -104,7 +120,7 @@ Example:
 		RunE:  c.disableMCPGlobal,
 	}
 
-	mcpCmd.AddCommand(mcpListCmd, mcpStatusCmd, mcpAddCmd, mcpRemoveCmd, mcpUpdateCmd, mcpEnableCmd, mcpDisableCmd, mcpEnableGlobalCmd, mcpDisableGlobalCmd)
+	mcpCmd.AddCommand(mcpListCmd, mcpStatusCmd, mcpStartCmd, mcpStopCmd, mcpAddCmd, mcpRemoveCmd, mcpUpdateCmd, mcpEnableCmd, mcpDisableCmd, mcpEnableGlobalCmd, mcpDisableGlobalCmd)
 
 	mcpAddCmd.Flags().String("description", "", "Description of the MCP server")
 	mcpAddCmd.Flags().Int("timeout", 0, "Connection timeout in seconds (overrides global)")
@@ -251,6 +267,87 @@ func (c *command) mcpStatus(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println(statusTable.Render())
 	return nil
+}
+
+func (c *command) startMCPServers(cmd *cobra.Command, args []string) error {
+	cfg, servers, err := c.runnableServers(cmd, args)
+	if err != nil {
+		return err
+	}
+	rt, err := c.sharedRuntime()
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	if err := rt.EnsureNetwork(ctx); err != nil {
+		return fmt.Errorf("failed to create container network: %w", err)
+	}
+	manager := mcp.NewManager(containerruntime.SharedSessionID, cfg, rt, nil)
+	var failed error
+	for _, server := range servers {
+		if err := manager.StartServer(ctx, server); err != nil {
+			failed = errors.Join(failed, fmt.Errorf("%s: %w", server.Name, err))
+			fmt.Printf("%s %s\n", c.renderer.StatusIcon(false), server.Name)
+			continue
+		}
+		fmt.Printf("%s %s\n", c.renderer.StatusIcon(true), server.Name)
+	}
+	return failed
+}
+
+func (c *command) stopMCPServers(cmd *cobra.Command, args []string) error {
+	cfg, servers, err := c.runnableServers(cmd, args)
+	if err != nil {
+		return err
+	}
+	rt, err := c.sharedRuntime()
+	if err != nil {
+		return err
+	}
+	manager := mcp.NewManager(containerruntime.SharedSessionID, cfg, rt, nil)
+	for _, server := range servers {
+		if err := manager.StopServer(context.Background(), server.Name); err != nil {
+			return fmt.Errorf("%s: %w", server.Name, err)
+		}
+		fmt.Printf("%s %s stopped\n", c.renderer.StatusIcon(true), server.Name)
+	}
+	return nil
+}
+
+// runnableServers returns the enabled run:true servers, narrowed to args[0] when given.
+func (c *command) runnableServers(cmd *cobra.Command, args []string) (*config.MCPConfig, []config.MCPServerEntry, error) {
+	cfg, err := config.LoadMCP(getMCPConfigPath(cmd))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load MCP config: %w", err)
+	}
+	var servers []config.MCPServerEntry
+	for _, server := range cfg.Servers {
+		if len(args) == 1 && server.Name != args[0] {
+			continue
+		}
+		if !server.Run || !server.Enabled {
+			if len(args) == 1 {
+				return nil, nil, fmt.Errorf("MCP server %q is not an enabled run: true server", args[0])
+			}
+			continue
+		}
+		servers = append(servers, server)
+	}
+	if len(args) == 1 && len(servers) == 0 {
+		return nil, nil, fmt.Errorf("MCP server %q not found", args[0])
+	}
+	return cfg, servers, nil
+}
+
+func (c *command) sharedRuntime() (containerruntime.ContainerRuntime, error) {
+	rt, err := containerruntime.NewContainerRuntime(containerruntime.SharedSessionID, containerruntime.RuntimeType(c.state.Config().ContainerRuntime.Type))
+	if err != nil {
+		return nil, err
+	}
+	if rt == nil {
+		return nil, fmt.Errorf("no container runtime configured (set container_runtime.type to docker or podman)")
+	}
+	return rt, nil
 }
 
 // printMCPToolFilters prints the per-server include/exclude tool filters when
