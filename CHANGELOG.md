@@ -5,6 +5,88 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.199.2](https://github.com/inference-gateway/cli/compare/v0.199.1...v0.199.2) (2026-09-15)
+
+### 🐛 Bug Fixes
+
+* **a2a:** poll delegated tasks under the submit span ([#1217](https://github.com/inference-gateway/cli/issues/1217)) ([4cfb88b](https://github.com/inference-gateway/cli/commit/4cfb88b885780bdb02f92d43574d6df5d43d48ce))
+
+### 📚 Documentation
+
+* align documented flags, subcommands and shortcuts with the actual CLI ([#1213](https://github.com/inference-gateway/cli/issues/1213)) ([84e3d00](https://github.com/inference-gateway/cli/commit/84e3d00712ebccafa3e15680637b9e0386f426ec)), closes [#1209](https://github.com/inference-gateway/cli/issues/1209)
+* align tool approval defaults and agent modes with the code ([#1215](https://github.com/inference-gateway/cli/issues/1215)) ([abb86e7](https://github.com/inference-gateway/cli/commit/abb86e74c6d3f64a885b9ab1021ec096a0a3c948)), closes [#1212](https://github.com/inference-gateway/cli/issues/1212)
+* **configuration:** correct default values to match DefaultConfig() ([#1214](https://github.com/inference-gateway/cli/issues/1214)) ([2372146](https://github.com/inference-gateway/cli/commit/2372146822bcc5460366f2657fca4b4990031403)), closes [#1211](https://github.com/inference-gateway/cli/issues/1211)
+* **config:** drop documented keys and env vars that do not exist in the config structs ([#1216](https://github.com/inference-gateway/cli/issues/1216)) ([7657b26](https://github.com/inference-gateway/cli/commit/7657b26f4369e4a3c2acb3ca08fae4529857321f)), closes [#1210](https://github.com/inference-gateway/cli/issues/1210)
+
+### 🧹 Maintenance
+
+* **deps:** bump adk to v0.26.6 ([#1218](https://github.com/inference-gateway/cli/issues/1218)) ([7fe42ef](https://github.com/inference-gateway/cli/commit/7fe42ef4911b0f07ceeea60e6598c9ccaa3d6e6d)), closes [adk#304](https://github.com/adk/issues/304)
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.199.2 --help
+npx @inference-gateway/cli@0.199.2 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.199.2
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.199.2
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.199.2
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.199.2"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.199.2
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.199.1](https://github.com/inference-gateway/cli/compare/v0.199.0...v0.199.1) (2026-09-15)
 
 ### 🐛 Bug Fixes
