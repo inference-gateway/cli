@@ -533,6 +533,9 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	}
 
 	env := agent.GetEnvironmentWithModel()
+	if am.config != nil {
+		applyModelFallback(env, am.config.Agent.Model)
+	}
 
 	gatewayURL := am.determineGatewayURL()
 	env["A2A_AGENT_CLIENT_BASE_URL"] = gatewayURL
@@ -581,6 +584,21 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	am.containers[agent.Name] = containerID
 	am.containersMutex.Unlock()
 	return nil
+}
+
+// applyModelFallback sets the ADK provider/model env from the CLI's configured
+// agent.model when the agent entry declares no model of its own, so an agent
+// added without --model runs on the model the user currently has selected.
+func applyModelFallback(env map[string]string, model string) {
+	if env["A2A_AGENT_CLIENT_MODEL"] != "" || model == "" {
+		return
+	}
+	provider, name := config.ParseModel(model)
+	if provider == "" || name == "" {
+		return
+	}
+	env["A2A_AGENT_CLIENT_PROVIDER"] = provider
+	env["A2A_AGENT_CLIENT_MODEL"] = name
 }
 
 // otlpEndpoint returns the CLI's OTLP collector endpoint, config first then
