@@ -818,8 +818,7 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 
 **Tool Approval Configuration:**
 
-- `INFER_TOOLS_BASH_REQUIRE_APPROVAL`: Require approval for Bash tool (default:
-  `false`)
+- `INFER_TOOLS_BASH_REQUIRE_APPROVAL`: Require approval for Bash tool (default: unset)
 - `INFER_TOOLS_WRITE_REQUIRE_APPROVAL`: Require approval for Write tool (default: `true`)
 - `INFER_TOOLS_EDIT_REQUIRE_APPROVAL`: Require approval for Edit tool (default: `true`)
 - `INFER_TOOLS_DELETE_REQUIRE_APPROVAL`: Require approval for Delete tool (default:

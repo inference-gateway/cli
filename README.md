@@ -359,7 +359,7 @@ infer chat --web
 infer chat --web --port 8080  # Custom port
 ```
 
-**Features:** Model selection, real-time streaming, scrollable history, three agent modes (Standard/Plan/Auto-Accept).
+**Features:** Model selection, real-time streaming, scrollable history, four agent modes (Standard/Plan/Auto-Accept/Auto+Judge).
 Select text by holding Shift (Option on macOS terminals) while dragging.
 
 **Web Mode Features:**
@@ -547,7 +547,9 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 | Tool | Purpose | Approval |
 | ------ | --------- | ---------- |
 | **WebSearch** | Search the web (DuckDuckGo/Google) | Yes |
-| **WebFetch** | Fetch content from a URL | Yes |
+| **WebFetch** | Fetch content from a URL | No |
+
+`WebFetch` does not require approval by default; set `tools.web_fetch.require_approval: true` to require it.
 
 **Subagents** (the `Agent` tool and its companions, enabled by default):
 
@@ -855,7 +857,8 @@ approval**; override per tool with `tools.<name>.require_approval`.
 | ------ | ------------------- | --------- |
 | Write, Edit, MultiEdit, Delete | Yes | Create / modify / remove files |
 | Schedule, Agent | Yes | Side effects (scheduled jobs, spawned subprocesses) |
-| WebSearch, WebFetch | Yes | Make external requests (global default) |
+| WebSearch | Yes | Make external requests (global default) |
+| WebFetch | No | Explicitly exempt - override with `tools.web_fetch.require_approval` |
 | A2A_SubmitTask | Yes | Dispatches work to another agent |
 | Bash | Optional | Governed by the per-mode bash allow-list |
 | Wait | No | Passive utility - blocks until condition met, no side effects |
