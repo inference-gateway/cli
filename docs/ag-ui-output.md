@@ -25,6 +25,8 @@ a subprocess host reading stdout is a fully valid transport.
 | Todo-list change | `STATE_SNAPSHOT` with `{"todos": [...]}` |
 | Approval request (`--require-approval`) | `CUSTOM` event named `approval_request` carrying the legacy payload |
 | AskUserQuestion form | `CUSTOM` event named `user_question_request` with `tool_call_id` and `questions` |
+| Background job finished | `CUSTOM` event `queued_message`; `content` is the landed note, first line `[<Kind> Completed\|Failed: <label>]` |
+| Background job submitted or finished | `CUSTOM` event `background_tasks` with `running` and `jobs` (id, kind, label, description, detail, status) |
 | Successful exit | `RUN_FINISHED` with a success outcome; `result` carries the session stats (keys below) |
 | Failure or panic | `RUN_ERROR` with the error message and the run id |
 
