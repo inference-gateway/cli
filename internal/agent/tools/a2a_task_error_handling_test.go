@@ -93,7 +93,7 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 		},
 	}
 
-	t.Run("Execute clears tracker when task not found", func(t *testing.T) {
+	t.Run("Execute clears tracker when a resumed task is not found", func(t *testing.T) {
 		tracker := &agentdomainmocks.FakeA2ATaskTracker{}
 		agentURL := "http://test-agent"
 		contextID := "context-123"
@@ -102,7 +102,14 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 		tracker.GetLatestContextForAgentReturns(contextID)
 		tracker.GetLatestTaskForContextReturns(taskID)
 
+		inputRequired := adk.Task{
+			ID:        taskID,
+			ContextID: contextID,
+			Status:    adk.TaskStatus{State: adk.TaskStateInputRequired},
+		}
+
 		mockClient := &adkmocks.FakeA2AClient{}
+		mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: inputRequired}, nil)
 		mockClient.SendTaskReturns(nil, errors.New("A2A error: failed to resume task: task not found: nonexistent-task-123 (code: -32603)"))
 
 		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, nil, mockClient)
@@ -123,7 +130,7 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 		assert.Equal(t, 1, tracker.RemoveTaskCallCount())
 	})
 
-	t.Run("Execute clears tracker when task is completed", func(t *testing.T) {
+	t.Run("Execute submits a fresh task after the previous one completed", func(t *testing.T) {
 		tracker := &agentdomainmocks.FakeA2ATaskTracker{}
 		agentURL := "http://test-agent"
 		contextID := "context-456"
@@ -153,16 +160,16 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 		result, err := tool.Execute(context.Background(), args)
 
 		assert.NoError(t, err)
-		assert.False(t, result.Success)
+		assert.True(t, result.Success, result.Error)
+		assert.Equal(t, 0, tracker.RemoveTaskCallCount())
 
-		assert.Contains(t, result.Error, "is already TASK_STATE_COMPLETED (cleared from tracker)")
-
-		// Verify RemoveTask was called
-		assert.Equal(t, 1, tracker.RemoveTaskCallCount())
+		_, params := mockClient.SendTaskArgsForCall(0)
+		assert.Nil(t, params.Message.ContextID)
+		assert.Nil(t, params.Message.TaskID)
 	})
 }
 
-func TestA2ASubmitTaskTool_WorkingTaskGuardrail(t *testing.T) {
+func TestA2ASubmitTaskTool_ContextReuse(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
@@ -178,62 +185,41 @@ func TestA2ASubmitTaskTool_WorkingTaskGuardrail(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                 string
-		existingTaskID       string
-		existingTaskState    adk.TaskState
-		getTaskError         error
-		shouldPreventSubmit  bool
-		expectedErrorMessage string
+		name               string
+		existingTaskState  adk.TaskState
+		getTaskError       error
+		requestedContextID string
+		wantContextID      string
+		wantResume         bool
 	}{
 		{
-			name:                 "prevents submission when task is in working state",
-			existingTaskID:       "working-task-123",
-			existingTaskState:    adk.TaskStateWorking,
-			getTaskError:         nil,
-			shouldPreventSubmit:  true,
-			expectedErrorMessage: "existing task working-task-123 is still in working state",
+			name:              "working task on the agent does not block a new independent task",
+			existingTaskState: adk.TaskStateWorking,
 		},
 		{
-			name:                "allows submission when task is completed",
-			existingTaskID:      "completed-task-456",
-			existingTaskState:   adk.TaskStateCompleted,
-			getTaskError:        nil,
-			shouldPreventSubmit: false,
+			name:              "completed task starts a fresh context",
+			existingTaskState: adk.TaskStateCompleted,
 		},
 		{
-			name:                "allows submission when task is failed",
-			existingTaskID:      "failed-task-789",
-			existingTaskState:   adk.TaskStateFailed,
-			getTaskError:        nil,
-			shouldPreventSubmit: false,
+			name:              "failed task starts a fresh context",
+			existingTaskState: adk.TaskStateFailed,
 		},
 		{
-			name:                "allows submission when task is submitted",
-			existingTaskID:      "submitted-task-101",
-			existingTaskState:   adk.TaskStateSubmitted,
-			getTaskError:        nil,
-			shouldPreventSubmit: false,
+			name:              "input-required task is resumed in its context",
+			existingTaskState: adk.TaskStateInputRequired,
+			wantContextID:     "context-test",
+			wantResume:        true,
 		},
 		{
-			name:                "allows submission when task is canceled",
-			existingTaskID:      "canceled-task-102",
-			existingTaskState:   adk.TaskStateCancelled,
-			getTaskError:        nil,
-			shouldPreventSubmit: false,
+			name:              "GetTask failure starts a fresh context",
+			existingTaskState: adk.TaskStateWorking,
+			getTaskError:      errors.New("connection error"),
 		},
 		{
-			name:                "allows submission when task is rejected",
-			existingTaskID:      "rejected-task-103",
-			existingTaskState:   adk.TaskStateRejected,
-			getTaskError:        nil,
-			shouldPreventSubmit: false,
-		},
-		{
-			name:                "allows submission when GetTask fails",
-			existingTaskID:      "error-task-104",
-			existingTaskState:   adk.TaskStateWorking,
-			getTaskError:        errors.New("connection error"),
-			shouldPreventSubmit: false,
+			name:               "explicit context_id continues that conversation",
+			existingTaskState:  adk.TaskStateCompleted,
+			requestedContextID: "context-test",
+			wantContextID:      "context-test",
 		},
 	}
 
@@ -242,24 +228,20 @@ func TestA2ASubmitTaskTool_WorkingTaskGuardrail(t *testing.T) {
 			tracker := &agentdomainmocks.FakeA2ATaskTracker{}
 			agentURL := "http://test-agent"
 			contextID := "context-test"
+			existingTaskID := "existing-task-123"
 
 			tracker.GetLatestContextForAgentReturns(contextID)
-			tracker.GetLatestTaskForContextReturns(tt.existingTaskID)
+			tracker.GetLatestTaskForContextReturns(existingTaskID)
 
 			existingTask := adk.Task{
-				ID:        tt.existingTaskID,
+				ID:        existingTaskID,
 				ContextID: contextID,
-				Status: adk.TaskStatus{
-					State: tt.existingTaskState,
-				},
+				Status:    adk.TaskStatus{State: tt.existingTaskState},
 			}
-
 			newTask := adk.Task{
 				ID:        "new-task-999",
-				ContextID: contextID,
-				Status: adk.TaskStatus{
-					State: adk.TaskStateSubmitted,
-				},
+				ContextID: "context-new",
+				Status:    adk.TaskStatus{State: adk.TaskStateSubmitted},
 			}
 
 			mockClient := &adkmocks.FakeA2AClient{}
@@ -272,19 +254,29 @@ func TestA2ASubmitTaskTool_WorkingTaskGuardrail(t *testing.T) {
 				"agent_url":        agentURL,
 				"task_description": "New task description",
 			}
+			if tt.requestedContextID != "" {
+				args["context_id"] = tt.requestedContextID
+			}
 
 			result, err := tool.Execute(context.Background(), args)
 
 			assert.NoError(t, err)
+			assert.True(t, result.Success, result.Error)
+			assert.Equal(t, 0, tracker.RemoveTaskCallCount())
 
-			if tt.shouldPreventSubmit {
-				assert.False(t, result.Success)
-				assert.Contains(t, result.Error, tt.expectedErrorMessage)
-				assert.Equal(t, 0, tracker.RemoveTaskCallCount())
+			assert.Equal(t, 1, mockClient.SendTaskCallCount())
+			_, params := mockClient.SendTaskArgsForCall(0)
+			if tt.wantContextID == "" {
+				assert.Nil(t, params.Message.ContextID, "independent task must not reuse the old context")
 			} else {
-				if result.Success {
-					assert.True(t, result.Success)
-				}
+				assert.NotNil(t, params.Message.ContextID)
+				assert.Equal(t, tt.wantContextID, *params.Message.ContextID)
+			}
+			if tt.wantResume {
+				assert.NotNil(t, params.Message.TaskID)
+				assert.Equal(t, existingTaskID, *params.Message.TaskID)
+			} else {
+				assert.Nil(t, params.Message.TaskID)
 			}
 		})
 	}
@@ -305,7 +297,7 @@ func TestA2ASubmitTaskTool_MultipleAgents(t *testing.T) {
 		},
 	}
 
-	t.Run("allows submission to different agents independently", func(t *testing.T) {
+	t.Run("allows submission to different agents while another agent has a working task", func(t *testing.T) {
 		tracker := &agentdomainmocks.FakeA2ATaskTracker{}
 		agentURL1 := "http://agent1.example.com"
 		agentURL2 := "http://agent2.example.com"
@@ -349,8 +341,7 @@ func TestA2ASubmitTaskTool_MultipleAgents(t *testing.T) {
 		result1, err := tool.Execute(context.Background(), args1)
 
 		assert.NoError(t, err)
-		assert.False(t, result1.Success)
-		assert.Contains(t, result1.Error, "existing task working-task-agent1 is still in working state on agent http://agent1.example.com")
+		assert.True(t, result1.Success, result1.Error)
 
 		args2 := map[string]any{
 			"agent_url":        agentURL2,

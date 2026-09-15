@@ -95,20 +95,6 @@ func (t *A2ASubmitTaskTool) shouldResumeTask(ctx context.Context, adkClient clie
 	return existingTask.Status.State, true, nil
 }
 
-func (t *A2ASubmitTaskTool) validateExistingTask(ctx context.Context, adkClient client.A2AClient, existingTaskID, agentURL string, args map[string]any, startTime time.Time) *agentdomain.ToolExecutionResult {
-	taskState, found, err := t.shouldResumeTask(ctx, adkClient, existingTaskID)
-	if err != nil || !found {
-		return nil
-	}
-
-	if taskState == adk.TaskStateWorking {
-		result, _ := t.errorResult(args, startTime, fmt.Sprintf("Cannot create new task: existing task %s is still in working state on agent %s. Wait for it to complete or use A2A_QueryTask to check status.", existingTaskID, agentURL))
-		return result
-	}
-
-	return nil
-}
-
 // Definition returns the tool definition for the LLM
 func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
 	description := t.config.Prompts.Tools.A2ASubmitTask.Description
@@ -128,6 +114,10 @@ func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
 						"type":        "string",
 						"description": "The question to ask or work to perform. Can be a question, task, action, or continuation of existing work",
 					},
+					"context_id": map[string]any{
+						"type":        "string",
+						"description": "Optional context ID from an earlier task to continue that conversation with the agent. Omit to start an independent task; independent tasks on the same agent run in parallel",
+					},
 				},
 				"required": []string{"agent_url", "task_description"},
 			},
@@ -135,7 +125,10 @@ func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
 	}
 }
 
-// Execute runs the tool with given arguments
+// Execute submits a task to an A2A agent. The agent's latest tracked task is
+// resumed only when it is input-required; otherwise the message opens a fresh
+// context so independent tasks on the same agent run in parallel. A caller
+// continues an earlier conversation deliberately by passing its context_id.
 //
 //nolint:gocyclo,cyclop,funlen
 func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
@@ -165,10 +158,13 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		return t.errorResult(args, startTime, "task_description parameter is required and must be a string")
 	}
 
-	var existingContextID string
+	requestedContextID, _ := args["context_id"].(string)
+	existingContextID := requestedContextID
 	var existingTaskID string
 	if t.taskTracker != nil {
-		existingContextID = t.taskTracker.GetLatestContextForAgent(agentURL)
+		if existingContextID == "" {
+			existingContextID = t.taskTracker.GetLatestContextForAgent(agentURL)
+		}
 		if existingContextID != "" {
 			existingTaskID = t.taskTracker.GetLatestTaskForContext(existingContextID)
 		}
@@ -183,10 +179,6 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		adkClient = client.NewClientWithConfig(cfg)
 	}
 
-	if result := t.validateExistingTask(ctx, adkClient, existingTaskID, agentURL, args, startTime); result != nil {
-		return result, nil
-	}
-
 	taskState, _, _ := t.shouldResumeTask(ctx, adkClient, existingTaskID)
 	shouldResume := taskState == adk.TaskStateInputRequired
 
@@ -198,12 +190,15 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		},
 	}
 
-	if shouldResume && existingTaskID != "" {
+	if shouldResume {
 		message.TaskID = &existingTaskID
 	}
 
-	if existingContextID != "" {
+	switch {
+	case shouldResume, requestedContextID != "":
 		message.ContextID = &existingContextID
+	default:
+		existingTaskID = ""
 	}
 
 	msgParams := adk.MessageSendParams{
@@ -243,7 +238,7 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 
 		isCompleted := submittedTask.Status.State == adk.TaskStateCompleted
 		isFailed := submittedTask.Status.State == adk.TaskStateFailed
-		if existingTaskID != "" && (isCompleted || isFailed) {
+		if shouldResume && (isCompleted || isFailed) {
 			t.taskTracker.RemoveTask(existingTaskID)
 			return t.errorResult(args, startTime, fmt.Sprintf("Previous task %s is already %s (cleared from tracker)", existingTaskID, submittedTask.Status.State))
 		}
