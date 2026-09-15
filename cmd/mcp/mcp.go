@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -12,6 +14,7 @@ import (
 	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
+	mcp "github.com/inference-gateway/cli/internal/mcp"
 )
 
 type command struct {
@@ -31,6 +34,13 @@ func NewCommand(renderer *output.Renderer) *cobra.Command {
 		Short: "List all configured MCP servers",
 		Long:  `Display all MCP servers configured in mcp.yaml with their details including status, URL, and tools.`,
 		RunE:  c.listMCPServers,
+	}
+	mcpStatusCmd := &cobra.Command{
+		Use:   "status [server]",
+		Short: "Probe configured MCP servers and report connection state and tool counts",
+		Long:  `Dial each enabled MCP server once (or only the named server) and report whether it is reachable and how many tools it exposes.`,
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  c.mcpStatus,
 	}
 	mcpAddCmd := &cobra.Command{
 		Use:   "add <name> [url]",
@@ -94,7 +104,7 @@ Example:
 		RunE:  c.disableMCPGlobal,
 	}
 
-	mcpCmd.AddCommand(mcpListCmd, mcpAddCmd, mcpRemoveCmd, mcpUpdateCmd, mcpEnableCmd, mcpDisableCmd, mcpEnableGlobalCmd, mcpDisableGlobalCmd)
+	mcpCmd.AddCommand(mcpListCmd, mcpStatusCmd, mcpAddCmd, mcpRemoveCmd, mcpUpdateCmd, mcpEnableCmd, mcpDisableCmd, mcpEnableGlobalCmd, mcpDisableGlobalCmd)
 
 	mcpAddCmd.Flags().String("description", "", "Description of the MCP server")
 	mcpAddCmd.Flags().Int("timeout", 0, "Connection timeout in seconds (overrides global)")
@@ -105,6 +115,8 @@ Example:
 	mcpAddCmd.Flags().String("oci", "", "OCI image to use (required if --run is true)")
 	mcpAddCmd.Flags().Int("port", 0, "Container port to expose")
 	mcpAddCmd.Flags().Int("startup-timeout", 60, "Startup timeout in seconds")
+
+	mcpStatusCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 
 	mcpUpdateCmd.Flags().String("url", "", "Update the server URL")
 	mcpUpdateCmd.Flags().String("description", "", "Update the description")
@@ -192,6 +204,52 @@ func (c *command) listMCPServers(cmd *cobra.Command, _ []string) error {
 
 	fmt.Println()
 	fmt.Println(c.renderer.StatusLegend())
+	return nil
+}
+
+func (c *command) mcpStatus(cmd *cobra.Command, args []string) error {
+	cfg, err := config.LoadMCP(getMCPConfigPath(cmd))
+	if err != nil {
+		return fmt.Errorf("failed to load MCP config: %w", err)
+	}
+
+	only := ""
+	if len(args) == 1 {
+		only = args[0]
+	}
+	report, err := mcp.ProbeStatus(context.Background(), cfg, only)
+	if err != nil {
+		return err
+	}
+
+	format, _ := cmd.Flags().GetString("format")
+	if format == "json" {
+		out, err := json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal MCP status: %w", err)
+		}
+		fmt.Println(string(out))
+		return nil
+	}
+
+	if !report.Enabled {
+		fmt.Println(c.renderer.Hint("MCP is disabled globally (infer mcp enable-global)"))
+	}
+	fmt.Println(c.renderer.Title(report.Indicator()))
+	if len(report.Servers) == 0 {
+		fmt.Println("No MCP servers configured.")
+		return nil
+	}
+	fmt.Println()
+	statusTable := c.renderer.NewListTable("Connected", "Name", "Tools", "Error")
+	for _, server := range report.Servers {
+		errText := server.Error
+		if errText == "" {
+			errText = "-"
+		}
+		statusTable.Row(c.renderer.StatusIcon(server.Connected), server.Name, fmt.Sprintf("%d", server.Tools), errText)
+	}
+	fmt.Println(statusTable.Render())
 	return nil
 }
 

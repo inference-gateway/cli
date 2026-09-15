@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
+	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 )
 
 type command struct {
@@ -35,8 +37,15 @@ This allows you to configure remote or local agents that can be used for delegat
 	agentsRemoveCmd := cmd.newRemoveCommand()
 	agentsShowCmd := cmd.newShowCommand()
 	agentsInitCmd := cmd.newInitCommand()
+	agentsStatusCmd := &cobra.Command{
+		Use:   "status [name]",
+		Short: "Probe configured A2A agents and report readiness",
+		Long:  `Fetch each configured agent's card once (or only the named agent) and report which agents are reachable.`,
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  cmd.agentsStatus,
+	}
 
-	agentsCmd.AddCommand(agentsAddCmd, agentsUpdateCmd, agentsListCmd, agentsRemoveCmd, agentsShowCmd, agentsInitCmd)
+	agentsCmd.AddCommand(agentsAddCmd, agentsUpdateCmd, agentsListCmd, agentsRemoveCmd, agentsShowCmd, agentsInitCmd, agentsStatusCmd)
 
 	agentsAddCmd.Flags().String("oci", "", "OCI image reference for local execution")
 	agentsAddCmd.Flags().String("tag", "", "Image tag for the agent's default image (browser-agent: chromium, firefox, webkit, lightpanda)")
@@ -55,6 +64,7 @@ This allows you to configure remote or local agents that can be used for delegat
 
 	agentsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	agentsShowCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	agentsStatusCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 
 	agentsCmd.PersistentFlags().Bool("project", false, "Apply to the project configuration (./.infer/) instead of the userspace baseline (~/.infer/)")
 
@@ -552,6 +562,75 @@ func (c *command) listAgents(cmd *cobra.Command, _ []string) error {
 	fmt.Println(agentsTable.Render())
 
 	fmt.Println()
+	return nil
+}
+
+func (c *command) agentsStatus(cmd *cobra.Command, args []string) error {
+	path, err := agentsConfigPath(cmd)
+	if err != nil {
+		return err
+	}
+	cfg, err := config.LoadAgents(path)
+	if err != nil {
+		return err
+	}
+
+	local := cfg.ListEntries()
+	external := []string{}
+	for _, agent := range extractExternalAgents(c.state.Config()) {
+		external = append(external, agent.URL)
+	}
+
+	if len(args) == 1 {
+		name := args[0]
+		local = filterAgents(local, name)
+		external = nil
+		for _, agent := range extractExternalAgents(c.state.Config()) {
+			if agent.Name == name {
+				external = append(external, agent.URL)
+			}
+		}
+		if len(local)+len(external) == 0 {
+			return fmt.Errorf("agent %q not found", name)
+		}
+	}
+
+	report := agentapp.ProbeAgents(context.Background(), local, external)
+
+	format, _ := cmd.Flags().GetString("format")
+	if format == "json" {
+		out, err := json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal agents status: %w", err)
+		}
+		fmt.Println(string(out))
+		return nil
+	}
+
+	fmt.Println(c.renderer.Title(fmt.Sprintf("A2A: %d/%d", report.ReadyAgents, report.TotalAgents)))
+	if len(report.Agents) == 0 {
+		fmt.Println("No agents configured.")
+		return nil
+	}
+	fmt.Println()
+	statusTable := c.renderer.NewListTable("Ready", "Name", "URL", "Error")
+	for _, agent := range report.Agents {
+		errText := agent.Error
+		if errText == "" {
+			errText = "-"
+		}
+		statusTable.Row(c.renderer.StatusIcon(agent.State == "Ready"), agent.Name, agent.URL, errText)
+	}
+	fmt.Println(statusTable.Render())
+	return nil
+}
+
+func filterAgents(agents []config.AgentEntry, name string) []config.AgentEntry {
+	for _, agent := range agents {
+		if agent.Name == name {
+			return []config.AgentEntry{agent}
+		}
+	}
 	return nil
 }
 

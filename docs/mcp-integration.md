@@ -155,6 +155,11 @@ infer chat
 
 Type `/help` to see available tools. MCP tools appear as `MCP_<server>_<tool>`.
 
+Outside of chat, `infer mcp status` dials each enabled server once and reports the same
+`connected/total (tools)` counts the status bar shows; `infer mcp status <server>` probes one
+server and `--format json` prints a machine-readable report (`total_servers`, `connected_servers`,
+`total_tools`, per-server `connected`, `tools`, `error`).
+
 ## Configuration
 
 ### Global Settings
@@ -325,6 +330,8 @@ MCP: 0/1    # 0 connected, 1 total (server down)
 MCP: 1/1    # 1 connected, 1 total (server healthy)
 MCP: 2/3    # 2 connected, 3 total (1 server down)
 ```
+
+`infer mcp status` reports the same counts from outside a chat session.
 
 ### Probe Behavior
 

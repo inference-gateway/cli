@@ -206,6 +206,7 @@ connections to specialized A2A agents for task delegation and distributed proces
 - `update <name> [flags]`: Update an existing agent's configuration
 - `list`: List all configured agents
 - `show <name>`: Show details for a specific agent
+- `status [name]`: Probe configured agents and report readiness (`--format json` for scripts)
 - `remove <name>`: Remove an agent from configuration
 
 **Update Flags:**
@@ -247,6 +248,10 @@ infer agents list
 
 # Show agent details
 infer agents show browser-agent
+
+# Probe readiness of every configured agent (or one by name)
+infer agents status
+infer agents status browser-agent --format json
 
 # Update agent URL
 infer agents update browser-agent --url http://browser-agent:9090
