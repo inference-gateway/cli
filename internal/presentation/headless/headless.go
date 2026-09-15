@@ -19,6 +19,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	container "github.com/inference-gateway/cli/internal/container"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
@@ -140,6 +141,10 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		waitCtx, waitCancel := context.WithTimeout(context.Background(), readyTimeout)
 		agentManager.WaitForAgentsReady(waitCtx)
 		waitCancel()
+	}
+
+	if mcpManager := svc.GetMCPManager(); mcpManager != nil {
+		discoverMCPTools(context.Background(), mcpManager, svc.GetToolRegistry())
 	}
 
 	listCtx, listCancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
@@ -508,4 +513,33 @@ func writeResultFile(path string, repo convdomain.ConversationRepository, sessio
 	if err := os.Rename(tmp, path); err != nil {
 		logger.Warn("failed to rename result file", "path", path, "error", err)
 	}
+}
+
+// discoverMCPTools registers MCP tools before the first turn. Chat mode does
+// this from the liveness-probe loop through the TUI handler; headless has no
+// UI loop, so probe every client once, in parallel, bounded by each server's
+// connection timeout.
+// ponytail: run:true container servers still starting in the background are
+// skipped here (their client is not initialized yet); wait on StartServers
+// if headless ever needs container-hosted MCP tools on the first turn.
+func discoverMCPTools(ctx context.Context, mcpManager agentdomain.MCPManager, registry *tools.Registry) {
+	if registry == nil {
+		return
+	}
+	var wg sync.WaitGroup
+	for _, mcpClient := range mcpManager.GetClients() {
+		wg.Add(1)
+		go func(mcpClient agentdomain.MCPClient) {
+			defer wg.Done()
+			discovered, err := mcpClient.DiscoverTools(ctx)
+			if err != nil {
+				logger.Warn("mcp tool discovery failed", "error", err)
+				return
+			}
+			for server, serverTools := range discovered {
+				registry.RegisterMCPServerTools(server, serverTools)
+			}
+		}(mcpClient)
+	}
+	wg.Wait()
 }
