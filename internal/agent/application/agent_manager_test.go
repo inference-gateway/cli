@@ -189,6 +189,19 @@ LOG_LEVEL=debug
 	require.Len(t, envMap, 3)
 }
 
+func TestAgentTelemetryEnv(t *testing.T) {
+	require.Nil(t, agentTelemetryEnv(""))
+
+	env := agentTelemetryEnv("http://localhost:4318/")
+	require.Equal(t, "true", env["A2A_TELEMETRY_ENABLED"])
+	require.Equal(t, "otlp", env["A2A_OTEL_TRACES_EXPORTER"])
+	require.Equal(t, "http/protobuf", env["A2A_OTEL_EXPORTER_OTLP_PROTOCOL"])
+	require.Equal(t, "http://host.docker.internal:4318/", env["A2A_OTEL_EXPORTER_OTLP_ENDPOINT"])
+
+	require.Equal(t, "http://host.docker.internal:4318", agentTelemetryEnv("http://127.0.0.1:4318")["A2A_OTEL_EXPORTER_OTLP_ENDPOINT"])
+	require.Equal(t, "https://otel.example.com:4318", agentTelemetryEnv("https://otel.example.com:4318")["A2A_OTEL_EXPORTER_OTLP_ENDPOINT"])
+}
+
 func TestSetURLPort(t *testing.T) {
 	cases := []struct {
 		in   string

@@ -541,6 +541,12 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 		env["A2A_QUEUE_CLEANUP_INTERVAL"] = "500s"
 	}
 
+	for key, value := range agentTelemetryEnv(am.otlpEndpoint()) {
+		if _, ok := env[key]; !ok {
+			env[key] = value
+		}
+	}
+
 	if agent.ArtifactsURL != "" {
 		env["A2A_ARTIFACTS_ENABLED"] = "true"
 		env["A2A_ARTIFACTS_SERVER_HOST"] = "0.0.0.0"
@@ -575,6 +581,43 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	am.containers[agent.Name] = containerID
 	am.containersMutex.Unlock()
 	return nil
+}
+
+// otlpEndpoint returns the CLI's OTLP collector endpoint, config first then
+// OTEL_EXPORTER_OTLP_ENDPOINT, or "" when export is disabled.
+func (am *AgentManager) otlpEndpoint() string {
+	if am.config != nil && am.config.Telemetry.OTLP.Endpoint != "" {
+		return am.config.Telemetry.OTLP.Endpoint
+	}
+	return os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+}
+
+// agentTelemetryEnv returns the ADK env that makes an agent container export
+// traces to the same collector the CLI uses. Loopback hosts are rewritten to
+// host.docker.internal since localhost inside the container is the container.
+// ponytail: assumes the collector is reachable from the container network; no
+// remote-collector or TLS handling.
+func agentTelemetryEnv(endpoint string) map[string]string {
+	if endpoint == "" {
+		return nil
+	}
+	if u, err := url.Parse(endpoint); err == nil {
+		switch u.Hostname() {
+		case "localhost", "127.0.0.1", "::1", "0.0.0.0":
+			if port := u.Port(); port != "" {
+				u.Host = "host.docker.internal:" + port
+			} else {
+				u.Host = "host.docker.internal"
+			}
+			endpoint = u.String()
+		}
+	}
+	return map[string]string{
+		"A2A_TELEMETRY_ENABLED":           "true",
+		"A2A_OTEL_TRACES_EXPORTER":        "otlp",
+		"A2A_OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+		"A2A_OTEL_EXPORTER_OTLP_ENDPOINT": endpoint,
+	}
 }
 
 // resolveAgentEnv resolves each agent-declared env var with first hit per key
