@@ -11,6 +11,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // aguiEncoder serializes headless agent output as AG-UI protocol events. It
@@ -79,8 +80,14 @@ func (e *aguiEncoder) streamText(delta string) {
 }
 
 // streamReasoning emits a reasoning delta, opening the turn's reasoning
-// message on the first delta.
+// message on the first delta. Reasoning always precedes text within one
+// assistant message, so reasoning arriving while text is open means a new
+// turn started without a completion event (a headless turn that continued
+// after draining background notes): close the previous message first.
 func (e *aguiEncoder) streamReasoning(delta string) {
+	if e.textOpen {
+		e.closeMessage()
+	}
 	if e.msgID == "" {
 		e.msgID = uuid.New().String()
 	}
@@ -137,6 +144,34 @@ func (e *aguiEncoder) emitToolResult(r *agentdomain.ToolExecutionResult) {
 
 func (e *aguiEncoder) emitTodos(todos []agentdomain.TodoItem) {
 	e.emit(aguievents.NewStateSnapshotEvent(map[string]any{"todos": todos}))
+}
+
+// emitQueuedMessage surfaces a note the supervisor landed on the queue (a
+// finished background job's result) that CheckingQueue drained into the
+// conversation, so a client can render it as its own entry instead of only
+// seeing the model's paraphrase.
+func (e *aguiEncoder) emitQueuedMessage(content string) {
+	e.closeMessage()
+	e.emit(aguievents.NewCustomEvent("queued_message",
+		aguievents.WithValue(map[string]string{"content": content})))
+}
+
+// emitBackgroundTasks publishes the supervisor's job snapshot so a client can
+// show a running-task count and list, mirroring the chat TUI's task view.
+func (e *aguiEncoder) emitBackgroundTasks(jobs []scheddomain.TrackedJob) {
+	running := 0
+	list := make([]map[string]any, 0, len(jobs))
+	for _, j := range jobs {
+		if j.Status == scheddomain.JobRunning {
+			running++
+		}
+		list = append(list, map[string]any{
+			"id": j.Meta.ID, "kind": string(j.Meta.Kind), "label": j.Meta.Label, "description": j.Meta.Description,
+			"detail": j.Meta.Detail, "status": string(j.Status), "started_at": j.Meta.StartedAt,
+		})
+	}
+	e.emit(aguievents.NewCustomEvent("background_tasks",
+		aguievents.WithValue(map[string]any{"running": running, "jobs": list})))
 }
 
 func (e *aguiEncoder) emitApprovalRequest(req ipc.ApprovalRequest) {

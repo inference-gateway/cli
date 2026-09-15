@@ -21,6 +21,7 @@ import (
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func emitJSON(w io.Writer, msg any, pretty bool) {
@@ -332,9 +333,19 @@ func RenderText(events <-chan agentdomain.ChatEvent, w io.Writer) error {
 // the paused (cancelled) run, same as RenderJSON. After the channel closes the
 // session stats from repo are attached to RUN_FINISHED's result, the AG-UI
 // counterpart of RenderJSON's session_stats line.
-func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository) error {
+// RenderAGUI streams the run as AG-UI events. jobs, when non-nil, is the
+// supervisor's snapshot and is published as a background_tasks event after every
+// tool result (a job may have been submitted) and every drained queue note (a
+// job just finished). ponytail: intermediate job state changes are not
+// published; bridge the UI notifier into the chat stream if a client needs them.
+func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob) error {
 	e := &aguiEncoder{w: w, threadID: sessionID}
 	e.emitRunStarted(sessionID)
+	snapshot := func() {
+		if jobs != nil {
+			e.emitBackgroundTasks(jobs())
+		}
+	}
 
 	var runErr error
 	for event := range events {
@@ -366,6 +377,12 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 					e.emitToolResult(r)
 				}
 			}
+			snapshot()
+		case agentdomain.MessageQueuedEvent:
+			if content, err := ev.Message.Content.AsMessageContent0(); err == nil && content != "" {
+				e.emitQueuedMessage(content)
+			}
+			snapshot()
 		case agentdomain.TodoUpdateChatEvent:
 			e.emitTodos(ev.Todos)
 		case agentdomain.JudgeVerdictChatEvent:

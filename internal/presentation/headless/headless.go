@@ -292,7 +292,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		})
 	}
 	rendered = true
-	err = renderStream(opts.Format, renderEvents, approvals, questions, sessionID, selectedModel, cfg, conversationRepo)
+	err = renderStream(opts.Format, renderEvents, approvals, questions, sessionID, selectedModel, cfg, conversationRepo, svc.GetBackgroundTaskRegistry().Snapshot)
 
 	endSessionSpan(sessionOutcome(err))
 	rec.RecordSession("headless", sessionOutcome(err), time.Since(sessionStart))
@@ -326,14 +326,14 @@ func selectModel(models []string, modelFlag, defaultModel string) (string, error
 // renderStream writes an event stream in the requested --format. Both an agent
 // run and a slash command's output go through it, so every format keeps the
 // same contract whichever produced the events.
-func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
+func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob) error {
 	switch format {
 	case "json":
 		return render.RenderJSON(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "json-pretty":
 		return render.RenderJSONPretty(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "ag-ui":
-		return render.RenderAGUI(events, os.Stdout, approvals, questions, sessionID, model, repo)
+		return render.RenderAGUI(events, os.Stdout, approvals, questions, sessionID, model, repo, jobs)
 	default:
 		return render.RenderText(events, os.Stdout)
 	}
@@ -355,7 +355,7 @@ func emitCommandResult(format string, repo convdomain.ConversationRepository, se
 	events <- agentdomain.ChatCompleteEvent{RequestID: sessionID, Timestamp: time.Now(), Message: text}
 	close(events)
 
-	return renderStream(format, events, nil, nil, sessionID, model, cfg, repo)
+	return renderStream(format, events, nil, nil, sessionID, model, cfg, repo, nil)
 }
 
 // compactSession is /compact outside the TUI: the rollover manager already runs
