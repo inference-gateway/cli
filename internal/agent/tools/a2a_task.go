@@ -12,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	baggage "go.opentelemetry.io/otel/baggage"
+	trace "go.opentelemetry.io/otel/trace"
+
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
@@ -262,7 +265,14 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 	}
 
 	if t.submitter != nil {
-		t.submitter.Submit(&a2aJob{tool: t, agentURL: agentURL, taskID: taskID, state: pollingState})
+		t.submitter.Submit(&a2aJob{
+			tool:     t,
+			agentURL: agentURL,
+			taskID:   taskID,
+			state:    pollingState,
+			spanCtx:  trace.SpanContextFromContext(ctx),
+			bag:      baggage.FromContext(ctx),
+		})
 	}
 
 	return &agentdomain.ToolExecutionResult{
