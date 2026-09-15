@@ -380,7 +380,7 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 			}
 			snapshot()
 		case agentdomain.MessageQueuedEvent:
-			if content, err := ev.Message.Content.AsMessageContent0(); err == nil && content != "" {
+			if content, err := ev.Message.Content.AsMessageContent0(); err == nil && content != "" && ev.RequestID != ipc.UserMessageRequestID {
 				e.emitQueuedMessage(content)
 			}
 			snapshot()

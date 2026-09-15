@@ -6,15 +6,19 @@ import (
 	"time"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	conversationmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *statemanager.StateManager) {
 	agent := &agentdomainmocks.FakeAgentService{}
 	sm := statemanager.NewStateManager(false)
-	return newHeadlessControl(agent, sm, "sess-1"), agent, sm
+	return newHeadlessControl(agent, sm, &conversationmocks.FakeMessageQueue{}, "sess-1"), agent, sm
 }
 
 func recvEvent(t *testing.T, ch <-chan agentdomain.ChatEvent) agentdomain.ChatEvent {
@@ -156,5 +160,23 @@ func TestHeadlessControl_ReadLinesSurvivesLargeLine(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("timed out waiting for the approval after a large line")
 		}
+	}
+}
+
+func TestHeadlessControl_UserMessage(t *testing.T) {
+	ctl, _, _ := newTestControl()
+	queue := ctl.messageQueue.(*conversationmocks.FakeMessageQueue)
+
+	ctl.dispatchLine([]byte(`{"type":"user_message","content":"finally open it"}`))
+	if queue.EnqueueCallCount() != 1 {
+		t.Fatalf("user_message enqueue calls = %d, want 1", queue.EnqueueCallCount())
+	}
+	if msg, reqID := queue.EnqueueArgsForCall(0); reqID != ipc.UserMessageRequestID || msg.Role != sdk.User {
+		t.Fatalf("enqueued (%+v, %q), want user role tagged %q", msg, reqID, ipc.UserMessageRequestID)
+	}
+
+	ctl.dispatchLine([]byte(`{"type":"user_message","content":""}`))
+	if queue.EnqueueCallCount() != 1 {
+		t.Fatal("empty user_message landed on the message queue")
 	}
 }

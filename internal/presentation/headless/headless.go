@@ -277,7 +277,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 	var approvals <-chan ipc.ApprovalResponse
 	var questions <-chan ipc.UserQuestionResponse
 	if opts.Format != "text" {
-		ctl := newHeadlessControl(agentService, svc.GetStateManager(), sessionID)
+		ctl := newHeadlessControl(agentService, svc.GetStateManager(), svc.GetMessageQueue(), sessionID)
 		go ctl.readLines(os.Stdin)
 		approvals = ctl.approvals
 		questions = ctl.questions
