@@ -48,6 +48,18 @@ type ComputerUseControlMessage struct {
 	Action string `json:"action"` // "pause" or "resume"
 }
 
+// UserMessage is a follow-up prompt a host UI writes to the agent's stdin while
+// a headless run is still alive (typically while it waits on background
+// tasks). It lands on the shared message queue and is drained as the next turn.
+type UserMessage struct {
+	Type    string `json:"type"` // "user_message"
+	Content string `json:"content"`
+}
+
+// UserMessageRequestID tags queue entries that came from a UserMessage so the
+// renderer can tell them apart from background-job result notes.
+const UserMessageRequestID = "stdin"
+
 // AgentErrorMessage is emitted by the agent on stdout when a fatal error occurs
 // before exiting. The channel manager forwards this to the user-facing channel
 // so users aren't left waiting in silence when the agent process fails.

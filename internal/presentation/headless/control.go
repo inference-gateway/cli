@@ -20,7 +20,8 @@ const resumeContinuePrompt = "Please continue from where you left off."
 
 // headlessControl is the single reader of the headless process's stdin. It
 // splits the IPC line stream into approval and user-question responses for the
-// renderer and computer_use_control actions, mirroring what the chat approval coordinator
+// renderer, user_message follow-ups for the shared message queue, and
+// computer_use_control actions, mirroring what the chat approval coordinator
 // does: pause cancels the in-flight request and sets the paused state; resume
 // restarts the run with a hidden continue message. Control actions surface on
 // ctrlEvents as the same domain events the renderers already handle. Both
@@ -33,16 +34,18 @@ const resumeContinuePrompt = "Please continue from where you left off."
 type headlessControl struct {
 	agentService agentdomain.AgentService
 	pauseState   agentdomain.ComputerUsePauseManager
+	messageQueue convdomain.MessageQueue
 	sessionID    string
 	approvals    chan ipc.ApprovalResponse
 	questions    chan ipc.UserQuestionResponse
 	ctrlEvents   chan agentdomain.ChatEvent
 }
 
-func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentdomain.ComputerUsePauseManager, sessionID string) *headlessControl {
+func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentdomain.ComputerUsePauseManager, messageQueue convdomain.MessageQueue, sessionID string) *headlessControl {
 	return &headlessControl{
 		agentService: agentService,
 		pauseState:   pauseState,
+		messageQueue: messageQueue,
 		sessionID:    sessionID,
 		approvals:    make(chan ipc.ApprovalResponse, 4),
 		questions:    make(chan ipc.UserQuestionResponse, 4),
@@ -87,6 +90,12 @@ func (c *headlessControl) dispatchLine(line []byte) {
 		if json.Unmarshal(line, &resp) == nil {
 			c.questions <- resp
 		}
+	case "user_message":
+		var msg ipc.UserMessage
+		if json.Unmarshal(line, &msg) != nil || msg.Content == "" || c.messageQueue == nil {
+			return
+		}
+		c.messageQueue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(msg.Content)}, ipc.UserMessageRequestID)
 	case "computer_use_control":
 		var ctrl ipc.ComputerUseControlMessage
 		if json.Unmarshal(line, &ctrl) != nil {
