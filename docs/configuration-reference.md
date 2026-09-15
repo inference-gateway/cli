@@ -77,8 +77,6 @@ infer config set agent.model "deepseek/deepseek-v4-pro" --project
 # Both layers are automatically merged when commands are run
 ```
 
-You can also specify a custom config file using the `--config` flag which will override the automatic 2-layer loading.
-
 ---
 
 ## Default Configuration

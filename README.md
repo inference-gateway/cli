@@ -682,8 +682,8 @@ export INFER_AGENT_MODEL="openai/gpt-4"
 # Or via config file
 infer config set agent.model "deepseek/deepseek-v4-pro"
 
-# Or via command flag
-infer chat --model "anthropic/claude-4"
+# Or via command flag (headless mode)
+infer headless --model "anthropic/claude-4" "Summarize this repository"
 ```
 
 ### Key Configuration Options
@@ -931,9 +931,9 @@ actions.
 **Project setup:**
 
 - `/init` - Generate an `AGENTS.md` by analyzing the project
-- `/init-github-action` - Set up a GitHub Action via an interactive wizard. Generates `.github/workflows/infer.yml`
-  pinned to the latest `infer-action` (issue/comment-triggered plus a manual `workflow_dispatch` mode, 15-minute job
-  timeout); pre-scans common locations for your GitHub App `.pem` key so selecting it is instant
+- `/install-opentask [owner/repo] [extra context...]` - Install the OpenTask GitHub workflow via the chat agent:
+  creates or updates `.github/workflows/tasks.yml` for `infer-action` on an install branch, then opens a pull
+  request (pass `[owner/repo]` to target a repo other than the current checkout)
 
 **Git Shortcuts** (created by `infer init`):
 
@@ -1340,7 +1340,10 @@ hooks:
 ## Global Flags
 
 - `-v, --verbose`: Enable verbose output
-- `--config <path>`: Specify custom config file path
+- `--no-colors`: Disable ANSI colors in command output (colors are also auto-disabled when stdout is not a terminal or `NO_COLOR` is set)
+- `--tools-bash-allow-append <cmds>`: Comma/newline-separated commands added to the bash allow-list in every mode
+  (`standard`, `plan`, `auto`); `INFER_TOOLS_BASH_ALLOW_APPEND` takes precedence
+- `--reminders-file <path>`: Path to a reminders YAML file, overriding project `.infer/` and `~/.infer/` reminders
 
 ## Examples
 
