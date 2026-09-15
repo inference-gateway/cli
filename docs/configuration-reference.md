@@ -170,9 +170,12 @@ tools:
     enabled: true
     allowed_domains:
       - golang.org
+      - localhost
+      - github.com
+      - raw.githubusercontent.com
       - agents.md
     safety:
-      max_size: 8192 # 8KB
+      max_size: 10485760 # 10MB
       timeout: 30 # 30 seconds
     cache:
       enabled: true
@@ -225,7 +228,7 @@ agent:
     6. Commit changes (only if explicitly asked)
     7. Create a pull request (only if explicitly asked)
   max_turns: 50 # Maximum number of turns for agent sessions
-  max_tokens: 4096 # The maximum number of tokens that can be generated per request
+  max_tokens: 8192 # The maximum number of tokens that can be generated per request
   max_concurrent_tools: 5 # Maximum concurrent tool executions
 chat:
   theme: tokyo-night
@@ -343,7 +346,7 @@ frames. Not to be confused with **gateway.vision_enabled**, which is an unrelate
 - **vision.annotator.model**: `provider/model` reference of the vision model to side-call through
   the configured gateway (default: `anthropic/claude-haiku-4-5-20251001`). The gateway also serves fully local
   models, so offline annotation is just a local provider (e.g. `ollama/qwen3-vl:2b`)
-- **vision.annotator.max_tokens**: Annotation response budget (default: 1024)
+- **vision.annotator.max_tokens**: Annotation response budget (default: 4096)
 - **vision.annotator.timeout**: Annotation timeout in seconds (default: 120)
 - **vision.sources.\<name\>**: Named frame sources beyond the built-in `screen` source (registered
   when computer-use screenshot streaming is on). Each entry: **type** (`directory`), **path** (newest
@@ -782,7 +785,7 @@ tools cannot read or edit it.
 > Set `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO` for the auto-accept counterpart - if you are migrating an existing
 > configuration, update your env vars to the new names above.
 
-- `INFER_AGENT_MAX_TURNS`: Maximum agent turns (default: `100`)
+- `INFER_AGENT_MAX_TURNS`: Maximum agent turns (default: `50`)
 - `INFER_AGENT_MAX_TOKENS`: Maximum tokens per response (default: `8192`)
 - `INFER_AGENT_MAX_CONCURRENT_TOOLS`: Maximum concurrent tool executions (default: `5`)
 
@@ -796,7 +799,7 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 
 ### Chat Configuration
 
-- `INFER_CHAT_THEME`: Chat UI theme (`light`, `dark`, `dracula`, `nord`, `solarized`, default: `dark`)
+- `INFER_CHAT_THEME`: Chat UI theme (`tokyo-night`, `github-light` or `dracula`, default: `tokyo-night`)
 
 ### Tools Configuration
 
@@ -889,13 +892,13 @@ tools:
 
 **Grep Tool Configuration:**
 
-- `INFER_TOOLS_GREP_BACKEND`: Grep backend to use (`ripgrep` or `grep`, default: `ripgrep`)
+- `INFER_TOOLS_GREP_BACKEND`: Grep backend to use (`auto`, `ripgrep` or `go`, default: `auto`)
 
 **WebSearch Tool Configuration:**
 
 - `INFER_TOOLS_WEB_SEARCH_DEFAULT_ENGINE`: Default search engine (`duckduckgo` or `google`, default: `duckduckgo`)
 - `INFER_TOOLS_WEB_SEARCH_MAX_RESULTS`: Maximum search results (default: `10`)
-- `INFER_TOOLS_WEB_SEARCH_TIMEOUT`: Search timeout in seconds (default: `30`)
+- `INFER_TOOLS_WEB_SEARCH_TIMEOUT`: Search timeout in seconds (default: `10`)
 
 **WebFetch Tool Configuration:**
 
@@ -903,8 +906,8 @@ tools:
 - `INFER_TOOLS_WEB_FETCH_SAFETY_TIMEOUT`: Fetch timeout in seconds (default: `30`)
 - `INFER_TOOLS_WEB_FETCH_SAFETY_ALLOW_REDIRECT`: Allow HTTP redirects (default: `true`)
 - `INFER_TOOLS_WEB_FETCH_CACHE_ENABLED`: Enable fetch caching (default: `true`)
-- `INFER_TOOLS_WEB_FETCH_CACHE_TTL`: Cache TTL in seconds (default: `900`)
-- `INFER_TOOLS_WEB_FETCH_CACHE_MAX_SIZE`: Maximum cache size in bytes (default: `104857600`)
+- `INFER_TOOLS_WEB_FETCH_CACHE_TTL`: Cache TTL in seconds (default: `3600`)
+- `INFER_TOOLS_WEB_FETCH_CACHE_MAX_SIZE`: Maximum cache size in bytes (default: `52428800`)
 
 **Sandbox Configuration:**
 
@@ -913,7 +916,7 @@ tools:
 ### Storage Configuration
 
 - `INFER_STORAGE_ENABLED`: Enable conversation storage (default: `true`)
-- `INFER_STORAGE_TYPE`: Storage backend type (`memory`, `sqlite`, `postgres`, `redis`, default: `sqlite`)
+- `INFER_STORAGE_TYPE`: Storage backend type (`memory`, `jsonl`, `sqlite`, `postgres`, `redis` or `d1`, default: `jsonl`)
 
 **SQLite Storage:**
 
@@ -926,7 +929,7 @@ tools:
 - `INFER_STORAGE_POSTGRES_DATABASE`: PostgreSQL database name
 - `INFER_STORAGE_POSTGRES_USERNAME`: PostgreSQL username
 - `INFER_STORAGE_POSTGRES_PASSWORD`: PostgreSQL password
-- `INFER_STORAGE_POSTGRES_SSL_MODE`: PostgreSQL SSL mode (default: `disable`)
+- `INFER_STORAGE_POSTGRES_SSL_MODE`: PostgreSQL SSL mode (default: `prefer`)
 
 **Redis Storage:**
 
@@ -949,9 +952,9 @@ tools:
 ### Conversation Configuration
 
 - `INFER_CONVERSATION_TITLE_GENERATION_ENABLED`: Enable AI-powered title generation (default: `true`)
-- `INFER_CONVERSATION_TITLE_GENERATION_MODEL`: Model for title generation (default: `anthropic/claude-4.1-haiku`)
-- `INFER_CONVERSATION_TITLE_GENERATION_BATCH_SIZE`: Batch size for title generation (default: `5`)
-- `INFER_CONVERSATION_TITLE_GENERATION_INTERVAL`: Interval in seconds between title generation attempts (default: `30`)
+- `INFER_CONVERSATION_TITLE_GENERATION_MODEL`: Model for title generation (default: empty, falls back to `agent.model`)
+- `INFER_CONVERSATION_TITLE_GENERATION_BATCH_SIZE`: Batch size for title generation (default: `10`)
+- `INFER_CONVERSATION_TITLE_GENERATION_INTERVAL`: Interval in seconds between title generation attempts (default: unset, falls back to 5 minutes)
 
 ### A2A (Agent-to-Agent) Configuration
 
@@ -980,18 +983,18 @@ http://browser-agent:8080
 
 **A2A Task Configuration:**
 
-- `INFER_A2A_TASK_STATUS_POLL_SECONDS`: Status polling interval in seconds (default: `10`)
+- `INFER_A2A_TASK_STATUS_POLL_SECONDS`: Status polling interval in seconds (default: `5`)
 - `INFER_A2A_TASK_POLLING_STRATEGY`: Polling strategy (`fixed` or `exponential`, default: `exponential`)
 - `INFER_A2A_TASK_INITIAL_POLL_INTERVAL_SEC`: Initial polling interval for exponential strategy (default: `2`)
-- `INFER_A2A_TASK_MAX_POLL_INTERVAL_SEC`: Maximum polling interval for exponential strategy (default: `30`)
-- `INFER_A2A_TASK_BACKOFF_MULTIPLIER`: Backoff multiplier for exponential strategy (default: `1.5`)
+- `INFER_A2A_TASK_MAX_POLL_INTERVAL_SEC`: Maximum polling interval for exponential strategy (default: `60`)
+- `INFER_A2A_TASK_BACKOFF_MULTIPLIER`: Backoff multiplier for exponential strategy (default: `2.0`)
 - `INFER_A2A_TASK_BACKGROUND_MONITORING`: Enable background task monitoring (default: `true`)
-- `INFER_A2A_TASK_COMPLETED_TASK_RETENTION`: Completed task retention in seconds (default: `3600`)
+- `INFER_A2A_TASK_COMPLETED_TASK_RETENTION`: Number of completed tasks kept in the tracker (default: `5`)
 
 **A2A Individual Tool Configuration:**
 
 - `INFER_A2A_TOOLS_SUBMIT_TASK_ENABLED`: Enable/disable A2A SubmitTask tool (default: `true`)
-- `INFER_A2A_TOOLS_SUBMIT_TASK_REQUIRE_APPROVAL`: Require approval for SubmitTask (default: `false`)
+- `INFER_A2A_TOOLS_SUBMIT_TASK_REQUIRE_APPROVAL`: Require approval for SubmitTask (default: `true`)
 - `INFER_A2A_TOOLS_QUERY_AGENT_ENABLED`: Enable/disable A2A QueryAgent tool (default: `true`)
 - `INFER_A2A_TOOLS_QUERY_AGENT_REQUIRE_APPROVAL`: Require approval for QueryAgent (default: `false`)
 - `INFER_A2A_TOOLS_QUERY_TASK_ENABLED`: Enable/disable A2A QueryTask tool (default: `true`)
@@ -999,16 +1002,16 @@ http://browser-agent:8080
 
 ### Export Configuration
 
-- `INFER_EXPORT_OUTPUT_DIR`: Output directory for exported conversations (default: `./exports`)
+- `INFER_EXPORT_OUTPUT_DIR`: Output directory for exported conversations (default: empty, writes to `~/.infer/projects/<project-slug>/exports`)
 
 ### Compact Configuration
 
 - `INFER_COMPACT_ENABLED`: Enable automatic conversation compaction (default: `true`)
-- `INFER_COMPACT_AUTO_AT`: Auto-compact after N messages (default: `100`)
+- `INFER_COMPACT_AUTO_AT`: Percentage of the context window (20-100) at which to auto-compact (default: `80`)
 
 ### Git Configuration
 
-- `INFER_GIT_COMMIT_MESSAGE_MODEL`: Model for AI-generated commit messages (default: `deepseek/deepseek-v4-pro`)
+- `INFER_GIT_COMMIT_MESSAGE_MODEL`: Model for AI-generated commit messages (default: empty, falls back to `agent.model`)
 
 ### SCM Configuration
 

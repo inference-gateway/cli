@@ -461,7 +461,7 @@ tools:
       - golang.org
       - github.com
     safety:
-      max_size: 8192  # 8KB
+      max_size: 10485760  # 10MB
       timeout: 30
     cache:
       enabled: true

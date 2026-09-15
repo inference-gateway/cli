@@ -588,9 +588,9 @@ infer conversation-title daemon
 conversation:
   title_generation:
     enabled: true
-    model: "deepseek/deepseek-v4-pro"
-    batch_size: 5
-    interval: 30  # seconds between generation attempts
+    model: "" # falls back to agent.model
+    batch_size: 10
+    interval: 300  # seconds between generation attempts (default: 300 = 5 minutes)
 ```
 
 For more details, see the [Conversation Title Generation](conversation-title-generation.md) documentation.
