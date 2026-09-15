@@ -1,12 +1,16 @@
 package tools
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
 
 	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	baggage "go.opentelemetry.io/otel/baggage"
+	trace "go.opentelemetry.io/otel/trace"
 
 	adk "github.com/inference-gateway/adk/types"
 
@@ -52,6 +56,56 @@ func TestA2AJob_PollsRemoteTaskToCompletion(t *testing.T) {
 	}
 	if tracker.GetPollingState("t1") != nil {
 		t.Fatalf("StopPolling was not called when the task completed")
+	}
+}
+
+// TestA2AJob_PollsUnderSubmitSpan verifies the polling loop re-attaches the
+// submit span's trace context and baggage, so each remote poll carries the
+// session traceparent instead of starting a fresh trace.
+func TestA2AJob_PollsUnderSubmitSpan(t *testing.T) {
+	cfg := &config.Config{
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools:   config.A2AToolsConfig{SubmitTask: config.SubmitTaskToolConfig{Enabled: true}},
+			Task:    config.A2ATaskConfig{StatusPollSeconds: 1},
+		},
+	}
+	tracker := utils.NewA2ATaskTracker()
+	queue := &convmocks.FakeMessageQueue{}
+	sup := jobs.NewSupervisor(queue, &convmocks.FakeConversationRepository{}, nil)
+	defer sup.Stop()
+
+	completed := adk.Task{ID: "t1", Status: adk.TaskStatus{State: adk.TaskStateCompleted}}
+	mockClient := &adkmocks.FakeA2AClient{}
+	mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: completed}, nil)
+
+	spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    trace.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		SpanID:     trace.SpanID{1, 2, 3, 4, 5, 6, 7, 8},
+		TraceFlags: trace.FlagsSampled,
+	})
+	member, _ := baggage.NewMember("session.id", "s1")
+	bag, _ := baggage.New(member)
+
+	tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, sup, mockClient)
+	state := &agentdomain.TaskPollingState{TaskID: "t1", AgentURL: "http://agent", StartedAt: time.Now()}
+	tracker.StartPolling("t1", state)
+	sup.Submit(&a2aJob{tool: tool, agentURL: "http://agent", taskID: "t1", state: state, spanCtx: spanCtx, bag: bag})
+
+	deadline := time.Now().Add(5 * time.Second)
+	for mockClient.GetTaskCallCount() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if mockClient.GetTaskCallCount() == 0 {
+		t.Fatal("GetTask was never called")
+	}
+	var pollCtx context.Context
+	pollCtx, _ = mockClient.GetTaskArgsForCall(0)
+	if got := trace.SpanContextFromContext(pollCtx); got.TraceID() != spanCtx.TraceID() || got.SpanID() != spanCtx.SpanID() {
+		t.Fatalf("poll context span = %v, want %v", got, spanCtx)
+	}
+	if got := baggage.FromContext(pollCtx).Member("session.id").Value(); got != "s1" {
+		t.Fatalf("poll context baggage session.id = %q, want s1", got)
 	}
 }
 

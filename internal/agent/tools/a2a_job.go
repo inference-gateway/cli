@@ -6,6 +6,9 @@ import (
 	"sync"
 	"time"
 
+	baggage "go.opentelemetry.io/otel/baggage"
+	trace "go.opentelemetry.io/otel/trace"
+
 	adk "github.com/inference-gateway/adk/types"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -21,6 +24,8 @@ type a2aJob struct {
 	agentURL       string
 	taskID         string
 	state          *agentdomain.TaskPollingState
+	spanCtx        trace.SpanContext
+	bag            baggage.Baggage
 	mu             sync.RWMutex
 	lastKnownState string
 }
@@ -41,7 +46,14 @@ func (j *a2aJob) Meta() scheddomain.JobMeta {
 // Run polls the remote agent until the task terminates. It records each remote
 // state change through the emit wrapper so A2APollingState can report the live
 // status to the task view without racing the poll goroutine on the shared state.
+//
+// The supervisor runs jobs under a fresh context, so the submit span's trace
+// context and baggage are re-attached here: every poll then carries the
+// session traceparent and the remote agent's spans nest under the submit span
+// instead of starting a new trace per poll.
 func (j *a2aJob) Run(ctx context.Context, emit func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
+	ctx = trace.ContextWithSpanContext(ctx, j.spanCtx)
+	ctx = baggage.ContextWithBaggage(ctx, j.bag)
 	return j.tool.runA2APolling(ctx, j.agentURL, j.taskID, j.state, func(sig scheddomain.JobSignal) {
 		j.recordState(sig.State)
 		if emit != nil {
