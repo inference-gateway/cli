@@ -189,6 +189,21 @@ LOG_LEVEL=debug
 	require.Len(t, envMap, 3)
 }
 
+func TestApplyModelFallback(t *testing.T) {
+	env := map[string]string{}
+	applyModelFallback(env, "ollama_cloud/glm-5.3-flash")
+	require.Equal(t, "ollama_cloud", env["A2A_AGENT_CLIENT_PROVIDER"])
+	require.Equal(t, "glm-5.3-flash", env["A2A_AGENT_CLIENT_MODEL"])
+
+	own := map[string]string{"A2A_AGENT_CLIENT_PROVIDER": "openai", "A2A_AGENT_CLIENT_MODEL": "gpt-5"}
+	applyModelFallback(own, "ollama_cloud/glm-5.3-flash")
+	require.Equal(t, "gpt-5", own["A2A_AGENT_CLIENT_MODEL"])
+
+	empty := map[string]string{}
+	applyModelFallback(empty, "")
+	require.Empty(t, empty)
+}
+
 func TestAgentTelemetryEnv(t *testing.T) {
 	require.Nil(t, agentTelemetryEnv(""))
 

@@ -172,9 +172,6 @@ Examples:
 				if !cmd.Flags().Changed("run") {
 					run = defaults.Run
 				}
-				if !cmd.Flags().Changed("model") && defaults.Model != "" {
-					model = defaults.Model
-				}
 				if !cmd.Flags().Changed("environment") && defaults.Environment != nil {
 					environment = defaults.Environment
 				} else if cmd.Flags().Changed("environment") && defaults.Environment != nil {
@@ -360,6 +357,16 @@ func requiresModel(name string, run bool) bool {
 	return config.AgentRequiresModel(name, run)
 }
 
+// checkModel rejects a locally run LLM-backed agent that has no model to
+// start with: neither its own entry nor the CLI's agent.model, which
+// `infer agents start` applies to entries without a model.
+func (c *command) checkModel(name, model string, run bool) error {
+	if model != "" || !requiresModel(name, run) || strings.TrimSpace(c.state.Config().Agent.Model) != "" {
+		return nil
+	}
+	return fmt.Errorf("--model is required when --run is enabled and no default model is configured (agent.model). Specify a model in the format provider/model (e.g., openai/gpt-5, anthropic/claude-4-5-sonnet)")
+}
+
 // resolveTagFlag turns --tag into a full OCI reference against the agent's
 // default image, or returns an empty string when the flag was not used.
 func resolveTagFlag(cmd *cobra.Command, name string) (string, error) {
@@ -374,8 +381,8 @@ func resolveTagFlag(cmd *cobra.Command, name string) (string, error) {
 }
 
 func (c *command) addAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bool, model string, environment map[string]string) error {
-	if model == "" && requiresModel(name, run) {
-		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-5, anthropic/claude-4-5-sonnet)")
+	if err := c.checkModel(name, model, run); err != nil {
+		return err
 	}
 
 	path, err := agentsConfigPath(cmd)
@@ -457,8 +464,8 @@ func (c *command) updateAgent(cmd *cobra.Command, name, url, artifactsURL, oci s
 		agent.Environment = environment
 	}
 
-	if agent.Model == "" && requiresModel(name, agent.Run) {
-		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-5, anthropic/claude-4-5-sonnet)")
+	if err := c.checkModel(name, agent.Model, agent.Run); err != nil {
+		return err
 	}
 
 	if err := cfg.UpdateEntry(agent); err != nil {

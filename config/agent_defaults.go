@@ -12,7 +12,6 @@ type AgentDefaults struct {
 	ArtifactsURL  string
 	OCI           string
 	Run           bool
-	Model         string
 	RequiresModel bool
 	Environment   map[string]string
 }
@@ -24,7 +23,6 @@ var agentBaseDefaults = map[string]struct {
 	ArtifactsPortOffset int
 	OCI                 string
 	Run                 bool
-	Model               string
 	RequiresModel       bool
 	Environment         map[string]string
 }{
@@ -33,7 +31,6 @@ var agentBaseDefaults = map[string]struct {
 		ArtifactsPortOffset: 1,
 		OCI:                 "ghcr.io/inference-gateway/browser-agent:latest",
 		Run:                 true,
-		Model:               "deepseek/deepseek-v4-flash",
 		RequiresModel:       true,
 		Environment: map[string]string{
 			"A2A_AGENT_CLIENT_TOOLS_CREATE_ARTIFACT": "true",
@@ -48,21 +45,18 @@ var agentBaseDefaults = map[string]struct {
 		BasePort:      8082,
 		OCI:           "ghcr.io/inference-gateway/google-calendar-agent:latest",
 		Run:           true,
-		Model:         "deepseek/deepseek-v4-flash",
 		RequiresModel: true,
 	},
 	"documentation-agent": {
 		BasePort:      8085,
 		OCI:           "ghcr.io/inference-gateway/documentation-agent:latest",
 		Run:           true,
-		Model:         "deepseek/deepseek-v4-flash",
 		RequiresModel: true,
 	},
 	"n8n-agent": {
 		BasePort:      8086,
 		OCI:           "ghcr.io/inference-gateway/n8n-agent:latest",
 		Run:           true,
-		Model:         "deepseek/deepseek-v4-flash",
 		RequiresModel: true,
 	},
 }
@@ -117,7 +111,6 @@ func GetAgentDefaults(name string) *AgentDefaults {
 			URL:           fmt.Sprintf("http://localhost:%d", mainPort),
 			OCI:           template.OCI,
 			Run:           template.Run,
-			Model:         template.Model,
 			RequiresModel: template.RequiresModel,
 			Environment:   template.Environment,
 		}
