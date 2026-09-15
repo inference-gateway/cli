@@ -25,7 +25,7 @@ require (
 	github.com/go-vgo/robotgo v1.0.3-0.20260708194349-766c6abccc40
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/inference-gateway/adk v0.26.6
+	github.com/inference-gateway/adk v0.27.0
 	github.com/inference-gateway/sdk v1.37.2
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.12.3
