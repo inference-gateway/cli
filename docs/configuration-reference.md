@@ -77,8 +77,6 @@ infer config set agent.model "deepseek/deepseek-v4-pro" --project
 # Both layers are automatically merged when commands are run
 ```
 
-You can also specify a custom config file using the `--config` flag which will override the automatic 2-layer loading.
-
 ---
 
 ## Default Configuration
@@ -92,7 +90,7 @@ gateway:
   timeout: 200
   oci: ghcr.io/inference-gateway/inference-gateway:latest  # OCI image for Docker mode
   run: true    # Automatically run the gateway (enabled by default)
-  docker: true  # Use Docker mode by default (set to false for binary mode)
+  standalone_binary: true  # Run the gateway as a standalone binary (default; set false for Docker mode)
   include_models: []  # Optional: only allow specific models (allowlist)
   exclude_models: []  # Optional: blocklist of specific models (opt-in; the picker already hides non-chat models by modalities)
 client:
@@ -170,9 +168,12 @@ tools:
     enabled: true
     allowed_domains:
       - golang.org
+      - localhost
+      - github.com
+      - raw.githubusercontent.com
       - agents.md
     safety:
-      max_size: 8192 # 8KB
+      max_size: 10485760 # 10MB
       timeout: 30 # 30 seconds
     cache:
       enabled: true
@@ -201,31 +202,9 @@ tools:
     approval_behaviour: prompt
 agent:
   model: "" # Default model for agent operations
-  system_prompt: | # System prompt for agent sessions
-    Autonomous software engineering agent. Execute tasks iteratively until completion.
-
-    IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
-    IMPORTANT: You NEVER read all the README.md - start by reading 300 lines
-
-    RULES:
-    - Security: Defensive only (analysis, detection, docs)
-    - Style: no emojis/comments unless asked, use conventional commits
-    - Code: Follow existing patterns, check deps, no secrets
-    - Tasks: Use TodoWrite, mark progress immediately
-    - Chat exports: Read only "## Summary" to "---" section
-    - Tools: Batch calls, prefer Grep for search
-
-    WORKFLOW:
-    When asked to implement features or fix issues:
-    1. Plan with TodoWrite
-    2. Search codebase to understand context
-    3. Implement solution
-    4. Run tests with: task test
-    5. Run lint/format with: task fmt and task lint
-    6. Commit changes (only if explicitly asked)
-    7. Create a pull request (only if explicitly asked)
+  # System prompts and custom instructions live in prompts.yaml (prompts.agent.*), not in config.yaml
   max_turns: 50 # Maximum number of turns for agent sessions
-  max_tokens: 4096 # The maximum number of tokens that can be generated per request
+  max_tokens: 8192 # The maximum number of tokens that can be generated per request
   max_concurrent_tools: 5 # Maximum concurrent tool executions
 chat:
   theme: tokyo-night
@@ -259,9 +238,9 @@ compact:
 - **gateway.run**: Automatically run the gateway on startup (default: `true`)
   - When enabled, the CLI automatically starts the gateway before running commands
   - The gateway runs in the background and shuts down when the CLI exits
-- **gateway.docker**: Use Docker instead of binary mode (default: `true`)
-  - `true` (default): Uses Docker to run the gateway container (requires Docker installed)
-  - `false`: Downloads and runs the gateway as a binary (no Docker required)
+- **gateway.standalone_binary**: Run the gateway as a standalone binary instead of a Docker container (default: `true`)
+  - `true` (default): Downloads and runs the gateway as a binary (no Docker required)
+  - `false`: Uses Docker to run the gateway container (requires Docker installed; the image comes from `gateway.oci`)
 - **gateway.oci**: OCI image to use for Docker mode (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
 - **gateway.include_models**: Only allow specific models (allowlist approach, default: `[]`, allows all models)
   - When set, only the specified models will be allowed by the gateway
@@ -343,7 +322,7 @@ frames. Not to be confused with **gateway.vision_enabled**, which is an unrelate
 - **vision.annotator.model**: `provider/model` reference of the vision model to side-call through
   the configured gateway (default: `anthropic/claude-haiku-4-5-20251001`). The gateway also serves fully local
   models, so offline annotation is just a local provider (e.g. `ollama/qwen3-vl:2b`)
-- **vision.annotator.max_tokens**: Annotation response budget (default: 1024)
+- **vision.annotator.max_tokens**: Annotation response budget (default: 4096)
 - **vision.annotator.timeout**: Annotation timeout in seconds (default: 120)
 - **vision.sources.\<name\>**: Named frame sources beyond the built-in `screen` source (registered
   when computer-use screenshot streaming is on). Each entry: **type** (`directory`), **path** (newest
@@ -376,11 +355,13 @@ vision:
 ### Agent Settings
 
 - **agent.model**: Default model for agent operations
-- **agent.system_prompt**: System prompt included with every agent session. It stays byte-stable for the whole session - including
-  across agent-mode switches (Shift+Tab) - so local LLM servers keep KV-cache prefix hits
-- **agent.mode_adjustment_plan**: Optional per-mode instructions (NOT a system prompt) delivered as the `{guidance}` of the mode-change
+- System prompts and custom instructions are not `config.yaml` `agent.*` keys: they live in `prompts.yaml` under
+  `prompts.agent.system_prompt` and `prompts.agent.custom_instructions` (env: `INFER_PROMPTS_AGENT_SYSTEM_PROMPT`,
+  `INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS`). The system prompt stays byte-stable for the whole session - including
+  across agent-mode switches (Shift+Tab) - so local LLM servers keep KV-cache prefix hits.
+- **prompts.agent.mode_adjustment_plan** (prompts.yaml): Optional per-mode instructions (NOT a system prompt) delivered as the `{guidance}` of the mode-change
   reminder when the agent enters Plan Mode. Ships empty; the built-ins live in the mode-change-reminder guidance in reminders.yaml.
-- **agent.mode_adjustment_auto**: Same for auto-accept mode, carrying the destructive-action policy.
+- **prompts.agent.mode_adjustment_auto** (prompts.yaml): Same for auto-accept mode, carrying the destructive-action policy.
 - System reminders are configured in their own `reminders.yaml`, not under `agent:` - see [System Reminders](#system-reminders-remindersyaml) below.
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
@@ -747,7 +728,7 @@ tools cannot read or edit it.
 - `INFER_GATEWAY_TIMEOUT`: Gateway request timeout in seconds (default: `200`)
 - `INFER_GATEWAY_OCI`: OCI image for gateway (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
 - `INFER_GATEWAY_RUN`: Auto-run gateway if not running (default: `true`)
-- `INFER_GATEWAY_DOCKER`: Use Docker to run gateway (default: `true`)
+- `INFER_GATEWAY_STANDALONE_BINARY`: Run the gateway as a standalone binary instead of a Docker container (default: `true`)
 
 ### Client Configuration
 
@@ -782,7 +763,7 @@ tools cannot read or edit it.
 > Set `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO` for the auto-accept counterpart - if you are migrating an existing
 > configuration, update your env vars to the new names above.
 
-- `INFER_AGENT_MAX_TURNS`: Maximum agent turns (default: `100`)
+- `INFER_AGENT_MAX_TURNS`: Maximum agent turns (default: `50`)
 - `INFER_AGENT_MAX_TOKENS`: Maximum tokens per response (default: `8192`)
 - `INFER_AGENT_MAX_CONCURRENT_TOOLS`: Maximum concurrent tool executions (default: `5`)
 
@@ -796,7 +777,7 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 
 ### Chat Configuration
 
-- `INFER_CHAT_THEME`: Chat UI theme (`light`, `dark`, `dracula`, `nord`, `solarized`, default: `dark`)
+- `INFER_CHAT_THEME`: Chat UI theme (`tokyo-night`, `github-light` or `dracula`, default: `tokyo-night`)
 
 ### Tools Configuration
 
@@ -817,8 +798,7 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 
 **Tool Approval Configuration:**
 
-- `INFER_TOOLS_BASH_REQUIRE_APPROVAL`: Require approval for Bash tool (default:
-  `false`)
+- `INFER_TOOLS_BASH_REQUIRE_APPROVAL`: Require approval for Bash tool (default: unset)
 - `INFER_TOOLS_WRITE_REQUIRE_APPROVAL`: Require approval for Write tool (default: `true`)
 - `INFER_TOOLS_EDIT_REQUIRE_APPROVAL`: Require approval for Edit tool (default: `true`)
 - `INFER_TOOLS_DELETE_REQUIRE_APPROVAL`: Require approval for Delete tool (default:
@@ -889,22 +869,21 @@ tools:
 
 **Grep Tool Configuration:**
 
-- `INFER_TOOLS_GREP_BACKEND`: Grep backend to use (`ripgrep` or `grep`, default: `ripgrep`)
+- `INFER_TOOLS_GREP_BACKEND`: Grep backend to use (`auto`, `ripgrep` or `go`, default: `auto`)
 
 **WebSearch Tool Configuration:**
 
 - `INFER_TOOLS_WEB_SEARCH_DEFAULT_ENGINE`: Default search engine (`duckduckgo` or `google`, default: `duckduckgo`)
 - `INFER_TOOLS_WEB_SEARCH_MAX_RESULTS`: Maximum search results (default: `10`)
-- `INFER_TOOLS_WEB_SEARCH_TIMEOUT`: Search timeout in seconds (default: `30`)
+- `INFER_TOOLS_WEB_SEARCH_TIMEOUT`: Search timeout in seconds (default: `10`)
 
 **WebFetch Tool Configuration:**
 
 - `INFER_TOOLS_WEB_FETCH_SAFETY_MAX_SIZE`: Maximum fetch size in bytes (default: `10485760`)
 - `INFER_TOOLS_WEB_FETCH_SAFETY_TIMEOUT`: Fetch timeout in seconds (default: `30`)
-- `INFER_TOOLS_WEB_FETCH_SAFETY_ALLOW_REDIRECT`: Allow HTTP redirects (default: `true`)
 - `INFER_TOOLS_WEB_FETCH_CACHE_ENABLED`: Enable fetch caching (default: `true`)
-- `INFER_TOOLS_WEB_FETCH_CACHE_TTL`: Cache TTL in seconds (default: `900`)
-- `INFER_TOOLS_WEB_FETCH_CACHE_MAX_SIZE`: Maximum cache size in bytes (default: `104857600`)
+- `INFER_TOOLS_WEB_FETCH_CACHE_TTL`: Cache TTL in seconds (default: `3600`)
+- `INFER_TOOLS_WEB_FETCH_CACHE_MAX_SIZE`: Maximum cache size in bytes (default: `52428800`)
 
 **Sandbox Configuration:**
 
@@ -913,7 +892,7 @@ tools:
 ### Storage Configuration
 
 - `INFER_STORAGE_ENABLED`: Enable conversation storage (default: `true`)
-- `INFER_STORAGE_TYPE`: Storage backend type (`memory`, `sqlite`, `postgres`, `redis`, default: `sqlite`)
+- `INFER_STORAGE_TYPE`: Storage backend type (`memory`, `jsonl`, `sqlite`, `postgres`, `redis` or `d1`, default: `jsonl`)
 
 **SQLite Storage:**
 
@@ -926,7 +905,7 @@ tools:
 - `INFER_STORAGE_POSTGRES_DATABASE`: PostgreSQL database name
 - `INFER_STORAGE_POSTGRES_USERNAME`: PostgreSQL username
 - `INFER_STORAGE_POSTGRES_PASSWORD`: PostgreSQL password
-- `INFER_STORAGE_POSTGRES_SSL_MODE`: PostgreSQL SSL mode (default: `disable`)
+- `INFER_STORAGE_POSTGRES_SSL_MODE`: PostgreSQL SSL mode (default: `prefer`)
 
 **Redis Storage:**
 
@@ -949,9 +928,9 @@ tools:
 ### Conversation Configuration
 
 - `INFER_CONVERSATION_TITLE_GENERATION_ENABLED`: Enable AI-powered title generation (default: `true`)
-- `INFER_CONVERSATION_TITLE_GENERATION_MODEL`: Model for title generation (default: `anthropic/claude-4.1-haiku`)
-- `INFER_CONVERSATION_TITLE_GENERATION_BATCH_SIZE`: Batch size for title generation (default: `5`)
-- `INFER_CONVERSATION_TITLE_GENERATION_INTERVAL`: Interval in seconds between title generation attempts (default: `30`)
+- `INFER_CONVERSATION_TITLE_GENERATION_MODEL`: Model for title generation (default: empty, falls back to `agent.model`)
+- `INFER_CONVERSATION_TITLE_GENERATION_BATCH_SIZE`: Batch size for title generation (default: `10`)
+- `INFER_CONVERSATION_TITLE_GENERATION_INTERVAL`: Interval in seconds between title generation attempts (default: unset, falls back to 5 minutes)
 
 ### A2A (Agent-to-Agent) Configuration
 
@@ -980,18 +959,17 @@ http://browser-agent:8080
 
 **A2A Task Configuration:**
 
-- `INFER_A2A_TASK_STATUS_POLL_SECONDS`: Status polling interval in seconds (default: `10`)
+- `INFER_A2A_TASK_STATUS_POLL_SECONDS`: Status polling interval in seconds (default: `5`)
 - `INFER_A2A_TASK_POLLING_STRATEGY`: Polling strategy (`fixed` or `exponential`, default: `exponential`)
 - `INFER_A2A_TASK_INITIAL_POLL_INTERVAL_SEC`: Initial polling interval for exponential strategy (default: `2`)
-- `INFER_A2A_TASK_MAX_POLL_INTERVAL_SEC`: Maximum polling interval for exponential strategy (default: `30`)
-- `INFER_A2A_TASK_BACKOFF_MULTIPLIER`: Backoff multiplier for exponential strategy (default: `1.5`)
-- `INFER_A2A_TASK_BACKGROUND_MONITORING`: Enable background task monitoring (default: `true`)
-- `INFER_A2A_TASK_COMPLETED_TASK_RETENTION`: Completed task retention in seconds (default: `3600`)
+- `INFER_A2A_TASK_MAX_POLL_INTERVAL_SEC`: Maximum polling interval for exponential strategy (default: `60`)
+- `INFER_A2A_TASK_BACKOFF_MULTIPLIER`: Backoff multiplier for exponential strategy (default: `2.0`)
+- `INFER_A2A_TASK_COMPLETED_TASK_RETENTION`: Number of completed tasks kept in the tracker (default: `5`)
 
 **A2A Individual Tool Configuration:**
 
 - `INFER_A2A_TOOLS_SUBMIT_TASK_ENABLED`: Enable/disable A2A SubmitTask tool (default: `true`)
-- `INFER_A2A_TOOLS_SUBMIT_TASK_REQUIRE_APPROVAL`: Require approval for SubmitTask (default: `false`)
+- `INFER_A2A_TOOLS_SUBMIT_TASK_REQUIRE_APPROVAL`: Require approval for SubmitTask (default: `true`)
 - `INFER_A2A_TOOLS_QUERY_AGENT_ENABLED`: Enable/disable A2A QueryAgent tool (default: `true`)
 - `INFER_A2A_TOOLS_QUERY_AGENT_REQUIRE_APPROVAL`: Require approval for QueryAgent (default: `false`)
 - `INFER_A2A_TOOLS_QUERY_TASK_ENABLED`: Enable/disable A2A QueryTask tool (default: `true`)
@@ -999,33 +977,22 @@ http://browser-agent:8080
 
 ### Export Configuration
 
-- `INFER_EXPORT_OUTPUT_DIR`: Output directory for exported conversations (default: `./exports`)
+- `INFER_EXPORT_OUTPUT_DIR`: Output directory for exported conversations (default: empty, writes to `~/.infer/projects/<project-slug>/exports`)
 
 ### Compact Configuration
 
 - `INFER_COMPACT_ENABLED`: Enable automatic conversation compaction (default: `true`)
-- `INFER_COMPACT_AUTO_AT`: Auto-compact after N messages (default: `100`)
+- `INFER_COMPACT_AUTO_AT`: Percentage of the context window (20-100) at which to auto-compact (default: `80`)
 
 ### Git Configuration
 
-- `INFER_GIT_COMMIT_MESSAGE_MODEL`: Model for AI-generated commit messages (default: `deepseek/deepseek-v4-pro`)
-
-### SCM Configuration
-
-- `INFER_SCM_PR_CREATE_BASE_BRANCH`: Base branch for PR creation (default: `main`)
-- `INFER_SCM_PR_CREATE_BRANCH_PREFIX`: Branch prefix for PR creation (default: `feature/`)
-- `INFER_SCM_PR_CREATE_MODEL`: Model for PR creation (default: `deepseek/deepseek-v4-pro`)
-- `INFER_SCM_CLEANUP_RETURN_TO_BASE`: Return to base branch after PR creation (default: `true`)
-- `INFER_SCM_CLEANUP_DELETE_LOCAL_BRANCH`: Delete local branch after PR creation (default: `false`)
+- `INFER_GIT_COMMIT_MESSAGE_MODEL`: Model for AI-generated commit messages (default: empty, falls back to `agent.model`)
 
 ### Keybinding Environment Variables
 
 Keybindings can be configured via environment variables (supports comma-separated or newline-separated lists):
 
 ```bash
-# Enable keybindings
-export INFER_CHAT_KEYBINDINGS_ENABLED=true
-
 # Set keys for an action (comma-separated or newline-separated)
 export INFER_CHAT_KEYBINDINGS_BINDINGS_GLOBAL_QUIT_KEYS="ctrl+q,ctrl+x"
 

@@ -359,7 +359,7 @@ infer chat --web
 infer chat --web --port 8080  # Custom port
 ```
 
-**Features:** Model selection, real-time streaming, scrollable history, three agent modes (Standard/Plan/Auto-Accept).
+**Features:** Model selection, real-time streaming, scrollable history, four agent modes (Standard/Plan/Auto-Accept/Auto+Judge).
 Select text by holding Shift (Option on macOS terminals) while dragging.
 
 **Web Mode Features:**
@@ -547,7 +547,9 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 | Tool | Purpose | Approval |
 | ------ | --------- | ---------- |
 | **WebSearch** | Search the web (DuckDuckGo/Google) | Yes |
-| **WebFetch** | Fetch content from a URL | Yes |
+| **WebFetch** | Fetch content from a URL | No |
+
+`WebFetch` does not require approval by default; set `tools.web_fetch.require_approval: true` to require it.
 
 **Subagents** (the `Agent` tool and its companions, enabled by default):
 
@@ -648,7 +650,7 @@ Create a minimal configuration:
 # .infer/config.yaml
 gateway:
   url: http://localhost:8080
-  docker: true  # Use Docker mode (or false for binary mode)
+  standalone_binary: true  # Run the gateway as a standalone binary (false = Docker container)
 
 tools:
   enabled: true
@@ -657,12 +659,19 @@ tools:
 
 agent:
   model: "deepseek/deepseek-v4-pro"
-  system_prompt: "You are a helpful assistant"  # Base identity
-  custom_instructions: ""  # Additional instructions appended to system prompt
   max_turns: 50
 
 chat:
   theme: tokyo-night
+```
+
+System prompts and custom instructions live in `prompts.yaml`, not `config.yaml`:
+
+```yaml
+# .infer/prompts.yaml
+agent:
+  system_prompt: "You are a helpful assistant"  # Base identity
+  custom_instructions: ""  # Additional instructions appended to system prompt
 ```
 
 ### Configuration Layers
@@ -682,18 +691,18 @@ export INFER_AGENT_MODEL="openai/gpt-4"
 # Or via config file
 infer config set agent.model "deepseek/deepseek-v4-pro"
 
-# Or via command flag
-infer chat --model "anthropic/claude-4"
+# Or via command flag (headless mode)
+infer headless --model "anthropic/claude-4" "Summarize this repository"
 ```
 
 ### Key Configuration Options
 
 - **gateway.url** - Gateway URL (default: `http://localhost:8080`)
-- **gateway.docker** - Use Docker mode vs binary mode (default: `true`)
+- **gateway.standalone_binary** - Run the gateway as a standalone binary instead of a Docker container (default: `true`)
 - **tools.enabled** - Enable/disable all tools (default: `true`)
 - **agent.model** - Default model for agent operations
-- **agent.system_prompt** - Base identity for the agent (e.g., `"You are a helpful assistant"`)
-- **agent.custom_instructions** - Additional instructions appended after the system prompt
+- **prompts.agent.system_prompt** (prompts.yaml) - Base identity for the agent (e.g., `"You are a helpful assistant"`)
+- **prompts.agent.custom_instructions** (prompts.yaml) - Additional instructions appended after the system prompt
 - **agent.max_turns** - Maximum turns for agent sessions (default: `50`)
 - **chat.theme** - Chat interface theme (default: `tokyo-night`)
 - **chat.status_bar.enabled** - Enable/disable status bar (default: `true`)
@@ -855,7 +864,8 @@ approval**; override per tool with `tools.<name>.require_approval`.
 | ------ | ------------------- | --------- |
 | Write, Edit, MultiEdit, Delete | Yes | Create / modify / remove files |
 | Schedule, Agent | Yes | Side effects (scheduled jobs, spawned subprocesses) |
-| WebSearch, WebFetch | Yes | Make external requests (global default) |
+| WebSearch | Yes | Make external requests (global default) |
+| WebFetch | No | Explicitly exempt - override with `tools.web_fetch.require_approval` |
 | A2A_SubmitTask | Yes | Dispatches work to another agent |
 | Bash | Optional | Governed by the per-mode bash allow-list |
 | Wait | No | Passive utility - blocks until condition met, no side effects |
@@ -931,9 +941,9 @@ actions.
 **Project setup:**
 
 - `/init` - Generate an `AGENTS.md` by analyzing the project
-- `/init-github-action` - Set up a GitHub Action via an interactive wizard. Generates `.github/workflows/infer.yml`
-  pinned to the latest `infer-action` (issue/comment-triggered plus a manual `workflow_dispatch` mode, 15-minute job
-  timeout); pre-scans common locations for your GitHub App `.pem` key so selecting it is instant
+- `/install-opentask [owner/repo] [extra context...]` - Install the OpenTask GitHub workflow via the chat agent:
+  creates or updates `.github/workflows/tasks.yml` for `infer-action` on an install branch, then opens a pull
+  request (pass `[owner/repo]` to target a repo other than the current checkout)
 
 **Git Shortcuts** (created by `infer init`):
 
@@ -1340,7 +1350,10 @@ hooks:
 ## Global Flags
 
 - `-v, --verbose`: Enable verbose output
-- `--config <path>`: Specify custom config file path
+- `--no-colors`: Disable ANSI colors in command output (colors are also auto-disabled when stdout is not a terminal or `NO_COLOR` is set)
+- `--tools-bash-allow-append <cmds>`: Comma/newline-separated commands added to the bash allow-list in every mode
+  (`standard`, `plan`, `auto`); `INFER_TOOLS_BASH_ALLOW_APPEND` takes precedence
+- `--reminders-file <path>`: Path to a reminders YAML file, overriding project `.infer/` and `~/.infer/` reminders
 
 ## Examples
 
