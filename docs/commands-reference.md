@@ -384,7 +384,7 @@ for SCM tickets like GitHub issues, CI/CD pipelines, and automated workflows.
 - **Background operation**: Runs without interactive user input
 - **Task completion detection**: Automatically detects when tasks are complete
 - **Configurable concurrency**: Control the maximum number of parallel tool executions (default: 5)
-- **Multiple output formats**: `--format json|ag-ui|text` for different consumption patterns
+- **Multiple output formats**: `--format json|json-pretty|ag-ui|text` for different consumption patterns
 - **Multimodal support**: Process images and files with vision-capable models
 - **Session resumption**: Resume previous sessions to continue work from where it left off
 - **Slash commands**: The chat shortcuts work here too - see below
@@ -411,7 +411,7 @@ infer headless "/cost"      # prints the session cost breakdown, no model call
 
 **Options:**
 
-- `-m, --model`: Model to use`: Model to use (e.g. openai/gpt-4)
+- `-m, --model`: Model to use (e.g. openai/gpt-4)
 - `-f, --files`: Files or images to include (can be specified multiple times)
 - `--session-id`: Resume an existing session by conversation ID
 - `--no-save`: Disable saving conversation to database
@@ -419,7 +419,7 @@ infer headless "/cost"      # prints the session cost breakdown, no model call
 - `--heartbeat`: Use heartbeat system prompt (used by the heartbeat service)
 - `--remote`: Use remote-control system prompt (used by the daemon)
 - `--result-file`: Write the final assistant message and outcome as JSON to this path on exit
-- `--format json|ag-ui|text`: Output format (default json)
+- `--format json|json-pretty|ag-ui|text`: Output format (default json)
 - `--mode`: Agent mode: standard, plan, auto, auto-with-judge (env: `INFER_AGENT_MODE`); a value that fails
      validation, or `auto-with-judge` with no resolvable judge model, fails before the gateway or agent starts
 
@@ -555,7 +555,7 @@ for conversations to improve organization and searchability.
 
 **Subcommands:**
 
-- `generate [conversation-id]`: Generate titles for conversations (all or specific)
+- `generate`: Generate titles for all conversations that need them (no arguments)
 - `status`: Show title generation status and statistics
 - `daemon`: Run title generation daemon in background
 
@@ -564,9 +564,6 @@ for conversations to improve organization and searchability.
 ```bash
 # Generate titles for all conversations without titles
 infer conversation-title generate
-
-# Generate title for a specific conversation
-infer conversation-title generate conv-12345
 
 # Check title generation status
 infer conversation-title status

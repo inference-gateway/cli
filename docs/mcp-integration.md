@@ -859,8 +859,9 @@ infer mcp list
 # Remove server (stops container if running)
 infer mcp remove <name>
 
-# Toggle server
-infer mcp toggle <name>
+# Enable or disable a server
+infer mcp enable <name>
+infer mcp disable <name>
 ```
 
 ### Auto-Start Troubleshooting
