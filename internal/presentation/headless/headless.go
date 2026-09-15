@@ -134,13 +134,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 	}
 
 	if agentManager := svc.GetAgentManager(); agentManager != nil {
-		if err := agentManager.StartAgents(context.Background()); err != nil {
-			logger.Warn("failed to start agents in background", "error", err)
-		}
-		readyTimeout := time.Duration(cmp.Or(cfg.A2A.AgentsReadyTimeoutSec, 600)) * time.Second
-		waitCtx, waitCancel := context.WithTimeout(context.Background(), readyTimeout)
-		agentManager.WaitForAgentsReady(waitCtx)
-		waitCancel()
+		startLocalAgents(agentManager, cfg, opts.Format)
 	}
 
 	if mcpManager := svc.GetMCPManager(); mcpManager != nil {
@@ -337,6 +331,31 @@ func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals 
 	default:
 		return render.RenderText(events, os.Stdout)
 	}
+}
+
+// startLocalAgents starts run:true agents and blocks until they settle, streaming
+// each agent's startup state (image pull progress, container start, health) to
+// stdout as agent_status lines so a client can show what the wait is for. The
+// callbacks are removed once the wait ends so later liveness probes never write
+// into the run's event stream.
+func startLocalAgents(agentManager agentdomain.AgentManager, cfg *config.Config, format string) {
+	if emit := render.AgentStartupEmitter(os.Stdout, format); emit != nil {
+		agentManager.SetStatusCallback(func(name string, state agentdomain.AgentState, message, _, _ string) {
+			emit(name, state.String(), message, 0, 0)
+		})
+		agentManager.SetPullProgressCallback(func(name string, done, total int) {
+			emit(name, agentdomain.AgentStatePullingImage.String(), "Pulling image", done, total)
+		})
+	}
+	if err := agentManager.StartAgents(context.Background()); err != nil {
+		logger.Warn("failed to start agents in background", "error", err)
+	}
+	readyTimeout := time.Duration(cmp.Or(cfg.A2A.AgentsReadyTimeoutSec, 600)) * time.Second
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), readyTimeout)
+	agentManager.WaitForAgentsReady(waitCtx)
+	waitCancel()
+	agentManager.SetStatusCallback(nil)
+	agentManager.SetPullProgressCallback(nil)
 }
 
 // emitCommandResult reports a slash command that answered by itself - /context,

@@ -167,6 +167,24 @@ func TestRenderAGUI_QueuedNoteSplitsAssistantTurns(t *testing.T) {
 	}
 }
 
+func TestAgentStartupEmitter(t *testing.T) {
+	var out strings.Builder
+	emit := AgentStartupEmitter(&out, "ag-ui")
+	if emit == nil {
+		t.Fatal("ag-ui must have an emitter")
+	}
+	emit("browser-agent", "PullingImage", "Pulling image", 3, 10)
+	got := out.String()
+	for _, want := range []string{`"type":"CUSTOM"`, `"name":"agent_status"`, `"browser-agent"`, `"state":"PullingImage"`, `"done":3`, `"total":10`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in %s", want, got)
+		}
+	}
+	if AgentStartupEmitter(&out, "text") != nil {
+		t.Error("text format must have no emitter")
+	}
+}
+
 func TestRenderAGUI_NilJobsEmitsNoSnapshot(t *testing.T) {
 	var out strings.Builder
 	err := RenderAGUI(stream(

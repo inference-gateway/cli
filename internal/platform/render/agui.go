@@ -174,6 +174,14 @@ func (e *aguiEncoder) emitBackgroundTasks(jobs []scheddomain.TrackedJob) {
 		aguievents.WithValue(map[string]any{"running": running, "jobs": list})))
 }
 
+// emitAgentStatus reports a local A2A agent's startup state (pulling image,
+// starting, waiting for health, ready, failed) before the run's events begin.
+func (e *aguiEncoder) emitAgentStatus(name, state, message string, done, total int) {
+	e.emit(aguievents.NewCustomEvent("agent_status", aguievents.WithValue(map[string]any{
+		"name": name, "state": state, "message": message, "done": done, "total": total,
+	})))
+}
+
 func (e *aguiEncoder) emitApprovalRequest(req ipc.ApprovalRequest) {
 	e.emit(aguievents.NewCustomEvent("approval_request", aguievents.WithValue(req)))
 }

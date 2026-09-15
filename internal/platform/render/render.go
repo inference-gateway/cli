@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -449,6 +450,31 @@ func countToolCalls(entries []convdomain.ConversationEntry) int {
 		}
 	}
 	return count
+}
+
+// AgentStartupEmitter reports local A2A agent startup (image pull, container
+// start, health check) that happens before the event stream begins, so a
+// client can show progress instead of silence while a multi-GB image pulls.
+// Returns nil for formats that carry no machine-readable output.
+func AgentStartupEmitter(w io.Writer, format string) func(name, state, message string, done, total int) {
+	var mu sync.Mutex
+	switch format {
+	case "json", "json-pretty":
+		return func(name, state, message string, done, total int) {
+			mu.Lock()
+			defer mu.Unlock()
+			emitJSON(w, map[string]any{"type": "agent_status", "name": name, "state": state, "message": message, "done": done, "total": total}, format == "json-pretty")
+		}
+	case "ag-ui":
+		e := &aguiEncoder{w: w}
+		return func(name, state, message string, done, total int) {
+			mu.Lock()
+			defer mu.Unlock()
+			e.emitAgentStatus(name, state, message, done, total)
+		}
+	default:
+		return nil
+	}
 }
 
 // EmitPreRunError writes a machine-readable failure line for errors that occur
