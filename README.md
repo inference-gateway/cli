@@ -650,7 +650,7 @@ Create a minimal configuration:
 # .infer/config.yaml
 gateway:
   url: http://localhost:8080
-  docker: true  # Use Docker mode (or false for binary mode)
+  standalone_binary: true  # Run the gateway as a standalone binary (false = Docker container)
 
 tools:
   enabled: true
@@ -659,12 +659,19 @@ tools:
 
 agent:
   model: "deepseek/deepseek-v4-pro"
-  system_prompt: "You are a helpful assistant"  # Base identity
-  custom_instructions: ""  # Additional instructions appended to system prompt
   max_turns: 50
 
 chat:
   theme: tokyo-night
+```
+
+System prompts and custom instructions live in `prompts.yaml`, not `config.yaml`:
+
+```yaml
+# .infer/prompts.yaml
+agent:
+  system_prompt: "You are a helpful assistant"  # Base identity
+  custom_instructions: ""  # Additional instructions appended to system prompt
 ```
 
 ### Configuration Layers
@@ -691,11 +698,11 @@ infer headless --model "anthropic/claude-4" "Summarize this repository"
 ### Key Configuration Options
 
 - **gateway.url** - Gateway URL (default: `http://localhost:8080`)
-- **gateway.docker** - Use Docker mode vs binary mode (default: `true`)
+- **gateway.standalone_binary** - Run the gateway as a standalone binary instead of a Docker container (default: `true`)
 - **tools.enabled** - Enable/disable all tools (default: `true`)
 - **agent.model** - Default model for agent operations
-- **agent.system_prompt** - Base identity for the agent (e.g., `"You are a helpful assistant"`)
-- **agent.custom_instructions** - Additional instructions appended after the system prompt
+- **prompts.agent.system_prompt** (prompts.yaml) - Base identity for the agent (e.g., `"You are a helpful assistant"`)
+- **prompts.agent.custom_instructions** (prompts.yaml) - Additional instructions appended after the system prompt
 - **agent.max_turns** - Maximum turns for agent sessions (default: `50`)
 - **chat.theme** - Chat interface theme (default: `tokyo-night`)
 - **chat.status_bar.enabled** - Enable/disable status bar (default: `true`)

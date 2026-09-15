@@ -90,7 +90,7 @@ gateway:
   timeout: 200
   oci: ghcr.io/inference-gateway/inference-gateway:latest  # OCI image for Docker mode
   run: true    # Automatically run the gateway (enabled by default)
-  docker: true  # Use Docker mode by default (set to false for binary mode)
+  standalone_binary: true  # Run the gateway as a standalone binary (default; set false for Docker mode)
   include_models: []  # Optional: only allow specific models (allowlist)
   exclude_models: []  # Optional: blocklist of specific models (opt-in; the picker already hides non-chat models by modalities)
 client:
@@ -202,29 +202,7 @@ tools:
     approval_behaviour: prompt
 agent:
   model: "" # Default model for agent operations
-  system_prompt: | # System prompt for agent sessions
-    Autonomous software engineering agent. Execute tasks iteratively until completion.
-
-    IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
-    IMPORTANT: You NEVER read all the README.md - start by reading 300 lines
-
-    RULES:
-    - Security: Defensive only (analysis, detection, docs)
-    - Style: no emojis/comments unless asked, use conventional commits
-    - Code: Follow existing patterns, check deps, no secrets
-    - Tasks: Use TodoWrite, mark progress immediately
-    - Chat exports: Read only "## Summary" to "---" section
-    - Tools: Batch calls, prefer Grep for search
-
-    WORKFLOW:
-    When asked to implement features or fix issues:
-    1. Plan with TodoWrite
-    2. Search codebase to understand context
-    3. Implement solution
-    4. Run tests with: task test
-    5. Run lint/format with: task fmt and task lint
-    6. Commit changes (only if explicitly asked)
-    7. Create a pull request (only if explicitly asked)
+  # System prompts and custom instructions live in prompts.yaml (prompts.agent.*), not in config.yaml
   max_turns: 50 # Maximum number of turns for agent sessions
   max_tokens: 8192 # The maximum number of tokens that can be generated per request
   max_concurrent_tools: 5 # Maximum concurrent tool executions
@@ -260,9 +238,9 @@ compact:
 - **gateway.run**: Automatically run the gateway on startup (default: `true`)
   - When enabled, the CLI automatically starts the gateway before running commands
   - The gateway runs in the background and shuts down when the CLI exits
-- **gateway.docker**: Use Docker instead of binary mode (default: `true`)
-  - `true` (default): Uses Docker to run the gateway container (requires Docker installed)
-  - `false`: Downloads and runs the gateway as a binary (no Docker required)
+- **gateway.standalone_binary**: Run the gateway as a standalone binary instead of a Docker container (default: `true`)
+  - `true` (default): Downloads and runs the gateway as a binary (no Docker required)
+  - `false`: Uses Docker to run the gateway container (requires Docker installed; the image comes from `gateway.oci`)
 - **gateway.oci**: OCI image to use for Docker mode (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
 - **gateway.include_models**: Only allow specific models (allowlist approach, default: `[]`, allows all models)
   - When set, only the specified models will be allowed by the gateway
@@ -377,11 +355,13 @@ vision:
 ### Agent Settings
 
 - **agent.model**: Default model for agent operations
-- **agent.system_prompt**: System prompt included with every agent session. It stays byte-stable for the whole session - including
-  across agent-mode switches (Shift+Tab) - so local LLM servers keep KV-cache prefix hits
-- **agent.mode_adjustment_plan**: Optional per-mode instructions (NOT a system prompt) delivered as the `{guidance}` of the mode-change
+- System prompts and custom instructions are not `config.yaml` `agent.*` keys: they live in `prompts.yaml` under
+  `prompts.agent.system_prompt` and `prompts.agent.custom_instructions` (env: `INFER_PROMPTS_AGENT_SYSTEM_PROMPT`,
+  `INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS`). The system prompt stays byte-stable for the whole session - including
+  across agent-mode switches (Shift+Tab) - so local LLM servers keep KV-cache prefix hits.
+- **prompts.agent.mode_adjustment_plan** (prompts.yaml): Optional per-mode instructions (NOT a system prompt) delivered as the `{guidance}` of the mode-change
   reminder when the agent enters Plan Mode. Ships empty; the built-ins live in the mode-change-reminder guidance in reminders.yaml.
-- **agent.mode_adjustment_auto**: Same for auto-accept mode, carrying the destructive-action policy.
+- **prompts.agent.mode_adjustment_auto** (prompts.yaml): Same for auto-accept mode, carrying the destructive-action policy.
 - System reminders are configured in their own `reminders.yaml`, not under `agent:` - see [System Reminders](#system-reminders-remindersyaml) below.
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
@@ -748,7 +728,7 @@ tools cannot read or edit it.
 - `INFER_GATEWAY_TIMEOUT`: Gateway request timeout in seconds (default: `200`)
 - `INFER_GATEWAY_OCI`: OCI image for gateway (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
 - `INFER_GATEWAY_RUN`: Auto-run gateway if not running (default: `true`)
-- `INFER_GATEWAY_DOCKER`: Use Docker to run gateway (default: `true`)
+- `INFER_GATEWAY_STANDALONE_BINARY`: Run the gateway as a standalone binary instead of a Docker container (default: `true`)
 
 ### Client Configuration
 
@@ -901,7 +881,6 @@ tools:
 
 - `INFER_TOOLS_WEB_FETCH_SAFETY_MAX_SIZE`: Maximum fetch size in bytes (default: `10485760`)
 - `INFER_TOOLS_WEB_FETCH_SAFETY_TIMEOUT`: Fetch timeout in seconds (default: `30`)
-- `INFER_TOOLS_WEB_FETCH_SAFETY_ALLOW_REDIRECT`: Allow HTTP redirects (default: `true`)
 - `INFER_TOOLS_WEB_FETCH_CACHE_ENABLED`: Enable fetch caching (default: `true`)
 - `INFER_TOOLS_WEB_FETCH_CACHE_TTL`: Cache TTL in seconds (default: `3600`)
 - `INFER_TOOLS_WEB_FETCH_CACHE_MAX_SIZE`: Maximum cache size in bytes (default: `52428800`)
@@ -985,7 +964,6 @@ http://browser-agent:8080
 - `INFER_A2A_TASK_INITIAL_POLL_INTERVAL_SEC`: Initial polling interval for exponential strategy (default: `2`)
 - `INFER_A2A_TASK_MAX_POLL_INTERVAL_SEC`: Maximum polling interval for exponential strategy (default: `60`)
 - `INFER_A2A_TASK_BACKOFF_MULTIPLIER`: Backoff multiplier for exponential strategy (default: `2.0`)
-- `INFER_A2A_TASK_BACKGROUND_MONITORING`: Enable background task monitoring (default: `true`)
 - `INFER_A2A_TASK_COMPLETED_TASK_RETENTION`: Number of completed tasks kept in the tracker (default: `5`)
 
 **A2A Individual Tool Configuration:**
@@ -1010,22 +988,11 @@ http://browser-agent:8080
 
 - `INFER_GIT_COMMIT_MESSAGE_MODEL`: Model for AI-generated commit messages (default: empty, falls back to `agent.model`)
 
-### SCM Configuration
-
-- `INFER_SCM_PR_CREATE_BASE_BRANCH`: Base branch for PR creation (default: `main`)
-- `INFER_SCM_PR_CREATE_BRANCH_PREFIX`: Branch prefix for PR creation (default: `feature/`)
-- `INFER_SCM_PR_CREATE_MODEL`: Model for PR creation (default: `deepseek/deepseek-v4-pro`)
-- `INFER_SCM_CLEANUP_RETURN_TO_BASE`: Return to base branch after PR creation (default: `true`)
-- `INFER_SCM_CLEANUP_DELETE_LOCAL_BRANCH`: Delete local branch after PR creation (default: `false`)
-
 ### Keybinding Environment Variables
 
 Keybindings can be configured via environment variables (supports comma-separated or newline-separated lists):
 
 ```bash
-# Enable keybindings
-export INFER_CHAT_KEYBINDINGS_ENABLED=true
-
 # Set keys for an action (comma-separated or newline-separated)
 export INFER_CHAT_KEYBINDINGS_BINDINGS_GLOBAL_QUIT_KEYS="ctrl+q,ctrl+x"
 
