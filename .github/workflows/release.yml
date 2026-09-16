@@ -219,7 +219,7 @@ jobs:
           git config --global commit.signoff true
 
       - name: Install Determinate Nix
-        uses: DeterminateSystems/nix-installer-action@v22
+        uses: DeterminateSystems/nix-installer-action@v23
         with:
           determinate: true
           flakehub: false
