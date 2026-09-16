@@ -440,7 +440,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
 		llmToolService := agent.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
-		llmToolService.SetCurrentModelFn(c.modelService.GetCurrentModel)
 		c.toolService = llmToolService
 	} else {
 		c.toolService = agent.NewNoOpToolService()

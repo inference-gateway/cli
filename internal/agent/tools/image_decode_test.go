@@ -27,11 +27,12 @@ func TestImageDecodeIsEnabled(t *testing.T) {
 
 	assert.True(t, newImageDecodeTestTool(annotator, images).IsEnabled())
 
-	disabled := newImageDecodeTestTool(annotator, images)
-	disabled.config.Vision.Annotator.Enabled = false
-	assert.False(t, disabled.IsEnabled())
+	noAnnotator := newImageDecodeTestTool(annotator, images)
+	noAnnotator.config.Vision.Annotator.Enabled = false
+	assert.True(t, noAnnotator.IsEnabled(), "vision models read images without an annotator")
 
-	assert.False(t, NewImageDecodeTool(config.DefaultConfig(), images, nil).IsEnabled())
+	assert.True(t, NewImageDecodeTool(config.DefaultConfig(), images, nil).IsEnabled())
+	assert.False(t, NewImageDecodeTool(config.DefaultConfig(), nil, nil).IsEnabled())
 }
 
 func TestImageDecodeValidate(t *testing.T) {
@@ -76,7 +77,7 @@ func TestImageDecodeExecute(t *testing.T) {
 		result, err := tool.Execute(context.Background(), map[string]any{"image": "shot.png", "prompt": "what color is the button?"})
 		assert.NoError(t, err)
 		assert.True(t, result.Success)
-		assert.Empty(t, result.Images, "ImageDecode is a description tool; it attaches nothing")
+		assert.Len(t, result.Images, 1, "the image is attached for vision models")
 
 		_, img, opts := annotator.AnnotateImageArgsForCall(0)
 		assert.Equal(t, "shot.png", img.SourcePath)
@@ -85,6 +86,18 @@ func TestImageDecodeExecute(t *testing.T) {
 		text := tool.FormatForLLM(result)
 		assert.Contains(t, text, "Frame summary: A red button")
 		assert.Contains(t, text, "1. button")
+	})
+
+	t.Run("no annotator returns the image alone", func(t *testing.T) {
+		images := &agentdomainmocks.FakeImageService{}
+		images.ReadImageFromFileReturns(&agentdomain.ImageAttachment{Data: "aW1n", MimeType: "image/png", Filename: "shot.png"}, nil)
+
+		tool := NewImageDecodeTool(config.DefaultConfig(), images, nil)
+		result, err := tool.Execute(context.Background(), map[string]any{"image": "shot.png"})
+		assert.NoError(t, err)
+		assert.True(t, result.Success)
+		assert.Len(t, result.Images, 1)
+		assert.Equal(t, "Image attached above.", tool.FormatForLLM(result))
 	})
 
 	t.Run("annotator failure fails the call", func(t *testing.T) {

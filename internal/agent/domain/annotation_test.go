@@ -4,7 +4,7 @@ import "testing"
 
 func TestImageFileRef(t *testing.T) {
 	vision := ImageFileRef("a/b.png", true)
-	if vision != "[Image file: a/b.png - pass this path directly to image tools (e.g. ImageEdit); it cannot be opened with Read]" {
+	if vision != "[Image file: a/b.png - pass this path to ImageDecode to see it, or directly to image tools (e.g. ImageEdit); it cannot be opened with Read]" {
 		t.Fatalf("vision ref = %q", vision)
 	}
 	text := ImageFileRef("a/b.png", false)

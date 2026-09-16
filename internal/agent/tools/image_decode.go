@@ -62,7 +62,9 @@ func (t *ImageDecodeTool) Definition() sdk.ChatCompletionTool {
 	}
 }
 
-// Execute annotates the image file and returns the text description
+// Execute returns the image as an attachment (vision models see it natively)
+// and, when an annotator is configured, a text description for models that
+// cannot.
 func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
 	fail := func(msg string) (*agentdomain.ToolExecutionResult, error) {
@@ -93,6 +95,19 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*ag
 	attachment.SourcePath = strings.TrimPrefix(path, "file://")
 
 	width, height := imageDimensions(attachment.Data)
+	result := agentdomain.FrameToolResult{Source: path, Width: width, Height: height}
+	images := []agentdomain.ImageAttachment{*attachment}
+
+	if t.annotator == nil || !t.config.Vision.AnnotatorReady() {
+		return &agentdomain.ToolExecutionResult{
+			ToolName:  "ImageDecode",
+			Arguments: args,
+			Success:   true,
+			Duration:  time.Since(start),
+			Data:      result,
+			Images:    images,
+		}, nil
+	}
 
 	prompt := t.config.Prompts.Vision.Annotator.SceneSystemPrompt
 	if question, _ := args["prompt"].(string); strings.TrimSpace(question) != "" {
@@ -108,18 +123,15 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*ag
 		return fail(fmt.Sprintf("annotation failed: %v", err))
 	}
 
+	result.Annotated = true
+	result.Annotation = annotation
 	return &agentdomain.ToolExecutionResult{
 		ToolName:  "ImageDecode",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
-		Data: agentdomain.FrameToolResult{
-			Source:     path,
-			Width:      width,
-			Height:     height,
-			Annotated:  true,
-			Annotation: annotation,
-		},
+		Data:      result,
+		Images:    images,
 	}, nil
 }
 
@@ -145,9 +157,10 @@ func (t *ImageDecodeTool) Validate(args map[string]any) error {
 	return nil
 }
 
-// IsEnabled returns whether this tool is enabled
+// IsEnabled returns whether this tool is enabled: reading images needs no
+// annotator, only the text description does.
 func (t *ImageDecodeTool) IsEnabled() bool {
-	return t.annotator != nil && t.imageService != nil && t.config.Vision.AnnotatorReady()
+	return t.imageService != nil
 }
 
 // FormatResult formats tool execution results for different contexts
@@ -179,7 +192,7 @@ func (t *ImageDecodeTool) FormatForLLM(result *agentdomain.ToolExecutionResult) 
 	if data, ok := result.Data.(agentdomain.FrameToolResult); ok && data.Annotation != nil {
 		return agentdomain.AnnotationText(data.Annotation)
 	}
-	return "Image decoded."
+	return "Image attached above."
 }
 
 // ShouldCollapseArg determines if an argument should be collapsed in display

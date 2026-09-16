@@ -1298,9 +1298,10 @@ vision:
 
 The agent reads frames via `GetLatestFrame(source, format)` and arbitrary image files via
 `ImageDecode(image, prompt)`. Any orchestrator or model that speaks chat completions can use these
-tools - a text-only model simply gets the annotation text instead of an image: with an annotator
-configured, `GetLatestFrame` defaults to `format: annotated` (text replaces the frame), and
-`format: regular` returns the raw image for vision models. Annotation is a side-call through the
+tools - a vision model gets the image itself and a text-only model gets the annotation text: with an
+annotator configured, `GetLatestFrame` defaults to `format: annotated` (text replaces the frame) and
+`format: regular` returns the raw image; `ImageDecode` always attaches the image and adds the
+annotation when an annotator is configured. Annotation is a side-call through the
 gateway, so any vision model it serves works - including fully local ones via Ollama. See the
 [configuration reference](docs/configuration-reference.md#vision-settings) for all options.
 

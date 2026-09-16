@@ -218,7 +218,7 @@ func (r *Registry) registerTools() {
 		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(cfg, r.taskTracker, r.jobSubmitter)
 	}
 
-	if cfg.Vision.AnnotatorReady() && r.annotator != nil && r.imageService != nil {
+	if r.imageService != nil {
 		r.tools["ImageDecode"] = NewImageDecodeTool(cfg, r.imageService, r.annotator)
 	}
 
