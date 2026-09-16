@@ -1650,7 +1650,7 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []convd
 	supportsVision := models.SupportsVision(model)
 
 	var contentParts []sdk.ContentPart
-	textPart, err := sdk.NewTextContentPart(fmt.Sprintf("Tool execution returned %d image(s) for analysis:", len(allImages)))
+	textPart, err := sdk.NewTextContentPart(fmt.Sprintf("<system-reminder>\nTool execution returned %d image(s) for analysis:\n</system-reminder>", len(allImages)))
 	if err == nil {
 		contentParts = append(contentParts, textPart)
 	}

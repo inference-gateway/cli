@@ -317,8 +317,9 @@ Frame sources and the image-annotation pipeline that lets text-only models "see"
 frames. Not to be confused with **gateway.vision_enabled**, which is an unrelated gateway-side flag.
 
 - **vision.annotator.enabled**: Enable the image annotator (default: false). When enabled,
-  `GetLatestFrame` defaults to annotated (text) output and the `ImageDecode` tool is registered, so
-  text-only models can understand frames without any per-model configuration.
+  `GetLatestFrame` defaults to annotated (text) output and `ImageDecode` adds a text description to
+  the image it returns, so text-only models can understand frames without any per-model
+  configuration. `ImageDecode` itself is always available: vision models get the image.
 - **vision.annotator.model**: `provider/model` reference of the vision model to side-call through
   the configured gateway (default: `anthropic/claude-haiku-4-5-20251001`). The gateway also serves fully local
   models, so offline annotation is just a local provider (e.g. `ollama/qwen3-vl:2b`)

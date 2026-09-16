@@ -12,21 +12,13 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	models "github.com/inference-gateway/cli/internal/platform/models"
 )
 
 // LLMToolService implements ToolService with the new tools package architecture
 type LLMToolService struct {
-	registry     *tools.Registry
-	enabled      bool
-	config       *config.Config
-	currentModel func() string
-}
-
-// SetCurrentModelFn wires the current-model accessor used for per-model tool
-// filtering (e.g. hiding ImageDecode from vision-capable models).
-func (s *LLMToolService) SetCurrentModelFn(fn func() string) {
-	s.currentModel = fn
+	registry *tools.Registry
+	enabled  bool
+	config   *config.Config
 }
 
 // NewLLMToolServiceWithRegistry creates a new LLM tool service with an existing registry
@@ -66,14 +58,8 @@ func (s *LLMToolService) isToolEnabled(toolName string) bool {
 	return s.enabled && s.registry.IsToolEnabled(toolName)
 }
 
-// isToolAdvertised reports whether a tool should be offered to the LLM. It is
-// stricter than isToolEnabled: ImageDecode stays executable for any model (a
-// model may still call it from conversation history) but is not advertised to
-// vision-capable ones, which see images natively.
+// isToolAdvertised reports whether a tool should be offered to the LLM.
 func (s *LLMToolService) isToolAdvertised(toolName string) bool {
-	if toolName == "ImageDecode" && s.currentModel != nil && models.SupportsVision(s.currentModel()) {
-		return false
-	}
 	return s.isToolEnabled(toolName)
 }
 

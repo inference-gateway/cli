@@ -7,11 +7,11 @@ import (
 
 // ImageFileRef returns the inline text substituted for an image file reference
 // (chat "@path" or headless --files): images are never sent as raw base64 —
-// the model reaches them through image tools instead. Non-vision models are
-// additionally pointed at ImageDecode for a text description.
+// the model reaches them through ImageDecode, which returns the image itself
+// to vision models and a text description to the others.
 func ImageFileRef(path string, supportsVision bool) string {
 	if supportsVision {
-		return fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit); it cannot be opened with Read]", path)
+		return fmt.Sprintf("[Image file: %s - pass this path to ImageDecode to see it, or directly to image tools (e.g. ImageEdit); it cannot be opened with Read]", path)
 	}
 	return fmt.Sprintf("[Image file: %s - pass this path directly to image tools (e.g. ImageEdit), or to ImageDecode for a text description; it cannot be opened with Read]", path)
 }

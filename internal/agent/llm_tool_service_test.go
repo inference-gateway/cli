@@ -105,10 +105,9 @@ func TestExecuteTool_ModeGuard(t *testing.T) {
 	}
 }
 
-// TestListToolsHidesImageDecodeForVisionModels verifies per-model tool
-// filtering: vision-capable models (image in input) see images natively, so
-// ImageDecode is not advertised to them; text-only models keep it.
-func TestListToolsHidesImageDecodeForVisionModels(t *testing.T) {
+// TestListToolsOffersImageDecodeToEveryModel: vision models need it to look
+// at files on disk (it attaches the image), text models get a description.
+func TestListToolsOffersImageDecodeToEveryModel(t *testing.T) {
 	visionMods := sdk.ModelModalities{
 		Input:  []sdk.Modality{sdk.ModalityText, sdk.ModalityImage},
 		Output: []sdk.Modality{sdk.ModalityText},
@@ -129,9 +128,6 @@ func TestListToolsHidesImageDecodeForVisionModels(t *testing.T) {
 	registry := tools.NewRegistry(cfg, &agentdomainmocks.FakeImageService{}, nil, nil, nil, &agentdomainmocks.FakeImageAnnotator{}, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 
-	current := "anthropic/claude-haiku-4-5"
-	svc.SetCurrentModelFn(func() string { return current })
-
 	names := func() []string {
 		defs := svc.ListTools()
 		out := make([]string, 0, len(defs))
@@ -141,15 +137,10 @@ func TestListToolsHidesImageDecodeForVisionModels(t *testing.T) {
 		return out
 	}
 
-	if slices.Contains(names(), "ImageDecode") {
-		t.Error("vision model must not be offered ImageDecode")
+	if !slices.Contains(names(), "ImageDecode") {
+		t.Error("ImageDecode must be advertised regardless of the model's vision support")
 	}
 	if !svc.IsToolEnabled("ImageDecode") {
-		t.Error("ImageDecode must stay executable for vision models (hidden, not disabled)")
-	}
-
-	current = "deepseek/deepseek-v4-flash"
-	if !slices.Contains(names(), "ImageDecode") {
-		t.Error("text-only model must keep ImageDecode")
+		t.Error("ImageDecode must be executable")
 	}
 }
