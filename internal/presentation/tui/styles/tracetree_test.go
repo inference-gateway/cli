@@ -65,3 +65,10 @@ func TestFormatSpanDuration(t *testing.T) {
 		})
 	}
 }
+
+func TestSpanLabelServiceNameAndKind(t *testing.T) {
+	s := &telemetry.TraceSpan{Name: "POST /v1/chat/completions", Attributes: map[string]string{"service.name": "inference-gateway", "span.kind": "client"}}
+	if got, want := spanLabel(s), "POST /v1/chat/completions [inference-gateway, client]"; got != want {
+		t.Fatalf("spanLabel=%q, want %q", got, want)
+	}
+}

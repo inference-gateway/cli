@@ -100,11 +100,10 @@ func LoadTraceTree(dir, session string) ([]*TraceSpan, error) {
 			DurationMs: float64(tl.EndTime.Sub(tl.StartTime).Microseconds()) / 1000,
 			Attributes: attrMap(tl.Attributes),
 		}
-		errType := span.Attributes["error.type"]
+		// Only an Error status marks a failure: otelhttp sets error.type on
+		// benign SSE teardown (io.EOF, context canceled) with the status Unset.
 		if tl.Status.Code == "Error" {
-			span.Error = cmp.Or(errType, tl.Status.Description, "error")
-		} else {
-			span.Error = errType
+			span.Error = cmp.Or(span.Attributes["error.type"], tl.Status.Description, "error")
 		}
 		byID[tl.SpanContext.SpanID] = span
 		nodes = append(nodes, parented{span, tl.Parent.SpanID})

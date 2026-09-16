@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	trace "go.opentelemetry.io/otel/trace"
@@ -156,6 +157,13 @@ func (r *Recorder) appendSpanStub(span *tracepb.Span, service string) {
 	if service != "" {
 		a := recvAttr{Key: "service.name"}
 		a.Value.Type, a.Value.Value = "STRING", service
+		stub.Attributes = append(stub.Attributes, a)
+	}
+	// Span kind disambiguates the CLIENT/SERVER pair one hop emits under a
+	// single service (e.g. gateway inbound vs gateway -> provider).
+	if span.Kind != tracepb.Span_SPAN_KIND_UNSPECIFIED {
+		a := recvAttr{Key: "span.kind"}
+		a.Value.Type, a.Value.Value = "STRING", strings.ToLower(strings.TrimPrefix(span.Kind.String(), "SPAN_KIND_"))
 		stub.Attributes = append(stub.Attributes, a)
 	}
 	if span.Status != nil {

@@ -78,8 +78,14 @@ func RenderTraceTree(roots []*telemetry.TraceSpan, style TreeStyle) string {
 // Tool spans include the tool call ID (gen_ai.tool.call.id) when present.
 func spanLabel(s *telemetry.TraceSpan) string {
 	name := s.Name
-	if svc := s.Attributes["service.name"]; svc != "" {
+	svc, kind := s.Attributes["service.name"], s.Attributes["span.kind"]
+	switch {
+	case svc != "" && kind != "":
+		name += " [" + svc + ", " + kind + "]"
+	case svc != "":
 		name += " [" + svc + "]"
+	case kind != "":
+		name += " [" + kind + "]"
 	}
 	if toolCallID := s.Attributes["gen_ai.tool.call.id"]; toolCallID != "" {
 		name += " " + toolCallID
