@@ -153,6 +153,11 @@ func TestLoadTraceTree_ErrorStatus(t *testing.T) {
 			wantError: "boom",
 		},
 		{
+			name:      "error.type with unset status is not an error",
+			line:      `{"Name":"s","SpanContext":{"SpanID":"aa"},"Parent":{"SpanID":"00"},"Attributes":[{"Key":"error.type","Value":{"Value":"*errors.errorString"}}],"Status":{"Code":"Unset","Description":""}}`,
+			wantError: "",
+		},
+		{
 			name:      "unset status is not an error",
 			line:      `{"Name":"s","SpanContext":{"SpanID":"aa"},"Parent":{"SpanID":"00"},"Status":{"Code":"Unset","Description":""}}`,
 			wantError: "",

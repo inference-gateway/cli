@@ -45,6 +45,7 @@ func exportRequest(traceID, parentSpanID, spanID []byte, name string, errStatus 
 		SpanId:            spanID,
 		ParentSpanId:      parentSpanID,
 		Name:              name,
+		Kind:              tracepb.Span_SPAN_KIND_CLIENT,
 		StartTimeUnixNano: uint64(time.Date(2026, 1, 1, 0, 0, 1, 0, time.UTC).UnixNano()),
 		EndTimeUnixNano:   uint64(time.Date(2026, 1, 1, 0, 0, 3, 0, time.UTC).UnixNano()),
 		Attributes: []*commonpb.KeyValue{{
@@ -109,8 +110,8 @@ func TestReceiverIngestsChildSpans(t *testing.T) {
 	if child.Error == "" {
 		t.Fatalf("child.Error empty, want error status")
 	}
-	if child.Attributes["process.command"] != "go test" {
-		t.Fatalf("attrs=%v, want process.command", child.Attributes)
+	if child.Attributes["process.command"] != "go test" || child.Attributes["span.kind"] != "client" {
+		t.Fatalf("attrs=%v, want process.command and span.kind=client", child.Attributes)
 	}
 }
 
