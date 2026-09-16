@@ -3,6 +3,7 @@ package runtime
 import (
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -19,7 +20,20 @@ import (
 // create logs in the tester's real home directory. No test asserts on logging.dir,
 // and tests that clear INFER_* env vars (e.g. root_defaults_test) chdir into their
 // own temp dir, so this override is safe and self-cleaning.
+//
+// It also clears every ambient INFER_* env var so viper's AutomaticEnv cannot see
+// the host environment (an Infer agent runner exports e.g.
+// INFER_TOOLS_WRITE_REQUIRE_APPROVAL=false, which otherwise overrides registered
+// defaults and the in-test config file). Tests that need a var set it with
+// t.Setenv, so each test sees only its own overrides. The logger dir is set
+// right after the scrub.
 func TestMain(m *testing.M) {
+	for _, env := range os.Environ() {
+		if key, _, ok := strings.Cut(env, "="); ok && strings.HasPrefix(key, "INFER_") {
+			_ = os.Unsetenv(key)
+		}
+	}
+
 	logDir, err := os.MkdirTemp("", "infer-cmd-test-logs")
 	if err != nil {
 		panic(err)
