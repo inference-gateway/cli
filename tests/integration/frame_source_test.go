@@ -118,15 +118,12 @@ func TestGetLatestFrameRegularWithoutAnnotator(t *testing.T) {
 fallback:
   content: "Done."
 scenarios:
-  - name: image-followup
-    match: 'Tool execution returned'
-    turns:
-      - content: "I can see the frame."
   - name: camera-question
     match: '(?i)what does the camera see'
     turns:
       - tool_calls:
           - { name: GetLatestFrame, args: {} }
+      - content: "I can see the frame."
 `))
 	require.NoError(t, err)
 
