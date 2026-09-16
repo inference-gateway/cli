@@ -5,6 +5,81 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.199.5](https://github.com/inference-gateway/cli/compare/v0.199.4...v0.199.5) (2026-09-16)
+
+### 🐛 Bug Fixes
+
+* **tools:** let vision models look at image files with ImageDecode ([#1226](https://github.com/inference-gateway/cli/issues/1226)) ([e8f473c](https://github.com/inference-gateway/cli/commit/e8f473ccc23faa41f5681bb9e03ad1cc1c3cb954))
+
+### ✅ Tests
+
+* **runtime:** isolate viper env tests from ambient INFER_* variables ([#1225](https://github.com/inference-gateway/cli/issues/1225)) ([cace07b](https://github.com/inference-gateway/cli/commit/cace07b98beda0abf17a3753941d7d2112669bba)), closes [#1221](https://github.com/inference-gateway/cli/issues/1221)
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.199.5 --help
+npx @inference-gateway/cli@0.199.5 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.199.5
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.199.5
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.199.5
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.199.5"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.199.5
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.199.4](https://github.com/inference-gateway/cli/compare/v0.199.3...v0.199.4) (2026-09-16)
 
 ### 🐛 Bug Fixes
