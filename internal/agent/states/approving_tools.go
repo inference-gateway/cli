@@ -34,6 +34,9 @@ type toolRound struct {
 //  1. MessageReceivedEvent → initializes the tool round, starts sequential approval
 //  2. AllToolsProcessedEvent → transitions to PostToolExecution
 //  3. ApprovalFailedEvent → handles approval failures
+//
+// Calls the approval policy does not gate (e.g. TodoWrite batched with a
+// gated call) execute directly without a prompt, mirroring BlockingToolsState.
 type ApprovingToolsState struct {
 	ctx *StateContext
 }
@@ -89,12 +92,13 @@ func (s *ApprovingToolsState) Handle(event AgentEvent) error {
 	return nil
 }
 
-// processNextTool requests approval for ONE tool, then - if approved - spawns
-// its execution in the background and immediately moves on to the next
-// approval prompt so executions overlap. Fast-exits if the session context was
-// cancelled, mirroring the drain-then-stop contract in CheckingQueue /
-// PostToolExecution: the remaining approval prompts are skipped and control
-// returns to the state machine via finishApprovals.
+// processNextTool handles ONE tool: ungated calls execute directly (no
+// prompt, no judge call); gated ones request approval and - if approved -
+// spawn their execution in the background, immediately moving on to the
+// next approval prompt so executions overlap. Fast-exits if the session
+// context was cancelled, mirroring the drain-then-stop contract in
+// CheckingQueue / PostToolExecution: the remaining approval prompts are
+// skipped and control returns to the state machine via finishApprovals.
 func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 	defer s.ctx.WaitGroup.Done()
 
@@ -107,6 +111,13 @@ func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 	tc, idx := s.getNextToolForProcessing()
 	if tc == nil {
 		s.finishApprovals(round)
+		return
+	}
+
+	if !s.ctx.ShouldRequireApproval(tc, s.ctx.Request.IsChatMode) {
+		logger.Debug("tool does not require approval, executing directly", "tool", tc.Function.Name)
+		s.spawnExecution(round, idx, *tc, false)
+		s.continueToNextTool(round)
 		return
 	}
 
@@ -133,7 +144,7 @@ func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 		return
 	}
 
-	s.spawnExecution(round, idx, *tc)
+	s.spawnExecution(round, idx, *tc, true)
 	s.continueToNextTool(round)
 }
 
@@ -159,17 +170,19 @@ func (s *ApprovingToolsState) getNextToolForProcessing() (*sdk.ChatCompletionMes
 	return tc, idx
 }
 
-// spawnExecution runs an approved tool in the background, recording its result
-// in the round's slot. Concurrency is bounded by the round semaphore.
-func (s *ApprovingToolsState) spawnExecution(round *toolRound, idx int, tc sdk.ChatCompletionMessageToolCall) {
+// spawnExecution runs a tool in the background (approved ones and ungated
+// ones alike), recording its result in the round's slot. Concurrency is
+// bounded by the round semaphore. isApproved reports whether the call went
+// through the approval flow; ungated calls pass false, like BlockingTools.
+func (s *ApprovingToolsState) spawnExecution(round *toolRound, idx int, tc sdk.ChatCompletionMessageToolCall, isApproved bool) {
 	round.wg.Add(1)
 	go func() {
 		defer round.wg.Done()
 		round.sem <- struct{}{}
 		defer func() { <-round.sem }()
 
-		logger.Debug("executing approved tool", "tool", tc.Function.Name)
-		s.completeSlot(round, idx, s.ctx.ExecuteToolInternal(tc, true))
+		logger.Debug("executing tool", "tool", tc.Function.Name, "approved", isApproved)
+		s.completeSlot(round, idx, s.ctx.ExecuteToolInternal(tc, isApproved))
 	}()
 }
 
@@ -179,7 +192,7 @@ func (s *ApprovingToolsState) spawnExecution(round *toolRound, idx int, tc sdk.C
 func (s *ApprovingToolsState) spawnAllRemaining(round *toolRound, idx int, tc sdk.ChatCompletionMessageToolCall) {
 	logger.Debug("auto-accept mode enabled, auto-approving all remaining tools")
 
-	s.spawnExecution(round, idx, tc)
+	s.spawnExecution(round, idx, tc, true)
 
 	s.ctx.Mutex.Lock()
 	start := *s.ctx.CurrentToolIndex
@@ -190,7 +203,7 @@ func (s *ApprovingToolsState) spawnAllRemaining(round *toolRound, idx int, tc sd
 		remaining := tools[i]
 		logger.Debug("auto-approving tool", "tool", remaining.Function.Name)
 
-		s.spawnExecution(round, i, remaining)
+		s.spawnExecution(round, i, remaining, true)
 	}
 
 	s.ctx.Mutex.Lock()
