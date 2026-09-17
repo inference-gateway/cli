@@ -4,6 +4,7 @@ package domain
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -30,6 +31,23 @@ type ConversationEntry struct {
 	Rejected           bool               `json:"rejected,omitempty"`
 	IsPlan             bool               `json:"is_plan,omitempty"`
 	PlanApprovalStatus PlanApprovalStatus `json:"plan_approval_status,omitempty"`
+}
+
+// ToolResultOutput extracts the human-facing output of a tool result: combined
+// stdout/stderr for Bash, formatForLLM otherwise, or the marshaled data when
+// formatForLLM is nil.
+func ToolResultOutput(result *agentdomain.ToolExecutionResult, formatForLLM func(*agentdomain.ToolExecutionResult) string) string {
+	if bash, ok := result.Data.(*agentdomain.BashToolResult); ok {
+		return bash.Output
+	}
+	if formatForLLM != nil {
+		return formatForLLM(result)
+	}
+	data, err := json.Marshal(result.Data)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 // NewToolCallEntries builds the assistant tool_call entry and its paired tool

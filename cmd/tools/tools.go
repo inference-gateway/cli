@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
+	agent "github.com/inference-gateway/cli/internal/agent"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
@@ -55,12 +57,19 @@ Examples:
   infer tools execute Read '{"file_path":"README.md", "start_line":1, "end_line":10}'
 
   # No arguments for tools that have defaults
-  infer tools execute Tree`,
+  infer tools execute Tree
+
+  # Machine-readable result for callers that handle approval themselves:
+  # {"approval_required":true} when the call needs approval (nothing runs),
+  # else {"success":...,"output":...,"error":...}
+  infer tools execute Bash '{"command":"gh api user"}' --format json
+  infer tools execute Bash '{"command":"gh api user"}' --format json --approved`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			format, _ := cmd.Flags().GetString("format")
 			sessionID, _ := cmd.Flags().GetString("session-id")
-			return ExecTool(state.Config(), args, format, sessionID)
+			approved, _ := cmd.Flags().GetBool("approved")
+			return ExecTool(state.Config(), args, format, sessionID, approved)
 		},
 	}
 	validateCommand := &cobra.Command{
@@ -74,6 +83,7 @@ Examples:
 	}
 
 	executeCommand.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	executeCommand.Flags().Bool("approved", false, "Treat the call as user-approved: skip the approval check and the Bash allow-list")
 	executeCommand.Flags().String("session-id", "", "Record the call and its result in this conversation so later turns (e.g. infer headless --session-id) see it")
 	command.AddCommand(executeCommand, validateCommand)
 	return command
@@ -103,8 +113,19 @@ func ValidateTool(cfg *config.Config, command string) error {
 	return nil
 }
 
-// ExecTool executes a tool with the given arguments
-func ExecTool(cfg *config.Config, args []string, format, sessionID string) error {
+// execResult is the --format json output of `infer tools execute`.
+type execResult struct {
+	ApprovalRequired bool   `json:"approval_required,omitempty"`
+	Success          bool   `json:"success"`
+	Output           string `json:"output"`
+	Error            string `json:"error,omitempty"`
+}
+
+// ExecTool executes a tool with the given arguments. approved runs it as
+// user-approved (like the extension bridge after an approval); otherwise
+// --format json reports approval_required instead of running a call the
+// approval policy would gate.
+func ExecTool(cfg *config.Config, args []string, format, sessionID string, approved bool) error {
 	if !cfg.Tools.Enabled {
 		return fmt.Errorf("tools are not enabled")
 	}
@@ -126,31 +147,53 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string) error
 		}
 	}
 
-	if format != "" {
-		toolArgs["format"] = format
-	}
-
 	if !toolService.IsToolEnabled(toolName) {
 		return fmt.Errorf("tool %s is not enabled", toolName)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
-	defer cancel()
 
 	argsJSON, _ := json.Marshal(toolArgs)
 	toolCall := sdk.ChatCompletionMessageToolCallFunction{
 		Name:      toolName,
 		Arguments: string(argsJSON),
 	}
-	result, err := toolService.ExecuteTool(ctx, toolCall)
+	jsonOut := format == "json"
+	repo := serviceContainer.GetConversationRepository()
+
+	if jsonOut && !approved {
+		policy := agent.NewStandardApprovalPolicy(cfg, serviceContainer.GetStateManager())
+		call := &sdk.ChatCompletionMessageToolCall{Type: sdk.Function, Function: toolCall}
+		if policy.ShouldRequireApproval(context.Background(), call, true) {
+			return printJSON(execResult{ApprovalRequired: true})
+		}
+	}
+
+	ctx := context.Background()
+	var result *agentdomain.ToolExecutionResult
+	var err error
+	if approved {
+		result, err = toolService.ExecuteToolDirect(agentdomain.WithToolApproved(ctx), toolCall)
+	} else {
+		result, err = toolService.ExecuteTool(ctx, toolCall)
+	}
 	if err != nil {
+		if jsonOut {
+			return printJSON(execResult{Error: err.Error()})
+		}
 		return fmt.Errorf("tool execution failed: %w", err)
 	}
 
 	if sessionID != "" {
-		if err := recordToolCall(ctx, serviceContainer.GetConversationRepository(), sessionID, toolCall, result); err != nil {
+		if err := recordToolCall(ctx, repo, sessionID, toolCall, result); err != nil {
 			return err
 		}
+	}
+
+	if jsonOut {
+		return printJSON(execResult{
+			Success: result.Success,
+			Output:  convdomain.ToolResultOutput(result, repo.FormatToolResultForLLM),
+			Error:   result.Error,
+		})
 	}
 
 	styleProvider := styles.NewProvider(serviceContainer.GetThemeService())
@@ -158,6 +201,10 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string) error
 
 	fmt.Print(renderToolResult(formatterService.FormatToolResultExpanded(result, 80)))
 	return nil
+}
+
+func printJSON(v any) error {
+	return json.NewEncoder(os.Stdout).Encode(v)
 }
 
 // renderToolResult honors --no-colors / NO_COLOR / non-TTY stdout, which the

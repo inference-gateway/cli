@@ -2,10 +2,13 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -83,5 +86,52 @@ func TestRecordToolCallRejectsNonPersistentRepo(t *testing.T) {
 	err := recordToolCall(context.Background(), repo, "sess-1", sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"}, &agentdomain.ToolExecutionResult{})
 	if err == nil {
 		t.Fatal("expected an error when storage is disabled")
+	}
+}
+
+func execJSON(t *testing.T, args []string, approved bool) execResult {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	cfg := config.DefaultConfig()
+	cfg.Tools.Enabled = true
+	cfg.Tools.Bash.Enabled = true
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdout := os.Stdout
+	os.Stdout = w
+	execErr := ExecTool(cfg, args, "json", "", approved)
+	os.Stdout = stdout
+	_ = w.Close()
+	if execErr != nil {
+		t.Fatalf("ExecTool: %v", execErr)
+	}
+	var got execResult
+	if err := json.NewDecoder(r).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	return got
+}
+
+func TestExecToolJSONReportsApprovalRequired(t *testing.T) {
+	got := execJSON(t, []string{"Bash", `{"command":"printf unlisted-xyz"}`}, false)
+	if !got.ApprovalRequired || got.Success || got.Output != "" {
+		t.Fatalf("got %+v, want approval_required only", got)
+	}
+}
+
+func TestExecToolJSONApprovedRunsUnlistedCommandWithRawOutput(t *testing.T) {
+	got := execJSON(t, []string{"Bash", `{"command":"printf unlisted-xyz"}`}, true)
+	if got.ApprovalRequired || !got.Success || got.Output != "unlisted-xyz" {
+		t.Fatalf("got %+v, want raw successful output", got)
+	}
+}
+
+func TestExecToolJSONApprovedKeepsOutputOnFailure(t *testing.T) {
+	got := execJSON(t, []string{"Bash", `{"command":"printf 'HTTP/2.0 404 Not Found'; exit 1"}`}, true)
+	if got.Success || got.Output != "HTTP/2.0 404 Not Found" || got.Error == "" {
+		t.Fatalf("got %+v, want failed result with output and error", got)
 	}
 }
