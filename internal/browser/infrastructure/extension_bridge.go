@@ -720,20 +720,12 @@ func (b *ExtensionBridge) answerToolRequestApproval(conn *websocket.Conn, reques
 	return true
 }
 
-// toolResultOutput extracts the human-facing output of a tool result: combined
-// stdout/stderr for Bash, the canonical LLM formatting otherwise.
+// toolResultOutput extracts the human-facing output of a tool result.
 func (b *ExtensionBridge) toolResultOutput(result *agentdomain.ToolExecutionResult) string {
-	if bash, ok := result.Data.(*agentdomain.BashToolResult); ok {
-		return bash.Output
+	if b.repo == nil {
+		return convdomain.ToolResultOutput(result, nil)
 	}
-	if b.repo != nil {
-		return b.repo.FormatToolResultForLLM(result)
-	}
-	data, err := json.Marshal(result.Data)
-	if err != nil {
-		return ""
-	}
-	return string(data)
+	return convdomain.ToolResultOutput(result, b.repo.FormatToolResultForLLM)
 }
 
 // readLoop handles frames from the extension until the connection dies or is
