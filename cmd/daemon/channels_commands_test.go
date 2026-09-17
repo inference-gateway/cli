@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 )
 
 // TestBuildChannelShortcutRegistryMetadataSafe guards the nil-dependency
 // registry: the channel manager only reads metadata from built-in shortcuts,
 // so every getter must be safe to call without wired services.
 func TestBuildChannelShortcutRegistryMetadataSafe(t *testing.T) {
-	reg := buildChannelShortcutRegistry(config.DefaultConfig())
+	reg := shortcuts.NewMetadataRegistry(config.DefaultConfig())
 
 	all := reg.GetAll()
 	if len(all) == 0 {

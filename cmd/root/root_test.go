@@ -13,7 +13,7 @@ func TestCommandTopology(t *testing.T) {
 	command := NewCommand()
 	want := []string{
 		"agents", "chat", "config", "conversation-title", "conversations", "daemon", "debug", "env",
-		"export", "gpu", "headless", "init", "keybindings", "mcp", "migrate", "plans", "plugins",
+		"export", "gpu", "headless", "init", "keybindings", "mcp", "migrate", "plans", "plugins", "shortcuts",
 		"skills", "stats", "status", "tools", "traces", "version", "workflow",
 	}
 	got := make([]string, 0, len(command.Commands()))

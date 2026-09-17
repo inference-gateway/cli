@@ -29,6 +29,7 @@ import (
 	plans "github.com/inference-gateway/cli/cmd/plans"
 	plugins "github.com/inference-gateway/cli/cmd/plugins"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
+	shortcutscmd "github.com/inference-gateway/cli/cmd/shortcuts"
 	skills "github.com/inference-gateway/cli/cmd/skills"
 	stats "github.com/inference-gateway/cli/cmd/stats"
 	status "github.com/inference-gateway/cli/cmd/status"
@@ -97,6 +98,7 @@ deployment, monitoring, and management of inference services.`,
 		migrate.NewCommand(state),
 		plans.NewCommand(state, renderer),
 		plugins.NewCommand(state, renderer),
+		shortcutscmd.NewCommand(state),
 		skills.NewCommand(state, renderer),
 		stats.NewCommand(state, renderer),
 		status.NewCommand(state),

@@ -394,45 +394,7 @@ func buildCommandSupport(cfg *config.Config) (*shortcuts.Registry, storage.Conve
 		logger.Warn("channel slash commands disabled: storage init failed", "error", err)
 		return nil, nil, nil
 	}
-	return buildChannelShortcutRegistry(cfg), stores.Conversations, stores.SessionGroups
-}
-
-// buildChannelShortcutRegistry mirrors the chat TUI's shortcut registry with
-// nil dependencies. Built-in shortcuts are used for metadata only (name,
-// description) — the channel manager never Executes them; custom shortcuts
-// guard their own nil dependencies.
-func buildChannelShortcutRegistry(cfg *config.Config) *shortcuts.Registry {
-	reg := shortcuts.NewRegistry()
-
-	reg.Register(shortcuts.NewClearShortcut(nil, nil))
-	reg.Register(shortcuts.NewCompactShortcut(nil))
-	reg.Register(shortcuts.NewCopyShortcut(nil, nil))
-	reg.Register(shortcuts.NewContextShortcut(nil, nil, nil))
-	reg.Register(shortcuts.NewCostShortcut(nil))
-	reg.Register(shortcuts.NewExitShortcut())
-	reg.Register(shortcuts.NewSwitchShortcut(nil))
-	reg.Register(shortcuts.NewThemeShortcut(nil))
-	reg.Register(shortcuts.NewToolsShortcut())
-	reg.Register(shortcuts.NewHelpShortcut(reg))
-	reg.Register(shortcuts.NewDiffShortcut())
-	reg.Register(shortcuts.NewExplorerShortcut())
-	reg.Register(shortcuts.NewReleaseNotesShortcut())
-	reg.Register(shortcuts.NewStatsShortcut())
-	reg.Register(shortcuts.NewTracesShortcut())
-	reg.Register(shortcuts.NewConversationSelectShortcut(nil))
-	reg.Register(shortcuts.NewNewShortcut(nil, nil))
-	reg.Register(shortcuts.NewInstallOpentaskShortcut())
-	reg.Register(shortcuts.NewInitShortcut(cfg))
-	if cfg.IsA2AToolsEnabled() {
-		reg.Register(shortcuts.NewA2ATaskManagementShortcut(cfg))
-		reg.Register(shortcuts.NewA2AAgentsShortcut())
-	}
-
-	configDirs := config.ConfigLookupDirs()
-	if err := reg.LoadCustomShortcuts(configDirs, nil, nil, nil, nil); err != nil {
-		logger.Warn("failed to load custom shortcuts for channels", "error", err, "config_dirs", configDirs)
-	}
-	return reg
+	return shortcuts.NewMetadataRegistry(cfg), stores.Conversations, stores.SessionGroups
 }
 
 // supportedChannelCommands lists the commands worth advertising natively in a
