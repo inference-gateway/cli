@@ -133,7 +133,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		return fmt.Errorf("failed to start inference gateway: %w", err)
 	}
 
-	if agentManager := svc.GetAgentManager(); agentManager != nil {
+	if agentManager := svc.GetAgentManager(); agentManager != nil && !isBashTask(opts.Task) {
 		startLocalAgents(agentManager, cfg, opts.Format)
 	}
 

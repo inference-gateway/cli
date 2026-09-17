@@ -44,6 +44,13 @@ func directCall(task string) (fn sdk.ChatCompletionMessageToolCallFunction, dire
 	return fn, false, nil
 }
 
+// isBashTask reports whether task is a `!cmd` direct bash run, which never
+// needs local agents. `!!Tool(...)` is excluded since it may call A2A tools.
+func isBashTask(task string) bool {
+	task = strings.TrimSpace(task)
+	return strings.HasPrefix(task, "!") && !strings.HasPrefix(task, "!!")
+}
+
 // runDirect handles a `!!Tool(...)` or `!cmd` task end to end; direct is false
 // when the task is an ordinary prompt. Everything it reports is already
 // rendered in --format, a parse error included.

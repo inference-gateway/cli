@@ -17,6 +17,19 @@ import (
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
+func TestIsBashTask(t *testing.T) {
+	for task, want := range map[string]bool{
+		"!ls -la":          true,
+		"  !pwd":           true,
+		`!!Read(path="x")`: false,
+		"list files":       false,
+	} {
+		if got := isBashTask(task); got != want {
+			t.Errorf("isBashTask(%q) = %v, want %v", task, got, want)
+		}
+	}
+}
+
 func TestDirectCall(t *testing.T) {
 	cases := map[string]struct {
 		task   string
