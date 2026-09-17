@@ -73,11 +73,12 @@ func newApprovingCtx(
 			Ctx:          context.Background(),
 			Conversation: &conv,
 		},
-		RequestToolApproval: approveStub,
-		ExecuteToolInternal: execStub,
-		PublishChatEvent:    func(agentdomain.ChatEvent) {},
-		AddMessage:          func(convdomain.ConversationEntry) error { return nil },
-		GetAgentMode:        func() agentdomain.AgentMode { return mode },
+		RequestToolApproval:   approveStub,
+		ExecuteToolInternal:   execStub,
+		ShouldRequireApproval: func(*sdk.ChatCompletionMessageToolCall, bool) bool { return true },
+		PublishChatEvent:      func(agentdomain.ChatEvent) {},
+		AddMessage:            func(convdomain.ConversationEntry) error { return nil },
+		GetAgentMode:          func() agentdomain.AgentMode { return mode },
 	}
 	return ctx, &tr, &conv, events
 }
