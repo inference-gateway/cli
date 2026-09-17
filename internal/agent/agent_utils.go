@@ -328,6 +328,8 @@ func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
 		"`gh api`: the read-only subcommands are auto-approved, while writes (e.g. `gh issue " +
 		"create`, `gh pr create`) and the raw `gh api` need approval unless your config opts " +
 		"into them. " +
+		"Before creating an issue, check and follow the repo's issue templates; if the repo " +
+		"has none, fall back to the org's global ones (its `.github` repo). " +
 		"Ensure `gh` is authenticated (it uses the standard gh/GITHUB_TOKEN credential chain).\n\n" +
 		"BASH USAGE:\n" +
 		"The Bash tool already captures stdout, stderr, and the exit code. Do NOT append `2>&1`, " +
