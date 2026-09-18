@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -185,6 +186,101 @@ func TestInsightsDirIsReadableByAgent(t *testing.T) {
 
 			if err := cfg.ValidatePathInSandbox(filepath.Join(config.InsightsDir(), "report.md")); err != nil {
 				t.Errorf("insights report should be readable despite .infer/ being protected: %v", err)
+			}
+		})
+	}
+}
+
+// TestRenderReportFrontmatter pins the metadata header: which model wrote the
+// analysis, when, over what window, and which projects it covered.
+func TestRenderReportFrontmatter(t *testing.T) {
+	generated := time.Date(2026, 9, 18, 14, 51, 45, 0, time.UTC)
+	meta := reportMeta{
+		Generated: generated,
+		Model:     "ollama_cloud/glm-5.3-flash",
+		Version:   "1.2.3",
+		Since:     generated.Add(-24 * time.Hour),
+		Sessions:  10,
+		Projects:  []string{"/repos/cli", "/repos/docs"},
+		Calls:     997,
+		Failures:  37,
+	}
+
+	got := renderReport(meta, nil, nil, "### Repeatable workflows worth a skill\nNothing repeats yet.")
+
+	for _, want := range []string{
+		"generated: 2026-09-18T14:51:45Z",
+		`model: "ollama_cloud/glm-5.3-flash"`,
+		`infer_version: "1.2.3"`,
+		`window_since: "2026-09-17T14:51:45Z"`,
+		"sessions: 10",
+		"tool_calls: 997",
+		"tool_failures: 37",
+		`  - "/repos/cli"`,
+		`  - "/repos/docs"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("frontmatter missing %q:\n%s", want, got)
+		}
+	}
+	if !strings.HasPrefix(got, "---\n") {
+		t.Errorf("report must open with frontmatter:\n%s", got)
+	}
+	if !strings.Contains(got, "## Analysis\n\n### Repeatable workflows") {
+		t.Errorf("analysis must follow its heading:\n%s", got)
+	}
+}
+
+// TestRenderReportAllTimeWindow covers the zero-value window.
+func TestRenderReportAllTimeWindow(t *testing.T) {
+	got := renderReport(reportMeta{Generated: time.Now()}, nil, nil, "x")
+	if !strings.Contains(got, `window_since: "all"`) {
+		t.Errorf("an empty window must render as all:\n%s", got)
+	}
+}
+
+// TestCallLLMRejectsEmptyResponse covers the bug behind an empty "## Analysis":
+// a reasoning model spends max_tokens thinking and returns no content, which
+// callLLM used to hand back as a successful empty string.
+func TestCallLLMRejectsEmptyResponse(t *testing.T) {
+	tests := []struct {
+		name    string
+		finish  sdk.FinishReason
+		content string
+		wantErr string
+	}{
+		{"budget exhausted", sdk.Length, "", "max_tokens"},
+		{"empty for another reason", sdk.Stop, "  \n ", "empty response"},
+		{"real content passes", sdk.Stop, " analysis ", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &sdkmocks.FakeClient{}
+			client.WithOptionsReturns(client)
+			client.WithMiddlewareOptionsReturns(client)
+			client.GenerateContentReturns(&sdk.CreateChatCompletionResponse{
+				Choices: []sdk.ChatCompletionChoice{{
+					FinishReason: tt.finish,
+					Message:      sdk.Message{Content: sdk.NewMessageContent(tt.content)},
+				}},
+			}, nil)
+
+			got, err := callLLM(context.Background(), client, "openai/gpt-4o", "prompt", 4000)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if got != "analysis" {
+					t.Errorf("expected trimmed content, got %q", got)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("expected an error naming %q, got content %q", tt.wantErr, got)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error must mention %q, got: %v", tt.wantErr, err)
 			}
 		})
 	}

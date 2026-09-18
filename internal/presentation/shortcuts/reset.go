@@ -82,9 +82,8 @@ func (r *ResetShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 		}, nil
 	}
 
-	// Order matters: the repo saves the outgoing conversation here, then the
-	// purge below removes it along with everything else. Starting the new
-	// session after the wipe would write that save back into a fresh store.
+	// The repo saves the outgoing conversation here and the purge below removes
+	// it; starting the new session after the wipe would write it back.
 	if r.repo != nil {
 		if err := r.repo.StartNewConversation("New Conversation"); err != nil {
 			return ShortcutResult{
@@ -115,8 +114,7 @@ func (r *ResetShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 }
 
 // armed reports whether a preview was shown recently enough to treat the next
-// confirm as deliberate, and consumes nothing - re-confirming within the window
-// is fine. Process-scoped by design: the accident this guards against is a
+// confirm as deliberate. Process-scoped: the accident it guards against is a
 // tab-completed /reset confirm, which only exists in the chat TUI.
 func (r *ResetShortcut) armed() bool {
 	r.mu.Lock()
@@ -130,10 +128,8 @@ func (r *ResetShortcut) arm() {
 	r.previewedAt = time.Now()
 }
 
-// purge empties the store through its own API before the file is unlinked.
-// Unlinking alone is not enough for SQLite: this process keeps the deleted inode
-// open, so its later writes would go to a file nothing can read. Best-effort - a
-// failure here costs a stale row, not the wipe.
+// purge empties the store through its own API before the file is unlinked:
+// SQLite keeps the deleted inode open, so later writes go nowhere readable.
 func (r *ResetShortcut) purge(ctx context.Context) {
 	if r.store == nil {
 		return
@@ -155,9 +151,7 @@ func (r *ResetShortcut) purge(ctx context.Context) {
 	}
 }
 
-// preview describes the wipe without performing it, and arms the confirm. A
-// shortcut returns one result string and cannot read a keypress, so the second
-// invocation is the confirmation.
+// preview describes the wipe without performing it, and arms the confirm.
 func (r *ResetShortcut) preview(dirs []string, sqliteDB string) string {
 	r.arm()
 	return "This permanently deletes all local runtime state, for every project on this machine:\n" +
@@ -166,9 +160,8 @@ func (r *ResetShortcut) preview(dirs []string, sqliteDB string) string {
 		"Run `/reset confirm` to proceed, or do nothing to cancel."
 }
 
-// withInsights renders the analysis that precedes the preview. A failure here is
-// reported but never blocks the reset - the point is to offer the learnings
-// before the sessions go, not to hold the wipe hostage to a model call.
+// withInsights renders the analysis that precedes the preview. A failure is
+// reported but never blocks the reset.
 func (r *ResetShortcut) withInsights(ctx context.Context) string {
 	if !r.insights.Available() {
 		return "Insights unavailable: they need conversation storage enabled and a configured model.\n\n"
@@ -220,8 +213,8 @@ func (r *ResetShortcut) targets() (dirs []string, sqliteDB, remote string) {
 	return existing(dirs), sqliteDB, remote
 }
 
-// existing drops targets that are not on disk, so the preview promises only what
-// it will actually delete.
+// existing drops targets that are not on disk, so the preview promises only
+// what it will delete.
 func existing(dirs []string) []string {
 	present := dirs[:0]
 	for _, dir := range dirs {

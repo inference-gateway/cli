@@ -19,17 +19,14 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
-// Bounds on the digest: a machine with thousands of sessions must produce the
-// same size prompt as one with ten.
 const (
-	maxInsightSessions   = 50
-	maxDigestChars       = 12000
-	maxErrorsPerTool     = 5
-	maxIntentChars       = 200
-	maxToolsPerSession   = 20
-	insightsMaxTokens    = 2000
-	insightsTimeout      = 120 * time.Second
-	insightsAnalysisHead = "## Analysis"
+	maxInsightSessions = 50
+	maxDigestChars     = 12000
+	maxErrorsPerTool   = 5
+	maxIntentChars     = 200
+	maxToolsPerSession = 20
+	insightsMaxTokens  = 4000
+	insightsTimeout    = 120 * time.Second
 )
 
 // digitRun folds "exit status 2" and "exit status 127" into one recurring
@@ -53,8 +50,7 @@ func NewInsightsGenerator(client sdk.Client, cfg *config.Config, store storage.C
 }
 
 // Available reports whether the generator has everything it needs. The metadata
-// registry builds shortcuts with nil dependencies and storage can be disabled,
-// so both call sites check first.
+// registry builds shortcuts with nil dependencies and storage can be disabled.
 func (g *InsightsGenerator) Available() bool {
 	return g != nil && g.store != nil && g.client != nil
 }
@@ -67,11 +63,22 @@ type sessionDigest struct {
 	Tools   []string
 }
 
-// toolFailure is one tool's recurring errors, keyed by the normalized message.
 type toolFailure struct {
 	Tool   string
 	Errors map[string]int
-	Sample map[string]string // normalized key -> first raw error seen
+	Sample map[string]string
+}
+
+// reportMeta is the report's YAML frontmatter.
+type reportMeta struct {
+	Generated time.Time
+	Model     string
+	Version   string
+	Since     time.Time
+	Sessions  int
+	Projects  []string
+	Calls     int
+	Failures  int
 }
 
 // Generate reads the sessions, asks the model to interpret them, and writes the
@@ -96,12 +103,30 @@ func (g *InsightsGenerator) Generate(ctx context.Context, since time.Time) (mark
 		tools = stats.Tools
 	}
 
-	analysis, err := g.analyze(ctx, buildDigest(sessions, failures, tools))
+	model := ""
+	if g.models != nil {
+		model = g.models.GetCurrentModel()
+	}
+
+	analysis, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools))
 	if err != nil {
 		return "", "", err
 	}
 
-	markdown = renderReport(since, sessions, failures, tools, analysis)
+	meta := reportMeta{
+		Generated: time.Now(),
+		Model:     model,
+		Version:   telemetry.Version,
+		Since:     since,
+		Sessions:  len(sessions),
+		Projects:  projectsOf(sessions),
+	}
+	for _, t := range tools {
+		meta.Calls += t.Calls
+		meta.Failures += t.Failures
+	}
+
+	markdown = renderReport(meta, failures, tools, analysis)
 	path, err = writeReport(markdown)
 	if err != nil {
 		return "", "", err
@@ -109,7 +134,6 @@ func (g *InsightsGenerator) Generate(ctx context.Context, since time.Time) (mark
 	return markdown, path, nil
 }
 
-// collect walks the most recent sessions across every project.
 func (g *InsightsGenerator) collect(ctx context.Context, since time.Time) ([]sessionDigest, []toolFailure, error) {
 	summaries, err := g.store.ListConversations(ctx, "", maxInsightSessions, 0)
 	if err != nil {
@@ -125,7 +149,7 @@ func (g *InsightsGenerator) collect(ctx context.Context, since time.Time) ([]ses
 		}
 		entries, meta, loadErr := g.store.LoadConversation(ctx, summary.ID)
 		if loadErr != nil {
-			continue // a single unreadable session must not sink the report
+			continue // one unreadable session must not sink the report
 		}
 		sessions = append(sessions, digestSession(summary, meta, entries))
 		foldFailures(entries, byTool)
@@ -145,10 +169,24 @@ func (g *InsightsGenerator) collect(ctx context.Context, since time.Time) ([]ses
 	return sessions, failures, nil
 }
 
+func projectsOf(sessions []sessionDigest) []string {
+	seen := map[string]bool{}
+	projects := make([]string, 0, 4)
+	for _, s := range sessions {
+		if s.Project == "" || seen[s.Project] {
+			continue
+		}
+		seen[s.Project] = true
+		projects = append(projects, s.Project)
+	}
+	slices.Sort(projects)
+	return projects
+}
+
 func digestSession(summary convdomain.ConversationSummary, meta convdomain.ConversationMetadata, entries []convdomain.ConversationEntry) sessionDigest {
 	d := sessionDigest{
 		Title:   firstNonEmpty(summary.Title, meta.Title, "(untitled)"),
-		Project: filepath.Base(firstNonEmpty(summary.Project, meta.Project)),
+		Project: firstNonEmpty(summary.Project, meta.Project),
 		When:    summary.UpdatedAt,
 	}
 
@@ -208,7 +246,7 @@ func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telem
 	b.WriteString("SESSIONS (most recent first)\n")
 	for _, s := range sessions {
 		fmt.Fprintf(&b, "- [%s] %s\n  intent: %s\n  tools: %s\n",
-			s.Project, s.Title, firstNonEmpty(s.Intent, "(none recorded)"), strings.Join(s.Tools, ", "))
+			filepath.Base(s.Project), s.Title, firstNonEmpty(s.Intent, "(none recorded)"), strings.Join(s.Tools, ", "))
 		if b.Len() > maxDigestChars {
 			break
 		}
@@ -233,7 +271,6 @@ func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telem
 	return truncate(b.String(), maxDigestChars)
 }
 
-// topErrors returns a tool's error keys, most frequent first, capped.
 func topErrors(f toolFailure) []string {
 	keys := make([]string, 0, len(f.Errors))
 	for k := range f.Errors {
@@ -273,33 +310,35 @@ DATA
 ----
 `
 
-func (g *InsightsGenerator) analyze(ctx context.Context, digest string) (string, error) {
+func (g *InsightsGenerator) analyze(ctx context.Context, model, digest string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, insightsTimeout)
 	defer cancel()
-
-	var model string
-	if g.models != nil {
-		model = g.models.GetCurrentModel()
-	}
 	return callLLM(ctx, g.client, model, insightsPrompt+digest, insightsMaxTokens)
 }
 
-// renderReport assembles the file: exact numbers from Go, interpretation from
-// the model.
-func renderReport(since time.Time, sessions []sessionDigest, failures []toolFailure, tools []telemetry.ToolStat, analysis string) string {
+func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.ToolStat, analysis string) string {
 	var b strings.Builder
 
-	window := "all time"
-	if !since.IsZero() {
-		window = "since " + since.Format("2006-01-02 15:04")
-	}
-	projects := map[string]bool{}
-	for _, s := range sessions {
-		projects[s.Project] = true
+	window := "all"
+	if !meta.Since.IsZero() {
+		window = meta.Since.Format(time.RFC3339)
 	}
 
-	fmt.Fprintf(&b, "# Insights - %s\n\n", time.Now().Format("2006-01-02 15:04"))
-	fmt.Fprintf(&b, "Window: %s - %d sessions across %d projects\n\n", window, len(sessions), len(projects))
+	b.WriteString("---\n")
+	fmt.Fprintf(&b, "generated: %s\n", meta.Generated.Format(time.RFC3339))
+	fmt.Fprintf(&b, "model: %q\n", meta.Model)
+	fmt.Fprintf(&b, "infer_version: %q\n", meta.Version)
+	fmt.Fprintf(&b, "window_since: %q\n", window)
+	fmt.Fprintf(&b, "sessions: %d\n", meta.Sessions)
+	fmt.Fprintf(&b, "tool_calls: %d\n", meta.Calls)
+	fmt.Fprintf(&b, "tool_failures: %d\n", meta.Failures)
+	b.WriteString("projects:\n")
+	for _, p := range meta.Projects {
+		fmt.Fprintf(&b, "  - %q\n", p)
+	}
+	b.WriteString("---\n\n")
+
+	fmt.Fprintf(&b, "# Insights - %s\n\n", meta.Generated.Format("2006-01-02 15:04"))
 
 	if len(tools) > 0 {
 		b.WriteString("## Tool reliability\n\n")
@@ -322,13 +361,12 @@ func renderReport(since time.Time, sessions []sessionDigest, failures []toolFail
 		b.WriteString("\n")
 	}
 
-	b.WriteString(insightsAnalysisHead + "\n\n")
+	b.WriteString("## Analysis\n\n")
 	b.WriteString(strings.TrimSpace(analysis))
 	b.WriteString("\n")
 	return b.String()
 }
 
-// writeReport saves under ~/.infer/insights, a directory /reset leaves alone.
 func writeReport(markdown string) (string, error) {
 	dir := config.InsightsDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -357,9 +395,8 @@ func truncate(s string, limit int) string {
 	return s[:limit] + "..."
 }
 
-// oneLine collapses a message to a single truncated line. A failed shell command
-// carries its whole output in Error, which would otherwise break out of the
-// markdown bullet it is rendered into.
+// oneLine collapses a message to a single truncated line; a failed shell command
+// carries its whole output in Error.
 func oneLine(s string, limit int) string {
 	return truncate(strings.Join(strings.Fields(s), " "), limit)
 }
