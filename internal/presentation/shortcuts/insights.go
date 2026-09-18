@@ -17,6 +17,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
@@ -437,9 +438,9 @@ func (g *InsightsGenerator) analyze(ctx context.Context, model, digest string) (
 		maxTokens = max(g.cfg.Agent.MaxTokens, insightsMinTokens)
 	}
 
-	analysis, usage, err := callLLM(ctx, g.client, model, insightsPrompt+digest, maxTokens)
+	analysis, usage, err := llm.Call(ctx, g.client, model, insightsPrompt+digest, maxTokens)
 	if err != nil {
-		if errors.Is(err, ErrTokenBudgetExhausted) {
+		if errors.Is(err, llm.ErrTokenBudgetExhausted) {
 			return "", usage, fmt.Errorf("%w; raise agent.max_tokens", err)
 		}
 		return "", usage, err
