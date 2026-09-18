@@ -177,8 +177,8 @@ INFER_SPEECH_TO_TEXT_RETAIN_RECORDINGS=10  # keep the last 10 voice files (0 = k
 Send a voice note to your bot; it is downloaded, transcribed, and answered as if you had typed it.
 
 With `retain_recordings` greater than `0`, the original audio is also kept under `recordings_dir`
-(default `~/.infer/voice`), and the oldest files are pruned once the cap is exceeded. In this compose
-setup that path resolves to `/home/infer/.infer/voice`, which already persists to `./tmp/.infer/voice`
+(default `~/.infer/tmp/voice`), and the oldest files are pruned once the cap is exceeded. In this compose
+setup that path resolves to `/home/infer/.infer/tmp/voice`, which already persists to `./tmp/.infer/tmp/voice`
 on your host via the existing volume mount. Override the location with
 `INFER_SPEECH_TO_TEXT_RECORDINGS_DIR` if you want.
 
@@ -202,7 +202,7 @@ Or in `.infer/channels.yaml`:
 telegram:
   media:
     enabled: true
-    dir: ""            # "" -> ~/.infer/media
+    dir: ""            # "" -> ~/.infer/tmp/media
     max_size_mb: 10
     retain: 20
     allowed_mime_types:
@@ -214,9 +214,9 @@ telegram:
 ```
 
 Send a photo or video to your bot; it is saved under `media.dir` (default
-`~/.infer/media` - in this compose setup that persists to `./tmp/.infer/media`
+`~/.infer/tmp/media` - in this compose setup that persists to `./tmp/.infer/tmp/media`
 on your host) and the agent receives the saved path in the message, e.g.
-`[Attachment saved: /home/infer/.infer/media/infer-media-1234.mp4]`. Files
+`[Attachment saved: /home/infer/.infer/tmp/media/infer-media-1234.mp4]`. Files
 over the size limit or with a type outside the allowlist are rejected and the
 agent tells you why. The oldest files are pruned once `retain` is exceeded.
 

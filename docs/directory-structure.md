@@ -12,6 +12,7 @@ which documents what each *option* does - this page documents where each
 - [The Two Layers](#the-two-layers)
 - [At a Glance](#at-a-glance)
 - [Userspace Files Seeded by `infer init`](#userspace-files-seeded-by-infer-init)
+- [File Formats](#file-formats)
 - [Created at Runtime](#created-at-runtime)
 - [What to Commit, What to Ignore](#what-to-commit-what-to-ignore)
 
@@ -46,6 +47,7 @@ for the full precedence rules.
 ```text
 ~/.infer/                 # userspace layer - the default and only written location
 ├── config.yaml           # main configuration
+├── auth.yaml             # provider API key fallback, mode 0600 (legacy auth.json still read)
 ├── prompts.yaml          # LLM system prompts (agent, git, conversation, tools, ...)
 ├── keybindings.yaml      # chat UI keyboard shortcuts
 ├── channels.yaml         # remote messaging channels (Telegram, ...)
@@ -65,6 +67,12 @@ for the full precedence rules.
 ├── plans/                # plan-mode plans saved by RequestPlanApproval (one .md per plan)
 ├── insights/             # /insights session reports (one .md per run); survives /reset
 ├── logs/                 # CLI + gateway logs (app/debug/daemon/gateway <date>.log)
+├── telemetry/            # usage stats backing `infer stats` (see docs/telemetry.md)
+├── run/                  # daemon pid/lock files
+├── tmp/                  # userspace scratch: agent-readable/writable, wiped by /reset
+│   ├── tts/              # generated speech WAVs (text_to_speech.output_dir default)
+│   ├── voice/            # retained inbound voice recordings (speech_to_text.recordings_dir default)
+│   └── media/            # retained inbound Telegram media (channels.telegram.media.dir default)
 ├── bin/                  # downloaded gateway binary, one shared copy per machine
 ├── conversations.db      # shared SQLite conversation store (type: sqlite)
 └── projects/             # per-project runtime state, grouped by project
@@ -134,6 +142,23 @@ The split into separate YAML files (rather than one giant `config.yaml`) is
 deliberate: each concern has its own file so changes stay focused and
 reviews stay readable.
 
+### File Formats
+
+A simple rule keeps `~/.infer/` consistent:
+
+- **Hand-edited files are YAML** - `config.yaml`, `agents.yaml`, `auth.yaml`
+  and everything else a user is expected to open in an editor. `auth.yaml`
+  (mode 0600, the provider API key fallback) replaced the original
+  `auth.json`; the legacy JSON file is still read when `auth.yaml` is
+  missing, so existing credentials keep working until you move them over.
+- **Machine-written state stays JSON** - `skills/catalog.json` (downloaded
+  skill index), `schedules/github-artifacts-state.json` (GitHub artifact
+  poller cursor) and `session_groups.json` (session group index) are
+  written and read by the CLI and never meant for an editor. Converting
+  them would churn on-disk state for no gain. Out of scope here:
+  `projects.json` and `desktop.json` are written by the desktop repo, and
+  `.claude-plugin/plugin.json` follows an external spec.
+
 ---
 
 ## Created at Runtime
@@ -170,6 +195,35 @@ the project-local `.infer/`.
 - **`~/.infer/schedules/<id>.yaml`** *(userspace)* - one YAML per scheduled job.
   Written by the `Schedule` tool, hot-reloaded by the
   daemon. See [Scheduling](scheduling.md).
+- **`~/.infer/tmp/tts/`** *(userspace)* - generated speech WAVs, the default of
+  `text_to_speech.output_dir`. See [Text to Speech](text-to-speech.md).
+- **`~/.infer/tmp/voice/`** *(userspace)* - retained inbound voice/audio
+  recordings, the default of `speech_to_text.recordings_dir` when
+  `retain_recordings` is greater than 0. See [Speech to
+  Text](speech-to-text.md).
+- **`~/.infer/tmp/media/`** *(userspace)* - retained inbound Telegram
+  photo/video attachments, the default of `channels.telegram.media.dir`.
+  See [Channels](channels.md).
+- **`~/.infer/telemetry/`** *(userspace)* - usage stats backing
+  [`infer stats`](commands-reference.md); wiped by `/reset`. See
+  [Telemetry](telemetry.md).
+- **`~/.infer/run/`** *(userspace)* - daemon pid/lock files; wiped by
+  `/reset`.
+
+The whole `~/.infer/tmp/` tree is listed in `UserspaceRuntimeDirNames`, so the
+agent's file tools can read and write it (that is the point of retaining
+recordings and media: they are assets for the agent, and generated speech is
+deliverable output), while the rest of `~/.infer/` stays protected. `/reset`
+empties the tree through the `tmp` parent and does not recreate the
+subdirectories - the owning subsystems recreate them on next use.
+
+### Existing Installs
+
+Before this layout change the three media dirs lived directly under
+`~/.infer/` (`tts/`, `voice/`, `media/`). They hold only disposable output
+(retained recordings and media, generated speech), so nothing migrates
+automatically: delete the old directories, or `mv` their contents under
+`~/.infer/tmp/` if you want to keep the retained files.
 
 ---
 

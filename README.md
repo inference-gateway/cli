@@ -297,19 +297,20 @@ DEEPSEEK_API_KEY=your_key_here
 ```
 
 Provider keys resolve in this order, first hit wins: the system environment, the
-project `.env`, then the userspace fallback `~/.infer/auth.json` - a flat JSON
+project `.env`, then the userspace fallback `~/.infer/auth.yaml` - a flat YAML
 map of provider key env vars, so you can keep keys in one place across all
 projects (or run `infer` outside any project):
 
-```json
-{
-  "ANTHROPIC_API_KEY": "sk-ant-...",
-  "OPENAI_API_KEY": "sk-..."
-}
+```yaml
+ANTHROPIC_API_KEY: sk-ant-...
+OPENAI_API_KEY: sk-...
 ```
 
-A missing `auth.json` changes nothing, and a malformed one is ignored with a
-logged warning. Keep the file private (`chmod 600 ~/.infer/auth.json`).
+A missing `auth.yaml` changes nothing, and a malformed one is ignored with a
+logged warning. An older `~/.infer/auth.json` (the previous JSON format) is
+still read as a fallback, so existing credentials keep working; move them to
+`auth.yaml` when convenient. Keep the file private (`chmod 600
+~/.infer/auth.yaml`).
 
 3. **Start chatting**:
 

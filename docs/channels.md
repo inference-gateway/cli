@@ -182,7 +182,7 @@ telegram:
   poll_timeout: 30           # Long-polling timeout in seconds
   media:
     enabled: false           # Save inbound photos/videos to disk
-    dir: ""                  # "" -> ~/.infer/media
+    dir: ""                  # "" -> ~/.infer/tmp/media
     max_size_mb: 10          # Reject downloads larger than this
     retain: 20               # Keep the last N files, oldest pruned
     allowed_mime_types:      # Only these types are saved
@@ -235,7 +235,7 @@ With `telegram.media.enabled: true`, photos and videos sent to the bot are
 saved to a local directory so the agent can use them as assets (edit them,
 feed them to other tools, generate content from them):
 
-- Files land in `media.dir` (default `~/.infer/media`) with an
+- Files land in `media.dir` (default `~/.infer/tmp/media`) with an
   `infer-media-` prefix; the saved path is appended to the message the agent
   receives (`[Attachment saved: /path/to/infer-media-xxx.mp4]`) and exposed
   as `media_path` metadata.
