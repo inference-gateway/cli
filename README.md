@@ -918,6 +918,8 @@ actions.
 
 - `/new [title]` - Start a new conversation (optionally titled)
 - `/clear` - Save the current conversation and start a new one
+- `/reset [confirm]` - Wipe all local runtime state (conversations, plans, scratch, artifacts, history, backups, exports, logs) after a y/N
+  confirmation and start a fresh session; config is preserved, remote stores are skipped
 - `/compact` - Save the conversation and start a new session seeded with a summary
 - `/conversations` - Open the conversation selection dropdown
 - `/context` - Show context-window usage
