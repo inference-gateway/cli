@@ -123,6 +123,7 @@ type ServiceContainer struct {
 
 	// Extensibility
 	shortcutRegistry *shortcuts.Registry
+	insights         *shortcuts.InsightsGenerator
 
 	// Tool registry
 	toolRegistry *tools.Registry
@@ -680,21 +681,14 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewStatsShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewTracesShortcut())
 
-	var conversationStore storage.ConversationStorage
-	var insights *shortcuts.InsightsGenerator
 	if c.stores != nil {
-		conversationStore = c.stores.Conversations
-		insights = shortcuts.NewInsightsGenerator(c.createRawSDKClient(), c.config, conversationStore, c.modelService)
+		c.insights = shortcuts.NewInsightsGenerator(c.createRawSDKClient(), c.config, c.stores.Conversations, c.modelService)
 	}
-	c.shortcutRegistry.Register(shortcuts.NewInsightsShortcut(insights))
 
-	var resetRepo shortcuts.PersistentConversationRepository
 	if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
-		resetRepo = persistentRepo
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(persistentRepo))
 		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(persistentRepo, c.backgroundTaskRegistry))
 	}
-	c.shortcutRegistry.Register(shortcuts.NewResetShortcut(c.config, resetRepo, insights, conversationStore))
 
 	c.shortcutRegistry.Register(shortcuts.NewInstallOpentaskShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewInitShortcut(c.config))
@@ -811,6 +805,12 @@ func (c *ServiceContainer) GetThemeService() tui.ThemeService {
 
 func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {
 	return c.shortcutRegistry
+}
+
+// GetInsightsGenerator returns the session analyzer behind `infer insights`. It
+// reports itself unavailable when conversation storage is disabled.
+func (c *ServiceContainer) GetInsightsGenerator() *shortcuts.InsightsGenerator {
+	return c.insights
 }
 
 func (c *ServiceContainer) GetStateManager() *statemanager.StateManager {

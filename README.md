@@ -485,6 +485,38 @@ infer conversations list      # Find the session ID
 infer export <session-id>     # Writes ~/.infer/projects/<slug>/exports/chat_export_<timestamp>.md
 ```
 
+**`infer insights`** - Analyze past sessions for repeatable workflows and recurring tool failures
+
+```bash
+infer insights                # Every saved session
+infer insights 7d             # Only the last 7 days (also 24h, 30d)
+infer insights --model <id>   # Pick the model; defaults to agent.model
+```
+
+Writes a markdown report to `~/.infer/insights/`. Needs conversation storage enabled.
+
+Reads the conversation store, the telemetry directory and the persistent memory index
+(`MEMORY.md`, capped at `memory.max_chars`). `infer reset insights` runs the analysis before the
+wipe, so the facts survive in the report even though the memory directory does not.
+
+**`infer reset`** - Wipe all local runtime state and start fresh
+
+```bash
+infer reset             # Preview every path that would be deleted; deletes nothing
+infer reset confirm     # Perform the wipe
+infer reset insights    # Analyze past sessions first, then preview (takes --model)
+```
+
+Clears the runtime directories of **every project on this machine**, the persistent memory directory
+and the local conversation store. Per-project runtime directories are deleted rather than recreated
+empty, and a project whose working directory no longer exists is removed entirely.
+
+Config, custom shortcuts, skills and saved insights are preserved; remote stores (postgres, redis, d1)
+are skipped, and a git-backed memory directory syncs back from its remote on the next run.
+
+The `/reset` and `/insights` chat shortcuts are thin YAML wrappers over these commands, written to
+`~/.infer/shortcuts/` by `infer init` - edit them like any other shortcut.
+
 **`infer version`** - Display CLI version information
 
 ```bash
@@ -916,12 +948,14 @@ actions.
 
 - `/new [title]` - Start a new conversation (optionally titled)
 - `/clear` - Save the current conversation and start a new one
-- `/insights [since]` - Analyze past sessions for repeatable workflows worth a skill and recurring tool failures; saves a report to `~/.infer/insights/`
+- `/insights [24h|7d|30d]` - Analyze past sessions for repeatable workflows worth a skill and recurring tool failures; saves a report to `~/.infer/insights/`.
+  Vendored as `~/.infer/shortcuts/insights.yaml`, wrapping `infer insights` - edit it to pin a model or change the windows.
 - `/reset [insights|confirm]` - Wipe the local runtime state (conversations, plans, scratch, artifacts, history, backups, exports, logs) of
-  **every project on this machine** and start a fresh session.
-  `/reset insights` analyzes the sessions first and previews the wipe.
-  `/reset confirm` performs it, but only after a preview in the same session - a cold `/reset confirm` previews instead of deleting.
+  **every project on this machine**.
+  `/reset` previews and deletes nothing, `/reset insights` analyzes the sessions first, `/reset confirm` performs the wipe.
   Config and saved insights are preserved, remote stores are skipped.
+  Vendored as `~/.infer/shortcuts/reset.yaml`, wrapping `infer reset` - edit or delete it like any other shortcut.
+  A chat session running during the wipe keeps the conversation it already has in memory; run `/new` or restart to be fully fresh.
 - `/compact` - Save the conversation and start a new session seeded with a summary
 - `/conversations` - Open the conversation selection dropdown
 - `/context` - Show context-window usage

@@ -10,10 +10,12 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	cobra "github.com/spf13/cobra"
+	yaml "gopkg.in/yaml.v3"
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	configutils "github.com/inference-gateway/cli/config/utils"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 )
 
 func splitHomeProjectEnv(t *testing.T) (homeDir, projectDir string) {
@@ -120,5 +122,45 @@ func TestCheckFileExists(t *testing.T) {
 	err = checkFileExists(existingFile, "test file")
 	if err == nil {
 		t.Errorf("checkFileExists() should error for existing file")
+	}
+}
+
+// TestVendoredShortcutsDelegateToCommands pins the shape of every shipped
+// shortcut file: a subcommand that declares no command of its own has its NAME
+// appended to the parent's args (resolveCommandConfig), so spelling the full
+// command out again in subcommand args would run `infer reset reset confirm`.
+func TestVendoredShortcutsDelegateToCommands(t *testing.T) {
+	homeDir, _ := splitHomeProjectEnv(t)
+	require.NoError(t, runInit(t, nil))
+
+	want := map[string][]string{
+		"reset":    {"insights", "confirm"},
+		"insights": {"24h", "7d", "30d"},
+	}
+
+	for name, subcommands := range want {
+		t.Run(name, func(t *testing.T) {
+			raw, err := os.ReadFile(filepath.Join(homeDir, config.ConfigDirName, "shortcuts", name+".yaml"))
+			require.NoError(t, err)
+
+			var parsed shortcuts.CustomShortcutsConfig
+			require.NoError(t, yaml.Unmarshal(raw, &parsed))
+			require.Len(t, parsed.Shortcuts, 1)
+
+			shortcut := parsed.Shortcuts[0]
+			require.NoError(t, shortcut.Validate())
+			require.Equal(t, name, shortcut.Name)
+			require.Equal(t, "infer", shortcut.Command)
+			require.Equal(t, []string{name}, shortcut.Args)
+
+			got := make([]string, 0, len(shortcut.Subcommands))
+			for _, sub := range shortcut.Subcommands {
+				got = append(got, sub.Name)
+				require.Empty(t, sub.Command, "subcommand %q must inherit the parent command", sub.Name)
+				require.Empty(t, sub.Args, "subcommand %q args would replace, not extend, the parent's", sub.Name)
+				require.NotEmpty(t, sub.Description)
+			}
+			require.Equal(t, subcommands, got)
+		})
 	}
 }

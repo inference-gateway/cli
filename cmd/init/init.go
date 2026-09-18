@@ -62,6 +62,8 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	envShortcutsPath := filepath.Join(shortcutsDir, "env.yaml")
 	a2aShortcutsPath := filepath.Join(shortcutsDir, "a2a.yaml")
 	skillsShortcutsPath := filepath.Join(shortcutsDir, "skills.yaml")
+	resetShortcutsPath := filepath.Join(shortcutsDir, "reset.yaml")
+	insightsShortcutsPath := filepath.Join(shortcutsDir, "insights.yaml")
 	mcpPath := filepath.Join(homeCfgDir, config.MCPFileName)
 	promptsPath := filepath.Join(homeCfgDir, config.PromptsFileName)
 	hooksPath := filepath.Join(homeCfgDir, config.HooksFileName)
@@ -122,6 +124,14 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 
 	if err := createSkillsShortcutsFile(skillsShortcutsPath); err != nil {
 		return fmt.Errorf("failed to create Skills shortcuts file: %w", err)
+	}
+
+	if err := createResetShortcutsFile(resetShortcutsPath); err != nil {
+		return fmt.Errorf("failed to create Reset shortcuts file: %w", err)
+	}
+
+	if err := createInsightsShortcutsFile(insightsShortcutsPath); err != nil {
+		return fmt.Errorf("failed to create Insights shortcuts file: %w", err)
 	}
 
 	if err := createMCPConfigFile(mcpPath); err != nil {
@@ -210,6 +220,8 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	fmt.Printf("   Created: %s\n", envShortcutsPath)
 	fmt.Printf("   Created: %s\n", a2aShortcutsPath)
 	fmt.Printf("   Created: %s\n", skillsShortcutsPath)
+	fmt.Printf("   Created: %s\n", resetShortcutsPath)
+	fmt.Printf("   Created: %s\n", insightsShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpPath)
 	if kbCreated {
 		fmt.Printf("   Created: %s\n", keybindingsPath)
@@ -824,4 +836,77 @@ func handleMigrations() {
 	} else {
 		fmt.Printf("%s Database migrations completed successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 	}
+}
+
+// createResetShortcutsFile creates the Reset shortcuts YAML file that wraps
+// `infer reset`, so typing /reset in chat mode runs the reset command.
+func createResetShortcutsFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create shortcuts directory: %w", err)
+	}
+
+	resetShortcutsContent := `---
+# Reset Shortcuts
+# Wipe all local runtime state so the agent starts as if freshly installed.
+# Configuration (this file included), skills and saved insights are preserved.
+#
+# Usage:
+# - /reset - Preview every path that would be deleted; deletes nothing
+# - /reset insights - Analyze the sessions first, then preview
+# - /reset confirm - Perform the wipe
+#
+# Note: a chat session running during the wipe keeps the conversation it
+# already has in memory. Run /new, or restart the chat, to be fully fresh.
+
+shortcuts:
+  - name: reset
+    description: "Wipe all local runtime state and start fresh"
+    command: infer
+    args:
+      - reset
+    subcommands:
+      - name: insights
+        description: "Analyze the sessions first, then preview the wipe"
+      - name: confirm
+        description: "Actually delete everything listed in the preview"
+`
+
+	return os.WriteFile(path, []byte(resetShortcutsContent), 0644)
+}
+
+// createInsightsShortcutsFile creates the Insights shortcuts YAML file that
+// wraps `infer insights`, so typing /insights in chat mode runs the command.
+func createInsightsShortcutsFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create shortcuts directory: %w", err)
+	}
+
+	insightsShortcutsContent := `---
+# Insights Shortcuts
+# Analyze past sessions for repeatable workflows worth a skill and recurring
+# tool failures. Reports are saved to ~/.infer/insights/.
+#
+# Usage:
+# - /insights - Analyze every saved session
+# - /insights 24h|7d|30d - Only sessions from that window
+#
+# Add "--model" to the args below to pin the analysis to a specific model
+# instead of agent.model.
+
+shortcuts:
+  - name: insights
+    description: "Analyze past sessions for repeatable workflows and recurring tool failures"
+    command: infer
+    args:
+      - insights
+    subcommands:
+      - name: 24h
+        description: "Only sessions from the last 24 hours"
+      - name: 7d
+        description: "Only sessions from the last 7 days"
+      - name: 30d
+        description: "Only sessions from the last 30 days"
+`
+
+	return os.WriteFile(path, []byte(insightsShortcutsContent), 0644)
 }

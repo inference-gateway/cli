@@ -15,6 +15,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
@@ -79,6 +80,7 @@ type reportMeta struct {
 	Projects  []string
 	Calls     int
 	Failures  int
+	Memory    int
 }
 
 // Generate reads the sessions, asks the model to interpret them, and writes the
@@ -108,7 +110,11 @@ func (g *InsightsGenerator) Generate(ctx context.Context, since time.Time) (mark
 		model = g.models.GetCurrentModel()
 	}
 
-	analysis, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools))
+	// Memory is read before the analysis so a `/reset insights` run captures what
+	// the agent had learned; the wipe that follows takes the memory dir with it.
+	memory := g.memoryIndex()
+
+	analysis, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools, memory))
 	if err != nil {
 		return "", "", err
 	}
@@ -121,6 +127,7 @@ func (g *InsightsGenerator) Generate(ctx context.Context, since time.Time) (mark
 		Sessions:  len(sessions),
 		Projects:  projectsOf(sessions),
 	}
+	meta.Memory = countMemoryFacts(memory)
 	for _, t := range tools {
 		meta.Calls += t.Calls
 		meta.Failures += t.Failures
@@ -240,8 +247,59 @@ func totalErrors(f toolFailure) int {
 }
 
 // buildDigest renders the prompt payload; pure, so the tests target it directly.
-func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telemetry.ToolStat) string {
+// memoryIndex returns the MEMORY.md index: one line per stored fact, across
+// every project. The index is read rather than the fact files themselves - a
+// fact can run to Memory.MaxEntryChars each, while the index is already the
+// one-line-per-fact summary, so this stays cheap in tokens. Memory being
+// unreadable or disabled costs this section, never the report.
+func (g *InsightsGenerator) memoryIndex() string {
+	if g.cfg == nil || !g.cfg.Memory.Enabled {
+		return ""
+	}
+	dir, err := g.cfg.ResolveMemoryDir()
+	if err != nil {
+		return ""
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, config.MemoryIndexFileName))
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Debug("failed to read memory index for insights", "error", err)
+		}
+		return ""
+	}
+
+	index := strings.TrimSpace(string(data))
+	if maxChars := g.cfg.Memory.MaxChars; maxChars > 0 && len(index) > maxChars {
+		cut := index[:maxChars]
+		if nl := strings.LastIndexByte(cut, '\n'); nl > 0 {
+			cut = cut[:nl]
+		}
+		index = cut + "\n... (memory index truncated)"
+	}
+	return index
+}
+
+// countMemoryFacts counts the entries in the index, which lists one markdown
+// link per fact.
+func countMemoryFacts(index string) int {
+	count := 0
+	for line := range strings.SplitSeq(index, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "- [") {
+			count++
+		}
+	}
+	return count
+}
+
+func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telemetry.ToolStat, memory string) string {
 	var b strings.Builder
+
+	if memory != "" {
+		b.WriteString("PERSISTENT MEMORY (one line per stored fact, across every project)\n")
+		b.WriteString(memory)
+		b.WriteString("\n\n")
+	}
 
 	b.WriteString("SESSIONS (most recent first)\n")
 	for _, s := range sessions {
@@ -332,6 +390,7 @@ func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.Too
 	fmt.Fprintf(&b, "sessions: %d\n", meta.Sessions)
 	fmt.Fprintf(&b, "tool_calls: %d\n", meta.Calls)
 	fmt.Fprintf(&b, "tool_failures: %d\n", meta.Failures)
+	fmt.Fprintf(&b, "memory_facts: %d\n", meta.Memory)
 	b.WriteString("projects:\n")
 	for _, p := range meta.Projects {
 		fmt.Fprintf(&b, "  - %q\n", p)
@@ -399,50 +458,4 @@ func truncate(s string, limit int) string {
 // carries its whole output in Error.
 func oneLine(s string, limit int) string {
 	return truncate(strings.Join(strings.Fields(s), " "), limit)
-}
-
-// InsightsShortcut is the standalone entry point; /reset insights runs the same
-// generator before offering to delete everything it read.
-type InsightsShortcut struct {
-	generator *InsightsGenerator
-}
-
-func NewInsightsShortcut(generator *InsightsGenerator) *InsightsShortcut {
-	return &InsightsShortcut{generator: generator}
-}
-
-func (s *InsightsShortcut) GetName() string { return "insights" }
-func (s *InsightsShortcut) GetDescription() string {
-	return "Analyze past sessions for repeatable workflows and recurring tool failures"
-}
-func (s *InsightsShortcut) GetUsage() string              { return "/insights [since]" }
-func (s *InsightsShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
-
-func (s *InsightsShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	sinceStr := ""
-	if len(args) == 1 {
-		sinceStr = args[0]
-	}
-	since, err := telemetry.ParseSince(sinceStr)
-	if err != nil {
-		return ShortcutResult{Output: err.Error(), Success: false}, nil
-	}
-
-	markdown, path, err := s.generator.Generate(ctx, since)
-	if err != nil {
-		return ShortcutResult{Output: fmt.Sprintf("Failed to generate insights: %v", err), Success: false}, nil
-	}
-
-	return ShortcutResult{
-		Output:  markdown + "\nSaved to " + path + "\n",
-		Success: true,
-	}, nil
-}
-
-func (s *InsightsShortcut) GetSubcommands() []Subcommand {
-	return []Subcommand{
-		{Name: "24h", Description: "Only sessions from the last 24 hours"},
-		{Name: "7d", Description: "Only sessions from the last 7 days"},
-		{Name: "30d", Description: "Only sessions from the last 30 days"},
-	}
 }
