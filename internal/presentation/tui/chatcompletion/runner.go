@@ -113,7 +113,7 @@ func (r *Runner) Start(holder agentdomain.BashDetachChannelHolder) tea.Cmd {
 
 		_ = r.stateManager.StartChatSession(requestID, currentModel, eventChan)
 
-		return r.listener.ListenForChatEvents(eventChan)()
+		return r.listener.ListenForChatEvents(r.stateManager.GetChatSession().EventChannel)()
 	}
 }
 

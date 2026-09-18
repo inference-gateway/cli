@@ -9,6 +9,8 @@ import (
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
+	tea "charm.land/bubbletea/v2"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -42,6 +44,34 @@ func newRunnerForTest() (*Runner, *conversation.InMemoryConversationRepository, 
 // ("The reasoning_content in the thinking mode must be passed back to
 // the API.") with HTTP 400. The helper below filters those entries out.
 func TestRunner_Start(t *testing.T) {
+	for _, bridged := range []bool{false, true} {
+		name := "direct channel"
+		if bridged {
+			name = "bridged channel"
+		}
+		t.Run(name, func(t *testing.T) {
+			runner, _, state, agent, model := newRunnerForTest()
+			model.GetCurrentModelReturns("test/model")
+			events := make(chan agentdomain.ChatEvent)
+			defer close(events)
+			agent.RunWithStreamReturns(events, nil)
+			if bridged {
+				state.SetEventBridge(conversation.NewEventBridge())
+			}
+			listener := runner.listener.(*tuimocks.FakeChatEventListener)
+			listener.ListenForChatEventsReturns(func() tea.Msg { return nil })
+
+			runner.Start(nil)()
+
+			if listener.ListenForChatEventsCallCount() != 1 {
+				t.Fatal("expected exactly one initial chat listener")
+			}
+			if got := listener.ListenForChatEventsArgsForCall(0); got != state.GetChatSession().EventChannel {
+				t.Fatal("initial listener must read the session channel so subsequent events re-arm it")
+			}
+		})
+	}
+
 	t.Run("returns ChatErrorEvent when no model is selected", func(t *testing.T) {
 		runner, _, _, _, model := newRunnerForTest()
 		model.GetCurrentModelReturns("")
@@ -151,11 +181,7 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 		if cmd == nil {
 			t.Fatalf("expected non-nil cmd")
 		}
-		// The cancelled branch sets status Cancelled and then immediately ends the
-		// session; the transient status is wiped, so the observable effect is that
-		// both the chat session and tool execution are torn down (EndChatSession +
-		// EndToolExecution), distinguishing it from the completed branch which
-		// leaves the session intact.
+
 		if state.GetChatSession() != nil {
 			t.Errorf("expected EndChatSession to clear the chat session on cancel")
 		}
@@ -200,8 +226,6 @@ func TestRunner_SetPendingRestoration_RestoresOnComplete(t *testing.T) {
 			t.Errorf("expected SelectModel(\"gpt-4\"), got %q", got)
 		}
 
-		// Second completion should NOT restore again - the pending value
-		// is cleared after the first restoration.
 		_ = runner.HandleChatComplete(agentdomain.ChatCompleteEvent{RequestID: "r"})
 		if model.SelectModelCallCount() != 1 {
 			t.Errorf("expected SelectModel still 1 after second complete, got %d", model.SelectModelCallCount())
