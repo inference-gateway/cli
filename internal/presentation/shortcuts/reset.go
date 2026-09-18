@@ -53,9 +53,6 @@ func (r *ResetShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 		}, nil
 	}
 
-	// Start the fresh session BEFORE wiping: StartNewConversation saves the old
-	// conversation first, which is fine because the store is deleted right after.
-	// Wiping first would make that save resurrect the old conversation instead.
 	if r.repo != nil {
 		if err := r.repo.StartNewConversation("New Conversation"); err != nil {
 			return ShortcutResult{
