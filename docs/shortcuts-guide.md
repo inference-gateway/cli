@@ -190,7 +190,7 @@ git add .
 ```
 
 The AI will generate a commit message following the conventional commit format (e.g.,
-`feat: add user authentication`, `fix: resolve memory leak`).
+`feat(chat): add user authentication`, `fix(parser): resolve memory leak`).
 
 **Requirements:**
 
@@ -368,9 +368,10 @@ shortcuts:
             {diff}
             ```
 
-            Format: "type: Description"
+            Format: "type(scope): Description"
             - Type: feat, fix, docs, refactor, etc.
-            - Description: "Capital first letter, under 50 chars"
+            - Scope: the domain being worked on (e.g. chat, parser)
+            - Description: "lowercase start, under 50 chars"
 
             Output ONLY the commit message.
           template: "!git commit -m \"{llm}\""
@@ -380,9 +381,9 @@ shortcuts:
 
 1. Command runs `git diff --cached` and outputs JSON: `{"diff": "..."}`
 2. Prompt template receives the diff via `{diff}` placeholder
-3. LLM generates commit message (e.g., `feat: Add user authentication`)
+3. LLM generates commit message (e.g., `feat(chat): Add user authentication`)
 4. Template receives LLM response via `{llm}` placeholder
-5. Final command executed: `git commit -m "feat: Add user authentication"`
+5. Final command executed: `git commit -m "feat(chat): Add user authentication"`
 
 ### Command Execution Prefix
 
