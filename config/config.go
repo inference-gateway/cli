@@ -20,6 +20,7 @@ const (
 	LogsDirName         = "logs"
 	MemoryDirName       = "memory"
 	MemoryIndexFileName = "MEMORY.md"
+	InsightsDirName     = "insights"
 
 	DefaultConfigPath           = ConfigDirName + "/" + ConfigFileName
 	DefaultMemoryMaxChars       = 2000
@@ -1692,6 +1693,30 @@ func TelemetryDir() string {
 	return filepath.Join(home, ConfigDirName, "telemetry")
 }
 
+// InsightsDir is the userspace insights store (~/.infer/insights). It sits
+// outside every list /reset wipes: a report generated before a reset is only
+// useful if it outlives the sessions it was distilled from.
+func InsightsDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(ConfigDirName, InsightsDirName)
+	}
+	return filepath.Join(home, ConfigDirName, InsightsDirName)
+}
+
+// isWithinInsightsDir reports whether absPath lives inside ~/.infer/insights, so
+// the agent can read a report back when asked to turn a suggestion into a skill.
+// Anchored to InsightsDir() rather than GetConfigDir(): the store is userspace
+// wherever config resolves from, and a config-relative check would only look at
+// ./.infer once a project supplies its own config.yaml.
+func isWithinInsightsDir(absPath string) bool {
+	dir, err := filepath.Abs(InsightsDir())
+	if err != nil {
+		return false
+	}
+	return absPath == dir || strings.HasPrefix(absPath, dir+string(filepath.Separator))
+}
+
 // IsBashCommandAllowed (and the per-mode allow-list resolution) lives in
 // bash_allowedlist.go, alongside the shell-aware clean-command guard (redirection
 // stripping, compound-command splitting, command-substitution rejection) it
@@ -1708,6 +1733,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		(c.Plugins.Enabled && c.isWithinPluginsDir(absPath)) ||
 		isWithinRuntimeDirs(absPath) ||
 		c.isWithinConfigSubdir(absPath, "plans", "projects.json") ||
+		isWithinInsightsDir(absPath) ||
 		isWithinMemoryDir(absPath, c.Memory) ||
 		isWithinGoLibDirs(absPath)
 

@@ -918,8 +918,12 @@ actions.
 
 - `/new [title]` - Start a new conversation (optionally titled)
 - `/clear` - Save the current conversation and start a new one
-- `/reset [confirm]` - Wipe all local runtime state (conversations, plans, scratch, artifacts, history, backups, exports, logs) after a y/N
-  confirmation and start a fresh session. Config is preserved, remote stores are skipped
+- `/insights [since]` - Analyze past sessions for repeatable workflows worth a skill and recurring tool failures; saves a report to `~/.infer/insights/`
+- `/reset [insights|confirm]` - Wipe the local runtime state (conversations, plans, scratch, artifacts, history, backups, exports, logs) of
+  **every project on this machine** and start a fresh session.
+  `/reset insights` analyzes the sessions first and previews the wipe.
+  `/reset confirm` performs it, but only after a preview in the same session - a cold `/reset confirm` previews instead of deleting.
+  Config and saved insights are preserved, remote stores are skipped.
 - `/compact` - Save the conversation and start a new session seeded with a summary
 - `/conversations` - Open the conversation selection dropdown
 - `/context` - Show context-window usage

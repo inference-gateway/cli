@@ -63,6 +63,7 @@ for the full precedence rules.
 ├── skills/               # Agent Skills - SKILL.md folders, see docs/skills.md
 ├── schedules/            # cron-driven scheduled jobs (one YAML per job)
 ├── plans/                # plan-mode plans saved by RequestPlanApproval (one .md per plan)
+├── insights/            # /insights session reports (one .md per run); survives /reset
 ├── logs/                 # CLI + gateway logs (app/debug/daemon/gateway <date>.log)
 ├── bin/                  # downloaded gateway binary, one shared copy per machine
 ├── conversations.db      # shared SQLite conversation store (type: sqlite)
