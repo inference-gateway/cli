@@ -5,6 +5,87 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.203.0](https://github.com/inference-gateway/cli/compare/v0.202.2...v0.203.0) (2026-09-18)
+
+### 🚀 Features
+
+* **shortcuts:** add built-in /reset shortcut to wipe local runtime state ([#1237](https://github.com/inference-gateway/cli/issues/1237)) ([a08da67](https://github.com/inference-gateway/cli/commit/a08da67c1eaa374f8ac0d344593399c229fdf127)), closes [#1234](https://github.com/inference-gateway/cli/issues/1234)
+
+### ♻️ Code Refactoring
+
+* move chat startup into update loop ([8b4cf5d](https://github.com/inference-gateway/cli/commit/8b4cf5db2caa0aed4ce3ef2b704ad521d11be20f))
+* **config:** move runtime media defaults under ~/.infer/tmp and rename auth.json to auth.yaml ([#1239](https://github.com/inference-gateway/cli/issues/1239)) ([ad9247c](https://github.com/inference-gateway/cli/commit/ad9247cc26cc5270b5f00bd562144bda5adc2827)), closes [#1238](https://github.com/inference-gateway/cli/issues/1238), references [inference-gateway/docs#689](https://github.com/inference-gateway/docs/issues/689)
+
+### 🧹 Maintenance
+
+* remove /scm pr-create shortcut and stale example .infer configs ([#1236](https://github.com/inference-gateway/cli/issues/1236)) ([7ae3c34](https://github.com/inference-gateway/cli/commit/7ae3c3449ca64f1cc9cac5a9eaf40128fb82dad8))
+* scoped commit messages, dead git config removal, shortcut validation ([#1235](https://github.com/inference-gateway/cli/issues/1235)) ([406b741](https://github.com/inference-gateway/cli/commit/406b741ff8ce11bdb466a43fd7797ffbfaae6690))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.203.0 --help
+npx @inference-gateway/cli@0.203.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.203.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.203.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.203.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.203.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.203.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.202.2](https://github.com/inference-gateway/cli/compare/v0.202.1...v0.202.2) (2026-09-18)
 
 ### 🐛 Bug Fixes
