@@ -1,4 +1,4 @@
-package shortcuts
+package insights
 
 import (
 	"cmp"
@@ -43,25 +43,25 @@ const (
 // failure instead of two singletons.
 var digitRun = regexp.MustCompile(`\d+`)
 
-// InsightsGenerator distills past sessions into a markdown report: which
-// workflows repeat often enough to deserve a skill, and which tool calls keep
-// failing the same way. Counts and error strings are computed here; the model
-// only interprets them, because a model asked to both count and interpret will
+// Generator distills past sessions into a markdown report: which workflows
+// repeat often enough to deserve a skill, and which tool calls keep failing
+// the same way. Counts and error strings are computed here; the model only
+// interprets them, because a model asked to both count and interpret will
 // confidently invent the counts.
-type InsightsGenerator struct {
+type Generator struct {
 	client sdk.Client
 	cfg    *config.Config
 	store  storage.ConversationStorage
 	models convdomain.ModelService
 }
 
-func NewInsightsGenerator(client sdk.Client, cfg *config.Config, store storage.ConversationStorage, models convdomain.ModelService) *InsightsGenerator {
-	return &InsightsGenerator{client: client, cfg: cfg, store: store, models: models}
+func New(client sdk.Client, cfg *config.Config, store storage.ConversationStorage, models convdomain.ModelService) *Generator {
+	return &Generator{client: client, cfg: cfg, store: store, models: models}
 }
 
 // Available reports whether the generator has everything it needs. The metadata
 // registry builds shortcuts with nil dependencies and storage can be disabled.
-func (g *InsightsGenerator) Available() bool {
+func (g *Generator) Available() bool {
 	return g != nil && g.store != nil && g.client != nil
 }
 
@@ -97,7 +97,7 @@ type reportMeta struct {
 
 // Generate reads the sessions, asks the model to interpret them, and writes the
 // report to ~/.infer/insights.
-func (g *InsightsGenerator) Generate(ctx context.Context, since time.Time) (markdown, path string, err error) {
+func (g *Generator) Generate(ctx context.Context, since time.Time) (markdown, path string, err error) {
 	if !g.Available() {
 		return "", "", fmt.Errorf("insights need conversation storage and a configured model")
 	}
@@ -154,7 +154,7 @@ func (g *InsightsGenerator) Generate(ctx context.Context, since time.Time) (mark
 	return markdown, path, nil
 }
 
-func (g *InsightsGenerator) collect(ctx context.Context, since time.Time) ([]sessionDigest, []toolFailure, error) {
+func (g *Generator) collect(ctx context.Context, since time.Time) ([]sessionDigest, []toolFailure, error) {
 	summaries, err := g.store.ListConversations(ctx, "", maxInsightSessions, 0)
 	if err != nil {
 		return nil, nil, fmt.Errorf("listing conversations: %w", err)
@@ -261,7 +261,7 @@ func totalErrors(f toolFailure) int {
 
 // logsDir resolves the log directory the same way the logger writes it, so an
 // overridden logging.dir is read rather than the default.
-func (g *InsightsGenerator) logsDir() string {
+func (g *Generator) logsDir() string {
 	if g.cfg == nil {
 		return config.DefaultLogsDir()
 	}
@@ -270,7 +270,7 @@ func (g *InsightsGenerator) logsDir() string {
 
 // logMinLevel is the severity floor for log ingestion. collectLogs falls back to
 // warn on an unset or unrecognized value.
-func (g *InsightsGenerator) logMinLevel() string {
+func (g *Generator) logMinLevel() string {
 	if g.cfg == nil {
 		return ""
 	}
@@ -282,7 +282,7 @@ func (g *InsightsGenerator) logMinLevel() string {
 // fact can run to Memory.MaxEntryChars each, while the index is already the
 // one-line-per-fact summary, so this stays cheap in tokens. Memory being
 // unreadable or disabled costs this section, never the report.
-func (g *InsightsGenerator) memoryIndex() string {
+func (g *Generator) memoryIndex() string {
 	if g.cfg == nil || !g.cfg.Memory.Enabled {
 		return ""
 	}
@@ -429,7 +429,7 @@ DATA
 // analyze asks the model to interpret the digest. A reasoning model spends
 // max_tokens thinking before it answers, so the budget has a floor that
 // agent.max_tokens can raise but not lower, and the answer is capped separately.
-func (g *InsightsGenerator) analyze(ctx context.Context, model, digest string) (string, *sdk.CompletionUsage, error) {
+func (g *Generator) analyze(ctx context.Context, model, digest string) (string, *sdk.CompletionUsage, error) {
 	ctx, cancel := context.WithTimeout(ctx, insightsTimeout)
 	defer cancel()
 

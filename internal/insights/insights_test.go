@@ -1,4 +1,4 @@
-package shortcuts
+package insights
 
 import (
 	"context"
@@ -75,7 +75,7 @@ func TestCollectAndBuildDigest(t *testing.T) {
 		},
 	)
 
-	g := &InsightsGenerator{store: store}
+	g := &Generator{store: store}
 	sessions, failures, err := g.collect(context.Background(), time.Time{})
 	if err != nil {
 		t.Fatal(err)
@@ -124,14 +124,14 @@ func TestBuildDigestBounded(t *testing.T) {
 	}
 }
 
-// TestInsightsGeneratorAvailable covers the nil dependencies the metadata
+// TestGeneratorAvailable covers the nil dependencies the metadata
 // registry constructs shortcuts with.
-func TestInsightsGeneratorAvailable(t *testing.T) {
-	var nilGen *InsightsGenerator
+func TestGeneratorAvailable(t *testing.T) {
+	var nilGen *Generator
 	if nilGen.Available() {
 		t.Error("a nil generator must not report itself available")
 	}
-	if (&InsightsGenerator{}).Available() {
+	if (&Generator{}).Available() {
 		t.Error("a generator without a store or client must not report itself available")
 	}
 }
@@ -239,7 +239,7 @@ func TestMemoryIndexReachesTheDigest(t *testing.T) {
 	cfg := memoryConfig(4000)
 	writeMemoryIndex(t, cfg, "- [prefers-tabs](prefers-tabs.md) - user indents Go with tabs\n- [cli/no-footers](cli/no-footers.md) - no commit footers\n")
 
-	index := (&InsightsGenerator{cfg: cfg}).memoryIndex()
+	index := (&Generator{cfg: cfg}).memoryIndex()
 	if countMemoryFacts(index) != 2 {
 		t.Errorf("expected 2 facts, got %d from:\n%s", countMemoryFacts(index), index)
 	}
@@ -264,7 +264,7 @@ func TestMemoryIndexIsCapped(t *testing.T) {
 	}
 	writeMemoryIndex(t, cfg, body.String())
 
-	index := (&InsightsGenerator{cfg: cfg}).memoryIndex()
+	index := (&Generator{cfg: cfg}).memoryIndex()
 
 	if len(index) > 200+len("\n... (memory index truncated)") {
 		t.Errorf("index not capped: %d chars", len(index))
@@ -282,18 +282,18 @@ func TestMemoryIndexIsCapped(t *testing.T) {
 func TestMemoryIndexAbsentIsHarmless(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	if got := (&InsightsGenerator{cfg: memoryConfig(4000)}).memoryIndex(); got != "" {
+	if got := (&Generator{cfg: memoryConfig(4000)}).memoryIndex(); got != "" {
 		t.Errorf("missing memory dir should yield an empty index, got %q", got)
 	}
 
 	disabled := memoryConfig(4000)
 	disabled.Memory.Enabled = false
 	writeMemoryIndex(t, disabled, "- [x](x.md) - y\n")
-	if got := (&InsightsGenerator{cfg: disabled}).memoryIndex(); got != "" {
+	if got := (&Generator{cfg: disabled}).memoryIndex(); got != "" {
 		t.Errorf("disabled memory should yield an empty index, got %q", got)
 	}
 
-	if got := (&InsightsGenerator{}).memoryIndex(); got != "" {
+	if got := (&Generator{}).memoryIndex(); got != "" {
 		t.Errorf("nil config should yield an empty index, got %q", got)
 	}
 }
@@ -329,7 +329,7 @@ func TestAnalyzeUsesAgentMaxTokens(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := fakeAnalyzer("done", sdk.Stop)
-			g := &InsightsGenerator{client: client, cfg: tt.cfg}
+			g := &Generator{client: client, cfg: tt.cfg}
 
 			if _, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST"); err != nil {
 				t.Fatal(err)
@@ -348,7 +348,7 @@ func TestAnalyzeUsesAgentMaxTokens(t *testing.T) {
 
 // TestBudgetErrorNamesTheKnob keeps the failure actionable.
 func TestBudgetErrorNamesTheKnob(t *testing.T) {
-	g := &InsightsGenerator{client: fakeAnalyzer("", sdk.Length), cfg: &config.Config{}}
+	g := &Generator{client: fakeAnalyzer("", sdk.Length), cfg: &config.Config{}}
 
 	_, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST")
 	if err == nil {
@@ -361,7 +361,7 @@ func TestBudgetErrorNamesTheKnob(t *testing.T) {
 		t.Errorf("error must name the knob to raise, got: %v", err)
 	}
 
-	empty := &InsightsGenerator{client: fakeAnalyzer("  ", sdk.Stop), cfg: &config.Config{}}
+	empty := &Generator{client: fakeAnalyzer("  ", sdk.Stop), cfg: &config.Config{}}
 	_, _, err = empty.analyze(context.Background(), "openai/gpt-4o", "DIGEST")
 	if err == nil || errors.Is(err, llm.ErrTokenBudgetExhausted) {
 		t.Errorf("an unrelated empty response must not carry the budget remedy, got: %v", err)
@@ -375,7 +375,7 @@ func TestAnalysisIsCapped(t *testing.T) {
 	for i := range 500 {
 		fmt.Fprintf(&long, "line %d\n", i)
 	}
-	g := &InsightsGenerator{client: fakeAnalyzer(long.String(), sdk.Stop), cfg: &config.Config{}}
+	g := &Generator{client: fakeAnalyzer(long.String(), sdk.Stop), cfg: &config.Config{}}
 
 	analysis, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST")
 	if err != nil {

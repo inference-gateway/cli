@@ -31,6 +31,7 @@ import (
 	gateway "github.com/inference-gateway/cli/internal/gateway"
 	githubissues "github.com/inference-gateway/cli/internal/github/issues"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
+	insights "github.com/inference-gateway/cli/internal/insights"
 	mcp "github.com/inference-gateway/cli/internal/mcp"
 	adapters "github.com/inference-gateway/cli/internal/platform/adapters"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
@@ -123,7 +124,7 @@ type ServiceContainer struct {
 
 	// Extensibility
 	shortcutRegistry *shortcuts.Registry
-	insights         *shortcuts.InsightsGenerator
+	insights         *insights.Generator
 
 	// Tool registry
 	toolRegistry *tools.Registry
@@ -682,7 +683,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewTracesShortcut())
 
 	if c.stores != nil {
-		c.insights = shortcuts.NewInsightsGenerator(c.createRawSDKClient(), c.config, c.stores.Conversations, c.modelService)
+		c.insights = insights.New(c.createRawSDKClient(), c.config, c.stores.Conversations, c.modelService)
 	}
 
 	if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
@@ -809,7 +810,7 @@ func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {
 
 // GetInsightsGenerator returns the session analyzer behind `infer insights`. It
 // reports itself unavailable when conversation storage is disabled.
-func (c *ServiceContainer) GetInsightsGenerator() *shortcuts.InsightsGenerator {
+func (c *ServiceContainer) GetInsightsGenerator() *insights.Generator {
 	return c.insights
 }
 
