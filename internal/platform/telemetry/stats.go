@@ -3,6 +3,7 @@ package telemetry
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -256,6 +257,15 @@ func modelStats(models map[string]*ModelStat) []ModelStat {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Total > out[j].Total })
 	return out
+}
+
+// FormatFailRate renders a tool's failure rate as a whole-percent string, so
+// every surface that renders ToolStat shows the same ratio.
+func FormatFailRate(calls, failures int) string {
+	if calls == 0 {
+		return "0%"
+	}
+	return fmt.Sprintf("%.0f%%", 100*float64(failures)/float64(calls))
 }
 
 func sessionStats(sessions map[string]*SessionStat) []SessionStat {

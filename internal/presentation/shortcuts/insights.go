@@ -487,7 +487,7 @@ func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.Too
 		b.WriteString("|------|-------|----------|-------|-----|\n")
 		for _, t := range tools {
 			fmt.Fprintf(&b, "| %s | %d | %d | %s | %dms |\n",
-				t.Name, t.Calls, t.Failures, formatFailRate(t.Calls, t.Failures), t.AvgMs)
+				t.Name, t.Calls, t.Failures, telemetry.FormatFailRate(t.Calls, t.Failures), t.AvgMs)
 		}
 		b.WriteString("\n")
 	}

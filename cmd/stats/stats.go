@@ -109,7 +109,7 @@ func (c *command) renderToolStats(tools []telemetry.ToolStat) {
 		t.Row(
 			s.Name,
 			strconv.Itoa(s.Calls),
-			formatFailRate(s.Calls, s.Failures),
+			telemetry.FormatFailRate(s.Calls, s.Failures),
 			fmt.Sprintf("%dms", s.AvgMs),
 		)
 	}
@@ -150,11 +150,4 @@ func (c *command) renderSessionStats(sessions []telemetry.SessionStat) {
 	}
 	fmt.Println(t.Render())
 	fmt.Println()
-}
-
-func formatFailRate(calls, failures int) string {
-	if calls == 0 {
-		return "0%"
-	}
-	return fmt.Sprintf("%.0f%%", 100*float64(failures)/float64(calls))
 }

@@ -123,7 +123,7 @@ func renderToolStats(w *strings.Builder, tools []telemetry.ToolStat) {
 	w.WriteString("|------|-------|-------|-----|\n")
 	for _, t := range tools {
 		fmt.Fprintf(w, "| %s | %d | %s | %dms |\n",
-			t.Name, t.Calls, formatFailRate(t.Calls, t.Failures), t.AvgMs)
+			t.Name, t.Calls, telemetry.FormatFailRate(t.Calls, t.Failures), t.AvgMs)
 	}
 	w.WriteString("\n")
 }
@@ -160,13 +160,6 @@ func renderSessionStats(w *strings.Builder, sessions []telemetry.SessionStat) {
 	w.WriteString("\n")
 }
 
-func formatFailRate(calls, failures int) string {
-	if calls == 0 {
-		return "0%"
-	}
-	return fmt.Sprintf("%.0f%%", 100*float64(failures)/float64(calls))
-}
-
 // renderVerticalEntry writes one telemetry record as a vertical block: a bold
 // "Label: value" title line, then plain "Label: value" lines, then a blank line.
 // This is the phone-friendly /stats view — wide markdown tables fold on Telegram.
@@ -190,7 +183,7 @@ func renderToolStatsVertical(w *strings.Builder, tools []telemetry.ToolStat) {
 		renderVerticalEntry(w, [][2]string{
 			{"Tool", t.Name},
 			{"Calls", strconv.Itoa(t.Calls)},
-			{"Fail%", formatFailRate(t.Calls, t.Failures)},
+			{"Fail%", telemetry.FormatFailRate(t.Calls, t.Failures)},
 			{"Avg", fmt.Sprintf("%dms", t.AvgMs)},
 		})
 	}
