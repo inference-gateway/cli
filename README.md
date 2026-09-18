@@ -956,7 +956,6 @@ actions.
 
 - `/scm issues` - List GitHub issues
 - `/scm issue <number>` - Show issue details
-- `/scm pr-create [context]` - Generate AI-powered PR plan
 
 **Other Shortcuts** (created by `infer init`):
 
@@ -1409,8 +1408,8 @@ infer chat
 # - Make changes
 # - Run tests
 
-# Generate PR plan when ready
-/scm pr-create Fixes the authentication timeout issue
+# Ask the agent to open the PR when ready
+> Create a pull request for these changes - it fixes the authentication timeout issue
 ```
 
 ### Configuration Example

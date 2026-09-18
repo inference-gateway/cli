@@ -208,21 +208,6 @@ When you run `infer init`, a `~/.infer/shortcuts/scm.yaml` file is created with 
 
 - `/scm issues` - List all GitHub issues for the repository
 - `/scm issue <number>` - Show details for a specific GitHub issue with comments
-- `/scm pr-create [optional context]` - Generate AI-powered PR plan with branch name, commit, and description
-
-### AI-Powered PR Creation
-
-The `/scm pr-create` shortcut uses the **snippet feature** to analyze your changes and generate a complete PR plan:
-
-1. Analyzes staged or unstaged changes (`git diff`)
-2. Sends the diff to the LLM with context about the current and base branches
-3. Optionally accepts additional context to help the AI understand the purpose of the changes
-4. Generates a comprehensive PR plan including:
-   - Suggested branch name (following conventional format: `feat/`, `fix/`, etc.)
-   - Conventional commit message
-   - PR title and description
-
-This provides a deterministic way to fetch GitHub data and AI assistance for PR planning.
 
 **Example Usage:**
 
@@ -232,15 +217,6 @@ This provides a deterministic way to fetch GitHub data and AI assistance for PR 
 
 # View details for issue #123 including comments
 /scm issue 123
-
-# Generate PR plan (basic)
-/scm pr-create
-
-# Generate PR plan with additional context
-/scm pr-create This fixes the timing issue where conversations were loading too slowly
-
-# Generate PR plan with quoted context (for complex explanations)
-/scm pr-create "This implements user-requested feature for dark mode support"
 ```
 
 **Requirements:**
