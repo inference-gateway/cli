@@ -489,26 +489,31 @@ func (c *CustomShortcut) GenerateSnippet(ctx context.Context, dataMap map[string
 
 // callLLM sends a prompt to the LLM and returns the response
 func (c *CustomShortcut) callLLM(ctx context.Context, prompt string) (string, error) {
-	if c.client == nil {
-		return "", fmt.Errorf("SDK client not available")
-	}
-
 	var model string
 	if c.modelService != nil {
 		model = c.modelService.GetCurrentModel()
+	}
+	return callLLM(ctx, c.client, model, prompt, customSnippetMaxTokens)
+}
+
+const customSnippetMaxTokens = 1000
+
+// callLLM runs one no-tools completion: a single user message in, the trimmed
+// assistant text out. Same shape as the judge and the conversation summarizer
+// (direct client call, SkipMCP, bounded max_tokens). The caller owns the
+// timeout via ctx.
+func callLLM(ctx context.Context, client sdk.Client, model, prompt string, maxTokens int) (string, error) {
+	if client == nil {
+		return "", fmt.Errorf("SDK client not available")
 	}
 	if model == "" {
 		return "", fmt.Errorf("no model configured (use /model to select a model)")
 	}
 
-	slashIndex := strings.Index(model, "/")
-	if slashIndex == -1 {
+	provider, modelName, ok := strings.Cut(model, "/")
+	if !ok {
 		return "", fmt.Errorf("invalid model format, expected 'provider/model'")
 	}
-
-	provider := model[:slashIndex]
-	modelName := strings.TrimPrefix(model, provider+"/")
-	providerType := sdk.Provider(provider)
 
 	messages := []sdk.Message{
 		{
@@ -517,15 +522,14 @@ func (c *CustomShortcut) callLLM(ctx context.Context, prompt string) (string, er
 		},
 	}
 
-	maxTokens := 1000
-	response, err := c.client.
+	response, err := client.
 		WithOptions(&sdk.CreateChatCompletionRequest{
 			MaxTokens: &maxTokens,
 		}).
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{
 			SkipMCP: true,
 		}).
-		GenerateContent(ctx, providerType, modelName, messages)
+		GenerateContent(ctx, sdk.Provider(provider), modelName, messages)
 
 	if err != nil {
 		return "", fmt.Errorf("LLM API call failed: %w", err)
@@ -538,6 +542,15 @@ func (c *CustomShortcut) callLLM(ctx context.Context, prompt string) (string, er
 	contentStr, err := response.Choices[0].Message.Content.AsMessageContent0()
 	if err != nil {
 		return "", fmt.Errorf("failed to extract LLM response content: %w", err)
+	}
+
+	// A reasoning model thinks against max_tokens and can spend the whole budget
+	// returning nothing; yielding "" here is how an empty section ships.
+	if strings.TrimSpace(contentStr) == "" {
+		if response.Choices[0].FinishReason == sdk.Length {
+			return "", fmt.Errorf("model spent all %d max_tokens before answering (reasoning models think against this budget)", maxTokens)
+		}
+		return "", fmt.Errorf("model returned an empty response")
 	}
 
 	return strings.TrimSpace(contentStr), nil

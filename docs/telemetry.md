@@ -7,6 +7,13 @@ document covers the telemetry configuration, the baggage keys propagated to
 subprocesses and A2A agents, and the deployment considerations when upgrading
 alongside the ADK.
 
+`infer stats` and `/stats` aggregate the local store into per-tool call, failure
+and duration totals. `/insights` reads that same aggregate alongside the
+conversation store and asks the model to interpret it - which workflows repeat
+often enough to deserve a skill, and which tool calls keep failing the same way.
+Note that `telemetry.retention_days` (default 7) archives older files, so an
+all-time `/insights` still only sees tool totals from the retained window.
+
 ## Baggage Keys
 
 The CLI injects W3C Baggage members into subprocess environments (via the

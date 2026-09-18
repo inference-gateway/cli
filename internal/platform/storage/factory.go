@@ -19,7 +19,7 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 		return StorageConfig{
 			Type: config.StorageTypeSQLite,
 			SQLite: SQLiteConfig{
-				Path: cmp.Or(cfg.Storage.SQLite.Path, defaultSQLitePath()),
+				Path: cmp.Or(cfg.Storage.SQLite.Path, DefaultSQLitePath()),
 			},
 		}
 	case config.StorageTypePostgres:
@@ -83,9 +83,10 @@ func defaultConversationsDir() string {
 	return filepath.Join(config.ProjectRuntimeDir(), "conversations")
 }
 
-// defaultSQLitePath is the shared machine-global SQLite database:
-// ~/.infer/conversations.db.
-func defaultSQLitePath() string {
+// DefaultSQLitePath is the shared machine-global SQLite database:
+// ~/.infer/conversations.db. Exported so consumers that target the store
+// itself (the /reset shortcut) reuse it instead of re-deriving the path.
+func DefaultSQLitePath() string {
 	return filepath.Join(config.UserSpaceConfigDir(), "conversations.db")
 }
 
