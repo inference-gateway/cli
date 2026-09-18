@@ -2,6 +2,7 @@ package shortcuts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -235,7 +236,7 @@ func TestCallLLMRejectsEmptyResponse(t *testing.T) {
 				}},
 			}, nil)
 
-			got, err := callLLM(context.Background(), client, "openai/gpt-4o", "prompt", 4000)
+			got, _, err := callLLM(context.Background(), client, "openai/gpt-4o", "prompt", 4000)
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
@@ -340,5 +341,209 @@ func TestMemoryIndexAbsentIsHarmless(t *testing.T) {
 
 	if got := (&InsightsGenerator{}).memoryIndex(); got != "" {
 		t.Errorf("nil config should yield an empty index, got %q", got)
+	}
+}
+
+// fakeAnalyzer returns a FakeClient serving one canned analysis.
+func fakeAnalyzer(content string, finish sdk.FinishReason) *sdkmocks.FakeClient {
+	client := &sdkmocks.FakeClient{}
+	client.WithOptionsReturns(client)
+	client.WithMiddlewareOptionsReturns(client)
+	client.GenerateContentReturns(&sdk.CreateChatCompletionResponse{
+		Choices: []sdk.ChatCompletionChoice{{
+			FinishReason: finish,
+			Message:      sdk.Message{Content: sdk.NewMessageContent(content)},
+		}},
+	}, nil)
+	return client
+}
+
+// TestAnalyzeUsesAgentMaxTokens pins the floor: agent.max_tokens can raise the
+// budget but not lower it below what a reasoning model needs to answer at all.
+func TestAnalyzeUsesAgentMaxTokens(t *testing.T) {
+	tests := []struct {
+		name      string
+		cfg       *config.Config
+		wantToken int
+	}{
+		{"a larger budget wins", &config.Config{Agent: config.AgentConfig{MaxTokens: 64000}}, 64000},
+		{"the chat default cannot lower the floor", &config.Config{Agent: config.AgentConfig{MaxTokens: 8192}}, insightsMinTokens},
+		{"unset falls back to the floor", &config.Config{}, insightsMinTokens},
+		{"nil config falls back to the floor", nil, insightsMinTokens},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := fakeAnalyzer("done", sdk.Stop)
+			g := &InsightsGenerator{client: client, cfg: tt.cfg}
+
+			if _, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST"); err != nil {
+				t.Fatal(err)
+			}
+
+			opts := client.WithOptionsArgsForCall(0)
+			if opts == nil || opts.MaxTokens == nil {
+				t.Fatalf("no max_tokens sent")
+			}
+			if *opts.MaxTokens != tt.wantToken {
+				t.Errorf("max_tokens = %d, want %d", *opts.MaxTokens, tt.wantToken)
+			}
+		})
+	}
+}
+
+// TestBudgetErrorNamesTheKnob keeps the failure actionable.
+func TestBudgetErrorNamesTheKnob(t *testing.T) {
+	g := &InsightsGenerator{client: fakeAnalyzer("", sdk.Length), cfg: &config.Config{}}
+
+	_, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST")
+	if err == nil {
+		t.Fatal("expected a budget error")
+	}
+	if !errors.Is(err, ErrTokenBudgetExhausted) {
+		t.Errorf("budget failure must be identifiable with errors.Is, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "agent.max_tokens") {
+		t.Errorf("error must name the knob to raise, got: %v", err)
+	}
+
+	empty := &InsightsGenerator{client: fakeAnalyzer("  ", sdk.Stop), cfg: &config.Config{}}
+	_, _, err = empty.analyze(context.Background(), "openai/gpt-4o", "DIGEST")
+	if err == nil || errors.Is(err, ErrTokenBudgetExhausted) {
+		t.Errorf("an unrelated empty response must not carry the budget remedy, got: %v", err)
+	}
+}
+
+// TestAnalysisIsCapped bounds what reaches the report regardless of what the
+// model returns.
+func TestAnalysisIsCapped(t *testing.T) {
+	var long strings.Builder
+	for i := range 500 {
+		fmt.Fprintf(&long, "line %d\n", i)
+	}
+	g := &InsightsGenerator{client: fakeAnalyzer(long.String(), sdk.Stop), cfg: &config.Config{}}
+
+	analysis, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := strings.Count(analysis, "\n") + 1; got > insightsMaxAnalysisLines+3 {
+		t.Errorf("analysis not capped: %d lines", got)
+	}
+	if len(analysis) > insightsMaxAnalysisChars+64 {
+		t.Errorf("analysis not capped: %d chars", len(analysis))
+	}
+	if !strings.Contains(analysis, "truncated") {
+		t.Errorf("a truncated analysis must say so:\n%s", analysis[max(0, len(analysis)-200):])
+	}
+	if strings.Contains(analysis, "line 499") {
+		t.Errorf("cap must drop the tail")
+	}
+}
+
+// TestLogSectionSurvivesManySessions checks a busy conversation store cannot
+// push the log section past the digest cap and out of the prompt.
+func TestLogSectionSurvivesManySessions(t *testing.T) {
+	sessions := make([]sessionDigest, 50)
+	for i := range sessions {
+		sessions[i] = sessionDigest{
+			Title:   strings.Repeat("t", 200),
+			Project: "/repos/cli",
+			Intent:  strings.Repeat("i", 200),
+			Tools:   []string{strings.Repeat("T", 100)},
+		}
+	}
+
+	failures := make([]toolFailure, 30)
+	for i := range failures {
+		errs := map[string]int{}
+		samples := map[string]string{}
+		for j := range maxErrorsPerTool {
+			key := fmt.Sprintf("err-%d-%d %s", i, j, strings.Repeat("e", 150))
+			errs[key] = j + 1
+			samples[key] = key
+		}
+		failures[i] = toolFailure{Tool: fmt.Sprintf("Tool%d", i), Errors: errs, Sample: samples}
+	}
+
+	logs := logDigest{Scanned: 400, Groups: []logGroup{{
+		Template: "failed to start gateway container port n already in use",
+		Count:    400,
+		First:    time.Now().Add(-time.Minute),
+		Last:     time.Now(),
+		Sample:   "failed to start gateway container port 8080 already in use",
+	}}}
+
+	digest := buildDigest(sessions, failures, nil, "", logs)
+
+	if len(digest) > maxDigestChars+3 {
+		t.Errorf("digest not bounded: %d chars", len(digest))
+	}
+	for _, want := range []string{"LOG FAILURES", "x400", "failed to start gateway container"} {
+		if !strings.Contains(digest, want) {
+			t.Errorf("a busy session store must not crowd out %q:\n...%s", want, digest[max(0, len(digest)-400):])
+		}
+	}
+}
+
+// TestPromptCoversEveryDigestSection catches a digest section the prompt never
+// tells the model to report on.
+func TestPromptCoversEveryDigestSection(t *testing.T) {
+	digest := buildDigest(
+		[]sessionDigest{{Title: "t", Project: "/repos/cli"}},
+		[]toolFailure{{Tool: "Grep", Errors: map[string]int{"e": 1}, Sample: map[string]string{"e": "boom"}}},
+		[]telemetry.ToolStat{{Name: "Grep", Calls: 1}},
+		"- [fact](fact.md) - x",
+		logDigest{Scanned: 1, Groups: []logGroup{{Count: 1, Sample: "boom"}}},
+	)
+
+	headings := map[string]string{
+		"PERSISTENT MEMORY": "PERSISTENT MEMORY",
+		"SESSIONS":          "sessions",
+		"TOOL CALL TOTALS":  "Tool calls that keep failing",
+		"FAILED TOOL CALLS": "Tool calls that keep failing",
+		"LOG FAILURES":      "LOG FAILURES",
+	}
+	for section, instruction := range headings {
+		if !strings.Contains(digest, section) {
+			t.Fatalf("digest no longer emits %q - update this test", section)
+		}
+		if !strings.Contains(insightsPrompt, instruction) {
+			t.Errorf("digest carries %q but the prompt never mentions %q, so the model is told to ignore it", section, instruction)
+		}
+	}
+}
+
+// TestReportRecordsWhatItCost pins the token counts in the frontmatter.
+func TestReportRecordsWhatItCost(t *testing.T) {
+	reasoning := int64(9000)
+	usage := &sdk.CompletionUsage{PromptTokens: 1704, CompletionTokens: 13225, TotalTokens: 14929}
+	usage.CompletionTokensDetails = &struct {
+		AcceptedPredictionTokens *int64 `json:"accepted_prediction_tokens,omitempty"`
+		AudioTokens              *int64 `json:"audio_tokens,omitempty"`
+		ReasoningTokens          *int64 `json:"reasoning_tokens,omitempty"`
+		RejectedPredictionTokens *int64 `json:"rejected_prediction_tokens,omitempty"`
+	}{ReasoningTokens: &reasoning}
+
+	got := renderReport(reportMeta{Generated: time.Now(), Usage: usage}, nil, nil, logDigest{}, "x")
+	for _, want := range []string{
+		"analysis_prompt_tokens: 1704",
+		"analysis_completion_tokens: 13225",
+		"analysis_total_tokens: 14929",
+		"analysis_reasoning_tokens: 9000",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("frontmatter missing %q:\n%s", want, got)
+		}
+	}
+
+	none := renderReport(reportMeta{Generated: time.Now()}, nil, nil, logDigest{}, "x")
+	if strings.Contains(none, "analysis_total_tokens") {
+		t.Errorf("absent usage must not emit the keys:\n%s", none)
+	}
+	flat := renderReport(reportMeta{Generated: time.Now(), Usage: &sdk.CompletionUsage{TotalTokens: 10}}, nil, nil, logDigest{}, "x")
+	if strings.Contains(flat, "analysis_reasoning_tokens") {
+		t.Errorf("a zero reasoning breakdown must be omitted, not printed as 0:\n%s", flat)
 	}
 }

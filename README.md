@@ -510,6 +510,16 @@ frontmatter states how many records were read (`log_records`) and how many group
 are read; `gateway-*.log` is raw subprocess output with no level or timestamp to filter on, and
 the gateway's own failures are logged through zap into `app-*.log` anyway.
 
+The analysis runs on `agent.max_tokens` (default 8192) rather than a fixed budget — a
+reasoning model spends that budget thinking before it answers, and too small a value fails
+the run outright. The written analysis is capped at 200 lines / 16000 characters, so a
+model that ignores the requested length cannot flood the report.
+
+Each report records what it cost to produce in its own frontmatter
+(`analysis_prompt_tokens`, `analysis_completion_tokens`, `analysis_total_tokens`, and
+`analysis_reasoning_tokens` where the provider breaks it out), so the price of a run is
+visible in the artifact rather than guessed at.
+
 **`infer reset`** - Wipe all local runtime state and start fresh
 
 ```bash

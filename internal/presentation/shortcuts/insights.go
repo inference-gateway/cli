@@ -3,6 +3,7 @@ package shortcuts
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,16 +20,22 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	plugins "github.com/inference-gateway/cli/internal/plugins"
 )
 
 const (
 	maxInsightSessions = 50
 	maxDigestChars     = 12000
+	maxSessionChars    = maxDigestChars / 2
+	maxFailureChars    = maxDigestChars * 3 / 4
 	maxErrorsPerTool   = 5
 	maxIntentChars     = 200
 	maxToolsPerSession = 20
-	insightsMaxTokens  = 4000
-	insightsTimeout    = 120 * time.Second
+	insightsMinTokens  = 32000
+	insightsTimeout    = 300 * time.Second
+
+	insightsMaxAnalysisLines = 200
+	insightsMaxAnalysisChars = 16000
 )
 
 // digitRun folds "exit status 2" and "exit status 127" into one recurring
@@ -84,6 +91,7 @@ type reportMeta struct {
 	Memory     int
 	LogRecords int
 	LogGroups  int
+	Usage      *sdk.CompletionUsage
 }
 
 // Generate reads the sessions, asks the model to interpret them, and writes the
@@ -116,7 +124,7 @@ func (g *InsightsGenerator) Generate(ctx context.Context, since time.Time) (mark
 
 	memory := g.memoryIndex()
 
-	analysis, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools, memory, logs))
+	analysis, usage, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools, memory, logs))
 	if err != nil {
 		return "", "", err
 	}
@@ -131,6 +139,7 @@ func (g *InsightsGenerator) Generate(ctx context.Context, since time.Time) (mark
 	}
 	meta.Memory = countMemoryFacts(memory)
 	meta.LogRecords, meta.LogGroups = logs.Scanned, len(logs.Groups)
+	meta.Usage = usage
 	for _, t := range tools {
 		meta.Calls += t.Calls
 		meta.Failures += t.Failures
@@ -326,7 +335,7 @@ func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telem
 	for _, s := range sessions {
 		fmt.Fprintf(&b, "- [%s] %s\n  intent: %s\n  tools: %s\n",
 			filepath.Base(s.Project), s.Title, firstNonEmpty(s.Intent, "(none recorded)"), strings.Join(s.Tools, ", "))
-		if b.Len() > maxDigestChars {
+		if b.Len() > maxSessionChars {
 			break
 		}
 	}
@@ -343,6 +352,9 @@ func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telem
 		for _, f := range failures {
 			for _, key := range topErrors(f) {
 				fmt.Fprintf(&b, "- %s x%d: %s\n", f.Tool, f.Errors[key], f.Sample[key])
+			}
+			if b.Len() > maxFailureChars {
+				break
 			}
 		}
 	}
@@ -379,9 +391,9 @@ func topErrors(f toolFailure) []string {
 // insightsPrompt asks for interpretation only; the report already carries the
 // numbers. The skill-name constraints mirror the skills loader's, so a
 // suggestion can be pasted straight into ~/.infer/skills/<name>/SKILL.md.
-const insightsPrompt = `You are reviewing a developer's past CLI agent sessions to tell them what to change.
+const insightsPrompt = `You are reviewing a developer's past CLI agent sessions and logs to tell them what to change.
 
-Answer with GitHub-flavored markdown under exactly these two headings, nothing else:
+Answer with GitHub-flavored markdown under exactly these three headings, nothing else:
 
 ### Repeatable workflows worth a skill
 Workflows the user repeats across sessions that would be better as a reusable skill.
@@ -394,17 +406,50 @@ For each recurring failure: what is actually going wrong and the concrete fix
 (a config change, a different tool, a changed argument). Quote the error verbatim.
 Skip tools whose failures look incidental rather than systematic.
 
+### Failures that never reached a session
+Recurring failures from LOG FAILURES below, which no saved session recorded - crashes,
+startup and background errors. For each: what is actually going wrong and the concrete
+fix. Read the count with the time span: a high count over seconds is a retry loop that
+never succeeded, the same count spread over days is a chronic fault. Skip anything that
+looks incidental. If there are no log failures, say so in one line.
+
+PERSISTENT MEMORY below, when present, is what the agent has already learned about
+this user. Use it as context so you do not suggest what they already do; never
+restate it back to them.
+
 Do not restate the counts below as a table - they are already in the report.
 Be specific and short. No preamble, no closing summary.
+Keep the whole answer under 200 lines and 16000 characters.
 
 DATA
 ----
 `
 
-func (g *InsightsGenerator) analyze(ctx context.Context, model, digest string) (string, error) {
+// analyze asks the model to interpret the digest. A reasoning model spends
+// max_tokens thinking before it answers, so the budget has a floor that
+// agent.max_tokens can raise but not lower, and the answer is capped separately.
+func (g *InsightsGenerator) analyze(ctx context.Context, model, digest string) (string, *sdk.CompletionUsage, error) {
 	ctx, cancel := context.WithTimeout(ctx, insightsTimeout)
 	defer cancel()
-	return callLLM(ctx, g.client, model, insightsPrompt+digest, insightsMaxTokens)
+
+	maxTokens := insightsMinTokens
+	if g.cfg != nil {
+		maxTokens = max(g.cfg.Agent.MaxTokens, insightsMinTokens)
+	}
+
+	analysis, usage, err := callLLM(ctx, g.client, model, insightsPrompt+digest, maxTokens)
+	if err != nil {
+		if errors.Is(err, ErrTokenBudgetExhausted) {
+			return "", usage, fmt.Errorf("%w; raise agent.max_tokens", err)
+		}
+		return "", usage, err
+	}
+
+	analysis, marker := plugins.CapInstructions(analysis, insightsMaxAnalysisLines, insightsMaxAnalysisChars)
+	if marker != "" {
+		analysis += "\n\n" + marker
+	}
+	return analysis, usage, nil
 }
 
 func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.ToolStat, logs logDigest, analysis string) string {
@@ -426,6 +471,7 @@ func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.Too
 	fmt.Fprintf(&b, "memory_facts: %d\n", meta.Memory)
 	fmt.Fprintf(&b, "log_records: %d\n", meta.LogRecords)
 	fmt.Fprintf(&b, "log_groups: %d\n", meta.LogGroups)
+	writeUsage(&b, meta.Usage)
 	b.WriteString("projects:\n")
 	for _, p := range meta.Projects {
 		fmt.Fprintf(&b, "  - %q\n", p)
@@ -470,6 +516,19 @@ func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.Too
 	b.WriteString(strings.TrimSpace(analysis))
 	b.WriteString("\n")
 	return b.String()
+}
+
+// writeUsage records what the analysis cost.
+func writeUsage(b *strings.Builder, usage *sdk.CompletionUsage) {
+	if usage == nil {
+		return
+	}
+	fmt.Fprintf(b, "analysis_prompt_tokens: %d\n", usage.PromptTokens)
+	fmt.Fprintf(b, "analysis_completion_tokens: %d\n", usage.CompletionTokens)
+	fmt.Fprintf(b, "analysis_total_tokens: %d\n", usage.TotalTokens)
+	if d := usage.CompletionTokensDetails; d != nil && d.ReasoningTokens != nil && *d.ReasoningTokens > 0 {
+		fmt.Fprintf(b, "analysis_reasoning_tokens: %d\n", *d.ReasoningTokens)
+	}
 }
 
 func writeReport(markdown string) (string, error) {
