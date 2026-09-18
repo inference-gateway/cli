@@ -180,3 +180,22 @@ func FormatCost(cost float64) string {
 		return fmt.Sprintf("$%.2f", cost)
 	}
 }
+
+// ============================================================================
+// Byte Formatting
+// ============================================================================
+
+// FormatBytes formats a byte count the way `docker system prune` reports
+// reclaimed space: decimal (not 1024-based) units and 4 significant digits,
+// e.g. "0B", "4.096kB", "1.653GB".
+func FormatBytes(size int64) string {
+	if size == 0 {
+		return "0B"
+	}
+	value, units := float64(size), []string{"B", "kB", "MB", "GB", "TB", "PB", "EB"}
+	for value >= 1000 && len(units) > 1 {
+		value /= 1000
+		units = units[1:]
+	}
+	return fmt.Sprintf("%.4g%s", value, units[0])
+}

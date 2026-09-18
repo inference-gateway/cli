@@ -5,11 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
@@ -146,12 +148,29 @@ func resolves(dir string, parts []string) bool {
 	return false
 }
 
-// preview describes the wipe without performing it.
+// sqlitePaths lists the database file and its WAL sidecars; all of them are
+// removed, and all of them count toward the reported space.
+func sqlitePaths(db string) []string {
+	return []string{db, db + "-wal", db + "-shm", db + "-journal"}
+}
+
+// preview describes the wipe without performing it, ending with the total
+// space the wipe would reclaim.
 func preview(t targets) string {
+	var reclaimable int64
+	for _, dir := range t.all() {
+		reclaimable += size(dir)
+	}
+	if t.sqliteDB != "" {
+		for _, path := range sqlitePaths(t.sqliteDB) {
+			reclaimable += size(path)
+		}
+	}
 	return "This permanently deletes all local runtime state, for every project on this machine:\n" +
 		listing(t.all(), t.sqliteDB) +
 		"\nConfiguration (config.yaml, shortcuts, skills, projects.yaml) and saved insights are preserved.\n" +
-		"Run `infer reset confirm` to proceed, or do nothing to cancel."
+		"Run `infer reset confirm` to proceed, or do nothing to cancel.\n" +
+		"Total reclaimable space: " + formatting.FormatBytes(reclaimable)
 }
 
 // existing drops targets that are not on disk, so the preview promises only
@@ -164,6 +183,23 @@ func existing(dirs []string) []string {
 		}
 	}
 	return present
+}
+
+// size best-effort reports how many bytes a path occupies, walking whole
+// directory trees. Unreadable entries are skipped, never failed: the total is
+// a report for the human, not an audit, and must not break the reset.
+func size(path string) int64 {
+	var total int64
+	_ = filepath.WalkDir(path, func(_ string, entry fs.DirEntry, err error) error {
+		if err != nil || !entry.Type().IsRegular() {
+			return nil
+		}
+		if info, infoErr := entry.Info(); infoErr == nil {
+			total += info.Size()
+		}
+		return nil
+	})
+	return total
 }
 
 // purge empties the store through its own API before the file is unlinked:
@@ -199,21 +235,26 @@ func (w *wiper) wipe(ctx context.Context, t targets) (string, error) {
 	}
 
 	var errs []error
+	var reclaimed int64
 	removed := make([]string, 0, len(t.prune)+len(t.empty))
 
 	for _, dir := range t.prune {
+		occupied := size(dir)
 		if err := os.RemoveAll(dir); err != nil {
 			errs = append(errs, fmt.Errorf("failed to remove %s: %w", dir, err))
 			continue
 		}
+		reclaimed += occupied
 		removed = append(removed, dir)
 	}
 
 	for _, dir := range t.empty {
+		occupied := size(dir)
 		if err := os.RemoveAll(dir); err != nil {
 			errs = append(errs, fmt.Errorf("failed to remove %s: %w", dir, err))
 			continue
 		}
+		reclaimed += occupied
 		removed = append(removed, dir)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			errs = append(errs, fmt.Errorf("failed to recreate %s: %w", dir, err))
@@ -223,11 +264,14 @@ func (w *wiper) wipe(ctx context.Context, t targets) (string, error) {
 	wipedDB := ""
 	if t.sqliteDB != "" {
 		wipedDB = t.sqliteDB
-		for _, path := range []string{t.sqliteDB, t.sqliteDB + "-wal", t.sqliteDB + "-shm", t.sqliteDB + "-journal"} {
+		for _, path := range sqlitePaths(t.sqliteDB) {
+			occupied := size(path)
 			if err := os.RemoveAll(path); err != nil {
 				errs = append(errs, fmt.Errorf("failed to remove %s: %w", path, err))
 				wipedDB = ""
+				continue
 			}
+			reclaimed += occupied
 		}
 	}
 
@@ -238,6 +282,7 @@ func (w *wiper) wipe(ctx context.Context, t targets) (string, error) {
 	if t.gitMemory {
 		output += "\nNote: memory is backed by a git remote - the local clone was cleared, and the remote memory syncs back on the next run."
 	}
+	output += "\nTotal reclaimed space: " + formatting.FormatBytes(reclaimed)
 	if len(errs) > 0 {
 		return output, fmt.Errorf("%s\n\nSome targets could not be removed:\n%w", output, errors.Join(errs...))
 	}
