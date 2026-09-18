@@ -281,14 +281,15 @@ CONSTRAINTS:
 
 REQUIREMENTS:
 - MUST use format: "type(scope): brief description"
+- Scope MUST name the domain being worked on (the package, module, or feature area inferred from the diff)
 - MUST be under 50 characters total
 - MUST use imperative mood (e.g., "add", "fix", "update", "refactor")
 - Types: feat, fix, docs, style, refactor, test, chore
 
 EXAMPLES:
-- "feat: add git shortcut with AI commits"
-- "fix: resolve build error in container"
-- "docs: update README installation guide"
+- "feat(shortcuts): add git shortcut with AI commits"
+- "fix(container): resolve build error in container"
+- "docs(readme): update installation guide"
 - "refactor(examples): simplify error handling"
 
 Respond with ONLY the commit message, no quotes or explanation.`,

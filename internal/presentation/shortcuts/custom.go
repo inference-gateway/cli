@@ -16,6 +16,7 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )
 
@@ -47,6 +48,18 @@ type CustomShortcutConfig struct {
 	Snippet       *SnippetConfig     `yaml:"snippet,omitempty"`
 	PassSessionID bool               `yaml:"pass_session_id,omitempty"`
 	Subcommands   []SubcommandConfig `yaml:"subcommands,omitempty"`
+}
+
+// Validate reports why this shortcut cannot be built, or nil when it is usable.
+// A shortcut needs a name to be invoked by, and something to run.
+func (c CustomShortcutConfig) Validate() error {
+	if c.Name == "" {
+		return fmt.Errorf("shortcut has no name")
+	}
+	if c.Command == "" && c.Tool == "" {
+		return fmt.Errorf("shortcut %q has neither 'command' nor 'tool'", c.Name)
+	}
+	return nil
 }
 
 // CustomShortcutsConfig represents the structure of a custom shortcuts YAML file
@@ -548,7 +561,7 @@ func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService convdom
 	for _, file := range files {
 		shortcutsFromFile, err := loadShortcutsFromFile(file, client, modelService, imageService, toolService)
 		if err != nil {
-			fmt.Printf("Warning: failed to load shortcuts from %s: %v\n", file, err)
+			logger.Warn("failed to load shortcuts from file", "file", file, "error", err)
 			continue
 		}
 		shortcuts = append(shortcuts, shortcutsFromFile...)
@@ -571,13 +584,8 @@ func loadShortcutsFromFile(filename string, client sdk.Client, modelService conv
 
 	shortcuts := make([]Shortcut, 0, len(config.Shortcuts))
 	for _, shortcutConfig := range config.Shortcuts {
-		if shortcutConfig.Name == "" {
-			fmt.Printf("Warning: shortcut without name found in %s, skipping\n", filename)
-			continue
-		}
-		// Must have either a command or a tool
-		if shortcutConfig.Command == "" && shortcutConfig.Tool == "" {
-			fmt.Printf("Warning: shortcut '%s' must have either 'command' or 'tool' specified in %s, skipping\n", shortcutConfig.Name, filename)
+		if err := shortcutConfig.Validate(); err != nil {
+			logger.Warn("skipping invalid shortcut", "file", filename, "error", err)
 			continue
 		}
 

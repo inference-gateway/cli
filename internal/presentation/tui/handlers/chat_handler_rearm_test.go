@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	agentmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -101,7 +101,7 @@ func TestHandle_ChatStreamOpened(t *testing.T) {
 				sm.SetChatPending()
 			}
 			current := sm.GetChatSession()
-			agent := &agentmocks.FakeAgentService{}
+			agent := &agentdomainmocks.FakeAgentService{}
 			events := make(chan agentdomain.ChatEvent, 1)
 			events <- agentdomain.ChatCompleteEvent{RequestID: "old"}
 			close(events)

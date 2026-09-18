@@ -461,29 +461,31 @@ shortcuts:
             Generate a concise git commit message following conventional commit format.
 
             REQUIREMENTS:
-            - MUST use format: "type: Brief description"
+            - MUST use format: "type(scope): Brief description"
             - Type MUST be one of: feat, fix, docs, style, refactor, test, chore
+            - Scope MUST name the domain being worked on (the package, module, or feature area inferred from the diff)
             - Description MUST start with a lowercase letter
             - Description MUST be under 50 characters
             - DO NOT include any explanation, body, or additional text
             - Output ONLY the commit message, nothing else
 
             Examples of GOOD commit messages:
-            - feat: add user authentication
-            - fix: resolve memory leak in parser
-            - docs: update API documentation
-            - refactor: simplify error handling
+            - feat(chat): add user authentication
+            - fix(parser): resolve memory leak
+            - docs(api): update API documentation
+            - refactor(shortcuts): simplify error handling
 
             Examples of BAD commit messages (DO NOT DO THIS):
             - Add user authentication (missing type)
-            - feat: Add user authentication (lowercase description)
-            - feat: Added a comprehensive user authentication system with OAuth2 support (too long, too detailed)
+            - feat: add user authentication (missing scope)
+            - feat(chat): Add user authentication (capitalized description)
+            - feat(chat): Added a comprehensive user authentication system with OAuth2 support (too long, too detailed)
 
             Analyze this diff and generate ONE commit message:
 
             ` + "```diff\n            {diff}\n            ```" + `
 
-            Output ONLY the commit message in the format "type: description"
+            Output ONLY the commit message in the format "type(scope): description"
           template: "!git commit -m \"{llm}\""
 `
 

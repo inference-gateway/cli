@@ -42,7 +42,6 @@ type Config struct {
 	Image            ImageConfig            `yaml:"image" mapstructure:"image"`
 	Export           ExportConfig           `yaml:"export" mapstructure:"export"`
 	Agent            AgentConfig            `yaml:"agent" mapstructure:"agent"`
-	Git              GitConfig              `yaml:"git" mapstructure:"git"`
 	Storage          StorageConfig          `yaml:"storage" mapstructure:"storage"`
 	Scheduler        SchedulerConfig        `yaml:"scheduler" mapstructure:"scheduler"`
 	Telemetry        TelemetryConfig        `yaml:"telemetry" mapstructure:"telemetry"`
@@ -656,11 +655,6 @@ var ReasoningEffortLevels = []string{"minimal", "low", "medium", "high", "xhigh"
 // API default (high) - fast, cheap turns until the user raises it.
 const DefaultAnthropicEffort = "low"
 
-// GitConfig contains git shortcut-specific settings
-type GitConfig struct {
-	CommitMessage GitCommitMessageConfig `yaml:"commit_message" mapstructure:"commit_message"`
-}
-
 // A2AConfig contains A2A agent configuration
 type A2AConfig struct {
 	Enabled               bool           `yaml:"enabled" mapstructure:"enabled"`
@@ -683,13 +677,6 @@ type A2AToolsConfig struct {
 // ConversationConfig contains conversation-specific settings
 type ConversationConfig struct {
 	TitleGeneration ConversationTitleConfig `yaml:"title_generation" mapstructure:"title_generation"`
-}
-
-// GitCommitMessageConfig contains settings for AI-generated commit
-// messages. The system prompt lives in prompts.yaml under
-// git.commit_message.system_prompt.
-type GitCommitMessageConfig struct {
-	Model string `yaml:"model" mapstructure:"model"`
 }
 
 // ConversationTitleConfig contains settings for AI-generated conversation
@@ -1207,11 +1194,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			MaxTurns:                 50,
 			MaxTokens:                8192,
 			MaxConcurrentTools:       5,
-		},
-		Git: GitConfig{
-			CommitMessage: GitCommitMessageConfig{
-				Model: "",
-			},
 		},
 		Storage: StorageConfig{
 			Enabled: true,

@@ -985,10 +985,6 @@ http://browser-agent:8080
 - `INFER_COMPACT_ENABLED`: Enable automatic conversation compaction (default: `true`)
 - `INFER_COMPACT_AUTO_AT`: Percentage of the context window (20-100) at which to auto-compact (default: `80`)
 
-### Git Configuration
-
-- `INFER_GIT_COMMIT_MESSAGE_MODEL`: Model for AI-generated commit messages (default: empty, falls back to `agent.model`)
-
 ### Keybinding Environment Variables
 
 Keybindings can be configured via environment variables (supports comma-separated or newline-separated lists):
