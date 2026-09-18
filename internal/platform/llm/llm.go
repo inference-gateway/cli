@@ -1,7 +1,3 @@
-// Package llm carries the one-shot, no-tools completion helper shared by the
-// LLM side-calls: custom shortcut snippets and the insights analysis. Same
-// shape as the judge and the conversation summarizer; those callers are
-// expected to converge here over time.
 package llm
 
 import (
