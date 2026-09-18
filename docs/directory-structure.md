@@ -47,6 +47,8 @@ for the full precedence rules.
 ```text
 ~/.infer/                 # userspace layer - the default and only written location
 ├── config.yaml           # main configuration
+├── projects.yaml         # desktop sidebar projects and groups
+├── desktop.yaml          # desktop app settings
 ├── auth.yaml             # provider API key fallback, mode 0600 (legacy auth.json still read)
 ├── prompts.yaml          # LLM system prompts (agent, git, conversation, tools, ...)
 ├── keybindings.yaml      # chat UI keyboard shortcuts
@@ -151,13 +153,23 @@ A simple rule keeps `~/.infer/` consistent:
   (mode 0600, the provider API key fallback) replaced the original
   `auth.json`; the legacy JSON file is still read when `auth.yaml` is
   missing, so existing credentials keep working until you move them over.
-- **Machine-written state stays JSON** - `skills/catalog.json` (downloaded
-  skill index), `schedules/github-artifacts-state.json` (GitHub artifact
-  poller cursor) and `session_groups.json` (session group index) are
-  written and read by the CLI and never meant for an editor. Converting
-  them would churn on-disk state for no gain. Out of scope here:
-  `projects.json` and `desktop.json` are written by the desktop repo, and
-  `.claude-plugin/plugin.json` follows an external spec.
+- **State a user may inspect is YAML too** - `projects.yaml` (sidebar
+  projects, groups and per-project path overrides) and `desktop.yaml` (app
+  settings). Nobody hand-writes these, but people do open them to see why a
+  chat landed in the wrong project, so the format rule follows what a human
+  might read rather than who typed it. Both are **owned by the desktop
+  repo**, which writes them; the CLI only carves `projects.yaml` out of the
+  sandbox so the agent can edit it, and preserves it across `/reset`. They
+  replace `projects.json` and `desktop.json` outright, with no compatibility
+  read - the old files hold regenerable sidebar state, so the app rebuilds
+  it rather than carrying two formats. See inference-gateway/desktop#283.
+- **Opaque caches and cursors stay JSON** - `skills/catalog.json`
+  (downloaded skill index), `schedules/github-artifacts-state.json` (GitHub
+  artifact poller cursor) and `session_groups.json` (session group index).
+  These are written and read by the CLI, carry no decision a user would
+  want to review, and converting them would churn on-disk state for no
+  gain. `.claude-plugin/plugin.json` follows an external spec and does not
+  change.
 
 ---
 

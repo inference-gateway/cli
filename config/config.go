@@ -1739,7 +1739,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		(c.Plugins.Enabled && c.isWithinPluginsDir(absPath)) ||
 		isWithinRuntimeDirs(absPath) ||
-		c.isWithinConfigSubdir(absPath, "plans", "projects.json") ||
+		c.isWithinConfigSubdir(absPath, "plans", "projects.yaml") ||
 		isWithinInsightsDir(absPath) ||
 		isWithinMemoryDir(absPath, c.Memory) ||
 		isWithinGoLibDirs(absPath)
@@ -1874,10 +1874,10 @@ func isWithinRuntimeDirs(absPath string) bool {
 // subdirectories of the config dir. It checks both the project-relative
 // ConfigDirName (./.infer/<name>) and the resolved config dir
 // (GetConfigDir()/<name>) so that operational areas - persisted plans, the
-// desktop's projects.json - stay reachable even when the config was loaded from
+// desktop's projects.yaml - stay reachable even when the config was loaded from
 // the userspace location (~/.infer). This keeps the rest of .infer/ protected
-// as a whole. Runtime artifacts (tmp, artifacts, history, backups, exports) are
-// covered by isWithinRuntimeDirs instead.
+// as a whole. Runtime artifacts (tmp, artifacts,
+// history, backups, exports) are covered by isWithinRuntimeDirs instead.
 func (c *Config) isWithinConfigSubdir(absPath string, names ...string) bool {
 	configDirs := []string{ConfigDirName}
 	if resolved := c.GetConfigDir(); resolved != "" && resolved != ConfigDirName {

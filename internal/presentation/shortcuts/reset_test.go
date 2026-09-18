@@ -58,7 +58,7 @@ func seedResetState(t *testing.T) (stateDirs, configFiles []string) {
 
 	configFiles = []string{
 		filepath.Join(userSpace, "config.yaml"),
-		filepath.Join(userSpace, "projects.json"),
+		filepath.Join(userSpace, "projects.yaml"),
 		filepath.Join(userSpace, "shortcuts", "greet.yaml"),
 		filepath.Join(userSpace, "skills", "demo", "SKILL.md"),
 	}

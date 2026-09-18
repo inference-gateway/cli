@@ -22,7 +22,7 @@ import (
 // tmp tree (generated speech, retained recordings, channel media). This is machine-wide, not project-scoped - it clears the
 // runtime dirs of every project under ~/.infer/projects, which is why the
 // preview lists them all. Configuration (config.yaml, custom shortcuts, skills,
-// projects.json) and the insights reports are preserved. Remote stores
+// projects.yaml) and the insights reports are preserved. Remote stores
 // (postgres, redis, d1) are skipped - /reset only clears local state. Dirs
 // explicitly overridden outside ~/.infer (e.g. text_to_speech.output_dir
 // pointed at /data/tts) are outside the userspace layer and are left alone.
@@ -157,7 +157,7 @@ func (r *ResetShortcut) preview(dirs []string, sqliteDB string) string {
 	r.arm()
 	return "This permanently deletes all local runtime state, for every project on this machine:\n" +
 		listing(dirs, sqliteDB) +
-		"\nConfiguration (config.yaml, shortcuts, skills, projects.json) and saved insights are preserved.\n" +
+		"\nConfiguration (config.yaml, shortcuts, skills, projects.yaml) and saved insights are preserved.\n" +
 		"Run `/reset confirm` to proceed, or do nothing to cancel."
 }
 
