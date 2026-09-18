@@ -1,6 +1,7 @@
 package shortcuts
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -72,15 +73,17 @@ type toolFailure struct {
 
 // reportMeta is the report's YAML frontmatter.
 type reportMeta struct {
-	Generated time.Time
-	Model     string
-	Version   string
-	Since     time.Time
-	Sessions  int
-	Projects  []string
-	Calls     int
-	Failures  int
-	Memory    int
+	Generated  time.Time
+	Model      string
+	Version    string
+	Since      time.Time
+	Sessions   int
+	Projects   []string
+	Calls      int
+	Failures   int
+	Memory     int
+	LogRecords int
+	LogGroups  int
 }
 
 // Generate reads the sessions, asks the model to interpret them, and writes the
@@ -94,12 +97,13 @@ func (g *InsightsGenerator) Generate(ctx context.Context, since time.Time) (mark
 	if err != nil {
 		return "", "", err
 	}
-	if len(sessions) == 0 {
-		return "", "", fmt.Errorf("no saved sessions to analyze yet")
+
+	logs := collectLogs(g.logsDir(), since, g.logMinLevel())
+
+	if len(sessions) == 0 && len(logs.Groups) == 0 {
+		return "", "", fmt.Errorf("no saved sessions or log failures to analyze yet")
 	}
 
-	// Telemetry can be disabled or aged past retention_days; its absence costs
-	// the reliability table, not the report.
 	var tools []telemetry.ToolStat
 	if stats, aggErr := telemetry.Aggregate(config.TelemetryDir(), since, ""); aggErr == nil && !stats.Empty {
 		tools = stats.Tools
@@ -110,11 +114,9 @@ func (g *InsightsGenerator) Generate(ctx context.Context, since time.Time) (mark
 		model = g.models.GetCurrentModel()
 	}
 
-	// Memory is read before the analysis so a `/reset insights` run captures what
-	// the agent had learned; the wipe that follows takes the memory dir with it.
 	memory := g.memoryIndex()
 
-	analysis, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools, memory))
+	analysis, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools, memory, logs))
 	if err != nil {
 		return "", "", err
 	}
@@ -128,12 +130,13 @@ func (g *InsightsGenerator) Generate(ctx context.Context, since time.Time) (mark
 		Projects:  projectsOf(sessions),
 	}
 	meta.Memory = countMemoryFacts(memory)
+	meta.LogRecords, meta.LogGroups = logs.Scanned, len(logs.Groups)
 	for _, t := range tools {
 		meta.Calls += t.Calls
 		meta.Failures += t.Failures
 	}
 
-	markdown = renderReport(meta, failures, tools, analysis)
+	markdown = renderReport(meta, failures, tools, logs, analysis)
 	path, err = writeReport(markdown)
 	if err != nil {
 		return "", "", err
@@ -156,7 +159,7 @@ func (g *InsightsGenerator) collect(ctx context.Context, since time.Time) ([]ses
 		}
 		entries, meta, loadErr := g.store.LoadConversation(ctx, summary.ID)
 		if loadErr != nil {
-			continue // one unreadable session must not sink the report
+			continue
 		}
 		sessions = append(sessions, digestSession(summary, meta, entries))
 		foldFailures(entries, byTool)
@@ -246,7 +249,24 @@ func totalErrors(f toolFailure) int {
 	return n
 }
 
-// buildDigest renders the prompt payload; pure, so the tests target it directly.
+// logsDir resolves the log directory the same way the logger writes it, so an
+// overridden logging.dir is read rather than the default.
+func (g *InsightsGenerator) logsDir() string {
+	if g.cfg == nil {
+		return config.DefaultLogsDir()
+	}
+	return cmp.Or(g.cfg.Logging.Dir, config.DefaultLogsDir())
+}
+
+// logMinLevel is the severity floor for log ingestion. collectLogs falls back to
+// warn on an unset or unrecognized value.
+func (g *InsightsGenerator) logMinLevel() string {
+	if g.cfg == nil {
+		return ""
+	}
+	return g.cfg.Logging.InsightsMinLevel
+}
+
 // memoryIndex returns the MEMORY.md index: one line per stored fact, across
 // every project. The index is read rather than the fact files themselves - a
 // fact can run to Memory.MaxEntryChars each, while the index is already the
@@ -292,7 +312,8 @@ func countMemoryFacts(index string) int {
 	return count
 }
 
-func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telemetry.ToolStat, memory string) string {
+// buildDigest renders the prompt payload; pure, so the tests target it directly.
+func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telemetry.ToolStat, memory string, logs logDigest) string {
 	var b strings.Builder
 
 	if memory != "" {
@@ -323,6 +344,18 @@ func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telem
 			for _, key := range topErrors(f) {
 				fmt.Fprintf(&b, "- %s x%d: %s\n", f.Tool, f.Errors[key], f.Sample[key])
 			}
+		}
+	}
+
+	if len(logs.Groups) > 0 {
+		b.WriteString("\nLOG FAILURES (from the log files, most frequent first)\n")
+		b.WriteString("These are failures the sessions above never recorded - crashes, startup and\n")
+		b.WriteString("background errors. xN is how many times that same line recurred: a high N\n")
+		b.WriteString("over a short span is a retry loop that never succeeded, the same N spread\n")
+		b.WriteString("over days is a chronic fault. Near-identical lines are already folded together.\n")
+		for _, g := range logs.Groups {
+			fmt.Fprintf(&b, "- x%d [%s .. %s] %s\n", g.Count,
+				g.First.Format(time.RFC3339), g.Last.Format(time.RFC3339), g.Sample)
 		}
 	}
 
@@ -374,7 +407,7 @@ func (g *InsightsGenerator) analyze(ctx context.Context, model, digest string) (
 	return callLLM(ctx, g.client, model, insightsPrompt+digest, insightsMaxTokens)
 }
 
-func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.ToolStat, analysis string) string {
+func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.ToolStat, logs logDigest, analysis string) string {
 	var b strings.Builder
 
 	window := "all"
@@ -391,6 +424,8 @@ func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.Too
 	fmt.Fprintf(&b, "tool_calls: %d\n", meta.Calls)
 	fmt.Fprintf(&b, "tool_failures: %d\n", meta.Failures)
 	fmt.Fprintf(&b, "memory_facts: %d\n", meta.Memory)
+	fmt.Fprintf(&b, "log_records: %d\n", meta.LogRecords)
+	fmt.Fprintf(&b, "log_groups: %d\n", meta.LogGroups)
 	b.WriteString("projects:\n")
 	for _, p := range meta.Projects {
 		fmt.Fprintf(&b, "  - %q\n", p)
@@ -416,6 +451,17 @@ func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.Too
 			for _, key := range topErrors(f) {
 				fmt.Fprintf(&b, "- **%s** x%d - %s\n", f.Tool, f.Errors[key], f.Sample[key])
 			}
+		}
+		b.WriteString("\n")
+	}
+
+	if len(logs.Groups) > 0 {
+		b.WriteString("## Log failures\n\n")
+		b.WriteString("| Count | First | Last | Message |\n")
+		b.WriteString("|-------|-------|------|---------|\n")
+		for _, g := range logs.Groups {
+			fmt.Fprintf(&b, "| %d | %s | %s | %s |\n", g.Count,
+				g.First.Format(time.RFC3339), g.Last.Format(time.RFC3339), strings.ReplaceAll(g.Sample, "|", "\\|"))
 		}
 		b.WriteString("\n")
 	}

@@ -77,6 +77,8 @@ func NewLogger(cfg Config) (*zap.Logger, error) {
 	})
 
 	zapCfg := zap.NewProductionConfig()
+	zapCfg.Sampling = nil
+
 	zapCfg.OutputPaths = []string{"reopen://" + absLogFile}
 	zapCfg.ErrorOutputPaths = []string{"reopen://" + absLogFile}
 

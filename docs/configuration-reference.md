@@ -110,6 +110,7 @@ logging:
   archive:
     enabled: true # Automatically archive oversized log files (default: true)
     max_size_mb: 1024 # Threshold in MB; files exceeding this are gzip-compressed and truncated (default: 1024 = 1 GB)
+  insights_min_level: warn # Lowest level `infer insights` folds into its report (debug|info|warn|error|dpanic|panic|fatal)
 tools:
   enabled: true # Tools are enabled by default with safe read-only commands
   sandbox:
@@ -284,6 +285,10 @@ compact:
   When enabled, log files exceeding the size threshold are gzip-compressed and
   truncated.
 - **logging.archive.max_size_mb**: Maximum log file size in MB before archiving is triggered (default: `1024`, i.e. 1 GB). Set via `INFER_LOGGING_ARCHIVE_MAX_SIZE_MB`.
+- **logging.insights_min_level**: Lowest log level `infer insights` ingests when
+  folding `~/.infer/logs` into its report (default: `warn`). Lower it to `info` to
+  surface lifecycle events too, at the cost of a noisier digest. Set via
+  `INFER_LOGGING_INSIGHTS_MIN_LEVEL`.
 
 ### Tool Settings
 

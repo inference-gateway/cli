@@ -99,7 +99,7 @@ func TestCollectAndBuildDigest(t *testing.T) {
 		t.Errorf("exit status 2 and 127 should fold into one key, got %d: %+v", len(failures[0].Errors), failures[0].Errors)
 	}
 
-	digest := buildDigest(sessions, failures, []telemetry.ToolStat{{Name: "Grep", Calls: 4, Failures: 3, AvgMs: 47}}, "")
+	digest := buildDigest(sessions, failures, []telemetry.ToolStat{{Name: "Grep", Calls: 4, Failures: 3, AvgMs: 47}}, "", logDigest{})
 	for _, want := range []string{"Fix flaky test", "Add reset flag", "Grep x3", "ripgrep execution failed", "Grep: 4/3/47"} {
 		if !strings.Contains(digest, want) {
 			t.Errorf("digest missing %q:\n%s", want, digest)
@@ -117,7 +117,7 @@ func TestBuildDigestBounded(t *testing.T) {
 	for i := range sessions {
 		sessions[i] = sessionDigest{Title: strings.Repeat("x", 200), Intent: strings.Repeat("y", 200)}
 	}
-	if got := len(buildDigest(sessions, nil, nil, "")); got > maxDigestChars+3 {
+	if got := len(buildDigest(sessions, nil, nil, "", logDigest{})); got > maxDigestChars+3 {
 		t.Errorf("digest not bounded: %d chars", got)
 	}
 }
@@ -168,9 +168,12 @@ func TestRenderReportFrontmatter(t *testing.T) {
 		Projects:  []string{"/repos/cli", "/repos/docs"},
 		Calls:     997,
 		Failures:  37,
+
+		LogRecords: 1482,
+		LogGroups:  9,
 	}
 
-	got := renderReport(meta, nil, nil, "### Repeatable workflows worth a skill\nNothing repeats yet.")
+	got := renderReport(meta, nil, nil, logDigest{}, "### Repeatable workflows worth a skill\nNothing repeats yet.")
 
 	for _, want := range []string{
 		"generated: 2026-09-18T14:51:45Z",
@@ -180,6 +183,8 @@ func TestRenderReportFrontmatter(t *testing.T) {
 		"sessions: 10",
 		"tool_calls: 997",
 		"tool_failures: 37",
+		"log_records: 1482",
+		"log_groups: 9",
 		`  - "/repos/cli"`,
 		`  - "/repos/docs"`,
 	} {
@@ -197,7 +202,7 @@ func TestRenderReportFrontmatter(t *testing.T) {
 
 // TestRenderReportAllTimeWindow covers the zero-value window.
 func TestRenderReportAllTimeWindow(t *testing.T) {
-	got := renderReport(reportMeta{Generated: time.Now()}, nil, nil, "x")
+	got := renderReport(reportMeta{Generated: time.Now()}, nil, nil, logDigest{}, "x")
 	if !strings.Contains(got, `window_since: "all"`) {
 		t.Errorf("an empty window must render as all:\n%s", got)
 	}
@@ -284,7 +289,7 @@ func TestMemoryIndexReachesTheDigest(t *testing.T) {
 		t.Errorf("expected 2 facts, got %d from:\n%s", countMemoryFacts(index), index)
 	}
 
-	digest := buildDigest(nil, nil, nil, index)
+	digest := buildDigest(nil, nil, nil, index, logDigest{})
 	for _, want := range []string{"PERSISTENT MEMORY", "prefers-tabs", "cli/no-footers"} {
 		if !strings.Contains(digest, want) {
 			t.Errorf("digest missing %q:\n%s", want, digest)

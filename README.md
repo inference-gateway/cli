@@ -495,9 +495,20 @@ infer insights --model <id>   # Pick the model; defaults to agent.model
 
 Writes a markdown report to `~/.infer/insights/`. Needs conversation storage enabled.
 
-Reads the conversation store, the telemetry directory and the persistent memory index
-(`MEMORY.md`, capped at `memory.max_chars`). `infer reset insights` runs the analysis before the
-wipe, so the facts survive in the report even though the memory directory does not.
+Reads the conversation store, the telemetry directory, the log directory and the persistent
+memory index (`MEMORY.md`, capped at `memory.max_chars`). `infer reset insights` runs the
+analysis before the wipe, so the facts survive in the report even though the memory directory
+does not.
+
+The logs are the only source that sees a failure which never reached a saved session - a startup
+crash, a gateway that never came up, a background job that died. They are deduplicated before the
+model sees them: records at or above `logging.insights_min_level` (default `warn`) inside the
+window are folded by normalized message, so lines differing only in a path, an id or a number
+become one group with a count, a first/last timestamp and one verbatim sample. The report's
+frontmatter states how many records were read (`log_records`) and how many groups survived
+(`log_groups`). Only the structured `app-*.log` and `daemon-*.log` files and their `.gz` archives
+are read; `gateway-*.log` is raw subprocess output with no level or timestamp to filter on, and
+the gateway's own failures are logged through zap into `app-*.log` anyway.
 
 **`infer reset`** - Wipe all local runtime state and start fresh
 
