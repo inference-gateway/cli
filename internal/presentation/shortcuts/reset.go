@@ -83,8 +83,6 @@ func (r *ResetShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 		}, nil
 	}
 
-	// The repo saves the outgoing conversation here and the purge below removes
-	// it; starting the new session after the wipe would write it back.
 	if r.repo != nil {
 		if err := r.repo.StartNewConversation("New Conversation"); err != nil {
 			return ShortcutResult{
