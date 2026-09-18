@@ -348,3 +348,77 @@ func TestStaleProjectsPrunedWholeOthersKeepTheirDir(t *testing.T) {
 		t.Errorf("stale project dir must be removed entirely")
 	}
 }
+
+// TestWipeReportsSpaceTotals covers the docker-prune-style number in both
+// directions: the preview states the reclaimable total, the confirm states
+// what it actually freed, and the walk covers directory trees, the SQLite
+// database and its WAL sidecars.
+func TestWipeReportsSpaceTotals(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	blobs := filepath.Join(t.TempDir(), "artifacts")
+	if err := os.MkdirAll(blobs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(blobs, "blob.bin"), make([]byte, 1500), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	recreated := filepath.Join(t.TempDir(), "tmp")
+	if err := os.MkdirAll(recreated, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	db := filepath.Join(t.TempDir(), "conversations.db")
+	for path, n := range map[string]int{db: 4096, db + "-wal": 100} {
+		if err := os.WriteFile(path, make([]byte, n), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tg := targets{prune: []string{blobs}, empty: []string{recreated}, sqliteDB: db}
+
+	if got := preview(tg); !strings.Contains(got, "Total reclaimable space: 5.696kB") {
+		t.Errorf("preview must end with the reclaimable total, got:\n%s", got)
+	}
+
+	output, err := (&wiper{}).wipe(context.Background(), tg)
+	if err != nil {
+		t.Fatalf("wipe failed: %v", err)
+	}
+	if !strings.Contains(output, "Total reclaimed space: 5.696kB") {
+		t.Errorf("confirm must end with the reclaimed total, got:\n%s", output)
+	}
+}
+
+// TestWipeReclaimedSpaceExcludesFailures pins the confirm total: a target that
+// could not be deleted is not counted as reclaimed space.
+func TestWipeReclaimedSpaceExcludesFailures(t *testing.T) {
+	blocked := filepath.Join(t.TempDir(), "plans")
+	if err := os.MkdirAll(blocked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(blocked, "data"), []byte("123456789"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Dir(blocked), 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(filepath.Dir(blocked), 0o755) })
+
+	free := filepath.Join(t.TempDir(), "tmp")
+	if err := os.MkdirAll(free, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(free, "data"), []byte("123"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := (&wiper{}).wipe(context.Background(), targets{empty: []string{blocked, free}})
+	if err == nil {
+		t.Skip("filesystem allowed the removal; nothing to assert")
+	}
+	if !strings.Contains(output, "Total reclaimed space: 3B") {
+		t.Errorf("total must count only what was actually freed, got:\n%s", output)
+	}
+}

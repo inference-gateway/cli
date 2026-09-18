@@ -205,3 +205,25 @@ func TestExtractTextFromContent(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatBytes(t *testing.T) {
+	tests := []struct {
+		name string
+		size int64
+		want string
+	}{
+		{"zero is 0B", 0, "0B"},
+		{"bytes stay bytes", 999, "999B"},
+		{"kilobytes at 4 significant digits", 4096, "4.096kB"},
+		{"trailing zeros are dropped", 1500, "1.5kB"},
+		{"gigabytes like docker prune", 1653000000, "1.653GB"},
+		{"terabytes divide again", 4_096_000_000_000, "4.096TB"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := FormatBytes(tt.size); got != tt.want {
+				t.Errorf("FormatBytes(%d) = %q, want %q", tt.size, got, tt.want)
+			}
+		})
+	}
+}
