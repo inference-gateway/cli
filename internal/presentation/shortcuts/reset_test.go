@@ -33,6 +33,12 @@ func seedResetState(t *testing.T) (stateDirs, configFiles []string) {
 		filepath.Join(userSpace, "plans"),
 		filepath.Join(userSpace, "tmp"),
 		filepath.Join(userSpace, "logs"),
+		filepath.Join(userSpace, "telemetry"),
+		filepath.Join(userSpace, "schedules"),
+		filepath.Join(userSpace, "run"),
+		filepath.Join(userSpace, "tts"),
+		filepath.Join(userSpace, "voice"),
+		filepath.Join(userSpace, "media"),
 	}
 	for _, dir := range stateDirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {

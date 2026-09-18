@@ -18,7 +18,8 @@ import (
 
 // ResetShortcut wipes all local runtime state so the agent starts as if freshly
 // installed: conversations, plans, scratch dirs, artifacts, history, backups,
-// exports and logs. This is machine-wide, not project-scoped - it clears the
+// exports, logs, telemetry, scheduled jobs, pid/lock files, generated speech,
+// retained recordings and channel media. This is machine-wide, not project-scoped - it clears the
 // runtime dirs of every project under ~/.infer/projects, which is why the
 // preview lists them all. Configuration (config.yaml, custom shortcuts, skills,
 // projects.json) and the insights reports are preserved. Remote stores
@@ -174,8 +175,9 @@ func (r *ResetShortcut) withInsights(ctx context.Context) string {
 }
 
 // targets lists everything /reset deletes: the runtime subdirectories of every
-// project, the userspace runtime dirs, the log dir and the local conversation
-// store. remote names the configured remote backend, if any.
+// project, the userspace runtime dirs, telemetry, schedules, the pid/lock dir,
+// generated speech, retained recordings, channel media, the log dir and the
+// local conversation store. remote names the configured remote backend, if any.
 func (r *ResetShortcut) targets() (dirs []string, sqliteDB, remote string) {
 	userSpace := config.UserSpaceConfigDir()
 	projectsRoot := filepath.Join(userSpace, config.ProjectsDirName)
@@ -196,7 +198,29 @@ func (r *ResetShortcut) targets() (dirs []string, sqliteDB, remote string) {
 	for _, name := range config.UserspaceRuntimeDirNames {
 		dirs = append(dirs, filepath.Join(userSpace, name))
 	}
-	dirs = append(dirs, config.DefaultLogsDir())
+	// Runtime output that is deliberately absent from UserspaceRuntimeDirNames:
+	// that list doubles as the agent's writable-sandbox allowlist, and telemetry,
+	// scheduled jobs and the pid/lock dir must stay read-only to the agent.
+	// ponytail: wiping run/ drops a live daemon pid file and the computer-use
+	// flock; skip the held ones only if resetting mid-session turns out to matter.
+	dirs = append(dirs,
+		config.TelemetryDir(),
+		filepath.Join(userSpace, "schedules"),
+		filepath.Join(userSpace, "run"),
+		config.DefaultLogsDir(),
+	)
+
+	if r.cfg != nil {
+		if dir, err := r.cfg.TextToSpeech.ResolveOutputDir(); err == nil {
+			dirs = append(dirs, dir)
+		}
+		if dir, err := r.cfg.SpeechToText.ResolveRecordingsDir(); err == nil {
+			dirs = append(dirs, dir)
+		}
+		if dir, err := r.cfg.Channels.Telegram.Media.ResolveDir(); err == nil {
+			dirs = append(dirs, dir)
+		}
+	}
 
 	if r.cfg != nil && r.cfg.Storage.Enabled {
 		switch r.cfg.Storage.Type {
