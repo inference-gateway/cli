@@ -45,12 +45,15 @@ These shortcuts are available out of the box:
 
 - `/new [title]` - Start a new conversation (optionally titled)
 - `/clear` - Save the current conversation and start a new one
-- `/insights [since]` - Analyze past sessions for repeatable workflows worth a skill and recurring tool failures; saves a report to `~/.infer/insights/`
+- `/insights [since]` - Analyze past sessions for repeatable workflows worth a skill and recurring tool failures; saves a report to `~/.infer/insights/`.
+  Also available outside the chat as `infer insights [since] [--model <id>]`.
 - `/reset [insights|confirm]` - Wipe the local runtime state (conversations, plans, scratch, artifacts, history, backups, exports, logs) of
   **every project on this machine** and start a fresh session.
   `/reset insights` analyzes the sessions first and previews the wipe.
   `/reset confirm` performs it, but only after a preview in the same session - a cold `/reset confirm` previews instead of deleting.
   Config and saved insights are preserved, remote stores are skipped.
+  Also available outside the chat as `infer reset`, `infer reset confirm` and `infer reset insights`;
+  there the command line is the confirmation, so `infer reset confirm` needs no preview first.
 - `/compact` - Save the conversation and start a new session seeded with a summary
 - `/conversations` - Open the conversation selection dropdown
 - `/context` - Show context-window usage

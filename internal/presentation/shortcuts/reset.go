@@ -34,6 +34,7 @@ type ResetShortcut struct {
 
 	mu          sync.Mutex
 	previewedAt time.Time
+	confirmHint string
 }
 
 // confirmWindow is how long a preview arms /reset confirm.
@@ -129,6 +130,25 @@ func (r *ResetShortcut) arm() {
 	r.previewedAt = time.Now()
 }
 
+// UseCLISurface adapts the shortcut to `infer reset`, where the command line is
+// itself the confirmation: the preview gate starts satisfied - two shell
+// invocations are two processes, so the window could never be satisfied the way
+// it is in the chat TUI - and the preview points at `infer reset confirm`
+// instead of the slash command.
+func (r *ResetShortcut) UseCLISurface() {
+	r.arm()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.confirmHint = "infer reset confirm"
+}
+
+// hint is how the current surface spells the command that performs the wipe.
+func (r *ResetShortcut) hint() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return cmp.Or(r.confirmHint, "/reset confirm")
+}
+
 // purge empties the store through its own API before the file is unlinked:
 // SQLite keeps the deleted inode open, so later writes go nowhere readable.
 func (r *ResetShortcut) purge(ctx context.Context) {
@@ -158,7 +178,7 @@ func (r *ResetShortcut) preview(dirs []string, sqliteDB string) string {
 	return "This permanently deletes all local runtime state, for every project on this machine:\n" +
 		listing(dirs, sqliteDB) +
 		"\nConfiguration (config.yaml, shortcuts, skills, projects.yaml) and saved insights are preserved.\n" +
-		"Run `/reset confirm` to proceed, or do nothing to cancel."
+		"Run `" + r.hint() + "` to proceed, or do nothing to cancel."
 }
 
 // withInsights renders the analysis that precedes the preview. A failure is

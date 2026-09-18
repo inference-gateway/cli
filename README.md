@@ -485,6 +485,27 @@ infer conversations list      # Find the session ID
 infer export <session-id>     # Writes ~/.infer/projects/<slug>/exports/chat_export_<timestamp>.md
 ```
 
+**`infer insights`** - Analyze past sessions for repeatable workflows and recurring tool failures
+
+```bash
+infer insights                # Every saved session
+infer insights 7d             # Only the last 7 days (also 24h, 30d)
+infer insights --model <id>   # Pick the model; defaults to agent.model
+```
+
+Writes a markdown report to `~/.infer/insights/`. Needs conversation storage enabled.
+
+**`infer reset`** - Wipe all local runtime state and start fresh
+
+```bash
+infer reset             # Preview every path that would be deleted; deletes nothing
+infer reset confirm     # Perform the wipe
+infer reset insights    # Analyze past sessions first, then preview (takes --model)
+```
+
+Clears the runtime directories of **every project on this machine** plus the local conversation store.
+Config, custom shortcuts, skills and saved insights are preserved; remote stores (postgres, redis, d1) are skipped.
+
 **`infer version`** - Display CLI version information
 
 ```bash
@@ -916,12 +937,15 @@ actions.
 
 - `/new [title]` - Start a new conversation (optionally titled)
 - `/clear` - Save the current conversation and start a new one
-- `/insights [since]` - Analyze past sessions for repeatable workflows worth a skill and recurring tool failures; saves a report to `~/.infer/insights/`
+- `/insights [since]` - Analyze past sessions for repeatable workflows worth a skill and recurring tool failures; saves a report to `~/.infer/insights/`.
+  Also available outside the chat as `infer insights [since] [--model <id>]`.
 - `/reset [insights|confirm]` - Wipe the local runtime state (conversations, plans, scratch, artifacts, history, backups, exports, logs) of
   **every project on this machine** and start a fresh session.
   `/reset insights` analyzes the sessions first and previews the wipe.
   `/reset confirm` performs it, but only after a preview in the same session - a cold `/reset confirm` previews instead of deleting.
   Config and saved insights are preserved, remote stores are skipped.
+  Also available outside the chat as `infer reset`, `infer reset confirm` and `infer reset insights`;
+  there the command line is the confirmation, so `infer reset confirm` needs no preview first.
 - `/compact` - Save the conversation and start a new session seeded with a summary
 - `/conversations` - Open the conversation selection dropdown
 - `/context` - Show context-window usage

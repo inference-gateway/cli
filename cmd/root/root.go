@@ -22,12 +22,14 @@ import (
 	gpu "github.com/inference-gateway/cli/cmd/gpu"
 	headless "github.com/inference-gateway/cli/cmd/headless"
 	initcmd "github.com/inference-gateway/cli/cmd/init"
+	insightscmd "github.com/inference-gateway/cli/cmd/insights"
 	keybindings "github.com/inference-gateway/cli/cmd/keybindings"
 	mcp "github.com/inference-gateway/cli/cmd/mcp"
 	migrate "github.com/inference-gateway/cli/cmd/migrate"
 	output "github.com/inference-gateway/cli/cmd/output"
 	plans "github.com/inference-gateway/cli/cmd/plans"
 	plugins "github.com/inference-gateway/cli/cmd/plugins"
+	resetcmd "github.com/inference-gateway/cli/cmd/reset"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	shortcutscmd "github.com/inference-gateway/cli/cmd/shortcuts"
 	skills "github.com/inference-gateway/cli/cmd/skills"
@@ -93,11 +95,13 @@ deployment, monitoring, and management of inference services.`,
 		gpu.NewCommand(state),
 		headless.NewCommand(state),
 		initcmd.NewCommand(state),
+		insightscmd.NewCommand(state),
 		keybindings.NewCommand(state),
 		mcp.NewCommand(state, renderer),
 		migrate.NewCommand(state),
 		plans.NewCommand(state, renderer),
 		plugins.NewCommand(state, renderer),
+		resetcmd.NewCommand(state),
 		shortcutscmd.NewCommand(state),
 		skills.NewCommand(state, renderer),
 		stats.NewCommand(state, renderer),
