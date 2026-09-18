@@ -15,7 +15,7 @@ import (
 
 // TestResolveAgentEnv verifies the A2A agent container env resolution order:
 // project .env, system environment, the agent's own config value, and finally
-// the ~/.infer/auth.json fallback (first hit per key wins).
+// the ~/.infer/auth.yaml fallback (first hit per key wins).
 func TestResolveAgentEnv(t *testing.T) {
 	t.Setenv("INFER_TEST_SYS_KEY", "from-system")
 

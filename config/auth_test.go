@@ -3,45 +3,28 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	require "github.com/stretchr/testify/require"
 )
 
-// writeAuthFileNamed seeds ~/.infer/<name> in a fresh HOME. The name is either
-// AuthFileName or legacyAuthFileName; repeated calls in one test reuse the HOME
-// the first call set, so both files can coexist.
-func writeAuthFileNamed(t *testing.T, name, content string, mode os.FileMode) string {
+func writeAuthFile(t *testing.T, content string, mode os.FileMode) string {
 	t.Helper()
 
-	home := os.Getenv("HOME")
-	if home == "" || !strings.HasPrefix(home, os.TempDir()) {
-		home = t.TempDir()
-		t.Setenv("HOME", home)
-	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 
 	authDir := filepath.Join(home, ConfigDirName)
 	if err := os.MkdirAll(authDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 
-	authPath := filepath.Join(authDir, name)
+	authPath := filepath.Join(authDir, AuthFileName)
 	if err := os.WriteFile(authPath, []byte(content), mode); err != nil {
 		t.Fatal(err)
 	}
 
 	return authPath
-}
-
-func writeAuthFile(t *testing.T, content string, mode os.FileMode) string {
-	t.Helper()
-	return writeAuthFileNamed(t, AuthFileName, content, mode)
-}
-
-func writeLegacyAuthFile(t *testing.T, content string, mode os.FileMode) string {
-	t.Helper()
-	return writeAuthFileNamed(t, legacyAuthFileName, content, mode)
 }
 
 func TestAuthFilePath(t *testing.T) {
@@ -87,21 +70,6 @@ func TestLoadAuthKeys(t *testing.T) {
 				"ANTHROPIC_API_KEY": "sk-ant-...",
 				"OPENAI_API_KEY":    "sk-...",
 			},
-		},
-		{
-			name: "legacy auth.json still yields keys",
-			setup: func(t *testing.T) {
-				writeLegacyAuthFile(t, `{"OPENAI_API_KEY": "sk-..."}`, 0600)
-			},
-			wantKeys: map[string]string{"OPENAI_API_KEY": "sk-..."},
-		},
-		{
-			name: "auth.yaml wins over legacy auth.json",
-			setup: func(t *testing.T) {
-				writeLegacyAuthFile(t, `{"OPENAI_API_KEY": "sk-from-json"}`, 0600)
-				writeAuthFile(t, `OPENAI_API_KEY: sk-from-yaml`, 0600)
-			},
-			wantKeys: map[string]string{"OPENAI_API_KEY": "sk-from-yaml"},
 		},
 		{
 			name: "broad permissions yield warning",

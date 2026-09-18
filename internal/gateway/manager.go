@@ -1111,7 +1111,7 @@ func (gm *Manager) configureGatewayOutput(cmd *exec.Cmd) error {
 }
 
 // loadEnvironment assembles the gateway binary environment in precedence
-// order: system environment, then project .env, then the ~/.infer/auth.json
+// order: system environment, then project .env, then the ~/.infer/auth.yaml
 // fallback (first hit per key wins).
 func (gm *Manager) loadEnvironment() []string {
 	envVars := os.Environ()

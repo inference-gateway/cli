@@ -1030,7 +1030,6 @@ func DefaultConfig() *Config { //nolint:funlen
 					"*.env",
 					".environment",
 					"auth.yaml",
-					"auth.json",
 					"*.key",
 					"*.pem",
 					"id_rsa",

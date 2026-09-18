@@ -307,10 +307,7 @@ OPENAI_API_KEY: sk-...
 ```
 
 A missing `auth.yaml` changes nothing, and a malformed one is ignored with a
-logged warning. An older `~/.infer/auth.json` (the previous JSON format) is
-still read as a fallback, so existing credentials keep working; move them to
-`auth.yaml` when convenient. Keep the file private (`chmod 600
-~/.infer/auth.yaml`).
+logged warning. Keep the file private (`chmod 600 ~/.infer/auth.yaml`).
 
 3. **Start chatting**:
 

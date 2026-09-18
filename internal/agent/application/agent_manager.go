@@ -640,7 +640,7 @@ func agentTelemetryEnv(endpoint string) map[string]string {
 
 // resolveAgentEnv resolves each agent-declared env var with first hit per key
 // winning: project .env, system environment, the agent's own config value, and
-// finally the ~/.infer/auth.json fallback for unset keys.
+// finally the ~/.infer/auth.yaml fallback for unset keys.
 func resolveAgentEnv(env, dotEnvVars, authKeys map[string]string) map[string]string {
 	resolvedEnv := make(map[string]string, len(env))
 	for key := range env {

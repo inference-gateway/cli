@@ -49,7 +49,7 @@ for the full precedence rules.
 ├── config.yaml           # main configuration
 ├── projects.yaml         # desktop sidebar projects and groups
 ├── desktop.yaml          # desktop app settings
-├── auth.yaml             # provider API key fallback, mode 0600 (legacy auth.json still read)
+├── auth.yaml             # provider API key fallback, mode 0600
 ├── prompts.yaml          # LLM system prompts (agent, git, conversation, tools, ...)
 ├── keybindings.yaml      # chat UI keyboard shortcuts
 ├── channels.yaml         # remote messaging channels (Telegram, ...)
@@ -150,9 +150,7 @@ A simple rule keeps `~/.infer/` consistent:
 
 - **Hand-edited files are YAML** - `config.yaml`, `agents.yaml`, `auth.yaml`
   and everything else a user is expected to open in an editor. `auth.yaml`
-  (mode 0600, the provider API key fallback) replaced the original
-  `auth.json`; the legacy JSON file is still read when `auth.yaml` is
-  missing, so existing credentials keep working until you move them over.
+  (mode 0600) holds the provider API key fallback.
 - **State a user may inspect is YAML too** - `projects.yaml` (sidebar
   projects, groups and per-project path overrides) and `desktop.yaml` (app
   settings). Nobody hand-writes these, but people do open them to see why a

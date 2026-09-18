@@ -80,12 +80,6 @@ func TestPathValidator_Validate(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name:      "auth.json under the config dir stays protected",
-			path:      filepath.Join(cwd, config.ConfigDirName, "auth.json"),
-			wantError: true,
-			errorMsg:  "excluded for security",
-		},
-		{
 			name:      "auth.yaml is protected by name, outside the config dir",
 			path:      filepath.Join(cwd, "auth.yaml"),
 			wantError: true,
