@@ -46,9 +46,6 @@ func seedResetState(t *testing.T) (stateDirs, configFiles []string) {
 		}
 	}
 
-	// Generated speech, retained recordings and channel media default under
-	// the userspace tmp dir; they are wiped with it and are not recreated
-	// by /reset - the owning subsystems recreate them on next use.
 	for _, name := range []string{"tts", "voice", "media"} {
 		media := filepath.Join(userSpace, "tmp", name)
 		if err := os.MkdirAll(media, 0o755); err != nil {
