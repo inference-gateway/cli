@@ -78,6 +78,9 @@ func testLoggingDefaults(t *testing.T, cfg *Config) {
 	if cfg.Logging.Debug {
 		t.Error("Expected debug to be false by default")
 	}
+	if got := cfg.Logging.InsightsMinLevel; got != "warn" {
+		t.Errorf("Expected insights_min_level default warn, got %q", got)
+	}
 }
 
 func testToolsDefaults(t *testing.T, cfg *Config) {

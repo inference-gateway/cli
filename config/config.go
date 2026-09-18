@@ -212,10 +212,11 @@ type RetryConfig struct {
 
 // LoggingConfig contains logging settings
 type LoggingConfig struct {
-	Debug   bool          `yaml:"debug" mapstructure:"debug"`
-	Dir     string        `yaml:"dir" mapstructure:"dir"`
-	Stdout  bool          `yaml:"stdout" mapstructure:"stdout"`
-	Archive ArchiveConfig `yaml:"archive" mapstructure:"archive"`
+	Debug            bool          `yaml:"debug" mapstructure:"debug"`
+	Dir              string        `yaml:"dir" mapstructure:"dir"`
+	Stdout           bool          `yaml:"stdout" mapstructure:"stdout"`
+	Archive          ArchiveConfig `yaml:"archive" mapstructure:"archive"`
+	InsightsMinLevel string        `yaml:"insights_min_level" mapstructure:"insights_min_level"`
 }
 
 // ArchiveConfig contains log archiving/rotation settings.
@@ -1018,6 +1019,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:   true,
 				MaxSizeMB: 1024,
 			},
+			InsightsMinLevel: "warn",
 		},
 		Tools: ToolsConfig{
 			Enabled:        true,
