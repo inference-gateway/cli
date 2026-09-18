@@ -2,6 +2,8 @@ package shortcuts
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -97,7 +99,7 @@ func TestCollectAndBuildDigest(t *testing.T) {
 		t.Errorf("exit status 2 and 127 should fold into one key, got %d: %+v", len(failures[0].Errors), failures[0].Errors)
 	}
 
-	digest := buildDigest(sessions, failures, []telemetry.ToolStat{{Name: "Grep", Calls: 4, Failures: 3, AvgMs: 47}})
+	digest := buildDigest(sessions, failures, []telemetry.ToolStat{{Name: "Grep", Calls: 4, Failures: 3, AvgMs: 47}}, "")
 	for _, want := range []string{"Fix flaky test", "Add reset flag", "Grep x3", "ripgrep execution failed", "Grep: 4/3/47"} {
 		if !strings.Contains(digest, want) {
 			t.Errorf("digest missing %q:\n%s", want, digest)
@@ -115,7 +117,7 @@ func TestBuildDigestBounded(t *testing.T) {
 	for i := range sessions {
 		sessions[i] = sessionDigest{Title: strings.Repeat("x", 200), Intent: strings.Repeat("y", 200)}
 	}
-	if got := len(buildDigest(sessions, nil, nil)); got > maxDigestChars+3 {
+	if got := len(buildDigest(sessions, nil, nil, "")); got > maxDigestChars+3 {
 		t.Errorf("digest not bounded: %d chars", got)
 	}
 }
@@ -245,5 +247,93 @@ func TestCallLLMRejectsEmptyResponse(t *testing.T) {
 				t.Errorf("error must mention %q, got: %v", tt.wantErr, err)
 			}
 		})
+	}
+}
+
+// memoryConfig points a generator at a memory dir under the test HOME.
+func memoryConfig(maxChars int) *config.Config {
+	cfg := &config.Config{Storage: config.StorageConfig{Enabled: true, Type: config.StorageTypeJsonl}}
+	cfg.Memory.Enabled = true
+	cfg.Memory.MaxChars = maxChars
+	return cfg
+}
+
+func writeMemoryIndex(t *testing.T, cfg *config.Config, body string) {
+	t.Helper()
+	dir, err := cfg.ResolveMemoryDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, config.MemoryIndexFileName), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestMemoryIndexReachesTheDigest is the load-bearing one: `/reset insights`
+// runs before the wipe precisely so the facts survive in the report.
+func TestMemoryIndexReachesTheDigest(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	cfg := memoryConfig(4000)
+	writeMemoryIndex(t, cfg, "- [prefers-tabs](prefers-tabs.md) - user indents Go with tabs\n- [cli/no-footers](cli/no-footers.md) - no commit footers\n")
+
+	index := (&InsightsGenerator{cfg: cfg}).memoryIndex()
+	if countMemoryFacts(index) != 2 {
+		t.Errorf("expected 2 facts, got %d from:\n%s", countMemoryFacts(index), index)
+	}
+
+	digest := buildDigest(nil, nil, nil, index)
+	for _, want := range []string{"PERSISTENT MEMORY", "prefers-tabs", "cli/no-footers"} {
+		if !strings.Contains(digest, want) {
+			t.Errorf("digest missing %q:\n%s", want, digest)
+		}
+	}
+}
+
+// TestMemoryIndexIsCapped keeps ingestion cheap in tokens: a runaway index must
+// be truncated at Memory.MaxChars on a line boundary, not passed through whole.
+func TestMemoryIndexIsCapped(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	cfg := memoryConfig(200)
+
+	var body strings.Builder
+	for i := range 100 {
+		fmt.Fprintf(&body, "- [fact-%02d](fact-%02d.md) - a stored fact worth remembering\n", i, i)
+	}
+	writeMemoryIndex(t, cfg, body.String())
+
+	index := (&InsightsGenerator{cfg: cfg}).memoryIndex()
+
+	if len(index) > 200+len("\n... (memory index truncated)") {
+		t.Errorf("index not capped: %d chars", len(index))
+	}
+	if !strings.Contains(index, "truncated") {
+		t.Errorf("a truncated index must say so:\n%s", index)
+	}
+	if strings.Contains(index, "fact-99") {
+		t.Errorf("cap must drop later entries:\n%s", index)
+	}
+}
+
+// TestMemoryIndexAbsentIsHarmless covers the degrade path: no memory dir, or
+// memory disabled, costs the section and nothing else.
+func TestMemoryIndexAbsentIsHarmless(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	if got := (&InsightsGenerator{cfg: memoryConfig(4000)}).memoryIndex(); got != "" {
+		t.Errorf("missing memory dir should yield an empty index, got %q", got)
+	}
+
+	disabled := memoryConfig(4000)
+	disabled.Memory.Enabled = false
+	writeMemoryIndex(t, disabled, "- [x](x.md) - y\n")
+	if got := (&InsightsGenerator{cfg: disabled}).memoryIndex(); got != "" {
+		t.Errorf("disabled memory should yield an empty index, got %q", got)
+	}
+
+	if got := (&InsightsGenerator{}).memoryIndex(); got != "" {
+		t.Errorf("nil config should yield an empty index, got %q", got)
 	}
 }

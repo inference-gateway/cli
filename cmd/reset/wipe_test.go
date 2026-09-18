@@ -17,19 +17,21 @@ import (
 
 // seedResetState creates one file in every runtime directory a reset owns and
 // every configuration file a reset must preserve, returning their paths.
-func seedResetState(t *testing.T) (stateDirs, configFiles []string) {
+func seedResetState(t *testing.T) (projectDirs, userDirs, configFiles []string) {
 	t.Helper()
 
 	userSpace := config.UserSpaceConfigDir()
 	runtimeRoot := config.ProjectRuntimeDir()
 
-	stateDirs = []string{
+	projectDirs = []string{
 		filepath.Join(runtimeRoot, "conversations"),
 		filepath.Join(runtimeRoot, "history"),
 		filepath.Join(runtimeRoot, "backups"),
 		filepath.Join(runtimeRoot, "tmp"),
 		filepath.Join(runtimeRoot, "artifacts"),
 		filepath.Join(runtimeRoot, "exports"),
+	}
+	userDirs = []string{
 		filepath.Join(userSpace, "artifacts"),
 		filepath.Join(userSpace, "plans"),
 		filepath.Join(userSpace, "tmp"),
@@ -38,7 +40,7 @@ func seedResetState(t *testing.T) (stateDirs, configFiles []string) {
 		filepath.Join(userSpace, "schedules"),
 		filepath.Join(userSpace, "run"),
 	}
-	for _, dir := range stateDirs {
+	for _, dir := range append(append([]string{}, projectDirs...), userDirs...) {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -71,15 +73,14 @@ func seedResetState(t *testing.T) (stateDirs, configFiles []string) {
 			t.Fatal(err)
 		}
 	}
-	return stateDirs, configFiles
+	return projectDirs, userDirs, configFiles
 }
 
 // confirmWipe resolves the targets and performs the wipe, as `infer reset
 // confirm` does.
 func confirmWipe(t *testing.T, w *wiper) string {
 	t.Helper()
-	dirs, sqliteDB, _ := w.targets()
-	output, err := w.wipe(context.Background(), dirs, sqliteDB)
+	output, err := w.wipe(context.Background(), w.resolve())
 	if err != nil {
 		t.Fatalf("wipe failed: %v", err)
 	}
@@ -99,17 +100,25 @@ func TestWipeKeepsConfig(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
-	stateDirs, configFiles := seedResetState(t)
+	projectDirs, userDirs, configFiles := seedResetState(t)
 
 	confirmWipe(t, jsonlWiper(nil))
 
-	for _, dir := range stateDirs {
+	for _, dir := range projectDirs {
+		if _, err := os.Stat(dir); !os.IsNotExist(err) {
+			t.Errorf("per-project runtime dir %s must be deleted, not recreated empty", dir)
+		}
+	}
+	if _, err := os.Stat(config.ProjectRuntimeDir()); err != nil {
+		t.Errorf("the project dir itself must survive, projects.yaml references it: %v", err)
+	}
+	for _, dir := range userDirs {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
-			t.Fatalf("state dir %s was removed instead of recreated: %v", dir, err)
+			t.Fatalf("userspace dir %s was removed instead of recreated: %v", dir, err)
 		}
 		if len(entries) != 0 {
-			t.Errorf("state dir %s still holds %d entries after reset", dir, len(entries))
+			t.Errorf("userspace dir %s still holds %d entries after reset", dir, len(entries))
 		}
 	}
 	for _, name := range []string{"tts", "voice", "media"} {
@@ -130,7 +139,7 @@ func TestWipeKeepsConfig(t *testing.T) {
 func TestWipeInsightsReportsSurvive(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
-	seedResetState(t)
+	_, _, _ = seedResetState(t)
 
 	report := filepath.Join(config.InsightsDir(), "20260918-120000.md")
 	if err := os.MkdirAll(filepath.Dir(report), 0o755); err != nil {
@@ -171,22 +180,22 @@ func TestWipeSQLiteAndRemote(t *testing.T) {
 		}
 	}
 
-	stateDirs, _ := seedResetState(t)
+	projectDirs, _, _ := seedResetState(t)
 	remoteWiper := &wiper{cfg: &config.Config{Storage: config.StorageConfig{Enabled: true, Type: config.StorageTypePostgres}}}
-	dirs, sqliteDB, remote := remoteWiper.targets()
-	if remote != "postgres" {
-		t.Errorf("expected a postgres skip notice, got %q", remote)
+	found := remoteWiper.resolve()
+	if found.remote != "postgres" {
+		t.Errorf("expected a postgres skip notice, got %q", found.remote)
 	}
-	if _, err := remoteWiper.wipe(context.Background(), dirs, sqliteDB); err != nil {
+	output, err := remoteWiper.wipe(context.Background(), found)
+	if err != nil {
 		t.Fatalf("postgres reset failed: %v", err)
 	}
-	for _, dir := range stateDirs {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatalf("remote config should not skip local dirs: %s missing: %v", dir, err)
-		}
-		if len(entries) != 0 {
-			t.Errorf("state dir %s not emptied", dir)
+	if !strings.Contains(output, "postgres") {
+		t.Errorf("expected a postgres notice in the output, got:\n%s", output)
+	}
+	for _, dir := range projectDirs {
+		if _, err := os.Stat(dir); !os.IsNotExist(err) {
+			t.Errorf("remote config must not skip local dirs: %s survived", dir)
 		}
 	}
 }
@@ -202,8 +211,7 @@ func TestPreviewSkipsMissingTargets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dirs, sqliteDB, _ := jsonlWiper(nil).targets()
-	output := preview(dirs, sqliteDB)
+	output := preview(jsonlWiper(nil).resolve())
 
 	if !strings.Contains(output, present) {
 		t.Errorf("preview must list the dir that exists, got:\n%s", output)
@@ -218,7 +226,7 @@ func TestPreviewSkipsMissingTargets(t *testing.T) {
 func TestWipePurgesStoreBeforeUnlink(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
-	seedResetState(t)
+	_, _, _ = seedResetState(t)
 
 	remaining := []string{"a", "b", "c"}
 	store := &storagemocks.FakeConversationStorage{}
@@ -256,7 +264,7 @@ func TestWipePurgesStoreBeforeUnlink(t *testing.T) {
 func TestWipeReportsEveryFailure(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
-	seedResetState(t)
+	_, _, _ = seedResetState(t)
 
 	blocked := filepath.Join(config.UserSpaceConfigDir(), "plans")
 	if err := os.Chmod(config.UserSpaceConfigDir(), 0o555); err != nil {
@@ -265,12 +273,78 @@ func TestWipeReportsEveryFailure(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(config.UserSpaceConfigDir(), 0o755) })
 
 	w := jsonlWiper(nil)
-	dirs, sqliteDB, _ := w.targets()
-	_, err := w.wipe(context.Background(), dirs, sqliteDB)
+	_, err := w.wipe(context.Background(), w.resolve())
 	if err == nil {
 		t.Skip("filesystem allowed the removal; nothing to assert")
 	}
 	if !strings.Contains(err.Error(), blocked) {
 		t.Errorf("error must name the blocked target %s, got:\n%v", blocked, err)
+	}
+}
+
+// TestStaleOnlyWhenNoReadingExists guards the ambiguity in the slug encoding:
+// a live project whose path contains a dash must never look stale, because a
+// false positive deletes its whole runtime directory.
+func TestStaleOnlyWhenNoReadingExists(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	dashed := filepath.Join(home, "repos", "my-project")
+	if err := os.MkdirAll(dashed, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	slug := func(path string) string { return strings.ReplaceAll(path, string(filepath.Separator), "-") }
+
+	for _, tc := range []struct {
+		name string
+		slug string
+		want bool
+	}{
+		{"path with a dash resolves", slug(dashed), false},
+		{"plain path resolves", slug(filepath.Join(home, "repos")), false},
+		{"missing path is stale", slug(filepath.Join(home, "repos", "gone")), true},
+		{"missing dashed path is stale", slug(filepath.Join(home, "repos", "my-other")), true},
+		{"non-path slug is never stale", "workspace", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := stale(tc.slug); got != tc.want {
+				t.Errorf("stale(%q) = %v, want %v", tc.slug, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestStaleProjectsPrunedWholeOthersKeepTheirDir pins the split the user asked
+// for: a live project keeps its directory and loses only the runtime subdirs,
+// while a project whose source is gone is removed entirely.
+func TestStaleProjectsPrunedWholeOthersKeepTheirDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	live := t.TempDir()
+
+	liveSlug := strings.ReplaceAll(live, string(filepath.Separator), "-")
+	staleSlug := strings.ReplaceAll(filepath.Join(home, "deleted-checkout"), string(filepath.Separator), "-")
+
+	projects := filepath.Join(config.UserSpaceConfigDir(), config.ProjectsDirName)
+	for _, slug := range []string{liveSlug, staleSlug} {
+		if err := os.MkdirAll(filepath.Join(projects, slug, "conversations"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	w := jsonlWiper(nil)
+	if _, err := w.wipe(context.Background(), w.resolve()); err != nil {
+		t.Fatalf("wipe failed: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(projects, liveSlug)); err != nil {
+		t.Errorf("live project dir must survive: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(projects, liveSlug, "conversations")); !os.IsNotExist(err) {
+		t.Errorf("live project runtime subdir must be pruned, not recreated")
+	}
+	if _, err := os.Stat(filepath.Join(projects, staleSlug)); !os.IsNotExist(err) {
+		t.Errorf("stale project dir must be removed entirely")
 	}
 }

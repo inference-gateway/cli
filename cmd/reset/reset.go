@@ -65,7 +65,7 @@ preview and confirm paths do not.`,
 func run(cmd *cobra.Command, state *runtime.State, sub string) error {
 	services := container.NewServiceContainer(state.Config())
 	w := &wiper{cfg: state.Config(), store: services.GetStorage()}
-	dirs, sqliteDB, remote := w.targets()
+	found := w.resolve()
 	out := cmd.OutOrStdout()
 
 	switch sub {
@@ -79,16 +79,13 @@ func run(cmd *cobra.Command, state *runtime.State, sub string) error {
 		}
 		fallthrough
 	case "":
-		_, err := fmt.Fprintln(out, preview(dirs, sqliteDB))
+		_, err := fmt.Fprintln(out, preview(found))
 		return err
 	}
 
-	wiped, err := w.wipe(cmd.Context(), dirs, sqliteDB)
+	wiped, err := w.wipe(cmd.Context(), found)
 	if err != nil {
 		return err
-	}
-	if remote != "" {
-		wiped += "\nNote: " + remote + " storage is remote - only local state was cleared; the remote store was left untouched."
 	}
 	_, err = fmt.Fprintln(out, wiped)
 	return err

@@ -83,6 +83,6 @@ func TestResetConfirmWipesStateAndKeepsConfig(t *testing.T) {
 
 	require.Contains(t, output, "wiped")
 	require.NoFileExists(t, stale)
-	require.DirExists(t, filepath.Dir(stale))
+	require.NoDirExists(t, filepath.Dir(stale), "per-project runtime dirs are deleted, not recreated empty")
 	require.FileExists(t, preserved)
 }

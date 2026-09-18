@@ -30,54 +30,126 @@ type wiper struct {
 	store storage.ConversationStorage
 }
 
-// targets lists everything a wipe deletes. remote names the configured remote
-// backend, if any.
-func (w *wiper) targets() (dirs []string, sqliteDB, remote string) {
+// targets is what a wipe removes. prune dirs are deleted outright; empty dirs
+// are deleted and recreated because they are fixed userspace locations. The
+// per-project runtime dirs are pruned so a reset leaves no empty skeleton
+// behind - the project dir itself stays, since projects.yaml references it.
+type targets struct {
+	prune     []string
+	empty     []string
+	sqliteDB  string
+	remote    string
+	gitMemory bool
+}
+
+// all lists every directory the wipe touches, pruned dirs first, for the
+// preview and the result listing.
+func (t targets) all() []string {
+	return append(append([]string{}, t.prune...), t.empty...)
+}
+
+// resolve lists everything a wipe deletes, dropping targets that are not on
+// disk so the preview promises only what it will remove.
+func (w *wiper) resolve() targets {
 	userSpace := config.UserSpaceConfigDir()
 	projectsRoot := filepath.Join(userSpace, config.ProjectsDirName)
 
+	var t targets
 	if siblings, err := os.ReadDir(projectsRoot); err == nil {
 		for _, sibling := range siblings {
 			if !sibling.IsDir() {
 				continue
 			}
 			project := filepath.Join(projectsRoot, sibling.Name())
-			for _, name := range config.RuntimeArtifactDirNames {
-				dirs = append(dirs, filepath.Join(project, name))
+			if stale(sibling.Name()) {
+				t.prune = append(t.prune, project)
+				continue
 			}
-			dirs = append(dirs, filepath.Join(project, "conversations"))
+			for _, name := range config.RuntimeArtifactDirNames {
+				t.prune = append(t.prune, filepath.Join(project, name))
+			}
+			t.prune = append(t.prune, filepath.Join(project, "conversations"))
 		}
 	}
 
 	for _, name := range config.UserspaceRuntimeDirNames {
-		dirs = append(dirs, filepath.Join(userSpace, name))
+		t.empty = append(t.empty, filepath.Join(userSpace, name))
 	}
-	dirs = append(dirs,
+	t.empty = append(t.empty,
 		config.TelemetryDir(),
 		filepath.Join(userSpace, "schedules"),
 		filepath.Join(userSpace, "run"),
 		config.DefaultLogsDir(),
 	)
 
+	if w.cfg != nil {
+		if memoryDir, err := w.cfg.ResolveMemoryDir(); err == nil {
+			t.empty = append(t.empty, memoryDir)
+			t.gitMemory = w.cfg.Memory.Backend.Type == "git"
+		}
+	}
+
 	if w.cfg != nil && w.cfg.Storage.Enabled {
 		switch w.cfg.Storage.Type {
 		case config.StorageTypeSQLite:
-			sqliteDB = cmp.Or(w.cfg.Storage.SQLite.Path, storage.DefaultSQLitePath())
+			t.sqliteDB = cmp.Or(w.cfg.Storage.SQLite.Path, storage.DefaultSQLitePath())
 		case config.StorageTypeJsonl:
 			if path := w.cfg.Storage.Jsonl.Path; path != "" {
-				dirs = append(dirs, path)
+				t.empty = append(t.empty, path)
 			}
 		case config.StorageTypePostgres, config.StorageTypeRedis, config.StorageTypeD1:
-			remote = string(w.cfg.Storage.Type)
+			t.remote = string(w.cfg.Storage.Type)
 		}
 	}
-	return existing(dirs), sqliteDB, remote
+
+	t.prune, t.empty = existing(t.prune), existing(t.empty)
+	return t
+}
+
+// stale reports whether a project slug names a working directory that no longer
+// exists, in which case the whole runtime dir goes rather than just its
+// subdirectories.
+//
+// The slug is the cwd with every separator replaced by "-" (config.projectRuntimeSlug),
+// which is ambiguous: /a/my-project and /a/my/project produce the same slug. A
+// wrong guess would delete a live project's state, so a slug counts as stale
+// only when NO reading of it exists on disk.
+func stale(slug string) bool {
+	if !strings.HasPrefix(slug, "-") {
+		return false // "workspace", "default": not an absolute path, never stale
+	}
+	return !resolves(string(filepath.Separator), strings.Split(strings.TrimPrefix(slug, "-"), "-"))
+}
+
+// resolves walks the slug parts, treating each "-" as either a separator or a
+// literal dash, and reports whether any reading resolves to a real directory.
+// Every candidate must exist before the walk continues, so the filesystem prunes
+// the search instead of it enumerating all 2^n splits.
+func resolves(dir string, parts []string) bool {
+	if len(parts) == 0 {
+		return true
+	}
+	segment := ""
+	for i, part := range parts {
+		if i > 0 {
+			segment += "-"
+		}
+		segment += part
+		next := filepath.Join(dir, segment)
+		if info, err := os.Stat(next); err != nil || !info.IsDir() {
+			continue
+		}
+		if resolves(next, parts[i+1:]) {
+			return true
+		}
+	}
+	return false
 }
 
 // preview describes the wipe without performing it.
-func preview(dirs []string, sqliteDB string) string {
+func preview(t targets) string {
 	return "This permanently deletes all local runtime state, for every project on this machine:\n" +
-		listing(dirs, sqliteDB) +
+		listing(t.all(), t.sqliteDB) +
 		"\nConfiguration (config.yaml, shortcuts, skills, projects.yaml) and saved insights are preserved.\n" +
 		"Run `infer reset confirm` to proceed, or do nothing to cancel."
 }
@@ -117,18 +189,27 @@ func (w *wiper) purge(ctx context.Context) {
 	}
 }
 
-// wipe deletes each target, recreating directories empty. The SQLite database is
-// only deleted; SQLite recreates it on demand, and the WAL sidecars go with it so
-// no stale write-ahead log resurrects the old data.
-func (w *wiper) wipe(ctx context.Context, dirs []string, sqliteDB string) (string, error) {
-	if sqliteDB != "" {
+// wipe removes each target. Pruned dirs are deleted outright; the rest are
+// recreated empty because they are fixed userspace locations. The SQLite
+// database is only deleted; SQLite recreates it on demand, and the WAL sidecars
+// go with it so no stale write-ahead log resurrects the old data.
+func (w *wiper) wipe(ctx context.Context, t targets) (string, error) {
+	if t.sqliteDB != "" {
 		w.purge(ctx)
 	}
 
 	var errs []error
-	removed := make([]string, 0, len(dirs))
+	removed := make([]string, 0, len(t.prune)+len(t.empty))
 
-	for _, dir := range dirs {
+	for _, dir := range t.prune {
+		if err := os.RemoveAll(dir); err != nil {
+			errs = append(errs, fmt.Errorf("failed to remove %s: %w", dir, err))
+			continue
+		}
+		removed = append(removed, dir)
+	}
+
+	for _, dir := range t.empty {
 		if err := os.RemoveAll(dir); err != nil {
 			errs = append(errs, fmt.Errorf("failed to remove %s: %w", dir, err))
 			continue
@@ -140,9 +221,9 @@ func (w *wiper) wipe(ctx context.Context, dirs []string, sqliteDB string) (strin
 	}
 
 	wipedDB := ""
-	if sqliteDB != "" {
-		wipedDB = sqliteDB
-		for _, path := range []string{sqliteDB, sqliteDB + "-wal", sqliteDB + "-shm", sqliteDB + "-journal"} {
+	if t.sqliteDB != "" {
+		wipedDB = t.sqliteDB
+		for _, path := range []string{t.sqliteDB, t.sqliteDB + "-wal", t.sqliteDB + "-shm", t.sqliteDB + "-journal"} {
 			if err := os.RemoveAll(path); err != nil {
 				errs = append(errs, fmt.Errorf("failed to remove %s: %w", path, err))
 				wipedDB = ""
@@ -151,6 +232,12 @@ func (w *wiper) wipe(ctx context.Context, dirs []string, sqliteDB string) (strin
 	}
 
 	output := "Local runtime state wiped:\n" + listing(removed, wipedDB)
+	if t.remote != "" {
+		output += "\nNote: " + t.remote + " storage is remote - only local state was cleared; the remote store was left untouched."
+	}
+	if t.gitMemory {
+		output += "\nNote: memory is backed by a git remote - the local clone was cleared, and the remote memory syncs back on the next run."
+	}
 	if len(errs) > 0 {
 		return output, fmt.Errorf("%s\n\nSome targets could not be removed:\n%w", output, errors.Join(errs...))
 	}

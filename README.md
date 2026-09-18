@@ -495,6 +495,10 @@ infer insights --model <id>   # Pick the model; defaults to agent.model
 
 Writes a markdown report to `~/.infer/insights/`. Needs conversation storage enabled.
 
+Reads the conversation store, the telemetry directory and the persistent memory index
+(`MEMORY.md`, capped at `memory.max_chars`). `infer reset insights` runs the analysis before the
+wipe, so the facts survive in the report even though the memory directory does not.
+
 **`infer reset`** - Wipe all local runtime state and start fresh
 
 ```bash
@@ -503,8 +507,12 @@ infer reset confirm     # Perform the wipe
 infer reset insights    # Analyze past sessions first, then preview (takes --model)
 ```
 
-Clears the runtime directories of **every project on this machine** plus the local conversation store.
-Config, custom shortcuts, skills and saved insights are preserved; remote stores (postgres, redis, d1) are skipped.
+Clears the runtime directories of **every project on this machine**, the persistent memory directory
+and the local conversation store. Per-project runtime directories are deleted rather than recreated
+empty, and a project whose working directory no longer exists is removed entirely.
+
+Config, custom shortcuts, skills and saved insights are preserved; remote stores (postgres, redis, d1)
+are skipped, and a git-backed memory directory syncs back from its remote on the next run.
 
 The `/reset` and `/insights` chat shortcuts are thin YAML wrappers over these commands, written to
 `~/.infer/shortcuts/` by `infer init` - edit them like any other shortcut.
