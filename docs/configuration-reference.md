@@ -705,22 +705,19 @@ and replacing dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 ### Provider API Keys
 
 Provider API keys resolve in this order, first hit wins: the system environment,
-the project `.env`, then the userspace fallback `~/.infer/auth.json` - a flat
-JSON map of provider key env vars. The fallback applies wherever keys are passed
+the project `.env`, then the userspace fallback `~/.infer/auth.yaml` - a flat
+YAML map of provider key env vars. The fallback applies wherever keys are passed
 to child processes: the gateway (container and binary modes) and A2A agent
 containers.
 
-```json
-{
-  "ANTHROPIC_API_KEY": "sk-ant-...",
-  "OPENAI_API_KEY": "sk-..."
-}
+```yaml
+ANTHROPIC_API_KEY: sk-ant-...
+OPENAI_API_KEY: sk-...
 ```
 
-A missing or unreadable `auth.json` changes nothing, and a malformed one is
-ignored with a logged warning. Keep the file private (`chmod 600
-~/.infer/auth.json`); it is on the sandbox `protected_paths` list, so agent
-tools cannot read or edit it.
+A missing or unreadable `auth.yaml` changes nothing, and a malformed one is
+ignored with a logged warning. Keep the file private (`chmod 600 ~/.infer/auth.yaml`); it is on the sandbox
+`protected_paths` list, so agent tools cannot read or edit it.
 
 ### Gateway Configuration
 

@@ -37,14 +37,17 @@ type TelegramChannelConfig struct {
 // local directory so the agent can use them as assets.
 type TelegramMediaConfig struct {
 	Enabled          bool     `yaml:"enabled" mapstructure:"enabled"`
-	Dir              string   `yaml:"dir" mapstructure:"dir"`                               // "" -> ~/.infer/media
+	Dir              string   `yaml:"dir" mapstructure:"dir"`                               // "" -> ~/.infer/tmp/media
 	MaxSizeMB        int      `yaml:"max_size_mb" mapstructure:"max_size_mb"`               // reject files larger than this (0 -> 10)
 	Retain           int      `yaml:"retain" mapstructure:"retain"`                         // keep the last N files (0 -> 20)
 	AllowedMimeTypes []string `yaml:"allowed_mime_types" mapstructure:"allowed_mime_types"` // empty -> built-in image/video defaults
 }
 
 // ResolveDir returns the directory where inbound media attachments are stored,
-// defaulting to ~/.infer/media when Dir is unset.
+// defaulting to ~/.infer/tmp/media when Dir is unset. Retained media is
+// disposable runtime output kept so the agent can use it as assets, so it lives
+// under the userspace tmp dir (agent-readable/writable, wiped by /reset)
+// instead of beside the config files.
 func (c TelegramMediaConfig) ResolveDir() (string, error) {
 	if strings.TrimSpace(c.Dir) != "" {
 		return c.Dir, nil
@@ -53,7 +56,7 @@ func (c TelegramMediaConfig) ResolveDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolving home directory: %w", err)
 	}
-	return filepath.Join(home, ConfigDirName, "media"), nil
+	return filepath.Join(home, ConfigDirName, "tmp", "media"), nil
 }
 
 // WhatsAppChannelConfig contains WhatsApp Business API settings

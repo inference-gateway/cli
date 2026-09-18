@@ -56,7 +56,7 @@ func TestLoadAuthKeys(t *testing.T) {
 		{
 			name: "malformed file yields warning and no keys",
 			setup: func(t *testing.T) {
-				writeAuthFile(t, `{"OPENAI_API_KEY": 123}`, 0600)
+				writeAuthFile(t, `{{{{ not yaml`, 0600)
 			},
 			wantKeys: nil,
 			wantErr:  "malformed",

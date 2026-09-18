@@ -2,17 +2,19 @@ package config
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	yaml "gopkg.in/yaml.v3"
 )
 
-// AuthFileName is the userspace provider-key file: a flat JSON map of
-// provider API key env vars to values, e.g. {"OPENAI_API_KEY": "sk-..."}.
-const AuthFileName = "auth.json"
+// AuthFileName is the userspace provider-key file: a flat map of provider API
+// key env vars to values, e.g. `OPENAI_API_KEY: sk-...`. YAML, like every
+// other hand-edited file under ~/.infer.
+const AuthFileName = "auth.yaml"
 
-// AuthFilePath returns the userspace auth file path (~/.infer/auth.json).
+// AuthFilePath returns the userspace auth file path (~/.infer/auth.yaml).
 func AuthFilePath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ConfigDirName, AuthFileName)
@@ -20,10 +22,10 @@ func AuthFilePath() string {
 
 // LoadAuthKeys reads the userspace auth file as the lowest-precedence
 // fallback source of provider API keys (after the system environment and
-// the project .env). A missing, unreadable, or empty file yields no keys
-// and no error; a malformed file yields no keys plus an error. The error
-// is a warning for the caller to log (config cannot import the platform
-// logger, which imports config), so the fallback never blocks startup.
+// the project .env). A missing, unreadable, or empty file yields no keys and
+// no error; a malformed file yields no keys plus an error. The error is a
+// warning for the caller to log (config cannot import the platform logger,
+// which imports config), so the fallback never blocks startup.
 func LoadAuthKeys() (map[string]string, error) {
 	path := AuthFilePath()
 
@@ -33,7 +35,7 @@ func LoadAuthKeys() (map[string]string, error) {
 	}
 
 	keys := map[string]string{}
-	if err := json.Unmarshal(data, &keys); err != nil {
+	if err := yaml.Unmarshal(data, &keys); err != nil {
 		return nil, fmt.Errorf("ignoring malformed %s: %w", path, err)
 	}
 

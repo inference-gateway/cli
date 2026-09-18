@@ -18,12 +18,14 @@ import (
 
 // ResetShortcut wipes all local runtime state so the agent starts as if freshly
 // installed: conversations, plans, scratch dirs, artifacts, history, backups,
-// exports, logs, telemetry, scheduled jobs, pid/lock files, generated speech,
-// retained recordings and channel media. This is machine-wide, not project-scoped - it clears the
+// exports, logs, telemetry, scheduled jobs, pid/lock files, and the userspace
+// tmp tree (generated speech, retained recordings, channel media). This is machine-wide, not project-scoped - it clears the
 // runtime dirs of every project under ~/.infer/projects, which is why the
 // preview lists them all. Configuration (config.yaml, custom shortcuts, skills,
-// projects.json) and the insights reports are preserved. Remote stores
-// (postgres, redis, d1) are skipped - /reset only clears local state.
+// projects.yaml) and the insights reports are preserved. Remote stores
+// (postgres, redis, d1) are skipped - /reset only clears local state. Dirs
+// explicitly overridden outside ~/.infer (e.g. text_to_speech.output_dir
+// pointed at /data/tts) are outside the userspace layer and are left alone.
 type ResetShortcut struct {
 	cfg      *config.Config
 	repo     PersistentConversationRepository
@@ -155,7 +157,7 @@ func (r *ResetShortcut) preview(dirs []string, sqliteDB string) string {
 	r.arm()
 	return "This permanently deletes all local runtime state, for every project on this machine:\n" +
 		listing(dirs, sqliteDB) +
-		"\nConfiguration (config.yaml, shortcuts, skills, projects.json) and saved insights are preserved.\n" +
+		"\nConfiguration (config.yaml, shortcuts, skills, projects.yaml) and saved insights are preserved.\n" +
 		"Run `/reset confirm` to proceed, or do nothing to cancel."
 }
 
@@ -173,9 +175,10 @@ func (r *ResetShortcut) withInsights(ctx context.Context) string {
 }
 
 // targets lists everything /reset deletes: the runtime subdirectories of every
-// project, the userspace runtime dirs, telemetry, schedules, the pid/lock dir,
-// generated speech, retained recordings, channel media, the log dir and the
-// local conversation store. remote names the configured remote backend, if any.
+// project, the userspace runtime dirs (tmp/{tts,voice,media} included - their
+// wipe comes free with the tmp parent), telemetry, schedules, the pid/lock dir,
+// the log dir and the local conversation store. remote names the configured
+// remote backend, if any.
 func (r *ResetShortcut) targets() (dirs []string, sqliteDB, remote string) {
 	userSpace := config.UserSpaceConfigDir()
 	projectsRoot := filepath.Join(userSpace, config.ProjectsDirName)
@@ -202,18 +205,6 @@ func (r *ResetShortcut) targets() (dirs []string, sqliteDB, remote string) {
 		filepath.Join(userSpace, "run"),
 		config.DefaultLogsDir(),
 	)
-
-	if r.cfg != nil {
-		if dir, err := r.cfg.TextToSpeech.ResolveOutputDir(); err == nil {
-			dirs = append(dirs, dir)
-		}
-		if dir, err := r.cfg.SpeechToText.ResolveRecordingsDir(); err == nil {
-			dirs = append(dirs, dir)
-		}
-		if dir, err := r.cfg.Channels.Telegram.Media.ResolveDir(); err == nil {
-			dirs = append(dirs, dir)
-		}
-	}
 
 	if r.cfg != nil && r.cfg.Storage.Enabled {
 		switch r.cfg.Storage.Type {

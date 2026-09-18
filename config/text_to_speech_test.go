@@ -20,7 +20,7 @@ func TestResolveTextToSpeechOutputDir(t *testing.T) {
 		}
 	})
 
-	t.Run("empty dir defaults to ~/.infer/tts", func(t *testing.T) {
+	t.Run("empty dir defaults to ~/.infer/tmp/tts", func(t *testing.T) {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			t.Skip("no home dir")
@@ -29,7 +29,7 @@ func TestResolveTextToSpeechOutputDir(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := filepath.Join(home, config.ConfigDirName, "tts")
+		want := filepath.Join(home, config.ConfigDirName, "tmp", "tts")
 		if got != want {
 			t.Errorf("got %q, want %q", got, want)
 		}

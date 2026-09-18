@@ -36,9 +36,6 @@ func seedResetState(t *testing.T) (stateDirs, configFiles []string) {
 		filepath.Join(userSpace, "telemetry"),
 		filepath.Join(userSpace, "schedules"),
 		filepath.Join(userSpace, "run"),
-		filepath.Join(userSpace, "tts"),
-		filepath.Join(userSpace, "voice"),
-		filepath.Join(userSpace, "media"),
 	}
 	for _, dir := range stateDirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -49,9 +46,19 @@ func seedResetState(t *testing.T) (stateDirs, configFiles []string) {
 		}
 	}
 
+	for _, name := range []string{"tts", "voice", "media"} {
+		media := filepath.Join(userSpace, "tmp", name)
+		if err := os.MkdirAll(media, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(media, "state.txt"), []byte("stale"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	configFiles = []string{
 		filepath.Join(userSpace, "config.yaml"),
-		filepath.Join(userSpace, "projects.json"),
+		filepath.Join(userSpace, "projects.yaml"),
 		filepath.Join(userSpace, "shortcuts", "greet.yaml"),
 		filepath.Join(userSpace, "skills", "demo", "SKILL.md"),
 	}
@@ -106,6 +113,12 @@ func TestResetShortcut_WipesStateKeepsConfig(t *testing.T) {
 			t.Errorf("state dir %s still holds %d entries after reset", dir, len(entries))
 		}
 	}
+	for _, name := range []string{"tts", "voice", "media"} {
+		media := filepath.Join(config.UserSpaceConfigDir(), "tmp", name)
+		if _, err := os.Stat(filepath.Join(media, "state.txt")); !os.IsNotExist(err) {
+			t.Errorf("%s not emptied: state file survived the reset", media)
+		}
+	}
 	for _, file := range configFiles {
 		if _, err := os.ReadFile(file); err != nil {
 			t.Errorf("config file %s did not survive reset: %v", file, err)
@@ -145,12 +158,8 @@ func TestResetShortcut_PreviewRequiresConfirm(t *testing.T) {
 	}
 
 	for _, dir := range stateDirs {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatalf("preview deleted %s without confirmation", dir)
-		}
-		if len(entries) != 1 {
-			t.Errorf("preview emptied %s without confirmation", dir)
+		if _, err := os.Stat(filepath.Join(dir, "state.txt")); err != nil {
+			t.Errorf("preview deleted %s without confirmation", dir)
 		}
 	}
 	for _, file := range configFiles {
@@ -231,12 +240,8 @@ func TestResetShortcut_InsightsPreviewsWithoutDeleting(t *testing.T) {
 	}
 
 	for _, dir := range stateDirs {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
+		if _, err := os.Stat(filepath.Join(dir, "state.txt")); err != nil {
 			t.Fatalf("/reset insights deleted %s", dir)
-		}
-		if len(entries) != 1 {
-			t.Errorf("/reset insights emptied %s", dir)
 		}
 	}
 	for _, file := range configFiles {
@@ -292,8 +297,7 @@ func TestResetShortcut_ConfirmNeedsPreview(t *testing.T) {
 		t.Errorf("a cold confirm must preview instead of wiping, got:\n%s", res.Output)
 	}
 	for _, dir := range stateDirs {
-		entries, err := os.ReadDir(dir)
-		if err != nil || len(entries) != 1 {
+		if _, err := os.Stat(filepath.Join(dir, "state.txt")); err != nil {
 			t.Fatalf("cold confirm wiped %s", dir)
 		}
 	}
