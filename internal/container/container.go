@@ -683,6 +683,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(persistentRepo))
 		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(persistentRepo, c.backgroundTaskRegistry))
+		c.shortcutRegistry.Register(shortcuts.NewResetShortcut(c.config, persistentRepo))
 	}
 
 	c.shortcutRegistry.Register(shortcuts.NewInstallOpentaskShortcut())

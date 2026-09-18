@@ -1787,9 +1787,11 @@ func isWithinSkillsDir(absPath string) bool {
 	return false
 }
 
-// runtimeArtifactDirNames are the subdirectories of the per-project runtime
-// root that hold process output rather than configuration.
-var runtimeArtifactDirNames = []string{"history", "backups", "tmp", ArtifactsDirName, "exports"}
+// RuntimeArtifactDirNames are the subdirectories of the per-project runtime
+// root that hold process output rather than configuration. Exported so
+// consumers that wipe runtime state (the /reset shortcut) reuse this list
+// instead of a second hardcoded copy.
+var RuntimeArtifactDirNames = []string{"history", "backups", "tmp", ArtifactsDirName, "exports"}
 
 // isWithinDir reports whether absPath is dir itself or lives beneath it.
 // dir may be relative; it is resolved before comparison.
@@ -1801,7 +1803,7 @@ func isWithinDir(absPath, dir string) bool {
 	return absPath == absDir || strings.HasPrefix(absPath, absDir+string(filepath.Separator))
 }
 
-// userspaceRuntimeDirNames are runtime dirs pinned directly under ~/.infer no
+// UserspaceRuntimeDirNames are runtime dirs pinned directly under ~/.infer no
 // matter where config resolves: the artifact poller's GitHub download dir
 // (cmd/daemon), the plan store (storage.userPlansDir) and the userspace
 // scratch dir (~/.infer/tmp, where the desktop saves pasted attachments).
@@ -1809,7 +1811,7 @@ func isWithinDir(absPath, dir string) bool {
 // them reachable when a project supplies its own ./.infer/config.yaml -
 // GetConfigDir() is the relative ".infer" then, so a config-relative check
 // would only ever look at the project directory.
-var userspaceRuntimeDirNames = []string{ArtifactsDirName, "plans", "tmp"}
+var UserspaceRuntimeDirNames = []string{ArtifactsDirName, "plans", "tmp"}
 
 // isWithinRuntimeDirs reports whether absPath lives inside one of the
 // runtime-artifact subdirectories of the current project's runtime root
@@ -1820,14 +1822,14 @@ var userspaceRuntimeDirNames = []string{ArtifactsDirName, "plans", "tmp"}
 // stays protected.
 func isWithinRuntimeDirs(absPath string) bool {
 	runtimeRoot := ProjectRuntimeDir()
-	for _, name := range runtimeArtifactDirNames {
+	for _, name := range RuntimeArtifactDirNames {
 		if isWithinDir(absPath, filepath.Join(runtimeRoot, name)) {
 			return true
 		}
 	}
 
 	userSpace := UserSpaceConfigDir()
-	for _, name := range userspaceRuntimeDirNames {
+	for _, name := range UserspaceRuntimeDirNames {
 		if isWithinDir(absPath, filepath.Join(userSpace, name)) {
 			return true
 		}

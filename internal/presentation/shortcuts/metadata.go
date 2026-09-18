@@ -29,6 +29,7 @@ func NewMetadataRegistry(cfg *config.Config) *Registry {
 	reg.Register(NewTracesShortcut())
 	reg.Register(NewConversationSelectShortcut(nil))
 	reg.Register(NewNewShortcut(nil, nil))
+	reg.Register(NewResetShortcut(cfg, nil))
 	reg.Register(NewInstallOpentaskShortcut())
 	reg.Register(NewInitShortcut(cfg))
 	if cfg.IsA2AToolsEnabled() {
