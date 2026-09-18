@@ -84,8 +84,6 @@ func Call(ctx context.Context, client sdk.Client, model, prompt string, maxToken
 		return "", nil, fmt.Errorf("failed to extract LLM response content: %w", err)
 	}
 
-	// A reasoning model thinks against max_tokens and can spend the whole budget
-	// returning nothing; yielding "" here is how an empty section ships.
 	if strings.TrimSpace(contentStr) == "" {
 		if response.Choices[0].FinishReason == sdk.Length {
 			return "", response.Usage, fmt.Errorf("model spent all %d max_tokens before answering (reasoning models think against this budget): %w", maxTokens, ErrTokenBudgetExhausted)
