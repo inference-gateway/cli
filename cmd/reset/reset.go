@@ -74,8 +74,6 @@ func run(cmd *cobra.Command, state *runtime.State, sub string) error {
 		}
 	}
 
-	// ponytail: no services.Shutdown - it flushes telemetry back into the
-	// directory just emptied, and cmd/conversations omits it for the same reason.
 	out, _, err := shortcuts.Run(cmd.Context(), registry, strings.TrimSpace("/reset "+sub), shortcuts.Deps{})
 	if err != nil {
 		return err
