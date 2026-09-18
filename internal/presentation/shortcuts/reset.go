@@ -109,8 +109,6 @@ func (r *ResetShortcut) targets() (dirs []string, sqliteDB, remote string) {
 		case config.StorageTypeSQLite:
 			sqliteDB = cmp.Or(r.cfg.Storage.SQLite.Path, storage.DefaultSQLitePath())
 		case config.StorageTypeJsonl:
-			// An explicit storage.jsonl.path moves the store out of the
-			// per-project layout, so wipe that directory too.
 			if path := r.cfg.Storage.Jsonl.Path; path != "" {
 				dirs = append(dirs, path)
 			}
