@@ -378,7 +378,6 @@ func TestWipeReportsSpaceTotals(t *testing.T) {
 
 	tg := targets{prune: []string{blobs}, empty: []string{recreated}, sqliteDB: db}
 
-	// 1500 blob + 4096 db + 100 wal = 5696 bytes; the empty dir adds nothing.
 	if got := preview(tg); !strings.Contains(got, "Total reclaimable space: 5.696kB") {
 		t.Errorf("preview must end with the reclaimable total, got:\n%s", got)
 	}
