@@ -64,7 +64,7 @@ func jsonlConfig() *config.Config {
 // empties every runtime directory while leaving configuration untouched.
 func TestResetShortcut_WipesStateKeepsConfig(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	t.Chdir(t.TempDir()) // cwd feeds the project slug; any cwd works
+	t.Chdir(t.TempDir())
 
 	stateDirs, configFiles := seedResetState(t)
 
