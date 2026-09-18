@@ -27,6 +27,25 @@ func writeAuthFile(t *testing.T, content string, mode os.FileMode) string {
 	return authPath
 }
 
+func writeLegacyAuthFile(t *testing.T, content string, mode os.FileMode) string {
+	t.Helper()
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	authDir := filepath.Join(home, ConfigDirName)
+	if err := os.MkdirAll(authDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	legacyPath := filepath.Join(authDir, legacyAuthFileName)
+	if err := os.WriteFile(legacyPath, []byte(content), mode); err != nil {
+		t.Fatal(err)
+	}
+
+	return legacyPath
+}
+
 func TestAuthFilePath(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -56,7 +75,7 @@ func TestLoadAuthKeys(t *testing.T) {
 		{
 			name: "malformed file yields warning and no keys",
 			setup: func(t *testing.T) {
-				writeAuthFile(t, `{"OPENAI_API_KEY": 123}`, 0600)
+				writeAuthFile(t, `{{{{ not yaml`, 0600)
 			},
 			wantKeys: nil,
 			wantErr:  "malformed",
@@ -70,6 +89,21 @@ func TestLoadAuthKeys(t *testing.T) {
 				"ANTHROPIC_API_KEY": "sk-ant-...",
 				"OPENAI_API_KEY":    "sk-...",
 			},
+		},
+		{
+			name: "legacy auth.json still yields keys",
+			setup: func(t *testing.T) {
+				writeLegacyAuthFile(t, `{"OPENAI_API_KEY": "sk-..."}`, 0600)
+			},
+			wantKeys: map[string]string{"OPENAI_API_KEY": "sk-..."},
+		},
+		{
+			name: "auth.yaml wins over legacy auth.json",
+			setup: func(t *testing.T) {
+				writeLegacyAuthFile(t, `{"OPENAI_API_KEY": "sk-from-json"}`, 0600)
+				writeAuthFile(t, `OPENAI_API_KEY: sk-from-yaml`, 0600)
+			},
+			wantKeys: map[string]string{"OPENAI_API_KEY": "sk-from-yaml"},
 		},
 		{
 			name: "broad permissions yield warning",
@@ -105,4 +139,14 @@ func TestLoadAuthKeys_UnreadableFile(t *testing.T) {
 	require.Nil(t, keys)
 	require.NoError(t, err)
 	require.FileExists(t, authPath)
+}
+
+func TestLoadAuthKeys_LegacyUnreadableFile(t *testing.T) {
+	legacyPath := writeLegacyAuthFile(t, `{"OPENAI_API_KEY": "sk-..."}`, 0000)
+
+	keys, err := LoadAuthKeys()
+
+	require.Nil(t, keys)
+	require.NoError(t, err)
+	require.FileExists(t, legacyPath)
 }

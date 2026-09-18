@@ -109,7 +109,7 @@ type SpeechToTextConfig struct {
 	FFmpegPath          string `yaml:"ffmpeg_path" mapstructure:"ffmpeg_path"`                     // "" -> resolve ffmpeg on PATH
 	InputDevice         string `yaml:"input_device" mapstructure:"input_device"`                   // "" -> platform default mic
 	RetainRecordings    int    `yaml:"retain_recordings" mapstructure:"retain_recordings"`         // keep last N inbound voice/audio files (0 = keep none)
-	RecordingsDir       string `yaml:"recordings_dir" mapstructure:"recordings_dir"`               // "" -> ~/.infer/voice
+	RecordingsDir       string `yaml:"recordings_dir" mapstructure:"recordings_dir"`               // "" -> ~/.infer/tmp/voice
 }
 
 // TextToSpeechEngineQwen3 runs Qwen3-TTS GGUF models locally through a
@@ -162,7 +162,10 @@ func (c TextToSpeechConfig) ResolveGatewayModel() string {
 }
 
 // ResolveOutputDir returns the directory where generated WAV files are
-// stored, defaulting to ~/.infer/tts when OutputDir is unset.
+// stored, defaulting to ~/.infer/tmp/tts when OutputDir is unset. Generated
+// speech is disposable runtime output, so it lives under the userspace tmp
+// dir (agent-readable/writable, wiped by /reset) instead of beside the
+// config files.
 func (c TextToSpeechConfig) ResolveOutputDir() (string, error) {
 	if strings.TrimSpace(c.OutputDir) != "" {
 		return c.OutputDir, nil
@@ -171,11 +174,14 @@ func (c TextToSpeechConfig) ResolveOutputDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolving home directory: %w", err)
 	}
-	return filepath.Join(home, ConfigDirName, "tts"), nil
+	return filepath.Join(home, ConfigDirName, "tmp", "tts"), nil
 }
 
 // ResolveRecordingsDir returns the directory where retained inbound voice/audio
-// recordings are stored, defaulting to ~/.infer/voice when RecordingsDir is unset.
+// recordings are stored, defaulting to ~/.infer/tmp/voice when RecordingsDir
+// is unset. Retained recordings are disposable runtime output kept so the
+// agent can replay them, so they live under the userspace tmp dir
+// (agent-readable/writable, wiped by /reset) instead of beside the config files.
 func (c SpeechToTextConfig) ResolveRecordingsDir() (string, error) {
 	if strings.TrimSpace(c.RecordingsDir) != "" {
 		return c.RecordingsDir, nil
@@ -184,7 +190,7 @@ func (c SpeechToTextConfig) ResolveRecordingsDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolving home directory: %w", err)
 	}
-	return filepath.Join(home, ConfigDirName, "voice"), nil
+	return filepath.Join(home, ConfigDirName, "tmp", "voice"), nil
 }
 
 // ClientConfig contains HTTP client settings
@@ -1023,6 +1029,7 @@ func DefaultConfig() *Config { //nolint:funlen
 					".git/",
 					"*.env",
 					".environment",
+					"auth.yaml",
 					"auth.json",
 					"*.key",
 					"*.pem",
