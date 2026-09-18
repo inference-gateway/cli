@@ -196,11 +196,6 @@ func (r *ResetShortcut) targets() (dirs []string, sqliteDB, remote string) {
 	for _, name := range config.UserspaceRuntimeDirNames {
 		dirs = append(dirs, filepath.Join(userSpace, name))
 	}
-	// Runtime output that is deliberately absent from UserspaceRuntimeDirNames:
-	// that list doubles as the agent's writable-sandbox allowlist, and telemetry,
-	// scheduled jobs and the pid/lock dir must stay read-only to the agent.
-	// ponytail: wiping run/ drops a live daemon pid file and the computer-use
-	// flock; skip the held ones only if resetting mid-session turns out to matter.
 	dirs = append(dirs,
 		config.TelemetryDir(),
 		filepath.Join(userSpace, "schedules"),
