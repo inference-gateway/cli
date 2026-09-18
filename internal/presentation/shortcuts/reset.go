@@ -85,7 +85,6 @@ func (r *ResetShortcut) targets() (dirs []string, sqliteDB, remote string) {
 	userSpace := config.UserSpaceConfigDir()
 	projectsRoot := filepath.Join(userSpace, config.ProjectsDirName)
 
-	// Per-project runtime dirs for EVERY project, from the config's own slices.
 	if siblings, err := os.ReadDir(projectsRoot); err == nil {
 		for _, sibling := range siblings {
 			if !sibling.IsDir() {
