@@ -2,19 +2,17 @@ package reset
 
 import (
 	"fmt"
-	"strings"
 
 	cobra "github.com/spf13/cobra"
 
 	insightscmd "github.com/inference-gateway/cli/cmd/insights"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	container "github.com/inference-gateway/cli/internal/container"
-	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 )
 
-// NewCommand constructs the reset command tree. It is the headless face of the
-// /reset chat shortcut and reuses it wholesale, so both surfaces wipe exactly
-// the same paths.
+// NewCommand constructs the reset command tree. The /reset chat shortcut is a
+// vendored YAML shortcut that shells out to these commands, so this is the only
+// implementation of the wipe.
 func NewCommand(state *runtime.State) *cobra.Command {
 	resetCmd := &cobra.Command{
 		Use:   "reset",
@@ -37,7 +35,10 @@ left untouched.`,
 		Use:   "confirm",
 		Short: "Delete everything listed in the preview",
 		Long: `Perform the wipe. Typing 'confirm' is the confirmation, so there is no
-further prompt - run 'infer reset' first if you want to see the target list.`,
+further prompt - run 'infer reset' first if you want to see the target list.
+
+A chat session running during the wipe keeps the conversation it already has in
+memory; start a new one with /new, or restart the chat, to be fully fresh.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return run(cmd, state, "confirm")
@@ -61,36 +62,34 @@ preview and confirm paths do not.`,
 	return resetCmd
 }
 
-// run dispatches sub through the same non-TUI shortcut path headless uses.
 func run(cmd *cobra.Command, state *runtime.State, sub string) error {
 	services := container.NewServiceContainer(state.Config())
-	registry := services.GetShortcutRegistry()
+	w := &wiper{cfg: state.Config(), store: services.GetStorage()}
+	dirs, sqliteDB, remote := w.targets()
+	out := cmd.OutOrStdout()
 
-	useCLISurface(registry)
-	if sub == "insights" {
-		modelFlag, _ := cmd.Flags().GetString(insightscmd.ModelFlag)
-		if err := insightscmd.EnsureModel(cmd.Context(), services, state.Config(), modelFlag); err != nil {
+	switch sub {
+	case "insights":
+		report, err := insightscmd.Generate(cmd, services, state.Config(), "")
+		if err != nil {
 			return err
 		}
+		if _, err := fmt.Fprintln(out, report); err != nil {
+			return err
+		}
+		fallthrough
+	case "":
+		_, err := fmt.Fprintln(out, preview(dirs, sqliteDB))
+		return err
 	}
 
-	out, _, err := shortcuts.Run(cmd.Context(), registry, strings.TrimSpace("/reset "+sub), shortcuts.Deps{})
+	wiped, err := w.wipe(cmd.Context(), dirs, sqliteDB)
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(cmd.OutOrStdout(), out.Text)
+	if remote != "" {
+		wiped += "\nNote: " + remote + " storage is remote - only local state was cleared; the remote store was left untouched."
+	}
+	_, err = fmt.Fprintln(out, wiped)
 	return err
-}
-
-// useCLISurface tells the shortcut it is being driven from the command line, so
-// its preview gate starts satisfied and its instructions name `infer reset
-// confirm` rather than the chat slash command.
-func useCLISurface(registry *shortcuts.Registry) {
-	shortcut, ok := registry.Get("reset")
-	if !ok {
-		return
-	}
-	if resetShortcut, ok := shortcut.(*shortcuts.ResetShortcut); ok {
-		resetShortcut.UseCLISurface()
-	}
 }

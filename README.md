@@ -506,6 +506,9 @@ infer reset insights    # Analyze past sessions first, then preview (takes --mod
 Clears the runtime directories of **every project on this machine** plus the local conversation store.
 Config, custom shortcuts, skills and saved insights are preserved; remote stores (postgres, redis, d1) are skipped.
 
+The `/reset` and `/insights` chat shortcuts are thin YAML wrappers over these commands, written to
+`~/.infer/shortcuts/` by `infer init` - edit them like any other shortcut.
+
 **`infer version`** - Display CLI version information
 
 ```bash
@@ -937,15 +940,14 @@ actions.
 
 - `/new [title]` - Start a new conversation (optionally titled)
 - `/clear` - Save the current conversation and start a new one
-- `/insights [since]` - Analyze past sessions for repeatable workflows worth a skill and recurring tool failures; saves a report to `~/.infer/insights/`.
-  Also available outside the chat as `infer insights [since] [--model <id>]`.
+- `/insights [24h|7d|30d]` - Analyze past sessions for repeatable workflows worth a skill and recurring tool failures; saves a report to `~/.infer/insights/`.
+  Vendored as `~/.infer/shortcuts/insights.yaml`, wrapping `infer insights` - edit it to pin a model or change the windows.
 - `/reset [insights|confirm]` - Wipe the local runtime state (conversations, plans, scratch, artifacts, history, backups, exports, logs) of
-  **every project on this machine** and start a fresh session.
-  `/reset insights` analyzes the sessions first and previews the wipe.
-  `/reset confirm` performs it, but only after a preview in the same session - a cold `/reset confirm` previews instead of deleting.
+  **every project on this machine**.
+  `/reset` previews and deletes nothing, `/reset insights` analyzes the sessions first, `/reset confirm` performs the wipe.
   Config and saved insights are preserved, remote stores are skipped.
-  Also available outside the chat as `infer reset`, `infer reset confirm` and `infer reset insights`;
-  there the command line is the confirmation, so `infer reset confirm` needs no preview first.
+  Vendored as `~/.infer/shortcuts/reset.yaml`, wrapping `infer reset` - edit or delete it like any other shortcut.
+  A chat session running during the wipe keeps the conversation it already has in memory; run `/new` or restart to be fully fresh.
 - `/compact` - Save the conversation and start a new session seeded with a summary
 - `/conversations` - Open the conversation selection dropdown
 - `/context` - Show context-window usage

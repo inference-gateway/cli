@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	cobra "github.com/spf13/cobra"
@@ -13,7 +12,7 @@ import (
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
-	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
 // ModelFlag names the flag that picks the model the analysis runs on.
@@ -57,18 +56,32 @@ func AddModelFlag(command *cobra.Command) {
 
 func run(cmd *cobra.Command, state *runtime.State, since string) error {
 	services := container.NewServiceContainer(state.Config())
-	modelFlag, _ := cmd.Flags().GetString(ModelFlag)
-	if err := EnsureModel(cmd.Context(), services, state.Config(), modelFlag); err != nil {
-		return err
-	}
-
-	out, _, err := shortcuts.Run(cmd.Context(), services.GetShortcutRegistry(),
-		strings.TrimSpace("/insights "+since), shortcuts.Deps{})
+	report, err := Generate(cmd, services, state.Config(), since)
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(cmd.OutOrStdout(), out.Text)
+	_, err = fmt.Fprintln(cmd.OutOrStdout(), report)
 	return err
+}
+
+// Generate resolves the model, runs the analysis and returns the saved report,
+// so `infer reset insights` produces exactly what `infer insights` does.
+func Generate(cmd *cobra.Command, services *container.ServiceContainer, cfg *config.Config, since string) (string, error) {
+	window, err := telemetry.ParseSince(since)
+	if err != nil {
+		return "", err
+	}
+
+	modelFlag, _ := cmd.Flags().GetString(ModelFlag)
+	if err := EnsureModel(cmd.Context(), services, cfg, modelFlag); err != nil {
+		return "", err
+	}
+
+	markdown, path, err := services.GetInsightsGenerator().Generate(cmd.Context(), window)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate insights: %w", err)
+	}
+	return markdown + "\nSaved to " + path, nil
 }
 
 // EnsureModel starts the gateway and selects the model the analysis runs on. A

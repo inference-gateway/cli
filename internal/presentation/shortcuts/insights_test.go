@@ -2,7 +2,6 @@ package shortcuts
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -133,43 +132,6 @@ func TestInsightsGeneratorAvailable(t *testing.T) {
 	}
 }
 
-// TestInsightsShortcutRejectsBadWindow checks the /insights argument is parsed
-// with the same window syntax as /stats.
-func TestInsightsShortcutRejectsBadWindow(t *testing.T) {
-	res, err := NewInsightsShortcut(nil).Execute(context.Background(), []string{"banana"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Success || !strings.Contains(res.Output, "banana") {
-		t.Errorf("expected an invalid-window error, got %+v", res)
-	}
-}
-
-// TestInsightsSurviveReset is the load-bearing one: the report is only worth
-// generating before a wipe if the wipe leaves it alone.
-func TestInsightsSurviveReset(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Chdir(t.TempDir())
-
-	seedResetState(t)
-
-	report := filepath.Join(config.InsightsDir(), "20260918-120000.md")
-	if err := os.MkdirAll(filepath.Dir(report), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(report, []byte("# Insights"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	if res := confirmReset(t, NewResetShortcut(jsonlConfig(), nil, nil, nil)); !res.Success {
-		t.Fatalf("reset failed: %s", res.Output)
-	}
-
-	if _, err := os.ReadFile(report); err != nil {
-		t.Errorf("insights report did not survive reset: %v", err)
-	}
-}
-
 // TestInsightsDirIsReadableByAgent checks the sandbox carve-out, so the agent can
 // read a report back when asked to turn a suggestion into a skill. The reports
 // live in userspace wherever config resolves from, so a project-local
@@ -180,7 +142,7 @@ func TestInsightsDirIsReadableByAgent(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
 			t.Chdir(t.TempDir())
 
-			cfg := jsonlConfig()
+			cfg := &config.Config{Storage: config.StorageConfig{Enabled: true, Type: config.StorageTypeJsonl}}
 			cfg.Tools.Sandbox.ProtectedPaths = []string{".infer/"}
 			cfg.SetConfigDir(configDir)
 
