@@ -86,8 +86,8 @@ func TestPathValidator_Validate(t *testing.T) {
 			errorMsg:  "excluded for security",
 		},
 		{
-			name:      "auth.yaml under the config dir stays protected",
-			path:      filepath.Join(cwd, config.ConfigDirName, "auth.yaml"),
+			name:      "auth.yaml is protected by name, outside the config dir",
+			path:      filepath.Join(cwd, "auth.yaml"),
 			wantError: true,
 			errorMsg:  "excluded for security",
 		},

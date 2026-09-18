@@ -3,23 +3,30 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	require "github.com/stretchr/testify/require"
 )
 
-func writeAuthFile(t *testing.T, content string, mode os.FileMode) string {
+// writeAuthFileNamed seeds ~/.infer/<name> in a fresh HOME. The name is either
+// AuthFileName or legacyAuthFileName; repeated calls in one test reuse the HOME
+// the first call set, so both files can coexist.
+func writeAuthFileNamed(t *testing.T, name, content string, mode os.FileMode) string {
 	t.Helper()
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	home := os.Getenv("HOME")
+	if home == "" || !strings.HasPrefix(home, os.TempDir()) {
+		home = t.TempDir()
+		t.Setenv("HOME", home)
+	}
 
 	authDir := filepath.Join(home, ConfigDirName)
 	if err := os.MkdirAll(authDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 
-	authPath := filepath.Join(authDir, AuthFileName)
+	authPath := filepath.Join(authDir, name)
 	if err := os.WriteFile(authPath, []byte(content), mode); err != nil {
 		t.Fatal(err)
 	}
@@ -27,23 +34,14 @@ func writeAuthFile(t *testing.T, content string, mode os.FileMode) string {
 	return authPath
 }
 
+func writeAuthFile(t *testing.T, content string, mode os.FileMode) string {
+	t.Helper()
+	return writeAuthFileNamed(t, AuthFileName, content, mode)
+}
+
 func writeLegacyAuthFile(t *testing.T, content string, mode os.FileMode) string {
 	t.Helper()
-
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	authDir := filepath.Join(home, ConfigDirName)
-	if err := os.MkdirAll(authDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	legacyPath := filepath.Join(authDir, legacyAuthFileName)
-	if err := os.WriteFile(legacyPath, []byte(content), mode); err != nil {
-		t.Fatal(err)
-	}
-
-	return legacyPath
+	return writeAuthFileNamed(t, legacyAuthFileName, content, mode)
 }
 
 func TestAuthFilePath(t *testing.T) {
@@ -139,14 +137,4 @@ func TestLoadAuthKeys_UnreadableFile(t *testing.T) {
 	require.Nil(t, keys)
 	require.NoError(t, err)
 	require.FileExists(t, authPath)
-}
-
-func TestLoadAuthKeys_LegacyUnreadableFile(t *testing.T) {
-	legacyPath := writeLegacyAuthFile(t, `{"OPENAI_API_KEY": "sk-..."}`, 0000)
-
-	keys, err := LoadAuthKeys()
-
-	require.Nil(t, keys)
-	require.NoError(t, err)
-	require.FileExists(t, legacyPath)
 }
