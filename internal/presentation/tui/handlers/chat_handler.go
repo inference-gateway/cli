@@ -123,6 +123,9 @@ func NewChatHandler(
 func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd {
 	ev, fromChannel := msg.(tui.ChatChannelEvent)
 	if fromChannel {
+		if cs := h.stateManager.GetChatSession(); cs == nil || cs.EventChannel != ev.Source {
+			return nil
+		}
 		msg = ev.Event
 	}
 	cmd := h.dispatch(msg)
@@ -150,6 +153,13 @@ func (h *ChatHandler) rearmChatListener(source <-chan agentdomain.ChatEvent) tea
 // return nil.
 func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,funlen
 	switch m := msg.(type) {
+	case tui.ChatCompletionRequestedEvent:
+		if h.stateManager.GetChatSession() != m.Session {
+			return nil
+		}
+		return h.startChatCompletion()
+	case tui.ChatStreamOpenedEvent:
+		return h.handleChatStreamOpened(m)
 	case agentdomain.UserInputEvent:
 		return h.HandleUserInputEvent(m)
 	case tui.RolloverCompletedEvent:
@@ -235,8 +245,37 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 // startChatCompletion bridges the orchestrator to the extracted runner. The
 // DirectExecutionService owns the bash detach channel and satisfies
 // BashDetachChannelHolder for the agent core's context lookup.
+//
+// SetChatPending runs while the Cmd is BUILT, not when it runs: the pending
+// session is the token Runner.Start captures and handleChatStreamOpened compares
+// against, so every caller must be on the Update loop.
 func (h *ChatHandler) startChatCompletion() tea.Cmd {
+	h.stateManager.SetChatPending()
 	return h.completionRunner.Start(h.directExec)
+}
+
+func (h *ChatHandler) handleChatStreamOpened(msg tui.ChatStreamOpenedEvent) tea.Cmd {
+	if h.stateManager.GetChatSession() != msg.Session {
+		return func() tea.Msg {
+			_ = h.agentService.CancelRequest(msg.RequestID)
+			if msg.Events != nil {
+				for range msg.Events {
+				}
+			}
+			return nil
+		}
+	}
+	if msg.Err != nil {
+		return h.HandleChatErrorEvent(agentdomain.ChatErrorEvent{
+			RequestID: msg.RequestID, Timestamp: time.Now(), Error: msg.Err,
+		})
+	}
+	if err := h.stateManager.StartChatSession(msg.RequestID, msg.Model, msg.Events); err != nil {
+		return h.HandleChatErrorEvent(agentdomain.ChatErrorEvent{
+			RequestID: msg.RequestID, Timestamp: time.Now(), Error: err,
+		})
+	}
+	return h.ListenForChatEvents(h.stateManager.GetChatSession().EventChannel)
 }
 
 // ListenForChatEvents creates a tea.Cmd that listens for the next event from
@@ -521,10 +560,10 @@ func (h *ChatHandler) HandleAgentStatusUpdateEvent(_ tui.AgentStatusUpdateEvent)
 // DrainQueueEvents arrive, and the chain stops the moment the queue drains (so it
 // never fires when idle on chat or off-chat - no /model flicker regression).
 //
-// SetChatPending() marks the session busy synchronously (StartChatSession only
-// runs later inside the async Cmd), so the retry sees "busy" and cannot
-// double-start. The Bubble Tea Update loop is single-threaded, so this
-// check-then-mark is race-free.
+// startChatCompletion() marks the session pending synchronously (StartChatSession
+// only runs later, once ChatStreamOpenedEvent lands back in Update), so the retry
+// sees "busy" and cannot double-start. The Bubble Tea Update loop is
+// single-threaded, so this check-then-mark is race-free.
 func (h *ChatHandler) HandleDrainQueueEvent(_ agentdomain.DrainQueueEvent) tea.Cmd {
 	if h.messageQueue.IsEmpty() || h.stateManager.GetCurrentView() != tui.ViewStateChat {
 		return nil
@@ -534,7 +573,6 @@ func (h *ChatHandler) HandleDrainQueueEvent(_ agentdomain.DrainQueueEvent) tea.C
 		return h.armDrainRetry()
 	}
 
-	h.stateManager.SetChatPending()
 	return tea.Batch(h.startChatCompletion(), h.armDrainRetry())
 }
 

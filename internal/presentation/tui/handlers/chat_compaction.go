@@ -123,6 +123,7 @@ func (h *ChatHandler) newSessionAfterPlanApproval(planID string) {
 // continue message the coordinator queued is wiped by the new session, so we
 // re-add a plan-id-aware one.
 func (h *ChatHandler) newSessionThenExecutePlanCmd(planID string) tea.Cmd {
+	session := h.stateManager.GetChatSession()
 	return func() tea.Msg {
 		h.newSessionAfterPlanApproval(planID)
 
@@ -130,7 +131,7 @@ func (h *ChatHandler) newSessionThenExecutePlanCmd(planID string) tea.Cmd {
 			func() tea.Msg {
 				return tui.UpdateHistoryEvent{History: h.conversationRepo.GetMessages()}
 			},
-			h.startChatCompletion(),
+			func() tea.Msg { return tui.ChatCompletionRequestedEvent{Session: session} },
 		)()
 	}
 }

@@ -61,6 +61,21 @@ type ChatChannelEvent struct {
 	Source <-chan agentdomain.ChatEvent
 }
 
+// ChatCompletionRequestedEvent resumes chat after asynchronous preparation.
+type ChatCompletionRequestedEvent struct {
+	Session *agentdomain.ChatSession
+}
+
+// ChatStreamOpenedEvent returns stream startup to Update, which owns session
+// initialization. Session identifies the originating turn for cancellation.
+type ChatStreamOpenedEvent struct {
+	Session   *agentdomain.ChatSession
+	RequestID string
+	Model     string
+	Events    <-chan agentdomain.ChatEvent
+	Err       error
+}
+
 // A2ATaskCoordinator owns the UI side of A2A (agent-to-agent) task lifecycle
 // events. It translates the six A2A event types into status updates,
 // streaming-content events, and conversation-history refreshes. Self-contained

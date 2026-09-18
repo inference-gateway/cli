@@ -533,8 +533,6 @@ func (p *ChatMessageProcessor) appendUserMessageAndStartCompletion(message sdk.M
 		"repo_messages_after_add", len(p.handler.conversationRepo.GetMessages()),
 		"queue_size", p.handler.messageQueue.Size())
 
-	p.handler.stateManager.SetChatPending()
-
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return tui.UpdateHistoryEvent{

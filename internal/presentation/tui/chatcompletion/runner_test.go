@@ -1,15 +1,13 @@
 package chatcompletion
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
-
-	tea "charm.land/bubbletea/v2"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -26,67 +24,51 @@ func newRunnerForTest() (*Runner, *conversation.InMemoryConversationRepository, 
 	state := statemanager.NewStateManager(false)
 	agent := &agentdomainmocks.FakeAgentService{}
 	model := &convmocks.FakeModelService{}
-	listener := &tuimocks.FakeChatEventListener{}
 
 	runner := NewRunner(Options{
 		AgentService:     agent,
 		ConversationRepo: repo,
 		ModelService:     model,
 		StateManager:     state,
-		Listener:         listener,
 	})
 	return runner, repo, state, agent, model
 }
 
-// The synthesized plan-mode assistant entry duplicates the args of the
-// preceding RequestPlanApproval tool call and lacks reasoning_content.
-// Sending it on the next turn breaks DeepSeek's thinking-mode contract
-// ("The reasoning_content in the thinking mode must be passed back to
-// the API.") with HTTP 400. The helper below filters those entries out.
 func TestRunner_Start(t *testing.T) {
-	for _, bridged := range []bool{false, true} {
-		name := "direct channel"
-		if bridged {
-			name = "bridged channel"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, cancel := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cancel=%v", cancel), func(t *testing.T) {
 			runner, _, state, agent, model := newRunnerForTest()
 			model.GetCurrentModelReturns("test/model")
+			state.SetChatPending()
+			pending := state.GetChatSession()
 			events := make(chan agentdomain.ChatEvent)
 			defer close(events)
 			agent.RunWithStreamReturns(events, nil)
-			if bridged {
-				state.SetEventBridge(conversation.NewEventBridge())
-			}
-			listener := runner.listener.(*tuimocks.FakeChatEventListener)
-			listener.ListenForChatEventsReturns(func() tea.Msg { return nil })
 
-			runner.Start(nil)()
-
-			if listener.ListenForChatEventsCallCount() != 1 {
-				t.Fatal("expected exactly one initial chat listener")
+			cmd := runner.Start(nil)
+			if cancel {
+				state.EndChatSession()
 			}
-			if got := listener.ListenForChatEventsArgsForCall(0); got != state.GetChatSession().EventChannel {
-				t.Fatal("initial listener must read the session channel so subsequent events re-arm it")
+			before := state.GetChatSession()
+			opened, ok := cmd().(tui.ChatStreamOpenedEvent)
+			if !ok || opened.Err != nil || opened.Events != events || opened.Session != pending {
+				t.Fatalf("unexpected stream result: %+v", opened)
+			}
+			if opened.RequestID == "" || opened.Model != "test/model" {
+				t.Fatalf("missing request identity: %+v", opened)
+			}
+			if state.GetChatSession() != before {
+				t.Fatal("startup command must not mutate or recreate the UI session")
 			}
 		})
 	}
 
-	t.Run("returns ChatErrorEvent when no model is selected", func(t *testing.T) {
+	t.Run("returns startup error when no model is selected", func(t *testing.T) {
 		runner, _, _, _, model := newRunnerForTest()
 		model.GetCurrentModelReturns("")
-
-		cmd := runner.Start(nil)
-		if cmd == nil {
-			t.Fatalf("expected non-nil cmd")
-		}
-		msg := cmd()
-		errEvt, ok := msg.(agentdomain.ChatErrorEvent)
-		if !ok {
-			t.Fatalf("expected ChatErrorEvent, got %T", msg)
-		}
-		if errEvt.Error == nil || !strings.Contains(errEvt.Error.Error(), "no model selected") {
-			t.Errorf("expected 'no model selected' error, got %v", errEvt.Error)
+		opened, ok := runner.Start(nil)().(tui.ChatStreamOpenedEvent)
+		if !ok || opened.Err == nil || !strings.Contains(opened.Err.Error(), "no model selected") {
+			t.Fatalf("expected no model selected error, got %+v", opened)
 		}
 	})
 }

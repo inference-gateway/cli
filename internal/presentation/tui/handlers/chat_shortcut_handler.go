@@ -737,6 +737,7 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 
 // handleSendMessageWithModelSideEffect handles sending a message with a temporary model switch
 func (s *ChatShortcutHandler) handleSendMessageWithModelSideEffect(data any) tea.Msg {
+	session := s.handler.stateManager.GetChatSession()
 	if data == nil {
 		return tui.SetStatusEvent{
 			Message:    "No model switch data provided",
@@ -801,6 +802,6 @@ func (s *ChatShortcutHandler) handleSendMessageWithModelSideEffect(data any) tea
 				StatusType: tui.StatusPreparing,
 			}
 		},
-		s.handler.startChatCompletion(),
+		func() tea.Msg { return tui.ChatCompletionRequestedEvent{Session: session} },
 	)()
 }

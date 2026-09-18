@@ -624,7 +624,6 @@ func (c *ServiceContainer) initializeChatOrchestrationServices() {
 		ConversationRepo: c.conversationRepo,
 		ModelService:     c.modelService,
 		StateManager:     c.stateManager,
-		Listener:         c.chatEventListener,
 	})
 
 	c.directExecutionService = directexec.NewService(directexec.Options{

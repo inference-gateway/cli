@@ -41,7 +41,6 @@ type Runner struct {
 	conversationRepo convdomain.ConversationRepository
 	modelService     convdomain.ModelService
 	stateManager     stateManager
-	listener         tui.ChatEventListener
 
 	pendingRestoration   string
 	pendingRestorationMu sync.RWMutex
@@ -53,7 +52,6 @@ type Options struct {
 	ConversationRepo convdomain.ConversationRepository
 	ModelService     convdomain.ModelService
 	StateManager     stateManager
-	Listener         tui.ChatEventListener
 }
 
 // NewRunner creates a new ChatCompletionRunner.
@@ -63,38 +61,28 @@ func NewRunner(opts Options) *Runner {
 		conversationRepo: opts.ConversationRepo,
 		modelService:     opts.ModelService,
 		stateManager:     opts.StateManager,
-		listener:         opts.Listener,
 	}
 }
 
-// Start kicks off a streaming chat completion. The returned tea.Cmd performs
-// the request (synchronously in the returned closure), starts the chat session
-// and reads the first event off the stream (the agent's own ChatStartEvent),
-// or emits a ChatErrorEvent on failure. That first read is the only place a
-// chat listener is armed; ChatHandler.Handle re-arms it after every event
-// read off the channel. The holder is
-// attached to the request context so the agent core can find the
-// BashDetachChannelHolder when launching tools that may need backgrounding.
+// Start opens the stream off-loop and returns its result as a message.
+// The handler initializes the session and its listener in Update.
 func (r *Runner) Start(holder agentdomain.BashDetachChannelHolder) tea.Cmd {
+	session := r.stateManager.GetChatSession()
 	return func() tea.Msg {
 		ctx := context.Background()
+		opened := tui.ChatStreamOpenedEvent{Session: session, RequestID: generateRequestID()}
 
 		currentModel := r.modelService.GetCurrentModel()
 		if currentModel == "" {
-			return agentdomain.ChatErrorEvent{
-				RequestID: "unknown",
-				Timestamp: time.Now(),
-				Error:     fmt.Errorf("no model selected"),
-			}
+			opened.Err = fmt.Errorf("no model selected")
+			return opened
 		}
 
 		entries := r.conversationRepo.GetMessages()
 		messages := conversation.BuildAgentMessagesFromEntries(entries)
 
-		requestID := generateRequestID()
-
 		req := &agentdomain.AgentRequest{
-			RequestID:  requestID,
+			RequestID:  opened.RequestID,
 			Model:      currentModel,
 			Messages:   messages,
 			IsChatMode: true,
@@ -102,18 +90,9 @@ func (r *Runner) Start(holder agentdomain.BashDetachChannelHolder) tea.Cmd {
 
 		ctx = agentdomain.WithChatHandler(ctx, holder)
 
-		eventChan, err := r.agentService.RunWithStream(ctx, req)
-		if err != nil {
-			return agentdomain.ChatErrorEvent{
-				RequestID: requestID,
-				Timestamp: time.Now(),
-				Error:     err,
-			}
-		}
-
-		_ = r.stateManager.StartChatSession(requestID, currentModel, eventChan)
-
-		return r.listener.ListenForChatEvents(r.stateManager.GetChatSession().EventChannel)()
+		opened.Model = currentModel
+		opened.Events, opened.Err = r.agentService.RunWithStream(ctx, req)
+		return opened
 	}
 }
 

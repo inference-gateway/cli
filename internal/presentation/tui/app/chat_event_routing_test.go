@@ -8,7 +8,26 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
+
+func TestUpdate_DropsStaleChatEventsBeforeRouting(t *testing.T) {
+	sm := statemanager.NewStateManager(false)
+	stale := make(chan agentdomain.ChatEvent)
+	for _, active := range []bool{false, true} {
+		if active {
+			_ = sm.StartChatSession("new", "model", make(chan agentdomain.ChatEvent))
+		}
+
+		app := &ChatApplication{stateManager: sm}
+		model, cmd := app.Update(tui.ChatChannelEvent{
+			Source: stale, Event: agentdomain.ChatCompleteEvent{RequestID: "old"},
+		})
+		if model != app || cmd != nil {
+			t.Fatal("stale event should have no UI effects")
+		}
+	}
+}
 
 // TestShouldRouteToUIComponents guards the event-routing predicate against
 // package moves: when UI events lived in internal/domain, a stringly-typed

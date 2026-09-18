@@ -467,6 +467,9 @@ func (app *ChatApplication) Init() tea.Cmd {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	handlerMsg := msg
 	if ev, ok := msg.(tui.ChatChannelEvent); ok {
+		if cs := app.stateManager.GetChatSession(); cs == nil || cs.EventChannel != ev.Source {
+			return app, nil
+		}
 		msg = ev.Event
 	}
 
