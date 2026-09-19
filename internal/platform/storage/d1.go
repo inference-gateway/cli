@@ -399,7 +399,7 @@ func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID
 		return metadata, "", fmt.Errorf("failed to load conversation: %w", err)
 	}
 	if len(rows) == 0 {
-		return metadata, "", fmt.Errorf("conversation not found: %s", conversationID)
+		return metadata, "", fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 	}
 	r := rows[0]
 
@@ -561,7 +561,7 @@ func (s *D1Storage) DeleteConversation(ctx context.Context, conversationID strin
 		return fmt.Errorf("failed to delete conversation: %w", err)
 	}
 	if changes == 0 {
-		return fmt.Errorf("conversation not found: %s", conversationID)
+		return fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 	}
 	return nil
 }
@@ -599,7 +599,7 @@ func (s *D1Storage) UpdateConversationMetadata(ctx context.Context, conversation
 		return fmt.Errorf("failed to update conversation metadata: %w", err)
 	}
 	if changes == 0 {
-		return fmt.Errorf("conversation not found: %s", conversationID)
+		return fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 	}
 	return nil
 }

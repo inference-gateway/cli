@@ -481,7 +481,11 @@ func prepareConversation(ctx context.Context, repo convdomain.ConversationReposi
 		return nil
 	}
 	if err := persistentRepo.LoadConversation(ctx, sessionID); err != nil {
-		logger.Warn("could not load conversation for --session-id, starting fresh", "session_id", sessionID, "error", err)
+		if errors.Is(err, convdomain.ErrConversationNotFound) {
+			logger.Debug("--session-id not found, starting a new session with this ID", "session_id", sessionID)
+		} else {
+			logger.Warn("could not load conversation for --session-id, starting fresh", "session_id", sessionID, "error", err)
+		}
 		return nil
 	}
 	return conversation.BuildAgentMessagesFromEntries(persistentRepo.GetMessages())
