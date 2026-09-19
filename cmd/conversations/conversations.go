@@ -333,16 +333,12 @@ func buildConversationEntryHeader(index int, e convdomain.ConversationEntry) str
 // conversationShowEntry is the compact, jq-friendly projection emitted per line by
 // 'conversations show --format json'.
 type conversationShowEntry struct {
-	Role       string `json:"role"`
-	Time       string `json:"time"`
-	Content    string `json:"content"`
-	ToolCallID string `json:"tool_call_id,omitempty"`
-	Hidden     bool   `json:"hidden,omitempty"`
-	Model      string `json:"model,omitempty"`
-	// ToolExecution and ReasoningContent carry the structured half of the entry.
-	// Content is a render for humans and the LLM, so consumers that rebuild a
-	// transcript (the desktop app) must read success, tool_name and arguments
-	// from here rather than parsing it back out of the render.
+	Role             string                           `json:"role"`
+	Time             string                           `json:"time"`
+	Content          string                           `json:"content"`
+	ToolCallID       string                           `json:"tool_call_id,omitempty"`
+	Hidden           bool                             `json:"hidden,omitempty"`
+	Model            string                           `json:"model,omitempty"`
 	ToolExecution    *agentdomain.ToolExecutionResult `json:"tool_execution,omitempty"`
 	ReasoningContent string                           `json:"reasoning_content,omitempty"`
 }
