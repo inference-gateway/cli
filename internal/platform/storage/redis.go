@@ -149,7 +149,7 @@ func (s *RedisStorage) LoadConversation(ctx context.Context, conversationID stri
 	_, err := pipe.Exec(ctx)
 	if err != nil {
 		if err == redis.Nil {
-			return nil, metadata, fmt.Errorf("conversation not found: %s", conversationID)
+			return nil, metadata, fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 		}
 		return nil, metadata, fmt.Errorf("failed to load conversation: %w", err)
 	}
@@ -157,7 +157,7 @@ func (s *RedisStorage) LoadConversation(ctx context.Context, conversationID stri
 	metadataJSON, err := metadataCmd.Result()
 	if err != nil {
 		if err == redis.Nil {
-			return nil, metadata, fmt.Errorf("conversation not found: %s", conversationID)
+			return nil, metadata, fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 		}
 		return nil, metadata, fmt.Errorf("failed to get metadata: %w", err)
 	}
@@ -341,7 +341,7 @@ func (s *RedisStorage) DeleteConversation(ctx context.Context, conversationID st
 
 	deletedCount := results[0].(*redis.IntCmd).Val() + results[1].(*redis.IntCmd).Val()
 	if deletedCount == 0 {
-		return fmt.Errorf("conversation not found: %s", conversationID)
+		return fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 	}
 
 	return nil
@@ -355,7 +355,7 @@ func (s *RedisStorage) UpdateConversationMetadata(ctx context.Context, conversat
 	}
 
 	if exists == 0 {
-		return fmt.Errorf("conversation not found: %s", conversationID)
+		return fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 	}
 
 	metadataJSON, err := json.Marshal(metadata)

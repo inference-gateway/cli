@@ -217,13 +217,13 @@ func conformanceErrorCases(t *testing.T, storage ConversationStorage) {
 	t.Run("Load Non-existent Conversation", func(t *testing.T) {
 		_, _, err := storage.LoadConversation(ctx, "non-existent")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "conversation not found")
+		assert.ErrorIs(t, err, convdomain.ErrConversationNotFound)
 	})
 
 	t.Run("Delete Non-existent Conversation", func(t *testing.T) {
 		err := storage.DeleteConversation(ctx, "non-existent")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "conversation not found")
+		assert.ErrorIs(t, err, convdomain.ErrConversationNotFound)
 	})
 }
 

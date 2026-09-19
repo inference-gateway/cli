@@ -481,7 +481,15 @@ func prepareConversation(ctx context.Context, repo convdomain.ConversationReposi
 		return nil
 	}
 	if err := persistentRepo.LoadConversation(ctx, sessionID); err != nil {
-		logger.Warn("could not load conversation for --session-id, starting fresh", "session_id", sessionID, "error", err)
+		// A caller-chosen --session-id that isn't stored yet is the normal
+		// create-with-this-ID path (harnesses mint an ID and pass it on the first
+		// turn), so it's expected, not a failure. Only a real load error - corrupt
+		// file, unreachable store - deserves a warning.
+		if errors.Is(err, convdomain.ErrConversationNotFound) {
+			logger.Debug("--session-id not found, starting a new session with this ID", "session_id", sessionID)
+		} else {
+			logger.Warn("could not load conversation for --session-id, starting fresh", "session_id", sessionID, "error", err)
+		}
 		return nil
 	}
 	return conversation.BuildAgentMessagesFromEntries(persistentRepo.GetMessages())
