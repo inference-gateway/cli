@@ -448,10 +448,80 @@ func TestBuildConversationShowJSON_OmitsEmptyOptionalFields(t *testing.T) {
 		t.Fatalf("buildConversationShowJSON() failed: %v", err)
 	}
 
-	for _, omitted := range []string{"tool_call_id", `"hidden"`, `"model"`} {
-		if strings.Contains(out, omitted) {
-			t.Errorf("expected %s to be omitted from JSON: %s", omitted, out)
+	var doc struct {
+		Entries []map[string]json.RawMessage `json:"entries"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("output not valid JSON: %v (%q)", err, out)
+	}
+	if len(doc.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(doc.Entries))
+	}
+
+	for _, omitted := range []string{"tool_call_id", "hidden", "model", "tool_execution", "reasoning_content"} {
+		if _, present := doc.Entries[0][omitted]; present {
+			t.Errorf("expected %s to be omitted from the entry: %s", omitted, out)
 		}
+	}
+}
+
+// A tool entry's content is a render for humans and the LLM, so a consumer that
+// rebuilds a transcript cannot recover success from it - "error" in a commit
+// subject reads the same as a real failure. The structured result must survive
+// the projection. Regression test for inference-gateway/desktop#289.
+func TestBuildConversationShowJSON_CarriesStructuredToolResult(t *testing.T) {
+	toolCallID := "call_x"
+	entry := convdomain.ConversationEntry{
+		Message: sdk.Message{
+			Role:       sdk.Tool,
+			Content:    sdk.NewMessageContent("Bash(command=git commit -m \"fix: handle error path\")\n\u251c\u2500\u2500 Duration: 49ms\n\u251c\u2500\u2500 Status: \u2713 Success"),
+			ToolCallID: &toolCallID,
+		},
+		Time: time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC),
+		ToolExecution: &agentdomain.ToolExecutionResult{
+			ToolName:  "Bash",
+			Arguments: map[string]any{"command": "git commit -m \"fix: handle error path\""},
+			Success:   true,
+		},
+	}
+	out, err := buildConversationShowJSON([]convdomain.ConversationEntry{entry}, convdomain.ConversationMetadata{})
+	if err != nil {
+		t.Fatalf("buildConversationShowJSON() failed: %v", err)
+	}
+
+	var decoded showConversationOutput
+	if err := json.Unmarshal([]byte(out), &decoded); err != nil {
+		t.Fatalf("output not valid JSON: %v (%q)", err, out)
+	}
+	if len(decoded.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(decoded.Entries))
+	}
+	got := decoded.Entries[0].ToolExecution
+	if got == nil {
+		t.Fatalf("tool_execution dropped from the projection: %s", out)
+	}
+	if !got.Success || got.ToolName != "Bash" {
+		t.Errorf("tool_execution = %+v, want Bash/success", got)
+	}
+}
+
+func TestBuildConversationShowJSON_CarriesReasoningContent(t *testing.T) {
+	entry := convdomain.ConversationEntry{
+		Message:          sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("answer")},
+		Time:             time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC),
+		ReasoningContent: "thinking it through",
+	}
+	out, err := buildConversationShowJSON([]convdomain.ConversationEntry{entry}, convdomain.ConversationMetadata{})
+	if err != nil {
+		t.Fatalf("buildConversationShowJSON() failed: %v", err)
+	}
+
+	var decoded showConversationOutput
+	if err := json.Unmarshal([]byte(out), &decoded); err != nil {
+		t.Fatalf("output not valid JSON: %v (%q)", err, out)
+	}
+	if decoded.Entries[0].ReasoningContent != "thinking it through" {
+		t.Errorf("reasoning_content = %q, want it projected", decoded.Entries[0].ReasoningContent)
 	}
 }
 
