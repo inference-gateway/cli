@@ -69,7 +69,7 @@ func (m *MemoryStorage) LoadConversation(ctx context.Context, conversationID str
 
 	data, exists := m.conversations[conversationID]
 	if !exists {
-		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("conversation not found: %s", conversationID)
+		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 	}
 
 	entriesCopy := make([]convdomain.ConversationEntry, len(data.entries))
@@ -131,7 +131,7 @@ func (m *MemoryStorage) DeleteConversation(ctx context.Context, conversationID s
 	defer m.mutex.Unlock()
 
 	if _, exists := m.conversations[conversationID]; !exists {
-		return fmt.Errorf("conversation not found: %s", conversationID)
+		return fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 	}
 
 	delete(m.conversations, conversationID)
@@ -145,7 +145,7 @@ func (m *MemoryStorage) UpdateConversationMetadata(ctx context.Context, conversa
 
 	data, exists := m.conversations[conversationID]
 	if !exists {
-		return fmt.Errorf("conversation not found: %s", conversationID)
+		return fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 	}
 
 	metadata.UpdatedAt = time.Now()

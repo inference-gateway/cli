@@ -173,7 +173,7 @@ func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID stri
 	file, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, convdomain.ConversationMetadata{}, fmt.Errorf("conversation not found: %s", conversationID)
+			return nil, convdomain.ConversationMetadata{}, fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 		}
 		return nil, convdomain.ConversationMetadata{}, fmt.Errorf("failed to open conversation file: %w", err)
 	}
@@ -427,7 +427,7 @@ func (s *JsonlStorage) DeleteConversation(ctx context.Context, conversationID st
 	filePath := s.conversationFilePath(conversationID)
 	if err := os.Remove(filePath); err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("conversation not found: %s", conversationID)
+			return fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 		}
 		return fmt.Errorf("failed to delete conversation: %w", err)
 	}
@@ -449,7 +449,7 @@ func (s *JsonlStorage) UpdateConversationMetadata(ctx context.Context, conversat
 	file, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("conversation not found: %s", conversationID)
+			return fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 		}
 		return fmt.Errorf("failed to open conversation file: %w", err)
 	}

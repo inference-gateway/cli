@@ -156,7 +156,7 @@ func (s *sqlStore) loadConversationMetadata(ctx context.Context, conversationID 
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return metadata, "", fmt.Errorf("conversation not found: %s", conversationID)
+			return metadata, "", fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 		}
 		return metadata, "", fmt.Errorf("failed to load conversation: %w", err)
 	}
@@ -313,7 +313,7 @@ func (s *sqlStore) DeleteConversation(ctx context.Context, conversationID string
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("conversation not found: %s", conversationID)
+		return fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 	}
 
 	return nil
@@ -357,7 +357,7 @@ func (s *sqlStore) UpdateConversationMetadata(ctx context.Context, conversationI
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("conversation not found: %s", conversationID)
+		return fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
 	}
 
 	return nil

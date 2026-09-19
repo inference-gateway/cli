@@ -5,12 +5,19 @@ package domain
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
+
+// ErrConversationNotFound is returned by conversation storage when a requested
+// conversation ID does not exist. Callers use errors.Is to tell an expected miss
+// (e.g. the first use of a caller-chosen --session-id, before anything is saved)
+// apart from a real load failure such as a corrupt file or an unreachable store.
+var ErrConversationNotFound = errors.New("conversation not found")
 
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
