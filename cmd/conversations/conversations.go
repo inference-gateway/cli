@@ -12,6 +12,7 @@ import (
 
 	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
@@ -338,15 +339,23 @@ type conversationShowEntry struct {
 	ToolCallID string `json:"tool_call_id,omitempty"`
 	Hidden     bool   `json:"hidden,omitempty"`
 	Model      string `json:"model,omitempty"`
+	// ToolExecution and ReasoningContent carry the structured half of the entry.
+	// Content is a render for humans and the LLM, so consumers that rebuild a
+	// transcript (the desktop app) must read success, tool_name and arguments
+	// from here rather than parsing it back out of the render.
+	ToolExecution    *agentdomain.ToolExecutionResult `json:"tool_execution,omitempty"`
+	ReasoningContent string                           `json:"reasoning_content,omitempty"`
 }
 
 func toConversationShowEntry(e convdomain.ConversationEntry) conversationShowEntry {
 	out := conversationShowEntry{
-		Role:    string(e.Message.Role),
-		Time:    e.Time.Format(time.RFC3339),
-		Content: formatting.ExtractTextFromContent(e.Message.Content, e.Images),
-		Hidden:  e.Hidden,
-		Model:   e.Model,
+		Role:             string(e.Message.Role),
+		Time:             e.Time.Format(time.RFC3339),
+		Content:          formatting.ExtractTextFromContent(e.Message.Content, e.Images),
+		Hidden:           e.Hidden,
+		Model:            e.Model,
+		ToolExecution:    e.ToolExecution,
+		ReasoningContent: e.ReasoningContent,
 	}
 	if e.Message.ToolCallID != nil {
 		out.ToolCallID = *e.Message.ToolCallID
