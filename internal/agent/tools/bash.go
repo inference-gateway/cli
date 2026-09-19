@@ -221,9 +221,7 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	if env := agentdomain.GetTraceEnv(ctx); env != nil {
 		cmd.Env = append(cmd.Env, env...)
 	}
-	if utils.ColorsDisabled() {
-		cmd.Env = append(cmd.Env, "NO_COLOR=1")
-	}
+	cmd.Env = append(cmd.Env, "NO_COLOR=1")
 
 	if hasCallback && outputCallback != nil {
 		return t.executeBashWithStreaming(cmdCtx, cmd, outputCallback, cancel, start)
@@ -233,10 +231,7 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 
 	output, err := cmd.CombinedOutput()
 	result.Duration = time.Since(start).String()
-	result.Output = string(output)
-	if utils.ColorsDisabled() {
-		result.Output = utils.StripANSI(result.Output)
-	}
+	result.Output = utils.StripANSI(string(output))
 
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
@@ -395,10 +390,7 @@ func (t *BashTool) readPipeWithBatching(
 	}
 
 	for scanner.Scan() {
-		line := scanner.Text()
-		if utils.ColorsDisabled() {
-			line = utils.StripANSI(line)
-		}
+		line := utils.StripANSI(scanner.Text())
 
 		outputMux.Lock()
 		if outputBuffer != nil {

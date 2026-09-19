@@ -18,6 +18,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )
 
@@ -226,11 +227,11 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 	}
 
 	output, err := cmd.CombinedOutput()
-	outputStr := strings.TrimSpace(string(output))
+	outputStr := utils.StripANSI(strings.TrimSpace(string(output)))
 
 	if err != nil {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Command failed: %s\n\nOutput:\n%s", icons.StyledCrossMark(), err.Error(), outputStr),
+			Output:  fmt.Sprintf("%s Command failed: %s\n\nOutput:\n%s", icons.CrossMark, err.Error(), outputStr),
 			Success: false,
 		}, nil
 	}
@@ -368,14 +369,14 @@ func (c *CustomShortcut) formatOutput(outputStr string) (ShortcutResult, error) 
 func (c *CustomShortcut) executeWithTool(ctx context.Context, _ []string) (ShortcutResult, error) {
 	if c.toolService == nil {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Tool service not available", icons.StyledCrossMark()),
+			Output:  fmt.Sprintf("%s Tool service not available", icons.CrossMark),
 			Success: false,
 		}, nil
 	}
 
 	if !c.toolService.IsToolEnabled(c.config.Tool) {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Tool '%s' is not enabled", icons.StyledCrossMark(), c.config.Tool),
+			Output:  fmt.Sprintf("%s Tool '%s' is not enabled", icons.CrossMark, c.config.Tool),
 			Success: false,
 		}, nil
 	}
@@ -387,7 +388,7 @@ func (c *CustomShortcut) executeWithTool(ctx context.Context, _ []string) (Short
 
 	if err := c.toolService.ValidateTool(c.config.Tool, toolArgs); err != nil {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Tool validation failed: %v", icons.StyledCrossMark(), err),
+			Output:  fmt.Sprintf("%s Tool validation failed: %v", icons.CrossMark, err),
 			Success: false,
 		}, nil
 	}
@@ -395,7 +396,7 @@ func (c *CustomShortcut) executeWithTool(ctx context.Context, _ []string) (Short
 	argsJSON, err := json.Marshal(toolArgs)
 	if err != nil {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Failed to marshal tool arguments: %v", icons.StyledCrossMark(), err),
+			Output:  fmt.Sprintf("%s Failed to marshal tool arguments: %v", icons.CrossMark, err),
 			Success: false,
 		}, nil
 	}
@@ -409,14 +410,14 @@ func (c *CustomShortcut) executeWithTool(ctx context.Context, _ []string) (Short
 	result, err := c.toolService.ExecuteToolDirect(ctx, toolCall)
 	if err != nil {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Tool execution failed: %v", icons.StyledCrossMark(), err),
+			Output:  fmt.Sprintf("%s Tool execution failed: %v", icons.CrossMark, err),
 			Success: false,
 		}, nil
 	}
 
 	if !result.Success {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Tool '%s' failed", icons.StyledCrossMark(), c.config.Tool),
+			Output:  fmt.Sprintf("%s Tool '%s' failed", icons.CrossMark, c.config.Tool),
 			Success: false,
 		}, nil
 	}
@@ -448,7 +449,7 @@ func (c *CustomShortcut) executeWithSnippet(ctx context.Context, commandOutput s
 	var jsonData map[string]any
 	if err := json.Unmarshal([]byte(commandOutput), &jsonData); err != nil {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Failed to parse command output as JSON: %v\n\nOutput:\n%s", icons.StyledCrossMark(), err, commandOutput),
+			Output:  fmt.Sprintf("%s Failed to parse command output as JSON: %v\n\nOutput:\n%s", icons.CrossMark, err, commandOutput),
 			Success: false,
 		}, nil
 	}
@@ -459,7 +460,7 @@ func (c *CustomShortcut) executeWithSnippet(ctx context.Context, commandOutput s
 	}
 
 	return ShortcutResult{
-		Output:     fmt.Sprintf("%s Generating snippet with AI...", icons.StyledCheckMark()),
+		Output:     fmt.Sprintf("%s Generating snippet with AI...", icons.CheckMark),
 		Success:    true,
 		SideEffect: SideEffectGenerateSnippet,
 		Data: map[string]any{

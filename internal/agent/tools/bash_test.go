@@ -290,7 +290,11 @@ func TestBashTool_Execute_NonZeroExitSurfacesError(t *testing.T) {
 	}
 }
 
-func TestBashTool_Execute_StripsANSIWhenColorsDisabled(t *testing.T) {
+// Stored tool output and the LLM's context must never carry escape codes, no
+// matter whether the CLI's own stdout is a terminal - a TTY session used to keep
+// them, and they then surfaced verbatim in non-terminal readers of the saved
+// conversation. Regression test for inference-gateway/desktop#289.
+func TestBashTool_Execute_StripsANSIEvenWithColorsEnabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
@@ -304,8 +308,7 @@ func TestBashTool_Execute_StripsANSIWhenColorsDisabled(t *testing.T) {
 	}
 	tool := NewBashTool(cfg, nil)
 
-	utils.SetColorsDisabled(true)
-	defer utils.SetColorsDisabled(false)
+	utils.SetColorsDisabled(false)
 
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"command": `sh -c 'printf "\033[31mboom\033[0m" >&2; exit 3'`,
@@ -320,7 +323,7 @@ func TestBashTool_Execute_StripsANSIWhenColorsDisabled(t *testing.T) {
 		t.Errorf("expected result.Error to include the exit status, got %q", result.Error)
 	}
 	if strings.Contains(result.Error, "\x1b") {
-		t.Errorf("result.Error still contains ANSI escapes when colors are disabled: %q", result.Error)
+		t.Errorf("result.Error still contains ANSI escapes with colors enabled: %q", result.Error)
 	}
 	if !strings.Contains(result.Error, "boom") {
 		t.Errorf("expected stripped error to keep the text, got %q", result.Error)
