@@ -448,9 +448,19 @@ func TestBuildConversationShowJSON_OmitsEmptyOptionalFields(t *testing.T) {
 		t.Fatalf("buildConversationShowJSON() failed: %v", err)
 	}
 
-	for _, omitted := range []string{"tool_call_id", `"hidden"`, `"model"`, "tool_execution", "reasoning_content"} {
-		if strings.Contains(out, omitted) {
-			t.Errorf("expected %s to be omitted from JSON: %s", omitted, out)
+	var doc struct {
+		Entries []map[string]json.RawMessage `json:"entries"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("output not valid JSON: %v (%q)", err, out)
+	}
+	if len(doc.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(doc.Entries))
+	}
+
+	for _, omitted := range []string{"tool_call_id", "hidden", "model", "tool_execution", "reasoning_content"} {
+		if _, present := doc.Entries[0][omitted]; present {
+			t.Errorf("expected %s to be omitted from the entry: %s", omitted, out)
 		}
 	}
 }
