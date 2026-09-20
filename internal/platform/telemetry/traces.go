@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 )
 
 // TraceSession identifies one session with a non-empty local trace file
@@ -101,7 +103,7 @@ func LoadTraceTree(dir, session string) ([]*TraceSpan, error) {
 			Attributes: attrMap(tl.Attributes),
 		}
 		if tl.Status.Code == "Error" {
-			span.Error = cmp.Or(span.Attributes["error.type"], tl.Status.Description, "error")
+			span.Error = spanErrorText(span.Attributes["error.type"], tl.Status.Description)
 		}
 		byID[tl.SpanContext.SpanID] = span
 		nodes = append(nodes, parented{span, tl.Parent.SpanID})
@@ -140,6 +142,41 @@ func LoadTraceTree(dir, session string) ([]*TraceSpan, error) {
 	}
 	sortSpans(roots)
 	return roots, nil
+}
+
+// spanErrorMsgMax caps the status message appended to error.type in the trace
+// tree marker; enough to tell two failures apart on one line.
+const spanErrorMsgMax = 20
+
+// benignSpanErrors are end-of-stream conditions otelhttp reports as span
+// errors: its response-body wrapper compares `err == io.EOF`, so any other tail
+// error on a finished SSE relay flips the span to Error and stamps error.type
+// with a Go type name (*errors.errorString). Marking every LLM call failed
+// hides the real failures.
+// ponytail: substring match on the status message; a truncation that actually
+// matters still surfaces in the gateway logs ("failed to read stream", "error
+// reading stream", "ReverseProxy read error during body copy").
+var benignSpanErrors = []string{
+	"context canceled",
+	"unexpected EOF",
+	"request canceled",
+	"read on closed response body",
+}
+
+// spanErrorText renders the marker for a span with an Error status:
+// "<error.type> - <first spanErrorMsgMax chars of the message>", either half
+// alone when the other is missing or the two duplicate each other, and nothing
+// at all for benign stream teardown.
+func spanErrorText(errType, desc string) string {
+	for _, b := range benignSpanErrors {
+		if strings.Contains(desc, b) {
+			return ""
+		}
+	}
+	if errType != "" && desc != "" && desc != errType {
+		return errType + " - " + formatting.TruncateText(desc, spanErrorMsgMax)
+	}
+	return cmp.Or(errType, desc, "error")
 }
 
 func sortSpans(spans []*TraceSpan) {
