@@ -209,9 +209,6 @@ func TestTruncateText(t *testing.T) {
 }
 
 func TestPadText(t *testing.T) {
-	// A description truncated to exactly width columns is wider than width in
-	// bytes as soon as it holds one multibyte rune - the shape that used to
-	// build a negative strings.Repeat count in the autocomplete renderer.
 	emDash := strings.Repeat("a", 60) + " \u2014 " + strings.Repeat("b", 200)
 
 	tests := []struct {
