@@ -560,3 +560,79 @@ func TestRenderAGUI_RunFinishedCarriesSessionStats(t *testing.T) {
 		t.Errorf("zero-request run must emit RUN_FINISHED without result:\n%s", plain.String())
 	}
 }
+
+func TestRenderAGUI_TokenUsageStreamsPerStep(t *testing.T) {
+	config.UserContextWindows = map[string]int{"gpt-4o": 200000}
+	t.Cleanup(func() { config.UserContextWindows = nil })
+
+	repo := &convmocks.FakeConversationRepository{}
+	repo.GetSessionTokensStub = func() convdomain.SessionTokenStats {
+		return convdomain.SessionTokenStats{
+			TotalInputTokens: 4821, TotalOutputTokens: 310, TotalCachedTokens: 3100,
+			TotalTokens: 8231, RequestCount: 2, LastInputTokens: 4821,
+		}
+	}
+	repo.GetSessionCostStatsStub = func() convdomain.SessionCostStats {
+		return convdomain.SessionCostStats{TotalCost: 0.042}
+	}
+	repo.GetMessagesStub = func() []convdomain.ConversationEntry {
+		toolCalls := []sdk.ChatCompletionMessageToolCall{
+			{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"}},
+		}
+		return []convdomain.ConversationEntry{{Message: sdk.Message{Role: sdk.Assistant, ToolCalls: &toolCalls}}}
+	}
+
+	var out strings.Builder
+	err := RenderAGUI(stream(
+		agentdomain.ChatChunkEvent{Content: "one"},
+		agentdomain.ChatCompleteEvent{},
+		agentdomain.ChatChunkEvent{Content: "two"},
+		agentdomain.ChatCompleteEvent{},
+	), &out, nil, nil, "session-1", "openai/gpt-4o", repo, nil)
+	if err != nil {
+		t.Fatalf("RenderAGUI() err = %v", err)
+	}
+
+	got := out.String()
+	if n := strings.Count(got, `"name":"token_usage"`); n != 2 {
+		t.Errorf("token_usage event count = %d, want one per LLM step\n%s", n, got)
+	}
+	for line := range strings.SplitSeq(got, "\n") {
+		if !strings.Contains(line, `"name":"token_usage"`) {
+			continue
+		}
+		var ev struct {
+			Type  string         `json:"type"`
+			Name  string         `json:"name"`
+			Value map[string]any `json:"value"`
+		}
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
+			t.Fatalf("token_usage line is not valid JSON: %v\n%s", err, line)
+		}
+		if ev.Type != "CUSTOM" || ev.Name != "token_usage" {
+			t.Errorf("event type/name = %q/%q, want CUSTOM/token_usage", ev.Type, ev.Name)
+		}
+		for key, want := range map[string]float64{
+			"inputTokens":     4821,
+			"outputTokens":    310,
+			"cacheReadTokens": 3100,
+			"totalToolCalls":  1,
+			"cost":            0.042,
+			"lastInputTokens": 4821,
+			"contextWindow":   200000,
+		} {
+			if v, ok := ev.Value[key].(float64); !ok || v != want {
+				t.Errorf("token_usage value[%q] = %v, want %v", key, ev.Value[key], want)
+			}
+		}
+	}
+
+	var plain strings.Builder
+	err = RenderAGUI(stream(agentdomain.ChatCompleteEvent{}), &plain, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
+	if err != nil {
+		t.Fatalf("RenderAGUI() err = %v", err)
+	}
+	if strings.Contains(plain.String(), `"name":"token_usage"`) {
+		t.Errorf("zero-request run must not emit token_usage:\n%s", plain.String())
+	}
+}

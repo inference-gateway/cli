@@ -28,6 +28,7 @@ a subprocess host reading stdout is a fully valid transport.
 | Local A2A agent starting (before `RUN_STARTED`) | `CUSTOM` event `agent_status` with `name`, `state`, `message`, and pull progress `done`/`total` |
 | Background job finished | `CUSTOM` event `queued_message`; `content` is the landed note, first line `[<Kind> Completed\|Failed: <label>]` |
 | Background job submitted or finished | `CUSTOM` event `background_tasks` with `running` and `jobs` (id, kind, label, description, detail, status) |
+| LLM step completes | `CUSTOM` event `token_usage`; `value` carries the same cumulative stats as `RUN_FINISHED`'s `result` |
 | Successful exit | `RUN_FINISHED` with a success outcome; `result` carries the session stats (keys below) |
 | Failure or panic | `RUN_ERROR` with the error message and the run id |
 
@@ -48,6 +49,9 @@ cumulative across the session (not just this run). When no model request was mad
 | `cost` | Total session cost, in the configured currency |
 | `lastInputTokens` | Input tokens of the most recent request |
 | `contextWindow` | Model context window in tokens (omitted when unknown) |
+
+The same stats object is also emitted as a `CUSTOM` event named `token_usage`
+after each model request, so clients can track usage while the run progresses.
 
 The `approval_request` value is the legacy payload (`tool_name`, `tool_args`, `tool_call_id`);
 replies are still `approval_response` JSON lines on stdin, exactly as in `json` mode.
