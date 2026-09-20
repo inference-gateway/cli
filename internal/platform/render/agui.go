@@ -174,6 +174,13 @@ func (e *aguiEncoder) emitBackgroundTasks(jobs []scheddomain.TrackedJob) {
 		aguievents.WithValue(map[string]any{"running": running, "jobs": list})))
 }
 
+// emitTokenUsage publishes the session's cumulative stats after each LLM step
+// so a client's usage readout (the desktop status bar) climbs during the run
+// instead of jumping at RUN_FINISHED; value is sessionResult's object.
+func (e *aguiEncoder) emitTokenUsage(value map[string]any) {
+	e.emit(aguievents.NewCustomEvent("token_usage", aguievents.WithValue(value)))
+}
+
 // emitAgentStatus reports a local A2A agent's startup state (pulling image,
 // starting, waiting for health, ready, failed) before the run's events begin.
 func (e *aguiEncoder) emitAgentStatus(name, state, message string, done, total int) {

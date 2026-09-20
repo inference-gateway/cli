@@ -333,12 +333,16 @@ func RenderText(events <-chan agentdomain.ChatEvent, w io.Writer) error {
 // RenderJSON. A ComputerUseResumedEvent clears any error carried over from
 // the paused (cancelled) run, same as RenderJSON. After the channel closes the
 // session stats from repo are attached to RUN_FINISHED's result, the AG-UI
-// counterpart of RenderJSON's session_stats line.
+// counterpart of RenderJSON's session_stats line. After each LLM step the same
+// cumulative stats are also published as a token_usage CUSTOM event, so clients
+// track usage mid-run (the desktop status bar) instead of only at the end.
 // RenderAGUI streams the run as AG-UI events. jobs, when non-nil, is the
 // supervisor's snapshot and is published as a background_tasks event after every
 // tool result (a job may have been submitted) and every drained queue note (a
 // job just finished). ponytail: intermediate job state changes are not
 // published; bridge the UI notifier into the chat stream if a client needs them.
+//
+//nolint:gocyclo,cyclop // cohesive event switch; each case renders one ChatEvent variant
 func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob) error {
 	e := &aguiEncoder{w: w, threadID: sessionID}
 	e.emitRunStarted(sessionID)
@@ -364,6 +368,9 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 				e.emitToolCallStart(tc.ID, tc.Function.Name)
 				e.emitToolCallArgs(tc.ID, tc.Function.Arguments)
 				e.emitToolCallEnd(tc.ID)
+			}
+			if usage := sessionResult(model, repo); usage != nil {
+				e.emitTokenUsage(usage)
 			}
 			if err := completionErr(ev); err != nil {
 				runErr = err
@@ -416,9 +423,10 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 }
 
 // sessionResult builds the per-session totals the desktop consumes from the
-// terminal RUN_FINISHED event (see docs/ag-ui-output.md), mirroring the
-// session_stats line of RenderJSON. nil when the run made no LLM requests
-// (e.g. a shortcut answer), so the event then carries no result.
+// per-step token_usage CUSTOM events and the terminal RUN_FINISHED event (see
+// docs/ag-ui-output.md), mirroring the session_stats line of RenderJSON. nil
+// when the run made no LLM requests (e.g. a shortcut answer), so no event
+// carries a result.
 func sessionResult(model string, repo convdomain.ConversationRepository) map[string]any {
 	if repo == nil {
 		return nil
