@@ -1,6 +1,8 @@
 package autocomplete_test
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -11,6 +13,7 @@ import (
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
+	ansi "github.com/charmbracelet/x/ansi"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -801,4 +804,50 @@ func TestAutocomplete_TabCompletesWithoutSubmitting(t *testing.T) {
 		assert.False(t, ac.IsVisible(),
 			"a fully completed no-arg shortcut must not re-show the dropdown")
 	})
+}
+
+// TestAutocomplete_RenderMultibyteDescription guards the crash reported for
+// `infer chat`: TruncateText cuts to display columns, so a description holding
+// one multibyte rune comes back longer in bytes than the column budget. Padding
+// that result with len() built a negative strings.Repeat count and panicked the
+// whole TUI the moment "/" was typed. The skills catalog ships exactly this
+// shape (motion-graphics, ~580 runes with an em dash and an arrow).
+func TestAutocomplete_RenderMultibyteDescription(t *testing.T) {
+	longMultibyte := "A short, design-led motion graphic where motion is the message \u2014 " +
+		strings.Repeat("kinetic typography, stat count-up, chart hit, logo sting, ", 8) +
+		"animated map \u2192 zoom to a location."
+
+	shortMultibyte := &shortcutsmocks.FakeShortcut{}
+	shortMultibyte.GetNameReturns("caf\u00e9")
+	shortMultibyte.GetDescriptionReturns("caf\u00e9 \u2014 short")
+
+	longDesc := &shortcutsmocks.FakeShortcut{}
+	longDesc.GetNameReturns("motion-graphics")
+	longDesc.GetDescriptionReturns(longMultibyte)
+
+	asciiDesc := &shortcutsmocks.FakeShortcut{}
+	asciiDesc.GetNameReturns("help")
+	asciiDesc.GetDescriptionReturns("Show help")
+
+	mockRegistry := &tuimocks.FakeShortcutRegistry{}
+	mockRegistry.GetAllReturns([]shortcuts.Shortcut{shortMultibyte, longDesc, asciiDesc})
+
+	theme := &tuimocks.FakeTheme{}
+
+	for _, width := range []int{214, 60, 20} {
+		t.Run(strconv.Itoa(width)+" columns", func(t *testing.T) {
+			ac := autocomplete.NewAutocomplete(theme, mockRegistry)
+			ac.SetWidth(width)
+			ac.Update("/", 1)
+			assert.True(t, ac.IsVisible())
+
+			lines := strings.Split(ac.Render(), "\n")
+			assert.GreaterOrEqual(t, len(lines), 3, "one line per suggestion, then the help footer")
+			rows := lines[:3]
+			for i, line := range rows {
+				assert.Equal(t, ansi.StringWidth(rows[0]), ansi.StringWidth(line),
+					"row %d must align with the others; columns are padded by display width", i)
+			}
+		})
+	}
 }

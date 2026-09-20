@@ -79,6 +79,15 @@ func TruncateText(text string, maxLength int) string {
 	return ansi.Truncate(text, maxLength, "...")
 }
 
+// PadText fits text to exactly width display columns: truncated when wider,
+// space-padded when narrower. Byte length is not display width once multibyte
+// runes or ANSI escapes are involved, so never pad a TruncateText result with
+// len() - that is how a negative strings.Repeat count gets built.
+func PadText(text string, width int) string {
+	text = TruncateText(text, width)
+	return text + strings.Repeat(" ", max(0, width-ansi.StringWidth(text)))
+}
+
 // ExtractTextFromContent extracts text from potentially multimodal message content
 func ExtractTextFromContent(content sdk.MessageContent, images []agentdomain.ImageAttachment) string {
 	simpleStr, err := content.AsMessageContent0()
