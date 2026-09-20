@@ -9,6 +9,7 @@ import (
 
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	ansi "github.com/charmbracelet/x/ansi"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -921,8 +922,8 @@ func (a *AutocompleteImpl) calculateMaxShortcutWidth() int {
 	for _, cmd := range a.filtered {
 		displayText := a.getShortcutDisplayText(cmd)
 		displayText = strings.TrimPrefix(displayText, "!!")
-		if len(displayText) > maxShortcutWidth {
-			maxShortcutWidth = len(displayText)
+		if w := ansi.StringWidth(displayText); w > maxShortcutWidth {
+			maxShortcutWidth = w
 		}
 	}
 
@@ -974,11 +975,8 @@ func (a *AutocompleteImpl) renderItems(b *strings.Builder, start, end, maxShortc
 
 		displayText := a.getShortcutDisplayText(cmd)
 		displayText = strings.TrimPrefix(displayText, "!!")
-		displayText = formatting.TruncateText(displayText, maxShortcutWidth)
-		paddedShortcut := displayText + strings.Repeat(" ", maxShortcutWidth-len(displayText))
-
-		description := formatting.TruncateText(cmd.Description, descWidth)
-		paddedDescription := description + strings.Repeat(" ", descWidth-len(description))
+		paddedShortcut := formatting.PadText(displayText, maxShortcutWidth)
+		paddedDescription := formatting.PadText(cmd.Description, descWidth)
 
 		a.renderItem(b, i == a.selected, leftPadding, marker, paddedShortcut, paddedDescription, cmd.Catalog)
 

@@ -207,3 +207,35 @@ func TestTruncateText(t *testing.T) {
 		})
 	}
 }
+
+func TestPadText(t *testing.T) {
+	emDash := strings.Repeat("a", 60) + " \u2014 " + strings.Repeat("b", 200)
+
+	tests := []struct {
+		name  string
+		in    string
+		width int
+	}{
+		{"ascii shorter than width", "hello", 10},
+		{"ascii longer than width", "hello world", 8},
+		{"narrow multibyte truncated", emDash, 179},
+		{"narrow multibyte, short input", "caf\u00e9 \u2014 ok", 20},
+		{"wide runes truncated on an odd budget", strings.Repeat("\u4f60\u597d", 30), 25},
+		{"emoji truncated on an odd budget", strings.Repeat("\U0001f600", 30), 21},
+		{"empty input", "", 12},
+		{"zero width", "hello", 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PadText(tt.in, tt.width)
+
+			if w := ansi.StringWidth(got); w != tt.width {
+				t.Errorf("PadText(%q, %d) width = %d, want %d (got %q)", tt.in, tt.width, w, tt.width, got)
+			}
+			if !utf8.ValidString(got) {
+				t.Errorf("PadText(%q, %d) = %q is not valid UTF-8", tt.in, tt.width, got)
+			}
+		})
+	}
+}

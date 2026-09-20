@@ -1031,11 +1031,7 @@ func (t *TaskManagerImpl) writeViewTabs(b *strings.Builder) {
 	dimTabs := t.styleProvider.RenderDimText(tabs)
 	fmt.Fprintf(b, "%s\n", dimTabs)
 
-	separatorWidth := t.width - 4
-	if separatorWidth < 0 {
-		separatorWidth = 40
-	}
-	separator := t.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth))
+	separator := t.styleProvider.RenderDimText(strings.Repeat("─", t.getSeparatorWidth()))
 	fmt.Fprintf(b, "%s\n\n", separator)
 }
 
@@ -1082,7 +1078,7 @@ func (t *TaskManagerImpl) writeSectionHeader(b *strings.Builder, kind scheddomai
 	dimHeader := t.styleProvider.RenderDimText(t.columnHeader(kind))
 	fmt.Fprintf(b, "%s\n", dimHeader)
 
-	separator := t.styleProvider.RenderDimText(strings.Repeat("─", t.width-4))
+	separator := t.styleProvider.RenderDimText(strings.Repeat("─", t.getSeparatorWidth()))
 	fmt.Fprintf(b, "%s\n", separator)
 }
 
