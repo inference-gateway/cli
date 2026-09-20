@@ -32,7 +32,8 @@ const enumeratorWidth = 4
 //	├── chat deepseek/deepseek-v4-flash   3.2s
 //	╰── execute_tool Bash                27.5s
 //
-// Failed spans carry a trailing [error: <type>] marker.
+// Failed spans carry a trailing [error: <type> - <message>] marker; benign
+// end-of-stream conditions carry none (see spanErrorText).
 func RenderTraceTree(roots []*telemetry.TraceSpan, style TreeStyle) string {
 	width := 0
 	var measure func(s *telemetry.TraceSpan, depth int)

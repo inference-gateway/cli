@@ -143,9 +143,29 @@ func TestLoadTraceTree_ErrorStatus(t *testing.T) {
 		wantError string
 	}{
 		{
-			name:      "error.type wins",
+			name:      "error.type carries the message",
 			line:      `{"Name":"s","SpanContext":{"SpanID":"aa"},"Parent":{"SpanID":"00"},"Attributes":[{"Key":"error.type","Value":{"Value":"tool_error"}}],"Status":{"Code":"Error","Description":"boom"}}`,
+			wantError: "tool_error - boom",
+		},
+		{
+			name:      "duplicate type and message are not repeated",
+			line:      `{"Name":"s","SpanContext":{"SpanID":"aa"},"Parent":{"SpanID":"00"},"Attributes":[{"Key":"error.type","Value":{"Value":"tool_error"}}],"Status":{"Code":"Error","Description":"tool_error"}}`,
 			wantError: "tool_error",
+		},
+		{
+			name:      "long message is truncated",
+			line:      `{"Name":"s","SpanContext":{"SpanID":"aa"},"Parent":{"SpanID":"00"},"Attributes":[{"Key":"error.type","Value":{"Value":"tool_error"}}],"Status":{"Code":"Error","Description":"exit status 1: command not found"}}`,
+			wantError: "tool_error - exit status 1: co...",
+		},
+		{
+			name:      "benign stream teardown is not an error",
+			line:      `{"Name":"s","SpanContext":{"SpanID":"aa"},"Parent":{"SpanID":"00"},"Attributes":[{"Key":"error.type","Value":{"Value":"*errors.errorString"}}],"Status":{"Code":"Error","Description":"context canceled"}}`,
+			wantError: "",
+		},
+		{
+			name:      "benign teardown wrapped in a longer message is not an error",
+			line:      `{"Name":"s","SpanContext":{"SpanID":"aa"},"Parent":{"SpanID":"00"},"Attributes":[{"Key":"error.type","Value":{"Value":"*errors.errorString"}}],"Status":{"Code":"Error","Description":"Get \"https://ollama.com\": unexpected EOF"}}`,
+			wantError: "",
 		},
 		{
 			name:      "status description fallback",
