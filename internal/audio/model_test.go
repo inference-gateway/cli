@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	huggingface "github.com/inference-gateway/cli/internal/platform/huggingface"
 )
 
 func TestModelFileName(t *testing.T) {
@@ -56,7 +57,7 @@ func TestEnsureModelMissingNoDownload(t *testing.T) {
 func TestEnsureModelDownloads(t *testing.T) {
 	const body = "ggml-model-bytes"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/ggml-tiny.bin" {
+		if r.URL.Path != "/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin" {
 			http.NotFound(w, r)
 			return
 		}
@@ -66,8 +67,7 @@ func TestEnsureModelDownloads(t *testing.T) {
 
 	dir := t.TempDir()
 	m := NewModelManager(config.SpeechToTextConfig{Model: "tiny", ModelsDir: dir, AutoDownload: true})
-	m.baseURL = srv.URL
-	m.client = srv.Client()
+	m.hub = &huggingface.Client{BaseURL: srv.URL, HTTP: srv.Client()}
 
 	got, err := m.EnsureModel(context.Background())
 	if err != nil {
@@ -95,8 +95,7 @@ func TestEnsureModelDownloadBadStatus(t *testing.T) {
 
 	dir := t.TempDir()
 	m := NewModelManager(config.SpeechToTextConfig{Model: "tiny", ModelsDir: dir, AutoDownload: true})
-	m.baseURL = srv.URL
-	m.client = srv.Client()
+	m.hub = &huggingface.Client{BaseURL: srv.URL, HTTP: srv.Client()}
 
 	if _, err := m.EnsureModel(context.Background()); err == nil {
 		t.Fatal("expected error on non-200 download status")

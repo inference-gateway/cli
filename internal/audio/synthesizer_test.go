@@ -15,6 +15,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	huggingface "github.com/inference-gateway/cli/internal/platform/huggingface"
 )
 
 func TestTTSModelFiles(t *testing.T) {
@@ -274,7 +275,7 @@ func TestEnsureModelsCoalescesConcurrentDownloads(t *testing.T) {
 	bodies := map[string]string{backbone: "backbone-gguf-bytes", mmproj: "mmproj-gguf-bytes"}
 	var gets atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		body, ok := bodies[strings.TrimPrefix(req.URL.Path, "/")]
+		body, ok := bodies[strings.TrimPrefix(req.URL.Path, "/ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF/resolve/main/")]
 		if !ok {
 			http.NotFound(w, req)
 			return
@@ -287,8 +288,7 @@ func TestEnsureModelsCoalescesConcurrentDownloads(t *testing.T) {
 
 	dir := t.TempDir()
 	m := NewTTSModelManager(config.TextToSpeechConfig{ModelsDir: dir, AutoDownload: true})
-	m.baseURL = srv.URL
-	m.client = srv.Client()
+	m.hub = &huggingface.Client{BaseURL: srv.URL, HTTP: srv.Client()}
 
 	type result struct {
 		backbone string
