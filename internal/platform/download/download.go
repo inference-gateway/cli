@@ -1,5 +1,3 @@
-// Package download fetches remote files into local caches: atomically, with
-// the transfer length checked and progress reported to the running tool.
 package download
 
 import (
