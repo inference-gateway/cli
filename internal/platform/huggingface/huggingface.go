@@ -1,6 +1,3 @@
-// Package huggingface fetches model files from the Hugging Face Hub into a
-// local cache directory. It is the only place that knows how the Hub addresses
-// a file; capabilities name a Repo and a file and get a local path back.
 package huggingface
 
 import (
