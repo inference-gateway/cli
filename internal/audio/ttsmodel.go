@@ -2,19 +2,20 @@ package audio
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	config "github.com/inference-gateway/cli/config"
+	huggingface "github.com/inference-gateway/cli/internal/platform/huggingface"
 )
 
-// qwen3TTSBase is the resolve base for the default Qwen3-TTS GGUF models
-// (backbone + mmproj), run through llama.cpp's llama-tts binary.
-const qwen3TTSBase = "https://huggingface.co/ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF/resolve/main"
+// qwen3TTSRepo hosts the default Qwen3-TTS GGUF models (backbone + mmproj),
+// run through llama.cpp's llama-tts binary.
+var qwen3TTSRepo = huggingface.Repo{ID: "ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF"}
 
 // ttsQuantSuffixes are the quantization suffixes stripped from an explicit
 // backbone filename to derive the paired mmproj filename.
@@ -53,16 +54,15 @@ type TTSModelManager struct {
 	cfg config.TextToSpeechConfig
 	mu  sync.Mutex
 
-	baseURL string
-	client  *http.Client
+	// hub is overridable in tests.
+	hub *huggingface.Client
 }
 
 // NewTTSModelManager creates a TTSModelManager from the text-to-speech config.
 func NewTTSModelManager(cfg config.TextToSpeechConfig) *TTSModelManager {
 	return &TTSModelManager{
-		cfg:     cfg,
-		baseURL: qwen3TTSBase,
-		client:  http.DefaultClient,
+		cfg: cfg,
+		hub: huggingface.NewClient(),
 	}
 }
 
@@ -104,22 +104,10 @@ func (m *TTSModelManager) ensureFile(ctx context.Context, name string) (string, 
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, name)
 
-	if _, err := os.Stat(path); err == nil {
-		return path, nil
+	path, err := m.hub.EnsureFile(ctx, qwen3TTSRepo, name, dir, "tts model", m.cfg.AutoDownload)
+	if errors.Is(err, huggingface.ErrNotCached) {
+		return "", fmt.Errorf("tts model %q not found at %s and text_to_speech.auto_download is disabled", name, filepath.Join(dir, name))
 	}
-
-	if !m.cfg.AutoDownload {
-		return "", fmt.Errorf("tts model %q not found at %s and text_to_speech.auto_download is disabled", name, path)
-	}
-
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("creating models directory: %w", err)
-	}
-
-	if err := downloadToFile(ctx, m.client, m.baseURL+"/"+name, path, "tts model"); err != nil {
-		return "", err
-	}
-	return path, nil
+	return path, err
 }

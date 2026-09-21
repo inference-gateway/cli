@@ -1,4 +1,4 @@
-package audio
+package download
 
 import (
 	"context"
@@ -23,9 +23,9 @@ type progressReader struct {
 	next   time.Time
 }
 
-// newProgressReader wraps src only when the context carries a callback, so the
+// NewProgressReader wraps src only when the context carries a callback, so the
 // no-listener case (headless, tests) stays a plain read with no bookkeeping.
-func newProgressReader(ctx context.Context, src io.Reader, label string, total int64) io.Reader {
+func NewProgressReader(ctx context.Context, src io.Reader, label string, total int64) io.Reader {
 	report := agentdomain.GetToolProgressCallback(ctx)
 	if report == nil {
 		return src
@@ -57,9 +57,9 @@ func megabytes(n int64) string {
 	return fmt.Sprintf("%.0f MB", float64(n)/(1<<20))
 }
 
-// downloadToFile atomically fetches url into dstPath and rejects transfers
+// ToFile atomically fetches url into dstPath and rejects transfers
 // shorter than their declared Content-Length.
-func downloadToFile(ctx context.Context, client *http.Client, url, dstPath, label string) error {
+func ToFile(ctx context.Context, client *http.Client, url, dstPath, label string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("creating request for %s: %w", url, err)
@@ -83,7 +83,7 @@ func downloadToFile(ctx context.Context, client *http.Client, url, dstPath, labe
 	tmpName := tmp.Name()
 	defer func() { _ = os.Remove(tmpName) }()
 
-	written, err := io.Copy(tmp, newProgressReader(ctx, resp.Body, label, resp.ContentLength))
+	written, err := io.Copy(tmp, NewProgressReader(ctx, resp.Body, label, resp.ContentLength))
 	if err == nil && resp.ContentLength > 0 && written != resp.ContentLength {
 		err = fmt.Errorf("incomplete download: got %d of %d bytes", written, resp.ContentLength)
 	}

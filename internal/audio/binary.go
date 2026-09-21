@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
+	download "github.com/inference-gateway/cli/internal/platform/download"
 )
 
 // binariesBase is the release hosting prebuilt speech binaries (whisper-cli,
@@ -139,7 +140,7 @@ func (b *BinaryManager) download(ctx context.Context, url, dstPath, wantSum stri
 	defer func() { _ = os.Remove(tmpName) }()
 
 	h := sha256.New()
-	src := newProgressReader(ctx, body, filepath.Base(dstPath), 0)
+	src := download.NewProgressReader(ctx, body, filepath.Base(dstPath), 0)
 	if _, err := io.Copy(io.MultiWriter(tmp, h), src); err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("writing %s: %w", filepath.Base(dstPath), err)

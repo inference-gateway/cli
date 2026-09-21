@@ -1,4 +1,4 @@
-package audio
+package download
 
 import (
 	"context"
@@ -20,7 +20,7 @@ func (s stubTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return s(r)
 }
 
-func TestDownloadToFileWritesContent(t *testing.T) {
+func TestToFileWritesContent(t *testing.T) {
 	const body = "model-bytes"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(body))
@@ -30,8 +30,8 @@ func TestDownloadToFileWritesContent(t *testing.T) {
 	dir := t.TempDir()
 	dst := filepath.Join(dir, "model.gguf")
 
-	if err := downloadToFile(context.Background(), srv.Client(), srv.URL+"/model.gguf", dst, "tts model"); err != nil {
-		t.Fatalf("downloadToFile: %v", err)
+	if err := ToFile(context.Background(), srv.Client(), srv.URL+"/model.gguf", dst, "tts model"); err != nil {
+		t.Fatalf("ToFile: %v", err)
 	}
 	data, err := os.ReadFile(dst)
 	if err != nil {
@@ -49,7 +49,7 @@ func TestDownloadToFileWritesContent(t *testing.T) {
 	}
 }
 
-func TestDownloadToFileRejectsIncompleteDownload(t *testing.T) {
+func TestToFileRejectsIncompleteDownload(t *testing.T) {
 	dir := t.TempDir()
 	dst := filepath.Join(dir, "model.gguf")
 
@@ -61,7 +61,7 @@ func TestDownloadToFileRejectsIncompleteDownload(t *testing.T) {
 			Body:          io.NopCloser(strings.NewReader("short")),
 		}, nil
 	})}
-	if err := downloadToFile(context.Background(), c, "http://x/model.gguf", dst, "tts model"); err == nil {
+	if err := ToFile(context.Background(), c, "http://x/model.gguf", dst, "tts model"); err == nil {
 		t.Fatal("expected error when fewer bytes than Content-Length arrive")
 	}
 	if _, err := os.Stat(dst); !os.IsNotExist(err) {
@@ -101,12 +101,12 @@ func TestProgressReaderMessage(t *testing.T) {
 // untouched, so headless runs and tests pay nothing for the instrumentation.
 func TestNewProgressReaderWithoutCallbackPassesThrough(t *testing.T) {
 	src := strings.NewReader("data")
-	if got := newProgressReader(context.Background(), src, "tts model", 4); got != io.Reader(src) {
+	if got := NewProgressReader(context.Background(), src, "tts model", 4); got != io.Reader(src) {
 		t.Error("expected the source reader unwrapped when no progress callback is set")
 	}
 }
 
-func TestDownloadToFileReportsProgress(t *testing.T) {
+func TestToFileReportsProgress(t *testing.T) {
 	body := strings.Repeat("x", 1<<20)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(body))
@@ -119,8 +119,8 @@ func TestDownloadToFileReportsProgress(t *testing.T) {
 	})
 
 	dst := filepath.Join(t.TempDir(), "model.gguf")
-	if err := downloadToFile(ctx, srv.Client(), srv.URL+"/model.gguf", dst, "tts model"); err != nil {
-		t.Fatalf("downloadToFile: %v", err)
+	if err := ToFile(ctx, srv.Client(), srv.URL+"/model.gguf", dst, "tts model"); err != nil {
+		t.Fatalf("ToFile: %v", err)
 	}
 
 	if len(reports) == 0 {

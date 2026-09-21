@@ -2,19 +2,19 @@ package audio
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	config "github.com/inference-gateway/cli/config"
+	huggingface "github.com/inference-gateway/cli/internal/platform/huggingface"
 )
 
-// huggingFaceWhisperBase is the resolve base for ggml whisper.cpp models.
-// Files are downloaded as <base>/ggml-<name>.bin.
-const huggingFaceWhisperBase = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
+// whisperRepo hosts the ggml whisper.cpp models, stored as ggml-<name>.bin.
+var whisperRepo = huggingface.Repo{ID: "ggerganov/whisper.cpp"}
 
 // modelFileName returns the ggml filename for a model name. It accepts short
 // names ("tiny", "base.en"), already-prefixed names ("ggml-tiny.bin"), or any
@@ -35,17 +35,15 @@ type ModelManager struct {
 	cfg config.SpeechToTextConfig
 	mu  sync.Mutex
 
-	// baseURL and client are overridable in tests.
-	baseURL string
-	client  *http.Client
+	// hub is overridable in tests.
+	hub *huggingface.Client
 }
 
 // NewModelManager creates a ModelManager from the speech-to-text config.
 func NewModelManager(cfg config.SpeechToTextConfig) *ModelManager {
 	return &ModelManager{
-		cfg:     cfg,
-		baseURL: huggingFaceWhisperBase,
-		client:  http.DefaultClient,
+		cfg: cfg,
+		hub: huggingface.NewClient(),
 	}
 }
 
@@ -62,11 +60,6 @@ func (m *ModelManager) modelsDir() (string, error) {
 	return filepath.Join(home, config.ConfigDirName, "models", "whisper"), nil
 }
 
-// modelURL returns the download URL for the configured model.
-func (m *ModelManager) modelURL() string {
-	return m.baseURL + "/" + modelFileName(m.cfg.Model)
-}
-
 // EnsureModel returns the local path to the model file, downloading it on first
 // use when AutoDownload is enabled. Concurrent callers are serialized so a
 // cold cache triggers one download.
@@ -78,22 +71,11 @@ func (m *ModelManager) EnsureModel(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, modelFileName(m.cfg.Model))
+	name := modelFileName(m.cfg.Model)
 
-	if _, err := os.Stat(path); err == nil {
-		return path, nil
+	path, err := m.hub.EnsureFile(ctx, whisperRepo, name, dir, "whisper model", m.cfg.AutoDownload)
+	if errors.Is(err, huggingface.ErrNotCached) {
+		return "", fmt.Errorf("whisper model %q not found at %s and speech_to_text.auto_download is disabled", m.cfg.Model, filepath.Join(dir, name))
 	}
-
-	if !m.cfg.AutoDownload {
-		return "", fmt.Errorf("whisper model %q not found at %s and speech_to_text.auto_download is disabled", m.cfg.Model, path)
-	}
-
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("creating models directory: %w", err)
-	}
-
-	if err := downloadToFile(ctx, m.client, m.modelURL(), path, "whisper model"); err != nil {
-		return "", err
-	}
-	return path, nil
+	return path, err
 }
