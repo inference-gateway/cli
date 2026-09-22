@@ -122,8 +122,8 @@ func renderToolStats(w *strings.Builder, tools []telemetry.ToolStat) {
 	w.WriteString("| Tool | Calls | Fail% | Avg |\n")
 	w.WriteString("|------|-------|-------|-----|\n")
 	for _, t := range tools {
-		fmt.Fprintf(w, "| %s | %d | %s | %dms |\n",
-			t.Name, t.Calls, telemetry.FormatFailRate(t.Calls, t.Failures), t.AvgMs)
+		fmt.Fprintf(w, "| %s | %d | %s | %s |\n",
+			t.Name, t.Calls, telemetry.FormatFailRate(t.Calls, t.Failures), telemetry.FormatAvg(t.AvgMs))
 	}
 	w.WriteString("\n")
 }
@@ -184,7 +184,7 @@ func renderToolStatsVertical(w *strings.Builder, tools []telemetry.ToolStat) {
 			{"Tool", t.Name},
 			{"Calls", strconv.Itoa(t.Calls)},
 			{"Fail%", telemetry.FormatFailRate(t.Calls, t.Failures)},
-			{"Avg", fmt.Sprintf("%dms", t.AvgMs)},
+			{"Avg", telemetry.FormatAvg(t.AvgMs)},
 		})
 	}
 }

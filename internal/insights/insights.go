@@ -342,9 +342,9 @@ func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telem
 	}
 
 	if len(tools) > 0 {
-		b.WriteString("\nTOOL CALL TOTALS (calls/failures/avg ms)\n")
+		b.WriteString("\nTOOL CALL TOTALS (calls/failures/avg)\n")
 		for _, t := range tools {
-			fmt.Fprintf(&b, "- %s: %d/%d/%d\n", t.Name, t.Calls, t.Failures, t.AvgMs)
+			fmt.Fprintf(&b, "- %s: %d/%d/%s\n", t.Name, t.Calls, t.Failures, telemetry.FormatAvg(t.AvgMs))
 		}
 	}
 
@@ -486,8 +486,8 @@ func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.Too
 		b.WriteString("| Tool | Calls | Failures | Fail% | Avg |\n")
 		b.WriteString("|------|-------|----------|-------|-----|\n")
 		for _, t := range tools {
-			fmt.Fprintf(&b, "| %s | %d | %d | %s | %dms |\n",
-				t.Name, t.Calls, t.Failures, telemetry.FormatFailRate(t.Calls, t.Failures), t.AvgMs)
+			fmt.Fprintf(&b, "| %s | %d | %d | %s | %s |\n",
+				t.Name, t.Calls, t.Failures, telemetry.FormatFailRate(t.Calls, t.Failures), telemetry.FormatAvg(t.AvgMs))
 		}
 		b.WriteString("\n")
 	}
