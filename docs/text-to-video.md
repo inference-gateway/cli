@@ -7,7 +7,8 @@ The CLI can render a short video clip in two modes:
   half of the desktop's Content project workflow; `TextToSpeech` is the voice half.
 
 Generation goes through the gateway's unified Videos API (`POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content`, gateway v0.54.0+).
-The CLI holds no provider key; the gateway does, and it routes the job to the configured `provider/model` (default `elevenlabs/creatify-aurora`).
+The CLI holds no provider key; the gateway does, and it routes the job to the configured `provider/model`: `model` for prompt renders
+(default `elevenlabs/veo-3.1-fast-generate-001`) and `avatar_model` for lip-synced renders (default `elevenlabs/creatify-aurora`).
 Requests appear in gateway logs and `infer traces` like any other request.
 
 The feature is **disabled by default**, and for more than the usual zero-prompt-token reason: avatar renders upload the user's face and voice to a
@@ -20,7 +21,8 @@ Add a `text_to_video` section to `.infer/config.yaml` (or `~/.infer/config.yaml`
 ```yaml
 text_to_video:
   enabled: true            # feature flag (default: false) - tool absent from the LLM payload when false
-  model: ""                # "" = elevenlabs/creatify-aurora; or any provider/model the gateway serves
+  model: ""                # prompt renders; "" = elevenlabs/veo-3.1-fast-generate-001
+  avatar_model: ""         # lip-synced avatar renders; "" = elevenlabs/creatify-aurora
   size: ""                 # optional widthxheight passthrough, e.g. 720x1280; empty = provider default
   output_dir: ""           # where generated mp4s go; empty = ~/.infer/tmp/video
   timeout: 900             # whole-render timeout (seconds): create, poll and download
@@ -29,16 +31,27 @@ text_to_video:
 ```
 
 Every field can also be set via environment variables, e.g. `INFER_TEXT_TO_VIDEO_ENABLED=true`,
-`INFER_TEXT_TO_VIDEO_MODEL=elevenlabs/creatify-aurora`, `INFER_TEXT_TO_VIDEO_TIMEOUT=600`. Leaving `require_approval` unset is
+`INFER_TEXT_TO_VIDEO_MODEL=elevenlabs/bytedance-seedance-v2-fast`, `INFER_TEXT_TO_VIDEO_AVATAR_MODEL=elevenlabs/creatify-aurora`,
+`INFER_TEXT_TO_VIDEO_TIMEOUT=600`. Leaving `require_approval` unset is
 not the same as setting it to `false`: unset keeps the tool's own default (no approval), an explicit value pins the policy.
 
-`model` must be of the form `provider/model`; config validation rejects a bare model name as soon as the feature is enabled.
+## Models
+
+A render with `audio` is an avatar render and goes to `avatar_model`; every other render (a prompt, optionally with a portrait as the
+first frame) goes to `model`. Swap either one independently for any video model the gateway serves - for ElevenLabs that includes
+`veo-3.1-generate-001`, `veo-3.1-fast-generate-001` and the `bytedance-seedance-v2*` family for prompts, and `creatify-aurora` for
+avatars. Avatar models take exactly one image and an audio clip, so a prompt-only render sent to one fails - which is why the two are
+separate settings.
+
+Both must be of the form `provider/model`; config validation rejects a bare model name, and a negative `timeout` or `poll_interval`,
+as soon as the feature is enabled.
 
 ## Size rules
 
-`size` is a passthrough of the gateway's `widthxheight` form - the CLI neither maps nor validates resolutions. For the default
-`elevenlabs/creatify-aurora` the gateway derives the resolution from the shorter side (480, 720 or 1080) and the aspect ratio from the
-reduced ratio (`16:9`, `9:16`, `1:1`), and rejects anything else:
+`size` is a passthrough of the gateway's `widthxheight` form - the CLI neither maps nor validates resolutions. For ElevenLabs models
+the gateway derives the resolution from the shorter side (480, 720 or 1080) and the aspect ratio from the reduced ratio (`16:9`, `9:16`,
+`1:1`), and rejects anything else. Each model supports a subset: `creatify-aurora` renders 480p or 720p only, and avatar renders keep
+the portrait's aspect ratio (the gateway sends only the resolution):
 
 | `size` | Render |
 | --- | --- |
@@ -50,9 +63,10 @@ A gateway that cannot map a size rejects the job and the tool surfaces the provi
 
 ## Gateway requirements
 
-The Videos API is part of the gateway (v0.54.0+) and needs no extra feature flag; the gateway must hold credentials for the provider
-behind `model` (for the default, an ElevenLabs API key). If you point the CLI at an externally managed gateway, make sure it is on
-v0.54.0 or later and holds the provider key.
+The Videos API is part of the gateway (v0.54.0+) and is served only with `VIDEOS_ENABLED=true`. A gateway the CLI starts itself gets
+the flag automatically while `text_to_video.enabled` is true; a gateway that was already running without it must be restarted. The
+gateway must also hold credentials for the provider behind the models (for the defaults, an ElevenLabs API key). If you point the CLI
+at an externally managed gateway, make sure it is on v0.54.0 or later, runs with `VIDEOS_ENABLED=true` and holds the provider key.
 
 A gateway without the endpoint, or a provider that rejects the request, makes the tool call fail with a one-line error naming the
 configured model (`video creation with elevenlabs/creatify-aurora failed: ...`). The agent run still completes, and no partial file
@@ -64,14 +78,44 @@ With `text_to_video.enabled` set, the agent gains a `TextToVideo` tool:
 
 - **Text-only clip** - ask for "a slow drone shot over neon rooftops"; the model calls `TextToVideo` with a `prompt`, optionally
   `seconds` and `size`. `seconds` is a passthrough string (providers accept a limited set of values); the gateway rejects unsupported ones.
-- **Lip-synced avatar** - give it a portrait (`avatar`, a bare image name: working directory first, then the avatar library
-  `~/.infer/models/avatars/`) and a driving clip (`audio`, a bare `.wav` or `.mp3` name: working directory first, then the
-  `TextToSpeech` output directory - so a just-generated `TextToSpeech` WAV can be lip-synced in the next tool call). `prompt` then
-  describes framing only; the dialogue comes from the audio. `seconds` is ignored for avatar renders.
+- **Lip-synced avatar** - give it a portrait (`avatar`: the name of an avatar in the [library](#avatar-library), or a bare
+  `.png`/`.jpg`/`.jpeg`/`.webp` file name in the working directory) and a driving clip (`audio`, a bare `.wav` or `.mp3` name: working
+  directory first, then the `TextToSpeech` output directory - so a just-generated `TextToSpeech` clip can be lip-synced in the next
+  tool call). `prompt` then describes framing only; the dialogue comes from the audio. `seconds` is ignored for avatar renders.
+- **First frame** - `avatar` without `audio` renders the prompt with the portrait as the opening frame, using `model`.
 - **Where files go** - `output_path` chooses the destination as a bare file name inside `output_dir` (default `~/.infer/tmp/video/`);
   otherwise a timestamped `video-*.mp4` is written there. The result reports the path, model, size and which avatar/audio were used.
 
 The clip is always written as MP4 (`video/mp4` for creatify-aurora). To place it elsewhere, compose first and copy the returned file.
+
+## Avatar library
+
+An avatar is a folder under `~/.infer/avatars/<name>/` holding one or more portrait images (`.png`, `.jpg`, `.jpeg`, `.webp`) of the
+same person - several shots from different angles are fine. Lip-sync models take a single image, so the render uses the first image
+in sort order (name it e.g. `01-front.png`). The library lives beside the config, not under `tmp/`, so `/reset` keeps it.
+
+```text
+~/.infer/avatars/
+  presenter/
+    01-front.png   # the image lip-sync models receive
+    02-left.jpg
+  host/
+    portrait.webp
+```
+
+Manage it with `infer avatars`:
+
+```bash
+infer avatars list                 # table of avatars and their images
+infer avatars list --format json   # [{"name":"presenter","images":["01-front.png","02-left.jpg"]}, ...]
+infer avatars delete presenter     # removes the folder and every image in it
+```
+
+To add an avatar, create the folder and copy the images in. When the agent passes an unknown avatar name the tool call fails with the
+list of available avatars, so it can pick an existing one.
+
+The portrait is sent inline with every render; nothing is stored as an avatar or asset at the provider, so there is nothing remote to
+clean up. The rendered clips may still be kept in the provider's generation history.
 
 ## Upload limit
 
@@ -81,9 +125,12 @@ or an MP3. A `TextToSpeech` WAV at 24 kHz mono is roughly 3 MB per minute, so ty
 
 ## Troubleshooting
 
-- **"video creation with ... failed: 404"** - the gateway is not serving `/v1/videos` (pre-v0.54 gateway). Upgrade the gateway.
-  See [Gateway requirements](#gateway-requirements).
-- **"invalid text_to_video.model"** - set `model` as `provider/model`, e.g. `elevenlabs/creatify-aurora`.
+- **"video creation with ... failed: 404"** - the gateway is not serving `/v1/videos`: it predates v0.54 or runs without
+  `VIDEOS_ENABLED=true`. See [Gateway requirements](#gateway-requirements).
+- **"invalid text_to_video.model"** / **"invalid text_to_video.avatar_model"** - set the model as `provider/model`, e.g.
+  `elevenlabs/creatify-aurora`.
+- **"avatar ... not found (available avatars: ...)"** - pass one of the listed names, or add the avatar folder.
+  See [Avatar library](#avatar-library).
 - **"avatar plus audio upload ... exceeds the gateway's 10 MiB request limit"** - use a shorter clip or an MP3 audio.
   See [Upload limit](#upload-limit).
 - **"video generation with ... failed: \<provider message\>"** - the provider rejected the job: an unsupported `size`, an unreadable

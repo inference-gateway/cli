@@ -846,8 +846,10 @@ and `require_approval`. The tool itself is documented in the
 **TextToVideo Tool Configuration:**
 
 - `INFER_TEXT_TO_VIDEO_ENABLED`: Enable/disable the TextToVideo tool (default: `false`)
-- `INFER_TEXT_TO_VIDEO_MODEL`: Gateway `provider/model` id used for video generation
-  (default: `elevenlabs/creatify-aurora`)
+- `INFER_TEXT_TO_VIDEO_MODEL`: Gateway `provider/model` id used for prompt renders
+  (default: `elevenlabs/veo-3.1-fast-generate-001`)
+- `INFER_TEXT_TO_VIDEO_AVATAR_MODEL`: Gateway `provider/model` id used for lip-synced
+  avatar renders (default: `elevenlabs/creatify-aurora`)
 - `INFER_TEXT_TO_VIDEO_SIZE`: Optional `widthxheight` passthrough, e.g. `720x1280`
   (default: empty, the provider default)
 - `INFER_TEXT_TO_VIDEO_OUTPUT_DIR`: Directory the generated MP4 is written to (default:
@@ -855,8 +857,10 @@ and `require_approval`. The tool itself is documented in the
 - `INFER_TEXT_TO_VIDEO_TIMEOUT`: Whole-render timeout in seconds (default: `900`)
 - `INFER_TEXT_TO_VIDEO_POLL_INTERVAL`: Job status poll interval in seconds (default: `5`)
 
-These mirror the top-level `text_to_video:` YAML block: `enabled`, `model`, `size`,
-`output_dir`, `timeout`, `poll_interval` and `require_approval`. The tool itself is
+These mirror the top-level `text_to_video:` YAML block: `enabled`, `model`,
+`avatar_model`, `size`, `output_dir`, `timeout`, `poll_interval` and
+`require_approval`. A gateway the CLI starts gets `VIDEOS_ENABLED=true` while the
+tool is enabled. The tool itself is
 documented in the [Tools Reference](tools-reference.md#texttovideo-tool) and its output
 directory in the [Directory Structure](directory-structure.md).
 
