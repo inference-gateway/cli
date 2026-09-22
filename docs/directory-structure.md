@@ -209,8 +209,7 @@ the project-local `.infer/`.
 - **`~/.infer/tmp/tts/`** *(userspace)* - generated speech WAVs, the default of
   `text_to_speech.output_dir`. See [Text to Speech](text-to-speech.md).
 - **`~/.infer/tmp/music/`** *(userspace)* - generated music WAVs, the default of
-  `text_to_music.output_dir`. See the
-  [TextToMusic tool](tools-reference.md#texttomusic-tool).
+  `text_to_music.output_dir`. See [Text to Music](text-to-music.md).
 - **`~/.infer/tmp/voice/`** *(userspace)* - retained inbound voice/audio
   recordings, the default of `speech_to_text.recordings_dir` when
   `retain_recordings` is greater than 0. See [Speech to

@@ -603,7 +603,8 @@ text_to_speech:
 Compose a music clip from a text prompt and save it as a WAV file. The chat model calls the tool when the user asks for background
 music, a loop or a jingle. The clip is generated behind the gateway's Music API (`/v1/audio/music`) with the configured
 `provider/model` (default `elevenlabs/music_v2_5`); the CLI holds no provider key, the gateway does. Disabled by default: while
-`text_to_music.enabled` is false the tool definition is not sent to the LLM at all.
+`text_to_music.enabled` is false the tool definition is not sent to the LLM at all. See
+[text-to-music](text-to-music.md) for setup and gateway requirements.
 
 **Parameters:**
 
