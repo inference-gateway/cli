@@ -21,12 +21,13 @@ type Stats struct {
 }
 
 // ToolStat aggregates one tool. Failures counts the error outcome (a rejection
-// is not a failure). AvgMs is the mean execution duration.
+// is not a failure). AvgMs is the mean execution duration in milliseconds;
+// fractional, so sub-millisecond averages keep their precision.
 type ToolStat struct {
-	Name     string `json:"name"`
-	Calls    int    `json:"calls"`
-	Failures int    `json:"failures"`
-	AvgMs    int64  `json:"avg_ms"`
+	Name     string  `json:"name"`
+	Calls    int     `json:"calls"`
+	Failures int     `json:"failures"`
+	AvgMs    float64 `json:"avg_ms"`
 }
 
 // ModelStat aggregates token usage and cost for one model. Cached is the
@@ -239,9 +240,9 @@ func getModel(models map[string]*ModelStat, name string) *ModelStat {
 func toolStats(tools map[string]*toolAgg) []ToolStat {
 	out := make([]ToolStat, 0, len(tools))
 	for name, t := range tools {
-		var avg int64
+		var avg float64
 		if t.durCount > 0 {
-			avg = int64(t.durSum / float64(t.durCount) * 1000)
+			avg = t.durSum / float64(t.durCount) * 1000 // seconds to ms
 		}
 		out = append(out, ToolStat{Name: name, Calls: t.calls, Failures: t.failures, AvgMs: avg})
 	}
@@ -266,6 +267,16 @@ func FormatFailRate(calls, failures int) string {
 		return "0%"
 	}
 	return fmt.Sprintf("%.0f%%", 100*float64(failures)/float64(calls))
+}
+
+// FormatAvg renders a tool's mean duration with the same units on every
+// surface that shows ToolStat: microseconds below 1ms (where whole
+// milliseconds would round to 0), milliseconds otherwise.
+func FormatAvg(avgMs float64) string {
+	if avgMs < 1 {
+		return fmt.Sprintf("%.0fµs", avgMs*1000)
+	}
+	return fmt.Sprintf("%.0fms", avgMs)
 }
 
 func sessionStats(sessions map[string]*SessionStat) []SessionStat {

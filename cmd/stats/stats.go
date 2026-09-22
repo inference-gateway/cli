@@ -110,7 +110,7 @@ func (c *command) renderToolStats(tools []telemetry.ToolStat) {
 			s.Name,
 			strconv.Itoa(s.Calls),
 			telemetry.FormatFailRate(s.Calls, s.Failures),
-			fmt.Sprintf("%dms", s.AvgMs),
+			telemetry.FormatAvg(s.AvgMs),
 		)
 	}
 	fmt.Println(t.Render())
