@@ -219,7 +219,7 @@ the project-local `.infer/`.
 - **`~/.infer/tmp/video/`** *(userspace)* - generated video MP4s, the default of
   `text_to_video.output_dir`. See [Text to Video](text-to-video.md).
 - **`~/.infer/avatars/`** *(userspace)* - the avatar library: one folder per avatar
-  holding one or more portrait images, managed with `infer avatars list|delete` and
+  holding one or more portrait images, managed with `infer avatars create|list|delete` and
   kept by `/reset`. See [Text to Video](text-to-video.md#avatar-library).
 - **`~/.infer/tmp/voice/`** *(userspace)* - retained inbound voice/audio
   recordings, the default of `speech_to_text.recordings_dir` when

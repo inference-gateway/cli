@@ -85,7 +85,7 @@ deployment, monitoring, and management of inference services.`,
 
 	command.AddCommand(
 		agents.NewCommand(state, renderer),
-		avatarscmd.NewCommand(renderer),
+		avatarscmd.NewCommand(state, renderer),
 		chat.NewCommand(state),
 		configcmd.NewCommand(state),
 		conversationtitle.NewCommand(state),

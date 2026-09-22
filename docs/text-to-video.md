@@ -106,13 +106,30 @@ in sort order (name it e.g. `01-front.png`). The library lives beside the config
 Manage it with `infer avatars`:
 
 ```bash
-infer avatars list                 # table of avatars and their images
-infer avatars list --format json   # [{"name":"presenter","images":["01-front.png","02-left.jpg"]}, ...]
-infer avatars delete presenter     # removes the folder and every image in it
+infer avatars create presenter --from ~/Pictures/me.jpg   # front photo + two generated three-quarter views
+infer avatars list                                        # table of avatars and their images
+infer avatars list --format json                          # [{"name":"presenter","images":["01-front.jpg", ...]}, ...]
+infer avatars delete presenter                            # removes the folder and every image in it
 ```
 
-To add an avatar, create the folder and copy the images in. When the agent passes an unknown avatar name the tool call fails with the
-list of available avatars, so it can pick an existing one.
+`create` copies the photo in as `01-front.<ext>` (the primary image) and generates each extra view from it through the gateway's
+image edit API (`POST /v1/images/edits`) with `tools.image_edit.model` (default `openai/gpt-image-2`), all views in parallel. It
+never overwrites an existing avatar, and a failed view removes the half-built folder.
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--from` | required | Front-facing photo (`.png`, `.jpg`, `.jpeg`, `.webp`) |
+| `--angles` | `three-quarter-left,three-quarter-right` | Views to generate: also `left-profile`, `right-profile`; `""` only copies the photo |
+| `--quality` | `high` | `auto`, `low`, `medium`, `high` or `standard` |
+| `--size` | `1024x1536` | Generated image size as `WIDTHxHEIGHT` (portrait by default) or `auto`; `gpt-image-2` accepts arbitrary sizes |
+
+Generating views sends the photo to the provider behind `tools.image_edit.model` (OpenAI by default), in addition to the video
+provider at render time. The prompts ask for the same identity, clothing, lighting and background with a neutral, closed mouth,
+but check the results - profiles drift more than three-quarter views. Lip-sync models only use the primary image today; the extra
+views are for models that accept reference images.
+
+You can also build an avatar by hand: create the folder and copy the images in. When the agent passes an unknown avatar name the
+tool call fails with the list of available avatars, so it can pick an existing one.
 
 The portrait is sent inline with every render; nothing is stored as an avatar or asset at the provider, so there is nothing remote to
 clean up. The rendered clips may still be kept in the provider's generation history.

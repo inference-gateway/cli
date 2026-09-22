@@ -480,12 +480,13 @@ infer plugins remove ponytail                     # Remove entirely
 
 See [docs/plugins.md](docs/plugins.md) for the mapping and security model.
 
-**`infer avatars`** - Manage the TextToVideo avatar library (`~/.infer/avatars/<name>/` portrait folders)
+**`infer avatars`** - Create and manage the TextToVideo avatar library (`~/.infer/avatars/<name>/` portrait folders)
 
 ```bash
-infer avatars list                 # List avatars and their images
-infer avatars list --format json   # Machine-readable listing
-infer avatars delete presenter     # Remove an avatar folder
+infer avatars create presenter --from me.jpg   # Photo + generated three-quarter views
+infer avatars list                             # List avatars and their images
+infer avatars list --format json               # Machine-readable listing
+infer avatars delete presenter                 # Remove an avatar folder
 ```
 
 See [docs/text-to-video.md](docs/text-to-video.md#avatar-library) for the layout.
