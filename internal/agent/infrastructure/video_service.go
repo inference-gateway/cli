@@ -95,8 +95,9 @@ func (s *VideoService) Render(ctx context.Context, request agentdomain.VideoRequ
 
 // buildCreateRequest converts the domain request into the SDK's create body:
 // prompt and the seconds/size passthroughs, plus the avatar portrait and
-// driving audio files when a talking clip was requested. Size falls back to
-// the configured text_to_video.size when the caller did not supply one.
+// driving audio files when a talking clip was requested, and the subject's
+// reference images. Size falls back to the configured text_to_video.size
+// when the caller did not supply one.
 func (s *VideoService) buildCreateRequest(request agentdomain.VideoRequest, modelName string) (sdk.CreateVideoRequest, error) {
 	req := sdk.CreateVideoRequest{Model: modelName}
 	if prompt := strings.TrimSpace(request.Prompt); prompt != "" {
@@ -110,30 +111,46 @@ func (s *VideoService) buildCreateRequest(request agentdomain.VideoRequest, mode
 	}
 
 	var uploadBytes int
-	if request.AvatarPath != "" {
-		avatar, err := os.ReadFile(request.AvatarPath) // nolint:gosec
+	upload := func(path, label string) (*openapi_types.File, error) {
+		data, err := os.ReadFile(path) // nolint:gosec
 		if err != nil {
-			return sdk.CreateVideoRequest{}, fmt.Errorf("reading avatar %q: %w", request.AvatarPath, err)
+			return nil, fmt.Errorf("reading %s %q: %w", label, path, err)
 		}
 		var file openapi_types.File
-		file.InitFromBytes(avatar, filepath.Base(request.AvatarPath))
-		req.InputReference = &file
-		uploadBytes += len(avatar)
+		file.InitFromBytes(data, filepath.Base(path))
+		uploadBytes += len(data)
+		return &file, nil
+	}
+
+	var err error
+	if request.AvatarPath != "" {
+		if req.InputReference, err = upload(request.AvatarPath, "avatar"); err != nil {
+			return sdk.CreateVideoRequest{}, err
+		}
 	}
 	if request.AudioPath != "" {
-		audio, err := os.ReadFile(request.AudioPath) // nolint:gosec
-		if err != nil {
-			return sdk.CreateVideoRequest{}, fmt.Errorf("reading audio %q: %w", request.AudioPath, err)
+		if req.Audio, err = upload(request.AudioPath, "audio"); err != nil {
+			return sdk.CreateVideoRequest{}, err
 		}
-		var file openapi_types.File
-		file.InitFromBytes(audio, filepath.Base(request.AudioPath))
-		req.Audio = &file
-		uploadBytes += len(audio)
+	}
+	// ponytail: no per-model image limits here (veo takes 3, seedance 9-30);
+	// the gateway rejects an over-limit or unsupported model with a message
+	// that names the limit, and that surfaces through Render's error.
+	if len(request.ReferencePaths) > 0 {
+		refs := make([]openapi_types.File, 0, len(request.ReferencePaths))
+		for _, path := range request.ReferencePaths {
+			file, err := upload(path, "reference image")
+			if err != nil {
+				return sdk.CreateVideoRequest{}, err
+			}
+			refs = append(refs, *file)
+		}
+		req.ReferenceImages = &refs
 	}
 
 	if uploadBytes > maxVideoUploadBytes {
 		return sdk.CreateVideoRequest{}, fmt.Errorf(
-			"avatar plus audio upload (%.1f MiB) exceeds the gateway's 10 MiB request limit; use a shorter clip or an MP3 audio",
+			"avatar images plus audio upload (%.1f MiB) exceeds the gateway's 10 MiB request limit; use a shorter clip, an MP3 audio or fewer avatar images",
 			float64(uploadBytes)/(1<<20),
 		)
 	}

@@ -122,7 +122,7 @@ func TestTextToVideoTool_Validate(t *testing.T) {
 	}
 }
 
-func TestTextToVideoTool_Execute(t *testing.T) {
+func TestTextToVideoTool_Execute(t *testing.T) { // nolint:funlen
 	t.Run("text-only render reports the result shape", func(t *testing.T) {
 		video := &agentdomainmocks.FakeVideoService{}
 		video.RenderStub = func(ctx context.Context, request agentdomain.VideoRequest, outPath string) error {
@@ -230,7 +230,49 @@ func TestTextToVideoTool_Execute(t *testing.T) {
 
 		_, req, _ := video.RenderArgsForCall(0)
 		assert.Equal(t, filepath.Join(dir, "01-front.png"), req.AvatarPath)
+		assert.Empty(t, req.ReferencePaths, "lip-sync models take a single portrait")
 		assert.True(t, req.IsAvatar())
+	})
+
+	t.Run("library avatar without audio sends every image as a reference", func(t *testing.T) {
+		video := &agentdomainmocks.FakeVideoService{}
+		video.RenderStub = func(ctx context.Context, request agentdomain.VideoRequest, outPath string) error {
+			return os.WriteFile(outPath, []byte("mp4"), 0o644) // nolint:gosec
+		}
+		tool := newTestVideoTool(t, true, video)
+		dir := writeAvatar(t, "presenter", "02-left.png", "01-front.jpg", "03-right.png")
+
+		res, err := tool.Execute(context.Background(), map[string]any{"avatar": "presenter", "prompt": "the presenter waves"})
+		require.NoError(t, err)
+		assert.True(t, res.Success, res.Error)
+		assert.Equal(t, config.TextToVideoGatewayDefaultModel, res.Data.(map[string]any)["model"])
+
+		_, req, _ := video.RenderArgsForCall(0)
+		assert.Equal(t, []string{
+			filepath.Join(dir, "01-front.jpg"),
+			filepath.Join(dir, "02-left.png"),
+			filepath.Join(dir, "03-right.png"),
+		}, req.ReferencePaths)
+		assert.Empty(t, req.AvatarPath, "the gateway rejects reference images together with input_reference")
+	})
+
+	t.Run("image file without audio stays the first frame", func(t *testing.T) {
+		video := &agentdomainmocks.FakeVideoService{}
+		video.RenderStub = func(ctx context.Context, request agentdomain.VideoRequest, outPath string) error {
+			return os.WriteFile(outPath, []byte("mp4"), 0o644) // nolint:gosec
+		}
+		tool := newTestVideoTool(t, true, video)
+		workDir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(workDir, "face.png"), minimalPNG(), 0o600))
+		t.Chdir(workDir)
+
+		res, err := tool.Execute(context.Background(), map[string]any{"avatar": "face.png", "prompt": "a slow zoom"})
+		require.NoError(t, err)
+		assert.True(t, res.Success, res.Error)
+
+		_, req, _ := video.RenderArgsForCall(0)
+		assert.Equal(t, filepath.Join(workDir, "face.png"), req.AvatarPath)
+		assert.Empty(t, req.ReferencePaths)
 	})
 
 	t.Run("provider failure reports the error and leaves no partial file", func(t *testing.T) {

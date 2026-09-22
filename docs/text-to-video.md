@@ -38,7 +38,8 @@ not the same as setting it to `false`: unset keeps the tool's own default (no ap
 ## Models
 
 A render with `audio` is an avatar render and goes to `avatar_model`; every other render (a prompt, optionally with a portrait as the
-first frame) goes to `model`. Swap either one independently for any video model the gateway serves - for ElevenLabs that includes
+first frame or a library avatar as reference images) goes to `model`. Swap either one independently for any video model the gateway
+serves - for ElevenLabs that includes
 `veo-3.1-generate-001`, `veo-3.1-fast-generate-001` and the `bytedance-seedance-v2*` family for prompts, and `creatify-aurora` for
 avatars. Avatar models take exactly one image and an audio clip, so a prompt-only render sent to one fails - which is why the two are
 separate settings.
@@ -63,7 +64,8 @@ A gateway that cannot map a size rejects the job and the tool surfaces the provi
 
 ## Gateway requirements
 
-The Videos API is part of the gateway (v0.54.0+) and is served only with `VIDEOS_ENABLED=true`. A gateway the CLI starts itself gets
+The Videos API is part of the gateway (v0.54.0+; library avatars as reference images need v0.55.0+) and is served only with
+`VIDEOS_ENABLED=true`. A gateway the CLI starts itself gets
 the flag automatically while `text_to_video.enabled` is true; a gateway that was already running without it must be restarted. The
 gateway must also hold credentials for the provider behind the models (for the defaults, an ElevenLabs API key). If you point the CLI
 at an externally managed gateway, make sure it is on v0.54.0 or later, runs with `VIDEOS_ENABLED=true` and holds the provider key.
@@ -82,7 +84,12 @@ With `text_to_video.enabled` set, the agent gains a `TextToVideo` tool:
   `.png`/`.jpg`/`.jpeg`/`.webp` file name in the working directory) and a driving clip (`audio`, a bare `.wav` or `.mp3` name: working
   directory first, then the `TextToSpeech` output directory - so a just-generated `TextToSpeech` clip can be lip-synced in the next
   tool call). `prompt` then describes framing only; the dialogue comes from the audio. `seconds` is ignored for avatar renders.
-- **First frame** - `avatar` without `audio` renders the prompt with the portrait as the opening frame, using `model`.
+- **Same person, new shot** - a library `avatar` without `audio` sends every image in the avatar's folder as `reference_images`, so
+  `model` keeps that person consistent in a prompt-driven shot (e.g. "the presenter walks into frame and says ..."). The gateway
+  checks the count per model: `veo-3.1-*` takes at most 3 (the default `create` builds exactly 3) and needs its default 8-second
+  length, `bytedance-seedance-v2*` takes up to 9 and `-v2.5` up to 30; models without reference-image support reject the render.
+- **First frame** - a bare image file as `avatar` without `audio` renders the prompt with that portrait as the opening frame. The
+  gateway does not combine a first frame with reference images.
 - **Where files go** - `output_path` chooses the destination as a bare file name inside `output_dir` (default `~/.infer/tmp/video/`);
   otherwise a timestamped `video-*.mp4` is written there. The result reports the path, model, size and which avatar/audio were used.
 
@@ -91,14 +98,15 @@ The clip is always written as MP4 (`video/mp4` for creatify-aurora). To place it
 ## Avatar library
 
 An avatar is a folder under `~/.infer/avatars/<name>/` holding one or more portrait images (`.png`, `.jpg`, `.jpeg`, `.webp`) of the
-same person - several shots from different angles are fine. Lip-sync models take a single image, so the render uses the first image
-in sort order (name it e.g. `01-front.png`). The library lives beside the config, not under `tmp/`, so `/reset` keeps it.
+same person - several shots from different angles are fine. Lip-sync models take a single image, so an avatar render uses the first
+image in sort order (name it e.g. `01-front.png`); a prompt render sends all of them as reference images. The library lives beside
+the config, not under `tmp/`, so `/reset` keeps it.
 
 ```text
 ~/.infer/avatars/
   presenter/
     01-front.png   # the image lip-sync models receive
-    02-left.jpg
+    02-left.jpg    # prompt renders send every image as a reference
   host/
     portrait.webp
 ```
@@ -125,8 +133,8 @@ never overwrites an existing avatar, and a failed view removes the half-built fo
 
 Generating views sends the photo to the provider behind `tools.image_edit.model` (OpenAI by default), in addition to the video
 provider at render time. The prompts ask for the same identity, clothing, lighting and background with a neutral, closed mouth,
-but check the results - profiles drift more than three-quarter views. Lip-sync models only use the primary image today; the extra
-views are for models that accept reference images.
+but check the results - profiles drift more than three-quarter views. Lip-sync models only use the primary image; the extra
+views feed prompt renders as reference images. Keep Veo's limit of 3 images in mind before adding profiles.
 
 You can also build an avatar by hand: create the folder and copy the images in. When the agent passes an unknown avatar name the
 tool call fails with the list of available avatars, so it can pick an existing one.
@@ -136,9 +144,9 @@ clean up. The rendered clips may still be kept in the provider's generation hist
 
 ## Upload limit
 
-The avatar portrait and the driving audio travel in one multipart request body, and the gateway caps request bodies at 10 MiB by
-default. The tool checks the combined size before sending and rejects bigger uploads with a one-line error suggesting a shorter clip
-or an MP3. A `TextToSpeech` WAV at 24 kHz mono is roughly 3 MB per minute, so typical clips fit; for longer audio prefer MP3.
+The avatar images and the driving audio travel in one multipart request body, and the gateway caps request bodies at 10 MiB by
+default. The tool checks the combined size before sending and rejects bigger uploads with a one-line error suggesting a shorter clip,
+an MP3 or fewer avatar images. A `TextToSpeech` WAV at 24 kHz mono is roughly 3 MB per minute, so typical clips fit; for longer audio prefer MP3.
 
 ## Troubleshooting
 
@@ -148,8 +156,10 @@ or an MP3. A `TextToSpeech` WAV at 24 kHz mono is roughly 3 MB per minute, so ty
   `elevenlabs/creatify-aurora`.
 - **"avatar ... not found (available avatars: ...)"** - pass one of the listed names, or add the avatar folder.
   See [Avatar library](#avatar-library).
-- **"avatar plus audio upload ... exceeds the gateway's 10 MiB request limit"** - use a shorter clip or an MP3 audio.
-  See [Upload limit](#upload-limit).
+- **"avatar images plus audio upload ... exceeds the gateway's 10 MiB request limit"** - use a shorter clip, an MP3 audio or
+  fewer avatar images. See [Upload limit](#upload-limit).
+- **"model ... accepts at most N 'reference_images'"** / **"does not accept 'reference_images'"** - the avatar folder holds more
+  images than `model` takes, or `model` has no reference-image support: trim the folder or switch `model`.
 - **"video generation with ... failed: \<provider message\>"** - the provider rejected the job: an unsupported `size`, an unreadable
   portrait or a moderation refusal. Adjust the request and retry.
 - **"did not complete in time"** - renders can take a few minutes; raise `text_to_video.timeout`.

@@ -63,7 +63,7 @@ func (t *TextToVideoTool) Definition() sdk.ChatCompletionTool {
 					},
 					"avatar": map[string]any{
 						"type":        "string",
-						"description": "Optional portrait: the name of an avatar in the library (~/.infer/avatars/<name>/, its first image is used), or a bare file name (no directories or absolute paths) of a .png, .jpg, .jpeg or .webp image in the working directory; with audio the portrait is lip-synced to the clip, without audio it is the first frame",
+						"description": "Optional subject: the name of an avatar in the library (~/.infer/avatars/<name>/), or a bare file name (no directories or absolute paths) of a .png, .jpg, .jpeg or .webp image in the working directory. With audio the avatar's first image (or the file) is lip-synced to the clip; without audio a library avatar's images are sent as reference images that keep the person consistent (veo takes at most 3 and needs the default 8 seconds, so omit seconds), while a file is the first frame",
 					},
 					"audio": map[string]any{
 						"type":        "string",
@@ -93,7 +93,7 @@ func (t *TextToVideoTool) Validate(args map[string]any) error {
 		return fmt.Errorf("audio requires avatar: pass a portrait image name for the lip-synced clip")
 	}
 
-	if _, err := t.resolveAvatarPath(rawAvatar); err != nil {
+	if _, _, err := t.resolveAvatar(rawAvatar); err != nil {
 		return err
 	}
 	if _, err := t.resolveAudioPath(rawAudio); err != nil {
@@ -108,26 +108,34 @@ func (t *TextToVideoTool) Validate(args map[string]any) error {
 	return err
 }
 
-// resolveAvatarPath resolves an optional portrait and returns an empty path
-// when unset. A name with an image extension is a one-off portrait in the
-// working directory; a bare name is an avatar in the library
-// (~/.infer/avatars/<name>/), resolved to its primary image. An unknown
-// avatar's error lists the available ones so the agent can pick another.
-func (t *TextToVideoTool) resolveAvatarPath(raw string) (string, error) {
+// resolveAvatar resolves an optional portrait to its image paths, returning
+// none when unset. A name with an image extension is a one-off portrait in
+// the working directory (one path); a bare name is an avatar in the library
+// (~/.infer/avatars/<name>/), resolved to all of its images with the primary
+// first, and library reports true. An unknown avatar's error lists the
+// available ones so the agent can pick another.
+func (t *TextToVideoTool) resolveAvatar(raw string) (paths []string, library bool, err error) {
 	name := strings.TrimSpace(raw)
 	if name == "" {
-		return "", nil
+		return nil, false, nil
 	}
 	if slices.Contains(avatars.ImageExtensions, strings.ToLower(filepath.Ext(name))) {
-		return resolveMediaInputPath(t.config, "", raw, "avatar", "image file")
+		path, err := resolveMediaInputPath(t.config, "", raw, "avatar", "image file")
+		if err != nil {
+			return nil, false, err
+		}
+		return []string{path}, false, nil
 	}
 	dir := avatars.Dir()
 	avatar, err := avatars.Get(dir, name)
 	if err != nil {
 		available := strings.Join(avatars.Names(dir), ", ")
-		return "", fmt.Errorf("%w (available avatars: %s)", err, cmp.Or(available, "none"))
+		return nil, false, fmt.Errorf("%w (available avatars: %s)", err, cmp.Or(available, "none"))
 	}
-	return avatar.Primary(dir), nil
+	for _, image := range avatar.Images {
+		paths = append(paths, filepath.Join(dir, avatar.Name, image))
+	}
+	return paths, true, nil
 }
 
 // resolveAudioPath confines an optional driving clip to a readable .wav or
@@ -170,7 +178,7 @@ func (t *TextToVideoTool) Execute(ctx context.Context, args map[string]any) (*ag
 
 	start := time.Now()
 
-	avatarPath, err := t.resolveAvatarPath(rawAvatar)
+	avatarPaths, library, err := t.resolveAvatar(rawAvatar)
 	if err != nil {
 		return t.failure(start, args, err), nil
 	}
@@ -184,11 +192,19 @@ func (t *TextToVideoTool) Execute(ctx context.Context, args map[string]any) (*ag
 	}
 
 	request := agentdomain.VideoRequest{
-		Prompt:     prompt,
-		Seconds:    seconds,
-		Size:       size,
-		AvatarPath: avatarPath,
-		AudioPath:  audioPath,
+		Prompt:    prompt,
+		Seconds:   seconds,
+		Size:      size,
+		AudioPath: audioPath,
+	}
+	// A library avatar in a prompt render goes as reference images (every
+	// angle keeps the subject consistent); lip-sync and one-off portraits
+	// send the single portrait. The gateway rejects the two together.
+	switch {
+	case library && audioPath == "":
+		request.ReferencePaths = avatarPaths
+	case len(avatarPaths) > 0:
+		request.AvatarPath = avatarPaths[0]
 	}
 	if err := t.video.Render(ctx, request, outPath); err != nil {
 		if strings.TrimSpace(rawOut) == "" {

@@ -33,11 +33,12 @@ func NewCommand(state *runtime.State, renderer *output.Renderer) *cobra.Command 
 	avatarsCmd := &cobra.Command{
 		Use:   "avatars",
 		Short: "Manage the avatar library for TextToVideo",
-		Long: `Create, list and delete the avatars TextToVideo renders lip-synced clips from.
+		Long: `Create, list and delete the avatars TextToVideo renders from.
 
 An avatar is a folder under ~/.infer/avatars/<name>/ holding one or more
 portrait images (.png, .jpg, .jpeg, .webp) of the same person, e.g. shots
-from different angles. Lip-sync models receive the first image in sort order.`,
+from different angles. Lip-sync models receive the first image in sort order;
+prompt renders receive every image as a reference of the person.`,
 	}
 	createCmd := &cobra.Command{
 		Use:   "create <name> --from <photo>",

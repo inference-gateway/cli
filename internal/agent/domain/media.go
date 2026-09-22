@@ -68,14 +68,18 @@ type SoundEffectService interface {
 }
 
 // VideoRequest is one video render: a text prompt (required unless the audio
-// drives the render), the optional seconds and size passthroughs, and the
-// optional avatar portrait and driving audio for lip-synced talking clips.
+// drives the render), the optional seconds and size passthroughs, the
+// optional avatar portrait and driving audio for lip-synced talking clips,
+// and the optional reference images of the subject (e.g. an avatar from
+// several angles) that keep them consistent in a prompt render. The gateway
+// rejects reference images together with a portrait.
 type VideoRequest struct {
-	Prompt     string
-	Seconds    string
-	Size       string
-	AvatarPath string
-	AudioPath  string
+	Prompt         string
+	Seconds        string
+	Size           string
+	AvatarPath     string
+	AudioPath      string
+	ReferencePaths []string
 }
 
 // IsAvatar reports whether the request is a lip-synced avatar render: the

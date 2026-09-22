@@ -125,6 +125,55 @@ func TestVideoService_Render(t *testing.T) { // nolint:funlen
 		assert.Equal(t, 0, client.CreateVideoCallCount())
 	})
 
+	t.Run("reference images go as repeated parts with the prompt model", func(t *testing.T) {
+		client := &sdkmocks.FakeClient{}
+		client.CreateVideoReturns(&sdk.VideoJob{ID: "job-1", Status: sdk.VideoJobStatusQueued}, nil)
+		client.RetrieveVideoReturns(&sdk.VideoJob{ID: "job-1", Status: sdk.VideoJobStatusCompleted}, nil)
+		client.DownloadVideoContentReturns([]byte("mp4"), nil)
+		svc := NewVideoService(config.DefaultConfig(), client)
+
+		dir := t.TempDir()
+		front := filepath.Join(dir, "01-front.jpg")
+		left := filepath.Join(dir, "02-left.png")
+		require.NoError(t, os.WriteFile(front, []byte("front"), 0o600))
+		require.NoError(t, os.WriteFile(left, []byte("left"), 0o600))
+
+		err := svc.Render(context.Background(), agentdomain.VideoRequest{
+			Prompt:         "the presenter waves",
+			ReferencePaths: []string{front, left},
+		}, filepath.Join(t.TempDir(), "out.mp4"))
+		require.NoError(t, err)
+
+		_, _, req := client.CreateVideoArgsForCall(0)
+		assert.Equal(t, "veo-3.1-fast-generate-001", req.Model)
+		assert.Nil(t, req.InputReference)
+		require.NotNil(t, req.ReferenceImages)
+		require.Len(t, *req.ReferenceImages, 2)
+		for i, want := range []string{"front", "left"} {
+			data, err := (*req.ReferenceImages)[i].Bytes()
+			require.NoError(t, err)
+			assert.Equal(t, want, string(data))
+		}
+		assert.Equal(t, "01-front.jpg", (*req.ReferenceImages)[0].Filename())
+	})
+
+	t.Run("reference images count toward the body limit", func(t *testing.T) {
+		client := &sdkmocks.FakeClient{}
+		svc := NewVideoService(config.DefaultConfig(), client)
+
+		dir := t.TempDir()
+		var refs []string
+		for _, name := range []string{"a.png", "b.png", "c.png"} {
+			path := filepath.Join(dir, name)
+			require.NoError(t, os.WriteFile(path, make([]byte, 4<<20), 0o600))
+			refs = append(refs, path)
+		}
+
+		err := svc.Render(context.Background(), agentdomain.VideoRequest{Prompt: "wave", ReferencePaths: refs}, filepath.Join(t.TempDir(), "out.mp4"))
+		require.ErrorContains(t, err, "10 MiB request limit")
+		assert.Equal(t, 0, client.CreateVideoCallCount())
+	})
+
 	t.Run("failed job surfaces the provider message and names the model", func(t *testing.T) {
 		client := &sdkmocks.FakeClient{}
 		message := "content policy violation"

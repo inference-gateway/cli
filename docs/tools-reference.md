@@ -670,8 +670,10 @@ the LLM at all. See [text-to-video](text-to-video.md) for setup, the size rules 
 - `seconds` (optional): Clip length in seconds as a string; providers accept a limited set of values; ignored when `audio` is present
 - `size` (optional): Output resolution as `widthxheight` (e.g. `720x1280` portrait or `1280x720` landscape), passed through verbatim; omitted means the
   provider default; `creatify-aurora` renders 480p or 720p only and keeps the portrait's aspect ratio
-- `avatar` (optional): The name of an avatar in the library (`~/.infer/avatars/<name>/`, its first image is used; see `infer avatars list`), or a bare
-  file name of a .png, .jpg, .jpeg or .webp portrait in the working directory; required with `audio`, otherwise used as the first frame
+- `avatar` (optional): The name of an avatar in the library (`~/.infer/avatars/<name>/`; see `infer avatars list`), or a bare
+  file name of a .png, .jpg, .jpeg or .webp portrait in the working directory; required with `audio`. With `audio` the avatar's
+  first image is lip-synced; without it a library avatar's images all go as `reference_images` (Veo takes at most 3), while a bare
+  file becomes the first frame
 - `audio` (optional): Bare file name of a `.wav` or `.mp3` clip that drives the render, looked up in the working directory then in the
   `TextToSpeech` output directory; requires `avatar`
 - `output_path` (optional): Bare file name (no directories or absolute paths) for the generated MP4, placed inside

@@ -45,9 +45,6 @@ func TestList(t *testing.T) {
 	if !slices.EqualFunc(got, want, func(a, b Avatar) bool { return a.Name == b.Name && slices.Equal(a.Images, b.Images) }) {
 		t.Fatalf("List = %+v, want %+v", got, want)
 	}
-	if primary := got[1].Primary(dir); primary != filepath.Join(dir, "presenter", "01-front.png") {
-		t.Errorf("Primary = %q", primary)
-	}
 
 	missing, err := List(filepath.Join(dir, "nope"))
 	if err != nil || len(missing) != 0 {
@@ -150,8 +147,8 @@ func TestCreate(t *testing.T) {
 		if len(*prompts) != 2 || !slices.Contains(*prompts, Angles["three-quarter-left"]) || !slices.Contains(*prompts, Angles["three-quarter-right"]) {
 			t.Fatalf("edit prompts = %v", *prompts)
 		}
-		if avatar.Primary(dir) != filepath.Join(dir, "presenter", "01-front.jpg") {
-			t.Fatalf("primary = %q", avatar.Primary(dir))
+		if avatar.Images[0] != "01-front.jpg" {
+			t.Fatalf("primary = %q", avatar.Images[0])
 		}
 	})
 

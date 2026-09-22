@@ -1,8 +1,9 @@
 // Package avatars manages the avatar library: ~/.infer/avatars/<name>/, one
 // folder per avatar holding one or more portrait images of the same person
 // (e.g. shots from different angles). The TextToVideo tool renders
-// lip-synced clips from an avatar's primary image; `infer avatars` creates,
-// lists and deletes them.
+// lip-synced clips from an avatar's primary image and sends every image as a
+// reference in prompt renders; `infer avatars` creates, lists and deletes
+// them.
 package avatars
 
 import (
@@ -52,11 +53,6 @@ type EditFunc func(ctx context.Context, prompt, imagePath string) (string, error
 type Avatar struct {
 	Name   string   `json:"name"`
 	Images []string `json:"images"`
-}
-
-// Primary returns the path of the avatar's primary image inside dir.
-func (a Avatar) Primary(dir string) string {
-	return filepath.Join(dir, a.Name, a.Images[0])
 }
 
 // Dir returns the avatar library directory, ~/.infer/avatars.
