@@ -598,6 +598,31 @@ text_to_speech:
   require_approval: true # optional; unset = no approval, like the image tools
 ```
 
+### TextToMusic Tool
+
+Compose a music clip from a text prompt and save it as a WAV file. The chat model calls the tool when the user asks for background
+music, a loop or a jingle. The clip is generated behind the gateway's Music API (`/v1/audio/music`) with the configured
+`provider/model` (default `elevenlabs/music_v2_5`); the CLI holds no provider key, the gateway does. Disabled by default: while
+`text_to_music.enabled` is false the tool definition is not sent to the LLM at all.
+
+**Parameters:**
+
+- `prompt` (required): Description of the music - genre, mood, instruments, tempo
+- `seconds` (optional): Clip length in seconds; omitted lets the provider pick a length that fits the prompt
+- `instrumental` (optional): `true` to guarantee the generated clip has no vocals
+- `output_path` (optional): Bare file name (no directories or absolute paths) for the generated WAV, placed inside
+  `text_to_music.output_dir`; defaults to a timestamped file
+
+**Configuration:**
+
+```yaml
+text_to_music:
+  enabled: true
+  # model: elevenlabs/music_v2_5 # gateway provider/model id
+  # output_dir: ~/.infer/tmp/music
+  require_approval: false # optional; unset = no approval, like the image tools
+```
+
 ---
 
 ## Vision Tools
