@@ -64,8 +64,6 @@ type AgentServiceImpl struct {
 	stalledStrikes   int
 	lastFinishReason string
 	lastStreamEmpty  bool
-
-	// (name+args), reset per key on success; backs the retry-loop breaker
 	failedCalls    map[string]int
 	failedCallsMux sync.Mutex
 

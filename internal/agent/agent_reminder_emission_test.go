@@ -271,7 +271,6 @@ func TestInjectDueReminders_StalledTodosContinuation(t *testing.T) {
 	})
 	svc := &AgentServiceImpl{config: cfg, stateManager: sm}
 
-	// A turn that ends with no tool calls arms the strike counter.
 	svc.trackStreamOutcome("stop", false, true)
 
 	conv := []sdk.Message{}
@@ -283,7 +282,6 @@ func TestInjectDueReminders_StalledTodosContinuation(t *testing.T) {
 	assert.Contains(t, content, "open thing")
 	assert.NotContains(t, content, "done thing", "completed items must not appear in the nudge")
 
-	// A turn WITH tool calls resets the strikes: no nudge.
 	svc.trackStreamOutcome("stop", true, true)
 	conv = nil
 	agentCtx = newReminderAgentCtx(&conv, 3, 50)
