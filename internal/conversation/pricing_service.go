@@ -147,9 +147,10 @@ func (p *PricingServiceImpl) GetOutputPrice(model string) float64 {
 // cache-read and cache-creation subsets of inputTokens; they are billed at
 // the gateway's cache-read/cache-write rates when known, otherwise at the
 // full input rate. Returns inputCost, outputCost, and totalCost in USD (or
-// configured currency).
+// configured currency). Subscription-gated models are billed as a flat fee,
+// so their per-token rates (if any) are informational and cost zero here.
 func (p *PricingServiceImpl) CalculateCost(model string, inputTokens, outputTokens, cachedTokens, cacheWriteTokens int) (inputCost, outputCost, totalCost float64) {
-	if !p.config.Enabled {
+	if !p.config.Enabled || p.resolveRequiresPro(model) {
 		return 0.0, 0.0, 0.0
 	}
 
