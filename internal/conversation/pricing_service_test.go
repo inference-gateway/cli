@@ -471,3 +471,29 @@ func TestPricingService_CalculateCost(t *testing.T) {
 	assert.InDelta(t, expectedOutputCost, outputCost, 0.01)
 	assert.InDelta(t, expectedTotalCost, totalCost, 0.01)
 }
+
+// TestPricingService_CalculateCost_Subscription covers flat-fee models: the
+// gateway may still report per-token rates for them, but nothing is billed
+// per token, so the session cost must stay zero.
+func TestPricingService_CalculateCost_Subscription(t *testing.T) {
+	sub := true
+	setGatewayPricing(map[string]gatewayPrice{
+		"ollama_cloud/priced-sub": {inputPerMTok: 0.15, outputPerMTok: 0.5, subscription: true},
+	})
+	t.Cleanup(func() { setGatewayPricing(nil) })
+
+	cfg := &config.PricingConfig{
+		Enabled: true,
+		CustomPrices: map[string]config.CustomPricing{
+			"custom-sub": {InputPricePerMToken: 3.0, OutputPricePerMToken: 15.0, RequiresPro: sub},
+		},
+	}
+	service := NewPricingService(cfg)
+
+	for _, model := range []string{"ollama_cloud/priced-sub", "custom-sub"} {
+		in, out, total := service.CalculateCost(model, 2_000_000, 10_000, 0, 0)
+		assert.Zero(t, in, model)
+		assert.Zero(t, out, model)
+		assert.Zero(t, total, model)
+	}
+}
