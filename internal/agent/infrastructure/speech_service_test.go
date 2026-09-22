@@ -41,7 +41,7 @@ func TestSpeechService_Synthesize(t *testing.T) {
 	assert.Equal(t, "hello world", req.Input)
 	assert.Equal(t, "alloy", req.Voice)
 	require.NotNil(t, req.ResponseFormat)
-	assert.Equal(t, sdk.Wav, *req.ResponseFormat)
+	assert.Equal(t, sdk.CreateSpeechRequestResponseFormatWav, *req.ResponseFormat)
 	assert.Nil(t, req.ReferenceAudio)
 
 	written, err := os.ReadFile(outPath)

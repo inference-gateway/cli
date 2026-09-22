@@ -42,7 +42,7 @@ func (s *SpeechService) Synthesize(ctx context.Context, text, voiceSamplePath, o
 		provider, modelName = "", model
 	}
 
-	format := sdk.Wav
+	format := sdk.CreateSpeechRequestResponseFormatWav
 	request := sdk.CreateSpeechRequest{
 		Input:          text,
 		Model:          modelName,

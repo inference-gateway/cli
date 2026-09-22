@@ -131,6 +131,26 @@ func (a *AnthropicMessages) CreateSpeech(ctx context.Context, provider sdk.Provi
 	return a.inner.CreateSpeech(ctx, provider, request)
 }
 
+func (a *AnthropicMessages) CreateSFX(ctx context.Context, provider sdk.Provider, request sdk.CreateSFXRequest) ([]byte, error) {
+	return a.inner.CreateSFX(ctx, provider, request)
+}
+
+func (a *AnthropicMessages) CreateMusic(ctx context.Context, provider sdk.Provider, request sdk.CreateMusicRequest) ([]byte, error) {
+	return a.inner.CreateMusic(ctx, provider, request)
+}
+
+func (a *AnthropicMessages) CreateVideo(ctx context.Context, provider sdk.Provider, request sdk.CreateVideoRequest) (*sdk.VideoJob, error) {
+	return a.inner.CreateVideo(ctx, provider, request)
+}
+
+func (a *AnthropicMessages) RetrieveVideo(ctx context.Context, provider sdk.Provider, videoID string) (*sdk.VideoJob, error) {
+	return a.inner.RetrieveVideo(ctx, provider, videoID)
+}
+
+func (a *AnthropicMessages) DownloadVideoContent(ctx context.Context, provider sdk.Provider, videoID string) ([]byte, error) {
+	return a.inner.DownloadVideoContent(ctx, provider, videoID)
+}
+
 // GenerateContent routes Anthropic requests through /v1/messages and
 // translates the response back into the chat-completions shape.
 func (a *AnthropicMessages) GenerateContent(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
