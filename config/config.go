@@ -37,6 +37,7 @@ type Config struct {
 	Gateway          GatewayConfig          `yaml:"gateway" mapstructure:"gateway"`
 	SpeechToText     SpeechToTextConfig     `yaml:"speech_to_text" mapstructure:"speech_to_text"`
 	TextToSpeech     TextToSpeechConfig     `yaml:"text_to_speech" mapstructure:"text_to_speech"`
+	TextToMusic      TextToMusicConfig      `yaml:"text_to_music" mapstructure:"text_to_music"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
 	Tools            ToolsConfig            `yaml:"tools" mapstructure:"tools"`
@@ -124,6 +125,48 @@ const TextToSpeechEngineGateway = "gateway"
 // TextToSpeechGatewayDefaultModel is the model used by the gateway engine
 // when text_to_speech.model is unset: the gateway's built-in local engine.
 const TextToSpeechGatewayDefaultModel = "local/qwen3-tts"
+
+// TextToMusicGatewayDefaultModel is the model used by the gateway's Music
+// API when text_to_music.model is unset.
+const TextToMusicGatewayDefaultModel = "elevenlabs/music_v2_5"
+
+// TextToMusicConfig contains opt-in settings for music composition. The clip
+// is generated behind the gateway's Music API (POST /v1/audio/music), always
+// as MP3; the CLI holds no provider key, the gateway does.
+type TextToMusicConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model           string `yaml:"model" mapstructure:"model"`
+	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// ResolveGatewayModel returns the "provider/model" id used for music
+// composition, defaulting to the gateway's elevenlabs/music_v2_5.
+func (c TextToMusicConfig) ResolveGatewayModel() string {
+	return cmp.Or(strings.TrimSpace(c.Model), TextToMusicGatewayDefaultModel)
+}
+
+// ResolveOutputDir returns the directory where generated music clips are
+// stored, defaulting to ~/.infer/tmp/music when OutputDir is unset. Generated
+// music is disposable runtime output, so it lives under the userspace tmp dir
+// (agent-readable/writable, wiped by /reset) instead of beside the config
+// files.
+func (c TextToMusicConfig) ResolveOutputDir() (string, error) {
+	if strings.TrimSpace(c.OutputDir) != "" {
+		return c.OutputDir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home directory: %w", err)
+	}
+	return filepath.Join(home, ConfigDirName, "tmp", "music"), nil
+}
+
+// NeedsGatewayAudio reports whether the gateway must serve its Audio API
+// (AUDIO_ENABLED=true): gateway-engine speech synthesis or music composition.
+func (c *Config) NeedsGatewayAudio() bool {
+	return (c.TextToSpeech.Enabled && c.TextToSpeech.IsGatewayEngine()) || c.TextToMusic.Enabled
+}
 
 // TextToSpeechConfig contains opt-in settings for speech synthesis. Engine
 // selects the backend: gateway (default) or qwen3-tts (local llama-tts).
@@ -1436,6 +1479,11 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 			return *c.TextToSpeech.RequireApproval
 		}
 		return false
+	case "TextToMusic":
+		if c.TextToMusic.RequireApproval != nil {
+			return *c.TextToMusic.RequireApproval
+		}
+		return false
 	case "Memory":
 		return false
 	case "Computer", "GetLatestFrame":
@@ -1474,7 +1522,7 @@ func (c *Config) JudgeRequired() bool {
 // Validate checks cross-cutting config invariants after load so a typo fails fast
 // instead of silently falling back. It currently validates
 // tools.safety.approval_behaviour; extend it as new validated settings are added.
-func (c *Config) Validate() error { // nolint:cyclop
+func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 	switch c.Tools.Safety.ApprovalBehaviour {
 	case "", ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock, ApprovalBehaviourJudge:
 	default:
@@ -1539,6 +1587,16 @@ func (c *Config) Validate() error { // nolint:cyclop
 				engine,
 				TextToSpeechEngineQwen3,
 				TextToSpeechEngineGateway,
+			)
+		}
+	}
+
+	if c.TextToMusic.Enabled {
+		model := c.TextToMusic.ResolveGatewayModel()
+		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
+			return fmt.Errorf(
+				"invalid text_to_music.model %q: must be of the form 'provider/model', e.g. 'elevenlabs/music_v2_5'",
+				model,
 			)
 		}
 	}

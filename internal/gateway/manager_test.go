@@ -85,21 +85,23 @@ func startSleep(t *testing.T) *exec.Cmd {
 }
 
 // TestNeedsAudioRestart verifies an already-running gateway is only restarted
-// when the gateway TTS engine is configured and the Audio API answers 404.
+// when gateway speech or music is configured and the Audio API answers 404.
 func TestNeedsAudioRestart(t *testing.T) {
 	tests := []struct {
 		name        string
 		enabled     bool
 		engine      string
+		music       bool
 		audioStatus int
 		want        bool
 	}{
-		{"tts disabled", false, "gateway", http.StatusNotFound, false},
-		{"local engine", true, "qwen3-tts", http.StatusNotFound, false},
-		{"audio missing", true, "gateway", http.StatusNotFound, true},
-		{"default engine, audio missing", true, "", http.StatusNotFound, true},
-		{"audio enabled (bad request)", true, "gateway", http.StatusBadRequest, false},
-		{"audio warming up (503)", true, "gateway", http.StatusServiceUnavailable, false},
+		{"tts disabled", false, "gateway", false, http.StatusNotFound, false},
+		{"local engine", true, "qwen3-tts", false, http.StatusNotFound, false},
+		{"audio missing", true, "gateway", false, http.StatusNotFound, true},
+		{"default engine, audio missing", true, "", false, http.StatusNotFound, true},
+		{"music only, audio missing", false, "qwen3-tts", true, http.StatusNotFound, true},
+		{"audio enabled (bad request)", true, "gateway", false, http.StatusBadRequest, false},
+		{"audio warming up (503)", true, "gateway", false, http.StatusServiceUnavailable, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -116,6 +118,7 @@ func TestNeedsAudioRestart(t *testing.T) {
 			cfg.Gateway.URL = srv.URL
 			cfg.TextToSpeech.Enabled = tt.enabled
 			cfg.TextToSpeech.Engine = tt.engine
+			cfg.TextToMusic.Enabled = tt.music
 			gm := NewManager("test-session", cfg, nil)
 
 			if got := gm.needsAudioRestart(); got != tt.want {

@@ -50,6 +50,14 @@ type SpeechService interface {
 	Synthesize(ctx context.Context, text, voiceSamplePath, outPath string) error
 }
 
+// MusicService composes a music clip from a text prompt through the gateway's
+// Music API, writing the audio to outPath. A non-nil seconds caps the clip
+// length in seconds; a non-nil instrumental requests a vocal-free clip. An
+// omitted knob leaves the choice to the configured provider.
+type MusicService interface {
+	Compose(ctx context.Context, prompt, outPath string, seconds *float32, instrumental *bool) error
+}
+
 // FileInfo contains file metadata
 type FileInfo struct {
 	Path  string

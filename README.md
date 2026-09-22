@@ -97,6 +97,8 @@ An agentic command-line assistant that writes code, understands project context,
   off by default - [Learn more →](docs/speech-to-text.md)
 - **Text-to-Speech (Qwen3-TTS)**: Turn text into a spoken WAV locally and offline, with zero-shot voice cloning
   from a short reference recording - off by default - [Learn more →](docs/text-to-speech.md)
+- **Text-to-Music**: Compose a music clip from a text prompt through the gateway's Music API -
+  off by default - [Learn more →](docs/text-to-music.md)
 - **Scheduled Tasks**: Ask the agent (over Telegram, etc.) to run a prompt on a cron schedule and deliver the result back through the same channel -
   recurring ("send me a quote every morning") or one-off ("remind me at 6pm today") - [Learn more →](docs/scheduling.md)
 - **Heartbeat (Periodic Wake-Up)**: Wake the agent on a fixed interval to check for pending todos and background work,
