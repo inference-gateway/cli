@@ -84,6 +84,36 @@ type FakeClient struct {
 		result1 <-chan sdk.SSEvent
 		result2 error
 	}
+	CreateMusicStub        func(context.Context, sdk.Provider, sdk.CreateMusicRequest) ([]byte, error)
+	createMusicMutex       sync.RWMutex
+	createMusicArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateMusicRequest
+	}
+	createMusicReturns struct {
+		result1 []byte
+		result2 error
+	}
+	createMusicReturnsOnCall map[int]struct {
+		result1 []byte
+		result2 error
+	}
+	CreateSFXStub        func(context.Context, sdk.Provider, sdk.CreateSFXRequest) ([]byte, error)
+	createSFXMutex       sync.RWMutex
+	createSFXArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateSFXRequest
+	}
+	createSFXReturns struct {
+		result1 []byte
+		result2 error
+	}
+	createSFXReturnsOnCall map[int]struct {
+		result1 []byte
+		result2 error
+	}
 	CreateSpeechStub        func(context.Context, sdk.Provider, sdk.CreateSpeechRequest) ([]byte, error)
 	createSpeechMutex       sync.RWMutex
 	createSpeechArgsForCall []struct {
@@ -96,6 +126,36 @@ type FakeClient struct {
 		result2 error
 	}
 	createSpeechReturnsOnCall map[int]struct {
+		result1 []byte
+		result2 error
+	}
+	CreateVideoStub        func(context.Context, sdk.Provider, sdk.CreateVideoRequest) (*sdk.VideoJob, error)
+	createVideoMutex       sync.RWMutex
+	createVideoArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateVideoRequest
+	}
+	createVideoReturns struct {
+		result1 *sdk.VideoJob
+		result2 error
+	}
+	createVideoReturnsOnCall map[int]struct {
+		result1 *sdk.VideoJob
+		result2 error
+	}
+	DownloadVideoContentStub        func(context.Context, sdk.Provider, string) ([]byte, error)
+	downloadVideoContentMutex       sync.RWMutex
+	downloadVideoContentArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 string
+	}
+	downloadVideoContentReturns struct {
+		result1 []byte
+		result2 error
+	}
+	downloadVideoContentReturnsOnCall map[int]struct {
 		result1 []byte
 		result2 error
 	}
@@ -182,6 +242,21 @@ type FakeClient struct {
 	}
 	listToolsReturnsOnCall map[int]struct {
 		result1 *sdk.ListToolsResponse
+		result2 error
+	}
+	RetrieveVideoStub        func(context.Context, sdk.Provider, string) (*sdk.VideoJob, error)
+	retrieveVideoMutex       sync.RWMutex
+	retrieveVideoArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 string
+	}
+	retrieveVideoReturns struct {
+		result1 *sdk.VideoJob
+		result2 error
+	}
+	retrieveVideoReturnsOnCall map[int]struct {
+		result1 *sdk.VideoJob
 		result2 error
 	}
 	WithAuthTokenStub        func(string) sdk.Client
@@ -585,6 +660,138 @@ func (fake *FakeClient) CreateMessageStreamReturnsOnCall(i int, result1 <-chan s
 	}{result1, result2}
 }
 
+func (fake *FakeClient) CreateMusic(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateMusicRequest) ([]byte, error) {
+	fake.createMusicMutex.Lock()
+	ret, specificReturn := fake.createMusicReturnsOnCall[len(fake.createMusicArgsForCall)]
+	fake.createMusicArgsForCall = append(fake.createMusicArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateMusicRequest
+	}{arg1, arg2, arg3})
+	stub := fake.CreateMusicStub
+	fakeReturns := fake.createMusicReturns
+	fake.recordInvocation("CreateMusic", []interface{}{arg1, arg2, arg3})
+	fake.createMusicMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) CreateMusicCallCount() int {
+	fake.createMusicMutex.RLock()
+	defer fake.createMusicMutex.RUnlock()
+	return len(fake.createMusicArgsForCall)
+}
+
+func (fake *FakeClient) CreateMusicCalls(stub func(context.Context, sdk.Provider, sdk.CreateMusicRequest) ([]byte, error)) {
+	fake.createMusicMutex.Lock()
+	defer fake.createMusicMutex.Unlock()
+	fake.CreateMusicStub = stub
+}
+
+func (fake *FakeClient) CreateMusicArgsForCall(i int) (context.Context, sdk.Provider, sdk.CreateMusicRequest) {
+	fake.createMusicMutex.RLock()
+	defer fake.createMusicMutex.RUnlock()
+	argsForCall := fake.createMusicArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) CreateMusicReturns(result1 []byte, result2 error) {
+	fake.createMusicMutex.Lock()
+	defer fake.createMusicMutex.Unlock()
+	fake.CreateMusicStub = nil
+	fake.createMusicReturns = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateMusicReturnsOnCall(i int, result1 []byte, result2 error) {
+	fake.createMusicMutex.Lock()
+	defer fake.createMusicMutex.Unlock()
+	fake.CreateMusicStub = nil
+	if fake.createMusicReturnsOnCall == nil {
+		fake.createMusicReturnsOnCall = make(map[int]struct {
+			result1 []byte
+			result2 error
+		})
+	}
+	fake.createMusicReturnsOnCall[i] = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateSFX(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateSFXRequest) ([]byte, error) {
+	fake.createSFXMutex.Lock()
+	ret, specificReturn := fake.createSFXReturnsOnCall[len(fake.createSFXArgsForCall)]
+	fake.createSFXArgsForCall = append(fake.createSFXArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateSFXRequest
+	}{arg1, arg2, arg3})
+	stub := fake.CreateSFXStub
+	fakeReturns := fake.createSFXReturns
+	fake.recordInvocation("CreateSFX", []interface{}{arg1, arg2, arg3})
+	fake.createSFXMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) CreateSFXCallCount() int {
+	fake.createSFXMutex.RLock()
+	defer fake.createSFXMutex.RUnlock()
+	return len(fake.createSFXArgsForCall)
+}
+
+func (fake *FakeClient) CreateSFXCalls(stub func(context.Context, sdk.Provider, sdk.CreateSFXRequest) ([]byte, error)) {
+	fake.createSFXMutex.Lock()
+	defer fake.createSFXMutex.Unlock()
+	fake.CreateSFXStub = stub
+}
+
+func (fake *FakeClient) CreateSFXArgsForCall(i int) (context.Context, sdk.Provider, sdk.CreateSFXRequest) {
+	fake.createSFXMutex.RLock()
+	defer fake.createSFXMutex.RUnlock()
+	argsForCall := fake.createSFXArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) CreateSFXReturns(result1 []byte, result2 error) {
+	fake.createSFXMutex.Lock()
+	defer fake.createSFXMutex.Unlock()
+	fake.CreateSFXStub = nil
+	fake.createSFXReturns = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateSFXReturnsOnCall(i int, result1 []byte, result2 error) {
+	fake.createSFXMutex.Lock()
+	defer fake.createSFXMutex.Unlock()
+	fake.CreateSFXStub = nil
+	if fake.createSFXReturnsOnCall == nil {
+		fake.createSFXReturnsOnCall = make(map[int]struct {
+			result1 []byte
+			result2 error
+		})
+	}
+	fake.createSFXReturnsOnCall[i] = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeClient) CreateSpeech(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateSpeechRequest) ([]byte, error) {
 	fake.createSpeechMutex.Lock()
 	ret, specificReturn := fake.createSpeechReturnsOnCall[len(fake.createSpeechArgsForCall)]
@@ -646,6 +853,138 @@ func (fake *FakeClient) CreateSpeechReturnsOnCall(i int, result1 []byte, result2
 		})
 	}
 	fake.createSpeechReturnsOnCall[i] = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateVideo(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateVideoRequest) (*sdk.VideoJob, error) {
+	fake.createVideoMutex.Lock()
+	ret, specificReturn := fake.createVideoReturnsOnCall[len(fake.createVideoArgsForCall)]
+	fake.createVideoArgsForCall = append(fake.createVideoArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateVideoRequest
+	}{arg1, arg2, arg3})
+	stub := fake.CreateVideoStub
+	fakeReturns := fake.createVideoReturns
+	fake.recordInvocation("CreateVideo", []interface{}{arg1, arg2, arg3})
+	fake.createVideoMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) CreateVideoCallCount() int {
+	fake.createVideoMutex.RLock()
+	defer fake.createVideoMutex.RUnlock()
+	return len(fake.createVideoArgsForCall)
+}
+
+func (fake *FakeClient) CreateVideoCalls(stub func(context.Context, sdk.Provider, sdk.CreateVideoRequest) (*sdk.VideoJob, error)) {
+	fake.createVideoMutex.Lock()
+	defer fake.createVideoMutex.Unlock()
+	fake.CreateVideoStub = stub
+}
+
+func (fake *FakeClient) CreateVideoArgsForCall(i int) (context.Context, sdk.Provider, sdk.CreateVideoRequest) {
+	fake.createVideoMutex.RLock()
+	defer fake.createVideoMutex.RUnlock()
+	argsForCall := fake.createVideoArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) CreateVideoReturns(result1 *sdk.VideoJob, result2 error) {
+	fake.createVideoMutex.Lock()
+	defer fake.createVideoMutex.Unlock()
+	fake.CreateVideoStub = nil
+	fake.createVideoReturns = struct {
+		result1 *sdk.VideoJob
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateVideoReturnsOnCall(i int, result1 *sdk.VideoJob, result2 error) {
+	fake.createVideoMutex.Lock()
+	defer fake.createVideoMutex.Unlock()
+	fake.CreateVideoStub = nil
+	if fake.createVideoReturnsOnCall == nil {
+		fake.createVideoReturnsOnCall = make(map[int]struct {
+			result1 *sdk.VideoJob
+			result2 error
+		})
+	}
+	fake.createVideoReturnsOnCall[i] = struct {
+		result1 *sdk.VideoJob
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) DownloadVideoContent(arg1 context.Context, arg2 sdk.Provider, arg3 string) ([]byte, error) {
+	fake.downloadVideoContentMutex.Lock()
+	ret, specificReturn := fake.downloadVideoContentReturnsOnCall[len(fake.downloadVideoContentArgsForCall)]
+	fake.downloadVideoContentArgsForCall = append(fake.downloadVideoContentArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 string
+	}{arg1, arg2, arg3})
+	stub := fake.DownloadVideoContentStub
+	fakeReturns := fake.downloadVideoContentReturns
+	fake.recordInvocation("DownloadVideoContent", []interface{}{arg1, arg2, arg3})
+	fake.downloadVideoContentMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) DownloadVideoContentCallCount() int {
+	fake.downloadVideoContentMutex.RLock()
+	defer fake.downloadVideoContentMutex.RUnlock()
+	return len(fake.downloadVideoContentArgsForCall)
+}
+
+func (fake *FakeClient) DownloadVideoContentCalls(stub func(context.Context, sdk.Provider, string) ([]byte, error)) {
+	fake.downloadVideoContentMutex.Lock()
+	defer fake.downloadVideoContentMutex.Unlock()
+	fake.DownloadVideoContentStub = stub
+}
+
+func (fake *FakeClient) DownloadVideoContentArgsForCall(i int) (context.Context, sdk.Provider, string) {
+	fake.downloadVideoContentMutex.RLock()
+	defer fake.downloadVideoContentMutex.RUnlock()
+	argsForCall := fake.downloadVideoContentArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) DownloadVideoContentReturns(result1 []byte, result2 error) {
+	fake.downloadVideoContentMutex.Lock()
+	defer fake.downloadVideoContentMutex.Unlock()
+	fake.DownloadVideoContentStub = nil
+	fake.downloadVideoContentReturns = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) DownloadVideoContentReturnsOnCall(i int, result1 []byte, result2 error) {
+	fake.downloadVideoContentMutex.Lock()
+	defer fake.downloadVideoContentMutex.Unlock()
+	fake.DownloadVideoContentStub = nil
+	if fake.downloadVideoContentReturnsOnCall == nil {
+		fake.downloadVideoContentReturnsOnCall = make(map[int]struct {
+			result1 []byte
+			result2 error
+		})
+	}
+	fake.downloadVideoContentReturnsOnCall[i] = struct {
 		result1 []byte
 		result2 error
 	}{result1, result2}
@@ -1047,6 +1386,72 @@ func (fake *FakeClient) ListToolsReturnsOnCall(i int, result1 *sdk.ListToolsResp
 	}
 	fake.listToolsReturnsOnCall[i] = struct {
 		result1 *sdk.ListToolsResponse
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) RetrieveVideo(arg1 context.Context, arg2 sdk.Provider, arg3 string) (*sdk.VideoJob, error) {
+	fake.retrieveVideoMutex.Lock()
+	ret, specificReturn := fake.retrieveVideoReturnsOnCall[len(fake.retrieveVideoArgsForCall)]
+	fake.retrieveVideoArgsForCall = append(fake.retrieveVideoArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 string
+	}{arg1, arg2, arg3})
+	stub := fake.RetrieveVideoStub
+	fakeReturns := fake.retrieveVideoReturns
+	fake.recordInvocation("RetrieveVideo", []interface{}{arg1, arg2, arg3})
+	fake.retrieveVideoMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) RetrieveVideoCallCount() int {
+	fake.retrieveVideoMutex.RLock()
+	defer fake.retrieveVideoMutex.RUnlock()
+	return len(fake.retrieveVideoArgsForCall)
+}
+
+func (fake *FakeClient) RetrieveVideoCalls(stub func(context.Context, sdk.Provider, string) (*sdk.VideoJob, error)) {
+	fake.retrieveVideoMutex.Lock()
+	defer fake.retrieveVideoMutex.Unlock()
+	fake.RetrieveVideoStub = stub
+}
+
+func (fake *FakeClient) RetrieveVideoArgsForCall(i int) (context.Context, sdk.Provider, string) {
+	fake.retrieveVideoMutex.RLock()
+	defer fake.retrieveVideoMutex.RUnlock()
+	argsForCall := fake.retrieveVideoArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) RetrieveVideoReturns(result1 *sdk.VideoJob, result2 error) {
+	fake.retrieveVideoMutex.Lock()
+	defer fake.retrieveVideoMutex.Unlock()
+	fake.RetrieveVideoStub = nil
+	fake.retrieveVideoReturns = struct {
+		result1 *sdk.VideoJob
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) RetrieveVideoReturnsOnCall(i int, result1 *sdk.VideoJob, result2 error) {
+	fake.retrieveVideoMutex.Lock()
+	defer fake.retrieveVideoMutex.Unlock()
+	fake.RetrieveVideoStub = nil
+	if fake.retrieveVideoReturnsOnCall == nil {
+		fake.retrieveVideoReturnsOnCall = make(map[int]struct {
+			result1 *sdk.VideoJob
+			result2 error
+		})
+	}
+	fake.retrieveVideoReturnsOnCall[i] = struct {
+		result1 *sdk.VideoJob
 		result2 error
 	}{result1, result2}
 }
