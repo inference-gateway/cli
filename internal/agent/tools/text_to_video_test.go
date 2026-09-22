@@ -78,7 +78,6 @@ func TestTextToVideoTool_Validate(t *testing.T) {
 	t.Chdir(workDir)
 
 	require.NoError(t, os.WriteFile(filepath.Join(workDir, "line.mp3"), []byte("mp3"), 0o600))
-	// The WAV lookup falls back to the TextToSpeech output directory.
 	require.NoError(t, os.WriteFile(filepath.Join(tool.config.TextToSpeech.OutputDir, "line.wav"), minimalWAV(), 0o600))
 
 	tests := []struct {
