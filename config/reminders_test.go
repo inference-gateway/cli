@@ -559,6 +559,38 @@ func TestOnTruncationTrigger(t *testing.T) {
 	}
 }
 
+func TestOnEmptyResponseTrigger(t *testing.T) {
+	tests := []struct {
+		name    string
+		hook    agentdomain.HookPoint
+		empty   bool
+		strikes int
+		want    bool
+	}{
+		{"fires on empty reply at post_stream", agentdomain.HookPostStream, true, 1, true},
+		{"silent when reply had content", agentdomain.HookPostStream, false, 1, false},
+		{"silent once strike cap reached", agentdomain.HookPostStream, true, 3, false},
+		{"silent at other hooks", agentdomain.HookPostTool, true, 1, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := remindersCfg(true, config.ReminderConfig{
+				Name:      "empty-response-continuation",
+				Hook:      agentdomain.HookPostStream,
+				Trigger:   config.ReminderTriggerOnEmptyResponse,
+				Threshold: 3,
+				Text:      "continue",
+			})
+			q := query(tt.hook, 1, 10, nil)
+			q.EmptyResponse = tt.empty
+			q.StalledStrikes = tt.strikes
+			if fired := len(cfg.RemindersDue(q)) == 1; fired != tt.want {
+				t.Fatalf("fired = %v, want %v", fired, tt.want)
+			}
+		})
+	}
+}
+
 func TestOnRepeatedFailureTrigger(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -617,6 +649,10 @@ func TestValidateNewTriggerRequirements(t *testing.T) {
 			Name: "r", Hook: agentdomain.HookPreStream, Trigger: config.ReminderTriggerOnStalledTodos, Text: "t"}, true},
 		{"on_stalled_todos valid", config.ReminderConfig{
 			Name: "r", Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Text: "t"}, false},
+		{"on_empty_response at wrong hook", config.ReminderConfig{
+			Name: "r", Hook: agentdomain.HookPreStream, Trigger: config.ReminderTriggerOnEmptyResponse, Text: "t"}, true},
+		{"on_empty_response valid", config.ReminderConfig{
+			Name: "r", Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnEmptyResponse, Text: "t"}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -633,7 +669,7 @@ func TestDefaultRemindersSeedContinuationBuiltins(t *testing.T) {
 	for _, r := range config.DefaultRemindersConfig().Reminders {
 		names[r.Name] = true
 	}
-	for _, want := range []string{"repeated-failure", "todo-continuation", "truncation-continuation"} {
+	for _, want := range []string{"repeated-failure", "todo-continuation", "truncation-continuation", "empty-response-continuation"} {
 		if !names[want] {
 			t.Errorf("DefaultRemindersConfig missing built-in %q", want)
 		}

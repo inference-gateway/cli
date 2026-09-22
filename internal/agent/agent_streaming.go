@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -569,7 +570,7 @@ func (a *EventDrivenAgent) finalizeStream(
 		toolCallsSlice = append(toolCallsSlice, &completeToolCalls[i])
 	}
 
-	a.service.trackStreamOutcome(a.finishReason, len(toolCallsSlice) > 0)
+	a.service.trackStreamOutcome(a.finishReason, len(toolCallsSlice) > 0, strings.TrimSpace(outputContent) != "")
 
 	a.events <- states.StreamCompletedEvent{
 		Message:            assistantMessage,

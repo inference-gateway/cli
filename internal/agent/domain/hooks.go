@@ -85,6 +85,10 @@ type SystemReminder struct {
 // StalledStrikes is the count of consecutive no-tool-call responses, gating
 // that trigger's strike cap (threshold).
 //
+// EmptyResponse reports that the just-finished assistant turn carried neither
+// text nor a tool call (a reasoning-only reply); it drives the
+// `on_empty_response` trigger at the post_stream hook.
+//
 // ModeChanged reports whether the agent mode differs from the previous
 // streaming turn; PrevMode/Mode carry the transition. They are meaningful only
 // at the pre_stream hook (set right before that dispatch) and drive the
@@ -101,6 +105,7 @@ type ReminderQuery struct {
 	FinishReason     string
 	IncompleteTodos  []TodoItem
 	StalledStrikes   int
+	EmptyResponse    bool
 	TodoCount        int
 	ModeChanged      bool
 	PrevMode         AgentMode

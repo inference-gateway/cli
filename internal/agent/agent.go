@@ -35,64 +35,46 @@ import (
 
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
 type AgentServiceImpl struct {
-	client           sdk.Client
-	toolService      agentdomain.ToolService
-	config           *config.Config
-	conversationRepo convdomain.ConversationRepository
-	a2aAgentService  agentapp.A2AAgentService
-	skillsService    agentdomain.SkillsService
-	messageQueue     convdomain.MessageQueue
-	stateManager     stateManager
-	timeoutSeconds   int
-	maxTokens        int
-	optimizer        convdomain.ConversationOptimizer
-	tokenizer        *conv.TokenizerService
-	approvalPolicy   agentdomain.ApprovalPolicy
-	judge            agentdomain.JudgeApprover
-	currentModel     func() string
-	escalations      *judgeEscalations
-
-	bgRegistry       scheddomain.BackgroundTaskRegistry
-	rolloverManager  *conv.SessionRolloverManager
-	reminderProvider agentdomain.SystemReminderProvider
-	hookProvider     agentdomain.HookCommandProvider
-	memoryBackend    memory.MemoryBackend
-	recorder         *telemetry.Recorder
-	sessionTurns     atomic.Int64
-	firedReminders   map[string]bool
-	reminderMux      sync.Mutex
-	stalledStrikes   int
-	lastFinishReason string
-
-	// (name+args), reset per key on success; backs the retry-loop breaker
-	failedCalls    map[string]int
-	failedCallsMux sync.Mutex
-
-	// repeatedFailure holds the last tool-call key whose failure count
-	// meets the on_repeated_failure threshold. Set by trackRepeatedFailure
-	// during tool execution and consumed by injectDueReminders at the
-	// post_tool hook. Cleared on the first post_tool dispatch read.
+	client             sdk.Client
+	toolService        agentdomain.ToolService
+	config             *config.Config
+	conversationRepo   convdomain.ConversationRepository
+	a2aAgentService    agentapp.A2AAgentService
+	skillsService      agentdomain.SkillsService
+	messageQueue       convdomain.MessageQueue
+	stateManager       stateManager
+	timeoutSeconds     int
+	maxTokens          int
+	optimizer          convdomain.ConversationOptimizer
+	tokenizer          *conv.TokenizerService
+	approvalPolicy     agentdomain.ApprovalPolicy
+	judge              agentdomain.JudgeApprover
+	currentModel       func() string
+	escalations        *judgeEscalations
+	bgRegistry         scheddomain.BackgroundTaskRegistry
+	rolloverManager    *conv.SessionRolloverManager
+	reminderProvider   agentdomain.SystemReminderProvider
+	hookProvider       agentdomain.HookCommandProvider
+	memoryBackend      memory.MemoryBackend
+	recorder           *telemetry.Recorder
+	sessionTurns       atomic.Int64
+	firedReminders     map[string]bool
+	reminderMux        sync.Mutex
+	stalledStrikes     int
+	lastFinishReason   string
+	lastStreamEmpty    bool
+	failedCalls        map[string]int
+	failedCallsMux     sync.Mutex
 	repeatedFailureKey string
 	repeatedFailureMux sync.Mutex
-
-	// Session tracking: covers the full lifetime of a RunWithStream call.
-	// Cancelling a session aborts streaming, tool execution, approval waits,
-	// and the main event loop in one shot. Idempotent via sync.Once so
-	// multiple Esc presses are safe.
 	activeSessions     map[string]*sessionCancel
 	sessionMux         sync.RWMutex
 	reasoningEffort    string
 	reasoningEffortMux sync.RWMutex
-
-	// Metrics tracking
-	metrics    map[string]*agentdomain.ChatMetrics
-	metricsMux sync.RWMutex
-
-	// Tool call accumulation
-	toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall
-	toolCallsMux sync.RWMutex
-
-	// Context caching
+	metrics            map[string]*agentdomain.ChatMetrics
+	metricsMux         sync.RWMutex
+	toolCallsMap       map[string]*sdk.ChatCompletionMessageToolCall
+	toolCallsMux       sync.RWMutex
 	gitContextCache    string
 	gitContextTurn     int
 	gitContextBranch   string
@@ -101,16 +83,9 @@ type AgentServiceImpl struct {
 	memoryContextCache string
 	memoryContextTurn  int
 	contextCacheMux    sync.RWMutex
-
-	// Mode-change tracking: the mode used on the previous streaming turn. When
-	// the user cycles the mode mid-session (shift+tab), the next pre_stream
-	// reminder query reports the change (modeChangeSinceLastStream) so the
-	// on_mode_change reminder fires and the model adapts its behavior (e.g.
-	// stops writing code in Plan mode). modeInitialized distinguishes "no
-	// previous turn yet" from "previous turn was AgentModeStandard (zero value)".
-	lastStreamedMode agentdomain.AgentMode
-	modeInitialized  bool
-	modeMux          sync.Mutex
+	lastStreamedMode   agentdomain.AgentMode
+	modeInitialized    bool
+	modeMux            sync.Mutex
 }
 
 // sessionCancel bundles the two cancellation primitives for a single
