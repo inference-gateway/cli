@@ -33,6 +33,13 @@ func (f *fakeVoiceSynthesizer) Synthesize(ctx context.Context, text, voiceSample
 	if f.err != nil {
 		return f.err
 	}
+	return os.WriteFile(outPath, fakeWav(), 0o644)
+}
+
+// fakeWav returns a minimal valid WAV (1s of silence at 24 kHz 16-bit mono),
+// the smallest payload audio.WAVDurationSeconds accepts. Shared by the media
+// tool tests in this package.
+func fakeWav() []byte {
 	data := make([]byte, 48000)
 	var buf bytes.Buffer
 	buf.WriteString("RIFF")
@@ -48,7 +55,7 @@ func (f *fakeVoiceSynthesizer) Synthesize(ctx context.Context, text, voiceSample
 	buf.WriteString("data")
 	_ = binary.Write(&buf, binary.LittleEndian, uint32(len(data)))
 	buf.Write(data)
-	return os.WriteFile(outPath, buf.Bytes(), 0o644)
+	return buf.Bytes()
 }
 
 func newTestTTSTool(t *testing.T, enabled bool, synth voiceSynthesizer) *TextToSpeechTool {

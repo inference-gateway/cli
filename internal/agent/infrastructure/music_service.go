@@ -41,16 +41,11 @@ func (s *MusicService) Compose(ctx context.Context, prompt, outPath string, seco
 
 	format := sdk.CreateMusicRequestResponseFormatWav
 	request := sdk.CreateMusicRequest{
-		Prompt:         prompt,
-		Model:          modelName,
-		ResponseFormat: &format,
-	}
-	if seconds != nil {
-		duration := *seconds
-		request.DurationSeconds = &duration
-	}
-	if instrumental != nil {
-		request.Instrumental = instrumental
+		Prompt:          prompt,
+		Model:           modelName,
+		ResponseFormat:  &format,
+		DurationSeconds: seconds,
+		Instrumental:    instrumental,
 	}
 
 	audio, err := s.client.CreateMusic(ctx, sdk.Provider(provider), request)

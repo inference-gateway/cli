@@ -1,9 +1,7 @@
 package tools
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,28 +16,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
-
-// fakeWav returns a minimal valid WAV (1s of silence at 24 kHz 16-bit mono),
-// the smallest payload audio.WAVDurationSeconds accepts.
-func fakeWav(t *testing.T) []byte {
-	t.Helper()
-	data := make([]byte, 48000)
-	var buf bytes.Buffer
-	buf.WriteString("RIFF")
-	_ = binary.Write(&buf, binary.LittleEndian, uint32(36+len(data)))
-	buf.WriteString("WAVEfmt ")
-	_ = binary.Write(&buf, binary.LittleEndian, uint32(16))
-	_ = binary.Write(&buf, binary.LittleEndian, uint16(1))
-	_ = binary.Write(&buf, binary.LittleEndian, uint16(1))
-	_ = binary.Write(&buf, binary.LittleEndian, uint32(24000))
-	_ = binary.Write(&buf, binary.LittleEndian, uint32(48000))
-	_ = binary.Write(&buf, binary.LittleEndian, uint16(2))
-	_ = binary.Write(&buf, binary.LittleEndian, uint16(16))
-	buf.WriteString("data")
-	_ = binary.Write(&buf, binary.LittleEndian, uint32(len(data)))
-	buf.Write(data)
-	return buf.Bytes()
-}
 
 func newTestMusicTool(t *testing.T, enabled bool, music agentdomain.MusicService) *TextToMusicTool {
 	t.Helper()
@@ -122,7 +98,7 @@ func TestTextToMusicTool_Execute(t *testing.T) {
 	t.Run("reports path, prompt and duration", func(t *testing.T) {
 		music := &agentdomainmocks.FakeMusicService{}
 		music.ComposeStub = func(ctx context.Context, prompt, outPath string, seconds *float32, instrumental *bool) error {
-			return os.WriteFile(outPath, fakeWav(t), 0o644)
+			return os.WriteFile(outPath, fakeWav(), 0o644)
 		}
 		tool := newTestMusicTool(t, true, music)
 
@@ -155,7 +131,7 @@ func TestTextToMusicTool_Execute(t *testing.T) {
 	t.Run("omitted knobs are nil", func(t *testing.T) {
 		music := &agentdomainmocks.FakeMusicService{}
 		music.ComposeStub = func(ctx context.Context, prompt, outPath string, seconds *float32, instrumental *bool) error {
-			return os.WriteFile(outPath, fakeWav(t), 0o644)
+			return os.WriteFile(outPath, fakeWav(), 0o644)
 		}
 		tool := newTestMusicTool(t, true, music)
 
@@ -206,10 +182,8 @@ func TestTextToMusicTool_Execute(t *testing.T) {
 			"prompt":      "calm piano",
 			"output_path": "/etc/passwd",
 		})
-		require.NoError(t, err)
-		require.NotNil(t, res)
-		assert.False(t, res.Success)
-		assert.Contains(t, res.Error, "invalid output_path")
+		require.ErrorContains(t, err, "invalid output_path")
+		assert.Nil(t, res)
 		assert.Equal(t, 0, music.ComposeCallCount())
 	})
 }
@@ -217,7 +191,7 @@ func TestTextToMusicTool_Execute(t *testing.T) {
 func TestTextToMusicTool_Formatting(t *testing.T) {
 	music := &agentdomainmocks.FakeMusicService{}
 	music.ComposeStub = func(ctx context.Context, prompt, outPath string, seconds *float32, instrumental *bool) error {
-		return os.WriteFile(outPath, fakeWav(t), 0o644)
+		return os.WriteFile(outPath, fakeWav(), 0o644)
 	}
 	tool := newTestMusicTool(t, true, music)
 

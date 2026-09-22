@@ -67,22 +67,6 @@ func (t *TextToMusicTool) Definition() sdk.ChatCompletionTool {
 
 // Validate validates TextToMusic arguments
 func (t *TextToMusicTool) Validate(args map[string]any) error {
-	if err := t.validatePromptAndOptions(args); err != nil {
-		return err
-	}
-
-	rawOut, _ := args["output_path"].(string)
-	if strings.TrimSpace(rawOut) == "" {
-		return nil
-	}
-	_, err := t.resolveOutputPath(rawOut)
-	return err
-}
-
-// validatePromptAndOptions checks the schema-level arguments; output_path is
-// validated by resolving it, which Execute reports as a failed result instead
-// of an argument error.
-func (t *TextToMusicTool) validatePromptAndOptions(args map[string]any) error {
 	prompt, ok := args["prompt"].(string)
 	if !ok || strings.TrimSpace(prompt) == "" {
 		return fmt.Errorf("prompt is required and must be a non-empty string")
@@ -104,7 +88,12 @@ func (t *TextToMusicTool) validatePromptAndOptions(args map[string]any) error {
 		}
 	}
 
-	return nil
+	rawOut, _ := args["output_path"].(string)
+	if strings.TrimSpace(rawOut) == "" {
+		return nil
+	}
+	_, err := t.resolveOutputPath(rawOut)
+	return err
 }
 
 // resolveOutputPath confines a supplied file name to the configured output
@@ -119,7 +108,7 @@ func (t *TextToMusicTool) resolveOutputPath(raw string) (string, error) {
 
 // Execute executes the TextToMusic tool
 func (t *TextToMusicTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
-	if err := t.validatePromptAndOptions(args); err != nil {
+	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
 

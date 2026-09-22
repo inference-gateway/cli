@@ -1027,11 +1027,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			Timeout:      300,
 			FFmpegPath:   "",
 		},
-		TextToMusic: TextToMusicConfig{
-			Enabled:   false,
-			Model:     "",
-			OutputDir: "",
-		},
 		Vision: VisionConfig{
 			Annotator: VisionAnnotatorConfig{
 				Enabled:   false,
