@@ -7,9 +7,13 @@
 package avatars
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"io/fs"
 	"maps"
 	"os"
@@ -106,10 +110,10 @@ func Delete(dir, name string) error {
 }
 
 // Create builds a new avatar folder dir/<name>/ from a front photo: the photo
-// is copied in as the primary image (01-front.<ext>) and each angle is
-// generated from it concurrently with edit and saved as
-// NN-<angle>.png in the order given. An existing avatar is never overwritten,
-// and on any failure the half-built folder is removed.
+// is stored as the primary image (01-front.<ext>), a JPEG upright and without
+// metadata, and each angle is generated from that stored image concurrently
+// with edit and saved as NN-<angle>.png in the order given. An existing avatar
+// is never overwritten, and on any failure the half-built folder is removed.
 func Create(ctx context.Context, dir, name, photo string, angles []string, edit EditFunc) (Avatar, error) {
 	if name == "" || name == "." || filepath.IsAbs(name) || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
 		return Avatar{}, fmt.Errorf("invalid avatar name %q: pass a bare avatar name", name)
@@ -127,6 +131,9 @@ func Create(ctx context.Context, dir, name, photo string, angles []string, edit 
 	if err != nil {
 		return Avatar{}, fmt.Errorf("reading photo: %w", err)
 	}
+	if front, err = normalizePhoto(front, ext); err != nil {
+		return Avatar{}, err
+	}
 
 	folder := filepath.Join(dir, filepath.Base(name))
 	if _, err := os.Stat(folder); err == nil {
@@ -135,7 +142,7 @@ func Create(ctx context.Context, dir, name, photo string, angles []string, edit 
 	if err := os.MkdirAll(folder, 0o755); err != nil {
 		return Avatar{}, fmt.Errorf("creating avatar folder: %w", err)
 	}
-	if err := generate(ctx, folder, ext, front, photo, angles, edit); err != nil {
+	if err := generate(ctx, folder, ext, front, angles, edit); err != nil {
 		_ = os.RemoveAll(folder)
 		return Avatar{}, err
 	}
@@ -143,18 +150,20 @@ func Create(ctx context.Context, dir, name, photo string, angles []string, edit 
 }
 
 // generate writes the front photo and every generated angle into folder.
-// Angles run concurrently - each goroutine owns one slot of errs - and the
-// first failure does not stop the others, so the error lists every failed
-// angle.
-func generate(ctx context.Context, folder, ext string, front []byte, photo string, angles []string, edit EditFunc) error {
-	if err := os.WriteFile(filepath.Join(folder, "01-front"+ext), front, 0o644); err != nil { // nolint:gosec
+// Angles are edited from the stored front image, so the provider gets the
+// normalized photo. They run concurrently - each goroutine owns one slot of
+// errs - and the first failure does not stop the others, so the error lists
+// every failed angle.
+func generate(ctx context.Context, folder, ext string, front []byte, angles []string, edit EditFunc) error {
+	frontPath := filepath.Join(folder, "01-front"+ext)
+	if err := os.WriteFile(frontPath, front, 0o644); err != nil { // nolint:gosec
 		return fmt.Errorf("saving front photo: %w", err)
 	}
 	errs := make([]error, len(angles))
 	var wg sync.WaitGroup
 	for i, angle := range angles {
 		wg.Go(func() {
-			generated, err := edit(ctx, Angles[angle], photo)
+			generated, err := edit(ctx, Angles[angle], frontPath)
 			if err == nil {
 				err = move(generated, filepath.Join(folder, fmt.Sprintf("%02d-%s.png", i+2, angle)))
 			}
@@ -179,6 +188,114 @@ func move(src, dst string) error {
 	}
 	_ = os.Remove(src)
 	return nil
+}
+
+// normalizePhoto returns the bytes to store as the primary image. A JPEG is
+// decoded, turned upright per its EXIF orientation and re-encoded, which
+// drops every metadata segment (camera, GPS) before the photo is stored or
+// sent to a provider that may ignore the orientation tag.
+// ponytail: JPEG only - phone photos carry EXIF there; PNG eXIf and WebP
+// (no stdlib decoder) pass through untouched.
+func normalizePhoto(data []byte, ext string) ([]byte, error) {
+	if ext != ".jpg" && ext != ".jpeg" {
+		return data, nil
+	}
+	img, err := jpeg.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("decoding photo: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, orient(img, exifOrientation(data)), &jpeg.Options{Quality: 95}); err != nil {
+		return nil, fmt.Errorf("encoding photo: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// exifOrientation returns the EXIF Orientation tag (0x0112, 1-8) from a
+// JPEG's APP1 segment, or 1 (upright) when there is none or it is malformed.
+func exifOrientation(jpg []byte) int {
+	for i := 2; i+4 <= len(jpg) && jpg[i] == 0xFF; {
+		marker, size := jpg[i+1], int(binary.BigEndian.Uint16(jpg[i+2:]))
+		end := i + 2 + size
+		if marker == 0xDA || size < 2 || end > len(jpg) { // start of scan: no metadata after it
+			break
+		}
+		if seg := jpg[i+4 : end]; marker == 0xE1 && bytes.HasPrefix(seg, []byte("Exif\x00\x00")) {
+			return tiffOrientation(seg[6:])
+		}
+		i = end
+	}
+	return 1
+}
+
+// tiffOrientation reads the Orientation entry from the first IFD of an EXIF
+// TIFF block.
+func tiffOrientation(tiff []byte) int {
+	if len(tiff) < 8 {
+		return 1
+	}
+	var order binary.ByteOrder = binary.BigEndian
+	switch string(tiff[:2]) {
+	case "II":
+		order = binary.LittleEndian
+	case "MM":
+	default:
+		return 1
+	}
+	ifd := int(order.Uint32(tiff[4:]))
+	if ifd < 8 || ifd+2 > len(tiff) {
+		return 1
+	}
+	for e, n := ifd+2, int(order.Uint16(tiff[ifd:])); n > 0 && e+12 <= len(tiff); e, n = e+12, n-1 {
+		if order.Uint16(tiff[e:]) == 0x0112 {
+			if o := int(order.Uint16(tiff[e+8:])); o >= 1 && o <= 8 {
+				return o
+			}
+			return 1
+		}
+	}
+	return 1
+}
+
+// orient returns src transformed so EXIF orientation o displays upright:
+// 2-4 mirror/rotate in place, 5-8 swap width and height. Each destination
+// pixel is mapped back to its source pixel.
+// ponytail: per-pixel At/Set, about a second for a 12 MP photo; fine for a
+// one-off avatar, switch to direct Pix copies if it ever runs in bulk.
+func orient(src image.Image, o int) image.Image {
+	if o < 2 || o > 8 {
+		return src
+	}
+	b := src.Bounds()
+	w, h := b.Dx(), b.Dy()
+	dw, dh := w, h
+	if o >= 5 {
+		dw, dh = h, w
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, dw, dh))
+	for y := range dh {
+		for x := range dw {
+			sx, sy := x, y
+			switch o {
+			case 2:
+				sx = w - 1 - x
+			case 3:
+				sx, sy = w-1-x, h-1-y
+			case 4:
+				sy = h - 1 - y
+			case 5:
+				sx, sy = y, x
+			case 6:
+				sx, sy = y, h-1-x
+			case 7:
+				sx, sy = w-1-y, h-1-x
+			case 8:
+				sx, sy = w-1-y, x
+			}
+			dst.Set(x, y, src.At(b.Min.X+sx, b.Min.Y+sy))
+		}
+	}
+	return dst
 }
 
 // Names returns the names of the avatars in dir, for error hints.

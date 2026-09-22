@@ -120,9 +120,11 @@ infer avatars list --format json                          # [{"name":"presenter"
 infer avatars delete presenter                            # removes the folder and every image in it
 ```
 
-`create` copies the photo in as `01-front.<ext>` (the primary image) and generates each extra view from it through the gateway's
+`create` stores the photo as `01-front.<ext>` (the primary image) and generates each extra view from it through the gateway's
 image edit API (`POST /v1/images/edits`) with `tools.image_edit.model` (default `openai/gpt-image-2`), all views in parallel. It
-never overwrites an existing avatar, and a failed view removes the half-built folder.
+never overwrites an existing avatar, and a failed view removes the half-built folder. A JPEG is turned upright per its EXIF
+orientation (phone photos are often stored sideways) and re-encoded, which strips its metadata - camera details and GPS location
+never reach the library or a provider. PNG and WebP photos are stored as-is.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |

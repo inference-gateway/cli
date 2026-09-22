@@ -44,9 +44,10 @@ prompt renders receive every image as a reference of the person.`,
 		Use:   "create <name> --from <photo>",
 		Short: "Create an avatar from a photo, generating extra angles",
 		Long: `Create ~/.infer/avatars/<name>/ from a front-facing photo. The photo is
-copied in as the primary image (01-front) and each --angles view is generated
-from it through the gateway's image edit API with tools.image_edit.model,
-in parallel. Pass --angles "" to only copy the photo.
+stored as the primary image (01-front; a JPEG is turned upright per its EXIF
+orientation and stripped of metadata such as GPS) and each --angles view is
+generated from it through the gateway's image edit API with
+tools.image_edit.model, in parallel. Pass --angles "" to only copy the photo.
 
 The photo is sent to the provider behind tools.image_edit.model (OpenAI by
 default) for every generated angle.
