@@ -73,7 +73,10 @@ func newEnvWithScenarios(t *testing.T, defs *mockgateway.ScenarioFile, mutate ..
 		require.NoError(t, err)
 		defs.Models = std.Models
 	}
-	return newEnvWithHandler(t, mockgateway.New(defs), mutate...)
+	gw := mockgateway.New(defs)
+	e := newEnvWithHandler(t, gw, mutate...)
+	e.gateway = gw
+	return e
 }
 
 // newEnvWithHandler is newEnvWithScenarios with a caller-built handler, for
