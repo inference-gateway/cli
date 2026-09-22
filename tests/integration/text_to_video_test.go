@@ -58,7 +58,7 @@ scenarios:
 		createdForm = form
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, `{"id":"job-1","object":"video","created_at":1,"model":"creatify-aurora","status":"queued"}`)
+		_, _ = fmt.Fprint(w, `{"id":"job-1","object":"video","created_at":1,"model":"veo-3.1-fast-generate-001","status":"queued"}`)
 	})
 	mux.HandleFunc("GET /v1/videos/{id}", func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
@@ -69,7 +69,7 @@ scenarios:
 		}
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(w, `{"id":"job-1","object":"video","created_at":1,"model":"creatify-aurora","status":%q,"progress":100}`, status)
+		_, _ = fmt.Fprintf(w, `{"id":"job-1","object":"video","created_at":1,"model":"veo-3.1-fast-generate-001","status":%q,"progress":100}`, status)
 	})
 	mux.HandleFunc("GET /v1/videos/{id}/content", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "video/mp4")
@@ -137,12 +137,12 @@ loop:
 	require.True(t, res.Success, res.Error)
 	data, ok := res.Data.(map[string]any)
 	require.True(t, ok, "tool result data must be a map, got %T", res.Data)
-	require.Equal(t, "elevenlabs/creatify-aurora", data["model"])
+	require.Equal(t, "elevenlabs/veo-3.1-fast-generate-001", data["model"])
 	require.Equal(t, "4", data["seconds"])
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Equal(t, "creatify-aurora", createdForm["model"])
+	require.Equal(t, "veo-3.1-fast-generate-001", createdForm["model"])
 	require.Equal(t, "a neon city flyover", createdForm["prompt"])
 	require.Equal(t, "4", createdForm["seconds"])
 	require.Equal(t, 2, polls, "one poll for the queued state, one for completed")

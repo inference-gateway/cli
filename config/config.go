@@ -137,8 +137,13 @@ const TextToMusicGatewayDefaultModel = "elevenlabs/music_v2_5"
 const TextToSFXGatewayDefaultModel = "elevenlabs/eleven_text_to_sound_v2"
 
 // TextToVideoGatewayDefaultModel is the model used by the gateway's Videos API
-// when text_to_video.model is unset.
-const TextToVideoGatewayDefaultModel = "elevenlabs/creatify-aurora"
+// for prompt (and first-frame) renders when text_to_video.model is unset.
+const TextToVideoGatewayDefaultModel = "elevenlabs/veo-3.1-fast-generate-001"
+
+// TextToVideoGatewayDefaultAvatarModel is the model used by the gateway's
+// Videos API for lip-synced avatar renders when text_to_video.avatar_model is
+// unset.
+const TextToVideoGatewayDefaultAvatarModel = "elevenlabs/creatify-aurora"
 
 // TextToSFXConfig contains opt-in settings for sound-effect generation. The
 // clip is generated behind the gateway's SFX API (POST /v1/audio/sfx), always
@@ -177,10 +182,12 @@ func (c TextToSFXConfig) ResolveOutputDir() (string, error) {
 // /v1/videos/{id}, GET /v1/videos/{id}/content); the CLI holds no provider
 // key, the gateway does. When avatar and audio are supplied, the portrait and
 // the driving voice are sent to a third-party provider, so the tool stays off
-// by default.
+// by default. Model renders prompts; AvatarModel renders lip-synced clips
+// from a portrait and an audio clip, so each can be swapped independently.
 type TextToVideoConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
 	Model           string `yaml:"model" mapstructure:"model"`
+	AvatarModel     string `yaml:"avatar_model" mapstructure:"avatar_model"`
 	Size            string `yaml:"size" mapstructure:"size"`
 	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
 	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
@@ -188,9 +195,14 @@ type TextToVideoConfig struct {
 	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
-// ResolveGatewayModel returns the "provider/model" id used for video
-// generation, defaulting to the gateway's elevenlabs/creatify-aurora.
-func (c TextToVideoConfig) ResolveGatewayModel() string {
+// ResolveGatewayModel returns the "provider/model" id for a render: the
+// avatar model (default elevenlabs/creatify-aurora) for lip-synced avatar
+// renders, the prompt model (default elevenlabs/veo-3.1-fast-generate-001)
+// otherwise.
+func (c TextToVideoConfig) ResolveGatewayModel(avatar bool) string {
+	if avatar {
+		return cmp.Or(strings.TrimSpace(c.AvatarModel), TextToVideoGatewayDefaultAvatarModel)
+	}
 	return cmp.Or(strings.TrimSpace(c.Model), TextToVideoGatewayDefaultModel)
 }
 
@@ -208,6 +220,26 @@ func (c TextToVideoConfig) ResolveOutputDir() (string, error) {
 		return "", fmt.Errorf("resolving home directory: %w", err)
 	}
 	return filepath.Join(home, ConfigDirName, "tmp", "video"), nil
+}
+
+// validate checks both models are "provider/model" ids and that the job
+// loop knobs are not negative (a negative poll_interval would poll the
+// gateway in a tight loop).
+func (c TextToVideoConfig) validate() error {
+	for _, avatar := range []bool{false, true} {
+		model := c.ResolveGatewayModel(avatar)
+		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
+			key := "model"
+			if avatar {
+				key = "avatar_model"
+			}
+			return fmt.Errorf("invalid text_to_video.%s %q: must be of the form 'provider/model', e.g. 'elevenlabs/creatify-aurora'", key, model)
+		}
+	}
+	if c.Timeout < 0 || c.PollInterval < 0 {
+		return fmt.Errorf("text_to_video.timeout and text_to_video.poll_interval must not be negative")
+	}
+	return nil
 }
 
 // TextToMusicConfig contains opt-in settings for music composition. The clip
@@ -1703,12 +1735,8 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 	}
 
 	if c.TextToVideo.Enabled {
-		model := c.TextToVideo.ResolveGatewayModel()
-		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
-			return fmt.Errorf(
-				"invalid text_to_video.model %q: must be of the form 'provider/model', e.g. 'elevenlabs/creatify-aurora'",
-				model,
-			)
+		if err := c.TextToVideo.validate(); err != nil {
+			return err
 		}
 	}
 

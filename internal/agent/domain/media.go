@@ -78,6 +78,12 @@ type VideoRequest struct {
 	AudioPath  string
 }
 
+// IsAvatar reports whether the request is a lip-synced avatar render: the
+// audio clip drives it, so it goes to the avatar model.
+func (r VideoRequest) IsAvatar() bool {
+	return r.AudioPath != ""
+}
+
 // VideoService renders a video clip through the gateway's Videos API,
 // writing MP4 content to outPath. With an avatar and audio it renders a
 // lip-synced talking clip; the render blocks until the gateway job

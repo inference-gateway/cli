@@ -15,6 +15,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	avatars "github.com/inference-gateway/cli/internal/avatars"
 )
 
 // minimalPNG is the smallest valid PNG: 1x1 transparent pixel header.
@@ -31,6 +32,7 @@ func minimalPNG() []byte {
 
 func newTestVideoTool(t *testing.T, enabled bool, video agentdomain.VideoService) *TextToVideoTool {
 	t.Helper()
+	t.Setenv("HOME", t.TempDir()) // isolate the avatar library (~/.infer/avatars)
 	cfg := config.DefaultConfig()
 	cfg.Prompts = *config.DefaultPromptsConfig()
 	cfg.TextToVideo.Enabled = enabled
@@ -79,6 +81,7 @@ func TestTextToVideoTool_Validate(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(workDir, "line.mp3"), []byte("mp3"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(tool.config.TextToSpeech.OutputDir, "line.wav"), minimalWAV(), 0o600))
+	writeAvatar(t, "presenter", "01-front.png", "02-left.jpg")
 
 	tests := []struct {
 		name    string
@@ -91,7 +94,11 @@ func TestTextToVideoTool_Validate(t *testing.T) {
 		{"audio without avatar", map[string]any{"prompt": "p", "audio": "line.wav"}, "audio requires avatar"},
 		{"neither prompt nor audio", map[string]any{}, "prompt is required unless audio is provided"},
 		{"audio of the wrong kind", map[string]any{"prompt": "p", "avatar": "avatar.png", "audio": "line.flac"}, "must be a .wav or .mp3 file"},
-		{"avatar of the wrong kind", map[string]any{"prompt": "p", "avatar": "avatar.gif"}, "must be a .png, .jpg, .jpeg or .webp image"},
+		{"library avatar plus audio", map[string]any{"avatar": "presenter", "audio": "line.wav"}, ""},
+		{"library avatar as first frame", map[string]any{"prompt": "p", "avatar": "presenter"}, ""},
+		{"unknown avatar lists the library", map[string]any{"prompt": "p", "avatar": "ghost"}, "available avatars: presenter"},
+		{"unsupported image is not a library avatar", map[string]any{"prompt": "p", "avatar": "avatar.gif"}, "not found"},
+		{"library avatar with ..", map[string]any{"prompt": "p", "avatar": ".."}, "invalid avatar name"},
 		{"avatar not found", map[string]any{"prompt": "p", "avatar": "missing.png"}, "not found"},
 		{"audio not found", map[string]any{"prompt": "p", "avatar": "avatar.png", "audio": "missing.wav"}, "not found"},
 		{"absolute audio", map[string]any{"prompt": "p", "avatar": "avatar.png", "audio": filepath.Join(workDir, "line.wav")}, "invalid audio path"},
@@ -137,7 +144,7 @@ func TestTextToVideoTool_Execute(t *testing.T) {
 		path, _ := data["path"].(string)
 		assert.Contains(t, path, "video-")
 		assert.True(t, strings.HasSuffix(path, ".mp4"))
-		assert.Equal(t, "elevenlabs/creatify-aurora", data["model"])
+		assert.Equal(t, config.TextToVideoGatewayDefaultModel, data["model"])
 		assert.Equal(t, "4", data["seconds"])
 		assert.Equal(t, "1280x720", data["size"])
 		assert.Equal(t, "", data["avatar"])
@@ -175,6 +182,7 @@ func TestTextToVideoTool_Execute(t *testing.T) {
 		data, _ := res.Data.(map[string]any)
 		assert.Equal(t, "face.png", data["avatar"])
 		assert.Equal(t, "line.wav", data["audio"])
+		assert.Equal(t, config.TextToVideoGatewayDefaultAvatarModel, data["model"])
 
 		_, req, _ := video.RenderArgsForCall(0)
 		assert.True(t, strings.HasSuffix(req.AvatarPath, "face.png"))
@@ -205,6 +213,24 @@ func TestTextToVideoTool_Execute(t *testing.T) {
 		_, req, _ := video.RenderArgsForCall(0)
 		assert.Equal(t, "close up on the presenter", req.Prompt)
 		assert.True(t, strings.HasSuffix(req.AudioPath, "line.mp3"))
+	})
+
+	t.Run("library avatar renders from its primary image", func(t *testing.T) {
+		video := &agentdomainmocks.FakeVideoService{}
+		video.RenderStub = func(ctx context.Context, request agentdomain.VideoRequest, outPath string) error {
+			return os.WriteFile(outPath, []byte("mp4"), 0o644) // nolint:gosec
+		}
+		tool := newTestVideoTool(t, true, video)
+		dir := writeAvatar(t, "presenter", "02-left.jpg", "01-front.png")
+		require.NoError(t, os.WriteFile(filepath.Join(tool.config.TextToSpeech.OutputDir, "line.wav"), minimalWAV(), 0o600))
+
+		res, err := tool.Execute(context.Background(), map[string]any{"avatar": "presenter", "audio": "line.wav"})
+		require.NoError(t, err)
+		assert.True(t, res.Success, res.Error)
+
+		_, req, _ := video.RenderArgsForCall(0)
+		assert.Equal(t, filepath.Join(dir, "01-front.png"), req.AvatarPath)
+		assert.True(t, req.IsAvatar())
 	})
 
 	t.Run("provider failure reports the error and leaves no partial file", func(t *testing.T) {
@@ -297,4 +323,16 @@ func TestTextToVideoTool_RegistryGating(t *testing.T) {
 		}
 		assert.True(t, found, "TextToVideo definition should be in the tools payload")
 	})
+}
+
+// writeAvatar creates ~/.infer/avatars/<name>/ under the test HOME holding
+// the given images and returns the avatar folder.
+func writeAvatar(t *testing.T, name string, images ...string) string {
+	t.Helper()
+	dir := filepath.Join(avatars.Dir(), name)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	for _, image := range images {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, image), minimalPNG(), 0o600))
+	}
+	return dir
 }

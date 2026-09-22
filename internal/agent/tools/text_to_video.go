@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -14,10 +15,8 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	avatars "github.com/inference-gateway/cli/internal/avatars"
 )
-
-// avatarExtensions are the portrait formats the desktop avatar library holds.
-var avatarExtensions = []string{".png", ".jpg", ".jpeg", ".webp"}
 
 // audioExtensions are the driving-audio formats the gateway forwards to
 // avatar models: TextToSpeech's WAV output and any MP3 clip.
@@ -60,11 +59,11 @@ func (t *TextToVideoTool) Definition() sdk.ChatCompletionTool {
 					},
 					"size": map[string]any{
 						"type":        "string",
-						"description": "Optional output resolution as widthxheight (e.g. 720x1280 portrait or 1280x720 landscape); passed through verbatim, the provider derives the resolution from the shorter side (480, 720 or 1080); omitted means the provider default",
+						"description": "Optional output resolution as widthxheight (e.g. 720x1280 portrait or 1280x720 landscape); passed through verbatim, the provider derives the resolution from the shorter side (480, 720 or 1080; the default avatar model creatify-aurora supports 480 and 720 only, and avatar renders keep the portrait's aspect ratio); omitted means the provider default",
 					},
 					"avatar": map[string]any{
 						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) of a portrait image (.png, .jpg, .jpeg or .webp); looked up in the working directory, then in the avatar library (~/.infer/models/avatars); with audio the portrait is lip-synced to the clip",
+						"description": "Optional portrait: the name of an avatar in the library (~/.infer/avatars/<name>/, its first image is used), or a bare file name (no directories or absolute paths) of a .png, .jpg, .jpeg or .webp image in the working directory; with audio the portrait is lip-synced to the clip, without audio it is the first frame",
 					},
 					"audio": map[string]any{
 						"type":        "string",
@@ -109,19 +108,26 @@ func (t *TextToVideoTool) Validate(args map[string]any) error {
 	return err
 }
 
-// resolveAvatarPath confines an optional portrait to a readable image in the
-// working directory, falling back to the desktop avatar library
-// (~/.infer/models/avatars), and returns an empty path when unset.
+// resolveAvatarPath resolves an optional portrait and returns an empty path
+// when unset. A name with an image extension is a one-off portrait in the
+// working directory; a bare name is an avatar in the library
+// (~/.infer/avatars/<name>/), resolved to its primary image. An unknown
+// avatar's error lists the available ones so the agent can pick another.
 func (t *TextToVideoTool) resolveAvatarPath(raw string) (string, error) {
 	name := strings.TrimSpace(raw)
 	if name == "" {
 		return "", nil
 	}
-	if ext := strings.ToLower(filepath.Ext(name)); !slices.Contains(avatarExtensions, ext) {
-		return "", fmt.Errorf("avatar %q must be a .png, .jpg, .jpeg or .webp image", raw)
+	if slices.Contains(avatars.ImageExtensions, strings.ToLower(filepath.Ext(name))) {
+		return resolveMediaInputPath(t.config, "", raw, "avatar", "image file")
 	}
-	dir, _ := avatarLibraryDir() // an unusable library just drops the fallback
-	return resolveMediaInputPath(t.config, dir, raw, "avatar", "image file")
+	dir := avatars.Dir()
+	avatar, err := avatars.Get(dir, name)
+	if err != nil {
+		available := strings.Join(avatars.Names(dir), ", ")
+		return "", fmt.Errorf("%w (available avatars: %s)", err, cmp.Or(available, "none"))
+	}
+	return avatar.Primary(dir), nil
 }
 
 // resolveAudioPath confines an optional driving clip to a readable .wav or
@@ -147,16 +153,6 @@ func (t *TextToVideoTool) resolveOutputPath(raw string) (string, error) {
 		return "", err
 	}
 	return resolveMediaOutputPath(dir, "video-", ".mp4", raw)
-}
-
-// avatarLibraryDir returns the desktop-managed avatar library
-// (~/.infer/models/avatars) holding portrait images for lip-synced renders.
-func avatarLibraryDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolving home directory: %w", err)
-	}
-	return filepath.Join(home, config.ConfigDirName, "models", "avatars"), nil
 }
 
 // Execute executes the TextToVideo tool
@@ -208,7 +204,7 @@ func (t *TextToVideoTool) Execute(ctx context.Context, args map[string]any) (*ag
 		Duration:  time.Since(start),
 		Data: map[string]any{
 			"path":    outPath,
-			"model":   t.config.TextToVideo.ResolveGatewayModel(),
+			"model":   t.config.TextToVideo.ResolveGatewayModel(request.IsAvatar()),
 			"seconds": seconds,
 			"size":    size,
 			"avatar":  strings.TrimSpace(rawAvatar),

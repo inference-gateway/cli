@@ -39,7 +39,6 @@ func TestVideoService_Render(t *testing.T) { // nolint:funlen
 		client.DownloadVideoContentReturns([]byte("fake-mp4-bytes"), nil)
 
 		cfg := config.DefaultConfig()
-		cfg.TextToVideo.Model = "elevenlabs/creatify-aurora"
 		cfg.TextToVideo.PollInterval = 1
 		svc := NewVideoService(cfg, client)
 		outPath := filepath.Join(t.TempDir(), "out.mp4")
@@ -50,7 +49,7 @@ func TestVideoService_Render(t *testing.T) { // nolint:funlen
 		require.Equal(t, 1, client.CreateVideoCallCount())
 		_, provider, req := client.CreateVideoArgsForCall(0)
 		assert.Equal(t, sdk.Provider("elevenlabs"), provider)
-		assert.Equal(t, "creatify-aurora", req.Model)
+		assert.Equal(t, "veo-3.1-fast-generate-001", req.Model, "prompt renders use the default text_to_video.model")
 		require.NotNil(t, req.Prompt)
 		assert.Equal(t, "a neon city flyover", *req.Prompt)
 		require.NotNil(t, req.Seconds)
@@ -79,9 +78,7 @@ func TestVideoService_Render(t *testing.T) { // nolint:funlen
 		client.RetrieveVideoReturns(&sdk.VideoJob{ID: "job-1", Status: sdk.VideoJobStatusCompleted}, nil)
 		client.DownloadVideoContentReturns([]byte("mp4"), nil)
 
-		cfg := config.DefaultConfig()
-		cfg.TextToVideo.Model = "elevenlabs/creatify-aurora"
-		svc := NewVideoService(cfg, client)
+		svc := NewVideoService(config.DefaultConfig(), client)
 
 		dir := t.TempDir()
 		avatar := filepath.Join(dir, "portrait.png")
@@ -97,6 +94,7 @@ func TestVideoService_Render(t *testing.T) { // nolint:funlen
 		require.NoError(t, err)
 
 		_, _, req := client.CreateVideoArgsForCall(0)
+		assert.Equal(t, "creatify-aurora", req.Model, "avatar renders use the default text_to_video.avatar_model")
 		require.NotNil(t, req.InputReference)
 		assert.Equal(t, "portrait.png", req.InputReference.Filename())
 		avatarBytes, err := req.InputReference.Bytes()
@@ -169,6 +167,43 @@ func TestVideoService_Render(t *testing.T) { // nolint:funlen
 		svc := newTestVideoService("creatify-aurora", &sdkmocks.FakeClient{})
 		err := svc.Render(context.Background(), agentdomain.VideoRequest{Prompt: "p"}, filepath.Join(t.TempDir(), "out.mp4"))
 		assert.ErrorContains(t, err, "provider/model")
+	})
+
+	t.Run("model and avatar_model swap independently", func(t *testing.T) {
+		dir := t.TempDir()
+		avatar := filepath.Join(dir, "portrait.png")
+		audio := filepath.Join(dir, "line.mp3")
+		require.NoError(t, os.WriteFile(avatar, []byte("png"), 0o600))
+		require.NoError(t, os.WriteFile(audio, []byte("mp3"), 0o600))
+
+		tests := []struct {
+			name         string
+			request      agentdomain.VideoRequest
+			wantProvider sdk.Provider
+			wantModel    string
+		}{
+			{"prompt", agentdomain.VideoRequest{Prompt: "p"}, "elevenlabs", "bytedance-seedance-v2-fast"},
+			{"first frame", agentdomain.VideoRequest{Prompt: "p", AvatarPath: avatar}, "elevenlabs", "bytedance-seedance-v2-fast"},
+			{"avatar", agentdomain.VideoRequest{AvatarPath: avatar, AudioPath: audio}, "acme", "talking-head-2"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				client := &sdkmocks.FakeClient{}
+				client.CreateVideoReturns(&sdk.VideoJob{ID: "job-1", Status: sdk.VideoJobStatusQueued}, nil)
+				client.RetrieveVideoReturns(&sdk.VideoJob{ID: "job-1", Status: sdk.VideoJobStatusCompleted}, nil)
+				client.DownloadVideoContentReturns([]byte("mp4"), nil)
+
+				cfg := config.DefaultConfig()
+				cfg.TextToVideo.Model = "elevenlabs/bytedance-seedance-v2-fast"
+				cfg.TextToVideo.AvatarModel = "acme/talking-head-2"
+				svc := NewVideoService(cfg, client)
+
+				require.NoError(t, svc.Render(context.Background(), tt.request, filepath.Join(t.TempDir(), "out.mp4")))
+				_, provider, req := client.CreateVideoArgsForCall(0)
+				assert.Equal(t, tt.wantProvider, provider)
+				assert.Equal(t, tt.wantModel, req.Model)
+			})
+		}
 	})
 
 	t.Run("config size is the fallback for an unsupplied size", func(t *testing.T) {
