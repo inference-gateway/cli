@@ -833,7 +833,7 @@ and `require_approval`. The tool itself is documented in the
 - `INFER_TEXT_TO_SFX_ENABLED`: Enable/disable the TextToSFX tool (default: `false`)
 - `INFER_TEXT_TO_SFX_MODEL`: Gateway `provider/model` id used for sound-effect generation
   (default: `elevenlabs/eleven_text_to_sound_v2`)
-- `INFER_TEXT_TO_SFX_OUTPUT_DIR`: Directory the generated WAV is written to (default:
+- `INFER_TEXT_TO_SFX_OUTPUT_DIR`: Directory the generated MP3 is written to (default:
   `~/.infer/tmp/sfx`)
 
 These mirror the top-level `text_to_sfx:` YAML block: `enabled`, `model`, `output_dir`

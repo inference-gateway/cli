@@ -90,7 +90,7 @@ func TestTextToSFXTool_Validate(t *testing.T) {
 		{"prompt only", map[string]any{"prompt": "distant thunder"}, ""},
 		{"with seconds", map[string]any{"prompt": "p", "seconds": 2.5}, ""},
 		{"with loop", map[string]any{"prompt": "p", "loop": true}, ""},
-		{"bare output path", map[string]any{"prompt": "p", "output_path": "whoosh.wav"}, ""},
+		{"bare output path", map[string]any{"prompt": "p", "output_path": "whoosh.mp3"}, ""},
 		{"missing prompt", map[string]any{}, "prompt is required"},
 		{"empty prompt", map[string]any{"prompt": "  "}, "prompt is required"},
 		{"non-string prompt", map[string]any{"prompt": 42}, "prompt is required"},
@@ -98,9 +98,9 @@ func TestTextToSFXTool_Validate(t *testing.T) {
 		{"seconds below range", map[string]any{"prompt": "p", "seconds": 0.4}, "seconds must be between 0.5 and 30"},
 		{"seconds above range", map[string]any{"prompt": "p", "seconds": 30.5}, "seconds must be between 0.5 and 30"},
 		{"non-bool loop", map[string]any{"prompt": "p", "loop": "yes"}, "loop must be a boolean"},
-		{"absolute output path", map[string]any{"prompt": "p", "output_path": "/tmp/whoosh.wav"}, "invalid output_path"},
-		{"output path with directory", map[string]any{"prompt": "p", "output_path": "sub/whoosh.wav"}, "invalid output_path"},
-		{"output path with ..", map[string]any{"prompt": "p", "output_path": "../whoosh.wav"}, "invalid output_path"},
+		{"absolute output path", map[string]any{"prompt": "p", "output_path": "/tmp/whoosh.mp3"}, "invalid output_path"},
+		{"output path with directory", map[string]any{"prompt": "p", "output_path": "sub/whoosh.mp3"}, "invalid output_path"},
+		{"output path with ..", map[string]any{"prompt": "p", "output_path": "../whoosh.mp3"}, "invalid output_path"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -116,7 +116,7 @@ func TestTextToSFXTool_Validate(t *testing.T) {
 }
 
 func TestTextToSFXTool_Execute(t *testing.T) {
-	t.Run("reports path, prompt and duration", func(t *testing.T) {
+	t.Run("reports path and prompt", func(t *testing.T) {
 		sfx := &agentdomainmocks.FakeSoundEffectService{}
 		sfx.GenerateStub = func(ctx context.Context, prompt, outPath string, seconds *float32, loop *bool) error {
 			return os.WriteFile(outPath, minimalWAV(), 0o644)
@@ -137,8 +137,7 @@ func TestTextToSFXTool_Execute(t *testing.T) {
 		path, _ := data["path"].(string)
 		assert.Contains(t, path, "sfx-")
 		assert.Equal(t, "a short laser whoosh", data["prompt"])
-		assert.True(t, strings.HasSuffix(path, ".wav"))
-		assert.InDelta(t, 1.0, data["duration_seconds"], 0.01)
+		assert.True(t, strings.HasSuffix(path, ".mp3"))
 
 		require.Equal(t, 1, sfx.GenerateCallCount())
 		_, gotPrompt, gotOut, gotSeconds, gotLoop := sfx.GenerateArgsForCall(0)
@@ -158,10 +157,10 @@ func TestTextToSFXTool_Execute(t *testing.T) {
 		tool := newTestSFXTool(t, true, sfx)
 		tool.config.TextToSFX.OutputDir = filepath.Join(t.TempDir(), "fresh", "sfx")
 
-		res, err := tool.Execute(context.Background(), map[string]any{"prompt": "room tone", "output_path": "room.wav"})
+		res, err := tool.Execute(context.Background(), map[string]any{"prompt": "room tone", "output_path": "room.mp3"})
 		require.NoError(t, err)
 		assert.True(t, res.Success, res.Error)
-		assert.FileExists(t, filepath.Join(tool.config.TextToSFX.OutputDir, "room.wav"))
+		assert.FileExists(t, filepath.Join(tool.config.TextToSFX.OutputDir, "room.mp3"))
 	})
 
 	t.Run("omitted knobs are nil", func(t *testing.T) {
@@ -202,12 +201,12 @@ func TestTextToSFXTool_Execute(t *testing.T) {
 
 		res, err := tool.Execute(context.Background(), map[string]any{
 			"prompt":      "a riser",
-			"output_path": "named.wav",
+			"output_path": "named.mp3",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		assert.False(t, res.Success)
-		assert.NoFileExists(t, filepath.Join(tool.config.TextToSFX.OutputDir, "named.wav"))
+		assert.NoFileExists(t, filepath.Join(tool.config.TextToSFX.OutputDir, "named.mp3"))
 	})
 
 	t.Run("invalid output_path fails without calling the service", func(t *testing.T) {

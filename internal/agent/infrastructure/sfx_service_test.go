@@ -25,9 +25,9 @@ func newTestSFXService(model string, client sdk.Client) *SFXService {
 
 func TestSFXService_Generate(t *testing.T) {
 	client := &sdkmocks.FakeClient{}
-	client.CreateSFXReturns([]byte("fake-wav-bytes"), nil)
+	client.CreateSFXReturns([]byte("fake-mp3-bytes"), nil)
 	svc := newTestSFXService("elevenlabs/eleven_text_to_sound_v2", client)
-	outPath := filepath.Join(t.TempDir(), "out.wav")
+	outPath := filepath.Join(t.TempDir(), "out.mp3")
 
 	seconds := float32(2.5)
 	loop := true
@@ -44,18 +44,18 @@ func TestSFXService_Generate(t *testing.T) {
 	require.NotNil(t, req.Loop)
 	assert.True(t, *req.Loop)
 	require.NotNil(t, req.ResponseFormat)
-	assert.Equal(t, sdk.CreateSFXRequestResponseFormatWav, *req.ResponseFormat)
+	assert.Equal(t, sdk.CreateSFXRequestResponseFormatMp3, *req.ResponseFormat)
 
 	written, err := os.ReadFile(outPath)
 	require.NoError(t, err)
-	assert.Equal(t, []byte("fake-wav-bytes"), written)
+	assert.Equal(t, []byte("fake-mp3-bytes"), written)
 }
 
 func TestSFXService_GenerateDefaultModel(t *testing.T) {
 	client := &sdkmocks.FakeClient{}
-	client.CreateSFXReturns([]byte("wav"), nil)
+	client.CreateSFXReturns([]byte("mp3"), nil)
 	svc := newTestSFXService("", client)
-	outPath := filepath.Join(t.TempDir(), "out.wav")
+	outPath := filepath.Join(t.TempDir(), "out.mp3")
 
 	require.NoError(t, svc.Generate(context.Background(), "hi", outPath, nil, nil))
 
@@ -67,7 +67,7 @@ func TestSFXService_GenerateDefaultModel(t *testing.T) {
 }
 
 func TestSFXService_GenerateErrors(t *testing.T) {
-	outPath := filepath.Join(t.TempDir(), "out.wav")
+	outPath := filepath.Join(t.TempDir(), "out.mp3")
 
 	t.Run("model without provider", func(t *testing.T) {
 		svc := newTestSFXService("eleven_text_to_sound_v2", &sdkmocks.FakeClient{})

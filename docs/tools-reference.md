@@ -584,7 +584,7 @@ models, fully local. Disabled by default: while
 
 - `text` (required): The text to speak
 - `voice_sample` (optional): File name (inside the working directory) of a WAV of the target speaker (~10-30s of clean speech) to clone
-- `output_path` (optional): File name for the generated WAV, placed inside `text_to_speech.output_dir`; defaults to a timestamped file
+- `output_path` (optional): File name for the generated MP3, placed inside `text_to_speech.output_dir`; defaults to a timestamped file
 
 **Configuration:**
 
@@ -628,7 +628,7 @@ text_to_music:
 
 ### TextToSFX Tool
 
-Generate a short sound effect or ambience clip from a text prompt and save it as a WAV file. The chat model calls the tool when the user asks for a
+Generate a short sound effect or ambience clip from a text prompt and save it as an MP3 file. The chat model calls the tool when the user asks for a
 whoosh, a click, a riser or room tone - non-speech audio that `TextToSpeech` (it would read the word aloud) and `TextToMusic` (composes songs)
 cannot cover. The clip is generated behind the gateway's SFX API (`/v1/audio/sfx`) with the configured `provider/model` (default
 `elevenlabs/eleven_text_to_sound_v2`); the CLI holds no provider key, the gateway does. Disabled by default: while `text_to_sfx.enabled` is false
@@ -639,7 +639,7 @@ the tool definition is not sent to the LLM at all.
 - `prompt` (required): Description of the sound - the event or atmosphere and its character (e.g. a whoosh, a click, a riser, room tone)
 - `seconds` (optional): Clip length in seconds, 0.5-30; omitted lets the provider pick a length that fits the prompt
 - `loop` (optional): `true` to generate a clip that loops seamlessly
-- `output_path` (optional): Bare file name (no directories or absolute paths) for the generated WAV, placed inside
+- `output_path` (optional): Bare file name (no directories or absolute paths) for the generated MP3, placed inside
   `text_to_sfx.output_dir`; defaults to a timestamped file
 
 **Configuration:**

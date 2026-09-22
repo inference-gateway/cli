@@ -28,7 +28,7 @@ func runAgentWithEnv(t *testing.T, gatewayURL, dir, prompt string, extra map[str
 
 // TestAgentTextToSFXWritesClip runs the built binary headless with the
 // TextToSFX tool enabled; the mock gateway serves /v1/audio/sfx with a canned
-// WAV, which must land in the configured output dir and be reported back to
+// clip, which must land in the configured output dir and be reported back to
 // the model as a successful tool result.
 func TestAgentTextToSFXWritesClip(t *testing.T) {
 	m := startMock(t)
@@ -47,9 +47,9 @@ func TestAgentTextToSFXWritesClip(t *testing.T) {
 	require.NotContains(t, toolResults[0], "failed")
 	require.Contains(t, contentsByRole(lines, "assistant"), "Sound effect generated.")
 
-	clips, err := filepath.Glob(filepath.Join(outDir, "sfx-*.wav"))
+	clips, err := filepath.Glob(filepath.Join(outDir, "sfx-*.mp3"))
 	require.NoError(t, err)
-	require.Len(t, clips, 1, "expected exactly one saved WAV")
+	require.Len(t, clips, 1, "expected exactly one saved MP3")
 	info, err := os.Stat(clips[0])
 	require.NoError(t, err)
 	require.Positive(t, info.Size())
@@ -84,7 +84,7 @@ func TestAgentTextToMusicWritesClip(t *testing.T) {
 
 // TestChatTUITextToSFX drives the chat TUI inside tmux: the SFX tool runs
 // against the mock gateway's /v1/audio/sfx and the model's confirmation must
-// render in the pane, with the WAV saved under the configured output dir.
+// render in the pane, with the clip saved under the configured output dir.
 func TestChatTUITextToSFX(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not installed; skipping TUI drive test")
@@ -114,7 +114,7 @@ func TestChatTUITextToSFX(t *testing.T) {
 	require.True(t, waitForPane(t, session, "Sound effect generated.", 30*time.Second),
 		"the model never confirmed the sound effect; last frame:\n%s", capturePane(session))
 
-	clips, err := filepath.Glob(filepath.Join(outDir, "sfx-*.wav"))
+	clips, err := filepath.Glob(filepath.Join(outDir, "sfx-*.mp3"))
 	require.NoError(t, err)
-	require.Len(t, clips, 1, "expected exactly one saved WAV; last frame:\n%s", capturePane(session))
+	require.Len(t, clips, 1, "expected exactly one saved MP3; last frame:\n%s", capturePane(session))
 }

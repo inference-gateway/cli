@@ -12,11 +12,10 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	audio "github.com/inference-gateway/cli/internal/audio"
 )
 
 // TextToSFXTool generates a short sound effect or ambience clip from a text
-// prompt through the gateway's SFX API and saves it as a WAV file.
+// prompt through the gateway's SFX API and saves it as an MP3 file.
 type TextToSFXTool struct {
 	config *config.Config
 	sfx    agentdomain.SoundEffectService
@@ -55,7 +54,7 @@ func (t *TextToSFXTool) Definition() sdk.ChatCompletionTool {
 					},
 					"output_path": map[string]any{
 						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) for the generated WAV; it is always placed in the configured output directory. Defaults to a timestamped file",
+						"description": "Optional bare file name (no directories or absolute paths) for the generated MP3; it is always placed in the configured output directory. Defaults to a timestamped file",
 					},
 				},
 				"required":             []string{"prompt"},
@@ -103,7 +102,7 @@ func (t *TextToSFXTool) resolveOutputPath(raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return resolveMediaOutputPath(dir, "sfx-", ".wav", raw)
+	return resolveMediaOutputPath(dir, "sfx-", ".mp3", raw)
 }
 
 // Execute executes the TextToSFX tool
@@ -143,20 +142,14 @@ func (t *TextToSFXTool) Execute(ctx context.Context, args map[string]any) (*agen
 		return t.failure(start, args, err), nil
 	}
 
-	duration := 0.0
-	if d, err := audio.WAVDurationSeconds(outPath); err == nil {
-		duration = d
-	}
-
 	return &agentdomain.ToolExecutionResult{
 		ToolName:  "TextToSFX",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
 		Data: map[string]any{
-			"path":             outPath,
-			"prompt":           prompt,
-			"duration_seconds": duration,
+			"path":   outPath,
+			"prompt": prompt,
 		},
 	}, nil
 }
@@ -204,9 +197,6 @@ func (t *TextToSFXTool) FormatForLLM(result *agentdomain.ToolExecutionResult) st
 	}
 	path, _ := data["path"].(string)
 	summary := fmt.Sprintf("Sound effect saved to %s", path)
-	if d, ok := data["duration_seconds"].(float64); ok && d > 0 {
-		summary = fmt.Sprintf("%s (%.1fs of audio)", summary, d)
-	}
 	formatter := agentinfra.NewBaseFormatter("TextToSFX")
 	return formatter.FormatExpanded(result, summary)
 }

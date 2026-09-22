@@ -18,8 +18,8 @@ import (
 
 // TestTextToSFXToolAgainstMockGateway drives the full loop: the chat model
 // requests the TextToSFX tool, the tool posts the configured model and prompt
-// to /v1/audio/sfx (served by tokenless with a canned WAV), and the clip is
-// written into text_to_sfx.output_dir with a readable duration.
+// to /v1/audio/sfx (served by tokenless with a canned clip), and the clip is
+// written into text_to_sfx.output_dir .
 func TestTextToSFXToolAgainstMockGateway(t *testing.T) {
 	defs, err := mockgateway.Load([]byte(`
 fallback:
@@ -94,7 +94,6 @@ loop:
 	data, ok := res.Data.(map[string]any)
 	require.True(t, ok, "tool result data must be a map, got %T", res.Data)
 	require.Equal(t, "a fast whoosh", data["prompt"])
-	require.Greater(t, data["duration_seconds"], 0.0, "the canned WAV must have a readable duration")
 
 	var sfxReqs []mockgateway.Recorded
 	for _, rec := range e.gateway.Requests() {
@@ -111,11 +110,11 @@ loop:
 	require.NotNil(t, rec.SFXBody.DurationSeconds)
 	require.InDelta(t, 2, *rec.SFXBody.DurationSeconds, 0.001)
 	require.NotNil(t, rec.SFXBody.ResponseFormat)
-	require.Equal(t, "wav", *rec.SFXBody.ResponseFormat)
+	require.Equal(t, "mp3", *rec.SFXBody.ResponseFormat)
 
 	entries, err := os.ReadDir(sfxDir)
 	require.NoError(t, err)
 	require.Len(t, entries, 1, "expected exactly one saved clip")
 	require.Equal(t, filepath.Join(sfxDir, entries[0].Name()), data["path"])
-	require.Equal(t, ".wav", filepath.Ext(entries[0].Name()))
+	require.Equal(t, ".mp3", filepath.Ext(entries[0].Name()))
 }
