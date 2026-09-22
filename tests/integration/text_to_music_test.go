@@ -16,11 +16,10 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// TestTextToMusicToolAgainstMockGateway runs the TextToMusic tool against the
-// mock gateway. The mock gateway (tokenless) does NOT serve POST
-// /v1/audio/music, so this pins the current real behavior: the tool call
-// fails with a one-line error naming the configured model, the agent run
-// still completes, and no partial file is left behind.
+// TestTextToMusicToolAgainstMockGateway drives the full loop: the chat model
+// requests the TextToMusic tool, the tool posts the configured model, prompt
+// and instrumental flag to /v1/audio/music (served by tokenless with a canned
+// MP3), and the clip is written into text_to_music.output_dir.
 func TestTextToMusicToolAgainstMockGateway(t *testing.T) {
 	defs, err := mockgateway.Load([]byte(`
 fallback:
@@ -31,7 +30,7 @@ scenarios:
     turns:
       - tool_calls:
           - { name: TextToMusic, args: { prompt: "calm piano loop", instrumental: true } }
-      - content: "Music clip attempted."
+      - content: "Music clip composed."
 `))
 	require.NoError(t, err)
 
@@ -86,15 +85,36 @@ loop:
 	}
 
 	require.Empty(t, errs)
-	require.True(t, completed, "agent run should complete despite the tool failure")
-	require.Contains(t, content, "Music clip attempted.")
+	require.True(t, completed)
+	require.Contains(t, content, "Music clip composed.")
 
 	require.Len(t, musicResults, 1, "expected exactly one TextToMusic tool result")
 	res := musicResults[0]
-	require.False(t, res.Success, "the mock gateway does not serve /v1/audio/music")
-	require.Contains(t, res.Error, "music generation with elevenlabs/music_v2_5 failed")
+	require.True(t, res.Success, res.Error)
+	data, ok := res.Data.(map[string]any)
+	require.True(t, ok, "tool result data must be a map, got %T", res.Data)
+	require.Equal(t, "calm piano loop", data["prompt"])
+
+	var musicReqs []mockgateway.Recorded
+	for _, rec := range e.gateway.Requests() {
+		if rec.MusicBody != nil {
+			musicReqs = append(musicReqs, rec)
+		}
+	}
+	require.Len(t, musicReqs, 1)
+	rec := musicReqs[0]
+	require.Equal(t, "/v1/audio/music", rec.Endpoint)
+	require.Equal(t, "elevenlabs", rec.Provider)
+	require.Equal(t, "music_v2_5", rec.Model)
+	require.Equal(t, "calm piano loop", rec.MusicBody.Prompt)
+	require.NotNil(t, rec.MusicBody.Instrumental)
+	require.True(t, *rec.MusicBody.Instrumental)
 
 	entries, err := os.ReadDir(musicDir)
 	require.NoError(t, err)
-	require.Empty(t, entries, "a failed music call must leave no partial file")
+	require.Len(t, entries, 1, "expected exactly one saved clip")
+	require.Equal(t, filepath.Join(musicDir, entries[0].Name()), data["path"])
+	info, err := entries[0].Info()
+	require.NoError(t, err)
+	require.Positive(t, info.Size(), "the saved clip must not be empty")
 }

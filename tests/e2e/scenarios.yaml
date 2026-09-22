@@ -166,3 +166,17 @@ scenarios:
       - content: "Let me check the callers next."
       - content: "Still reading the code."
       - content: "Wrapping up."
+
+  - name: sfx-clip
+    match: '(?i)generate a whoosh sound effect'
+    turns:
+      - tool_calls:
+          - { name: TextToSFX, args: { prompt: "a fast whoosh", seconds: 2 } }
+      - content: "Sound effect generated."
+
+  - name: music-clip
+    match: '(?i)compose a calm piano loop'
+    turns:
+      - tool_calls:
+          - { name: TextToMusic, args: { prompt: "calm piano loop", instrumental: true } }
+      - content: "Music clip composed."

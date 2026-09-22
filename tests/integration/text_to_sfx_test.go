@@ -16,11 +16,10 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// TestTextToSFXToolAgainstMockGateway runs the TextToSFX tool against the
-// mock gateway. The mock gateway (tokenless) does NOT serve POST
-// /v1/audio/sfx, so this pins the current real behavior: the tool call
-// fails with a one-line error naming the configured model, the agent run
-// still completes, and no partial file is left behind.
+// TestTextToSFXToolAgainstMockGateway drives the full loop: the chat model
+// requests the TextToSFX tool, the tool posts the configured model and prompt
+// to /v1/audio/sfx (served by tokenless with a canned WAV), and the clip is
+// written into text_to_sfx.output_dir with a readable duration.
 func TestTextToSFXToolAgainstMockGateway(t *testing.T) {
 	defs, err := mockgateway.Load([]byte(`
 fallback:
@@ -30,8 +29,8 @@ scenarios:
     match: '(?i)generate a whoosh sound effect'
     turns:
       - tool_calls:
-          - { name: TextToSFX, args: { prompt: "a fast whoosh" } }
-      - content: "Sound effect attempted."
+          - { name: TextToSFX, args: { prompt: "a fast whoosh", seconds: 2 } }
+      - content: "Sound effect generated."
 `))
 	require.NoError(t, err)
 
@@ -86,15 +85,37 @@ loop:
 	}
 
 	require.Empty(t, errs)
-	require.True(t, completed, "agent run should complete despite the tool failure")
-	require.Contains(t, content, "Sound effect attempted.")
+	require.True(t, completed)
+	require.Contains(t, content, "Sound effect generated.")
 
 	require.Len(t, sfxResults, 1, "expected exactly one TextToSFX tool result")
 	res := sfxResults[0]
-	require.False(t, res.Success, "the mock gateway does not serve /v1/audio/sfx")
-	require.Contains(t, res.Error, "sfx generation with elevenlabs/eleven_text_to_sound_v2 failed")
+	require.True(t, res.Success, res.Error)
+	data, ok := res.Data.(map[string]any)
+	require.True(t, ok, "tool result data must be a map, got %T", res.Data)
+	require.Equal(t, "a fast whoosh", data["prompt"])
+	require.Greater(t, data["duration_seconds"], 0.0, "the canned WAV must have a readable duration")
+
+	var sfxReqs []mockgateway.Recorded
+	for _, rec := range e.gateway.Requests() {
+		if rec.SFXBody != nil {
+			sfxReqs = append(sfxReqs, rec)
+		}
+	}
+	require.Len(t, sfxReqs, 1)
+	rec := sfxReqs[0]
+	require.Equal(t, "/v1/audio/sfx", rec.Endpoint)
+	require.Equal(t, "elevenlabs", rec.Provider)
+	require.Equal(t, "eleven_text_to_sound_v2", rec.Model)
+	require.Equal(t, "a fast whoosh", rec.SFXBody.Prompt)
+	require.NotNil(t, rec.SFXBody.DurationSeconds)
+	require.InDelta(t, 2, *rec.SFXBody.DurationSeconds, 0.001)
+	require.NotNil(t, rec.SFXBody.ResponseFormat)
+	require.Equal(t, "wav", *rec.SFXBody.ResponseFormat)
 
 	entries, err := os.ReadDir(sfxDir)
 	require.NoError(t, err)
-	require.Empty(t, entries, "a failed sfx call must leave no partial file")
+	require.Len(t, entries, 1, "expected exactly one saved clip")
+	require.Equal(t, filepath.Join(sfxDir, entries[0].Name()), data["path"])
+	require.Equal(t, ".wav", filepath.Ext(entries[0].Name()))
 }
