@@ -12,11 +12,10 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	audio "github.com/inference-gateway/cli/internal/audio"
 )
 
 // TextToMusicTool composes music from a text prompt through the gateway's
-// Music API and saves it as a WAV file.
+// Music API and saves it as an MP3 file.
 type TextToMusicTool struct {
 	config *config.Config
 	music  agentdomain.MusicService
@@ -55,7 +54,7 @@ func (t *TextToMusicTool) Definition() sdk.ChatCompletionTool {
 					},
 					"output_path": map[string]any{
 						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) for the generated WAV; it is always placed in the configured output directory. Defaults to a timestamped file",
+						"description": "Optional bare file name (no directories or absolute paths) for the generated MP3; it is always placed in the configured output directory. Defaults to a timestamped file",
 					},
 				},
 				"required":             []string{"prompt"},
@@ -103,7 +102,7 @@ func (t *TextToMusicTool) resolveOutputPath(raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return resolveMediaOutputPath(dir, "music-", raw)
+	return resolveMediaOutputPath(dir, "music-", ".mp3", raw)
 }
 
 // Execute executes the TextToMusic tool
@@ -143,20 +142,14 @@ func (t *TextToMusicTool) Execute(ctx context.Context, args map[string]any) (*ag
 		return t.failure(start, args, err), nil
 	}
 
-	duration := 0.0
-	if d, err := audio.WAVDurationSeconds(outPath); err == nil {
-		duration = d
-	}
-
 	return &agentdomain.ToolExecutionResult{
 		ToolName:  "TextToMusic",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
 		Data: map[string]any{
-			"path":             outPath,
-			"prompt":           prompt,
-			"duration_seconds": duration,
+			"path":   outPath,
+			"prompt": prompt,
 		},
 	}, nil
 }
@@ -204,9 +197,6 @@ func (t *TextToMusicTool) FormatForLLM(result *agentdomain.ToolExecutionResult) 
 	}
 	path, _ := data["path"].(string)
 	summary := fmt.Sprintf("Music saved to %s", path)
-	if d, ok := data["duration_seconds"].(float64); ok && d > 0 {
-		summary = fmt.Sprintf("%s (%.1fs of audio)", summary, d)
-	}
 	formatter := agentinfra.NewBaseFormatter("TextToMusic")
 	return formatter.FormatExpanded(result, summary)
 }

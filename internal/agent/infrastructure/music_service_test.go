@@ -25,9 +25,9 @@ func newTestMusicService(model string, client sdk.Client) *MusicService {
 
 func TestMusicService_Compose(t *testing.T) {
 	client := &sdkmocks.FakeClient{}
-	client.CreateMusicReturns([]byte("fake-wav-bytes"), nil)
+	client.CreateMusicReturns([]byte("fake-mp3-bytes"), nil)
 	svc := newTestMusicService("elevenlabs/music_v2_5", client)
-	outPath := filepath.Join(t.TempDir(), "out.wav")
+	outPath := filepath.Join(t.TempDir(), "out.mp3")
 
 	seconds := float32(30)
 	instrumental := true
@@ -44,18 +44,18 @@ func TestMusicService_Compose(t *testing.T) {
 	require.NotNil(t, req.Instrumental)
 	assert.True(t, *req.Instrumental)
 	require.NotNil(t, req.ResponseFormat)
-	assert.Equal(t, sdk.CreateMusicRequestResponseFormatWav, *req.ResponseFormat)
+	assert.Equal(t, sdk.CreateMusicRequestResponseFormatMp3, *req.ResponseFormat)
 
 	written, err := os.ReadFile(outPath)
 	require.NoError(t, err)
-	assert.Equal(t, []byte("fake-wav-bytes"), written)
+	assert.Equal(t, []byte("fake-mp3-bytes"), written)
 }
 
 func TestMusicService_ComposeDefaultModel(t *testing.T) {
 	client := &sdkmocks.FakeClient{}
-	client.CreateMusicReturns([]byte("wav"), nil)
+	client.CreateMusicReturns([]byte("mp3"), nil)
 	svc := newTestMusicService("", client)
-	outPath := filepath.Join(t.TempDir(), "out.wav")
+	outPath := filepath.Join(t.TempDir(), "out.mp3")
 
 	require.NoError(t, svc.Compose(context.Background(), "hi", outPath, nil, nil))
 
@@ -67,7 +67,7 @@ func TestMusicService_ComposeDefaultModel(t *testing.T) {
 }
 
 func TestMusicService_ComposeErrors(t *testing.T) {
-	outPath := filepath.Join(t.TempDir(), "out.wav")
+	outPath := filepath.Join(t.TempDir(), "out.mp3")
 
 	t.Run("model without provider", func(t *testing.T) {
 		svc := newTestMusicService("music_v2_5", &sdkmocks.FakeClient{})

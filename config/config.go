@@ -132,7 +132,7 @@ const TextToMusicGatewayDefaultModel = "elevenlabs/music_v2_5"
 
 // TextToMusicConfig contains opt-in settings for music composition. The clip
 // is generated behind the gateway's Music API (POST /v1/audio/music), always
-// as WAV; the CLI holds no provider key, the gateway does.
+// as MP3; the CLI holds no provider key, the gateway does.
 type TextToMusicConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
 	Model           string `yaml:"model" mapstructure:"model"`

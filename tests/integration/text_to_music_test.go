@@ -20,7 +20,7 @@ import (
 // mock gateway. The mock gateway (tokenless) does NOT serve POST
 // /v1/audio/music, so this pins the current real behavior: the tool call
 // fails with a one-line error naming the configured model, the agent run
-// still completes, and no partial WAV file is left behind.
+// still completes, and no partial file is left behind.
 func TestTextToMusicToolAgainstMockGateway(t *testing.T) {
 	defs, err := mockgateway.Load([]byte(`
 fallback:

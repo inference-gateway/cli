@@ -819,7 +819,7 @@ value pins it either way.
 
 - `INFER_TEXT_TO_MUSIC_ENABLED`: Enable/disable the TextToMusic tool (default: `false`)
 - `INFER_TEXT_TO_MUSIC_MODEL`: Gateway `provider/model` id used for music generation (default: `elevenlabs/music_v2_5`)
-- `INFER_TEXT_TO_MUSIC_OUTPUT_DIR`: Directory the generated WAV is written to (default: `~/.infer/tmp/music`)
+- `INFER_TEXT_TO_MUSIC_OUTPUT_DIR`: Directory the generated MP3 is written to (default: `~/.infer/tmp/music`)
 
 These mirror the top-level `text_to_music:` YAML block: `enabled`, `model`, `output_dir`
 and `require_approval`. The tool itself is documented in the

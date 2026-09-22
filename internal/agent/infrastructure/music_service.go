@@ -28,7 +28,8 @@ func NewMusicService(cfg *config.Config, client sdk.Client) *MusicService {
 }
 
 // Compose generates a music clip for prompt using the configured
-// text_to_music.model ("provider/model"), writing WAV audio to outPath.
+// text_to_music.model ("provider/model"), writing MP3 audio to outPath (the gateway music providers serve mp3; WAV
+// is not offered by elevenlabs).
 // A non-nil seconds caps the clip length; a non-nil instrumental requests
 // a clip without vocals. Errors name the configured model so a gateway
 // without the endpoint (or a provider that rejects it) is diagnosable.
@@ -39,7 +40,7 @@ func (s *MusicService) Compose(ctx context.Context, prompt, outPath string, seco
 		return fmt.Errorf("invalid text_to_music.model %q (expected 'provider/model')", model)
 	}
 
-	format := sdk.CreateMusicRequestResponseFormatWav
+	format := sdk.CreateMusicRequestResponseFormatMp3
 	request := sdk.CreateMusicRequest{
 		Prompt:          prompt,
 		Model:           modelName,

@@ -69,7 +69,7 @@ func TestTextToMusicTool_Validate(t *testing.T) {
 		{"prompt only", map[string]any{"prompt": "calm piano"}, ""},
 		{"with seconds", map[string]any{"prompt": "calm piano", "seconds": 30.0}, ""},
 		{"with instrumental", map[string]any{"prompt": "calm piano", "instrumental": true}, ""},
-		{"bare output path", map[string]any{"prompt": "calm piano", "output_path": "loop.wav"}, ""},
+		{"bare output path", map[string]any{"prompt": "calm piano", "output_path": "loop.mp3"}, ""},
 		{"missing prompt", map[string]any{}, "prompt is required"},
 		{"empty prompt", map[string]any{"prompt": "  "}, "prompt is required"},
 		{"non-string prompt", map[string]any{"prompt": 42}, "prompt is required"},
@@ -77,9 +77,9 @@ func TestTextToMusicTool_Validate(t *testing.T) {
 		{"zero seconds", map[string]any{"prompt": "p", "seconds": 0.0}, "seconds must be a positive number"},
 		{"negative seconds", map[string]any{"prompt": "p", "seconds": -5.0}, "seconds must be a positive number"},
 		{"non-bool instrumental", map[string]any{"prompt": "p", "instrumental": "yes"}, "instrumental must be a boolean"},
-		{"absolute output path", map[string]any{"prompt": "p", "output_path": "/tmp/loop.wav"}, "invalid output_path"},
-		{"output path with directory", map[string]any{"prompt": "p", "output_path": "sub/loop.wav"}, "invalid output_path"},
-		{"output path with ..", map[string]any{"prompt": "p", "output_path": "../loop.wav"}, "invalid output_path"},
+		{"absolute output path", map[string]any{"prompt": "p", "output_path": "/tmp/loop.mp3"}, "invalid output_path"},
+		{"output path with directory", map[string]any{"prompt": "p", "output_path": "sub/loop.mp3"}, "invalid output_path"},
+		{"output path with ..", map[string]any{"prompt": "p", "output_path": "../loop.mp3"}, "invalid output_path"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -95,10 +95,10 @@ func TestTextToMusicTool_Validate(t *testing.T) {
 }
 
 func TestTextToMusicTool_Execute(t *testing.T) {
-	t.Run("reports path, prompt and duration", func(t *testing.T) {
+	t.Run("reports path and prompt", func(t *testing.T) {
 		music := &agentdomainmocks.FakeMusicService{}
 		music.ComposeStub = func(ctx context.Context, prompt, outPath string, seconds *float32, instrumental *bool) error {
-			return os.WriteFile(outPath, fakeWav(), 0o644)
+			return os.WriteFile(outPath, []byte("mp3"), 0o644)
 		}
 		tool := newTestMusicTool(t, true, music)
 
@@ -116,7 +116,7 @@ func TestTextToMusicTool_Execute(t *testing.T) {
 		path, _ := data["path"].(string)
 		assert.Contains(t, path, "music-")
 		assert.Equal(t, "calm piano loop", data["prompt"])
-		assert.InDelta(t, 1.0, data["duration_seconds"], 0.01)
+		assert.True(t, strings.HasSuffix(path, ".mp3"))
 
 		require.Equal(t, 1, music.ComposeCallCount())
 		_, gotPrompt, gotOut, gotSeconds, gotInstrumental := music.ComposeArgsForCall(0)
@@ -128,10 +128,24 @@ func TestTextToMusicTool_Execute(t *testing.T) {
 		assert.True(t, *gotInstrumental)
 	})
 
+	t.Run("named output creates the output directory", func(t *testing.T) {
+		music := &agentdomainmocks.FakeMusicService{}
+		music.ComposeStub = func(ctx context.Context, prompt, outPath string, seconds *float32, instrumental *bool) error {
+			return os.WriteFile(outPath, []byte("mp3"), 0o644)
+		}
+		tool := newTestMusicTool(t, true, music)
+		tool.config.TextToMusic.OutputDir = filepath.Join(t.TempDir(), "fresh", "music")
+
+		res, err := tool.Execute(context.Background(), map[string]any{"prompt": "calm piano", "output_path": "named.mp3"})
+		require.NoError(t, err)
+		assert.True(t, res.Success, res.Error)
+		assert.FileExists(t, filepath.Join(tool.config.TextToMusic.OutputDir, "named.mp3"))
+	})
+
 	t.Run("omitted knobs are nil", func(t *testing.T) {
 		music := &agentdomainmocks.FakeMusicService{}
 		music.ComposeStub = func(ctx context.Context, prompt, outPath string, seconds *float32, instrumental *bool) error {
-			return os.WriteFile(outPath, fakeWav(), 0o644)
+			return os.WriteFile(outPath, []byte("mp3"), 0o644)
 		}
 		tool := newTestMusicTool(t, true, music)
 
@@ -166,12 +180,12 @@ func TestTextToMusicTool_Execute(t *testing.T) {
 
 		res, err := tool.Execute(context.Background(), map[string]any{
 			"prompt":      "calm piano",
-			"output_path": "named.wav",
+			"output_path": "named.mp3",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		assert.False(t, res.Success)
-		assert.NoFileExists(t, filepath.Join(tool.config.TextToMusic.OutputDir, "named.wav"))
+		assert.NoFileExists(t, filepath.Join(tool.config.TextToMusic.OutputDir, "named.mp3"))
 	})
 
 	t.Run("invalid output_path fails without calling the service", func(t *testing.T) {
@@ -191,7 +205,7 @@ func TestTextToMusicTool_Execute(t *testing.T) {
 func TestTextToMusicTool_Formatting(t *testing.T) {
 	music := &agentdomainmocks.FakeMusicService{}
 	music.ComposeStub = func(ctx context.Context, prompt, outPath string, seconds *float32, instrumental *bool) error {
-		return os.WriteFile(outPath, fakeWav(), 0o644)
+		return os.WriteFile(outPath, []byte("mp3"), 0o644)
 	}
 	tool := newTestMusicTool(t, true, music)
 
@@ -200,7 +214,6 @@ func TestTextToMusicTool_Formatting(t *testing.T) {
 
 	assert.Contains(t, tool.FormatPreview(res), "Music saved to")
 	assert.Contains(t, tool.FormatForLLM(res), "Music saved to")
-	assert.Contains(t, tool.FormatForLLM(res), "1.0s of audio")
 	assert.False(t, strings.Contains(tool.FormatPreview(res), "\n"))
 }
 

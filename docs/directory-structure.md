@@ -73,7 +73,7 @@ for the full precedence rules.
 ├── run/                  # daemon pid/lock files
 ├── tmp/                  # userspace scratch: agent-readable/writable, wiped by /reset
 │   ├── tts/              # generated speech WAVs (text_to_speech.output_dir default)
-│   ├── music/            # generated music WAVs (text_to_music.output_dir default)
+│   ├── music/            # generated music MP3s (text_to_music.output_dir default)
 │   ├── voice/            # retained inbound voice recordings (speech_to_text.recordings_dir default)
 │   └── media/            # retained inbound Telegram media (channels.telegram.media.dir default)
 ├── bin/                  # downloaded gateway binary, one shared copy per machine
@@ -208,7 +208,7 @@ the project-local `.infer/`.
   daemon. See [Scheduling](scheduling.md).
 - **`~/.infer/tmp/tts/`** *(userspace)* - generated speech WAVs, the default of
   `text_to_speech.output_dir`. See [Text to Speech](text-to-speech.md).
-- **`~/.infer/tmp/music/`** *(userspace)* - generated music WAVs, the default of
+- **`~/.infer/tmp/music/`** *(userspace)* - generated music MP3s, the default of
   `text_to_music.output_dir`. See [Text to Music](text-to-music.md).
 - **`~/.infer/tmp/voice/`** *(userspace)* - retained inbound voice/audio
   recordings, the default of `speech_to_text.recordings_dir` when
