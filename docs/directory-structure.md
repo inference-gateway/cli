@@ -75,6 +75,7 @@ for the full precedence rules.
 │   ├── tts/              # generated speech WAVs (text_to_speech.output_dir default)
 │   ├── music/            # generated music MP3s (text_to_music.output_dir default)
 │   ├── sfx/              # generated sound-effect MP3s (text_to_sfx.output_dir default)
+│   ├── video/            # generated video MP4s (text_to_video.output_dir default)
 │   ├── voice/            # retained inbound voice recordings (speech_to_text.recordings_dir default)
 │   └── media/            # retained inbound Telegram media (channels.telegram.media.dir default)
 ├── bin/                  # downloaded gateway binary, one shared copy per machine
@@ -214,6 +215,8 @@ the project-local `.infer/`.
 - **`~/.infer/tmp/sfx/`** *(userspace)* - generated sound-effect MP3s, the default
   of `text_to_sfx.output_dir`. See
   [Text to SFX](tools-reference.md#texttosfx-tool).
+- **`~/.infer/tmp/video/`** *(userspace)* - generated video MP4s, the default of
+  `text_to_video.output_dir`. See [Text to Video](text-to-video.md).
 - **`~/.infer/tmp/voice/`** *(userspace)* - retained inbound voice/audio
   recordings, the default of `speech_to_text.recordings_dir` when
   `retain_recordings` is greater than 0. See [Speech to

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -72,13 +73,20 @@ func newEnvWithScenarios(t *testing.T, defs *mockgateway.ScenarioFile, mutate ..
 		require.NoError(t, err)
 		defs.Models = std.Models
 	}
+	return newEnvWithHandler(t, mockgateway.New(defs), mutate...)
+}
+
+// newEnvWithHandler is newEnvWithScenarios with a caller-built handler, for
+// tests that need routes the pinned tokenless does not serve (e.g. the
+// Videos API). The returned env.gateway is nil.
+func newEnvWithHandler(t *testing.T, handler http.Handler, mutate ...func(*config.Config)) *env {
+	t.Helper()
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	restore := streamevent.SetWriter(io.Discard)
 	t.Cleanup(func() { restore() })
 
-	gw := mockgateway.New(defs)
-	ts := httptest.NewServer(gw)
+	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 
 	cfg := config.DefaultConfig()
@@ -105,7 +113,7 @@ func newEnvWithScenarios(t *testing.T, defs *mockgateway.ScenarioFile, mutate ..
 	require.Equal(t, []string{testModel, testAnthropicModel, testDeepseekModel}, models)
 	require.NoError(t, c.GetModelService().SelectModel(testModel))
 
-	return &env{container: c, gateway: gw}
+	return &env{container: c}
 }
 
 func (e *env) writeFixtures(t *testing.T, names ...string) {

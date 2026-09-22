@@ -812,6 +812,8 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
   (default: unset, meaning no approval)
 - `INFER_TEXT_TO_SFX_REQUIRE_APPROVAL`: Require approval for the TextToSFX tool
   (default: unset, meaning no approval)
+- `INFER_TEXT_TO_VIDEO_REQUIRE_APPROVAL`: Require approval for the TextToVideo tool
+  (default: unset, meaning no approval)
 
 Approval variables are tri-state: leaving one unset is not the same as setting it to
 `false`. An unset tool falls back to the policy baked into the tool, while an explicit
@@ -840,6 +842,23 @@ These mirror the top-level `text_to_sfx:` YAML block: `enabled`, `model`, `outpu
 and `require_approval`. The tool itself is documented in the
 [Tools Reference](tools-reference.md#texttosfx-tool) and its output directory in the
 [Directory Structure](directory-structure.md).
+
+**TextToVideo Tool Configuration:**
+
+- `INFER_TEXT_TO_VIDEO_ENABLED`: Enable/disable the TextToVideo tool (default: `false`)
+- `INFER_TEXT_TO_VIDEO_MODEL`: Gateway `provider/model` id used for video generation
+  (default: `elevenlabs/creatify-aurora`)
+- `INFER_TEXT_TO_VIDEO_SIZE`: Optional `widthxheight` passthrough, e.g. `720x1280`
+  (default: empty, the provider default)
+- `INFER_TEXT_TO_VIDEO_OUTPUT_DIR`: Directory the generated MP4 is written to (default:
+  `~/.infer/tmp/video`)
+- `INFER_TEXT_TO_VIDEO_TIMEOUT`: Whole-render timeout in seconds (default: `900`)
+- `INFER_TEXT_TO_VIDEO_POLL_INTERVAL`: Job status poll interval in seconds (default: `5`)
+
+These mirror the top-level `text_to_video:` YAML block: `enabled`, `model`, `size`,
+`output_dir`, `timeout`, `poll_interval` and `require_approval`. The tool itself is
+documented in the [Tools Reference](tools-reference.md#texttovideo-tool) and its output
+directory in the [Directory Structure](directory-structure.md).
 
 **Bash Tool Allow-List Configuration:**
 
