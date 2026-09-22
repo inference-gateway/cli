@@ -626,6 +626,34 @@ text_to_music:
 
 ---
 
+### TextToSFX Tool
+
+Generate a short sound effect or ambience clip from a text prompt and save it as a WAV file. The chat model calls the tool when the user asks for a
+whoosh, a click, a riser or room tone - non-speech audio that `TextToSpeech` (it would read the word aloud) and `TextToMusic` (composes songs)
+cannot cover. The clip is generated behind the gateway's SFX API (`/v1/audio/sfx`) with the configured `provider/model` (default
+`elevenlabs/eleven_text_to_sound_v2`); the CLI holds no provider key, the gateway does. Disabled by default: while `text_to_sfx.enabled` is false
+the tool definition is not sent to the LLM at all.
+
+**Parameters:**
+
+- `prompt` (required): Description of the sound - the event or atmosphere and its character (e.g. a whoosh, a click, a riser, room tone)
+- `seconds` (optional): Clip length in seconds, 0.5-30; omitted lets the provider pick a length that fits the prompt
+- `loop` (optional): `true` to generate a clip that loops seamlessly
+- `output_path` (optional): Bare file name (no directories or absolute paths) for the generated WAV, placed inside
+  `text_to_sfx.output_dir`; defaults to a timestamped file
+
+**Configuration:**
+
+```yaml
+text_to_sfx:
+  enabled: true
+  # model: elevenlabs/eleven_text_to_sound_v2 # gateway provider/model id
+  # output_dir: ~/.infer/tmp/sfx
+  require_approval: false # optional; unset = no approval, like the image tools
+```
+
+---
+
 ## Vision Tools
 
 ### Computer Tool

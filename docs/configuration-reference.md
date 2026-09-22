@@ -810,6 +810,8 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
   (default: unset, meaning no approval)
 - `INFER_TEXT_TO_MUSIC_REQUIRE_APPROVAL`: Require approval for the TextToMusic tool
   (default: unset, meaning no approval)
+- `INFER_TEXT_TO_SFX_REQUIRE_APPROVAL`: Require approval for the TextToSFX tool
+  (default: unset, meaning no approval)
 
 Approval variables are tri-state: leaving one unset is not the same as setting it to
 `false`. An unset tool falls back to the policy baked into the tool, while an explicit
@@ -824,6 +826,19 @@ value pins it either way.
 These mirror the top-level `text_to_music:` YAML block: `enabled`, `model`, `output_dir`
 and `require_approval`. The tool itself is documented in the
 [Tools Reference](tools-reference.md#texttomusic-tool) and its output directory in the
+[Directory Structure](directory-structure.md).
+
+**TextToSFX Tool Configuration:**
+
+- `INFER_TEXT_TO_SFX_ENABLED`: Enable/disable the TextToSFX tool (default: `false`)
+- `INFER_TEXT_TO_SFX_MODEL`: Gateway `provider/model` id used for sound-effect generation
+  (default: `elevenlabs/eleven_text_to_sound_v2`)
+- `INFER_TEXT_TO_SFX_OUTPUT_DIR`: Directory the generated WAV is written to (default:
+  `~/.infer/tmp/sfx`)
+
+These mirror the top-level `text_to_sfx:` YAML block: `enabled`, `model`, `output_dir`
+and `require_approval`. The tool itself is documented in the
+[Tools Reference](tools-reference.md#texttosfx-tool) and its output directory in the
 [Directory Structure](directory-structure.md).
 
 **Bash Tool Allow-List Configuration:**
