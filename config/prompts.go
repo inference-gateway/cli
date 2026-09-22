@@ -105,6 +105,7 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.TextToSpeech, &defaults.TextToSpeech)
 	mergeToolDescription(&loaded.TextToMusic, &defaults.TextToMusic)
 	mergeToolDescription(&loaded.TextToSFX, &defaults.TextToSFX)
+	mergeToolDescription(&loaded.TextToVideo, &defaults.TextToVideo)
 }
 
 func mergeToolDescription(loaded, defaults *PromptsToolDescription) {
@@ -235,6 +236,7 @@ type PromptsToolsConfig struct {
 	TextToSpeech        PromptsToolDescription `yaml:"TextToSpeech" mapstructure:"TextToSpeech"`
 	TextToMusic         PromptsToolDescription `yaml:"TextToMusic" mapstructure:"TextToMusic"`
 	TextToSFX           PromptsToolDescription `yaml:"TextToSFX" mapstructure:"TextToSFX"`
+	TextToVideo         PromptsToolDescription `yaml:"TextToVideo" mapstructure:"TextToVideo"`
 }
 
 // DefaultPromptsConfig returns the in-code default prompts. This is the
@@ -701,6 +703,13 @@ Generation can take a while (music models are slow); if it fails with a temporar
 Describe the sound in prompt: the event or atmosphere and its character - a whoosh, a click, a riser, room tone, distant thunder. Optionally pass seconds (clip length in seconds, 0.5-30; omitted lets the provider pick a length that fits the prompt) and loop (true for a clip that loops seamlessly). Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP3 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name. To place the clip elsewhere, generate first and then copy the returned file.
 
 Use this for non-speech audio only: speech models are covered by TextToSpeech, music by TextToMusic. Do not claim the clip was played aloud - it is written to disk for the user to open, at the returned path.`,
+		},
+		TextToVideo: PromptsToolDescription{
+			Description: `Render a video clip from a text prompt and save it as an MP4 file. Returns the saved file path.
+
+Describe the shot in prompt. Optionally pass seconds (a string such as "4"; ignored when audio is present) and size (widthxheight such as 720x1280 portrait or 1280x720 landscape; the provider derives the resolution from the shorter side, 480/720/1080). Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP4 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name.
+
+For a lip-synced talking clip pass avatar (a bare name of a portrait image, looked up in the working directory, then the avatar library ~/.infer/models/avatars/) together with audio (a bare .wav or .mp3 name, looked up in the working directory, then the TextToSpeech output dir); audio requires avatar, the dialogue comes entirely from the audio clip and prompt only describes framing. Both uploads go to a third-party provider and must stay under 10 MiB combined. Renders can take minutes - do not poll between retries. Do not claim the clip was played - it is written to disk for the user to open, at the returned path.`,
 		},
 		ImageEdit: PromptsToolDescription{
 			Description: `Edit an existing image and save the result as a PNG under ~/.infer/projects/<project-slug>/artifacts/. Returns the saved file path.

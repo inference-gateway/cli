@@ -52,6 +52,7 @@ type Registry struct {
 	speechService   agentdomain.SpeechService
 	musicService    agentdomain.MusicService
 	sfxService      agentdomain.SoundEffectService
+	videoService    agentdomain.VideoService
 	mcpManager      agentdomain.MCPManager
 	shellService    scheddomain.BackgroundShellService
 	annotator       agentdomain.ImageAnnotator
@@ -68,7 +69,7 @@ type Registry struct {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, videoService agentdomain.VideoService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}
@@ -82,6 +83,7 @@ func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, spee
 		speechService: speechService,
 		musicService:  musicService,
 		sfxService:    sfxService,
+		videoService:  videoService,
 		mcpManager:    mcpManager,
 		annotator:     annotator,
 		frameSources:  make(map[string]agentdomain.FrameSource),
@@ -140,7 +142,7 @@ func (r *Registry) FrameSourceNames() []string {
 // registerTools initializes and registers all available tools. It runs during
 // construction, before the Registry is shared with other goroutines, so it
 // does not take toolsMu.
-func (r *Registry) registerTools() {
+func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 	cfg := r.config
 
 	r.tools["Bash"] = NewBashTool(cfg, r.shellService)
@@ -222,6 +224,10 @@ func (r *Registry) registerTools() {
 
 	if cfg.TextToSFX.Enabled && r.sfxService != nil {
 		r.tools["TextToSFX"] = NewTextToSFXTool(cfg, r.sfxService)
+	}
+
+	if cfg.TextToVideo.Enabled && r.videoService != nil {
+		r.tools["TextToVideo"] = NewTextToVideoTool(cfg, r.videoService)
 	}
 
 	if cfg.IsA2AToolsEnabled() {

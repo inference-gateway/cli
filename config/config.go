@@ -39,6 +39,7 @@ type Config struct {
 	TextToSpeech     TextToSpeechConfig     `yaml:"text_to_speech" mapstructure:"text_to_speech"`
 	TextToMusic      TextToMusicConfig      `yaml:"text_to_music" mapstructure:"text_to_music"`
 	TextToSFX        TextToSFXConfig        `yaml:"text_to_sfx" mapstructure:"text_to_sfx"`
+	TextToVideo      TextToVideoConfig      `yaml:"text_to_video" mapstructure:"text_to_video"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
 	Tools            ToolsConfig            `yaml:"tools" mapstructure:"tools"`
@@ -135,6 +136,10 @@ const TextToMusicGatewayDefaultModel = "elevenlabs/music_v2_5"
 // when text_to_sfx.model is unset.
 const TextToSFXGatewayDefaultModel = "elevenlabs/eleven_text_to_sound_v2"
 
+// TextToVideoGatewayDefaultModel is the model used by the gateway's Videos API
+// when text_to_video.model is unset.
+const TextToVideoGatewayDefaultModel = "elevenlabs/creatify-aurora"
+
 // TextToSFXConfig contains opt-in settings for sound-effect generation. The
 // clip is generated behind the gateway's SFX API (POST /v1/audio/sfx), always
 // as WAV; the CLI holds no provider key, the gateway does.
@@ -165,6 +170,44 @@ func (c TextToSFXConfig) ResolveOutputDir() (string, error) {
 		return "", fmt.Errorf("resolving home directory: %w", err)
 	}
 	return filepath.Join(home, ConfigDirName, "tmp", "sfx"), nil
+}
+
+// TextToVideoConfig contains opt-in settings for video generation. The clip
+// is rendered behind the gateway's Videos API (POST /v1/videos, GET
+// /v1/videos/{id}, GET /v1/videos/{id}/content); the CLI holds no provider
+// key, the gateway does. When avatar and audio are supplied, the portrait and
+// the driving voice are sent to a third-party provider, so the tool stays off
+// by default.
+type TextToVideoConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model           string `yaml:"model" mapstructure:"model"`
+	Size            string `yaml:"size" mapstructure:"size"`
+	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
+	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
+	PollInterval    int    `yaml:"poll_interval" mapstructure:"poll_interval"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// ResolveGatewayModel returns the "provider/model" id used for video
+// generation, defaulting to the gateway's elevenlabs/creatify-aurora.
+func (c TextToVideoConfig) ResolveGatewayModel() string {
+	return cmp.Or(strings.TrimSpace(c.Model), TextToVideoGatewayDefaultModel)
+}
+
+// ResolveOutputDir returns the directory where generated videos are stored,
+// defaulting to ~/.infer/tmp/video when OutputDir is unset. Generated clips
+// are disposable runtime output, so they live under the userspace tmp dir
+// (agent-readable/writable, wiped by /reset) instead of beside the config
+// files.
+func (c TextToVideoConfig) ResolveOutputDir() (string, error) {
+	if strings.TrimSpace(c.OutputDir) != "" {
+		return c.OutputDir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home directory: %w", err)
+	}
+	return filepath.Join(home, ConfigDirName, "tmp", "video"), nil
 }
 
 // TextToMusicConfig contains opt-in settings for music composition. The clip
@@ -1414,7 +1457,7 @@ func DefaultConfig() *Config { //nolint:funlen
 
 // IsApprovalRequired checks if approval is required for a specific tool
 // It returns true if tool-specific approval is set to true, or if global approval is true and tool-specific is not set to false
-func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cyclop,funlen
+func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cyclop,funlen,gocognit
 	globalApproval := c.Tools.Safety.RequireApproval
 
 	switch toolName {
@@ -1525,6 +1568,11 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 	case "TextToSFX":
 		if c.TextToSFX.RequireApproval != nil {
 			return *c.TextToSFX.RequireApproval
+		}
+		return false
+	case "TextToVideo":
+		if c.TextToVideo.RequireApproval != nil {
+			return *c.TextToVideo.RequireApproval
 		}
 		return false
 	case "Memory":
@@ -1649,6 +1697,16 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
 			return fmt.Errorf(
 				"invalid text_to_sfx.model %q: must be of the form 'provider/model', e.g. 'elevenlabs/eleven_text_to_sound_v2'",
+				model,
+			)
+		}
+	}
+
+	if c.TextToVideo.Enabled {
+		model := c.TextToVideo.ResolveGatewayModel()
+		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
+			return fmt.Errorf(
+				"invalid text_to_video.model %q: must be of the form 'provider/model', e.g. 'elevenlabs/creatify-aurora'",
 				model,
 			)
 		}

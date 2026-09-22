@@ -67,6 +67,25 @@ type SoundEffectService interface {
 	Generate(ctx context.Context, prompt, outPath string, seconds *float32, loop *bool) error
 }
 
+// VideoRequest is one video render: a text prompt (required unless the audio
+// drives the render), the optional seconds and size passthroughs, and the
+// optional avatar portrait and driving audio for lip-synced talking clips.
+type VideoRequest struct {
+	Prompt     string
+	Seconds    string
+	Size       string
+	AvatarPath string
+	AudioPath  string
+}
+
+// VideoService renders a video clip through the gateway's Videos API,
+// writing MP4 content to outPath. With an avatar and audio it renders a
+// lip-synced talking clip; the render blocks until the gateway job
+// completes, fails or the context ends.
+type VideoService interface {
+	Render(ctx context.Context, request VideoRequest, outPath string) error
+}
+
 // FileInfo contains file metadata
 type FileInfo struct {
 	Path  string
