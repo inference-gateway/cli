@@ -85,6 +85,7 @@ type ServiceContainer struct {
 	imageService           agentdomain.ImageService
 	speechService          agentdomain.SpeechService
 	musicService           agentdomain.MusicService
+	sfxService             agentdomain.SoundEffectService
 	imageAnnotator         agentdomain.ImageAnnotator
 	pricingService         convdomain.PricingService
 	telemetryRecorder      *telemetry.Recorder
@@ -385,6 +386,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.imageService = agentinfra.NewImageService(c.config, c.createRawSDKClient())
 	c.speechService = agentinfra.NewSpeechService(c.config, c.createRawSDKClient())
 	c.musicService = agentinfra.NewMusicService(c.config, c.createRawSDKClient())
+	c.sfxService = agentinfra.NewSFXService(c.config, c.createRawSDKClient())
 	c.messageQueue = conversation.NewMessageQueueService()
 
 	c.initializeMCPManager()
@@ -400,7 +402,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.stores = stores
 
 	c.imageAnnotator = c.createImageAnnotator()
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.musicService, c.mcpManager, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.musicService, c.sfxService, c.mcpManager, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
 	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator))
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 

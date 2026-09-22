@@ -27,7 +27,7 @@ func toolNamesForMode(svc *LLMToolService, mode agentdomain.AgentMode) []string 
 
 func TestListToolsForMode_ReadOnly(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 	names := toolNamesForMode(svc, agentdomain.AgentModeReadOnly)
 
@@ -45,7 +45,7 @@ func TestListToolsForMode_ReadOnly(t *testing.T) {
 
 func TestListToolsForMode_AskUserQuestionModes(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 
 	for _, mode := range []agentdomain.AgentMode{
@@ -68,7 +68,7 @@ func TestListToolsForMode_AskUserQuestionModes(t *testing.T) {
 // tools, and a context without a mode fails open.
 func TestExecuteTool_ModeGuard(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 
 	tests := []struct {
@@ -125,7 +125,7 @@ func TestListToolsOffersImageDecodeToEveryModel(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Vision.Annotator.Enabled = true
 	cfg.Vision.Annotator.Model = "openai/qwen3-vl-2b"
-	registry := tools.NewRegistry(cfg, &agentdomainmocks.FakeImageService{}, nil, nil, nil, nil, &agentdomainmocks.FakeImageAnnotator{}, nil, nil)
+	registry := tools.NewRegistry(cfg, &agentdomainmocks.FakeImageService{}, nil, nil, nil, nil, nil, &agentdomainmocks.FakeImageAnnotator{}, nil, nil)
 	svc := NewLLMToolServiceWithRegistry(cfg, registry)
 
 	names := func() []string {

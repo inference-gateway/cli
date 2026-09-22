@@ -51,6 +51,7 @@ type Registry struct {
 	imageService    agentdomain.ImageService
 	speechService   agentdomain.SpeechService
 	musicService    agentdomain.MusicService
+	sfxService      agentdomain.SoundEffectService
 	mcpManager      agentdomain.MCPManager
 	shellService    scheddomain.BackgroundShellService
 	annotator       agentdomain.ImageAnnotator
@@ -67,7 +68,7 @@ type Registry struct {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}
@@ -80,6 +81,7 @@ func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, spee
 		imageService:  imageService,
 		speechService: speechService,
 		musicService:  musicService,
+		sfxService:    sfxService,
 		mcpManager:    mcpManager,
 		annotator:     annotator,
 		frameSources:  make(map[string]agentdomain.FrameSource),
@@ -216,6 +218,10 @@ func (r *Registry) registerTools() {
 
 	if cfg.TextToMusic.Enabled && r.musicService != nil {
 		r.tools["TextToMusic"] = NewTextToMusicTool(cfg, r.musicService)
+	}
+
+	if cfg.TextToSFX.Enabled && r.sfxService != nil {
+		r.tools["TextToSFX"] = NewTextToSFXTool(cfg, r.sfxService)
 	}
 
 	if cfg.IsA2AToolsEnabled() {

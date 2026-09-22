@@ -104,6 +104,7 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.ImageVariation, &defaults.ImageVariation)
 	mergeToolDescription(&loaded.TextToSpeech, &defaults.TextToSpeech)
 	mergeToolDescription(&loaded.TextToMusic, &defaults.TextToMusic)
+	mergeToolDescription(&loaded.TextToSFX, &defaults.TextToSFX)
 }
 
 func mergeToolDescription(loaded, defaults *PromptsToolDescription) {
@@ -233,6 +234,7 @@ type PromptsToolsConfig struct {
 	ImageVariation      PromptsToolDescription `yaml:"ImageVariation" mapstructure:"ImageVariation"`
 	TextToSpeech        PromptsToolDescription `yaml:"TextToSpeech" mapstructure:"TextToSpeech"`
 	TextToMusic         PromptsToolDescription `yaml:"TextToMusic" mapstructure:"TextToMusic"`
+	TextToSFX           PromptsToolDescription `yaml:"TextToSFX" mapstructure:"TextToSFX"`
 }
 
 // DefaultPromptsConfig returns the in-code default prompts. This is the
@@ -692,6 +694,13 @@ The first call may be slow (engine warmup or model download); if it fails with a
 Describe the music in prompt: genre, mood, instruments, tempo. Optionally pass seconds (clip length in seconds; omitted lets the provider pick a length that fits the prompt) and instrumental (true to guarantee no vocals). Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP3 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name. To place the clip elsewhere, compose first and then copy the returned file.
 
 Generation can take a while (music models are slow); if it fails with a temporarily-unavailable error, wait a few seconds and retry once. Do not claim the clip was played aloud - it is written to disk for the user to open, at the returned path.`,
+		},
+		TextToSFX: PromptsToolDescription{
+			Description: `Generate a short sound effect or ambience clip from a text prompt and save it as a WAV file. Returns the saved file path and the audio duration.
+
+Describe the sound in prompt: the event or atmosphere and its character - a whoosh, a click, a riser, room tone, distant thunder. Optionally pass seconds (clip length in seconds, 0.5-30; omitted lets the provider pick a length that fits the prompt) and loop (true for a clip that loops seamlessly). Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the WAV is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name. To place the clip elsewhere, generate first and then copy the returned file.
+
+Use this for non-speech audio only: speech models are covered by TextToSpeech, music by TextToMusic. Do not claim the clip was played aloud - it is written to disk for the user to open, at the returned path.`,
 		},
 		ImageEdit: PromptsToolDescription{
 			Description: `Edit an existing image and save the result as a PNG under ~/.infer/projects/<project-slug>/artifacts/. Returns the saved file path.

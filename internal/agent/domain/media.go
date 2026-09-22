@@ -58,6 +58,15 @@ type MusicService interface {
 	Compose(ctx context.Context, prompt, outPath string, seconds *float32, instrumental *bool) error
 }
 
+// SoundEffectService generates a short sound effect or ambience clip from a
+// text prompt through the gateway's SFX API, writing WAV audio to outPath.
+// A non-nil seconds caps the clip length in seconds; a non-nil loop requests
+// a clip that loops seamlessly. An omitted knob leaves the choice to the
+// configured provider.
+type SoundEffectService interface {
+	Generate(ctx context.Context, prompt, outPath string, seconds *float32, loop *bool) error
+}
+
 // FileInfo contains file metadata
 type FileInfo struct {
 	Path  string
