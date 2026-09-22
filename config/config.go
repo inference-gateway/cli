@@ -38,6 +38,7 @@ type Config struct {
 	SpeechToText     SpeechToTextConfig     `yaml:"speech_to_text" mapstructure:"speech_to_text"`
 	TextToSpeech     TextToSpeechConfig     `yaml:"text_to_speech" mapstructure:"text_to_speech"`
 	TextToMusic      TextToMusicConfig      `yaml:"text_to_music" mapstructure:"text_to_music"`
+	TextToSFX        TextToSFXConfig        `yaml:"text_to_sfx" mapstructure:"text_to_sfx"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
 	Tools            ToolsConfig            `yaml:"tools" mapstructure:"tools"`
@@ -130,6 +131,42 @@ const TextToSpeechGatewayDefaultModel = "local/qwen3-tts"
 // API when text_to_music.model is unset.
 const TextToMusicGatewayDefaultModel = "elevenlabs/music_v2_5"
 
+// TextToSFXGatewayDefaultModel is the model used by the gateway's SFX API
+// when text_to_sfx.model is unset.
+const TextToSFXGatewayDefaultModel = "elevenlabs/eleven_text_to_sound_v2"
+
+// TextToSFXConfig contains opt-in settings for sound-effect generation. The
+// clip is generated behind the gateway's SFX API (POST /v1/audio/sfx), always
+// as WAV; the CLI holds no provider key, the gateway does.
+type TextToSFXConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model           string `yaml:"model" mapstructure:"model"`
+	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// ResolveGatewayModel returns the "provider/model" id used for sound-effect
+// generation, defaulting to the gateway's elevenlabs/eleven_text_to_sound_v2.
+func (c TextToSFXConfig) ResolveGatewayModel() string {
+	return cmp.Or(strings.TrimSpace(c.Model), TextToSFXGatewayDefaultModel)
+}
+
+// ResolveOutputDir returns the directory where generated sound effects are
+// stored, defaulting to ~/.infer/tmp/sfx when OutputDir is unset. Generated
+// clips are disposable runtime output, so they live under the userspace tmp
+// dir (agent-readable/writable, wiped by /reset) instead of beside the
+// config files.
+func (c TextToSFXConfig) ResolveOutputDir() (string, error) {
+	if strings.TrimSpace(c.OutputDir) != "" {
+		return c.OutputDir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home directory: %w", err)
+	}
+	return filepath.Join(home, ConfigDirName, "tmp", "sfx"), nil
+}
+
 // TextToMusicConfig contains opt-in settings for music composition. The clip
 // is generated behind the gateway's Music API (POST /v1/audio/music), always
 // as MP3; the CLI holds no provider key, the gateway does.
@@ -163,9 +200,10 @@ func (c TextToMusicConfig) ResolveOutputDir() (string, error) {
 }
 
 // NeedsGatewayAudio reports whether the gateway must serve its Audio API
-// (AUDIO_ENABLED=true): gateway-engine speech synthesis or music composition.
+// (AUDIO_ENABLED=true): gateway-engine speech synthesis, music composition
+// or sound-effect generation.
 func (c *Config) NeedsGatewayAudio() bool {
-	return (c.TextToSpeech.Enabled && c.TextToSpeech.IsGatewayEngine()) || c.TextToMusic.Enabled
+	return (c.TextToSpeech.Enabled && c.TextToSpeech.IsGatewayEngine()) || c.TextToMusic.Enabled || c.TextToSFX.Enabled
 }
 
 // TextToSpeechConfig contains opt-in settings for speech synthesis. Engine
@@ -1484,6 +1522,11 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 			return *c.TextToMusic.RequireApproval
 		}
 		return false
+	case "TextToSFX":
+		if c.TextToSFX.RequireApproval != nil {
+			return *c.TextToSFX.RequireApproval
+		}
+		return false
 	case "Memory":
 		return false
 	case "Computer", "GetLatestFrame":
@@ -1596,6 +1639,16 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
 			return fmt.Errorf(
 				"invalid text_to_music.model %q: must be of the form 'provider/model', e.g. 'elevenlabs/music_v2_5'",
+				model,
+			)
+		}
+	}
+
+	if c.TextToSFX.Enabled {
+		model := c.TextToSFX.ResolveGatewayModel()
+		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
+			return fmt.Errorf(
+				"invalid text_to_sfx.model %q: must be of the form 'provider/model', e.g. 'elevenlabs/eleven_text_to_sound_v2'",
 				model,
 			)
 		}

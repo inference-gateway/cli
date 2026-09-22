@@ -307,7 +307,7 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 	t.Run("disabled by default: not registered", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToSpeech.Enabled = false
-		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 		assert.NotContains(t, registry.ListAvailableTools(), "TextToSpeech")
 		for _, def := range registry.GetToolDefinitions() {
@@ -320,7 +320,7 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 	t.Run("enabled: present in the tools payload", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToSpeech.Enabled = true
-		registry := NewRegistry(cfg, nil, &fakeVoiceSynthesizer{}, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, &fakeVoiceSynthesizer{}, nil, nil, nil, nil, nil, nil, nil)
 
 		assert.Contains(t, registry.ListAvailableTools(), "TextToSpeech")
 
@@ -339,7 +339,7 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 		cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
 		cfg.TextToSpeech.Model = "openai/gpt-4o-mini-tts"
 		synth := &fakeVoiceSynthesizer{}
-		registry := NewRegistry(cfg, nil, synth, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, synth, nil, nil, nil, nil, nil, nil, nil)
 
 		tool, err := registry.GetTool("TextToSpeech")
 		require.NoError(t, err)
@@ -351,7 +351,7 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 		cfg.TextToSpeech.Enabled = true
 		cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
 		cfg.TextToSpeech.Model = "openai/gpt-4o-mini-tts"
-		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 		assert.NotContains(t, registry.ListAvailableTools(), "TextToSpeech")
 	})
