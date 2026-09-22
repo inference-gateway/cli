@@ -162,6 +162,12 @@ func (c TextToMusicConfig) ResolveOutputDir() (string, error) {
 	return filepath.Join(home, ConfigDirName, "tmp", "music"), nil
 }
 
+// NeedsGatewayAudio reports whether the gateway must serve its Audio API
+// (AUDIO_ENABLED=true): gateway-engine speech synthesis or music composition.
+func (c *Config) NeedsGatewayAudio() bool {
+	return (c.TextToSpeech.Enabled && c.TextToSpeech.IsGatewayEngine()) || c.TextToMusic.Enabled
+}
+
 // TextToSpeechConfig contains opt-in settings for speech synthesis. Engine
 // selects the backend: gateway (default) or qwen3-tts (local llama-tts).
 // BinaryPath, ModelsDir and FFmpegPath apply to qwen3-tts only and are

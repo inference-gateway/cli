@@ -506,7 +506,7 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 		args = append(args, "-e", "IMAGES_ENABLED=true")
 	}
 
-	if gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() {
+	if gm.config.NeedsGatewayAudio() {
 		args = append(args, "-e", "AUDIO_ENABLED=true")
 		args = append(args, "-e", fmt.Sprintf("AUDIO_LOCAL_AUTO_DOWNLOAD=%t", gm.config.TextToSpeech.AutoDownload))
 	}
@@ -600,10 +600,10 @@ func (gm *Manager) waitForReady(ctx context.Context) error {
 }
 
 // needsAudioRestart reports whether an already-running gateway must be
-// restarted because the configured text-to-speech engine needs its Audio API
-// but the running instance was started without AUDIO_ENABLED.
+// restarted because gateway speech or music needs its Audio API but the
+// running instance was started without AUDIO_ENABLED.
 func (gm *Manager) needsAudioRestart() bool {
-	return gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() && !gm.audioAPIEnabled()
+	return gm.config.NeedsGatewayAudio() && !gm.audioAPIEnabled()
 }
 
 // audioAPIEnabled probes POST /v1/audio/speech on the running gateway. The
@@ -1065,7 +1065,7 @@ func (gm *Manager) runBinary(binaryPath string) error {
 		cmd.Env = append(cmd.Env, "IMAGES_ENABLED=true")
 	}
 
-	if gm.config.TextToSpeech.Enabled && gm.config.TextToSpeech.IsGatewayEngine() {
+	if gm.config.NeedsGatewayAudio() {
 		cmd.Env = append(cmd.Env, "AUDIO_ENABLED=true")
 		cmd.Env = append(cmd.Env, fmt.Sprintf("AUDIO_LOCAL_AUTO_DOWNLOAD=%t", gm.config.TextToSpeech.AutoDownload))
 	}

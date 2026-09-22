@@ -40,10 +40,10 @@ model name as soon as the feature is enabled.
 The music endpoint is part of the gateway's Audio API, so the gateway must run
 with `AUDIO_ENABLED=true` and hold credentials for the provider behind `model`
 (for the default, an ElevenLabs API key). The CLI-managed local gateway is
-started with `AUDIO_ENABLED=true` only when `text_to_speech.enabled` is on with
-the `gateway` engine; enabling `text_to_music` alone does not set it. Until it
-does, either enable [text-to-speech](text-to-speech.md) alongside music or set
-`AUDIO_ENABLED=true` on an externally managed gateway yourself.
+started with `AUDIO_ENABLED=true` automatically when `text_to_music.enabled`
+is on, and an already-running instance without the Audio API is restarted.
+If you point the CLI at an externally managed gateway, set `AUDIO_ENABLED=true`
+and the provider key on it yourself.
 
 A gateway without the endpoint, or a provider that rejects the request, makes
 the tool call fail with a one-line error naming the configured model
