@@ -272,7 +272,7 @@ func TestInjectDueReminders_StalledTodosContinuation(t *testing.T) {
 	svc := &AgentServiceImpl{config: cfg, stateManager: sm}
 
 	// A turn that ends with no tool calls arms the strike counter.
-	svc.trackStreamOutcome("stop", false)
+	svc.trackStreamOutcome("stop", false, true)
 
 	conv := []sdk.Message{}
 	agentCtx := newReminderAgentCtx(&conv, 2, 50)
@@ -284,7 +284,7 @@ func TestInjectDueReminders_StalledTodosContinuation(t *testing.T) {
 	assert.NotContains(t, content, "done thing", "completed items must not appear in the nudge")
 
 	// A turn WITH tool calls resets the strikes: no nudge.
-	svc.trackStreamOutcome("stop", true)
+	svc.trackStreamOutcome("stop", true, true)
 	conv = nil
 	agentCtx = newReminderAgentCtx(&conv, 3, 50)
 	svc.injectDueReminders(agentCtx, agentdomain.HookPostStream)
@@ -308,7 +308,7 @@ func TestInjectDueReminders_TruncationTakesPriority(t *testing.T) {
 	sm.SetTodos([]agentdomain.TodoItem{{ID: "1", Content: "open", Status: "pending"}})
 	svc := &AgentServiceImpl{config: cfg, stateManager: sm}
 
-	svc.trackStreamOutcome("length", false)
+	svc.trackStreamOutcome("length", false, true)
 
 	conv := []sdk.Message{}
 	agentCtx := newReminderAgentCtx(&conv, 2, 50)
@@ -317,4 +317,31 @@ func TestInjectDueReminders_TruncationTakesPriority(t *testing.T) {
 	require.Len(t, conv, 1)
 	content, _ := conv[0].Content.AsMessageContent0()
 	assert.Contains(t, content, "truncated")
+}
+
+func TestInjectDueReminders_EmptyResponse(t *testing.T) {
+	cfg := remindersConfig(true, config.ReminderConfig{
+		Name: "empty-response-continuation", Text: "your reply was empty, continue",
+		Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnEmptyResponse, Threshold: 3,
+	})
+
+	for _, tt := range []struct {
+		name       string
+		hadContent bool
+		want       int
+	}{
+		{"reasoning-only turn nudges", false, 1},
+		{"text answer is left alone", true, 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &AgentServiceImpl{config: cfg}
+			svc.trackStreamOutcome("stop", false, tt.hadContent)
+
+			conv := []sdk.Message{}
+			agentCtx := newReminderAgentCtx(&conv, 2, 50)
+			svc.injectDueReminders(agentCtx, agentdomain.HookPostStream)
+
+			require.Len(t, conv, tt.want)
+		})
+	}
 }

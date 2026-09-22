@@ -33,6 +33,7 @@ const (
 	ReminderTriggerOnRepeatedFailure ReminderTrigger = "on_repeated_failure"
 	ReminderTriggerOnTruncation      ReminderTrigger = "on_truncation"
 	ReminderTriggerOnStalledTodos    ReminderTrigger = "on_stalled_todos"
+	ReminderTriggerOnEmptyResponse   ReminderTrigger = "on_empty_response"
 )
 
 // ReminderTriggers is the canonical catalog, used for config validation.
@@ -47,6 +48,7 @@ var ReminderTriggers = []ReminderTrigger{
 	ReminderTriggerOnRepeatedFailure,
 	ReminderTriggerOnTruncation,
 	ReminderTriggerOnStalledTodos,
+	ReminderTriggerOnEmptyResponse,
 }
 
 // Valid reports whether t is one of the pre-defined triggers.
@@ -85,6 +87,10 @@ This is an automated check, not a message from the user. Your todo list still ha
 
 const defaultTruncationContinuationReminderText = `<system-reminder>
 This is an automated check, not a message from the user. Your previous response was truncated by the token limit before any tool call was emitted. Continue where you left off: keep the reply short and re-issue the intended tool call.
+</system-reminder>`
+
+const defaultEmptyResponseContinuationReminderText = `<system-reminder>
+This is an automated check, not a message from the user. Your previous response contained no text and no tool call (thinking only). That is never a complete answer. Continue the task now: issue the tool call you were about to make, or reply with your final answer.
 </system-reminder>`
 
 // defaultRepeatedFailureThreshold is the built-in threshold for the
@@ -252,6 +258,13 @@ func DefaultRemindersConfig() *RemindersConfig {
 			Hook:    agentdomain.HookPostStream,
 			Trigger: ReminderTriggerOnTruncation,
 			Text:    defaultTruncationContinuationReminderText,
+		},
+		ReminderConfig{
+			Name:      "empty-response-continuation",
+			Hook:      agentdomain.HookPostStream,
+			Trigger:   ReminderTriggerOnEmptyResponse,
+			Threshold: defaultStalledTodosThreshold,
+			Text:      defaultEmptyResponseContinuationReminderText,
 		},
 	)
 	reminders = append(reminders, MemoryReminders()...)
@@ -463,6 +476,9 @@ func reminderTriggerFires(rc ReminderConfig, q agentdomain.ReminderQuery) bool {
 	case ReminderTriggerOnStalledTodos:
 		strikeCap := cmp.Or(rc.Threshold, defaultStalledTodosThreshold)
 		return len(q.IncompleteTodos) > 0 && q.StalledStrikes < strikeCap
+	case ReminderTriggerOnEmptyResponse:
+		strikeCap := cmp.Or(rc.Threshold, defaultStalledTodosThreshold)
+		return q.EmptyResponse && q.StalledStrikes < strikeCap
 	default:
 		return false
 	}
@@ -501,6 +517,8 @@ func (r RemindersConfig) Validate() error {
 			return fmt.Errorf("reminders[%d] (%s): trigger on_truncation requires hook %s", i, rc.Name, agentdomain.HookPostStream)
 		case rc.Trigger == ReminderTriggerOnStalledTodos && rc.Hook != "" && rc.Hook != agentdomain.HookPostStream:
 			return fmt.Errorf("reminders[%d] (%s): trigger on_stalled_todos requires hook %s", i, rc.Name, agentdomain.HookPostStream)
+		case rc.Trigger == ReminderTriggerOnEmptyResponse && rc.Hook != "" && rc.Hook != agentdomain.HookPostStream:
+			return fmt.Errorf("reminders[%d] (%s): trigger on_empty_response requires hook %s", i, rc.Name, agentdomain.HookPostStream)
 		case rc.Interval < 0:
 			return fmt.Errorf("reminders[%d] (%s): interval must be >= 0", i, rc.Name)
 		}

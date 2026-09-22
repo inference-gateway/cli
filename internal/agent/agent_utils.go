@@ -1143,10 +1143,11 @@ func (s *AgentServiceImpl) maybeRolloverSession(agentCtx *states.AgentContext, r
 // trackStreamOutcome records the just-finished stream's finish reason and
 // updates the consecutive no-tool-call strike counter that gates the
 // post_stream continuation nudges (on_stalled_todos / on_truncation).
-func (s *AgentServiceImpl) trackStreamOutcome(finishReason string, hadToolCalls bool) {
+func (s *AgentServiceImpl) trackStreamOutcome(finishReason string, hadToolCalls, hadContent bool) {
 	s.reminderMux.Lock()
 	defer s.reminderMux.Unlock()
 	s.lastFinishReason = finishReason
+	s.lastStreamEmpty = !hadToolCalls && !hadContent
 	if hadToolCalls {
 		s.stalledStrikes = 0
 	} else {
@@ -1223,6 +1224,7 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *states.AgentContext, hoo
 	if hook == agentdomain.HookPostStream && s.stalledStrikes > 0 {
 		q.FinishReason = s.lastFinishReason
 		q.StalledStrikes = s.stalledStrikes
+		q.EmptyResponse = s.lastStreamEmpty
 		if s.lastFinishReason != string(sdk.Length) && s.stateManager != nil {
 			q.IncompleteTodos = incompleteTodoItems(s.stateManager.GetTodos())
 		}
