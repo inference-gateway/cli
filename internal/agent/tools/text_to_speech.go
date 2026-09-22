@@ -146,13 +146,20 @@ func (t *TextToSpeechTool) resolveOutputPath(raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return resolveMediaOutputPath(dir, "speech-", raw)
+}
 
+// resolveMediaOutputPath is the shared output_path rule for the media tools
+// (TextToSpeech, TextToMusic): a supplied name must be a bare file name (no
+// directories, absolute paths or ..) and is joined onto dir; an empty name
+// allocates a unique timestamped target under dir instead.
+func resolveMediaOutputPath(dir, prefix, raw string) (string, error) {
 	name := strings.TrimSpace(raw)
 	if name == "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return "", fmt.Errorf("creating output directory: %w", err)
 		}
-		file, err := os.CreateTemp(dir, "speech-"+time.Now().Format("20060102-150405")+"-*.wav")
+		file, err := os.CreateTemp(dir, prefix+time.Now().Format("20060102-150405")+"-*.wav")
 		if err != nil {
 			return "", fmt.Errorf("allocating output file: %w", err)
 		}

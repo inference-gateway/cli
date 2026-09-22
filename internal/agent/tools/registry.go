@@ -50,6 +50,7 @@ type Registry struct {
 	jobLiveness     scheddomain.JobLivenessReporter
 	imageService    agentdomain.ImageService
 	speechService   agentdomain.SpeechService
+	musicService    agentdomain.MusicService
 	mcpManager      agentdomain.MCPManager
 	shellService    scheddomain.BackgroundShellService
 	annotator       agentdomain.ImageAnnotator
@@ -66,7 +67,7 @@ type Registry struct {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = utils.NewA2ATaskTracker()
 	}
@@ -78,6 +79,7 @@ func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, spee
 		taskTracker:   taskTracker,
 		imageService:  imageService,
 		speechService: speechService,
+		musicService:  musicService,
 		mcpManager:    mcpManager,
 		annotator:     annotator,
 		frameSources:  make(map[string]agentdomain.FrameSource),
@@ -210,6 +212,10 @@ func (r *Registry) registerTools() {
 
 	if cfg.TextToSpeech.Enabled {
 		r.registerTextToSpeech(cfg)
+	}
+
+	if cfg.TextToMusic.Enabled && r.musicService != nil {
+		r.tools["TextToMusic"] = NewTextToMusicTool(cfg, r.musicService)
 	}
 
 	if cfg.IsA2AToolsEnabled() {

@@ -103,6 +103,7 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.ImageEdit, &defaults.ImageEdit)
 	mergeToolDescription(&loaded.ImageVariation, &defaults.ImageVariation)
 	mergeToolDescription(&loaded.TextToSpeech, &defaults.TextToSpeech)
+	mergeToolDescription(&loaded.TextToMusic, &defaults.TextToMusic)
 }
 
 func mergeToolDescription(loaded, defaults *PromptsToolDescription) {
@@ -231,6 +232,7 @@ type PromptsToolsConfig struct {
 	ImageEdit           PromptsToolDescription `yaml:"ImageEdit" mapstructure:"ImageEdit"`
 	ImageVariation      PromptsToolDescription `yaml:"ImageVariation" mapstructure:"ImageVariation"`
 	TextToSpeech        PromptsToolDescription `yaml:"TextToSpeech" mapstructure:"TextToSpeech"`
+	TextToMusic         PromptsToolDescription `yaml:"TextToMusic" mapstructure:"TextToMusic"`
 }
 
 // DefaultPromptsConfig returns the in-code default prompts. This is the
@@ -683,6 +685,13 @@ Cost control: quality defaults to "low" and size to "1024x1024". Keep those defa
 Pass only text for a stock voice. Pass voice_sample to clone a voice: a bare file name (no directories, no absolute paths) of a WAV in the working directory, ideally 10-30 seconds of clean single-speaker speech. Pass output_path to name the file: also a bare file name only - the WAV is ALWAYS written into the configured output directory, never the working directory or any path you choose, so never pass directories or absolute paths; omit it for a timestamped name. To place the audio elsewhere, synthesize first and then copy the returned file.
 
 The first call may be slow (engine warmup or model download); if it fails with a not-ready or temporarily-unavailable error, wait a few seconds and retry once. Do not claim the audio was played aloud - it is written to disk for the user to open, at the returned path.`,
+		},
+		TextToMusic: PromptsToolDescription{
+			Description: `Compose a music clip from a text prompt and save it as a WAV file. Returns the saved file path and the audio duration.
+
+Describe the music in prompt: genre, mood, instruments, tempo. Optionally pass seconds (clip length in seconds; omitted lets the provider pick a length that fits the prompt) and instrumental (true to guarantee no vocals). Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the WAV is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name. To place the clip elsewhere, compose first and then copy the returned file.
+
+Generation can take a while (music models are slow); if it fails with a temporarily-unavailable error, wait a few seconds and retry once. Do not claim the clip was played aloud - it is written to disk for the user to open, at the returned path.`,
 		},
 		ImageEdit: PromptsToolDescription{
 			Description: `Edit an existing image and save the result as a PNG under ~/.infer/projects/<project-slug>/artifacts/. Returns the saved file path.
