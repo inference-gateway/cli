@@ -59,21 +59,25 @@ func List(dir string) ([]Avatar, error) {
 	return out, nil
 }
 
-// Get returns the named avatar from dir. The name must be a bare folder name.
+// Get returns the named avatar from dir. The name must be a bare folder
+// name: no absolute path, separators or "..", and not "." (the library
+// itself). The check stays inline, in the shape the TTS input helper uses, so
+// static analysis sees the name sanitized before it reaches the filesystem.
 func Get(dir, name string) (Avatar, error) {
-	if err := validName(name); err != nil {
-		return Avatar{}, err
+	if name == "" || name == "." || filepath.IsAbs(name) || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+		return Avatar{}, fmt.Errorf("invalid avatar name %q: pass a bare avatar name", name)
 	}
-	return read(dir, name)
+	return read(dir, filepath.Base(name))
 }
 
 // Delete removes the named avatar folder and every image in it.
 func Delete(dir, name string) error {
-	if _, err := Get(dir, name); err != nil {
+	avatar, err := Get(dir, name)
+	if err != nil {
 		return err
 	}
-	if err := os.RemoveAll(filepath.Join(dir, name)); err != nil {
-		return fmt.Errorf("deleting avatar %q: %w", name, err)
+	if err := os.RemoveAll(filepath.Join(dir, avatar.Name)); err != nil {
+		return fmt.Errorf("deleting avatar %q: %w", avatar.Name, err)
 	}
 	return nil
 }
@@ -103,11 +107,4 @@ func read(dir, name string) (Avatar, error) {
 		return Avatar{}, fmt.Errorf("avatar %q in %s holds no .png, .jpg, .jpeg or .webp image", name, dir)
 	}
 	return avatar, nil // os.ReadDir sorts by file name
-}
-
-func validName(name string) error {
-	if name == "" || name != filepath.Base(name) || strings.ContainsAny(name, `/\`) || name == "." || name == ".." {
-		return fmt.Errorf("invalid avatar name %q: pass a bare avatar name", name)
-	}
-	return nil
 }

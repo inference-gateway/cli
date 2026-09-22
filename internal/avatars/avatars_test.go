@@ -67,6 +67,7 @@ func TestGet(t *testing.T) {
 		{"nested", "presenter/front.png", true},
 		{"absolute", filepath.Join(dir, "presenter"), true},
 		{"dot dot", "..", true},
+		{"library root", ".", true},
 		{"empty", "", true},
 	}
 	for _, tt := range tests {
@@ -85,6 +86,9 @@ func TestDelete(t *testing.T) {
 
 	if err := Delete(dir, "../host"); err == nil {
 		t.Fatal("Delete accepted a traversal name")
+	}
+	if err := Delete(dir, "."); err == nil {
+		t.Fatal("Delete accepted the library root")
 	}
 	if err := Delete(dir, "ghost"); err == nil {
 		t.Fatal("Delete accepted a missing avatar")
