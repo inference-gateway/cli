@@ -242,7 +242,7 @@ func toolStats(tools map[string]*toolAgg) []ToolStat {
 	for name, t := range tools {
 		var avg float64
 		if t.durCount > 0 {
-			avg = t.durSum / float64(t.durCount) * 1000 // seconds to ms
+			avg = t.durSum / float64(t.durCount) * 1000
 		}
 		out = append(out, ToolStat{Name: name, Calls: t.calls, Failures: t.failures, AvgMs: avg})
 	}
