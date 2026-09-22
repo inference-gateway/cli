@@ -108,8 +108,6 @@ func createAvatar(cmd *cobra.Command, state *runtime.State, renderer *output.Ren
 		if !cfg.Tools.ImageEdit.Enabled || model == "" {
 			return fmt.Errorf("generating angles uses the ImageEdit model: set tools.image_edit.enabled and tools.image_edit.model, or pass --angles \"\" to only copy the photo")
 		}
-		// ponytail: the gateway starts on the first edit, after avatars.Create
-		// has validated the name, photo and angles, so a typo never spins one up.
 		imageService := sync.OnceValues(func() (agentdomain.ImageService, error) {
 			fmt.Printf("Generating %d angle(s) with %s (%s quality, %s)...\n", len(angles), model, quality, size)
 			services := container.NewServiceContainer(cfg)
