@@ -489,7 +489,8 @@ infer avatars list --format json               # Machine-readable listing
 infer avatars delete presenter                 # Remove an avatar folder
 ```
 
-See [docs/text-to-video.md](docs/text-to-video.md#avatar-library) for the layout.
+See [docs/text-to-video.md](docs/text-to-video.md#avatar-library) for the layout. With `text_to_video.create_avatar` the agent
+can build avatars itself through the `CreateAvatar` tool.
 
 **`infer export`** - Export a conversation to a Markdown file
 

@@ -27,6 +27,7 @@ text_to_video:
   output_dir: ""           # where generated mp4s go; empty = ~/.infer/tmp/video
   timeout: 900             # whole-render timeout (seconds): create, poll and download
   poll_interval: 5         # job status poll cadence (seconds)
+  create_avatar: false     # also give the agent the CreateAvatar tool (see Avatar library)
   require_approval: false  # optional; unset = no approval, like the image tools
 ```
 
@@ -137,6 +138,24 @@ Generating views sends the photo to the provider behind `tools.image_edit.model`
 provider at render time. The prompts ask for the same identity, clothing, lighting and background with a neutral, closed mouth,
 but check the results - profiles drift more than three-quarter views. Lip-sync models only use the primary image; the extra
 views feed prompt renders as reference images. Keep Veo's limit of 3 images in mind before adding profiles.
+
+### CreateAvatar tool
+
+With `text_to_video.create_avatar: true` (on top of `text_to_video.enabled`) the agent gets a `CreateAvatar` tool that runs the
+same code as `infer avatars create`. It covers the flows the command cannot: an avatar from a portrait the agent just generated
+with `ImageGeneration`/`ImageEdit`, a selfie sent over a channel such as Telegram, or a Content project building its presenter.
+
+- **Opt-in, approval by default** - it is a separate switch because the agent could otherwise turn any face it sees into an
+  avatar and send it to the image-edit provider. Every call asks for approval unless `text_to_video.require_approval` is set
+  explicitly (`INFER_TEXT_TO_VIDEO_REQUIRE_APPROVAL`).
+- **Photo confinement** - `photo` is a bare `.png`/`.jpg`/`.jpeg`/`.webp` file name looked up in the working directory (inside the
+  sandbox), then in the session's artifacts directory where generated images land. It never reads absolute paths, `..` or
+  anywhere else.
+- **Create only** - an existing name fails, and there is no delete tool; deleting stays `infer avatars delete`.
+- **Same knobs** - `angles` (default both three-quarter views, `[]` stores the photo only), `quality` (default `high`) and `size`
+  (default `1024x1536`); generating angles needs `tools.image_edit` enabled with a model.
+
+The result lists the saved images so the agent can go straight to `TextToVideo` with `avatar` set to the new name.
 
 You can also build an avatar by hand: create the folder and copy the images in. When the agent passes an unknown avatar name the
 tool call fails with the list of available avatars, so it can pick an existing one.

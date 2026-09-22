@@ -695,6 +695,38 @@ text_to_video:
 
 ---
 
+### CreateAvatar Tool
+
+Create an avatar in the TextToVideo library (`~/.infer/avatars/<name>/`) from a photo: the agent-side twin of `infer avatars create`.
+The photo is stored as `01-front` (a JPEG upright and without metadata) and each requested angle is generated from it with
+`tools.image_edit.model`, so the photo goes to that provider. Registered only when both `text_to_video.enabled` and
+`text_to_video.create_avatar` are true, and it requires approval by default (`text_to_video.require_approval` overrides).
+See [text-to-video](text-to-video.md#createavatar-tool).
+
+**Parameters:**
+
+- `name` (required): Bare name of the new avatar; an existing name fails, nothing is overwritten
+- `photo` (required): Bare file name of a `.png`, `.jpg`, `.jpeg` or `.webp` photo, looked up in the working directory, then in the
+  session's artifacts directory; absolute paths, directories and `..` are rejected
+- `angles` (optional): Views to generate - `three-quarter-left`, `three-quarter-right`, `left-profile`, `right-profile`; defaults to
+  both three-quarter views, `[]` stores the photo only
+- `quality` (optional): `auto`, `low`, `medium`, `high` (default) or `standard`
+- `size` (optional): Generated image size as `WIDTHxHEIGHT` or `auto` (default `1024x1536`)
+
+**Configuration:**
+
+```yaml
+text_to_video:
+  enabled: true
+  create_avatar: true
+tools:
+  image_edit:
+    enabled: true              # needed to generate angles
+    model: openai/gpt-image-2
+```
+
+---
+
 ## Vision Tools
 
 ### Computer Tool

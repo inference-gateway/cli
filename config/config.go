@@ -184,6 +184,9 @@ func (c TextToSFXConfig) ResolveOutputDir() (string, error) {
 // the driving voice are sent to a third-party provider, so the tool stays off
 // by default. Model renders prompts; AvatarModel renders lip-synced clips
 // from a portrait and an audio clip, so each can be swapped independently.
+// CreateAvatar additionally registers the CreateAvatar tool, which turns a
+// photo into a library avatar; it is a separate opt-in because the agent
+// could then build an avatar from any face it sees.
 type TextToVideoConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
 	Model           string `yaml:"model" mapstructure:"model"`
@@ -192,6 +195,7 @@ type TextToVideoConfig struct {
 	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
 	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
 	PollInterval    int    `yaml:"poll_interval" mapstructure:"poll_interval"`
+	CreateAvatar    bool   `yaml:"create_avatar" mapstructure:"create_avatar"`
 	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
@@ -1607,6 +1611,11 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 			return *c.TextToVideo.RequireApproval
 		}
 		return false
+	case "CreateAvatar":
+		if c.TextToVideo.RequireApproval != nil {
+			return *c.TextToVideo.RequireApproval
+		}
+		return true
 	case "Memory":
 		return false
 	case "Computer", "GetLatestFrame":

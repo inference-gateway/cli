@@ -230,6 +230,10 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 		r.tools["TextToVideo"] = NewTextToVideoTool(cfg, r.videoService)
 	}
 
+	if cfg.TextToVideo.Enabled && cfg.TextToVideo.CreateAvatar && r.imageService != nil {
+		r.tools["CreateAvatar"] = NewCreateAvatarTool(cfg, r.imageService)
+	}
+
 	if cfg.IsA2AToolsEnabled() {
 		r.tools["A2A_QueryAgent"] = NewA2AQueryAgentTool(cfg)
 		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(cfg, r.jobLiveness)

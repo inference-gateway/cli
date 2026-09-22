@@ -813,7 +813,8 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 - `INFER_TEXT_TO_SFX_REQUIRE_APPROVAL`: Require approval for the TextToSFX tool
   (default: unset, meaning no approval)
 - `INFER_TEXT_TO_VIDEO_REQUIRE_APPROVAL`: Require approval for the TextToVideo tool
-  (default: unset, meaning no approval)
+  (default: unset, meaning no approval) and the CreateAvatar tool (default: unset,
+  meaning approval required)
 
 Approval variables are tri-state: leaving one unset is not the same as setting it to
 `false`. An unset tool falls back to the policy baked into the tool, while an explicit
@@ -856,9 +857,11 @@ and `require_approval`. The tool itself is documented in the
   `~/.infer/tmp/video`)
 - `INFER_TEXT_TO_VIDEO_TIMEOUT`: Whole-render timeout in seconds (default: `900`)
 - `INFER_TEXT_TO_VIDEO_POLL_INTERVAL`: Job status poll interval in seconds (default: `5`)
+- `INFER_TEXT_TO_VIDEO_CREATE_AVATAR`: Also register the CreateAvatar tool, which builds a
+  library avatar from a photo (default: `false`; needs `INFER_TEXT_TO_VIDEO_ENABLED`)
 
 These mirror the top-level `text_to_video:` YAML block: `enabled`, `model`,
-`avatar_model`, `size`, `output_dir`, `timeout`, `poll_interval` and
+`avatar_model`, `size`, `output_dir`, `timeout`, `poll_interval`, `create_avatar` and
 `require_approval`. A gateway the CLI starts gets `VIDEOS_ENABLED=true` while the
 tool is enabled. The tool itself is
 documented in the [Tools Reference](tools-reference.md#texttovideo-tool) and its output
