@@ -122,8 +122,16 @@ func Create(ctx context.Context, dir, name, photo string, angles []string, edit 
 	if !slices.Contains(ImageExtensions, ext) {
 		return Avatar{}, fmt.Errorf("photo %q must be a .png, .jpg, .jpeg or .webp image", photo)
 	}
-	for _, angle := range angles {
-		if _, ok := Angles[angle]; !ok {
+	// Swap each requested angle for the library's own key, so generated file
+	// names are built from the Angles keys, never from caller input.
+	views := make([]string, len(angles))
+	for i, angle := range angles {
+		for known := range Angles {
+			if known == angle {
+				views[i] = known
+			}
+		}
+		if views[i] == "" {
 			return Avatar{}, fmt.Errorf("unknown angle %q (choose from %s)", angle, strings.Join(slices.Sorted(maps.Keys(Angles)), ", "))
 		}
 	}
@@ -142,7 +150,7 @@ func Create(ctx context.Context, dir, name, photo string, angles []string, edit 
 	if err := os.MkdirAll(folder, 0o755); err != nil {
 		return Avatar{}, fmt.Errorf("creating avatar folder: %w", err)
 	}
-	if err := generate(ctx, folder, ext, front, angles, edit); err != nil {
+	if err := generate(ctx, folder, ext, front, views, edit); err != nil {
 		_ = os.RemoveAll(folder)
 		return Avatar{}, err
 	}
