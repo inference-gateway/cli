@@ -998,9 +998,6 @@ func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 		return nil
 	}
 
-	// Unbracketed multi-character input (e.g. IME) arrives as one key with
-	// Text. Paste the Text, never the key name: an unbound chord like
-	// "alt+esc" (Esc pressed twice quickly) has no Text and must not be typed.
 	if text := keys.PrintableText(keyMsg); len(text) > 1 && !keys.IsKnownKey(text) {
 		return HandlePasteEvent(app, text)
 	}
