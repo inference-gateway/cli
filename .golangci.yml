@@ -39,6 +39,25 @@ linters:
               desc: "domain, capability and platform contexts must not depend on a UI surface; internal/container is the composition root and is exempt"
             - pkg: charm.land/bubbletea
               desc: "bubbletea belongs to internal/presentation, cmd and internal/container only"
+        domain-is-pure:
+          list-mode: lax
+          files:
+            - "**/internal/*/domain/**"
+            - "!$test"
+          allow:
+            - github.com/inference-gateway/cli/internal/agent/domain
+          deny:
+            - pkg: github.com/inference-gateway/cli/internal
+              desc: "a domain/ package imports only stdlib, external types and the agent/domain shared kernel"
+        container-is-the-root:
+          list-mode: lax
+          files:
+            - "**/internal/**"
+            - "!**/internal/container/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/inference-gateway/cli/internal/container
+              desc: "internal/container is the composition root; cmd/ builds it and passes ports in"
         telegram-only-in-presentation:
           list-mode: lax
           files:
