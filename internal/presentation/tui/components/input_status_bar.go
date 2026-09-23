@@ -779,9 +779,9 @@ func (isb *InputStatusBar) buildMCPIndicator() string {
 		return ""
 	}
 	if isb.mcpStatus.TotalTools > 0 {
-		return fmt.Sprintf("🔌 %d/%d (%d)", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers, isb.mcpStatus.TotalTools)
+		return fmt.Sprintf("MCP %d/%d (%d)", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers, isb.mcpStatus.TotalTools)
 	}
-	return fmt.Sprintf("🔌 %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers)
+	return fmt.Sprintf("MCP %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers)
 }
 
 // buildSessionTokensIndicator builds the cumulative input-tokens indicator.

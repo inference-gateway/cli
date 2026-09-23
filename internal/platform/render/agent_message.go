@@ -65,7 +65,7 @@ func FormatAgentMessage(line []byte) string {
 			result = string(r[:maxToolResultLen]) + "…"
 		}
 		if failed, _ := msg["failed"].(bool); failed {
-			return quoteBlock("⚠️ Tool failed - retrying may follow:\n```\n" + result + "\n```")
+			return quoteBlock("Tool failed - retrying may follow:\n```\n" + result + "\n```")
 		}
 		return quoteBlock("```\n" + result + "\n```")
 	}

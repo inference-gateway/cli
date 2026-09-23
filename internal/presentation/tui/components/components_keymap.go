@@ -135,20 +135,6 @@ var listViewKeys = struct {
 	selectKey: key.NewBinding(key.WithKeys("enter")),
 }
 
-var fileSelectionKeys = struct {
-	navUp     key.Binding
-	navDown   key.Binding
-	selectKey key.Binding
-	backspace key.Binding
-	cancel    key.Binding
-}{
-	navUp:     key.NewBinding(key.WithKeys("up")),
-	navDown:   key.NewBinding(key.WithKeys("down")),
-	selectKey: key.NewBinding(key.WithKeys("enter", "return")),
-	backspace: key.NewBinding(key.WithKeys("backspace")),
-	cancel:    key.NewBinding(key.WithKeys("esc")),
-}
-
 // fileExplorerFindKeys drives the find-in-tree text-input sub-mode of the file
 // explorer. These are inherent text-entry keys (not user-remappable); the
 // switch only catches control keys  and lets printable characters fall

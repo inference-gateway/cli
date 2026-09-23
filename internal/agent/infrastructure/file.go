@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
@@ -17,7 +18,8 @@ func NewFileService() agentdomain.FileService {
 	return &FileServiceImpl{}
 }
 
-// ListProjectFiles returns a list of all files in the current directory and subdirectories
+// ListProjectFiles returns the files under the current directory, followed by
+// the user's ~/.infer files (as "~/.infer/<path>").
 func (s *FileServiceImpl) ListProjectFiles() ([]string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -54,7 +56,50 @@ func (s *FileServiceImpl) ListProjectFiles() ([]string, error) {
 		return nil, fmt.Errorf("failed to walk directory tree: %w", err)
 	}
 
-	return files, nil
+	return append(files, s.listHomeInferFiles()...), nil
+}
+
+// homeInferSkipDirs are top-level ~/.infer runtime dirs (telemetry, logs,
+// binaries, models, scratch, per-project state) that only add noise.
+var homeInferSkipDirs = map[string]bool{
+	"telemetry": true, "logs": true, "run": true, "bin": true,
+	"models": true, "tmp": true, "projects": true,
+}
+
+// listHomeInferFiles lists ~/.infer files as "~/.infer/<rel>", which
+// ValidateFile and ReadFile resolve via expandHomePath. Owner-only files
+// (auth.yaml, projects.yaml) are skipped: they hold credentials and private
+// state that must not be offered for inlining into a prompt.
+func (s *FileServiceImpl) listHomeInferFiles() []string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	root := filepath.Join(home, config.ConfigDirName)
+	var files []string
+	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if rel != "." && (strings.HasPrefix(d.Name(), ".") || homeInferSkipDirs[rel]) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if info, err := d.Info(); err != nil || info.Mode().Perm()&0o044 == 0 {
+			return nil
+		}
+		if s.shouldIncludeFile(d, rel) {
+			files = append(files, "~/"+filepath.ToSlash(filepath.Join(config.ConfigDirName, rel)))
+		}
+		return nil
+	})
+	return files
 }
 
 // handleDirectory decides whether to skip directories and handles exclusions
@@ -150,7 +195,7 @@ func (s *FileServiceImpl) shouldIncludeFile(d os.DirEntry, relPath string) bool 
 
 // ReadFile reads the content of a file
 func (s *FileServiceImpl) ReadFile(path string) (string, error) {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(expandHomePath(path))
 	if err != nil {
 		return "", fmt.Errorf("failed to read file %s: %w", path, err)
 	}
@@ -185,13 +230,13 @@ func (s *FileServiceImpl) ValidateFile(path string) error {
 		return fmt.Errorf("file path cannot be empty")
 	}
 
-	absPath := path
-	if !filepath.IsAbs(path) {
+	absPath := expandHomePath(path)
+	if !filepath.IsAbs(absPath) {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return fmt.Errorf("failed to get current directory: %w", err)
 		}
-		absPath = filepath.Join(cwd, path)
+		absPath = filepath.Join(cwd, absPath)
 	}
 
 	info, err := os.Stat(absPath)
@@ -228,7 +273,7 @@ func (s *FileServiceImpl) ValidateFile(path string) error {
 
 // GetFileInfo returns information about a file
 func (s *FileServiceImpl) GetFileInfo(path string) (agentdomain.FileInfo, error) {
-	info, err := os.Stat(path)
+	info, err := os.Stat(expandHomePath(path))
 	if err != nil {
 		return agentdomain.FileInfo{}, fmt.Errorf("failed to get file info for %s: %w", path, err)
 	}

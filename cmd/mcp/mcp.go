@@ -458,7 +458,7 @@ func (c *command) addMCPServer(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("  Status: %s\n", enabledText(enabled))
 	fmt.Printf("\nConfiguration saved to %s\n", configPath)
-	fmt.Printf("\n⚠️  Note: If using chat mode, restart the chat session to connect to the new MCP server.\n")
+	fmt.Printf("\nNote: If using chat mode, restart the chat session to connect to the new MCP server.\n")
 	// TODO: Implement hot-reload for MCP configuration changes without requiring chat restart
 
 	return nil
@@ -571,7 +571,7 @@ func (c *command) enableMCPServer(cmd *cobra.Command, args []string) error {
 		c.renderer.StatusIcon(true),
 		name)
 	fmt.Printf("Configuration saved to %s\n", configPath)
-	fmt.Printf("\n⚠️  Note: If using chat mode, restart the chat session to apply changes.\n")
+	fmt.Printf("\nNote: If using chat mode, restart the chat session to apply changes.\n")
 
 	return nil
 }
@@ -600,7 +600,7 @@ func (c *command) disableMCPServer(cmd *cobra.Command, args []string) error {
 		c.renderer.StatusIcon(false),
 		name)
 	fmt.Printf("Configuration saved to %s\n", configPath)
-	fmt.Printf("\n⚠️  Note: If using chat mode, restart the chat session to apply changes.\n")
+	fmt.Printf("\nNote: If using chat mode, restart the chat session to apply changes.\n")
 
 	return nil
 }
@@ -621,7 +621,7 @@ func (c *command) enableMCPGlobal(cmd *cobra.Command, _ []string) error {
 
 	fmt.Printf("%s MCP enabled globally\n", c.renderer.StatusIcon(true))
 	fmt.Printf("Configuration saved to %s\n", configPath)
-	fmt.Printf("\n⚠️  Note: If using chat mode, restart the chat session to apply changes.\n")
+	fmt.Printf("\nNote: If using chat mode, restart the chat session to apply changes.\n")
 
 	return nil
 }
@@ -642,7 +642,7 @@ func (c *command) disableMCPGlobal(cmd *cobra.Command, _ []string) error {
 
 	fmt.Printf("%s MCP disabled globally\n", c.renderer.StatusIcon(false))
 	fmt.Printf("Configuration saved to %s\n", configPath)
-	fmt.Printf("\n⚠️  Note: If using chat mode, restart the chat session to apply changes.\n")
+	fmt.Printf("\nNote: If using chat mode, restart the chat session to apply changes.\n")
 
 	return nil
 }

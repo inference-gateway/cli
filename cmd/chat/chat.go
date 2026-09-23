@@ -153,7 +153,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	utils.OnShutdownSignal(doShutdown)
 
 	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
-		fmt.Printf("\n⚠️  Failed to start gateway automatically: %v\n", err)
+		fmt.Printf("\nFailed to start gateway automatically: %v\n", err)
 		fmt.Printf("   Continuing without local gateway.\n")
 		fmt.Printf("   Make sure the inference gateway is running at: %s\n\n", cfg.Gateway.URL)
 	}

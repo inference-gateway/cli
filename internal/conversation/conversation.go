@@ -326,17 +326,17 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 		var role string
 		switch entry.Message.Role {
 		case sdk.User:
-			role = "👤 **You**"
+			role = "**You**"
 		case sdk.Assistant:
 			if entry.Model != "" {
-				role = fmt.Sprintf("🤖 **Assistant (%s)**", entry.Model)
+				role = fmt.Sprintf("**Assistant (%s)**", entry.Model)
 			} else {
-				role = "🤖 **Assistant**"
+				role = "**Assistant**"
 			}
 		case sdk.System:
-			role = "⚙️ **System**"
+			role = "**System**"
 		case sdk.Tool:
-			role = "🔧 **Tool Result**"
+			role = "**Tool Result**"
 		default:
 			role = fmt.Sprintf("**%s**", string(entry.Message.Role))
 		}

@@ -395,7 +395,7 @@ func (c *ExitShortcut) CanExecute(args []string) bool { return len(args) == 0 }
 
 func (c *ExitShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	return ShortcutResult{
-		Output:     "👋 Chat session ended!",
+		Output:     "Chat session ended!",
 		Success:    true,
 		SideEffect: SideEffectExit,
 	}, nil
@@ -507,13 +507,13 @@ func (c *ThemeShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 	themeName := args[0]
 	if err := c.themeService.SetTheme(themeName); err != nil {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("❌ Failed to switch theme: %v", err),
+			Output:  fmt.Sprintf("Failed to switch theme: %v", err),
 			Success: false,
 		}, nil
 	}
 
 	return ShortcutResult{
-		Output:     fmt.Sprintf("🎨 Switched to theme: **%s**", themeName),
+		Output:     fmt.Sprintf("Switched to theme: **%s**", themeName),
 		Success:    true,
 		SideEffect: SideEffectSwitchTheme,
 		Data:       themeName,

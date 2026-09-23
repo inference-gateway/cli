@@ -60,45 +60,6 @@ func (h *ChatHandler) ExtractMarkdownSummary(content string) (string, bool) {
 	return h.messageProcessor.ExtractMarkdownSummary(content)
 }
 
-// handleFileSelectionRequest lists project files and transitions the UI to
-// the file-selection view. Stays on the orchestrator because it's a one-shot
-// UI transition that doesn't fit any other service family.
-func (h *ChatHandler) handleFileSelectionRequest(
-	_ tui.FileSelectionRequestEvent,
-) tea.Cmd {
-	files, err := h.fileService.ListProjectFiles()
-	if err != nil {
-		return func() tea.Msg {
-			return tui.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to load files: %v", err),
-				Sticky: false,
-			}
-		}
-	}
-
-	if len(files) == 0 {
-		return func() tea.Msg {
-			return tui.ShowErrorEvent{
-				Error:  "No files found in the current directory",
-				Sticky: false,
-			}
-		}
-	}
-
-	if err := h.stateManager.TransitionToView(tui.ViewStateFileSelection); err != nil {
-		return func() tea.Msg {
-			return tui.ShowErrorEvent{
-				Error:  "Failed to open file selection",
-				Sticky: false,
-			}
-		}
-	}
-
-	return func() tea.Msg {
-		return tui.SetupFileSelectionEvent{Files: files}
-	}
-}
-
 // handleConversationSelected loads a persisted conversation from disk and
 // refreshes the UI. Requires the conversation repo to be persistent; falls
 // back with an error if it isn't.

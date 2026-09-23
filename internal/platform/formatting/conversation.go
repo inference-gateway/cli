@@ -47,7 +47,7 @@ func (f *ConversationLineFormatter) FormatConversationToLines(conversation []con
 				role = "⏺ Assistant"
 			}
 		case "tool":
-			role = "🔧 Tool"
+			role = "Tool"
 		default:
 			role = string(entry.Message.Role)
 		}

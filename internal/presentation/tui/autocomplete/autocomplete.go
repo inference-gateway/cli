@@ -10,6 +10,7 @@ import (
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	ansi "github.com/charmbracelet/x/ansi"
+	fuzzy "github.com/sahilm/fuzzy"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -42,6 +43,7 @@ type ShortcutOption struct {
 	Description string
 	Usage       string
 	Catalog     bool
+	Matches     []int
 }
 
 // ShortcutRegistry interface for dependency injection
@@ -68,6 +70,7 @@ type AutocompleteImpl struct {
 	modelService         convdomain.ModelService
 	pricingService       convdomain.PricingService
 	githubIssueService   agentdomain.GitHubIssueService
+	fileService          agentdomain.FileService
 	completionMode       string
 	usageHint            string
 	splicePrefix         string
@@ -121,6 +124,29 @@ func (a *AutocompleteImpl) SetPricingService(pricingService convdomain.PricingSe
 // autocomplete trigger. Safe to call with nil; the trigger then shows nothing.
 func (a *AutocompleteImpl) SetGitHubIssueService(s agentdomain.GitHubIssueService) {
 	a.githubIssueService = s
+}
+
+// SetFileService sets the project file lister used by the "@" autocomplete
+// trigger. Safe to call with nil; the trigger then shows nothing.
+func (a *AutocompleteImpl) SetFileService(s agentdomain.FileService) {
+	a.fileService = s
+}
+
+// loadFiles populates the suggestion list with "@<path>" entries for every
+// project file the file service accepts for @-expansion.
+func (a *AutocompleteImpl) loadFiles() {
+	a.suggestions = []ShortcutOption{}
+	if a.fileService == nil {
+		return
+	}
+	files, err := a.fileService.ListProjectFiles()
+	if err != nil {
+		return
+	}
+	a.suggestions = make([]ShortcutOption, 0, len(files))
+	for _, f := range files {
+		a.suggestions = append(a.suggestions, ShortcutOption{Shortcut: "@" + f})
+	}
 }
 
 // loadGitHubIssues populates the suggestion list with open issues from the
@@ -549,6 +575,10 @@ func (a *AutocompleteImpl) applyMidTextMode(
 
 // Update handles autocomplete logic
 func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
+	if triggerStart := findSigilTriggerStart(inputText, cursorPos, '@'); triggerStart >= 0 {
+		a.applyMidTextMode(inputText, cursorPos, triggerStart, "files", a.loadFiles, a.filterFileSuggestions)
+		return
+	}
 	if triggerStart := findIssueTriggerStart(inputText, cursorPos); triggerStart >= 0 {
 		a.applyMidTextMode(inputText, cursorPos, triggerStart, "issues", a.loadGitHubIssues, a.filterIssueSuggestions)
 		return
@@ -669,6 +699,24 @@ func (a *AutocompleteImpl) filterIssueSuggestions() {
 	}
 }
 
+// filterFileSuggestions fuzzy-matches the query against "@<path>" entries,
+// best score first, recording matched offsets for highlighting.
+func (a *AutocompleteImpl) filterFileSuggestions() {
+	if a.query == "" {
+		a.filtered = a.suggestions
+		return
+	}
+	names := make([]string, len(a.suggestions))
+	for i, s := range a.suggestions {
+		names[i] = s.Shortcut
+	}
+	matches := fuzzy.Find(a.query, names)
+	a.filtered = make([]ShortcutOption, 0, len(matches))
+	for _, m := range matches {
+		a.filtered = append(a.filtered, ShortcutOption{Shortcut: m.Str, Matches: m.MatchedIndexes})
+	}
+}
+
 // filterSuggestions filters commands based on current query
 func (a *AutocompleteImpl) filterSuggestions() {
 	a.filtered = []ShortcutOption{}
@@ -771,7 +819,7 @@ func (a *AutocompleteImpl) handleSelection(drill bool) (bool, string) {
 	usage := a.filtered[a.selected].Usage
 	a.lastCompletionCursor = 0
 
-	if a.completionMode == "issues" || a.completionMode == "skills-midtext" {
+	if a.completionMode == "files" || a.completionMode == "issues" || a.completionMode == "skills-midtext" {
 		result, caret := a.spliceMidText(selected, a.splicePrefix, a.spliceSuffix)
 		a.lastCompletionCursor = caret
 		a.visible = false
@@ -918,6 +966,9 @@ func (a *AutocompleteImpl) calculateVisibleRange() (int, int) {
 
 // calculateMaxShortcutWidth calculates the maximum width for shortcut display
 func (a *AutocompleteImpl) calculateMaxShortcutWidth() int {
+	if a.completionMode == "files" {
+		return max(10, a.width-4) // paths have no description column; use the full row
+	}
 	maxShortcutWidth := 0
 	for _, cmd := range a.filtered {
 		displayText := a.getShortcutDisplayText(cmd)
@@ -975,8 +1026,11 @@ func (a *AutocompleteImpl) renderItems(b *strings.Builder, start, end, maxShortc
 
 		displayText := a.getShortcutDisplayText(cmd)
 		displayText = strings.TrimPrefix(displayText, "!!")
-		paddedShortcut := formatting.PadText(displayText, maxShortcutWidth)
-		paddedDescription := formatting.PadText(cmd.Description, descWidth)
+		paddedShortcut := highlightMatches(displayText, formatting.PadText(displayText, maxShortcutWidth), cmd.Matches)
+		paddedDescription := ""
+		if cmd.Description != "" {
+			paddedDescription = " │ " + formatting.PadText(cmd.Description, descWidth)
+		}
 
 		a.renderItem(b, i == a.selected, leftPadding, marker, paddedShortcut, paddedDescription, cmd.Catalog)
 
@@ -995,7 +1049,7 @@ func (a *AutocompleteImpl) renderItem(b *strings.Builder, selected bool, leftPad
 		nameColor = a.theme.GetStatusColor()
 	}
 	if selected {
-		line := fmt.Sprintf("%s%s%s%s%s%s │ %s%s",
+		line := fmt.Sprintf("%s%s%s%s%s%s%s%s",
 			leftPadding,
 			a.theme.GetAccentColor(),
 			marker,
@@ -1006,7 +1060,7 @@ func (a *AutocompleteImpl) renderItem(b *strings.Builder, selected bool, leftPad
 			colors.Reset)
 		b.WriteString(line)
 	} else {
-		line := fmt.Sprintf("%s%s%s%s │ %s%s%s",
+		line := fmt.Sprintf("%s%s%s%s%s%s%s",
 			leftPadding,
 			marker,
 			nameColor,
@@ -1016,6 +1070,31 @@ func (a *AutocompleteImpl) renderItem(b *strings.Builder, selected bool, leftPad
 			colors.Reset)
 		b.WriteString(line)
 	}
+}
+
+var (
+	matchOn  = ansi.NewStyle().Bold().Underline(true).String()
+	matchOff = ansi.NewStyle().Normal().Underline(false).String()
+)
+
+// highlightMatches bolds and underlines the fuzzy-matched bytes of text in
+// padded, keeping the row's foreground color.
+func highlightMatches(text, padded string, matches []int) string {
+	if len(matches) == 0 || !strings.HasPrefix(padded, text) {
+		return padded
+	}
+	var b strings.Builder
+	m := 0
+	for i, r := range text {
+		if m < len(matches) && matches[m] == i {
+			b.WriteString(matchOn + string(r) + matchOff)
+			m++
+			continue
+		}
+		b.WriteRune(r)
+	}
+	b.WriteString(padded[len(text):])
+	return b.String()
 }
 
 // renderHelpText renders the help text at the bottom

@@ -487,13 +487,11 @@ type chatHandlerTestCase struct {
 
 func getChatHandlerTestCases() []chatHandlerTestCase {
 	userInputCases := getUserInputTestCases()
-	fileSelectionCases := getFileSelectionTestCases()
 	chatEventCases := getChatEventTestCases()
 	toolExecutionCases := getToolExecutionTestCases()
 
-	allCases := make([]chatHandlerTestCase, 0, len(userInputCases)+len(fileSelectionCases)+len(chatEventCases)+len(toolExecutionCases))
+	allCases := make([]chatHandlerTestCase, 0, len(userInputCases)+len(chatEventCases)+len(toolExecutionCases))
 	allCases = append(allCases, userInputCases...)
-	allCases = append(allCases, fileSelectionCases...)
 	allCases = append(allCases, chatEventCases...)
 	allCases = append(allCases, toolExecutionCases...)
 
@@ -541,27 +539,6 @@ func getUserInputTestCases() []chatHandlerTestCase {
 			},
 			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
 				tool.IsToolEnabledReturns(true)
-			},
-			expectedCmd: true,
-		},
-	}
-}
-
-func getFileSelectionTestCases() []chatHandlerTestCase {
-	return []chatHandlerTestCase{
-		{
-			name: "FileSelectionRequestEvent - with files",
-			msg:  tui.FileSelectionRequestEvent{},
-			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
-				file.ListProjectFilesReturns([]string{"file1.go", "file2.go"}, nil)
-			},
-			expectedCmd: true,
-		},
-		{
-			name: "FileSelectionRequestEvent - no files",
-			msg:  tui.FileSelectionRequestEvent{},
-			setupMocks: func(agent *agentdomainmocks.FakeAgentService, model *convmocks.FakeModelService, tool *agentdomainmocks.FakeToolService, file *agentdomainmocks.FakeFileService, cfg *config.Config) {
-				file.ListProjectFilesReturns([]string{}, nil)
 			},
 			expectedCmd: true,
 		},

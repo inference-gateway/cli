@@ -9,6 +9,7 @@ import (
 )
 
 func TestFileServiceImpl_ListProjectFiles(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // keep the real ~/.infer out of the listing
 	tmpDir := t.TempDir()
 
 	testFiles := []struct {
@@ -104,6 +105,54 @@ func TestFileServiceImpl_ListProjectFiles(t *testing.T) {
 				t.Errorf("Excluded file %s found in results", excluded)
 			}
 		}
+	}
+}
+
+func TestFileServiceImpl_ListProjectFiles_HomeInfer(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Chdir(t.TempDir())
+
+	for path, mode := range map[string]os.FileMode{
+		"config.yaml":          0o644,
+		"shortcuts/git.yaml":   0o644,
+		"auth.yaml":            0o600,
+		"telemetry/event.json": 0o644,
+	} {
+		full := filepath.Join(home, config.ConfigDirName, path)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("x: 1"), mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	fs := NewFileService()
+	files, err := fs.ListProjectFiles()
+	if err != nil {
+		t.Fatalf("ListProjectFiles failed: %v", err)
+	}
+	got := map[string]bool{}
+	for _, f := range files {
+		got[f] = true
+	}
+	for path, want := range map[string]bool{
+		"~/.infer/config.yaml":          true,
+		"~/.infer/shortcuts/git.yaml":   true,
+		"~/.infer/auth.yaml":            false,
+		"~/.infer/telemetry/event.json": false,
+	} {
+		if got[path] != want {
+			t.Errorf("%s listed=%v, want %v (all: %v)", path, got[path], want, files)
+		}
+	}
+
+	if err := fs.ValidateFile("~/.infer/config.yaml"); err != nil {
+		t.Errorf("ValidateFile should resolve ~/: %v", err)
+	}
+	if content, err := fs.ReadFile("~/.infer/config.yaml"); err != nil || content != "x: 1" {
+		t.Errorf("ReadFile should resolve ~/: %q, %v", content, err)
 	}
 }
 

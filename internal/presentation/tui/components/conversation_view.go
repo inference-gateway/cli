@@ -809,7 +809,7 @@ func (cv *ConversationView) getRoleAndColor(entry convdomain.ConversationEntry) 
 	case "assistant":
 		return cv.getAssistantRoleAndColor(entry)
 	case "system":
-		return cv.styleProvider.GetThemeColor("dim"), "⚙️ System"
+		return cv.styleProvider.GetThemeColor("dim"), "System"
 	case "tool":
 		return cv.getToolRoleAndColor(entry)
 	default:
@@ -827,7 +827,7 @@ func (cv *ConversationView) getAssistantRoleAndColor(entry convdomain.Conversati
 
 // getToolRoleAndColor returns role and color for tool entries
 func (cv *ConversationView) getToolRoleAndColor(entry convdomain.ConversationEntry) (string, string) {
-	role := "🔧 Tool"
+	role := "Tool"
 	if entry.ToolExecution != nil && !entry.ToolExecution.Success {
 		return cv.styleProvider.GetThemeColor("error"), role
 	}

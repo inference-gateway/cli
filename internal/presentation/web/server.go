@@ -84,7 +84,7 @@ func (s *WebTerminalServer) Start() error {
 	go s.handleShutdown()
 
 	logger.Info("web terminal server started", "url", fmt.Sprintf("http://%s", addr))
-	fmt.Printf("\n🌐 Web terminal available at: http://%s\n", addr)
+	fmt.Printf("\nWeb terminal available at: http://%s\n", addr)
 	fmt.Printf("   Open this URL in your browser to access the terminal.\n\n")
 
 	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

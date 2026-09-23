@@ -64,7 +64,7 @@ func generateTitles(state *runtime.State) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	fmt.Println("🤖 Generating titles for conversations that need them...")
+	fmt.Println("Generating titles for conversations that need them...")
 
 	start := time.Now()
 	if err := backgroundJobManager.TriggerTitleGeneration(ctx); err != nil {
@@ -72,7 +72,7 @@ func generateTitles(state *runtime.State) error {
 	}
 
 	duration := time.Since(start)
-	fmt.Printf("✅ Title generation completed in %v\n", duration.Round(time.Millisecond))
+	fmt.Printf("Title generation completed in %v\n", duration.Round(time.Millisecond))
 
 	return nil
 }
@@ -86,7 +86,7 @@ func showTitleStatus(state *runtime.State) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	fmt.Printf("📝 Conversation Title Generation Status\n\n")
+	fmt.Printf("Conversation Title Generation Status\n\n")
 
 	fmt.Printf("Configuration:\n")
 	fmt.Printf("  Enabled: %v\n", cfg.Conversation.TitleGeneration.Enabled)
@@ -135,12 +135,12 @@ func runTitleDaemon(state *runtime.State) error {
 	}
 
 	if backgroundJobManager.IsRunning() {
-		fmt.Println("⚠️  Background job manager is already running")
+		fmt.Println("Background job manager is already running")
 		return nil
 	}
 
-	fmt.Println("🚀 Starting conversation title generation daemon...")
-	fmt.Println("📝 Press Ctrl+C to stop")
+	fmt.Println("Starting conversation title generation daemon...")
+	fmt.Println("Press Ctrl+C to stop")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -151,11 +151,11 @@ func runTitleDaemon(state *runtime.State) error {
 	backgroundJobManager.Start(ctx)
 
 	<-sigChan
-	fmt.Println("\n🛑 Shutting down daemon...")
+	fmt.Println("\nShutting down daemon...")
 	cancel()
 
 	backgroundJobManager.Stop()
-	fmt.Println("✅ Daemon stopped successfully")
+	fmt.Println("Daemon stopped successfully")
 
 	return nil
 }

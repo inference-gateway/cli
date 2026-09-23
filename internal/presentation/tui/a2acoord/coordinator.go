@@ -171,7 +171,7 @@ func (s *Service) taskInputRequiredCmds(msg agentdomain.A2ATaskInputRequiredEven
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return tui.SetStatusEvent{
-				Message:    fmt.Sprintf("⚠️  A2A task requires input: %s", msg.Message),
+				Message:    fmt.Sprintf("A2A task requires input: %s", msg.Message),
 				Spinner:    false,
 				StatusType: tui.StatusDefault,
 			}

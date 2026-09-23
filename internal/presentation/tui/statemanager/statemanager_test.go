@@ -196,30 +196,6 @@ func TestStateManager_QueuedMessages(t *testing.T) {
 	assert.Empty(t, messages)
 }
 
-func TestStateManager_FileSelection(t *testing.T) {
-	sm := createTestStateManager()
-
-	assert.Nil(t, sm.GetFileSelectionState())
-
-	files := []string{"file1.go", "file2.go", "file3.go"}
-	sm.SetupFileSelection(files)
-
-	state := sm.GetFileSelectionState()
-	assert.NotNil(t, state)
-	assert.Len(t, state.Files, 3)
-
-	sm.UpdateFileSearchQuery("file1")
-	state = sm.GetFileSelectionState()
-	assert.Equal(t, "file1", state.SearchQuery)
-
-	sm.SetFileSelectedIndex(1)
-	state = sm.GetFileSelectionState()
-	assert.Equal(t, 1, state.SelectedIndex)
-
-	sm.ClearFileSelectionState()
-	assert.Nil(t, sm.GetFileSelectionState())
-}
-
 func TestStateManager_ChatSessionLifecycle(t *testing.T) {
 	sm := createTestStateManager()
 

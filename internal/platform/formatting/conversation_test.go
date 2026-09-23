@@ -51,7 +51,7 @@ func TestFormatConversationToLines(t *testing.T) {
 		{
 			name:         "tool entry",
 			conversation: []convdomain.ConversationEntry{entry(t, "tool", "result")},
-			want:         []string{"🔧 Tool: result", ""},
+			want:         []string{"Tool: result", ""},
 		},
 		{
 			name:         "unknown role passes through",
