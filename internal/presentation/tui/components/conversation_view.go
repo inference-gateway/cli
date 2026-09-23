@@ -385,14 +385,20 @@ func (cv *ConversationView) SetWidth(width int) {
 	cv.rebuild()
 }
 
-// SetHeight resizes the view; a no-op when unchanged.
+// SetHeight resizes the view; a no-op when unchanged. Follow state is read
+// before the resize: shrinking (e.g. the approval box opening) raises the max
+// offset, so AtBottom() is already false by the time rebuild() checks it.
 func (cv *ConversationView) SetHeight(height int) {
 	if height == cv.height {
 		return
 	}
+	atBottom := cv.Viewport.AtBottom()
 	cv.height = height
 	cv.Viewport.SetHeight(height)
 	cv.rebuild()
+	if atBottom && cv.navigationMode != NavigationModeMessageHistory {
+		cv.Viewport.GotoBottom()
+	}
 }
 
 // rebuild re-renders whichever view is active after a size change.
