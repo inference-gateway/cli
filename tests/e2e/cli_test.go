@@ -204,6 +204,19 @@ func TestAgentParallelReadsExecuteAndReturnInOrder(t *testing.T) {
 	}
 }
 
+// TestAgentReadAfterWriteInSameBatchSeesWrite pins issue #1290: batched calls
+// run concurrently, but a Read must not overtake the Write issued before it.
+func TestAgentReadAfterWriteInSameBatchSeesWrite(t *testing.T) {
+	m := startMock(t)
+
+	stdout, _, code := runCLI(t, m.URL, t.TempDir(), "", "headless", "--mode", "auto", "write then read the marker")
+	require.Zero(t, code)
+
+	toolResults := contentsByRole(jsonLines(t, stdout), "tool")
+	require.Len(t, toolResults, 2)
+	require.Contains(t, toolResults[1], "write-read-marker", "Read must see the file the earlier Write created")
+}
+
 func TestAgentWriteIsBlockedWithoutApprover(t *testing.T) {
 	m := startMock(t)
 	dir := t.TempDir()

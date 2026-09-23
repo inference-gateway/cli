@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -173,6 +174,36 @@ func TestApprovingToolsState_PreservesToolCallOrder(t *testing.T) {
 		require.NotNil(t, (*conv)[i].ToolCallID)
 		assert.Equal(t, want, *(*conv)[i].ToolCallID, "conversation[%d] out of order", i)
 	}
+}
+
+// TestApprovingToolsState_ReadWaitsForEarlierWrite pins issue #1290: an ungated
+// Read issued after an approved Write in the same batch must run after the Write
+// finishes, not alongside it.
+func TestApprovingToolsState_ReadWaitsForEarlierWrite(t *testing.T) {
+	tools := []*sdk.ChatCompletionMessageToolCall{
+		{ID: "call-0", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write", Arguments: "{}"}},
+		{ID: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: "{}"}},
+	}
+	var written, readSawWrite atomic.Bool
+	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
+		if tc.Function.Name == "Write" {
+			time.Sleep(50 * time.Millisecond)
+			written.Store(true)
+		} else {
+			readSawWrite.Store(written.Load())
+		}
+		return toolEntry(tc)
+	}
+	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, string, error) { return true, "", nil }
+
+	ctx, _, _, events := newApprovingCtx(tools, agentdomain.AgentModeStandard, execStub, approveStub)
+	ctx.ShouldRequireApproval = func(tc *sdk.ChatCompletionMessageToolCall, _ bool) bool { return tc.Function.Name == "Write" }
+	s := states.NewApprovingToolsState(ctx)
+
+	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
+	waitForAllToolsProcessed(t, events)
+
+	assert.True(t, readSawWrite.Load(), "Read ran before the earlier Write finished")
 }
 
 // TestApprovingToolsState_FlushesResultsIncrementally proves a completed tool's

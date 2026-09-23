@@ -26,6 +26,7 @@ type toolRound struct {
 	flushed int                            // next slot index to flush, in order
 	wg      sync.WaitGroup                 // tracks spawned executions
 	sem     chan struct{}                  // bounds concurrent executions
+	order   CallOrder                      // keeps side effects in tool-call order
 }
 
 // ApprovingToolsState handles events in the ApprovingTools state.
@@ -175,9 +176,12 @@ func (s *ApprovingToolsState) getNextToolForProcessing() (*sdk.ChatCompletionMes
 // bounded by the round semaphore. isApproved reports whether the call went
 // through the approval flow; ungated calls pass false, like BlockingTools.
 func (s *ApprovingToolsState) spawnExecution(round *toolRound, idx int, tc sdk.ChatCompletionMessageToolCall, isApproved bool) {
+	wait, done := round.order.Next(tc.Function.Name)
 	round.wg.Add(1)
 	go func() {
 		defer round.wg.Done()
+		defer done()
+		wait()
 		round.sem <- struct{}{}
 		defer func() { <-round.sem }()
 

@@ -19,6 +19,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/states"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
@@ -1118,7 +1119,9 @@ func (s *Agent) executeToolCallsParallel(
 	panicked := make(chan any, 1)
 
 	var wg sync.WaitGroup
+	var order states.CallOrder
 	for i, tc := range toolCalls {
+		wait, done := order.Next(tc.Function.Name)
 		wg.Add(1)
 		go func(index int, toolCall *sdk.ChatCompletionMessageToolCall) {
 			defer func() {
@@ -1133,6 +1136,8 @@ func (s *Agent) executeToolCallsParallel(
 					}
 				}
 			}()
+			defer done()
+			wait()
 
 			semaphore <- struct{}{}
 			defer func() {
