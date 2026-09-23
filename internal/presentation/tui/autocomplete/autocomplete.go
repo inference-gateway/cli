@@ -43,7 +43,7 @@ type ShortcutOption struct {
 	Description string
 	Usage       string
 	Catalog     bool
-	Matches []int
+	Matches     []int
 }
 
 // ShortcutRegistry interface for dependency injection
