@@ -722,6 +722,19 @@ func TestConversationView_AutoFollow(t *testing.T) {
 			},
 			wantBottom: true,
 		},
+		{
+			name:       "shrinking height keeps following the tail",
+			arrange:    func(cv *ConversationView) { cv.SetHeight(5) },
+			wantBottom: true,
+		},
+		{
+			name: "shrinking height while scrolled up holds position",
+			arrange: func(cv *ConversationView) {
+				cv.Viewport.SetYOffset(1)
+				cv.SetHeight(5)
+			},
+			wantOffset: 1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

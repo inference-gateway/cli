@@ -133,6 +133,53 @@ func TestChatTUIBackgroundSubagentOutput(t *testing.T) {
 		"the subagent output never appeared in the detail panel; last frame:\n%s", capturePane(session))
 }
 
+// TestChatTUIApprovalBoxFollowsTail pins issue #1286: opening the approval box
+// shrinks the conversation viewport, which used to drop follow mode, hiding the
+// prompt behind the box and leaving the final reply below the fold after approval.
+func TestChatTUIApprovalBoxFollowsTail(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not installed; skipping TUI drive test")
+	}
+
+	const session = "infer-e2e-approval-tail"
+	home := startTmuxHome(t, session)
+
+	launch := "env HOME=" + home +
+		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
+		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
+		" " + binPath + " chat"
+	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
+		"-x", "200", "-y", "50", "-c", t.TempDir(), launch).Run(), "failed to start tmux session")
+
+	require.True(t, waitForPane(t, session, "Select a Model", 25*time.Second),
+		"model picker never rendered; last frame:\n%s", capturePane(session))
+	tmuxSendKeys(t, session, "Enter")
+
+	require.True(t, waitForPane(t, session, "Type your message", 20*time.Second),
+		"input view never appeared after model select; last frame:\n%s", capturePane(session))
+	tmuxSendKeys(t, session, "-l", "fill the screen")
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "filler 40", 25*time.Second),
+		"filler reply never appeared; last frame:\n%s", capturePane(session))
+
+	tmuxSendKeys(t, session, "-l", "approval tail probe")
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "Approval required", 25*time.Second),
+		"approval box never opened; last frame:\n%s", capturePane(session))
+	require.Contains(t, capturePane(session), "approval tail probe",
+		"the prompt must stay visible above the approval box")
+
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "m2.txt", 25*time.Second),
+		"second approval never opened; last frame:\n%s", capturePane(session))
+	require.True(t, waitForPane(t, session, "Created m1.txt", 10*time.Second),
+		"the first Write result stayed hidden behind the approval box; last frame:\n%s", capturePane(session))
+	tmuxSendKeys(t, session, "Enter")
+
+	require.True(t, waitForPane(t, session, "APPROVAL-TAIL-DONE", 25*time.Second),
+		"the final reply stayed below the fold after approval; last frame:\n%s", capturePane(session))
+}
+
 // startTmuxHome returns a temp HOME for a chat process driven in the tmux
 // session and registers its teardown. HOME is created before the kill-session
 // cleanup so cleanups (LIFO) kill the process before TempDir removes the dir,
