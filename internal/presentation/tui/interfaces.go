@@ -214,3 +214,25 @@ func CalculateStatusHeight(totalHeight int) int {
 	}
 	return 2
 }
+
+// ToolFormatter provides formatting capabilities for tool results
+type ToolFormatter interface {
+	// FormatToolCall formats a tool call for consistent display
+	FormatToolCall(toolName string, args map[string]any) string
+
+	// RenderToolSummary renders the shared "<icon> Name(args) <trailing>" line used by
+	// the collapsed status line, live preview, approval summary and queue preview.
+	RenderToolSummary(icon, toolName string, args map[string]any, trailing string, terminalWidth int) string
+
+	// FormatToolResultForUI formats tool execution results for UI display
+	FormatToolResultForUI(result *agentdomain.ToolExecutionResult, terminalWidth int) string
+
+	// FormatToolResultExpanded formats expanded tool execution results
+	FormatToolResultExpanded(result *agentdomain.ToolExecutionResult, terminalWidth int) string
+
+	// FormatToolResultForLLM formats tool execution results for LLM consumption
+	FormatToolResultForLLM(result *agentdomain.ToolExecutionResult) string
+
+	// ShouldAlwaysExpandTool checks if a tool result should always be expanded
+	ShouldAlwaysExpandTool(toolName string) bool
+}

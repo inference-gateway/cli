@@ -208,3 +208,21 @@ func FormatBytes(size int64) string {
 	}
 	return fmt.Sprintf("%.4g%s", value, units[0])
 }
+
+// CapInstructions bounds instruction-file content at maxLines lines, then at
+// maxChars characters. Returns the capped content and a truncation marker
+// ("" when nothing was cut).
+func CapInstructions(content string, maxLines, maxChars int) (string, string) {
+	marker := ""
+	if maxLines > 0 {
+		if lines := strings.SplitAfterN(content, "\n", maxLines+1); len(lines) > maxLines {
+			content = strings.TrimRight(strings.Join(lines[:maxLines], ""), "\n")
+			marker = fmt.Sprintf("[truncated at %d lines]", maxLines)
+		}
+	}
+	if maxChars > 0 && len(content) > maxChars {
+		content = content[:maxChars]
+		marker = fmt.Sprintf("[truncated at %d chars]", maxChars)
+	}
+	return content, marker
+}

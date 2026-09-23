@@ -13,7 +13,7 @@ import (
 // A nil rollover manager (compact disabled / non-persistent storage) must make
 // the per-turn rollover check a no-op instead of panicking or rebuilding.
 func TestMaybeRolloverSession_NilManagerIsNoop(t *testing.T) {
-	s := &AgentServiceImpl{}
+	s := &Agent{}
 	conv := []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("task")}}
 	agentCtx := &states.AgentContext{Ctx: context.Background(), Conversation: &conv}
 

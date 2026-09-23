@@ -28,8 +28,8 @@ const maxVoiceSampleSeconds = 30
 // the stock voice; a reference WAV enables zero-shot voice cloning.
 type Synthesizer struct {
 	cfg      config.TextToSpeechConfig
-	models   *TTSModelManager
-	binaries *BinaryManager
+	models   *TTSModelStore
+	binaries *BinaryStore
 
 	run      commandRunner
 	lookPath func(string) (string, error)
@@ -37,10 +37,10 @@ type Synthesizer struct {
 
 // NewSynthesizer creates a synthesizer from the text-to-speech config.
 func NewSynthesizer(cfg config.TextToSpeechConfig) *Synthesizer {
-	binaries := NewBinaryManager(config.SpeechToTextConfig{AutoDownload: cfg.AutoDownload})
+	binaries := NewBinaryStore(config.SpeechToTextConfig{AutoDownload: cfg.AutoDownload})
 	return &Synthesizer{
 		cfg:      cfg,
-		models:   NewTTSModelManager(cfg),
+		models:   NewTTSModelStore(cfg),
 		binaries: binaries,
 		run:      execRun,
 		lookPath: exec.LookPath,

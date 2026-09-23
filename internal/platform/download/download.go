@@ -8,25 +8,22 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// progressReader reports transfer progress through the context callback,
-// throttled to once per second.
+// progressReader reports transfer progress through report, throttled to once
+// per second.
 type progressReader struct {
 	src    io.Reader
-	report agentdomain.ToolProgressCallback
+	report func(string)
 	label  string
 	total  int64
 	read   int64
 	next   time.Time
 }
 
-// NewProgressReader wraps src only when the context carries a callback, so the
-// no-listener case (headless, tests) stays a plain read with no bookkeeping.
-func NewProgressReader(ctx context.Context, src io.Reader, label string, total int64) io.Reader {
-	report := agentdomain.GetToolProgressCallback(ctx)
+// NewProgressReader wraps src only when report is set, so the no-listener case
+// (headless, tests) stays a plain read with no bookkeeping.
+func NewProgressReader(src io.Reader, report func(string), label string, total int64) io.Reader {
 	if report == nil {
 		return src
 	}
@@ -57,9 +54,10 @@ func megabytes(n int64) string {
 	return fmt.Sprintf("%.0f MB", float64(n)/(1<<20))
 }
 
-// ToFile atomically fetches url into dstPath and rejects transfers
-// shorter than their declared Content-Length.
-func ToFile(ctx context.Context, client *http.Client, url, dstPath, label string) error {
+// ToFile atomically fetches url into dstPath, reporting progress through report
+// (nil for none), and rejects transfers shorter than their declared
+// Content-Length.
+func ToFile(ctx context.Context, client *http.Client, url, dstPath, label string, report func(string)) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("creating request for %s: %w", url, err)
@@ -83,7 +81,7 @@ func ToFile(ctx context.Context, client *http.Client, url, dstPath, label string
 	tmpName := tmp.Name()
 	defer func() { _ = os.Remove(tmpName) }()
 
-	written, err := io.Copy(tmp, NewProgressReader(ctx, resp.Body, label, resp.ContentLength))
+	written, err := io.Copy(tmp, NewProgressReader(resp.Body, report, label, resp.ContentLength))
 	if err == nil && resp.ContentLength > 0 && written != resp.ContentLength {
 		err = fmt.Errorf("incomplete download: got %d of %d bytes", written, resp.ContentLength)
 	}

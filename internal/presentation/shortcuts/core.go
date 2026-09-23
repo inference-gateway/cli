@@ -297,11 +297,11 @@ func formatTokenCount(tokens int) string {
 
 // NewShortcut starts a new conversation
 type NewShortcut struct {
-	repo        PersistentConversationRepository
+	repo        convdomain.PersistentConversationRepository
 	taskTracker scheddomain.A2AClearer
 }
 
-func NewNewShortcut(repo PersistentConversationRepository, taskTracker scheddomain.A2AClearer) *NewShortcut {
+func NewNewShortcut(repo convdomain.PersistentConversationRepository, taskTracker scheddomain.A2AClearer) *NewShortcut {
 	return &NewShortcut{
 		repo:        repo,
 		taskTracker: taskTracker,

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	channels "github.com/inference-gateway/cli/internal/channels"
+	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	render "github.com/inference-gateway/cli/internal/platform/render"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -39,7 +39,7 @@ func (n *ScheduleNotifier) Notify(job scheddomain.ScheduledJob, e scheddomain.Ru
 	var content string
 	switch {
 	case e.Line != nil:
-		content = render.FormatAgentMessage(e.Line)
+		content = agentrunner.FormatAgentMessage(e.Line)
 	case e.Done && e.Err != nil:
 		name := job.Name
 		if name == "" {

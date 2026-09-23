@@ -8,7 +8,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -18,15 +17,15 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// stateManager is the narrow slice of the app state manager the chat handler
+// stateStore is the narrow slice of the app state manager the chat handler
 // and its sub-handlers need: chat-session lifecycle, view transitions, the
 // plan-approval overlay, the todo list, and event broadcast to external
-// consumers. *statemanager.StateManager satisfies it.
-type stateManager interface {
-	agentdomain.ChatSessionManager
-	tui.ViewManager
-	agentdomain.PlanApprovalUIManager
-	agentdomain.TodoManager
+// consumers. *statemanager.Store satisfies it.
+type stateStore interface {
+	tui.ChatSessionState
+	tui.ViewNavigator
+	tui.PlanApprovalPrompt
+	agentdomain.TodoList
 	BroadcastEvent(event agentdomain.ChatEvent)
 }
 
@@ -34,20 +33,19 @@ type ChatHandler struct {
 	agentService           agentdomain.AgentService
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
-	sessionRolloverManager *conversation.SessionRolloverManager
+	sessionRolloverManager convdomain.SessionRollover
 	modelService           convdomain.ModelService
 	toolService            agentdomain.ToolService
 	fileService            agentdomain.FileService
 	imageService           agentdomain.ImageService
 	shortcutRegistry       *shortcuts.Registry
-	stateManager           stateManager
+	stateManager           stateStore
 	messageQueue           convdomain.MessageQueue
 	taskRetentionService   scheddomain.TaskRetentionService
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundShellService scheddomain.BackgroundShellService
-	agentManager           agentdomain.AgentManager
+	agentManager           agentdomain.AgentSupervisor
 	config                 *config.Config
-	a2aTaskCoordinator     tui.A2ATaskCoordinator
 	approvalCoordinator    tui.ApprovalCoordinator
 	completionRunner       tui.ChatCompletionRunner
 	directExec             tui.DirectExecutionService
@@ -63,7 +61,7 @@ func NewChatHandler(
 	agentService agentdomain.AgentService,
 	conversationRepo convdomain.ConversationRepository,
 	conversationOptimizer convdomain.ConversationOptimizer,
-	sessionRolloverManager *conversation.SessionRolloverManager,
+	sessionRolloverManager convdomain.SessionRollover,
 	modelService convdomain.ModelService,
 	toolService agentdomain.ToolService,
 	fileService agentdomain.FileService,
@@ -71,14 +69,13 @@ func NewChatHandler(
 	skillsService agentdomain.SkillsService,
 	githubIssueService agentdomain.GitHubIssueService,
 	shortcutRegistry *shortcuts.Registry,
-	stateManager stateManager,
+	stateManager stateStore,
 	messageQueue convdomain.MessageQueue,
 	taskRetentionService scheddomain.TaskRetentionService,
 	backgroundTaskService scheddomain.BackgroundTaskService,
 	backgroundShellService scheddomain.BackgroundShellService,
-	agentManager agentdomain.AgentManager,
+	agentManager agentdomain.AgentSupervisor,
 	cfg *config.Config,
-	a2aTaskCoordinator tui.A2ATaskCoordinator,
 	approvalCoordinator tui.ApprovalCoordinator,
 	completionRunner tui.ChatCompletionRunner,
 	directExec tui.DirectExecutionService,
@@ -103,7 +100,6 @@ func NewChatHandler(
 		taskRetentionService:   taskRetentionService,
 		backgroundTaskService:  backgroundTaskService,
 		backgroundShellService: backgroundShellService,
-		a2aTaskCoordinator:     a2aTaskCoordinator,
 		approvalCoordinator:    approvalCoordinator,
 		completionRunner:       completionRunner,
 		directExec:             directExec,
@@ -176,10 +172,6 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		return h.HandleChatErrorEvent(m)
 	case agentdomain.OptimizationStatusEvent:
 		return h.HandleOptimizationStatusEvent(m)
-	case agentdomain.ToolCallUpdateEvent:
-		return h.HandleToolCallUpdateEvent(m)
-	case agentdomain.ToolCallReadyEvent:
-		return h.HandleToolCallReadyEvent(m)
 	case tui.ToolExecutionStartedEvent:
 		return h.HandleToolExecutionStartedEvent(m)
 	case agentdomain.ToolExecutionProgressEvent:
@@ -188,22 +180,10 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		return h.HandleBashOutputChunkEvent(m)
 	case tui.BashCommandCompletedEvent:
 		return h.HandleBashCommandCompletedEvent(m)
-	case agentdomain.BackgroundShellRequestEvent:
+	case tui.BackgroundShellRequestEvent:
 		return h.HandleBackgroundShellRequest()
 	case agentdomain.ToolExecutionCompletedEvent:
 		return h.HandleToolExecutionCompletedEvent(m)
-	case agentdomain.A2AToolCallExecutedEvent:
-		return h.HandleA2AToolCallExecutedEvent(m)
-	case agentdomain.A2ATaskSubmittedEvent:
-		return h.HandleA2ATaskSubmittedEvent(m)
-	case agentdomain.A2ATaskStatusUpdateEvent:
-		return h.HandleA2ATaskStatusUpdateEvent(m)
-	case agentdomain.A2ATaskCompletedEvent:
-		return h.HandleA2ATaskCompletedEvent(m)
-	case agentdomain.A2ATaskFailedEvent:
-		return h.HandleA2ATaskFailedEvent(m)
-	case agentdomain.A2ATaskInputRequiredEvent:
-		return h.HandleA2ATaskInputRequiredEvent(m)
 	case agentdomain.MessageQueuedEvent:
 		return h.HandleMessageQueuedEvent(m)
 	case agentdomain.ToolCancelledEvent:
@@ -228,9 +208,9 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		return h.HandleDrainQueueEvent(m)
 	case tui.DrainQueueRetryEvent:
 		return h.HandleDrainQueueRetryEvent(m)
-	case agentdomain.NavigateBackInTimeEvent:
+	case tui.NavigateBackInTimeEvent:
 		return nil
-	case agentdomain.MessageHistoryRestoreEvent:
+	case tui.MessageHistoryRestoreEvent:
 		return nil
 	case agentdomain.ComputerUsePausedEvent:
 		return h.HandleComputerUsePausedEvent(m)
@@ -362,18 +342,6 @@ func (h *ChatHandler) HandleRolloverCompletedEvent(
 	return h.messageProcessor.appendUserMessageAndStartCompletion(msg.Message, msg.Images)
 }
 
-func (h *ChatHandler) HandleToolCallUpdateEvent(
-	msg agentdomain.ToolCallUpdateEvent,
-) tea.Cmd {
-	return h.toolCoordinator.HandleToolCallUpdate(msg)
-}
-
-func (h *ChatHandler) HandleToolCallReadyEvent(
-	msg agentdomain.ToolCallReadyEvent,
-) tea.Cmd {
-	return h.toolCoordinator.HandleToolCallReady(msg)
-}
-
 func (h *ChatHandler) HandleToolApprovalRequestedEvent(
 	msg agentdomain.ToolApprovalRequestedEvent,
 ) tea.Cmd {
@@ -426,42 +394,6 @@ func (h *ChatHandler) HandleToolExecutionCompletedEvent(
 	msg agentdomain.ToolExecutionCompletedEvent,
 ) tea.Cmd {
 	return h.toolCoordinator.HandleToolExecutionCompleted(msg)
-}
-
-func (h *ChatHandler) HandleA2AToolCallExecutedEvent(
-	msg agentdomain.A2AToolCallExecutedEvent,
-) tea.Cmd {
-	return h.a2aTaskCoordinator.HandleToolCallExecuted(msg)
-}
-
-func (h *ChatHandler) HandleA2ATaskSubmittedEvent(
-	msg agentdomain.A2ATaskSubmittedEvent,
-) tea.Cmd {
-	return h.a2aTaskCoordinator.HandleTaskSubmitted(msg)
-}
-
-func (h *ChatHandler) HandleA2ATaskStatusUpdateEvent(
-	msg agentdomain.A2ATaskStatusUpdateEvent,
-) tea.Cmd {
-	return h.a2aTaskCoordinator.HandleTaskStatusUpdate(msg)
-}
-
-func (h *ChatHandler) HandleA2ATaskCompletedEvent(
-	msg agentdomain.A2ATaskCompletedEvent,
-) tea.Cmd {
-	return h.a2aTaskCoordinator.HandleTaskCompleted(msg)
-}
-
-func (h *ChatHandler) HandleA2ATaskFailedEvent(
-	msg agentdomain.A2ATaskFailedEvent,
-) tea.Cmd {
-	return h.a2aTaskCoordinator.HandleTaskFailed(msg)
-}
-
-func (h *ChatHandler) HandleA2ATaskInputRequiredEvent(
-	msg agentdomain.A2ATaskInputRequiredEvent,
-) tea.Cmd {
-	return h.a2aTaskCoordinator.HandleTaskInputRequired(msg)
 }
 
 func (h *ChatHandler) HandleMessageQueuedEvent(
@@ -529,7 +461,7 @@ func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 	return tea.Batch(cmd, h.startChatCompletion())
 }
 
-// HandleAgentStatusUpdateEvent refreshes the agent indicator. The StateManager
+// HandleAgentStatusUpdateEvent refreshes the agent indicator. The state store
 // was already updated by the container's status callback before this event was
 // pushed, so simply receiving it re-renders the indicator. There is no polling:
 // the callback pushes a fresh event on every real status change and stops when

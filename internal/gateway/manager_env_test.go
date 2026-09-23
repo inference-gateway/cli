@@ -36,7 +36,7 @@ func TestManager_loadEnvironment(t *testing.T) {
 			require.NoError(t, os.WriteFile(".env", []byte(dotEnv), 0644))
 		}
 
-		return (&Manager{}).loadEnvironment()
+		return (&Supervisor{}).loadEnvironment()
 	}
 
 	lookup := func(t *testing.T, env []string, key string) (string, bool) {

@@ -20,10 +20,10 @@ type ApplicationState struct {
 	agentMode agentdomain.AgentMode
 
 	// Chat State
-	chatSession *agentdomain.ChatSession
+	chatSession *ChatSession
 
 	// Tool Execution State
-	toolExecution *agentdomain.ToolExecutionSession
+	toolExecution *ToolExecutionSession
 
 	// Message Queue
 	queuedMessages []convdomain.QueuedMessage
@@ -33,9 +33,9 @@ type ApplicationState struct {
 	height int
 
 	// UI State
-	approvalUIState     *agentdomain.ApprovalUIState
-	planApprovalUIState *agentdomain.PlanApprovalUIState
-	userQuestionUIState *agentdomain.UserQuestionUIState
+	approvalUIState     *ApprovalUIState
+	planApprovalUIState *PlanApprovalUIState
+	userQuestionUIState *UserQuestionUIState
 
 	// Todo State
 	todos []agentdomain.TodoItem
@@ -236,9 +236,9 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 // SetChatPending creates a minimal chat session to mark the agent as busy
 // before the actual chat starts. This prevents race conditions.
 func (s *ApplicationState) SetChatPending() {
-	s.chatSession = &agentdomain.ChatSession{
+	s.chatSession = &ChatSession{
 		RequestID:    "pending",
-		Status:       agentdomain.ChatStatusStarting,
+		Status:       ChatStatusStarting,
 		StartTime:    time.Now(),
 		Model:        "",
 		EventChannel: nil,
@@ -254,9 +254,9 @@ func (s *ApplicationState) StartChatSession(requestID, model string, eventChan <
 		s.EndChatSession()
 	}
 
-	s.chatSession = &agentdomain.ChatSession{
+	s.chatSession = &ChatSession{
 		RequestID:    requestID,
-		Status:       agentdomain.ChatStatusStarting,
+		Status:       ChatStatusStarting,
 		StartTime:    time.Now(),
 		Model:        model,
 		EventChannel: eventChan,
@@ -297,7 +297,7 @@ func (s *ApplicationState) GetQueuedMessages() []convdomain.QueuedMessage {
 }
 
 // UpdateChatStatus updates the chat session status
-func (s *ApplicationState) UpdateChatStatus(status agentdomain.ChatStatus) error {
+func (s *ApplicationState) UpdateChatStatus(status ChatStatus) error {
 	if s.chatSession == nil {
 		return fmt.Errorf("no active chat session")
 	}
@@ -313,50 +313,50 @@ func (s *ApplicationState) UpdateChatStatus(status agentdomain.ChatStatus) error
 }
 
 // isValidChatStatusTransition validates chat status transitions
-func (s *ApplicationState) isValidChatStatusTransition(from, to agentdomain.ChatStatus) bool {
+func (s *ApplicationState) isValidChatStatusTransition(from, to ChatStatus) bool {
 	if from == to {
 		return true
 	}
 
-	validTransitions := map[agentdomain.ChatStatus][]agentdomain.ChatStatus{
-		agentdomain.ChatStatusIdle: {agentdomain.ChatStatusStarting},
-		agentdomain.ChatStatusStarting: {
-			agentdomain.ChatStatusThinking,
-			agentdomain.ChatStatusGenerating,
-			agentdomain.ChatStatusWaitingTools,
-			agentdomain.ChatStatusError,
-			agentdomain.ChatStatusCancelled,
+	validTransitions := map[ChatStatus][]ChatStatus{
+		ChatStatusIdle: {ChatStatusStarting},
+		ChatStatusStarting: {
+			ChatStatusThinking,
+			ChatStatusGenerating,
+			ChatStatusWaitingTools,
+			ChatStatusError,
+			ChatStatusCancelled,
 		},
-		agentdomain.ChatStatusThinking: {
-			agentdomain.ChatStatusGenerating,
-			agentdomain.ChatStatusReceivingTools,
-			agentdomain.ChatStatusWaitingTools,
-			agentdomain.ChatStatusCompleted,
-			agentdomain.ChatStatusError,
-			agentdomain.ChatStatusCancelled,
+		ChatStatusThinking: {
+			ChatStatusGenerating,
+			ChatStatusReceivingTools,
+			ChatStatusWaitingTools,
+			ChatStatusCompleted,
+			ChatStatusError,
+			ChatStatusCancelled,
 		},
-		agentdomain.ChatStatusGenerating: {
-			agentdomain.ChatStatusReceivingTools,
-			agentdomain.ChatStatusWaitingTools,
-			agentdomain.ChatStatusCompleted,
-			agentdomain.ChatStatusError,
-			agentdomain.ChatStatusCancelled,
+		ChatStatusGenerating: {
+			ChatStatusReceivingTools,
+			ChatStatusWaitingTools,
+			ChatStatusCompleted,
+			ChatStatusError,
+			ChatStatusCancelled,
 		},
-		agentdomain.ChatStatusReceivingTools: {
-			agentdomain.ChatStatusWaitingTools,
-			agentdomain.ChatStatusCompleted,
-			agentdomain.ChatStatusError,
-			agentdomain.ChatStatusCancelled,
+		ChatStatusReceivingTools: {
+			ChatStatusWaitingTools,
+			ChatStatusCompleted,
+			ChatStatusError,
+			ChatStatusCancelled,
 		},
-		agentdomain.ChatStatusWaitingTools: {
-			agentdomain.ChatStatusStarting,
-			agentdomain.ChatStatusCompleted,
-			agentdomain.ChatStatusError,
-			agentdomain.ChatStatusCancelled,
+		ChatStatusWaitingTools: {
+			ChatStatusStarting,
+			ChatStatusCompleted,
+			ChatStatusError,
+			ChatStatusCancelled,
 		},
-		agentdomain.ChatStatusCompleted: {agentdomain.ChatStatusIdle},
-		agentdomain.ChatStatusError:     {agentdomain.ChatStatusIdle},
-		agentdomain.ChatStatusCancelled: {agentdomain.ChatStatusIdle},
+		ChatStatusCompleted: {ChatStatusIdle},
+		ChatStatusError:     {ChatStatusIdle},
+		ChatStatusCancelled: {ChatStatusIdle},
 	}
 
 	allowed, exists := validTransitions[from]
@@ -407,22 +407,22 @@ func (s *ApplicationState) TouchChatActivity() {
 }
 
 // GetChatSession returns the current chat session
-func (s *ApplicationState) GetChatSession() *agentdomain.ChatSession {
+func (s *ApplicationState) GetChatSession() *ChatSession {
 	return s.chatSession
 }
 
 // StartToolExecution initializes a new tool execution session
-func (s *ApplicationState) StartToolExecution(tools []agentdomain.ToolCall) {
+func (s *ApplicationState) StartToolExecution(tools []ToolCall) {
 	if len(tools) == 0 {
 		return
 	}
 
-	s.toolExecution = &agentdomain.ToolExecutionSession{
+	s.toolExecution = &ToolExecutionSession{
 		CurrentTool:    &tools[0],
 		RemainingTools: tools[1:],
 		TotalTools:     len(tools),
 		CompletedTools: 0,
-		Status:         agentdomain.ToolExecutionStatusProcessing,
+		Status:         ToolExecutionStatusProcessing,
 		StartTime:      time.Now(),
 	}
 }
@@ -434,7 +434,7 @@ func (s *ApplicationState) CompleteCurrentTool(result *agentdomain.ToolExecution
 	}
 
 	now := time.Now()
-	s.toolExecution.CurrentTool.Status = agentdomain.ToolCallStatusCompleted
+	s.toolExecution.CurrentTool.Status = ToolCallStatusCompleted
 	s.toolExecution.CurrentTool.Result = result
 	s.toolExecution.CurrentTool.EndTime = &now
 	s.toolExecution.CompletedTools++
@@ -449,7 +449,7 @@ func (s *ApplicationState) FailCurrentTool(result *agentdomain.ToolExecutionResu
 	}
 
 	now := time.Now()
-	s.toolExecution.CurrentTool.Status = agentdomain.ToolCallStatusFailed
+	s.toolExecution.CurrentTool.Status = ToolCallStatusFailed
 	s.toolExecution.CurrentTool.Result = result
 	s.toolExecution.CurrentTool.EndTime = &now
 	s.toolExecution.CompletedTools++
@@ -460,14 +460,14 @@ func (s *ApplicationState) FailCurrentTool(result *agentdomain.ToolExecutionResu
 // moveToNextTool advances to the next tool in the queue
 func (s *ApplicationState) moveToNextTool() error {
 	if len(s.toolExecution.RemainingTools) == 0 {
-		s.toolExecution.Status = agentdomain.ToolExecutionStatusCompleted
+		s.toolExecution.Status = ToolExecutionStatusCompleted
 		return nil
 	}
 
 	s.toolExecution.CurrentTool = &s.toolExecution.RemainingTools[0]
 	s.toolExecution.RemainingTools = s.toolExecution.RemainingTools[1:]
-	s.toolExecution.Status = agentdomain.ToolExecutionStatusProcessing
-	s.toolExecution.CurrentTool.Status = agentdomain.ToolCallStatusPending
+	s.toolExecution.Status = ToolExecutionStatusProcessing
+	s.toolExecution.CurrentTool.Status = ToolCallStatusPending
 
 	return nil
 }
@@ -478,7 +478,7 @@ func (s *ApplicationState) EndToolExecution() {
 }
 
 // GetToolExecution returns the current tool execution session
-func (s *ApplicationState) GetToolExecution() *agentdomain.ToolExecutionSession {
+func (s *ApplicationState) GetToolExecution() *ToolExecutionSession {
 	return s.toolExecution
 }
 
@@ -507,14 +507,14 @@ func (s *ApplicationState) IsDebugMode() bool {
 
 // SetupApprovalUIState initializes approval UI state with the pending tool call
 func (s *ApplicationState) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan agentdomain.ApprovalAction) {
-	s.approvalUIState = &agentdomain.ApprovalUIState{
+	s.approvalUIState = &ApprovalUIState{
 		PendingToolCall: toolCall,
 		ResponseChan:    responseChan,
 	}
 }
 
 // GetApprovalUIState returns the current approval UI state
-func (s *ApplicationState) GetApprovalUIState() *agentdomain.ApprovalUIState {
+func (s *ApplicationState) GetApprovalUIState() *ApprovalUIState {
 	return s.approvalUIState
 }
 
@@ -530,7 +530,7 @@ func (s *ApplicationState) ClearApprovalUIState() {
 
 // SetupPlanApprovalUIState initializes plan approval UI state
 func (s *ApplicationState) SetupPlanApprovalUIState(planContent, planID string, responseChan chan agentdomain.PlanApprovalAction) {
-	s.planApprovalUIState = &agentdomain.PlanApprovalUIState{
+	s.planApprovalUIState = &PlanApprovalUIState{
 		SelectedIndex: int(agentdomain.PlanApprovalAccept),
 		PlanContent:   planContent,
 		PlanID:        planID,
@@ -539,7 +539,7 @@ func (s *ApplicationState) SetupPlanApprovalUIState(planContent, planID string, 
 }
 
 // GetPlanApprovalUIState returns the current plan approval UI state
-func (s *ApplicationState) GetPlanApprovalUIState() *agentdomain.PlanApprovalUIState {
+func (s *ApplicationState) GetPlanApprovalUIState() *PlanApprovalUIState {
 	return s.planApprovalUIState
 }
 
@@ -563,14 +563,14 @@ func (s *ApplicationState) ClearPlanApprovalUIState() {
 // SetupUserQuestionUIState initializes the AskUserQuestion form state for the
 // given questions.
 func (s *ApplicationState) SetupUserQuestionUIState(questions []agentdomain.UserQuestion, responseChan chan []agentdomain.UserQuestionAnswer) {
-	s.userQuestionUIState = &agentdomain.UserQuestionUIState{
+	s.userQuestionUIState = &UserQuestionUIState{
 		Questions:    questions,
 		ResponseChan: responseChan,
 	}
 }
 
 // GetUserQuestionUIState returns the current AskUserQuestion form state, or nil.
-func (s *ApplicationState) GetUserQuestionUIState() *agentdomain.UserQuestionUIState {
+func (s *ApplicationState) GetUserQuestionUIState() *UserQuestionUIState {
 	return s.userQuestionUIState
 }
 

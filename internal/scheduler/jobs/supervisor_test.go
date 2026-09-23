@@ -728,10 +728,10 @@ func TestSupervisor_SnapshotPopulatesOutputAfterCleanupReap(t *testing.T) {
 // visible to Supervisor.A2APollingStates while running.
 type fakeA2AJob struct {
 	*fakeJob
-	state agentdomain.TaskPollingState
+	state scheddomain.TaskPollingState
 }
 
-func (f *fakeA2AJob) A2APollingState() agentdomain.TaskPollingState { return f.state }
+func (f *fakeA2AJob) A2APollingState() scheddomain.TaskPollingState { return f.state }
 
 // TestSupervisor_A2APollingStates asserts the supervisor is the single source for
 // active A2A rows: only running A2A jobs are returned, with their polling detail
@@ -742,7 +742,7 @@ func TestSupervisor_A2APollingStates(t *testing.T) {
 
 	a2a := &fakeA2AJob{
 		fakeJob: newFakeJob("a1", scheddomain.JobKindA2A),
-		state:   agentdomain.TaskPollingState{TaskID: "a1", ContextID: "ctx1", AgentURL: "http://agent", LastKnownState: "working"},
+		state:   scheddomain.TaskPollingState{TaskID: "a1", ContextID: "ctx1", AgentURL: "http://agent", LastKnownState: "working"},
 	}
 	shell := newFakeJob("s1", scheddomain.JobKindShell)
 

@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	huggingface "github.com/inference-gateway/cli/internal/platform/huggingface"
 )
 
@@ -48,9 +49,9 @@ func ttsModelFiles(model string) (backbone, mmproj string) {
 	return backbone, fmt.Sprintf("mmproj-%s-Q8_0.gguf", stem)
 }
 
-// TTSModelManager resolves and (optionally) downloads the TTS GGUF models
-// (backbone + mmproj) into the models dir, mirroring ModelManager for whisper.
-type TTSModelManager struct {
+// TTSModelStore resolves and (optionally) downloads the TTS GGUF models
+// (backbone + mmproj) into the models dir, mirroring ModelStore for whisper.
+type TTSModelStore struct {
 	cfg config.TextToSpeechConfig
 	mu  sync.Mutex
 
@@ -58,9 +59,9 @@ type TTSModelManager struct {
 	hub *huggingface.Client
 }
 
-// NewTTSModelManager creates a TTSModelManager from the text-to-speech config.
-func NewTTSModelManager(cfg config.TextToSpeechConfig) *TTSModelManager {
-	return &TTSModelManager{
+// NewTTSModelStore creates a TTSModelStore from the text-to-speech config.
+func NewTTSModelStore(cfg config.TextToSpeechConfig) *TTSModelStore {
+	return &TTSModelStore{
 		cfg: cfg,
 		hub: huggingface.NewClient(),
 	}
@@ -68,7 +69,7 @@ func NewTTSModelManager(cfg config.TextToSpeechConfig) *TTSModelManager {
 
 // modelsDir returns the directory holding TTS models, defaulting to
 // ~/.infer/models/tts when not configured.
-func (m *TTSModelManager) modelsDir() (string, error) {
+func (m *TTSModelStore) modelsDir() (string, error) {
 	if strings.TrimSpace(m.cfg.ModelsDir) != "" {
 		return m.cfg.ModelsDir, nil
 	}
@@ -82,7 +83,7 @@ func (m *TTSModelManager) modelsDir() (string, error) {
 // EnsureModels returns local paths to the backbone and mmproj GGUF files,
 // downloading them on first use when AutoDownload is enabled. Concurrent
 // callers are serialized so each model is downloaded once.
-func (m *TTSModelManager) EnsureModels(ctx context.Context) (backbone, mmproj string, err error) {
+func (m *TTSModelStore) EnsureModels(ctx context.Context) (backbone, mmproj string, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -99,13 +100,13 @@ func (m *TTSModelManager) EnsureModels(ctx context.Context) (backbone, mmproj st
 
 // ensureFile returns the local path to the named GGUF file, downloading it on
 // first use when AutoDownload is enabled.
-func (m *TTSModelManager) ensureFile(ctx context.Context, name string) (string, error) {
+func (m *TTSModelStore) ensureFile(ctx context.Context, name string) (string, error) {
 	dir, err := m.modelsDir()
 	if err != nil {
 		return "", err
 	}
 
-	path, err := m.hub.EnsureFile(ctx, qwen3TTSRepo, name, dir, "tts model", m.cfg.AutoDownload)
+	path, err := m.hub.EnsureFile(ctx, qwen3TTSRepo, name, dir, "tts model", m.cfg.AutoDownload, agentdomain.GetToolProgressCallback(ctx))
 	if errors.Is(err, huggingface.ErrNotCached) {
 		return "", fmt.Errorf("tts model %q not found at %s and text_to_speech.auto_download is disabled", name, filepath.Join(dir, name))
 	}

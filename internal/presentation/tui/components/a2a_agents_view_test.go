@@ -15,7 +15,7 @@ import (
 
 // newA2AAgentsViewForTest builds an agents view backed by a real
 // ApplicationState reconstructed from the given readiness.
-func newA2AAgentsViewForTest(readiness *tui.AgentReadinessState) (*A2AAgentsViewImpl, *tui.ApplicationState) {
+func newA2AAgentsViewForTest(readiness *tui.AgentReadinessState) (*A2AAgentsView, *tui.ApplicationState) {
 	fakeTheme := &tuimocks.FakeTheme{}
 	fakeTheme.GetAccentColorReturns("#ff9e64")
 	fakeTheme.GetDimColorReturns("#888888")
@@ -96,13 +96,13 @@ func TestA2AAgentsView_EscCancelsEnterDoesNot(t *testing.T) {
 	})
 
 	model, _ := view.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	view = model.(*A2AAgentsViewImpl)
+	view = model.(*A2AAgentsView)
 	if view.IsCancelled() {
 		t.Fatal("enter is a no-op in the read-only agents view")
 	}
 
 	model, _ = view.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	view = model.(*A2AAgentsViewImpl)
+	view = model.(*A2AAgentsView)
 	if !view.IsCancelled() {
 		t.Fatal("esc should cancel the agents view")
 	}
@@ -116,7 +116,7 @@ func TestA2AAgentsView_ResetRefreshesReadiness(t *testing.T) {
 	})
 
 	model, _ := view.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	view = model.(*A2AAgentsViewImpl)
+	view = model.(*A2AAgentsView)
 
 	stateManager.UpdateAgentStatus("writer", agentdomain.AgentStateReady, "", "", "")
 	view.Reset()
@@ -141,7 +141,7 @@ func TestA2AAgentsView_LiveUpdatesOnAgentStatusEvent(t *testing.T) {
 
 	stateManager.UpdateAgentPullProgress("writer", 3, 7)
 	model, _ := view.Update(tui.AgentStatusUpdateEvent{AgentName: "writer", State: agentdomain.AgentStatePullingImage})
-	view = model.(*A2AAgentsViewImpl)
+	view = model.(*A2AAgentsView)
 
 	if got := view.list.Items()[0].(a2aAgentItem); got.detail != "Pulling image: img (3/7 layers)" {
 		t.Errorf("event should refresh pull progress in the detail, got %+v", got)
@@ -149,7 +149,7 @@ func TestA2AAgentsView_LiveUpdatesOnAgentStatusEvent(t *testing.T) {
 
 	stateManager.UpdateAgentStatus("writer", agentdomain.AgentStateReady, "", "", "")
 	model, _ = view.Update(tui.AgentStatusUpdateEvent{AgentName: "writer", State: agentdomain.AgentStateReady})
-	view = model.(*A2AAgentsViewImpl)
+	view = model.(*A2AAgentsView)
 
 	if view.list.Title != "A2A Agents (1/1 ready)" {
 		t.Errorf("title = %q, want the refreshed readiness", view.list.Title)

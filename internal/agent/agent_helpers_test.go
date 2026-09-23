@@ -15,7 +15,7 @@ import (
 
 // TestAccumulateToolCalls tests tool call accumulation
 func TestAccumulateToolCalls(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		toolCallsMap: make(map[string]*sdk.ChatCompletionMessageToolCall),
 	}
 
@@ -36,7 +36,7 @@ func TestAccumulateToolCalls(t *testing.T) {
 
 // TestGetAccumulatedToolCalls tests retrieving accumulated tool calls
 func TestGetAccumulatedToolCalls(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		toolCallsMap: map[string]*sdk.ChatCompletionMessageToolCall{
 			"0": {ID: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
 			"1": {ID: "call-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write"}},
@@ -57,7 +57,7 @@ func TestGetAccumulatedToolCalls(t *testing.T) {
 
 // TestClearToolCallsMap tests clearing tool calls map
 func TestClearToolCallsMap(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		toolCallsMap: map[string]*sdk.ChatCompletionMessageToolCall{
 			"0": {ID: "call-1"},
 		},
@@ -80,7 +80,7 @@ func TestClearToolCallsMap(t *testing.T) {
 
 // TestCheckPlanApproval tests pulling plan content out of tool results.
 func TestCheckPlanApproval(t *testing.T) {
-	agentService := &AgentServiceImpl{}
+	agentService := &Agent{}
 
 	tests := []struct {
 		name         string
@@ -169,7 +169,7 @@ func TestExtractPlanID(t *testing.T) {
 
 // TestAddToolResultsToConversation tests adding tool results to conversation
 func TestAddToolResultsToConversation(t *testing.T) {
-	agentService := &AgentServiceImpl{}
+	agentService := &Agent{}
 
 	call1 := "call-1"
 	call2 := "call-2"
@@ -339,7 +339,7 @@ func TestBatchDrainQueue(t *testing.T) {
 				tt.setupQueue(fakeQueue)
 			}
 
-			agentService := &AgentServiceImpl{
+			agentService := &Agent{
 				messageQueue:     fakeQueue,
 				conversationRepo: fakeRepo,
 			}
@@ -366,7 +366,7 @@ func TestBatchDrainQueue(t *testing.T) {
 
 // TestBatchDrainQueue_NilMessageQueue tests behavior with nil message queue
 func TestBatchDrainQueue_NilMessageQueue(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		messageQueue: nil,
 	}
 

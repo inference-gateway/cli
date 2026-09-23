@@ -9,7 +9,6 @@ import (
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -20,14 +19,14 @@ import (
 // status-bar indicator) and the wind control used to stop a task on cancel.
 // *jobs.Supervisor satisfies it.
 type a2aJobController interface {
-	A2APollingStates() []agentdomain.TaskPollingState
+	A2APollingStates() []scheddomain.TaskPollingState
 	Wind(id string, sig scheddomain.WindSignal) error
 }
 
 // BackgroundTaskService handles background task operations (A2A-specific)
 // Only instantiated when A2A tools are enabled
 type BackgroundTaskService struct {
-	taskTracker     agentdomain.A2ATaskTracker
+	taskTracker     scheddomain.A2ATaskTracker
 	jobs            a2aJobController
 	createADKClient func(agentURL string) client.A2AClient
 	mutex           sync.RWMutex
@@ -36,7 +35,7 @@ type BackgroundTaskService struct {
 // NewBackgroundTaskService creates a new background task service. jobs is the job
 // supervisor - the single source of truth for which A2A tasks are running - while
 // taskTracker still resolves the context graph and a task's agent URL for cancel.
-func NewBackgroundTaskService(taskTracker agentdomain.A2ATaskTracker, jobs a2aJobController) *BackgroundTaskService {
+func NewBackgroundTaskService(taskTracker scheddomain.A2ATaskTracker, jobs a2aJobController) *BackgroundTaskService {
 	return &BackgroundTaskService{
 		taskTracker: taskTracker,
 		jobs:        jobs,
@@ -51,9 +50,9 @@ func NewBackgroundTaskService(taskTracker agentdomain.A2ATaskTracker, jobs a2aJo
 // GetBackgroundTasks returns the active A2A tasks from the job supervisor - the
 // single source of truth shared with the status-bar indicator - so the /tasks
 // active list and the indicator can no longer diverge.
-func (s *BackgroundTaskService) GetBackgroundTasks() []agentdomain.TaskPollingState {
+func (s *BackgroundTaskService) GetBackgroundTasks() []scheddomain.TaskPollingState {
 	if s.jobs == nil {
-		return []agentdomain.TaskPollingState{}
+		return []scheddomain.TaskPollingState{}
 	}
 	return s.jobs.A2APollingStates()
 }
@@ -94,7 +93,7 @@ func (s *BackgroundTaskService) CancelBackgroundTask(taskID string) error {
 }
 
 // sendCancelToAgent sends a cancel request to the agent server
-func (s *BackgroundTaskService) sendCancelToAgent(task *agentdomain.TaskPollingState) error {
+func (s *BackgroundTaskService) sendCancelToAgent(task *scheddomain.TaskPollingState) error {
 	adkClient := s.createADKClient(task.AgentURL)
 
 	taskStatus, err := adkClient.GetTask(context.Background(), adk.TaskQueryParams{

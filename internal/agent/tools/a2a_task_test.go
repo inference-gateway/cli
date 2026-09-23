@@ -15,6 +15,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func TestA2ASubmitTaskTool_Definition(t *testing.T) {
@@ -578,7 +579,7 @@ func TestA2ASubmitTaskTool_HandleTaskState_NoDownloadByDefault(t *testing.T) {
 			{ArtifactID: "a1", Metadata: &adk.Struct{"url": server.URL + "/artifacts/shot.png"}},
 		},
 	}
-	state := &agentdomain.TaskPollingState{TaskID: "task-1", StartedAt: time.Now()}
+	state := &scheddomain.TaskPollingState{TaskID: "task-1", StartedAt: time.Now()}
 
 	done, result := tool.handleTaskState(context.Background(), server.URL, "task-1", 1, state, task, "")
 	require.True(t, done)

@@ -13,16 +13,16 @@ import (
 // KeyHandler represents a function that handles a key binding
 type KeyHandler func(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 
-// StateManager is the narrow slice of the application state manager that key
-// handlers need. *statemanager.StateManager satisfies it.
-type StateManager interface {
-	tui.ViewManager
-	agentdomain.AgentModeManager
-	agentdomain.ChatSessionManager
-	agentdomain.ToolExecutionManager
-	agentdomain.ApprovalUIManager
-	agentdomain.PlanApprovalUIManager
-	agentdomain.UserQuestionUIManager
+// StateStore is the narrow slice of the application state manager that key
+// handlers need. *statemanager.StateStore satisfies it.
+type StateStore interface {
+	tui.ViewNavigator
+	agentdomain.AgentModeState
+	tui.ChatSessionState
+	tui.ToolExecutionState
+	tui.ApprovalPrompt
+	tui.PlanApprovalPrompt
+	tui.UserQuestionPrompt
 	IsEditingMessage() bool
 	ClearMessageEditState()
 }
@@ -30,7 +30,7 @@ type StateManager interface {
 // KeyHandlerContext provides access to application context for key handlers
 type KeyHandlerContext interface {
 	// State management
-	GetStateManager() StateManager
+	GetStateStore() StateStore
 	GetConversationRepository() convdomain.ConversationRepository
 	GetConfig() *config.Config
 

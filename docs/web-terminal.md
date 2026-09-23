@@ -85,7 +85,7 @@ Each tab provides a full `infer chat` session with:
 - Handles WebSocket upgrade requests
 - Manages graceful shutdown with signal handling
 
-**Session Manager** (`internal/presentation/web/session_manager.go`):
+**Sessions** (`internal/presentation/web/sessions.go`):
 
 - Tracks all active sessions with last activity timestamps
 - Spawns cleanup goroutine for inactive session removal
@@ -638,7 +638,7 @@ cli/
 └── internal/
     └── web/
         ├── server.go                  # HTTP + WebSocket server
-        ├── session_manager.go         # Session lifecycle
+        ├── sessions.go                # Session lifecycle
         ├── pty_manager.go             # PTY subprocess control
         ├── static/                    # Embedded assets
         │   ├── xterm.js               # Terminal emulator

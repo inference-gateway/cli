@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 // TestAgentTool_InteractiveTracksPane verifies the fire-and-track behavior: an
@@ -17,7 +17,7 @@ func TestAgentTool_InteractiveTracksPane(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive"
 	cfg.Tools.Agent.Wait = true
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	tool := NewAgentTool(cfg, tracker, nil)
 	tool.interactiveAvailable = func() bool { return true }
 	tool.launchPane = func(ctx context.Context, title, command string) (string, error) { return "%9", nil }

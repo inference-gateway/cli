@@ -3,7 +3,6 @@ package container
 import (
 	"fmt"
 
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -17,7 +16,7 @@ const (
 
 // NewContainerRuntime creates a container runtime based on the configured type
 // If runtimeType is empty, returns nil to allow binary mode fallback
-func NewContainerRuntime(sessionID convdomain.SessionID, runtimeType RuntimeType) (ContainerRuntime, error) {
+func NewContainerRuntime(sessionID string, runtimeType RuntimeType) (ContainerRuntime, error) {
 	if runtimeType == "" {
 		logger.Info("no container runtime configured, will use binary mode")
 		return nil, nil

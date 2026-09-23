@@ -40,7 +40,7 @@ func Run(ctx context.Context, reg *Registry, input string, deps Deps) (Outcome, 
 		return Outcome{}, false, nil
 	}
 
-	ctx = context.WithValue(ctx, agentdomain.SessionIDKey, deps.SessionID)
+	ctx = agentdomain.WithSessionID(ctx, deps.SessionID)
 	res, err := reg.Execute(ctx, name, args)
 	if err != nil {
 		return Outcome{}, true, fmt.Errorf("shortcut /%s failed: %w", name, err)

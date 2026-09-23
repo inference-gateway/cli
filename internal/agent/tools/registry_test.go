@@ -543,31 +543,31 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 	}
 }
 
-// blockingMCPManager is a agentdomain.MCPManager double whose GetClients() blocks
+// blockingMCPSupervisor is a agentdomain.MCPSupervisor double whose GetClients() blocks
 // indefinitely (simulating a stalled discovery call). NewRegistry must never
 // reach this - see issue #523. The test uses a select-on-timeout to assert
 // that construction returns promptly even when MCP I/O would block.
-type blockingMCPManager struct {
+type blockingMCPSupervisor struct {
 	getClientsCalled chan struct{}
 }
 
-func (m *blockingMCPManager) GetClients() []agentdomain.MCPClient {
+func (m *blockingMCPSupervisor) GetClients() []agentdomain.MCPClient {
 	close(m.getClientsCalled)
 	select {}
 }
-func (m *blockingMCPManager) GetClient(string) agentdomain.MCPClient { return nil }
-func (m *blockingMCPManager) GetTotalServers() int                   { return 0 }
-func (m *blockingMCPManager) UpdateToolCount(string, int)            {}
-func (m *blockingMCPManager) ClearToolCount(string)                  {}
-func (m *blockingMCPManager) StartServers(context.Context) error     { return nil }
-func (m *blockingMCPManager) StopServers(context.Context) error      { return nil }
-func (m *blockingMCPManager) Close() error                           { return nil }
-func (m *blockingMCPManager) StartMonitoring(context.Context)        {}
+func (m *blockingMCPSupervisor) GetClient(string) agentdomain.MCPClient { return nil }
+func (m *blockingMCPSupervisor) GetTotalServers() int                   { return 0 }
+func (m *blockingMCPSupervisor) UpdateToolCount(string, int)            {}
+func (m *blockingMCPSupervisor) ClearToolCount(string)                  {}
+func (m *blockingMCPSupervisor) StartServers(context.Context) error     { return nil }
+func (m *blockingMCPSupervisor) StopServers(context.Context) error      { return nil }
+func (m *blockingMCPSupervisor) Close() error                           { return nil }
+func (m *blockingMCPSupervisor) StartMonitoring(context.Context)        {}
 
 // TestRegistry_NewRegistry_DoesNotBlockOnMCP is a regression test for
 // issue #523: NewRegistry must not synchronously call DiscoverTools (or any
 // other MCP RPC) during construction, because that blocks bubbletea TUI
-// startup. We verify this by handing in an MCPManager whose GetClients()
+// startup. We verify this by handing in an MCPSupervisor whose GetClients()
 // blocks forever - construction must still return promptly.
 func TestRegistry_NewRegistry_DoesNotBlockOnMCP(t *testing.T) {
 	cfg := &config.Config{
@@ -589,7 +589,7 @@ func TestRegistry_NewRegistry_DoesNotBlockOnMCP(t *testing.T) {
 		},
 	}
 
-	blocker := &blockingMCPManager{getClientsCalled: make(chan struct{})}
+	blocker := &blockingMCPSupervisor{getClientsCalled: make(chan struct{})}
 
 	done := make(chan *Registry, 1)
 	go func() {
@@ -612,21 +612,21 @@ func TestRegistry_NewRegistry_DoesNotBlockOnMCP(t *testing.T) {
 	// permissible; we only assert the constructor returned in time above.
 }
 
-// stubMCPManager is a minimal agentdomain.MCPManager whose GetClient always
+// stubMCPSupervisor is a minimal agentdomain.MCPSupervisor whose GetClient always
 // resolves, so RegisterMCPServerTools reaches the tools-map writes.
-type stubMCPManager struct{ client agentdomain.MCPClient }
+type stubMCPSupervisor struct{ client agentdomain.MCPClient }
 
-func (m *stubMCPManager) GetClients() []agentdomain.MCPClient {
+func (m *stubMCPSupervisor) GetClients() []agentdomain.MCPClient {
 	return []agentdomain.MCPClient{m.client}
 }
-func (m *stubMCPManager) GetClient(string) agentdomain.MCPClient { return m.client }
-func (m *stubMCPManager) GetTotalServers() int                   { return 1 }
-func (m *stubMCPManager) UpdateToolCount(string, int)            {}
-func (m *stubMCPManager) ClearToolCount(string)                  {}
-func (m *stubMCPManager) StartServers(context.Context) error     { return nil }
-func (m *stubMCPManager) StopServers(context.Context) error      { return nil }
-func (m *stubMCPManager) Close() error                           { return nil }
-func (m *stubMCPManager) StartMonitoring(context.Context)        {}
+func (m *stubMCPSupervisor) GetClient(string) agentdomain.MCPClient { return m.client }
+func (m *stubMCPSupervisor) GetTotalServers() int                   { return 1 }
+func (m *stubMCPSupervisor) UpdateToolCount(string, int)            {}
+func (m *stubMCPSupervisor) ClearToolCount(string)                  {}
+func (m *stubMCPSupervisor) StartServers(context.Context) error     { return nil }
+func (m *stubMCPSupervisor) StopServers(context.Context) error      { return nil }
+func (m *stubMCPSupervisor) Close() error                           { return nil }
+func (m *stubMCPSupervisor) StartMonitoring(context.Context)        {}
 
 // TestRegistry_ConcurrentMCPToolAccess is a regression test for issue #708:
 // the MCP liveness probe registers/unregisters MCP_* tools from its own
@@ -654,7 +654,7 @@ func TestRegistry_ConcurrentMCPToolAccess(t *testing.T) {
 		Prompts: *config.DefaultPromptsConfig(),
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, &stubMCPManager{client: &agentdomainmocks.FakeMCPClient{}}, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, &stubMCPSupervisor{client: &agentdomainmocks.FakeMCPClient{}}, nil, nil, nil, nil)
 
 	discovered := []agentdomain.MCPDiscoveredTool{
 		{ServerName: "flappy", Name: "alpha", Description: "a", InputSchema: map[string]any{}},

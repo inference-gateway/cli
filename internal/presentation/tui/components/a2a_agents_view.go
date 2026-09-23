@@ -75,20 +75,20 @@ func (d a2aAgentDelegate) Render(w io.Writer, m list.Model, index int, item list
 	_, _ = fmt.Fprint(w, name+state+detail)
 }
 
-// A2AAgentsViewImpl is a read-only, filterable list of the registered A2A
+// A2AAgentsView is a read-only, filterable list of the registered A2A
 // agents and their readiness. Like the tools view it is display-only for now.
-type A2AAgentsViewImpl struct {
+type A2AAgentsView struct {
 	list          list.Model
 	width         int
 	height        int
 	cancelled     bool
-	stateManager  AgentReadinessManager
+	stateManager  AgentReadiness
 	styleProvider *styles.Provider
 }
 
 // NewA2AAgentsView creates the A2A agents list view. Items are populated by
 // Reset on every entry because agent readiness changes as agents start up.
-func NewA2AAgentsView(stateManager AgentReadinessManager, styleProvider *styles.Provider) *A2AAgentsViewImpl {
+func NewA2AAgentsView(stateManager AgentReadiness, styleProvider *styles.Provider) *A2AAgentsView {
 	l := list.New(
 		nil,
 		a2aAgentDelegate{styleProvider: styleProvider},
@@ -102,7 +102,7 @@ func NewA2AAgentsView(stateManager AgentReadinessManager, styleProvider *styles.
 		Foreground(lipgloss.Color(styleProvider.GetThemeColor("accent"))).
 		Bold(true)
 
-	m := &A2AAgentsViewImpl{
+	m := &A2AAgentsView{
 		list:          l,
 		width:         80,
 		height:        24,
@@ -115,7 +115,7 @@ func NewA2AAgentsView(stateManager AgentReadinessManager, styleProvider *styles.
 
 // agentItems builds the list items from the current agent readiness state,
 // sorted by name for a stable order.
-func (m *A2AAgentsViewImpl) agentItems() ([]list.Item, int, int) {
+func (m *A2AAgentsView) agentItems() ([]list.Item, int, int) {
 	if m.stateManager == nil {
 		return nil, 0, 0
 	}
@@ -154,9 +154,9 @@ func (m *A2AAgentsViewImpl) agentItems() ([]list.Item, int, int) {
 	return items, readiness.ReadyAgents, readiness.TotalAgents
 }
 
-func (m *A2AAgentsViewImpl) Init() tea.Cmd { return nil }
+func (m *A2AAgentsView) Init() tea.Cmd { return nil }
 
-func (m *A2AAgentsViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *A2AAgentsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -179,7 +179,7 @@ func (m *A2AAgentsViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleKey intercepts the cancel keys when the list is not actively
 // filtering; otherwise it lets the list own typing, enter (apply filter) and
 // esc (clear filter). Enter outside filtering is consumed as a no-op.
-func (m *A2AAgentsViewImpl) handleKey(msg tea.KeyPressMsg) (handled bool, cmd tea.Cmd) {
+func (m *A2AAgentsView) handleKey(msg tea.KeyPressMsg) (handled bool, cmd tea.Cmd) {
 	if m.list.FilterState() == list.Filtering {
 		return false, nil
 	}
@@ -200,28 +200,28 @@ func (m *A2AAgentsViewImpl) handleKey(msg tea.KeyPressMsg) (handled bool, cmd te
 	return false, nil
 }
 
-func (m *A2AAgentsViewImpl) View() tea.View {
+func (m *A2AAgentsView) View() tea.View {
 	return tea.NewView(m.list.View())
 }
 
 // IsCancelled returns true once the user has dismissed the view.
-func (m *A2AAgentsViewImpl) IsCancelled() bool { return m.cancelled }
+func (m *A2AAgentsView) IsCancelled() bool { return m.cancelled }
 
 // SetWidth sets the width of the agents view.
-func (m *A2AAgentsViewImpl) SetWidth(width int) {
+func (m *A2AAgentsView) SetWidth(width int) {
 	m.width = width
 	m.list.SetSize(width, m.height)
 }
 
 // SetHeight sets the height of the agents view.
-func (m *A2AAgentsViewImpl) SetHeight(height int) {
+func (m *A2AAgentsView) SetHeight(height int) {
 	m.height = height
 	m.list.SetSize(m.width, height)
 }
 
 // Reset returns the view to its initial state and rebuilds the items so the
 // list reflects the latest agent readiness.
-func (m *A2AAgentsViewImpl) Reset() {
+func (m *A2AAgentsView) Reset() {
 	m.cancelled = false
 	m.list.ResetFilter()
 	m.refreshItems()
@@ -231,7 +231,7 @@ func (m *A2AAgentsViewImpl) Reset() {
 // refreshItems rebuilds the rows and title from the latest agent readiness
 // without touching the user's selection or filter, so the open view stays
 // live while agents pull and start (AgentStatusUpdateEvent).
-func (m *A2AAgentsViewImpl) refreshItems() tea.Cmd {
+func (m *A2AAgentsView) refreshItems() tea.Cmd {
 	items, ready, total := m.agentItems()
 	cmd := m.list.SetItems(items)
 	m.list.Title = fmt.Sprintf("A2A Agents (%d/%d ready)", ready, total)

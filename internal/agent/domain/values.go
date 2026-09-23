@@ -5,7 +5,6 @@ package domain
 
 import (
 	"strings"
-	"time"
 )
 
 // AgentMode represents the operational mode of the agent
@@ -111,119 +110,6 @@ func (m AgentMode) DisplayName() string {
 type RetryStatus struct {
 	Attempt     int
 	MaxAttempts int
-}
-
-// ChatStatus represents the current chat operation status
-type ChatStatus int
-
-const (
-	ChatStatusIdle ChatStatus = iota
-	ChatStatusStarting
-	ChatStatusThinking
-	ChatStatusGenerating
-	ChatStatusReceivingTools
-	ChatStatusWaitingTools
-	ChatStatusCompleted
-	ChatStatusError
-	ChatStatusCancelled
-)
-
-func (c ChatStatus) String() string {
-	switch c {
-	case ChatStatusIdle:
-		return "Idle"
-	case ChatStatusStarting:
-		return "Starting"
-	case ChatStatusThinking:
-		return "Thinking"
-	case ChatStatusGenerating:
-		return "Generating"
-	case ChatStatusReceivingTools:
-		return "ReceivingTools"
-	case ChatStatusWaitingTools:
-		return "WaitingTools"
-	case ChatStatusCompleted:
-		return "Completed"
-	case ChatStatusError:
-		return "Error"
-	case ChatStatusCancelled:
-		return "Cancelled"
-	default:
-		return "Unknown"
-	}
-}
-
-// ToolCall represents a tool call with proper typing
-type ToolCall struct {
-	ID        string               `json:"id"`
-	Name      string               `json:"name"`
-	Arguments map[string]any       `json:"arguments"`
-	Status    ToolCallStatus       `json:"status"`
-	Result    *ToolExecutionResult `json:"result,omitempty"`
-	StartTime time.Time            `json:"start_time"`
-	EndTime   *time.Time           `json:"end_time,omitempty"`
-}
-
-// ToolCallStatus represents the status of an individual tool call
-type ToolCallStatus int
-
-const (
-	ToolCallStatusPending ToolCallStatus = iota
-	ToolCallStatusWaitingApproval
-	ToolCallStatusExecuting
-	ToolCallStatusCompleted
-	ToolCallStatusFailed
-	ToolCallStatusCancelled
-	ToolCallStatusDenied
-)
-
-func (t ToolCallStatus) String() string {
-	switch t {
-	case ToolCallStatusPending:
-		return "Pending"
-	case ToolCallStatusWaitingApproval:
-		return "WaitingApproval"
-	case ToolCallStatusExecuting:
-		return "Executing"
-	case ToolCallStatusCompleted:
-		return "Completed"
-	case ToolCallStatusFailed:
-		return "Failed"
-	case ToolCallStatusCancelled:
-		return "Cancelled"
-	case ToolCallStatusDenied:
-		return "Denied"
-	default:
-		return "Unknown"
-	}
-}
-
-// ToolExecutionStatus represents the overall tool execution session status
-type ToolExecutionStatus int
-
-const (
-	ToolExecutionStatusIdle ToolExecutionStatus = iota
-	ToolExecutionStatusProcessing
-	ToolExecutionStatusExecuting
-	ToolExecutionStatusCompleted
-	ToolExecutionStatusFailed
-)
-
-func (t ToolExecutionStatus) String() string {
-	switch t {
-	case ToolExecutionStatusIdle:
-		return "Idle"
-	case ToolExecutionStatusProcessing:
-		return "Processing"
-	case ToolExecutionStatusExecuting:
-		return "Executing"
-	case ToolExecutionStatusCompleted:
-		return "Completed"
-	case ToolExecutionStatusFailed:
-		return "Failed"
-	default:
-		return "Unknown"
-	}
 }
 
 // ApprovalAction represents the user's choice for tool approval

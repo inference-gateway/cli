@@ -10,7 +10,7 @@ import (
 )
 
 func TestTrackRepeatedFailure(t *testing.T) {
-	s := &AgentServiceImpl{}
+	s := &Agent{}
 	tc := sdk.ChatCompletionMessageToolCall{
 		Function: sdk.ChatCompletionMessageToolCallFunction{
 			Name:      "Read",

@@ -43,7 +43,7 @@ func createInputViewWithTheme(modelService convdomain.ModelService) *InputView {
 		width:            80,
 		height:           5,
 		modelService:     modelService,
-		historyManager:   history.NewMemoryOnlyHistoryManager(5),
+		historyManager:   history.NewMemoryOnlyStore(5),
 		themeService:     nil,
 		imageAttachments: []agentdomain.ImageAttachment{},
 	}
@@ -717,7 +717,7 @@ func TestInputView_BashCommandCompletedInvalidatesBranchCache(t *testing.T) {
 
 func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
 	ta := newInputTextarea("")
-	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyHistoryManager(10)}
+	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyStore(10)}
 
 	require.False(t, iv.IsNavigatingHistory(), "fresh input must not be navigating history")
 
@@ -729,7 +729,7 @@ func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
 
 func TestInputView_ArrowDownNavigatesWhileInHistory(t *testing.T) {
 	ta := newInputTextarea("")
-	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyHistoryManager(10)}
+	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyStore(10)}
 	require.NoError(t, iv.AddToHistory("previous message"))
 
 	_, _ = iv.HandleKey(tea.KeyPressMsg{Code: tea.KeyUp})
@@ -825,7 +825,7 @@ func TestInputView_GitStatusResolvedEventStoresFlags(t *testing.T) {
 func TestInputView_HeartbeatRefetchesGitStatus(t *testing.T) {
 	iv := newInputViewWithPR(t, "main", "")
 
-	_, cmd := iv.Update(agentdomain.HeartbeatEvent{At: time.Now()})
+	_, cmd := iv.Update(tui.HeartbeatEvent{At: time.Now()})
 	require.NotNil(t, cmd, "the app heartbeat must trigger the async git status refetch")
 
 	cfg := config.DefaultConfig()

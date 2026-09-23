@@ -4,7 +4,6 @@ package scheduler
 import (
 	"sync"
 
-	domaina "github.com/inference-gateway/cli/internal/agent/domain"
 	"github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -20,15 +19,15 @@ type FakeBackgroundTaskService struct {
 	cancelBackgroundTaskReturnsOnCall map[int]struct {
 		result1 error
 	}
-	GetBackgroundTasksStub        func() []domaina.TaskPollingState
+	GetBackgroundTasksStub        func() []domain.TaskPollingState
 	getBackgroundTasksMutex       sync.RWMutex
 	getBackgroundTasksArgsForCall []struct {
 	}
 	getBackgroundTasksReturns struct {
-		result1 []domaina.TaskPollingState
+		result1 []domain.TaskPollingState
 	}
 	getBackgroundTasksReturnsOnCall map[int]struct {
-		result1 []domaina.TaskPollingState
+		result1 []domain.TaskPollingState
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
@@ -95,7 +94,7 @@ func (fake *FakeBackgroundTaskService) CancelBackgroundTaskReturnsOnCall(i int, 
 	}{result1}
 }
 
-func (fake *FakeBackgroundTaskService) GetBackgroundTasks() []domaina.TaskPollingState {
+func (fake *FakeBackgroundTaskService) GetBackgroundTasks() []domain.TaskPollingState {
 	fake.getBackgroundTasksMutex.Lock()
 	ret, specificReturn := fake.getBackgroundTasksReturnsOnCall[len(fake.getBackgroundTasksArgsForCall)]
 	fake.getBackgroundTasksArgsForCall = append(fake.getBackgroundTasksArgsForCall, struct {
@@ -119,32 +118,32 @@ func (fake *FakeBackgroundTaskService) GetBackgroundTasksCallCount() int {
 	return len(fake.getBackgroundTasksArgsForCall)
 }
 
-func (fake *FakeBackgroundTaskService) GetBackgroundTasksCalls(stub func() []domaina.TaskPollingState) {
+func (fake *FakeBackgroundTaskService) GetBackgroundTasksCalls(stub func() []domain.TaskPollingState) {
 	fake.getBackgroundTasksMutex.Lock()
 	defer fake.getBackgroundTasksMutex.Unlock()
 	fake.GetBackgroundTasksStub = stub
 }
 
-func (fake *FakeBackgroundTaskService) GetBackgroundTasksReturns(result1 []domaina.TaskPollingState) {
+func (fake *FakeBackgroundTaskService) GetBackgroundTasksReturns(result1 []domain.TaskPollingState) {
 	fake.getBackgroundTasksMutex.Lock()
 	defer fake.getBackgroundTasksMutex.Unlock()
 	fake.GetBackgroundTasksStub = nil
 	fake.getBackgroundTasksReturns = struct {
-		result1 []domaina.TaskPollingState
+		result1 []domain.TaskPollingState
 	}{result1}
 }
 
-func (fake *FakeBackgroundTaskService) GetBackgroundTasksReturnsOnCall(i int, result1 []domaina.TaskPollingState) {
+func (fake *FakeBackgroundTaskService) GetBackgroundTasksReturnsOnCall(i int, result1 []domain.TaskPollingState) {
 	fake.getBackgroundTasksMutex.Lock()
 	defer fake.getBackgroundTasksMutex.Unlock()
 	fake.GetBackgroundTasksStub = nil
 	if fake.getBackgroundTasksReturnsOnCall == nil {
 		fake.getBackgroundTasksReturnsOnCall = make(map[int]struct {
-			result1 []domaina.TaskPollingState
+			result1 []domain.TaskPollingState
 		})
 	}
 	fake.getBackgroundTasksReturnsOnCall[i] = struct {
-		result1 []domaina.TaskPollingState
+		result1 []domain.TaskPollingState
 	}{result1}
 }
 

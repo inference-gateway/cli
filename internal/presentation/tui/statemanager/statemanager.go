@@ -13,8 +13,8 @@ import (
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
-// StateManager provides centralized state management with proper synchronization
-type StateManager struct {
+// Store provides centralized state management with proper synchronization
+type Store struct {
 	state          *tui.ApplicationState
 	mutex          sync.RWMutex
 	stallThreshold time.Duration
@@ -25,30 +25,30 @@ type StateManager struct {
 	debugMode bool
 }
 
-// NewStateManager creates a new state manager
-func NewStateManager(debugMode bool) *StateManager {
-	return &StateManager{
+// NewStore creates a new state manager
+func NewStore(debugMode bool) *Store {
+	return &Store{
 		state:     tui.NewApplicationState(),
 		debugMode: debugMode,
 	}
 }
 
 // GetCurrentView returns the current view state
-func (sm *StateManager) GetCurrentView() tui.ViewState {
+func (sm *Store) GetCurrentView() tui.ViewState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetCurrentView()
 }
 
 // GetPreviousView returns the previous view state
-func (sm *StateManager) GetPreviousView() tui.ViewState {
+func (sm *Store) GetPreviousView() tui.ViewState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetPreviousView()
 }
 
 // TransitionToView transitions to a new view with validation and logging
-func (sm *StateManager) TransitionToView(newView tui.ViewState) error {
+func (sm *Store) TransitionToView(newView tui.ViewState) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -61,14 +61,14 @@ func (sm *StateManager) TransitionToView(newView tui.ViewState) error {
 }
 
 // GetAgentMode returns the current agent mode
-func (sm *StateManager) GetAgentMode() agentdomain.AgentMode {
+func (sm *Store) GetAgentMode() agentdomain.AgentMode {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetAgentMode()
 }
 
 // SetAgentMode sets the agent mode
-func (sm *StateManager) SetAgentMode(mode agentdomain.AgentMode) {
+func (sm *Store) SetAgentMode(mode agentdomain.AgentMode) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -76,7 +76,7 @@ func (sm *StateManager) SetAgentMode(mode agentdomain.AgentMode) {
 }
 
 // CycleAgentMode cycles to the next agent mode
-func (sm *StateManager) CycleAgentMode() agentdomain.AgentMode {
+func (sm *Store) CycleAgentMode() agentdomain.AgentMode {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -95,7 +95,7 @@ func (sm *StateManager) CycleAgentMode() agentdomain.AgentMode {
 // them as "in progress" would make IsAgentBusy() return false here but true
 // for a subsequent caller that just won the SetChatPending race, which is
 // exactly the window the chat-mode async rollover relies on for queueing.
-func (sm *StateManager) SetChatPending() {
+func (sm *Store) SetChatPending() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -108,7 +108,7 @@ func (sm *StateManager) SetChatPending() {
 // SetRetryStatus updates the retry status on the current chat session.
 // Called by the agent's reconnect loop to provide visual feedback in the
 // status bar while it is reconnecting after a failure.
-func (sm *StateManager) SetRetryStatus(status *agentdomain.RetryStatus) {
+func (sm *Store) SetRetryStatus(status *agentdomain.RetryStatus) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.state.SetRetryStatus(status)
@@ -122,7 +122,7 @@ func (sm *StateManager) SetRetryStatus(status *agentdomain.RetryStatus) {
 // its own. A synthesized status has Attempt == 0. Terminal sessions never
 // report a status, so a stale explicit retry can't outlive the turn it
 // belonged to (the input field is disabled while this returns non-nil).
-func (sm *StateManager) GetRetryStatus() *agentdomain.RetryStatus {
+func (sm *Store) GetRetryStatus() *agentdomain.RetryStatus {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -147,7 +147,7 @@ func (sm *StateManager) GetRetryStatus() *agentdomain.RetryStatus {
 // SetStallThreshold sets how long a streaming session may go without chunks
 // before GetRetryStatus reports it as reconnecting. Zero or negative disables
 // stall detection.
-func (sm *StateManager) SetStallThreshold(threshold time.Duration) {
+func (sm *Store) SetStallThreshold(threshold time.Duration) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.stallThreshold = threshold
@@ -155,7 +155,7 @@ func (sm *StateManager) SetStallThreshold(threshold time.Duration) {
 
 // TouchChatActivity records stream output on the current session, clearing
 // any retry status and resetting the stall clock.
-func (sm *StateManager) TouchChatActivity() {
+func (sm *Store) TouchChatActivity() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.state.TouchChatActivity()
@@ -164,38 +164,38 @@ func (sm *StateManager) TouchChatActivity() {
 // chatStatusExpectsChunks reports whether the status is one where SSE chunks
 // should be flowing; local tool execution and terminal states are excluded so
 // a long-running tool doesn't read as a stalled connection.
-func chatStatusExpectsChunks(s agentdomain.ChatStatus) bool {
+func chatStatusExpectsChunks(s tui.ChatStatus) bool {
 	switch s {
-	case agentdomain.ChatStatusStarting, agentdomain.ChatStatusThinking, agentdomain.ChatStatusGenerating, agentdomain.ChatStatusReceivingTools:
+	case tui.ChatStatusStarting, tui.ChatStatusThinking, tui.ChatStatusGenerating, tui.ChatStatusReceivingTools:
 		return true
 	}
 	return false
 }
 
-func isTerminalChatStatus(s agentdomain.ChatStatus) bool {
+func isTerminalChatStatus(s tui.ChatStatus) bool {
 	switch s {
-	case agentdomain.ChatStatusIdle, agentdomain.ChatStatusCompleted, agentdomain.ChatStatusError, agentdomain.ChatStatusCancelled:
+	case tui.ChatStatusIdle, tui.ChatStatusCompleted, tui.ChatStatusError, tui.ChatStatusCancelled:
 		return true
 	}
 	return false
 }
 
 // SetEventBridge sets the event bridge for multicasting events to external consumers
-func (sm *StateManager) SetEventBridge(bridge agentdomain.EventBridge) {
+func (sm *Store) SetEventBridge(bridge agentdomain.EventBridge) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.eventBridge = bridge
 }
 
 // GetEventBridge returns the event bridge for control event forwarding
-func (sm *StateManager) GetEventBridge() agentdomain.EventBridge {
+func (sm *Store) GetEventBridge() agentdomain.EventBridge {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.eventBridge
 }
 
 // StartChatSession starts a new chat session
-func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-chan agentdomain.ChatEvent) error {
+func (sm *Store) StartChatSession(requestID, model string, eventChan <-chan agentdomain.ChatEvent) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -209,7 +209,7 @@ func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-ch
 }
 
 // UpdateChatStatus updates the chat session status with validation
-func (sm *StateManager) UpdateChatStatus(status agentdomain.ChatStatus) error {
+func (sm *Store) UpdateChatStatus(status tui.ChatStatus) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -226,7 +226,7 @@ func (sm *StateManager) UpdateChatStatus(status agentdomain.ChatStatus) error {
 }
 
 // EndChatSession ends the current chat session
-func (sm *StateManager) EndChatSession() {
+func (sm *Store) EndChatSession() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -235,14 +235,14 @@ func (sm *StateManager) EndChatSession() {
 }
 
 // GetChatSession returns the current chat session (read-only)
-func (sm *StateManager) GetChatSession() *agentdomain.ChatSession {
+func (sm *Store) GetChatSession() *tui.ChatSession {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetChatSession()
 }
 
 // IsAgentBusy returns true if the agent is currently processing a request
-func (sm *StateManager) IsAgentBusy() bool {
+func (sm *Store) IsAgentBusy() bool {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -257,7 +257,7 @@ func (sm *StateManager) IsAgentBusy() bool {
 	}
 
 	switch chatSession.Status {
-	case agentdomain.ChatStatusIdle, agentdomain.ChatStatusCompleted, agentdomain.ChatStatusError, agentdomain.ChatStatusCancelled:
+	case tui.ChatStatusIdle, tui.ChatStatusCompleted, tui.ChatStatusError, tui.ChatStatusCancelled:
 		return false
 	default:
 		return true
@@ -265,22 +265,22 @@ func (sm *StateManager) IsAgentBusy() bool {
 }
 
 // StartToolExecution starts a new tool execution session
-func (sm *StateManager) StartToolExecution(toolCalls []sdk.ChatCompletionMessageToolCall) error {
+func (sm *Store) StartToolExecution(toolCalls []sdk.ChatCompletionMessageToolCall) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	tools := make([]agentdomain.ToolCall, len(toolCalls))
+	tools := make([]tui.ToolCall, len(toolCalls))
 	for i, tc := range toolCalls {
 		args := make(map[string]any)
 		if tc.Function.Arguments != "" {
 			_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
 		}
 
-		tools[i] = agentdomain.ToolCall{
+		tools[i] = tui.ToolCall{
 			ID:        tc.ID,
 			Name:      tc.Function.Name,
 			Arguments: args,
-			Status:    agentdomain.ToolCallStatusPending,
+			Status:    tui.ToolCallStatusPending,
 			StartTime: time.Now(),
 		}
 	}
@@ -291,7 +291,7 @@ func (sm *StateManager) StartToolExecution(toolCalls []sdk.ChatCompletionMessage
 }
 
 // CompleteCurrentTool marks the current tool as completed
-func (sm *StateManager) CompleteCurrentTool(result *agentdomain.ToolExecutionResult) error {
+func (sm *Store) CompleteCurrentTool(result *agentdomain.ToolExecutionResult) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -303,7 +303,7 @@ func (sm *StateManager) CompleteCurrentTool(result *agentdomain.ToolExecutionRes
 }
 
 // FailCurrentTool marks the current tool as failed
-func (sm *StateManager) FailCurrentTool(result *agentdomain.ToolExecutionResult) error {
+func (sm *Store) FailCurrentTool(result *agentdomain.ToolExecutionResult) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -315,7 +315,7 @@ func (sm *StateManager) FailCurrentTool(result *agentdomain.ToolExecutionResult)
 }
 
 // EndToolExecution ends the current tool execution session
-func (sm *StateManager) EndToolExecution() {
+func (sm *Store) EndToolExecution() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -324,14 +324,14 @@ func (sm *StateManager) EndToolExecution() {
 }
 
 // GetToolExecution returns the current tool execution session (read-only)
-func (sm *StateManager) GetToolExecution() *agentdomain.ToolExecutionSession {
+func (sm *Store) GetToolExecution() *tui.ToolExecutionSession {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetToolExecution()
 }
 
 // SetDimensions updates the UI dimensions
-func (sm *StateManager) SetDimensions(width, height int) {
+func (sm *Store) SetDimensions(width, height int) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -340,14 +340,14 @@ func (sm *StateManager) SetDimensions(width, height int) {
 }
 
 // GetDimensions returns the current UI dimensions
-func (sm *StateManager) GetDimensions() (int, int) {
+func (sm *Store) GetDimensions() (int, int) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetDimensions()
 }
 
 // SetDebugMode enables or disables debug mode
-func (sm *StateManager) SetDebugMode(enabled bool) {
+func (sm *Store) SetDebugMode(enabled bool) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -356,7 +356,7 @@ func (sm *StateManager) SetDebugMode(enabled bool) {
 }
 
 // IsDebugMode returns whether debug mode is enabled
-func (sm *StateManager) IsDebugMode() bool {
+func (sm *Store) IsDebugMode() bool {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.debugMode
@@ -365,7 +365,7 @@ func (sm *StateManager) IsDebugMode() bool {
 // Approval state methods
 
 // SetupApprovalUIState initializes approval UI state
-func (sm *StateManager) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan agentdomain.ApprovalAction) {
+func (sm *Store) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan agentdomain.ApprovalAction) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -373,7 +373,7 @@ func (sm *StateManager) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessage
 }
 
 // GetApprovalUIState returns the current approval UI state
-func (sm *StateManager) GetApprovalUIState() *agentdomain.ApprovalUIState {
+func (sm *Store) GetApprovalUIState() *tui.ApprovalUIState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -381,7 +381,7 @@ func (sm *StateManager) GetApprovalUIState() *agentdomain.ApprovalUIState {
 }
 
 // ClearApprovalUIState clears the approval UI state
-func (sm *StateManager) ClearApprovalUIState() {
+func (sm *Store) ClearApprovalUIState() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -389,7 +389,7 @@ func (sm *StateManager) ClearApprovalUIState() {
 }
 
 // BroadcastEvent publishes an event to the EventBridge for external consumers
-func (sm *StateManager) BroadcastEvent(event agentdomain.ChatEvent) {
+func (sm *Store) BroadcastEvent(event agentdomain.ChatEvent) {
 	if sm.eventBridge != nil {
 		sm.eventBridge.Publish(event)
 	}
@@ -398,7 +398,7 @@ func (sm *StateManager) BroadcastEvent(event agentdomain.ChatEvent) {
 // Plan approval state methods
 
 // SetupPlanApprovalUIState initializes plan approval UI state
-func (sm *StateManager) SetupPlanApprovalUIState(planContent, planID string, responseChan chan agentdomain.PlanApprovalAction) {
+func (sm *Store) SetupPlanApprovalUIState(planContent, planID string, responseChan chan agentdomain.PlanApprovalAction) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -406,7 +406,7 @@ func (sm *StateManager) SetupPlanApprovalUIState(planContent, planID string, res
 }
 
 // GetPlanApprovalUIState returns the current plan approval UI state
-func (sm *StateManager) GetPlanApprovalUIState() *agentdomain.PlanApprovalUIState {
+func (sm *Store) GetPlanApprovalUIState() *tui.PlanApprovalUIState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -414,7 +414,7 @@ func (sm *StateManager) GetPlanApprovalUIState() *agentdomain.PlanApprovalUIStat
 }
 
 // SetPlanApprovalSelectedIndex sets the plan approval selection index
-func (sm *StateManager) SetPlanApprovalSelectedIndex(index int) {
+func (sm *Store) SetPlanApprovalSelectedIndex(index int) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -422,7 +422,7 @@ func (sm *StateManager) SetPlanApprovalSelectedIndex(index int) {
 }
 
 // ClearPlanApprovalUIState clears the plan approval UI state
-func (sm *StateManager) ClearPlanApprovalUIState() {
+func (sm *Store) ClearPlanApprovalUIState() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -430,7 +430,7 @@ func (sm *StateManager) ClearPlanApprovalUIState() {
 }
 
 // SetupUserQuestionUIState initializes the AskUserQuestion form state
-func (sm *StateManager) SetupUserQuestionUIState(questions []agentdomain.UserQuestion, responseChan chan []agentdomain.UserQuestionAnswer) {
+func (sm *Store) SetupUserQuestionUIState(questions []agentdomain.UserQuestion, responseChan chan []agentdomain.UserQuestionAnswer) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -438,7 +438,7 @@ func (sm *StateManager) SetupUserQuestionUIState(questions []agentdomain.UserQue
 }
 
 // GetUserQuestionUIState returns the current AskUserQuestion form state
-func (sm *StateManager) GetUserQuestionUIState() *agentdomain.UserQuestionUIState {
+func (sm *Store) GetUserQuestionUIState() *tui.UserQuestionUIState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -446,7 +446,7 @@ func (sm *StateManager) GetUserQuestionUIState() *agentdomain.UserQuestionUIStat
 }
 
 // ClearUserQuestionUIState clears the AskUserQuestion form state
-func (sm *StateManager) ClearUserQuestionUIState() {
+func (sm *Store) ClearUserQuestionUIState() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -456,7 +456,7 @@ func (sm *StateManager) ClearUserQuestionUIState() {
 // Todo management methods
 
 // SetTodos sets the todo list
-func (sm *StateManager) SetTodos(todos []agentdomain.TodoItem) {
+func (sm *Store) SetTodos(todos []agentdomain.TodoItem) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -464,7 +464,7 @@ func (sm *StateManager) SetTodos(todos []agentdomain.TodoItem) {
 }
 
 // GetTodos returns the current todo list
-func (sm *StateManager) GetTodos() []agentdomain.TodoItem {
+func (sm *Store) GetTodos() []agentdomain.TodoItem {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -472,7 +472,7 @@ func (sm *StateManager) GetTodos() []agentdomain.TodoItem {
 }
 
 // AddQueuedMessage adds a message to the input queue
-func (sm *StateManager) AddQueuedMessage(message sdk.Message, requestID string) {
+func (sm *Store) AddQueuedMessage(message sdk.Message, requestID string) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -480,7 +480,7 @@ func (sm *StateManager) AddQueuedMessage(message sdk.Message, requestID string) 
 }
 
 // PopQueuedMessage removes and returns the first message from the queue (FIFO order)
-func (sm *StateManager) PopQueuedMessage() *convdomain.QueuedMessage {
+func (sm *Store) PopQueuedMessage() *convdomain.QueuedMessage {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -489,7 +489,7 @@ func (sm *StateManager) PopQueuedMessage() *convdomain.QueuedMessage {
 }
 
 // ClearQueuedMessages clears all queued messages
-func (sm *StateManager) ClearQueuedMessages() {
+func (sm *Store) ClearQueuedMessages() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -497,7 +497,7 @@ func (sm *StateManager) ClearQueuedMessages() {
 }
 
 // GetQueuedMessages returns the current queued messages
-func (sm *StateManager) GetQueuedMessages() []convdomain.QueuedMessage {
+func (sm *Store) GetQueuedMessages() []convdomain.QueuedMessage {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetQueuedMessages()
@@ -506,7 +506,7 @@ func (sm *StateManager) GetQueuedMessages() []convdomain.QueuedMessage {
 // Message edit state methods
 
 // SetMessageEditState sets the message edit state
-func (sm *StateManager) SetMessageEditState(state *tui.MessageEditState) {
+func (sm *Store) SetMessageEditState(state *tui.MessageEditState) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -514,7 +514,7 @@ func (sm *StateManager) SetMessageEditState(state *tui.MessageEditState) {
 }
 
 // GetMessageEditState returns the current message edit state
-func (sm *StateManager) GetMessageEditState() *tui.MessageEditState {
+func (sm *Store) GetMessageEditState() *tui.MessageEditState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -522,7 +522,7 @@ func (sm *StateManager) GetMessageEditState() *tui.MessageEditState {
 }
 
 // ClearMessageEditState clears the message edit state
-func (sm *StateManager) ClearMessageEditState() {
+func (sm *Store) ClearMessageEditState() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -530,7 +530,7 @@ func (sm *StateManager) ClearMessageEditState() {
 }
 
 // IsEditingMessage returns true if currently editing a message
-func (sm *StateManager) IsEditingMessage() bool {
+func (sm *Store) IsEditingMessage() bool {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -538,7 +538,7 @@ func (sm *StateManager) IsEditingMessage() bool {
 }
 
 // RecoverFromInconsistentState attempts to recover from an inconsistent state
-func (sm *StateManager) RecoverFromInconsistentState() error {
+func (sm *Store) RecoverFromInconsistentState() error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -564,7 +564,7 @@ func (sm *StateManager) RecoverFromInconsistentState() error {
 // Agent Readiness Management
 
 // InitializeAgentReadiness initializes the agent readiness tracking
-func (sm *StateManager) InitializeAgentReadiness(totalAgents int) {
+func (sm *Store) InitializeAgentReadiness(totalAgents int) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -572,7 +572,7 @@ func (sm *StateManager) InitializeAgentReadiness(totalAgents int) {
 }
 
 // UpdateAgentStatus updates the status of a specific agent
-func (sm *StateManager) UpdateAgentStatus(name string, state agentdomain.AgentState, message string, url string, image string) {
+func (sm *Store) UpdateAgentStatus(name string, state agentdomain.AgentState, message string, url string, image string) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -580,7 +580,7 @@ func (sm *StateManager) UpdateAgentStatus(name string, state agentdomain.AgentSt
 }
 
 // UpdateAgentPullProgress updates the image pull layer counts for a specific agent
-func (sm *StateManager) UpdateAgentPullProgress(name string, done, total int) {
+func (sm *Store) UpdateAgentPullProgress(name string, done, total int) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -588,7 +588,7 @@ func (sm *StateManager) UpdateAgentPullProgress(name string, done, total int) {
 }
 
 // SetAgentError sets an error for a specific agent
-func (sm *StateManager) SetAgentError(name string, err error) {
+func (sm *Store) SetAgentError(name string, err error) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -596,7 +596,7 @@ func (sm *StateManager) SetAgentError(name string, err error) {
 }
 
 // GetAgentReadiness returns the current agent readiness state
-func (sm *StateManager) GetAgentReadiness() *tui.AgentReadinessState {
+func (sm *Store) GetAgentReadiness() *tui.AgentReadinessState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -604,7 +604,7 @@ func (sm *StateManager) GetAgentReadiness() *tui.AgentReadinessState {
 }
 
 // AreAllAgentsReady returns true if all agents are ready
-func (sm *StateManager) AreAllAgentsReady() bool {
+func (sm *Store) AreAllAgentsReady() bool {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -612,7 +612,7 @@ func (sm *StateManager) AreAllAgentsReady() bool {
 }
 
 // ClearAgentReadiness clears the agent readiness state
-func (sm *StateManager) ClearAgentReadiness() {
+func (sm *Store) ClearAgentReadiness() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -620,7 +620,7 @@ func (sm *StateManager) ClearAgentReadiness() {
 }
 
 // RemoveAgent removes an agent from the readiness tracking
-func (sm *StateManager) RemoveAgent(name string) {
+func (sm *Store) RemoveAgent(name string) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -630,42 +630,42 @@ func (sm *StateManager) RemoveAgent(name string) {
 // Focus management methods (macOS computer-use tools)
 
 // SetLastFocusedApp stores the application ID of the last focused application
-func (sm *StateManager) SetLastFocusedApp(appID string) {
+func (sm *Store) SetLastFocusedApp(appID string) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.state.SetLastFocusedApp(appID)
 }
 
 // GetLastFocusedApp returns the application ID of the last focused application
-func (sm *StateManager) GetLastFocusedApp() string {
+func (sm *Store) GetLastFocusedApp() string {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetLastFocusedApp()
 }
 
 // ClearLastFocusedApp clears the stored focused app
-func (sm *StateManager) ClearLastFocusedApp() {
+func (sm *Store) ClearLastFocusedApp() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.state.ClearLastFocusedApp()
 }
 
 // SetLastClickCoordinates stores the coordinates of the last click
-func (sm *StateManager) SetLastClickCoordinates(x, y int) {
+func (sm *Store) SetLastClickCoordinates(x, y int) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.state.SetLastClickCoordinates(x, y)
 }
 
 // GetLastClickCoordinates returns the coordinates of the last click
-func (sm *StateManager) GetLastClickCoordinates() (x, y int) {
+func (sm *Store) GetLastClickCoordinates() (x, y int) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetLastClickCoordinates()
 }
 
 // ClearLastClickCoordinates clears the stored click coordinates
-func (sm *StateManager) ClearLastClickCoordinates() {
+func (sm *Store) ClearLastClickCoordinates() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.state.ClearLastClickCoordinates()
@@ -674,28 +674,28 @@ func (sm *StateManager) ClearLastClickCoordinates() {
 // Computer Use Pause State Management
 
 // SetComputerUsePaused sets the paused state for computer use
-func (sm *StateManager) SetComputerUsePaused(paused bool, requestID string) {
+func (sm *Store) SetComputerUsePaused(paused bool, requestID string) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.state.SetComputerUsePaused(paused, requestID)
 }
 
 // IsComputerUsePaused returns whether computer use is currently paused
-func (sm *StateManager) IsComputerUsePaused() bool {
+func (sm *Store) IsComputerUsePaused() bool {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.IsComputerUsePaused()
 }
 
 // GetPausedRequestID returns the request ID of the paused execution
-func (sm *StateManager) GetPausedRequestID() string {
+func (sm *Store) GetPausedRequestID() string {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetPausedRequestID()
 }
 
 // ClearComputerUsePauseState clears the pause state
-func (sm *StateManager) ClearComputerUsePauseState() {
+func (sm *Store) ClearComputerUsePauseState() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.state.ClearComputerUsePauseState()

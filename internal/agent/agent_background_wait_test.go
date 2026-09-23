@@ -16,7 +16,7 @@ func TestWaitForBackgroundTasks(t *testing.T) {
 	t.Run("returns immediately when nothing pending", func(t *testing.T) {
 		registry := &schedmocks.FakeBackgroundTaskRegistry{}
 		registry.HasPendingReturns(false)
-		s := &AgentServiceImpl{bgRegistry: registry, messageQueue: &convmocks.FakeMessageQueue{}}
+		s := &Agent{bgRegistry: registry, messageQueue: &convmocks.FakeMessageQueue{}}
 
 		done := make(chan struct{})
 		go func() { s.waitForBackgroundTasks(context.Background()); close(done) }()
@@ -32,7 +32,7 @@ func TestWaitForBackgroundTasks(t *testing.T) {
 		registry.HasPendingReturns(true)
 		queue := &convmocks.FakeMessageQueue{}
 		queue.IsEmptyReturns(true)
-		s := &AgentServiceImpl{bgRegistry: registry, messageQueue: queue}
+		s := &Agent{bgRegistry: registry, messageQueue: queue}
 
 		done := make(chan struct{})
 		go func() { s.waitForBackgroundTasks(context.Background()); close(done) }()
@@ -56,7 +56,7 @@ func TestWaitForBackgroundTasks(t *testing.T) {
 		registry.HasPendingReturns(true)
 		queue := &convmocks.FakeMessageQueue{}
 		queue.IsEmptyReturns(true)
-		s := &AgentServiceImpl{bgRegistry: registry, messageQueue: queue}
+		s := &Agent{bgRegistry: registry, messageQueue: queue}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})

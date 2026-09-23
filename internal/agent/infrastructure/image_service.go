@@ -23,17 +23,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	models "github.com/inference-gateway/cli/internal/platform/models"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
-
-// IsImageModel reports whether the model generates images rather than text.
-// Uses gateway-reported modalities: a model is an image-generation model if
-// its modalities include "image" but NOT "text". Falls back to false when
-// the model is not in the registry.
-func (s *ImageService) IsImageModel(model string) bool {
-	return models.IsImageGenerationModel(model)
-}
 
 // ImageService handles image operations including file-based image loading and base64 encoding
 // Note: Direct clipboard support requires platform-specific dependencies and is not yet implemented
@@ -247,11 +238,6 @@ func (s *ImageService) normalizeFilePath(filePath string) string {
 	return expandHomePath(filePath)
 }
 
-// CreateDataURL creates a data URL from an image attachment
-func (s *ImageService) CreateDataURL(attachment *agentdomain.ImageAttachment) string {
-	return fmt.Sprintf("data:%s;base64,%s", attachment.MimeType, attachment.Data)
-}
-
 // IsImageFile checks if a file is a supported image format
 func (s *ImageService) IsImageFile(filePath string) bool {
 	filePath = s.normalizeFilePath(filePath)
@@ -316,27 +302,4 @@ func (s *ImageService) ReadImageFromURL(imageURL string) (*agentdomain.ImageAtta
 	}
 
 	return s.ReadImageFromBinary(imageData, filename)
-}
-
-// IsImageURL checks if a string is a valid image URL
-func (s *ImageService) IsImageURL(urlStr string) bool {
-	parsedURL, err := url.Parse(urlStr)
-	if err != nil {
-		return false
-	}
-
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return false
-	}
-
-	ext := strings.ToLower(filepath.Ext(parsedURL.Path))
-	supportedExts := map[string]bool{
-		".png":  true,
-		".jpg":  true,
-		".jpeg": true,
-		".gif":  true,
-		".webp": true,
-	}
-
-	return supportedExts[ext]
 }

@@ -26,6 +26,7 @@ import (
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	computer "github.com/inference-gateway/cli/internal/computer"
+	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	clipboardtext "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard/text"
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
@@ -41,9 +42,9 @@ import (
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	plugins "github.com/inference-gateway/cli/internal/plugins"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-	a2acoord "github.com/inference-gateway/cli/internal/presentation/tui/a2acoord"
 	approvalcoord "github.com/inference-gateway/cli/internal/presentation/tui/approvalcoord"
 	chatcompletion "github.com/inference-gateway/cli/internal/presentation/tui/chatcompletion"
 	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
@@ -79,7 +80,7 @@ type ServiceContainer struct {
 	// Domain services
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
-	sessionRolloverManager *conversation.SessionRolloverManager
+	sessionRolloverManager *conversation.SessionRollover
 	modelService           convdomain.ModelService
 	agent                  agentdomain.AgentService
 	toolService            agentdomain.ToolService
@@ -98,22 +99,22 @@ type ServiceContainer struct {
 	gitHubSetupService     agentdomain.GitHubSetupService
 	messageQueue           convdomain.MessageQueue
 	// backgroundTaskRegistry is the single unified tracker for both A2A
-	// tasks and background bash shells. The narrower agentdomain.A2ATaskTracker
+	// tasks and background bash shells. The narrower scheddomain.A2ATaskTracker
 	// and scheddomain.ShellTracker views are accessed via the same instance.
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	jobSupervisor          *jobs.Supervisor
 	taskRetentionService   scheddomain.TaskRetentionService
 	backgroundTaskService  scheddomain.BackgroundTaskService
-	gatewayManager         *gateway.Manager
+	gatewayManager         *gateway.Supervisor
 	mockGateway            *http.Server
-	agentManager           agentdomain.AgentManager
+	agentManager           agentdomain.AgentSupervisor
 
 	// Services
-	stateManager *statemanager.StateManager
+	stateManager *statemanager.Store
 
 	// Background services
 	titleGenerator         *conversation.ConversationTitleGenerator
-	backgroundJobManager   *scheduler.BackgroundJobManager
+	backgroundJobManager   *scheduler.TitleBackfill
 	backgroundShellService *scheduler.BackgroundShellService
 	memoryBackend          memory.MemoryBackend
 	storage                storage.ConversationStorage
@@ -133,7 +134,7 @@ type ServiceContainer struct {
 
 	// Tool registry
 	toolRegistry *tools.Registry
-	mcpManager   agentdomain.MCPManager
+	mcpManager   agentdomain.MCPSupervisor
 	// mcpStartupCancel aborts the async MCP server startup on Shutdown.
 	mcpStartupCancel context.CancelFunc
 
@@ -141,7 +142,6 @@ type ServiceContainer struct {
 	// Constructed unconditionally; A2A-specific deps inside the
 	// services are nil-safe when A2A is disabled.
 	chatEventListener        tui.ChatEventListener
-	a2aTaskCoordinator       tui.A2ATaskCoordinator
 	approvalCoordinator      tui.ApprovalCoordinator
 	chatCompletionRunner     *chatcompletion.Runner
 	directExecutionService   tui.DirectExecutionService
@@ -184,7 +184,7 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 	sessionID := convdomain.GenerateSessionID()
 
 	containerRuntime, err := containerruntime.NewContainerRuntime(
-		sessionID,
+		string(sessionID),
 		containerruntime.RuntimeType(cfg.ContainerRuntime.Type),
 	)
 	if err != nil {
@@ -274,7 +274,7 @@ func (c *ServiceContainer) StartExtensionBridge() {
 // initializeGatewayManager creates the gateway manager (but does not start it)
 // Commands that need the gateway should call gatewayManager.EnsureStarted() explicitly
 func (c *ServiceContainer) initializeGatewayManager() {
-	c.gatewayManager = gateway.NewManager(c.sessionID, c.config, c.containerRuntime)
+	c.gatewayManager = gateway.NewSupervisor(c.sessionID, c.config, c.containerRuntime)
 }
 
 // startMockGateway serves a scenario library (github.com/inference-gateway/tokenless)
@@ -332,7 +332,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 		c.stateManager.InitializeAgentReadiness(agentCount)
 	}
 
-	c.agentManager = agentapp.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
+	c.agentManager = agentapp.NewAgentSupervisor(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
 
 	c.agentManager.SetStatusCallback(func(agentName string, state agentdomain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
@@ -358,7 +358,7 @@ func (c *ServiceContainer) initializeMCPManager() {
 		return
 	}
 
-	c.mcpManager = mcp.NewManager(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
+	c.mcpManager = mcp.NewSupervisor(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
 
 	hasServersToStart := c.hasAutoStartMCPServers()
 	if !hasServersToStart {
@@ -487,7 +487,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	if c.config.Compact.Enabled {
 		if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
-			c.sessionRolloverManager = conversation.NewSessionRolloverManager(
+			c.sessionRolloverManager = conversation.NewSessionRollover(
 				c.config,
 				c.conversationOptimizer,
 				persistentRepo,
@@ -514,7 +514,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.Timeout,
 		c.conversationOptimizer,
 		c.backgroundTaskRegistry,
-		c.sessionRolloverManager,
+		c.GetSessionRollover(),
+		c.tokenizer,
+		c.hookCommandProvider(),
+		func() string { return plugins.InstructionsBlock(c.config) },
 	)
 	agentImpl.SetMemoryBackend(c.memoryBackend)
 	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
@@ -548,7 +551,7 @@ func (c *ServiceContainer) initializeStorageBackend(
 
 	titleClient := c.createRawSDKClient()
 	c.titleGenerator = conversation.NewConversationTitleGenerator(titleClient, stores.Conversations, c.config)
-	c.backgroundJobManager = scheduler.NewBackgroundJobManager(c.titleGenerator, c.config)
+	c.backgroundJobManager = scheduler.NewTitleBackfill(c.titleGenerator, c.config)
 
 	persistentRepo.SetTitleGenerator(c.titleGenerator)
 	persistentRepo.SetA2ATaskTracker(c.backgroundTaskRegistry)
@@ -592,7 +595,7 @@ func (c *ServiceContainer) handleStorageInitFailure(
 // initializeStateManager creates the state manager before domain services need it
 func (c *ServiceContainer) initializeStateManager() {
 	debugMode := c.config.Logging.Debug
-	stateManager := statemanager.NewStateManager(debugMode)
+	stateManager := statemanager.NewStore(debugMode)
 	stateManager.SetStallThreshold(time.Duration(c.config.Client.StallThresholdSec) * time.Second)
 	c.stateManager = stateManager
 }
@@ -621,36 +624,30 @@ func (c *ServiceContainer) initializeServices() {
 func (c *ServiceContainer) initializeChatOrchestrationServices() {
 	c.chatEventListener = eventlistener.NewService()
 
-	c.a2aTaskCoordinator = a2acoord.NewService(a2acoord.Options{
-		ConversationRepo:     c.conversationRepo,
-		StateManager:         c.stateManager,
-		TaskRetentionService: c.taskRetentionService,
-	})
-
 	c.approvalCoordinator = approvalcoord.NewService(approvalcoord.Options{
 		AgentService:     c.agent,
 		ConversationRepo: c.conversationRepo,
-		StateManager:     c.stateManager,
+		StateStore:       c.stateManager,
 	})
 
 	c.chatCompletionRunner = chatcompletion.NewRunner(chatcompletion.Options{
 		AgentService:     c.agent,
 		ConversationRepo: c.conversationRepo,
 		ModelService:     c.modelService,
-		StateManager:     c.stateManager,
+		StateStore:       c.stateManager,
 	})
 
 	c.directExecutionService = directexec.NewService(directexec.Options{
 		ConversationRepo:       c.conversationRepo,
 		ToolService:            c.toolService,
-		StateManager:           c.stateManager,
+		StateStore:             c.stateManager,
 		BackgroundShellService: c.BackgroundShellService(),
 		Listener:               c.chatEventListener,
 	})
 
 	c.toolExecutionCoordinator = toolcoordinator.NewCoordinator(toolcoordinator.Options{
 		ConversationRepo: c.conversationRepo,
-		StateManager:     c.stateManager,
+		StateStore:       c.stateManager,
 		DirectExec:       c.directExecutionService,
 		Listener:         c.chatEventListener,
 	})
@@ -734,8 +731,27 @@ func (c *ServiceContainer) GetConversationOptimizer() convdomain.ConversationOpt
 	return c.conversationOptimizer
 }
 
-func (c *ServiceContainer) GetSessionRolloverManager() *conversation.SessionRolloverManager {
+// GetSessionRollover returns nil (not a typed nil) when rollover is
+// off, so callers can nil-check the interface.
+func (c *ServiceContainer) GetSessionRollover() convdomain.SessionRollover {
+	if c.sessionRolloverManager == nil {
+		return nil
+	}
 	return c.sessionRolloverManager
+}
+
+// GetTokenEstimator returns the shared tokenizer.
+func (c *ServiceContainer) GetTokenEstimator() convdomain.TokenEstimator {
+	return c.tokenizer
+}
+
+// hookCommandProvider merges enabled plugin hooks into the user's hooks, or
+// returns the user's hooks alone when plugins are off.
+func (c *ServiceContainer) hookCommandProvider() agentdomain.HookCommandProvider {
+	if pluginProvider := plugins.NewPluginHookCommandProvider(c.config); pluginProvider != nil {
+		return pluginProvider
+	}
+	return c.config.Hooks
 }
 
 func (c *ServiceContainer) GetModelService() convdomain.ModelService {
@@ -826,11 +842,11 @@ func (c *ServiceContainer) GetInsightsGenerator() *insights.Generator {
 	return c.insights
 }
 
-func (c *ServiceContainer) GetStateManager() *statemanager.StateManager {
+func (c *ServiceContainer) GetStateStore() *statemanager.Store {
 	return c.stateManager
 }
 
-func (c *ServiceContainer) GetAgentManager() agentdomain.AgentManager {
+func (c *ServiceContainer) GetAgentSupervisor() agentdomain.AgentSupervisor {
 	return c.agentManager
 }
 
@@ -845,7 +861,7 @@ func (c *ServiceContainer) GetMessageQueue() convdomain.MessageQueue {
 // GetBackgroundTaskRegistry returns the unified background task registry
 // (the single tracker that owns both A2A tasks and background bash shells).
 // Callers that need only the narrower A2A or shell view can use the
-// returned value as a agentdomain.A2ATaskTracker or scheddomain.ShellTracker.
+// returned value as a scheddomain.A2ATaskTracker or scheddomain.ShellTracker.
 func (c *ServiceContainer) GetBackgroundTaskRegistry() scheddomain.BackgroundTaskRegistry {
 	return c.backgroundTaskRegistry
 }
@@ -860,14 +876,26 @@ func (c *ServiceContainer) GetBackgroundTaskService() scheddomain.BackgroundTask
 	return c.backgroundTaskService
 }
 
-// GetMCPManager returns the MCP manager (may be nil if MCP is not enabled)
-func (c *ServiceContainer) GetMCPManager() agentdomain.MCPManager {
-	return c.mcpManager
+// StartScreenshotServer starts the computer-use screenshot streaming server for
+// sessionID and registers it as the "screen" frame source, so GetLatestFrame
+// works in chat and headless alike. Returns nil when streaming is disabled or
+// the server fails to start.
+func (c *ServiceContainer) StartScreenshotServer(sessionID string) *computerinfra.ScreenshotServer {
+	if !c.config.ComputerUse.Enabled || !c.config.ComputerUse.Screenshot.StreamingEnabled {
+		return nil
+	}
+	server := computerinfra.NewScreenshotServer(c.config, c.imageService, sessionID)
+	if err := server.Start(); err != nil {
+		logger.Warn("failed to start screenshot server", "error", err)
+		return nil
+	}
+	c.toolRegistry.RegisterFrameSource("screen", server)
+	return server
 }
 
-// GetA2ATaskCoordinator returns the A2A task lifecycle event coordinator.
-func (c *ServiceContainer) GetA2ATaskCoordinator() tui.A2ATaskCoordinator {
-	return c.a2aTaskCoordinator
+// GetMCPSupervisor returns the MCP manager (may be nil if MCP is not enabled)
+func (c *ServiceContainer) GetMCPSupervisor() agentdomain.MCPSupervisor {
+	return c.mcpManager
 }
 
 // GetApprovalCoordinator returns the plan-approval / computer-use pause-resume
@@ -964,8 +992,8 @@ func (c *ServiceContainer) newSDKClient(retry *sdk.RetryConfig) sdk.Client {
 	})
 }
 
-// GetBackgroundJobManager returns the background job manager
-func (c *ServiceContainer) GetBackgroundJobManager() *scheduler.BackgroundJobManager {
+// GetTitleBackfill returns the background job manager
+func (c *ServiceContainer) GetTitleBackfill() *scheduler.TitleBackfill {
 	return c.backgroundJobManager
 }
 
@@ -983,8 +1011,8 @@ func (c *ServiceContainer) GetShellHistoryStorage() storage.ShellHistoryStorage 
 	return c.stores.ShellHistory
 }
 
-// GetGatewayManager returns the gateway manager
-func (c *ServiceContainer) GetGatewayManager() *gateway.Manager {
+// GetGatewaySupervisor returns the gateway manager
+func (c *ServiceContainer) GetGatewaySupervisor() *gateway.Supervisor {
 	return c.gatewayManager
 }
 

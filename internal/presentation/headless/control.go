@@ -10,7 +10,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -33,7 +32,7 @@ const resumeContinuePrompt = "Please continue from where you left off."
 // flag anywhere else races that decision.
 type headlessControl struct {
 	agentService agentdomain.AgentService
-	pauseState   agentdomain.ComputerUsePauseManager
+	pauseState   agentdomain.ComputerUsePause
 	messageQueue convdomain.MessageQueue
 	sessionID    string
 	approvals    chan ipc.ApprovalResponse
@@ -41,7 +40,7 @@ type headlessControl struct {
 	ctrlEvents   chan agentdomain.ChatEvent
 }
 
-func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentdomain.ComputerUsePauseManager, messageQueue convdomain.MessageQueue, sessionID string) *headlessControl {
+func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentdomain.ComputerUsePause, messageQueue convdomain.MessageQueue, sessionID string) *headlessControl {
 	return &headlessControl{
 		agentService: agentService,
 		pauseState:   pauseState,
@@ -234,6 +233,6 @@ func resumeRun(ctx context.Context, agentService agentdomain.AgentService, repo 
 		return nil, err
 	}
 	next := *req
-	next.Messages = conversation.BuildAgentMessagesFromEntries(repo.GetMessages())
+	next.Messages = convdomain.BuildAgentMessagesFromEntries(repo.GetMessages())
 	return agentService.RunWithStream(ctx, &next)
 }

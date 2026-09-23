@@ -1,6 +1,8 @@
 package tui
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestViewStateHelp_String(t *testing.T) {
 	if got := ViewStateHelp.String(); got != "Help" {

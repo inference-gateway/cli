@@ -10,19 +10,19 @@ import (
 	"time"
 )
 
-// DefaultBackupManager handles file backup operations
-type DefaultBackupManager struct {
+// Backup handles file backup operations
+type Backup struct {
 	backupDir string
 }
 
-// NewBackupManager creates a new DefaultBackupManager writing into backupDir -
+// NewBackup creates a new Backup writing into backupDir -
 // the per-project runtime backups dir (~/.infer/projects/<project-slug>/backups).
-func NewBackupManager(backupDir string) *DefaultBackupManager {
-	return &DefaultBackupManager{backupDir: backupDir}
+func NewBackup(backupDir string) *Backup {
+	return &Backup{backupDir: backupDir}
 }
 
 // CreateBackup creates a backup of the original file
-func (b *DefaultBackupManager) CreateBackup(ctx context.Context, originalPath string) (string, error) {
+func (b *Backup) CreateBackup(ctx context.Context, originalPath string) (string, error) {
 	originalInfo, err := os.Stat(originalPath)
 	if os.IsNotExist(err) {
 		return "", nil
@@ -51,7 +51,7 @@ func (b *DefaultBackupManager) CreateBackup(ctx context.Context, originalPath st
 }
 
 // RestoreBackup restores a backup to the original location
-func (b *DefaultBackupManager) RestoreBackup(ctx context.Context, backupPath string, originalPath string) error {
+func (b *Backup) RestoreBackup(ctx context.Context, backupPath string, originalPath string) error {
 	if _, err := os.Stat(backupPath); err != nil {
 		return fmt.Errorf("backup file does not exist: %w", err)
 	}
@@ -78,7 +78,7 @@ func (b *DefaultBackupManager) RestoreBackup(ctx context.Context, backupPath str
 }
 
 // CleanupBackup removes a backup file
-func (b *DefaultBackupManager) CleanupBackup(backupPath string) error {
+func (b *Backup) CleanupBackup(backupPath string) error {
 	if backupPath == "" {
 		return nil
 	}
@@ -95,7 +95,7 @@ func (b *DefaultBackupManager) CleanupBackup(backupPath string) error {
 }
 
 // copyFile copies a file from src to dst
-func (b *DefaultBackupManager) copyFile(src, dst string) error {
+func (b *Backup) copyFile(src, dst string) error {
 	sourceFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -117,7 +117,7 @@ func (b *DefaultBackupManager) copyFile(src, dst string) error {
 }
 
 // isInBackupDir checks if a path is within the backup directory
-func (b *DefaultBackupManager) isInBackupDir(path string) bool {
+func (b *Backup) isInBackupDir(path string) bool {
 	absBackupDir, err := filepath.Abs(b.backupDir)
 	if err != nil {
 		return false

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"time"
 
@@ -94,6 +95,34 @@ type SubagentResultFile struct {
 	Success        bool   `json:"success"`
 	Error          string `json:"error,omitempty"`
 	SessionID      string `json:"session_id,omitempty"`
+}
+
+// WriteSubagentResultFile writes rf to path through a temp file and rename, so
+// a polling parent never reads a half-written file.
+func WriteSubagentResultFile(path string, rf SubagentResultFile) error {
+	data, err := json.Marshal(rf)
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+// ReadSubagentResultFile reads and parses a subagent result file without
+// waiting. Returns ok=false when the file is absent or malformed.
+func ReadSubagentResultFile(path string) (SubagentResultFile, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return SubagentResultFile{}, false
+	}
+	var rf SubagentResultFile
+	if err := json.Unmarshal(data, &rf); err != nil {
+		return SubagentResultFile{}, false
+	}
+	return rf, true
 }
 
 // PaneObservation is one probe of an interactive subagent's tmux pane, produced

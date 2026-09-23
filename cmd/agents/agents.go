@@ -326,7 +326,7 @@ func extractExternalAgents(cfg *config.Config) []ExternalAgent {
 
 	externalAgents := make([]ExternalAgent, 0, len(cfg.A2A.Agents))
 	for _, agentURL := range cfg.A2A.Agents {
-		name := extractAgentNameFromURL(agentURL)
+		name := agentapp.AgentNameFromURL(agentURL)
 		externalAgents = append(externalAgents, ExternalAgent{
 			Name: name,
 			URL:  agentURL,
@@ -334,21 +334,6 @@ func extractExternalAgents(cfg *config.Config) []ExternalAgent {
 	}
 
 	return externalAgents
-}
-
-// extractAgentNameFromURL extracts a display name from an agent URL
-func extractAgentNameFromURL(url string) string {
-	url = strings.TrimPrefix(url, "http://")
-	url = strings.TrimPrefix(url, "https://")
-
-	parts := strings.Split(url, "/")
-	if len(parts) == 0 {
-		return url
-	}
-
-	hostPort := parts[0]
-	host := strings.Split(hostPort, ":")[0]
-	return host
 }
 
 // requiresModel reports whether the named agent needs a model when run locally.
@@ -661,7 +646,7 @@ func (c *command) startAgents(cmd *cobra.Command, args []string) error {
 	if err := rt.EnsureNetwork(ctx); err != nil {
 		return fmt.Errorf("failed to create container network: %w", err)
 	}
-	manager := agentapp.NewAgentManager(containerruntime.SharedSessionID, c.state.Config(), cfg, rt, nil)
+	manager := agentapp.NewAgentSupervisor(containerruntime.SharedSessionID, c.state.Config(), cfg, rt, nil)
 	var failed error
 	for _, agent := range agents {
 		if err := manager.StartAgent(ctx, agent); err != nil {
@@ -683,7 +668,7 @@ func (c *command) stopAgents(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	manager := agentapp.NewAgentManager(containerruntime.SharedSessionID, c.state.Config(), cfg, rt, nil)
+	manager := agentapp.NewAgentSupervisor(containerruntime.SharedSessionID, c.state.Config(), cfg, rt, nil)
 	for _, agent := range agents {
 		if err := manager.StopAgentByName(context.Background(), agent.Name); err != nil {
 			return fmt.Errorf("%s: %w", agent.Name, err)

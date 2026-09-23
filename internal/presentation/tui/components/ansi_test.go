@@ -1,6 +1,8 @@
 package components
 
-import "strings"
+import (
+	"strings"
+)
 
 // stripANSI removes ANSI escape sequences so tests can assert against the
 // rendered text content without coupling to color codes.

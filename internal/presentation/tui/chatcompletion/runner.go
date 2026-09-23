@@ -2,7 +2,6 @@ package chatcompletion
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
@@ -27,20 +25,20 @@ import (
 // start/error/complete is the orchestrator's responsibility, not the
 // runner's - see the ChatHandler wrappers that call SetActiveToolCallID("")
 // before delegating to these handlers.
-// stateManager is the narrow slice of the app state manager the runner needs:
+// stateStore is the narrow slice of the app state manager the runner needs:
 // chat-session lifecycle, tool-execution teardown, and the view transition on
-// completion. *statemanager.StateManager satisfies it.
-type stateManager interface {
-	agentdomain.ChatSessionManager
-	agentdomain.ToolExecutionManager
-	tui.ViewManager
+// completion. *statemanager.Store satisfies it.
+type stateStore interface {
+	tui.ChatSessionState
+	tui.ToolExecutionState
+	tui.ViewNavigator
 }
 
 type Runner struct {
 	agentService     agentdomain.AgentService
 	conversationRepo convdomain.ConversationRepository
 	modelService     convdomain.ModelService
-	stateManager     stateManager
+	stateManager     stateStore
 
 	pendingRestoration   string
 	pendingRestorationMu sync.RWMutex
@@ -51,7 +49,7 @@ type Options struct {
 	AgentService     agentdomain.AgentService
 	ConversationRepo convdomain.ConversationRepository
 	ModelService     convdomain.ModelService
-	StateManager     stateManager
+	StateStore       stateStore
 }
 
 // NewRunner creates a new ChatCompletionRunner.
@@ -60,7 +58,7 @@ func NewRunner(opts Options) *Runner {
 		agentService:     opts.AgentService,
 		conversationRepo: opts.ConversationRepo,
 		modelService:     opts.ModelService,
-		stateManager:     opts.StateManager,
+		stateManager:     opts.StateStore,
 	}
 }
 
@@ -79,7 +77,7 @@ func (r *Runner) Start(holder agentdomain.BashDetachChannelHolder) tea.Cmd {
 		}
 
 		entries := r.conversationRepo.GetMessages()
-		messages := conversation.BuildAgentMessagesFromEntries(entries)
+		messages := convdomain.BuildAgentMessagesFromEntries(entries)
 
 		req := &agentdomain.AgentRequest{
 			RequestID:  opened.RequestID,
@@ -108,7 +106,7 @@ func (r *Runner) SetPendingRestoration(originalModel string) {
 // "Starting response..." status. Clearing the orchestrator's active-tool
 // indicator is the orchestrator's responsibility (see ChatHandler wrapper).
 func (r *Runner) HandleChatStart(_ agentdomain.ChatStartEvent) tea.Cmd {
-	_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusStarting)
+	_ = r.stateManager.UpdateChatStatus(tui.ChatStatusStarting)
 
 	return func() tea.Msg {
 		return tui.SetStatusEvent{
@@ -156,14 +154,14 @@ func (r *Runner) HandleChatComplete(msg agentdomain.ChatCompleteEvent) tea.Cmd {
 	r.writeSubagentResultFile(msg)
 
 	if msg.Cancelled {
-		_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusCancelled)
+		_ = r.stateManager.UpdateChatStatus(tui.ChatStatusCancelled)
 		r.stateManager.EndChatSession()
 		r.stateManager.EndToolExecution()
 	} else if len(msg.ToolCalls) == 0 {
-		_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusCompleted)
+		_ = r.stateManager.UpdateChatStatus(tui.ChatStatusCompleted)
 		r.stateManager.EndToolExecution()
 	} else {
-		_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusWaitingTools)
+		_ = r.stateManager.UpdateChatStatus(tui.ChatStatusWaitingTools)
 	}
 
 	cmds := []tea.Cmd{
@@ -176,13 +174,13 @@ func (r *Runner) HandleChatComplete(msg agentdomain.ChatCompleteEvent) tea.Cmd {
 	for _, toolCall := range msg.ToolCalls {
 		tc := toolCall
 		cmds = append(cmds, func() tea.Msg {
-			return agentdomain.ToolCallPreviewEvent{
+			return tui.ToolCallPreviewEvent{
 				RequestID:  msg.RequestID,
 				Timestamp:  msg.Timestamp,
 				ToolCallID: tc.ID,
 				ToolName:   tc.Function.Name,
 				Arguments:  tc.Function.Arguments,
-				Status:     agentdomain.ToolCallStreamStatusReady,
+				Status:     tui.ToolCallStreamStatusReady,
 				IsComplete: false,
 			}
 		})
@@ -218,11 +216,11 @@ func (r *Runner) writeSubagentResultFile(msg agentdomain.ChatCompleteEvent) {
 	if path == "" || msg.Cancelled || len(msg.ToolCalls) > 0 {
 		return
 	}
-	answer := lastAssistantText(r.conversationRepo.GetMessages())
+	answer := convdomain.LastAssistantText(r.conversationRepo.GetMessages())
 	if answer == "" {
 		return
 	}
-	r.writeSubagentResultFileAtomic(path, scheddomain.SubagentResultFile{FinalAssistant: answer, Success: true})
+	r.writeSubagentResult(path, scheddomain.SubagentResultFile{FinalAssistant: answer, Success: true})
 }
 
 // writeSubagentResultFileError records a failed terminal turn for an interactive
@@ -233,58 +231,26 @@ func (r *Runner) writeSubagentResultFileError(runErr error) {
 		return
 	}
 	rf := scheddomain.SubagentResultFile{
-		FinalAssistant: lastAssistantText(r.conversationRepo.GetMessages()), // partial text, may be ""
+		FinalAssistant: convdomain.LastAssistantText(r.conversationRepo.GetMessages()), // partial text, may be ""
 		Success:        false,
 	}
 	if runErr != nil {
 		rf.Error = runErr.Error()
 	}
-	r.writeSubagentResultFileAtomic(path, rf)
+	r.writeSubagentResult(path, rf)
 }
 
-// writeSubagentResultFileAtomic marshals rf and writes it to path via a temp file
-// and rename, so a polling parent never reads a half-written file.
-func (r *Runner) writeSubagentResultFileAtomic(path string, rf scheddomain.SubagentResultFile) {
-	data, err := json.Marshal(rf)
-	if err != nil {
-		logger.Warn("subagent result file: marshal failed", "error", err)
-		return
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+func (r *Runner) writeSubagentResult(path string, rf scheddomain.SubagentResultFile) {
+	if err := scheddomain.WriteSubagentResultFile(path, rf); err != nil {
 		logger.Warn("subagent result file: write failed", "error", err, "path", path)
-		return
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		logger.Warn("subagent result file: rename failed", "error", err, "path", path)
-	}
-}
-
-// lastAssistantText returns the content of the last non-empty assistant message
-// in entries (backward scan), or "" if none. The interactive analogue of the
-// headless lastAssistantBefore (cmd/agent.go).
-func lastAssistantText(entries []convdomain.ConversationEntry) string {
-	for i := len(entries) - 1; i >= 0; i-- {
-		e := entries[i]
-		if e.Message.Role != sdk.Assistant {
-			continue
-		}
-		text, err := e.Message.Content.AsMessageContent0()
-		if err != nil {
-			continue
-		}
-		if s := strings.TrimSpace(text); s != "" {
-			return s
-		}
-	}
-	return ""
 }
 
 // HandleChatError tears down session state and emits a sticky error event
 // (with a friendlier message for "timed out" errors).
 func (r *Runner) HandleChatError(msg agentdomain.ChatErrorEvent) tea.Cmd {
 	r.writeSubagentResultFileError(msg.Error)
-	_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusError)
+	_ = r.stateManager.UpdateChatStatus(tui.ChatStatusError)
 	r.stateManager.EndChatSession()
 	r.stateManager.EndToolExecution()
 
@@ -337,7 +303,7 @@ func (r *Runner) handleNoChatSession(msg agentdomain.ChatChunkEvent) tea.Cmd {
 	return nil
 }
 
-func (r *Runner) handleStatusUpdate(msg agentdomain.ChatChunkEvent, chatSession *agentdomain.ChatSession) []tea.Cmd {
+func (r *Runner) handleStatusUpdate(msg agentdomain.ChatChunkEvent, chatSession *tui.ChatSession) []tea.Cmd {
 	previousStatus := chatSession.Status
 	newStatus, shouldUpdateStatus := determineNewStatus(msg, previousStatus, chatSession.IsFirstChunk)
 	if !shouldUpdateStatus {
@@ -358,19 +324,19 @@ func (r *Runner) handleStatusUpdate(msg agentdomain.ChatChunkEvent, chatSession 
 	return nil
 }
 
-func determineNewStatus(msg agentdomain.ChatChunkEvent, currentStatus agentdomain.ChatStatus, _ bool) (agentdomain.ChatStatus, bool) {
+func determineNewStatus(msg agentdomain.ChatChunkEvent, currentStatus tui.ChatStatus, _ bool) (tui.ChatStatus, bool) {
 	if msg.ReasoningContent != "" {
-		return agentdomain.ChatStatusThinking, true
+		return tui.ChatStatusThinking, true
 	}
 	if msg.Content != "" {
-		return agentdomain.ChatStatusGenerating, true
+		return tui.ChatStatusGenerating, true
 	}
 	return currentStatus, false
 }
 
-func firstChunkStatusCmd(status agentdomain.ChatStatus) []tea.Cmd {
+func firstChunkStatusCmd(status tui.ChatStatus) []tea.Cmd {
 	switch status {
-	case agentdomain.ChatStatusThinking:
+	case tui.ChatStatusThinking:
 		return []tea.Cmd{func() tea.Msg {
 			return tui.SetStatusEvent{
 				Message:    "Thinking...",
@@ -378,7 +344,7 @@ func firstChunkStatusCmd(status agentdomain.ChatStatus) []tea.Cmd {
 				StatusType: tui.StatusThinking,
 			}
 		}}
-	case agentdomain.ChatStatusGenerating:
+	case tui.ChatStatusGenerating:
 		return []tea.Cmd{func() tea.Msg {
 			return tui.SetStatusEvent{
 				Message:    "Generating response...",
@@ -390,16 +356,16 @@ func firstChunkStatusCmd(status agentdomain.ChatStatus) []tea.Cmd {
 	return nil
 }
 
-func statusUpdateCmd(status agentdomain.ChatStatus) []tea.Cmd {
+func statusUpdateCmd(status tui.ChatStatus) []tea.Cmd {
 	switch status {
-	case agentdomain.ChatStatusThinking:
+	case tui.ChatStatusThinking:
 		return []tea.Cmd{func() tea.Msg {
 			return tui.UpdateStatusEvent{
 				Message:    "Thinking...",
 				StatusType: tui.StatusThinking,
 			}
 		}}
-	case agentdomain.ChatStatusGenerating:
+	case tui.ChatStatusGenerating:
 		return []tea.Cmd{func() tea.Msg {
 			return tui.UpdateStatusEvent{
 				Message:    "Generating response...",

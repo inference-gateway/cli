@@ -114,7 +114,7 @@ func TestPersistPartialAssistantMessage_KeepsContent(t *testing.T) {
 	}
 
 	agent := &EventDrivenAgent{
-		service:  &AgentServiceImpl{conversationRepo: repo},
+		service:  &Agent{conversationRepo: repo},
 		agentCtx: &states.AgentContext{Conversation: &conversation, Ctx: context.Background()},
 		req:      &agentdomain.AgentRequest{RequestID: "r1", Model: "deepseek/deepseek-v4-flash"},
 	}
@@ -140,7 +140,7 @@ func TestPersistPartialAssistantMessage_SkipsEmpty(t *testing.T) {
 	conversation := []sdk.Message{}
 
 	agent := &EventDrivenAgent{
-		service:  &AgentServiceImpl{conversationRepo: repo},
+		service:  &Agent{conversationRepo: repo},
 		agentCtx: &states.AgentContext{Conversation: &conversation, Ctx: context.Background()},
 		req:      &agentdomain.AgentRequest{RequestID: "r1"},
 	}
@@ -157,7 +157,7 @@ func tailAgent(conv *[]sdk.Message, systemPrompt string) *EventDrivenAgent {
 	cfg := &config.Config{}
 	cfg.Prompts.Agent.SystemPrompt = systemPrompt
 	return &EventDrivenAgent{
-		service:  &AgentServiceImpl{config: cfg},
+		service:  &Agent{config: cfg},
 		agentCtx: &states.AgentContext{Conversation: conv},
 		req:      &agentdomain.AgentRequest{RequestID: "r1", IsChatMode: true},
 	}
@@ -216,7 +216,7 @@ func TestOutboundConversation_TailRefreshesPerRequest(t *testing.T) {
 	cfg.Agent.Context = config.AgentContextConfig{GitContextEnabled: true, GitContextRefreshTurns: 10}
 	conv := []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("hi")}}
 	a := &EventDrivenAgent{
-		service:  &AgentServiceImpl{config: cfg},
+		service:  &Agent{config: cfg},
 		agentCtx: &states.AgentContext{Conversation: &conv},
 		req:      &agentdomain.AgentRequest{RequestID: "r1"},
 	}

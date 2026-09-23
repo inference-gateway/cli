@@ -17,7 +17,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -48,8 +47,8 @@ type ChatApplication struct {
 	agentService           agentdomain.AgentService
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
-	sessionRolloverManager *conversation.SessionRolloverManager
-	agentManager           agentdomain.AgentManager
+	sessionRolloverManager convdomain.SessionRollover
+	agentManager           agentdomain.AgentSupervisor
 	modelService           convdomain.ModelService
 	toolService            agentdomain.ToolService
 	fileService            agentdomain.FileService
@@ -61,20 +60,19 @@ type ChatApplication struct {
 	shortcutRegistry       *shortcuts.Registry
 	themeService           tui.ThemeService
 	toolRegistry           *tools.Registry
-	mcpManager             agentdomain.MCPManager
+	mcpManager             agentdomain.MCPSupervisor
 	taskRetentionService   scheddomain.TaskRetentionService
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 
 	// Chat orchestration services
-	a2aTaskCoordinator       tui.A2ATaskCoordinator
 	approvalCoordinator      tui.ApprovalCoordinator
 	chatCompletionRunner     tui.ChatCompletionRunner
 	directExecutionService   tui.DirectExecutionService
 	toolExecutionCoordinator tui.ToolExecutionCoordinator
 
 	// State management
-	stateManager *statemanager.StateManager
+	stateManager *statemanager.Store
 	messageQueue convdomain.MessageQueue
 
 	// UI components
@@ -89,17 +87,17 @@ type ChatApplication struct {
 	todoBoxView          *components.TodoBoxView
 	approvalBoxView      *components.ApprovalBoxView
 	questionFormView     *components.QuestionFormView
-	modelSelector        *components.ModelSelectorImpl
-	themeSelector        *components.ThemeSelectorImpl
-	conversationSelector *components.ConversationSelectorImpl
-	taskManager          *components.TaskManagerImpl
+	modelSelector        *components.ModelSelector
+	themeSelector        *components.ThemeSelector
+	conversationSelector *components.ConversationSelector
+	taskManager          *components.TaskView
 	toolCallRenderer     *components.ToolCallRenderer
 	installOpentaskView  *components.InstallOpentaskView
-	diffViewer           *components.DiffViewerImpl
-	fileExplorer         *components.FileExplorerImpl
-	helpView             *components.HelpViewImpl
-	toolsView            *components.ToolsViewImpl
-	a2aAgentsView        *components.A2AAgentsViewImpl
+	diffViewer           *components.DiffViewer
+	fileExplorer         *components.FileExplorer
+	helpView             *components.HelpView
+	toolsView            *components.ToolsView
+	a2aAgentsView        *components.A2AAgentsView
 
 	snippetAttachmentsView *components.SnippetAttachmentsView
 
@@ -123,7 +121,7 @@ type ChatApplication struct {
 	statusBarFocused bool
 
 	// Key binding system
-	keyBindingManager *keybinding.KeyBindingManager
+	keyBindingManager *keybinding.Dispatcher
 
 	// Config-backed binding that moves key focus to the snippet attachments
 	// tree; the fixed guard bindings live in the package-level guardKeys.
@@ -145,7 +143,7 @@ func NewChatApplication(
 	models []string,
 	defaultModel string,
 	versionInfo tui.VersionInfo,
-	agentManager agentdomain.AgentManager,
+	agentManager agentdomain.AgentSupervisor,
 	agentService agentdomain.AgentService,
 	backgroundTaskService scheddomain.BackgroundTaskService,
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry,
@@ -156,23 +154,23 @@ func NewChatApplication(
 	skillsService agentdomain.SkillsService,
 	githubIssueService agentdomain.GitHubIssueService,
 	githubSetupService agentdomain.GitHubSetupService,
-	mcpManager agentdomain.MCPManager,
+	mcpManager agentdomain.MCPSupervisor,
 	messageQueue convdomain.MessageQueue,
 	modelService convdomain.ModelService,
 	pricingService convdomain.PricingService,
-	sessionRolloverManager *conversation.SessionRolloverManager,
-	stateManager *statemanager.StateManager,
+	sessionRolloverManager convdomain.SessionRollover,
+	stateManager *statemanager.Store,
 	taskRetentionService scheddomain.TaskRetentionService,
 	themeService tui.ThemeService,
 	toolService agentdomain.ToolService,
 	shortcutRegistry *shortcuts.Registry,
 	toolRegistry *tools.Registry,
-	a2aTaskCoordinator tui.A2ATaskCoordinator,
 	approvalCoordinator tui.ApprovalCoordinator,
 	chatCompletionRunner tui.ChatCompletionRunner,
 	directExecutionService tui.DirectExecutionService,
 	toolExecutionCoordinator tui.ToolExecutionCoordinator,
 	shellHistoryStore storage.ShellHistoryStorage,
+	tokenEstimator convdomain.TokenEstimator,
 ) *ChatApplication {
 	initialView := tui.ViewStateModelSelection
 	if defaultModel != "" {
@@ -201,7 +199,6 @@ func NewChatApplication(
 		taskRetentionService:     taskRetentionService,
 		backgroundTaskService:    backgroundTaskService,
 		backgroundTaskRegistry:   backgroundTaskRegistry,
-		a2aTaskCoordinator:       a2aTaskCoordinator,
 		approvalCoordinator:      approvalCoordinator,
 		chatCompletionRunner:     chatCompletionRunner,
 		directExecutionService:   directExecutionService,
@@ -231,8 +228,6 @@ func NewChatApplication(
 		cv.SetVersionInfo(versionInfo)
 		cv.SetToolCallRenderer(app.toolCallRenderer)
 		cv.SetStateManager(app.stateManager)
-		cv.SetAgentNameResolver(buildAgentNameResolver())
-		cv.SetAgentModelResolver(buildAgentModelResolver())
 	}
 
 	historyName := os.Getenv(scheddomain.EnvSubagentHistoryName)
@@ -251,7 +246,7 @@ func NewChatApplication(
 	}
 
 	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService, app.modelService, app.pricingService, app.skillsService, app.githubIssueService)
-	if ac, ok := app.autocomplete.(*autocomplete.AutocompleteImpl); ok {
+	if ac, ok := app.autocomplete.(*autocomplete.Autocomplete); ok {
 		ac.SetStateManager(app.stateManager)
 		ac.SetFileService(app.fileService)
 	}
@@ -266,7 +261,7 @@ func NewChatApplication(
 		isb.SetVersionInfo(versionInfo)
 		isb.SetConversationRepo(app.conversationRepo)
 		isb.SetToolService(app.toolService)
-		isb.SetTokenEstimator(conversation.NewTokenizerService(conversation.DefaultTokenizerConfig()))
+		isb.SetTokenEstimator(tokenEstimator)
 		isb.SetBackgroundShellService(app.toolRegistry.GetBackgroundShellService())
 		isb.SetBackgroundTaskService(app.backgroundTaskService)
 		if app.backgroundTaskRegistry != nil {
@@ -292,7 +287,7 @@ func NewChatApplication(
 
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
 
-	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.config)
+	app.keyBindingManager = keybinding.NewDispatcher(app, app.config)
 	app.updateHelpBarShortcuts()
 
 	keyHintFormatter := app.keyBindingManager.GetHintFormatter()
@@ -329,7 +324,7 @@ func NewChatApplication(
 		return err == nil && secretsExist
 	})
 
-	if persistentRepo, ok := app.conversationRepo.(*conversation.PersistentConversationRepository); ok {
+	if persistentRepo, ok := app.conversationRepo.(convdomain.PersistentConversationRepository); ok {
 		app.conversationSelector = components.NewConversationSelector(persistentRepo, styleProvider)
 	} else {
 		app.conversationSelector = nil
@@ -362,7 +357,6 @@ func NewChatApplication(
 		app.toolRegistry.GetBackgroundShellService(),
 		agentManager,
 		app.config,
-		app.a2aTaskCoordinator,
 		app.approvalCoordinator,
 		app.chatCompletionRunner,
 		app.directExecutionService,
@@ -574,7 +568,7 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	case tui.TriggerHelpViewEvent:
 		return tea.Batch(app.handleHelpViewTrigger()...)
 
-	case agentdomain.MessageHistoryRestoreEvent:
+	case tui.MessageHistoryRestoreEvent:
 		return app.messageHistoryHandler.HandleRestore(m)
 
 	case tea.BackgroundColorMsg:
@@ -608,7 +602,7 @@ func (app *ChatApplication) handleMCPStatusUpdate(event agentdomain.MCPServerSta
 	if app.autocomplete != nil {
 		app.autocomplete.RefreshToolsList()
 		return func() tea.Msg {
-			return agentdomain.RefreshAutocompleteEvent{}
+			return tui.RefreshAutocompleteEvent{}
 		}
 	}
 
@@ -689,7 +683,7 @@ func (app *ChatApplication) handleModelSelectionView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	model, cmd := app.modelSelector.Update(msg)
-	app.modelSelector = model.(*components.ModelSelectorImpl)
+	app.modelSelector = model.(*components.ModelSelector)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -721,7 +715,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
-	if navEvent, ok := msg.(agentdomain.NavigateBackInTimeEvent); ok {
+	if navEvent, ok := msg.(tui.NavigateBackInTimeEvent); ok {
 		return app.handleNavigateBackInTime(navEvent)
 	}
 
@@ -740,7 +734,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return app.handleEditReady(editReadyEvent)
 	}
 
-	if editSubmitEvent, ok := msg.(agentdomain.MessageEditSubmitEvent); ok {
+	if editSubmitEvent, ok := msg.(tui.MessageEditSubmitEvent); ok {
 		if cmd := app.messageHistoryHandler.HandleEditSubmit(editSubmitEvent); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -1374,7 +1368,7 @@ func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.C
 	}
 
 	model, cmd := app.conversationSelector.Update(msg)
-	app.conversationSelector = model.(*components.ConversationSelectorImpl)
+	app.conversationSelector = model.(*components.ConversationSelector)
 
 	if cmd != nil {
 		cmds = append(cmds, cmd)
@@ -1443,7 +1437,7 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 		// unified BackgroundTaskRegistry's supervisor snapshot; A2A rows from the
 		// poller/retention service. Either source may simply be empty.
 		styleProvider := styles.NewProvider(app.themeService)
-		app.taskManager = components.NewTaskManager(app.themeService, styleProvider, app.taskRetentionService, app.backgroundTaskService)
+		app.taskManager = components.NewTaskView(app.themeService, styleProvider, app.taskRetentionService, app.backgroundTaskService)
 		if app.backgroundTaskRegistry != nil {
 			app.taskManager.SetBackgroundTaskRegistry(app.backgroundTaskRegistry)
 		}
@@ -1460,7 +1454,7 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 	}
 
 	model, cmd := app.taskManager.Update(msg)
-	app.taskManager = model.(*components.TaskManagerImpl)
+	app.taskManager = model.(*components.TaskView)
 
 	if cmd != nil {
 		cmds = append(cmds, cmd)
@@ -1506,7 +1500,7 @@ func (app *ChatApplication) handleThemeSelectionView(msg tea.Msg) []tea.Cmd {
 	}
 
 	model, cmd := app.themeSelector.Update(msg)
-	app.themeSelector = model.(*components.ThemeSelectorImpl)
+	app.themeSelector = model.(*components.ThemeSelector)
 
 	if cmd != nil {
 		cmds = append(cmds, cmd)
@@ -1608,7 +1602,7 @@ func (app *ChatApplication) handleToolsListView(msg tea.Msg) []tea.Cmd {
 	}
 
 	model, cmd := app.toolsView.Update(msg)
-	app.toolsView = model.(*components.ToolsViewImpl)
+	app.toolsView = model.(*components.ToolsView)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -1646,7 +1640,7 @@ func (app *ChatApplication) handleA2AAgentsView(msg tea.Msg) []tea.Cmd {
 	}
 
 	model, cmd := app.a2aAgentsView.Update(msg)
-	app.a2aAgentsView = model.(*components.A2AAgentsViewImpl)
+	app.a2aAgentsView = model.(*components.A2AAgentsView)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -1764,7 +1758,7 @@ func (app *ChatApplication) handleHelpView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	model, cmd := app.helpView.Update(msg)
-	app.helpView = model.(*components.HelpViewImpl)
+	app.helpView = model.(*components.HelpView)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -1829,7 +1823,7 @@ func (app *ChatApplication) handleDiffViewerView(msg tea.Msg) []tea.Cmd {
 	}
 
 	model, cmd := app.diffViewer.Update(msg)
-	app.diffViewer = model.(*components.DiffViewerImpl)
+	app.diffViewer = model.(*components.DiffViewer)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -1895,7 +1889,7 @@ func (app *ChatApplication) handleExplorerView(msg tea.Msg) []tea.Cmd {
 	}
 
 	model, cmd := app.fileExplorer.Update(msg)
-	app.fileExplorer = model.(*components.FileExplorerImpl)
+	app.fileExplorer = model.(*components.FileExplorer)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -2210,7 +2204,7 @@ func (app *ChatApplication) updateOptionalComponents(msg tea.Msg, cmds *[]tea.Cm
 			if cmd != nil {
 				*cmds = append(*cmds, cmd)
 			}
-			if convSelectorModel, ok := model.(*components.ConversationSelectorImpl); ok {
+			if convSelectorModel, ok := model.(*components.ConversationSelector); ok {
 				app.conversationSelector = convSelectorModel
 			}
 		}
@@ -2223,7 +2217,7 @@ func (app *ChatApplication) updateOptionalComponents(msg tea.Msg, cmds *[]tea.Cm
 			if cmd != nil {
 				*cmds = append(*cmds, cmd)
 			}
-			if taskManagerModel, ok := model.(*components.TaskManagerImpl); ok {
+			if taskManagerModel, ok := model.(*components.TaskView); ok {
 				app.taskManager = taskManagerModel
 			}
 		}
@@ -2304,7 +2298,7 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 		cursor := app.inputView.GetCursor()
 		app.autocomplete.Update(text, cursor)
 
-	case agentdomain.RefreshAutocompleteEvent:
+	case tui.RefreshAutocompleteEvent:
 		text := app.inputView.GetInput()
 		cursor := app.inputView.GetCursor()
 		app.autocomplete.Update(text, cursor)
@@ -2336,9 +2330,9 @@ func (app *ChatApplication) GetConfig() *config.Config {
 	return app.config
 }
 
-// GetStateManager returns the current state manager as the narrow slice key
+// GetStateStore returns the current state manager as the narrow slice key
 // handlers consume.
-func (app *ChatApplication) GetStateManager() keybinding.StateManager {
+func (app *ChatApplication) GetStateStore() keybinding.StateStore {
 	return app.stateManager
 }
 
@@ -2413,7 +2407,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 		}
 
 		return func() tea.Msg {
-			return agentdomain.MessageEditSubmitEvent{
+			return tui.MessageEditSubmitEvent{
 				RequestID:     "message-edit-submit",
 				Timestamp:     time.Now(),
 				OriginalIndex: editState.OriginalMessageIndex,
@@ -2506,7 +2500,7 @@ func (app *ChatApplication) ToggleRawFormat() {
 // Message History Navigation Helpers
 
 // handleNavigateBackInTime initiates message history navigation mode
-func (app *ChatApplication) handleNavigateBackInTime(event agentdomain.NavigateBackInTimeEvent) []tea.Cmd {
+func (app *ChatApplication) handleNavigateBackInTime(event tui.NavigateBackInTimeEvent) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	iv, ok := app.inputView.(*components.InputView)
@@ -2624,7 +2618,7 @@ func (app *ChatApplication) handleMessageHistoryEnter(cv *components.Conversatio
 			cmds = append(cmds, cmd)
 		}
 	} else {
-		restoreEvent := agentdomain.MessageHistoryRestoreEvent{
+		restoreEvent := tui.MessageHistoryRestoreEvent{
 			RequestID:      "message-history-restore",
 			Timestamp:      time.Now(),
 			RestoreToIndex: selectedIndex,
@@ -2670,55 +2664,6 @@ func (app *ChatApplication) handleMessageHistoryKeys(keyMsg tea.KeyPressMsg) []t
 	}
 
 	return cmds
-}
-
-// buildAgentNameResolver loads ~/.infer/agents.yaml (or the project-level
-// equivalent) once and returns a closure that maps an agent URL to its
-// configured friendly name. Used by the background-agent indicator to show
-// e.g. `Agent(weather-agent=…)` instead of the raw URL. Returns nil on
-// load failure so the conversation view falls back to the URL.
-func buildAgentNameResolver() func(string) string {
-	cfg, err := config.LoadAgents(config.ResolveAgentsPath())
-	if err != nil || cfg == nil {
-		return nil
-	}
-	nameByURL := make(map[string]string, len(cfg.Agents))
-	for _, a := range cfg.Agents {
-		if a.URL != "" && a.Name != "" {
-			nameByURL[a.URL] = a.Name
-		}
-	}
-	if len(nameByURL) == 0 {
-		return nil
-	}
-	return func(url string) string {
-		return nameByURL[url]
-	}
-}
-
-// buildAgentModelResolver loads ~/.infer/agents.yaml (or the project-level
-// equivalent) once and returns a closure that maps an agent URL to its
-// configured model (e.g. "deepseek/deepseek-v4-flash"). Used by the
-// background-agent indicator to show `model=<...>` in the live status
-// line. Returns nil on load failure or when no agent has a model set,
-// so the conversation view omits the model segment cleanly.
-func buildAgentModelResolver() func(string) string {
-	cfg, err := config.LoadAgents(config.ResolveAgentsPath())
-	if err != nil || cfg == nil {
-		return nil
-	}
-	modelByURL := make(map[string]string, len(cfg.Agents))
-	for _, a := range cfg.Agents {
-		if a.URL != "" && a.Model != "" {
-			modelByURL[a.URL] = a.Model
-		}
-	}
-	if len(modelByURL) == 0 {
-		return nil
-	}
-	return func(url string) string {
-		return modelByURL[url]
-	}
 }
 
 // PrintConversationHistory outputs the full conversation history to stdout

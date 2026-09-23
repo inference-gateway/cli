@@ -24,8 +24,8 @@ var whisperBinaryCandidates = []string{"whisper-cli", "whisper-cpp"}
 // WhisperTranscriber transcribes a 16kHz mono WAV file using whisper.cpp.
 type WhisperTranscriber struct {
 	cfg      config.SpeechToTextConfig
-	models   *ModelManager
-	binaries *BinaryManager
+	models   *ModelStore
+	binaries *BinaryStore
 
 	// run and lookPath are overridable in tests.
 	run      commandRunner
@@ -36,8 +36,8 @@ type WhisperTranscriber struct {
 func NewWhisperTranscriber(cfg config.SpeechToTextConfig) *WhisperTranscriber {
 	return &WhisperTranscriber{
 		cfg:      cfg,
-		models:   NewModelManager(cfg),
-		binaries: NewBinaryManager(cfg),
+		models:   NewModelStore(cfg),
+		binaries: NewBinaryStore(cfg),
 		run:      execRun,
 		lookPath: exec.LookPath,
 	}

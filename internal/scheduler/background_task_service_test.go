@@ -11,8 +11,8 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 )
 
@@ -21,12 +21,12 @@ import (
 // visible to Supervisor.A2APollingStates / CountRunning while running.
 type fakeA2ABgJob struct {
 	id      string
-	state   agentdomain.TaskPollingState
+	state   scheddomain.TaskPollingState
 	started chan struct{}
 	finish  chan struct{}
 }
 
-func newFakeA2ABgJob(id string, state agentdomain.TaskPollingState) *fakeA2ABgJob {
+func newFakeA2ABgJob(id string, state scheddomain.TaskPollingState) *fakeA2ABgJob {
 	return &fakeA2ABgJob{id: id, state: state, started: make(chan struct{}), finish: make(chan struct{})}
 }
 
@@ -45,18 +45,18 @@ func (f *fakeA2ABgJob) Run(ctx context.Context, _ func(scheddomain.JobSignal)) a
 
 func (f *fakeA2ABgJob) Wind(context.Context, scheddomain.WindSignal) error { return nil }
 func (f *fakeA2ABgJob) Close()                                             {}
-func (f *fakeA2ABgJob) A2APollingState() agentdomain.TaskPollingState      { return f.state }
+func (f *fakeA2ABgJob) A2APollingState() scheddomain.TaskPollingState      { return f.state }
 
 // fakeA2AController stands in for the job supervisor when testing
 // BackgroundTaskService in isolation: it returns canned polling states and
 // records Wind calls.
 type fakeA2AController struct {
-	states   []agentdomain.TaskPollingState
+	states   []scheddomain.TaskPollingState
 	windIDs  []string
 	windSigs []scheddomain.WindSignal
 }
 
-func (f *fakeA2AController) A2APollingStates() []agentdomain.TaskPollingState { return f.states }
+func (f *fakeA2AController) A2APollingStates() []scheddomain.TaskPollingState { return f.states }
 
 func (f *fakeA2AController) Wind(id string, sig scheddomain.WindSignal) error {
 	f.windIDs = append(f.windIDs, id)
@@ -68,10 +68,10 @@ func (f *fakeA2AController) Wind(id string, sig scheddomain.WindSignal) error {
 // come from the job supervisor (the single source shared with the status bar),
 // with their context/agent/state detail intact.
 func TestGetBackgroundTasks_SourcedFromSupervisor(t *testing.T) {
-	ctrl := &fakeA2AController{states: []agentdomain.TaskPollingState{
+	ctrl := &fakeA2AController{states: []scheddomain.TaskPollingState{
 		{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent", LastKnownState: "working"},
 	}}
-	svc := NewBackgroundTaskService(utils.NewA2ATaskTracker(), ctrl)
+	svc := NewBackgroundTaskService(schedinfra.NewA2ATaskTracker(), ctrl)
 
 	got := svc.GetBackgroundTasks()
 	if len(got) != 1 {
@@ -86,9 +86,9 @@ func TestGetBackgroundTasks_SourcedFromSupervisor(t *testing.T) {
 // (so the status bar and active list drop it at once) alongside the remote cancel
 // and the tracker context-graph cleanup.
 func TestCancelBackgroundTask_WindsSupervisor(t *testing.T) {
-	tracker := utils.NewA2ATaskTracker()
+	tracker := schedinfra.NewA2ATaskTracker()
 	tracker.RegisterContext("http://agent", "c1")
-	tracker.StartPolling("t1", &agentdomain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
+	tracker.StartPolling("t1", &scheddomain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
 
 	ctrl := &fakeA2AController{}
 	svc := NewBackgroundTaskService(tracker, ctrl)
@@ -119,7 +119,7 @@ func TestA2ADivergenceGone(t *testing.T) {
 	reg := NewBackgroundTaskRegistry(4, sup)
 	svc := NewBackgroundTaskService(reg, sup)
 
-	job := newFakeA2ABgJob("t1", agentdomain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
+	job := newFakeA2ABgJob("t1", scheddomain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
 	sup.Submit(job)
 	<-job.started
 

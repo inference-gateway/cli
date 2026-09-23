@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 type chanNotifier chan any
@@ -25,7 +25,7 @@ func TestRunUIHeartbeat(t *testing.T) {
 
 	select {
 	case ev := <-events:
-		if _, ok := ev.(agentdomain.HeartbeatEvent); !ok {
+		if _, ok := ev.(tui.HeartbeatEvent); !ok {
 			t.Fatalf("got %T, want HeartbeatEvent", ev)
 		}
 	case <-time.After(time.Second):

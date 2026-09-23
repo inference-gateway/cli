@@ -23,7 +23,7 @@ type a2aJob struct {
 	tool           *A2ASubmitTaskTool
 	agentURL       string
 	taskID         string
-	state          *agentdomain.TaskPollingState
+	state          *scheddomain.TaskPollingState
 	spanCtx        trace.SpanContext
 	bag            baggage.Baggage
 	mu             sync.RWMutex
@@ -76,12 +76,12 @@ func (j *a2aJob) recordState(state string) {
 // A2APollingState implements scheddomain.A2AStateProvider so the supervisor is the
 // single source for active A2A rows. Identity fields are immutable after submit;
 // only LastKnownState is read under mu (the poll goroutine writes it).
-func (j *a2aJob) A2APollingState() agentdomain.TaskPollingState {
+func (j *a2aJob) A2APollingState() scheddomain.TaskPollingState {
 	j.mu.RLock()
 	last := j.lastKnownState
 	j.mu.RUnlock()
 
-	st := agentdomain.TaskPollingState{
+	st := scheddomain.TaskPollingState{
 		TaskID:         j.taskID,
 		AgentURL:       j.agentURL,
 		LastKnownState: last,

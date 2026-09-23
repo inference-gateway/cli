@@ -3,6 +3,7 @@ package agent
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -24,7 +25,68 @@ const (
 	maxJudgeActionLength = 4000
 )
 
-// LLMJudge implements agentdomain.JudgeApprover with one no-tools GenerateContent
+// JudgeInput is one approval question: Model is the resolved "provider/model"
+// id that answers it, RootIntent the first non-hidden user message of the
+// session, Intent the latest one, and Action the pending tool call (name +
+// arguments).
+type JudgeInput struct {
+	Model      string
+	RootIntent string
+	Intent     string
+	Action     string
+}
+
+// JudgeApprover decides one pending tool call by asking a small LLM whether it
+// serves the user's intent and is safe. The judge is
+// the approver selected by approval_behaviour "judge" / agent mode
+// auto-with-judge: it is always reachable, so headless and CI get a real
+// approver instead of blocking.
+type JudgeApprover interface {
+	Judge(ctx context.Context, in JudgeInput) (JudgeVerdict, error)
+}
+
+// JudgeVerdict is the parsed decision of the LLM judge for one pending tool
+// call. Decision is always one of the agentdomain.JudgeDecision values once parsed;
+// nothing downstream reads the judge's raw output.
+type JudgeVerdict struct {
+	Decision agentdomain.JudgeDecision
+	Reason   string
+	Usage    *sdk.CompletionUsage `json:"-"`
+}
+
+// Approved reports whether the judge approved the action.
+func (v JudgeVerdict) Approved() bool {
+	return v.Decision == agentdomain.JudgeDecisionApproved
+}
+
+// ParseJudgeVerdict extracts the verdict JSON object from the judge's raw
+// output. Keeping only the outermost {...} drops code fences and prose; it requires
+// decision to be one of the two literals, and rejects anything else so a
+// malformed judge response flows into on_error handling.
+func ParseJudgeVerdict(raw string) (JudgeVerdict, error) {
+	trimmed := strings.TrimSpace(raw)
+
+	start := strings.IndexByte(trimmed, '{')
+	end := strings.LastIndexByte(trimmed, '}')
+	if start < 0 || end <= start {
+		return JudgeVerdict{}, fmt.Errorf("judge returned no JSON object: %.200s", strings.TrimSpace(raw))
+	}
+
+	var verdict JudgeVerdict
+	if err := json.Unmarshal([]byte(trimmed[start:end+1]), &verdict); err != nil {
+		return JudgeVerdict{}, fmt.Errorf("parsing judge verdict: %w", err)
+	}
+
+	switch verdict.Decision {
+	case agentdomain.JudgeDecisionApproved, agentdomain.JudgeDecisionRejected:
+	default:
+		return JudgeVerdict{}, fmt.Errorf("judge decision %q: must be %q or %q", verdict.Decision, agentdomain.JudgeDecisionApproved, agentdomain.JudgeDecisionRejected)
+	}
+
+	return verdict, nil
+}
+
+// LLMJudge implements JudgeApprover with one no-tools GenerateContent
 // call (same shape as GenerateLLMSummary: direct client call, SkipMCP, its own
 // timeout, bounded max_tokens). The judge.yaml on_error policy decides what a
 // failed call means: deny (default) fails closed with a distinguishable reason -
@@ -54,15 +116,15 @@ func NewLLMJudge(client sdk.Client, cfg *config.Config) *LLMJudge {
 
 // Judge decides one pending tool call: does it serve the user's intent and is
 // it safe to run? The verdict contract is enforced by ParseJudgeVerdict.
-func (j *LLMJudge) Judge(ctx context.Context, in agentdomain.JudgeInput) (agentdomain.JudgeVerdict, error) {
+func (j *LLMJudge) Judge(ctx context.Context, in JudgeInput) (JudgeVerdict, error) {
 	model := in.Model
 	if model == "" {
-		return agentdomain.JudgeVerdict{}, fmt.Errorf("no judge model configured: set judge.model in %s or agent.model", config.DefaultJudgePath)
+		return JudgeVerdict{}, fmt.Errorf("no judge model configured: set judge.model in %s or agent.model", config.DefaultJudgePath)
 	}
 
 	slashIndex := strings.Index(model, "/")
 	if slashIndex == -1 {
-		return agentdomain.JudgeVerdict{}, fmt.Errorf("invalid judge model format %q, expected 'provider/model'", model)
+		return JudgeVerdict{}, fmt.Errorf("invalid judge model format %q, expected 'provider/model'", model)
 	}
 
 	jcfg := j.config.Judge.Effective()
@@ -100,7 +162,7 @@ func (j *LLMJudge) Judge(ctx context.Context, in agentdomain.JudgeInput) (agentd
 		return j.onError(fmt.Errorf("judge spent all %d max_tokens before answering (reasoning models think against this budget); raise judge.max_tokens", jcfg.MaxTokens), jcfg.OnError)
 	}
 
-	verdict, parseErr := agentdomain.ParseJudgeVerdict(raw)
+	verdict, parseErr := ParseJudgeVerdict(raw)
 	if parseErr != nil {
 		return j.onError(parseErr, jcfg.OnError)
 	}
@@ -112,13 +174,13 @@ func (j *LLMJudge) Judge(ctx context.Context, in agentdomain.JudgeInput) (agentd
 // distinguishable "judge unavailable" reason so the driver can retry or route
 // around; allow approves. The error itself is swallowed: the verdict carries
 // everything downstream needs.
-func (j *LLMJudge) onError(err error, onError string) (agentdomain.JudgeVerdict, error) {
+func (j *LLMJudge) onError(err error, onError string) (JudgeVerdict, error) {
 	reason := fmt.Sprintf("judge unavailable: %v", err)
 	logger.Warn("judge call failed, applying on_error policy", "on_error", onError, "error", err)
 	if onError == config.JudgeOnErrorAllow {
-		return agentdomain.JudgeVerdict{Decision: agentdomain.JudgeDecisionApproved, Reason: reason}, nil
+		return JudgeVerdict{Decision: agentdomain.JudgeDecisionApproved, Reason: reason}, nil
 	}
-	return agentdomain.JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: reason}, nil
+	return JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: reason}, nil
 }
 
 // truncateForJudge caps a judge input, marking the cut like the summarizer does.

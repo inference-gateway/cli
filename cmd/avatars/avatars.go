@@ -113,7 +113,7 @@ func createAvatar(cmd *cobra.Command, state *runtime.State, renderer *output.Ren
 		imageService := sync.OnceValues(func() (agentdomain.ImageService, error) {
 			fmt.Printf("Generating %d angle(s) with %s (%s quality, %s)...\n", len(angles), model, quality, size)
 			services := container.NewServiceContainer(cfg)
-			if err := services.GetGatewayManager().EnsureStarted(); err != nil {
+			if err := services.GetGatewaySupervisor().EnsureStarted(); err != nil {
 				return nil, fmt.Errorf("failed to start inference gateway: %w", err)
 			}
 			return services.GetImageService(), nil

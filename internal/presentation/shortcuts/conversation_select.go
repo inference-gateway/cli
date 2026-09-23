@@ -2,15 +2,17 @@ package shortcuts
 
 import (
 	"context"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // ConversationSelectShortcut shows the conversation selection dropdown
 type ConversationSelectShortcut struct {
-	repo PersistentConversationRepository
+	repo convdomain.PersistentConversationRepository
 }
 
 // NewConversationSelectShortcut creates a new conversation select shortcut
-func NewConversationSelectShortcut(repo PersistentConversationRepository) *ConversationSelectShortcut {
+func NewConversationSelectShortcut(repo convdomain.PersistentConversationRepository) *ConversationSelectShortcut {
 	return &ConversationSelectShortcut{repo: repo}
 }
 

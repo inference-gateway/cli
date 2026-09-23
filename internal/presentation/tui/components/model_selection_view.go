@@ -11,9 +11,9 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
@@ -43,12 +43,12 @@ const (
 // both tab rows, separator, blank lines, and the help row.
 const modelSelectChromeLines = 9
 
-// ModelSelectorImpl implements model selection UI as a huh select with the
+// ModelSelector implements model selection UI as a huh select with the
 // pricing tabs (keys 1-4) layered on top: switching a tab rebuilds the form
 // with that tab's option set. Search is a dedicated textinput (entered with
 // `/`) filtering on the model name; huh's built-in filter is disabled since
 // it renders the query into the select's title line instead of a real input.
-type ModelSelectorImpl struct {
+type ModelSelector struct {
 	models         []string
 	width          int
 	height         int
@@ -74,8 +74,8 @@ type ModelSelectorImpl struct {
 }
 
 // NewModelSelector creates a new model selector
-func NewModelSelector(models []string, modelService convdomain.ModelService, pricingService convdomain.PricingService, cfg *config.Config, styleProvider *styles.Provider) *ModelSelectorImpl {
-	m := &ModelSelectorImpl{
+func NewModelSelector(models []string, modelService convdomain.ModelService, pricingService convdomain.PricingService, cfg *config.Config, styleProvider *styles.Provider) *ModelSelector {
+	m := &ModelSelector{
 		models:         models,
 		width:          80,
 		height:         24,
@@ -106,7 +106,7 @@ func NewModelSelector(models []string, modelService convdomain.ModelService, pri
 // buildForm (re)builds the huh select over the current tab's models. The
 // form's Init cmd is discarded on purpose: the selector is routed every
 // message while its view is active, so only cursor-blink cosmetics are lost.
-func (m *ModelSelectorImpl) buildForm() {
+func (m *ModelSelector) buildForm() {
 	visible := m.visibleModels()
 	options := make([]huh.Option[string], 0, len(visible))
 	for _, model := range visible {
@@ -140,7 +140,7 @@ func (m *ModelSelectorImpl) buildForm() {
 
 // visibleModels is the current tab's models narrowed by the search query,
 // matching on the model name only (not the metadata suffix).
-func (m *ModelSelectorImpl) visibleModels() []string {
+func (m *ModelSelector) visibleModels() []string {
 	tabModels := m.tabModels()
 	query := strings.ToLower(strings.TrimSpace(m.search.Value()))
 	if query == "" {
@@ -155,15 +155,15 @@ func (m *ModelSelectorImpl) visibleModels() []string {
 	return filtered
 }
 
-func (m *ModelSelectorImpl) selectHeight(optionCount int) int {
+func (m *ModelSelector) selectHeight(optionCount int) int {
 	return max(min(m.height-modelSelectChromeLines, optionCount), 3)
 }
 
-func (m *ModelSelectorImpl) Init() tea.Cmd {
+func (m *ModelSelector) Init() tea.Cmd {
 	return nil
 }
 
-func (m *ModelSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -216,7 +216,7 @@ func (m *ModelSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleSearchKey routes keys while the search input is active: navigation
 // and selection still reach the list, esc clears the search, and everything
 // else edits the query (rebuilding the option set on change).
-func (m *ModelSelectorImpl) handleSearchKey(msg tea.KeyPressMsg) tea.Cmd {
+func (m *ModelSelector) handleSearchKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch {
 	case key.Matches(msg, modelSelectorKeys.escape):
 		m.searchMode = false
@@ -244,7 +244,7 @@ func (m *ModelSelectorImpl) handleSearchKey(msg tea.KeyPressMsg) tea.Cmd {
 // forwardToForm delegates to the huh form and emits the selection event when
 // it completes. A completed form with a failing SelectModel is rebuilt so the
 // selector stays usable.
-func (m *ModelSelectorImpl) forwardToForm(msg tea.Msg) tea.Cmd {
+func (m *ModelSelector) forwardToForm(msg tea.Msg) tea.Cmd {
 	model, cmd := m.form.Update(msg)
 	if f, ok := model.(*huh.Form); ok {
 		m.form = f
@@ -264,25 +264,25 @@ func (m *ModelSelectorImpl) forwardToForm(msg tea.Msg) tea.Cmd {
 	}
 	m.done = true
 	return func() tea.Msg {
-		return tui.ModelSelectedEvent{Model: selectedModel}
+		return agentdomain.ModelSelectedEvent{Model: selectedModel}
 	}
 }
 
-func (m *ModelSelectorImpl) setPricingView(view ModelViewMode) {
+func (m *ModelSelector) setPricingView(view ModelViewMode) {
 	m.currentView = view
 	m.buildForm()
 }
 
-func (m *ModelSelectorImpl) setCapabilityFilter(filter ModelCapabilityFilter) {
+func (m *ModelSelector) setCapabilityFilter(filter ModelCapabilityFilter) {
 	m.capability = filter
 	m.buildForm()
 }
 
-func (m *ModelSelectorImpl) View() tea.View {
+func (m *ModelSelector) View() tea.View {
 	return tea.NewView(m.viewContent())
 }
 
-func (m *ModelSelectorImpl) viewContent() string {
+func (m *ModelSelector) viewContent() string {
 	var b strings.Builder
 
 	b.WriteString(m.titleStyle.Render("Select a Model"))
@@ -325,7 +325,7 @@ func (m *ModelSelectorImpl) viewContent() string {
 // formatModelSuffix builds the parenthesised metadata shown next to each
 // model row, combining the context window (compact "128K"/"1M" form, or "?"
 // when no matcher pattern hits) with the pricing string when available.
-func (m *ModelSelectorImpl) formatModelSuffix(model string) string {
+func (m *ModelSelector) formatModelSuffix(model string) string {
 	parts := make([]string, 0, 3)
 
 	window, ok := models.LookupContextWindow(model)
@@ -371,7 +371,7 @@ func formatContextWindow(tokens int) string {
 // tabModels returns the models visible under the current pricing tab and
 // capability filter (ANDed). Chat-capable models come first, then the
 // gateway's non-chat models (STT/TTS/image-gen/video) as view-only rows.
-func (m *ModelSelectorImpl) tabModels() []string {
+func (m *ModelSelector) tabModels() []string {
 	pricing := m.pricingPredicate()
 	capability := m.capabilityPredicate()
 	all := append(append([]string{}, m.models...), models.NonChatModels()...)
@@ -385,7 +385,7 @@ func (m *ModelSelectorImpl) tabModels() []string {
 	return filtered
 }
 
-func (m *ModelSelectorImpl) pricingPredicate() func(string) bool {
+func (m *ModelSelector) pricingPredicate() func(string) bool {
 	switch m.currentView {
 	case ModelViewFree:
 		return m.isModelFree
@@ -400,7 +400,7 @@ func (m *ModelSelectorImpl) pricingPredicate() func(string) bool {
 	}
 }
 
-func (m *ModelSelectorImpl) capabilityPredicate() func(string) bool {
+func (m *ModelSelector) capabilityPredicate() func(string) bool {
 	switch m.capability {
 	case CapabilityVision:
 		return models.SupportsVision
@@ -416,7 +416,7 @@ func (m *ModelSelectorImpl) capabilityPredicate() func(string) bool {
 // isModelFree checks if a model is free (both input and output prices are 0.0).
 // Subscription models are also $0/$0 but are not free, so they are excluded.
 // Returns false if pricing is disabled or not configured.
-func (m *ModelSelectorImpl) isModelFree(model string) bool {
+func (m *ModelSelector) isModelFree(model string) bool {
 	if m.pricingService == nil || !m.pricingService.IsEnabled() {
 		return false
 	}
@@ -434,7 +434,7 @@ func (m *ModelSelectorImpl) isModelFree(model string) bool {
 // isModelSubscription reports whether a model is accessed via a flat-fee
 // subscription rather than per-token billing. It follows the pricing table's
 // RequiresPro flag.
-func (m *ModelSelectorImpl) isModelSubscription(model string) bool {
+func (m *ModelSelector) isModelSubscription(model string) bool {
 	if m.pricingService == nil || !m.pricingService.IsEnabled() {
 		return false
 	}
@@ -444,7 +444,7 @@ func (m *ModelSelectorImpl) isModelSubscription(model string) bool {
 
 // Reset clears the done/cancelled flags and rebuilds the form so the selector
 // can be re-entered after a previous selection.
-func (m *ModelSelectorImpl) Reset() {
+func (m *ModelSelector) Reset() {
 	m.done = false
 	m.cancelled = false
 	m.searchMode = false
@@ -454,17 +454,17 @@ func (m *ModelSelectorImpl) Reset() {
 }
 
 // IsSelected returns true if a model was selected
-func (m *ModelSelectorImpl) IsSelected() bool {
+func (m *ModelSelector) IsSelected() bool {
 	return m.done && !m.cancelled
 }
 
 // IsCancelled returns true if selection was cancelled
-func (m *ModelSelectorImpl) IsCancelled() bool {
+func (m *ModelSelector) IsCancelled() bool {
 	return m.cancelled
 }
 
 // GetSelected returns the selected model
-func (m *ModelSelectorImpl) GetSelected() string {
+func (m *ModelSelector) GetSelected() string {
 	if m.IsSelected() {
 		return m.choice
 	}
@@ -472,18 +472,18 @@ func (m *ModelSelectorImpl) GetSelected() string {
 }
 
 // SetWidth sets the width of the model selector
-func (m *ModelSelectorImpl) SetWidth(width int) {
+func (m *ModelSelector) SetWidth(width int) {
 	m.width = width
 }
 
 // SetHeight sets the height of the model selector
-func (m *ModelSelectorImpl) SetHeight(height int) {
+func (m *ModelSelector) SetHeight(height int) {
 	m.height = height
 }
 
 // writeViewTabs writes the pricing tab row (keys 1-4) and the capability tab
 // row (keys 5-8), active tab highlighted.
-func (m *ModelSelectorImpl) writeViewTabs(b *strings.Builder) {
+func (m *ModelSelector) writeViewTabs(b *strings.Builder) {
 	pricingTabs := []string{"[1] All", "[2] Free", "[3] Pay-as-you-go", "[4] Subscription"}
 	capabilityTabs := []string{"[5] Any", "[6] Vision", "[7] Audio", "[8] Video"}
 
@@ -498,7 +498,7 @@ func (m *ModelSelectorImpl) writeViewTabs(b *strings.Builder) {
 
 // renderTabRow renders one row of tab labels with the active index
 // highlighted.
-func (m *ModelSelectorImpl) renderTabRow(labels []string, active int) string {
+func (m *ModelSelector) renderTabRow(labels []string, active int) string {
 	rendered := make([]string, len(labels))
 	for i, label := range labels {
 		if i == active {

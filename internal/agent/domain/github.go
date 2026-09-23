@@ -58,10 +58,6 @@ type GitHubSetupService interface {
 	IsOrgRepo(repo string) (bool, error)
 	CheckOrgSecretsExist(orgName string) (bool, error)
 	SetOrgSecret(orgName, name, value string) error
-	PreparePRCreation(repo, workflowPath string) (string, error)
-	WriteWorkflowFile(path, content string) error
-	GenerateStandardWorkflowContent() string
-	GenerateGithubActionWorkflowContent() string
 	InstallWorkflow(ctx context.Context, opts InstallWorkflowOptions) (string, error)
 }
 

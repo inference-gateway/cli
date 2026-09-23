@@ -19,7 +19,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	conv "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
@@ -29,12 +28,11 @@ import (
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
-	plugins "github.com/inference-gateway/cli/internal/plugins"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// AgentServiceImpl implements the AgentService interface with direct chat functionality
-type AgentServiceImpl struct {
+// Agent implements the AgentService interface with direct chat functionality
+type Agent struct {
 	client             sdk.Client
 	toolService        agentdomain.ToolService
 	config             *config.Config
@@ -42,19 +40,20 @@ type AgentServiceImpl struct {
 	a2aAgentService    agentapp.A2AAgentService
 	skillsService      agentdomain.SkillsService
 	messageQueue       convdomain.MessageQueue
-	stateManager       stateManager
+	stateManager       stateStore
 	timeoutSeconds     int
 	maxTokens          int
 	optimizer          convdomain.ConversationOptimizer
-	tokenizer          *conv.TokenizerService
+	tokenizer          usageEstimator
 	approvalPolicy     agentdomain.ApprovalPolicy
-	judge              agentdomain.JudgeApprover
+	judge              JudgeApprover
 	currentModel       func() string
 	escalations        *judgeEscalations
 	bgRegistry         scheddomain.BackgroundTaskRegistry
-	rolloverManager    *conv.SessionRolloverManager
+	rolloverManager    convdomain.SessionRollover
 	reminderProvider   agentdomain.SystemReminderProvider
 	hookProvider       agentdomain.HookCommandProvider
+	pluginInstructions func() string
 	memoryBackend      memory.MemoryBackend
 	recorder           *telemetry.Recorder
 	sessionTurns       atomic.Int64
@@ -359,15 +358,22 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []convdomain.Conv
 }
 
 // NewAgentService creates a new agent service with pre-configured client
-// stateManager is the narrow slice of the app state manager the agent core
+// usageEstimator fills in token usage for providers that do not report it.
+// *conversation.TokenizerService satisfies it.
+type usageEstimator interface {
+	ShouldUsePolyfill(usage *sdk.CompletionUsage) bool
+	CalculateUsagePolyfill(inputMessages []sdk.Message, outputContent string, outputToolCalls []sdk.ChatCompletionMessageToolCall, tools []sdk.ChatCompletionTool) *sdk.CompletionUsage
+}
+
+// stateStore is the narrow slice of the app state manager the agent core
 // needs: the current agent mode, computer-use pause state, retry-status
-// updates, and the session todo list (reminder gating). *statemanager.StateManager
+// updates, and the session todo list (reminder gating). *statemanager.Store
 // satisfies it.
-type stateManager interface {
-	agentdomain.AgentModeManager
-	agentdomain.ComputerUsePauseManager
-	agentdomain.ChatSessionManager
-	agentdomain.TodoManager
+type stateStore interface {
+	agentdomain.AgentModeState
+	agentdomain.ComputerUsePause
+	agentdomain.RetryStatusSink
+	agentdomain.TodoList
 }
 
 func NewAgent(
@@ -378,52 +384,49 @@ func NewAgent(
 	a2aAgentService agentapp.A2AAgentService,
 	skillsService agentdomain.SkillsService,
 	messageQueue convdomain.MessageQueue,
-	stateManager stateManager,
+	stateManager stateStore,
 	timeoutSeconds int,
 	optimizer convdomain.ConversationOptimizer,
 	bgRegistry scheddomain.BackgroundTaskRegistry,
-	rolloverManager *conv.SessionRolloverManager,
-) *AgentServiceImpl {
-	tokenizer := conv.NewTokenizerService(conv.DefaultTokenizerConfig())
-
+	rolloverManager convdomain.SessionRollover,
+	tokenizer usageEstimator,
+	hookProvider agentdomain.HookCommandProvider,
+	pluginInstructions func() string,
+) *Agent {
 	approvalPolicy := NewStandardApprovalPolicy(cfg, stateManager)
 
-	hookProvider := agentdomain.HookCommandProvider(cfg.Hooks)
-	if pluginProvider := plugins.NewPluginHookCommandProvider(cfg); pluginProvider != nil {
-		hookProvider = pluginProvider
-	}
-
-	return &AgentServiceImpl{
-		client:           client,
-		toolService:      toolService,
-		config:           cfg,
-		conversationRepo: conversationRepo,
-		a2aAgentService:  a2aAgentService,
-		skillsService:    skillsService,
-		messageQueue:     messageQueue,
-		stateManager:     stateManager,
-		timeoutSeconds:   timeoutSeconds,
-		maxTokens:        cfg.GetAgentConfig().MaxTokens,
-		reasoningEffort:  cfg.GetAgentConfig().ReasoningEffort,
-		optimizer:        optimizer,
-		tokenizer:        tokenizer,
-		approvalPolicy:   approvalPolicy,
-		judge:            NewLLMJudge(client, cfg),
-		escalations:      newJudgeEscalations(),
-		bgRegistry:       bgRegistry,
-		rolloverManager:  rolloverManager,
-		reminderProvider: cfg.Reminders,
-		hookProvider:     hookProvider,
-		firedReminders:   make(map[string]bool),
-		activeSessions:   make(map[string]*sessionCancel),
-		metrics:          make(map[string]*agentdomain.ChatMetrics),
-		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
+	return &Agent{
+		client:             client,
+		toolService:        toolService,
+		config:             cfg,
+		conversationRepo:   conversationRepo,
+		a2aAgentService:    a2aAgentService,
+		skillsService:      skillsService,
+		messageQueue:       messageQueue,
+		stateManager:       stateManager,
+		timeoutSeconds:     timeoutSeconds,
+		maxTokens:          cfg.GetAgentConfig().MaxTokens,
+		reasoningEffort:    cfg.GetAgentConfig().ReasoningEffort,
+		optimizer:          optimizer,
+		tokenizer:          tokenizer,
+		approvalPolicy:     approvalPolicy,
+		judge:              NewLLMJudge(client, cfg),
+		escalations:        newJudgeEscalations(),
+		bgRegistry:         bgRegistry,
+		rolloverManager:    rolloverManager,
+		reminderProvider:   cfg.Reminders,
+		hookProvider:       hookProvider,
+		pluginInstructions: pluginInstructions,
+		firedReminders:     make(map[string]bool),
+		activeSessions:     make(map[string]*sessionCancel),
+		metrics:            make(map[string]*agentdomain.ChatMetrics),
+		toolCallsMap:       make(map[string]*sdk.ChatCompletionMessageToolCall),
 	}
 }
 
 // SetReasoningEffort updates the reasoning effort applied to subsequent
 // requests. An empty string resets to the provider default.
-func (s *AgentServiceImpl) SetReasoningEffort(effort string) error {
+func (s *Agent) SetReasoningEffort(effort string) error {
 	if effort != "" && !slices.Contains(config.ReasoningEffortLevels, effort) {
 		return fmt.Errorf(
 			"invalid reasoning effort %q: must be one of %s",
@@ -438,7 +441,7 @@ func (s *AgentServiceImpl) SetReasoningEffort(effort string) error {
 
 // GetReasoningEffort returns the effort level currently applied to requests
 // ("" = provider default).
-func (s *AgentServiceImpl) GetReasoningEffort() string {
+func (s *Agent) GetReasoningEffort() string {
 	s.reasoningEffortMux.RLock()
 	defer s.reasoningEffortMux.RUnlock()
 	return s.reasoningEffort
@@ -450,7 +453,7 @@ func (s *AgentServiceImpl) GetReasoningEffort() string {
 // to output_config.effort (including minimal -> low). Every other provider
 // clamps the Anthropic-only xhigh/max levels to high, the chat-completions
 // ceiling.
-func (s *AgentServiceImpl) reasoningEffortOptionFor(model string) *sdk.CreateChatCompletionRequestReasoningEffort {
+func (s *Agent) reasoningEffortOptionFor(model string) *sdk.CreateChatCompletionRequestReasoningEffort {
 	effort := s.GetReasoningEffort()
 	if effort == "" {
 		return nil
@@ -467,7 +470,7 @@ func (s *AgentServiceImpl) reasoningEffortOptionFor(model string) *sdk.CreateCha
 
 // SetTelemetryRecorder wires the telemetry recorder so per-request token usage
 // is tapped in storeIterationMetrics. A nil recorder disables recording.
-func (s *AgentServiceImpl) SetTelemetryRecorder(rec *telemetry.Recorder) {
+func (s *Agent) SetTelemetryRecorder(rec *telemetry.Recorder) {
 	s.recorder = rec
 }
 
@@ -475,7 +478,7 @@ func (s *AgentServiceImpl) SetTelemetryRecorder(rec *telemetry.Recorder) {
 // once at session start (SyncIn on HookPreSession). SyncOut is driven by the
 // Memory tool on write/delete, not here - chat fires HookPostSession after every
 // message, so pushing there would commit-storm. A nil backend disables sync.
-func (s *AgentServiceImpl) SetMemoryBackend(backend memory.MemoryBackend) {
+func (s *Agent) SetMemoryBackend(backend memory.MemoryBackend) {
 	s.memoryBackend = backend
 }
 
@@ -503,7 +506,7 @@ type turnExec func(ctx context.Context, client sdk.Client, provider sdk.Provider
 // invalidates the provider's prompt cache; restrictions apply at execution
 // time. ReadOnly subagents keep their filtered list - their mode never
 // changes mid-session, so there is no cache to break.
-func (s *AgentServiceImpl) advertisedTools() []sdk.ChatCompletionTool {
+func (s *Agent) advertisedTools() []sdk.ChatCompletionTool {
 	if s.toolService == nil {
 		return nil
 	}
@@ -513,7 +516,7 @@ func (s *AgentServiceImpl) advertisedTools() []sdk.ChatCompletionTool {
 	return s.toolService.ListTools()
 }
 
-func (s *AgentServiceImpl) runTurn(ctx context.Context, req *agentdomain.AgentRequest, stream bool, exec turnExec) (*agentdomain.ChatSyncResponse, error) {
+func (s *Agent) runTurn(ctx context.Context, req *agentdomain.AgentRequest, stream bool, exec turnExec) (*agentdomain.ChatSyncResponse, error) {
 	if err := s.validateRequest(req); err != nil {
 		return nil, err
 	}
@@ -582,7 +585,7 @@ func (s *AgentServiceImpl) runTurn(ctx context.Context, req *agentdomain.AgentRe
 	}, nil
 }
 
-func (s *AgentServiceImpl) Run(ctx context.Context, req *agentdomain.AgentRequest) (*agentdomain.ChatSyncResponse, error) {
+func (s *Agent) Run(ctx context.Context, req *agentdomain.AgentRequest) (*agentdomain.ChatSyncResponse, error) {
 	return s.runTurn(ctx, req, false, func(ctx context.Context, client sdk.Client, provider sdk.Provider, model string, messages []sdk.Message) (turnOutput, error) {
 		response, err := client.GenerateContent(ctx, provider, model, messages)
 		if err != nil {
@@ -605,7 +608,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *agentdomain.AgentReques
 // callers that own their own agentic loop (the headless AG-UI agent) and want
 // token-level output without adopting the full EventDrivenAgent. onDelta may be
 // nil.
-func (s *AgentServiceImpl) RunStreaming(
+func (s *Agent) RunStreaming(
 	ctx context.Context,
 	req *agentdomain.AgentRequest,
 	onDelta func(content, reasoning string, toolCalls []sdk.ChatCompletionMessageToolCallChunk),
@@ -756,7 +759,7 @@ func extractFirstChoice(response *sdk.CreateChatCompletionResponse) (string, str
 //
 // Idempotent: re-running on an already-repaired conversation is a
 // no-op (returns 0).
-func (s *AgentServiceImpl) ensureConversationIntegrity(
+func (s *Agent) ensureConversationIntegrity(
 	conversation *[]sdk.Message,
 	publisher *eventPublisher,
 	requestID string,
@@ -766,7 +769,7 @@ func (s *AgentServiceImpl) ensureConversationIntegrity(
 		return 0
 	}
 
-	repaired, synthetics := conv.EnsureToolCallsClosed(*conversation)
+	repaired, synthetics := convdomain.EnsureToolCallsClosed(*conversation)
 	if len(synthetics) == 0 {
 		return 0
 	}
@@ -806,7 +809,7 @@ func (s *AgentServiceImpl) ensureConversationIntegrity(
 
 // batchDrainQueue drains all queued messages and adds them to conversation
 // Returns the number of messages drained
-func (s *AgentServiceImpl) batchDrainQueue(
+func (s *Agent) batchDrainQueue(
 	conversation *[]sdk.Message,
 	eventPublisher *eventPublisher,
 ) int {
@@ -856,7 +859,7 @@ func (s *AgentServiceImpl) batchDrainQueue(
 }
 
 // RunWithStream executes an agent task with streaming (for interactive chat)
-func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) { // nolint:gocognit,gocyclo,cyclop,funlen
+func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) { // nolint:gocognit,gocyclo,cyclop,funlen
 	if err := s.validateRequest(req); err != nil {
 		return nil, err
 	}
@@ -941,7 +944,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *agentdomain.A
 // errors after the session has already torn down. The agent loop publishes
 // ChatCompleteEvent{Cancelled:true} as the single cancel-completion signal;
 // no separate CancelledEvent broadcast is needed.
-func (s *AgentServiceImpl) CancelRequest(requestID string) error {
+func (s *Agent) CancelRequest(requestID string) error {
 	s.sessionMux.RLock()
 	sc, sessionExists := s.activeSessions[requestID]
 	s.sessionMux.RUnlock()
@@ -953,20 +956,20 @@ func (s *AgentServiceImpl) CancelRequest(requestID string) error {
 	return nil
 }
 
-func (s *AgentServiceImpl) registerSession(requestID string, sc *sessionCancel) {
+func (s *Agent) registerSession(requestID string, sc *sessionCancel) {
 	s.sessionMux.Lock()
 	defer s.sessionMux.Unlock()
 	s.activeSessions[requestID] = sc
 }
 
-func (s *AgentServiceImpl) deregisterSession(requestID string) {
+func (s *Agent) deregisterSession(requestID string) {
 	s.sessionMux.Lock()
 	defer s.sessionMux.Unlock()
 	delete(s.activeSessions, requestID)
 }
 
 // GetMetrics returns metrics for a completed request
-func (s *AgentServiceImpl) GetMetrics(requestID string) *agentdomain.ChatMetrics {
+func (s *Agent) GetMetrics(requestID string) *agentdomain.ChatMetrics {
 	s.metricsMux.RLock()
 	defer s.metricsMux.RUnlock()
 
@@ -1001,7 +1004,7 @@ type storeIterationMetricsInput struct {
 // It returns the effective (possibly polyfilled) usage that was accumulated, or nil when there
 // was nothing to record. Both the streaming path and the sync Run path funnel through here so
 // chat and headless token accounting stay identical (issue #835).
-func (s *AgentServiceImpl) storeIterationMetrics(
+func (s *Agent) storeIterationMetrics(
 	ctx context.Context,
 	requestID string,
 	model string,
@@ -1063,7 +1066,7 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 	return effectiveUsage
 }
 
-func (s *AgentServiceImpl) optimizeConversation(_ context.Context, req *agentdomain.AgentRequest, conversation []sdk.Message, eventPublisher *eventPublisher) []sdk.Message {
+func (s *Agent) optimizeConversation(_ context.Context, req *agentdomain.AgentRequest, conversation []sdk.Message, eventPublisher *eventPublisher) []sdk.Message {
 	if s.optimizer == nil {
 		return conversation
 	}
@@ -1088,7 +1091,7 @@ type IndexedToolResult struct {
 // executeToolCallsParallel runs a batch that needs no approval. Approval is
 // decided upstream by states.EvaluatingToolsState: batches with a tool that
 // requires approval go to ApprovingTools/BlockingTools and never reach here.
-func (s *AgentServiceImpl) executeToolCallsParallel(
+func (s *Agent) executeToolCallsParallel(
 	ctx context.Context,
 	toolCalls []*sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
@@ -1178,7 +1181,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 	return results
 }
 
-func (s *AgentServiceImpl) executeTool(
+func (s *Agent) executeTool(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
@@ -1191,7 +1194,7 @@ func (s *AgentServiceImpl) executeTool(
 // denial and a user can answer prompts (chat TUI or IPC broker), asks them to
 // grant the denied directory and retries. Used by both executeTool() (no
 // approval needed) and processNextTool() (approval already obtained).
-func (s *AgentServiceImpl) executeToolInternal(
+func (s *Agent) executeToolInternal(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
@@ -1243,7 +1246,7 @@ func sandboxGrantDir(path string) string {
 // pipeline, as a synthetic SandboxAccess tool call - to allow dir outside the
 // sandbox. Approve grants it for this session; auto-accept ("always") also
 // persists it to the userspace config.
-func (s *AgentServiceImpl) requestSandboxApproval(
+func (s *Agent) requestSandboxApproval(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
@@ -1282,7 +1285,7 @@ func (s *AgentServiceImpl) requestSandboxApproval(
 // executeToolOnce performs the actual tool execution without approval checks
 //
 //nolint:funlen,gocyclo,cyclop // Tool execution requires comprehensive error handling and status updates
-func (s *AgentServiceImpl) executeToolOnce(
+func (s *Agent) executeToolOnce(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
@@ -1472,7 +1475,7 @@ func (s *AgentServiceImpl) executeToolOnce(
 // when the agent should stop (a plan is awaiting approval). Rejections cannot
 // occur on this route; the state machine's ApprovingToolsState is the only
 // place a rejection ends the turn.
-func (s *AgentServiceImpl) handleToolResults(
+func (s *Agent) handleToolResults(
 	toolResults []convdomain.ConversationEntry,
 	conversation *[]sdk.Message,
 	eventPublisher *eventPublisher,
@@ -1492,7 +1495,7 @@ func (s *AgentServiceImpl) handleToolResults(
 
 // checkPlanApproval returns the plan content and ID when a RequestPlanApproval
 // tool succeeded in the batch.
-func (s *AgentServiceImpl) checkPlanApproval(toolResults []convdomain.ConversationEntry) (planContent, planID string) {
+func (s *Agent) checkPlanApproval(toolResults []convdomain.ConversationEntry) (planContent, planID string) {
 	for _, entry := range toolResults {
 		if entry.ToolExecution == nil || entry.ToolExecution.ToolName != "RequestPlanApproval" || !entry.ToolExecution.Success {
 			continue
@@ -1505,7 +1508,7 @@ func (s *AgentServiceImpl) checkPlanApproval(toolResults []convdomain.Conversati
 }
 
 // addToolResultsToConversation adds tool results and images to the conversation
-func (s *AgentServiceImpl) addToolResultsToConversation(toolResults []convdomain.ConversationEntry, conversation *[]sdk.Message, model string) {
+func (s *Agent) addToolResultsToConversation(toolResults []convdomain.ConversationEntry, conversation *[]sdk.Message, model string) {
 	for _, entry := range toolResults {
 		toolResult := sdk.Message{
 			Role:       sdk.Tool,
@@ -1519,7 +1522,7 @@ func (s *AgentServiceImpl) addToolResultsToConversation(toolResults []convdomain
 }
 
 // createPlanMessage creates and stores a plan message for approval
-func (s *AgentServiceImpl) createPlanMessage(
+func (s *Agent) createPlanMessage(
 	planContent string,
 	planID string,
 	conversation *[]sdk.Message,
@@ -1591,7 +1594,7 @@ func extractPlanID(result *agentdomain.ToolExecutionResult) string {
 
 // addImageMessageFromToolResults adds images from tool results as a separate hidden user message
 // This ensures compatibility with all providers (Anthropic requires tool messages to be text-only)
-func (s *AgentServiceImpl) addImageMessageFromToolResults(toolResults []convdomain.ConversationEntry, conversation *[]sdk.Message, model string) {
+func (s *Agent) addImageMessageFromToolResults(toolResults []convdomain.ConversationEntry, conversation *[]sdk.Message, model string) {
 	imageMessage := s.createImageMessageFromToolResults(toolResults, model)
 	if imageMessage == nil {
 		return
@@ -1612,7 +1615,7 @@ func (s *AgentServiceImpl) addImageMessageFromToolResults(toolResults []convdoma
 // createImageMessageFromToolResults creates a hidden user message containing images from tool results.
 // Non-vision models get text path notes (pointing at ImageDecode) instead of raw
 // image parts, which they reject. Returns nil if no images are present.
-func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []convdomain.ConversationEntry, model string) *sdk.Message {
+func (s *Agent) createImageMessageFromToolResults(toolResults []convdomain.ConversationEntry, model string) *sdk.Message {
 	var allImages []agentdomain.ImageAttachment
 
 	for _, result := range toolResults {
@@ -1667,7 +1670,7 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []convd
 // to the LLM judge instead of a human; it returns (false, judgeReason, nil)
 // so the rejection tool result can carry the judge's reasoning and, unlike a
 // human rejection, not end the turn. Human decisions return an empty reason.
-func (s *AgentServiceImpl) requestToolApproval(
+func (s *Agent) requestToolApproval(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
@@ -1683,7 +1686,7 @@ func (s *AgentServiceImpl) requestToolApproval(
 // human decision. note is optional context rendered above the call (the
 // RequestApproval escalation uses it for the judge's reason and the agent's
 // justification). A closed response channel counts as a rejection.
-func (s *AgentServiceImpl) requestHumanApproval(
+func (s *Agent) requestHumanApproval(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
@@ -1728,7 +1731,7 @@ func (s *AgentServiceImpl) requestHumanApproval(
 // of a human: the auto-with-judge mode forces the judge, or the config
 // selects approval_behaviour "judge". The judge is always reachable, so
 // broker/chat delivery details never downgrade it.
-func (s *AgentServiceImpl) judgeDecides(tc sdk.ChatCompletionMessageToolCall) bool {
+func (s *Agent) judgeDecides(tc sdk.ChatCompletionMessageToolCall) bool {
 	if s.stateManager != nil && s.stateManager.GetAgentMode() == agentdomain.AgentModeAutoWithJudge {
 		return true
 	}
@@ -1737,13 +1740,13 @@ func (s *AgentServiceImpl) judgeDecides(tc sdk.ChatCompletionMessageToolCall) bo
 
 // SetCurrentModelFn wires the session's current-model accessor so the judge
 // follows a model picked at runtime, not only the configured agent.model.
-func (s *AgentServiceImpl) SetCurrentModelFn(fn func() string) {
+func (s *Agent) SetCurrentModelFn(fn func() string) {
 	s.currentModel = fn
 }
 
 // judgeModel resolves who judges: judge.model, else the session's current
 // model, else agent.model.
-func (s *AgentServiceImpl) judgeModel() string {
+func (s *Agent) judgeModel() string {
 	current := ""
 	if s.currentModel != nil {
 		current = s.currentModel()
@@ -1755,7 +1758,7 @@ func (s *AgentServiceImpl) judgeModel() string {
 // the user's latest request, publishes the verdict as a chat event (mirrored
 // on the hidden debug channel), and maps a rejection onto the standard
 // refusal path so the driver sees the judge's reason and adjusts.
-func (s *AgentServiceImpl) requestJudgeApproval(
+func (s *Agent) requestJudgeApproval(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
@@ -1766,9 +1769,9 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 
 	model := s.judgeModel()
 	root, latest := userIntents(s.conversationRepo)
-	verdict, err := s.judge.Judge(ctx, agentdomain.JudgeInput{Model: model, RootIntent: root, Intent: latest, Action: judgeActionInput(tc)})
+	verdict, err := s.judge.Judge(ctx, JudgeInput{Model: model, RootIntent: root, Intent: latest, Action: judgeActionInput(tc)})
 	if err != nil {
-		verdict = agentdomain.JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "judge unavailable: " + err.Error()}
+		verdict = JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "judge unavailable: " + err.Error()}
 	}
 	if !verdict.Approved() {
 		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
@@ -1802,7 +1805,7 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 
 // recordJudgeUsage adds the judge call's tokens to the session totals and the
 // telemetry recorder so the status bar and cost reports include judge spend.
-func (s *AgentServiceImpl) recordJudgeUsage(usage *sdk.CompletionUsage) {
+func (s *Agent) recordJudgeUsage(usage *sdk.CompletionUsage) {
 	if usage == nil {
 		return
 	}
@@ -1819,7 +1822,7 @@ func (s *AgentServiceImpl) recordJudgeUsage(usage *sdk.CompletionUsage) {
 // arguments) and, from the third failure on, stores the key so
 // injectDueReminders can deliver the on_repeated_failure reminder via the
 // reminders pipeline. A success with the same arguments resets the counter.
-func (s *AgentServiceImpl) trackRepeatedFailure(tc sdk.ChatCompletionMessageToolCall, entry convdomain.ConversationEntry) {
+func (s *Agent) trackRepeatedFailure(tc sdk.ChatCompletionMessageToolCall, entry convdomain.ConversationEntry) {
 	key := tc.Function.Name + "\x00" + tc.Function.Arguments
 	s.failedCallsMux.Lock()
 	defer s.failedCallsMux.Unlock()
@@ -1844,7 +1847,7 @@ func (s *AgentServiceImpl) trackRepeatedFailure(tc sdk.ChatCompletionMessageTool
 // takeRepeatedFailure reads and clears the repeated-failure key stored by
 // trackRepeatedFailure, returning the tool name and failure count. Returns ("", 0)
 // when no failure met the threshold. Called by injectDueReminders at post_tool.
-func (s *AgentServiceImpl) takeRepeatedFailure() (string, int) {
+func (s *Agent) takeRepeatedFailure() (string, int) {
 	s.repeatedFailureMux.Lock()
 	defer s.repeatedFailureMux.Unlock()
 	key := s.repeatedFailureKey
@@ -1863,7 +1866,7 @@ func (s *AgentServiceImpl) takeRepeatedFailure() (string, int) {
 	return key, n
 }
 
-func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) convdomain.ConversationEntry {
+func (s *Agent) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) convdomain.ConversationEntry {
 	return convdomain.ConversationEntry{
 		Message: sdk.Message{
 			Role:       sdk.Tool,
@@ -1881,7 +1884,7 @@ func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall
 	}
 }
 
-func (s *AgentServiceImpl) batchSaveToolResults(entries []convdomain.ConversationEntry) error {
+func (s *Agent) batchSaveToolResults(entries []convdomain.ConversationEntry) error {
 	savedCount := 0
 	for _, entry := range entries {
 		if err := s.conversationRepo.AddMessage(entry); err != nil {

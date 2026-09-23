@@ -5,19 +5,19 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 func TestListSubagentsTool_Definition(t *testing.T) {
-	tool := NewListSubagentsTool(config.DefaultConfig(), utils.NewSubagentTracker())
+	tool := NewListSubagentsTool(config.DefaultConfig(), schedinfra.NewSubagentTracker())
 	if def := tool.Definition(); def.Function.Name != "ListSubagents" {
 		t.Fatalf("Definition name = %q, want ListSubagents", def.Function.Name)
 	}
 }
 
 func TestListSubagentsTool_Empty(t *testing.T) {
-	tool := NewListSubagentsTool(config.DefaultConfig(), utils.NewSubagentTracker())
+	tool := NewListSubagentsTool(config.DefaultConfig(), schedinfra.NewSubagentTracker())
 	res, err := tool.Execute(context.Background(), map[string]any{})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -29,7 +29,7 @@ func TestListSubagentsTool_Empty(t *testing.T) {
 }
 
 func TestListSubagentsTool_ReportsLivePaneStatus(t *testing.T) {
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "s1", Label: "worker", Mode: scheddomain.SubagentModeInteractive,
 		SessionID: "sess", PaneID: "%3", Status: scheddomain.SubagentRunning,

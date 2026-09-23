@@ -14,7 +14,7 @@ import (
 func TestBackupManager_CreateBackup(t *testing.T) {
 	tempDir := t.TempDir()
 	backupDir := filepath.Join(tempDir, "backups")
-	backupMgr := NewBackupManager(backupDir)
+	backupMgr := NewBackup(backupDir)
 
 	testFile := filepath.Join(tempDir, "test.txt")
 	testContent := "test content"
@@ -71,7 +71,7 @@ func TestBackupManager_CreateBackup(t *testing.T) {
 
 func TestBackupManager_RestoreBackup(t *testing.T) {
 	tempDir := t.TempDir()
-	backupMgr := NewBackupManager(tempDir)
+	backupMgr := NewBackup(tempDir)
 
 	originalFile := filepath.Join(tempDir, "original.txt")
 	originalContent := "original content"
@@ -138,7 +138,7 @@ func TestBackupManager_RestoreBackup(t *testing.T) {
 func TestBackupManager_CleanupBackup(t *testing.T) {
 	tempDir := t.TempDir()
 	backupDir := filepath.Join(tempDir, "backups")
-	backupMgr := NewBackupManager(backupDir)
+	backupMgr := NewBackup(backupDir)
 
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
 		t.Fatalf("Failed to create backup directory: %v", err)

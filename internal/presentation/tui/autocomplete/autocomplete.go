@@ -51,8 +51,8 @@ type ShortcutRegistry interface {
 	GetAll() []shortcuts.Shortcut
 }
 
-// AutocompleteImpl implements inline autocomplete functionality
-type AutocompleteImpl struct {
+// Autocomplete implements inline autocomplete functionality
+type Autocomplete struct {
 	suggestions          []ShortcutOption
 	filtered             []ShortcutOption
 	selected             int
@@ -64,7 +64,7 @@ type AutocompleteImpl struct {
 	maxVisible           int
 	shortcutRegistry     ShortcutRegistry
 	skillsService        agentdomain.SkillsService
-	stateManager         agentdomain.AgentModeManager
+	stateManager         agentdomain.AgentModeState
 	lastAgentMode        agentdomain.AgentMode
 	toolService          agentdomain.ToolService
 	modelService         convdomain.ModelService
@@ -79,8 +79,8 @@ type AutocompleteImpl struct {
 }
 
 // NewAutocomplete creates a new autocomplete component
-func NewAutocomplete(theme tui.Theme, shortcutRegistry ShortcutRegistry) *AutocompleteImpl {
-	return &AutocompleteImpl{
+func NewAutocomplete(theme tui.Theme, shortcutRegistry ShortcutRegistry) *Autocomplete {
+	return &Autocomplete{
 		suggestions:      []ShortcutOption{},
 		filtered:         []ShortcutOption{},
 		selected:         0,
@@ -95,46 +95,46 @@ func NewAutocomplete(theme tui.Theme, shortcutRegistry ShortcutRegistry) *Autoco
 }
 
 // SetToolService sets the tool service for tool autocomplete
-func (a *AutocompleteImpl) SetToolService(toolService agentdomain.ToolService) {
+func (a *Autocomplete) SetToolService(toolService agentdomain.ToolService) {
 	a.toolService = toolService
 }
 
 // SetSkillsService sets the skills service so installed skills appear in the
 // slash-command autocomplete alongside shortcuts.
-func (a *AutocompleteImpl) SetSkillsService(skillsService agentdomain.SkillsService) {
+func (a *Autocomplete) SetSkillsService(skillsService agentdomain.SkillsService) {
 	a.skillsService = skillsService
 }
 
 // SetStateManager sets the state manager for agent mode filtering
-func (a *AutocompleteImpl) SetStateManager(stateManager agentdomain.AgentModeManager) {
+func (a *Autocomplete) SetStateManager(stateManager agentdomain.AgentModeState) {
 	a.stateManager = stateManager
 }
 
 // SetModelService sets the model service for model autocomplete
-func (a *AutocompleteImpl) SetModelService(modelService convdomain.ModelService) {
+func (a *Autocomplete) SetModelService(modelService convdomain.ModelService) {
 	a.modelService = modelService
 }
 
 // SetPricingService sets the pricing service for model pricing display
-func (a *AutocompleteImpl) SetPricingService(pricingService convdomain.PricingService) {
+func (a *Autocomplete) SetPricingService(pricingService convdomain.PricingService) {
 	a.pricingService = pricingService
 }
 
 // SetGitHubIssueService sets the GitHub issue lookup used by the "#"
 // autocomplete trigger. Safe to call with nil; the trigger then shows nothing.
-func (a *AutocompleteImpl) SetGitHubIssueService(s agentdomain.GitHubIssueService) {
+func (a *Autocomplete) SetGitHubIssueService(s agentdomain.GitHubIssueService) {
 	a.githubIssueService = s
 }
 
 // SetFileService sets the project file lister used by the "@" autocomplete
 // trigger. Safe to call with nil; the trigger then shows nothing.
-func (a *AutocompleteImpl) SetFileService(s agentdomain.FileService) {
+func (a *Autocomplete) SetFileService(s agentdomain.FileService) {
 	a.fileService = s
 }
 
 // loadFiles populates the suggestion list with "@<path>" entries for every
 // project file the file service accepts for @-expansion.
-func (a *AutocompleteImpl) loadFiles() {
+func (a *Autocomplete) loadFiles() {
 	a.suggestions = []ShortcutOption{}
 	if a.fileService == nil {
 		return
@@ -152,7 +152,7 @@ func (a *AutocompleteImpl) loadFiles() {
 // loadGitHubIssues populates the suggestion list with open issues from the
 // current repo. Bounded to a 2-second shell-out timeout so the Bubble Tea
 // Update goroutine doesn't stall on a slow gh call.
-func (a *AutocompleteImpl) loadGitHubIssues() {
+func (a *Autocomplete) loadGitHubIssues() {
 	a.suggestions = []ShortcutOption{}
 	if a.githubIssueService == nil || !a.githubIssueService.IsAvailable() {
 		return
@@ -174,7 +174,7 @@ func (a *AutocompleteImpl) loadGitHubIssues() {
 }
 
 // loadModels loads available models from the model service
-func (a *AutocompleteImpl) loadModels() {
+func (a *Autocomplete) loadModels() {
 	if a.modelService == nil {
 		return
 	}
@@ -201,7 +201,7 @@ func (a *AutocompleteImpl) loadModels() {
 }
 
 // loadShortcuts loads shortcuts from the registry
-func (a *AutocompleteImpl) loadShortcuts() {
+func (a *Autocomplete) loadShortcuts() {
 	if a.shortcutRegistry == nil {
 		return
 	}
@@ -228,7 +228,7 @@ func (a *AutocompleteImpl) loadShortcuts() {
 // name already matches a registered shortcut is skipped to avoid duplicates.
 // Plugin skills are displayed as "/<pluginName>:<skillName>" so the user can
 // reference them unambiguously.
-func (a *AutocompleteImpl) appendSkills(seen map[string]bool) {
+func (a *Autocomplete) appendSkills(seen map[string]bool) {
 	if a.skillsService == nil {
 		return
 	}
@@ -254,7 +254,7 @@ func (a *AutocompleteImpl) appendSkills(seen map[string]bool) {
 // agent capabilities that can be referenced anywhere in a sentence.
 // Plugin skills are displayed as "/<pluginName>:<skillName>" so the user can
 // reference them unambiguously.
-func (a *AutocompleteImpl) loadSkillsOnly() {
+func (a *Autocomplete) loadSkillsOnly() {
 	a.suggestions = []ShortcutOption{}
 	if a.skillsService == nil {
 		return
@@ -276,7 +276,7 @@ type SubcommandProvider interface {
 }
 
 // loadSubcommands loads subcommands for a specific shortcut
-func (a *AutocompleteImpl) loadSubcommands(shortcutName string) {
+func (a *Autocomplete) loadSubcommands(shortcutName string) {
 	if a.shortcutRegistry == nil {
 		return
 	}
@@ -302,7 +302,7 @@ func (a *AutocompleteImpl) loadSubcommands(shortcutName string) {
 }
 
 // loadTools loads tools from the tool service with their required parameters
-func (a *AutocompleteImpl) loadTools() {
+func (a *Autocomplete) loadTools() {
 	if a.toolService == nil {
 		return
 	}
@@ -334,7 +334,7 @@ func (a *AutocompleteImpl) loadTools() {
 }
 
 // generateToolTemplate creates a complete tool template with required arguments
-func (a *AutocompleteImpl) generateToolTemplate(toolDef sdk.ChatCompletionTool) string {
+func (a *Autocomplete) generateToolTemplate(toolDef sdk.ChatCompletionTool) string {
 	return "!!" + toolDef.Function.Name + "(" + a.generateToolArguments(toolDef) + ")"
 }
 
@@ -342,7 +342,7 @@ func (a *AutocompleteImpl) generateToolTemplate(toolDef sdk.ChatCompletionTool) 
 // inside the parentheses. It prefers top-level "required" properties, then
 // falls back to all top-level properties so one-of / all-optional schemas
 // (like the Agent tool) still surface their meaningful arguments.
-func (a *AutocompleteImpl) generateToolArguments(toolDef sdk.ChatCompletionTool) string {
+func (a *Autocomplete) generateToolArguments(toolDef sdk.ChatCompletionTool) string {
 	if toolDef.Function.Parameters == nil {
 		return ""
 	}
@@ -354,7 +354,7 @@ func (a *AutocompleteImpl) generateToolArguments(toolDef sdk.ChatCompletionTool)
 }
 
 // extractRequiredArguments extracts required arguments from parameters
-func (a *AutocompleteImpl) extractRequiredArguments(params map[string]any) []string {
+func (a *Autocomplete) extractRequiredArguments(params map[string]any) []string {
 	var requiredArgs []string
 
 	var properties map[string]any
@@ -379,7 +379,7 @@ func (a *AutocompleteImpl) extractRequiredArguments(params map[string]any) []str
 // has no top-level "required" array (one-of / all-optional schemas like the
 // Agent tool), so the skeleton still shows the tool's meaningful arguments.
 // Returns nil when there are no properties.
-func (a *AutocompleteImpl) extractAllProperties(params map[string]any) []string {
+func (a *Autocomplete) extractAllProperties(params map[string]any) []string {
 	properties, ok := params["properties"].(map[string]any)
 	if !ok || len(properties) == 0 {
 		return nil
@@ -400,7 +400,7 @@ func (a *AutocompleteImpl) extractAllProperties(params map[string]any) []string 
 // "name (type, required|optional)" from the tool's top-level schema, so the
 // dropdown description surfaces what to pass even when the schema has no
 // top-level "required". Returns "" when the tool has no parameters.
-func (a *AutocompleteImpl) generateParameterHints(toolDef sdk.ChatCompletionTool) string {
+func (a *Autocomplete) generateParameterHints(toolDef sdk.ChatCompletionTool) string {
 	if toolDef.Function.Parameters == nil {
 		return ""
 	}
@@ -448,7 +448,7 @@ func (a *AutocompleteImpl) generateParameterHints(toolDef sdk.ChatCompletionTool
 }
 
 // processAnySlice processes a slice of any type for required arguments
-func (a *AutocompleteImpl) processAnySlice(required []any, properties map[string]any) []string {
+func (a *Autocomplete) processAnySlice(required []any, properties map[string]any) []string {
 	var args []string
 	for _, req := range required {
 		if reqStr, ok := req.(string); ok {
@@ -462,7 +462,7 @@ func (a *AutocompleteImpl) processAnySlice(required []any, properties map[string
 }
 
 // processStringSlice processes a slice of strings for required arguments
-func (a *AutocompleteImpl) processStringSlice(required []string, properties map[string]any) []string {
+func (a *Autocomplete) processStringSlice(required []string, properties map[string]any) []string {
 	var args []string
 	for _, req := range required {
 		argTemplate := a.generateArgumentTemplate(req, properties)
@@ -474,7 +474,7 @@ func (a *AutocompleteImpl) processStringSlice(required []string, properties map[
 }
 
 // generateArgumentTemplate creates the appropriate template for a parameter based on its type
-func (a *AutocompleteImpl) generateArgumentTemplate(paramName string, properties map[string]any) string {
+func (a *Autocomplete) generateArgumentTemplate(paramName string, properties map[string]any) string {
 	if properties == nil {
 		return paramName + "=\"\""
 	}
@@ -554,7 +554,7 @@ func findSigilTriggerStart(text string, cursorPos int, sigil byte) int {
 // (re)loads the right suggestion set if the mode changed, applies the given
 // filter, and updates visibility/selection. Reads everything else from the
 // receiver, so the per-call args stay small.
-func (a *AutocompleteImpl) applyMidTextMode(
+func (a *Autocomplete) applyMidTextMode(
 	inputText string, cursorPos, triggerStart int,
 	mode string, loader, filter func(),
 ) {
@@ -574,7 +574,7 @@ func (a *AutocompleteImpl) applyMidTextMode(
 }
 
 // Update handles autocomplete logic
-func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
+func (a *Autocomplete) Update(inputText string, cursorPos int) {
 	if triggerStart := findSigilTriggerStart(inputText, cursorPos, '@'); triggerStart >= 0 {
 		a.applyMidTextMode(inputText, cursorPos, triggerStart, "files", a.loadFiles, a.filterFileSuggestions)
 		return
@@ -634,7 +634,7 @@ func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 }
 
 // handleSubcommandCompletion handles autocomplete for subcommands
-func (a *AutocompleteImpl) handleSubcommandCompletion(parts []string) {
+func (a *Autocomplete) handleSubcommandCompletion(parts []string) {
 	shortcutName := strings.TrimPrefix(parts[0], "/")
 	subcommandMode := "subcommand:" + shortcutName
 
@@ -653,7 +653,7 @@ func (a *AutocompleteImpl) handleSubcommandCompletion(parts []string) {
 }
 
 // handleShortcutCompletion handles autocomplete for shortcuts
-func (a *AutocompleteImpl) handleShortcutCompletion(inputText string, cursorPos int) {
+func (a *Autocomplete) handleShortcutCompletion(inputText string, cursorPos int) {
 	if len(a.suggestions) == 0 || a.completionMode != "shortcuts" {
 		a.loadShortcuts()
 		a.completionMode = "shortcuts"
@@ -671,7 +671,7 @@ func (a *AutocompleteImpl) handleShortcutCompletion(inputText string, cursorPos 
 // digits we prefix-match the issue number (so "#12" keeps #12, #120, #123...);
 // otherwise we substring-match the title and the number, case-insensitively
 // (so "#auth" finds "Add auth flow" and "#api" matches issue numbers too).
-func (a *AutocompleteImpl) filterIssueSuggestions() {
+func (a *Autocomplete) filterIssueSuggestions() {
 	a.filtered = []ShortcutOption{}
 	if a.query == "" {
 		a.filtered = a.suggestions
@@ -701,7 +701,7 @@ func (a *AutocompleteImpl) filterIssueSuggestions() {
 
 // filterFileSuggestions fuzzy-matches the query against "@<path>" entries,
 // best score first, recording matched offsets for highlighting.
-func (a *AutocompleteImpl) filterFileSuggestions() {
+func (a *Autocomplete) filterFileSuggestions() {
 	if a.query == "" {
 		a.filtered = a.suggestions
 		return
@@ -718,7 +718,7 @@ func (a *AutocompleteImpl) filterFileSuggestions() {
 }
 
 // filterSuggestions filters commands based on current query
-func (a *AutocompleteImpl) filterSuggestions() {
+func (a *Autocomplete) filterSuggestions() {
 	a.filtered = []ShortcutOption{}
 
 	if a.query == "" {
@@ -744,7 +744,7 @@ func (a *AutocompleteImpl) filterSuggestions() {
 }
 
 // HandleKey processes key input for autocomplete navigation
-func (a *AutocompleteImpl) HandleKey(k tea.KeyPressMsg) (bool, string) {
+func (a *Autocomplete) HandleKey(k tea.KeyPressMsg) (bool, string) {
 	if !a.visible || len(a.filtered) == 0 {
 		return false, ""
 	}
@@ -787,7 +787,7 @@ func (a *AutocompleteImpl) HandleKey(k tea.KeyPressMsg) (bool, string) {
 }
 
 // IsVisible returns whether autocomplete is currently visible
-func (a *AutocompleteImpl) IsVisible() bool {
+func (a *Autocomplete) IsVisible() bool {
 	return a.visible
 }
 
@@ -797,7 +797,7 @@ func (a *AutocompleteImpl) IsVisible() bool {
 // so the user doesn't end up with a double space when editing mid-sentence.
 // Returns the new input and the caret position immediately after the inserted
 // token (past the separating space).
-func (a *AutocompleteImpl) spliceMidText(selected, prefix, suffix string) (string, int) {
+func (a *Autocomplete) spliceMidText(selected, prefix, suffix string) (string, int) {
 	tail := suffix
 	addedSpace := false
 	if tail == "" || (tail[0] != ' ' && tail[0] != '\t' && tail[0] != '\n') {
@@ -814,7 +814,7 @@ func (a *AutocompleteImpl) spliceMidText(selected, prefix, suffix string) (strin
 // handleSelection handles the selected autocomplete item. drill controls
 // whether selecting "/model" opens the inline model list (Tab) or just
 // completes so the shortcut itself runs (Enter).
-func (a *AutocompleteImpl) handleSelection(drill bool) (bool, string) {
+func (a *Autocomplete) handleSelection(drill bool) (bool, string) {
 	selected := a.filtered[a.selected].Shortcut
 	usage := a.filtered[a.selected].Usage
 	a.lastCompletionCursor = 0
@@ -894,7 +894,7 @@ func (a *AutocompleteImpl) handleSelection(drill bool) (bool, string) {
 }
 
 // hasSubcommands checks if a shortcut has subcommands defined
-func (a *AutocompleteImpl) hasSubcommands(shortcutName string) bool {
+func (a *Autocomplete) hasSubcommands(shortcutName string) bool {
 	if a.shortcutRegistry == nil {
 		return false
 	}
@@ -919,17 +919,17 @@ func (a *AutocompleteImpl) hasSubcommands(shortcutName string) bool {
 }
 
 // SetWidth sets the width for rendering
-func (a *AutocompleteImpl) SetWidth(width int) {
+func (a *Autocomplete) SetWidth(width int) {
 	a.width = width
 }
 
 // SetHeight sets the height for rendering
-func (a *AutocompleteImpl) SetHeight(height int) {
+func (a *Autocomplete) SetHeight(height int) {
 	a.height = height
 }
 
 // Render returns the autocomplete suggestions as a string
-func (a *AutocompleteImpl) Render() string {
+func (a *Autocomplete) Render() string {
 	if !a.visible || len(a.filtered) == 0 {
 		return ""
 	}
@@ -946,7 +946,7 @@ func (a *AutocompleteImpl) Render() string {
 }
 
 // calculateVisibleRange returns the start and end indices for visible items
-func (a *AutocompleteImpl) calculateVisibleRange() (int, int) {
+func (a *Autocomplete) calculateVisibleRange() (int, int) {
 	start := 0
 	end := len(a.filtered)
 
@@ -965,7 +965,7 @@ func (a *AutocompleteImpl) calculateVisibleRange() (int, int) {
 }
 
 // calculateMaxShortcutWidth calculates the maximum width for shortcut display
-func (a *AutocompleteImpl) calculateMaxShortcutWidth() int {
+func (a *Autocomplete) calculateMaxShortcutWidth() int {
 	if a.completionMode == "files" {
 		return max(10, a.width-4) // paths have no description column; use the full row
 	}
@@ -996,7 +996,7 @@ func (a *AutocompleteImpl) calculateMaxShortcutWidth() int {
 }
 
 // calculateDescriptionWidth calculates the width for description display
-func (a *AutocompleteImpl) calculateDescriptionWidth(maxShortcutWidth int) int {
+func (a *Autocomplete) calculateDescriptionWidth(maxShortcutWidth int) int {
 	const reservedSpace = 7
 	descWidth := a.width - maxShortcutWidth - reservedSpace
 	if descWidth < 20 {
@@ -1006,7 +1006,7 @@ func (a *AutocompleteImpl) calculateDescriptionWidth(maxShortcutWidth int) int {
 }
 
 // getShortcutDisplayText returns the display text for a shortcut
-func (a *AutocompleteImpl) getShortcutDisplayText(cmd ShortcutOption) string {
+func (a *Autocomplete) getShortcutDisplayText(cmd ShortcutOption) string {
 	if cmd.Usage != "" && cmd.Usage != cmd.Shortcut {
 		return cmd.Usage
 	}
@@ -1014,7 +1014,7 @@ func (a *AutocompleteImpl) getShortcutDisplayText(cmd ShortcutOption) string {
 }
 
 // renderItems renders all visible autocomplete items
-func (a *AutocompleteImpl) renderItems(b *strings.Builder, start, end, maxShortcutWidth, descWidth int) {
+func (a *Autocomplete) renderItems(b *strings.Builder, start, end, maxShortcutWidth, descWidth int) {
 	const leftPadding = "  "
 
 	for i := start; i < end; i++ {
@@ -1043,7 +1043,7 @@ func (a *AutocompleteImpl) renderItems(b *strings.Builder, start, end, maxShortc
 // renderItem renders a single autocomplete item. catalog entries (skills that
 // live in the remote catalog and are not installed yet) are painted in the
 // status color so they read as "available, but will be downloaded first".
-func (a *AutocompleteImpl) renderItem(b *strings.Builder, selected bool, leftPadding, marker, paddedShortcut, paddedDescription string, catalog bool) {
+func (a *Autocomplete) renderItem(b *strings.Builder, selected bool, leftPadding, marker, paddedShortcut, paddedDescription string, catalog bool) {
 	nameColor := ""
 	if catalog {
 		nameColor = a.theme.GetStatusColor()
@@ -1098,7 +1098,7 @@ func highlightMatches(text, padded string, matches []int) string {
 }
 
 // renderHelpText renders the help text at the bottom
-func (a *AutocompleteImpl) renderHelpText(b *strings.Builder) {
+func (a *Autocomplete) renderHelpText(b *strings.Builder) {
 	const leftPadding = "  "
 	helpColor := a.theme.GetDimColor()
 	if len(a.filtered) > 0 {
@@ -1110,12 +1110,12 @@ func (a *AutocompleteImpl) renderHelpText(b *strings.Builder) {
 // GetCompletionCursorPos returns the explicit caret position requested by the
 // most recent handleSelection call, or 0 to mean "use the caller's default
 // heuristic". Mirrors AutocompleteCompleteEvent.CursorPos.
-func (a *AutocompleteImpl) GetCompletionCursorPos() int {
+func (a *Autocomplete) GetCompletionCursorPos() int {
 	return a.lastCompletionCursor
 }
 
 // GetSelectedShortcut returns the currently selected shortcut
-func (a *AutocompleteImpl) GetSelectedShortcut() string {
+func (a *Autocomplete) GetSelectedShortcut() string {
 	if a.visible && a.selected < len(a.filtered) {
 		return a.filtered[a.selected].Shortcut
 	}
@@ -1123,23 +1123,23 @@ func (a *AutocompleteImpl) GetSelectedShortcut() string {
 }
 
 // Hide hides the autocomplete
-func (a *AutocompleteImpl) Hide() {
+func (a *Autocomplete) Hide() {
 	a.visible = false
 }
 
 // GetUsageHint returns the current usage hint for ghost text display
-func (a *AutocompleteImpl) GetUsageHint() string {
+func (a *Autocomplete) GetUsageHint() string {
 	return a.usageHint
 }
 
 // ClearUsageHint clears the current usage hint
-func (a *AutocompleteImpl) ClearUsageHint() {
+func (a *Autocomplete) ClearUsageHint() {
 	a.usageHint = ""
 }
 
 // extractUsageHint extracts the usage pattern from a description
 // Example: "Remove an A2A agent (usage: <name>)" -> "<name>"
-func (a *AutocompleteImpl) extractUsageHint(description string) string {
+func (a *Autocomplete) extractUsageHint(description string) string {
 	// Look for "(usage: ...)" pattern
 	usageStart := strings.Index(description, "(usage:")
 	if usageStart == -1 {
@@ -1160,11 +1160,11 @@ func (a *AutocompleteImpl) extractUsageHint(description string) string {
 
 // RefreshToolsList forces a reload of the tools list
 // This should be called when MCP servers connect or disconnect
-func (a *AutocompleteImpl) RefreshToolsList() {
+func (a *Autocomplete) RefreshToolsList() {
 	if len(a.suggestions) > 0 && strings.HasPrefix(a.suggestions[0].Shortcut, "!!") {
 		a.suggestions = []ShortcutOption{}
 	}
 }
 
-// Compile-time check to ensure AutocompleteImpl implements the interface
-var _ tui.AutocompleteComponent = (*AutocompleteImpl)(nil)
+// Compile-time check to ensure Autocomplete implements the interface
+var _ tui.AutocompleteComponent = (*Autocomplete)(nil)

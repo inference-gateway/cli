@@ -19,17 +19,17 @@ type ChunkSession struct {
 	tempPath       string
 }
 
-// StreamingChunkManager implements ChunkManager with safe streaming
-type StreamingChunkManager struct {
+// StreamingChunkBuffer implements ChunkBuffer with safe streaming
+type StreamingChunkBuffer struct {
 	sessions map[string]*ChunkSession
 	mutex    sync.RWMutex
 	tempDir  string
 	writer   FileWriter
 }
 
-// NewStreamingChunkManager creates a new StreamingChunkManager
-func NewStreamingChunkManager(tempDir string, writer FileWriter) ChunkManager {
-	return &StreamingChunkManager{
+// NewStreamingChunkBuffer creates a new StreamingChunkBuffer
+func NewStreamingChunkBuffer(tempDir string, writer FileWriter) ChunkBuffer {
+	return &StreamingChunkBuffer{
 		sessions: make(map[string]*ChunkSession),
 		tempDir:  tempDir,
 		writer:   writer,
@@ -37,7 +37,7 @@ func NewStreamingChunkManager(tempDir string, writer FileWriter) ChunkManager {
 }
 
 // WriteChunk writes a chunk to the session's temp file
-func (cm *StreamingChunkManager) WriteChunk(ctx context.Context, req ChunkWriteRequest) error {
+func (cm *StreamingChunkBuffer) WriteChunk(ctx context.Context, req ChunkWriteRequest) error {
 	cm.mutex.Lock()
 	session, exists := cm.sessions[req.SessionID]
 	if !exists {
@@ -76,7 +76,7 @@ func (cm *StreamingChunkManager) WriteChunk(ctx context.Context, req ChunkWriteR
 }
 
 // FinalizeChunks completes a chunked write session and moves to target location
-func (cm *StreamingChunkManager) FinalizeChunks(ctx context.Context, sessionID string, targetPath string) (*WriteResult, error) {
+func (cm *StreamingChunkBuffer) FinalizeChunks(ctx context.Context, sessionID string, targetPath string) (*WriteResult, error) {
 	cm.mutex.Lock()
 	session, exists := cm.sessions[sessionID]
 	if !exists {
@@ -135,7 +135,7 @@ func (cm *StreamingChunkManager) FinalizeChunks(ctx context.Context, sessionID s
 }
 
 // CleanupSession removes an active session and cleans up resources
-func (cm *StreamingChunkManager) CleanupSession(sessionID string) error {
+func (cm *StreamingChunkBuffer) CleanupSession(sessionID string) error {
 	cm.mutex.Lock()
 	session, exists := cm.sessions[sessionID]
 	if !exists {
@@ -160,7 +160,7 @@ func (cm *StreamingChunkManager) CleanupSession(sessionID string) error {
 }
 
 // GetSessionInfo returns information about an active session
-func (cm *StreamingChunkManager) GetSessionInfo(sessionID string) (*ChunkSessionInfo, error) {
+func (cm *StreamingChunkBuffer) GetSessionInfo(sessionID string) (*ChunkSessionInfo, error) {
 	cm.mutex.RLock()
 	session, exists := cm.sessions[sessionID]
 	cm.mutex.RUnlock()
@@ -180,7 +180,7 @@ func (cm *StreamingChunkManager) GetSessionInfo(sessionID string) (*ChunkSession
 }
 
 // createSession creates a new chunk session
-func (cm *StreamingChunkManager) createSession(sessionID string) (*ChunkSession, error) {
+func (cm *StreamingChunkBuffer) createSession(sessionID string) (*ChunkSession, error) {
 	if err := os.MkdirAll(cm.tempDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}

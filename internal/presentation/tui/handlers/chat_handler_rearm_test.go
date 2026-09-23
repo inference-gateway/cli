@@ -26,7 +26,7 @@ func (e unknownEvent) GetTimestamp() time.Time { return time.Time{} }
 // from anywhere else, or from a channel that is no longer the session's, never
 // add a reader.
 func TestHandle_RearmsChatListener(t *testing.T) {
-	sm := statemanager.NewStateManager(false)
+	sm := statemanager.NewStore(false)
 	events := make(chan agentdomain.ChatEvent, 1)
 	if err := sm.StartChatSession("req-1", "test/model", events); err != nil {
 		t.Fatalf("StartChatSession: %v", err)
@@ -68,7 +68,7 @@ func TestHandle_RearmsChatListener(t *testing.T) {
 func TestHandle_ChatStreamOpened(t *testing.T) {
 	for _, bridged := range []bool{false, true} {
 		t.Run(fmt.Sprintf("bridged=%v", bridged), func(t *testing.T) {
-			sm := statemanager.NewStateManager(false)
+			sm := statemanager.NewStore(false)
 			sm.SetChatPending()
 			if bridged {
 				sm.SetEventBridge(conversation.NewEventBridge())
@@ -93,7 +93,7 @@ func TestHandle_ChatStreamOpened(t *testing.T) {
 
 	for _, replaced := range []bool{false, true} {
 		t.Run(fmt.Sprintf("cancelled, replaced=%v", replaced), func(t *testing.T) {
-			sm := statemanager.NewStateManager(false)
+			sm := statemanager.NewStore(false)
 			sm.SetChatPending()
 			pending := sm.GetChatSession()
 			sm.EndChatSession()
@@ -123,7 +123,7 @@ func TestHandle_ChatStreamOpened(t *testing.T) {
 func TestHandle_ChatCompletionRequested(t *testing.T) {
 	for _, cancelled := range []bool{false, true} {
 		t.Run(fmt.Sprintf("cancelled=%v", cancelled), func(t *testing.T) {
-			sm := statemanager.NewStateManager(false)
+			sm := statemanager.NewStore(false)
 			sm.SetChatPending()
 			request := tui.ChatCompletionRequestedEvent{Session: sm.GetChatSession()}
 			if cancelled {

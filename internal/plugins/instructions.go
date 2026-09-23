@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -18,24 +19,6 @@ type Instruction struct {
 	Content    string
 	Truncated  bool
 	Marker     string
-}
-
-// CapInstructions bounds instruction-file content at maxLines lines, then at
-// maxChars characters. Returns the capped content and a truncation marker
-// ("" when nothing was cut).
-func CapInstructions(content string, maxLines, maxChars int) (string, string) {
-	marker := ""
-	if maxLines > 0 {
-		if lines := strings.SplitAfterN(content, "\n", maxLines+1); len(lines) > maxLines {
-			content = strings.TrimRight(strings.Join(lines[:maxLines], ""), "\n")
-			marker = fmt.Sprintf("[truncated at %d lines]", maxLines)
-		}
-	}
-	if maxChars > 0 && len(content) > maxChars {
-		content = content[:maxChars]
-		marker = fmt.Sprintf("[truncated at %d chars]", maxChars)
-	}
-	return content, marker
 }
 
 // Instructions reads each enabled plugin's AGENTS.md in registry order,
@@ -72,7 +55,7 @@ func Instructions(cfg *config.Config) []Instruction {
 		if content == "" {
 			continue
 		}
-		content, marker := CapInstructions(content, maxLines, maxChars)
+		content, marker := formatting.CapInstructions(content, maxLines, maxChars)
 		out = append(out, Instruction{PluginName: p.Name, Content: content, Truncated: marker != "", Marker: marker})
 	}
 	return out

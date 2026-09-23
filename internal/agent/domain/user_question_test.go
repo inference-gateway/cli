@@ -16,15 +16,9 @@ func TestWithUserQuestionBroker(t *testing.T) {
 	if GetUserQuestionBroker(ctx) != nil {
 		t.Fatal("expected nil broker on empty context")
 	}
-	if HasUserQuestionBroker(ctx) {
-		t.Fatal("expected HasUserQuestionBroker=false on empty context")
-	}
 
 	ctx = WithUserQuestionBroker(ctx, fakeBroker{})
 	if GetUserQuestionBroker(ctx) == nil {
 		t.Fatal("expected a broker after WithUserQuestionBroker")
-	}
-	if !HasUserQuestionBroker(ctx) {
-		t.Fatal("expected HasUserQuestionBroker=true")
 	}
 }

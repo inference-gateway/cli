@@ -356,10 +356,8 @@ func (c *CustomShortcut) resolveCommandConfig(subcommand *SubcommandConfig) comm
 // buildCommandArgs builds the final command arguments
 func (c *CustomShortcut) buildCommandArgs(cfg commandConfig, args []string, ctx context.Context) []string {
 	if c.config.PassSessionID {
-		if sessionID := ctx.Value(agentdomain.SessionIDKey); sessionID != nil {
-			if sessionIDStr, ok := sessionID.(string); ok {
-				args = append(args, sessionIDStr)
-			}
+		if sessionID := agentdomain.GetSessionID(ctx); sessionID != "" {
+			args = append(args, sessionID)
 		}
 	}
 

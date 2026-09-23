@@ -29,7 +29,7 @@ type FileTranscriber struct {
 func NewFileTranscriber(cfg config.SpeechToTextConfig) *FileTranscriber {
 	converter := NewConverter(cfg)
 	if cfg.AutoDownload {
-		converter.SetBinaryEnsurer(NewBinaryManager(cfg).EnsureBinary)
+		converter.SetBinaryEnsurer(NewBinaryStore(cfg).EnsureBinary)
 	}
 	return &FileTranscriber{
 		converter:   converter,

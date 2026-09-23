@@ -222,12 +222,12 @@ func TestHandleHistoryDownPrefersAutocomplete(t *testing.T) {
 
 type textareaEditTestCtx struct {
 	KeyHandlerContext
-	state        *statemanager.StateManager
+	state        *statemanager.Store
 	input        tui.InputComponent
 	autocomplete tui.AutocompleteComponent
 }
 
-func (c *textareaEditTestCtx) GetStateManager() StateManager              { return c.state }
+func (c *textareaEditTestCtx) GetStateStore() StateStore                  { return c.state }
 func (c *textareaEditTestCtx) GetInputView() tui.InputComponent           { return c.input }
 func (c *textareaEditTestCtx) GetAutocomplete() tui.AutocompleteComponent { return c.autocomplete }
 func (c *textareaEditTestCtx) GetConfig() *config.Config                  { return nil }
@@ -240,7 +240,7 @@ func (c *textareaEditTestCtx) GetImageService() agentdomain.ImageService { retur
 func newTextareaEditTestCtx(t *testing.T) (*textareaEditTestCtx, *components.InputView) {
 	t.Helper()
 
-	state := statemanager.NewStateManager(false)
+	state := statemanager.NewStore(false)
 	if err := state.TransitionToView(tui.ViewStateChat); err != nil {
 		t.Fatalf("transitioning test state to chat: %v", err)
 	}
@@ -256,7 +256,7 @@ func newTextareaEditTestCtx(t *testing.T) (*textareaEditTestCtx, *components.Inp
 
 func TestTextareaKeyFlowPrintableIsInsertedOnce(t *testing.T) {
 	ctx, input := newTextareaEditTestCtx(t)
-	manager := NewKeyBindingManager(ctx, nil)
+	manager := NewDispatcher(ctx, nil)
 	keyMsg := tea.KeyPressMsg{Text: "a"}
 
 	if manager.ProcessKey(keyMsg) == nil {
@@ -278,7 +278,7 @@ func TestTextareaKeyFlowPrintableIsInsertedOnce(t *testing.T) {
 func TestTextareaKeyFlowAltEscIsNotTyped(t *testing.T) {
 	ctx, input := newTextareaEditTestCtx(t)
 	keyMsg := tea.KeyPressMsg{Code: tea.KeyEscape, Mod: tea.ModAlt} // Esc pressed twice quickly
-	NewKeyBindingManager(ctx, nil).ProcessKey(keyMsg)
+	NewDispatcher(ctx, nil).ProcessKey(keyMsg)
 	model, _ := input.Update(keyMsg)
 	if got := model.(*components.InputView).GetInput(); got != "" {
 		t.Fatalf("unbound chord must not insert its key name, got %q", got)
@@ -287,7 +287,7 @@ func TestTextareaKeyFlowAltEscIsNotTyped(t *testing.T) {
 
 func TestTextareaKeyFlowBackspaceIsHandledByTextarea(t *testing.T) {
 	ctx, input := newTextareaEditTestCtx(t)
-	manager := NewKeyBindingManager(ctx, nil)
+	manager := NewDispatcher(ctx, nil)
 	input.SetText("ab")
 	input.SetCursor(2)
 
@@ -311,7 +311,7 @@ func TestTextareaKeyFlowBackspaceIsHandledByTextarea(t *testing.T) {
 
 func TestTextareaKeyFlowAltEnterInsertsNewline(t *testing.T) {
 	ctx, input := newTextareaEditTestCtx(t)
-	manager := NewKeyBindingManager(ctx, nil)
+	manager := NewDispatcher(ctx, nil)
 	input.SetText("hello")
 	input.SetCursor(5)
 
@@ -335,7 +335,7 @@ func TestTextareaKeyFlowAltEnterInsertsNewline(t *testing.T) {
 
 func TestTextareaKeyFlowCtrlJInsertsNewline(t *testing.T) {
 	ctx, input := newTextareaEditTestCtx(t)
-	manager := NewKeyBindingManager(ctx, nil)
+	manager := NewDispatcher(ctx, nil)
 	input.SetText("hello")
 	input.SetCursor(5)
 
@@ -359,7 +359,7 @@ func TestTextareaKeyFlowCtrlJInsertsNewline(t *testing.T) {
 
 func TestShouldSkipInputUpdateKeepsAppLevelKeysConsumed(t *testing.T) {
 	ctx, _ := newTextareaEditTestCtx(t)
-	manager := NewKeyBindingManager(ctx, nil)
+	manager := NewDispatcher(ctx, nil)
 
 	tests := []struct {
 		name string

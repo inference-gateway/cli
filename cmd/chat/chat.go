@@ -21,11 +21,8 @@ import (
 	version "github.com/inference-gateway/cli/cmd/version"
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	clipboard "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -33,6 +30,7 @@ import (
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	app "github.com/inference-gateway/cli/internal/presentation/tui/app"
 	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 	web "github.com/inference-gateway/cli/internal/presentation/web"
@@ -136,12 +134,12 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 
 	telemetryRec := services.GetTelemetryRecorder()
 	sessionStart := time.Now()
-	endSessionSpan := telemetryRec.StartSession(services.GetStateManager().GetAgentMode().ModeKey())
+	endSessionSpan := telemetryRec.StartSession(services.GetStateStore().GetAgentMode().ModeKey())
 
 	doShutdown := sync.OnceFunc(func() {
 		logger.Info("received shutdown signal, cleaning up...")
 		endSessionSpan(telemetry.RunSuccess)
-		telemetryRec.RecordSession(services.GetStateManager().GetAgentMode().ModeKey(), telemetry.RunSuccess, time.Since(sessionStart))
+		telemetryRec.RecordSession(services.GetStateStore().GetAgentMode().ModeKey(), telemetry.RunSuccess, time.Since(sessionStart))
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		if err := services.Shutdown(ctx); err != nil {
@@ -152,7 +150,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	defer doShutdown()
 	utils.OnShutdownSignal(doShutdown)
 
-	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
+	if err := services.GetGatewaySupervisor().EnsureStarted(); err != nil {
 		fmt.Printf("\nFailed to start gateway automatically: %v\n", err)
 		fmt.Printf("   Continuing without local gateway.\n")
 		fmt.Printf("   Make sure the inference gateway is running at: %s\n\n", cfg.Gateway.URL)
@@ -162,7 +160,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	defer cancel()
 
 	versionInfo := version.GetVersionInfo()
-	versionInfo.GatewayVersion = services.GetGatewayManager().Version(ctx)
+	versionInfo.GatewayVersion = services.GetGatewaySupervisor().Version(ctx)
 
 	models, err := services.GetModelService().ListModels(ctx)
 	if err != nil {
@@ -188,16 +186,16 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	githubIssueService := services.GetGitHubIssueService()
 	pricingService := services.GetPricingService()
 	shortcutRegistry := services.GetShortcutRegistry()
-	stateManager := services.GetStateManager()
+	stateManager := services.GetStateStore()
 	messageQueue := services.GetMessageQueue()
 	themeService := services.GetThemeService()
 	toolRegistry := services.GetToolRegistry()
-	mcpManager := services.GetMCPManager()
+	mcpManager := services.GetMCPSupervisor()
 	taskRetentionService := services.GetTaskRetentionService()
 	backgroundTaskService := services.GetBackgroundTaskService()
-	agentManager := services.GetAgentManager()
+	agentManager := services.GetAgentSupervisor()
 	conversationOptimizer := services.GetConversationOptimizer()
-	sessionRolloverManager := services.GetSessionRolloverManager()
+	sessionRolloverManager := services.GetSessionRollover()
 
 	if sessionID != "" {
 		resumeChatSession(conversationRepo, sessionRolloverManager, sessionID)
@@ -207,17 +205,14 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		stateManager.SetAgentMode(mode)
 	}
 
-	var screenshotServer *computerinfra.ScreenshotServer
-
-	if cfg.ComputerUse.Enabled && cfg.ComputerUse.Screenshot.StreamingEnabled {
-		screenshotServer = startScreenshotServer(cfg, imageService, toolRegistry)
-		if screenshotServer != nil {
-			defer func() {
-				if err := screenshotServer.Stop(); err != nil {
-					logger.Error("failed to stop screenshot server", "error", err)
-				}
-			}()
-		}
+	if screenshotServer := services.StartScreenshotServer(fmt.Sprintf("%d-%s", time.Now().Unix(), uuid.New().String()[:8])); screenshotServer != nil {
+		fmt.Printf("• Screenshot API: http://localhost:%d\n", screenshotServer.Port())
+		fmt.Printf("\x1b]5555;screenshot_port=%d\x07", screenshotServer.Port())
+		defer func() {
+			if err := screenshotServer.Stop(); err != nil {
+				logger.Error("failed to stop screenshot server", "error", err)
+			}
+		}()
 	}
 
 	application := app.NewChatApplication(
@@ -247,12 +242,12 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		toolService,
 		shortcutRegistry,
 		toolRegistry,
-		services.GetA2ATaskCoordinator(),
 		services.GetApprovalCoordinator(),
 		services.GetChatCompletionRunner(),
 		services.GetDirectExecutionService(),
 		services.GetToolExecutionCoordinator(),
 		services.GetShellHistoryStorage(),
+		services.GetTokenEstimator(),
 	)
 	program := tea.NewProgram(application)
 	notifier := programNotifier{program: program}
@@ -292,7 +287,7 @@ func chatExitMessage(sessionID string) string {
 // resolving rollover chains first. When the conversation cannot be loaded it
 // adopts the requested ID for the new session if the repository supports it,
 // mirroring `infer headless --session-id` semantics.
-func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager *conversation.SessionRolloverManager, sessionID string) {
+func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager convdomain.SessionRollover, sessionID string) {
 	if rolloverManager != nil {
 		resolved, _, _ := rolloverManager.ResolveSessionID(sessionID)
 		sessionID = resolved
@@ -360,7 +355,7 @@ func runNonInteractiveChat(cfg *config.Config) error {
 	_ = streamevent.SetWriter(io.Discard)
 
 	services := container.NewServiceContainer(cfg)
-	if am := services.GetAgentManager(); am != nil {
+	if am := services.GetAgentSupervisor(); am != nil {
 		if err := am.StartAgents(context.Background()); err != nil {
 			logger.Warn("failed to start agents in background", "error", err)
 		}
@@ -373,7 +368,7 @@ func runNonInteractiveChat(cfg *config.Config) error {
 	defer doShutdown()
 	utils.OnShutdownSignal(doShutdown)
 
-	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
+	if err := services.GetGatewaySupervisor().EnsureStarted(); err != nil {
 		return fmt.Errorf("failed to start gateway: %w", err)
 	}
 
@@ -451,27 +446,6 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// startScreenshotServer initializes and starts the screenshot streaming server
-func startScreenshotServer(config *config.Config, imageService agentdomain.ImageService, toolRegistry *tools.Registry) *computerinfra.ScreenshotServer {
-	logger.Info("screenshot streaming conditions met, starting server")
-	sessionID := fmt.Sprintf("%d-%s", time.Now().Unix(), uuid.New().String()[:8])
-	screenshotServer := computerinfra.NewScreenshotServer(config, imageService, sessionID)
-
-	if err := screenshotServer.Start(); err != nil {
-		logger.Warn("failed to start screenshot server", "error", err)
-		return nil
-	}
-
-	fmt.Printf("• Screenshot API: http://localhost:%d\n", screenshotServer.Port())
-
-	fmt.Printf("\x1b]5555;screenshot_port=%d\x07", screenshotServer.Port())
-
-	toolRegistry.RegisterFrameSource("screen", screenshotServer)
-	logger.Info("registered screen frame source with tool registry")
-
-	return screenshotServer
-}
-
 // programNotifier is the single agentdomain.UINotifier backed by a real Bubble Tea
 // program: the one and only place (*tea.Program).Send is ever called, so every
 // background→TUI push funnels through this ingress. Set on the container via
@@ -501,7 +475,7 @@ func runUIHeartbeat(ctx context.Context, notifier agentdomain.UINotifier, interv
 		case <-ctx.Done():
 			return
 		case t := <-ticker.C:
-			notifier.Notify(agentdomain.HeartbeatEvent{At: t})
+			notifier.Notify(tui.HeartbeatEvent{At: t})
 		}
 	}
 }

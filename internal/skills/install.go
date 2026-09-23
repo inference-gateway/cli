@@ -128,13 +128,14 @@ func ParseGitHubTreeURL(rawURL string) (*GitHubLocation, error) {
 	}, nil
 }
 
-type treeEntry struct {
+// TreeEntry is one path in a GitHub git tree listing.
+type TreeEntry struct {
 	Path string `json:"path"`
 	Type string `json:"type"`
 }
 
 type treeResponse struct {
-	Tree      []treeEntry `json:"tree"`
+	Tree      []TreeEntry `json:"tree"`
 	Truncated bool        `json:"truncated"`
 }
 
@@ -217,14 +218,14 @@ func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase stri
 		}
 	}
 
-	tree, err := i.fetchTree(ctx, loc)
+	tree, err := i.FetchTree(ctx, loc)
 	if err != nil {
 		return "", err
 	}
 
 	prefix := loc.Path + "/"
-	var files []treeEntry
-	for _, e := range tree.Tree {
+	var files []TreeEntry
+	for _, e := range tree {
 		if e.Type != "blob" {
 			continue
 		}
@@ -248,7 +249,7 @@ func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase stri
 			_ = os.RemoveAll(destDir)
 			return "", fmt.Errorf("failed to create dir for %s: %w", rel, err)
 		}
-		if err := i.downloadFile(ctx, loc, f.Path, outPath); err != nil {
+		if err := i.DownloadFile(ctx, loc, f.Path, outPath); err != nil {
 			_ = os.RemoveAll(destDir)
 			return "", err
 		}
@@ -271,7 +272,10 @@ func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase stri
 	return abs, nil
 }
 
-func (i *Installer) fetchTree(ctx context.Context, loc *GitHubLocation) (*treeResponse, error) {
+// FetchTree lists every path of the repository at loc.Ref (loc.Path is
+// ignored). A truncated listing is an error so callers never install a
+// partial tree.
+func (i *Installer) FetchTree(ctx context.Context, loc *GitHubLocation) ([]TreeEntry, error) {
 	apiURL := fmt.Sprintf("%s/repos/%s/%s/git/trees/%s?recursive=1", i.APIBase, loc.Owner, loc.Repo, loc.Ref)
 	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {
@@ -308,7 +312,7 @@ func (i *Installer) fetchTree(ctx context.Context, loc *GitHubLocation) (*treeRe
 	if tree.Truncated {
 		return nil, fmt.Errorf("repository tree was truncated by GitHub (repo too large) - cannot reliably install")
 	}
-	return &tree, nil
+	return tree.Tree, nil
 }
 
 // Uninstall removes the skill folder named `name` from `destBase`. The name
@@ -343,7 +347,8 @@ func Uninstall(name, destBase string) (string, error) {
 	return abs, nil
 }
 
-func (i *Installer) downloadFile(ctx context.Context, loc *GitHubLocation, repoPath, outPath string) error {
+// DownloadFile writes the raw content of repoPath at loc.Ref to outPath.
+func (i *Installer) DownloadFile(ctx context.Context, loc *GitHubLocation, repoPath, outPath string) error {
 	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", i.RawBase, loc.Owner, loc.Repo, loc.Ref, repoPath)
 	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
 	if err != nil {

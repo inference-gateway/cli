@@ -255,7 +255,7 @@ func TestAutocomplete_ToolsRespectAgentMode(t *testing.T) {
 		}
 	}
 
-	sm := statemanager.NewStateManager(false)
+	sm := statemanager.NewStore(false)
 
 	theme := &tuimocks.FakeTheme{}
 	theme.GetDimColorReturns("#808080")
@@ -863,7 +863,7 @@ func TestAutocomplete_FileMode(t *testing.T) {
 		"internal/presentation/tui/app/chat.go",
 	}, nil)
 
-	newAC := func() *autocomplete.AutocompleteImpl {
+	newAC := func() *autocomplete.Autocomplete {
 		ac := autocomplete.NewAutocomplete(&tuimocks.FakeTheme{}, mockRegistry)
 		ac.SetFileService(files)
 		ac.SetWidth(80)

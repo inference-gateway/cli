@@ -3,7 +3,6 @@ package headless
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -21,9 +20,8 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
-	container "github.com/inference-gateway/cli/internal/container"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	gateway "github.com/inference-gateway/cli/internal/gateway"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
@@ -31,28 +29,35 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // fileRefPattern matches @file references in the task description.
 var fileRefPattern = regexp.MustCompile(`@([^\s]+)`)
 
-// startScreenshotServer starts the screenshot capture server and
-// registers the "screen" frame source so GetLatestFrame is available, exactly
-// as interactive chat does. It logs instead of printing: headless stdout
-// carries the ag-ui/json protocol stream. Returns nil when streaming is off or
-// the server failed to start.
-func startScreenshotServer(cfg *config.Config, svc *container.ServiceContainer, sessionID string) *computerinfra.ScreenshotServer {
-	if !cfg.ComputerUse.Enabled || !cfg.ComputerUse.Screenshot.StreamingEnabled {
-		return nil
-	}
-	screenshotServer := computerinfra.NewScreenshotServer(cfg, svc.GetImageService(), sessionID)
-	if err := screenshotServer.Start(); err != nil {
-		logger.Warn("failed to start screenshot server", "error", err)
-		return nil
-	}
-	svc.GetToolRegistry().RegisterFrameSource("screen", screenshotServer)
-	return screenshotServer
+// Services is the slice of the composition root a headless run uses.
+// cmd/headless supplies the *container.ServiceContainer.
+type Services interface {
+	StartExtensionBridge()
+	Shutdown(ctx context.Context) error
+	StartScreenshotServer(sessionID string) *computerinfra.ScreenshotServer
+	GetGatewaySupervisor() *gateway.Supervisor
+	GetAgentSupervisor() agentdomain.AgentSupervisor
+	GetAgentService() agentdomain.AgentService
+	GetMCPSupervisor() agentdomain.MCPSupervisor
+	GetToolRegistry() *tools.Registry
+	GetToolService() agentdomain.ToolService
+	GetFileService() agentdomain.FileService
+	GetImageService() agentdomain.ImageService
+	GetModelService() convdomain.ModelService
+	GetConversationRepository() convdomain.ConversationRepository
+	GetMessageQueue() convdomain.MessageQueue
+	GetSessionRollover() convdomain.SessionRollover
+	GetStateStore() *statemanager.Store
+	GetShortcutRegistry() *shortcuts.Registry
+	GetBackgroundTaskRegistry() scheddomain.BackgroundTaskRegistry
+	GetTelemetryRecorder() *telemetry.Recorder
 }
 
 // Options carries the headless command's flag values.
@@ -88,11 +93,10 @@ func resolveAgentMode(flag string) (agentdomain.AgentMode, error) {
 	return scheddomain.InheritedAgentMode(), nil
 }
 
-// Run is the composition root for headless mode: it builds the service
-// container directly, so this presentation package intentionally depends
-// on internal/container (the depguard leaf rule only polices imports into
-// presentation, not out of it). cmd/headless.go stays thin flag plumbing.
-func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop,funlen
+// Run executes one headless task. newServices builds the composition root; it
+// is called only after the flags validate, so a bad --format or --mode never
+// starts any service.
+func Run(cfg *config.Config, opts Options, newServices func() Services) (err error) { //nolint:gocyclo,cyclop,funlen
 	switch opts.Format {
 	case "json", "json-pretty", "ag-ui", "text":
 	default:
@@ -119,7 +123,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		}
 	}()
 
-	svc := container.NewServiceContainer(cfg)
+	svc := newServices()
 	svc.StartExtensionBridge()
 	shutdown := sync.OnceFunc(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -129,15 +133,15 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 	defer shutdown()
 	utils.OnShutdownSignal(shutdown)
 
-	if err := svc.GetGatewayManager().EnsureStarted(); err != nil {
+	if err := svc.GetGatewaySupervisor().EnsureStarted(); err != nil {
 		return fmt.Errorf("failed to start inference gateway: %w", err)
 	}
 
-	if agentManager := svc.GetAgentManager(); agentManager != nil && !isBashTask(opts.Task) {
+	if agentManager := svc.GetAgentSupervisor(); agentManager != nil && !isBashTask(opts.Task) {
 		startLocalAgents(agentManager, cfg, opts.Format)
 	}
 
-	if mcpManager := svc.GetMCPManager(); mcpManager != nil {
+	if mcpManager := svc.GetMCPSupervisor(); mcpManager != nil {
 		discoverMCPTools(context.Background(), mcpManager, svc.GetToolRegistry())
 	}
 
@@ -172,7 +176,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 	agentService := svc.GetAgentService()
 	conversationRepo := svc.GetConversationRepository()
 
-	svc.GetStateManager().SetAgentMode(mode)
+	svc.GetStateStore().SetAgentMode(mode)
 
 	sessionID := opts.SessionID
 	if sessionID == "" {
@@ -180,7 +184,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 	}
 
 	groupKey := ""
-	rolloverMgr := svc.GetSessionRolloverManager()
+	rolloverMgr := svc.GetSessionRollover()
 	if rolloverMgr != nil {
 		if resolved, gk, _ := rolloverMgr.ResolveSessionID(sessionID); resolved != "" {
 			sessionID = resolved
@@ -188,7 +192,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		}
 	}
 
-	if screenshotServer := startScreenshotServer(cfg, svc, sessionID); screenshotServer != nil {
+	if screenshotServer := svc.StartScreenshotServer(sessionID); screenshotServer != nil {
 		defer func() {
 			if stopErr := screenshotServer.Stop(); stopErr != nil {
 				logger.Error("failed to stop screenshot server", "error", stopErr)
@@ -204,7 +208,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		logger.Info("rolled over to new session (summary preserved)",
 			"previous_session_id", sessionID, "new_session_id", newID)
 		sessionID = newID
-		history = conversation.BuildAgentMessagesFromEntries(conversationRepo.GetMessages())
+		history = convdomain.BuildAgentMessagesFromEntries(conversationRepo.GetMessages())
 	}
 
 	deps := shortcuts.Deps{SessionID: sessionID}
@@ -277,7 +281,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 	var approvals <-chan ipc.ApprovalResponse
 	var questions <-chan ipc.UserQuestionResponse
 	if opts.Format != "text" {
-		ctl := newHeadlessControl(agentService, svc.GetStateManager(), svc.GetMessageQueue(), sessionID)
+		ctl := newHeadlessControl(agentService, svc.GetStateStore(), svc.GetMessageQueue(), sessionID)
 		go ctl.readLines(os.Stdin)
 		approvals = ctl.approvals
 		questions = ctl.questions
@@ -338,7 +342,7 @@ func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals 
 // stdout as agent_status lines so a client can show what the wait is for. The
 // callbacks are removed once the wait ends so later liveness probes never write
 // into the run's event stream.
-func startLocalAgents(agentManager agentdomain.AgentManager, cfg *config.Config, format string) {
+func startLocalAgents(agentManager agentdomain.AgentSupervisor, cfg *config.Config, format string) {
 	if emit := render.AgentStartupEmitter(os.Stdout, format); emit != nil {
 		agentManager.SetStatusCallback(func(name string, state agentdomain.AgentState, message, _, _ string) {
 			emit(name, state.String(), message, 0, 0)
@@ -379,7 +383,7 @@ func emitCommandResult(format string, repo convdomain.ConversationRepository, se
 
 // compactSession is /compact outside the TUI: the rollover manager already runs
 // the same optimizer-summarise-reseed the chat handler does.
-func compactSession(ctx context.Context, mgr *conversation.SessionRolloverManager, model, groupKey string) (string, error) {
+func compactSession(ctx context.Context, mgr convdomain.SessionRollover, model, groupKey string) (string, error) {
 	newID, err := mgr.PerformRollover(ctx, model, groupKey)
 	if err != nil {
 		return "", err
@@ -469,7 +473,7 @@ func userMessage(content string, images []agentdomain.ImageAttachment) (sdk.Mess
 // honours --no-save, and returns prior history when resuming an existing
 // --session-id (empty when starting fresh or storage is not persistent).
 func prepareConversation(ctx context.Context, repo convdomain.ConversationRepository, sessionID string, resume, noSave bool) []sdk.Message {
-	persistentRepo, ok := repo.(*conversation.PersistentConversationRepository)
+	persistentRepo, ok := repo.(convdomain.PersistentConversationRepository)
 	if !ok {
 		return nil
 	}
@@ -488,7 +492,7 @@ func prepareConversation(ctx context.Context, repo convdomain.ConversationReposi
 		}
 		return nil
 	}
-	return conversation.BuildAgentMessagesFromEntries(persistentRepo.GetMessages())
+	return convdomain.BuildAgentMessagesFromEntries(repo.GetMessages())
 }
 
 func sessionOutcome(err error) string {
@@ -504,37 +508,20 @@ func sessionOutcome(err error) string {
 	}
 }
 
-// writeResultFile atomically writes the run's outcome and final assistant
-// message to path, for a parent Agent tool to harvest - on failure too, so
-// the parent gets the partial answer and error detail instead of silence.
+// writeResultFile records the run's outcome and final assistant message at
+// path for a parent Agent tool to harvest - on failure too, so the parent gets
+// the partial answer and error detail instead of silence.
 func writeResultFile(path string, repo convdomain.ConversationRepository, sessionID string, runErr error) {
-	entries := repo.GetMessages()
-	content := ""
-	for i := len(entries) - 1; i >= 0; i-- {
-		e := entries[i]
-		if e.Message.Role == sdk.Assistant {
-			if c, err := e.Message.Content.AsMessageContent0(); err == nil && c != "" {
-				content = c
-				break
-			}
-		}
-	}
 	rf := scheddomain.SubagentResultFile{
-		FinalAssistant: content,
+		FinalAssistant: convdomain.LastAssistantText(repo.GetMessages()),
 		Success:        runErr == nil,
 		SessionID:      sessionID,
 	}
 	if runErr != nil {
 		rf.Error = runErr.Error()
 	}
-	data, _ := json.Marshal(rf)
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		logger.Warn("failed to write result file", "path", tmp, "error", err)
-		return
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		logger.Warn("failed to rename result file", "path", path, "error", err)
+	if err := scheddomain.WriteSubagentResultFile(path, rf); err != nil {
+		logger.Warn("failed to write result file", "path", path, "error", err)
 	}
 }
 
@@ -545,7 +532,7 @@ func writeResultFile(path string, repo convdomain.ConversationRepository, sessio
 // ponytail: run:true container servers still starting in the background are
 // skipped here (their client is not initialized yet); wait on StartServers
 // if headless ever needs container-hosted MCP tools on the first turn.
-func discoverMCPTools(ctx context.Context, mcpManager agentdomain.MCPManager, registry *tools.Registry) {
+func discoverMCPTools(ctx context.Context, mcpManager agentdomain.MCPSupervisor, registry *tools.Registry) {
 	if registry == nil {
 		return
 	}

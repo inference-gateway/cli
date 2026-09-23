@@ -1,0 +1,192 @@
+package history
+
+import (
+	"fmt"
+	"strings"
+
+	config "github.com/inference-gateway/cli/config"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+)
+
+// Store manages both in-memory and shell history
+type Store struct {
+	shellHistory    ShellHistoryProvider
+	inMemoryHistory []string
+	maxInMemory     int
+	historyIndex    int
+	currentInput    string
+	allHistory      []string
+}
+
+// NewStore creates a new history manager rooted at the per-project
+// runtime dir (~/.infer/projects/<project-slug>/history).
+func NewStore(maxInMemory int) (*Store, error) {
+	return NewHistoryManagerWithName(maxInMemory, config.ProjectRuntimeDir(), "")
+}
+
+// NewHistoryManagerWithName creates a new history manager rooted at baseDir
+// with an optional name. When name is empty, the history file is stored at
+// <baseDir>/history/history (the main agent). When name is non-empty, the history
+// file is stored at <baseDir>/history/history-<name> (e.g. for subagents).
+func NewHistoryManagerWithName(maxInMemory int, baseDir, name string) (*Store, error) {
+	shellHistory, err := NewShellHistoryWithName(baseDir, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize shell history: %w", err)
+	}
+
+	hm := &Store{
+		shellHistory:    shellHistory,
+		inMemoryHistory: make([]string, 0, maxInMemory),
+		maxInMemory:     maxInMemory,
+		historyIndex:    -1,
+		currentInput:    "",
+	}
+
+	if err := hm.loadCombinedHistory(); err != nil {
+		hm.allHistory = make([]string, 0)
+	}
+
+	return hm, nil
+}
+
+// NewMemoryOnlyStore creates a history manager that only uses in-memory storage
+func NewMemoryOnlyStore(maxInMemory int) *Store {
+	return NewHistoryManagerWithProvider(maxInMemory, &MemoryOnlyShellHistory{})
+}
+
+// NewHistoryManagerWithProvider creates a history manager on top of any
+// ShellHistoryProvider (e.g. a storage-backend-backed one).
+func NewHistoryManagerWithProvider(maxInMemory int, provider ShellHistoryProvider) *Store {
+	hm := &Store{
+		shellHistory:    provider,
+		inMemoryHistory: make([]string, 0, maxInMemory),
+		maxInMemory:     maxInMemory,
+		historyIndex:    -1,
+		currentInput:    "",
+	}
+	if err := hm.loadCombinedHistory(); err != nil {
+		hm.allHistory = make([]string, 0)
+	}
+	return hm
+}
+
+// loadCombinedHistory loads history from shell and combines with in-memory history
+func (hm *Store) loadCombinedHistory() error {
+	shellCommands, err := hm.shellHistory.LoadHistory()
+	if err != nil {
+		return err
+	}
+
+	hm.allHistory = make([]string, 0, len(shellCommands)+len(hm.inMemoryHistory))
+	hm.allHistory = append(hm.allHistory, shellCommands...)
+	hm.allHistory = append(hm.allHistory, hm.inMemoryHistory...)
+
+	return nil
+}
+
+// AddToHistory adds a command to both in-memory and shell history
+func (hm *Store) AddToHistory(command string) error {
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return nil
+	}
+
+	shouldSave := len(hm.allHistory) == 0 || hm.allHistory[len(hm.allHistory)-1] != command
+
+	if shouldSave {
+		hm.addToInMemoryHistory(command)
+		hm.allHistory = append(hm.allHistory, command)
+
+		if err := hm.shellHistory.SaveToHistory(command); err != nil {
+			logger.Warn("could not save to shell history", "error", err)
+		}
+	}
+
+	hm.historyIndex = -1
+	hm.currentInput = ""
+
+	return nil
+}
+
+// addToInMemoryHistory adds a command to in-memory history with size limit
+func (hm *Store) addToInMemoryHistory(command string) {
+	if len(hm.inMemoryHistory) > 0 && hm.inMemoryHistory[len(hm.inMemoryHistory)-1] == command {
+		return
+	}
+
+	hm.inMemoryHistory = append(hm.inMemoryHistory, command)
+
+	if len(hm.inMemoryHistory) > hm.maxInMemory {
+		hm.inMemoryHistory = hm.inMemoryHistory[1:]
+	}
+}
+
+// NavigateUp moves up in history (to older commands)
+func (hm *Store) NavigateUp(currentText string) string {
+	if len(hm.allHistory) == 0 {
+		return currentText
+	}
+
+	if hm.historyIndex == -1 {
+		hm.currentInput = currentText
+		hm.historyIndex = len(hm.allHistory) - 1
+	} else if hm.historyIndex > 0 {
+		hm.historyIndex--
+	}
+
+	result := hm.allHistory[hm.historyIndex]
+	return result
+}
+
+// NavigateDown moves down in history (to newer commands)
+func (hm *Store) NavigateDown(currentText string) string {
+	if hm.historyIndex == -1 {
+		return currentText
+	}
+
+	if hm.historyIndex < len(hm.allHistory)-1 {
+		hm.historyIndex++
+		return hm.allHistory[hm.historyIndex]
+	} else {
+		hm.historyIndex = -1
+		result := hm.currentInput
+		hm.currentInput = ""
+		return result
+	}
+}
+
+// ResetNavigation resets history navigation state
+func (hm *Store) ResetNavigation() {
+	hm.historyIndex = -1
+	hm.currentInput = ""
+}
+
+// GetHistoryCount returns the total number of commands in history
+func (hm *Store) GetHistoryCount() int {
+	return len(hm.allHistory)
+}
+
+// IsNavigating returns true if currently navigating through history
+func (hm *Store) IsNavigating() bool {
+	return hm.historyIndex != -1
+}
+
+// GetShellHistoryFile returns the shell history file path
+func (hm *Store) GetShellHistoryFile() string {
+	return hm.shellHistory.GetHistoryFile()
+}
+
+// MemoryOnlyShellHistory provides a no-op shell history provider for testing
+type MemoryOnlyShellHistory struct{}
+
+func (m *MemoryOnlyShellHistory) LoadHistory() ([]string, error) {
+	return []string{}, nil
+}
+
+func (m *MemoryOnlyShellHistory) SaveToHistory(command string) error {
+	return nil
+}
+
+func (m *MemoryOnlyShellHistory) GetHistoryFile() string {
+	return ""
+}

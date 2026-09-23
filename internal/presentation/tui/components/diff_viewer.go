@@ -133,11 +133,11 @@ type patchReloadedMsg struct {
 // patchErrMsg reports a patch-mode problem as a transient message.
 type patchErrMsg struct{ err error }
 
-// DiffViewerImpl is the VS Code-style "Changes" side panel: a left tree of
+// DiffViewer is the VS Code-style "Changes" side panel: a left tree of
 // changed files (grouped Staged/Changes → folder → file) plus a scrollable diff
 // pane for the selected file. It owns its full [sidebar | divider | diff]
 // region; the chat input row is composed beneath the diff pane by the caller.
-type DiffViewerImpl struct {
+type DiffViewer struct {
 	source        gitdiff.Source
 	styleProvider *styles.Provider
 	themeService  tui.ThemeService
@@ -193,13 +193,13 @@ type DiffViewerImpl struct {
 }
 
 // NewDiffViewer creates a changes panel backed by the given git source.
-func NewDiffViewer(source gitdiff.Source, styleProvider *styles.Provider, themeService tui.ThemeService, kb config.KeybindingsConfig) *DiffViewerImpl {
+func NewDiffViewer(source gitdiff.Source, styleProvider *styles.Provider, themeService tui.ThemeService, kb config.KeybindingsConfig) *DiffViewer {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 	vp.MouseWheelEnabled = true
 	vp.MouseWheelDelta = 3
 
-	return &DiffViewerImpl{
+	return &DiffViewer{
 		source:         source,
 		styleProvider:  styleProvider,
 		themeService:   themeService,
@@ -216,13 +216,13 @@ func NewDiffViewer(source gitdiff.Source, styleProvider *styles.Provider, themeS
 // Init loads the current diff once. It refreshes thereafter on view-entry
 // (reopen re-runs this), on in-loop tool/bash completion events, on git
 // stage/unstage/discard actions, and on the manual refresh key - no polling tick.
-func (t *DiffViewerImpl) Init() tea.Cmd {
+func (t *DiffViewer) Init() tea.Cmd {
 	t.loading = true
 	return t.loadCmd()
 }
 
 // Reset clears state so the panel can be reused on a later open.
-func (t *DiffViewerImpl) Reset() {
+func (t *DiffViewer) Reset() {
 	t.done = false
 	t.cancel = false
 	t.loading = true
@@ -261,7 +261,7 @@ func (t *DiffViewerImpl) Reset() {
 // readSource returns the data source for the active tab: the PR (range) source
 // on the PR tab, else the local working-tree source. Only read paths route
 // through it; staging/discard/patch/commit are Local-tab only.
-func (t *DiffViewerImpl) readSource() gitdiff.ReadSource {
+func (t *DiffViewer) readSource() gitdiff.ReadSource {
 	if t.activeTab == diffTabPR && t.prSource != nil {
 		return t.prSource
 	}
@@ -270,7 +270,7 @@ func (t *DiffViewerImpl) readSource() gitdiff.ReadSource {
 
 // switchTab flips between the Local and PR tabs, lazily building the PR source,
 // clearing per-file/patch state, and reloading the tree from the new source.
-func (t *DiffViewerImpl) switchTab() tea.Cmd {
+func (t *DiffViewer) switchTab() tea.Cmd {
 	if t.activeTab == diffTabLocal {
 		t.activeTab = diffTabPR
 		if t.prSource == nil {
@@ -303,8 +303,8 @@ func isMutatingAction(action string) bool {
 	return false
 }
 
-func (t *DiffViewerImpl) IsDone() bool      { return t.done }
-func (t *DiffViewerImpl) IsCancelled() bool { return t.cancel }
+func (t *DiffViewer) IsDone() bool      { return t.done }
+func (t *DiffViewer) IsCancelled() bool { return t.cancel }
 
 // newDiffKeymap builds a diffKeymap from the config namespace bindings, wrapping
 // each action's key strings into a key.Binding.
@@ -323,7 +323,7 @@ func newDiffKeymap(kb config.KeybindingsConfig, namespace config.KeyNamespace) d
 }
 
 // HintText returns the footer hint for the current mode (tree vs patch).
-func (t *DiffViewerImpl) HintText() string {
+func (t *DiffViewer) HintText() string {
 	if t.editMode && t.editor != nil {
 		return "(vim) - :wq to save & return"
 	}
@@ -378,7 +378,7 @@ func (t *DiffViewerImpl) HintText() string {
 
 // FooterBar renders the per-mode keybinding legend shown beneath the diff pane,
 // greedy-wrapped to width so no binding is truncated (issue #875).
-func (t *DiffViewerImpl) FooterBar(width int) string {
+func (t *DiffViewer) FooterBar(width int) string {
 	if width <= 0 {
 		return ""
 	}
@@ -419,9 +419,9 @@ func (t *DiffViewerImpl) FooterBar(width int) string {
 
 // PaneWidth returns the current diff-pane width (after SetWidth), so the caller
 // can size the input row that sits beneath the diff pane.
-func (t *DiffViewerImpl) PaneWidth() int { return t.paneWidth }
+func (t *DiffViewer) PaneWidth() int { return t.paneWidth }
 
-func (t *DiffViewerImpl) SetWidth(w int) {
+func (t *DiffViewer) SetWidth(w int) {
 	t.width = w
 	sidebar := clampInt(w*30/100, diffSidebarMinWidth, diffSidebarMaxWidth)
 	if sidebar > w-diffMinPaneWidth {
@@ -431,11 +431,11 @@ func (t *DiffViewerImpl) SetWidth(w int) {
 	t.paneWidth = max(w-sidebar-1, 1)
 }
 
-func (t *DiffViewerImpl) SetHeight(h int) { t.height = h }
+func (t *DiffViewer) SetHeight(h int) { t.height = h }
 
 // --- update ---
 
-func (t *DiffViewerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (t *DiffViewer) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if t.editMode {
 		return t.updateEditor(msg)
 	}
@@ -470,7 +470,7 @@ func (t *DiffViewerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return t, nil
 }
 
-func (t *DiffViewerImpl) handleLoaded(msg diffViewerLoadedMsg) (tea.Model, tea.Cmd) {
+func (t *DiffViewer) handleLoaded(msg diffViewerLoadedMsg) (tea.Model, tea.Cmd) {
 	t.loading = false
 	t.loadErr = msg.err
 	if msg.err == nil {
@@ -483,7 +483,7 @@ func (t *DiffViewerImpl) handleLoaded(msg diffViewerLoadedMsg) (tea.Model, tea.C
 	return t, nil
 }
 
-func (t *DiffViewerImpl) handleWheel(msg tea.MouseWheelMsg) {
+func (t *DiffViewer) handleWheel(msg tea.MouseWheelMsg) {
 	switch msg.Button {
 	case tea.MouseWheelUp:
 		t.viewport.ScrollUp(t.viewport.MouseWheelDelta)
@@ -493,7 +493,7 @@ func (t *DiffViewerImpl) handleWheel(msg tea.MouseWheelMsg) {
 }
 
 //nolint:gocyclo,cyclop // cohesive key-dispatch switch; splitting it would obscure the flow
-func (t *DiffViewerImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (t *DiffViewer) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if t.patchMode {
 		return t.handlePatchKey(msg)
 	}
@@ -560,7 +560,7 @@ func (t *DiffViewerImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return t, nil
 }
 
-func (t *DiffViewerImpl) moveCursor(delta int) {
+func (t *DiffViewer) moveCursor(delta int) {
 	if len(t.rows) == 0 {
 		return
 	}
@@ -574,7 +574,7 @@ func (t *DiffViewerImpl) moveCursor(delta int) {
 	}
 }
 
-func (t *DiffViewerImpl) toggleOrSelect() (tea.Model, tea.Cmd) {
+func (t *DiffViewer) toggleOrSelect() (tea.Model, tea.Cmd) {
 	if t.cursor < 0 || t.cursor >= len(t.rows) {
 		return t, nil
 	}
@@ -589,7 +589,7 @@ func (t *DiffViewerImpl) toggleOrSelect() (tea.Model, tea.Cmd) {
 	return t, nil
 }
 
-func (t *DiffViewerImpl) setCollapsed(collapsed bool) {
+func (t *DiffViewer) setCollapsed(collapsed bool) {
 	if t.cursor < 0 || t.cursor >= len(t.rows) {
 		return
 	}
@@ -602,7 +602,7 @@ func (t *DiffViewerImpl) setCollapsed(collapsed bool) {
 	t.reanchorSelection()
 }
 
-func (t *DiffViewerImpl) stageCmd() tea.Cmd {
+func (t *DiffViewer) stageCmd() tea.Cmd {
 	fc := t.selectedFile()
 	if fc == nil {
 		return nil
@@ -618,7 +618,7 @@ func (t *DiffViewerImpl) stageCmd() tea.Cmd {
 	}
 }
 
-func (t *DiffViewerImpl) unstageCmd() tea.Cmd {
+func (t *DiffViewer) unstageCmd() tea.Cmd {
 	fc := t.selectedFile()
 	if fc == nil {
 		return nil
@@ -636,7 +636,7 @@ func (t *DiffViewerImpl) unstageCmd() tea.Cmd {
 
 // stageAllCmd stages every change (`git add -A`), then reloads the tree. Unlike
 // stageCmd it needs no selection, so it works from anywhere in the panel.
-func (t *DiffViewerImpl) stageAllCmd() tea.Cmd {
+func (t *DiffViewer) stageAllCmd() tea.Cmd {
 	src := t.source
 	return func() tea.Msg {
 		if err := src.StageAll(); err != nil {
@@ -648,7 +648,7 @@ func (t *DiffViewerImpl) stageAllCmd() tea.Cmd {
 }
 
 // unstageAllCmd unstages everything (`git reset -q HEAD`), then reloads the tree.
-func (t *DiffViewerImpl) unstageAllCmd() tea.Cmd {
+func (t *DiffViewer) unstageAllCmd() tea.Cmd {
 	src := t.source
 	return func() tea.Msg {
 		if err := src.UnstageAll(); err != nil {
@@ -660,7 +660,7 @@ func (t *DiffViewerImpl) unstageAllCmd() tea.Cmd {
 }
 
 // discardCmd discards the file's working-tree changes, then reloads the tree.
-func (t *DiffViewerImpl) discardCmd(fc gitdiff.FileChange) tea.Cmd {
+func (t *DiffViewer) discardCmd(fc gitdiff.FileChange) tea.Cmd {
 	src := t.source
 	return func() tea.Msg {
 		if err := src.Discard(fc); err != nil {
@@ -673,7 +673,7 @@ func (t *DiffViewerImpl) discardCmd(fc gitdiff.FileChange) tea.Cmd {
 
 // handleDiscardConfirm resolves the pending discard confirmation: `y` discards
 // the file's working-tree changes; any other key cancels.
-func (t *DiffViewerImpl) handleDiscardConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (t *DiffViewer) handleDiscardConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	fc := t.confirmDiscard
 	t.confirmDiscard = nil
 	t.dirtyDiff = true
@@ -686,7 +686,7 @@ func (t *DiffViewerImpl) handleDiscardConfirm(msg tea.KeyPressMsg) (tea.Model, t
 // commit closes the panel and replays the existing `/git commit` flow, which
 // generates an AI commit message for the staged changes and drops the resulting
 // `!git commit -m "..."` into the input for the user to confirm.
-func (t *DiffViewerImpl) commit() (tea.Model, tea.Cmd) {
+func (t *DiffViewer) commit() (tea.Model, tea.Cmd) {
 	t.cancel = true
 	return t, func() tea.Msg {
 		return agentdomain.UserInputEvent{Content: "/git commit"}
@@ -698,7 +698,7 @@ func (t *DiffViewerImpl) commit() (tea.Model, tea.Cmd) {
 // enterEditCmd launches the user's editor ($VISUAL/$EDITOR/vim) on the selected
 // file in a PTY rendered into the pane, skipping deleted files. The returned cmd
 // streams the editor's terminal output back as ptyOutputMsg/ptyExitMsg.
-func (t *DiffViewerImpl) enterEditCmd() tea.Cmd {
+func (t *DiffViewer) enterEditCmd() tea.Cmd {
 	fc := t.selectedFile()
 	if fc == nil || fc.Status == gitdiff.StatusDeleted {
 		return nil
@@ -718,7 +718,7 @@ func (t *DiffViewerImpl) enterEditCmd() tea.Cmd {
 // updateEditor drives the embedded editor: it forwards keys to the PTY, feeds
 // PTY output into the emulator (re-arming the reader), and on child exit closes
 // the editor and refreshes the tree/diff so the change shows immediately.
-func (t *DiffViewerImpl) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (t *DiffViewer) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m := msg.(type) {
 	case ptyOutputMsg:
 		t.editor.term.write(m.data)
@@ -747,7 +747,7 @@ func (t *DiffViewerImpl) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 // selection, the whole hunk under the cursor; split breaks the hunk into pieces;
 // [ / ] jump hunks; esc clears a selection or exits. New-action candidates are
 // listed before apply so they win any shared key.
-func (t *DiffViewerImpl) handlePatchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (t *DiffViewer) handlePatchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch t.keymap.matches(msg,
 		actDiffCancel, actDiffNavUp, actDiffNavDown,
 		actDiffPatchSelect, actDiffPatchSplit, actDiffHunkPrev, actDiffHunkNext,
@@ -788,7 +788,7 @@ func (t *DiffViewerImpl) handlePatchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 
 // enterPatchCmd loads the selected file's patch (worktree for an unstaged file,
 // index for a staged one) so its hunks can be staged/unstaged individually.
-func (t *DiffViewerImpl) enterPatchCmd() tea.Cmd {
+func (t *DiffViewer) enterPatchCmd() tea.Cmd {
 	fc := t.selectedFile()
 	if fc == nil {
 		return nil
@@ -814,7 +814,7 @@ func (t *DiffViewerImpl) enterPatchCmd() tea.Cmd {
 // applyHunkCmd applies the current hunk to the index, then reloads the patch and
 // the file tree. Direction follows the loaded patch: stage a worktree hunk, or
 // unstage (reverse) a staged hunk.
-func (t *DiffViewerImpl) applyHunkCmd() tea.Cmd {
+func (t *DiffViewer) applyHunkCmd() tea.Cmd {
 	if !t.patchMode || len(t.patchFile.Hunks) == 0 {
 		return nil
 	}
@@ -834,7 +834,7 @@ func (t *DiffViewerImpl) applyHunkCmd() tea.Cmd {
 	}
 }
 
-func (t *DiffViewerImpl) handlePatchLoaded(msg patchLoadedMsg) (tea.Model, tea.Cmd) {
+func (t *DiffViewer) handlePatchLoaded(msg patchLoadedMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		t.patchMsg = "Failed to load patch: " + msg.err.Error()
 		return t, nil
@@ -857,7 +857,7 @@ func (t *DiffViewerImpl) handlePatchLoaded(msg patchLoadedMsg) (tea.Model, tea.C
 	return t, nil
 }
 
-func (t *DiffViewerImpl) handlePatchReloaded(msg patchReloadedMsg) (tea.Model, tea.Cmd) {
+func (t *DiffViewer) handlePatchReloaded(msg patchReloadedMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		t.patchMode = false
 		t.patchMsg = msg.err.Error()
@@ -880,7 +880,7 @@ func (t *DiffViewerImpl) handlePatchReloaded(msg patchReloadedMsg) (tea.Model, t
 // rebuildPatchRows recomputes the flat list of change ('+'/'-') lines (the line
 // cursor's domain) from the loaded patch, clamps the cursor into range, and
 // re-derives the hunk under the cursor.
-func (t *DiffViewerImpl) rebuildPatchRows() {
+func (t *DiffViewer) rebuildPatchRows() {
 	t.patchRows = t.patchRows[:0]
 	for hi, h := range t.patchFile.Hunks {
 		for li, l := range h.Lines {
@@ -894,7 +894,7 @@ func (t *DiffViewerImpl) rebuildPatchRows() {
 }
 
 // syncPatchHunk points patchHunk at the hunk holding the cursor's change line.
-func (t *DiffViewerImpl) syncPatchHunk() {
+func (t *DiffViewer) syncPatchHunk() {
 	if t.patchCursor >= 0 && t.patchCursor < len(t.patchRows) {
 		t.patchHunk = t.patchRows[t.patchCursor].hunk
 	}
@@ -902,7 +902,7 @@ func (t *DiffViewerImpl) syncPatchHunk() {
 
 // hunkRowRange returns the first and last patchRows indices that belong to the
 // given hunk (lo>hi when the hunk has no change rows).
-func (t *DiffViewerImpl) hunkRowRange(hunk int) (lo, hi int) {
+func (t *DiffViewer) hunkRowRange(hunk int) (lo, hi int) {
 	lo, hi = -1, -2
 	for i, r := range t.patchRows {
 		if r.hunk == hunk {
@@ -917,7 +917,7 @@ func (t *DiffViewerImpl) hunkRowRange(hunk int) (lo, hi int) {
 
 // patchSelectionRange returns the inclusive [lo,hi] patchRows range currently
 // selected, or ok=false when no range selection is active.
-func (t *DiffViewerImpl) patchSelectionRange() (lo, hi int, ok bool) {
+func (t *DiffViewer) patchSelectionRange() (lo, hi int, ok bool) {
 	if t.patchSelAnchor < 0 || len(t.patchRows) == 0 {
 		return 0, 0, false
 	}
@@ -930,7 +930,7 @@ func (t *DiffViewerImpl) patchSelectionRange() (lo, hi int, ok bool) {
 
 // movePatchCursor moves the line cursor over change lines. While a range
 // selection is active it stays within the anchor's hunk (ApplyLines is per-hunk).
-func (t *DiffViewerImpl) movePatchCursor(delta int) {
+func (t *DiffViewer) movePatchCursor(delta int) {
 	if len(t.patchRows) == 0 {
 		return
 	}
@@ -947,7 +947,7 @@ func (t *DiffViewerImpl) movePatchCursor(delta int) {
 
 // togglePatchSelection starts a range selection at the cursor, or cancels the
 // active one.
-func (t *DiffViewerImpl) togglePatchSelection() {
+func (t *DiffViewer) togglePatchSelection() {
 	if t.patchSelAnchor >= 0 {
 		t.patchSelAnchor = -1
 	} else if len(t.patchRows) > 0 {
@@ -957,7 +957,7 @@ func (t *DiffViewerImpl) togglePatchSelection() {
 }
 
 // jumpHunk moves the cursor to the first change line of the previous/next hunk.
-func (t *DiffViewerImpl) jumpHunk(delta int) {
+func (t *DiffViewer) jumpHunk(delta int) {
 	if len(t.patchRows) == 0 {
 		return
 	}
@@ -976,7 +976,7 @@ func (t *DiffViewerImpl) jumpHunk(delta int) {
 
 // applyPatchCmd applies the active range selection (exact lines) or, when none
 // is active, the whole hunk under the cursor.
-func (t *DiffViewerImpl) applyPatchCmd() tea.Cmd {
+func (t *DiffViewer) applyPatchCmd() tea.Cmd {
 	if lo, hi, ok := t.patchSelectionRange(); ok {
 		return t.applyLinesCmd(lo, hi)
 	}
@@ -985,7 +985,7 @@ func (t *DiffViewerImpl) applyPatchCmd() tea.Cmd {
 
 // applyLinesCmd stages/unstages exactly the change lines in patchRows[lo:hi]
 // (restricted to the cursor row's hunk), following the loaded patch direction.
-func (t *DiffViewerImpl) applyLinesCmd(lo, hi int) tea.Cmd {
+func (t *DiffViewer) applyLinesCmd(lo, hi int) tea.Cmd {
 	if lo < 0 || hi >= len(t.patchRows) || lo > hi {
 		return nil
 	}
@@ -1016,7 +1016,7 @@ func (t *DiffViewerImpl) applyLinesCmd(lo, hi int) tea.Cmd {
 // splitPatchHunk breaks the hunk under the cursor into its smallest independent
 // pieces so they can be staged one at a time. The cursor keeps tracking the same
 // change line (now in a smaller hunk).
-func (t *DiffViewerImpl) splitPatchHunk() {
+func (t *DiffViewer) splitPatchHunk() {
 	if t.patchHunk < 0 || t.patchHunk >= len(t.patchFile.Hunks) {
 		return
 	}
@@ -1035,7 +1035,7 @@ func (t *DiffViewerImpl) splitPatchHunk() {
 
 // scrollToCursor keeps the cursor's change line on screen with a little context
 // above it. Overscroll is clamped by the viewport.
-func (t *DiffViewerImpl) scrollToCursor() {
+func (t *DiffViewer) scrollToCursor() {
 	if t.patchCursor < 0 || t.patchCursor >= len(t.patchRowY) {
 		return
 	}
@@ -1049,7 +1049,7 @@ func (t *DiffViewerImpl) scrollToCursor() {
 // then its lines, with a left gutter that marks the cursor line (▶) and any
 // range-selected lines (▌). It records the rendered Y of every change line so the
 // cursor can be scrolled into view.
-func (t *DiffViewerImpl) rebuildPatchContent() {
+func (t *DiffViewer) rebuildPatchContent() {
 	t.hunkOffsets = t.hunkOffsets[:0]
 	t.patchRowY = ensureLen(t.patchRowY, len(t.patchRows))
 	accent := t.styleProvider.GetThemeColor("accent")
@@ -1105,7 +1105,7 @@ func ensureLen(s []int, n int) []int {
 	return make([]int, n)
 }
 
-func (t *DiffViewerImpl) colorPatchLine(l string) string {
+func (t *DiffViewer) colorPatchLine(l string) string {
 	if l == "" {
 		return ""
 	}
@@ -1121,13 +1121,13 @@ func (t *DiffViewerImpl) colorPatchLine(l string) string {
 	}
 }
 
-func (t *DiffViewerImpl) renderPatch(width, height int) string {
+func (t *DiffViewer) renderPatch(width, height int) string {
 	t.viewport.SetWidth(width)
 	t.viewport.SetHeight(height)
 	return t.viewport.View()
 }
 
-func (t *DiffViewerImpl) loadCmd() tea.Cmd {
+func (t *DiffViewer) loadCmd() tea.Cmd {
 	src := t.readSource()
 	return func() tea.Msg {
 		staged, unstaged, err := src.Changes()
@@ -1137,13 +1137,13 @@ func (t *DiffViewerImpl) loadCmd() tea.Cmd {
 
 // --- tree model ---
 
-func (t *DiffViewerImpl) rebuildRows() {
+func (t *DiffViewer) rebuildRows() {
 	t.rows = t.rows[:0]
 	t.addSection("Staged Changes", "staged", t.staged)
 	t.addSection("Changes", "unstaged", t.unstaged)
 }
 
-func (t *DiffViewerImpl) addSection(title, key string, files []gitdiff.FileChange) {
+func (t *DiffViewer) addSection(title, key string, files []gitdiff.FileChange) {
 	if len(files) == 0 {
 		return
 	}
@@ -1208,7 +1208,7 @@ func groupByDir(files []gitdiff.FileChange) []dirGroup {
 	return out
 }
 
-func (t *DiffViewerImpl) reanchorSelection() {
+func (t *DiffViewer) reanchorSelection() {
 	if len(t.rows) == 0 {
 		t.cursor = 0
 		t.selectedKey = ""
@@ -1225,7 +1225,7 @@ func (t *DiffViewerImpl) reanchorSelection() {
 // findSelectionIndex resolves which row to keep selected after a rebuild: the
 // exact previous key, else the same file path in either group (e.g. after
 // staging moves it), else the first file row so a diff shows on open.
-func (t *DiffViewerImpl) findSelectionIndex() (int, bool) {
+func (t *DiffViewer) findSelectionIndex() (int, bool) {
 	if t.selectedKey == "" {
 		return t.firstFileRow()
 	}
@@ -1238,7 +1238,7 @@ func (t *DiffViewerImpl) findSelectionIndex() (int, bool) {
 	return 0, false
 }
 
-func (t *DiffViewerImpl) indexOfKey(key string) (int, bool) {
+func (t *DiffViewer) indexOfKey(key string) (int, bool) {
 	for i, r := range t.rows {
 		if t.rowKey(r) == key {
 			return i, true
@@ -1247,7 +1247,7 @@ func (t *DiffViewerImpl) indexOfKey(key string) (int, bool) {
 	return 0, false
 }
 
-func (t *DiffViewerImpl) indexOfFilePath(path string) (int, bool) {
+func (t *DiffViewer) indexOfFilePath(path string) (int, bool) {
 	for i, r := range t.rows {
 		if r.kind == rowFile && r.fc.Path == path {
 			return i, true
@@ -1256,7 +1256,7 @@ func (t *DiffViewerImpl) indexOfFilePath(path string) (int, bool) {
 	return 0, false
 }
 
-func (t *DiffViewerImpl) firstFileRow() (int, bool) {
+func (t *DiffViewer) firstFileRow() (int, bool) {
 	for i, r := range t.rows {
 		if r.kind == rowFile {
 			return i, true
@@ -1265,14 +1265,14 @@ func (t *DiffViewerImpl) firstFileRow() (int, bool) {
 	return 0, false
 }
 
-func (t *DiffViewerImpl) rowKey(r diffRow) string {
+func (t *DiffViewer) rowKey(r diffRow) string {
 	if r.kind == rowFile {
 		return diffKey(r.fc)
 	}
 	return r.collapseKey
 }
 
-func (t *DiffViewerImpl) selectedFile() *gitdiff.FileChange {
+func (t *DiffViewer) selectedFile() *gitdiff.FileChange {
 	if t.cursor < 0 || t.cursor >= len(t.rows) {
 		return nil
 	}
@@ -1283,14 +1283,14 @@ func (t *DiffViewerImpl) selectedFile() *gitdiff.FileChange {
 	return nil
 }
 
-func (t *DiffViewerImpl) selectedFilePath() string {
+func (t *DiffViewer) selectedFilePath() string {
 	if fc := t.selectedFile(); fc != nil {
 		return fc.Path
 	}
 	return ""
 }
 
-func (t *DiffViewerImpl) hasAnyFile() bool {
+func (t *DiffViewer) hasAnyFile() bool {
 	return len(t.staged)+len(t.unstaged) > 0
 }
 
@@ -1314,7 +1314,7 @@ func filePathFromKey(key string) (string, bool) {
 
 // View satisfies tea.Model. The app composes the real layout via Render (which
 // stacks the input beneath the diff pane); this is a standalone fallback.
-func (t *DiffViewerImpl) View() tea.View {
+func (t *DiffViewer) View() tea.View {
 	return tea.NewView(t.Render(""))
 }
 
@@ -1322,7 +1322,7 @@ func (t *DiffViewerImpl) View() tea.View {
 // left, and on the right the diff pane with the (already-rendered) input row
 // stacked beneath it - so the input visibly shifts right of the sidebar. Pass
 // "" for inputRow to render the diff pane at full height (no input).
-func (t *DiffViewerImpl) Render(inputRow string) string {
+func (t *DiffViewer) Render(inputRow string) string {
 	if t.width <= 0 || t.height <= 0 {
 		return ""
 	}
@@ -1340,7 +1340,7 @@ func (t *DiffViewerImpl) Render(inputRow string) string {
 	return t.styleProvider.JoinHorizontal(sidebar, divider, chatColumn)
 }
 
-func (t *DiffViewerImpl) renderDivider(height int) string {
+func (t *DiffViewer) renderDivider(height int) string {
 	line := t.styleProvider.RenderDimText("│")
 	lines := make([]string, height)
 	for i := range lines {
@@ -1349,7 +1349,7 @@ func (t *DiffViewerImpl) renderDivider(height int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (t *DiffViewerImpl) renderSidebar(width, height int) string {
+func (t *DiffViewer) renderSidebar(width, height int) string {
 	tabBar := t.renderTabBar(width)
 	rowsHeight := height - 1
 	if rowsHeight <= 0 {
@@ -1378,7 +1378,7 @@ func (t *DiffViewerImpl) renderSidebar(width, height int) string {
 
 // renderTabBar draws the "Local · PR" tab header atop the sidebar, highlighting
 // the active tab.
-func (t *DiffViewerImpl) renderTabBar(width int) string {
+func (t *DiffViewer) renderTabBar(width int) string {
 	accent := t.styleProvider.GetThemeColor("accent")
 	local, pr := "Local", "PR"
 	if t.activeTab == diffTabPR {
@@ -1392,7 +1392,7 @@ func (t *DiffViewerImpl) renderTabBar(width int) string {
 	return t.padPlain(bar, "Local · PR", width)
 }
 
-func (t *DiffViewerImpl) sidebarLines(width int) []string {
+func (t *DiffViewer) sidebarLines(width int) []string {
 	if t.loading {
 		return []string{t.padPlain(t.styleProvider.RenderDimText("Loading changes…"), "Loading changes…", width)}
 	}
@@ -1406,7 +1406,7 @@ func (t *DiffViewerImpl) sidebarLines(width int) []string {
 	return lines
 }
 
-func (t *DiffViewerImpl) rowLine(r diffRow, width int, selected bool) string {
+func (t *DiffViewer) rowLine(r diffRow, width int, selected bool) string {
 	leftPlain, badgePlain := rowText(r)
 	if selected {
 		leftPlain = "❯ " + leftPlain
@@ -1439,7 +1439,7 @@ func rowText(r diffRow) (left, badge string) {
 	}
 }
 
-func (t *DiffViewerImpl) styleLeft(r diffRow, text string, selected bool) string {
+func (t *DiffViewer) styleLeft(r diffRow, text string, selected bool) string {
 	switch {
 	case selected:
 		return t.styleProvider.RenderWithColorAndBold(text, t.styleProvider.GetThemeColor("accent"))
@@ -1452,14 +1452,14 @@ func (t *DiffViewerImpl) styleLeft(r diffRow, text string, selected bool) string
 	}
 }
 
-func (t *DiffViewerImpl) styleBadge(r diffRow, badge string) string {
+func (t *DiffViewer) styleBadge(r diffRow, badge string) string {
 	if r.kind != rowFile {
 		return t.styleProvider.RenderDimText(badge)
 	}
 	return t.styleProvider.RenderWithColor(badge, t.statusColor(r.fc.Status))
 }
 
-func (t *DiffViewerImpl) statusColor(s gitdiff.Status) string {
+func (t *DiffViewer) statusColor(s gitdiff.Status) string {
 	switch s {
 	case gitdiff.StatusAdded, gitdiff.StatusUntracked:
 		return t.styleProvider.GetThemeColor("success")
@@ -1472,7 +1472,7 @@ func (t *DiffViewerImpl) statusColor(s gitdiff.Status) string {
 	}
 }
 
-func (t *DiffViewerImpl) renderDiffPane(width, height int) string {
+func (t *DiffViewer) renderDiffPane(width, height int) string {
 	switch {
 	case t.editMode && t.editor != nil:
 		return t.editor.View(width, height)
@@ -1507,7 +1507,7 @@ func (t *DiffViewerImpl) renderDiffPane(width, height int) string {
 // ensureDiff (re)renders the selected file's diff into the viewport, gated so
 // the git query + diff render only run when the selection, content (dirty), or
 // width actually changed - not on every frame.
-func (t *DiffViewerImpl) ensureDiff(fc gitdiff.FileChange, width int) {
+func (t *DiffViewer) ensureDiff(fc gitdiff.FileChange, width int) {
 	key := diffKey(fc)
 	if !t.dirtyDiff && key == t.diffPath && width == t.diffWidth {
 		return
@@ -1526,7 +1526,7 @@ func (t *DiffViewerImpl) ensureDiff(fc gitdiff.FileChange, width int) {
 	}
 }
 
-func (t *DiffViewerImpl) computeDiff(fc gitdiff.FileChange, width int) string {
+func (t *DiffViewer) computeDiff(fc gitdiff.FileChange, width int) string {
 	oldContent, newContent, isBinary, err := t.readSource().Diff(fc)
 	switch {
 	case err != nil:
@@ -1560,7 +1560,7 @@ func statusLetter(s gitdiff.Status) rune {
 }
 
 // padPlain right-pads a styled string to width using its plain-text length.
-func (t *DiffViewerImpl) padPlain(styled, plain string, width int) string {
+func (t *DiffViewer) padPlain(styled, plain string, width int) string {
 	if pad := width - len([]rune(plain)); pad > 0 {
 		return styled + strings.Repeat(" ", pad)
 	}

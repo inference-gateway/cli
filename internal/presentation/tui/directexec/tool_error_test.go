@@ -30,12 +30,12 @@ func TestHandleToolCommand_ErrorStopsSpinner(t *testing.T) {
 	})
 	toolSvc.ExecuteToolDirectReturns(nil, errors.New("boom"))
 
-	sm := statemanager.NewStateManager(false)
+	sm := statemanager.NewStore(false)
 	sm.SetAgentMode(agentdomain.AgentModeStandard)
 
 	svc := directexec.NewService(directexec.Options{
 		ToolService:      toolSvc,
-		StateManager:     sm,
+		StateStore:       sm,
 		ConversationRepo: &convmocks.FakeConversationRepository{},
 		Listener:         &tuimocks.FakeChatEventListener{},
 	})

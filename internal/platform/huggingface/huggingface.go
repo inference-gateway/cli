@@ -51,8 +51,8 @@ func (c *Client) fileURL(repo Repo, file string) string {
 // EnsureFile returns the local path of file inside dir, downloading it from
 // repo when it is missing and allowDownload is true. A missing file with
 // downloads disallowed yields ErrNotCached. label names the file in progress
-// reports and errors (e.g. "whisper model").
-func (c *Client) EnsureFile(ctx context.Context, repo Repo, file, dir, label string, allowDownload bool) (string, error) {
+// reports (sent to report, nil for none) and errors (e.g. "whisper model").
+func (c *Client) EnsureFile(ctx context.Context, repo Repo, file, dir, label string, allowDownload bool, report func(string)) (string, error) {
 	path := filepath.Join(dir, file)
 
 	if _, err := os.Stat(path); err == nil {
@@ -67,7 +67,7 @@ func (c *Client) EnsureFile(ctx context.Context, repo Repo, file, dir, label str
 		return "", fmt.Errorf("creating models directory: %w", err)
 	}
 
-	if err := download.ToFile(ctx, c.HTTP, c.fileURL(repo, file), path, label); err != nil {
+	if err := download.ToFile(ctx, c.HTTP, c.fileURL(repo, file), path, label, report); err != nil {
 		return "", err
 	}
 	return path, nil

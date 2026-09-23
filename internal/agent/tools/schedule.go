@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	uuid "github.com/google/uuid"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
@@ -16,7 +14,6 @@ import (
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -169,7 +166,7 @@ func (t *ScheduleTool) Validate(args map[string]any) error {
 			return err
 		}
 		if expr, ok := args["cron_expression"].(string); ok && expr != "" {
-			if err := scheduler.ParseCron(expr); err != nil {
+			if err := scheddomain.ParseCron(expr); err != nil {
 				return fmt.Errorf("invalid cron_expression: %w", err)
 			}
 		}
@@ -189,7 +186,7 @@ func validateCreateArgs(args map[string]any) error {
 	if err != nil {
 		return err
 	}
-	if err := scheduler.ParseCron(expr); err != nil {
+	if err := scheddomain.ParseCron(expr); err != nil {
 		return fmt.Errorf("invalid cron_expression: %w", err)
 	}
 	if _, err := requireString(args, "prompt"); err != nil {
@@ -255,9 +252,7 @@ func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, stor
 			return t.fail(args, start, fmt.Errorf("max_jobs limit (%d) reached", max))
 		}
 	}
-	now := time.Now().UTC()
-	job := &scheddomain.ScheduledJob{
-		ID:             uuid.New().String(),
+	job, err := scheddomain.NewScheduledJob(scheddomain.ScheduledJob{
 		Name:           optionalString(args, "name"),
 		Description:    optionalString(args, "description"),
 		CronExpression: optionalString(args, "cron_expression"),
@@ -266,8 +261,9 @@ func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, stor
 		RecipientID:    recipient,
 		Model:          optionalString(args, "model"),
 		RunOnce:        optionalBool(args, "run_once"),
-		CreatedAt:      now,
-		UpdatedAt:      now,
+	}, time.Now().UTC())
+	if err != nil {
+		return t.fail(args, start, err)
 	}
 	if err := store.SaveJob(context.Background(), job); err != nil {
 		return t.fail(args, start, err)
@@ -345,38 +341,13 @@ func (t *ScheduleTool) execUpdate(args map[string]any, store storage.ScheduledJo
 	if err != nil {
 		return t.fail(args, start, err)
 	}
-	changed := false
-	if v, ok := args["cron_expression"].(string); ok && v != "" {
-		if err := scheduler.ParseCron(v); err != nil {
-			return t.fail(args, start, fmt.Errorf("invalid cron_expression: %w", err))
-		}
-		job.CronExpression = v
-		changed = true
-	}
-	if v, ok := args["prompt"].(string); ok && v != "" {
-		job.Prompt = v
-		changed = true
-	}
-	if v, ok := args["name"].(string); ok {
-		job.Name = v
-		changed = true
-	}
-	if v, ok := args["description"].(string); ok {
-		job.Description = v
-		changed = true
-	}
-	if v, ok := args["model"].(string); ok {
-		job.Model = v
-		changed = true
-	}
-	if v, ok := args["run_once"].(bool); ok {
-		job.RunOnce = v
-		changed = true
+	changed, err := job.Apply(jobPatchFromArgs(args), time.Now().UTC())
+	if err != nil {
+		return t.fail(args, start, err)
 	}
 	if !changed {
 		return t.fail(args, start, errors.New("update: no fields provided"))
 	}
-	job.UpdatedAt = time.Now().UTC()
 	if err := store.SaveJob(context.Background(), job); err != nil {
 		return t.fail(args, start, err)
 	}
@@ -550,4 +521,29 @@ func short(id string) string {
 		return id[:8]
 	}
 	return id
+}
+
+// jobPatchFromArgs maps Schedule update arguments onto a JobPatch: an empty
+// cron_expression or prompt is ignored, the other fields apply when present.
+func jobPatchFromArgs(args map[string]any) scheddomain.JobPatch {
+	var p scheddomain.JobPatch
+	if v, ok := args["cron_expression"].(string); ok && v != "" {
+		p.CronExpression = &v
+	}
+	if v, ok := args["prompt"].(string); ok && v != "" {
+		p.Prompt = &v
+	}
+	if v, ok := args["name"].(string); ok {
+		p.Name = &v
+	}
+	if v, ok := args["description"].(string); ok {
+		p.Description = &v
+	}
+	if v, ok := args["model"].(string); ok {
+		p.Model = &v
+	}
+	if v, ok := args["run_once"].(bool); ok {
+		p.RunOnce = &v
+	}
+	return p
 }

@@ -24,12 +24,12 @@ type HelpCommand struct {
 	Description string
 }
 
-// HelpViewImpl is a full-screen, scrollable overlay documenting every available
+// HelpView is a full-screen, scrollable overlay documenting every available
 // slash command and keybinding in two lipgloss tables. Both tables are sized to
 // the terminal width - long descriptions wrap rather than truncate - and the
 // whole view lives inside a viewport, so every row stays reachable even on a
 // narrow or short terminal. It is read-only: esc/q returns to the chat.
-type HelpViewImpl struct {
+type HelpView struct {
 	width         int
 	height        int
 	themeService  tui.ThemeService
@@ -41,11 +41,11 @@ type HelpViewImpl struct {
 }
 
 // NewHelpView creates a new help overlay component.
-func NewHelpView(themeService tui.ThemeService, styleProvider *styles.Provider) *HelpViewImpl {
+func NewHelpView(themeService tui.ThemeService, styleProvider *styles.Provider) *HelpView {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 
-	return &HelpViewImpl{
+	return &HelpView{
 		width:         80,
 		height:        24,
 		themeService:  themeService,
@@ -54,11 +54,11 @@ func NewHelpView(themeService tui.ThemeService, styleProvider *styles.Provider) 
 	}
 }
 
-func (h *HelpViewImpl) Init() tea.Cmd { return nil }
+func (h *HelpView) Init() tea.Cmd { return nil }
 
 // SetContent loads the rows to display, rebuilds the rendered tables and
 // resets the scroll position to the top.
-func (h *HelpViewImpl) SetContent(commands []HelpCommand, keybindings []tui.KeyShortcut) {
+func (h *HelpView) SetContent(commands []HelpCommand, keybindings []tui.KeyShortcut) {
 	h.commands = commands
 	h.keybindings = keybindings
 	h.rebuild()
@@ -66,17 +66,17 @@ func (h *HelpViewImpl) SetContent(commands []HelpCommand, keybindings []tui.KeyS
 }
 
 // Reset clears the cancelled flag and scroll position for reuse.
-func (h *HelpViewImpl) Reset() {
+func (h *HelpView) Reset() {
 	h.cancelled = false
 	h.viewport.GotoTop()
 }
 
 // IsCancelled reports whether the user dismissed the help overlay.
-func (h *HelpViewImpl) IsCancelled() bool { return h.cancelled }
+func (h *HelpView) IsCancelled() bool { return h.cancelled }
 
 // SetWidth sets the overlay width and rebuilds the tables to fit. Rebuilding is
 // skipped when the width is unchanged so steady-state renders stay cheap.
-func (h *HelpViewImpl) SetWidth(width int) {
+func (h *HelpView) SetWidth(width int) {
 	if width == h.width {
 		return
 	}
@@ -88,12 +88,12 @@ func (h *HelpViewImpl) SetWidth(width int) {
 // SetHeight sets the overlay height, reserving the bottom two lines for the
 // footer hint. The rendered tables depend only on width, so changing the height
 // just resizes the viewport window - no rebuild required.
-func (h *HelpViewImpl) SetHeight(height int) {
+func (h *HelpView) SetHeight(height int) {
 	h.height = height
 	h.viewport.SetHeight(max(height-2, 1))
 }
 
-func (h *HelpViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (h *HelpView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h.SetWidth(msg.Width)
@@ -108,7 +108,7 @@ func (h *HelpViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return h, cmd
 }
 
-func (h *HelpViewImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (h *HelpView) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, helpViewKeys.dismiss):
 		h.cancelled = true
@@ -132,11 +132,11 @@ func (h *HelpViewImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return h, nil
 }
 
-func (h *HelpViewImpl) View() tea.View {
+func (h *HelpView) View() tea.View {
 	return tea.NewView(h.viewContent())
 }
 
-func (h *HelpViewImpl) viewContent() string {
+func (h *HelpView) viewContent() string {
 	dim := h.styleProvider.GetThemeColor("dim")
 
 	var b strings.Builder
@@ -148,7 +148,7 @@ func (h *HelpViewImpl) viewContent() string {
 }
 
 // rebuild renders both tables into the viewport content.
-func (h *HelpViewImpl) rebuild() {
+func (h *HelpView) rebuild() {
 	accent := lipgloss.Color(h.styleProvider.GetThemeColor("accent"))
 	dim := lipgloss.Color(h.styleProvider.GetThemeColor("dim"))
 	border := lipgloss.Color(h.styleProvider.GetThemeColor("border"))
@@ -185,7 +185,7 @@ func (h *HelpViewImpl) rebuild() {
 	h.viewport.SetContent(b.String())
 }
 
-func (h *HelpViewImpl) renderCommandsTable(width int, accent, dim, border color.Color) string {
+func (h *HelpView) renderCommandsTable(width int, accent, dim, border color.Color) string {
 	rows := make([][2]string, 0, len(h.commands))
 	for _, c := range h.commands {
 		rows = append(rows, [2]string{"/" + c.Name, c.Description})
@@ -196,7 +196,7 @@ func (h *HelpViewImpl) renderCommandsTable(width int, accent, dim, border color.
 	return renderHelpTable(width, accent, dim, border, "Command", "Description", rows)
 }
 
-func (h *HelpViewImpl) renderKeybindingsTable(width int, accent, dim, border color.Color) string {
+func (h *HelpView) renderKeybindingsTable(width int, accent, dim, border color.Color) string {
 	rows := make([][2]string, 0, len(h.keybindings))
 	for _, k := range h.keybindings {
 		rows = append(rows, [2]string{k.Key, k.Description})

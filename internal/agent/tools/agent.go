@@ -18,9 +18,9 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	agentrunner "github.com/inference-gateway/cli/internal/agent/application/agentrunner"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -337,7 +337,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 	})
 
 	answer := res.FinalAssistant
-	if rf, ok := readSubagentResultFile(resultFile); ok {
+	if rf, ok := scheddomain.ReadSubagentResultFile(resultFile); ok {
 		if rf.FinalAssistant != "" {
 			answer = rf.FinalAssistant
 		}
@@ -576,27 +576,13 @@ func readSubagentApproval(sessionID string) (string, bool) {
 	return strings.TrimSpace(af.Summary), true
 }
 
-// readSubagentResultFile reads and parses a subagent result file without
-// waiting. Returns ok=false when the file is absent or malformed.
-func readSubagentResultFile(path string) (scheddomain.SubagentResultFile, bool) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return scheddomain.SubagentResultFile{}, false
-	}
-	var rf scheddomain.SubagentResultFile
-	if err := json.Unmarshal(data, &rf); err != nil {
-		return scheddomain.SubagentResultFile{}, false
-	}
-	return rf, true
-}
-
 // readSubagentResultMessage returns the subagent chat's real last assistant
 // message from its result file (trimmed), or "" if the file is absent or empty.
 // It is the single harvest path: the subagent's pane is never scraped for content
 // (its TUI chrome is noise), so on a miss callers deliver nothing. Shared by the
 // poller's inspector and the GetSubagentResult / CloseSubagent tools.
 func readSubagentResultMessage(sessionID string) string {
-	if rf, ok := readSubagentResultFile(subagentResultFilePath(sessionID)); ok {
+	if rf, ok := scheddomain.ReadSubagentResultFile(subagentResultFilePath(sessionID)); ok {
 		return strings.TrimSpace(rf.FinalAssistant)
 	}
 	return ""

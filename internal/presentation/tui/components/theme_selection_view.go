@@ -62,10 +62,10 @@ func (d themeDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 	_, _ = fmt.Fprint(w, line)
 }
 
-// ThemeSelectorImpl implements theme selection UI on top of bubbles/v2/list,
+// ThemeSelector implements theme selection UI on top of bubbles/v2/list,
 // which provides cursor movement, fuzzy filtering (press /), pagination and
 // help for free.
-type ThemeSelectorImpl struct {
+type ThemeSelector struct {
 	list          list.Model
 	themes        []string
 	width         int
@@ -78,7 +78,7 @@ type ThemeSelectorImpl struct {
 }
 
 // NewThemeSelector creates a new theme selector.
-func NewThemeSelector(themeService tui.ThemeService, styleProvider *styles.Provider) *ThemeSelectorImpl {
+func NewThemeSelector(themeService tui.ThemeService, styleProvider *styles.Provider) *ThemeSelector {
 	themes := themeService.ListThemes()
 
 	l := list.New(
@@ -95,7 +95,7 @@ func NewThemeSelector(themeService tui.ThemeService, styleProvider *styles.Provi
 		Foreground(lipgloss.Color(styleProvider.GetThemeColor("accent"))).
 		Bold(true)
 
-	m := &ThemeSelectorImpl{
+	m := &ThemeSelector{
 		list:          l,
 		themes:        themes,
 		width:         80,
@@ -117,7 +117,7 @@ func themeItems(themes []string, current string) []list.Item {
 }
 
 // selectCurrentTheme moves the cursor to the active theme.
-func (m *ThemeSelectorImpl) selectCurrentTheme() {
+func (m *ThemeSelector) selectCurrentTheme() {
 	current := m.themeService.GetCurrentThemeName()
 	for i, name := range m.themes {
 		if name == current {
@@ -127,9 +127,9 @@ func (m *ThemeSelectorImpl) selectCurrentTheme() {
 	}
 }
 
-func (m *ThemeSelectorImpl) Init() tea.Cmd { return nil }
+func (m *ThemeSelector) Init() tea.Cmd { return nil }
 
-func (m *ThemeSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *ThemeSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -150,7 +150,7 @@ func (m *ThemeSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleKey intercepts selection/cancel keys when the list is not actively
 // filtering; otherwise it lets the list own typing, enter (apply filter) and
 // esc (clear filter).
-func (m *ThemeSelectorImpl) handleKey(msg tea.KeyPressMsg) (handled bool, cmd tea.Cmd) {
+func (m *ThemeSelector) handleKey(msg tea.KeyPressMsg) (handled bool, cmd tea.Cmd) {
 	if m.list.FilterState() == list.Filtering {
 		return false, nil
 	}
@@ -171,12 +171,12 @@ func (m *ThemeSelectorImpl) handleKey(msg tea.KeyPressMsg) (handled bool, cmd te
 	return false, nil
 }
 
-func (m *ThemeSelectorImpl) cancel() {
+func (m *ThemeSelector) cancel() {
 	m.cancelled = true
 	m.done = true
 }
 
-func (m *ThemeSelectorImpl) selectTheme() tea.Cmd {
+func (m *ThemeSelector) selectTheme() tea.Cmd {
 	item, ok := m.list.SelectedItem().(themeItem)
 	if !ok {
 		return nil
@@ -191,18 +191,18 @@ func (m *ThemeSelectorImpl) selectTheme() tea.Cmd {
 	}
 }
 
-func (m *ThemeSelectorImpl) View() tea.View {
+func (m *ThemeSelector) View() tea.View {
 	return tea.NewView(m.list.View())
 }
 
 // IsSelected returns true if a theme was selected.
-func (m *ThemeSelectorImpl) IsSelected() bool { return m.done && !m.cancelled }
+func (m *ThemeSelector) IsSelected() bool { return m.done && !m.cancelled }
 
 // IsCancelled returns true if selection was cancelled.
-func (m *ThemeSelectorImpl) IsCancelled() bool { return m.cancelled }
+func (m *ThemeSelector) IsCancelled() bool { return m.cancelled }
 
 // GetSelected returns the selected theme.
-func (m *ThemeSelectorImpl) GetSelected() string {
+func (m *ThemeSelector) GetSelected() string {
 	if m.IsSelected() {
 		return m.selectedTheme
 	}
@@ -210,20 +210,20 @@ func (m *ThemeSelectorImpl) GetSelected() string {
 }
 
 // SetWidth sets the width of the theme selector.
-func (m *ThemeSelectorImpl) SetWidth(width int) {
+func (m *ThemeSelector) SetWidth(width int) {
 	m.width = width
 	m.list.SetSize(width, m.height)
 }
 
 // SetHeight sets the height of the theme selector.
-func (m *ThemeSelectorImpl) SetHeight(height int) {
+func (m *ThemeSelector) SetHeight(height int) {
 	m.height = height
 	m.list.SetSize(m.width, height)
 }
 
 // Reset returns the selector to its initial state, rebuilding the items so the
 // active-theme marker reflects any theme change since it was last shown.
-func (m *ThemeSelectorImpl) Reset() {
+func (m *ThemeSelector) Reset() {
 	m.done = false
 	m.cancelled = false
 	m.selectedTheme = ""

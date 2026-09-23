@@ -44,7 +44,7 @@ func TestHandleDrainQueueEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm := statemanager.NewStateManager(false)
+			sm := statemanager.NewStore(false)
 			_ = sm.TransitionToView(tt.view)
 			if tt.busy {
 				_ = sm.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "busy"}})
@@ -105,7 +105,7 @@ func TestHandleDrainQueueRetryEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm := statemanager.NewStateManager(false)
+			sm := statemanager.NewStore(false)
 			_ = sm.TransitionToView(tui.ViewStateChat)
 			if tt.busy {
 				_ = sm.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "busy"}})

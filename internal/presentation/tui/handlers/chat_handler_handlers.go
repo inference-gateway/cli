@@ -11,7 +11,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
@@ -66,7 +66,7 @@ func (h *ChatHandler) ExtractMarkdownSummary(content string) (string, bool) {
 func (h *ChatHandler) handleConversationSelected(
 	msg tui.ConversationSelectedEvent,
 ) tea.Cmd {
-	persistentRepo, ok := h.conversationRepo.(*conversation.PersistentConversationRepository)
+	persistentRepo, ok := h.conversationRepo.(convdomain.PersistentConversationRepository)
 	if !ok {
 		return func() tea.Msg {
 			return tui.ShowErrorEvent{

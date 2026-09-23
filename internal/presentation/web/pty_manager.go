@@ -29,7 +29,7 @@ type SessionHandler interface {
 type Session = SessionHandler
 
 // CreateSessionHandler creates either a local PTY session or remote SSH session
-func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, cfg *config.Config, sessionID string, sessionManager *SessionManager, progressCh chan<- string) (SessionHandler, error) {
+func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, cfg *config.Config, sessionID string, sessionManager *Sessions, progressCh chan<- string) (SessionHandler, error) {
 	if serverCfg != nil {
 		return createRemoteSSHSession(webCfg, serverCfg, cfg.Gateway.URL, sessionID, sessionManager, progressCh)
 	}
@@ -39,7 +39,7 @@ func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerC
 }
 
 // createRemoteSSHSession creates a remote SSH session with optional auto-install
-func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string, sessionID string, sessionManager *SessionManager, progressCh chan<- string) (SessionHandler, error) {
+func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string, sessionID string, sessionManager *Sessions, progressCh chan<- string) (SessionHandler, error) {
 	logger.Info("creating remote SSH session", "server", serverCfg.Name)
 
 	sendProgress := func(msg string) {

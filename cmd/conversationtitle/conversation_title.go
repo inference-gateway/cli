@@ -55,7 +55,7 @@ or have invalidated titles due to being resumed or modified.`,
 
 func generateTitles(state *runtime.State) error {
 	services := container.NewServiceContainer(state.Config())
-	backgroundJobManager := services.GetBackgroundJobManager()
+	backgroundJobManager := services.GetTitleBackfill()
 
 	if backgroundJobManager == nil {
 		return fmt.Errorf("background job manager not available - enable persistent storage to use title generation")
@@ -81,7 +81,7 @@ func showTitleStatus(state *runtime.State) error {
 	cfg := state.Config()
 	services := container.NewServiceContainer(cfg)
 	storage := services.GetStorage()
-	backgroundJobManager := services.GetBackgroundJobManager()
+	backgroundJobManager := services.GetTitleBackfill()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -128,7 +128,7 @@ func showTitleStatus(state *runtime.State) error {
 
 func runTitleDaemon(state *runtime.State) error {
 	services := container.NewServiceContainer(state.Config())
-	backgroundJobManager := services.GetBackgroundJobManager()
+	backgroundJobManager := services.GetTitleBackfill()
 
 	if backgroundJobManager == nil {
 		return fmt.Errorf("background job manager not available - enable persistent storage to use title generation")

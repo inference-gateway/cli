@@ -282,7 +282,7 @@ func (c *command) startMCPServers(cmd *cobra.Command, args []string) error {
 	if err := rt.EnsureNetwork(ctx); err != nil {
 		return fmt.Errorf("failed to create container network: %w", err)
 	}
-	manager := mcp.NewManager(containerruntime.SharedSessionID, cfg, rt, nil)
+	manager := mcp.NewSupervisor(containerruntime.SharedSessionID, cfg, rt, nil)
 	var failed error
 	for _, server := range servers {
 		if err := manager.StartServer(ctx, server); err != nil {
@@ -304,7 +304,7 @@ func (c *command) stopMCPServers(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	manager := mcp.NewManager(containerruntime.SharedSessionID, cfg, rt, nil)
+	manager := mcp.NewSupervisor(containerruntime.SharedSessionID, cfg, rt, nil)
 	for _, server := range servers {
 		if err := manager.StopServer(context.Background(), server.Name); err != nil {
 			return fmt.Errorf("%s: %w", server.Name, err)

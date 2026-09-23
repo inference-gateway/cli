@@ -16,13 +16,12 @@ import (
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
-// ConversationSelectorImpl implements conversation selection UI
-type ConversationSelectorImpl struct {
+// ConversationSelector implements conversation selection UI
+type ConversationSelector struct {
 	conversations         []convdomain.ConversationSummary
 	filteredConversations []convdomain.ConversationSummary
 	width                 int
@@ -30,7 +29,7 @@ type ConversationSelectorImpl struct {
 	styleProvider         *styles.Provider
 	done                  bool
 	cancelled             bool
-	repo                  shortcuts.PersistentConversationRepository
+	repo                  convdomain.PersistentConversationRepository
 	searchQuery           string
 	searchMode            bool
 	loading               bool
@@ -43,8 +42,8 @@ type ConversationSelectorImpl struct {
 }
 
 // NewConversationSelector creates a new conversation selector
-func NewConversationSelector(repo shortcuts.PersistentConversationRepository, styleProvider *styles.Provider) *ConversationSelectorImpl {
-	c := &ConversationSelectorImpl{
+func NewConversationSelector(repo convdomain.PersistentConversationRepository, styleProvider *styles.Provider) *ConversationSelector {
+	c := &ConversationSelector{
 		conversations:         make([]convdomain.ConversationSummary, 0),
 		filteredConversations: make([]convdomain.ConversationSummary, 0),
 		width:                 80,
@@ -77,7 +76,7 @@ func NewConversationSelector(repo shortcuts.PersistentConversationRepository, st
 	return c
 }
 
-func (c *ConversationSelectorImpl) tableStyles() table.Styles {
+func (c *ConversationSelector) tableStyles() table.Styles {
 	s := table.DefaultStyles()
 	if c.styleProvider != nil {
 		s.Header = s.Header.Foreground(lipgloss.Color(c.styleProvider.GetThemeColor("dim")))
@@ -86,7 +85,7 @@ func (c *ConversationSelectorImpl) tableStyles() table.Styles {
 	return s
 }
 
-func (c *ConversationSelectorImpl) tableHeight() int {
+func (c *ConversationSelector) tableHeight() int {
 	h := c.height - 15
 	if h < 3 {
 		h = 3
@@ -96,7 +95,7 @@ func (c *ConversationSelectorImpl) tableHeight() int {
 
 // syncTable refreshes the table rows from the filtered conversations, keeping
 // the cursor in range.
-func (c *ConversationSelectorImpl) syncTable() {
+func (c *ConversationSelector) syncTable() {
 	rows := make([]table.Row, 0, len(c.filteredConversations))
 	for _, conv := range c.filteredConversations {
 		rows = append(rows, conversationRow(conv))
@@ -131,11 +130,11 @@ func conversationRow(conv convdomain.ConversationSummary) table.Row {
 	}
 }
 
-func (c *ConversationSelectorImpl) Init() tea.Cmd {
+func (c *ConversationSelector) Init() tea.Cmd {
 	return tea.Batch(c.loadConversationsCmd(), c.spinner.Tick)
 }
 
-func (c *ConversationSelectorImpl) loadConversationsCmd() tea.Cmd {
+func (c *ConversationSelector) loadConversationsCmd() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -156,7 +155,7 @@ func (c *ConversationSelectorImpl) loadConversationsCmd() tea.Cmd {
 	}
 }
 
-func (c *ConversationSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tui.ConversationsLoadedEvent:
 		return c.handleConversationsLoaded(msg)
@@ -179,7 +178,7 @@ func (c *ConversationSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleConversationsLoaded(msg tui.ConversationsLoadedEvent) (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) handleConversationsLoaded(msg tui.ConversationsLoadedEvent) (tea.Model, tea.Cmd) {
 	c.loading = false
 	c.loadError = msg.Error
 	c.dataLoaded = true
@@ -204,7 +203,7 @@ func (c *ConversationSelectorImpl) handleConversationsLoaded(msg tui.Conversatio
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	c.width = msg.Width
 	c.height = msg.Height
 	c.table.SetWidth(c.width)
@@ -212,7 +211,7 @@ func (c *ConversationSelectorImpl) handleWindowResize(msg tea.WindowSizeMsg) (te
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if c.confirmDelete {
 		return c.handleDeleteConfirmation(msg)
 	}
@@ -247,32 +246,32 @@ func (c *ConversationSelectorImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Mode
 	}
 }
 
-func (c *ConversationSelectorImpl) handleCancel() (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) handleCancel() (tea.Model, tea.Cmd) {
 	c.cancelled = true
 	c.done = true
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleSelection() (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) handleSelection() (tea.Model, tea.Cmd) {
 	if len(c.filteredConversations) > 0 && c.table.Cursor() < len(c.filteredConversations) {
 		c.done = true
 	}
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleSearchToggle() (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) handleSearchToggle() (tea.Model, tea.Cmd) {
 	c.searchMode = true
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleSearchClear() (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) handleSearchClear() (tea.Model, tea.Cmd) {
 	c.searchMode = false
 	c.searchQuery = ""
 	c.updateSearch()
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleBackspace() (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) handleBackspace() (tea.Model, tea.Cmd) {
 	if c.searchMode && len(c.searchQuery) > 0 {
 		c.searchQuery = c.searchQuery[:len(c.searchQuery)-1]
 		c.updateSearch()
@@ -280,7 +279,7 @@ func (c *ConversationSelectorImpl) handleBackspace() (tea.Model, tea.Cmd) {
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleCharacterInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) handleCharacterInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if c.searchMode && len(msg.String()) == 1 && msg.String()[0] >= 32 {
 		c.searchQuery += msg.String()
 		c.updateSearch()
@@ -288,17 +287,17 @@ func (c *ConversationSelectorImpl) handleCharacterInput(msg tea.KeyPressMsg) (te
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) updateSearch() {
+func (c *ConversationSelector) updateSearch() {
 	c.filterConversations()
 	c.syncTable()
 	c.table.GotoTop()
 }
 
-func (c *ConversationSelectorImpl) View() tea.View {
+func (c *ConversationSelector) View() tea.View {
 	return tea.NewView(c.viewContent())
 }
 
-func (c *ConversationSelectorImpl) viewContent() string {
+func (c *ConversationSelector) viewContent() string {
 	var b strings.Builder
 
 	c.writeHeader(&b)
@@ -332,7 +331,7 @@ func (c *ConversationSelectorImpl) viewContent() string {
 }
 
 // filterConversations filters the conversations based on the search query
-func (c *ConversationSelectorImpl) filterConversations() {
+func (c *ConversationSelector) filterConversations() {
 	if c.searchQuery == "" {
 		c.filteredConversations = make([]convdomain.ConversationSummary, len(c.conversations))
 		copy(c.filteredConversations, c.conversations)
@@ -350,7 +349,7 @@ func (c *ConversationSelectorImpl) filterConversations() {
 	}
 }
 
-func (c *ConversationSelectorImpl) handleDeleteRequest() (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) handleDeleteRequest() (tea.Model, tea.Cmd) {
 	if len(c.filteredConversations) == 0 || c.table.Cursor() >= len(c.filteredConversations) {
 		return c, nil
 	}
@@ -360,7 +359,7 @@ func (c *ConversationSelectorImpl) handleDeleteRequest() (tea.Model, tea.Cmd) {
 	return c, nil
 }
 
-func (c *ConversationSelectorImpl) handleDeleteConfirmation(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) handleDeleteConfirmation(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, conversationSelectorKeys.confirm):
 		return c.performDelete()
@@ -373,7 +372,7 @@ func (c *ConversationSelectorImpl) handleDeleteConfirmation(msg tea.KeyPressMsg)
 	}
 }
 
-func (c *ConversationSelectorImpl) performDelete() (tea.Model, tea.Cmd) {
+func (c *ConversationSelector) performDelete() (tea.Model, tea.Cmd) {
 	cursor := c.table.Cursor()
 	if cursor >= len(c.filteredConversations) {
 		c.confirmDelete = false
@@ -408,17 +407,17 @@ func (c *ConversationSelectorImpl) performDelete() (tea.Model, tea.Cmd) {
 }
 
 // IsSelected returns true if a conversation was selected
-func (c *ConversationSelectorImpl) IsSelected() bool {
+func (c *ConversationSelector) IsSelected() bool {
 	return c.done && !c.cancelled && !c.loading && len(c.filteredConversations) > 0
 }
 
 // IsCancelled returns true if selection was cancelled
-func (c *ConversationSelectorImpl) IsCancelled() bool {
+func (c *ConversationSelector) IsCancelled() bool {
 	return c.cancelled
 }
 
 // GetSelected returns the selected conversation
-func (c *ConversationSelectorImpl) GetSelected() convdomain.ConversationSummary {
+func (c *ConversationSelector) GetSelected() convdomain.ConversationSummary {
 	if c.IsSelected() && c.table.Cursor() < len(c.filteredConversations) {
 		return c.filteredConversations[c.table.Cursor()]
 	}
@@ -426,19 +425,19 @@ func (c *ConversationSelectorImpl) GetSelected() convdomain.ConversationSummary 
 }
 
 // SetWidth sets the width of the conversation selector
-func (c *ConversationSelectorImpl) SetWidth(width int) {
+func (c *ConversationSelector) SetWidth(width int) {
 	c.width = width
 	c.table.SetWidth(width)
 }
 
 // SetHeight sets the height of the conversation selector
-func (c *ConversationSelectorImpl) SetHeight(height int) {
+func (c *ConversationSelector) SetHeight(height int) {
 	c.height = height
 	c.table.SetHeight(c.tableHeight())
 }
 
 // Reset resets the conversation selector state for reuse
-func (c *ConversationSelectorImpl) Reset() {
+func (c *ConversationSelector) Reset() {
 	c.done = false
 	c.cancelled = false
 	c.searchQuery = ""
@@ -453,31 +452,31 @@ func (c *ConversationSelectorImpl) Reset() {
 }
 
 // NeedsInitialization returns true if the component needs to load data
-func (c *ConversationSelectorImpl) NeedsInitialization() bool {
+func (c *ConversationSelector) NeedsInitialization() bool {
 	return !c.dataLoaded
 }
 
 // writeHeader writes the header section of the view
-func (c *ConversationSelectorImpl) writeHeader(b *strings.Builder) {
+func (c *ConversationSelector) writeHeader(b *strings.Builder) {
 	fmt.Fprintf(b, "%s\n\n", c.styleProvider.RenderWithColor("Select a Conversation", c.styleProvider.GetThemeColor("accent")))
 }
 
 // writeLoadingView writes the loading view and returns the complete string
-func (c *ConversationSelectorImpl) writeLoadingView(b *strings.Builder) string {
+func (c *ConversationSelector) writeLoadingView(b *strings.Builder) string {
 	loading := fmt.Sprintf("%s Loading conversations...", c.spinner.View())
 	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderWithColor(loading, c.styleProvider.GetThemeColor("status")))
 	return b.String()
 }
 
 // writeErrorView writes the error view and returns the complete string
-func (c *ConversationSelectorImpl) writeErrorView(b *strings.Builder) string {
+func (c *ConversationSelector) writeErrorView(b *strings.Builder) string {
 	errorMsg := fmt.Sprintf("Error loading conversations: %v", c.loadError)
 	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderWithColor(errorMsg, c.styleProvider.GetThemeColor("error")))
 	return b.String()
 }
 
 // writeSearchInfo writes the search information section
-func (c *ConversationSelectorImpl) writeSearchInfo(b *strings.Builder) {
+func (c *ConversationSelector) writeSearchInfo(b *strings.Builder) {
 	if c.searchMode {
 		fmt.Fprintf(b, "%s%s\n\n",
 			c.styleProvider.RenderWithColor("Search: "+c.searchQuery, c.styleProvider.GetThemeColor("status")),
@@ -489,7 +488,7 @@ func (c *ConversationSelectorImpl) writeSearchInfo(b *strings.Builder) {
 }
 
 // writeEmptyView writes the empty view and returns the complete string
-func (c *ConversationSelectorImpl) writeEmptyView(b *strings.Builder) string {
+func (c *ConversationSelector) writeEmptyView(b *strings.Builder) string {
 	if c.searchQuery != "" {
 		msg := fmt.Sprintf("No conversations match '%s'", c.searchQuery)
 		fmt.Fprintf(b, "%s\n", c.styleProvider.RenderWithColor(msg, c.styleProvider.GetThemeColor("error")))
@@ -501,12 +500,12 @@ func (c *ConversationSelectorImpl) writeEmptyView(b *strings.Builder) string {
 }
 
 // writeConversationList writes the main conversation table
-func (c *ConversationSelectorImpl) writeConversationList(b *strings.Builder) {
+func (c *ConversationSelector) writeConversationList(b *strings.Builder) {
 	fmt.Fprintf(b, "%s\n", c.table.View())
 }
 
 // writeFooter writes the footer section
-func (c *ConversationSelectorImpl) writeFooter(b *strings.Builder) {
+func (c *ConversationSelector) writeFooter(b *strings.Builder) {
 	b.WriteString("\n")
 	b.WriteString(strings.Repeat("─", c.width))
 	b.WriteString("\n")
@@ -521,7 +520,7 @@ func (c *ConversationSelectorImpl) writeFooter(b *strings.Builder) {
 }
 
 // writeDeleteConfirmation writes the delete confirmation dialog
-func (c *ConversationSelectorImpl) writeDeleteConfirmation(b *strings.Builder) string {
+func (c *ConversationSelector) writeDeleteConfirmation(b *strings.Builder) string {
 	if c.table.Cursor() >= len(c.filteredConversations) {
 		return b.String()
 	}
@@ -548,7 +547,7 @@ func (c *ConversationSelectorImpl) writeDeleteConfirmation(b *strings.Builder) s
 }
 
 // writeDeleteError writes the delete error message
-func (c *ConversationSelectorImpl) writeDeleteError(b *strings.Builder) {
+func (c *ConversationSelector) writeDeleteError(b *strings.Builder) {
 	errorColor := c.styleProvider.GetThemeColor("error")
 	errorMsg := fmt.Sprintf("Error deleting conversation: %v", c.deleteError)
 	fmt.Fprintf(b, "%s\n\n", c.styleProvider.RenderWithColor(errorMsg, errorColor))

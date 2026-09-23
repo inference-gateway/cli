@@ -43,7 +43,7 @@ func defaultActions() []*KeyAction {
 	noApprovalPending := ContextCondition{
 		Name: "no_approval_pending",
 		Check: func(app KeyHandlerContext) bool {
-			stateManager := app.GetStateManager()
+			stateManager := app.GetStateStore()
 			return stateManager.GetPlanApprovalUIState() == nil &&
 				stateManager.GetApprovalUIState() == nil
 		},
@@ -51,11 +51,11 @@ func defaultActions() []*KeyAction {
 	chatIdleOrCompleted := ContextCondition{
 		Name: "chat_idle_or_completed",
 		Check: func(app KeyHandlerContext) bool {
-			stateManager := app.GetStateManager()
+			stateManager := app.GetStateStore()
 			chatSession := stateManager.GetChatSession()
 			return stateManager.GetPlanApprovalUIState() == nil &&
 				stateManager.GetApprovalUIState() == nil &&
-				(chatSession == nil || chatSession.Status == agentdomain.ChatStatusIdle || chatSession.Status == agentdomain.ChatStatusCompleted)
+				(chatSession == nil || chatSession.Status == tui.ChatStatusIdle || chatSession.Status == tui.ChatStatusCompleted)
 		},
 	}
 
@@ -114,7 +114,7 @@ func handleQuit(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 }
 
 func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
+	stateManager := app.GetStateStore()
 
 	if stateManager.IsEditingMessage() {
 		stateManager.ClearMessageEditState()
@@ -179,7 +179,7 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 }
 
 func handleNewSession(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
+	stateManager := app.GetStateStore()
 
 	if chatSession := stateManager.GetChatSession(); chatSession != nil {
 		agentService := app.GetAgentService()
@@ -236,7 +236,7 @@ func handleToggleThinkingExpansion(app KeyHandlerContext, keyMsg tea.KeyPressMsg
 
 func handleBackgroundShell(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return agentdomain.BackgroundShellRequestEvent{}
+		return tui.BackgroundShellRequestEvent{}
 	}
 }
 
@@ -251,7 +251,7 @@ func handleToggleRawFormat(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cm
 }
 
 func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
+	stateManager := app.GetStateStore()
 
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState != nil {
@@ -502,7 +502,7 @@ func handleCopy(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 
 func handleGoBackInTime(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return agentdomain.NavigateBackInTimeEvent{
+		return tui.NavigateBackInTimeEvent{
 			RequestID: "navigate-back-in-time",
 			Timestamp: time.Now(),
 		}
@@ -571,7 +571,7 @@ func handlePageDown(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 
 // Text editing handlers
 func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
+	stateManager := app.GetStateStore()
 
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState != nil {
@@ -589,7 +589,7 @@ func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) te
 }
 
 func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
+	stateManager := app.GetStateStore()
 
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState != nil {
@@ -705,7 +705,7 @@ func handleToggleTodoBox(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd 
 }
 
 func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
+	stateManager := app.GetStateStore()
 	statusView := app.GetStatusView()
 	newMode := stateManager.CycleAgentMode()
 
@@ -725,7 +725,7 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 				return tui.RestoreStatusStateEvent{}
 			},
 			func() tea.Msg {
-				return agentdomain.RefreshAutocompleteEvent{}
+				return tui.RefreshAutocompleteEvent{}
 			},
 		)
 	}
@@ -738,13 +738,13 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 			}
 		},
 		func() tea.Msg {
-			return agentdomain.RefreshAutocompleteEvent{}
+			return tui.RefreshAutocompleteEvent{}
 		},
 	)
 }
 
-// KeyBindingManager manages the key binding system for ChatApplication
-type KeyBindingManager struct {
+// Dispatcher manages the key binding system for ChatApplication
+type Dispatcher struct {
 	registry            *Registry
 	app                 KeyHandlerContext
 	keySequenceBuffer   []string
@@ -770,9 +770,9 @@ var textareaInputActionIDs = map[string]struct{}{
 	config.ActionID(config.NamespaceTextEditing, "move_to_end"):            {},
 }
 
-// NewKeyBindingManager creates a new key binding manager
-func NewKeyBindingManager(app KeyHandlerContext, cfg *config.Config) *KeyBindingManager {
-	return &KeyBindingManager{
+// NewDispatcher creates a new key binding manager
+func NewDispatcher(app KeyHandlerContext, cfg *config.Config) *Dispatcher {
+	return &Dispatcher{
 		registry:          NewRegistry(cfg),
 		app:               app,
 		keySequenceBuffer: make([]string, 0, maxSequenceLength),
@@ -781,7 +781,7 @@ func NewKeyBindingManager(app KeyHandlerContext, cfg *config.Config) *KeyBinding
 }
 
 // ProcessKey handles key input and executes the appropriate action
-func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyPressMsg) tea.Cmd {
+func (m *Dispatcher) ProcessKey(keyMsg tea.KeyPressMsg) tea.Cmd {
 	keyStr := keyMsg.String()
 	var cmds []tea.Cmd
 
@@ -815,7 +815,7 @@ func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyPressMsg) tea.Cmd {
 	return m.batchCmds(cmds)
 }
 
-func (m *KeyBindingManager) addDebugCmd(keyStr string, keyMsg tea.KeyPressMsg) tea.Cmd {
+func (m *Dispatcher) addDebugCmd(keyStr string, keyMsg tea.KeyPressMsg) tea.Cmd {
 	config := m.app.GetConfig()
 	if config == nil || !config.Logging.Debug {
 		return nil
@@ -828,7 +828,7 @@ func (m *KeyBindingManager) addDebugCmd(keyStr string, keyMsg tea.KeyPressMsg) t
 	return m.debugKeyBinding(keyMsg, debugInfo)
 }
 
-func (m *KeyBindingManager) handleSequenceTimeout(now time.Time, keyMsg tea.KeyPressMsg) tea.Cmd {
+func (m *Dispatcher) handleSequenceTimeout(now time.Time, keyMsg tea.KeyPressMsg) tea.Cmd {
 	if m.lastKeyTime.IsZero() || now.Sub(m.lastKeyTime) <= m.sequenceTimeout {
 		return nil
 	}
@@ -848,7 +848,7 @@ func (m *KeyBindingManager) handleSequenceTimeout(now time.Time, keyMsg tea.KeyP
 	return nil
 }
 
-func (m *KeyBindingManager) handleMultiKeySequence(sequenceKey string, keyMsg tea.KeyPressMsg, cmds []tea.Cmd) tea.Cmd {
+func (m *Dispatcher) handleMultiKeySequence(sequenceKey string, keyMsg tea.KeyPressMsg, cmds []tea.Cmd) tea.Cmd {
 	if len(m.keySequenceBuffer) <= 1 {
 		return nil
 	}
@@ -863,7 +863,7 @@ func (m *KeyBindingManager) handleMultiKeySequence(sequenceKey string, keyMsg te
 	return m.batchCmds(cmds)
 }
 
-func (m *KeyBindingManager) handleSingleKey(keyStr string, keyMsg tea.KeyPressMsg, cmds []tea.Cmd) tea.Cmd {
+func (m *Dispatcher) handleSingleKey(keyStr string, keyMsg tea.KeyPressMsg, cmds []tea.Cmd) tea.Cmd {
 	if len(m.keySequenceBuffer) != 1 {
 		return nil
 	}
@@ -884,7 +884,7 @@ func (m *KeyBindingManager) handleSingleKey(keyStr string, keyMsg tea.KeyPressMs
 	return m.batchCmds(append(cmds, charCmd))
 }
 
-func (m *KeyBindingManager) showSequenceHint(keyStr string) []tea.Cmd {
+func (m *Dispatcher) showSequenceHint(keyStr string) []tea.Cmd {
 	sequenceAction := m.registry.GetSequenceActionForPrefix(keyStr, m.app)
 	if sequenceAction == nil {
 		return nil
@@ -908,7 +908,7 @@ func (m *KeyBindingManager) showSequenceHint(keyStr string) []tea.Cmd {
 	return []tea.Cmd{statusCmd, clearStatusCmd}
 }
 
-func (m *KeyBindingManager) batchCmds(cmds []tea.Cmd) tea.Cmd {
+func (m *Dispatcher) batchCmds(cmds []tea.Cmd) tea.Cmd {
 	var validCmds []tea.Cmd
 	for _, cmd := range cmds {
 		if cmd != nil {
@@ -926,7 +926,7 @@ func (m *KeyBindingManager) batchCmds(cmds []tea.Cmd) tea.Cmd {
 }
 
 // joinSequence joins key sequence buffer into a comma-separated string
-func (m *KeyBindingManager) joinSequence(keys []string) string {
+func (m *Dispatcher) joinSequence(keys []string) string {
 	if len(keys) == 0 {
 		return ""
 	}
@@ -941,13 +941,13 @@ func (m *KeyBindingManager) joinSequence(keys []string) string {
 }
 
 // IsKeyHandledByAction returns true if the key would be handled by a keybinding action
-func (m *KeyBindingManager) IsKeyHandledByAction(keyMsg tea.KeyPressMsg) bool {
+func (m *Dispatcher) IsKeyHandledByAction(keyMsg tea.KeyPressMsg) bool {
 	return m.registry.Resolve(keyMsg, m.app) != nil
 }
 
 // ShouldSkipInputUpdate reports whether a keybinding action fully consumed the
 // key. Textarea-owned editing actions still pass through to InputView.Update.
-func (m *KeyBindingManager) ShouldSkipInputUpdate(keyMsg tea.KeyPressMsg) bool {
+func (m *Dispatcher) ShouldSkipInputUpdate(keyMsg tea.KeyPressMsg) bool {
 	keyStr := keyMsg.String()
 	if m.sequenceConsumedKey == keyStr {
 		m.sequenceConsumedKey = ""
@@ -962,22 +962,22 @@ func (m *KeyBindingManager) ShouldSkipInputUpdate(keyMsg tea.KeyPressMsg) bool {
 }
 
 // GetHelpShortcuts returns help shortcuts for the current context
-func (m *KeyBindingManager) GetHelpShortcuts() []HelpShortcut {
+func (m *Dispatcher) GetHelpShortcuts() []HelpShortcut {
 	return m.registry.GetHelpShortcuts(m.app)
 }
 
 // GetRegistry returns the underlying registry (for advanced usage)
-func (m *KeyBindingManager) GetRegistry() *Registry {
+func (m *Dispatcher) GetRegistry() *Registry {
 	return m.registry
 }
 
 // GetHintFormatter returns a hint formatter for displaying keybinding hints in UI
-func (m *KeyBindingManager) GetHintFormatter() *hints.Formatter {
+func (m *Dispatcher) GetHintFormatter() *hints.Formatter {
 	return NewHintFormatterFromRegistry(m.registry)
 }
 
 // debugKeyBinding logs key binding events when debug mode is enabled
-func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyPressMsg, info string) tea.Cmd {
+func (m *Dispatcher) debugKeyBinding(keyMsg tea.KeyPressMsg, info string) tea.Cmd {
 	config := m.app.GetConfig()
 	if config != nil && config.Logging.Debug {
 		return func() tea.Msg {
@@ -1002,7 +1002,7 @@ func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 		return HandlePasteEvent(app, text)
 	}
 
-	stateManager := app.GetStateManager()
+	stateManager := app.GetStateStore()
 	currentView := stateManager.GetCurrentView()
 
 	if currentView == tui.ViewStatePlanApproval {
@@ -1086,7 +1086,7 @@ func HandlePasteEvent(app KeyHandlerContext, pastedText string) tea.Cmd {
 // Plan Approval handlers
 
 func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
+	stateManager := app.GetStateStore()
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState == nil {
 		return nil
@@ -1104,7 +1104,7 @@ func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.C
 }
 
 func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
+	stateManager := app.GetStateStore()
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState == nil {
 		return nil
@@ -1123,7 +1123,7 @@ func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.
 
 func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		stateManager := app.GetStateManager()
+		stateManager := app.GetStateStore()
 		planApprovalState := stateManager.GetPlanApprovalUIState()
 		if planApprovalState == nil {
 			return nil

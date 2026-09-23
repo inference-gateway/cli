@@ -6,9 +6,7 @@ import "context"
 type FileService interface {
 	ListProjectFiles() ([]string, error)
 	ReadFile(path string) (string, error)
-	ReadFileLines(path string, startLine, endLine int) (string, error)
 	ValidateFile(path string) error
-	GetFileInfo(path string) (FileInfo, error)
 }
 
 // ImageService handles image operations including loading and encoding
@@ -19,14 +17,8 @@ type ImageService interface {
 	ReadImageFromBinary(imageData []byte, filename string) (*ImageAttachment, error)
 	// ReadImageFromURL fetches an image from a URL and returns it as a base64 attachment
 	ReadImageFromURL(imageURL string) (*ImageAttachment, error)
-	// CreateDataURL creates a data URL from an image attachment
-	CreateDataURL(attachment *ImageAttachment) string
 	// IsImageFile checks if a file is a supported image format
 	IsImageFile(filePath string) bool
-	// IsImageURL checks if a string is a valid image URL
-	IsImageURL(urlStr string) bool
-	// IsImageModel reports whether the model generates images rather than text
-	IsImageModel(model string) bool
 	// GenerateImage generates an image from prompt using model ("provider/name")
 	// and returns the path of the saved file. A blank quality or size leaves the
 	// provider's own default
@@ -94,11 +86,4 @@ func (r VideoRequest) IsAvatar() bool {
 // completes, fails or the context ends.
 type VideoService interface {
 	Render(ctx context.Context, request VideoRequest, outPath string) error
-}
-
-// FileInfo contains file metadata
-type FileInfo struct {
-	Path  string
-	Size  int64
-	IsDir bool
 }

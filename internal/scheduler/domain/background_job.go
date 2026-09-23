@@ -152,7 +152,7 @@ type TaskRetainer interface {
 // id and last known remote state) as the single source for the task view and
 // status bar, without the generic JobMeta/TrackedJob carrying A2A-specific fields.
 type A2AStateProvider interface {
-	A2APollingState() agentdomain.TaskPollingState
+	A2APollingState() TaskPollingState
 }
 
 // JobOutputProvider is an optional BackgroundJob extension. A job that implements

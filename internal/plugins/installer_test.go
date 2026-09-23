@@ -13,6 +13,7 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	skills "github.com/inference-gateway/cli/internal/skills"
 )
 
 func validSkillBody(name, description string) string {
@@ -45,11 +46,11 @@ func newMockServer(t *testing.T, repo fakeRepo) *httptest.Server {
 			http.NotFound(w, r)
 			return
 		}
-		var entries []treeEntry
+		var entries []skills.TreeEntry
 		for p := range repo.Files {
-			entries = append(entries, treeEntry{Path: p, Type: "blob"})
+			entries = append(entries, skills.TreeEntry{Path: p, Type: "blob"})
 		}
-		resp := treeResponse{Tree: entries, Truncated: repo.Truncated}
+		resp := map[string]any{"tree": entries, "truncated": repo.Truncated}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
@@ -70,7 +71,7 @@ func newMockServer(t *testing.T, repo fakeRepo) *httptest.Server {
 }
 
 func newTestInstaller(serverURL string) *Installer {
-	return &Installer{Client: http.DefaultClient, APIBase: serverURL, RawBase: serverURL}
+	return &Installer{Installer: skills.Installer{Client: http.DefaultClient, APIBase: serverURL, RawBase: serverURL}}
 }
 
 func ponytailRepo() fakeRepo {

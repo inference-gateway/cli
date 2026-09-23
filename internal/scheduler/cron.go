@@ -12,7 +12,7 @@ import (
 	cron "github.com/robfig/cron/v3"
 	yaml "gopkg.in/yaml.v3"
 
-	agentrunner "github.com/inference-gateway/cli/internal/agent/application/agentrunner"
+	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -71,35 +71,15 @@ func NewService(opts Options) (*Service, error) {
 	if opts.Runs == nil {
 		return nil, errors.New("scheduler: Runs is required")
 	}
-	parser := cron.NewParser(
-		cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
-	)
 	return &Service{
 		store:      opts.Store,
 		runs:       opts.Runs,
 		onRunEvent: opts.OnRunEvent,
-		parser:     parser,
+		parser:     scheddomain.CronParser,
 		execCmd:    opts.ExecCommand,
 		binaryPath: opts.BinaryPath,
 		entryIDs:   make(map[string]cron.EntryID),
 	}, nil
-}
-
-// ParseCron exposes the same parser the service uses, so the Schedule tool
-// can validate cron expressions identically before persisting them.
-func (s *Service) ParseCron(expr string) error {
-	_, err := s.parser.Parse(expr)
-	return err
-}
-
-// ParseCron is a package-level helper for callers that don't have a Service
-// instance yet (e.g. validation in the Schedule tool's Validate method).
-func ParseCron(expr string) error {
-	parser := cron.NewParser(
-		cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
-	)
-	_, err := parser.Parse(expr)
-	return err
 }
 
 // Start initialises the cron scheduler, loads all jobs from storage, and begins

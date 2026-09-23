@@ -32,7 +32,7 @@ func toolDef(name, description string) sdk.ChatCompletionTool {
 // newToolsViewForTest builds a tools view backed by fakes: the tool service
 // returns the given tools for any mode and the state manager reports plan
 // mode, so the mode propagation is observable.
-func newToolsViewForTest(tools []sdk.ChatCompletionTool) (*ToolsViewImpl, *agentdomainmocks.FakeToolService, *tui.ApplicationState) {
+func newToolsViewForTest(tools []sdk.ChatCompletionTool) (*ToolsView, *agentdomainmocks.FakeToolService, *tui.ApplicationState) {
 	fakeTheme := &tuimocks.FakeTheme{}
 	fakeTheme.GetAccentColorReturns("#ff9e64")
 	fakeTheme.GetDimColorReturns("#888888")
@@ -130,13 +130,13 @@ func TestToolsView_EscCancelsEnterDoesNot(t *testing.T) {
 	view, _, _ := newToolsViewForTest([]sdk.ChatCompletionTool{toolDef("Read", "")})
 
 	model, _ := view.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	view = model.(*ToolsViewImpl)
+	view = model.(*ToolsView)
 	if view.IsCancelled() {
 		t.Fatal("enter is a no-op in the read-only tools view")
 	}
 
 	model, _ = view.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	view = model.(*ToolsViewImpl)
+	view = model.(*ToolsView)
 	if !view.IsCancelled() {
 		t.Fatal("esc should cancel the tools view")
 	}
@@ -146,7 +146,7 @@ func TestToolsView_ResetRebuildsItems(t *testing.T) {
 	view, toolService, _ := newToolsViewForTest([]sdk.ChatCompletionTool{toolDef("Read", "")})
 
 	model, _ := view.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	view = model.(*ToolsViewImpl)
+	view = model.(*ToolsView)
 
 	toolService.ListToolsForModeReturns([]sdk.ChatCompletionTool{
 		toolDef("Read", ""),

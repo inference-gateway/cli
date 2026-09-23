@@ -11,6 +11,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -31,7 +32,7 @@ const (
 // A failed GitHub sync aborts the local write, so no phantom jobs.
 type Store struct {
 	inner        storage.ScheduledJobStorage
-	runner       CommandRunner
+	runner       githubsetup.CommandRunner
 	cfg          config.SchedulerGitHubConfig
 	defaultModel string
 
@@ -41,7 +42,7 @@ type Store struct {
 
 // NewStore wraps inner with GitHub workflow sync. runner is typically
 // &githubsetup.RealRunner{}.
-func NewStore(inner storage.ScheduledJobStorage, runner CommandRunner, cfg config.SchedulerGitHubConfig, defaultModel string) *Store {
+func NewStore(inner storage.ScheduledJobStorage, runner githubsetup.CommandRunner, cfg config.SchedulerGitHubConfig, defaultModel string) *Store {
 	return &Store{inner: inner, runner: runner, cfg: cfg, defaultModel: defaultModel}
 }
 
@@ -213,7 +214,7 @@ func (s *Store) syncRepo(ctx context.Context, job *scheddomain.ScheduledJob, mut
 
 // ResolveRepo returns the configured repository, defaulting to
 // "<authenticated user>/.routines".
-func ResolveRepo(ctx context.Context, runner CommandRunner, configured string) (string, error) {
+func ResolveRepo(ctx context.Context, runner githubsetup.CommandRunner, configured string) (string, error) {
 	if repo := strings.TrimSpace(configured); repo != "" {
 		return repo, nil
 	}

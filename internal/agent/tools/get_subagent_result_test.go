@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 func writeTestResultFile(t *testing.T, sessionID, msg string) {
@@ -23,7 +23,7 @@ func writeTestResultFile(t *testing.T, sessionID, msg string) {
 }
 
 func TestGetSubagentResultTool_Validate(t *testing.T) {
-	tool := NewGetSubagentResultTool(config.DefaultConfig(), utils.NewSubagentTracker())
+	tool := NewGetSubagentResultTool(config.DefaultConfig(), schedinfra.NewSubagentTracker())
 	if err := tool.Validate(map[string]any{}); err == nil {
 		t.Fatalf("missing subagent_id should error")
 	}
@@ -39,7 +39,7 @@ func TestGetSubagentResultTool_CompletedInteractiveReadsResultFile(t *testing.T)
 	t.Cleanup(func() { _ = os.Remove(subagentResultFilePath(sessionID)) })
 	writeTestResultFile(t, sessionID, "the real answer")
 
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "s1", Label: "w", Mode: scheddomain.SubagentModeInteractive,
 		SessionID: sessionID, PaneID: "%5", Status: scheddomain.SubagentCompleted,
@@ -63,7 +63,7 @@ func TestGetSubagentResultTool_CompletedInteractiveReadsResultFile(t *testing.T)
 func TestGetSubagentResultTool_CompletedInteractiveNoFileIsEmpty(t *testing.T) {
 	sessionID := "sess-getresult-empty"
 	_ = os.Remove(subagentResultFilePath(sessionID))
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "s2", Mode: scheddomain.SubagentModeInteractive,
 		SessionID: sessionID, PaneID: "%6", Status: scheddomain.SubagentCompleted,
@@ -80,7 +80,7 @@ func TestGetSubagentResultTool_CompletedInteractiveNoFileIsEmpty(t *testing.T) {
 // A running subagent (either mode) must refuse the poll - it notifies automatically.
 func TestGetSubagentResultTool_RunningRefuses(t *testing.T) {
 	for _, mode := range []string{scheddomain.SubagentModeInteractive, scheddomain.SubagentModeHeadless} {
-		tracker := utils.NewSubagentTracker()
+		tracker := schedinfra.NewSubagentTracker()
 		_ = tracker.AddSubagent(&scheddomain.SubagentState{
 			ID: "r1", Label: "w", Mode: mode, PaneID: "%5", Status: scheddomain.SubagentRunning,
 		})
@@ -96,7 +96,7 @@ func TestGetSubagentResultTool_RunningRefuses(t *testing.T) {
 }
 
 func TestGetSubagentResultTool_NotFound(t *testing.T) {
-	tool := NewGetSubagentResultTool(config.DefaultConfig(), utils.NewSubagentTracker())
+	tool := NewGetSubagentResultTool(config.DefaultConfig(), schedinfra.NewSubagentTracker())
 	res, err := tool.Execute(context.Background(), map[string]any{"subagent_id": "nope"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)

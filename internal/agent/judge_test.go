@@ -47,7 +47,7 @@ func TestLLMJudge_VerdictAndPromptShaping(t *testing.T) {
 	client := newJudgeClient(judgeResponse("```json\n{\"decision\": \"approved\", \"reason\": \"matches the request\"}\n```"), nil)
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
-	verdict, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "test/judge-model", RootIntent: "set up the project", Intent: "install the dependency", Action: `Bash: {"command": "go get"}`})
+	verdict, err := judge.Judge(context.Background(), JudgeInput{Model: "test/judge-model", RootIntent: "set up the project", Intent: "install the dependency", Action: `Bash: {"command": "go get"}`})
 	if err != nil {
 		t.Fatalf("Judge() error = %v", err)
 	}
@@ -95,7 +95,7 @@ func TestLLMJudge_OnError(t *testing.T) {
 			client := newJudgeClient(nil, errors.New("gateway down"))
 			judge := NewLLMJudge(client, judgeTestConfig(tt.onError))
 
-			verdict, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "test/judge-model", Intent: "intent", Action: "action"})
+			verdict, err := judge.Judge(context.Background(), JudgeInput{Model: "test/judge-model", Intent: "intent", Action: "action"})
 			if err != nil {
 				t.Fatalf("Judge() error = %v, want nil (on_error decides)", err)
 			}
@@ -113,7 +113,7 @@ func TestLLMJudge_UnparseableOutputDenies(t *testing.T) {
 	client := newJudgeClient(judgeResponse("no verdict here"), nil)
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
-	verdict, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "test/judge-model", Intent: "intent", Action: "action"})
+	verdict, err := judge.Judge(context.Background(), JudgeInput{Model: "test/judge-model", Intent: "intent", Action: "action"})
 	if err != nil {
 		t.Fatalf("Judge() error = %v, want nil (on_error handles it)", err)
 	}
@@ -125,7 +125,7 @@ func TestLLMJudge_UnparseableOutputDenies(t *testing.T) {
 func TestLLMJudge_InvalidModelFormat(t *testing.T) {
 	judge := NewLLMJudge(&sdkmocks.FakeClient{}, judgeTestConfig(""))
 
-	if _, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "no-slash", Intent: "intent", Action: "action"}); err == nil || !strings.Contains(err.Error(), "provider/model") {
+	if _, err := judge.Judge(context.Background(), JudgeInput{Model: "no-slash", Intent: "intent", Action: "action"}); err == nil || !strings.Contains(err.Error(), "provider/model") {
 		t.Fatalf("Judge() error = %v, want provider/model format error", err)
 	}
 }
@@ -161,11 +161,49 @@ func TestLLMJudge_TokenBudgetExhaustedDenies(t *testing.T) {
 	resp.Choices[0].FinishReason = sdk.Length
 	judge := NewLLMJudge(newJudgeClient(resp, nil), judgeTestConfig(""))
 
-	verdict, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "test/judge-model", Intent: "intent", Action: "action"})
+	verdict, err := judge.Judge(context.Background(), JudgeInput{Model: "test/judge-model", Intent: "intent", Action: "action"})
 	if err != nil {
 		t.Fatalf("Judge() error = %v, want nil (on_error handles it)", err)
 	}
 	if verdict.Approved() || !strings.Contains(verdict.Reason, "max_tokens") {
 		t.Errorf("exhausted budget should deny naming max_tokens, got %+v", verdict)
+	}
+}
+
+func TestParseJudgeVerdict(t *testing.T) {
+	tests := []struct {
+		name         string
+		raw          string
+		wantDecision agentdomain.JudgeDecision
+		wantReason   string
+		wantErr      bool
+	}{
+		{"plain approved", `{"decision": "approved", "reason": "serves the request"}`, agentdomain.JudgeDecisionApproved, "serves the request", false},
+		{"plain rejected", `{"decision": "rejected", "reason": "too risky"}`, agentdomain.JudgeDecisionRejected, "too risky", false},
+		{"fenced json", "```json\n{\"decision\": \"approved\", \"reason\": \"ok\"}\n```", agentdomain.JudgeDecisionApproved, "ok", false},
+		{"bare fence", "```\n{\"decision\": \"rejected\", \"reason\": \"no\"}\n```", agentdomain.JudgeDecisionRejected, "no", false},
+		{"prose around json", "Verdict:\n{\"decision\": \"approved\", \"reason\": \"fine\"}\nDone.", agentdomain.JudgeDecisionApproved, "fine", false},
+		{"empty reason ok", `{"decision": "approved"}`, agentdomain.JudgeDecisionApproved, "", false},
+		{"no json object", "no verdict here", "", "", true},
+		{"invalid decision", `{"decision": "maybe", "reason": "x"}`, "", "", true},
+		{"invalid json", `{"decision":`, "", "", true},
+		{"empty output", "", "", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseJudgeVerdict(tt.raw)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ParseJudgeVerdict(%q) err = %v, wantErr %v", tt.raw, err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			if got.Decision != tt.wantDecision || got.Reason != tt.wantReason {
+				t.Errorf("ParseJudgeVerdict(%q) = %+v, want decision %q reason %q", tt.raw, got, tt.wantDecision, tt.wantReason)
+			}
+			if got.Approved() != (got.Decision == agentdomain.JudgeDecisionApproved) {
+				t.Errorf("Approved() inconsistent with decision %q", got.Decision)
+			}
+		})
 	}
 }

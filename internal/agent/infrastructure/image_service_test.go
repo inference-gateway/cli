@@ -18,75 +18,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	models "github.com/inference-gateway/cli/internal/platform/models"
 )
-
-func TestImageService_IsImageURL(t *testing.T) {
-	tests := []struct {
-		name     string
-		url      string
-		expected bool
-	}{
-		{
-			name:     "Valid HTTP image URL",
-			url:      "http://example.com/image.png",
-			expected: true,
-		},
-		{
-			name:     "Valid HTTPS image URL",
-			url:      "https://example.com/photo.jpg",
-			expected: true,
-		},
-		{
-			name:     "Valid image URL with path",
-			url:      "https://example.com/assets/images/logo.png",
-			expected: true,
-		},
-		{
-			name:     "Invalid - no scheme",
-			url:      "example.com/image.png",
-			expected: false,
-		},
-		{
-			name:     "Invalid - file scheme",
-			url:      "file:///path/to/image.png",
-			expected: false,
-		},
-		{
-			name:     "Invalid - no image extension",
-			url:      "https://example.com/page.html",
-			expected: false,
-		},
-		{
-			name:     "Invalid - not a URL",
-			url:      "not-a-url",
-			expected: false,
-		},
-		{
-			name:     "Valid - JPEG extension",
-			url:      "https://example.com/photo.jpeg",
-			expected: true,
-		},
-		{
-			name:     "Valid - GIF extension",
-			url:      "https://example.com/animation.gif",
-			expected: true,
-		},
-		{
-			name:     "Valid - WebP extension",
-			url:      "https://example.com/modern.webp",
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			service := NewImageService(localImageConfig(), nil)
-			result := service.IsImageURL(tt.url)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
 
 // localImageConfig returns a default config that permits image downloads from
 // loopback addresses, so tests can reach their httptest fixture servers.
@@ -252,51 +184,6 @@ func TestImageService_IsImageFile(t *testing.T) {
 // TestImageService_IsImageModel verifies that image-model detection is driven
 // by gateway-reported modalities: "image" without "text" means image-gen;
 // anything else (vision, text-only, unknown) is not.
-func TestImageService_IsImageModel(t *testing.T) {
-	imageMods := sdk.ModelModalities{
-		Input:  []sdk.Modality{sdk.ModalityText, sdk.ModalityImage},
-		Output: []sdk.Modality{sdk.ModalityImage},
-	}
-	textMods := sdk.ModelModalities{
-		Input:  []sdk.Modality{sdk.ModalityText},
-		Output: []sdk.Modality{sdk.ModalityText},
-	}
-	visionMods := sdk.ModelModalities{
-		Input:  []sdk.Modality{sdk.ModalityText, sdk.ModalityImage},
-		Output: []sdk.Modality{sdk.ModalityText},
-	}
-	models.SetGatewayModalities(map[string]sdk.ModelModalities{
-		"openai/gpt-image-2":        imageMods,
-		"openai/dall-e-3":           imageMods,
-		"deepinfra/FLUX-1-schnell":  imageMods,
-		"google/nano-banana":        imageMods,
-		"openai/gpt-4o":             visionMods,
-		"anthropic/claude-sonnet-5": textMods,
-	})
-	defer models.SetGatewayModalities(nil)
-
-	tests := []struct {
-		name     string
-		model    string
-		expected bool
-	}{
-		{"gpt-image", "openai/gpt-image-2", true},
-		{"dall-e", "openai/dall-e-3", true},
-		{"flux", "deepinfra/FLUX-1-schnell", true},
-		{"nano-banana", "google/nano-banana", true},
-		{"vision model", "openai/gpt-4o", false},
-		{"text model", "anthropic/claude-sonnet-5", false},
-		{"unknown model", "some/unknown-model", false},
-		{"empty", "", false},
-	}
-
-	service := NewImageService(localImageConfig(), nil)
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, service.IsImageModel(tt.model))
-		})
-	}
-}
 
 // fakeImageClient records the request and returns a canned response.
 type fakeImageClient struct {

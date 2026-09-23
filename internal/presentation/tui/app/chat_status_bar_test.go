@@ -24,7 +24,7 @@ import (
 // status-indicator focus flow: a real InputStatusBar with a visible model
 // indicator (plus, optionally, theme and jobs indicators) and a fake state
 // manager capturing view transitions.
-func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplication, *statemanager.StateManager) {
+func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplication, *statemanager.Store) {
 	t.Helper()
 
 	modelService := &convmocks.FakeModelService{}
@@ -46,7 +46,7 @@ func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplicati
 		statusBar.SetThemeService(themeService)
 	}
 
-	stateManager := statemanager.NewStateManager(false)
+	stateManager := statemanager.NewStore(false)
 	_ = stateManager.TransitionToView(tui.ViewStateChat)
 
 	app := &ChatApplication{
@@ -86,12 +86,12 @@ func TestFocusStatusBarEventNoopsWithoutActionableIndicator(t *testing.T) {
 // once (even if the handler transitioned the view mid-cycle), and unmarked
 // keys flow through to the components.
 func TestDuplicateKeyGuardConsumesMarkedKeysOnce(t *testing.T) {
-	stateManager := statemanager.NewStateManager(false)
+	stateManager := statemanager.NewStore(false)
 	if err := stateManager.TransitionToView(tui.ViewStateChat); err != nil {
 		t.Fatalf("transitioning to chat: %v", err)
 	}
 	app := &ChatApplication{stateManager: stateManager}
-	app.keyBindingManager = keybinding.NewKeyBindingManager(app, nil)
+	app.keyBindingManager = keybinding.NewDispatcher(app, nil)
 
 	enter := tea.KeyPressMsg{Code: tea.KeyEnter}
 	var cmds []tea.Cmd
@@ -197,7 +197,7 @@ func TestStatusBarEnterOpensToolsList(t *testing.T) {
 func TestStatusBarEnterOpensA2AAgents(t *testing.T) {
 	app, stateManager := newStatusBarTestApp(t, false, false)
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)
-	barStateManager := statemanager.NewStateManager(false)
+	barStateManager := statemanager.NewStore(false)
 	barStateManager.InitializeAgentReadiness(1)
 	barStateManager.UpdateAgentStatus("agent", agentdomain.AgentStateReady, "", "", "")
 	statusBar.SetStateManager(barStateManager)

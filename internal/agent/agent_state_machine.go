@@ -10,7 +10,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// AgentStateMachineImpl implements the AgentStateMachine interface.
+// StateMachine implements the AgentStateMachine interface.
 //
 // The state machine manages the agent's execution flow through the following states:
 //
@@ -36,7 +36,7 @@ import (
 // Thread Safety:
 //
 //	All state transitions are protected by a read-write mutex to ensure thread-safe access.
-type AgentStateMachineImpl struct {
+type StateMachine struct {
 	currentState  states.AgentExecutionState
 	previousState states.AgentExecutionState
 	mu            sync.RWMutex
@@ -55,7 +55,7 @@ type StateTransition struct {
 
 // NewAgentStateMachine creates a new agent state machine
 func NewAgentStateMachine() states.AgentStateMachine {
-	sm := &AgentStateMachineImpl{
+	sm := &StateMachine{
 		currentState: states.StateIdle,
 		transitions:  make(map[states.AgentExecutionState][]StateTransition),
 	}
@@ -71,7 +71,7 @@ func NewAgentStateMachine() states.AgentStateMachine {
 //   - action: A function executed when the transition occurs
 //
 // Transitions without guards are always allowed. Nil guards/actions are permitted.
-func (sm *AgentStateMachineImpl) registerTransitions() {
+func (sm *StateMachine) registerTransitions() {
 	sm.addTransition(states.StateIdle, states.StateCheckingQueue, nil, nil)
 
 	sm.addTransition(states.StateCheckingQueue, states.StateIdle,
@@ -181,7 +181,7 @@ func (sm *AgentStateMachineImpl) registerTransitions() {
 }
 
 // addTransition adds a state transition to the map
-func (sm *AgentStateMachineImpl) addTransition(from, to states.AgentExecutionState, guard states.StateGuard, action states.StateAction) {
+func (sm *StateMachine) addTransition(from, to states.AgentExecutionState, guard states.StateGuard, action states.StateAction) {
 	transition := StateTransition{
 		fromState: from,
 		toState:   to,
@@ -197,7 +197,7 @@ func (sm *AgentStateMachineImpl) addTransition(from, to states.AgentExecutionSta
 }
 
 // Transition attempts to transition to the target state
-func (sm *AgentStateMachineImpl) Transition(ctx *states.AgentContext, targetState states.AgentExecutionState) error {
+func (sm *StateMachine) Transition(ctx *states.AgentContext, targetState states.AgentExecutionState) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -236,7 +236,7 @@ func (sm *AgentStateMachineImpl) Transition(ctx *states.AgentContext, targetStat
 }
 
 // findTransition finds a matching transition from current state to target state
-func (sm *AgentStateMachineImpl) findTransition(from, to states.AgentExecutionState) *StateTransition {
+func (sm *StateMachine) findTransition(from, to states.AgentExecutionState) *StateTransition {
 	transitions, exists := sm.transitions[from]
 	if !exists {
 		return nil
@@ -252,14 +252,14 @@ func (sm *AgentStateMachineImpl) findTransition(from, to states.AgentExecutionSt
 }
 
 // GetCurrentState returns the current state (thread-safe)
-func (sm *AgentStateMachineImpl) GetCurrentState() states.AgentExecutionState {
+func (sm *StateMachine) GetCurrentState() states.AgentExecutionState {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return sm.currentState
 }
 
 // GetPreviousState returns the previous state (thread-safe)
-func (sm *AgentStateMachineImpl) GetPreviousState() states.AgentExecutionState {
+func (sm *StateMachine) GetPreviousState() states.AgentExecutionState {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return sm.previousState
@@ -279,7 +279,7 @@ func (sm *AgentStateMachineImpl) GetPreviousState() states.AgentExecutionState {
 //   - Last message is not from the user (agent has responded)
 //
 // Returns true if all completion criteria are met.
-func (sm *AgentStateMachineImpl) canComplete(ctx *states.AgentContext) bool {
+func (sm *StateMachine) canComplete(ctx *states.AgentContext) bool {
 
 	if ctx.Turns == 0 {
 		return false
@@ -311,7 +311,7 @@ func (sm *AgentStateMachineImpl) canComplete(ctx *states.AgentContext) bool {
 //   - The agent is running in chat mode (approval not needed in background mode)
 //
 // Returns true if user approval is needed before executing tools.
-func (sm *AgentStateMachineImpl) needsApproval(ctx *states.AgentContext) bool {
+func (sm *StateMachine) needsApproval(ctx *states.AgentContext) bool {
 	if ctx.ApprovalPolicy == nil {
 		return false
 	}
@@ -329,13 +329,13 @@ func (sm *AgentStateMachineImpl) needsApproval(ctx *states.AgentContext) bool {
 //
 // This prevents infinite loops by limiting the number of LLM-tool iterations.
 // Returns true if the current turn count has reached or exceeded the maximum.
-func (sm *AgentStateMachineImpl) maxTurnsReached(ctx *states.AgentContext) bool {
+func (sm *StateMachine) maxTurnsReached(ctx *states.AgentContext) bool {
 	return ctx.Turns >= ctx.MaxTurns
 }
 
 // CanTransition checks if a transition from current state to target state is valid
 // This is useful for checking before attempting a transition
-func (sm *AgentStateMachineImpl) CanTransition(ctx *states.AgentContext, targetState states.AgentExecutionState) bool {
+func (sm *StateMachine) CanTransition(ctx *states.AgentContext, targetState states.AgentExecutionState) bool {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
@@ -352,7 +352,7 @@ func (sm *AgentStateMachineImpl) CanTransition(ctx *states.AgentContext, targetS
 }
 
 // GetValidTransitions returns all valid transitions from the current state
-func (sm *AgentStateMachineImpl) GetValidTransitions(ctx *states.AgentContext) []states.AgentExecutionState {
+func (sm *StateMachine) GetValidTransitions(ctx *states.AgentContext) []states.AgentExecutionState {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
@@ -372,7 +372,7 @@ func (sm *AgentStateMachineImpl) GetValidTransitions(ctx *states.AgentContext) [
 }
 
 // Reset resets the state machine to idle
-func (sm *AgentStateMachineImpl) Reset() {
+func (sm *StateMachine) Reset() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 

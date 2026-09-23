@@ -3,7 +3,28 @@ package domain
 import (
 	"strings"
 	"time"
+
+	sdk "github.com/inference-gateway/sdk"
 )
+
+// LastAssistantText returns the trimmed content of the last non-empty assistant
+// message in entries, or "" if there is none.
+func LastAssistantText(entries []ConversationEntry) string {
+	for i := len(entries) - 1; i >= 0; i-- {
+		e := entries[i]
+		if e.Message.Role != sdk.Assistant {
+			continue
+		}
+		text, err := e.Message.Content.AsMessageContent0()
+		if err != nil {
+			continue
+		}
+		if s := strings.TrimSpace(text); s != "" {
+			return s
+		}
+	}
+	return ""
+}
 
 // CreateTitleFromMessage creates a short title from message content (fallback title)
 func CreateTitleFromMessage(content string) string {

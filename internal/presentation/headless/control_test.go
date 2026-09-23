@@ -15,9 +15,9 @@ import (
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
-func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *statemanager.StateManager) {
+func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *statemanager.Store) {
 	agent := &agentdomainmocks.FakeAgentService{}
-	sm := statemanager.NewStateManager(false)
+	sm := statemanager.NewStore(false)
 	return newHeadlessControl(agent, sm, &conversationmocks.FakeMessageQueue{}, "sess-1"), agent, sm
 }
 

@@ -48,7 +48,7 @@ type InputView struct {
 	highlighter          *inputsyntax.Highlighter
 	config               *config.Config
 	conversationRepo     convdomain.ConversationRepository
-	historyManager       *history.HistoryManager
+	historyManager       *history.Store
 	disabled             bool
 	savedText            string
 	savedCursor          int
@@ -103,15 +103,15 @@ func NewInputViewWithName(modelService convdomain.ModelService, baseDir, name st
 		baseDir = config.ProjectRuntimeDir()
 	}
 
-	var historyManager *history.HistoryManager
+	var historyManager *history.Store
 	switch {
 	case name == scheddomain.SubagentHistoryMemoryOnly:
-		historyManager = history.NewMemoryOnlyHistoryManager(maxInMemoryHistory)
+		historyManager = history.NewMemoryOnlyStore(maxInMemoryHistory)
 	case store != nil && name == "":
 		historyManager = history.NewHistoryManagerWithProvider(maxInMemoryHistory, history.NewStoreShellHistory(store))
 	default:
 		if hm, err := history.NewHistoryManagerWithName(maxInMemoryHistory, baseDir, name); err != nil {
-			historyManager = history.NewMemoryOnlyHistoryManager(maxInMemoryHistory)
+			historyManager = history.NewMemoryOnlyStore(maxInMemoryHistory)
 		} else {
 			historyManager = hm
 		}
@@ -163,11 +163,11 @@ func (iv *InputView) SetThemeService(themeService tui.ThemeService) {
 	iv.styleProvider = styles.NewProvider(themeService)
 }
 
-// inputViewState is the narrow slice of StateManager the input view reads to
+// inputViewState is the narrow slice of the state store the input view reads to
 // decide whether an approval/plan overlay is active.
 type inputViewState interface {
-	agentdomain.ApprovalUIManager
-	agentdomain.PlanApprovalUIManager
+	tui.ApprovalPrompt
+	tui.PlanApprovalPrompt
 }
 
 // SetStateManager sets the state manager for this input view
@@ -476,7 +476,7 @@ func (iv *InputView) InvalidateGitBranchCache() {
 // case; the label simply omits the number.
 // ponytail: refetch is event-driven (startup, bash commands, Bash tool runs),
 // so a PR opened outside the TUI stays unknown until the next such event; if
-// that ever matters, ride agentdomain.HeartbeatEvent, never a private tea.Tick.
+// that ever matters, ride tui.HeartbeatEvent, never a private tea.Tick.
 func fetchGitPRCmd() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -924,7 +924,7 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tui.GitStatusResolvedEvent:
 		iv.gitDirty, iv.gitUnpushed = msg.Dirty, msg.Unpushed
 		return iv, cmd
-	case agentdomain.HeartbeatEvent:
+	case tui.HeartbeatEvent:
 		// Catches changes made outside the TUI (editor saves, commits from
 		// another terminal). The git call runs in the returned Cmd, never here.
 		return iv, tea.Batch(cmd, iv.gitStatusCmd())
@@ -1032,7 +1032,7 @@ func (iv *InputView) ClearImageAttachments() {
 }
 
 // GetHistoryManager returns the history manager for external use
-func (iv *InputView) GetHistoryManager() *history.HistoryManager {
+func (iv *InputView) GetHistoryManager() *history.Store {
 	return iv.historyManager
 }
 

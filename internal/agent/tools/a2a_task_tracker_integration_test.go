@@ -8,7 +8,7 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 func TestA2ASubmitTaskTool_TaskIDTracking(t *testing.T) {
@@ -24,7 +24,7 @@ func TestA2ASubmitTaskTool_TaskIDTracking(t *testing.T) {
 	}
 
 	t.Run("uses tracked task ID when available", func(t *testing.T) {
-		tracker := utils.NewA2ATaskTracker()
+		tracker := schedinfra.NewA2ATaskTracker()
 		agentURL := "http://test.agent"
 		contextID := "context-123"
 
@@ -45,7 +45,7 @@ func TestA2ASubmitTaskTool_TaskIDTracking(t *testing.T) {
 	})
 
 	t.Run("no task ID when tracker is empty", func(t *testing.T) {
-		tracker := utils.NewA2ATaskTracker()
+		tracker := schedinfra.NewA2ATaskTracker()
 		agentURL := "http://test.agent"
 
 		tool := NewA2ASubmitTaskTool(cfg, tracker, nil)

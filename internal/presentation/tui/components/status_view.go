@@ -36,11 +36,11 @@ type StatusView struct {
 	pausedAt         time.Time
 }
 
-// statusViewState is the narrow slice of StateManager the status view reads:
+// statusViewState is the narrow slice of the state store the status view reads:
 // the approval/question overlays (to pause timers) plus retry status.
 type statusViewState interface {
 	approvalOverlayReader
-	agentdomain.ChatSessionManager
+	tui.ChatSessionState
 }
 
 // SetStateManager wires the state manager so the spinner line can reflect
@@ -308,9 +308,9 @@ func (sv *StatusView) syncApprovalPause() {
 // approval, plan-approval, or user-question overlay is blocked on the user.
 // Shared by StatusView and ToolCallRenderer to pause their running timers.
 type approvalOverlayReader interface {
-	agentdomain.ApprovalUIManager
-	agentdomain.PlanApprovalUIManager
-	agentdomain.UserQuestionUIManager
+	tui.ApprovalPrompt
+	tui.PlanApprovalPrompt
+	tui.UserQuestionPrompt
 }
 
 // syncApprovalPause records when the UI becomes blocked on a user decision and,

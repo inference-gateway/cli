@@ -17,7 +17,7 @@ type Converter struct {
 
 	// ensureBinary, when set, downloads a prebuilt ffmpeg into ~/.infer/bin as
 	// a last resort after config-path and PATH resolution fail (see
-	// stt.BinaryManager, injected via SetBinaryEnsurer to avoid an import cycle).
+	// BinaryStore, injected via SetBinaryEnsurer to avoid an import cycle).
 	ensureBinary func(ctx context.Context, name string) (string, error)
 
 	// run and lookPath are overridable in tests.

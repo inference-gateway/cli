@@ -71,34 +71,6 @@ func TestInstructions_EnvVarsStayLiteral(t *testing.T) {
 	require.Contains(t, got[0].Content, "${PLUGIN_TEST_SECRET}")
 }
 
-func TestCapInstructions(t *testing.T) {
-	tests := []struct {
-		name       string
-		content    string
-		maxLines   int
-		maxChars   int
-		wantMarker string
-	}{
-		{"no caps", "a\nb\nc", 0, 0, ""},
-		{"within limits", "a\nb", 5, 100, ""},
-		{"line cap", "a\nb\nc\nd", 2, 0, "[truncated at 2 lines]"},
-		{"char cap", strings.Repeat("x", 20), 0, 10, "[truncated at 10 chars]"},
-		{"char cap after line cap", strings.Repeat("y", 50) + "\nz", 1, 10, "[truncated at 10 chars]"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, marker := CapInstructions(tt.content, tt.maxLines, tt.maxChars)
-			require.Equal(t, tt.wantMarker, marker)
-			if tt.maxChars > 0 {
-				require.LessOrEqual(t, len(got), tt.maxChars)
-			}
-			if tt.maxLines > 0 {
-				require.LessOrEqual(t, len(strings.Split(got, "\n")), tt.maxLines)
-			}
-		})
-	}
-}
-
 func TestInstructionsBlock_FormatAndOrder(t *testing.T) {
 	dir := t.TempDir()
 	writeInstructions(t, dir, "first", "rule one")

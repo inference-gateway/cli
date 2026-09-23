@@ -12,7 +12,7 @@ import (
 )
 
 func TestUpdate_DropsStaleChatEventsBeforeRouting(t *testing.T) {
-	sm := statemanager.NewStateManager(false)
+	sm := statemanager.NewStore(false)
 	stale := make(chan agentdomain.ChatEvent)
 	for _, active := range []bool{false, true} {
 		if active {
@@ -49,7 +49,6 @@ func TestShouldRouteToUIComponents(t *testing.T) {
 		{"ui todo update", tui.TodoUpdateEvent{}, true},
 		{"agent chat chunk", agentdomain.ChatChunkEvent{}, true},
 		{"agent chat complete", agentdomain.ChatCompleteEvent{}, true},
-		{"agent tool call update", agentdomain.ToolCallUpdateEvent{}, true},
 		{"spinner tick", spinner.TickMsg{}, true},
 		{"nil message", nil, false},
 		{"foreign message", struct{ X int }{}, false},

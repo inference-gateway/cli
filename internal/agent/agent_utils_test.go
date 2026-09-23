@@ -16,6 +16,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	plugins "github.com/inference-gateway/cli/internal/plugins"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
@@ -259,7 +260,7 @@ func skillsCapConfig(maxChars int) *config.Config {
 func TestBuildSkillsInfo(t *testing.T) {
 	tests := []struct {
 		name         string
-		svc          *AgentServiceImpl
+		svc          *Agent
 		wantEmpty    bool
 		wantContains []string
 		wantAbsent   []string
@@ -268,22 +269,22 @@ func TestBuildSkillsInfo(t *testing.T) {
 	}{
 		{
 			name:       "nil service",
-			svc:        &AgentServiceImpl{},
+			svc:        &Agent{},
 			wantEmpty:  true,
 			exactPaths: -1,
 		},
 		{
 			name:       "empty list",
-			svc:        &AgentServiceImpl{skillsService: &agentdomainmocks.FakeSkillsService{}},
+			svc:        &Agent{skillsService: &agentdomainmocks.FakeSkillsService{}},
 			wantEmpty:  true,
 			exactPaths: -1,
 		},
 		{
 			name: "formats skills",
-			svc: func() *AgentServiceImpl {
+			svc: func() *Agent {
 				fake := &agentdomainmocks.FakeSkillsService{}
 				fake.ListReturns(twoStubSkills())
-				return &AgentServiceImpl{skillsService: fake}
+				return &Agent{skillsService: fake}
 			}(),
 			wantContains: []string{
 				"AVAILABLE SKILLS:",
@@ -302,10 +303,10 @@ func TestBuildSkillsInfo(t *testing.T) {
 		},
 		{
 			name: "caps rendered list at max chars",
-			svc: func() *AgentServiceImpl {
+			svc: func() *Agent {
 				fake := &agentdomainmocks.FakeSkillsService{}
 				fake.ListReturns(manyStubSkills())
-				return &AgentServiceImpl{config: skillsCapConfig(700), skillsService: fake}
+				return &Agent{config: skillsCapConfig(700), skillsService: fake}
 			}(),
 			wantContains: []string{"/abs/.infer/skills/alpha/SKILL.md", "more skills not expanded", "infer skills search"},
 			wantAbsent:   []string{"/abs/.infer/skills/delta/SKILL.md", "delta"},
@@ -313,10 +314,10 @@ func TestBuildSkillsInfo(t *testing.T) {
 		},
 		{
 			name: "no cap when max chars is zero",
-			svc: func() *AgentServiceImpl {
+			svc: func() *Agent {
 				fake := &agentdomainmocks.FakeSkillsService{}
 				fake.ListReturns(manyStubSkills())
-				return &AgentServiceImpl{config: skillsCapConfig(0), skillsService: fake}
+				return &Agent{config: skillsCapConfig(0), skillsService: fake}
 			}(),
 			wantAbsent: []string{"more skills not expanded"},
 			exactPaths: 4,
@@ -369,7 +370,7 @@ func TestBuildSkillsInfo_LargeCatalogStaysBounded(t *testing.T) {
 
 	fake := &agentdomainmocks.FakeSkillsService{}
 	fake.ListReturns(all)
-	got := (&AgentServiceImpl{config: skillsCapConfig(maxChars), skillsService: fake}).buildSkillsInfo()
+	got := (&Agent{config: skillsCapConfig(maxChars), skillsService: fake}).buildSkillsInfo()
 
 	// The tail line is written after the cap check, so allow one line of slack -
 	// what must not happen is growth proportional to the catalog.
@@ -450,14 +451,14 @@ func TestBuildToolsInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &AgentServiceImpl{}
+			s := &Agent{}
 			fake := &agentdomainmocks.FakeToolService{}
 			if !tt.noService {
 				fake.ListToolsForModeReturns(tt.tools)
 				s.toolService = fake
 			}
 			if tt.stateMode != nil {
-				sm := statemanager.NewStateManager(false)
+				sm := statemanager.NewStore(false)
 				sm.SetAgentMode(*tt.stateMode)
 				s.stateManager = sm
 			}
@@ -491,7 +492,7 @@ func assistantMsg(text string) sdk.Message {
 
 // activeSkillsAgent returns an agent whose skills service knows foo/bar, each
 // with distinctive metadata (description + path).
-func activeSkillsAgent() *AgentServiceImpl {
+func activeSkillsAgent() *Agent {
 	fake := &agentdomainmocks.FakeSkillsService{}
 	skills := []agentdomain.Skill{
 		{Name: "foo", Description: "FOO_DESC", Path: "/abs/.infer/skills/foo/SKILL.md", Scope: agentdomain.SkillScopeProject},
@@ -507,7 +508,7 @@ func activeSkillsAgent() *AgentServiceImpl {
 	}
 	fake.GetStub = get
 	fake.DiscoverStub = func(_ context.Context, name string) (agentdomain.Skill, bool) { return get(name) }
-	return &AgentServiceImpl{
+	return &Agent{
 		skillsService: fake,
 	}
 }
@@ -588,7 +589,7 @@ func TestBuildActiveSkillInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := activeSkillsAgent()
 			if tt.nilService {
-				s = &AgentServiceImpl{}
+				s = &Agent{}
 			}
 
 			got := s.buildActiveSkillInfo(tt.messages, false)
@@ -654,7 +655,7 @@ func TestBuildMemoryInfo_TruncatesAtLineBoundary(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, config.MemoryIndexFileName), []byte(src.String()), 0o600))
 
 	cfg := &config.Config{Memory: config.MemoryConfig{Enabled: true, Dir: dir, MaxChars: 500}}
-	s := &AgentServiceImpl{config: cfg}
+	s := &Agent{config: cfg}
 
 	got := s.buildMemoryInfo(1)
 
@@ -667,10 +668,10 @@ func TestBuildMemoryInfo_TruncatesAtLineBoundary(t *testing.T) {
 }
 
 func TestBuildAgentsMDInfo(t *testing.T) {
-	newSvc := func(enabled bool, maxChars int) *AgentServiceImpl {
+	newSvc := func(enabled bool, maxChars int) *Agent {
 		cfg := &config.Config{}
 		cfg.Agent.AgentsMD = config.AgentsMDConfig{Enabled: enabled, MaxChars: maxChars}
-		return &AgentServiceImpl{config: cfg}
+		return &Agent{config: cfg}
 	}
 
 	t.Run("disabled returns empty", func(t *testing.T) {
@@ -717,7 +718,7 @@ func TestBuildProjectTreeInfo(t *testing.T) {
 		cfg.Tools.Enabled = true
 		cfg.Agent.Context.TreeEnabled = true
 		cfg.Agent.Context.GitContextRefreshTurns = 10
-		s := &AgentServiceImpl{config: cfg}
+		s := &Agent{config: cfg}
 
 		got := s.buildProjectTreeInfo(0)
 		require.Contains(t, got, "PROJECT STRUCTURE")
@@ -728,7 +729,7 @@ func TestBuildProjectTreeInfo(t *testing.T) {
 		cfg := &config.Config{}
 		cfg.Tools.Enabled = true
 		cfg.Agent.Context.TreeEnabled = false
-		s := &AgentServiceImpl{config: cfg}
+		s := &Agent{config: cfg}
 
 		require.Empty(t, s.buildProjectTreeInfo(0))
 	})
@@ -742,7 +743,7 @@ func TestBuildSystemPrompt_AgentsMDAfterCustomInstructions(t *testing.T) {
 	cfg.Prompts.Agent.SystemPrompt = "base prompt"
 	cfg.Prompts.Agent.CustomInstructions = "custom instructions here"
 	cfg.Agent.AgentsMD = config.AgentsMDConfig{Enabled: true, MaxChars: config.DefaultInstructionsMaxChars}
-	s := &AgentServiceImpl{config: cfg}
+	s := &Agent{config: cfg}
 
 	got := s.BuildSystemPrompt()
 	base := strings.Index(got, "base prompt")
@@ -767,7 +768,7 @@ func TestBuildSystemPrompt_PluginInstructionsAfterAgentsMD(t *testing.T) {
 	cfg.Plugins = *config.DefaultPluginsConfig()
 	cfg.Plugins.Dir = pluginsDir
 	cfg.Plugins.Plugins = []config.PluginEntry{{Name: "ponytail", Enabled: true}}
-	s := &AgentServiceImpl{config: cfg}
+	s := &Agent{config: cfg, pluginInstructions: func() string { return plugins.InstructionsBlock(cfg) }}
 
 	got := s.BuildSystemPrompt()
 	project := strings.Index(got, "PROJECT INSTRUCTIONS (AGENTS.md):\nproject rules")
@@ -787,7 +788,7 @@ func TestBuildSystemPrompt_ExcludesVolatileSections(t *testing.T) {
 	cfg.Agent.Context = config.AgentContextConfig{GitContextEnabled: true, TreeEnabled: true, GitContextRefreshTurns: 10}
 	cfg.Memory = config.MemoryConfig{Enabled: true, Dir: memDir}
 	cfg.Tools.Enabled = true
-	s := &AgentServiceImpl{config: cfg}
+	s := &Agent{config: cfg}
 
 	got := s.BuildSystemPrompt()
 
@@ -799,14 +800,14 @@ func TestBuildSystemPrompt_ExcludesVolatileSections(t *testing.T) {
 }
 
 func TestVolatileTailMessage(t *testing.T) {
-	newSvc := func(memoryEnabled bool, withDefaults bool) *AgentServiceImpl {
+	newSvc := func(memoryEnabled bool, withDefaults bool) *Agent {
 		memDir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(memDir, config.MemoryIndexFileName), []byte("- [fact](fact.md) - a fact\n"), 0o600))
 		cfg := &config.Config{}
 		cfg.Prompts.Agent.SystemPrompt = "base prompt"
 		cfg.Agent.SystemPromptWithDefaults = withDefaults
 		cfg.Memory = config.MemoryConfig{Enabled: memoryEnabled, Dir: memDir}
-		return &AgentServiceImpl{config: cfg}
+		return &Agent{config: cfg}
 	}
 
 	tailContent := func(t *testing.T, msg sdk.Message) string {
@@ -877,7 +878,7 @@ func TestBuildSkillsInfo_CatalogEntryIsCacheStable(t *testing.T) {
 	render := func(sk agentdomain.Skill) string {
 		fake := &agentdomainmocks.FakeSkillsService{}
 		fake.ListReturns([]agentdomain.Skill{sk})
-		return (&AgentServiceImpl{skillsService: fake}).buildSkillsInfo()
+		return (&Agent{skillsService: fake}).buildSkillsInfo()
 	}
 
 	before, after := render(notInstalled), render(installed)
@@ -890,7 +891,7 @@ func TestBuildSkillsInfo_CatalogEntryIsCacheStable(t *testing.T) {
 // split: a headless run installs a not-yet-downloaded skill itself, while chat
 // leaves it alone because the user approves the install at the input layer.
 func TestBuildActiveSkillInfo_CatalogInstallIsHeadlessOnly(t *testing.T) {
-	newAgent := func() (*AgentServiceImpl, *agentdomainmocks.FakeSkillsService) {
+	newAgent := func() (*Agent, *agentdomainmocks.FakeSkillsService) {
 		fake := &agentdomainmocks.FakeSkillsService{}
 		fake.GetReturns(agentdomain.Skill{Name: "rust", Description: "RUST_DESC", Scope: agentdomain.SkillScopeCatalog}, true)
 		fake.DiscoverReturns(agentdomain.Skill{
@@ -899,7 +900,7 @@ func TestBuildActiveSkillInfo_CatalogInstallIsHeadlessOnly(t *testing.T) {
 			Path:        "/abs/.infer/tmp/skills/rust/SKILL.md",
 			Scope:       agentdomain.SkillScopeCatalog,
 		}, true)
-		return &AgentServiceImpl{skillsService: fake}, fake
+		return &Agent{skillsService: fake}, fake
 	}
 
 	messages := []sdk.Message{userMsg("/rust do a thing")}

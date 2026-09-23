@@ -72,12 +72,12 @@ func TestHasPending_A2AViaSupervisor(t *testing.T) {
 	reg := NewBackgroundTaskRegistry(4, sup)
 
 	reg.RegisterContext("http://agent", "c1")
-	reg.StartPolling("t1", &agentdomain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
+	reg.StartPolling("t1", &scheddomain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
 	if reg.HasPending() {
 		t.Fatalf("StartPolling without a supervised job must not count as pending")
 	}
 
-	job := newFakeA2ABgJob("t1", agentdomain.TaskPollingState{TaskID: "t1"})
+	job := newFakeA2ABgJob("t1", scheddomain.TaskPollingState{TaskID: "t1"})
 	reg.Submit(job)
 	<-job.started
 	if !reg.HasPending() {
@@ -116,7 +116,7 @@ func TestClearAllAgents_DiscardsInFlightA2AJobs(t *testing.T) {
 	reg := NewBackgroundTaskRegistry(4, sup)
 
 	reg.RegisterContext("http://agent", "c1")
-	task := newFakeA2ABgJob("t1", agentdomain.TaskPollingState{TaskID: "t1"})
+	task := newFakeA2ABgJob("t1", scheddomain.TaskPollingState{TaskID: "t1"})
 	reg.Submit(task)
 	<-task.started
 

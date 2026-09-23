@@ -34,8 +34,8 @@ type FileWriter interface {
 	ValidatePath(path string) error
 }
 
-// ChunkManager defines the interface for handling chunked file writes
-type ChunkManager interface {
+// ChunkBuffer defines the interface for handling chunked file writes
+type ChunkBuffer interface {
 	WriteChunk(ctx context.Context, req ChunkWriteRequest) error
 	FinalizeChunks(ctx context.Context, sessionID string, targetPath string) (*WriteResult, error)
 	CleanupSession(sessionID string) error

@@ -281,7 +281,8 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 		return result, err
 	}
 
-	detachChan, hasDetachChan := ctx.Value(agentdomain.BashDetachChannelKey).(<-chan struct{})
+	detachChan := agentdomain.GetBashDetachChannel(ctx)
+	hasDetachChan := detachChan != nil
 
 	var outputBuilder strings.Builder
 	var outputBuffer scheddomain.OutputRingBuffer

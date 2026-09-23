@@ -12,9 +12,9 @@ import (
 )
 
 // statusViewStateStub wraps the real ApplicationState to satisfy the status
-// view's statusViewState interface, which adds the agentdomain.ChatSessionManager methods
+// view's statusViewState interface, which adds the tui.ChatSessionState methods
 // (IsAgentBusy and an error-returning StartChatSession) that the wrapped
-// statemanager.StateManager normally provides.
+// statemanager.Store normally provides.
 type statusViewStateStub struct{ *tui.ApplicationState }
 
 func (statusViewStateStub) IsAgentBusy() bool { return false }

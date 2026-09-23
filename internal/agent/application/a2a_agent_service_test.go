@@ -28,7 +28,7 @@ func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 			"http://env-agent-2:8080",
 		}
 
-		svc := &A2AAgentServiceImpl{
+		svc := &A2AClient{
 			config:     cfg,
 			agentsPath: agentsPath,
 			cache:      make(map[string]*CachedAgentCard),
@@ -45,7 +45,7 @@ func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.A2A.Agents = []string{}
 
-		svc := &A2AAgentServiceImpl{
+		svc := &A2AClient{
 			config:     cfg,
 			agentsPath: agentsPath,
 			cache:      make(map[string]*CachedAgentCard),
@@ -61,7 +61,7 @@ func TestA2AAgentService_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.A2A.Agents = nil
 
-		svc := &A2AAgentServiceImpl{
+		svc := &A2AClient{
 			config:     cfg,
 			agentsPath: agentsPath,
 			cache:      make(map[string]*CachedAgentCard),
@@ -81,7 +81,7 @@ func TestA2AAgentService_GetConfiguredAgents_NoAgentsConfigured(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.A2A.Agents = nil
 
-	svc := &A2AAgentServiceImpl{
+	svc := &A2AClient{
 		config:     cfg,
 		agentsPath: agentsPath,
 		cache:      make(map[string]*CachedAgentCard),

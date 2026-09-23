@@ -82,7 +82,7 @@ func TestCreateAvatarTool_Validate(t *testing.T) {
 func TestCreateAvatarTool_Execute(t *testing.T) {
 	t.Run("builds the avatar from a session artifact with the default angles", func(t *testing.T) {
 		tool, images, _ := newTestAvatarTool(t)
-		ctx := context.WithValue(context.Background(), agentdomain.SessionIDKey, "sess-1")
+		ctx := agentdomain.WithSessionID(context.Background(), "sess-1")
 		artifacts := tool.config.SessionArtifactsDir("sess-1")
 		require.NoError(t, os.MkdirAll(artifacts, 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(artifacts, "portrait.png"), minimalPNG(), 0o600))

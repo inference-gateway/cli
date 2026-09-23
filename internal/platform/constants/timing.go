@@ -12,9 +12,6 @@ const (
 	DrainQueueRetryInterval   = 300 * time.Millisecond // Re-check interval while queued work waits behind a busy agent
 	UIHeartbeatInterval       = 10 * time.Second       // The app's single periodic HeartbeatEvent; every tick wakes Update, keep it slow
 
-	// UI component timing for smooth transitions
-	ToolCallUpdateThrottle = 50 * time.Millisecond // Minimum time between tool call updates
-
 	// Test timing delays
 	TestSleepDelay = 100 * time.Millisecond // Standard delay in tests for timing-sensitive operations
 )

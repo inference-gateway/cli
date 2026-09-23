@@ -88,12 +88,12 @@ type SnippetSelection struct {
 	Annotation string
 }
 
-// FileExplorerImpl is the VS Code-style file explorer side panel: a left tree of
+// FileExplorer is the VS Code-style file explorer side panel: a left tree of
 // the working directory (lazy, collapsible, .gitignore-aware) plus a scrollable,
 // syntax-highlighted preview of the selected file. A `/` fuzzy finder jumps to any
 // file; `v` opens the selection in the user's real editor. It owns its full
 // [sidebar | divider | pane] region; the chat input is composed beneath the pane.
-type FileExplorerImpl struct {
+type FileExplorer struct {
 	root          string
 	styleProvider *styles.Provider
 	themeService  tui.ThemeService
@@ -155,13 +155,13 @@ type FileExplorerImpl struct {
 }
 
 // NewFileExplorer creates an explorer rooted at the given working directory.
-func NewFileExplorer(root string, styleProvider *styles.Provider, themeService tui.ThemeService, kb config.KeybindingsConfig) *FileExplorerImpl {
+func NewFileExplorer(root string, styleProvider *styles.Provider, themeService tui.ThemeService, kb config.KeybindingsConfig) *FileExplorer {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 	vp.MouseWheelEnabled = true
 	vp.MouseWheelDelta = 3
 
-	t := &FileExplorerImpl{
+	t := &FileExplorer{
 		root:          root,
 		styleProvider: styleProvider,
 		themeService:  themeService,
@@ -182,10 +182,10 @@ func NewFileExplorer(root string, styleProvider *styles.Provider, themeService t
 // Init does no work: the constructor and Reset already seed the root, and the
 // tree refreshes on view-entry (reopen re-runs this), on in-loop tool/bash
 // completion events, and on the manual refresh key - no polling tick.
-func (t *FileExplorerImpl) Init() tea.Cmd { return nil }
+func (t *FileExplorer) Init() tea.Cmd { return nil }
 
 // Reset clears state so the panel can be reused on a later open.
-func (t *FileExplorerImpl) Reset() {
+func (t *FileExplorer) Reset() {
 	t.done = false
 	t.cancel = false
 	t.loadErr = nil
@@ -223,14 +223,14 @@ func (t *FileExplorerImpl) Reset() {
 	t.reanchorSelection()
 }
 
-func (t *FileExplorerImpl) IsDone() bool      { return t.done }
-func (t *FileExplorerImpl) IsCancelled() bool { return t.cancel }
+func (t *FileExplorer) IsDone() bool      { return t.done }
+func (t *FileExplorer) IsCancelled() bool { return t.cancel }
 
 // PaneWidth returns the current preview-pane width so the caller can size the
 // input row that sits beneath the pane.
-func (t *FileExplorerImpl) PaneWidth() int { return t.paneWidth }
+func (t *FileExplorer) PaneWidth() int { return t.paneWidth }
 
-func (t *FileExplorerImpl) SetWidth(w int) {
+func (t *FileExplorer) SetWidth(w int) {
 	t.width = w
 	sidebar := clampInt(w*30/100, explorerSidebarMinWidth, explorerSidebarMaxWidth)
 	if sidebar > w-explorerMinPaneWidth {
@@ -240,10 +240,10 @@ func (t *FileExplorerImpl) SetWidth(w int) {
 	t.paneWidth = max(w-sidebar-1, 1)
 }
 
-func (t *FileExplorerImpl) SetHeight(h int) { t.height = h }
+func (t *FileExplorer) SetHeight(h int) { t.height = h }
 
 // HintText returns the footer hint for the current mode.
-func (t *FileExplorerImpl) HintText() string {
+func (t *FileExplorer) HintText() string {
 	if t.editMode && t.editor != nil {
 		return "(editor) - :wq to save & return"
 	}
@@ -269,7 +269,7 @@ func (t *FileExplorerImpl) HintText() string {
 
 // --- update ---
 
-func (t *FileExplorerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (t *FileExplorer) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if t.editMode {
 		return t.updateEditor(msg)
 	}
@@ -296,7 +296,7 @@ func (t *FileExplorerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return t, nil
 }
 
-func (t *FileExplorerImpl) handleWheel(msg tea.MouseWheelMsg) {
+func (t *FileExplorer) handleWheel(msg tea.MouseWheelMsg) {
 	switch msg.Button {
 	case tea.MouseWheelUp:
 		t.viewport.ScrollUp(t.viewport.MouseWheelDelta)
@@ -305,7 +305,7 @@ func (t *FileExplorerImpl) handleWheel(msg tea.MouseWheelMsg) {
 	}
 }
 
-func (t *FileExplorerImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (t *FileExplorer) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if t.annotateMode {
 		return t.handleAnnotateKey(msg)
 	}
@@ -360,7 +360,7 @@ func (t *FileExplorerImpl) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return t, nil
 }
 
-func (t *FileExplorerImpl) moveCursor(delta int) {
+func (t *FileExplorer) moveCursor(delta int) {
 	if len(t.rows) == 0 {
 		return
 	}
@@ -379,7 +379,7 @@ func (t *FileExplorerImpl) moveCursor(delta int) {
 
 // toggleSelected expands/collapses a folder; on a file it is a no-op (the
 // preview already follows the selection).
-func (t *FileExplorerImpl) toggleSelected() {
+func (t *FileExplorer) toggleSelected() {
 	row, ok := t.currentRow()
 	if !ok || !row.node.isDir {
 		return
@@ -387,7 +387,7 @@ func (t *FileExplorerImpl) toggleSelected() {
 	t.setExpandedKey(row.node.relPath, !t.expanded[row.node.relPath])
 }
 
-func (t *FileExplorerImpl) setExpanded(expanded bool) {
+func (t *FileExplorer) setExpanded(expanded bool) {
 	row, ok := t.currentRow()
 	if !ok || !row.node.isDir {
 		return
@@ -395,7 +395,7 @@ func (t *FileExplorerImpl) setExpanded(expanded bool) {
 	t.setExpandedKey(row.node.relPath, expanded)
 }
 
-func (t *FileExplorerImpl) setExpandedKey(rel string, expanded bool) {
+func (t *FileExplorer) setExpandedKey(rel string, expanded bool) {
 	if expanded {
 		t.expanded[rel] = true
 		t.ensureChildren(rel)
@@ -407,7 +407,7 @@ func (t *FileExplorerImpl) setExpandedKey(rel string, expanded bool) {
 }
 
 // toggleHidden flips inclusion of dotfiles/gitignored entries and reloads.
-func (t *FileExplorerImpl) toggleHidden() {
+func (t *FileExplorer) toggleHidden() {
 	t.showHidden = !t.showHidden
 	t.ignore = newIgnoreFilter(t.root, t.showHidden)
 	t.children = make(map[string][]explorerNode)
@@ -422,7 +422,7 @@ func (t *FileExplorerImpl) toggleHidden() {
 // new/removed files there show up; collapsed directories are not re-read until
 // expanded. Called on view-entry, on in-loop tool/bash completion, on editor
 // exit, and on the manual refresh key.
-func (t *FileExplorerImpl) refresh() {
+func (t *FileExplorer) refresh() {
 	t.children = make(map[string][]explorerNode)
 	t.ensureChildren("")
 	t.flatten()
@@ -435,7 +435,7 @@ func (t *FileExplorerImpl) refresh() {
 // enterEditCmd launches the user's editor ($VISUAL/$EDITOR/vim) on the selected
 // file in a PTY rendered into the pane. The returned cmd streams the editor's
 // terminal output back as ptyOutputMsg/ptyExitMsg.
-func (t *FileExplorerImpl) enterEditCmd() tea.Cmd {
+func (t *FileExplorer) enterEditCmd() tea.Cmd {
 	rel := t.selectedFilePath()
 	if rel == "" {
 		return nil
@@ -454,7 +454,7 @@ func (t *FileExplorerImpl) enterEditCmd() tea.Cmd {
 // updateEditor drives the embedded editor: it forwards keys to the PTY, feeds
 // PTY output into the emulator (re-arming the reader), and on child exit closes
 // the editor and refreshes the tree so any change shows immediately.
-func (t *FileExplorerImpl) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (t *FileExplorer) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m := msg.(type) {
 	case ptyOutputMsg:
 		t.editor.term.write(m.data)
@@ -478,7 +478,7 @@ func (t *FileExplorerImpl) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // --- fuzzy finder ---
 
-func (t *FileExplorerImpl) enterFind() tea.Cmd {
+func (t *FileExplorer) enterFind() tea.Cmd {
 	t.findMode = true
 	t.findQuery = ""
 	t.findCursor = 0
@@ -490,13 +490,13 @@ func (t *FileExplorerImpl) enterFind() tea.Cmd {
 	return nil
 }
 
-func (t *FileExplorerImpl) exitFind() {
+func (t *FileExplorer) exitFind() {
 	t.findMode = false
 	t.findQuery = ""
 	t.findCursor = 0
 }
 
-func (t *FileExplorerImpl) handleFindKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (t *FileExplorer) handleFindKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, fileExplorerFindKeys.cancel):
 		t.cancel = true
@@ -527,7 +527,7 @@ func (t *FileExplorerImpl) handleFindKey(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 	return t, nil
 }
 
-func (t *FileExplorerImpl) applyFilter() {
+func (t *FileExplorer) applyFilter() {
 	t.findCursor = 0
 	t.filtered = t.filtered[:0]
 	if t.findQuery == "" {
@@ -549,7 +549,7 @@ func (t *FileExplorerImpl) applyFilter() {
 
 // acceptFind reveals the highlighted match in the tree (expanding its ancestor
 // folders), selects it, and exits find mode.
-func (t *FileExplorerImpl) acceptFind() {
+func (t *FileExplorer) acceptFind() {
 	if t.findCursor < 0 || t.findCursor >= len(t.filtered) {
 		t.exitFind()
 		return
@@ -558,7 +558,7 @@ func (t *FileExplorerImpl) acceptFind() {
 	t.exitFind()
 }
 
-func (t *FileExplorerImpl) revealPath(rel string) {
+func (t *FileExplorer) revealPath(rel string) {
 	parts := strings.Split(rel, "/")
 	cur := ""
 	for i := 0; i < len(parts)-1; i++ {
@@ -577,7 +577,7 @@ func (t *FileExplorerImpl) revealPath(rel string) {
 	}
 }
 
-func (t *FileExplorerImpl) handleWalkDone(msg explorerWalkDoneMsg) {
+func (t *FileExplorer) handleWalkDone(msg explorerWalkDoneMsg) {
 	t.walking = false
 	t.candidates = msg.paths
 	t.walkTruncated = msg.truncated
@@ -586,7 +586,7 @@ func (t *FileExplorerImpl) handleWalkDone(msg explorerWalkDoneMsg) {
 	}
 }
 
-func (t *FileExplorerImpl) startWalkCmd() tea.Cmd {
+func (t *FileExplorer) startWalkCmd() tea.Cmd {
 	root := t.root
 	showHidden := t.showHidden
 	return func() tea.Msg {
@@ -601,7 +601,7 @@ func (t *FileExplorerImpl) startWalkCmd() tea.Cmd {
 // It is a no-op when no file is selected or the preview has no lines (binary /
 // oversized placeholder). The preview cursor starts at the viewport's current
 // scroll position so the user sees where they are.
-func (t *FileExplorerImpl) enterSelectMode() {
+func (t *FileExplorer) enterSelectMode() {
 	if t.selectedFilePath() == "" || t.previewLines <= 0 {
 		return
 	}
@@ -612,7 +612,7 @@ func (t *FileExplorerImpl) enterSelectMode() {
 
 // exitSelectMode returns to tree navigation, clearing the active range anchor.
 // Captured selections are preserved so they are still carried to chat on close.
-func (t *FileExplorerImpl) exitSelectMode() {
+func (t *FileExplorer) exitSelectMode() {
 	t.selectMode = false
 	t.selAnchor = -1
 }
@@ -620,7 +620,7 @@ func (t *FileExplorerImpl) exitSelectMode() {
 // previewSelectionRange returns the inclusive 0-indexed [lo,hi] line range of
 // the active selection, or ok=false when no anchor is set. Mirrors the diff
 // viewer's patchSelectionRange.
-func (t *FileExplorerImpl) previewSelectionRange() (lo, hi int, ok bool) {
+func (t *FileExplorer) previewSelectionRange() (lo, hi int, ok bool) {
 	if t.selAnchor < 0 {
 		return 0, 0, false
 	}
@@ -643,7 +643,7 @@ func (t *FileExplorerImpl) previewSelectionRange() (lo, hi int, ok bool) {
 // the cursor within the visible window. Leaving YOffset untouched while the
 // cursor is already on-screen keeps an anchored selection's gutter markers
 // visible instead of scrolling them off the top.
-func (t *FileExplorerImpl) movePreviewCursor(delta int) {
+func (t *FileExplorer) movePreviewCursor(delta int) {
 	if t.previewLines <= 0 {
 		return
 	}
@@ -666,7 +666,7 @@ func (t *FileExplorerImpl) movePreviewCursor(delta int) {
 	// else: cursor already visible - leave YOffset unchanged.
 }
 
-func (t *FileExplorerImpl) handleSelectKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (t *FileExplorer) handleSelectKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+c"))) { // universal escape; intentionally not remappable
 		t.cancel = true
 		return t, nil
@@ -710,7 +710,7 @@ func (t *FileExplorerImpl) handleSelectKey(msg tea.KeyPressMsg) (tea.Model, tea.
 // handleAnnotateKey drives the inline annotation text input. enter confirms
 // (storing the selection), esc cancels (keeping the anchor so the user can
 // retry). Mirrors handleFindKey's typing model.
-func (t *FileExplorerImpl) handleAnnotateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (t *FileExplorer) handleAnnotateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, fileExplorerAnnotateKeys.cancel):
 		t.cancel = true
@@ -737,7 +737,7 @@ func (t *FileExplorerImpl) handleAnnotateKey(msg tea.KeyPressMsg) (tea.Model, te
 // attachSelection captures the current range (or the single cursor line when no
 // anchor is set) as a SnippetSelection carrying the given note. Line numbers are
 // converted from 0-indexed to 1-indexed inclusive; the anchor is then cleared.
-func (t *FileExplorerImpl) attachSelection(note string) {
+func (t *FileExplorer) attachSelection(note string) {
 	lo, hi, ok := t.previewSelectionRange()
 	if !ok {
 		lo = t.previewCursor
@@ -754,11 +754,11 @@ func (t *FileExplorerImpl) attachSelection(note string) {
 
 // attachCurrentSelection captures the current range with no note (the Enter
 // path); the user can still add an optional note via the annotate key first.
-func (t *FileExplorerImpl) attachCurrentSelection() { t.attachSelection("") }
+func (t *FileExplorer) attachCurrentSelection() { t.attachSelection("") }
 
 // confirmAnnotation stores the current range + typed note as a SnippetSelection
 // and exits annotate mode.
-func (t *FileExplorerImpl) confirmAnnotation() {
+func (t *FileExplorer) confirmAnnotation() {
 	t.attachSelection(t.annotateInput)
 	t.annotateMode = false
 	t.annotateInput = ""
@@ -767,7 +767,7 @@ func (t *FileExplorerImpl) confirmAnnotation() {
 // Selections returns the annotated line ranges captured during select mode.
 // The app reads this when the explorer closes (IsDone) and carries them into
 // chat as attachments sent with the next message.
-func (t *FileExplorerImpl) Selections() []SnippetSelection {
+func (t *FileExplorer) Selections() []SnippetSelection {
 	return t.selections
 }
 
@@ -856,7 +856,7 @@ func snippetExt(file string) string {
 // ensureChildren reads and caches a directory's immediate children (filtered and
 // sorted) the first time it is needed. Read errors cache an empty list so we
 // don't retry every frame.
-func (t *FileExplorerImpl) ensureChildren(rel string) {
+func (t *FileExplorer) ensureChildren(rel string) {
 	if _, ok := t.children[rel]; ok {
 		return
 	}
@@ -895,12 +895,12 @@ func sortNodes(nodes []explorerNode) {
 	})
 }
 
-func (t *FileExplorerImpl) flatten() {
+func (t *FileExplorer) flatten() {
 	t.rows = t.rows[:0]
 	t.flattenInto("", 0)
 }
 
-func (t *FileExplorerImpl) flattenInto(rel string, depth int) {
+func (t *FileExplorer) flattenInto(rel string, depth int) {
 	for _, n := range t.children[rel] {
 		expanded := n.isDir && t.expanded[n.relPath]
 		t.rows = append(t.rows, explorerRow{node: n, depth: depth, expanded: expanded})
@@ -911,7 +911,7 @@ func (t *FileExplorerImpl) flattenInto(rel string, depth int) {
 	}
 }
 
-func (t *FileExplorerImpl) reanchorSelection() {
+func (t *FileExplorer) reanchorSelection() {
 	if len(t.rows) == 0 {
 		t.cursor = 0
 		t.selectedKey = ""
@@ -925,7 +925,7 @@ func (t *FileExplorerImpl) reanchorSelection() {
 	t.selectedKey = t.rows[t.cursor].node.relPath
 }
 
-func (t *FileExplorerImpl) indexOfRel(rel string) (int, bool) {
+func (t *FileExplorer) indexOfRel(rel string) (int, bool) {
 	if rel == "" {
 		return 0, false
 	}
@@ -937,7 +937,7 @@ func (t *FileExplorerImpl) indexOfRel(rel string) (int, bool) {
 	return 0, false
 }
 
-func (t *FileExplorerImpl) currentRow() (explorerRow, bool) {
+func (t *FileExplorer) currentRow() (explorerRow, bool) {
 	if t.cursor < 0 || t.cursor >= len(t.rows) {
 		return explorerRow{}, false
 	}
@@ -946,7 +946,7 @@ func (t *FileExplorerImpl) currentRow() (explorerRow, bool) {
 
 // selectedFilePath returns the relative path of the selected row if it is a
 // file, else "".
-func (t *FileExplorerImpl) selectedFilePath() string {
+func (t *FileExplorer) selectedFilePath() string {
 	if r, ok := t.currentRow(); ok && !r.node.isDir {
 		return r.node.relPath
 	}
@@ -956,7 +956,7 @@ func (t *FileExplorerImpl) selectedFilePath() string {
 // --- preview ---
 
 // chromaStyle picks a chroma highlighting style by the active theme's brightness.
-func (t *FileExplorerImpl) chromaStyle() *chroma.Style {
+func (t *FileExplorer) chromaStyle() *chroma.Style {
 	if theme := t.styleProvider.GetCurrentTheme(); theme != nil && styles.IsLightTheme(theme) {
 		return chromastyles.Get("github")
 	}
@@ -968,7 +968,7 @@ func (t *FileExplorerImpl) chromaStyle() *chroma.Style {
 // raw highlighted content is cached in previewRaw; selection gutters are
 // applied separately by applyPreviewGutters so cursor/anchor moves refresh
 // without re-tokenising the file.
-func (t *FileExplorerImpl) ensurePreview(rel string, width int) {
+func (t *FileExplorer) ensurePreview(rel string, width int) {
 	if !t.dirtyPreview && rel == t.previewKey && width == t.previewWidth {
 		t.applyPreviewGutters()
 		return
@@ -993,7 +993,7 @@ func (t *FileExplorerImpl) ensurePreview(rel string, width int) {
 // cursor line (▶) and selected range lines (▌) when select mode is active. The
 // marker is a 2-char gutter so it stays alignment-safe with the line-number
 // prefix produced by diffview.Highlight. Cheap enough to run every render.
-func (t *FileExplorerImpl) applyPreviewGutters() {
+func (t *FileExplorer) applyPreviewGutters() {
 	raw := t.previewRaw
 	if !t.selectMode && len(t.selections) == 0 {
 		t.viewport.SetContent(raw)
@@ -1017,14 +1017,14 @@ func (t *FileExplorerImpl) applyPreviewGutters() {
 	t.viewport.SetContent(strings.Join(lines, "\n"))
 }
 
-func (t *FileExplorerImpl) computePreview(rel string) string {
+func (t *FileExplorer) computePreview(rel string) string {
 	raw, _ := t.computePreviewRaw(rel)
 	return raw
 }
 
 // computePreviewRaw returns the highlighted content and the number of source
 // lines (0 for binary/oversized/errored placeholders, which can't be selected).
-func (t *FileExplorerImpl) computePreviewRaw(rel string) (string, int) {
+func (t *FileExplorer) computePreviewRaw(rel string) (string, int) {
 	abs := filepath.Join(t.root, rel)
 	info, err := os.Stat(abs)
 	if err != nil {
@@ -1052,14 +1052,14 @@ func (t *FileExplorerImpl) computePreviewRaw(rel string) (string, int) {
 // --- rendering ---
 
 // View satisfies tea.Model. The app composes the real layout via Render.
-func (t *FileExplorerImpl) View() tea.View {
+func (t *FileExplorer) View() tea.View {
 	return tea.NewView(t.Render(""))
 }
 
 // Render lays out the full region: a full-height sidebar and divider on the
 // left, and on the right the preview pane with the (already-rendered) input row
 // stacked beneath it. Pass "" for inputRow to render the pane at full height.
-func (t *FileExplorerImpl) Render(inputRow string) string {
+func (t *FileExplorer) Render(inputRow string) string {
 	if t.width <= 0 || t.height <= 0 {
 		return ""
 	}
@@ -1080,7 +1080,7 @@ func (t *FileExplorerImpl) Render(inputRow string) string {
 	return t.styleProvider.ClampToSize(out, t.width, t.height)
 }
 
-func (t *FileExplorerImpl) renderDivider(height int) string {
+func (t *FileExplorer) renderDivider(height int) string {
 	line := t.styleProvider.RenderDimText("│")
 	lines := make([]string, height)
 	for i := range lines {
@@ -1089,7 +1089,7 @@ func (t *FileExplorerImpl) renderDivider(height int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (t *FileExplorerImpl) renderSidebar(width, height int) string {
+func (t *FileExplorer) renderSidebar(width, height int) string {
 	lines := t.sidebarLines(width)
 
 	start := 0
@@ -1110,7 +1110,7 @@ func (t *FileExplorerImpl) renderSidebar(width, height int) string {
 	return strings.Join(out, "\n")
 }
 
-func (t *FileExplorerImpl) sidebarLines(width int) []string {
+func (t *FileExplorer) sidebarLines(width int) []string {
 	if len(t.rows) == 0 {
 		return []string{t.padPlain(t.styleProvider.RenderDimText("(empty)"), "(empty)", width)}
 	}
@@ -1121,7 +1121,7 @@ func (t *FileExplorerImpl) sidebarLines(width int) []string {
 	return lines
 }
 
-func (t *FileExplorerImpl) rowLine(r explorerRow, width int, selected bool) string {
+func (t *FileExplorer) rowLine(r explorerRow, width int, selected bool) string {
 	cursor := "  "
 	if selected {
 		cursor = "❯ "
@@ -1140,7 +1140,7 @@ func (t *FileExplorerImpl) rowLine(r explorerRow, width int, selected bool) stri
 	return styled
 }
 
-func (t *FileExplorerImpl) styleRow(r explorerRow, text string, selected bool) string {
+func (t *FileExplorer) styleRow(r explorerRow, text string, selected bool) string {
 	switch {
 	case selected:
 		return t.styleProvider.RenderWithColorAndBold(text, t.styleProvider.GetThemeColor("accent"))
@@ -1157,7 +1157,7 @@ func (t *FileExplorerImpl) styleRow(r explorerRow, text string, selected bool) s
 // fileColor returns a theme color key conveying a file's type (code/config/docs),
 // or "" for the default text color. Coloring is alignment-safe, so it works as a
 // "file-type glyph" without requiring nerd-font icons.
-func (t *FileExplorerImpl) fileColor(name string) string {
+func (t *FileExplorer) fileColor(name string) string {
 	switch strings.ToLower(filepath.Ext(name)) {
 	case ".go", ".js", ".jsx", ".ts", ".tsx", ".py", ".rs", ".java", ".c", ".h", ".cpp", ".rb", ".sh", ".bash":
 		return t.styleProvider.GetThemeColor("accent")
@@ -1170,7 +1170,7 @@ func (t *FileExplorerImpl) fileColor(name string) string {
 	}
 }
 
-func (t *FileExplorerImpl) renderPane(width, height int) string {
+func (t *FileExplorer) renderPane(width, height int) string {
 	switch {
 	case t.editMode && t.editor != nil:
 		return t.editor.View(width, height)
@@ -1195,7 +1195,7 @@ func (t *FileExplorerImpl) renderPane(width, height int) string {
 // renderAnnotatePane draws an inline annotation prompt at the top of the preview
 // pane with the file preview (selected range highlighted) beneath it, so the
 // user sees the snippet they are annotating while typing the instruction.
-func (t *FileExplorerImpl) renderAnnotatePane(width, height int) string {
+func (t *FileExplorer) renderAnnotatePane(width, height int) string {
 	rel := t.selectedFilePath()
 	if rel == "" {
 		return t.styleProvider.PlaceCenter(width, height, t.styleProvider.RenderDimText("No file selected"))
@@ -1217,7 +1217,7 @@ func (t *FileExplorerImpl) renderAnnotatePane(width, height int) string {
 	return b.String()
 }
 
-func (t *FileExplorerImpl) renderFindResults(width, height int) string {
+func (t *FileExplorer) renderFindResults(width, height int) string {
 	var b strings.Builder
 	prompt := "❯ " + t.findQuery
 	b.WriteString(t.styleProvider.RenderWithColorAndBold(truncateRunes(prompt, width), t.styleProvider.GetThemeColor("accent")))
@@ -1245,7 +1245,7 @@ func (t *FileExplorerImpl) renderFindResults(width, height int) string {
 	return b.String()
 }
 
-func (t *FileExplorerImpl) renderHit(path string, selected bool, width int) string {
+func (t *FileExplorer) renderHit(path string, selected bool, width int) string {
 	prefix := "  "
 	if selected {
 		prefix = "❯ "
@@ -1259,7 +1259,7 @@ func (t *FileExplorerImpl) renderHit(path string, selected bool, width int) stri
 
 // --- small helpers ---
 
-func (t *FileExplorerImpl) padPlain(styled, plain string, width int) string {
+func (t *FileExplorer) padPlain(styled, plain string, width int) string {
 	if pad := width - len([]rune(plain)); pad > 0 {
 		return styled + strings.Repeat(" ", pad)
 	}

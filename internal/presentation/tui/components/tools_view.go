@@ -110,24 +110,24 @@ func toolsTitleStyle(styleProvider *styles.Provider) lipgloss.Style {
 		Padding(0, 1)
 }
 
-// ToolsViewImpl is a read-only, filterable list of the tools currently
+// ToolsView is a read-only, filterable list of the tools currently
 // available to the agent. It reuses the bubbles/v2 list plumbing from the
 // theme selector; enter deliberately does nothing yet - selecting a tool to
 // inspect or execute it is future work.
-type ToolsViewImpl struct {
+type ToolsView struct {
 	list          list.Model
 	width         int
 	height        int
 	cancelled     bool
 	toolService   agentdomain.ToolService
-	stateManager  agentdomain.AgentModeManager
+	stateManager  agentdomain.AgentModeState
 	styleProvider *styles.Provider
 }
 
 // NewToolsView creates the tools list view. Items are populated by Reset on
 // every entry because the tool set changes with the agent mode and with async
 // MCP tool registration.
-func NewToolsView(toolService agentdomain.ToolService, stateManager agentdomain.AgentModeManager, styleProvider *styles.Provider) *ToolsViewImpl {
+func NewToolsView(toolService agentdomain.ToolService, stateManager agentdomain.AgentModeState, styleProvider *styles.Provider) *ToolsView {
 	l := list.New(
 		nil,
 		newToolDelegate(styleProvider),
@@ -139,7 +139,7 @@ func NewToolsView(toolService agentdomain.ToolService, stateManager agentdomain.
 	l.DisableQuitKeybindings()
 	l.SetStatusBarItemName("tool", "tools")
 
-	m := &ToolsViewImpl{
+	m := &ToolsView{
 		list:          l,
 		width:         80,
 		height:        24,
@@ -152,7 +152,7 @@ func NewToolsView(toolService agentdomain.ToolService, stateManager agentdomain.
 }
 
 // toolItems builds the list items from the tools the agent can currently use.
-func (m *ToolsViewImpl) toolItems() []list.Item {
+func (m *ToolsView) toolItems() []list.Item {
 	if m.toolService == nil {
 		return nil
 	}
@@ -174,9 +174,9 @@ func (m *ToolsViewImpl) toolItems() []list.Item {
 	return items
 }
 
-func (m *ToolsViewImpl) Init() tea.Cmd { return nil }
+func (m *ToolsView) Init() tea.Cmd { return nil }
 
-func (m *ToolsViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *ToolsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -198,7 +198,7 @@ func (m *ToolsViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // filtering; otherwise it lets the list own typing, enter (apply filter) and
 // esc (clear filter). Enter outside filtering is consumed as a no-op: the
 // view is read-only for now.
-func (m *ToolsViewImpl) handleKey(msg tea.KeyPressMsg) (handled bool, cmd tea.Cmd) {
+func (m *ToolsView) handleKey(msg tea.KeyPressMsg) (handled bool, cmd tea.Cmd) {
 	if m.list.FilterState() == list.Filtering {
 		return false, nil
 	}
@@ -219,21 +219,21 @@ func (m *ToolsViewImpl) handleKey(msg tea.KeyPressMsg) (handled bool, cmd tea.Cm
 	return false, nil
 }
 
-func (m *ToolsViewImpl) View() tea.View {
+func (m *ToolsView) View() tea.View {
 	return tea.NewView(m.list.View())
 }
 
 // IsCancelled returns true once the user has dismissed the view.
-func (m *ToolsViewImpl) IsCancelled() bool { return m.cancelled }
+func (m *ToolsView) IsCancelled() bool { return m.cancelled }
 
 // SetWidth sets the width of the tools view.
-func (m *ToolsViewImpl) SetWidth(width int) {
+func (m *ToolsView) SetWidth(width int) {
 	m.width = width
 	m.list.SetSize(width, m.height)
 }
 
 // SetHeight sets the height of the tools view.
-func (m *ToolsViewImpl) SetHeight(height int) {
+func (m *ToolsView) SetHeight(height int) {
 	m.height = height
 	m.list.SetSize(m.width, height)
 }
@@ -242,7 +242,7 @@ func (m *ToolsViewImpl) SetHeight(height int) {
 // list reflects the current agent mode and any MCP tools registered since it
 // was last shown. The delegate and title styles are rebuilt too so a theme
 // switch is picked up on re-entry.
-func (m *ToolsViewImpl) Reset() {
+func (m *ToolsView) Reset() {
 	m.cancelled = false
 	m.list.ResetFilter()
 	m.list.SetDelegate(newToolDelegate(m.styleProvider))
