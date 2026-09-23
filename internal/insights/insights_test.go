@@ -59,6 +59,7 @@ func TestCollectAndBuildDigest(t *testing.T) {
 		[]convdomain.ConversationSummary{
 			{ID: "a", Title: "Fix flaky test", Project: "/repos/cli", UpdatedAt: time.Now()},
 			{ID: "b", Title: "Add reset flag", Project: "/repos/cli", UpdatedAt: time.Now()},
+			{ID: "stub", Title: "New Conversation", Project: "/repos/cli", UpdatedAt: time.Now()},
 		},
 		map[string][]convdomain.ConversationEntry{
 			"a": {
@@ -72,6 +73,9 @@ func TestCollectAndBuildDigest(t *testing.T) {
 				toolEntry("Delete", "user declined", false, true),
 				toolEntry("Grep", "ripgrep execution failed: exit status 2", false, false),
 			},
+			"stub": {
+				{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("# Insights report")}},
+			},
 		},
 	)
 
@@ -82,7 +86,7 @@ func TestCollectAndBuildDigest(t *testing.T) {
 	}
 
 	if len(sessions) != 2 {
-		t.Fatalf("expected 2 sessions, got %d", len(sessions))
+		t.Fatalf("expected 2 sessions (the report-only stub skipped), got %d", len(sessions))
 	}
 	if sessions[0].Intent != "please fix the flaky test" {
 		t.Errorf("intent not taken from the first user message: %q", sessions[0].Intent)

@@ -12,6 +12,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // toolService decorates a ToolService with metrics and tracing for both
@@ -65,8 +66,32 @@ func (t *toolService) record(
 	if err != nil {
 		span.RecordError(err)
 	}
+	if errType != "" {
+		logToolFailure(ctx, tool.Name, errType, res, err)
+	}
 
 	return res, err
+}
+
+// logToolFailure logs a failed tool call under the live tool span, keyed with
+// the same GenAI semconv attributes as the span and the infer.agent.tool.calls
+// datapoint, so the error message joins both (span_id, gen_ai.tool.call.id,
+// gen_ai.tool.name + gen_ai.conversation.id).
+func logToolFailure(ctx context.Context, toolName, errType string, res *agentdomain.ToolExecutionResult, err error) {
+	msg := ""
+	switch {
+	case err != nil:
+		msg = err.Error()
+	case res != nil:
+		msg = res.Error
+	}
+	logger.WarnCtx(ctx, "tool call failed",
+		"gen_ai.tool.name", toolName,
+		"gen_ai.tool.call.id", agentdomain.GetToolCallID(ctx),
+		"gen_ai.conversation.id", agentdomain.GetSessionID(ctx),
+		"error.type", errType,
+		"error", msg,
+	)
 }
 
 // startToolSpan creates a span for a tool execution with GenAI semconv

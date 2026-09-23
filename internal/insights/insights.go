@@ -175,7 +175,11 @@ func (g *Generator) collect(ctx context.Context, since time.Time) ([]sessionDige
 		if loadErr != nil {
 			continue
 		}
-		sessions = append(sessions, digestSession(summary, meta, entries))
+		d := digestSession(summary, meta, entries)
+		if d.Intent == "" && len(d.Tools) == 0 {
+			continue
+		}
+		sessions = append(sessions, d)
 		foldFailures(entries, byTool)
 	}
 
@@ -371,8 +375,12 @@ func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telem
 		b.WriteString("over a short span is a retry loop that never succeeded, the same N spread\n")
 		b.WriteString("over days is a chronic fault. Near-identical lines are already folded together.\n")
 		for _, g := range logs.Groups {
-			fmt.Fprintf(&b, "- x%d [%s .. %s] %s\n", g.Count,
-				g.First.Format(time.RFC3339), g.Last.Format(time.RFC3339), g.Sample)
+			tool := ""
+			if g.Tool != "" {
+				tool = "tool " + g.Tool + ": "
+			}
+			fmt.Fprintf(&b, "- x%d [%s .. %s] %s%s\n", g.Count,
+				g.First.Format(time.RFC3339), g.Last.Format(time.RFC3339), tool, g.Sample)
 		}
 	}
 
@@ -508,11 +516,12 @@ func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.Too
 
 	if len(logs.Groups) > 0 {
 		b.WriteString("## Log failures\n\n")
-		b.WriteString("| Count | First | Last | Message |\n")
-		b.WriteString("|-------|-------|------|---------|\n")
+		b.WriteString("| Count | First | Last | Tool | Message | Trace |\n")
+		b.WriteString("|-------|-------|------|------|---------|-------|\n")
 		for _, g := range logs.Groups {
-			fmt.Fprintf(&b, "| %d | %s | %s | %s |\n", g.Count,
-				g.First.Format(time.RFC3339), g.Last.Format(time.RFC3339), strings.ReplaceAll(g.Sample, "|", "\\|"))
+			fmt.Fprintf(&b, "| %d | %s | %s | %s | %s | %s |\n", g.Count,
+				g.First.Format(time.RFC3339), g.Last.Format(time.RFC3339), g.Tool,
+				strings.ReplaceAll(g.Sample, "|", "\\|"), g.TraceID)
 		}
 		b.WriteString("\n")
 	}

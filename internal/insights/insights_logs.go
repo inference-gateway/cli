@@ -39,6 +39,8 @@ type logGroup struct {
 	First    time.Time
 	Last     time.Time
 	Sample   string
+	Tool     string
+	TraceID  string
 }
 
 // logDigest is the bounded summary of a log directory. Scanned counts the
@@ -52,12 +54,15 @@ type logDigest struct {
 // logRecord is a minimal decode of one zap production line. ts is epoch seconds
 // as a JSON number, not RFC3339. The error field is what the sugared `...w`
 // helpers attach, and folding on msg+error is what makes a group actionable -
-// "tool execution failed" alone says nothing.
+// "tool execution failed" alone says nothing. Tool and TraceID are the
+// semconv / OTel log-correlation fields the logger's *Ctx helpers attach.
 type logRecord struct {
-	Level string  `json:"level"`
-	TS    float64 `json:"ts"`
-	Msg   string  `json:"msg"`
-	Error string  `json:"error"`
+	Level   string  `json:"level"`
+	TS      float64 `json:"ts"`
+	Msg     string  `json:"msg"`
+	Error   string  `json:"error"`
+	Tool    string  `json:"gen_ai.tool.name"`
+	TraceID string  `json:"trace_id"`
 }
 
 // collectLogs folds the structured logs under dir into a bounded digest of
@@ -158,14 +163,20 @@ func foldLogFile(path string, since time.Time, minRank int, groups map[string]*l
 func addLogRecord(groups map[string]*logGroup, rec logRecord, when time.Time) {
 	raw := strings.TrimSpace(rec.Msg + " " + rec.Error)
 	key := normalizeLog(raw)
+	if rec.Tool != "" {
+		key = rec.Tool + ": " + key
+	}
 
 	g, ok := groups[key]
 	if !ok {
 		if len(groups) >= maxLogTemplates {
 			return
 		}
-		g = &logGroup{Template: key, First: when, Last: when, Sample: oneLine(raw, maxLogSampleChars)}
+		g = &logGroup{Template: key, First: when, Last: when, Sample: oneLine(raw, maxLogSampleChars), Tool: rec.Tool}
 		groups[key] = g
+	}
+	if g.TraceID == "" {
+		g.TraceID = rec.TraceID
 	}
 	g.Count++
 	if when.Before(g.First) {

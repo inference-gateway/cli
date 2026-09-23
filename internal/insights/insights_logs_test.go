@@ -90,6 +90,31 @@ func TestCollectLogsFoldsAndCounts(t *testing.T) {
 	}
 }
 
+// TestCollectLogsSplitsByTool verifies the same message from different tools is
+// two groups, each carrying its tool name and a sample trace id.
+func TestCollectLogsSplitsByTool(t *testing.T) {
+	dir := t.TempDir()
+	base := time.Now().Add(-time.Hour).Truncate(time.Second)
+	line := func(tool, traceID string, at time.Duration) string {
+		return fmt.Sprintf(`{"level":"warn","ts":%f,"msg":"tool validation failed","error":"x is required","gen_ai.tool.name":%q,"trace_id":%q}`,
+			float64(base.Add(at).UnixNano())/float64(time.Second), tool, traceID) + "\n"
+	}
+	writeLog(t, dir, "app-2026-09-23.log",
+		line("Memory", "", 0)+line("Memory", "abc123", time.Second)+line("Wait", "def456", 2*time.Second))
+
+	digest := collectLogs(dir, time.Time{}, "warn")
+	if len(digest.Groups) != 2 {
+		t.Fatalf("expected one group per tool, got %d: %+v", len(digest.Groups), digest.Groups)
+	}
+	top := digest.Groups[0]
+	if top.Tool != "Memory" || top.Count != 2 || top.TraceID != "abc123" {
+		t.Errorf("top group = %+v, want Memory x2 with trace abc123", top)
+	}
+	if digest.Groups[1].Tool != "Wait" {
+		t.Errorf("second group tool = %q, want Wait", digest.Groups[1].Tool)
+	}
+}
+
 // TestCollectLogsHonoursLevelAndWindow pins the two filters that keep the digest
 // about failures rather than routine lifecycle chatter.
 func TestCollectLogsHonoursLevelAndWindow(t *testing.T) {

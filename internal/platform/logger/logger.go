@@ -2,6 +2,7 @@ package logger
 
 import (
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	trace "go.opentelemetry.io/otel/trace"
 	zap "go.uber.org/zap"
 	zapcore "go.uber.org/zap/zapcore"
 
@@ -218,6 +220,31 @@ func Error(msg string, args ...any) {
 			sugar.Error(msg)
 		}
 	}
+}
+
+// WarnCtx logs a warning carrying the OTel trace context of ctx (trace_id,
+// span_id - the field names the OTel spec uses for non-OTLP log formats), so a
+// log line joins the span and metrics recorded for the same operation.
+func WarnCtx(ctx context.Context, msg string, args ...any) {
+	if sugar != nil {
+		sugar.Warnw(msg, withTrace(ctx, args)...)
+	}
+}
+
+// ErrorCtx logs an error carrying the OTel trace context of ctx; see WarnCtx.
+func ErrorCtx(ctx context.Context, msg string, args ...any) {
+	if sugar != nil {
+		sugar.Errorw(msg, withTrace(ctx, args)...)
+	}
+}
+
+// withTrace appends trace_id/span_id when ctx carries a valid span context.
+func withTrace(ctx context.Context, args []any) []any {
+	sc := trace.SpanContextFromContext(ctx)
+	if !sc.IsValid() {
+		return args
+	}
+	return append(args, "trace_id", sc.TraceID().String(), "span_id", sc.SpanID().String())
 }
 
 // Close closes the logger and flushes any buffered entries

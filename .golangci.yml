@@ -89,6 +89,8 @@ linters:
         - github.com/inference-gateway/cli/internal/platform/logger.Info
         - github.com/inference-gateway/cli/internal/platform/logger.Warn
         - github.com/inference-gateway/cli/internal/platform/logger.Error
+        - github.com/inference-gateway/cli/internal/platform/logger.WarnCtx
+        - github.com/inference-gateway/cli/internal/platform/logger.ErrorCtx
   exclusions:
     rules:
       - linters:
