@@ -5,6 +5,95 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.206.0](https://github.com/inference-gateway/cli/compare/v0.205.3...v0.206.0) (2026-09-23)
+
+### 🚀 Features
+
+* **tools:** add text-to-music generation tool ([#1265](https://github.com/inference-gateway/cli/issues/1265)) ([c61ff80](https://github.com/inference-gateway/cli/commit/c61ff806f52caa96923dd5c80201924e229a4656)), closes [#1261](https://github.com/inference-gateway/cli/issues/1261), references [#1262](https://github.com/inference-gateway/cli/issues/1262) [#1227](https://github.com/inference-gateway/cli/issues/1227) [#1227](https://github.com/inference-gateway/cli/issues/1227)
+* **tools:** add TextToSFX tool for text-to-sound-effect generation ([#1268](https://github.com/inference-gateway/cli/issues/1268)) ([3f80ebe](https://github.com/inference-gateway/cli/commit/3f80ebe7425925c81c4c73b0e83964552ff6d5c8)), closes [#1227](https://github.com/inference-gateway/cli/issues/1227), references [inference-gateway/docs#723](https://github.com/inference-gateway/docs/issues/723) [inference-gateway/tokenless#62](https://github.com/inference-gateway/tokenless/issues/62) [inference-gateway/desktop#251](https://github.com/inference-gateway/desktop/issues/251)
+* **tools:** add TextToVideo tool for gateway video generation with lip-synced avatars ([#1270](https://github.com/inference-gateway/cli/issues/1270)) ([bcadcbc](https://github.com/inference-gateway/cli/commit/bcadcbcc0791b27f20ffc016d66f42758069e17f)), closes [#1257](https://github.com/inference-gateway/cli/issues/1257) [#1271](https://github.com/inference-gateway/cli/issues/1271) [#1272](https://github.com/inference-gateway/cli/issues/1272), references [#1272](https://github.com/inference-gateway/cli/issues/1272) [#1271](https://github.com/inference-gateway/cli/issues/1271) [#1272](https://github.com/inference-gateway/cli/issues/1272) [inference-gateway/inference-gateway#689](https://github.com/inference-gateway/inference-gateway/issues/689) [inference-gateway/desktop#311](https://github.com/inference-gateway/desktop/issues/311) [#1271](https://github.com/inference-gateway/cli/issues/1271) [#1257](https://github.com/inference-gateway/cli/issues/1257) [inference-gateway/docs#727](https://github.com/inference-gateway/docs/issues/727)
+
+### 🐛 Bug Fixes
+
+* **stats:** keep sub-millisecond precision in avg tool duration ([#1267](https://github.com/inference-gateway/cli/issues/1267)) ([d0a8fb6](https://github.com/inference-gateway/cli/commit/d0a8fb6cb60b2db557f81d54db8c7a0af4273abd)), closes [#1266](https://github.com/inference-gateway/cli/issues/1266)
+
+### 🔧 Build System
+
+* **deps:** bump alpine from 3.24.1 to 3.24.2 in the docker group ([#1274](https://github.com/inference-gateway/cli/issues/1274)) ([21e7d0c](https://github.com/inference-gateway/cli/commit/21e7d0c9b187a998b5ea60798d12e60cb1f22460))
+* **deps:** bump docker/setup-buildx-action from 4.3.0 to 4.4.1 in the github-actions group ([#1276](https://github.com/inference-gateway/cli/issues/1276)) ([f9fc0c9](https://github.com/inference-gateway/cli/commit/f9fc0c972e9884a1a5fbc7abb5b87f15e934cf84))
+* **deps:** bump the gomod group with 3 updates ([#1275](https://github.com/inference-gateway/cli/issues/1275)) ([d70bfbb](https://github.com/inference-gateway/cli/commit/d70bfbba153a75caabd26ccbede603cd83d6efa9))
+
+### 🧹 Maintenance
+
+* **deps:** bump claude-code 2.1.272 -> 2.1.278 ([#1277](https://github.com/inference-gateway/cli/issues/1277)) ([d4c303a](https://github.com/inference-gateway/cli/commit/d4c303ae42602c4e3748d1086e74d2804820fabb))
+* **deps:** bump infer CLI v0.204.1 -> v0.205.3 ([#1279](https://github.com/inference-gateway/cli/issues/1279)) ([b7f2641](https://github.com/inference-gateway/cli/commit/b7f264106b3be3ba402f8d4317ba5dc6f095a213))
+* **deps:** bump sdk to v1.39.1 and drop the image variations pass-through ([#1278](https://github.com/inference-gateway/cli/issues/1278)) ([05093b5](https://github.com/inference-gateway/cli/commit/05093b50ea7d6fcd8934edf264c737f767b9107c)), closes [#1273](https://github.com/inference-gateway/cli/issues/1273), references [inference-gateway/sdk#190](https://github.com/inference-gateway/sdk/issues/190)
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.206.0 --help
+npx @inference-gateway/cli@0.206.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.206.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.206.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.206.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.206.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.206.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.205.3](https://github.com/inference-gateway/cli/compare/v0.205.2...v0.205.3) (2026-09-22)
 
 ### 🐛 Bug Fixes
