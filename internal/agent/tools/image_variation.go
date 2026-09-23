@@ -16,7 +16,7 @@ import (
 // ImageVariationTool creates a variation of an existing image with the
 // configured image model and saves the result to a local PNG. The chat model
 // calls it with a local image path; the request goes straight to
-// /v1/images/variations, independent of the model selected for the session.
+// /v1/images/edits, independent of the model selected for the session.
 type ImageVariationTool struct {
 	config       *config.Config
 	imageService agentdomain.ImageService

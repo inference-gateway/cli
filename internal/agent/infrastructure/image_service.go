@@ -156,8 +156,8 @@ func (s *ImageService) EditImage(ctx context.Context, model, prompt, imagePath, 
 }
 
 // variationPrompt drives edits-backed image variations: OpenAI's dedicated
-// /v1/images/variations endpoint only ever supported the sunset dall-e-2
-// model, so variations are produced through the edits endpoint instead.
+// variations endpoint only ever supported the sunset dall-e-2 model,
+// so variations are produced through the edits endpoint instead.
 const variationPrompt = "Create a variation of this image, preserving its subject, composition and overall style."
 
 // CreateImageVariation creates a variation of the image at imagePath using

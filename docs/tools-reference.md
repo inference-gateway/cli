@@ -551,7 +551,7 @@ tools:
 
 Create a variation of an existing image and save the result as a PNG under `~/.infer/projects/<project-slug>/artifacts/`. The chat model
 calls the tool when the user asks for a variation; the tool reads the input image from a local file path and
-sends a plain one-off request to `/v1/images/variations` using the configured image model - no system
+sends a plain one-off request to `/v1/images/edits` using the configured image model - no system
 prompt, no tools, independent of the model selected for the chat session.
 
 **Parameters:**
