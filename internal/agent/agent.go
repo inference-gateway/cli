@@ -876,6 +876,9 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *agentdomain.A
 	sessionCtx, cancelCtx := context.WithCancel(ctx)
 	sessionCtx = agentdomain.WithModel(sessionCtx, req.Model)
 	sessionCtx = s.recorder.SpanContext(sessionCtx)
+	if s.conversationRepo != nil {
+		s.recorder.SetConversationID(s.conversationRepo.GetCurrentConversationID())
+	}
 	sc := &sessionCancel{
 		cancelCtx:  cancelCtx,
 		cancelChan: make(chan struct{}),
@@ -1311,8 +1314,9 @@ func (s *AgentServiceImpl) executeToolOnce(
 			"TOOL FAILED: %s - content was truncated due to output token limits (received %d chars of incomplete JSON). %s",
 			tc.Function.Name, len(tc.Function.Arguments), getTruncationRecoveryGuidance(tc.Function.Name),
 		)
-		logger.Error("incomplete JSON in tool arguments",
-			"tool", tc.Function.Name,
+		logger.ErrorCtx(ctx, "incomplete JSON in tool arguments",
+			"gen_ai.tool.name", tc.Function.Name,
+			"gen_ai.tool.call.id", tc.ID,
 			"args_length", len(tc.Function.Arguments),
 			"args_preview", formatting.TruncateText(tc.Function.Arguments, 200),
 		)
@@ -1321,13 +1325,13 @@ func (s *AgentServiceImpl) executeToolOnce(
 
 	var args map[string]any
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-		logger.Error("failed to parse tool arguments", "tool", tc.Function.Name, "error", err)
+		logger.ErrorCtx(ctx, "failed to parse tool arguments", "gen_ai.tool.name", tc.Function.Name, "gen_ai.tool.call.id", tc.ID, "error", err)
 		return s.createErrorEntry(tc, err, startTime)
 	}
 
 	if !wasApproved {
 		if err := s.toolService.ValidateTool(tc.Function.Name, args); err != nil {
-			logger.Error("tool validation failed", "tool", tc.Function.Name, "error", err)
+			logger.ErrorCtx(ctx, "tool validation failed", "gen_ai.tool.name", tc.Function.Name, "gen_ai.tool.call.id", tc.ID, "error", err)
 			return s.createErrorEntry(tc, err, startTime)
 		}
 	}
@@ -1411,7 +1415,6 @@ func (s *AgentServiceImpl) executeToolOnce(
 	}
 
 	if err != nil {
-		logger.Error("failed to execute tool", "tool", tc.Function.Name, "error", err)
 		return s.createErrorEntry(tc, err, startTime)
 	}
 

@@ -2,12 +2,15 @@ package infrastructure
 
 import (
 	"context"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1102,5 +1105,31 @@ func TestExtensionBridgeNewSessionStartsFreshConversation(t *testing.T) {
 	}
 	if got := repo.GetCurrentConversationID(); got == oldID {
 		t.Fatalf("active conversation still %s, want a fresh one", oldID)
+	}
+}
+
+// TestExtensionBridgeTakesOverFreedPort verifies a bridge that lost the port to
+// another process binds it on the next browser call once the port is free.
+func TestExtensionBridgeTakesOverFreedPort(t *testing.T) {
+	holder, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := bridgeConfig()
+	cfg.Extension.Port = holder.Addr().(*net.TCPAddr).Port
+
+	bridge := NewExtensionBridge(cfg, nil, nil, nil, nil, "test-session", "")
+	t.Cleanup(bridge.Close)
+	if err := bridge.Start(); !errors.Is(err, syscall.EADDRINUSE) {
+		t.Fatalf("Start with the port held: err = %v, want EADDRINUSE", err)
+	}
+
+	_ = holder.Close()
+	_, err = bridge.send(context.Background(), extBrowserCommand{})
+	if err == nil || errors.Is(err, syscall.EADDRINUSE) {
+		t.Fatalf("send after the port freed: err = %v, want a no-extension-connected error", err)
+	}
+	if bridge.Addr() == "" {
+		t.Fatal("bridge did not bind the freed port")
 	}
 }

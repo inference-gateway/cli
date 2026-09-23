@@ -153,6 +153,16 @@ func (r *Recorder) SetConversationID(id string) {
 	r.conversationID.Store(&id)
 }
 
+// currentConversationID is the conversation id metrics are stamped with, falling
+// back to the process session id before one is set, so spans and metrics agree
+// on gen_ai.conversation.id.
+func (r *Recorder) currentConversationID() string {
+	if id := r.conversationID.Load(); id != nil {
+		return *id
+	}
+	return r.sessionID
+}
+
 // withConv appends gen_ai.conversation.id to attrs when a conversation id is set.
 func (r *Recorder) withConv(attrs []attribute.KeyValue) []attribute.KeyValue {
 	if id := r.conversationID.Load(); id != nil {
@@ -505,7 +515,7 @@ func (r *Recorder) StartSession(mode string) func(outcome string) {
 		trace.WithAttributes(
 			attribute.String("infer.execution.mode", ExecutionMode),
 			attribute.String("infer.agent.mode", mode),
-			attribute.String("gen_ai.conversation.id", r.sessionID),
+			attribute.String("gen_ai.conversation.id", r.currentConversationID()),
 		),
 	)
 	r.sessionCtx.Store(&ctx)
@@ -543,7 +553,7 @@ func (r *Recorder) StartLLMTurnSpan(ctx context.Context, model string) (context.
 			attribute.String("gen_ai.request.model", model),
 			attribute.String("gen_ai.provider.name", providerFromModel(model)),
 			attribute.String("gen_ai.operation.name", "chat"),
-			attribute.String("gen_ai.conversation.id", r.sessionID),
+			attribute.String("gen_ai.conversation.id", r.currentConversationID()),
 		),
 	)
 }

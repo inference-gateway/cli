@@ -628,3 +628,23 @@ func TestMemoryTool_Write_RecordsSessionID(t *testing.T) {
 		t.Errorf("session must be omitted without a session context, got %q", fm.Metadata.Session)
 	}
 }
+
+// TestMemoryTool_Execute_RejectsIncompleteWrite verifies Execute validates on
+// its own, since auto-accept mode skips the agent's pre-execution validation.
+func TestMemoryTool_Execute_RejectsIncompleteWrite(t *testing.T) {
+	tool, dir := newTestMemoryTool(t)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"operation": "write",
+		"name":      "half-written",
+	})
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	if result.Success {
+		t.Fatal("Execute() accepted a write without description, content and type")
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, "half-written.md")); !os.IsNotExist(statErr) {
+		t.Errorf("incomplete fact was persisted: %v", statErr)
+	}
+}

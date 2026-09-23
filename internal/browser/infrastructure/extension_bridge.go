@@ -235,6 +235,7 @@ type ExtensionBridge struct {
 	server               *http.Server
 	addr                 string
 	startErr             error
+	startMu              sync.Mutex
 	mu                   sync.Mutex
 	conn                 *websocket.Conn
 	connStop             chan struct{}
@@ -328,6 +329,18 @@ func (b *ExtensionBridge) Start() error {
 	}()
 	logger.Info("extension bridge listening for the opentask extension", "addr", addr)
 	return nil
+}
+
+// retryStart re-runs Start when the previous attempt failed and returns the
+// resulting start error, nil once the bridge is listening.
+func (b *ExtensionBridge) retryStart() error {
+	b.startMu.Lock()
+	defer b.startMu.Unlock()
+	if b.startErr == nil {
+		return nil
+	}
+	b.startErr = nil
+	return b.Start()
 }
 
 // Addr returns the actual listen address (useful with port 0 in tests).
@@ -980,10 +993,12 @@ func (b *ExtensionBridge) write(conn *websocket.Conn, v any) {
 	}
 }
 
-// send dispatches one browser command and waits for its result.
+// send dispatches one browser command and waits for its result. A failed
+// Start is retried first, so a process that lost the port to another infer
+// process takes it over once that process exits.
 func (b *ExtensionBridge) send(ctx context.Context, cmd extBrowserCommand) (extInbound, error) {
-	if b.startErr != nil {
-		return extInbound{}, b.startErr
+	if err := b.retryStart(); err != nil {
+		return extInbound{}, err
 	}
 
 	b.mu.Lock()

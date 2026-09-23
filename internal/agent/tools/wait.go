@@ -113,10 +113,6 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	condition, _ := args["condition"].(string)
 	timeoutSec, _ := args["timeout_seconds"].(float64)
 
-	if timeoutSec <= 0 {
-		timeoutSec = 30
-	}
-
 	maxTimeout := float64(t.config.Tools.Wait.MaxTimeoutSeconds)
 	if maxTimeout <= 0 {
 		maxTimeout = 600
@@ -165,6 +161,9 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 		success = false
 		exitCode, _ := result["last_exit_code"].(int)
 		errMsg = fmt.Sprintf("check command failed with exit code %d (not in pending_exit_codes)", exitCode)
+	case "error", "not_allowed":
+		success = false
+		errMsg, _ = result["error"].(string)
 	}
 
 	return &agentdomain.ToolExecutionResult{
@@ -194,11 +193,6 @@ func (t *WaitTool) Validate(args map[string]any) error {
 	timeoutSec, ok := args["timeout_seconds"].(float64)
 	if !ok || timeoutSec <= 0 {
 		return fmt.Errorf("timeout_seconds is required and must be a positive number")
-	}
-
-	maxTimeout := float64(t.config.Tools.Wait.MaxTimeoutSeconds)
-	if maxTimeout > 0 && timeoutSec > maxTimeout {
-		return fmt.Errorf("timeout_seconds %.0f exceeds maximum of %.0f", timeoutSec, maxTimeout)
 	}
 
 	if condition == "file" {
