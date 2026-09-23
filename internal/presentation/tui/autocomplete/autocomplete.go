@@ -43,7 +43,6 @@ type ShortcutOption struct {
 	Description string
 	Usage       string
 	Catalog     bool
-	// Matches holds fuzzy-matched byte offsets into Shortcut, highlighted on render.
 	Matches []int
 }
 
