@@ -124,11 +124,11 @@ func (t *MemoryTool) Execute(ctx context.Context, args map[string]any) (*agentdo
 		return t.errResult(args, start, "memory tool is not enabled"), nil
 	}
 
-	operation, ok := args["operation"].(string)
-	if !ok {
-		return t.errResult(args, start, "operation parameter is required and must be a string"), nil
+	if err := t.Validate(args); err != nil {
+		return t.errResult(args, start, err.Error()), nil
 	}
 
+	operation, _ := args["operation"].(string)
 	switch operation {
 	case OperationRead:
 		return t.execRead(args, start)

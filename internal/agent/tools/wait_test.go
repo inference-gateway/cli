@@ -57,12 +57,11 @@ func TestWaitTool_Validate(t *testing.T) {
 			wantErr: "timeout_seconds is required",
 		},
 		{
-			name: "timeout exceeds max",
+			name: "timeout over max is clamped, not rejected",
 			args: map[string]any{
 				"condition":       "shells",
 				"timeout_seconds": float64(9999),
 			},
-			wantErr: "exceeds maximum",
 		},
 		{
 			name: "file missing path",
@@ -683,6 +682,12 @@ func TestWaitTool_Execute_CommandModeFromContext(t *testing.T) {
 	data, _ := result.Data.(map[string]any)
 	if reason, _ := data["reason"].(string); reason != "not_allowed" {
 		t.Errorf("Execute() reason without mode = %q, want %q (standard allow-list)", reason, "not_allowed")
+	}
+	if result.Success {
+		t.Error("Execute() not_allowed must be a failure")
+	}
+	if out := tool.FormatForLLM(result); !strings.Contains(out, "not allowed by bash allow-list") {
+		t.Errorf("FormatForLLM() hides the allow-list error:\n%s", out)
 	}
 
 	ctx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeAutoAccept)
