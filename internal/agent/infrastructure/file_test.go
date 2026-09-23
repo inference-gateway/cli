@@ -140,8 +140,8 @@ func TestFileServiceImpl_ListProjectFiles_HomeInfer(t *testing.T) {
 	for path, want := range map[string]bool{
 		"~/.infer/config.yaml":          true,
 		"~/.infer/shortcuts/git.yaml":   true,
-		"~/.infer/auth.yaml":            false, // owner-only: credentials
-		"~/.infer/telemetry/event.json": false, // runtime noise
+		"~/.infer/auth.yaml":            false,
+		"~/.infer/telemetry/event.json": false,
 	} {
 		if got[path] != want {
 			t.Errorf("%s listed=%v, want %v (all: %v)", path, got[path], want, files)
