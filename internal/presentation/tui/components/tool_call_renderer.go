@@ -10,7 +10,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )
@@ -24,7 +23,6 @@ type ToolCallRenderer struct {
 	styleProvider    *styles.Provider
 	toolFormatter    agentdomain.ToolFormatter
 	keyHintFormatter KeyHintFormatter
-	lastUpdate       time.Time
 	lastTimerRender  time.Time
 	stateManager     approvalOverlayReader
 	pausedAt         time.Time
@@ -124,11 +122,6 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) { //
 	case agentdomain.ToolCallPreviewEvent:
 		return r.handleToolCallPreview(msg)
 
-	case agentdomain.ToolCallUpdateEvent:
-		return r.handleToolCallUpdate(msg)
-
-	case agentdomain.ToolCallReadyEvent:
-
 	case agentdomain.ChatCompleteEvent:
 		r.ClearPreviews()
 
@@ -169,22 +162,6 @@ func (r *ToolCallRenderer) handleToolCallPreview(msg agentdomain.ToolCallPreview
 
 	if len(r.tools) == 1 {
 		return r, r.spinner.Tick
-	}
-	return r, nil
-}
-
-func (r *ToolCallRenderer) handleToolCallUpdate(msg agentdomain.ToolCallUpdateEvent) (*ToolCallRenderer, tea.Cmd) {
-	if state, exists := r.tools[msg.ToolCallID]; exists {
-		if time.Since(r.lastUpdate) < constants.ToolCallUpdateThrottle {
-			return r, nil
-		}
-		state.Arguments = msg.Arguments
-		state.Status = string(msg.Status)
-		if msg.Status == agentdomain.ToolCallStreamStatusComplete {
-			state.IsComplete = true
-		}
-		state.LastUpdate = time.Now()
-		r.lastUpdate = time.Now()
 	}
 	return r, nil
 }

@@ -24,7 +24,7 @@ func TestToolApprovalHelpers(t *testing.T) {
 	})
 
 	t.Run("IsToolApproved returns false when wrong type", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), ToolApprovedKey, "not a bool")
+		ctx := context.WithValue(context.Background(), toolApprovedKey, "not a bool")
 
 		if IsToolApproved(ctx) {
 			t.Error("Expected IsToolApproved to return false for wrong type")
@@ -51,7 +51,7 @@ func TestDirectExecutionHelpers(t *testing.T) {
 	})
 
 	t.Run("IsDirectExecution returns false when wrong type", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), DirectExecutionKey, "not a bool")
+		ctx := context.WithValue(context.Background(), directExecutionKey, "not a bool")
 
 		if IsDirectExecution(ctx) {
 			t.Error("Expected IsDirectExecution to return false for wrong type")
@@ -188,23 +188,6 @@ func TestChatHandlerHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("HasChatHandler returns true when set", func(t *testing.T) {
-		ctx := context.Background()
-		handler := &mockChatHandler{}
-		ctx = WithChatHandler(ctx, handler)
-
-		if !HasChatHandler(ctx) {
-			t.Error("Expected HasChatHandler to return true")
-		}
-	})
-
-	t.Run("HasChatHandler returns false when not set", func(t *testing.T) {
-		ctx := context.Background()
-
-		if HasChatHandler(ctx) {
-			t.Error("Expected HasChatHandler to return false for empty context")
-		}
-	})
 }
 
 func TestSessionIDHelpers(t *testing.T) {
@@ -228,31 +211,6 @@ func TestSessionIDHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("HasSessionID returns true when set", func(t *testing.T) {
-		ctx := context.Background()
-		ctx = WithSessionID(ctx, "test-session")
-
-		if !HasSessionID(ctx) {
-			t.Error("Expected HasSessionID to return true")
-		}
-	})
-
-	t.Run("HasSessionID returns false when not set", func(t *testing.T) {
-		ctx := context.Background()
-
-		if HasSessionID(ctx) {
-			t.Error("Expected HasSessionID to return false for empty context")
-		}
-	})
-
-	t.Run("HasSessionID returns false for empty string", func(t *testing.T) {
-		ctx := context.Background()
-		ctx = WithSessionID(ctx, "")
-
-		if HasSessionID(ctx) {
-			t.Error("Expected HasSessionID to return false for empty string")
-		}
-	})
 }
 
 func TestContextHelperChaining(t *testing.T) {

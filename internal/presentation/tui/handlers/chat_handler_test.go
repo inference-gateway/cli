@@ -395,7 +395,6 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		nil, // backgroundShellService
 		nil, // agentManager
 		config.DefaultConfig(),
-		nil, // a2aTaskCoordinator
 		nil, // approvalCoordinator
 		nil, // completionRunner
 		nil, // directExec
@@ -700,8 +699,6 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*agentdomainmocks.FakeAg
 	fakeDirect.HandleBackgroundShellRequestReturns(nonNilCmd)
 
 	fakeToolCoord := &tuimocks.FakeToolExecutionCoordinator{}
-	fakeToolCoord.HandleToolCallUpdateReturns(nonNilCmd)
-	fakeToolCoord.HandleToolCallReadyReturns(nonNilCmd)
 	fakeToolCoord.HandleToolApprovalRequestedReturns(nonNilCmd)
 	fakeToolCoord.HandleToolApprovalResponseReturns(nonNilCmd)
 	fakeToolCoord.HandleToolExecutionStartedReturns(nonNilCmd)
@@ -728,7 +725,6 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*agentdomainmocks.FakeAg
 		nil,
 		nil,
 		cfg,
-		nil, // a2aTaskCoordinator
 		nil, // approvalCoordinator
 		fakeRunner,
 		fakeDirect,

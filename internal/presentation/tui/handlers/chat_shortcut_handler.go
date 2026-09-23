@@ -174,7 +174,7 @@ func (s *ChatShortcutHandler) runShortcut(ctx context.Context, shortcut shortcut
 	} else {
 		logger.Debug("conversationRepo is not PersistentConversationRepository", "type", fmt.Sprintf("%T", s.handler.conversationRepo))
 	}
-	ctx = context.WithValue(ctx, agentdomain.SessionIDKey, sessionID)
+	ctx = agentdomain.WithSessionID(ctx, sessionID)
 
 	result, err := shortcut.Execute(ctx, args)
 	if err != nil {

@@ -90,17 +90,16 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 
 // componentHeights holds calculated heights for various components
 type componentHeights struct {
-	headerHeight         int
-	helpBarHeight        int
-	queueBoxHeight       int
-	todoBoxHeight        int
-	approvalBoxHeight    int
-	questionBoxHeight    int
-	attachmentsHeight    int
-	backgroundTasksLines int
-	conversationHeight   int
-	inputHeight          int
-	statusHeight         int
+	headerHeight       int
+	helpBarHeight      int
+	queueBoxHeight     int
+	todoBoxHeight      int
+	approvalBoxHeight  int
+	questionBoxHeight  int
+	attachmentsHeight  int
+	conversationHeight int
+	inputHeight        int
+	statusHeight       int
 }
 
 // calculateComponentHeights calculates the heights for all components
@@ -159,13 +158,9 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 		}
 	}
 
-	if cv, ok := conversationView.(*ConversationView); ok && cv.HasBackgroundTasks() {
-		heights.backgroundTasksLines = cv.BackgroundTasksBarHeight()
-	}
-
 	adjustedHeight := totalHeight - heights.headerHeight - heights.helpBarHeight -
 		heights.queueBoxHeight - heights.todoBoxHeight - heights.approvalBoxHeight -
-		heights.questionBoxHeight - heights.attachmentsHeight - heights.backgroundTasksLines
+		heights.questionBoxHeight - heights.attachmentsHeight
 	heights.conversationHeight = tui.CalculateConversationHeight(adjustedHeight)
 	heights.inputHeight = tui.CalculateInputHeight(adjustedHeight)
 	heights.statusHeight = tui.CalculateStatusHeight(adjustedHeight)
@@ -261,7 +256,6 @@ func (r *ApplicationViewRenderer) assembleComponents(
 
 	components = r.appendQueueBox(components, data, queueBoxView)
 	components = r.appendTodoBox(components, todoBoxView)
-	components = r.appendBackgroundTaskBar(components, conversationView, width)
 	components = r.appendModeIndicator(components, modeIndicator)
 	components = r.appendStatusView(components, statusView, statusHeight)
 	components = r.appendApprovalBox(components, approvalBoxView)
@@ -312,25 +306,6 @@ func (r *ApplicationViewRenderer) appendSnippetAttachments(
 		if content := snippetAttachments.Render(); content != "" {
 			components = append(components, content)
 		}
-	}
-	return components
-}
-
-// appendBackgroundTaskBar appends the sticky background-task indicator
-// rendered by the ConversationView, when any A2A task is currently tracked.
-// Always visible just above the input until the 5s post-terminal-state
-// auto-removal fires.
-func (r *ApplicationViewRenderer) appendBackgroundTaskBar(
-	components []string,
-	conversationView tui.ConversationRenderer,
-	width int,
-) []string {
-	cv, ok := conversationView.(*ConversationView)
-	if !ok || !cv.HasBackgroundTasks() {
-		return components
-	}
-	if bar := cv.RenderBackgroundTasksBar(width); bar != "" {
-		components = append(components, bar)
 	}
 	return components
 }

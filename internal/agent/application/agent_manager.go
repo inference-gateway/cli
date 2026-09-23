@@ -171,7 +171,7 @@ func (am *AgentManager) initializeExternalAgents(ctx context.Context) {
 	}
 
 	for _, agentURL := range am.config.A2A.Agents {
-		agentName := am.extractAgentNameFromURL(agentURL)
+		agentName := AgentNameFromURL(agentURL)
 		am.externalAgents[agentName] = agentURL
 	}
 
@@ -267,18 +267,11 @@ func (am *AgentManager) probeExternalAgent(ctx context.Context, agentName, agent
 	am.containersMutex.Unlock()
 }
 
-// extractAgentNameFromURL extracts a display name from an agent URL
-func (am *AgentManager) extractAgentNameFromURL(url string) string {
-	url = strings.TrimPrefix(url, "http://")
-	url = strings.TrimPrefix(url, "https://")
-
-	parts := strings.Split(url, "/")
-	if len(parts) == 0 {
-		return url
-	}
-
-	hostPort := parts[0]
-	host := strings.Split(hostPort, ":")[0]
+// AgentNameFromURL derives a display name (the bare host) from an agent URL.
+func AgentNameFromURL(url string) string {
+	url = strings.TrimPrefix(strings.TrimPrefix(url, "http://"), "https://")
+	host, _, _ := strings.Cut(url, "/")
+	host, _, _ = strings.Cut(host, ":")
 	return host
 }
 

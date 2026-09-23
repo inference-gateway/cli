@@ -15,12 +15,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // ArtifactPollerOptions bundles dependencies for NewArtifactPoller.
 type ArtifactPollerOptions struct {
-	Runner           CommandRunner
+	Runner           githubsetup.CommandRunner
 	Repo             string // "<owner>/<name>", already resolved
 	ConversationsDir string // local dir jsonl files are extracted into
 	ArtifactsDir     string // local dir non-jsonl files (images, reports) are extracted into; empty skips them
@@ -29,12 +30,6 @@ type ArtifactPollerOptions struct {
 	InitialDelay     time.Duration
 	MaxAttempts      int           // per artifact; then skipped permanently
 	RateLimitBackoff time.Duration // pause after a rate-limited API call
-}
-
-// CommandRunner matches githubsetup.CommandRunner; redeclared locally so the
-// poller can be constructed without importing githubsetup.
-type CommandRunner interface {
-	Run(ctx context.Context, name string, args ...string) ([]byte, error)
 }
 
 // ArtifactPoller periodically downloads conversation artifacts uploaded by

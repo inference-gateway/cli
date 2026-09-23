@@ -458,11 +458,6 @@ func normalizeReadPath(path string) string {
 	return filepath.Clean(path)
 }
 
-// GetA2ATaskTracker returns the task tracker instance
-func (r *Registry) GetA2ATaskTracker() agentdomain.A2ATaskTracker {
-	return r.taskTracker
-}
-
 // GetBackgroundShellService returns the background shell service instance
 func (r *Registry) GetBackgroundShellService() scheddomain.BackgroundShellService {
 	return r.shellService

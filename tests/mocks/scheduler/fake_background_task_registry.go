@@ -93,16 +93,6 @@ type FakeBackgroundTaskRegistry struct {
 	getAllReturnsOnCall map[int]struct {
 		result1 []*domain.BackgroundShell
 	}
-	GetAllPollingTasksStub        func() []string
-	getAllPollingTasksMutex       sync.RWMutex
-	getAllPollingTasksArgsForCall []struct {
-	}
-	getAllPollingTasksReturns struct {
-		result1 []string
-	}
-	getAllPollingTasksReturnsOnCall map[int]struct {
-		result1 []string
-	}
 	GetAllSubagentsStub        func() []*domain.SubagentState
 	getAllSubagentsMutex       sync.RWMutex
 	getAllSubagentsArgsForCall []struct {
@@ -733,59 +723,6 @@ func (fake *FakeBackgroundTaskRegistry) GetAllReturnsOnCall(i int, result1 []*do
 	}
 	fake.getAllReturnsOnCall[i] = struct {
 		result1 []*domain.BackgroundShell
-	}{result1}
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetAllPollingTasks() []string {
-	fake.getAllPollingTasksMutex.Lock()
-	ret, specificReturn := fake.getAllPollingTasksReturnsOnCall[len(fake.getAllPollingTasksArgsForCall)]
-	fake.getAllPollingTasksArgsForCall = append(fake.getAllPollingTasksArgsForCall, struct {
-	}{})
-	stub := fake.GetAllPollingTasksStub
-	fakeReturns := fake.getAllPollingTasksReturns
-	fake.recordInvocation("GetAllPollingTasks", []interface{}{})
-	fake.getAllPollingTasksMutex.Unlock()
-	if stub != nil {
-		return stub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetAllPollingTasksCallCount() int {
-	fake.getAllPollingTasksMutex.RLock()
-	defer fake.getAllPollingTasksMutex.RUnlock()
-	return len(fake.getAllPollingTasksArgsForCall)
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetAllPollingTasksCalls(stub func() []string) {
-	fake.getAllPollingTasksMutex.Lock()
-	defer fake.getAllPollingTasksMutex.Unlock()
-	fake.GetAllPollingTasksStub = stub
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetAllPollingTasksReturns(result1 []string) {
-	fake.getAllPollingTasksMutex.Lock()
-	defer fake.getAllPollingTasksMutex.Unlock()
-	fake.GetAllPollingTasksStub = nil
-	fake.getAllPollingTasksReturns = struct {
-		result1 []string
-	}{result1}
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetAllPollingTasksReturnsOnCall(i int, result1 []string) {
-	fake.getAllPollingTasksMutex.Lock()
-	defer fake.getAllPollingTasksMutex.Unlock()
-	fake.GetAllPollingTasksStub = nil
-	if fake.getAllPollingTasksReturnsOnCall == nil {
-		fake.getAllPollingTasksReturnsOnCall = make(map[int]struct {
-			result1 []string
-		})
-	}
-	fake.getAllPollingTasksReturnsOnCall[i] = struct {
-		result1 []string
 	}{result1}
 }
 

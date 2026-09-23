@@ -67,7 +67,6 @@ type ChatApplication struct {
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 
 	// Chat orchestration services
-	a2aTaskCoordinator       tui.A2ATaskCoordinator
 	approvalCoordinator      tui.ApprovalCoordinator
 	chatCompletionRunner     tui.ChatCompletionRunner
 	directExecutionService   tui.DirectExecutionService
@@ -167,7 +166,6 @@ func NewChatApplication(
 	toolService agentdomain.ToolService,
 	shortcutRegistry *shortcuts.Registry,
 	toolRegistry *tools.Registry,
-	a2aTaskCoordinator tui.A2ATaskCoordinator,
 	approvalCoordinator tui.ApprovalCoordinator,
 	chatCompletionRunner tui.ChatCompletionRunner,
 	directExecutionService tui.DirectExecutionService,
@@ -201,7 +199,6 @@ func NewChatApplication(
 		taskRetentionService:     taskRetentionService,
 		backgroundTaskService:    backgroundTaskService,
 		backgroundTaskRegistry:   backgroundTaskRegistry,
-		a2aTaskCoordinator:       a2aTaskCoordinator,
 		approvalCoordinator:      approvalCoordinator,
 		chatCompletionRunner:     chatCompletionRunner,
 		directExecutionService:   directExecutionService,
@@ -231,8 +228,6 @@ func NewChatApplication(
 		cv.SetVersionInfo(versionInfo)
 		cv.SetToolCallRenderer(app.toolCallRenderer)
 		cv.SetStateManager(app.stateManager)
-		cv.SetAgentNameResolver(buildAgentNameResolver())
-		cv.SetAgentModelResolver(buildAgentModelResolver())
 	}
 
 	historyName := os.Getenv(scheddomain.EnvSubagentHistoryName)
@@ -362,7 +357,6 @@ func NewChatApplication(
 		app.toolRegistry.GetBackgroundShellService(),
 		agentManager,
 		app.config,
-		app.a2aTaskCoordinator,
 		app.approvalCoordinator,
 		app.chatCompletionRunner,
 		app.directExecutionService,
@@ -2670,55 +2664,6 @@ func (app *ChatApplication) handleMessageHistoryKeys(keyMsg tea.KeyPressMsg) []t
 	}
 
 	return cmds
-}
-
-// buildAgentNameResolver loads ~/.infer/agents.yaml (or the project-level
-// equivalent) once and returns a closure that maps an agent URL to its
-// configured friendly name. Used by the background-agent indicator to show
-// e.g. `Agent(weather-agent=…)` instead of the raw URL. Returns nil on
-// load failure so the conversation view falls back to the URL.
-func buildAgentNameResolver() func(string) string {
-	cfg, err := config.LoadAgents(config.ResolveAgentsPath())
-	if err != nil || cfg == nil {
-		return nil
-	}
-	nameByURL := make(map[string]string, len(cfg.Agents))
-	for _, a := range cfg.Agents {
-		if a.URL != "" && a.Name != "" {
-			nameByURL[a.URL] = a.Name
-		}
-	}
-	if len(nameByURL) == 0 {
-		return nil
-	}
-	return func(url string) string {
-		return nameByURL[url]
-	}
-}
-
-// buildAgentModelResolver loads ~/.infer/agents.yaml (or the project-level
-// equivalent) once and returns a closure that maps an agent URL to its
-// configured model (e.g. "deepseek/deepseek-v4-flash"). Used by the
-// background-agent indicator to show `model=<...>` in the live status
-// line. Returns nil on load failure or when no agent has a model set,
-// so the conversation view omits the model segment cleanly.
-func buildAgentModelResolver() func(string) string {
-	cfg, err := config.LoadAgents(config.ResolveAgentsPath())
-	if err != nil || cfg == nil {
-		return nil
-	}
-	modelByURL := make(map[string]string, len(cfg.Agents))
-	for _, a := range cfg.Agents {
-		if a.URL != "" && a.Model != "" {
-			modelByURL[a.URL] = a.Model
-		}
-	}
-	if len(modelByURL) == 0 {
-		return nil
-	}
-	return func(url string) string {
-		return modelByURL[url]
-	}
 }
 
 // PrintConversationHistory outputs the full conversation history to stdout

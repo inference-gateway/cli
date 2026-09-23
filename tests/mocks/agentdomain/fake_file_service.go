@@ -8,19 +8,6 @@ import (
 )
 
 type FakeFileService struct {
-	GetFileInfoStub        func(string) (domain.FileInfo, error)
-	getFileInfoMutex       sync.RWMutex
-	getFileInfoArgsForCall []struct {
-		arg1 string
-	}
-	getFileInfoReturns struct {
-		result1 domain.FileInfo
-		result2 error
-	}
-	getFileInfoReturnsOnCall map[int]struct {
-		result1 domain.FileInfo
-		result2 error
-	}
 	ListProjectFilesStub        func() ([]string, error)
 	listProjectFilesMutex       sync.RWMutex
 	listProjectFilesArgsForCall []struct {
@@ -46,21 +33,6 @@ type FakeFileService struct {
 		result1 string
 		result2 error
 	}
-	ReadFileLinesStub        func(string, int, int) (string, error)
-	readFileLinesMutex       sync.RWMutex
-	readFileLinesArgsForCall []struct {
-		arg1 string
-		arg2 int
-		arg3 int
-	}
-	readFileLinesReturns struct {
-		result1 string
-		result2 error
-	}
-	readFileLinesReturnsOnCall map[int]struct {
-		result1 string
-		result2 error
-	}
 	ValidateFileStub        func(string) error
 	validateFileMutex       sync.RWMutex
 	validateFileArgsForCall []struct {
@@ -74,70 +46,6 @@ type FakeFileService struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
-}
-
-func (fake *FakeFileService) GetFileInfo(arg1 string) (domain.FileInfo, error) {
-	fake.getFileInfoMutex.Lock()
-	ret, specificReturn := fake.getFileInfoReturnsOnCall[len(fake.getFileInfoArgsForCall)]
-	fake.getFileInfoArgsForCall = append(fake.getFileInfoArgsForCall, struct {
-		arg1 string
-	}{arg1})
-	stub := fake.GetFileInfoStub
-	fakeReturns := fake.getFileInfoReturns
-	fake.recordInvocation("GetFileInfo", []interface{}{arg1})
-	fake.getFileInfoMutex.Unlock()
-	if stub != nil {
-		return stub(arg1)
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fakeReturns.result1, fakeReturns.result2
-}
-
-func (fake *FakeFileService) GetFileInfoCallCount() int {
-	fake.getFileInfoMutex.RLock()
-	defer fake.getFileInfoMutex.RUnlock()
-	return len(fake.getFileInfoArgsForCall)
-}
-
-func (fake *FakeFileService) GetFileInfoCalls(stub func(string) (domain.FileInfo, error)) {
-	fake.getFileInfoMutex.Lock()
-	defer fake.getFileInfoMutex.Unlock()
-	fake.GetFileInfoStub = stub
-}
-
-func (fake *FakeFileService) GetFileInfoArgsForCall(i int) string {
-	fake.getFileInfoMutex.RLock()
-	defer fake.getFileInfoMutex.RUnlock()
-	argsForCall := fake.getFileInfoArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeFileService) GetFileInfoReturns(result1 domain.FileInfo, result2 error) {
-	fake.getFileInfoMutex.Lock()
-	defer fake.getFileInfoMutex.Unlock()
-	fake.GetFileInfoStub = nil
-	fake.getFileInfoReturns = struct {
-		result1 domain.FileInfo
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeFileService) GetFileInfoReturnsOnCall(i int, result1 domain.FileInfo, result2 error) {
-	fake.getFileInfoMutex.Lock()
-	defer fake.getFileInfoMutex.Unlock()
-	fake.GetFileInfoStub = nil
-	if fake.getFileInfoReturnsOnCall == nil {
-		fake.getFileInfoReturnsOnCall = make(map[int]struct {
-			result1 domain.FileInfo
-			result2 error
-		})
-	}
-	fake.getFileInfoReturnsOnCall[i] = struct {
-		result1 domain.FileInfo
-		result2 error
-	}{result1, result2}
 }
 
 func (fake *FakeFileService) ListProjectFiles() ([]string, error) {
@@ -255,72 +163,6 @@ func (fake *FakeFileService) ReadFileReturnsOnCall(i int, result1 string, result
 		})
 	}
 	fake.readFileReturnsOnCall[i] = struct {
-		result1 string
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeFileService) ReadFileLines(arg1 string, arg2 int, arg3 int) (string, error) {
-	fake.readFileLinesMutex.Lock()
-	ret, specificReturn := fake.readFileLinesReturnsOnCall[len(fake.readFileLinesArgsForCall)]
-	fake.readFileLinesArgsForCall = append(fake.readFileLinesArgsForCall, struct {
-		arg1 string
-		arg2 int
-		arg3 int
-	}{arg1, arg2, arg3})
-	stub := fake.ReadFileLinesStub
-	fakeReturns := fake.readFileLinesReturns
-	fake.recordInvocation("ReadFileLines", []interface{}{arg1, arg2, arg3})
-	fake.readFileLinesMutex.Unlock()
-	if stub != nil {
-		return stub(arg1, arg2, arg3)
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fakeReturns.result1, fakeReturns.result2
-}
-
-func (fake *FakeFileService) ReadFileLinesCallCount() int {
-	fake.readFileLinesMutex.RLock()
-	defer fake.readFileLinesMutex.RUnlock()
-	return len(fake.readFileLinesArgsForCall)
-}
-
-func (fake *FakeFileService) ReadFileLinesCalls(stub func(string, int, int) (string, error)) {
-	fake.readFileLinesMutex.Lock()
-	defer fake.readFileLinesMutex.Unlock()
-	fake.ReadFileLinesStub = stub
-}
-
-func (fake *FakeFileService) ReadFileLinesArgsForCall(i int) (string, int, int) {
-	fake.readFileLinesMutex.RLock()
-	defer fake.readFileLinesMutex.RUnlock()
-	argsForCall := fake.readFileLinesArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
-}
-
-func (fake *FakeFileService) ReadFileLinesReturns(result1 string, result2 error) {
-	fake.readFileLinesMutex.Lock()
-	defer fake.readFileLinesMutex.Unlock()
-	fake.ReadFileLinesStub = nil
-	fake.readFileLinesReturns = struct {
-		result1 string
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeFileService) ReadFileLinesReturnsOnCall(i int, result1 string, result2 error) {
-	fake.readFileLinesMutex.Lock()
-	defer fake.readFileLinesMutex.Unlock()
-	fake.ReadFileLinesStub = nil
-	if fake.readFileLinesReturnsOnCall == nil {
-		fake.readFileLinesReturnsOnCall = make(map[int]struct {
-			result1 string
-			result2 error
-		})
-	}
-	fake.readFileLinesReturnsOnCall[i] = struct {
 		result1 string
 		result2 error
 	}{result1, result2}

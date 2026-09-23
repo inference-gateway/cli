@@ -32,7 +32,6 @@ type A2ATaskTracker interface {
 	StartPolling(taskID string, state *TaskPollingState)
 	StopPolling(taskID string)
 	GetPollingState(taskID string) *TaskPollingState
-	GetAllPollingTasks() []string
 }
 
 // TaskPollingState is the data record for one in-flight A2A task that the task
@@ -65,26 +64,6 @@ type SystemReminderProvider interface {
 // in tests.
 type HookCommandProvider interface {
 	CommandsDue(hook HookPoint) []HookCommand
-}
-
-// JudgeInput is one approval question: Model is the resolved "provider/model"
-// id that answers it, RootIntent the first non-hidden user message of the
-// session, Intent the latest one, and Action the pending tool call (name +
-// arguments).
-type JudgeInput struct {
-	Model      string
-	RootIntent string
-	Intent     string
-	Action     string
-}
-
-// JudgeApprover decides one pending tool call by asking a small LLM whether it
-// serves the user's intent and is safe. The judge is
-// the approver selected by approval_behaviour "judge" / agent mode
-// auto-with-judge: it is always reachable, so headless and CI get a real
-// approver instead of blocking.
-type JudgeApprover interface {
-	Judge(ctx context.Context, in JudgeInput) (JudgeVerdict, error)
 }
 
 // BashDetachChannelHolder manages the bash detach channel for background shell operations

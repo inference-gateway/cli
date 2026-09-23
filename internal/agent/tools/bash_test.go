@@ -337,7 +337,7 @@ func TestBashTool_Execute_StripsANSIEvenWithColorsEnabled(t *testing.T) {
 			streamed.WriteString(output)
 			mu.Unlock()
 		}
-		ctx := context.WithValue(context.Background(), agentdomain.BashOutputCallbackKey, agentdomain.BashOutputCallback(callback))
+		ctx := agentdomain.WithBashOutputCallback(context.Background(), callback)
 		result, err := tool.Execute(ctx, map[string]any{
 			"command": `sh -c 'printf "\033[31mboom\033[0m" >&2; exit 3'`,
 		})
@@ -486,7 +486,7 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 			mu.Unlock()
 		}
 
-		ctx := context.WithValue(context.Background(), agentdomain.BashOutputCallbackKey, agentdomain.BashOutputCallback(callback))
+		ctx := agentdomain.WithBashOutputCallback(context.Background(), callback)
 
 		args := map[string]any{
 			"command": `printf 'line 1\nline 2\nline 3\n'`,
@@ -557,7 +557,7 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 			mu.Unlock()
 		}
 
-		ctx := context.WithValue(context.Background(), agentdomain.BashOutputCallbackKey, agentdomain.BashOutputCallback(callback))
+		ctx := agentdomain.WithBashOutputCallback(context.Background(), callback)
 
 		args := map[string]any{
 			"command": fmt.Sprintf("seq 1 %d", lineCount),

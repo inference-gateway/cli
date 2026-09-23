@@ -75,20 +75,6 @@ type ChatStreamOpenedEvent struct {
 	Err       error
 }
 
-// A2ATaskCoordinator owns the UI side of A2A (agent-to-agent) task lifecycle
-// events. It translates the six A2A event types into status updates,
-// streaming-content events, and conversation-history refreshes. Self-contained
-// - depends only on the conversation repo, task retention, and the chat state
-// manager.
-type A2ATaskCoordinator interface {
-	HandleTaskSubmitted(msg agentdomain.A2ATaskSubmittedEvent) tea.Cmd
-	HandleTaskCompleted(msg agentdomain.A2ATaskCompletedEvent) tea.Cmd
-	HandleTaskFailed(msg agentdomain.A2ATaskFailedEvent) tea.Cmd
-	HandleTaskStatusUpdate(msg agentdomain.A2ATaskStatusUpdateEvent) tea.Cmd
-	HandleTaskInputRequired(msg agentdomain.A2ATaskInputRequiredEvent) tea.Cmd
-	HandleToolCallExecuted(msg agentdomain.A2AToolCallExecutedEvent) tea.Cmd
-}
-
 // ApprovalCoordinator owns the "pause the assistant turn pending external
 // decision" family of events: plan approval (the agent stops, presents a
 // plan, awaits user accept/reject) and computer-use pause/resume (the user
@@ -133,8 +119,6 @@ type ToolExecutionCoordinator interface {
 	GetActiveToolCallID() string
 	SetActiveToolCallID(id string)
 
-	HandleToolCallUpdate(msg agentdomain.ToolCallUpdateEvent) tea.Cmd
-	HandleToolCallReady(msg agentdomain.ToolCallReadyEvent) tea.Cmd
 	HandleToolApprovalRequested(msg agentdomain.ToolApprovalRequestedEvent) tea.Cmd
 	HandleToolApprovalResponse(msg agentdomain.ToolApprovalResponseEvent) tea.Cmd
 	HandleToolExecutionStarted(msg ToolExecutionStartedEvent) tea.Cmd

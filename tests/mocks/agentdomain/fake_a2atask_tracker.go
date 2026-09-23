@@ -18,16 +18,6 @@ type FakeA2ATaskTracker struct {
 	clearAllAgentsMutex       sync.RWMutex
 	clearAllAgentsArgsForCall []struct {
 	}
-	GetAllPollingTasksStub        func() []string
-	getAllPollingTasksMutex       sync.RWMutex
-	getAllPollingTasksArgsForCall []struct {
-	}
-	getAllPollingTasksReturns struct {
-		result1 []string
-	}
-	getAllPollingTasksReturnsOnCall map[int]struct {
-		result1 []string
-	}
 	GetLatestContextForAgentStub        func(string) string
 	getLatestContextForAgentMutex       sync.RWMutex
 	getLatestContextForAgentArgsForCall []struct {
@@ -153,59 +143,6 @@ func (fake *FakeA2ATaskTracker) ClearAllAgentsCalls(stub func()) {
 	fake.clearAllAgentsMutex.Lock()
 	defer fake.clearAllAgentsMutex.Unlock()
 	fake.ClearAllAgentsStub = stub
-}
-
-func (fake *FakeA2ATaskTracker) GetAllPollingTasks() []string {
-	fake.getAllPollingTasksMutex.Lock()
-	ret, specificReturn := fake.getAllPollingTasksReturnsOnCall[len(fake.getAllPollingTasksArgsForCall)]
-	fake.getAllPollingTasksArgsForCall = append(fake.getAllPollingTasksArgsForCall, struct {
-	}{})
-	stub := fake.GetAllPollingTasksStub
-	fakeReturns := fake.getAllPollingTasksReturns
-	fake.recordInvocation("GetAllPollingTasks", []interface{}{})
-	fake.getAllPollingTasksMutex.Unlock()
-	if stub != nil {
-		return stub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeA2ATaskTracker) GetAllPollingTasksCallCount() int {
-	fake.getAllPollingTasksMutex.RLock()
-	defer fake.getAllPollingTasksMutex.RUnlock()
-	return len(fake.getAllPollingTasksArgsForCall)
-}
-
-func (fake *FakeA2ATaskTracker) GetAllPollingTasksCalls(stub func() []string) {
-	fake.getAllPollingTasksMutex.Lock()
-	defer fake.getAllPollingTasksMutex.Unlock()
-	fake.GetAllPollingTasksStub = stub
-}
-
-func (fake *FakeA2ATaskTracker) GetAllPollingTasksReturns(result1 []string) {
-	fake.getAllPollingTasksMutex.Lock()
-	defer fake.getAllPollingTasksMutex.Unlock()
-	fake.GetAllPollingTasksStub = nil
-	fake.getAllPollingTasksReturns = struct {
-		result1 []string
-	}{result1}
-}
-
-func (fake *FakeA2ATaskTracker) GetAllPollingTasksReturnsOnCall(i int, result1 []string) {
-	fake.getAllPollingTasksMutex.Lock()
-	defer fake.getAllPollingTasksMutex.Unlock()
-	fake.GetAllPollingTasksStub = nil
-	if fake.getAllPollingTasksReturnsOnCall == nil {
-		fake.getAllPollingTasksReturnsOnCall = make(map[int]struct {
-			result1 []string
-		})
-	}
-	fake.getAllPollingTasksReturnsOnCall[i] = struct {
-		result1 []string
-	}{result1}
 }
 
 func (fake *FakeA2ATaskTracker) GetLatestContextForAgent(arg1 string) string {

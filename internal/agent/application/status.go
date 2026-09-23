@@ -38,7 +38,7 @@ func ProbeAgents(ctx context.Context, agents []config.AgentEntry, externalURLs [
 		report.Agents = append(report.Agents, AgentStatus{Name: agent.Name, URL: agent.URL})
 	}
 	for _, url := range externalURLs {
-		report.Agents = append(report.Agents, AgentStatus{Name: agentNameFromURL(url), URL: url})
+		report.Agents = append(report.Agents, AgentStatus{Name: AgentNameFromURL(url), URL: url})
 	}
 	report.TotalAgents = len(report.Agents)
 
@@ -72,8 +72,4 @@ func probeAgentCard(ctx context.Context, status *AgentStatus) {
 		return
 	}
 	status.State = agentdomain.AgentStateReady.String()
-}
-
-func agentNameFromURL(url string) string {
-	return (&AgentManager{}).extractAgentNameFromURL(url)
 }

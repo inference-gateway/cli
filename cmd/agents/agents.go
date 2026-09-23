@@ -326,7 +326,7 @@ func extractExternalAgents(cfg *config.Config) []ExternalAgent {
 
 	externalAgents := make([]ExternalAgent, 0, len(cfg.A2A.Agents))
 	for _, agentURL := range cfg.A2A.Agents {
-		name := extractAgentNameFromURL(agentURL)
+		name := agentapp.AgentNameFromURL(agentURL)
 		externalAgents = append(externalAgents, ExternalAgent{
 			Name: name,
 			URL:  agentURL,
@@ -334,21 +334,6 @@ func extractExternalAgents(cfg *config.Config) []ExternalAgent {
 	}
 
 	return externalAgents
-}
-
-// extractAgentNameFromURL extracts a display name from an agent URL
-func extractAgentNameFromURL(url string) string {
-	url = strings.TrimPrefix(url, "http://")
-	url = strings.TrimPrefix(url, "https://")
-
-	parts := strings.Split(url, "/")
-	if len(parts) == 0 {
-		return url
-	}
-
-	hostPort := parts[0]
-	host := strings.Split(hostPort, ":")[0]
-	return host
 }
 
 // requiresModel reports whether the named agent needs a model when run locally.

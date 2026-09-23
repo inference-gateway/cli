@@ -48,7 +48,7 @@ type AgentServiceImpl struct {
 	optimizer          convdomain.ConversationOptimizer
 	tokenizer          *conv.TokenizerService
 	approvalPolicy     agentdomain.ApprovalPolicy
-	judge              agentdomain.JudgeApprover
+	judge              JudgeApprover
 	currentModel       func() string
 	escalations        *judgeEscalations
 	bgRegistry         scheddomain.BackgroundTaskRegistry
@@ -1766,9 +1766,9 @@ func (s *AgentServiceImpl) requestJudgeApproval(
 
 	model := s.judgeModel()
 	root, latest := userIntents(s.conversationRepo)
-	verdict, err := s.judge.Judge(ctx, agentdomain.JudgeInput{Model: model, RootIntent: root, Intent: latest, Action: judgeActionInput(tc)})
+	verdict, err := s.judge.Judge(ctx, JudgeInput{Model: model, RootIntent: root, Intent: latest, Action: judgeActionInput(tc)})
 	if err != nil {
-		verdict = agentdomain.JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "judge unavailable: " + err.Error()}
+		verdict = JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "judge unavailable: " + err.Error()}
 	}
 	if !verdict.Approved() {
 		s.conversationRepo.RemovePendingToolCallByID(tc.ID)

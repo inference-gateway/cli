@@ -170,12 +170,12 @@ func newMockServer(t *testing.T, repo fakeRepo) *httptest.Server {
 			http.NotFound(w, r)
 			return
 		}
-		var entries []treeEntry
+		var entries []TreeEntry
 		for p := range repo.Files {
-			entries = append(entries, treeEntry{Path: p, Type: "blob"})
+			entries = append(entries, TreeEntry{Path: p, Type: "blob"})
 		}
 		for p := range repo.Trees {
-			entries = append(entries, treeEntry{Path: p, Type: "tree"})
+			entries = append(entries, TreeEntry{Path: p, Type: "tree"})
 		}
 		resp := treeResponse{Tree: entries, Truncated: repo.Truncated}
 		w.Header().Set("Content-Type", "application/json")
@@ -474,7 +474,7 @@ func TestInstallFromGitHub_Authorization(t *testing.T) {
 				mu.Lock()
 				seen["tree"] = r.Header.Get("Authorization")
 				mu.Unlock()
-				resp := treeResponse{Tree: []treeEntry{{Path: "skills/pdf/SKILL.md", Type: "blob"}}}
+				resp := treeResponse{Tree: []TreeEntry{{Path: "skills/pdf/SKILL.md", Type: "blob"}}}
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).Encode(resp)
 			})

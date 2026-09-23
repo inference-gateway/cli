@@ -98,11 +98,6 @@ type RolloverCompletedEvent struct {
 	Images  []agentdomain.ImageAttachment
 }
 
-// ModelSelectedEvent indicates model selection
-type ModelSelectedEvent struct {
-	Model string
-}
-
 // ThemeSelectedEvent indicates theme selection
 type ThemeSelectedEvent struct {
 	Theme string

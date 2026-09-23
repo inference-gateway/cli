@@ -109,7 +109,6 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 		c.GetToolService(),
 		c.GetShortcutRegistry(),
 		c.GetToolRegistry(),
-		c.GetA2ATaskCoordinator(),
 		c.GetApprovalCoordinator(),
 		c.GetChatCompletionRunner(),
 		c.GetDirectExecutionService(),
@@ -141,10 +140,9 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 	_, _ = app.Update(agentdomain.ToolExecutionProgressEvent{
 		ToolCallID: "call_1", ToolName: "AskUserQuestion", Status: "running", Message: "Processing...",
 	})
-	_, _ = app.Update(agentdomain.ToolCallUpdateEvent{ToolCallID: "call_1", ToolName: "AskUserQuestion"})
 
 	if st2 := c.GetStateManager().GetUserQuestionUIState(); st2 == nil {
-		t.Fatal("question state was cleared by a tool progress/update tick")
+		t.Fatal("question state was cleared by a tool progress tick")
 	}
 	out2 := app.viewContent()
 	if !strings.Contains(out2, "Backend") {

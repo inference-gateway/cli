@@ -15,6 +15,5 @@ type ToolService interface {
 	ExecuteToolDirect(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*ToolExecutionResult, error)
 	IsToolEnabled(name string) bool
 	ValidateTool(name string, args map[string]any) error
-	GetA2ATaskTracker() A2ATaskTracker
 	GetTool(name string) (Tool, error)
 }

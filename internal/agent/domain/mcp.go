@@ -10,17 +10,6 @@ type MCPDiscoveredTool struct {
 	InputSchema any
 }
 
-// MCPServerEntry represents an MCP server configuration entry
-type MCPServerEntry struct {
-	Name         string
-	URL          string
-	Enabled      bool
-	Timeout      int
-	Description  string
-	IncludeTools []string
-	ExcludeTools []string
-}
-
 // MCPClient handles communication with MCP servers
 type MCPClient interface {
 	// DiscoverTools discovers all tools from enabled MCP servers

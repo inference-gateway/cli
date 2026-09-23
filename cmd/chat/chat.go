@@ -247,7 +247,6 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		toolService,
 		shortcutRegistry,
 		toolRegistry,
-		services.GetA2ATaskCoordinator(),
 		services.GetApprovalCoordinator(),
 		services.GetChatCompletionRunner(),
 		services.GetDirectExecutionService(),

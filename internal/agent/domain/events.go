@@ -93,29 +93,6 @@ type ToolCallPreviewEvent struct {
 func (e ToolCallPreviewEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolCallPreviewEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ToolCallUpdateEvent updates a streaming tool call with new content
-type ToolCallUpdateEvent struct {
-	RequestID  string
-	Timestamp  time.Time
-	ToolCallID string
-	ToolName   string
-	Arguments  string
-	Status     ToolCallStreamStatus
-}
-
-func (e ToolCallUpdateEvent) GetRequestID() string    { return e.RequestID }
-func (e ToolCallUpdateEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ToolCallReadyEvent indicates all tool calls are ready for approval/execution
-type ToolCallReadyEvent struct {
-	RequestID string
-	Timestamp time.Time
-	ToolCalls []sdk.ChatCompletionMessageToolCall
-}
-
-func (e ToolCallReadyEvent) GetRequestID() string    { return e.RequestID }
-func (e ToolCallReadyEvent) GetTimestamp() time.Time { return e.Timestamp }
-
 // OptimizationStatusEvent indicates conversation optimization status
 type OptimizationStatusEvent struct {
 	RequestID      string
@@ -128,116 +105,6 @@ type OptimizationStatusEvent struct {
 
 func (e OptimizationStatusEvent) GetRequestID() string    { return e.RequestID }
 func (e OptimizationStatusEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// A2AToolCallExecutedEvent indicates an A2A tool call was executed on the gateway
-type A2AToolCallExecutedEvent struct {
-	RequestID  string
-	Timestamp  time.Time
-	ToolCallID string
-	ToolName   string
-	Arguments  string
-	TaskID     string
-}
-
-func (e A2AToolCallExecutedEvent) GetRequestID() string    { return e.RequestID }
-func (e A2AToolCallExecutedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// A2ATaskSubmittedEvent indicates an A2A task was submitted
-type A2ATaskSubmittedEvent struct {
-	RequestID string
-	Timestamp time.Time
-	TaskID    string
-	AgentName string
-	AgentURL  string
-}
-
-func (e A2ATaskSubmittedEvent) GetRequestID() string    { return e.RequestID }
-func (e A2ATaskSubmittedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// A2ATaskStatusUpdateEvent indicates an A2A task status update
-type A2ATaskStatusUpdateEvent struct {
-	RequestID string
-	Timestamp time.Time
-	TaskID    string
-	AgentURL  string
-	Status    string
-	Progress  float64
-	Message   string
-}
-
-func (e A2ATaskStatusUpdateEvent) GetRequestID() string    { return e.RequestID }
-func (e A2ATaskStatusUpdateEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// A2ATaskCompletedEvent indicates an A2A task was completed successfully
-type A2ATaskCompletedEvent struct {
-	RequestID string
-	Timestamp time.Time
-	TaskID    string
-	Result    ToolExecutionResult
-}
-
-func (e A2ATaskCompletedEvent) GetRequestID() string    { return e.RequestID }
-func (e A2ATaskCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// A2ATaskFailedEvent indicates an A2A task failed
-type A2ATaskFailedEvent struct {
-	RequestID string
-	Timestamp time.Time
-	TaskID    string
-	Result    ToolExecutionResult
-	Error     string
-}
-
-func (e A2ATaskFailedEvent) GetRequestID() string    { return e.RequestID }
-func (e A2ATaskFailedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// A2ATaskInputRequiredEvent indicates an A2A task requires user input
-type A2ATaskInputRequiredEvent struct {
-	RequestID string
-	Timestamp time.Time
-	TaskID    string
-	Message   string
-	Required  bool
-}
-
-func (e A2ATaskInputRequiredEvent) GetRequestID() string    { return e.RequestID }
-func (e A2ATaskInputRequiredEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// SubagentSubmittedEvent indicates a local subagent was dispatched
-type SubagentSubmittedEvent struct {
-	RequestID  string
-	Timestamp  time.Time
-	SubagentID string
-	Label      string
-}
-
-func (e SubagentSubmittedEvent) GetRequestID() string    { return e.RequestID }
-func (e SubagentSubmittedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// SubagentCompletedEvent indicates a local subagent completed successfully
-type SubagentCompletedEvent struct {
-	RequestID  string
-	Timestamp  time.Time
-	SubagentID string
-	Label      string
-	Result     ToolExecutionResult
-}
-
-func (e SubagentCompletedEvent) GetRequestID() string    { return e.RequestID }
-func (e SubagentCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// SubagentFailedEvent indicates a local subagent failed
-type SubagentFailedEvent struct {
-	RequestID  string
-	Timestamp  time.Time
-	SubagentID string
-	Label      string
-	Result     ToolExecutionResult
-	Error      string
-}
-
-func (e SubagentFailedEvent) GetRequestID() string    { return e.RequestID }
-func (e SubagentFailedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // MessageQueuedEvent indicates a message was received from the queue and stored
 type MessageQueuedEvent struct {
@@ -364,40 +231,6 @@ type ShellDetachedEvent struct {
 
 func (e ShellDetachedEvent) GetRequestID() string    { return e.RequestID }
 func (e ShellDetachedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ShellCompletedEvent indicates a background shell finished successfully
-type ShellCompletedEvent struct {
-	RequestID string
-	Timestamp time.Time
-	ShellID   string
-	ExitCode  int
-	Duration  time.Duration
-}
-
-func (e ShellCompletedEvent) GetRequestID() string    { return e.RequestID }
-func (e ShellCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ShellFailedEvent indicates a background shell failed
-type ShellFailedEvent struct {
-	RequestID string
-	Timestamp time.Time
-	ShellID   string
-	Error     string
-	ExitCode  int
-}
-
-func (e ShellFailedEvent) GetRequestID() string    { return e.RequestID }
-func (e ShellFailedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ShellCancelledEvent indicates a background shell was killed
-type ShellCancelledEvent struct {
-	RequestID string
-	Timestamp time.Time
-	ShellID   string
-}
-
-func (e ShellCancelledEvent) GetRequestID() string    { return e.RequestID }
-func (e ShellCancelledEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // NavigateBackInTimeEvent triggers the message history selector view
 type NavigateBackInTimeEvent struct {

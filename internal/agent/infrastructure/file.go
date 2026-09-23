@@ -202,28 +202,6 @@ func (s *FileServiceImpl) ReadFile(path string) (string, error) {
 	return string(content), nil
 }
 
-// ReadFileLines reads specific lines from a file
-func (s *FileServiceImpl) ReadFileLines(path string, startLine, endLine int) (string, error) {
-	content, err := s.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-
-	lines := strings.Split(content, "\n")
-	if startLine < 1 || startLine > len(lines) {
-		return "", fmt.Errorf("start line %d is out of range (1-%d)", startLine, len(lines))
-	}
-
-	if endLine < startLine || endLine > len(lines) {
-		endLine = len(lines)
-	}
-
-	start := startLine - 1
-	end := endLine
-
-	return strings.Join(lines[start:end], "\n"), nil
-}
-
 // ValidateFile checks if a file path is valid and accessible
 func (s *FileServiceImpl) ValidateFile(path string) error {
 	if path == "" {
@@ -269,18 +247,4 @@ func (s *FileServiceImpl) ValidateFile(path string) error {
 	}
 
 	return nil
-}
-
-// GetFileInfo returns information about a file
-func (s *FileServiceImpl) GetFileInfo(path string) (agentdomain.FileInfo, error) {
-	info, err := os.Stat(expandHomePath(path))
-	if err != nil {
-		return agentdomain.FileInfo{}, fmt.Errorf("failed to get file info for %s: %w", path, err)
-	}
-
-	return agentdomain.FileInfo{
-		Path:  path,
-		Size:  info.Size(),
-		IsDir: info.IsDir(),
-	}, nil
 }

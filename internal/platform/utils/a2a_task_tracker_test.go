@@ -19,13 +19,6 @@ type a2aTaskAdd struct {
 	task    string
 }
 
-type a2aPollSpec struct {
-	task    string
-	context string
-	agent   string
-	offset  time.Duration
-}
-
 // newTrackerWith builds a tracker pre-populated with the given registrations and tasks.
 func newTrackerWith(t *testing.T, regs []a2aReg, adds []a2aTaskAdd) *A2ATaskTrackerImpl {
 	t.Helper()
@@ -415,119 +408,6 @@ func TestA2ATaskTracker_PollingState(t *testing.T) {
 
 	tracker.StopPolling("task-1")
 	assert.Nil(t, tracker.GetPollingState("task-1"))
-}
-
-func TestA2ATaskTracker_PollingTaskLists(t *testing.T) {
-	tests := []struct {
-		name         string
-		specs        []a2aPollSpec
-		stop         []string
-		queryContext string
-		want         []string
-	}{
-		{
-			name: "tasks for context in start order",
-			specs: []a2aPollSpec{
-				{"task-1", "context-1", "http://agent1.com", 0},
-				{"task-2", "context-1", "http://agent1.com", time.Second},
-				{"task-3", "context-1", "http://agent1.com", 2 * time.Second},
-			},
-			queryContext: "context-1",
-			want:         []string{"task-1", "task-2", "task-3"},
-		},
-		{
-			name: "stopped task excluded from context",
-			specs: []a2aPollSpec{
-				{"task-1", "context-1", "http://agent1.com", 0},
-				{"task-2", "context-1", "http://agent1.com", time.Second},
-				{"task-3", "context-1", "http://agent1.com", 2 * time.Second},
-			},
-			stop:         []string{"task-2"},
-			queryContext: "context-1",
-			want:         []string{"task-1", "task-3"},
-		},
-		{
-			name: "all polling tasks grouped by agent",
-			specs: []a2aPollSpec{
-				{"task-1", "context-1", "http://agent1.com", 0},
-				{"task-2", "context-2", "http://agent2.com", time.Second},
-				{"task-3", "context-1", "http://agent1.com", 2 * time.Second},
-			},
-			want: []string{"task-1", "task-3", "task-2"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tracker := NewA2ATaskTracker()
-			startTime := time.Now()
-
-			for _, spec := range tt.specs {
-				tracker.RegisterContext(spec.agent, spec.context)
-				tracker.StartPolling(spec.task, &agentdomain.TaskPollingState{
-					TaskID:    spec.task,
-					ContextID: spec.context,
-					AgentURL:  spec.agent,
-					StartedAt: startTime.Add(spec.offset),
-				})
-			}
-			for _, taskID := range tt.stop {
-				tracker.StopPolling(taskID)
-			}
-
-			var got []string
-			if tt.queryContext != "" {
-				got = tracker.GetPollingTasksForContext(tt.queryContext)
-			} else {
-				got = tracker.GetAllPollingTasks()
-			}
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestA2ATaskTracker_GetAllPollingTasks_StableOrder(t *testing.T) {
-	tracker := NewA2ATaskTracker()
-
-	tasks := []a2aPollSpec{
-		{"task-zulu", "context-zulu", "http://agent-zulu.com", 0},
-		{"task-alpha", "context-alpha", "http://agent-alpha.com", 10 * time.Millisecond},
-		{"task-charlie", "context-charlie", "http://agent-charlie.com", 20 * time.Millisecond},
-		{"task-bravo", "context-bravo", "http://agent-bravo.com", 30 * time.Millisecond},
-	}
-
-	for _, task := range tasks {
-		tracker.RegisterContext(task.agent, task.context)
-	}
-
-	startTime := time.Now()
-	for _, task := range tasks {
-		state := &agentdomain.TaskPollingState{
-			AgentURL:  task.agent,
-			ContextID: task.context,
-			TaskID:    task.task,
-			StartedAt: startTime.Add(task.offset),
-			IsPolling: true,
-		}
-		tracker.StartPolling(task.task, state)
-	}
-
-	var previousOrder []string
-	for i := 0; i < 10; i++ {
-		currentOrder := tracker.GetAllPollingTasks()
-
-		if i == 0 {
-			assert.Equal(t, []string{
-				"task-zulu",
-				"task-alpha",
-				"task-charlie",
-				"task-bravo",
-			}, currentOrder, "tasks should be in FIFO order (agent → context → task)")
-			previousOrder = currentOrder
-		} else {
-			assert.Equal(t, previousOrder, currentOrder, "order should be consistent across calls")
-		}
-	}
 }
 
 func TestA2ATaskTracker_ConcurrentAccess(t *testing.T) {

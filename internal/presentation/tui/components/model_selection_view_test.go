@@ -12,8 +12,8 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // newFilterTestSelector builds a selector backed by a fake pricing service with
@@ -104,7 +104,7 @@ func TestModelSelector_EnterSelectsAndEmitsEvent(t *testing.T) {
 				}
 				return
 			}
-			if ev, ok := out.(tui.ModelSelectedEvent); ok {
+			if ev, ok := out.(agentdomain.ModelSelectedEvent); ok {
 				selected = ev.Model
 				return
 			}
@@ -172,7 +172,7 @@ func TestModelSelector_SearchEnterSelectsFilteredMatch(t *testing.T) {
 		if out == nil {
 			break
 		}
-		if ev, ok := out.(tui.ModelSelectedEvent); ok {
+		if ev, ok := out.(agentdomain.ModelSelectedEvent); ok {
 			selected = ev.Model
 			break
 		}
@@ -241,7 +241,7 @@ func TestModelSelector_NonChatModelNotSelectable(t *testing.T) {
 		if out == nil {
 			break
 		}
-		_, ok := out.(tui.ModelSelectedEvent)
+		_, ok := out.(agentdomain.ModelSelectedEvent)
 		assert.False(t, ok, "view-only model must not emit a selection event")
 		_, cmd = m.Update(out)
 	}

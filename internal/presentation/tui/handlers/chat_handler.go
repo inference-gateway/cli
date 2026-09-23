@@ -47,7 +47,6 @@ type ChatHandler struct {
 	backgroundShellService scheddomain.BackgroundShellService
 	agentManager           agentdomain.AgentManager
 	config                 *config.Config
-	a2aTaskCoordinator     tui.A2ATaskCoordinator
 	approvalCoordinator    tui.ApprovalCoordinator
 	completionRunner       tui.ChatCompletionRunner
 	directExec             tui.DirectExecutionService
@@ -78,7 +77,6 @@ func NewChatHandler(
 	backgroundShellService scheddomain.BackgroundShellService,
 	agentManager agentdomain.AgentManager,
 	cfg *config.Config,
-	a2aTaskCoordinator tui.A2ATaskCoordinator,
 	approvalCoordinator tui.ApprovalCoordinator,
 	completionRunner tui.ChatCompletionRunner,
 	directExec tui.DirectExecutionService,
@@ -103,7 +101,6 @@ func NewChatHandler(
 		taskRetentionService:   taskRetentionService,
 		backgroundTaskService:  backgroundTaskService,
 		backgroundShellService: backgroundShellService,
-		a2aTaskCoordinator:     a2aTaskCoordinator,
 		approvalCoordinator:    approvalCoordinator,
 		completionRunner:       completionRunner,
 		directExec:             directExec,
@@ -176,10 +173,6 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		return h.HandleChatErrorEvent(m)
 	case agentdomain.OptimizationStatusEvent:
 		return h.HandleOptimizationStatusEvent(m)
-	case agentdomain.ToolCallUpdateEvent:
-		return h.HandleToolCallUpdateEvent(m)
-	case agentdomain.ToolCallReadyEvent:
-		return h.HandleToolCallReadyEvent(m)
 	case tui.ToolExecutionStartedEvent:
 		return h.HandleToolExecutionStartedEvent(m)
 	case agentdomain.ToolExecutionProgressEvent:
@@ -192,18 +185,6 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		return h.HandleBackgroundShellRequest()
 	case agentdomain.ToolExecutionCompletedEvent:
 		return h.HandleToolExecutionCompletedEvent(m)
-	case agentdomain.A2AToolCallExecutedEvent:
-		return h.HandleA2AToolCallExecutedEvent(m)
-	case agentdomain.A2ATaskSubmittedEvent:
-		return h.HandleA2ATaskSubmittedEvent(m)
-	case agentdomain.A2ATaskStatusUpdateEvent:
-		return h.HandleA2ATaskStatusUpdateEvent(m)
-	case agentdomain.A2ATaskCompletedEvent:
-		return h.HandleA2ATaskCompletedEvent(m)
-	case agentdomain.A2ATaskFailedEvent:
-		return h.HandleA2ATaskFailedEvent(m)
-	case agentdomain.A2ATaskInputRequiredEvent:
-		return h.HandleA2ATaskInputRequiredEvent(m)
 	case agentdomain.MessageQueuedEvent:
 		return h.HandleMessageQueuedEvent(m)
 	case agentdomain.ToolCancelledEvent:
@@ -362,18 +343,6 @@ func (h *ChatHandler) HandleRolloverCompletedEvent(
 	return h.messageProcessor.appendUserMessageAndStartCompletion(msg.Message, msg.Images)
 }
 
-func (h *ChatHandler) HandleToolCallUpdateEvent(
-	msg agentdomain.ToolCallUpdateEvent,
-) tea.Cmd {
-	return h.toolCoordinator.HandleToolCallUpdate(msg)
-}
-
-func (h *ChatHandler) HandleToolCallReadyEvent(
-	msg agentdomain.ToolCallReadyEvent,
-) tea.Cmd {
-	return h.toolCoordinator.HandleToolCallReady(msg)
-}
-
 func (h *ChatHandler) HandleToolApprovalRequestedEvent(
 	msg agentdomain.ToolApprovalRequestedEvent,
 ) tea.Cmd {
@@ -426,42 +395,6 @@ func (h *ChatHandler) HandleToolExecutionCompletedEvent(
 	msg agentdomain.ToolExecutionCompletedEvent,
 ) tea.Cmd {
 	return h.toolCoordinator.HandleToolExecutionCompleted(msg)
-}
-
-func (h *ChatHandler) HandleA2AToolCallExecutedEvent(
-	msg agentdomain.A2AToolCallExecutedEvent,
-) tea.Cmd {
-	return h.a2aTaskCoordinator.HandleToolCallExecuted(msg)
-}
-
-func (h *ChatHandler) HandleA2ATaskSubmittedEvent(
-	msg agentdomain.A2ATaskSubmittedEvent,
-) tea.Cmd {
-	return h.a2aTaskCoordinator.HandleTaskSubmitted(msg)
-}
-
-func (h *ChatHandler) HandleA2ATaskStatusUpdateEvent(
-	msg agentdomain.A2ATaskStatusUpdateEvent,
-) tea.Cmd {
-	return h.a2aTaskCoordinator.HandleTaskStatusUpdate(msg)
-}
-
-func (h *ChatHandler) HandleA2ATaskCompletedEvent(
-	msg agentdomain.A2ATaskCompletedEvent,
-) tea.Cmd {
-	return h.a2aTaskCoordinator.HandleTaskCompleted(msg)
-}
-
-func (h *ChatHandler) HandleA2ATaskFailedEvent(
-	msg agentdomain.A2ATaskFailedEvent,
-) tea.Cmd {
-	return h.a2aTaskCoordinator.HandleTaskFailed(msg)
-}
-
-func (h *ChatHandler) HandleA2ATaskInputRequiredEvent(
-	msg agentdomain.A2ATaskInputRequiredEvent,
-) tea.Cmd {
-	return h.a2aTaskCoordinator.HandleTaskInputRequired(msg)
 }
 
 func (h *ChatHandler) HandleMessageQueuedEvent(

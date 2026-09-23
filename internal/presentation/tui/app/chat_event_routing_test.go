@@ -49,7 +49,6 @@ func TestShouldRouteToUIComponents(t *testing.T) {
 		{"ui todo update", tui.TodoUpdateEvent{}, true},
 		{"agent chat chunk", agentdomain.ChatChunkEvent{}, true},
 		{"agent chat complete", agentdomain.ChatCompleteEvent{}, true},
-		{"agent tool call update", agentdomain.ToolCallUpdateEvent{}, true},
 		{"spinner tick", spinner.TickMsg{}, true},
 		{"nil message", nil, false},
 		{"foreign message", struct{ X int }{}, false},

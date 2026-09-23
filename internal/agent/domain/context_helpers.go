@@ -10,41 +10,41 @@ import "context"
 // Tool Approval
 // ========================================
 
-// WithToolApproved returns a new context with ToolApprovedKey set to true
+// WithToolApproved returns a new context with toolApprovedKey set to true
 func WithToolApproved(ctx context.Context) context.Context {
-	return context.WithValue(ctx, ToolApprovedKey, true)
+	return context.WithValue(ctx, toolApprovedKey, true)
 }
 
 // IsToolApproved checks if the tool was explicitly approved by the user
 // Returns false if the key is not set or if the value is not a bool
 func IsToolApproved(ctx context.Context) bool {
-	val, ok := ctx.Value(ToolApprovedKey).(bool)
+	val, ok := ctx.Value(toolApprovedKey).(bool)
 	return ok && val
 }
 
 // WithUserQuestionsAvailable marks whether a user can answer an
 // AskUserQuestion form in this run (chat TUI or a headless host over stdin).
 func WithUserQuestionsAvailable(ctx context.Context, available bool) context.Context {
-	return context.WithValue(ctx, UserQuestionsAvailableKey, available)
+	return context.WithValue(ctx, userQuestionsAvailableKey, available)
 }
 
 // UserQuestionsAvailable reports whether an AskUserQuestion form can be
 // answered by a user in this run. Defaults to false when unset.
 func UserQuestionsAvailable(ctx context.Context) bool {
-	val, ok := ctx.Value(UserQuestionsAvailableKey).(bool)
+	val, ok := ctx.Value(userQuestionsAvailableKey).(bool)
 	return ok && val
 }
 
 // WithSandboxApprovalAvailable marks whether a user can answer a
 // sandbox-extension prompt in this run.
 func WithSandboxApprovalAvailable(ctx context.Context, available bool) context.Context {
-	return context.WithValue(ctx, SandboxApprovalKey, available)
+	return context.WithValue(ctx, sandboxApprovalKey, available)
 }
 
 // SandboxApprovalAvailable reports whether a sandbox-extension prompt can be
 // answered by a user in this run. Defaults to false when unset.
 func SandboxApprovalAvailable(ctx context.Context) bool {
-	val, ok := ctx.Value(SandboxApprovalKey).(bool)
+	val, ok := ctx.Value(sandboxApprovalKey).(bool)
 	return ok && val
 }
 
@@ -52,15 +52,15 @@ func SandboxApprovalAvailable(ctx context.Context) bool {
 // Direct Execution
 // ========================================
 
-// WithDirectExecution returns a new context with DirectExecutionKey set to true
+// WithDirectExecution returns a new context with directExecutionKey set to true
 func WithDirectExecution(ctx context.Context) context.Context {
-	return context.WithValue(ctx, DirectExecutionKey, true)
+	return context.WithValue(ctx, directExecutionKey, true)
 }
 
 // IsDirectExecution checks if the tool was invoked directly by the user
 // Returns false if the key is not set or if the value is not a bool
 func IsDirectExecution(ctx context.Context) bool {
-	val, ok := ctx.Value(DirectExecutionKey).(bool)
+	val, ok := ctx.Value(directExecutionKey).(bool)
 	return ok && val
 }
 
@@ -73,13 +73,13 @@ func IsDirectExecution(ctx context.Context) bool {
 // config.IsBashCommandAllowed, which picks the per-mode allow-list. The zero
 // value is AgentModeStandard, so a missing mode defaults to standard.
 func WithAgentMode(ctx context.Context, mode AgentMode) context.Context {
-	return context.WithValue(ctx, AgentModeKey, mode)
+	return context.WithValue(ctx, agentModeKey, mode)
 }
 
 // AgentModeFromContext returns the agent mode stored in ctx and whether it was
 // present. When absent, callers should default to AgentModeStandard.
 func AgentModeFromContext(ctx context.Context) (AgentMode, bool) {
-	mode, ok := ctx.Value(AgentModeKey).(AgentMode)
+	mode, ok := ctx.Value(agentModeKey).(AgentMode)
 	return mode, ok
 }
 
@@ -89,13 +89,13 @@ func AgentModeFromContext(ctx context.Context) (AgentMode, bool) {
 
 // WithBashOutputCallback returns a new context with a bash output streaming callback
 func WithBashOutputCallback(ctx context.Context, callback BashOutputCallback) context.Context {
-	return context.WithValue(ctx, BashOutputCallbackKey, callback)
+	return context.WithValue(ctx, bashOutputCallbackKey, callback)
 }
 
 // GetBashOutputCallback retrieves the bash output callback from context
 // Returns nil if the key is not set or if the value is not a BashOutputCallback
 func GetBashOutputCallback(ctx context.Context) BashOutputCallback {
-	callback, _ := ctx.Value(BashOutputCallbackKey).(BashOutputCallback)
+	callback, _ := ctx.Value(bashOutputCallbackKey).(BashOutputCallback)
 	return callback
 }
 
@@ -106,14 +106,14 @@ func HasBashOutputCallback(ctx context.Context) bool {
 
 // WithToolProgressCallback returns a new context carrying a tool progress callback
 func WithToolProgressCallback(ctx context.Context, callback ToolProgressCallback) context.Context {
-	return context.WithValue(ctx, ToolProgressCallbackKey, callback)
+	return context.WithValue(ctx, toolProgressCallbackKey, callback)
 }
 
 // GetToolProgressCallback retrieves the tool progress callback from context.
 // Returns nil if the key is not set or holds another type, so callers guard
 // with a nil check rather than assuming a reporter is always present.
 func GetToolProgressCallback(ctx context.Context) ToolProgressCallback {
-	callback, _ := ctx.Value(ToolProgressCallbackKey).(ToolProgressCallback)
+	callback, _ := ctx.Value(toolProgressCallbackKey).(ToolProgressCallback)
 	return callback
 }
 
@@ -123,13 +123,13 @@ func GetToolProgressCallback(ctx context.Context) ToolProgressCallback {
 
 // WithBashDetachChannel returns a new context with a bash detach signal channel
 func WithBashDetachChannel(ctx context.Context, ch <-chan struct{}) context.Context {
-	return context.WithValue(ctx, BashDetachChannelKey, ch)
+	return context.WithValue(ctx, bashDetachChannelKey, ch)
 }
 
 // GetBashDetachChannel retrieves the bash detach channel from context
 // Returns nil if the key is not set or if the value is not a channel
 func GetBashDetachChannel(ctx context.Context) <-chan struct{} {
-	ch, _ := ctx.Value(BashDetachChannelKey).(<-chan struct{})
+	ch, _ := ctx.Value(bashDetachChannelKey).(<-chan struct{})
 	return ch
 }
 
@@ -144,19 +144,14 @@ func HasBashDetachChannel(ctx context.Context) bool {
 
 // WithChatHandler returns a new context with a ChatHandler reference
 func WithChatHandler(ctx context.Context, handler BashDetachChannelHolder) context.Context {
-	return context.WithValue(ctx, ChatHandlerKey, handler)
+	return context.WithValue(ctx, chatHandlerKey, handler)
 }
 
 // GetChatHandler retrieves the ChatHandler from context
 // Returns nil if the key is not set or if the value is not a BashDetachChannelHolder
 func GetChatHandler(ctx context.Context) BashDetachChannelHolder {
-	handler, _ := ctx.Value(ChatHandlerKey).(BashDetachChannelHolder)
+	handler, _ := ctx.Value(chatHandlerKey).(BashDetachChannelHolder)
 	return handler
-}
-
-// HasChatHandler checks if a ChatHandler is set in the context
-func HasChatHandler(ctx context.Context) bool {
-	return GetChatHandler(ctx) != nil
 }
 
 // ========================================
@@ -165,52 +160,47 @@ func HasChatHandler(ctx context.Context) bool {
 
 // WithSessionID returns a new context with a session ID
 func WithSessionID(ctx context.Context, sessionID string) context.Context {
-	return context.WithValue(ctx, SessionIDKey, sessionID)
+	return context.WithValue(ctx, sessionIDKey, sessionID)
 }
 
 // WithModel returns a new context carrying the model in effect for the current
 // agent turn. The Agent tool reads it so subagents inherit the parent's model.
 func WithModel(ctx context.Context, model string) context.Context {
-	return context.WithValue(ctx, ModelKey, model)
+	return context.WithValue(ctx, modelKey, model)
 }
 
 // GetModel retrieves the model from the context, or "" if not set.
 func GetModel(ctx context.Context) string {
-	model, _ := ctx.Value(ModelKey).(string)
+	model, _ := ctx.Value(modelKey).(string)
 	return model
 }
 
 // GetSessionID retrieves the session ID from context
 // Returns empty string if the key is not set or if the value is not a string
 func GetSessionID(ctx context.Context) string {
-	sessionID, _ := ctx.Value(SessionIDKey).(string)
+	sessionID, _ := ctx.Value(sessionIDKey).(string)
 	return sessionID
-}
-
-// HasSessionID checks if a session ID is set in the context
-func HasSessionID(ctx context.Context) bool {
-	return GetSessionID(ctx) != ""
 }
 
 // WithToolCallID returns a new context with the LLM tool call id
 func WithToolCallID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, ToolCallIDKey, id)
+	return context.WithValue(ctx, toolCallIDKey, id)
 }
 
 // GetToolCallID retrieves the tool call id from context
 func GetToolCallID(ctx context.Context) string {
-	id, _ := ctx.Value(ToolCallIDKey).(string)
+	id, _ := ctx.Value(toolCallIDKey).(string)
 	return id
 }
 
 // WithTraceEnv returns a new context with the subprocess trace environment
 func WithTraceEnv(ctx context.Context, env []string) context.Context {
-	return context.WithValue(ctx, TraceEnvKey, env)
+	return context.WithValue(ctx, traceEnvKey, env)
 }
 
 // GetTraceEnv retrieves the subprocess trace environment from context
 func GetTraceEnv(ctx context.Context) []string {
-	env, _ := ctx.Value(TraceEnvKey).([]string)
+	env, _ := ctx.Value(traceEnvKey).([]string)
 	return env
 }
 
@@ -222,19 +212,14 @@ func GetTraceEnv(ctx context.Context) []string {
 // question broker used by the AskUserQuestion tool. Injected only on the chat
 // path so headless/no-TTY runs see a nil broker and degrade gracefully.
 func WithUserQuestionBroker(ctx context.Context, broker UserQuestionBroker) context.Context {
-	return context.WithValue(ctx, UserQuestionBrokerKey, broker)
+	return context.WithValue(ctx, userQuestionBrokerKey, broker)
 }
 
 // GetUserQuestionBroker retrieves the question broker from context.
 // Returns nil if the key is not set or the value is not a UserQuestionBroker.
 func GetUserQuestionBroker(ctx context.Context) UserQuestionBroker {
-	broker, _ := ctx.Value(UserQuestionBrokerKey).(UserQuestionBroker)
+	broker, _ := ctx.Value(userQuestionBrokerKey).(UserQuestionBroker)
 	return broker
-}
-
-// HasUserQuestionBroker checks if a question broker is set in the context.
-func HasUserQuestionBroker(ctx context.Context) bool {
-	return GetUserQuestionBroker(ctx) != nil
 }
 
 // ========================================
@@ -246,12 +231,12 @@ func HasUserQuestionBroker(ctx context.Context) bool {
 // path so headless/no-TTY runs see a nil gate and the tool degrades with a
 // distinguishable "no approver reachable" result.
 func WithApprovalEscalation(ctx context.Context, gate ApprovalEscalation) context.Context {
-	return context.WithValue(ctx, ApprovalEscalationKey, gate)
+	return context.WithValue(ctx, approvalEscalationKey, gate)
 }
 
 // GetApprovalEscalation retrieves the escalation gate from context.
 // Returns nil if the key is not set or the value is not an ApprovalEscalation.
 func GetApprovalEscalation(ctx context.Context) ApprovalEscalation {
-	gate, _ := ctx.Value(ApprovalEscalationKey).(ApprovalEscalation)
+	gate, _ := ctx.Value(approvalEscalationKey).(ApprovalEscalation)
 	return gate
 }

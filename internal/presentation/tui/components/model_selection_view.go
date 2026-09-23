@@ -11,9 +11,9 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
-	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
@@ -264,7 +264,7 @@ func (m *ModelSelectorImpl) forwardToForm(msg tea.Msg) tea.Cmd {
 	}
 	m.done = true
 	return func() tea.Msg {
-		return tui.ModelSelectedEvent{Model: selectedModel}
+		return agentdomain.ModelSelectedEvent{Model: selectedModel}
 	}
 }
 

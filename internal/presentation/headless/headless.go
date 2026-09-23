@@ -3,7 +3,6 @@ package headless
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -504,37 +503,20 @@ func sessionOutcome(err error) string {
 	}
 }
 
-// writeResultFile atomically writes the run's outcome and final assistant
-// message to path, for a parent Agent tool to harvest - on failure too, so
-// the parent gets the partial answer and error detail instead of silence.
+// writeResultFile records the run's outcome and final assistant message at
+// path for a parent Agent tool to harvest - on failure too, so the parent gets
+// the partial answer and error detail instead of silence.
 func writeResultFile(path string, repo convdomain.ConversationRepository, sessionID string, runErr error) {
-	entries := repo.GetMessages()
-	content := ""
-	for i := len(entries) - 1; i >= 0; i-- {
-		e := entries[i]
-		if e.Message.Role == sdk.Assistant {
-			if c, err := e.Message.Content.AsMessageContent0(); err == nil && c != "" {
-				content = c
-				break
-			}
-		}
-	}
 	rf := scheddomain.SubagentResultFile{
-		FinalAssistant: content,
+		FinalAssistant: convdomain.LastAssistantText(repo.GetMessages()),
 		Success:        runErr == nil,
 		SessionID:      sessionID,
 	}
 	if runErr != nil {
 		rf.Error = runErr.Error()
 	}
-	data, _ := json.Marshal(rf)
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		logger.Warn("failed to write result file", "path", tmp, "error", err)
-		return
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		logger.Warn("failed to rename result file", "path", path, "error", err)
+	if err := scheddomain.WriteSubagentResultFile(path, rf); err != nil {
+		logger.Warn("failed to write result file", "path", path, "error", err)
 	}
 }
 

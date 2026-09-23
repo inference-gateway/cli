@@ -81,58 +81,6 @@ func (c *Coordinator) SetActiveToolCallID(id string) {
 	c.activeToolCallID = id
 }
 
-// HandleToolCallUpdate emits a per-tool-call status update during streaming
-// (e.g. "Streaming Read..." → "Completed Read") and keeps the chat listener
-// pumping.
-func (c *Coordinator) HandleToolCallUpdate(msg agentdomain.ToolCallUpdateEvent) tea.Cmd {
-	cmds := []tea.Cmd{
-		func() tea.Msg {
-			history := c.conversationRepo.GetMessages()
-			return tui.UpdateHistoryEvent{
-				History: history,
-			}
-		},
-	}
-
-	statusMsg := formatToolCallStatusMessage(msg.ToolName, msg.Status)
-
-	switch msg.Status {
-	case agentdomain.ToolCallStreamStatusStreaming:
-		cmds = append(cmds, func() tea.Msg {
-			return tui.UpdateStatusEvent{
-				Message:    statusMsg,
-				StatusType: tui.StatusWorking,
-				ToolName:   msg.ToolName,
-			}
-		})
-	default:
-		cmds = append(cmds, func() tea.Msg {
-			return tui.SetStatusEvent{
-				Message:    statusMsg,
-				Spinner:    false,
-				StatusType: tui.StatusWorking,
-				ToolName:   msg.ToolName,
-			}
-		})
-	}
-
-	return tea.Sequence(cmds...)
-}
-
-// HandleToolCallReady refreshes history when a tool call has finished
-// streaming and is ready for the next step.
-func (c *Coordinator) HandleToolCallReady(_ agentdomain.ToolCallReadyEvent) tea.Cmd {
-	cmds := []tea.Cmd{
-		func() tea.Msg {
-			history := c.conversationRepo.GetMessages()
-			return tui.UpdateHistoryEvent{
-				History: history,
-			}
-		},
-	}
-	return tea.Sequence(cmds...)
-}
-
 // HandleToolApprovalRequested records the pending tool call in the repo,
 // sets up the approval UI state, broadcasts a notification, and keeps the
 // chat listener pumping while the user decides.
@@ -443,17 +391,6 @@ func (c *Coordinator) updateToolApprovalStatus(action agentdomain.ApprovalAction
 	}
 	logger.Info("updating tool approval status")
 	updater.UpdateToolApprovalStatus(action)
-}
-
-func formatToolCallStatusMessage(toolName string, status agentdomain.ToolCallStreamStatus) string {
-	switch status {
-	case agentdomain.ToolCallStreamStatusStreaming:
-		return fmt.Sprintf("Streaming %s...", toolName)
-	case agentdomain.ToolCallStreamStatusComplete:
-		return fmt.Sprintf("Completed %s", toolName)
-	default:
-		return ""
-	}
 }
 
 // extractTodoUpdateCmd checks tool results for TodoWrite and returns a

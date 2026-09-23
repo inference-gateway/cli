@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 )
 
 func makeZip(t *testing.T, files map[string]string) []byte {
@@ -32,7 +34,7 @@ func makeZip(t *testing.T, files map[string]string) []byte {
 	return buf.Bytes()
 }
 
-func newTestPoller(t *testing.T, runner CommandRunner) *ArtifactPoller {
+func newTestPoller(t *testing.T, runner githubsetup.CommandRunner) *ArtifactPoller {
 	t.Helper()
 	dir := t.TempDir()
 	p, err := NewArtifactPoller(ArtifactPollerOptions{

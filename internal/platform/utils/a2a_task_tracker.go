@@ -402,23 +402,3 @@ func (t *A2ATaskTrackerImpl) GetPollingTasksForContext(contextID string) []strin
 
 	return pollingTasks
 }
-
-// GetAllPollingTasks returns all task IDs that are currently being polled
-func (t *A2ATaskTrackerImpl) GetAllPollingTasks() []string {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	taskIDs := make([]string, 0)
-
-	for _, agent := range t.agents {
-		for _, ctx := range agent.Contexts {
-			for _, task := range ctx.Tasks {
-				if task.IsPolling {
-					taskIDs = append(taskIDs, task.TaskID)
-				}
-			}
-		}
-	}
-
-	return taskIDs
-}

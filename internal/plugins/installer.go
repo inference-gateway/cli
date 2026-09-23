@@ -2,25 +2,14 @@ package plugins
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	skills "github.com/inference-gateway/cli/internal/skills"
-)
-
-const (
-	githubAPIBase    = "https://api.github.com"
-	githubRawBase    = "https://raw.githubusercontent.com"
-	installerTimeout = 30 * time.Second
-	installerUA      = "inference-gateway-cli"
 )
 
 // mappedPrefixes is the content subset a plugin install materializes on disk.
@@ -53,37 +42,17 @@ type InstallResult struct {
 	Unsupported     map[string]int
 }
 
-// Installer downloads the mapped subset of a plugin repo from GitHub.
-// Tests substitute APIBase / RawBase with httptest servers.
+// Installer downloads the mapped subset of a plugin repo from GitHub, reusing
+// the skills installer's tree listing and raw download. Tests substitute
+// APIBase / RawBase with httptest servers.
 type Installer struct {
-	Client  *http.Client
-	APIBase string
-	RawBase string
-	Token   string
+	skills.Installer
 }
 
 // NewInstaller returns an Installer pointed at github.com, authenticated via
 // GITHUB_TOKEN / GH_TOKEN when set.
 func NewInstaller() *Installer {
-	return &Installer{
-		Client:  &http.Client{Timeout: installerTimeout},
-		APIBase: githubAPIBase,
-		RawBase: githubRawBase,
-		Token:   githubToken(),
-	}
-}
-
-func githubToken() string {
-	if t := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); t != "" {
-		return t
-	}
-	return strings.TrimSpace(os.Getenv("GH_TOKEN"))
-}
-
-func (i *Installer) setAuth(req *http.Request) {
-	if i.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+i.Token)
-	}
+	return &Installer{Installer: *skills.NewInstaller("")}
 }
 
 // isMapped reports whether a repo-relative slash path belongs to the installed subset.
@@ -130,14 +99,15 @@ func (i *Installer) Stage(ctx context.Context, src Source, stagingDir string) (m
 }
 
 func (i *Installer) stageGitHub(ctx context.Context, src Source, stagingDir string) (map[string]int, error) {
-	tree, err := i.fetchTree(ctx, src)
+	loc := &skills.GitHubLocation{Owner: src.Owner, Repo: src.Repo, Ref: src.EffectiveRef()}
+	tree, err := i.FetchTree(ctx, loc)
 	if err != nil {
 		return nil, err
 	}
 
 	unsupported := map[string]int{}
 	var files []string
-	for _, e := range tree.Tree {
+	for _, e := range tree {
 		if e.Type != "blob" {
 			continue
 		}
@@ -158,7 +128,7 @@ func (i *Installer) stageGitHub(ctx context.Context, src Source, stagingDir stri
 		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
 			return nil, fmt.Errorf("failed to create dir for %s: %w", repoPath, err)
 		}
-		if err := i.downloadFile(ctx, src, repoPath, outPath); err != nil {
+		if err := i.DownloadFile(ctx, loc, repoPath, outPath); err != nil {
 			return nil, err
 		}
 	}
@@ -330,85 +300,4 @@ func Uninstall(name, root string) (string, error) {
 		return dir, fmt.Errorf("failed to remove %s: %w", dir, err)
 	}
 	return dir, nil
-}
-
-type treeEntry struct {
-	Path string `json:"path"`
-	Type string `json:"type"`
-}
-
-type treeResponse struct {
-	Tree      []treeEntry `json:"tree"`
-	Truncated bool        `json:"truncated"`
-}
-
-func (i *Installer) fetchTree(ctx context.Context, src Source) (*treeResponse, error) {
-	apiURL := fmt.Sprintf("%s/repos/%s/%s/git/trees/%s?recursive=1", i.APIBase, src.Owner, src.Repo, src.EffectiveRef())
-	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tree request: %w", err)
-	}
-	req.Header.Set("User-Agent", installerUA)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	i.setAuth(req)
-
-	resp, err := i.Client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch tree: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-	case http.StatusNotFound:
-		return nil, fmt.Errorf("repository or ref not found: %s/%s @ %s", src.Owner, src.Repo, src.EffectiveRef())
-	case http.StatusForbidden:
-		if i.Token == "" {
-			return nil, fmt.Errorf("GitHub API rate limit exceeded (60 req/hour for unauthenticated requests) - set GITHUB_TOKEN (or GH_TOKEN) to raise the limit to 5,000/hour, or try again later")
-		}
-		return nil, fmt.Errorf("GitHub API request forbidden (403) for %s/%s - the token may lack access or a secondary rate limit was hit; try again later", src.Owner, src.Repo)
-	default:
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	var tree treeResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tree); err != nil {
-		return nil, fmt.Errorf("failed to parse tree response: %w", err)
-	}
-	if tree.Truncated {
-		return nil, fmt.Errorf("repository tree was truncated by GitHub (repo too large) - cannot reliably install")
-	}
-	return &tree, nil
-}
-
-func (i *Installer) downloadFile(ctx context.Context, src Source, repoPath, outPath string) error {
-	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", i.RawBase, src.Owner, src.Repo, src.EffectiveRef(), repoPath)
-	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create request for %s: %w", repoPath, err)
-	}
-	req.Header.Set("User-Agent", installerUA)
-	i.setAuth(req)
-
-	resp, err := i.Client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to download %s: %w", repoPath, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to download %s: status %d", repoPath, resp.StatusCode)
-	}
-
-	f, err := os.Create(outPath)
-	if err != nil {
-		return fmt.Errorf("failed to create %s: %w", outPath, err)
-	}
-	defer func() { _ = f.Close() }()
-
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		return fmt.Errorf("failed to write %s: %w", outPath, err)
-	}
-	return nil
 }

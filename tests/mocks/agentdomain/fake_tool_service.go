@@ -38,16 +38,6 @@ type FakeToolService struct {
 		result1 *domain.ToolExecutionResult
 		result2 error
 	}
-	GetA2ATaskTrackerStub        func() domain.A2ATaskTracker
-	getA2ATaskTrackerMutex       sync.RWMutex
-	getA2ATaskTrackerArgsForCall []struct {
-	}
-	getA2ATaskTrackerReturns struct {
-		result1 domain.A2ATaskTracker
-	}
-	getA2ATaskTrackerReturnsOnCall map[int]struct {
-		result1 domain.A2ATaskTracker
-	}
 	GetToolStub        func(string) (domain.Tool, error)
 	getToolMutex       sync.RWMutex
 	getToolArgsForCall []struct {
@@ -247,59 +237,6 @@ func (fake *FakeToolService) ExecuteToolDirectReturnsOnCall(i int, result1 *doma
 		result1 *domain.ToolExecutionResult
 		result2 error
 	}{result1, result2}
-}
-
-func (fake *FakeToolService) GetA2ATaskTracker() domain.A2ATaskTracker {
-	fake.getA2ATaskTrackerMutex.Lock()
-	ret, specificReturn := fake.getA2ATaskTrackerReturnsOnCall[len(fake.getA2ATaskTrackerArgsForCall)]
-	fake.getA2ATaskTrackerArgsForCall = append(fake.getA2ATaskTrackerArgsForCall, struct {
-	}{})
-	stub := fake.GetA2ATaskTrackerStub
-	fakeReturns := fake.getA2ATaskTrackerReturns
-	fake.recordInvocation("GetA2ATaskTracker", []interface{}{})
-	fake.getA2ATaskTrackerMutex.Unlock()
-	if stub != nil {
-		return stub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeToolService) GetA2ATaskTrackerCallCount() int {
-	fake.getA2ATaskTrackerMutex.RLock()
-	defer fake.getA2ATaskTrackerMutex.RUnlock()
-	return len(fake.getA2ATaskTrackerArgsForCall)
-}
-
-func (fake *FakeToolService) GetA2ATaskTrackerCalls(stub func() domain.A2ATaskTracker) {
-	fake.getA2ATaskTrackerMutex.Lock()
-	defer fake.getA2ATaskTrackerMutex.Unlock()
-	fake.GetA2ATaskTrackerStub = stub
-}
-
-func (fake *FakeToolService) GetA2ATaskTrackerReturns(result1 domain.A2ATaskTracker) {
-	fake.getA2ATaskTrackerMutex.Lock()
-	defer fake.getA2ATaskTrackerMutex.Unlock()
-	fake.GetA2ATaskTrackerStub = nil
-	fake.getA2ATaskTrackerReturns = struct {
-		result1 domain.A2ATaskTracker
-	}{result1}
-}
-
-func (fake *FakeToolService) GetA2ATaskTrackerReturnsOnCall(i int, result1 domain.A2ATaskTracker) {
-	fake.getA2ATaskTrackerMutex.Lock()
-	defer fake.getA2ATaskTrackerMutex.Unlock()
-	fake.GetA2ATaskTrackerStub = nil
-	if fake.getA2ATaskTrackerReturnsOnCall == nil {
-		fake.getA2ATaskTrackerReturnsOnCall = make(map[int]struct {
-			result1 domain.A2ATaskTracker
-		})
-	}
-	fake.getA2ATaskTrackerReturnsOnCall[i] = struct {
-		result1 domain.A2ATaskTracker
-	}{result1}
 }
 
 func (fake *FakeToolService) GetTool(arg1 string) (domain.Tool, error) {

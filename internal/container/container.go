@@ -43,7 +43,6 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-	a2acoord "github.com/inference-gateway/cli/internal/presentation/tui/a2acoord"
 	approvalcoord "github.com/inference-gateway/cli/internal/presentation/tui/approvalcoord"
 	chatcompletion "github.com/inference-gateway/cli/internal/presentation/tui/chatcompletion"
 	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
@@ -141,7 +140,6 @@ type ServiceContainer struct {
 	// Constructed unconditionally; A2A-specific deps inside the
 	// services are nil-safe when A2A is disabled.
 	chatEventListener        tui.ChatEventListener
-	a2aTaskCoordinator       tui.A2ATaskCoordinator
 	approvalCoordinator      tui.ApprovalCoordinator
 	chatCompletionRunner     *chatcompletion.Runner
 	directExecutionService   tui.DirectExecutionService
@@ -621,12 +619,6 @@ func (c *ServiceContainer) initializeServices() {
 func (c *ServiceContainer) initializeChatOrchestrationServices() {
 	c.chatEventListener = eventlistener.NewService()
 
-	c.a2aTaskCoordinator = a2acoord.NewService(a2acoord.Options{
-		ConversationRepo:     c.conversationRepo,
-		StateManager:         c.stateManager,
-		TaskRetentionService: c.taskRetentionService,
-	})
-
 	c.approvalCoordinator = approvalcoord.NewService(approvalcoord.Options{
 		AgentService:     c.agent,
 		ConversationRepo: c.conversationRepo,
@@ -863,11 +855,6 @@ func (c *ServiceContainer) GetBackgroundTaskService() scheddomain.BackgroundTask
 // GetMCPManager returns the MCP manager (may be nil if MCP is not enabled)
 func (c *ServiceContainer) GetMCPManager() agentdomain.MCPManager {
 	return c.mcpManager
-}
-
-// GetA2ATaskCoordinator returns the A2A task lifecycle event coordinator.
-func (c *ServiceContainer) GetA2ATaskCoordinator() tui.A2ATaskCoordinator {
-	return c.a2aTaskCoordinator
 }
 
 // GetApprovalCoordinator returns the plan-approval / computer-use pause-resume
