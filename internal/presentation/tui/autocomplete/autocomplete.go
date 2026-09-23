@@ -1080,7 +1080,6 @@ var (
 
 // highlightMatches bolds and underlines the fuzzy-matched bytes of text in
 // padded, keeping the row's foreground color.
-// ponytail: skipped when PadText truncated the row, since offsets no longer line up.
 func highlightMatches(text, padded string, matches []int) string {
 	if len(matches) == 0 || !strings.HasPrefix(padded, text) {
 		return padded
