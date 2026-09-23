@@ -317,15 +317,11 @@ func (c *ServiceContainer) initializeAgentManager() {
 		return
 	}
 
-	agentCount := 0
+	agentCount := len(agentapp.ExternalAgents(c.config, agentsConfig))
 	for _, agent := range agentsConfig.Agents {
 		if agent.Run {
 			agentCount++
 		}
-	}
-
-	if len(c.config.A2A.Agents) > 0 {
-		agentCount += len(c.config.A2A.Agents)
 	}
 
 	if agentCount > 0 {

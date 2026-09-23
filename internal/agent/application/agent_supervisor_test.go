@@ -235,6 +235,21 @@ func TestSetURLPort(t *testing.T) {
 	}
 }
 
+func TestExternalAgents(t *testing.T) {
+	agents := &config.AgentsConfig{Agents: []config.AgentEntry{
+		{Name: "remote-agent", URL: "http://localhost:8081", Run: false},
+		{Name: "local-agent", URL: "http://localhost:8082", Run: true},
+	}}
+
+	require.Equal(t, map[string]string{"remote-agent": "http://localhost:8081"},
+		ExternalAgents(&config.Config{}, agents))
+
+	cfg := &config.Config{}
+	cfg.A2A.Agents = []string{"http://env-agent:8080"}
+	require.Equal(t, map[string]string{"env-agent": "http://env-agent:8080"},
+		ExternalAgents(cfg, agents))
+}
+
 func TestAgentManager_WaitForAgentsReady(t *testing.T) {
 	am := NewAgentSupervisor("session", &config.Config{}, &config.AgentsConfig{}, nil, nil)
 
