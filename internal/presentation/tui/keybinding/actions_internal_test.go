@@ -275,6 +275,16 @@ func TestTextareaKeyFlowPrintableIsInsertedOnce(t *testing.T) {
 	assertAutocompleteEventText(t, inputCmd, "a")
 }
 
+func TestTextareaKeyFlowAltEscIsNotTyped(t *testing.T) {
+	ctx, input := newTextareaEditTestCtx(t)
+	keyMsg := tea.KeyPressMsg{Code: tea.KeyEscape, Mod: tea.ModAlt} // Esc pressed twice quickly
+	NewKeyBindingManager(ctx, nil).ProcessKey(keyMsg)
+	model, _ := input.Update(keyMsg)
+	if got := model.(*components.InputView).GetInput(); got != "" {
+		t.Fatalf("unbound chord must not insert its key name, got %q", got)
+	}
+}
+
 func TestTextareaKeyFlowBackspaceIsHandledByTextarea(t *testing.T) {
 	ctx, input := newTextareaEditTestCtx(t)
 	manager := NewKeyBindingManager(ctx, nil)
