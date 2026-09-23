@@ -167,6 +167,49 @@ func TestRenderAGUI_QueuedNoteSplitsAssistantTurns(t *testing.T) {
 	}
 }
 
+// queuedNoteTurns is a headless run that waited on a background job: the first
+// turn ends without a ChatCompleteEvent, then the job's note is drained.
+func queuedNoteTurns(note string) <-chan agentdomain.ChatEvent {
+	return stream(
+		agentdomain.ChatChunkEvent{Content: "submitted, waiting"},
+		agentdomain.MessageQueuedEvent{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(note)}},
+		agentdomain.ChatChunkEvent{Content: "it finished"},
+		agentdomain.ChatCompleteEvent{},
+	)
+}
+
+func TestRenderJSON_QueuedNoteSplitsAssistantTurns(t *testing.T) {
+	var out strings.Builder
+	note := "[A2A Task Completed: x]\n\nok"
+	if err := RenderJSON(queuedNoteTurns(note), &out, nil, nil, "session-1", "", nil, &convmocks.FakeConversationRepository{}); err != nil {
+		t.Fatalf("RenderJSON() err = %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")[1:]
+	want := [][2]string{{"assistant", "submitted, waiting"}, {"user", note}, {"assistant", "it finished"}}
+	if len(lines) != len(want) {
+		t.Fatalf("got %d message lines, want %d\n%s", len(lines), len(want), out.String())
+	}
+	for i, line := range lines {
+		var msg map[string]any
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			t.Fatalf("line %d is not JSON: %v", i, err)
+		}
+		if msg["role"] != want[i][0] || msg["content"] != want[i][1] {
+			t.Errorf("line %d = %v/%q, want %v/%q", i, msg["role"], msg["content"], want[i][0], want[i][1])
+		}
+	}
+}
+
+func TestRenderText_QueuedNoteSplitsTurns(t *testing.T) {
+	var out strings.Builder
+	if err := RenderText(queuedNoteTurns("note"), &out); err != nil {
+		t.Fatalf("RenderText() err = %v", err)
+	}
+	if got := out.String(); got != "submitted, waiting\nit finished\n" {
+		t.Fatalf("RenderText() output = %q, want one line per turn", got)
+	}
+}
+
 func TestAgentStartupEmitter(t *testing.T) {
 	var out strings.Builder
 	emit := AgentStartupEmitter(&out, "ag-ui")

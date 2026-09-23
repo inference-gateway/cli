@@ -107,6 +107,13 @@ func toolContent(r *agentdomain.ToolExecutionResult) string {
 	return detail
 }
 
+// queuedNote returns the text of a drained queue message worth rendering: a
+// background-job note, not the echo of a user message sent over IPC.
+func queuedNote(e agentdomain.MessageQueuedEvent) (string, bool) {
+	content, err := e.Message.Content.AsMessageContent0()
+	return content, err == nil && content != "" && e.RequestID != ipc.UserMessageRequestID
+}
+
 // completionErr maps a terminal event to the error the command should return:
 // ErrMaxTurnsReached for a turn-limit completion (exit code 2), nil otherwise.
 func completionErr(e agentdomain.ChatCompleteEvent) error {
@@ -250,6 +257,14 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 			if err := completionErr(e); err != nil {
 				runErr = err
 			}
+		case agentdomain.MessageQueuedEvent:
+			if note, ok := queuedNote(e); ok {
+				if msg := assistantMessage(agentdomain.ChatCompleteEvent{Timestamp: e.Timestamp}, content.String()); msg != nil {
+					emit(msg)
+				}
+				content.Reset()
+				emit(map[string]any{"role": e.Message.Role, "content": note, "timestamp": e.Timestamp})
+			}
 		case agentdomain.ToolExecutionCompletedEvent:
 			for _, r := range e.Results {
 				if r != nil {
@@ -316,6 +331,11 @@ func RenderText(events <-chan agentdomain.ChatEvent, w io.Writer) error {
 			}
 			if err := completionErr(e); err != nil {
 				runErr = err
+			}
+		case agentdomain.MessageQueuedEvent:
+			if printed {
+				_, _ = fmt.Fprintln(w)
+				printed = false
 			}
 		case agentdomain.ChatErrorEvent:
 			runErr = fmt.Errorf("agent error: %w", e.Error)
@@ -387,8 +407,8 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 			}
 			snapshot()
 		case agentdomain.MessageQueuedEvent:
-			if content, err := ev.Message.Content.AsMessageContent0(); err == nil && content != "" && ev.RequestID != ipc.UserMessageRequestID {
-				e.emitQueuedMessage(content)
+			if note, ok := queuedNote(ev); ok {
+				e.emitQueuedMessage(note)
 			}
 			snapshot()
 		case agentdomain.TodoUpdateChatEvent:
