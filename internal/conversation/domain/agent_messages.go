@@ -1,11 +1,9 @@
-package conversation
+package domain
 
 import (
 	"strings"
 
 	sdk "github.com/inference-gateway/sdk"
-
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // BuildAgentMessagesFromEntries converts conversation entries into the flat
@@ -14,7 +12,7 @@ import (
 // Plan and bash entries carry no reasoning_content, which thinking-mode providers
 // reject with HTTP 400; a placeholder between an assistant tool_calls message and
 // its tool response breaks provider adjacency.
-func BuildAgentMessagesFromEntries(entries []convdomain.ConversationEntry) []sdk.Message {
+func BuildAgentMessagesFromEntries(entries []ConversationEntry) []sdk.Message {
 	messages := make([]sdk.Message, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsPlan {
@@ -40,7 +38,7 @@ func BuildAgentMessagesFromEntries(entries []convdomain.ConversationEntry) []sdk
 // isUserInitiatedBashEntry reports whether the entry was synthesized for a
 // user-typed `!command` shortcut. Tool-call IDs created by that path are
 // prefixed with `user-bash-` (see DirectExecutionService).
-func isUserInitiatedBashEntry(entry convdomain.ConversationEntry) bool {
+func isUserInitiatedBashEntry(entry ConversationEntry) bool {
 	const userBashPrefix = "user-bash-"
 
 	if entry.Message.ToolCallID != nil && strings.HasPrefix(*entry.Message.ToolCallID, userBashPrefix) {

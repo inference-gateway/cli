@@ -9,6 +9,7 @@ import (
 
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 func startShell(t *testing.T, id, name string, args ...string) *scheddomain.BackgroundShell {
@@ -62,7 +63,7 @@ func isTerminal(sup *Supervisor, id string) bool {
 // the process has already exited - otherwise Wait closes the pipes mid-drain and
 // truncates trailing output.
 func TestShellJob_WaitsForReadersDoneBeforeReaping(t *testing.T) {
-	tracker := utils.NewShellTracker(10)
+	tracker := schedinfra.NewShellTracker(10)
 	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
@@ -92,7 +93,7 @@ func TestShellJob_WaitsForReadersDoneBeforeReaping(t *testing.T) {
 // Wind(WindStop) must still reap the job via ctx cancellation rather than
 // wedging Run - which would also hang Supervisor.Stop().
 func TestShellJob_WindStopUnblocksReadersWait(t *testing.T) {
-	tracker := utils.NewShellTracker(10)
+	tracker := schedinfra.NewShellTracker(10)
 	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
@@ -112,7 +113,7 @@ func TestShellJob_WindStopUnblocksReadersWait(t *testing.T) {
 }
 
 func TestShellJob_CompletesAndNotifies(t *testing.T) {
-	tracker := utils.NewShellTracker(10)
+	tracker := schedinfra.NewShellTracker(10)
 	queue := &convmocks.FakeMessageQueue{}
 	sup := NewSupervisor(queue, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
@@ -133,7 +134,7 @@ func TestShellJob_CompletesAndNotifies(t *testing.T) {
 }
 
 func TestShellJob_FailureRecordsExitCode(t *testing.T) {
-	tracker := utils.NewShellTracker(10)
+	tracker := schedinfra.NewShellTracker(10)
 	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
@@ -150,7 +151,7 @@ func TestShellJob_FailureRecordsExitCode(t *testing.T) {
 }
 
 func TestShellJob_WindStopCancels(t *testing.T) {
-	tracker := utils.NewShellTracker(10)
+	tracker := schedinfra.NewShellTracker(10)
 	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 

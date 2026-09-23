@@ -20,6 +20,7 @@ import (
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conv "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
@@ -266,6 +267,9 @@ func TestNewAgentService(t *testing.T) {
 		nil,
 		fakeStateManager,
 		120,
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -1544,7 +1548,7 @@ func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
 
 	body, err := conversation[2].Content.AsMessageContent0()
 	require.NoError(t, err)
-	assert.Equal(t, conv.CancelledToolResponseContent, body)
+	assert.Equal(t, convdomain.CancelledToolResponseContent, body)
 
 	close(eventCh)
 	var cancelled []agentdomain.ToolCancelledEvent
@@ -1579,7 +1583,7 @@ func TestAgentServiceImpl_BatchDrainQueue_IdempotentOnRepairedConversation(t *te
 	conversation := []sdk.Message{
 		{Role: sdk.User, Content: sdk.NewMessageContent("u1")},
 		{Role: sdk.Assistant, Content: sdk.NewMessageContent(""), ToolCalls: &toolCalls},
-		{Role: sdk.Tool, Content: sdk.NewMessageContent(conv.CancelledToolResponseContent), ToolCallID: &idA},
+		{Role: sdk.Tool, Content: sdk.NewMessageContent(convdomain.CancelledToolResponseContent), ToolCallID: &idA},
 	}
 
 	queue := conv.NewMessageQueueService()

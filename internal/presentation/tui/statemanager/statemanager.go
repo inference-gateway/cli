@@ -164,17 +164,17 @@ func (sm *StateManager) TouchChatActivity() {
 // chatStatusExpectsChunks reports whether the status is one where SSE chunks
 // should be flowing; local tool execution and terminal states are excluded so
 // a long-running tool doesn't read as a stalled connection.
-func chatStatusExpectsChunks(s agentdomain.ChatStatus) bool {
+func chatStatusExpectsChunks(s tui.ChatStatus) bool {
 	switch s {
-	case agentdomain.ChatStatusStarting, agentdomain.ChatStatusThinking, agentdomain.ChatStatusGenerating, agentdomain.ChatStatusReceivingTools:
+	case tui.ChatStatusStarting, tui.ChatStatusThinking, tui.ChatStatusGenerating, tui.ChatStatusReceivingTools:
 		return true
 	}
 	return false
 }
 
-func isTerminalChatStatus(s agentdomain.ChatStatus) bool {
+func isTerminalChatStatus(s tui.ChatStatus) bool {
 	switch s {
-	case agentdomain.ChatStatusIdle, agentdomain.ChatStatusCompleted, agentdomain.ChatStatusError, agentdomain.ChatStatusCancelled:
+	case tui.ChatStatusIdle, tui.ChatStatusCompleted, tui.ChatStatusError, tui.ChatStatusCancelled:
 		return true
 	}
 	return false
@@ -209,7 +209,7 @@ func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-ch
 }
 
 // UpdateChatStatus updates the chat session status with validation
-func (sm *StateManager) UpdateChatStatus(status agentdomain.ChatStatus) error {
+func (sm *StateManager) UpdateChatStatus(status tui.ChatStatus) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -235,7 +235,7 @@ func (sm *StateManager) EndChatSession() {
 }
 
 // GetChatSession returns the current chat session (read-only)
-func (sm *StateManager) GetChatSession() *agentdomain.ChatSession {
+func (sm *StateManager) GetChatSession() *tui.ChatSession {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetChatSession()
@@ -257,7 +257,7 @@ func (sm *StateManager) IsAgentBusy() bool {
 	}
 
 	switch chatSession.Status {
-	case agentdomain.ChatStatusIdle, agentdomain.ChatStatusCompleted, agentdomain.ChatStatusError, agentdomain.ChatStatusCancelled:
+	case tui.ChatStatusIdle, tui.ChatStatusCompleted, tui.ChatStatusError, tui.ChatStatusCancelled:
 		return false
 	default:
 		return true
@@ -269,18 +269,18 @@ func (sm *StateManager) StartToolExecution(toolCalls []sdk.ChatCompletionMessage
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	tools := make([]agentdomain.ToolCall, len(toolCalls))
+	tools := make([]tui.ToolCall, len(toolCalls))
 	for i, tc := range toolCalls {
 		args := make(map[string]any)
 		if tc.Function.Arguments != "" {
 			_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
 		}
 
-		tools[i] = agentdomain.ToolCall{
+		tools[i] = tui.ToolCall{
 			ID:        tc.ID,
 			Name:      tc.Function.Name,
 			Arguments: args,
-			Status:    agentdomain.ToolCallStatusPending,
+			Status:    tui.ToolCallStatusPending,
 			StartTime: time.Now(),
 		}
 	}
@@ -324,7 +324,7 @@ func (sm *StateManager) EndToolExecution() {
 }
 
 // GetToolExecution returns the current tool execution session (read-only)
-func (sm *StateManager) GetToolExecution() *agentdomain.ToolExecutionSession {
+func (sm *StateManager) GetToolExecution() *tui.ToolExecutionSession {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetToolExecution()
@@ -373,7 +373,7 @@ func (sm *StateManager) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessage
 }
 
 // GetApprovalUIState returns the current approval UI state
-func (sm *StateManager) GetApprovalUIState() *agentdomain.ApprovalUIState {
+func (sm *StateManager) GetApprovalUIState() *tui.ApprovalUIState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -406,7 +406,7 @@ func (sm *StateManager) SetupPlanApprovalUIState(planContent, planID string, res
 }
 
 // GetPlanApprovalUIState returns the current plan approval UI state
-func (sm *StateManager) GetPlanApprovalUIState() *agentdomain.PlanApprovalUIState {
+func (sm *StateManager) GetPlanApprovalUIState() *tui.PlanApprovalUIState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
@@ -438,7 +438,7 @@ func (sm *StateManager) SetupUserQuestionUIState(questions []agentdomain.UserQue
 }
 
 // GetUserQuestionUIState returns the current AskUserQuestion form state
-func (sm *StateManager) GetUserQuestionUIState() *agentdomain.UserQuestionUIState {
+func (sm *StateManager) GetUserQuestionUIState() *tui.UserQuestionUIState {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 

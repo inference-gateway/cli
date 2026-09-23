@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // stubTransport replies with a canned response for every request.
@@ -30,7 +28,7 @@ func TestToFileWritesContent(t *testing.T) {
 	dir := t.TempDir()
 	dst := filepath.Join(dir, "model.gguf")
 
-	if err := ToFile(context.Background(), srv.Client(), srv.URL+"/model.gguf", dst, "tts model"); err != nil {
+	if err := ToFile(context.Background(), srv.Client(), srv.URL+"/model.gguf", dst, "tts model", nil); err != nil {
 		t.Fatalf("ToFile: %v", err)
 	}
 	data, err := os.ReadFile(dst)
@@ -61,7 +59,7 @@ func TestToFileRejectsIncompleteDownload(t *testing.T) {
 			Body:          io.NopCloser(strings.NewReader("short")),
 		}, nil
 	})}
-	if err := ToFile(context.Background(), c, "http://x/model.gguf", dst, "tts model"); err == nil {
+	if err := ToFile(context.Background(), c, "http://x/model.gguf", dst, "tts model", nil); err == nil {
 		t.Fatal("expected error when fewer bytes than Content-Length arrive")
 	}
 	if _, err := os.Stat(dst); !os.IsNotExist(err) {
@@ -97,11 +95,11 @@ func TestProgressReaderMessage(t *testing.T) {
 	}
 }
 
-// Without a callback in the context the source reader must pass through
+// Without a callback the source reader must pass through
 // untouched, so headless runs and tests pay nothing for the instrumentation.
 func TestNewProgressReaderWithoutCallbackPassesThrough(t *testing.T) {
 	src := strings.NewReader("data")
-	if got := NewProgressReader(context.Background(), src, "tts model", 4); got != io.Reader(src) {
+	if got := NewProgressReader(src, nil, "tts model", 4); got != io.Reader(src) {
 		t.Error("expected the source reader unwrapped when no progress callback is set")
 	}
 }
@@ -114,12 +112,12 @@ func TestToFileReportsProgress(t *testing.T) {
 	defer srv.Close()
 
 	var reports []string
-	ctx := agentdomain.WithToolProgressCallback(context.Background(), func(message string) {
+	report := func(message string) {
 		reports = append(reports, message)
-	})
+	}
 
 	dst := filepath.Join(t.TempDir(), "model.gguf")
-	if err := ToFile(ctx, srv.Client(), srv.URL+"/model.gguf", dst, "tts model"); err != nil {
+	if err := ToFile(context.Background(), srv.Client(), srv.URL+"/model.gguf", dst, "tts model", report); err != nil {
 		t.Fatalf("ToFile: %v", err)
 	}
 

@@ -18,9 +18,9 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	agentrunner "github.com/inference-gateway/cli/internal/agent/application/agentrunner"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"

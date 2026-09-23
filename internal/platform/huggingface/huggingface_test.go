@@ -44,7 +44,7 @@ func TestEnsureFileCachedMakesNoRequest(t *testing.T) {
 	}
 
 	c := &Client{BaseURL: srv.URL, HTTP: srv.Client()}
-	got, err := c.EnsureFile(context.Background(), Repo{ID: "org/repo"}, "model.bin", dir, "model", true)
+	got, err := c.EnsureFile(context.Background(), Repo{ID: "org/repo"}, "model.bin", dir, "model", true, nil)
 	if err != nil {
 		t.Fatalf("EnsureFile: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestEnsureFileCachedMakesNoRequest(t *testing.T) {
 
 func TestEnsureFileMissingWithoutDownload(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "models")
-	_, err := NewClient().EnsureFile(context.Background(), Repo{ID: "org/repo"}, "model.bin", dir, "model", false)
+	_, err := NewClient().EnsureFile(context.Background(), Repo{ID: "org/repo"}, "model.bin", dir, "model", false, nil)
 	if !errors.Is(err, ErrNotCached) {
 		t.Fatalf("err = %v, want ErrNotCached", err)
 	}
@@ -80,7 +80,7 @@ func TestEnsureFileDownloads(t *testing.T) {
 
 	dir := filepath.Join(t.TempDir(), "models")
 	c := &Client{BaseURL: srv.URL, HTTP: srv.Client()}
-	got, err := c.EnsureFile(context.Background(), Repo{ID: "org/repo"}, "model.bin", dir, "model", true)
+	got, err := c.EnsureFile(context.Background(), Repo{ID: "org/repo"}, "model.bin", dir, "model", true, nil)
 	if err != nil {
 		t.Fatalf("EnsureFile: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestEnsureFileBadStatusLeavesNothingBehind(t *testing.T) {
 
 	dir := t.TempDir()
 	c := &Client{BaseURL: srv.URL, HTTP: srv.Client()}
-	if _, err := c.EnsureFile(context.Background(), Repo{ID: "org/repo"}, "model.bin", dir, "model", true); err == nil {
+	if _, err := c.EnsureFile(context.Background(), Repo{ID: "org/repo"}, "model.bin", dir, "model", true, nil); err == nil {
 		t.Fatal("expected error on non-200 download status")
 	}
 	entries, err := os.ReadDir(dir)

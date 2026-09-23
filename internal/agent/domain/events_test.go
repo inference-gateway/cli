@@ -19,7 +19,6 @@ func TestEventAccessors(t *testing.T) {
 		ChatChunkEvent{RequestID: id, Timestamp: ts},
 		ChatCompleteEvent{RequestID: id, Timestamp: ts},
 		ChatErrorEvent{RequestID: id, Timestamp: ts},
-		ToolCallPreviewEvent{RequestID: id, Timestamp: ts},
 		OptimizationStatusEvent{RequestID: id, Timestamp: ts},
 		MessageQueuedEvent{RequestID: id, Timestamp: ts},
 		ToolApprovalRequestedEvent{RequestID: id, Timestamp: ts},
@@ -27,13 +26,9 @@ func TestEventAccessors(t *testing.T) {
 		ToolCancelledEvent{RequestID: id, Timestamp: ts},
 		ComputerUsePausedEvent{RequestID: id, Timestamp: ts},
 		ComputerUseResumedEvent{RequestID: id, Timestamp: ts},
-		ToolApprovalNotificationEvent{RequestID: id, Timestamp: ts},
 		PlanApprovalRequestedEvent{RequestID: id, Timestamp: ts},
 		UserQuestionRequestedEvent{RequestID: id, Timestamp: ts},
 		ShellDetachedEvent{RequestID: id, Timestamp: ts},
-		NavigateBackInTimeEvent{RequestID: id, Timestamp: ts},
-		MessageHistoryRestoreEvent{RequestID: id, Timestamp: ts},
-		MessageEditSubmitEvent{RequestID: id, Timestamp: ts},
 	}
 	for _, e := range events {
 		if e.GetRequestID() != id || !e.GetTimestamp().Equal(ts) {

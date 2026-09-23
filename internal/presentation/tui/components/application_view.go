@@ -3,7 +3,6 @@ package components
 import (
 	"strings"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
@@ -27,7 +26,7 @@ func NewApplicationViewRenderer(styleProvider *styles.Provider) *ApplicationView
 type ChatInterfaceData struct {
 	Width          int
 	Height         int
-	ToolExecution  *agentdomain.ToolExecutionSession
+	ToolExecution  *tui.ToolExecutionSession
 	QueuedMessages []convdomain.QueuedMessage
 }
 

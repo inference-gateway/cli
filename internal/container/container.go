@@ -26,6 +26,7 @@ import (
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	computer "github.com/inference-gateway/cli/internal/computer"
+	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	clipboardtext "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard/text"
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
@@ -41,6 +42,7 @@ import (
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	plugins "github.com/inference-gateway/cli/internal/plugins"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	approvalcoord "github.com/inference-gateway/cli/internal/presentation/tui/approvalcoord"
@@ -97,7 +99,7 @@ type ServiceContainer struct {
 	gitHubSetupService     agentdomain.GitHubSetupService
 	messageQueue           convdomain.MessageQueue
 	// backgroundTaskRegistry is the single unified tracker for both A2A
-	// tasks and background bash shells. The narrower agentdomain.A2ATaskTracker
+	// tasks and background bash shells. The narrower scheddomain.A2ATaskTracker
 	// and scheddomain.ShellTracker views are accessed via the same instance.
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	jobSupervisor          *jobs.Supervisor
@@ -182,7 +184,7 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 	sessionID := convdomain.GenerateSessionID()
 
 	containerRuntime, err := containerruntime.NewContainerRuntime(
-		sessionID,
+		string(sessionID),
 		containerruntime.RuntimeType(cfg.ContainerRuntime.Type),
 	)
 	if err != nil {
@@ -512,7 +514,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.Timeout,
 		c.conversationOptimizer,
 		c.backgroundTaskRegistry,
-		c.sessionRolloverManager,
+		c.GetSessionRolloverManager(),
+		c.tokenizer,
+		c.hookCommandProvider(),
+		func() string { return plugins.InstructionsBlock(c.config) },
 	)
 	agentImpl.SetMemoryBackend(c.memoryBackend)
 	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
@@ -726,8 +731,27 @@ func (c *ServiceContainer) GetConversationOptimizer() convdomain.ConversationOpt
 	return c.conversationOptimizer
 }
 
-func (c *ServiceContainer) GetSessionRolloverManager() *conversation.SessionRolloverManager {
+// GetSessionRolloverManager returns nil (not a typed nil) when rollover is
+// off, so callers can nil-check the interface.
+func (c *ServiceContainer) GetSessionRolloverManager() convdomain.SessionRollover {
+	if c.sessionRolloverManager == nil {
+		return nil
+	}
 	return c.sessionRolloverManager
+}
+
+// GetTokenEstimator returns the shared tokenizer.
+func (c *ServiceContainer) GetTokenEstimator() convdomain.TokenEstimator {
+	return c.tokenizer
+}
+
+// hookCommandProvider merges enabled plugin hooks into the user's hooks, or
+// returns the user's hooks alone when plugins are off.
+func (c *ServiceContainer) hookCommandProvider() agentdomain.HookCommandProvider {
+	if pluginProvider := plugins.NewPluginHookCommandProvider(c.config); pluginProvider != nil {
+		return pluginProvider
+	}
+	return c.config.Hooks
 }
 
 func (c *ServiceContainer) GetModelService() convdomain.ModelService {
@@ -837,7 +861,7 @@ func (c *ServiceContainer) GetMessageQueue() convdomain.MessageQueue {
 // GetBackgroundTaskRegistry returns the unified background task registry
 // (the single tracker that owns both A2A tasks and background bash shells).
 // Callers that need only the narrower A2A or shell view can use the
-// returned value as a agentdomain.A2ATaskTracker or scheddomain.ShellTracker.
+// returned value as a scheddomain.A2ATaskTracker or scheddomain.ShellTracker.
 func (c *ServiceContainer) GetBackgroundTaskRegistry() scheddomain.BackgroundTaskRegistry {
 	return c.backgroundTaskRegistry
 }
@@ -850,6 +874,23 @@ func (c *ServiceContainer) GetTaskRetentionService() scheddomain.TaskRetentionSe
 // GetBackgroundTaskService returns the background task service (may be nil if A2A is not enabled)
 func (c *ServiceContainer) GetBackgroundTaskService() scheddomain.BackgroundTaskService {
 	return c.backgroundTaskService
+}
+
+// StartScreenshotServer starts the computer-use screenshot streaming server for
+// sessionID and registers it as the "screen" frame source, so GetLatestFrame
+// works in chat and headless alike. Returns nil when streaming is disabled or
+// the server fails to start.
+func (c *ServiceContainer) StartScreenshotServer(sessionID string) *computerinfra.ScreenshotServer {
+	if !c.config.ComputerUse.Enabled || !c.config.ComputerUse.Screenshot.StreamingEnabled {
+		return nil
+	}
+	server := computerinfra.NewScreenshotServer(c.config, c.imageService, sessionID)
+	if err := server.Start(); err != nil {
+		logger.Warn("failed to start screenshot server", "error", err)
+		return nil
+	}
+	c.toolRegistry.RegisterFrameSource("screen", server)
+	return server
 }
 
 // GetMCPManager returns the MCP manager (may be nil if MCP is not enabled)

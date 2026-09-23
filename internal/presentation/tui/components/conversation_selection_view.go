@@ -16,7 +16,6 @@ import (
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
@@ -30,7 +29,7 @@ type ConversationSelectorImpl struct {
 	styleProvider         *styles.Provider
 	done                  bool
 	cancelled             bool
-	repo                  shortcuts.PersistentConversationRepository
+	repo                  convdomain.PersistentConversationRepository
 	searchQuery           string
 	searchMode            bool
 	loading               bool
@@ -43,7 +42,7 @@ type ConversationSelectorImpl struct {
 }
 
 // NewConversationSelector creates a new conversation selector
-func NewConversationSelector(repo shortcuts.PersistentConversationRepository, styleProvider *styles.Provider) *ConversationSelectorImpl {
+func NewConversationSelector(repo convdomain.PersistentConversationRepository, styleProvider *styles.Provider) *ConversationSelectorImpl {
 	c := &ConversationSelectorImpl{
 		conversations:         make([]convdomain.ConversationSummary, 0),
 		filteredConversations: make([]convdomain.ConversationSummary, 0),

@@ -62,13 +62,13 @@ type ChatChannelEvent struct {
 
 // ChatCompletionRequestedEvent resumes chat after asynchronous preparation.
 type ChatCompletionRequestedEvent struct {
-	Session *agentdomain.ChatSession
+	Session *ChatSession
 }
 
 // ChatStreamOpenedEvent returns stream startup to Update, which owns session
 // initialization. Session identifies the originating turn for cancellation.
 type ChatStreamOpenedEvent struct {
-	Session   *agentdomain.ChatSession
+	Session   *ChatSession
 	RequestID string
 	Model     string
 	Events    <-chan agentdomain.ChatEvent

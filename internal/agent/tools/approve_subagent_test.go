@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 func writeTestApprovalFile(t *testing.T, sessionID, summary string) {
@@ -23,7 +23,7 @@ func writeTestApprovalFile(t *testing.T, sessionID, summary string) {
 }
 
 func TestApproveSubagentTool_Validate(t *testing.T) {
-	tool := NewApproveSubagentTool(config.DefaultConfig(), utils.NewSubagentTracker())
+	tool := NewApproveSubagentTool(config.DefaultConfig(), schedinfra.NewSubagentTracker())
 	if err := tool.Validate(map[string]any{"decision": "approve"}); err == nil {
 		t.Fatalf("missing subagent_id should error")
 	}
@@ -52,7 +52,7 @@ func TestApproveSubagentTool_ApproveSendsEnterAndClearsSidecar(t *testing.T) {
 	t.Cleanup(func() { _ = os.Remove(subagentApprovalFilePath(sessionID)) })
 	writeTestApprovalFile(t, sessionID, "Bash rm -rf build")
 
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "s1", Mode: scheddomain.SubagentModeInteractive, PaneID: "%2",
 		SessionID: sessionID, Status: scheddomain.SubagentRunning,
@@ -81,7 +81,7 @@ func TestApproveSubagentTool_ApproveSendsEnterAndClearsSidecar(t *testing.T) {
 }
 
 func TestApproveSubagentTool_RejectSendsEscape(t *testing.T) {
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "s2", Mode: scheddomain.SubagentModeInteractive, PaneID: "%3",
 		SessionID: "sess-reject", Status: scheddomain.SubagentRunning,
@@ -107,7 +107,7 @@ func TestApproveSubagentTool_RejectSendsEscape(t *testing.T) {
 }
 
 func TestApproveSubagentTool_HeadlessFails(t *testing.T) {
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "h1", Mode: scheddomain.SubagentModeHeadless, Status: scheddomain.SubagentRunning,
 	})

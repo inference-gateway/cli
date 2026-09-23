@@ -2,9 +2,8 @@ package domain
 
 import "time"
 
-// All events in this file implement tea.Msg (Bubble Tea's message interface) and are part
-// of the Bubble Tea message system. These events represent chat-specific operations like
-// tool execution and progress tracking.
+// Tool-execution and progress events the agent publishes on its ChatEvent
+// stream.
 
 // BaseChatEvent provides common implementation for ChatEvent interface
 type BaseChatEvent struct {

@@ -10,7 +10,7 @@ import (
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
-func questionStateForTest(questions ...agentdomain.UserQuestion) *agentdomain.UserQuestionUIState {
+func questionStateForTest(questions ...agentdomain.UserQuestion) *tui.UserQuestionUIState {
 	if len(questions) == 0 {
 		questions = []agentdomain.UserQuestion{
 			{
@@ -24,7 +24,7 @@ func questionStateForTest(questions ...agentdomain.UserQuestion) *agentdomain.Us
 			},
 		}
 	}
-	return &agentdomain.UserQuestionUIState{
+	return &tui.UserQuestionUIState{
 		Questions:    questions,
 		ResponseChan: make(chan []agentdomain.UserQuestionAnswer, 1),
 	}
@@ -53,7 +53,7 @@ func drainQuestionForm(v *QuestionFormView, cmd tea.Cmd) {
 	drainQuestionForm(v, v.Forward(msg))
 }
 
-func newQuestionFormForTest(state *agentdomain.UserQuestionUIState) (*QuestionFormView, *tui.ApplicationState) {
+func newQuestionFormForTest(state *tui.UserQuestionUIState) (*QuestionFormView, *tui.ApplicationState) {
 	sm := tui.NewApplicationState()
 	sm.SetupUserQuestionUIState(state.Questions, state.ResponseChan)
 

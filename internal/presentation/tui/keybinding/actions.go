@@ -55,7 +55,7 @@ func defaultActions() []*KeyAction {
 			chatSession := stateManager.GetChatSession()
 			return stateManager.GetPlanApprovalUIState() == nil &&
 				stateManager.GetApprovalUIState() == nil &&
-				(chatSession == nil || chatSession.Status == agentdomain.ChatStatusIdle || chatSession.Status == agentdomain.ChatStatusCompleted)
+				(chatSession == nil || chatSession.Status == tui.ChatStatusIdle || chatSession.Status == tui.ChatStatusCompleted)
 		},
 	}
 
@@ -236,7 +236,7 @@ func handleToggleThinkingExpansion(app KeyHandlerContext, keyMsg tea.KeyPressMsg
 
 func handleBackgroundShell(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return agentdomain.BackgroundShellRequestEvent{}
+		return tui.BackgroundShellRequestEvent{}
 	}
 }
 
@@ -502,7 +502,7 @@ func handleCopy(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 
 func handleGoBackInTime(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return func() tea.Msg {
-		return agentdomain.NavigateBackInTimeEvent{
+		return tui.NavigateBackInTimeEvent{
 			RequestID: "navigate-back-in-time",
 			Timestamp: time.Now(),
 		}
@@ -725,7 +725,7 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 				return tui.RestoreStatusStateEvent{}
 			},
 			func() tea.Msg {
-				return agentdomain.RefreshAutocompleteEvent{}
+				return tui.RefreshAutocompleteEvent{}
 			},
 		)
 	}
@@ -738,7 +738,7 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 			}
 		},
 		func() tea.Msg {
-			return agentdomain.RefreshAutocompleteEvent{}
+			return tui.RefreshAutocompleteEvent{}
 		},
 	)
 }

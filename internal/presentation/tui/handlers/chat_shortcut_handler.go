@@ -11,7 +11,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
@@ -168,7 +167,7 @@ func drainShortcutEvents(events <-chan tea.Msg) tea.Cmd {
 // finishes it.
 func (s *ChatShortcutHandler) runShortcut(ctx context.Context, shortcut shortcuts.Shortcut, args []string) tea.Msg {
 	sessionID := ""
-	if persistentRepo, ok := s.handler.conversationRepo.(*conversation.PersistentConversationRepository); ok {
+	if persistentRepo, ok := s.handler.conversationRepo.(convdomain.PersistentConversationRepository); ok {
 		sessionID = persistentRepo.GetCurrentConversationID()
 		logger.Debug("adding session ID to shortcut context", "session_id", sessionID, "shortcut", shortcut.GetName())
 	} else {

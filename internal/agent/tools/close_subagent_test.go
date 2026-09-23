@@ -8,12 +8,12 @@ import (
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	config "github.com/inference-gateway/cli/config"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 func TestCloseSubagentTool_Validate(t *testing.T) {
-	tool := NewCloseSubagentTool(config.DefaultConfig(), utils.NewSubagentTracker(), nil)
+	tool := NewCloseSubagentTool(config.DefaultConfig(), schedinfra.NewSubagentTracker(), nil)
 	if err := tool.Validate(map[string]any{}); err == nil {
 		t.Fatalf("missing subagent_id should error")
 	}
@@ -24,7 +24,7 @@ func TestCloseSubagentTool_InteractiveKillsAndHarvests(t *testing.T) {
 	t.Cleanup(func() { _ = os.Remove(subagentResultFilePath(sessionID)) })
 	writeTestResultFile(t, sessionID, "final words")
 
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "s1", Label: "w", Mode: scheddomain.SubagentModeInteractive,
 		SessionID: sessionID, PaneID: "%7", Status: scheddomain.SubagentRunning,
@@ -60,7 +60,7 @@ func TestCloseSubagentTool_InteractiveWindsSupervisedJob(t *testing.T) {
 	sessionID := "sess-wind"
 	t.Cleanup(func() { _ = os.Remove(subagentResultFilePath(sessionID)) })
 
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "s1", Mode: scheddomain.SubagentModeInteractive,
 		SessionID: sessionID, PaneID: "%7", Status: scheddomain.SubagentRunning,
@@ -90,7 +90,7 @@ func TestCloseSubagentTool_InteractiveWindsSupervisedJob(t *testing.T) {
 }
 
 func TestCloseSubagentTool_HeadlessCancels(t *testing.T) {
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	cancelled := false
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "h1", Mode: scheddomain.SubagentModeHeadless, Status: scheddomain.SubagentRunning,
@@ -111,7 +111,7 @@ func TestCloseSubagentTool_HeadlessCancels(t *testing.T) {
 }
 
 func TestCloseSubagentTool_NotFound(t *testing.T) {
-	tool := NewCloseSubagentTool(config.DefaultConfig(), utils.NewSubagentTracker(), nil)
+	tool := NewCloseSubagentTool(config.DefaultConfig(), schedinfra.NewSubagentTracker(), nil)
 	res, err := tool.Execute(context.Background(), map[string]any{"subagent_id": "nope"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -127,7 +127,7 @@ func TestCloseSubagentTool_NotFound(t *testing.T) {
 // error banner and, before the renderer fix, a spinner that never stops; a
 // graceful result renders as a normal failed tool entry.
 func TestCloseSubagentTool_EmptyIDIsGracefulFailure(t *testing.T) {
-	tool := NewCloseSubagentTool(config.DefaultConfig(), utils.NewSubagentTracker(), nil)
+	tool := NewCloseSubagentTool(config.DefaultConfig(), schedinfra.NewSubagentTracker(), nil)
 	res, err := tool.Execute(context.Background(), map[string]any{"subagent_id": ""})
 	if err != nil {
 		t.Fatalf("empty subagent_id must not be a hard error, got: %v", err)

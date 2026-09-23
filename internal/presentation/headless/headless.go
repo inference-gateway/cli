@@ -20,9 +20,8 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
-	container "github.com/inference-gateway/cli/internal/container"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	gateway "github.com/inference-gateway/cli/internal/gateway"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
@@ -30,28 +29,35 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // fileRefPattern matches @file references in the task description.
 var fileRefPattern = regexp.MustCompile(`@([^\s]+)`)
 
-// startScreenshotServer starts the screenshot capture server and
-// registers the "screen" frame source so GetLatestFrame is available, exactly
-// as interactive chat does. It logs instead of printing: headless stdout
-// carries the ag-ui/json protocol stream. Returns nil when streaming is off or
-// the server failed to start.
-func startScreenshotServer(cfg *config.Config, svc *container.ServiceContainer, sessionID string) *computerinfra.ScreenshotServer {
-	if !cfg.ComputerUse.Enabled || !cfg.ComputerUse.Screenshot.StreamingEnabled {
-		return nil
-	}
-	screenshotServer := computerinfra.NewScreenshotServer(cfg, svc.GetImageService(), sessionID)
-	if err := screenshotServer.Start(); err != nil {
-		logger.Warn("failed to start screenshot server", "error", err)
-		return nil
-	}
-	svc.GetToolRegistry().RegisterFrameSource("screen", screenshotServer)
-	return screenshotServer
+// Services is the slice of the composition root a headless run uses.
+// cmd/headless supplies the *container.ServiceContainer.
+type Services interface {
+	StartExtensionBridge()
+	Shutdown(ctx context.Context) error
+	StartScreenshotServer(sessionID string) *computerinfra.ScreenshotServer
+	GetGatewayManager() *gateway.Manager
+	GetAgentManager() agentdomain.AgentManager
+	GetAgentService() agentdomain.AgentService
+	GetMCPManager() agentdomain.MCPManager
+	GetToolRegistry() *tools.Registry
+	GetToolService() agentdomain.ToolService
+	GetFileService() agentdomain.FileService
+	GetImageService() agentdomain.ImageService
+	GetModelService() convdomain.ModelService
+	GetConversationRepository() convdomain.ConversationRepository
+	GetMessageQueue() convdomain.MessageQueue
+	GetSessionRolloverManager() convdomain.SessionRollover
+	GetStateManager() *statemanager.StateManager
+	GetShortcutRegistry() *shortcuts.Registry
+	GetBackgroundTaskRegistry() scheddomain.BackgroundTaskRegistry
+	GetTelemetryRecorder() *telemetry.Recorder
 }
 
 // Options carries the headless command's flag values.
@@ -87,11 +93,10 @@ func resolveAgentMode(flag string) (agentdomain.AgentMode, error) {
 	return scheddomain.InheritedAgentMode(), nil
 }
 
-// Run is the composition root for headless mode: it builds the service
-// container directly, so this presentation package intentionally depends
-// on internal/container (the depguard leaf rule only polices imports into
-// presentation, not out of it). cmd/headless.go stays thin flag plumbing.
-func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop,funlen
+// Run executes one headless task. newServices builds the composition root; it
+// is called only after the flags validate, so a bad --format or --mode never
+// starts any service.
+func Run(cfg *config.Config, opts Options, newServices func() Services) (err error) { //nolint:gocyclo,cyclop,funlen
 	switch opts.Format {
 	case "json", "json-pretty", "ag-ui", "text":
 	default:
@@ -118,7 +123,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		}
 	}()
 
-	svc := container.NewServiceContainer(cfg)
+	svc := newServices()
 	svc.StartExtensionBridge()
 	shutdown := sync.OnceFunc(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -187,7 +192,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		}
 	}
 
-	if screenshotServer := startScreenshotServer(cfg, svc, sessionID); screenshotServer != nil {
+	if screenshotServer := svc.StartScreenshotServer(sessionID); screenshotServer != nil {
 		defer func() {
 			if stopErr := screenshotServer.Stop(); stopErr != nil {
 				logger.Error("failed to stop screenshot server", "error", stopErr)
@@ -203,7 +208,7 @@ func Run(cfg *config.Config, opts Options) (err error) { //nolint:gocyclo,cyclop
 		logger.Info("rolled over to new session (summary preserved)",
 			"previous_session_id", sessionID, "new_session_id", newID)
 		sessionID = newID
-		history = conversation.BuildAgentMessagesFromEntries(conversationRepo.GetMessages())
+		history = convdomain.BuildAgentMessagesFromEntries(conversationRepo.GetMessages())
 	}
 
 	deps := shortcuts.Deps{SessionID: sessionID}
@@ -378,7 +383,7 @@ func emitCommandResult(format string, repo convdomain.ConversationRepository, se
 
 // compactSession is /compact outside the TUI: the rollover manager already runs
 // the same optimizer-summarise-reseed the chat handler does.
-func compactSession(ctx context.Context, mgr *conversation.SessionRolloverManager, model, groupKey string) (string, error) {
+func compactSession(ctx context.Context, mgr convdomain.SessionRollover, model, groupKey string) (string, error) {
 	newID, err := mgr.PerformRollover(ctx, model, groupKey)
 	if err != nil {
 		return "", err
@@ -468,7 +473,7 @@ func userMessage(content string, images []agentdomain.ImageAttachment) (sdk.Mess
 // honours --no-save, and returns prior history when resuming an existing
 // --session-id (empty when starting fresh or storage is not persistent).
 func prepareConversation(ctx context.Context, repo convdomain.ConversationRepository, sessionID string, resume, noSave bool) []sdk.Message {
-	persistentRepo, ok := repo.(*conversation.PersistentConversationRepository)
+	persistentRepo, ok := repo.(convdomain.PersistentConversationRepository)
 	if !ok {
 		return nil
 	}
@@ -487,7 +492,7 @@ func prepareConversation(ctx context.Context, repo convdomain.ConversationReposi
 		}
 		return nil
 	}
-	return conversation.BuildAgentMessagesFromEntries(persistentRepo.GetMessages())
+	return convdomain.BuildAgentMessagesFromEntries(repo.GetMessages())
 }
 
 func sessionOutcome(err error) string {

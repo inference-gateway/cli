@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	agentrunner "github.com/inference-gateway/cli/internal/agent/application/agentrunner"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 func newTestAgentTool(t *testing.T) *AgentTool {
@@ -18,7 +18,7 @@ func newTestAgentTool(t *testing.T) *AgentTool {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "headless"
-	return NewAgentTool(cfg, utils.NewSubagentTracker(), nil)
+	return NewAgentTool(cfg, schedinfra.NewSubagentTracker(), nil)
 }
 
 func TestAgentTool_Definition(t *testing.T) {
@@ -46,7 +46,7 @@ func TestAgentTool_Validate(t *testing.T) {
 
 func TestAgentTool_DepthCapDisables(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "1")
-	tool := NewAgentTool(config.DefaultConfig(), utils.NewSubagentTracker(), nil)
+	tool := NewAgentTool(config.DefaultConfig(), schedinfra.NewSubagentTracker(), nil)
 	if tool.IsEnabled() {
 		t.Fatalf("Agent tool must disable itself at depth >= max_depth")
 	}
@@ -97,7 +97,7 @@ func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive" // mode is config-driven, not an LLM arg
-	tool := NewAgentTool(cfg, utils.NewSubagentTracker(), nil)
+	tool := NewAgentTool(cfg, schedinfra.NewSubagentTracker(), nil)
 	tool.interactiveAvailable = func() bool { return false }
 	tool.launchPane = func(ctx context.Context, title, command string) (string, error) {
 		t.Fatalf("tmux pane must not be launched when falling back to headless")
@@ -123,7 +123,7 @@ func TestAgentTool_InteractiveErrorFallback(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive"
 	cfg.Tools.Agent.Interactive.Fallback = "error"
-	tool := NewAgentTool(cfg, utils.NewSubagentTracker(), nil)
+	tool := NewAgentTool(cfg, schedinfra.NewSubagentTracker(), nil)
 	tool.interactiveAvailable = func() bool { return false }
 
 	args := map[string]any{"description": "do x"}
@@ -265,7 +265,7 @@ func TestAgentTool_InteractiveDefaultsToReadOnly(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive"
 	cfg.Tools.Agent.Wait = true
-	tool := NewAgentTool(cfg, utils.NewSubagentTracker(), nil)
+	tool := NewAgentTool(cfg, schedinfra.NewSubagentTracker(), nil)
 	tool.interactiveAvailable = func() bool { return true }
 	var captured string
 	tool.launchPane = func(ctx context.Context, title, command string) (string, error) {

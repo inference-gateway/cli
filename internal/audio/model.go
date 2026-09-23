@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	huggingface "github.com/inference-gateway/cli/internal/platform/huggingface"
 )
 
@@ -73,7 +74,7 @@ func (m *ModelManager) EnsureModel(ctx context.Context) (string, error) {
 	}
 	name := modelFileName(m.cfg.Model)
 
-	path, err := m.hub.EnsureFile(ctx, whisperRepo, name, dir, "whisper model", m.cfg.AutoDownload)
+	path, err := m.hub.EnsureFile(ctx, whisperRepo, name, dir, "whisper model", m.cfg.AutoDownload, agentdomain.GetToolProgressCallback(ctx))
 	if errors.Is(err, huggingface.ErrNotCached) {
 		return "", fmt.Errorf("whisper model %q not found at %s and speech_to_text.auto_download is disabled", m.cfg.Model, filepath.Join(dir, name))
 	}

@@ -13,7 +13,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
@@ -30,8 +29,8 @@ import (
 // chat-session lifecycle, tool-execution teardown, and the view transition on
 // completion. *statemanager.StateManager satisfies it.
 type stateManager interface {
-	agentdomain.ChatSessionManager
-	agentdomain.ToolExecutionManager
+	tui.ChatSessionState
+	tui.ToolExecutionState
 	tui.ViewManager
 }
 
@@ -78,7 +77,7 @@ func (r *Runner) Start(holder agentdomain.BashDetachChannelHolder) tea.Cmd {
 		}
 
 		entries := r.conversationRepo.GetMessages()
-		messages := conversation.BuildAgentMessagesFromEntries(entries)
+		messages := convdomain.BuildAgentMessagesFromEntries(entries)
 
 		req := &agentdomain.AgentRequest{
 			RequestID:  opened.RequestID,
@@ -107,7 +106,7 @@ func (r *Runner) SetPendingRestoration(originalModel string) {
 // "Starting response..." status. Clearing the orchestrator's active-tool
 // indicator is the orchestrator's responsibility (see ChatHandler wrapper).
 func (r *Runner) HandleChatStart(_ agentdomain.ChatStartEvent) tea.Cmd {
-	_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusStarting)
+	_ = r.stateManager.UpdateChatStatus(tui.ChatStatusStarting)
 
 	return func() tea.Msg {
 		return tui.SetStatusEvent{
@@ -155,14 +154,14 @@ func (r *Runner) HandleChatComplete(msg agentdomain.ChatCompleteEvent) tea.Cmd {
 	r.writeSubagentResultFile(msg)
 
 	if msg.Cancelled {
-		_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusCancelled)
+		_ = r.stateManager.UpdateChatStatus(tui.ChatStatusCancelled)
 		r.stateManager.EndChatSession()
 		r.stateManager.EndToolExecution()
 	} else if len(msg.ToolCalls) == 0 {
-		_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusCompleted)
+		_ = r.stateManager.UpdateChatStatus(tui.ChatStatusCompleted)
 		r.stateManager.EndToolExecution()
 	} else {
-		_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusWaitingTools)
+		_ = r.stateManager.UpdateChatStatus(tui.ChatStatusWaitingTools)
 	}
 
 	cmds := []tea.Cmd{
@@ -175,13 +174,13 @@ func (r *Runner) HandleChatComplete(msg agentdomain.ChatCompleteEvent) tea.Cmd {
 	for _, toolCall := range msg.ToolCalls {
 		tc := toolCall
 		cmds = append(cmds, func() tea.Msg {
-			return agentdomain.ToolCallPreviewEvent{
+			return tui.ToolCallPreviewEvent{
 				RequestID:  msg.RequestID,
 				Timestamp:  msg.Timestamp,
 				ToolCallID: tc.ID,
 				ToolName:   tc.Function.Name,
 				Arguments:  tc.Function.Arguments,
-				Status:     agentdomain.ToolCallStreamStatusReady,
+				Status:     tui.ToolCallStreamStatusReady,
 				IsComplete: false,
 			}
 		})
@@ -251,7 +250,7 @@ func (r *Runner) writeSubagentResult(path string, rf scheddomain.SubagentResultF
 // (with a friendlier message for "timed out" errors).
 func (r *Runner) HandleChatError(msg agentdomain.ChatErrorEvent) tea.Cmd {
 	r.writeSubagentResultFileError(msg.Error)
-	_ = r.stateManager.UpdateChatStatus(agentdomain.ChatStatusError)
+	_ = r.stateManager.UpdateChatStatus(tui.ChatStatusError)
 	r.stateManager.EndChatSession()
 	r.stateManager.EndToolExecution()
 
@@ -304,7 +303,7 @@ func (r *Runner) handleNoChatSession(msg agentdomain.ChatChunkEvent) tea.Cmd {
 	return nil
 }
 
-func (r *Runner) handleStatusUpdate(msg agentdomain.ChatChunkEvent, chatSession *agentdomain.ChatSession) []tea.Cmd {
+func (r *Runner) handleStatusUpdate(msg agentdomain.ChatChunkEvent, chatSession *tui.ChatSession) []tea.Cmd {
 	previousStatus := chatSession.Status
 	newStatus, shouldUpdateStatus := determineNewStatus(msg, previousStatus, chatSession.IsFirstChunk)
 	if !shouldUpdateStatus {
@@ -325,19 +324,19 @@ func (r *Runner) handleStatusUpdate(msg agentdomain.ChatChunkEvent, chatSession 
 	return nil
 }
 
-func determineNewStatus(msg agentdomain.ChatChunkEvent, currentStatus agentdomain.ChatStatus, _ bool) (agentdomain.ChatStatus, bool) {
+func determineNewStatus(msg agentdomain.ChatChunkEvent, currentStatus tui.ChatStatus, _ bool) (tui.ChatStatus, bool) {
 	if msg.ReasoningContent != "" {
-		return agentdomain.ChatStatusThinking, true
+		return tui.ChatStatusThinking, true
 	}
 	if msg.Content != "" {
-		return agentdomain.ChatStatusGenerating, true
+		return tui.ChatStatusGenerating, true
 	}
 	return currentStatus, false
 }
 
-func firstChunkStatusCmd(status agentdomain.ChatStatus) []tea.Cmd {
+func firstChunkStatusCmd(status tui.ChatStatus) []tea.Cmd {
 	switch status {
-	case agentdomain.ChatStatusThinking:
+	case tui.ChatStatusThinking:
 		return []tea.Cmd{func() tea.Msg {
 			return tui.SetStatusEvent{
 				Message:    "Thinking...",
@@ -345,7 +344,7 @@ func firstChunkStatusCmd(status agentdomain.ChatStatus) []tea.Cmd {
 				StatusType: tui.StatusThinking,
 			}
 		}}
-	case agentdomain.ChatStatusGenerating:
+	case tui.ChatStatusGenerating:
 		return []tea.Cmd{func() tea.Msg {
 			return tui.SetStatusEvent{
 				Message:    "Generating response...",
@@ -357,16 +356,16 @@ func firstChunkStatusCmd(status agentdomain.ChatStatus) []tea.Cmd {
 	return nil
 }
 
-func statusUpdateCmd(status agentdomain.ChatStatus) []tea.Cmd {
+func statusUpdateCmd(status tui.ChatStatus) []tea.Cmd {
 	switch status {
-	case agentdomain.ChatStatusThinking:
+	case tui.ChatStatusThinking:
 		return []tea.Cmd{func() tea.Msg {
 			return tui.UpdateStatusEvent{
 				Message:    "Thinking...",
 				StatusType: tui.StatusThinking,
 			}
 		}}
-	case agentdomain.ChatStatusGenerating:
+	case tui.ChatStatusGenerating:
 		return []tea.Cmd{func() tea.Msg {
 			return tui.UpdateStatusEvent{
 				Message:    "Generating response...",

@@ -16,14 +16,13 @@ import (
 	metric "go.opentelemetry.io/otel/metric"
 
 	config "github.com/inference-gateway/cli/config"
-	agentrunner "github.com/inference-gateway/cli/internal/agent/application/agentrunner"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	chn "github.com/inference-gateway/cli/internal/channels"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	render "github.com/inference-gateway/cli/internal/platform/render"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
@@ -334,7 +333,7 @@ func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessio
 		RequireApproval: cm.cfg.RequireApproval,
 		OnLine: func(line []byte) {
 			isErr := parseAgentError(line)
-			content := render.FormatAgentMessage(line)
+			content := agentrunner.FormatAgentMessage(line)
 			if content != "" {
 				sendFn(content)
 				if isErr {

@@ -470,11 +470,11 @@ func (s *Supervisor) Snapshot() []scheddomain.TrackedJob {
 // the task view and HasPending source A2A liveness from the supervisor (the
 // single source of truth) instead of the parallel A2ATaskTracker polling set.
 // Only running jobs are returned; terminal A2A tasks live in the retention view.
-func (s *Supervisor) A2APollingStates() []agentdomain.TaskPollingState {
+func (s *Supervisor) A2APollingStates() []scheddomain.TaskPollingState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	out := make([]agentdomain.TaskPollingState, 0)
+	out := make([]scheddomain.TaskPollingState, 0)
 	for _, sj := range s.jobs {
 		if sj.meta.Kind != scheddomain.JobKindA2A || sj.status != scheddomain.JobRunning {
 			continue

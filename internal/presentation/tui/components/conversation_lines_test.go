@@ -1,4 +1,4 @@
-package formatting
+package components
 
 import (
 	"slices"
@@ -97,4 +97,34 @@ func TestConversationLineFormatterSetWidth(t *testing.T) {
 	if f.width != 120 {
 		t.Errorf("SetWidth: width = %d, want 120", f.width)
 	}
+}
+
+func textContent(t *testing.T, s string) sdk.MessageContent {
+	t.Helper()
+	var c sdk.MessageContent
+	if err := c.FromMessageContent0(s); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func multimodalContent(t *testing.T, parts ...sdk.ContentPart) sdk.MessageContent {
+	t.Helper()
+	if parts == nil {
+		parts = []sdk.ContentPart{} // nil marshals to JSON null, not []
+	}
+	var c sdk.MessageContent
+	if err := c.FromMessageContent1(parts); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func textPart(t *testing.T, s string) sdk.ContentPart {
+	t.Helper()
+	var p sdk.ContentPart
+	if err := p.FromTextContentPart(sdk.TextContentPart{Type: "text", Text: s}); err != nil {
+		t.Fatal(err)
+	}
+	return p
 }

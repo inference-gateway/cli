@@ -107,7 +107,7 @@ func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
 
 		session := state.GetChatSession()
 		session.IsFirstChunk = false
-		_ = state.UpdateChatStatus(agentdomain.ChatStatusStarting)
+		_ = state.UpdateChatStatus(tui.ChatStatusStarting)
 
 		cmds := runner.handleStatusUpdate(agentdomain.ChatChunkEvent{
 			RequestID:        "req-1",
@@ -131,7 +131,7 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 	t.Run("non-cancelled, no tool calls: updates status to Completed and returns non-nil cmd", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()
 		_ = state.StartChatSession("req-1", "model", make(chan agentdomain.ChatEvent))
-		_ = state.UpdateChatStatus(agentdomain.ChatStatusGenerating)
+		_ = state.UpdateChatStatus(tui.ChatStatusGenerating)
 		_ = state.StartToolExecution([]sdk.ChatCompletionMessageToolCall{{ID: "tc"}})
 
 		cmd := runner.HandleChatComplete(agentdomain.ChatCompleteEvent{
@@ -142,7 +142,7 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 		if cmd == nil {
 			t.Fatalf("expected non-nil cmd")
 		}
-		if s := state.GetChatSession(); s == nil || s.Status != agentdomain.ChatStatusCompleted {
+		if s := state.GetChatSession(); s == nil || s.Status != tui.ChatStatusCompleted {
 			t.Errorf("expected chat status Completed, got %+v", s)
 		}
 		if state.GetToolExecution() != nil {
@@ -187,7 +187,7 @@ func TestRunner_HandleChatComplete(t *testing.T) {
 			}},
 		})
 
-		if s := state.GetChatSession(); s == nil || s.Status != agentdomain.ChatStatusWaitingTools {
+		if s := state.GetChatSession(); s == nil || s.Status != tui.ChatStatusWaitingTools {
 			t.Errorf("expected chat status WaitingTools, got %+v", s)
 		}
 	})

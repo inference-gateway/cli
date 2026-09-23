@@ -19,7 +19,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	conv "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
@@ -29,7 +28,6 @@ import (
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
-	plugins "github.com/inference-gateway/cli/internal/plugins"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -46,15 +44,16 @@ type AgentServiceImpl struct {
 	timeoutSeconds     int
 	maxTokens          int
 	optimizer          convdomain.ConversationOptimizer
-	tokenizer          *conv.TokenizerService
+	tokenizer          usageEstimator
 	approvalPolicy     agentdomain.ApprovalPolicy
 	judge              JudgeApprover
 	currentModel       func() string
 	escalations        *judgeEscalations
 	bgRegistry         scheddomain.BackgroundTaskRegistry
-	rolloverManager    *conv.SessionRolloverManager
+	rolloverManager    convdomain.SessionRollover
 	reminderProvider   agentdomain.SystemReminderProvider
 	hookProvider       agentdomain.HookCommandProvider
+	pluginInstructions func() string
 	memoryBackend      memory.MemoryBackend
 	recorder           *telemetry.Recorder
 	sessionTurns       atomic.Int64
@@ -359,6 +358,13 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []convdomain.Conv
 }
 
 // NewAgentService creates a new agent service with pre-configured client
+// usageEstimator fills in token usage for providers that do not report it.
+// *conversation.TokenizerService satisfies it.
+type usageEstimator interface {
+	ShouldUsePolyfill(usage *sdk.CompletionUsage) bool
+	CalculateUsagePolyfill(inputMessages []sdk.Message, outputContent string, outputToolCalls []sdk.ChatCompletionMessageToolCall, tools []sdk.ChatCompletionTool) *sdk.CompletionUsage
+}
+
 // stateManager is the narrow slice of the app state manager the agent core
 // needs: the current agent mode, computer-use pause state, retry-status
 // updates, and the session todo list (reminder gating). *statemanager.StateManager
@@ -366,7 +372,7 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []convdomain.Conv
 type stateManager interface {
 	agentdomain.AgentModeManager
 	agentdomain.ComputerUsePauseManager
-	agentdomain.ChatSessionManager
+	agentdomain.RetryStatusSink
 	agentdomain.TodoManager
 }
 
@@ -382,42 +388,39 @@ func NewAgent(
 	timeoutSeconds int,
 	optimizer convdomain.ConversationOptimizer,
 	bgRegistry scheddomain.BackgroundTaskRegistry,
-	rolloverManager *conv.SessionRolloverManager,
+	rolloverManager convdomain.SessionRollover,
+	tokenizer usageEstimator,
+	hookProvider agentdomain.HookCommandProvider,
+	pluginInstructions func() string,
 ) *AgentServiceImpl {
-	tokenizer := conv.NewTokenizerService(conv.DefaultTokenizerConfig())
-
 	approvalPolicy := NewStandardApprovalPolicy(cfg, stateManager)
 
-	hookProvider := agentdomain.HookCommandProvider(cfg.Hooks)
-	if pluginProvider := plugins.NewPluginHookCommandProvider(cfg); pluginProvider != nil {
-		hookProvider = pluginProvider
-	}
-
 	return &AgentServiceImpl{
-		client:           client,
-		toolService:      toolService,
-		config:           cfg,
-		conversationRepo: conversationRepo,
-		a2aAgentService:  a2aAgentService,
-		skillsService:    skillsService,
-		messageQueue:     messageQueue,
-		stateManager:     stateManager,
-		timeoutSeconds:   timeoutSeconds,
-		maxTokens:        cfg.GetAgentConfig().MaxTokens,
-		reasoningEffort:  cfg.GetAgentConfig().ReasoningEffort,
-		optimizer:        optimizer,
-		tokenizer:        tokenizer,
-		approvalPolicy:   approvalPolicy,
-		judge:            NewLLMJudge(client, cfg),
-		escalations:      newJudgeEscalations(),
-		bgRegistry:       bgRegistry,
-		rolloverManager:  rolloverManager,
-		reminderProvider: cfg.Reminders,
-		hookProvider:     hookProvider,
-		firedReminders:   make(map[string]bool),
-		activeSessions:   make(map[string]*sessionCancel),
-		metrics:          make(map[string]*agentdomain.ChatMetrics),
-		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
+		client:             client,
+		toolService:        toolService,
+		config:             cfg,
+		conversationRepo:   conversationRepo,
+		a2aAgentService:    a2aAgentService,
+		skillsService:      skillsService,
+		messageQueue:       messageQueue,
+		stateManager:       stateManager,
+		timeoutSeconds:     timeoutSeconds,
+		maxTokens:          cfg.GetAgentConfig().MaxTokens,
+		reasoningEffort:    cfg.GetAgentConfig().ReasoningEffort,
+		optimizer:          optimizer,
+		tokenizer:          tokenizer,
+		approvalPolicy:     approvalPolicy,
+		judge:              NewLLMJudge(client, cfg),
+		escalations:        newJudgeEscalations(),
+		bgRegistry:         bgRegistry,
+		rolloverManager:    rolloverManager,
+		reminderProvider:   cfg.Reminders,
+		hookProvider:       hookProvider,
+		pluginInstructions: pluginInstructions,
+		firedReminders:     make(map[string]bool),
+		activeSessions:     make(map[string]*sessionCancel),
+		metrics:            make(map[string]*agentdomain.ChatMetrics),
+		toolCallsMap:       make(map[string]*sdk.ChatCompletionMessageToolCall),
 	}
 }
 
@@ -766,7 +769,7 @@ func (s *AgentServiceImpl) ensureConversationIntegrity(
 		return 0
 	}
 
-	repaired, synthetics := conv.EnsureToolCallsClosed(*conversation)
+	repaired, synthetics := convdomain.EnsureToolCallsClosed(*conversation)
 	if len(synthetics) == 0 {
 		return 0
 	}

@@ -1,21 +1,22 @@
-package formatting
+package components
 
 import (
 	"fmt"
 	"strings"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 // ConversationLineFormatter converts conversation entries to text lines
 type ConversationLineFormatter struct {
 	width         int
-	toolFormatter agentdomain.ToolFormatter
+	toolFormatter tui.ToolFormatter
 }
 
 // NewConversationLineFormatter creates a new conversation line formatter
-func NewConversationLineFormatter(width int, toolFormatter agentdomain.ToolFormatter) *ConversationLineFormatter {
+func NewConversationLineFormatter(width int, toolFormatter tui.ToolFormatter) *ConversationLineFormatter {
 	return &ConversationLineFormatter{
 		width:         width,
 		toolFormatter: toolFormatter,
@@ -54,7 +55,7 @@ func (f *ConversationLineFormatter) FormatConversationToLines(conversation []con
 
 		contentStr, err := entry.Message.Content.AsMessageContent0()
 		if err != nil {
-			contentStr = ExtractTextFromContent(entry.Message.Content, entry.Images)
+			contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)
 		}
 		content = contentStr
 		message := fmt.Sprintf("%s: %s", role, content)

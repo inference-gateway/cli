@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )
@@ -21,7 +22,7 @@ type ToolCallRenderer struct {
 	tools            map[string]*ToolRenderState
 	toolsOrder       []string
 	styleProvider    *styles.Provider
-	toolFormatter    agentdomain.ToolFormatter
+	toolFormatter    tui.ToolFormatter
 	keyHintFormatter KeyHintFormatter
 	lastTimerRender  time.Time
 	stateManager     approvalOverlayReader
@@ -31,7 +32,7 @@ type ToolCallRenderer struct {
 // SetToolFormatter wires the shared tool formatter so live previews render the
 // same width-aware "<icon> Name(args) <status>" summary as the collapsed results,
 // instead of a byte-truncated raw-JSON preview.
-func (r *ToolCallRenderer) SetToolFormatter(f agentdomain.ToolFormatter) {
+func (r *ToolCallRenderer) SetToolFormatter(f tui.ToolFormatter) {
 	r.toolFormatter = f
 }
 
@@ -119,7 +120,7 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) { //
 	case tea.WindowSizeMsg:
 		r.handleWindowSize(msg)
 
-	case agentdomain.ToolCallPreviewEvent:
+	case tui.ToolCallPreviewEvent:
 		return r.handleToolCallPreview(msg)
 
 	case agentdomain.ChatCompleteEvent:
@@ -143,7 +144,7 @@ func (r *ToolCallRenderer) handleWindowSize(msg tea.WindowSizeMsg) {
 	r.height = msg.Height
 }
 
-func (r *ToolCallRenderer) handleToolCallPreview(msg agentdomain.ToolCallPreviewEvent) (*ToolCallRenderer, tea.Cmd) {
+func (r *ToolCallRenderer) handleToolCallPreview(msg tui.ToolCallPreviewEvent) (*ToolCallRenderer, tea.Cmd) {
 	now := time.Now()
 
 	if _, exists := r.tools[msg.ToolCallID]; !exists {

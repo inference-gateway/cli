@@ -29,7 +29,7 @@ import (
 // Output carries the job's captured output (shell stdout/stderr or subagent
 // result) for the detail panel.
 type TaskInfo struct {
-	agentdomain.TaskPollingState
+	scheddomain.TaskPollingState
 	Status      string
 	ElapsedTime time.Duration
 	TaskRef     *scheddomain.TaskInfo
@@ -197,7 +197,7 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 			elapsed := retainedTaskInfo.CompletedAt.Sub(retainedTaskInfo.StartedAt)
 
 			taskInfo := TaskInfo{
-				TaskPollingState: agentdomain.TaskPollingState{
+				TaskPollingState: scheddomain.TaskPollingState{
 					TaskID:          retainedTaskInfo.Task.ID,
 					ContextID:       retainedTaskInfo.Task.ContextID,
 					AgentURL:        retainedTaskInfo.AgentURL,
@@ -257,7 +257,7 @@ func jobToTaskInfo(job scheddomain.TrackedJob) TaskInfo {
 		end = *job.CompletedAt
 	}
 	return TaskInfo{
-		TaskPollingState: agentdomain.TaskPollingState{
+		TaskPollingState: scheddomain.TaskPollingState{
 			TaskID:    job.Meta.ID,
 			StartedAt: job.Meta.StartedAt,
 		},

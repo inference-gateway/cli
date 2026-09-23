@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
@@ -152,7 +151,7 @@ func TestModelSelectionSearchDoesNotLeakIntoInput(t *testing.T) {
 func TestConversationSelectionDeleteKeysDoNotLeakIntoInput(t *testing.T) {
 	app, inputView := newInputRoutingTestApp(t, tui.ViewStateConversationSelection, "existing draft")
 
-	repo := &shortcutsmocks.FakePersistentConversationRepository{}
+	repo := &convmocks.FakePersistentConversationRepository{}
 	selector := components.NewConversationSelector(repo, nil)
 	model, _ := selector.Update(tui.ConversationsLoadedEvent{
 		Conversations: []any{

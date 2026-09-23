@@ -16,7 +16,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 )
 
@@ -33,7 +34,7 @@ func TestA2AJob_PollsRemoteTaskToCompletion(t *testing.T) {
 		},
 	}
 
-	tracker := utils.NewA2ATaskTracker()
+	tracker := schedinfra.NewA2ATaskTracker()
 	queue := &convmocks.FakeMessageQueue{}
 	sup := jobs.NewSupervisor(queue, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
@@ -43,7 +44,7 @@ func TestA2AJob_PollsRemoteTaskToCompletion(t *testing.T) {
 	mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: completed}, nil)
 
 	tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, sup, mockClient)
-	state := &agentdomain.TaskPollingState{TaskID: "t1", AgentURL: "http://agent", StartedAt: time.Now()}
+	state := &scheddomain.TaskPollingState{TaskID: "t1", AgentURL: "http://agent", StartedAt: time.Now()}
 	tracker.StartPolling("t1", state)
 	sup.Submit(&a2aJob{tool: tool, agentURL: "http://agent", taskID: "t1", state: state})
 
@@ -70,7 +71,7 @@ func TestA2AJob_PollsUnderSubmitSpan(t *testing.T) {
 			Task:    config.A2ATaskConfig{StatusPollSeconds: 1},
 		},
 	}
-	tracker := utils.NewA2ATaskTracker()
+	tracker := schedinfra.NewA2ATaskTracker()
 	queue := &convmocks.FakeMessageQueue{}
 	sup := jobs.NewSupervisor(queue, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
@@ -88,7 +89,7 @@ func TestA2AJob_PollsUnderSubmitSpan(t *testing.T) {
 	bag, _ := baggage.New(member)
 
 	tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, sup, mockClient)
-	state := &agentdomain.TaskPollingState{TaskID: "t1", AgentURL: "http://agent", StartedAt: time.Now()}
+	state := &scheddomain.TaskPollingState{TaskID: "t1", AgentURL: "http://agent", StartedAt: time.Now()}
 	tracker.StartPolling("t1", state)
 	sup.Submit(&a2aJob{tool: tool, agentURL: "http://agent", taskID: "t1", state: state, spanCtx: spanCtx, bag: bag})
 
@@ -167,7 +168,7 @@ func TestA2AJob_RetainedTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			j := &a2aJob{state: &agentdomain.TaskPollingState{StartedAt: started}}
+			j := &a2aJob{state: &scheddomain.TaskPollingState{StartedAt: started}}
 			info, ok := j.RetainedTask(agentdomain.ToolExecutionResult{Data: tt.data})
 			if ok != tt.wantOK {
 				t.Fatalf("RetainedTask ok = %v, want %v", ok, tt.wantOK)
@@ -231,7 +232,7 @@ func TestA2AJob_A2APollingState(t *testing.T) {
 	j := &a2aJob{
 		taskID:   "t1",
 		agentURL: "http://agent",
-		state:    &agentdomain.TaskPollingState{ContextID: "ctx1", TaskDescription: "do work", StartedAt: started},
+		state:    &scheddomain.TaskPollingState{ContextID: "ctx1", TaskDescription: "do work", StartedAt: started},
 	}
 	j.recordState(string(adk.TaskStateWorking))
 
@@ -256,7 +257,7 @@ func TestA2AJob_A2APollingState(t *testing.T) {
 // poll goroutine's path) against the read (A2APollingState, the task view's path)
 // so `go test -race` proves the mutex closes the shared-state data race.
 func TestA2AJob_A2APollingStateConcurrent(t *testing.T) {
-	j := &a2aJob{taskID: "t1", agentURL: "http://a", state: &agentdomain.TaskPollingState{ContextID: "ctx1", StartedAt: time.Now()}}
+	j := &a2aJob{taskID: "t1", agentURL: "http://a", state: &scheddomain.TaskPollingState{ContextID: "ctx1", StartedAt: time.Now()}}
 
 	var wg sync.WaitGroup
 	wg.Add(2)

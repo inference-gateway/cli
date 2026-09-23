@@ -1,4 +1,4 @@
-// The Tool contract, tool formatting, and per-tool result types.
+// The Tool contract and per-tool result types.
 
 package domain
 
@@ -44,28 +44,6 @@ const (
 	FormatterLLM   FormatterType = "llm"   // Formatted for LLM consumption
 	FormatterShort FormatterType = "short" // Brief summary format
 )
-
-// ToolFormatter provides formatting capabilities for tool results
-type ToolFormatter interface {
-	// FormatToolCall formats a tool call for consistent display
-	FormatToolCall(toolName string, args map[string]any) string
-
-	// RenderToolSummary renders the shared "<icon> Name(args) <trailing>" line used by
-	// the collapsed status line, live preview, approval summary and queue preview.
-	RenderToolSummary(icon, toolName string, args map[string]any, trailing string, terminalWidth int) string
-
-	// FormatToolResultForUI formats tool execution results for UI display
-	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
-
-	// FormatToolResultExpanded formats expanded tool execution results
-	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
-
-	// FormatToolResultForLLM formats tool execution results for LLM consumption
-	FormatToolResultForLLM(result *ToolExecutionResult) string
-
-	// ShouldAlwaysExpandTool checks if a tool result should always be expanded
-	ShouldAlwaysExpandTool(toolName string) bool
-}
 
 // ToolExecutionResult represents the complete result of a tool execution
 type ToolExecutionResult struct {

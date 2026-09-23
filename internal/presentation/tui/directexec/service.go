@@ -22,8 +22,8 @@ import (
 // tool-execution session bookkeeping. *statemanager.StateManager satisfies it.
 type stateManager interface {
 	agentdomain.AgentModeManager
-	agentdomain.ChatSessionManager
-	agentdomain.ToolExecutionManager
+	tui.ChatSessionState
+	tui.ToolExecutionState
 }
 
 // Service is the concrete DirectExecutionService.

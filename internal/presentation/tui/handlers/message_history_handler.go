@@ -30,7 +30,7 @@ func NewMessageHistoryHandler(
 }
 
 // HandleNavigateBackInTime processes the navigate back in time event
-func (h *MessageHistoryHandler) HandleNavigateBackInTime(event agentdomain.NavigateBackInTimeEvent) tea.Cmd {
+func (h *MessageHistoryHandler) HandleNavigateBackInTime(event tui.NavigateBackInTimeEvent) tea.Cmd {
 	return func() tea.Msg {
 		entries := h.conversationRepo.GetMessages()
 		messages := h.extractMessages(entries)
@@ -47,7 +47,7 @@ func (h *MessageHistoryHandler) HandleNavigateBackInTime(event agentdomain.Navig
 }
 
 // HandleRestore processes the message history restore event
-func (h *MessageHistoryHandler) HandleRestore(event agentdomain.MessageHistoryRestoreEvent) tea.Cmd {
+func (h *MessageHistoryHandler) HandleRestore(event tui.MessageHistoryRestoreEvent) tea.Cmd {
 	return func() tea.Msg {
 		entries := h.conversationRepo.GetMessages()
 		restoreIndex := h.adjustRestoreIndex(entries, event.RestoreToIndex)
@@ -99,7 +99,7 @@ func (h *MessageHistoryHandler) HandleEdit(event tui.MessageHistoryEditEvent) te
 }
 
 // HandleEditSubmit processes the message edit submission
-func (h *MessageHistoryHandler) HandleEditSubmit(event agentdomain.MessageEditSubmitEvent) tea.Cmd {
+func (h *MessageHistoryHandler) HandleEditSubmit(event tui.MessageEditSubmitEvent) tea.Cmd {
 	return func() tea.Msg {
 		return agentdomain.UserInputEvent{
 			Content: event.EditedContent,

@@ -3,9 +3,9 @@
 // manager, scheduler, heartbeat, and the Agent tool (local subagents), so the
 // spawn/scan/approval-IPC loop lives in exactly one place.
 //
-// It is a leaf package (imports only domain + stdlib) so callers in the
-// services, services/scheduler, and services/heartbeat packages can all depend
-// on it without an import cycle.
+// It is a leaf package (stdlib + platform/ipc) so every context can depend on
+// it without an import cycle. FormatAgentMessage turns its stdout lines into
+// channel-ready text.
 package agentrunner
 
 import (

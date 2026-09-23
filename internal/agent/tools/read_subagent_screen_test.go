@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 func TestReadSubagentScreenTool_Validate(t *testing.T) {
-	tool := NewReadSubagentScreenTool(config.DefaultConfig(), utils.NewSubagentTracker())
+	tool := NewReadSubagentScreenTool(config.DefaultConfig(), schedinfra.NewSubagentTracker())
 	if err := tool.Validate(map[string]any{}); err == nil {
 		t.Fatalf("missing subagent_id should error")
 	}
@@ -19,7 +19,7 @@ func TestReadSubagentScreenTool_Validate(t *testing.T) {
 // ReadSubagentScreen returns the raw pane content and, unlike GetSubagentResult,
 // does NOT refuse while the subagent is running (live TUI snapshots are the point).
 func TestReadSubagentScreenTool_CapturesRunningInteractivePane(t *testing.T) {
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "s1", Mode: scheddomain.SubagentModeInteractive, PaneID: "%4",
 		SessionID: "sess", Status: scheddomain.SubagentRunning,
@@ -45,7 +45,7 @@ func TestReadSubagentScreenTool_CapturesRunningInteractivePane(t *testing.T) {
 }
 
 func TestReadSubagentScreenTool_HeadlessErrors(t *testing.T) {
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "h1", Mode: scheddomain.SubagentModeHeadless, Status: scheddomain.SubagentRunning,
 	})
@@ -61,7 +61,7 @@ func TestReadSubagentScreenTool_HeadlessErrors(t *testing.T) {
 }
 
 func TestReadSubagentScreenTool_NotFound(t *testing.T) {
-	tool := NewReadSubagentScreenTool(config.DefaultConfig(), utils.NewSubagentTracker())
+	tool := NewReadSubagentScreenTool(config.DefaultConfig(), schedinfra.NewSubagentTracker())
 	res, err := tool.Execute(context.Background(), map[string]any{"subagent_id": "nope"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)

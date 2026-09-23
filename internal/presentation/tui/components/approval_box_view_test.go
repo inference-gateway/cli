@@ -19,7 +19,7 @@ import (
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
-// argsAwareToolFormatter is a agentdomain.ToolFormatter whose FormatToolCall renders
+// argsAwareToolFormatter is a tui.ToolFormatter whose FormatToolCall renders
 // the file_path argument, so the approval-box summary tests can assert that the
 // pending call's arguments reach the box (the package's other stubToolFormatter
 // ignores args, which would defeat these assertions).
@@ -48,8 +48,8 @@ func (argsAwareToolFormatter) RenderToolSummary(icon, toolName string, args map[
 	return fmt.Sprintf("%s %s() %s", icon, toolName, trailing)
 }
 
-func approvalStateWith(toolName, arguments string) *agentdomain.ApprovalUIState {
-	return &agentdomain.ApprovalUIState{
+func approvalStateWith(toolName, arguments string) *tui.ApprovalUIState {
+	return &tui.ApprovalUIState{
 		PendingToolCall: &sdk.ChatCompletionMessageToolCall{
 			ID: "call_1",
 			Function: sdk.ChatCompletionMessageToolCallFunction{
@@ -62,7 +62,7 @@ func approvalStateWith(toolName, arguments string) *agentdomain.ApprovalUIState 
 
 // approvalStateManager returns a real ApplicationState primed with the given
 // pending approval (or none when s is nil).
-func approvalStateManager(s *agentdomain.ApprovalUIState) *tui.ApplicationState {
+func approvalStateManager(s *tui.ApprovalUIState) *tui.ApplicationState {
 	st := tui.NewApplicationState()
 	if s != nil {
 		st.SetupApprovalUIState(s.PendingToolCall, nil)
@@ -153,7 +153,7 @@ func TestApprovalBox_SummaryRendering(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			sm := approvalStateManager(approvalStateWith(tc.toolName, tc.arguments))
-			var formatter agentdomain.ToolFormatter = argsAwareToolFormatter{}
+			var formatter tui.ToolFormatter = argsAwareToolFormatter{}
 			if tc.nilFormatter {
 				formatter = nil
 			}
@@ -351,7 +351,7 @@ func TestApprovalBox_DiffRendering(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			sm := approvalStateManager(approvalStateWith(tc.toolName, tc.arguments))
-			var formatter agentdomain.ToolFormatter = argsAwareToolFormatter{}
+			var formatter tui.ToolFormatter = argsAwareToolFormatter{}
 			if tc.nilFormatter {
 				formatter = nil
 			}

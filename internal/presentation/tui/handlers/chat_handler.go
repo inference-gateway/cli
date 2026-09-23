@@ -8,7 +8,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -23,9 +22,9 @@ import (
 // plan-approval overlay, the todo list, and event broadcast to external
 // consumers. *statemanager.StateManager satisfies it.
 type stateManager interface {
-	agentdomain.ChatSessionManager
+	tui.ChatSessionState
 	tui.ViewManager
-	agentdomain.PlanApprovalUIManager
+	tui.PlanApprovalPrompt
 	agentdomain.TodoManager
 	BroadcastEvent(event agentdomain.ChatEvent)
 }
@@ -34,7 +33,7 @@ type ChatHandler struct {
 	agentService           agentdomain.AgentService
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
-	sessionRolloverManager *conversation.SessionRolloverManager
+	sessionRolloverManager convdomain.SessionRollover
 	modelService           convdomain.ModelService
 	toolService            agentdomain.ToolService
 	fileService            agentdomain.FileService
@@ -62,7 +61,7 @@ func NewChatHandler(
 	agentService agentdomain.AgentService,
 	conversationRepo convdomain.ConversationRepository,
 	conversationOptimizer convdomain.ConversationOptimizer,
-	sessionRolloverManager *conversation.SessionRolloverManager,
+	sessionRolloverManager convdomain.SessionRollover,
 	modelService convdomain.ModelService,
 	toolService agentdomain.ToolService,
 	fileService agentdomain.FileService,
@@ -181,7 +180,7 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		return h.HandleBashOutputChunkEvent(m)
 	case tui.BashCommandCompletedEvent:
 		return h.HandleBashCommandCompletedEvent(m)
-	case agentdomain.BackgroundShellRequestEvent:
+	case tui.BackgroundShellRequestEvent:
 		return h.HandleBackgroundShellRequest()
 	case agentdomain.ToolExecutionCompletedEvent:
 		return h.HandleToolExecutionCompletedEvent(m)
@@ -209,9 +208,9 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		return h.HandleDrainQueueEvent(m)
 	case tui.DrainQueueRetryEvent:
 		return h.HandleDrainQueueRetryEvent(m)
-	case agentdomain.NavigateBackInTimeEvent:
+	case tui.NavigateBackInTimeEvent:
 		return nil
-	case agentdomain.MessageHistoryRestoreEvent:
+	case tui.MessageHistoryRestoreEvent:
 		return nil
 	case agentdomain.ComputerUsePausedEvent:
 		return h.HandleComputerUsePausedEvent(m)

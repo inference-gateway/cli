@@ -32,9 +32,9 @@ type toolApprovalRepoUpdater interface {
 // needs: event broadcast, the approval overlay, chat-session lookup, and mode
 // switching. *statemanager.StateManager satisfies it.
 type stateManager interface {
-	agentdomain.EventBridgeManager
-	agentdomain.ApprovalUIManager
-	agentdomain.ChatSessionManager
+	tui.EventBridgeHolder
+	tui.ApprovalPrompt
+	tui.ChatSessionState
 	agentdomain.AgentModeManager
 }
 
@@ -92,7 +92,7 @@ func (c *Coordinator) HandleToolApprovalRequested(msg agentdomain.ToolApprovalRe
 	}
 	writeSubagentApprovalSidecar(msg.ToolCall)
 
-	c.stateManager.BroadcastEvent(agentdomain.ToolApprovalNotificationEvent{
+	c.stateManager.BroadcastEvent(tui.ToolApprovalNotificationEvent{
 		RequestID: msg.RequestID,
 		Timestamp: msg.Timestamp,
 		ToolName:  msg.ToolCall.Function.Name,

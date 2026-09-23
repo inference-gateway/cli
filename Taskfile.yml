@@ -296,7 +296,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain PricingService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/sdk/fake_client.go github.com/inference-gateway/sdk.Client
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain MessageQueue
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain A2ATaskTracker
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain A2ATaskTracker
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain BackgroundTaskRegistry
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ApprovalPolicy
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/agent/states AgentStateMachine
@@ -322,7 +322,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain TitleGenerator
       - mkdir -p tests/mocks/shortcuts
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/presentation/shortcuts Shortcut
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/presentation/shortcuts PersistentConversationRepository
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain PersistentConversationRepository
       - mkdir -p tests/mocks/tui
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ConversationRenderer
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui InputComponent

@@ -18,11 +18,11 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	plugins "github.com/inference-gateway/cli/internal/plugins"
 )
 
 const (
@@ -458,7 +458,7 @@ func (g *Generator) analyze(ctx context.Context, model, digest string) (string, 
 		return "", usage, err
 	}
 
-	analysis, marker := plugins.CapInstructions(analysis, insightsMaxAnalysisLines, insightsMaxAnalysisChars)
+	analysis, marker := formatting.CapInstructions(analysis, insightsMaxAnalysisLines, insightsMaxAnalysisChars)
 	if marker != "" {
 		analysis += "\n\n" + marker
 	}

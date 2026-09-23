@@ -8,7 +8,7 @@ import (
 	assert "github.com/stretchr/testify/assert"
 
 	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	adk "github.com/inference-gateway/adk/types"
 
@@ -94,7 +94,7 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 	}
 
 	t.Run("Execute clears tracker when a resumed task is not found", func(t *testing.T) {
-		tracker := &agentdomainmocks.FakeA2ATaskTracker{}
+		tracker := &schedmocks.FakeA2ATaskTracker{}
 		agentURL := "http://test-agent"
 		contextID := "context-123"
 		taskID := "nonexistent-task-123"
@@ -131,7 +131,7 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 	})
 
 	t.Run("Execute submits a fresh task after the previous one completed", func(t *testing.T) {
-		tracker := &agentdomainmocks.FakeA2ATaskTracker{}
+		tracker := &schedmocks.FakeA2ATaskTracker{}
 		agentURL := "http://test-agent"
 		contextID := "context-456"
 		taskID := "completed-task-456"
@@ -225,7 +225,7 @@ func TestA2ASubmitTaskTool_ContextReuse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tracker := &agentdomainmocks.FakeA2ATaskTracker{}
+			tracker := &schedmocks.FakeA2ATaskTracker{}
 			agentURL := "http://test-agent"
 			contextID := "context-test"
 			existingTaskID := "existing-task-123"
@@ -298,7 +298,7 @@ func TestA2ASubmitTaskTool_MultipleAgents(t *testing.T) {
 	}
 
 	t.Run("allows submission to different agents while another agent has a working task", func(t *testing.T) {
-		tracker := &agentdomainmocks.FakeA2ATaskTracker{}
+		tracker := &schedmocks.FakeA2ATaskTracker{}
 		agentURL1 := "http://agent1.example.com"
 		agentURL2 := "http://agent2.example.com"
 		context1 := "context-agent1"
@@ -375,7 +375,7 @@ func TestA2ASubmitTaskTool_NoExistingTask(t *testing.T) {
 	}
 
 	t.Run("creates new task when no existing task ID in tracker", func(t *testing.T) {
-		tracker := &agentdomainmocks.FakeA2ATaskTracker{}
+		tracker := &schedmocks.FakeA2ATaskTracker{}
 		agentURL := "http://test-agent"
 
 		tracker.GetLatestContextForAgentReturns("")

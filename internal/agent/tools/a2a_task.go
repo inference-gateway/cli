@@ -31,7 +31,7 @@ import (
 type A2ASubmitTaskTool struct {
 	config      *config.Config
 	formatter   agentinfra.CustomFormatter
-	taskTracker agentdomain.A2ATaskTracker
+	taskTracker scheddomain.A2ATaskTracker
 	submitter   scheddomain.JobSubmitter
 	client      client.A2AClient
 }
@@ -49,7 +49,7 @@ type A2ASubmitTaskResult struct {
 }
 
 // NewA2ASubmitTaskTool creates a new A2A task tool
-func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker agentdomain.A2ATaskTracker, submitter scheddomain.JobSubmitter) *A2ASubmitTaskTool {
+func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker scheddomain.A2ATaskTracker, submitter scheddomain.JobSubmitter) *A2ASubmitTaskTool {
 	return &A2ASubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,
@@ -62,7 +62,7 @@ func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker agentdomain.A2ATaskTra
 }
 
 // NewA2ASubmitTaskToolWithClient creates a new A2A task tool with an injected client (for testing)
-func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker agentdomain.A2ATaskTracker, submitter scheddomain.JobSubmitter, client client.A2AClient) *A2ASubmitTaskTool {
+func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker scheddomain.A2ATaskTracker, submitter scheddomain.JobSubmitter, client client.A2AClient) *A2ASubmitTaskTool {
 	return &A2ASubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,
@@ -251,7 +251,7 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		}
 	}
 
-	pollingState := &agentdomain.TaskPollingState{
+	pollingState := &scheddomain.TaskPollingState{
 		TaskID:          taskID,
 		ContextID:       receivedContextID,
 		AgentURL:        agentURL,
@@ -302,7 +302,7 @@ func (t *A2ASubmitTaskTool) runA2APolling(
 	ctx context.Context,
 	agentURL string,
 	taskID string,
-	state *agentdomain.TaskPollingState,
+	state *scheddomain.TaskPollingState,
 	emit func(scheddomain.JobSignal),
 ) agentdomain.ToolExecutionResult {
 	if t.taskTracker != nil {
@@ -399,7 +399,7 @@ func (t *A2ASubmitTaskTool) queryTask(ctx context.Context, adkClient client.A2AC
 	return &currentTask, nil
 }
 
-func (t *A2ASubmitTaskTool) handleQueryError(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, _ /* state */ *agentdomain.TaskPollingState, ticker *time.Ticker, _ /* err */ error) time.Duration {
+func (t *A2ASubmitTaskTool) handleQueryError(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, _ /* state */ *scheddomain.TaskPollingState, ticker *time.Ticker, _ /* err */ error) time.Duration {
 	if strategy != "exponential" {
 		return currentInterval
 	}
@@ -422,7 +422,7 @@ func (t *A2ASubmitTaskTool) extractTextFromParts(parts []adk.Part) string {
 
 // emitStatusUpdate records the latest remote task state on the polling state
 // (read by the task view) and emits it as a non-terminal JobSignal for the UI.
-func (t *A2ASubmitTaskTool) emitStatusUpdate(state *agentdomain.TaskPollingState, _, agentURL string, currentTask adk.Task, emit func(scheddomain.JobSignal)) {
+func (t *A2ASubmitTaskTool) emitStatusUpdate(state *scheddomain.TaskPollingState, _, agentURL string, currentTask adk.Task, emit func(scheddomain.JobSignal)) {
 	statusMessage := ""
 	if currentTask.Status.Message != nil {
 		statusMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
@@ -440,7 +440,7 @@ func (t *A2ASubmitTaskTool) emitStatusUpdate(state *agentdomain.TaskPollingState
 	}
 }
 
-func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* taskID */ string, _ /* pollAttempt */ int, state *agentdomain.TaskPollingState, currentTask adk.Task, _ /* pollingDetails */ string) (bool, *agentdomain.ToolExecutionResult) {
+func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* taskID */ string, _ /* pollAttempt */ int, state *scheddomain.TaskPollingState, currentTask adk.Task, _ /* pollingDetails */ string) (bool, *agentdomain.ToolExecutionResult) {
 	normalizedState := strings.ToLower(string(currentTask.Status.State))
 
 	switch {
@@ -545,7 +545,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* 
 	return false, nil
 }
 
-func (t *A2ASubmitTaskTool) applyExponentialBackoff(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, _ /* pollAttempt */ int, _ /* state */ *agentdomain.TaskPollingState, ticker *time.Ticker) time.Duration {
+func (t *A2ASubmitTaskTool) applyExponentialBackoff(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, _ /* pollAttempt */ int, _ /* state */ *scheddomain.TaskPollingState, ticker *time.Ticker) time.Duration {
 	if strategy != "exponential" {
 		return currentInterval
 	}

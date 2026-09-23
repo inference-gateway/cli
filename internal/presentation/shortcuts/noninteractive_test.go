@@ -9,6 +9,7 @@ import (
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
 	config "github.com/inference-gateway/cli/config"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // stubShortcut stands in for a registered shortcut. The counterfeiter fake in
@@ -142,7 +143,7 @@ func TestRunNilRegistry(t *testing.T) {
 // counterfeiter fake for this interface lives in tests/mocks/shortcuts, which
 // imports this package, so it is unusable from here.
 type stubRepo struct {
-	PersistentConversationRepository
+	convdomain.PersistentConversationRepository
 	titles []string
 }
 

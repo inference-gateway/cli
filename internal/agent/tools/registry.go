@@ -20,8 +20,8 @@ import (
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 // Note: this file deliberately does NOT call DiscoverTools synchronously at
@@ -43,7 +43,7 @@ type Registry struct {
 	readToolUsed    atomic.Bool
 	readFiles       map[string]fileReadSnapshot
 	readFilesMu     sync.Mutex
-	taskTracker     agentdomain.A2ATaskTracker
+	taskTracker     scheddomain.A2ATaskTracker
 	subagentTracker scheddomain.SubagentTracker
 	jobSubmitter    scheddomain.JobSubmitter
 	jobStopper      scheddomain.JobStopper
@@ -69,9 +69,9 @@ type Registry struct {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, videoService agentdomain.VideoService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker agentdomain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, videoService agentdomain.VideoService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker scheddomain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
-		taskTracker = utils.NewA2ATaskTracker()
+		taskTracker = schedinfra.NewA2ATaskTracker()
 	}
 	registry := &Registry{
 		config:        cfg,

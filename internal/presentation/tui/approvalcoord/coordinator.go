@@ -15,8 +15,8 @@ import (
 )
 
 // planRepoUpdater is the narrow interface the coordinator uses to mutate plan
-// approval state on the conversation repo. Both *services.InMemoryConversation
-// Repository and *conversation.PersistentConversationRepository satisfy it (the
+// approval state on the conversation repo. Both *conversation.InMemoryConversationRepository
+// and *conversation.PersistentConversationRepository satisfy it (the
 // latter via embedding).
 type planRepoUpdater interface {
 	UpdatePlanStatus(action agentdomain.PlanApprovalAction)
@@ -26,10 +26,10 @@ type planRepoUpdater interface {
 // needs: the plan-approval and user-question overlays, computer-use pause,
 // chat-session end, and mode switching. *statemanager.StateManager satisfies it.
 type stateManager interface {
-	agentdomain.PlanApprovalUIManager
-	agentdomain.UserQuestionUIManager
+	tui.PlanApprovalPrompt
+	tui.UserQuestionPrompt
 	agentdomain.ComputerUsePauseManager
-	agentdomain.ChatSessionManager
+	tui.ChatSessionState
 	agentdomain.AgentModeManager
 }
 

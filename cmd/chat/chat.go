@@ -21,11 +21,8 @@ import (
 	version "github.com/inference-gateway/cli/cmd/version"
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	clipboard "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -33,6 +30,7 @@ import (
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	app "github.com/inference-gateway/cli/internal/presentation/tui/app"
 	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 	web "github.com/inference-gateway/cli/internal/presentation/web"
@@ -207,17 +205,14 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		stateManager.SetAgentMode(mode)
 	}
 
-	var screenshotServer *computerinfra.ScreenshotServer
-
-	if cfg.ComputerUse.Enabled && cfg.ComputerUse.Screenshot.StreamingEnabled {
-		screenshotServer = startScreenshotServer(cfg, imageService, toolRegistry)
-		if screenshotServer != nil {
-			defer func() {
-				if err := screenshotServer.Stop(); err != nil {
-					logger.Error("failed to stop screenshot server", "error", err)
-				}
-			}()
-		}
+	if screenshotServer := services.StartScreenshotServer(fmt.Sprintf("%d-%s", time.Now().Unix(), uuid.New().String()[:8])); screenshotServer != nil {
+		fmt.Printf("• Screenshot API: http://localhost:%d\n", screenshotServer.Port())
+		fmt.Printf("\x1b]5555;screenshot_port=%d\x07", screenshotServer.Port())
+		defer func() {
+			if err := screenshotServer.Stop(); err != nil {
+				logger.Error("failed to stop screenshot server", "error", err)
+			}
+		}()
 	}
 
 	application := app.NewChatApplication(
@@ -252,6 +247,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		services.GetDirectExecutionService(),
 		services.GetToolExecutionCoordinator(),
 		services.GetShellHistoryStorage(),
+		services.GetTokenEstimator(),
 	)
 	program := tea.NewProgram(application)
 	notifier := programNotifier{program: program}
@@ -291,7 +287,7 @@ func chatExitMessage(sessionID string) string {
 // resolving rollover chains first. When the conversation cannot be loaded it
 // adopts the requested ID for the new session if the repository supports it,
 // mirroring `infer headless --session-id` semantics.
-func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager *conversation.SessionRolloverManager, sessionID string) {
+func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager convdomain.SessionRollover, sessionID string) {
 	if rolloverManager != nil {
 		resolved, _, _ := rolloverManager.ResolveSessionID(sessionID)
 		sessionID = resolved
@@ -450,27 +446,6 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// startScreenshotServer initializes and starts the screenshot streaming server
-func startScreenshotServer(config *config.Config, imageService agentdomain.ImageService, toolRegistry *tools.Registry) *computerinfra.ScreenshotServer {
-	logger.Info("screenshot streaming conditions met, starting server")
-	sessionID := fmt.Sprintf("%d-%s", time.Now().Unix(), uuid.New().String()[:8])
-	screenshotServer := computerinfra.NewScreenshotServer(config, imageService, sessionID)
-
-	if err := screenshotServer.Start(); err != nil {
-		logger.Warn("failed to start screenshot server", "error", err)
-		return nil
-	}
-
-	fmt.Printf("• Screenshot API: http://localhost:%d\n", screenshotServer.Port())
-
-	fmt.Printf("\x1b]5555;screenshot_port=%d\x07", screenshotServer.Port())
-
-	toolRegistry.RegisterFrameSource("screen", screenshotServer)
-	logger.Info("registered screen frame source with tool registry")
-
-	return screenshotServer
-}
-
 // programNotifier is the single agentdomain.UINotifier backed by a real Bubble Tea
 // program: the one and only place (*tea.Program).Send is ever called, so every
 // background→TUI push funnels through this ingress. Set on the container via
@@ -500,7 +475,7 @@ func runUIHeartbeat(ctx context.Context, notifier agentdomain.UINotifier, interv
 		case <-ctx.Done():
 			return
 		case t := <-ticker.C:
-			notifier.Notify(agentdomain.HeartbeatEvent{At: t})
+			notifier.Notify(tui.HeartbeatEvent{At: t})
 		}
 	}
 }

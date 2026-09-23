@@ -85,17 +85,17 @@ func TestStateManager_ViewTransition(t *testing.T) {
 func TestStateManager_IsAgentBusy(t *testing.T) {
 	tests := []struct {
 		name       string
-		status     agentdomain.ChatStatus
+		status     tui.ChatStatus
 		expectBusy bool
 	}{
-		{"Starting is busy", agentdomain.ChatStatusStarting, true},
-		{"Thinking is busy", agentdomain.ChatStatusThinking, true},
-		{"Generating is busy", agentdomain.ChatStatusGenerating, true},
-		{"WaitingTools is busy", agentdomain.ChatStatusWaitingTools, true},
-		{"ReceivingTools is busy", agentdomain.ChatStatusReceivingTools, true},
-		{"Completed is not busy", agentdomain.ChatStatusCompleted, false},
-		{"Error is not busy", agentdomain.ChatStatusError, false},
-		{"Cancelled is not busy", agentdomain.ChatStatusCancelled, false},
+		{"Starting is busy", tui.ChatStatusStarting, true},
+		{"Thinking is busy", tui.ChatStatusThinking, true},
+		{"Generating is busy", tui.ChatStatusGenerating, true},
+		{"WaitingTools is busy", tui.ChatStatusWaitingTools, true},
+		{"ReceivingTools is busy", tui.ChatStatusReceivingTools, true},
+		{"Completed is not busy", tui.ChatStatusCompleted, false},
+		{"Error is not busy", tui.ChatStatusError, false},
+		{"Cancelled is not busy", tui.ChatStatusCancelled, false},
 	}
 
 	for _, tt := range tests {
@@ -105,9 +105,9 @@ func TestStateManager_IsAgentBusy(t *testing.T) {
 			eventChan := make(chan agentdomain.ChatEvent)
 			_ = sm.StartChatSession("req-123", "test-model", eventChan)
 
-			if tt.status != agentdomain.ChatStatusStarting {
-				if tt.status == agentdomain.ChatStatusCompleted {
-					_ = sm.UpdateChatStatus(agentdomain.ChatStatusGenerating)
+			if tt.status != tui.ChatStatusStarting {
+				if tt.status == tui.ChatStatusCompleted {
+					_ = sm.UpdateChatStatus(tui.ChatStatusGenerating)
 				}
 				_ = sm.UpdateChatStatus(tt.status)
 			}
@@ -211,7 +211,7 @@ func TestStateManager_ChatSessionLifecycle(t *testing.T) {
 	assert.Equal(t, "req-123", session.RequestID)
 	assert.Equal(t, "test-model", session.Model)
 
-	err = sm.UpdateChatStatus(agentdomain.ChatStatusGenerating)
+	err = sm.UpdateChatStatus(tui.ChatStatusGenerating)
 	assert.NoError(t, err)
 	assert.True(t, sm.IsAgentBusy())
 
@@ -238,8 +238,8 @@ func TestStateManager_RetryStatus(t *testing.T) {
 	assert.Nil(t, sm.GetRetryStatus(), "a chunk clears the retry status")
 
 	sm.SetRetryStatus(&agentdomain.RetryStatus{Attempt: 5, MaxAttempts: 5})
-	assert.NoError(t, sm.UpdateChatStatus(agentdomain.ChatStatusGenerating))
-	assert.NoError(t, sm.UpdateChatStatus(agentdomain.ChatStatusError))
+	assert.NoError(t, sm.UpdateChatStatus(tui.ChatStatusGenerating))
+	assert.NoError(t, sm.UpdateChatStatus(tui.ChatStatusError))
 	assert.Nil(t, sm.GetRetryStatus(), "a terminal session never reports a retry status")
 }
 
@@ -263,14 +263,14 @@ func TestStateManager_StallDetection(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	assert.NotNil(t, sm.GetRetryStatus(), "silence after the last chunk stalls again")
 
-	assert.NoError(t, sm.UpdateChatStatus(agentdomain.ChatStatusGenerating))
-	assert.NoError(t, sm.UpdateChatStatus(agentdomain.ChatStatusReceivingTools))
-	assert.NoError(t, sm.UpdateChatStatus(agentdomain.ChatStatusWaitingTools))
+	assert.NoError(t, sm.UpdateChatStatus(tui.ChatStatusGenerating))
+	assert.NoError(t, sm.UpdateChatStatus(tui.ChatStatusReceivingTools))
+	assert.NoError(t, sm.UpdateChatStatus(tui.ChatStatusWaitingTools))
 	time.Sleep(20 * time.Millisecond)
 	assert.Nil(t, sm.GetRetryStatus(), "local tool execution is not a stalled connection")
 
 	sm.SetStallThreshold(0)
-	assert.NoError(t, sm.UpdateChatStatus(agentdomain.ChatStatusStarting))
+	assert.NoError(t, sm.UpdateChatStatus(tui.ChatStatusStarting))
 	time.Sleep(20 * time.Millisecond)
 	assert.Nil(t, sm.GetRetryStatus(), "zero threshold disables stall detection")
 }

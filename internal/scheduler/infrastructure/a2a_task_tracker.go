@@ -1,52 +1,52 @@
-package utils
+package infrastructure
 
 import (
 	"sync"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-var _ agentdomain.A2ATaskTracker = (*A2ATaskTrackerImpl)(nil)
+var _ scheddomain.A2ATaskTracker = (*A2ATaskTracker)(nil)
 
-// AgentContext represents a context within an agent with its tasks
-type AgentContext struct {
+// a2aContext represents a context within an agent with its tasks
+type a2aContext struct {
 	ContextID string
-	Tasks     []*agentdomain.TaskPollingState
+	Tasks     []*scheddomain.TaskPollingState
 }
 
-// Agent represents an A2A agent with its contexts
-type Agent struct {
+// a2aAgent represents an A2A agent with its contexts
+type a2aAgent struct {
 	AgentURL string
-	Contexts []*AgentContext
+	Contexts []*a2aContext
 }
 
-// A2ATaskTrackerImpl provides a hierarchical implementation of A2ATaskTracker
-type A2ATaskTrackerImpl struct {
+// A2ATaskTracker is the hierarchical (agent → context → task) scheddomain.A2ATaskTracker.
+type A2ATaskTracker struct {
 	mu sync.RWMutex
 
 	// Hierarchical structure
-	agents []*Agent
+	agents []*a2aAgent
 
 	agentIndex   map[string]int
-	contextIndex map[string]*AgentContext
-	taskIndex    map[string]*agentdomain.TaskPollingState
+	contextIndex map[string]*a2aContext
+	taskIndex    map[string]*scheddomain.TaskPollingState
 }
 
-// NewA2ATaskTracker creates a new A2ATaskTrackerImpl. Returns the concrete
+// NewA2ATaskTracker creates a new A2ATaskTracker. Returns the concrete
 // type so callers that need to embed it (e.g. the unified
 // services.BackgroundTaskRegistry) don't need to type-assert. The result
-// still satisfies agentdomain.A2ATaskTracker via interface conversion.
-func NewA2ATaskTracker() *A2ATaskTrackerImpl {
-	return &A2ATaskTrackerImpl{
-		agents:       make([]*Agent, 0),
+// still satisfies scheddomain.A2ATaskTracker via interface conversion.
+func NewA2ATaskTracker() *A2ATaskTracker {
+	return &A2ATaskTracker{
+		agents:       make([]*a2aAgent, 0),
 		agentIndex:   make(map[string]int),
-		contextIndex: make(map[string]*AgentContext),
-		taskIndex:    make(map[string]*agentdomain.TaskPollingState),
+		contextIndex: make(map[string]*a2aContext),
+		taskIndex:    make(map[string]*scheddomain.TaskPollingState),
 	}
 }
 
 // RegisterContext registers a server-generated context ID for an agent
-func (t *A2ATaskTrackerImpl) RegisterContext(agentURL, contextID string) {
+func (t *A2ATaskTracker) RegisterContext(agentURL, contextID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -58,28 +58,28 @@ func (t *A2ATaskTrackerImpl) RegisterContext(agentURL, contextID string) {
 		return
 	}
 
-	var agent *Agent
+	var agent *a2aAgent
 	if idx, exists := t.agentIndex[agentURL]; exists {
 		agent = t.agents[idx]
 	} else {
-		agent = &Agent{
+		agent = &a2aAgent{
 			AgentURL: agentURL,
-			Contexts: make([]*AgentContext, 0),
+			Contexts: make([]*a2aContext, 0),
 		}
 		t.agents = append(t.agents, agent)
 		t.agentIndex[agentURL] = len(t.agents) - 1
 	}
 
-	context := &AgentContext{
+	context := &a2aContext{
 		ContextID: contextID,
-		Tasks:     make([]*agentdomain.TaskPollingState, 0),
+		Tasks:     make([]*scheddomain.TaskPollingState, 0),
 	}
 	agent.Contexts = append(agent.Contexts, context)
 	t.contextIndex[contextID] = context
 }
 
 // GetContextsForAgent returns all context IDs for a specific agent
-func (t *A2ATaskTrackerImpl) GetContextsForAgent(agentURL string) []string {
+func (t *A2ATaskTracker) GetContextsForAgent(agentURL string) []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -98,7 +98,7 @@ func (t *A2ATaskTrackerImpl) GetContextsForAgent(agentURL string) []string {
 }
 
 // GetAgentForContext returns the agent URL for a given context ID
-func (t *A2ATaskTrackerImpl) GetAgentForContext(contextID string) string {
+func (t *A2ATaskTracker) GetAgentForContext(contextID string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -114,7 +114,7 @@ func (t *A2ATaskTrackerImpl) GetAgentForContext(contextID string) string {
 }
 
 // GetLatestContextForAgent returns the most recently registered context for an agent
-func (t *A2ATaskTrackerImpl) GetLatestContextForAgent(agentURL string) string {
+func (t *A2ATaskTracker) GetLatestContextForAgent(agentURL string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -132,7 +132,7 @@ func (t *A2ATaskTrackerImpl) GetLatestContextForAgent(agentURL string) string {
 }
 
 // HasContext checks if a context ID is registered
-func (t *A2ATaskTrackerImpl) HasContext(contextID string) bool {
+func (t *A2ATaskTracker) HasContext(contextID string) bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -141,7 +141,7 @@ func (t *A2ATaskTrackerImpl) HasContext(contextID string) bool {
 }
 
 // RemoveContext removes a context and all its tasks
-func (t *A2ATaskTrackerImpl) RemoveContext(contextID string) {
+func (t *A2ATaskTracker) RemoveContext(contextID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -177,7 +177,7 @@ func (t *A2ATaskTrackerImpl) RemoveContext(contextID string) {
 }
 
 // AddTask adds a server-generated task ID to a context
-func (t *A2ATaskTrackerImpl) AddTask(contextID, taskID string) {
+func (t *A2ATaskTracker) AddTask(contextID, taskID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -196,7 +196,7 @@ func (t *A2ATaskTrackerImpl) AddTask(contextID, taskID string) {
 		}
 	}
 
-	state := &agentdomain.TaskPollingState{
+	state := &scheddomain.TaskPollingState{
 		TaskID:    taskID,
 		ContextID: contextID,
 	}
@@ -206,7 +206,7 @@ func (t *A2ATaskTrackerImpl) AddTask(contextID, taskID string) {
 }
 
 // GetTasksForContext returns all task IDs for a specific context
-func (t *A2ATaskTrackerImpl) GetTasksForContext(contextID string) []string {
+func (t *A2ATaskTracker) GetTasksForContext(contextID string) []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -224,7 +224,7 @@ func (t *A2ATaskTrackerImpl) GetTasksForContext(contextID string) []string {
 }
 
 // GetLatestTaskForContext returns the most recently added task for a context
-func (t *A2ATaskTrackerImpl) GetLatestTaskForContext(contextID string) string {
+func (t *A2ATaskTracker) GetLatestTaskForContext(contextID string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -237,7 +237,7 @@ func (t *A2ATaskTrackerImpl) GetLatestTaskForContext(contextID string) string {
 }
 
 // GetContextForTask returns the context ID for a given task
-func (t *A2ATaskTrackerImpl) GetContextForTask(taskID string) string {
+func (t *A2ATaskTracker) GetContextForTask(taskID string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -250,7 +250,7 @@ func (t *A2ATaskTrackerImpl) GetContextForTask(taskID string) string {
 }
 
 // RemoveTask removes a task from its context
-func (t *A2ATaskTrackerImpl) RemoveTask(taskID string) {
+func (t *A2ATaskTracker) RemoveTask(taskID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -273,7 +273,7 @@ func (t *A2ATaskTrackerImpl) RemoveTask(taskID string) {
 }
 
 // HasTask checks if a task ID exists
-func (t *A2ATaskTrackerImpl) HasTask(taskID string) bool {
+func (t *A2ATaskTracker) HasTask(taskID string) bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -282,7 +282,7 @@ func (t *A2ATaskTrackerImpl) HasTask(taskID string) bool {
 }
 
 // GetAllAgents returns all agent URLs being tracked
-func (t *A2ATaskTrackerImpl) GetAllAgents() []string {
+func (t *A2ATaskTracker) GetAllAgents() []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -295,7 +295,7 @@ func (t *A2ATaskTrackerImpl) GetAllAgents() []string {
 }
 
 // GetAllContexts returns all context IDs being tracked
-func (t *A2ATaskTrackerImpl) GetAllContexts() []string {
+func (t *A2ATaskTracker) GetAllContexts() []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -308,18 +308,18 @@ func (t *A2ATaskTrackerImpl) GetAllContexts() []string {
 }
 
 // ClearAllAgents clears all tracked agents, contexts, tasks, and polling states
-func (t *A2ATaskTrackerImpl) ClearAllAgents() {
+func (t *A2ATaskTracker) ClearAllAgents() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.agents = make([]*Agent, 0)
+	t.agents = make([]*a2aAgent, 0)
 	t.agentIndex = make(map[string]int)
-	t.contextIndex = make(map[string]*AgentContext)
-	t.taskIndex = make(map[string]*agentdomain.TaskPollingState)
+	t.contextIndex = make(map[string]*a2aContext)
+	t.taskIndex = make(map[string]*scheddomain.TaskPollingState)
 }
 
 // StartPolling starts tracking a background polling operation for a task
-func (t *A2ATaskTrackerImpl) StartPolling(taskID string, state *agentdomain.TaskPollingState) {
+func (t *A2ATaskTracker) StartPolling(taskID string, state *scheddomain.TaskPollingState) {
 	if state == nil || taskID == "" {
 		return
 	}
@@ -351,7 +351,7 @@ func (t *A2ATaskTrackerImpl) StartPolling(taskID string, state *agentdomain.Task
 }
 
 // StopPolling stops and clears the polling state for a task
-func (t *A2ATaskTrackerImpl) StopPolling(taskID string) {
+func (t *A2ATaskTracker) StopPolling(taskID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -376,7 +376,7 @@ func (t *A2ATaskTrackerImpl) StopPolling(taskID string) {
 }
 
 // GetPollingState returns the current polling state for a task
-func (t *A2ATaskTrackerImpl) GetPollingState(taskID string) *agentdomain.TaskPollingState {
+func (t *A2ATaskTracker) GetPollingState(taskID string) *scheddomain.TaskPollingState {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -384,7 +384,7 @@ func (t *A2ATaskTrackerImpl) GetPollingState(taskID string) *agentdomain.TaskPol
 }
 
 // GetPollingTasksForContext returns all task IDs that are currently being polled for a context
-func (t *A2ATaskTrackerImpl) GetPollingTasksForContext(contextID string) []string {
+func (t *A2ATaskTracker) GetPollingTasksForContext(contextID string) []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 

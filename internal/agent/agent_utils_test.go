@@ -16,6 +16,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	plugins "github.com/inference-gateway/cli/internal/plugins"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
@@ -767,7 +768,7 @@ func TestBuildSystemPrompt_PluginInstructionsAfterAgentsMD(t *testing.T) {
 	cfg.Plugins = *config.DefaultPluginsConfig()
 	cfg.Plugins.Dir = pluginsDir
 	cfg.Plugins.Plugins = []config.PluginEntry{{Name: "ponytail", Enabled: true}}
-	s := &AgentServiceImpl{config: cfg}
+	s := &AgentServiceImpl{config: cfg, pluginInstructions: func() string { return plugins.InstructionsBlock(cfg) }}
 
 	got := s.BuildSystemPrompt()
 	project := strings.Index(got, "PROJECT INSTRUCTIONS (AGENTS.md):\nproject rules")

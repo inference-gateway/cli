@@ -386,7 +386,7 @@ func (fakeRolloverOptimizer) OptimizeMessages(_ []sdk.Message, _ string, _ bool)
 // in-memory SQLite and an in-memory SessionGroupStorage. Used by the
 // async-rollover handler tests; cheaper than refactoring SessionRolloverManager
 // to an interface just for mocking.
-func newChatRolloverFixture(t *testing.T) (*conversation.SessionRolloverManager, *conversation.PersistentConversationRepository, func()) {
+func newChatRolloverFixture(t *testing.T) (convdomain.SessionRollover, *conversation.PersistentConversationRepository, func()) {
 	t.Helper()
 
 	storageBackend, err := storage.NewSQLiteStorage(storage.SQLiteConfig{Path: ":memory:"})

@@ -263,3 +263,85 @@ type MessageHistoryEditReadyEvent struct {
 	Content      string
 	Snapshot     MessageSnapshot
 }
+
+// ToolCallStreamStatus represents the status of a tool call during streaming
+type ToolCallStreamStatus string
+
+const (
+	ToolCallStreamStatusStreaming ToolCallStreamStatus = "streaming"
+	ToolCallStreamStatusComplete  ToolCallStreamStatus = "completed"
+	ToolCallStreamStatusReady     ToolCallStreamStatus = "ready"
+)
+
+// ToolCallPreviewEvent shows a tool call as it's being streamed (before execution)
+type ToolCallPreviewEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	ToolCallID string
+	ToolName   string
+	Arguments  string
+	Status     ToolCallStreamStatus
+	IsComplete bool
+}
+
+func (e ToolCallPreviewEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolCallPreviewEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolApprovalNotificationEvent is sent to notify the Computer Use dialog when tool approval is required in TUI
+type ToolApprovalNotificationEvent struct {
+	RequestID string
+	Timestamp time.Time
+	ToolName  string
+	Message   string
+}
+
+func (e ToolApprovalNotificationEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolApprovalNotificationEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// RefreshAutocompleteEvent is sent when autocomplete needs to refresh (e.g., after mode change)
+type RefreshAutocompleteEvent struct{}
+
+// BackgroundShellRequestEvent requests that the current running Bash command be moved to background
+type BackgroundShellRequestEvent struct{}
+
+// NavigateBackInTimeEvent triggers the message history selector view
+type NavigateBackInTimeEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e NavigateBackInTimeEvent) GetRequestID() string    { return e.RequestID }
+func (e NavigateBackInTimeEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// MessageHistoryRestoreEvent is emitted when user selects a restore point in message history
+type MessageHistoryRestoreEvent struct {
+	RequestID      string
+	Timestamp      time.Time
+	RestoreToIndex int
+}
+
+func (e MessageHistoryRestoreEvent) GetRequestID() string    { return e.RequestID }
+func (e MessageHistoryRestoreEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// MessageEditSubmitEvent is emitted when edited message is submitted
+type MessageEditSubmitEvent struct {
+	RequestID     string
+	Timestamp     time.Time
+	OriginalIndex int
+	EditedContent string
+	Images        []agentdomain.ImageAttachment
+}
+
+func (e MessageEditSubmitEvent) GetRequestID() string    { return e.RequestID }
+func (e MessageEditSubmitEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// HeartbeatEvent is the app's single periodic tick, pushed through the UI
+// notifier by one background goroutine (cmd/chat) at a fixed slow interval. It
+// exists so freshness checks that cannot be event-driven (state changed outside
+// the TUI, e.g. git status after an editor save) have one clock to ride instead
+// of each re-arming its own tea.Tick. Handlers must stay cheap: kick off a
+// tea.Cmd for any I/O, never do it inline. Consumers that want a slower cadence
+// compare At against their own last-run time.
+type HeartbeatEvent struct {
+	At time.Time
+}

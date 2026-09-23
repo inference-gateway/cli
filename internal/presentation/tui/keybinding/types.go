@@ -18,11 +18,11 @@ type KeyHandler func(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 type StateManager interface {
 	tui.ViewManager
 	agentdomain.AgentModeManager
-	agentdomain.ChatSessionManager
-	agentdomain.ToolExecutionManager
-	agentdomain.ApprovalUIManager
-	agentdomain.PlanApprovalUIManager
-	agentdomain.UserQuestionUIManager
+	tui.ChatSessionState
+	tui.ToolExecutionState
+	tui.ApprovalPrompt
+	tui.PlanApprovalPrompt
+	tui.UserQuestionPrompt
 	IsEditingMessage() bool
 	ClearMessageEditState()
 }

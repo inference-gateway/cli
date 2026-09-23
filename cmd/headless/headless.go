@@ -4,6 +4,7 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
+	container "github.com/inference-gateway/cli/internal/container"
 	presentation "github.com/inference-gateway/cli/internal/presentation/headless"
 )
 
@@ -38,7 +39,9 @@ Exit Codes:
 			opts.ResultFile, _ = cmd.Flags().GetString("result-file")
 			opts.Format, _ = cmd.Flags().GetString("format")
 			opts.Mode, _ = cmd.Flags().GetString("mode")
-			return presentation.Run(state.Config(), opts)
+			return presentation.Run(state.Config(), opts, func() presentation.Services {
+				return container.NewServiceContainer(state.Config())
+			})
 		},
 	}
 

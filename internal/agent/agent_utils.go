@@ -19,7 +19,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
@@ -27,7 +26,6 @@ import (
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
-	plugins "github.com/inference-gateway/cli/internal/plugins"
 )
 
 // accumulateToolCalls processes multiple tool call deltas and stores them in the agent's toolCallsMap
@@ -163,7 +161,7 @@ func (s *AgentServiceImpl) BuildSystemPrompt() string {
 		parts = append(parts, info)
 	}
 
-	if block := plugins.InstructionsBlock(s.config); block != "" {
+	if block := s.pluginInstructionsBlock(); block != "" {
 		parts = append(parts, block)
 	}
 
@@ -295,7 +293,7 @@ func (s *AgentServiceImpl) SystemPromptSections() []PromptSection {
 		{Name: "base_prompt", Text: s.config.Prompts.Agent.SystemPrompt},
 		{Name: "custom_instructions", Text: s.config.Prompts.Agent.CustomInstructions},
 		{Name: "agents_md", Text: s.buildAgentsMDInfo()},
-		{Name: "plugins", Text: plugins.InstructionsBlock(s.config)},
+		{Name: "plugins", Text: s.pluginInstructionsBlock()},
 	}
 	if s.config.GetAgentConfig().SystemPromptWithDefaults {
 		sections = append(sections, s.contextSections()...)
@@ -595,7 +593,7 @@ func (s *AgentServiceImpl) buildAgentsMDInfo() string {
 		return ""
 	}
 
-	content, marker := plugins.CapInstructions(content, s.config.Agent.AgentsMD.MaxLines, s.config.Agent.AgentsMD.MaxChars)
+	content, marker := formatting.CapInstructions(content, s.config.Agent.AgentsMD.MaxLines, s.config.Agent.AgentsMD.MaxChars)
 	if marker != "" {
 		content += "\n" + marker
 	}
@@ -1130,6 +1128,9 @@ func (s *AgentServiceImpl) waitForBackgroundTasks(ctx context.Context) {
 // rollover is owned by the UI (chat_message_processor), and the first turn is
 // handled by the headless command before the run starts.
 func (s *AgentServiceImpl) maybeRolloverSession(agentCtx *states.AgentContext, req *agentdomain.AgentRequest) {
+	if s.rolloverManager == nil {
+		return
+	}
 	newID, fired := s.rolloverManager.MaybeRollover(agentCtx.Ctx, req.Model, req.GroupKey)
 	if !fired {
 		return
@@ -1137,7 +1138,7 @@ func (s *AgentServiceImpl) maybeRolloverSession(agentCtx *states.AgentContext, r
 	logger.Info("rolled over to new session (summary preserved)",
 		"previous_session_id", req.RequestID, "new_session_id", newID)
 	*agentCtx.Conversation = s.addSystemPrompt(
-		conversation.BuildAgentMessagesFromEntries(s.conversationRepo.GetMessages()))
+		convdomain.BuildAgentMessagesFromEntries(s.conversationRepo.GetMessages()))
 }
 
 // trackStreamOutcome records the just-finished stream's finish reason and
@@ -1387,4 +1388,13 @@ func getTruncationRecoveryGuidance(toolName string) string {
 		return "The tool arguments were too large. " +
 			"Try breaking your request into smaller, incremental operations."
 	}
+}
+
+// pluginInstructionsBlock is the enabled plugins' system-prompt block, or ""
+// when none is wired.
+func (s *AgentServiceImpl) pluginInstructionsBlock() string {
+	if s.pluginInstructions == nil {
+		return ""
+	}
+	return s.pluginInstructions()
 }

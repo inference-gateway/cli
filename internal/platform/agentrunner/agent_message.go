@@ -1,4 +1,4 @@
-package render
+package agentrunner
 
 import (
 	"encoding/json"

@@ -17,7 +17,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -48,7 +47,7 @@ type ChatApplication struct {
 	agentService           agentdomain.AgentService
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
-	sessionRolloverManager *conversation.SessionRolloverManager
+	sessionRolloverManager convdomain.SessionRollover
 	agentManager           agentdomain.AgentManager
 	modelService           convdomain.ModelService
 	toolService            agentdomain.ToolService
@@ -159,7 +158,7 @@ func NewChatApplication(
 	messageQueue convdomain.MessageQueue,
 	modelService convdomain.ModelService,
 	pricingService convdomain.PricingService,
-	sessionRolloverManager *conversation.SessionRolloverManager,
+	sessionRolloverManager convdomain.SessionRollover,
 	stateManager *statemanager.StateManager,
 	taskRetentionService scheddomain.TaskRetentionService,
 	themeService tui.ThemeService,
@@ -171,6 +170,7 @@ func NewChatApplication(
 	directExecutionService tui.DirectExecutionService,
 	toolExecutionCoordinator tui.ToolExecutionCoordinator,
 	shellHistoryStore storage.ShellHistoryStorage,
+	tokenEstimator convdomain.TokenEstimator,
 ) *ChatApplication {
 	initialView := tui.ViewStateModelSelection
 	if defaultModel != "" {
@@ -261,7 +261,7 @@ func NewChatApplication(
 		isb.SetVersionInfo(versionInfo)
 		isb.SetConversationRepo(app.conversationRepo)
 		isb.SetToolService(app.toolService)
-		isb.SetTokenEstimator(conversation.NewTokenizerService(conversation.DefaultTokenizerConfig()))
+		isb.SetTokenEstimator(tokenEstimator)
 		isb.SetBackgroundShellService(app.toolRegistry.GetBackgroundShellService())
 		isb.SetBackgroundTaskService(app.backgroundTaskService)
 		if app.backgroundTaskRegistry != nil {
@@ -324,7 +324,7 @@ func NewChatApplication(
 		return err == nil && secretsExist
 	})
 
-	if persistentRepo, ok := app.conversationRepo.(*conversation.PersistentConversationRepository); ok {
+	if persistentRepo, ok := app.conversationRepo.(convdomain.PersistentConversationRepository); ok {
 		app.conversationSelector = components.NewConversationSelector(persistentRepo, styleProvider)
 	} else {
 		app.conversationSelector = nil
@@ -568,7 +568,7 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	case tui.TriggerHelpViewEvent:
 		return tea.Batch(app.handleHelpViewTrigger()...)
 
-	case agentdomain.MessageHistoryRestoreEvent:
+	case tui.MessageHistoryRestoreEvent:
 		return app.messageHistoryHandler.HandleRestore(m)
 
 	case tea.BackgroundColorMsg:
@@ -602,7 +602,7 @@ func (app *ChatApplication) handleMCPStatusUpdate(event agentdomain.MCPServerSta
 	if app.autocomplete != nil {
 		app.autocomplete.RefreshToolsList()
 		return func() tea.Msg {
-			return agentdomain.RefreshAutocompleteEvent{}
+			return tui.RefreshAutocompleteEvent{}
 		}
 	}
 
@@ -715,7 +715,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
-	if navEvent, ok := msg.(agentdomain.NavigateBackInTimeEvent); ok {
+	if navEvent, ok := msg.(tui.NavigateBackInTimeEvent); ok {
 		return app.handleNavigateBackInTime(navEvent)
 	}
 
@@ -734,7 +734,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return app.handleEditReady(editReadyEvent)
 	}
 
-	if editSubmitEvent, ok := msg.(agentdomain.MessageEditSubmitEvent); ok {
+	if editSubmitEvent, ok := msg.(tui.MessageEditSubmitEvent); ok {
 		if cmd := app.messageHistoryHandler.HandleEditSubmit(editSubmitEvent); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -2298,7 +2298,7 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 		cursor := app.inputView.GetCursor()
 		app.autocomplete.Update(text, cursor)
 
-	case agentdomain.RefreshAutocompleteEvent:
+	case tui.RefreshAutocompleteEvent:
 		text := app.inputView.GetInput()
 		cursor := app.inputView.GetCursor()
 		app.autocomplete.Update(text, cursor)
@@ -2407,7 +2407,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 		}
 
 		return func() tea.Msg {
-			return agentdomain.MessageEditSubmitEvent{
+			return tui.MessageEditSubmitEvent{
 				RequestID:     "message-edit-submit",
 				Timestamp:     time.Now(),
 				OriginalIndex: editState.OriginalMessageIndex,
@@ -2500,7 +2500,7 @@ func (app *ChatApplication) ToggleRawFormat() {
 // Message History Navigation Helpers
 
 // handleNavigateBackInTime initiates message history navigation mode
-func (app *ChatApplication) handleNavigateBackInTime(event agentdomain.NavigateBackInTimeEvent) []tea.Cmd {
+func (app *ChatApplication) handleNavigateBackInTime(event tui.NavigateBackInTimeEvent) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	iv, ok := app.inputView.(*components.InputView)
@@ -2618,7 +2618,7 @@ func (app *ChatApplication) handleMessageHistoryEnter(cv *components.Conversatio
 			cmds = append(cmds, cmd)
 		}
 	} else {
-		restoreEvent := agentdomain.MessageHistoryRestoreEvent{
+		restoreEvent := tui.MessageHistoryRestoreEvent{
 			RequestID:      "message-history-restore",
 			Timestamp:      time.Now(),
 			RestoreToIndex: selectedIndex,

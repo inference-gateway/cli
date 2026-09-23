@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	download "github.com/inference-gateway/cli/internal/platform/download"
 )
 
@@ -140,7 +141,7 @@ func (b *BinaryManager) download(ctx context.Context, url, dstPath, wantSum stri
 	defer func() { _ = os.Remove(tmpName) }()
 
 	h := sha256.New()
-	src := download.NewProgressReader(ctx, body, filepath.Base(dstPath), 0)
+	src := download.NewProgressReader(body, agentdomain.GetToolProgressCallback(ctx), filepath.Base(dstPath), 0)
 	if _, err := io.Copy(io.MultiWriter(tmp, h), src); err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("writing %s: %w", filepath.Base(dstPath), err)

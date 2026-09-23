@@ -52,15 +52,15 @@ type ConversationView struct {
 	allToolsExpanded       bool
 	allThinkingExpanded    bool
 	defaultExpandedTools   map[string]bool
-	toolFormatter          agentdomain.ToolFormatter
-	lineFormatter          *formatting.ConversationLineFormatter
+	toolFormatter          tui.ToolFormatter
+	lineFormatter          *ConversationLineFormatter
 	configPath             string
 	versionInfo            *tui.VersionInfo
 	styleProvider          *styles.Provider
 	toolCallRenderer       *ToolCallRenderer
 	markdownRenderer       *markdown.Renderer
 	rawFormat              bool
-	stateManager           agentdomain.PlanApprovalUIManager
+	stateManager           tui.PlanApprovalPrompt
 	renderedContent        string
 
 	// renderCache memoizes per-entry rendered output keyed by conversation
@@ -108,7 +108,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 		allToolsExpanded:       false,
 		allThinkingExpanded:    false,
 		defaultExpandedTools:   map[string]bool{"Edit": true, "MultiEdit": true},
-		lineFormatter:          formatting.NewConversationLineFormatter(80, nil),
+		lineFormatter:          NewConversationLineFormatter(80, nil),
 		styleProvider:          styleProvider,
 		markdownRenderer:       mdRenderer,
 		renderCache:            make(map[int]renderCacheEntry),
@@ -116,9 +116,9 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 }
 
 // SetToolFormatter sets the tool formatter for this conversation view
-func (cv *ConversationView) SetToolFormatter(formatter agentdomain.ToolFormatter) {
+func (cv *ConversationView) SetToolFormatter(formatter tui.ToolFormatter) {
 	cv.toolFormatter = formatter
-	cv.lineFormatter = formatting.NewConversationLineFormatter(cv.width, formatter)
+	cv.lineFormatter = NewConversationLineFormatter(cv.width, formatter)
 }
 
 // SetConfigPath sets the config path for the welcome message
@@ -137,7 +137,7 @@ func (cv *ConversationView) SetToolCallRenderer(renderer *ToolCallRenderer) {
 }
 
 // SetStateManager sets the state manager for accessing plan approval state
-func (cv *ConversationView) SetStateManager(stateManager agentdomain.PlanApprovalUIManager) {
+func (cv *ConversationView) SetStateManager(stateManager tui.PlanApprovalPrompt) {
 	cv.stateManager = stateManager
 }
 
@@ -1172,7 +1172,7 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return cv.handlePlanApprovalSelectionChanged(msg, cmd)
 	case tui.UpdateHistoryEvent:
 		return cv.handleUpdateHistoryEvent(msg, cmd)
-	case agentdomain.ToolCallPreviewEvent, agentdomain.ToolExecutionProgressEvent, agentdomain.BashOutputChunkEvent, agentdomain.ChatCompleteEvent:
+	case tui.ToolCallPreviewEvent, agentdomain.ToolExecutionProgressEvent, agentdomain.BashOutputChunkEvent, agentdomain.ChatCompleteEvent:
 		return cv.handleToolCallEvents(msg, cmd)
 	case tui.BashCommandCompletedEvent:
 		return cv.handleBashCommandCompletedEvent(msg, cmd)

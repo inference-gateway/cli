@@ -1,8 +1,8 @@
 package scheduler
 
 import (
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 )
 
@@ -19,7 +19,7 @@ import (
 // Both embedded trackers retain their own internal mutexes; this struct
 // adds no additional locking.
 type backgroundTaskRegistry struct {
-	*utils.A2ATaskTrackerImpl   // promotes the A2ATaskTracker surface
+	*schedinfra.A2ATaskTracker  // promotes the A2ATaskTracker surface
 	scheddomain.ShellTracker    // promotes the ShellTracker surface
 	scheddomain.SubagentTracker // promotes the SubagentTracker surface
 	supervisor                  *jobs.Supervisor
@@ -31,10 +31,10 @@ type backgroundTaskRegistry struct {
 // surface (Submit/Snapshot/Wind).
 func NewBackgroundTaskRegistry(maxConcurrentShells int, supervisor *jobs.Supervisor) scheddomain.BackgroundTaskRegistry {
 	return &backgroundTaskRegistry{
-		A2ATaskTrackerImpl: utils.NewA2ATaskTracker(),
-		ShellTracker:       utils.NewShellTracker(maxConcurrentShells),
-		SubagentTracker:    utils.NewSubagentTracker(),
-		supervisor:         supervisor,
+		A2ATaskTracker:  schedinfra.NewA2ATaskTracker(),
+		ShellTracker:    schedinfra.NewShellTracker(maxConcurrentShells),
+		SubagentTracker: schedinfra.NewSubagentTracker(),
+		supervisor:      supervisor,
 	}
 }
 
@@ -67,7 +67,7 @@ func (r *backgroundTaskRegistry) IsJobRunning(id string) bool {
 // untouched - they are session-scoped, not conversation-scoped.
 func (r *backgroundTaskRegistry) ClearAllAgents() {
 	r.supervisor.DiscardKind(scheddomain.JobKindA2A)
-	r.A2ATaskTrackerImpl.ClearAllAgents()
+	r.A2ATaskTracker.ClearAllAgents()
 }
 
 // HasPending reports whether any session-holding background job is still in

@@ -144,6 +144,23 @@ type ConversationRepository interface {
 	Export(format ExportFormat) ([]byte, error)
 }
 
+// PersistentConversationRepository is the storage-backed side of a
+// conversation: list, load, save, delete and re-point at stored conversations.
+// The in-memory repository does not implement it, so callers type-assert a
+// ConversationRepository to find out whether persistence is available.
+type PersistentConversationRepository interface {
+	ListSavedConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error)
+	LoadConversation(ctx context.Context, conversationID string) error
+	GetCurrentConversationMetadata() ConversationMetadata
+	SaveConversation(ctx context.Context) error
+	StartNewConversation(title string) error
+	GetCurrentConversationID() string
+	SetConversationID(id string)
+	SetConversationTitle(title string)
+	SetAutoSave(enabled bool)
+	DeleteSavedConversation(ctx context.Context, conversationID string) error
+}
+
 // ConversationOptimizer optimizes conversation history to reduce token usage
 type ConversationOptimizer interface {
 	OptimizeMessages(messages []sdk.Message, model string, force bool) []sdk.Message

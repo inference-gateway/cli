@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 func TestSendSubagentInputTool_Validate(t *testing.T) {
-	tool := NewSendSubagentInputTool(config.DefaultConfig(), utils.NewSubagentTracker())
+	tool := NewSendSubagentInputTool(config.DefaultConfig(), schedinfra.NewSubagentTracker())
 	if err := tool.Validate(map[string]any{}); err == nil {
 		t.Fatalf("missing subagent_id should error")
 	}
@@ -34,7 +34,7 @@ func TestSendSubagentInputTool_SubmitRearms(t *testing.T) {
 	t.Cleanup(func() { _ = os.Remove(subagentResultFilePath(sessionID)) })
 	writeTestResultFile(t, sessionID, "old answer")
 
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "s1", Mode: scheddomain.SubagentModeInteractive, PaneID: "%2",
 		SessionID: sessionID, Status: scheddomain.SubagentCompleted,
@@ -69,7 +69,7 @@ func TestSendSubagentInputTool_SubmitRearms(t *testing.T) {
 // Sending keys with submit=false drives the TUI without pressing Enter and does
 // NOT re-arm (the agent observes via ReadSubagentScreen).
 func TestSendSubagentInputTool_KeysNoSubmitDoesNotRearm(t *testing.T) {
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "s2", Mode: scheddomain.SubagentModeInteractive, PaneID: "%3",
 		SessionID: "sess-send-keys", Status: scheddomain.SubagentCompleted,
@@ -100,7 +100,7 @@ func TestSendSubagentInputTool_KeysNoSubmitDoesNotRearm(t *testing.T) {
 }
 
 func TestSendSubagentInputTool_HeadlessFails(t *testing.T) {
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "h1", Mode: scheddomain.SubagentModeHeadless, Status: scheddomain.SubagentRunning,
 	})
@@ -113,7 +113,7 @@ func TestSendSubagentInputTool_HeadlessFails(t *testing.T) {
 }
 
 func TestSendSubagentInputTool_GonePaneFails(t *testing.T) {
-	tracker := utils.NewSubagentTracker()
+	tracker := schedinfra.NewSubagentTracker()
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
 		ID: "g1", Mode: scheddomain.SubagentModeInteractive, PaneID: "%9",
 		SessionID: "sess-gone", Status: scheddomain.SubagentRunning,

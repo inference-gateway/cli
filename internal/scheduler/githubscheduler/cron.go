@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	scheduler "github.com/inference-gateway/cli/internal/scheduler"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // ghCronConstraints names the GitHub Actions scheduling limits for error text.
@@ -40,7 +40,7 @@ func TranslateCron(expr string) (string, error) {
 	if strings.HasPrefix(expr, "@") {
 		return "", fmt.Errorf("cron descriptor %q is not supported by the github backend (%s)", expr, ghCronConstraints)
 	}
-	if err := scheduler.ParseCron(expr); err != nil {
+	if err := scheddomain.ParseCron(expr); err != nil {
 		return "", fmt.Errorf("invalid cron expression %q: %w", expr, err)
 	}
 	fields := strings.Fields(expr)

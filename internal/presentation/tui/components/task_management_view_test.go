@@ -50,7 +50,7 @@ func countKinds(rows []any) map[scheddomain.JobKind]int {
 // alongside the A2A poller's own rows.
 func TestLoadTasksCmd_SkipsA2AFromSnapshotAndSplitsByStatus(t *testing.T) {
 	bg := &schedmocks.FakeBackgroundTaskService{}
-	bg.GetBackgroundTasksReturns([]agentdomain.TaskPollingState{
+	bg.GetBackgroundTasksReturns([]scheddomain.TaskPollingState{
 		{TaskID: "a2a-1", AgentURL: "http://agent", StartedAt: time.Now()},
 	})
 	done := time.Now()
@@ -88,12 +88,12 @@ func TestLoadTasksCmd_SkipsA2AFromSnapshotAndSplitsByStatus(t *testing.T) {
 func TestApplyFilters_GroupsByKind(t *testing.T) {
 	tm := &TaskManagerImpl{currentView: TaskViewAll}
 	tm.activeTasks = []TaskInfo{
-		{TaskPollingState: agentdomain.TaskPollingState{TaskID: "sub-run"}, Kind: scheddomain.JobKindSubagent, Status: "Running"},
-		{TaskPollingState: agentdomain.TaskPollingState{TaskID: "a2a-run"}, Kind: scheddomain.JobKindA2A, Status: "Running"},
-		{TaskPollingState: agentdomain.TaskPollingState{TaskID: "shell-run"}, Kind: scheddomain.JobKindShell, Status: "Running"},
+		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "sub-run"}, Kind: scheddomain.JobKindSubagent, Status: "Running"},
+		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "a2a-run"}, Kind: scheddomain.JobKindA2A, Status: "Running"},
+		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "shell-run"}, Kind: scheddomain.JobKindShell, Status: "Running"},
 	}
 	tm.completedTasks = []TaskInfo{
-		{TaskPollingState: agentdomain.TaskPollingState{TaskID: "shell-done"}, Kind: scheddomain.JobKindShell, Status: "Completed"},
+		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "shell-done"}, Kind: scheddomain.JobKindShell, Status: "Completed"},
 	}
 
 	tm.applyFilters()
@@ -114,9 +114,9 @@ func TestApplyFilters_GroupsByKind(t *testing.T) {
 func TestApplyFilters_CompletedIncludesFailed(t *testing.T) {
 	tm := &TaskManagerImpl{currentView: TaskViewCompleted}
 	tm.completedTasks = []TaskInfo{
-		{TaskPollingState: agentdomain.TaskPollingState{TaskID: "shell-ok"}, Kind: scheddomain.JobKindShell, Status: "Completed"},
-		{TaskPollingState: agentdomain.TaskPollingState{TaskID: "shell-bad"}, Kind: scheddomain.JobKindShell, Status: "Failed"},
-		{TaskPollingState: agentdomain.TaskPollingState{TaskID: "a2a-cancel"}, Kind: scheddomain.JobKindA2A, Status: "Canceled"},
+		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "shell-ok"}, Kind: scheddomain.JobKindShell, Status: "Completed"},
+		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "shell-bad"}, Kind: scheddomain.JobKindShell, Status: "Failed"},
+		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "a2a-cancel"}, Kind: scheddomain.JobKindA2A, Status: "Canceled"},
 	}
 
 	tm.applyFilters()
@@ -138,8 +138,8 @@ func TestApplyFilters_CompletedIncludesFailed(t *testing.T) {
 func TestApplyFilters_CanceledTabMatchesA2A(t *testing.T) {
 	tm := &TaskManagerImpl{currentView: TaskViewCanceled}
 	tm.completedTasks = []TaskInfo{
-		{TaskPollingState: agentdomain.TaskPollingState{TaskID: "a2a-cancel"}, Kind: scheddomain.JobKindA2A, Status: "Canceled"},
-		{TaskPollingState: agentdomain.TaskPollingState{TaskID: "shell-fail"}, Kind: scheddomain.JobKindShell, Status: "Failed"},
+		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "a2a-cancel"}, Kind: scheddomain.JobKindA2A, Status: "Canceled"},
+		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "shell-fail"}, Kind: scheddomain.JobKindShell, Status: "Failed"},
 	}
 
 	tm.applyFilters()
@@ -200,9 +200,9 @@ func TestWriteTaskSections_RendersPerKindTables(t *testing.T) {
 		currentView:   TaskViewAll,
 	}
 	tm.filteredTasks = []TaskInfo{
-		{TaskPollingState: agentdomain.TaskPollingState{TaskID: "a2a-1", AgentURL: "http://agent"}, Kind: scheddomain.JobKindA2A, Status: "Working"},
-		{TaskPollingState: agentdomain.TaskPollingState{TaskID: "shell-1"}, Kind: scheddomain.JobKindShell, Label: "shell-1", Detail: "npm run build", Status: "Running"},
-		{TaskPollingState: agentdomain.TaskPollingState{TaskID: "sub-1"}, Kind: scheddomain.JobKindSubagent, Label: "refactor", Detail: "interactive", Status: "Running"},
+		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "a2a-1", AgentURL: "http://agent"}, Kind: scheddomain.JobKindA2A, Status: "Working"},
+		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "shell-1"}, Kind: scheddomain.JobKindShell, Label: "shell-1", Detail: "npm run build", Status: "Running"},
+		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "sub-1"}, Kind: scheddomain.JobKindSubagent, Label: "refactor", Detail: "interactive", Status: "Running"},
 	}
 
 	var b strings.Builder
@@ -222,7 +222,7 @@ func TestWriteTaskSections_RendersPerKindTables(t *testing.T) {
 // arriving while the chain is alive never spawns a second chain, and a tick
 // stamped with a superseded epoch is dropped so chains never overlap.
 func TestRefreshTick_ReArmsAndDedups(t *testing.T) {
-	running := []TaskInfo{{TaskPollingState: agentdomain.TaskPollingState{TaskID: "shell-1"}, Kind: scheddomain.JobKindShell, Status: "Running"}}
+	running := []TaskInfo{{TaskPollingState: scheddomain.TaskPollingState{TaskID: "shell-1"}, Kind: scheddomain.JobKindShell, Status: "Running"}}
 
 	tm := &TaskManagerImpl{tickLive: true, tickEpoch: 3, activeTasks: running}
 	if _, cmd := tm.Update(taskRefreshTickMsg{epoch: 3}); cmd == nil {
@@ -296,7 +296,7 @@ func TestCancelTask_DispatchesByKind(t *testing.T) {
 	reg := &schedmocks.FakeBackgroundTaskRegistry{}
 	tm := &TaskManagerImpl{backgroundTaskService: bg, backgroundJobRegistry: reg}
 
-	if err := tm.cancelTask(TaskInfo{TaskPollingState: agentdomain.TaskPollingState{TaskID: "a2a-1"}, Kind: scheddomain.JobKindA2A}); err != nil {
+	if err := tm.cancelTask(TaskInfo{TaskPollingState: scheddomain.TaskPollingState{TaskID: "a2a-1"}, Kind: scheddomain.JobKindA2A}); err != nil {
 		t.Fatalf("cancelTask(a2a): %v", err)
 	}
 	if bg.CancelBackgroundTaskCallCount() != 1 || bg.CancelBackgroundTaskArgsForCall(0) != "a2a-1" {
@@ -306,7 +306,7 @@ func TestCancelTask_DispatchesByKind(t *testing.T) {
 		t.Fatalf("A2A cancel must not use WindJob")
 	}
 
-	if err := tm.cancelTask(TaskInfo{TaskPollingState: agentdomain.TaskPollingState{TaskID: "shell-1"}, Kind: scheddomain.JobKindShell, Status: "Running"}); err != nil {
+	if err := tm.cancelTask(TaskInfo{TaskPollingState: scheddomain.TaskPollingState{TaskID: "shell-1"}, Kind: scheddomain.JobKindShell, Status: "Running"}); err != nil {
 		t.Fatalf("cancelTask(shell): %v", err)
 	}
 	id, sig := reg.WindJobArgsForCall(0)
@@ -314,7 +314,7 @@ func TestCancelTask_DispatchesByKind(t *testing.T) {
 		t.Fatalf("WindJob(%q, %v) x%d, want one WindJob(shell-1, WindStop)", id, sig, reg.WindJobCallCount())
 	}
 
-	if err := tm.cancelTask(TaskInfo{TaskPollingState: agentdomain.TaskPollingState{TaskID: "sub-1"}, Kind: scheddomain.JobKindSubagent, Status: "Running"}); err != nil {
+	if err := tm.cancelTask(TaskInfo{TaskPollingState: scheddomain.TaskPollingState{TaskID: "sub-1"}, Kind: scheddomain.JobKindSubagent, Status: "Running"}); err != nil {
 		t.Fatalf("cancelTask(subagent): %v", err)
 	}
 	if reg.WindJobCallCount() != 2 {

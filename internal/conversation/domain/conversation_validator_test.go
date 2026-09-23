@@ -1,11 +1,11 @@
-package conversation_test
+package domain_test
 
 import (
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
 
-	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func assistantWithToolCalls(ids ...string) sdk.Message {
@@ -40,7 +40,7 @@ func userMsg(content string) sdk.Message {
 	return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(content)}
 }
 
-func checkSynthetics(t *testing.T, synthetics []conversation.SyntheticToolResponse, wantSynthCount int, wantSynthIDs []string) {
+func checkSynthetics(t *testing.T, synthetics []convdomain.SyntheticToolResponse, wantSynthCount int, wantSynthIDs []string) {
 	t.Helper()
 	if wantSynthCount > 0 {
 		if len(synthetics) != wantSynthCount {
@@ -72,7 +72,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 		wantSynthIDs   []string
 		wantSynthCount int
 		wantLen        int
-		check          func(t *testing.T, repaired []sdk.Message, synthetics []conversation.SyntheticToolResponse)
+		check          func(t *testing.T, repaired []sdk.Message, synthetics []convdomain.SyntheticToolResponse)
 	}{
 		{
 			name:           "empty conversation",
@@ -113,7 +113,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 			},
 			wantSynthIDs: []string{"a", "c"},
 			wantLen:      6,
-			check: func(t *testing.T, repaired []sdk.Message, synthetics []conversation.SyntheticToolResponse) {
+			check: func(t *testing.T, repaired []sdk.Message, synthetics []convdomain.SyntheticToolResponse) {
 				if repaired[2].Role != sdk.Tool || *repaired[2].ToolCallID != "b" {
 					t.Errorf("expected real response b at index 2, got role=%s id=%v", repaired[2].Role, repaired[2].ToolCallID)
 				}
@@ -137,15 +137,15 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 			},
 			wantSynthIDs: []string{"a", "b", "c"},
 			wantLen:      6,
-			check: func(t *testing.T, repaired []sdk.Message, synthetics []conversation.SyntheticToolResponse) {
+			check: func(t *testing.T, repaired []sdk.Message, synthetics []convdomain.SyntheticToolResponse) {
 				if repaired[5].Role != sdk.User {
 					t.Errorf("user message should land after synthetics, got role=%s at index 5", repaired[5].Role)
 				}
 				for i, s := range synthetics {
 					body, err := s.Message.Content.AsMessageContent0()
-					if err != nil || body != conversation.CancelledToolResponseContent {
+					if err != nil || body != convdomain.CancelledToolResponseContent {
 						t.Errorf("synthetics[%d] body = %q (err %v), want %q",
-							i, body, err, conversation.CancelledToolResponseContent)
+							i, body, err, convdomain.CancelledToolResponseContent)
 					}
 				}
 			},
@@ -159,8 +159,8 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 			},
 			wantSynthCount: 2,
 			wantLen:        5,
-			check: func(t *testing.T, repaired []sdk.Message, synthetics []conversation.SyntheticToolResponse) {
-				twice, synth2 := conversation.EnsureToolCallsClosed(repaired)
+			check: func(t *testing.T, repaired []sdk.Message, synthetics []convdomain.SyntheticToolResponse) {
+				twice, synth2 := convdomain.EnsureToolCallsClosed(repaired)
 				if len(synth2) != 0 {
 					t.Errorf("second pass expected 0 synthetics, got %d", len(synth2))
 				}
@@ -181,7 +181,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 			},
 			wantSynthIDs: []string{"a1", "b1"},
 			wantLen:      8,
-			check: func(t *testing.T, repaired []sdk.Message, synthetics []conversation.SyntheticToolResponse) {
+			check: func(t *testing.T, repaired []sdk.Message, synthetics []convdomain.SyntheticToolResponse) {
 				if repaired[2].Role != sdk.Tool || *repaired[2].ToolCallID != "a1" {
 					t.Errorf("synthetic for a1 should land at index 2, got role=%s id=%v",
 						repaired[2].Role, repaired[2].ToolCallID)
@@ -202,7 +202,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 			}(),
 			wantSynthCount: 2,
 			wantLen:        5,
-			check: func(t *testing.T, repaired []sdk.Message, synthetics []conversation.SyntheticToolResponse) {
+			check: func(t *testing.T, repaired []sdk.Message, synthetics []convdomain.SyntheticToolResponse) {
 				reasoning := "I should read these files"
 				if repaired[1].Reasoning == nil || *repaired[1].Reasoning != reasoning {
 					t.Errorf("Reasoning lost: got %v", repaired[1].Reasoning)
@@ -247,7 +247,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 			}(),
 			wantSynthCount: 1,
 			wantLen:        4,
-			check: func(t *testing.T, repaired []sdk.Message, synthetics []conversation.SyntheticToolResponse) {
+			check: func(t *testing.T, repaired []sdk.Message, synthetics []convdomain.SyntheticToolResponse) {
 				if len(synthetics) != 1 || synthetics[0].ToolName != "Read" {
 					t.Errorf("expected synthetic with ToolName=Read, got %+v", synthetics)
 				}
@@ -273,7 +273,7 @@ func TestEnsureToolCallsClosed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repaired, synthetics := conversation.EnsureToolCallsClosed(tt.conv)
+			repaired, synthetics := convdomain.EnsureToolCallsClosed(tt.conv)
 
 			checkSynthetics(t, synthetics, tt.wantSynthCount, tt.wantSynthIDs)
 

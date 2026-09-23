@@ -1,4 +1,4 @@
-package utils
+package infrastructure
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 
 	assert "github.com/stretchr/testify/assert"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 type a2aReg struct {
@@ -20,7 +20,7 @@ type a2aTaskAdd struct {
 }
 
 // newTrackerWith builds a tracker pre-populated with the given registrations and tasks.
-func newTrackerWith(t *testing.T, regs []a2aReg, adds []a2aTaskAdd) *A2ATaskTrackerImpl {
+func newTrackerWith(t *testing.T, regs []a2aReg, adds []a2aTaskAdd) *A2ATaskTracker {
 	t.Helper()
 	tracker := NewA2ATaskTracker()
 	for _, r := range regs {
@@ -330,14 +330,14 @@ func TestA2ATaskTracker_RemoveContextAndClearAll(t *testing.T) {
 		name         string
 		regs         []a2aReg
 		adds         []a2aTaskAdd
-		clear        func(tracker *A2ATaskTrackerImpl)
+		clear        func(tracker *A2ATaskTracker)
 		checkAllGone bool
 	}{
 		{
 			name: "remove context drops its tasks",
 			regs: []a2aReg{{"http://agent1.com", "context-1"}},
 			adds: []a2aTaskAdd{{"context-1", "task-1"}, {"context-1", "task-2"}},
-			clear: func(tracker *A2ATaskTrackerImpl) {
+			clear: func(tracker *A2ATaskTracker) {
 				tracker.RemoveContext("context-1")
 			},
 		},
@@ -348,7 +348,7 @@ func TestA2ATaskTracker_RemoveContextAndClearAll(t *testing.T) {
 				{"http://agent2.com", "context-2"},
 			},
 			adds: []a2aTaskAdd{{"context-1", "task-1"}, {"context-2", "task-2"}},
-			clear: func(tracker *A2ATaskTrackerImpl) {
+			clear: func(tracker *A2ATaskTracker) {
 				tracker.ClearAllAgents()
 			},
 			checkAllGone: true,
@@ -393,7 +393,7 @@ func TestA2ATaskTracker_PollingState(t *testing.T) {
 	contextID := "context-1"
 	tracker.RegisterContext(agentURL, contextID)
 
-	state := &agentdomain.TaskPollingState{
+	state := &scheddomain.TaskPollingState{
 		TaskID:    "task-1",
 		ContextID: contextID,
 		AgentURL:  agentURL,

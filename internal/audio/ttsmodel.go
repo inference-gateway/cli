@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	huggingface "github.com/inference-gateway/cli/internal/platform/huggingface"
 )
 
@@ -105,7 +106,7 @@ func (m *TTSModelManager) ensureFile(ctx context.Context, name string) (string, 
 		return "", err
 	}
 
-	path, err := m.hub.EnsureFile(ctx, qwen3TTSRepo, name, dir, "tts model", m.cfg.AutoDownload)
+	path, err := m.hub.EnsureFile(ctx, qwen3TTSRepo, name, dir, "tts model", m.cfg.AutoDownload, agentdomain.GetToolProgressCallback(ctx))
 	if errors.Is(err, huggingface.ErrNotCached) {
 		return "", fmt.Errorf("tts model %q not found at %s and text_to_speech.auto_download is disabled", name, filepath.Join(dir, name))
 	}

@@ -3,7 +3,7 @@ package components
 import (
 	"testing"
 
-	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -11,7 +11,7 @@ import (
 )
 
 func TestConversationSelectorImpl_Reset(t *testing.T) {
-	mockRepo := &shortcutsmocks.FakePersistentConversationRepository{}
+	mockRepo := &convmocks.FakePersistentConversationRepository{}
 	fakeTheme := &tuimocks.FakeTheme{}
 	fakeTheme.GetDimColorReturns("#888888")
 
@@ -66,7 +66,7 @@ func TestConversationSelectorImpl_Reset(t *testing.T) {
 }
 
 func TestConversationSelectorImpl_ResetAllowsReuse(t *testing.T) {
-	mockRepo := &shortcutsmocks.FakePersistentConversationRepository{}
+	mockRepo := &convmocks.FakePersistentConversationRepository{}
 	fakeTheme := &tuimocks.FakeTheme{}
 	fakeTheme.GetDimColorReturns("#888888")
 

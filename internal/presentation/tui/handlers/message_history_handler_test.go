@@ -9,6 +9,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
 func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
@@ -40,7 +41,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
 		}
 	}
 
-	event := agentdomain.MessageEditSubmitEvent{
+	event := tui.MessageEditSubmitEvent{
 		RequestID:     "test-request",
 		OriginalIndex: 0,
 		EditedContent: "Edited first message",
@@ -94,7 +95,7 @@ func TestMessageHistoryHandler_HandleEditSubmit_MiddleMessage(t *testing.T) {
 		}
 	}
 
-	event := agentdomain.MessageEditSubmitEvent{
+	event := tui.MessageEditSubmitEvent{
 		RequestID:     "test-request",
 		OriginalIndex: 2,
 		EditedContent: "Edited second message",

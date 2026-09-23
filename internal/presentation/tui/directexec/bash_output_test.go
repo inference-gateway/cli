@@ -10,7 +10,6 @@ import (
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
@@ -62,7 +61,7 @@ func TestHandleBashCommand_OutputVisibleToLLM(t *testing.T) {
 		t.Errorf("hidden entry must contain the command and its output, got: %q", got)
 	}
 
-	msgs := conversation.BuildAgentMessagesFromEntries(entries)
+	msgs := convdomain.BuildAgentMessagesFromEntries(entries)
 	var sawOutput, sawToolPair bool
 	for _, m := range msgs {
 		if content, err := m.Content.AsMessageContent0(); err == nil && strings.Contains(content, "hello world") {

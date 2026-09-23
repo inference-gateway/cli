@@ -2,8 +2,6 @@ package shortcuts
 
 import (
 	"context"
-
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 // Shortcut interface represents a chat shortcut that can be executed
@@ -51,15 +49,3 @@ const (
 	SideEffectShowToolsList
 	SideEffectShowA2AAgents
 )
-
-// PersistentConversationRepository interface for conversation persistence
-type PersistentConversationRepository interface {
-	ListSavedConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error)
-	LoadConversation(ctx context.Context, conversationID string) error
-	GetCurrentConversationMetadata() convdomain.ConversationMetadata
-	SaveConversation(ctx context.Context) error
-	StartNewConversation(title string) error
-	GetCurrentConversationID() string
-	SetConversationTitle(title string)
-	DeleteSavedConversation(ctx context.Context, conversationID string) error
-}

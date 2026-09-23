@@ -1,12 +1,10 @@
-package conversation
+package domain
 
 import (
 	"strings"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
-
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
@@ -14,7 +12,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 	reasoning := "thought process"
 	planTitle := "Add Feature X"
 
-	entries := []convdomain.ConversationEntry{
+	entries := []ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -53,7 +51,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 				Content: sdk.NewMessageContent(planContent),
 			},
 			IsPlan:             true,
-			PlanApprovalStatus: convdomain.PlanApprovalAccepted,
+			PlanApprovalStatus: PlanApprovalAccepted,
 		},
 		{
 			Message: sdk.Message{
@@ -92,7 +90,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 // (empty assistant entry) left behind by a rejected tool must not be
 // serialized between the assistant tool_calls message and its tool response.
 func TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries(t *testing.T) {
-	entries := []convdomain.ConversationEntry{
+	entries := []ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("edit the file")}},
 		{
 			Message: sdk.Message{
@@ -116,7 +114,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries(t *testing.
 				Content: sdk.NewMessageContent(""),
 			},
 			PendingToolCall:    &sdk.ChatCompletionMessageToolCall{ID: "call_1"},
-			ToolApprovalStatus: convdomain.ToolApprovalRejected,
+			ToolApprovalStatus: ToolApprovalRejected,
 		},
 		{
 			Message: sdk.Message{
@@ -141,7 +139,7 @@ func TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries(t *testing.
 }
 
 func TestBuildAgentMessagesFromEntries_PreservesNonPlanEntries(t *testing.T) {
-	entries := []convdomain.ConversationEntry{
+	entries := []ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hi")}},
 		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("hello")}},
 	}
@@ -160,7 +158,7 @@ func TestBuildAgentMessagesFromEntries_PreservesNonPlanEntries(t *testing.T) {
 func TestBuildAgentMessagesFromEntries_BackfillsReasoningFromEntry(t *testing.T) {
 	reasoning := "I should retry with a different path."
 
-	entries := []convdomain.ConversationEntry{
+	entries := []ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
@@ -192,7 +190,7 @@ func TestBuildAgentMessagesFromEntries_BackfillsReasoningFromEntry(t *testing.T)
 func TestBuildAgentMessagesFromEntries_FiltersUserBashEntries(t *testing.T) {
 	userBashID := "user-bash-1234567890"
 
-	entries := []convdomain.ConversationEntry{
+	entries := []ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("!task lint")}},
 		{
 			Message: sdk.Message{
@@ -243,7 +241,7 @@ func TestBuildAgentMessagesFromEntries_DoesNotOverwriteExistingReasoning(t *test
 	existing := "from message"
 	other := "from entry"
 
-	entries := []convdomain.ConversationEntry{
+	entries := []ConversationEntry{
 		{
 			Message: sdk.Message{
 				Role:             sdk.Assistant,

@@ -1,4 +1,4 @@
-package conversation
+package domain
 
 import (
 	sdk "github.com/inference-gateway/sdk"

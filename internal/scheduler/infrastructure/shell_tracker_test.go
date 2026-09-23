@@ -1,4 +1,4 @@
-package utils
+package infrastructure
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -20,7 +21,7 @@ func createTestShell(id string, state scheddomain.ShellState) *scheddomain.Backg
 		Cmd:          exec.CommandContext(ctx, "echo", "test"),
 		StartedAt:    time.Now(),
 		State:        state,
-		OutputBuffer: NewOutputRingBuffer(1024),
+		OutputBuffer: utils.NewOutputRingBuffer(1024),
 		CancelFunc:   cancel,
 		ReadOffset:   0,
 	}

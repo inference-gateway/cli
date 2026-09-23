@@ -7,8 +7,6 @@ import (
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
-
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // TaskInfo wraps ADK Task with UI-specific metadata for completed/terminal tasks
@@ -46,7 +44,7 @@ type TaskRetentionService interface {
 // Only enabled when A2A is enabled - provides task cancellation and retrieval
 type BackgroundTaskService interface {
 	// GetBackgroundTasks returns all current background polling tasks
-	GetBackgroundTasks() []agentdomain.TaskPollingState
+	GetBackgroundTasks() []TaskPollingState
 
 	// CancelBackgroundTask cancels a background task by task ID
 	CancelBackgroundTask(taskID string) error
@@ -54,7 +52,7 @@ type BackgroundTaskService interface {
 
 // A2AClearer is the one-method projection of the A2A tracker used by
 // conversation clear/switch to discard the A2A context/task graph. The concrete
-// *utils.A2ATaskTrackerImpl (and the BackgroundTaskRegistry that embeds it)
+// *schedinfra.A2ATaskTracker (and the BackgroundTaskRegistry that embeds it)
 // satisfies it; consumers that only clear depend on this instead of the whole
 // tracker.
 type A2AClearer interface {
@@ -75,7 +73,7 @@ type A2AClearer interface {
 // interface, or this full BackgroundTaskRegistry to access both plus the
 // HasPending() aggregator method.
 type BackgroundTaskRegistry interface {
-	agentdomain.A2ATaskTracker
+	A2ATaskTracker
 	ShellTracker
 	SubagentTracker
 
@@ -113,4 +111,43 @@ type BackgroundTaskRegistry interface {
 // TitleGenerator interface for conversation title generation
 type TitleGenerator interface {
 	ProcessPendingTitles(ctx context.Context) error
+}
+
+// A2ATaskTracker handles A2A task ID and context ID tracking within chat
+// sessions. Following A2A spec: supports multi-tenant with multiple
+// contexts per agent. It is one part of the BackgroundTaskRegistry, next to
+// ShellTracker (shell.go) and SubagentTracker (subagent.go). Code that only needs
+// the A2A surface can depend on this narrower interface.
+type A2ATaskTracker interface {
+	// Context management (contexts are server-generated and tracked here).
+	// Multiple contexts per agent enable multi-tenant/multi-session support.
+	RegisterContext(agentURL, contextID string)
+	GetLatestContextForAgent(agentURL string) string
+	HasContext(contextID string) bool
+
+	// Task management (tasks are server-generated and scoped to contexts per A2A spec)
+	AddTask(contextID, taskID string)
+	GetLatestTaskForContext(contextID string) string
+	RemoveTask(taskID string)
+
+	// Agent management
+	ClearAllAgents()
+
+	// Polling state management (one polling state per task)
+	StartPolling(taskID string, state *TaskPollingState)
+	StopPolling(taskID string)
+	GetPollingState(taskID string) *TaskPollingState
+}
+
+// TaskPollingState is the data record for one in-flight A2A task that the task
+// view reads. Monitoring is owned by the job supervisor (a2aJob), which polls the
+// remote agent and updates LastKnownState here.
+type TaskPollingState struct {
+	TaskID          string
+	ContextID       string
+	AgentURL        string
+	TaskDescription string
+	IsPolling       bool
+	StartedAt       time.Time
+	LastKnownState  string
 }

@@ -825,7 +825,7 @@ func TestInputView_GitStatusResolvedEventStoresFlags(t *testing.T) {
 func TestInputView_HeartbeatRefetchesGitStatus(t *testing.T) {
 	iv := newInputViewWithPR(t, "main", "")
 
-	_, cmd := iv.Update(agentdomain.HeartbeatEvent{At: time.Now()})
+	_, cmd := iv.Update(tui.HeartbeatEvent{At: time.Now()})
 	require.NotNil(t, cmd, "the app heartbeat must trigger the async git status refetch")
 
 	cfg := config.DefaultConfig()

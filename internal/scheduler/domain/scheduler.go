@@ -1,9 +1,26 @@
 package domain
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"time"
+
+	uuid "github.com/google/uuid"
+	cron "github.com/robfig/cron/v3"
 )
+
+// CronParser accepts the schedules a ScheduledJob may carry: standard 5-field
+// expressions and @descriptors. The scheduler runs jobs with the same parser.
+var CronParser = cron.NewParser(
+	cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
+)
+
+// ParseCron reports whether expr is a valid job schedule.
+func ParseCron(expr string) error {
+	_, err := CronParser.Parse(expr)
+	return err
+}
 
 // ValidJobID reports whether id is safe to use as a single file-name
 // component. Job IDs are UUIDs at creation, but they also arrive as raw LLM
@@ -37,6 +54,59 @@ type ScheduledJob struct {
 	UpdatedAt      time.Time  `yaml:"updated_at" json:"updated_at"`
 	LastRun        *time.Time `yaml:"last_run,omitempty" json:"last_run,omitempty"`
 	LastError      string     `yaml:"last_error,omitempty" json:"last_error,omitempty"`
+}
+
+// NewScheduledJob returns spec as a new job: a fresh ID and creation stamp,
+// with the schedule validated.
+func NewScheduledJob(spec ScheduledJob, now time.Time) (*ScheduledJob, error) {
+	if err := ParseCron(spec.CronExpression); err != nil {
+		return nil, fmt.Errorf("invalid cron_expression: %w", err)
+	}
+	spec.ID = uuid.New().String()
+	spec.CreatedAt = now
+	spec.UpdatedAt = now
+	return &spec, nil
+}
+
+// JobPatch carries edits to a ScheduledJob; a nil field is left unchanged.
+type JobPatch struct {
+	Name           *string
+	Description    *string
+	CronExpression *string
+	Prompt         *string
+	Model          *string
+	RunOnce        *bool
+}
+
+// Apply validates and applies p, stamping UpdatedAt. It reports false (and
+// changes nothing) when p carries no edits.
+func (j *ScheduledJob) Apply(p JobPatch, now time.Time) (bool, error) {
+	if p.CronExpression != nil {
+		if err := ParseCron(*p.CronExpression); err != nil {
+			return false, fmt.Errorf("invalid cron_expression: %w", err)
+		}
+	}
+	changed := slices.Contains([]bool{
+		set(&j.Name, p.Name),
+		set(&j.Description, p.Description),
+		set(&j.CronExpression, p.CronExpression),
+		set(&j.Prompt, p.Prompt),
+		set(&j.Model, p.Model),
+		set(&j.RunOnce, p.RunOnce),
+	}, true)
+	if changed {
+		j.UpdatedAt = now
+	}
+	return changed, nil
+}
+
+// set copies *src into *dst when src is non-nil and reports whether it did.
+func set[T any](dst, src *T) bool {
+	if src == nil {
+		return false
+	}
+	*dst = *src
+	return true
 }
 
 // RunStatus is the lifecycle state of a single scheduled-job run.

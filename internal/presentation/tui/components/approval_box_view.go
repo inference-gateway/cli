@@ -13,6 +13,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	hints "github.com/inference-gateway/cli/internal/presentation/tui/hints"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
@@ -47,13 +48,13 @@ type ApprovalBoxView struct {
 	width            int
 	height           int
 	styleProvider    *styles.Provider
-	stateManager     agentdomain.ApprovalUIManager
-	toolFormatter    agentdomain.ToolFormatter
+	stateManager     tui.ApprovalPrompt
+	toolFormatter    tui.ToolFormatter
 	keyHintFormatter *hints.Formatter
 
 	// active is the approval state the form was built for; a mismatch with
 	// the StateManager (cleared externally) marks the form stale.
-	active *agentdomain.ApprovalUIState
+	active *tui.ApprovalUIState
 	form   *huh.Form
 	choice agentdomain.ApprovalAction
 
@@ -105,7 +106,7 @@ func (av *ApprovalBoxView) IsExpanded() bool {
 	return av.expanded
 }
 
-func NewApprovalBoxView(styleProvider *styles.Provider, stateManager agentdomain.ApprovalUIManager, toolFormatter agentdomain.ToolFormatter) *ApprovalBoxView {
+func NewApprovalBoxView(styleProvider *styles.Provider, stateManager tui.ApprovalPrompt, toolFormatter tui.ToolFormatter) *ApprovalBoxView {
 	return &ApprovalBoxView{
 		width:         80,
 		styleProvider: styleProvider,
@@ -213,7 +214,7 @@ func (av *ApprovalBoxView) Forward(msg tea.Msg) tea.Cmd {
 // bordered box so the approval prompt is unmistakable and shows *what* is being
 // approved, instead of bare buttons floating above the input. The border uses the
 // accent colour to echo the focused input box directly below it.
-func (av *ApprovalBoxView) renderApprovalBox(state *agentdomain.ApprovalUIState) string {
+func (av *ApprovalBoxView) renderApprovalBox(state *tui.ApprovalUIState) string {
 	accentColor := av.styleProvider.GetThemeColor("accent")
 
 	parts := []string{av.styleProvider.RenderWithColorAndBold("Approval required", accentColor)}
