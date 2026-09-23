@@ -689,7 +689,10 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewTracesShortcut())
 
 	if c.stores != nil {
-		c.insights = insights.New(c.createRawSDKClient(), c.config, c.stores.Conversations, c.modelService)
+		// No retry: a gateway that cuts the answer off mid-way (write timeout)
+		// cuts every retry off the same way, multiplying the wait before the
+		// error surfaces. The user reruns /insights anyway.
+		c.insights = insights.New(c.newSDKClient(&sdk.RetryConfig{}), c.config, c.stores.Conversations, c.modelService)
 	}
 
 	if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
@@ -917,9 +920,14 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 	return retryConfig
 }
 
-// createSDKClient creates a configured SDK client with retry and timeout settings
 // createRawSDKClient creates the raw SDK client for services that need it
 func (c *ServiceContainer) createRawSDKClient() sdk.Client {
+	return c.newSDKClient(c.createRetryConfig())
+}
+
+// newSDKClient creates an SDK client with the configured timeout and the given
+// retry policy.
+func (c *ServiceContainer) newSDKClient(retry *sdk.RetryConfig) sdk.Client {
 	if c.config == nil {
 		panic("ServiceContainer: config is nil when creating SDK client")
 	}
@@ -948,7 +956,7 @@ func (c *ServiceContainer) createRawSDKClient() sdk.Client {
 		BaseURL:     baseURL,
 		APIKey:      c.config.Gateway.APIKey,
 		Timeout:     time.Duration(timeout) * time.Second,
-		RetryConfig: c.createRetryConfig(),
+		RetryConfig: retry,
 		Transport:   telemetry.PropagationTransport(nil),
 	})
 }

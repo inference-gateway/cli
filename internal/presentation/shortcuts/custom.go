@@ -1,14 +1,17 @@
 package shortcuts
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -226,7 +229,7 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		cmd.Dir = cmdConfig.workingDir
 	}
 
-	output, err := cmd.CombinedOutput()
+	output, err := runCommand(ctx, cmd)
 	outputStr := utils.StripANSI(strings.TrimSpace(string(output)))
 
 	if err != nil {
@@ -241,6 +244,59 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 	}
 
 	return c.formatOutput(outputStr)
+}
+
+// progressKey carries the callback watching a command shortcut's stderr.
+type progressKey struct{}
+
+// WithProgress has a command shortcut report its stderr to fn while it runs, so
+// a long command shows what it is doing instead of a bare spinner.
+func WithProgress(ctx context.Context, fn func(line string)) context.Context {
+	return context.WithValue(ctx, progressKey{}, fn)
+}
+
+// runCommand is cmd.CombinedOutput, with stderr also teed to the progress
+// callback on ctx when there is one.
+func runCommand(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
+	fn, _ := ctx.Value(progressKey{}).(func(string))
+	if fn == nil {
+		return cmd.CombinedOutput()
+	}
+	out := &lockedBuffer{}
+	cmd.Stdout = out
+	cmd.Stderr = io.MultiWriter(out, statusWriter(fn))
+	err := cmd.Run()
+	return out.buf.Bytes(), err
+}
+
+// lockedBuffer collects stdout and stderr, which exec copies from two
+// goroutines once they no longer share one writer.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+// statusWriter reports the last non-empty line of each write - the latest step.
+//
+// ponytail: a line split across two writes is reported as two halves, fine for
+// a status bar. Buffer up to the newline if a caller ever needs whole lines.
+type statusWriter func(string)
+
+func (f statusWriter) Write(p []byte) (int, error) {
+	lines := strings.Split(utils.StripANSI(string(p)), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if line := strings.TrimSpace(lines[i]); line != "" {
+			f(line)
+			break
+		}
+	}
+	return len(p), nil
 }
 
 // commandConfig holds resolved command configuration

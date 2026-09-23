@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -96,8 +97,9 @@ type reportMeta struct {
 }
 
 // Generate reads the sessions, asks the model to interpret them, and writes the
-// report to ~/.infer/insights.
-func (g *Generator) Generate(ctx context.Context, since time.Time) (markdown, path string, err error) {
+// report to ~/.infer/insights. Each step is announced on progress as it starts,
+// because the model call alone can run for minutes.
+func (g *Generator) Generate(ctx context.Context, since time.Time, progress io.Writer) (markdown, path string, err error) {
 	if !g.Available() {
 		return "", "", fmt.Errorf("insights need conversation storage and a configured model")
 	}
@@ -125,6 +127,8 @@ func (g *Generator) Generate(ctx context.Context, since time.Time) (markdown, pa
 
 	memory := g.memoryIndex()
 
+	_, _ = fmt.Fprintf(progress, "Read %d sessions and %d log failure groups\n", len(sessions), len(logs.Groups))
+	_, _ = fmt.Fprintf(progress, "Analyzing with %s, can take minutes...\n", model)
 	analysis, usage, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools, memory, logs))
 	if err != nil {
 		return "", "", err
