@@ -234,3 +234,11 @@ scenarios:
           - { name: Read, args: { file_path: "m1.txt" } }
           - { name: Write, args: { file_path: "m2.txt", content: "two\n" } }
       - content: "APPROVAL-TAIL-DONE"
+
+  - name: write-then-read
+    match: '(?i)write then read the marker'
+    turns:
+      - tool_calls:
+          - { name: Write, args: { file_path: "marker.txt", content: "write-read-marker\n" } }
+          - { name: Read, args: { file_path: "marker.txt" } }
+      - content: "Marker written and read."
