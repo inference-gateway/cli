@@ -559,7 +559,7 @@ type ImageEditToolConfig struct {
 }
 
 // ImageVariationToolConfig contains settings for the ImageVariation tool,
-// which sends a plain one-off request to /v1/images/variations using the
+// which sends a plain one-off request to /v1/images/edits using the
 // configured image model and saves the result locally. It is independent of
 // the model selected for the chat session.
 type ImageVariationToolConfig struct {
