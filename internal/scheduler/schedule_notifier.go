@@ -45,7 +45,7 @@ func (n *ScheduleNotifier) Notify(job scheddomain.ScheduledJob, e scheddomain.Ru
 		if name == "" {
 			name = job.ID
 		}
-		content = fmt.Sprintf("⚠️ Scheduled task %q failed: %v", name, e.Err)
+		content = fmt.Sprintf("Scheduled task %q failed: %v", name, e.Err)
 	}
 	if content == "" {
 		return

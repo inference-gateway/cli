@@ -851,3 +851,56 @@ func TestAutocomplete_RenderMultibyteDescription(t *testing.T) {
 		})
 	}
 }
+
+func TestAutocomplete_FileMode(t *testing.T) {
+	mockRegistry := &tuimocks.FakeShortcutRegistry{}
+	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
+
+	files := &agentdomainmocks.FakeFileService{}
+	files.ListProjectFilesReturns([]string{
+		"cmd/infer/main.go",
+		"internal/agent/tools/registry.go",
+		"internal/presentation/tui/app/chat.go",
+	}, nil)
+
+	newAC := func() *autocomplete.AutocompleteImpl {
+		ac := autocomplete.NewAutocomplete(&tuimocks.FakeTheme{}, mockRegistry)
+		ac.SetFileService(files)
+		ac.SetWidth(80)
+		return ac
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		visible  bool
+		selected string
+	}{
+		{name: "bare @ mid-sentence lists files", input: "explain @", visible: true, selected: "@cmd/infer/main.go"},
+		{name: "fuzzy query ranks the match", input: "@rgst", visible: true, selected: "@internal/agent/tools/registry.go"},
+		{name: "@ inside a word does not trigger", input: "mail foo@bar", visible: false},
+		{name: "no match hides the dropdown", input: "@zzzz", visible: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ac := newAC()
+			ac.Update(tt.input, len(tt.input))
+			assert.Equal(t, tt.visible, ac.IsVisible())
+			if tt.visible {
+				assert.Equal(t, tt.selected, ac.GetSelectedShortcut())
+				assert.NotContains(t, ansi.Strip(ac.Render()), "│", "file rows have no description column")
+			}
+		})
+	}
+
+	t.Run("tab splices the path over the @query token", func(t *testing.T) {
+		ac := newAC()
+		input := "look at @reg then x"
+		ac.Update(input, len("look at @reg"))
+		assert.Contains(t, ac.Render(), "\x1b[1;4m", "matched characters are bold+underlined")
+		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyTab})
+		assert.True(t, handled)
+		assert.Equal(t, "look at @internal/agent/tools/registry.go then x", completion)
+		assert.Equal(t, len("look at @internal/agent/tools/registry.go "), ac.GetCompletionCursorPos())
+	})
+}

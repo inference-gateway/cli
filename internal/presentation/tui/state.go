@@ -33,7 +33,6 @@ type ApplicationState struct {
 	height int
 
 	// UI State
-	fileSelectionState  *FileSelectionState
 	approvalUIState     *agentdomain.ApprovalUIState
 	planApprovalUIState *agentdomain.PlanApprovalUIState
 	userQuestionUIState *agentdomain.UserQuestionUIState
@@ -68,7 +67,6 @@ type ViewState int
 const (
 	ViewStateModelSelection ViewState = iota
 	ViewStateChat
-	ViewStateFileSelection
 	ViewStateConversationSelection
 	ViewStateThemeSelection
 	ViewStateA2ATaskManagement
@@ -87,8 +85,6 @@ func (v ViewState) String() string {
 		return "ModelSelection"
 	case ViewStateChat:
 		return "Chat"
-	case ViewStateFileSelection:
-		return "FileSelection"
 	case ViewStateConversationSelection:
 		return "ConversationSelection"
 	case ViewStateThemeSelection:
@@ -114,13 +110,6 @@ func (v ViewState) String() string {
 	}
 }
 
-// FileSelectionState represents the state of file selection UI
-type FileSelectionState struct {
-	Files         []string `json:"files"`
-	SearchQuery   string   `json:"search_query"`
-	SelectedIndex int      `json:"selected_index"`
-}
-
 // MessageEditState represents the state when editing a message
 type MessageEditState struct {
 	OriginalMessageIndex int `json:"original_message_index"`
@@ -137,14 +126,13 @@ type MessageSnapshot struct {
 // NewApplicationState creates a new application state
 func NewApplicationState() *ApplicationState {
 	return &ApplicationState{
-		currentView:        ViewStateModelSelection,
-		previousView:       ViewStateModelSelection,
-		agentMode:          agentdomain.AgentModeStandard,
-		chatSession:        nil,
-		toolExecution:      nil,
-		queuedMessages:     make([]convdomain.QueuedMessage, 0),
-		fileSelectionState: nil,
-		debugMode:          false,
+		currentView:    ViewStateModelSelection,
+		previousView:   ViewStateModelSelection,
+		agentMode:      agentdomain.AgentModeStandard,
+		chatSession:    nil,
+		toolExecution:  nil,
+		queuedMessages: make([]convdomain.QueuedMessage, 0),
+		debugMode:      false,
 	}
 }
 
@@ -209,7 +197,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateModelSelection: {ViewStateChat},
 		ViewStateChat: {
 			ViewStateModelSelection,
-			ViewStateFileSelection,
 			ViewStateConversationSelection,
 			ViewStateThemeSelection,
 			ViewStateA2ATaskManagement,
@@ -221,7 +208,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateToolsList,
 			ViewStateA2AAgents,
 		},
-		ViewStateFileSelection:         {ViewStateChat},
 		ViewStateConversationSelection: {ViewStateChat},
 		ViewStateThemeSelection:        {ViewStateChat},
 		ViewStateA2ATaskManagement:     {ViewStateChat},
@@ -515,42 +501,6 @@ func (s *ApplicationState) SetDebugMode(enabled bool) {
 // IsDebugMode returns whether debug mode is enabled
 func (s *ApplicationState) IsDebugMode() bool {
 	return s.debugMode
-}
-
-// File Selection State Management
-
-// SetupFileSelection initializes file selection state
-func (s *ApplicationState) SetupFileSelection(files []string) {
-	s.fileSelectionState = &FileSelectionState{
-		Files:         files,
-		SearchQuery:   "",
-		SelectedIndex: 0,
-	}
-}
-
-// GetFileSelectionState returns the current file selection state
-func (s *ApplicationState) GetFileSelectionState() *FileSelectionState {
-	return s.fileSelectionState
-}
-
-// UpdateFileSearchQuery updates the file search query
-func (s *ApplicationState) UpdateFileSearchQuery(query string) {
-	if s.fileSelectionState != nil {
-		s.fileSelectionState.SearchQuery = query
-		s.fileSelectionState.SelectedIndex = 0 // Reset selection when searching
-	}
-}
-
-// SetFileSelectedIndex sets the selected file index
-func (s *ApplicationState) SetFileSelectedIndex(index int) {
-	if s.fileSelectionState != nil {
-		s.fileSelectionState.SelectedIndex = index
-	}
-}
-
-// ClearFileSelectionState clears the file selection state
-func (s *ApplicationState) ClearFileSelectionState() {
-	s.fileSelectionState = nil
 }
 
 // Approval State Management

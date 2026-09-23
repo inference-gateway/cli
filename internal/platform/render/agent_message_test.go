@@ -50,7 +50,7 @@ func TestFormatAgentMessage(t *testing.T) {
 		{
 			name: "failed tool result is flagged",
 			line: `{"role":"tool","content":"Tool execution failed: 502","tool_call_id":"123","failed":true}`,
-			want: "> ⚠️ Tool failed - retrying may follow:\n> ```\n> Tool execution failed: 502\n> ```",
+			want: "> Tool failed - retrying may follow:\n> ```\n> Tool execution failed: 502\n> ```",
 		},
 		{
 			name: "empty tool result is skipped",

@@ -77,12 +77,12 @@ func (v *VoiceShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 		return ShortcutResult{Output: fmt.Sprintf("%v", err), Success: false}, nil
 	}
 	if err := v.recorder.EnsureAvailable(); err != nil {
-		return ShortcutResult{Output: fmt.Sprintf("🎙 %v", err), Success: false}, nil
+		return ShortcutResult{Output: fmt.Sprintf("%v", err), Success: false}, nil
 	}
 
 	wavPath, err := v.recorder.Record(ctx, seconds)
 	if err != nil {
-		return ShortcutResult{Output: fmt.Sprintf("🎙 Recording failed: %v", err), Success: false}, nil
+		return ShortcutResult{Output: fmt.Sprintf("Recording failed: %v", err), Success: false}, nil
 	}
 	defer func() { _ = os.Remove(wavPath) }()
 

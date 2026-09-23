@@ -16,7 +16,7 @@ type ServerStatus struct {
 	Error     string `json:"error,omitempty"`
 }
 
-// StatusReport mirrors the TUI's "🔌 connected/total (tools)" indicator plus
+// StatusReport mirrors the TUI's "MCP connected/total (tools)" indicator plus
 // a per-server breakdown. TotalServers counts every configured server, like
 // the TUI; only enabled servers are dialed.
 type StatusReport struct {
@@ -30,9 +30,9 @@ type StatusReport struct {
 // Indicator renders the report the way the TUI status bar does.
 func (r StatusReport) Indicator() string {
 	if r.TotalTools > 0 {
-		return fmt.Sprintf("🔌 %d/%d (%d)", r.ConnectedServers, r.TotalServers, r.TotalTools)
+		return fmt.Sprintf("MCP %d/%d (%d)", r.ConnectedServers, r.TotalServers, r.TotalTools)
 	}
-	return fmt.Sprintf("🔌 %d/%d", r.ConnectedServers, r.TotalServers)
+	return fmt.Sprintf("MCP %d/%d", r.ConnectedServers, r.TotalServers)
 }
 
 // ProbeStatus dials every enabled server once (or just `only` when non-empty)

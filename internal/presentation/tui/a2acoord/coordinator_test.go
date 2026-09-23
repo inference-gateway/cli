@@ -235,7 +235,7 @@ func TestService_HandleTaskInputRequired(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected SetStatusEvent, got %T", msgs[0])
 		}
-		if status.Message != "⚠️  A2A task requires input: need API key" {
+		if status.Message != "A2A task requires input: need API key" {
 			t.Errorf("unexpected status message: %q", status.Message)
 		}
 		if status.Spinner {

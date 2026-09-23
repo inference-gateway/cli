@@ -585,7 +585,7 @@ func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) te
 		}
 	}
 
-	return handleInputChangedAfterTextarea(app, false)
+	return handleInputChangedAfterTextarea(app)
 }
 
 func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
@@ -624,11 +624,11 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) t
 		}
 	}
 
-	return handleInputChangedAfterTextarea(app, false)
+	return handleInputChangedAfterTextarea(app)
 }
 
 func handleBackspace(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	return handleInputChangedAfterTextarea(app, false)
+	return handleInputChangedAfterTextarea(app)
 }
 
 func handleHistoryUp(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
@@ -661,35 +661,35 @@ func handleHistoryDown(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 }
 
 func handleDeleteToBeginning(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	return handleInputChangedAfterTextarea(app, false)
+	return handleInputChangedAfterTextarea(app)
 }
 
 func handleDeleteWordBackward(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	return handleInputChangedAfterTextarea(app, false)
+	return handleInputChangedAfterTextarea(app)
 }
 
 func handleDeleteWordForward(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	return handleInputChangedAfterTextarea(app, false)
+	return handleInputChangedAfterTextarea(app)
 }
 
 func handleMoveCursorWordLeft(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	return handleInputChangedAfterTextarea(app, false)
+	return handleInputChangedAfterTextarea(app)
 }
 
 func handleMoveCursorWordRight(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	return handleInputChangedAfterTextarea(app, false)
+	return handleInputChangedAfterTextarea(app)
 }
 
 func handleMoveToBeginning(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	return handleInputChangedAfterTextarea(app, false)
+	return handleInputChangedAfterTextarea(app)
 }
 
 func handleMoveToEnd(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	return handleInputChangedAfterTextarea(app, false)
+	return handleInputChangedAfterTextarea(app)
 }
 
 func handleInsertNewline(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	return handleInputChangedAfterTextarea(app, false)
+	return handleInputChangedAfterTextarea(app)
 }
 
 func handleToggleHelp(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
@@ -1027,15 +1027,15 @@ func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd
 		}
 	}
 
-	if literal := keys.PrintableText(keyMsg); literal != "" {
-		return handleInputChangedAfterTextarea(app, literal == "@")
+	if keys.PrintableText(keyMsg) != "" {
+		return handleInputChangedAfterTextarea(app)
 	}
 	return nil
 }
 
 // handleInputChangedAfterTextarea emits side effects for a key that the
 // textarea will apply later in this Bubble Tea update cycle.
-func handleInputChangedAfterTextarea(app KeyHandlerContext, openFileSelection bool) tea.Cmd {
+func handleInputChangedAfterTextarea(app KeyHandlerContext) tea.Cmd {
 	if app.GetInputView() == nil {
 		return nil
 	}
@@ -1046,15 +1046,6 @@ func handleInputChangedAfterTextarea(app KeyHandlerContext, openFileSelection bo
 			Direction:   tui.ScrollToBottom,
 			Amount:      0,
 		}
-	}
-
-	if openFileSelection {
-		return tea.Batch(
-			scrollCmd,
-			func() tea.Msg {
-				return tui.FileSelectionRequestEvent{}
-			},
-		)
 	}
 
 	return tea.Batch(

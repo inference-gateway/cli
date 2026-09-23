@@ -395,7 +395,7 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 				TotalTools:       2500,
 			},
 			serverCount:  4,
-			expectedText: "🔌 3/4 (2500)",
+			expectedText: "MCP 3/4 (2500)",
 			expectEmpty:  false,
 		},
 		{
@@ -406,7 +406,7 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 				TotalTools:       0,
 			},
 			serverCount:  4,
-			expectedText: "🔌 3/4",
+			expectedText: "MCP 3/4",
 			expectEmpty:  false,
 		},
 		{

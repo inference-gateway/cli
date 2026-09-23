@@ -164,8 +164,6 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		return h.HandleUserInputEvent(m)
 	case tui.RolloverCompletedEvent:
 		return h.HandleRolloverCompletedEvent(m)
-	case tui.FileSelectionRequestEvent:
-		return h.HandleFileSelectionRequestEvent(m)
 	case tui.ConversationSelectedEvent:
 		return h.HandleConversationSelectedEvent(m)
 	case agentdomain.ChatStartEvent:
@@ -289,12 +287,6 @@ func (h *ChatHandler) HandleUserInputEvent(
 	msg agentdomain.UserInputEvent,
 ) tea.Cmd {
 	return h.messageProcessor.handleUserInput(msg)
-}
-
-func (h *ChatHandler) HandleFileSelectionRequestEvent(
-	msg tui.FileSelectionRequestEvent,
-) tea.Cmd {
-	return h.handleFileSelectionRequest(msg)
 }
 
 func (h *ChatHandler) HandleConversationSelectedEvent(

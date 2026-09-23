@@ -411,7 +411,7 @@ func simulateMultiEditDiff(args map[string]any) *styles.DiffInfo {
 			return &styles.DiffInfo{
 				FilePath:   filePath,
 				OldContent: originalContent,
-				NewContent: "⚠️  Edit simulation failed: old_string not found after previous edits",
+				NewContent: "Edit simulation failed: old_string not found after previous edits",
 				Title:      title,
 			}
 		}
@@ -424,7 +424,7 @@ func simulateMultiEditDiff(args map[string]any) *styles.DiffInfo {
 				return &styles.DiffInfo{
 					FilePath:   filePath,
 					OldContent: originalContent,
-					NewContent: fmt.Sprintf("⚠️  Edit simulation failed: old_string not unique (%d occurrences)", count),
+					NewContent: fmt.Sprintf("Edit simulation failed: old_string not unique (%d occurrences)", count),
 					Title:      title,
 				}
 			}
@@ -573,9 +573,9 @@ func (s *ToolFormatterService) formatEnhancedGatewayTool(result *agentdomain.Too
 
 	switch toolType {
 	case "A2A":
-		fmt.Fprintf(&output, "└─ %s 🔗 Delegated to A2A Agent on Gateway", statusIcon)
+		fmt.Fprintf(&output, "└─ %s Delegated to A2A Agent on Gateway", statusIcon)
 	case "MCP":
-		fmt.Fprintf(&output, "└─ %s 🔧 Executed via MCP on Gateway", statusIcon)
+		fmt.Fprintf(&output, "└─ %s Executed via MCP on Gateway", statusIcon)
 	default:
 		fmt.Fprintf(&output, "└─ %s Executed on Gateway", statusIcon)
 	}

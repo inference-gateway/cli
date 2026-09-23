@@ -244,7 +244,7 @@ func (s *ImageService) normalizeFilePath(filePath string) string {
 		}
 		return parsedURL.Path
 	}
-	return filePath
+	return expandHomePath(filePath)
 }
 
 // CreateDataURL creates a data URL from an image attachment

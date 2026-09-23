@@ -14,7 +14,6 @@ type ChatHandler interface {
 
 	// Specific event handlers
 	HandleUserInputEvent(msg agentdomain.UserInputEvent) tea.Cmd
-	HandleFileSelectionRequestEvent(msg FileSelectionRequestEvent) tea.Cmd
 	HandleConversationSelectedEvent(msg ConversationSelectedEvent) tea.Cmd
 	HandleToolApprovalRequestedEvent(msg agentdomain.ToolApprovalRequestedEvent) tea.Cmd
 	HandleToolApprovalResponseEvent(msg agentdomain.ToolApprovalResponseEvent) tea.Cmd

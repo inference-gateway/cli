@@ -20,7 +20,6 @@ import (
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
-	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
@@ -93,7 +92,6 @@ type ChatApplication struct {
 	modelSelector        *components.ModelSelectorImpl
 	themeSelector        *components.ThemeSelectorImpl
 	conversationSelector *components.ConversationSelectorImpl
-	fileSelectionView    *components.FileSelectionView
 	taskManager          *components.TaskManagerImpl
 	toolCallRenderer     *components.ToolCallRenderer
 	installOpentaskView  *components.InstallOpentaskView
@@ -107,7 +105,6 @@ type ChatApplication struct {
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
-	fileSelectionHandler    *components.FileSelectionHandler
 
 	// Event handling
 	chatHandler           tui.ChatHandler
@@ -256,6 +253,7 @@ func NewChatApplication(
 	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService, app.modelService, app.pricingService, app.skillsService, app.githubIssueService)
 	if ac, ok := app.autocomplete.(*autocomplete.AutocompleteImpl); ok {
 		ac.SetStateManager(app.stateManager)
+		ac.SetFileService(app.fileService)
 	}
 
 	app.inputStatusBar = factory.CreateInputStatusBar(app.themeService)
@@ -292,10 +290,7 @@ func NewChatApplication(
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
 	app.questionFormView = components.NewQuestionFormView(styleProvider, app.stateManager)
 
-	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
-
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
-	app.fileSelectionHandler = components.NewFileSelectionHandler(styleProvider)
 
 	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.config)
 	app.updateHelpBarShortcuts()
@@ -649,8 +644,6 @@ func (app *ChatApplication) dispatchViewMessage(currentView tui.ViewState, msg t
 		return app.handleModelSelectionView(msg)
 	case tui.ViewStateChat:
 		return app.handleChatView(msg)
-	case tui.ViewStateFileSelection:
-		return app.handleFileSelectionView(msg)
 	case tui.ViewStateConversationSelection:
 		return app.handleConversationSelectionView(msg)
 	case tui.ViewStateThemeSelection:
@@ -975,18 +968,6 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 	}
 }
 
-func (app *ChatApplication) handleFileSelectionView(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-		if cmd := app.handleFileSelectionKeys(keyMsg); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	return cmds
-}
-
 // View renders the current application view using state management.
 // Bubble Tea v2 expects tea.View; viewContent keeps the original
 // string-composition logic and View wraps it. Mouse tracking is always
@@ -1007,8 +988,6 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderModelSelection()
 	case tui.ViewStateChat:
 		return app.renderChatInterface()
-	case tui.ViewStateFileSelection:
-		return app.renderFileSelection()
 	case tui.ViewStateConversationSelection:
 		return app.renderConversationSelection()
 	case tui.ViewStateThemeSelection:
@@ -1270,7 +1249,7 @@ func (app *ChatApplication) setupStandardWorkflow(repo string) tea.Msg {
 		}
 	}
 
-	return app.createSuccessMessage(repo, prURL, "✅ GitHub workflow configured with github-actions[bot]!")
+	return app.createSuccessMessage(repo, prURL, "GitHub workflow configured with github-actions[bot]!")
 }
 
 func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string) tea.Msg {
@@ -1302,7 +1281,7 @@ func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string)
 		}
 	}
 
-	return app.createSuccessMessage(repo, prURL, "✅ GitHub App configured with org-level secrets!")
+	return app.createSuccessMessage(repo, prURL, "GitHub App configured with org-level secrets!")
 }
 
 func (app *ChatApplication) setupOrgSecrets(orgName, appID, privateKeyPath string) tea.Msg {
@@ -2085,89 +2064,11 @@ func (app *ChatApplication) renderModelSelection() string {
 	return app.modelSelector.View().Content
 }
 
-func (app *ChatApplication) renderFileSelection() string {
-	fileState := app.stateManager.GetFileSelectionState()
-	width, _ := app.stateManager.GetDimensions()
-
-	if fileState == nil {
-		return formatting.FormatWarning("No files available for selection")
-	}
-
-	data := components.FileSelectionData{
-		Width:         width,
-		Files:         fileState.Files,
-		SearchQuery:   fileState.SearchQuery,
-		SelectedIndex: fileState.SelectedIndex,
-	}
-
-	return app.fileSelectionHandler.RenderFileSelection(data)
-}
-
-func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyPressMsg) tea.Cmd {
-	fileState := app.stateManager.GetFileSelectionState()
-	if fileState == nil {
-		return nil
-	}
-
-	newSearchQuery, newSelectedIndex, action, selectedFile := app.fileSelectionHandler.HandleKeyEvent(
-		keyMsg,
-		fileState.Files,
-		fileState.SearchQuery,
-		fileState.SelectedIndex,
-	)
-
-	if newSearchQuery != fileState.SearchQuery {
-		app.stateManager.UpdateFileSearchQuery(newSearchQuery)
-	}
-	if newSelectedIndex != fileState.SelectedIndex {
-		app.stateManager.SetFileSelectedIndex(newSelectedIndex)
-	}
-
-	switch action {
-	case components.FileSelectionActionSelect:
-		app.clearFileSelectionState()
-		app.updateInputWithSelectedFile(selectedFile)
-		return app.fileSelectionHandler.CreateStatusMessage(action, selectedFile)
-	case components.FileSelectionActionCancel:
-		app.clearFileSelectionState()
-		return app.fileSelectionHandler.CreateStatusMessage(action, selectedFile)
-	default:
-		return nil
-	}
-}
-
-func (app *ChatApplication) clearFileSelectionState() {
-	if err := app.stateManager.TransitionToView(tui.ViewStateChat); err != nil {
-		logger.Error("failed to transition to chat view after file selection", "error", err)
-	}
-	app.stateManager.ClearFileSelectionState()
-}
-
-// updateInputWithSelectedFile inserts "@<path> " for every selected file,
-// including images: expandFileReferences resolves the token at send time,
-// attaching the image AND replacing the token with "[Image: <path>]" so the
-// model always learns the file path even without vision support. Pre-attaching
-// images here (the old behavior) dropped the token, leaving non-vision models
-// with no reference to the selected file at all.
-func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
-	if iv, ok := app.inputView.(*components.InputView); ok {
-		iv.SetDisabled(false)
-	}
-
-	currentInput := app.inputView.GetInput()
-	cursor := app.inputView.GetCursor()
-
-	newInput, newCursor := app.fileSelectionHandler.UpdateInputWithSelectedFile(currentInput, cursor, selectedFile)
-
-	app.inputView.SetText(newInput)
-	app.inputView.SetCursor(newCursor)
-}
-
 func (app *ChatApplication) updateUIComponents(msg tea.Msg, activeView tui.ViewState) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	if handled := app.handleWindowAndSetupEvents(msg, &cmds); handled {
-		return cmds
+	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
 	}
 
 	if handled := app.handleDuplicateKeyEvents(msg, &cmds); handled {
@@ -2183,20 +2084,6 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg, activeView tui.ViewS
 	app.handleAutocompleteEvents(msg, &cmds)
 
 	return cmds
-}
-
-// handleWindowAndSetupEvents handles window size and setup events that may return early
-func (app *ChatApplication) handleWindowAndSetupEvents(msg tea.Msg, _ *[]tea.Cmd) bool {
-	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
-	}
-
-	if setupMsg, ok := msg.(tui.SetupFileSelectionEvent); ok {
-		app.stateManager.SetupFileSelection(setupMsg.Files)
-		return true
-	}
-
-	return false
 }
 
 // handleDuplicateKeyEvents handles duplicate key events to prevent double processing.

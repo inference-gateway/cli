@@ -367,7 +367,7 @@ This PR sets up the infer workflow for automated code review and assistance.
 
 After merging, @infer mentions in issues will trigger the bot.
 
-🤖 Generated with infer`
+Generated with infer`
 
 	ctxPR, cancelPR := ghTimeoutContext()
 	defer cancelPR()

@@ -13,13 +13,6 @@ const (
 	GitBranch = "⎇"
 )
 
-// Emoji icons
-const (
-	Robot = "🤖"
-	Link  = "🔗"
-	Help  = "❓"
-)
-
 // Tool execution icons - modern Unicode symbols
 const (
 	QueuedIcon = "•"

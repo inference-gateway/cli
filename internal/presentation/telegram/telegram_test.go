@@ -907,8 +907,8 @@ func TestRenderTelegramHTML(t *testing.T) {
 		},
 		{
 			"quoted fence renders code (not pre) inside blockquote",
-			"> ⚠️ Tool failed:\n> ```\n> exit 502\n> ```",
-			"<blockquote expandable>⚠️ Tool failed:\n<code>exit 502</code></blockquote>",
+			"> Tool failed:\n> ```\n> exit 502\n> ```",
+			"<blockquote expandable>Tool failed:\n<code>exit 502</code></blockquote>",
 		},
 		{
 			"header and aligned table",

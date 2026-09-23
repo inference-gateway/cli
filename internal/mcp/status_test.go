@@ -30,7 +30,7 @@ func TestProbeStatus(t *testing.T) {
 	if report.Servers[1].Error != "disabled" {
 		t.Fatalf("disabled server should not be dialed: %+v", report.Servers[1])
 	}
-	if got := report.Indicator(); got != "🔌 0/2" {
+	if got := report.Indicator(); got != "MCP 0/2" {
 		t.Fatalf("indicator = %q", got)
 	}
 

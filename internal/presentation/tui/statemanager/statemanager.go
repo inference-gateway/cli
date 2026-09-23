@@ -362,45 +362,6 @@ func (sm *StateManager) IsDebugMode() bool {
 	return sm.debugMode
 }
 
-// SetupFileSelection initializes file selection state
-func (sm *StateManager) SetupFileSelection(files []string) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.SetupFileSelection(files)
-}
-
-// GetFileSelectionState returns the current file selection state
-func (sm *StateManager) GetFileSelectionState() *tui.FileSelectionState {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
-	return sm.state.GetFileSelectionState()
-}
-
-// UpdateFileSearchQuery updates the file search query
-func (sm *StateManager) UpdateFileSearchQuery(query string) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.UpdateFileSearchQuery(query)
-}
-
-// SetFileSelectedIndex sets the selected file index
-func (sm *StateManager) SetFileSelectedIndex(index int) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.SetFileSelectedIndex(index)
-}
-
-// ClearFileSelectionState clears the file selection state
-func (sm *StateManager) ClearFileSelectionState() {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.ClearFileSelectionState()
-}
-
 // Approval state methods
 
 // SetupApprovalUIState initializes approval UI state

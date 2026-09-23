@@ -113,14 +113,6 @@ type ConversationSelectedEvent struct {
 	ConversationID string
 }
 
-// FileSelectionRequestEvent requests file selection UI
-type FileSelectionRequestEvent struct{}
-
-// SetupFileSelectionEvent sets up file selection state with files
-type SetupFileSelectionEvent struct {
-	Files []string
-}
-
 // ScrollRequestEvent requests scrolling in a component
 type ScrollRequestEvent struct {
 	ComponentID string
