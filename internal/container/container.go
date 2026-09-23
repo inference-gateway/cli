@@ -2,12 +2,14 @@ package container
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -261,6 +263,10 @@ func (c *ServiceContainer) StartExtensionBridge() {
 		return
 	}
 	if err := c.extensionBridge.Start(); err != nil {
+		if errors.Is(err, syscall.EADDRINUSE) {
+			logger.Info("extension bridge port is held by another infer process - browser tools will retry on use", "error", err)
+			return
+		}
 		logger.Warn("extension bridge failed to start - browser tools will report the error", "error", err)
 	}
 }
