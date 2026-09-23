@@ -12,7 +12,7 @@ import (
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
-func newTestHelpView() *HelpViewImpl {
+func newTestHelpView() *HelpView {
 	fakeTheme := &tuimocks.FakeTheme{}
 	fakeThemeService := &tuimocks.FakeThemeService{}
 	fakeThemeService.GetCurrentThemeReturns(fakeTheme)

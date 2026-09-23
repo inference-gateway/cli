@@ -1,13 +1,13 @@
 // Session state the agent core reads and writes (agent mode, todos,
-// computer-use pause, retry status). statemanager.StateManager implements
+// computer-use pause, retry status). statemanager.Store implements
 // them; the TUI-only state contracts live in internal/presentation/tui.
 
 package domain
 
 import ()
 
-// AgentModeManager handles agent mode switching
-type AgentModeManager interface {
+// AgentModeState handles agent mode switching
+type AgentModeState interface {
 	GetAgentMode() AgentMode
 	SetAgentMode(mode AgentMode)
 	CycleAgentMode() AgentMode
@@ -18,14 +18,14 @@ type RetryStatusSink interface {
 	SetRetryStatus(status *RetryStatus)
 }
 
-// TodoManager handles todo list state
-type TodoManager interface {
+// TodoList handles todo list state
+type TodoList interface {
 	SetTodos(todos []TodoItem)
 	GetTodos() []TodoItem
 }
 
-// ComputerUsePauseManager handles computer use pause state
-type ComputerUsePauseManager interface {
+// ComputerUsePause handles computer use pause state
+type ComputerUsePause interface {
 	SetComputerUsePaused(paused bool, requestID string)
 	IsComputerUsePaused() bool
 	GetPausedRequestID() string

@@ -340,7 +340,7 @@ func TestGuardFunctions_CanComplete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sm := NewAgentStateMachine()
-			smImpl := sm.(*AgentStateMachineImpl)
+			smImpl := sm.(*StateMachine)
 
 			ctx := &states.AgentContext{
 				Conversation:   &[]sdk.Message{},
@@ -435,7 +435,7 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sm := NewAgentStateMachine()
-			smImpl := sm.(*AgentStateMachineImpl)
+			smImpl := sm.(*StateMachine)
 
 			ctx := &states.AgentContext{
 				ToolCalls:  nil,
@@ -492,7 +492,7 @@ func TestGuardFunctions_MaxTurnsReached(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sm := NewAgentStateMachine()
-			smImpl := sm.(*AgentStateMachineImpl)
+			smImpl := sm.(*StateMachine)
 
 			ctx := &states.AgentContext{
 				Turns:    tt.turns,

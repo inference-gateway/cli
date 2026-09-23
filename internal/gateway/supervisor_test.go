@@ -42,7 +42,7 @@ func TestPIDRegistry(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(pidsDir, strconv.Itoa(con1.Process.Pid)), nil, 0644)
 	_ = os.WriteFile(filepath.Join(pidsDir, strconv.Itoa(con2.Process.Pid)), nil, 0644)
 
-	gm := &Manager{}
+	gm := &Supervisor{}
 	_ = os.WriteFile(filepath.Join(pidsDir, strconv.Itoa(os.Getpid())), nil, 0644)
 
 	if !gm.pruneAndCheckLive() {
@@ -119,7 +119,7 @@ func TestNeedsAudioRestart(t *testing.T) {
 			cfg.TextToSpeech.Enabled = tt.enabled
 			cfg.TextToSpeech.Engine = tt.engine
 			cfg.TextToMusic.Enabled = tt.music
-			gm := NewManager("test-session", cfg, nil)
+			gm := NewSupervisor("test-session", cfg, nil)
 
 			if got := gm.needsAudioRestart(); got != tt.want {
 				t.Errorf("needsAudioRestart() = %v, want %v", got, tt.want)
@@ -133,7 +133,7 @@ func TestNeedsAudioRestart(t *testing.T) {
 func TestAudioAPIEnabledUnreachable(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Gateway.URL = "http://127.0.0.1:1"
-	gm := NewManager("test-session", cfg, nil)
+	gm := NewSupervisor("test-session", cfg, nil)
 	if !gm.audioAPIEnabled() {
 		t.Error("audioAPIEnabled() = false for an unreachable gateway, want true")
 	}
@@ -233,7 +233,7 @@ func TestVersionFallbacks(t *testing.T) {
 			cfg.Gateway.Run = tt.run
 			cfg.Gateway.OCI = tt.oci
 			cfg.Gateway.StandaloneBinary = tt.standalone
-			gm := NewManager("test-session", cfg, nil)
+			gm := NewSupervisor("test-session", cfg, nil)
 
 			if got := gm.Version(context.Background()); got != tt.want {
 				t.Errorf("Version() = %q, want %q", got, tt.want)

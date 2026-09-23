@@ -522,7 +522,7 @@ func TestStreamToolsStableAcrossModeSwitch(t *testing.T) {
 	res := e.runStream(context.Background(), t, "say hello")
 	require.Empty(t, res.errs)
 
-	e.container.GetStateManager().SetAgentMode(agentdomain.AgentModePlan)
+	e.container.GetStateStore().SetAgentMode(agentdomain.AgentModePlan)
 
 	res2 := e.runStream(context.Background(), t, "say hello")
 	require.Empty(t, res2.errs)

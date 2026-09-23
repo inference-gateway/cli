@@ -53,7 +53,7 @@ type ApprovalBoxView struct {
 	keyHintFormatter *hints.Formatter
 
 	// active is the approval state the form was built for; a mismatch with
-	// the StateManager (cleared externally) marks the form stale.
+	// the state store (cleared externally) marks the form stale.
 	active *tui.ApprovalUIState
 	form   *huh.Form
 	choice agentdomain.ApprovalAction
@@ -88,7 +88,7 @@ func (av *ApprovalBoxView) ScrollDiff(delta int) {
 
 // IsActive reports whether an approval is *currently* being shown, so the caller can
 // route ctrl+o to this box instead of the conversation. It consults the live
-// StateManager (like Render does) rather than trusting av.active/av.form alone: those
+// state store (like Render does) rather than trusting av.active/av.form alone: those
 // fields are only reset by the form's own completion, so after an approval is cleared
 // externally (rejection resolved, timeout) they can linger — and a stale true here
 // would swallow ctrl+o from the rejected result the user is trying to expand.
@@ -155,7 +155,7 @@ func (av *ApprovalBoxView) Render() string {
 }
 
 // Begin builds the action select for the approval currently in the
-// StateManager. Call it when a ToolApprovalRequestedEvent has set up the state.
+// state store. Call it when a ToolApprovalRequestedEvent has set up the state.
 func (av *ApprovalBoxView) Begin() tea.Cmd {
 	state := av.stateManager.GetApprovalUIState()
 	if state == nil || state.PendingToolCall == nil {

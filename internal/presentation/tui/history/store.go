@@ -8,8 +8,8 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// HistoryManager manages both in-memory and shell history
-type HistoryManager struct {
+// Store manages both in-memory and shell history
+type Store struct {
 	shellHistory    ShellHistoryProvider
 	inMemoryHistory []string
 	maxInMemory     int
@@ -18,9 +18,9 @@ type HistoryManager struct {
 	allHistory      []string
 }
 
-// NewHistoryManager creates a new history manager rooted at the per-project
+// NewStore creates a new history manager rooted at the per-project
 // runtime dir (~/.infer/projects/<project-slug>/history).
-func NewHistoryManager(maxInMemory int) (*HistoryManager, error) {
+func NewStore(maxInMemory int) (*Store, error) {
 	return NewHistoryManagerWithName(maxInMemory, config.ProjectRuntimeDir(), "")
 }
 
@@ -28,13 +28,13 @@ func NewHistoryManager(maxInMemory int) (*HistoryManager, error) {
 // with an optional name. When name is empty, the history file is stored at
 // <baseDir>/history/history (the main agent). When name is non-empty, the history
 // file is stored at <baseDir>/history/history-<name> (e.g. for subagents).
-func NewHistoryManagerWithName(maxInMemory int, baseDir, name string) (*HistoryManager, error) {
+func NewHistoryManagerWithName(maxInMemory int, baseDir, name string) (*Store, error) {
 	shellHistory, err := NewShellHistoryWithName(baseDir, name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize shell history: %w", err)
 	}
 
-	hm := &HistoryManager{
+	hm := &Store{
 		shellHistory:    shellHistory,
 		inMemoryHistory: make([]string, 0, maxInMemory),
 		maxInMemory:     maxInMemory,
@@ -49,15 +49,15 @@ func NewHistoryManagerWithName(maxInMemory int, baseDir, name string) (*HistoryM
 	return hm, nil
 }
 
-// NewMemoryOnlyHistoryManager creates a history manager that only uses in-memory storage
-func NewMemoryOnlyHistoryManager(maxInMemory int) *HistoryManager {
+// NewMemoryOnlyStore creates a history manager that only uses in-memory storage
+func NewMemoryOnlyStore(maxInMemory int) *Store {
 	return NewHistoryManagerWithProvider(maxInMemory, &MemoryOnlyShellHistory{})
 }
 
 // NewHistoryManagerWithProvider creates a history manager on top of any
 // ShellHistoryProvider (e.g. a storage-backend-backed one).
-func NewHistoryManagerWithProvider(maxInMemory int, provider ShellHistoryProvider) *HistoryManager {
-	hm := &HistoryManager{
+func NewHistoryManagerWithProvider(maxInMemory int, provider ShellHistoryProvider) *Store {
+	hm := &Store{
 		shellHistory:    provider,
 		inMemoryHistory: make([]string, 0, maxInMemory),
 		maxInMemory:     maxInMemory,
@@ -71,7 +71,7 @@ func NewHistoryManagerWithProvider(maxInMemory int, provider ShellHistoryProvide
 }
 
 // loadCombinedHistory loads history from shell and combines with in-memory history
-func (hm *HistoryManager) loadCombinedHistory() error {
+func (hm *Store) loadCombinedHistory() error {
 	shellCommands, err := hm.shellHistory.LoadHistory()
 	if err != nil {
 		return err
@@ -85,7 +85,7 @@ func (hm *HistoryManager) loadCombinedHistory() error {
 }
 
 // AddToHistory adds a command to both in-memory and shell history
-func (hm *HistoryManager) AddToHistory(command string) error {
+func (hm *Store) AddToHistory(command string) error {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return nil
@@ -109,7 +109,7 @@ func (hm *HistoryManager) AddToHistory(command string) error {
 }
 
 // addToInMemoryHistory adds a command to in-memory history with size limit
-func (hm *HistoryManager) addToInMemoryHistory(command string) {
+func (hm *Store) addToInMemoryHistory(command string) {
 	if len(hm.inMemoryHistory) > 0 && hm.inMemoryHistory[len(hm.inMemoryHistory)-1] == command {
 		return
 	}
@@ -122,7 +122,7 @@ func (hm *HistoryManager) addToInMemoryHistory(command string) {
 }
 
 // NavigateUp moves up in history (to older commands)
-func (hm *HistoryManager) NavigateUp(currentText string) string {
+func (hm *Store) NavigateUp(currentText string) string {
 	if len(hm.allHistory) == 0 {
 		return currentText
 	}
@@ -139,7 +139,7 @@ func (hm *HistoryManager) NavigateUp(currentText string) string {
 }
 
 // NavigateDown moves down in history (to newer commands)
-func (hm *HistoryManager) NavigateDown(currentText string) string {
+func (hm *Store) NavigateDown(currentText string) string {
 	if hm.historyIndex == -1 {
 		return currentText
 	}
@@ -156,23 +156,23 @@ func (hm *HistoryManager) NavigateDown(currentText string) string {
 }
 
 // ResetNavigation resets history navigation state
-func (hm *HistoryManager) ResetNavigation() {
+func (hm *Store) ResetNavigation() {
 	hm.historyIndex = -1
 	hm.currentInput = ""
 }
 
 // GetHistoryCount returns the total number of commands in history
-func (hm *HistoryManager) GetHistoryCount() int {
+func (hm *Store) GetHistoryCount() int {
 	return len(hm.allHistory)
 }
 
 // IsNavigating returns true if currently navigating through history
-func (hm *HistoryManager) IsNavigating() bool {
+func (hm *Store) IsNavigating() bool {
 	return hm.historyIndex != -1
 }
 
 // GetShellHistoryFile returns the shell history file path
-func (hm *HistoryManager) GetShellHistoryFile() string {
+func (hm *Store) GetShellHistoryFile() string {
 	return hm.shellHistory.GetHistoryFile()
 }
 

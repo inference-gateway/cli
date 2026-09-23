@@ -45,7 +45,7 @@ func NewCommand(state *runtime.State) *cobra.Command {
 				return nil
 			}
 
-			gm := gateway.NewManager(convdomain.SessionID("status"), cfg, nil)
+			gm := gateway.NewSupervisor(convdomain.SessionID("status"), cfg, nil)
 			version := gm.Version(cmd.Context())
 			if version == "" {
 				version = "unknown"

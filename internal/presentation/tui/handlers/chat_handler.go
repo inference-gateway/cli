@@ -17,15 +17,15 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// stateManager is the narrow slice of the app state manager the chat handler
+// stateStore is the narrow slice of the app state manager the chat handler
 // and its sub-handlers need: chat-session lifecycle, view transitions, the
 // plan-approval overlay, the todo list, and event broadcast to external
-// consumers. *statemanager.StateManager satisfies it.
-type stateManager interface {
+// consumers. *statemanager.Store satisfies it.
+type stateStore interface {
 	tui.ChatSessionState
-	tui.ViewManager
+	tui.ViewNavigator
 	tui.PlanApprovalPrompt
-	agentdomain.TodoManager
+	agentdomain.TodoList
 	BroadcastEvent(event agentdomain.ChatEvent)
 }
 
@@ -39,12 +39,12 @@ type ChatHandler struct {
 	fileService            agentdomain.FileService
 	imageService           agentdomain.ImageService
 	shortcutRegistry       *shortcuts.Registry
-	stateManager           stateManager
+	stateManager           stateStore
 	messageQueue           convdomain.MessageQueue
 	taskRetentionService   scheddomain.TaskRetentionService
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundShellService scheddomain.BackgroundShellService
-	agentManager           agentdomain.AgentManager
+	agentManager           agentdomain.AgentSupervisor
 	config                 *config.Config
 	approvalCoordinator    tui.ApprovalCoordinator
 	completionRunner       tui.ChatCompletionRunner
@@ -69,12 +69,12 @@ func NewChatHandler(
 	skillsService agentdomain.SkillsService,
 	githubIssueService agentdomain.GitHubIssueService,
 	shortcutRegistry *shortcuts.Registry,
-	stateManager stateManager,
+	stateManager stateStore,
 	messageQueue convdomain.MessageQueue,
 	taskRetentionService scheddomain.TaskRetentionService,
 	backgroundTaskService scheddomain.BackgroundTaskService,
 	backgroundShellService scheddomain.BackgroundShellService,
-	agentManager agentdomain.AgentManager,
+	agentManager agentdomain.AgentSupervisor,
 	cfg *config.Config,
 	approvalCoordinator tui.ApprovalCoordinator,
 	completionRunner tui.ChatCompletionRunner,
@@ -461,7 +461,7 @@ func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 	return tea.Batch(cmd, h.startChatCompletion())
 }
 
-// HandleAgentStatusUpdateEvent refreshes the agent indicator. The StateManager
+// HandleAgentStatusUpdateEvent refreshes the agent indicator. The state store
 // was already updated by the container's status callback before this event was
 // pushed, so simply receiving it re-renders the indicator. There is no polling:
 // the callback pushes a fresh event on every real status change and stops when

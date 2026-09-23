@@ -19,7 +19,7 @@ import (
 // newFilterTestSelector builds a selector backed by a fake pricing service with
 // three representative models: a per-token (pay-as-you-go) model, a genuinely
 // free model, and a subscription-gated model ($0/$0 but gated).
-func newFilterTestSelector(models []string) *ModelSelectorImpl {
+func newFilterTestSelector(models []string) *ModelSelector {
 	pricing := &convmocks.FakePricingService{}
 	pricing.IsEnabledReturns(true)
 	pricing.GetInputPriceStub = func(model string) float64 {
@@ -90,7 +90,7 @@ func TestModelSelector_EnterSelectsAndEmitsEvent(t *testing.T) {
 	var pump func(msg tea.Msg)
 	pump = func(msg tea.Msg) {
 		model, cmd := m.Update(msg)
-		m = model.(*ModelSelectorImpl)
+		m = model.(*ModelSelector)
 		for cmd != nil {
 			out := cmd()
 			if out == nil {
@@ -109,7 +109,7 @@ func TestModelSelector_EnterSelectsAndEmitsEvent(t *testing.T) {
 				return
 			}
 			model, cmd = m.Update(out)
-			m = model.(*ModelSelectorImpl)
+			m = model.(*ModelSelector)
 		}
 	}
 
@@ -124,10 +124,10 @@ func TestModelSelector_EnterSelectsAndEmitsEvent(t *testing.T) {
 }
 
 // typeString feeds a string into the selector one printable key at a time.
-func typeString(m *ModelSelectorImpl, s string) {
+func typeString(m *ModelSelector, s string) {
 	for _, r := range s {
 		model, _ := m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
-		*m = *model.(*ModelSelectorImpl)
+		*m = *model.(*ModelSelector)
 	}
 }
 

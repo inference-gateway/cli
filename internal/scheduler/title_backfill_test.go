@@ -20,7 +20,7 @@ var _ scheddomain.TitleGenerator = (*schedmocks.FakeTitleGenerator)(nil)
 func TestBackgroundJobManager_StartStop(t *testing.T) {
 	mockTitleGenerator := &schedmocks.FakeTitleGenerator{}
 
-	manager := scheduler.NewBackgroundJobManager(mockTitleGenerator, &config.Config{})
+	manager := scheduler.NewTitleBackfill(mockTitleGenerator, &config.Config{})
 
 	assert.False(t, manager.IsRunning())
 
@@ -40,14 +40,14 @@ func TestBackgroundJobManager_TriggerTitleGeneration(t *testing.T) {
 	mockTitleGenerator := &schedmocks.FakeTitleGenerator{}
 	mockTitleGenerator.ProcessPendingTitlesReturns(nil)
 
-	manager := scheduler.NewBackgroundJobManager(mockTitleGenerator, &config.Config{})
+	manager := scheduler.NewTitleBackfill(mockTitleGenerator, &config.Config{})
 
 	err := manager.TriggerTitleGeneration(context.Background())
 	assert.NoError(t, err)
 }
 
 func TestBackgroundJobManager_TriggerTitleGeneration_NilGenerator(t *testing.T) {
-	manager := scheduler.NewBackgroundJobManager(nil, &config.Config{})
+	manager := scheduler.NewTitleBackfill(nil, &config.Config{})
 
 	err := manager.TriggerTitleGeneration(context.Background())
 	assert.NoError(t, err)

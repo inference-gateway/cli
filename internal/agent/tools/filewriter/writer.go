@@ -12,11 +12,11 @@ import (
 // SafeFileWriter implements FileWriter with atomic operations
 type SafeFileWriter struct {
 	validator     *DefaultPathValidator
-	backupManager *DefaultBackupManager
+	backupManager *Backup
 }
 
 // NewSafeFileWriter creates a new SafeFileWriter
-func NewSafeFileWriter(validator *DefaultPathValidator, backupManager *DefaultBackupManager) FileWriter {
+func NewSafeFileWriter(validator *DefaultPathValidator, backupManager *Backup) FileWriter {
 	return &SafeFileWriter{
 		validator:     validator,
 		backupManager: backupManager,

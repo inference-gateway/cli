@@ -11,7 +11,7 @@ import (
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
-func newTestThemeSelector(t *testing.T, themes []string, current string) (*ThemeSelectorImpl, *tuimocks.FakeThemeService) {
+func newTestThemeSelector(t *testing.T, themes []string, current string) (*ThemeSelector, *tuimocks.FakeThemeService) {
 	t.Helper()
 	fakeTheme := &tuimocks.FakeTheme{}
 	ts := &tuimocks.FakeThemeService{}
@@ -33,7 +33,7 @@ func TestThemeSelector_EnterSelectsAndEmitsEvent(t *testing.T) {
 	sel, ts := newTestThemeSelector(t, []string{"a", "b", "c"}, "b")
 
 	model, cmd := sel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	sel = model.(*ThemeSelectorImpl)
+	sel = model.(*ThemeSelector)
 
 	if !sel.IsSelected() || sel.IsCancelled() {
 		t.Fatalf("expected selected and not cancelled, got selected=%v cancelled=%v", sel.IsSelected(), sel.IsCancelled())
@@ -56,7 +56,7 @@ func TestThemeSelector_EscCancelsWithoutQuitting(t *testing.T) {
 	sel, _ := newTestThemeSelector(t, []string{"a", "b"}, "a")
 
 	model, cmd := sel.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	sel = model.(*ThemeSelectorImpl)
+	sel = model.(*ThemeSelector)
 
 	if !sel.IsCancelled() || sel.IsSelected() {
 		t.Fatalf("expected cancelled and not selected, got cancelled=%v selected=%v", sel.IsCancelled(), sel.IsSelected())

@@ -21,7 +21,7 @@ func createMockStyleProviderForTasks() *styles.Provider {
 	return styles.NewProvider(fakeThemeService)
 }
 
-func loadTaskRows(t *testing.T, tm *TaskManagerImpl) tui.TasksLoadedEvent {
+func loadTaskRows(t *testing.T, tm *TaskView) tui.TasksLoadedEvent {
 	t.Helper()
 	msg := tm.loadTasksCmd()()
 	ev, ok := msg.(tui.TasksLoadedEvent)
@@ -62,7 +62,7 @@ func TestLoadTasksCmd_SkipsA2AFromSnapshotAndSplitsByStatus(t *testing.T) {
 		{Meta: scheddomain.JobMeta{ID: "sub-1", Kind: scheddomain.JobKindSubagent, Label: "refactor", Detail: "headless", StartedAt: time.Now()}, Status: scheddomain.JobCompleted, CompletedAt: &done},
 	})
 
-	tm := &TaskManagerImpl{backgroundTaskService: bg, backgroundJobRegistry: reg, currentView: TaskViewAll}
+	tm := &TaskView{backgroundTaskService: bg, backgroundJobRegistry: reg, currentView: TaskViewAll}
 	ev := loadTaskRows(t, tm)
 
 	active := countKinds(ev.ActiveTasks)
@@ -86,7 +86,7 @@ func TestLoadTasksCmd_SkipsA2AFromSnapshotAndSplitsByStatus(t *testing.T) {
 // per-kind groups (A2A, then shells, then subagents), with running rows before
 // completed rows within a kind.
 func TestApplyFilters_GroupsByKind(t *testing.T) {
-	tm := &TaskManagerImpl{currentView: TaskViewAll}
+	tm := &TaskView{currentView: TaskViewAll}
 	tm.activeTasks = []TaskInfo{
 		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "sub-run"}, Kind: scheddomain.JobKindSubagent, Status: "Running"},
 		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "a2a-run"}, Kind: scheddomain.JobKindA2A, Status: "Running"},
@@ -112,7 +112,7 @@ func TestApplyFilters_GroupsByKind(t *testing.T) {
 // TestApplyFilters_CompletedIncludesFailed: the Completed tab shows both
 // Completed and Failed terminal rows, but not Canceled.
 func TestApplyFilters_CompletedIncludesFailed(t *testing.T) {
-	tm := &TaskManagerImpl{currentView: TaskViewCompleted}
+	tm := &TaskView{currentView: TaskViewCompleted}
 	tm.completedTasks = []TaskInfo{
 		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "shell-ok"}, Kind: scheddomain.JobKindShell, Status: "Completed"},
 		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "shell-bad"}, Kind: scheddomain.JobKindShell, Status: "Failed"},
@@ -136,7 +136,7 @@ func TestApplyFilters_CompletedIncludesFailed(t *testing.T) {
 // TestApplyFilters_CanceledTabMatchesA2A guards the Canceled-spelling fix: the
 // tab filter and mapTaskStatus must agree on "Canceled".
 func TestApplyFilters_CanceledTabMatchesA2A(t *testing.T) {
-	tm := &TaskManagerImpl{currentView: TaskViewCanceled}
+	tm := &TaskView{currentView: TaskViewCanceled}
 	tm.completedTasks = []TaskInfo{
 		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "a2a-cancel"}, Kind: scheddomain.JobKindA2A, Status: "Canceled"},
 		{TaskPollingState: scheddomain.TaskPollingState{TaskID: "shell-fail"}, Kind: scheddomain.JobKindShell, Status: "Failed"},
@@ -194,7 +194,7 @@ func TestKindRankGroupsKinds(t *testing.T) {
 // TestWriteTaskSections_RendersPerKindTables: a mixed, kind-grouped list renders
 // the three section titles and the kind-specific Detail columns.
 func TestWriteTaskSections_RendersPerKindTables(t *testing.T) {
-	tm := &TaskManagerImpl{
+	tm := &TaskView{
 		styleProvider: createMockStyleProviderForTasks(),
 		width:         120,
 		currentView:   TaskViewAll,
@@ -224,7 +224,7 @@ func TestWriteTaskSections_RendersPerKindTables(t *testing.T) {
 func TestRefreshTick_ReArmsAndDedups(t *testing.T) {
 	running := []TaskInfo{{TaskPollingState: scheddomain.TaskPollingState{TaskID: "shell-1"}, Kind: scheddomain.JobKindShell, Status: "Running"}}
 
-	tm := &TaskManagerImpl{tickLive: true, tickEpoch: 3, activeTasks: running}
+	tm := &TaskView{tickLive: true, tickEpoch: 3, activeTasks: running}
 	if _, cmd := tm.Update(taskRefreshTickMsg{epoch: 3}); cmd == nil {
 		t.Fatal("running view: tick must re-arm (non-nil cmd)")
 	}
@@ -232,7 +232,7 @@ func TestRefreshTick_ReArmsAndDedups(t *testing.T) {
 		t.Fatal("running view: tickLive must stay true")
 	}
 
-	tm = &TaskManagerImpl{tickLive: true, tickEpoch: 3, loading: false}
+	tm = &TaskView{tickLive: true, tickEpoch: 3, loading: false}
 	if _, cmd := tm.Update(taskRefreshTickMsg{epoch: 3}); cmd != nil {
 		t.Fatal("empty view: tick must stop (nil cmd)")
 	}
@@ -240,7 +240,7 @@ func TestRefreshTick_ReArmsAndDedups(t *testing.T) {
 		t.Fatal("empty view: tickLive must clear")
 	}
 
-	tm = &TaskManagerImpl{tickLive: false, tickEpoch: 3, loading: false}
+	tm = &TaskView{tickLive: false, tickEpoch: 3, loading: false}
 	if _, cmd := tm.Update(agentdomain.BackgroundTasksChangedEvent{}); cmd == nil {
 		t.Fatal("new task while dead: must re-arm (non-nil cmd)")
 	}
@@ -248,7 +248,7 @@ func TestRefreshTick_ReArmsAndDedups(t *testing.T) {
 		t.Fatalf("new task: want tickLive=true epoch=4, got %v/%d", tm.tickLive, tm.tickEpoch)
 	}
 
-	tm = &TaskManagerImpl{tickLive: true, tickEpoch: 4, loading: false, activeTasks: running}
+	tm = &TaskView{tickLive: true, tickEpoch: 4, loading: false, activeTasks: running}
 	if _, cmd := tm.Update(agentdomain.BackgroundTasksChangedEvent{}); cmd == nil {
 		t.Fatal("new task while alive: must still reload (non-nil cmd)")
 	}
@@ -256,7 +256,7 @@ func TestRefreshTick_ReArmsAndDedups(t *testing.T) {
 		t.Fatalf("new task while alive: epoch must not bump, got %d", tm.tickEpoch)
 	}
 
-	tm = &TaskManagerImpl{tickLive: true, tickEpoch: 5, activeTasks: running}
+	tm = &TaskView{tickLive: true, tickEpoch: 5, activeTasks: running}
 	if _, cmd := tm.Update(taskRefreshTickMsg{epoch: 4}); cmd != nil {
 		t.Fatal("stale epoch: tick must be dropped (nil cmd)")
 	}
@@ -294,7 +294,7 @@ func TestIsCancellable(t *testing.T) {
 func TestCancelTask_DispatchesByKind(t *testing.T) {
 	bg := &schedmocks.FakeBackgroundTaskService{}
 	reg := &schedmocks.FakeBackgroundTaskRegistry{}
-	tm := &TaskManagerImpl{backgroundTaskService: bg, backgroundJobRegistry: reg}
+	tm := &TaskView{backgroundTaskService: bg, backgroundJobRegistry: reg}
 
 	if err := tm.cancelTask(TaskInfo{TaskPollingState: scheddomain.TaskPollingState{TaskID: "a2a-1"}, Kind: scheddomain.JobKindA2A}); err != nil {
 		t.Fatalf("cancelTask(a2a): %v", err)

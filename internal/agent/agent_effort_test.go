@@ -8,7 +8,7 @@ import (
 )
 
 func TestSetReasoningEffort(t *testing.T) {
-	s := &AgentServiceImpl{}
+	s := &Agent{}
 
 	require.NoError(t, s.SetReasoningEffort("max"))
 	assert.Equal(t, "max", s.GetReasoningEffort())
@@ -37,7 +37,7 @@ func TestReasoningEffortOptionFor(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &AgentServiceImpl{}
+			s := &Agent{}
 			require.NoError(t, s.SetReasoningEffort(tt.effort))
 
 			got := s.reasoningEffortOptionFor(tt.model)

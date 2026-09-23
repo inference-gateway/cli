@@ -83,7 +83,7 @@ func (t *teaInputStatusBarComponent) Render() string { return "" }
 func newInputRoutingTestApp(t *testing.T, view tui.ViewState, draft string) (*ChatApplication, *components.InputView) {
 	t.Helper()
 
-	stateManager := statemanager.NewStateManager(false)
+	stateManager := statemanager.NewStore(false)
 	if err := stateManager.TransitionToView(tui.ViewStateChat); err != nil {
 		t.Fatalf("transitioning to chat: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestConversationSelectionDeleteKeysDoNotLeakIntoInput(t *testing.T) {
 			convdomain.ConversationSummary{ID: "conv-2", Title: "Conversation 2"},
 		},
 	})
-	app.conversationSelector = model.(*components.ConversationSelectorImpl)
+	app.conversationSelector = model.(*components.ConversationSelector)
 
 	for _, key := range []tea.KeyPressMsg{
 		printableKey("d"),

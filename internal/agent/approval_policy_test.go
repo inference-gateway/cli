@@ -42,7 +42,7 @@ func createToolCall(toolName string, args string) *sdk.ChatCompletionMessageTool
 // with the state manager set to the given agent mode.
 func newStandardPolicy(t *testing.T, mode agentdomain.AgentMode) agentdomain.ApprovalPolicy {
 	t.Helper()
-	stateManager := statemanager.NewStateManager(false)
+	stateManager := statemanager.NewStore(false)
 	stateManager.SetAgentMode(mode)
 	return NewStandardApprovalPolicy(createTestConfig(), stateManager)
 }
@@ -164,7 +164,7 @@ func TestStandardApprovalPolicy_ComputerUseApprovalLevels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := createTestConfig()
 			cfg.ComputerUse.Approval = tt.approval
-			stateManager := statemanager.NewStateManager(false)
+			stateManager := statemanager.NewStore(false)
 			stateManager.SetAgentMode(agentdomain.AgentModeStandard)
 			policy := NewStandardApprovalPolicy(cfg, stateManager)
 			if got := policy.ShouldRequireApproval(ctx, createToolCall(tt.tool, tt.args), true); got != tt.want {
@@ -176,7 +176,7 @@ func TestStandardApprovalPolicy_ComputerUseApprovalLevels(t *testing.T) {
 
 func TestStandardApprovalPolicy_ConfigBasedApproval(t *testing.T) {
 	cfg := createTestConfig()
-	stateManager := statemanager.NewStateManager(false)
+	stateManager := statemanager.NewStore(false)
 	stateManager.SetAgentMode(agentdomain.AgentModeStandard)
 
 	policy := NewStandardApprovalPolicy(cfg, stateManager)
@@ -208,7 +208,7 @@ func TestStandardApprovalPolicy_WithNilStateManager(t *testing.T) {
 func TestApprovalPolicy_PriorityOrder(t *testing.T) {
 	t.Run("Rule priority: computer use > auto-accept > non-chat > bash allowedlist > config", func(t *testing.T) {
 		cfg := createTestConfig()
-		stateManager := statemanager.NewStateManager(false)
+		stateManager := statemanager.NewStore(false)
 		ctx := context.Background()
 
 		stateManager.SetAgentMode(agentdomain.AgentModeStandard)

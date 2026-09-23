@@ -48,7 +48,7 @@ type InputView struct {
 	highlighter          *inputsyntax.Highlighter
 	config               *config.Config
 	conversationRepo     convdomain.ConversationRepository
-	historyManager       *history.HistoryManager
+	historyManager       *history.Store
 	disabled             bool
 	savedText            string
 	savedCursor          int
@@ -103,15 +103,15 @@ func NewInputViewWithName(modelService convdomain.ModelService, baseDir, name st
 		baseDir = config.ProjectRuntimeDir()
 	}
 
-	var historyManager *history.HistoryManager
+	var historyManager *history.Store
 	switch {
 	case name == scheddomain.SubagentHistoryMemoryOnly:
-		historyManager = history.NewMemoryOnlyHistoryManager(maxInMemoryHistory)
+		historyManager = history.NewMemoryOnlyStore(maxInMemoryHistory)
 	case store != nil && name == "":
 		historyManager = history.NewHistoryManagerWithProvider(maxInMemoryHistory, history.NewStoreShellHistory(store))
 	default:
 		if hm, err := history.NewHistoryManagerWithName(maxInMemoryHistory, baseDir, name); err != nil {
-			historyManager = history.NewMemoryOnlyHistoryManager(maxInMemoryHistory)
+			historyManager = history.NewMemoryOnlyStore(maxInMemoryHistory)
 		} else {
 			historyManager = hm
 		}
@@ -163,7 +163,7 @@ func (iv *InputView) SetThemeService(themeService tui.ThemeService) {
 	iv.styleProvider = styles.NewProvider(themeService)
 }
 
-// inputViewState is the narrow slice of StateManager the input view reads to
+// inputViewState is the narrow slice of the state store the input view reads to
 // decide whether an approval/plan overlay is active.
 type inputViewState interface {
 	tui.ApprovalPrompt
@@ -1032,7 +1032,7 @@ func (iv *InputView) ClearImageAttachments() {
 }
 
 // GetHistoryManager returns the history manager for external use
-func (iv *InputView) GetHistoryManager() *history.HistoryManager {
+func (iv *InputView) GetHistoryManager() *history.Store {
 	return iv.historyManager
 }
 

@@ -25,7 +25,7 @@ type testMocks struct {
 	stateMachine *statesmocks.FakeAgentStateMachine
 	queue        *convmocks.FakeMessageQueue
 	repo         *convmocks.FakeConversationRepository
-	stateManager *statemanager.StateManager
+	stateManager *statemanager.Store
 	approval     *agentdomainmocks.FakeApprovalPolicy
 }
 
@@ -35,7 +35,7 @@ func setupTestMocks() *testMocks {
 		stateMachine: &statesmocks.FakeAgentStateMachine{},
 		queue:        &convmocks.FakeMessageQueue{},
 		repo:         &convmocks.FakeConversationRepository{},
-		stateManager: statemanager.NewStateManager(false),
+		stateManager: statemanager.NewStore(false),
 		approval:     &agentdomainmocks.FakeApprovalPolicy{},
 	}
 }
@@ -60,7 +60,7 @@ func createTestContext(mocks *testMocks) *states.AgentContext {
 
 // createTestAgent creates an EventDrivenAgent with test mocks
 func createTestAgent(mocks *testMocks, ctx *states.AgentContext) *EventDrivenAgent {
-	service := &AgentServiceImpl{
+	service := &Agent{
 		messageQueue:     mocks.queue,
 		conversationRepo: mocks.repo,
 		stateManager:     mocks.stateManager,

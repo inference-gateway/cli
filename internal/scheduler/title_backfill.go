@@ -10,8 +10,8 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// BackgroundJobManager manages background tasks
-type BackgroundJobManager struct {
+// TitleBackfill manages background tasks
+type TitleBackfill struct {
 	titleGenerator scheddomain.TitleGenerator
 	config         *config.Config
 	running        bool
@@ -20,9 +20,9 @@ type BackgroundJobManager struct {
 	mutex          sync.RWMutex
 }
 
-// NewBackgroundJobManager creates a new background job manager
-func NewBackgroundJobManager(titleGenerator scheddomain.TitleGenerator, config *config.Config) *BackgroundJobManager {
-	return &BackgroundJobManager{
+// NewTitleBackfill creates a new background job manager
+func NewTitleBackfill(titleGenerator scheddomain.TitleGenerator, config *config.Config) *TitleBackfill {
+	return &TitleBackfill{
 		titleGenerator: titleGenerator,
 		config:         config,
 		stopChan:       make(chan struct{}),
@@ -30,7 +30,7 @@ func NewBackgroundJobManager(titleGenerator scheddomain.TitleGenerator, config *
 }
 
 // Start begins running background jobs
-func (m *BackgroundJobManager) Start(ctx context.Context) {
+func (m *TitleBackfill) Start(ctx context.Context) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -46,7 +46,7 @@ func (m *BackgroundJobManager) Start(ctx context.Context) {
 }
 
 // Stop stops all background jobs gracefully
-func (m *BackgroundJobManager) Stop() {
+func (m *TitleBackfill) Stop() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -73,14 +73,14 @@ func (m *BackgroundJobManager) Stop() {
 }
 
 // IsRunning returns whether the job manager is currently running
-func (m *BackgroundJobManager) IsRunning() bool {
+func (m *TitleBackfill) IsRunning() bool {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.running
 }
 
 // runTitleGenerationWorker runs the conversation title generation job
-func (m *BackgroundJobManager) runTitleGenerationWorker(ctx context.Context) {
+func (m *TitleBackfill) runTitleGenerationWorker(ctx context.Context) {
 	defer m.wg.Done()
 
 	interval := m.getJobInterval()
@@ -104,7 +104,7 @@ func (m *BackgroundJobManager) runTitleGenerationWorker(ctx context.Context) {
 }
 
 // TriggerTitleGeneration manually triggers title generation for pending conversations
-func (m *BackgroundJobManager) TriggerTitleGeneration(ctx context.Context) error {
+func (m *TitleBackfill) TriggerTitleGeneration(ctx context.Context) error {
 	if m.titleGenerator == nil {
 		return nil
 	}
@@ -113,7 +113,7 @@ func (m *BackgroundJobManager) TriggerTitleGeneration(ctx context.Context) error
 }
 
 // getJobInterval returns the configured interval for background jobs
-func (m *BackgroundJobManager) getJobInterval() time.Duration {
+func (m *TitleBackfill) getJobInterval() time.Duration {
 	if m.config != nil && m.config.Conversation.TitleGeneration.Interval > 0 {
 		return time.Duration(m.config.Conversation.TitleGeneration.Interval) * time.Second
 	}

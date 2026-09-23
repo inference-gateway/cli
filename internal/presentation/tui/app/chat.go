@@ -48,7 +48,7 @@ type ChatApplication struct {
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
 	sessionRolloverManager convdomain.SessionRollover
-	agentManager           agentdomain.AgentManager
+	agentManager           agentdomain.AgentSupervisor
 	modelService           convdomain.ModelService
 	toolService            agentdomain.ToolService
 	fileService            agentdomain.FileService
@@ -60,7 +60,7 @@ type ChatApplication struct {
 	shortcutRegistry       *shortcuts.Registry
 	themeService           tui.ThemeService
 	toolRegistry           *tools.Registry
-	mcpManager             agentdomain.MCPManager
+	mcpManager             agentdomain.MCPSupervisor
 	taskRetentionService   scheddomain.TaskRetentionService
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
@@ -72,7 +72,7 @@ type ChatApplication struct {
 	toolExecutionCoordinator tui.ToolExecutionCoordinator
 
 	// State management
-	stateManager *statemanager.StateManager
+	stateManager *statemanager.Store
 	messageQueue convdomain.MessageQueue
 
 	// UI components
@@ -87,17 +87,17 @@ type ChatApplication struct {
 	todoBoxView          *components.TodoBoxView
 	approvalBoxView      *components.ApprovalBoxView
 	questionFormView     *components.QuestionFormView
-	modelSelector        *components.ModelSelectorImpl
-	themeSelector        *components.ThemeSelectorImpl
-	conversationSelector *components.ConversationSelectorImpl
-	taskManager          *components.TaskManagerImpl
+	modelSelector        *components.ModelSelector
+	themeSelector        *components.ThemeSelector
+	conversationSelector *components.ConversationSelector
+	taskManager          *components.TaskView
 	toolCallRenderer     *components.ToolCallRenderer
 	installOpentaskView  *components.InstallOpentaskView
-	diffViewer           *components.DiffViewerImpl
-	fileExplorer         *components.FileExplorerImpl
-	helpView             *components.HelpViewImpl
-	toolsView            *components.ToolsViewImpl
-	a2aAgentsView        *components.A2AAgentsViewImpl
+	diffViewer           *components.DiffViewer
+	fileExplorer         *components.FileExplorer
+	helpView             *components.HelpView
+	toolsView            *components.ToolsView
+	a2aAgentsView        *components.A2AAgentsView
 
 	snippetAttachmentsView *components.SnippetAttachmentsView
 
@@ -121,7 +121,7 @@ type ChatApplication struct {
 	statusBarFocused bool
 
 	// Key binding system
-	keyBindingManager *keybinding.KeyBindingManager
+	keyBindingManager *keybinding.Dispatcher
 
 	// Config-backed binding that moves key focus to the snippet attachments
 	// tree; the fixed guard bindings live in the package-level guardKeys.
@@ -143,7 +143,7 @@ func NewChatApplication(
 	models []string,
 	defaultModel string,
 	versionInfo tui.VersionInfo,
-	agentManager agentdomain.AgentManager,
+	agentManager agentdomain.AgentSupervisor,
 	agentService agentdomain.AgentService,
 	backgroundTaskService scheddomain.BackgroundTaskService,
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry,
@@ -154,12 +154,12 @@ func NewChatApplication(
 	skillsService agentdomain.SkillsService,
 	githubIssueService agentdomain.GitHubIssueService,
 	githubSetupService agentdomain.GitHubSetupService,
-	mcpManager agentdomain.MCPManager,
+	mcpManager agentdomain.MCPSupervisor,
 	messageQueue convdomain.MessageQueue,
 	modelService convdomain.ModelService,
 	pricingService convdomain.PricingService,
 	sessionRolloverManager convdomain.SessionRollover,
-	stateManager *statemanager.StateManager,
+	stateManager *statemanager.Store,
 	taskRetentionService scheddomain.TaskRetentionService,
 	themeService tui.ThemeService,
 	toolService agentdomain.ToolService,
@@ -246,7 +246,7 @@ func NewChatApplication(
 	}
 
 	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService, app.modelService, app.pricingService, app.skillsService, app.githubIssueService)
-	if ac, ok := app.autocomplete.(*autocomplete.AutocompleteImpl); ok {
+	if ac, ok := app.autocomplete.(*autocomplete.Autocomplete); ok {
 		ac.SetStateManager(app.stateManager)
 		ac.SetFileService(app.fileService)
 	}
@@ -287,7 +287,7 @@ func NewChatApplication(
 
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
 
-	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.config)
+	app.keyBindingManager = keybinding.NewDispatcher(app, app.config)
 	app.updateHelpBarShortcuts()
 
 	keyHintFormatter := app.keyBindingManager.GetHintFormatter()
@@ -683,7 +683,7 @@ func (app *ChatApplication) handleModelSelectionView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	model, cmd := app.modelSelector.Update(msg)
-	app.modelSelector = model.(*components.ModelSelectorImpl)
+	app.modelSelector = model.(*components.ModelSelector)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -1368,7 +1368,7 @@ func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.C
 	}
 
 	model, cmd := app.conversationSelector.Update(msg)
-	app.conversationSelector = model.(*components.ConversationSelectorImpl)
+	app.conversationSelector = model.(*components.ConversationSelector)
 
 	if cmd != nil {
 		cmds = append(cmds, cmd)
@@ -1437,7 +1437,7 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 		// unified BackgroundTaskRegistry's supervisor snapshot; A2A rows from the
 		// poller/retention service. Either source may simply be empty.
 		styleProvider := styles.NewProvider(app.themeService)
-		app.taskManager = components.NewTaskManager(app.themeService, styleProvider, app.taskRetentionService, app.backgroundTaskService)
+		app.taskManager = components.NewTaskView(app.themeService, styleProvider, app.taskRetentionService, app.backgroundTaskService)
 		if app.backgroundTaskRegistry != nil {
 			app.taskManager.SetBackgroundTaskRegistry(app.backgroundTaskRegistry)
 		}
@@ -1454,7 +1454,7 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 	}
 
 	model, cmd := app.taskManager.Update(msg)
-	app.taskManager = model.(*components.TaskManagerImpl)
+	app.taskManager = model.(*components.TaskView)
 
 	if cmd != nil {
 		cmds = append(cmds, cmd)
@@ -1500,7 +1500,7 @@ func (app *ChatApplication) handleThemeSelectionView(msg tea.Msg) []tea.Cmd {
 	}
 
 	model, cmd := app.themeSelector.Update(msg)
-	app.themeSelector = model.(*components.ThemeSelectorImpl)
+	app.themeSelector = model.(*components.ThemeSelector)
 
 	if cmd != nil {
 		cmds = append(cmds, cmd)
@@ -1602,7 +1602,7 @@ func (app *ChatApplication) handleToolsListView(msg tea.Msg) []tea.Cmd {
 	}
 
 	model, cmd := app.toolsView.Update(msg)
-	app.toolsView = model.(*components.ToolsViewImpl)
+	app.toolsView = model.(*components.ToolsView)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -1640,7 +1640,7 @@ func (app *ChatApplication) handleA2AAgentsView(msg tea.Msg) []tea.Cmd {
 	}
 
 	model, cmd := app.a2aAgentsView.Update(msg)
-	app.a2aAgentsView = model.(*components.A2AAgentsViewImpl)
+	app.a2aAgentsView = model.(*components.A2AAgentsView)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -1758,7 +1758,7 @@ func (app *ChatApplication) handleHelpView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	model, cmd := app.helpView.Update(msg)
-	app.helpView = model.(*components.HelpViewImpl)
+	app.helpView = model.(*components.HelpView)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -1823,7 +1823,7 @@ func (app *ChatApplication) handleDiffViewerView(msg tea.Msg) []tea.Cmd {
 	}
 
 	model, cmd := app.diffViewer.Update(msg)
-	app.diffViewer = model.(*components.DiffViewerImpl)
+	app.diffViewer = model.(*components.DiffViewer)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -1889,7 +1889,7 @@ func (app *ChatApplication) handleExplorerView(msg tea.Msg) []tea.Cmd {
 	}
 
 	model, cmd := app.fileExplorer.Update(msg)
-	app.fileExplorer = model.(*components.FileExplorerImpl)
+	app.fileExplorer = model.(*components.FileExplorer)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -2204,7 +2204,7 @@ func (app *ChatApplication) updateOptionalComponents(msg tea.Msg, cmds *[]tea.Cm
 			if cmd != nil {
 				*cmds = append(*cmds, cmd)
 			}
-			if convSelectorModel, ok := model.(*components.ConversationSelectorImpl); ok {
+			if convSelectorModel, ok := model.(*components.ConversationSelector); ok {
 				app.conversationSelector = convSelectorModel
 			}
 		}
@@ -2217,7 +2217,7 @@ func (app *ChatApplication) updateOptionalComponents(msg tea.Msg, cmds *[]tea.Cm
 			if cmd != nil {
 				*cmds = append(*cmds, cmd)
 			}
-			if taskManagerModel, ok := model.(*components.TaskManagerImpl); ok {
+			if taskManagerModel, ok := model.(*components.TaskView); ok {
 				app.taskManager = taskManagerModel
 			}
 		}
@@ -2330,9 +2330,9 @@ func (app *ChatApplication) GetConfig() *config.Config {
 	return app.config
 }
 
-// GetStateManager returns the current state manager as the narrow slice key
+// GetStateStore returns the current state manager as the narrow slice key
 // handlers consume.
-func (app *ChatApplication) GetStateManager() keybinding.StateManager {
+func (app *ChatApplication) GetStateStore() keybinding.StateStore {
 	return app.stateManager
 }
 

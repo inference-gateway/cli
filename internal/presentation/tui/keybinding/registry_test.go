@@ -20,9 +20,9 @@ import (
 func newTestContext(currentView tui.ViewState, inputText string) *keybindingmocks.FakeKeyHandlerContext {
 	fake := &keybindingmocks.FakeKeyHandlerContext{}
 
-	stateManager := statemanager.NewStateManager(false)
+	stateManager := statemanager.NewStore(false)
 	_ = stateManager.TransitionToView(currentView)
-	fake.GetStateManagerReturns(stateManager)
+	fake.GetStateStoreReturns(stateManager)
 
 	fakeInput := &tuimocks.FakeInputComponent{}
 	fakeInput.GetInputReturns(inputText)

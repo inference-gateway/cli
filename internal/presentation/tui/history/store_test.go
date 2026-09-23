@@ -47,7 +47,7 @@ func TestHistoryManager_PublicAPI(t *testing.T) {
 		t.Fatalf("Failed to write test history file: %v", err)
 	}
 
-	hm, err := history.NewHistoryManager(5)
+	hm, err := history.NewStore(5)
 	if err != nil {
 		t.Fatalf("NewHistoryManager failed: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestNewHistoryManager_Integration(t *testing.T) {
 		t.Fatalf("Failed to write test history file: %v", err)
 	}
 
-	hm, err := history.NewHistoryManager(5)
+	hm, err := history.NewStore(5)
 	if err != nil {
 		t.Fatalf("NewHistoryManager failed: %v", err)
 	}

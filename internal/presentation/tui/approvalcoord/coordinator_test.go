@@ -16,15 +16,15 @@ import (
 // The conversation repo is an *InMemoryConversationRepository because the
 // coordinator uses the concrete planRepoUpdater interface for plan-status
 // mutations, which the in-memory repo satisfies.
-func newCoordinator() (*Service, *conversation.InMemoryConversationRepository, *statemanager.StateManager, *agentdomainmocks.FakeAgentService) {
+func newCoordinator() (*Service, *conversation.InMemoryConversationRepository, *statemanager.Store, *agentdomainmocks.FakeAgentService) {
 	repo := conversation.NewInMemoryConversationRepository(nil, nil)
-	state := statemanager.NewStateManager(false)
+	state := statemanager.NewStore(false)
 	agent := &agentdomainmocks.FakeAgentService{}
 
 	svc := NewService(Options{
 		AgentService:     agent,
 		ConversationRepo: repo,
-		StateManager:     state,
+		StateStore:       state,
 	})
 	return svc, repo, state, agent
 }

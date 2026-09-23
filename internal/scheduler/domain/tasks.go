@@ -22,7 +22,7 @@ type TaskInfo struct {
 }
 
 // TaskRetentionService manages in-memory retention of completed/terminal A2A tasks
-// Only enabled when A2A is enabled - decouples task retention from StateManager
+// Only enabled when A2A is enabled - decouples task retention from the TUI state store
 type TaskRetentionService interface {
 	// AddTask adds a terminal task (completed, failed, canceled, etc.) to retention
 	AddTask(task TaskInfo)

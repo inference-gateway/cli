@@ -42,10 +42,10 @@ type Services interface {
 	StartExtensionBridge()
 	Shutdown(ctx context.Context) error
 	StartScreenshotServer(sessionID string) *computerinfra.ScreenshotServer
-	GetGatewayManager() *gateway.Manager
-	GetAgentManager() agentdomain.AgentManager
+	GetGatewaySupervisor() *gateway.Supervisor
+	GetAgentSupervisor() agentdomain.AgentSupervisor
 	GetAgentService() agentdomain.AgentService
-	GetMCPManager() agentdomain.MCPManager
+	GetMCPSupervisor() agentdomain.MCPSupervisor
 	GetToolRegistry() *tools.Registry
 	GetToolService() agentdomain.ToolService
 	GetFileService() agentdomain.FileService
@@ -53,8 +53,8 @@ type Services interface {
 	GetModelService() convdomain.ModelService
 	GetConversationRepository() convdomain.ConversationRepository
 	GetMessageQueue() convdomain.MessageQueue
-	GetSessionRolloverManager() convdomain.SessionRollover
-	GetStateManager() *statemanager.StateManager
+	GetSessionRollover() convdomain.SessionRollover
+	GetStateStore() *statemanager.Store
 	GetShortcutRegistry() *shortcuts.Registry
 	GetBackgroundTaskRegistry() scheddomain.BackgroundTaskRegistry
 	GetTelemetryRecorder() *telemetry.Recorder
@@ -133,15 +133,15 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 	defer shutdown()
 	utils.OnShutdownSignal(shutdown)
 
-	if err := svc.GetGatewayManager().EnsureStarted(); err != nil {
+	if err := svc.GetGatewaySupervisor().EnsureStarted(); err != nil {
 		return fmt.Errorf("failed to start inference gateway: %w", err)
 	}
 
-	if agentManager := svc.GetAgentManager(); agentManager != nil && !isBashTask(opts.Task) {
+	if agentManager := svc.GetAgentSupervisor(); agentManager != nil && !isBashTask(opts.Task) {
 		startLocalAgents(agentManager, cfg, opts.Format)
 	}
 
-	if mcpManager := svc.GetMCPManager(); mcpManager != nil {
+	if mcpManager := svc.GetMCPSupervisor(); mcpManager != nil {
 		discoverMCPTools(context.Background(), mcpManager, svc.GetToolRegistry())
 	}
 
@@ -176,7 +176,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 	agentService := svc.GetAgentService()
 	conversationRepo := svc.GetConversationRepository()
 
-	svc.GetStateManager().SetAgentMode(mode)
+	svc.GetStateStore().SetAgentMode(mode)
 
 	sessionID := opts.SessionID
 	if sessionID == "" {
@@ -184,7 +184,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 	}
 
 	groupKey := ""
-	rolloverMgr := svc.GetSessionRolloverManager()
+	rolloverMgr := svc.GetSessionRollover()
 	if rolloverMgr != nil {
 		if resolved, gk, _ := rolloverMgr.ResolveSessionID(sessionID); resolved != "" {
 			sessionID = resolved
@@ -281,7 +281,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 	var approvals <-chan ipc.ApprovalResponse
 	var questions <-chan ipc.UserQuestionResponse
 	if opts.Format != "text" {
-		ctl := newHeadlessControl(agentService, svc.GetStateManager(), svc.GetMessageQueue(), sessionID)
+		ctl := newHeadlessControl(agentService, svc.GetStateStore(), svc.GetMessageQueue(), sessionID)
 		go ctl.readLines(os.Stdin)
 		approvals = ctl.approvals
 		questions = ctl.questions
@@ -342,7 +342,7 @@ func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals 
 // stdout as agent_status lines so a client can show what the wait is for. The
 // callbacks are removed once the wait ends so later liveness probes never write
 // into the run's event stream.
-func startLocalAgents(agentManager agentdomain.AgentManager, cfg *config.Config, format string) {
+func startLocalAgents(agentManager agentdomain.AgentSupervisor, cfg *config.Config, format string) {
 	if emit := render.AgentStartupEmitter(os.Stdout, format); emit != nil {
 		agentManager.SetStatusCallback(func(name string, state agentdomain.AgentState, message, _, _ string) {
 			emit(name, state.String(), message, 0, 0)
@@ -532,7 +532,7 @@ func writeResultFile(path string, repo convdomain.ConversationRepository, sessio
 // ponytail: run:true container servers still starting in the background are
 // skipped here (their client is not initialized yet); wait on StartServers
 // if headless ever needs container-hosted MCP tools on the first turn.
-func discoverMCPTools(ctx context.Context, mcpManager agentdomain.MCPManager, registry *tools.Registry) {
+func discoverMCPTools(ctx context.Context, mcpManager agentdomain.MCPSupervisor, registry *tools.Registry) {
 	if registry == nil {
 		return
 	}

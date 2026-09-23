@@ -10,8 +10,8 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// SessionManager tracks and manages all active sessions
-type SessionManager struct {
+// Sessions tracks and manages all active sessions
+type Sessions struct {
 	cfg      *config.Config
 	sessions map[string]*SessionEntry
 	mu       sync.RWMutex
@@ -26,8 +26,8 @@ type SessionEntry struct {
 	mu             sync.Mutex
 }
 
-func NewSessionManager(cfg *config.Config) *SessionManager {
-	sm := &SessionManager{
+func NewSessions(cfg *config.Config) *Sessions {
+	sm := &Sessions{
 		cfg:      cfg,
 		sessions: make(map[string]*SessionEntry),
 		done:     make(chan struct{}),
@@ -39,7 +39,7 @@ func NewSessionManager(cfg *config.Config) *SessionManager {
 }
 
 // UpdateActivity updates the last activity time for a session
-func (sm *SessionManager) UpdateActivity(sessionID string) {
+func (sm *Sessions) UpdateActivity(sessionID string) {
 	sm.mu.RLock()
 	entry, exists := sm.sessions[sessionID]
 	sm.mu.RUnlock()
@@ -52,7 +52,7 @@ func (sm *SessionManager) UpdateActivity(sessionID string) {
 }
 
 // RemoveSession removes and stops a session
-func (sm *SessionManager) RemoveSession(sessionID string) {
+func (sm *Sessions) RemoveSession(sessionID string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -66,7 +66,7 @@ func (sm *SessionManager) RemoveSession(sessionID string) {
 }
 
 // cleanupLoop periodically cleans up inactive sessions
-func (sm *SessionManager) cleanupLoop() {
+func (sm *Sessions) cleanupLoop() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
@@ -81,7 +81,7 @@ func (sm *SessionManager) cleanupLoop() {
 }
 
 // cleanupInactiveSessions removes sessions inactive for more than the configured threshold
-func (sm *SessionManager) cleanupInactiveSessions() {
+func (sm *Sessions) cleanupInactiveSessions() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -122,14 +122,14 @@ func (sm *SessionManager) cleanupInactiveSessions() {
 }
 
 // ActiveSessionCount returns the number of currently active sessions
-func (sm *SessionManager) ActiveSessionCount() int {
+func (sm *Sessions) ActiveSessionCount() int {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return len(sm.sessions)
 }
 
 // RegisterSession registers an existing session with the manager
-func (sm *SessionManager) RegisterSession(sessionID string, session Session) {
+func (sm *Sessions) RegisterSession(sessionID string, session Session) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -143,7 +143,7 @@ func (sm *SessionManager) RegisterSession(sessionID string, session Session) {
 }
 
 // SetScreenshotPort sets the local screenshot port for a session
-func (sm *SessionManager) SetScreenshotPort(sessionID string, port int) {
+func (sm *Sessions) SetScreenshotPort(sessionID string, port int) {
 	sm.mu.RLock()
 	entry, exists := sm.sessions[sessionID]
 	sm.mu.RUnlock()
@@ -163,7 +163,7 @@ func (sm *SessionManager) SetScreenshotPort(sessionID string, port int) {
 }
 
 // GetScreenshotPort retrieves the local screenshot port for a session
-func (sm *SessionManager) GetScreenshotPort(sessionID string) (int, bool) {
+func (sm *Sessions) GetScreenshotPort(sessionID string) (int, bool) {
 	sm.mu.RLock()
 	entry, exists := sm.sessions[sessionID]
 	sm.mu.RUnlock()
@@ -194,7 +194,7 @@ func (sm *SessionManager) GetScreenshotPort(sessionID string) (int, bool) {
 
 // Shutdown stops all sessions and the cleanup goroutine.
 // Call exactly once: a second call panics on close of the done channel.
-func (sm *SessionManager) Shutdown() {
+func (sm *Sessions) Shutdown() {
 	close(sm.done)
 
 	sm.mu.Lock()
@@ -217,10 +217,10 @@ func (sm *SessionManager) Shutdown() {
 type SessionWrapper struct {
 	sessionID string
 	session   Session
-	manager   *SessionManager
+	manager   *Sessions
 }
 
-func (sm *SessionManager) WrapSession(sessionID string, session Session) *SessionWrapper {
+func (sm *Sessions) WrapSession(sessionID string, session Session) *SessionWrapper {
 	return &SessionWrapper{
 		sessionID: sessionID,
 		session:   session,

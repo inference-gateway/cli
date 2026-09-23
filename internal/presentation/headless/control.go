@@ -32,7 +32,7 @@ const resumeContinuePrompt = "Please continue from where you left off."
 // flag anywhere else races that decision.
 type headlessControl struct {
 	agentService agentdomain.AgentService
-	pauseState   agentdomain.ComputerUsePauseManager
+	pauseState   agentdomain.ComputerUsePause
 	messageQueue convdomain.MessageQueue
 	sessionID    string
 	approvals    chan ipc.ApprovalResponse
@@ -40,7 +40,7 @@ type headlessControl struct {
 	ctrlEvents   chan agentdomain.ChatEvent
 }
 
-func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentdomain.ComputerUsePauseManager, messageQueue convdomain.MessageQueue, sessionID string) *headlessControl {
+func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentdomain.ComputerUsePause, messageQueue convdomain.MessageQueue, sessionID string) *headlessControl {
 	return &headlessControl{
 		agentService: agentService,
 		pauseState:   pauseState,

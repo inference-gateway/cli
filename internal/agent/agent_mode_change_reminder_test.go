@@ -21,12 +21,12 @@ import (
 // modeChangeSvc builds an agent service backed by the real default reminders
 // config (which carries the on_mode_change entry) and a fake state manager
 // reporting the given live mode.
-func modeChangeSvc(enabled bool, liveMode agentdomain.AgentMode) *AgentServiceImpl {
-	sm := statemanager.NewStateManager(false)
+func modeChangeSvc(enabled bool, liveMode agentdomain.AgentMode) *Agent {
+	sm := statemanager.NewStore(false)
 	sm.SetAgentMode(liveMode)
 	cfg := &config.Config{Reminders: *config.DefaultRemindersConfig()}
 	cfg.Reminders.Enabled = enabled
-	return &AgentServiceImpl{stateManager: sm, config: cfg}
+	return &Agent{stateManager: sm, config: cfg}
 }
 
 // assertNoModeChangeContent verifies no conversation message carries mode-change
@@ -46,7 +46,7 @@ func TestModeChangeReminder_NoInjectionCases(t *testing.T) {
 	toolCalls := []sdk.ChatCompletionMessageToolCall{{ID: "call_1"}}
 	tests := []struct {
 		name                string
-		svc                 func() *AgentServiceImpl
+		svc                 func() *Agent
 		initialConv         []sdk.Message
 		hook                agentdomain.HookPoint
 		dispatches          int
@@ -56,7 +56,7 @@ func TestModeChangeReminder_NoInjectionCases(t *testing.T) {
 	}{
 		{
 			name:                "first turn seeds without injecting",
-			svc:                 func() *AgentServiceImpl { return modeChangeSvc(true, agentdomain.AgentModePlan) },
+			svc:                 func() *Agent { return modeChangeSvc(true, agentdomain.AgentModePlan) },
 			hook:                agentdomain.HookPreStream,
 			dispatches:          1,
 			wantBufEmpty:        true,
@@ -65,14 +65,14 @@ func TestModeChangeReminder_NoInjectionCases(t *testing.T) {
 		},
 		{
 			name:       "same mode across turns injects nothing",
-			svc:        func() *AgentServiceImpl { return modeChangeSvc(true, agentdomain.AgentModeStandard) },
+			svc:        func() *Agent { return modeChangeSvc(true, agentdomain.AgentModeStandard) },
 			hook:       agentdomain.HookPreStream,
 			dispatches: 3,
 		},
 		{
 			name: "nil state manager never seeds or injects",
-			svc: func() *AgentServiceImpl {
-				return &AgentServiceImpl{config: &config.Config{Reminders: *config.DefaultRemindersConfig()}}
+			svc: func() *Agent {
+				return &Agent{config: &config.Config{Reminders: *config.DefaultRemindersConfig()}}
 			},
 			hook:                agentdomain.HookPreStream,
 			dispatches:          1,
@@ -81,7 +81,7 @@ func TestModeChangeReminder_NoInjectionCases(t *testing.T) {
 		},
 		{
 			name: "skips while awaiting tool results without advancing tracking",
-			svc: func() *AgentServiceImpl {
+			svc: func() *Agent {
 				svc := modeChangeSvc(true, agentdomain.AgentModePlan)
 				svc.modeInitialized = true
 				svc.lastStreamedMode = agentdomain.AgentModeStandard
@@ -97,7 +97,7 @@ func TestModeChangeReminder_NoInjectionCases(t *testing.T) {
 		},
 		{
 			name: "disabled reminders gate the mode-change entry too",
-			svc: func() *AgentServiceImpl {
+			svc: func() *Agent {
 				svc := modeChangeSvc(false, agentdomain.AgentModePlan)
 				svc.modeInitialized = true
 				svc.lastStreamedMode = agentdomain.AgentModeAutoAccept
@@ -109,7 +109,7 @@ func TestModeChangeReminder_NoInjectionCases(t *testing.T) {
 		},
 		{
 			name: "other hooks never fire a pending change",
-			svc: func() *AgentServiceImpl {
+			svc: func() *Agent {
 				svc := modeChangeSvc(true, agentdomain.AgentModePlan)
 				svc.modeInitialized = true
 				svc.lastStreamedMode = agentdomain.AgentModeStandard
@@ -208,9 +208,9 @@ func TestModeChangeReminder_PersistsHiddenViaRepo(t *testing.T) {
 // After a change is recorded, the new mode becomes the baseline; a later turn
 // in that same mode must not re-inject.
 func TestModeChangeReminder_BaselineAdvancesAfterChange(t *testing.T) {
-	sm := statemanager.NewStateManager(false)
+	sm := statemanager.NewStore(false)
 	cfg := &config.Config{Reminders: *config.DefaultRemindersConfig()}
-	svc := &AgentServiceImpl{stateManager: sm, config: cfg}
+	svc := &Agent{stateManager: sm, config: cfg}
 	withDebugStreamWriter(t)
 
 	conv := []sdk.Message{}

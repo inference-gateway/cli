@@ -458,7 +458,7 @@ func TestChatHandler_Handle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stateManager := statemanager.NewStateManager(false)
+			stateManager := statemanager.NewStore(false)
 			handler := setupTestChatHandler(t, tt.setupMocks, stateManager)
 
 			cmd := handler.Handle(tt.msg)
@@ -664,7 +664,7 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 	}
 }
 
-func setupTestChatHandler(_ *testing.T, setupMocks func(*agentdomainmocks.FakeAgentService, *convmocks.FakeModelService, *agentdomainmocks.FakeToolService, *agentdomainmocks.FakeFileService, *config.Config), stateManager *statemanager.StateManager) *ChatHandler {
+func setupTestChatHandler(_ *testing.T, setupMocks func(*agentdomainmocks.FakeAgentService, *convmocks.FakeModelService, *agentdomainmocks.FakeToolService, *agentdomainmocks.FakeFileService, *config.Config), stateManager *statemanager.Store) *ChatHandler {
 	mockAgent := &agentdomainmocks.FakeAgentService{}
 	mockModel := &convmocks.FakeModelService{}
 	mockTool := &agentdomainmocks.FakeToolService{}

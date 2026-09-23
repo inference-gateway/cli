@@ -23,10 +23,10 @@ import (
 // gateway's own downloader so both fill the same ~/.infer/bin cache.
 const binariesBase = "https://github.com/inference-gateway/binaries/releases/latest/download"
 
-// BinaryManager downloads prebuilt speech helper binaries (whisper-cli,
-// ffmpeg, llama-tts) into ~/.infer/bin on demand, mirroring ModelManager for
+// BinaryStore downloads prebuilt speech helper binaries (whisper-cli,
+// ffmpeg, llama-tts) into ~/.infer/bin on demand, mirroring ModelStore for
 // GGML models.
-type BinaryManager struct {
+type BinaryStore struct {
 	cfg config.SpeechToTextConfig
 
 	// baseURL and client are overridable in tests.
@@ -34,9 +34,9 @@ type BinaryManager struct {
 	client  *http.Client
 }
 
-// NewBinaryManager creates a BinaryManager from the speech-to-text config.
-func NewBinaryManager(cfg config.SpeechToTextConfig) *BinaryManager {
-	return &BinaryManager{
+// NewBinaryStore creates a BinaryStore from the speech-to-text config.
+func NewBinaryStore(cfg config.SpeechToTextConfig) *BinaryStore {
+	return &BinaryStore{
 		cfg:     cfg,
 		baseURL: binariesBase,
 		client:  http.DefaultClient,
@@ -69,7 +69,7 @@ func exeSuffix() string {
 // EnsureBinary returns the local path to the named binary under ~/.infer/bin,
 // downloading it (checksum-verified) on first use when auto_download is
 // enabled. An existing file is returned as-is.
-func (b *BinaryManager) EnsureBinary(ctx context.Context, name string) (string, error) {
+func (b *BinaryStore) EnsureBinary(ctx context.Context, name string) (string, error) {
 	dir, err := binDir()
 	if err != nil {
 		return "", err
@@ -103,7 +103,7 @@ func (b *BinaryManager) EnsureBinary(ctx context.Context, name string) (string, 
 // fetchChecksum returns the expected sha256 for asset from the release's
 // checksums.txt ("<hex>  <asset>" per line). A missing entry means the
 // platform has no prebuilt binary.
-func (b *BinaryManager) fetchChecksum(ctx context.Context, asset string) (string, error) {
+func (b *BinaryStore) fetchChecksum(ctx context.Context, asset string) (string, error) {
 	body, err := b.get(ctx, b.baseURL+"/checksums.txt")
 	if err != nil {
 		return "", fmt.Errorf("fetching binary checksums: %w", err)
@@ -126,7 +126,7 @@ func (b *BinaryManager) fetchChecksum(ctx context.Context, asset string) (string
 
 // download fetches url into dstPath atomically (temp file + rename), verifying
 // the sha256 checksum before the file becomes visible, and marks it executable.
-func (b *BinaryManager) download(ctx context.Context, url, dstPath, wantSum string) error {
+func (b *BinaryStore) download(ctx context.Context, url, dstPath, wantSum string) error {
 	body, err := b.get(ctx, url)
 	if err != nil {
 		return fmt.Errorf("downloading %s: %w", filepath.Base(dstPath), err)
@@ -164,7 +164,7 @@ func (b *BinaryManager) download(ctx context.Context, url, dstPath, wantSum stri
 }
 
 // get issues a GET and returns the body, following GitHub release redirects.
-func (b *BinaryManager) get(ctx context.Context, url string) (io.ReadCloser, error) {
+func (b *BinaryStore) get(ctx context.Context, url string) (io.ReadCloser, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request for %s: %w", url, err)

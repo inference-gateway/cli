@@ -287,7 +287,7 @@ func TestEnsureModelsCoalescesConcurrentDownloads(t *testing.T) {
 	defer srv.Close()
 
 	dir := t.TempDir()
-	m := NewTTSModelManager(config.TextToSpeechConfig{ModelsDir: dir, AutoDownload: true})
+	m := NewTTSModelStore(config.TextToSpeechConfig{ModelsDir: dir, AutoDownload: true})
 	m.hub = &huggingface.Client{BaseURL: srv.URL, HTTP: srv.Client()}
 
 	type result struct {

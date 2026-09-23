@@ -28,7 +28,7 @@ const otherSentinel = -1
 
 // QuestionFormView drives the interactive AskUserQuestion form as a bordered
 // box floating above the input (mirroring ApprovalBoxView). It owns the
-// answer-in-progress state as one huh form per question; the StateManager only
+// answer-in-progress state as one huh form per question; the state store only
 // carries the questions, the overlay-active flag, and the response channel.
 // The agent loop is blocked in the tool goroutine until the answers are sent
 // on the channel (or it is closed, signalling cancellation).
@@ -38,7 +38,7 @@ type QuestionFormView struct {
 	styleProvider *styles.Provider
 	stateManager  tui.UserQuestionPrompt
 
-	// active is the state this form was built for; if the StateManager's
+	// active is the state this form was built for; if the state store's
 	// state no longer matches (cancelled externally), the form is stale.
 	active  *tui.UserQuestionUIState
 	idx     int
@@ -67,7 +67,7 @@ func (qv *QuestionFormView) SetHeight(height int) {
 	qv.height = height
 }
 
-// Begin starts a new form for the questions currently in the StateManager.
+// Begin starts a new form for the questions currently in the state store.
 // Call it when a UserQuestionRequestedEvent has set up the state.
 func (qv *QuestionFormView) Begin() tea.Cmd {
 	state := qv.stateManager.GetUserQuestionUIState()

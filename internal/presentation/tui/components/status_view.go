@@ -36,7 +36,7 @@ type StatusView struct {
 	pausedAt         time.Time
 }
 
-// statusViewState is the narrow slice of StateManager the status view reads:
+// statusViewState is the narrow slice of the state store the status view reads:
 // the approval/question overlays (to pause timers) plus retry status.
 type statusViewState interface {
 	approvalOverlayReader

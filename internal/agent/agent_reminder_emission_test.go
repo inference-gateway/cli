@@ -50,7 +50,7 @@ func reminder(name, text string, hook agentdomain.HookPoint, trigger config.Remi
 
 func TestInjectDueReminders_AppendsHiddenMessageAndEmits(t *testing.T) {
 	cfg := remindersConfig(true, reminder("todo", "remember to push", agentdomain.HookPreStream, config.ReminderTriggerInterval, 2))
-	svc := &AgentServiceImpl{config: cfg}
+	svc := &Agent{config: cfg}
 	svc.sessionTurns.Store(4)
 	buf := withDebugStreamWriter(t)
 
@@ -141,7 +141,7 @@ func TestInjectDueReminders_InjectionGating(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := &AgentServiceImpl{config: tt.cfg}
+			svc := &Agent{config: tt.cfg}
 			var buf bytes.Buffer
 			t.Cleanup(streamevent.SetWriter(&buf))
 			t.Cleanup(streamevent.SetDebugEnabledForTest(tt.debugOn))
@@ -164,7 +164,7 @@ func TestInjectDueReminders_InjectionGating(t *testing.T) {
 // afterwards via the session-scoped fired-set on the service.
 func TestInjectDueReminders_OnceSuppressedAfterFiring(t *testing.T) {
 	cfg := remindersConfig(true, reminder("memory", "load memory", agentdomain.HookPreSession, config.ReminderTriggerOnce, 0))
-	svc := &AgentServiceImpl{config: cfg}
+	svc := &Agent{config: cfg}
 
 	conv := []sdk.Message{}
 	agentCtx := newReminderAgentCtx(&conv, 1, 0)
@@ -209,7 +209,7 @@ func TestInjectDueReminders_WiredProviderQuery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fake := &agentdomainmocks.FakeSystemReminderProvider{}
 			fake.RemindersDueReturns(tt.providerReturns)
-			svc := &AgentServiceImpl{reminderProvider: fake}
+			svc := &Agent{reminderProvider: fake}
 			svc.sessionTurns.Store(tt.sessionTurns)
 
 			conv := []sdk.Message{}
@@ -239,7 +239,7 @@ func TestInjectDueReminders_WiredProviderQuery(t *testing.T) {
 // AgentContext whose per-request Turns resets to 1.
 func TestInjectDueReminders_IntervalCountsAcrossSeparateRequests(t *testing.T) {
 	cfg := remindersConfig(true, reminder("todo", "nudge", agentdomain.HookPreStream, config.ReminderTriggerInterval, 4))
-	svc := &AgentServiceImpl{config: cfg}
+	svc := &Agent{config: cfg}
 
 	var firedAt []int
 	for msg := 1; msg <= 8; msg++ {
@@ -264,12 +264,12 @@ func TestInjectDueReminders_StalledTodosContinuation(t *testing.T) {
 		Name: "todo-continuation", Text: "continue your todos: {todo_list}",
 		Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Threshold: 3,
 	})
-	sm := statemanager.NewStateManager(false)
+	sm := statemanager.NewStore(false)
 	sm.SetTodos([]agentdomain.TodoItem{
 		{ID: "1", Content: "done thing", Status: "completed"},
 		{ID: "2", Content: "open thing", Status: "pending"},
 	})
-	svc := &AgentServiceImpl{config: cfg, stateManager: sm}
+	svc := &Agent{config: cfg, stateManager: sm}
 
 	svc.trackStreamOutcome("stop", false, true)
 
@@ -302,9 +302,9 @@ func TestInjectDueReminders_TruncationTakesPriority(t *testing.T) {
 			Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnTruncation,
 		},
 	)
-	sm := statemanager.NewStateManager(false)
+	sm := statemanager.NewStore(false)
 	sm.SetTodos([]agentdomain.TodoItem{{ID: "1", Content: "open", Status: "pending"}})
-	svc := &AgentServiceImpl{config: cfg, stateManager: sm}
+	svc := &Agent{config: cfg, stateManager: sm}
 
 	svc.trackStreamOutcome("length", false, true)
 
@@ -332,7 +332,7 @@ func TestInjectDueReminders_EmptyResponse(t *testing.T) {
 		{"text answer is left alone", true, 0},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := &AgentServiceImpl{config: cfg}
+			svc := &Agent{config: cfg}
 			svc.trackStreamOutcome("stop", false, tt.hadContent)
 
 			conv := []sdk.Message{}

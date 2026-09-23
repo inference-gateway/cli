@@ -109,7 +109,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 
 			conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 			shortcutRegistry := shortcuts.NewRegistry()
-			stateManager := statemanager.NewStateManager(false)
+			stateManager := statemanager.NewStore(false)
 			messageQueue := conversation.NewMessageQueueService()
 
 			fakeDirect := &tuimocks.FakeDirectExecutionService{}
@@ -382,9 +382,9 @@ func (fakeRolloverOptimizer) OptimizeMessages(_ []sdk.Message, _ string, _ bool)
 	}
 }
 
-// newChatRolloverFixture stands up a real SessionRolloverManager backed by
+// newChatRolloverFixture stands up a real SessionRollover backed by
 // in-memory SQLite and an in-memory SessionGroupStorage. Used by the
-// async-rollover handler tests; cheaper than refactoring SessionRolloverManager
+// async-rollover handler tests; cheaper than refactoring SessionRollover
 // to an interface just for mocking.
 func newChatRolloverFixture(t *testing.T) (convdomain.SessionRollover, *conversation.PersistentConversationRepository, func()) {
 	t.Helper()
@@ -399,7 +399,7 @@ func newChatRolloverFixture(t *testing.T) (convdomain.SessionRollover, *conversa
 	cfg.Compact.RolloverOnIdleMinutes = 0
 	cfg.Compact.KeepFirstMessages = 2
 
-	mgr := conversation.NewSessionRolloverManager(
+	mgr := conversation.NewSessionRollover(
 		cfg,
 		fakeRolloverOptimizer{},
 		repo,
@@ -454,7 +454,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 
 			mockAgent := &agentdomainmocks.FakeAgentService{}
 			mockModel := &convmocks.FakeModelService{}
-			stateManager := statemanager.NewStateManager(false)
+			stateManager := statemanager.NewStore(false)
 
 			handler := &ChatHandler{
 				agentService:     mockAgent,
@@ -494,7 +494,7 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 
 	mockModel := &convmocks.FakeModelService{}
 	mockModel.GetCurrentModelReturns("moonshot/moonshot-v1-8k")
-	stateManager := statemanager.NewStateManager(false)
+	stateManager := statemanager.NewStore(false)
 	fakeRunner := &tuimocks.FakeChatCompletionRunner{}
 	fakeRunner.StartReturns(func() tea.Msg { return nil })
 
@@ -542,7 +542,7 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 // startChatCompletion batch with no "Compacting..." status.
 func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testing.T) {
 	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
-	stateManager := statemanager.NewStateManager(false)
+	stateManager := statemanager.NewStore(false)
 	fakeRunner := &tuimocks.FakeChatCompletionRunner{}
 	fakeRunner.StartReturns(func() tea.Msg { return nil })
 
@@ -582,7 +582,7 @@ func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testi
 // rollover was in flight.
 func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
 	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
-	stateManager := statemanager.NewStateManager(false)
+	stateManager := statemanager.NewStore(false)
 	fakeRunner := &tuimocks.FakeChatCompletionRunner{}
 	fakeRunner.StartReturns(func() tea.Msg { return nil })
 

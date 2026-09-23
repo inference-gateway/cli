@@ -13,15 +13,15 @@ import (
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
-func newCoordinatorForTest() (*Coordinator, *conversation.InMemoryConversationRepository, *statemanager.StateManager, *tuimocks.FakeDirectExecutionService) {
+func newCoordinatorForTest() (*Coordinator, *conversation.InMemoryConversationRepository, *statemanager.Store, *tuimocks.FakeDirectExecutionService) {
 	repo := conversation.NewInMemoryConversationRepository(nil, nil)
-	state := statemanager.NewStateManager(false)
+	state := statemanager.NewStore(false)
 	direct := &tuimocks.FakeDirectExecutionService{}
 	listener := &tuimocks.FakeChatEventListener{}
 
 	c := NewCoordinator(Options{
 		ConversationRepo: repo,
-		StateManager:     state,
+		StateStore:       state,
 		DirectExec:       direct,
 		Listener:         listener,
 	})

@@ -21,10 +21,10 @@ func TestHandleToolCommand_BlocksToolNotInCurrentMode(t *testing.T) {
 		{Function: sdk.FunctionObject{Name: "Read"}},
 	})
 
-	sm := statemanager.NewStateManager(false)
+	sm := statemanager.NewStore(false)
 	sm.SetAgentMode(agentdomain.AgentModeStandard)
 
-	svc := directexec.NewService(directexec.Options{ToolService: toolSvc, StateManager: sm})
+	svc := directexec.NewService(directexec.Options{ToolService: toolSvc, StateStore: sm})
 
 	// AskUserQuestion is not in the mocked standard-mode tool list, so !!
 	// must refuse it rather than run it.

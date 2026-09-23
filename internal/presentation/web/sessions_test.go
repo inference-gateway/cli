@@ -32,7 +32,7 @@ func TestCleanupInactiveSessions(t *testing.T) {
 			cfg := &config.Config{}
 			cfg.Web.SessionInactivityMins = tt.inactivityMin
 
-			sm := &SessionManager{cfg: cfg, sessions: make(map[string]*SessionEntry), done: make(chan struct{})}
+			sm := &Sessions{cfg: cfg, sessions: make(map[string]*SessionEntry), done: make(chan struct{})}
 			sm.sessions["s1"] = &SessionEntry{
 				session:    &stubSession{},
 				lastActive: time.Now().Add(-time.Hour),

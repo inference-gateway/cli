@@ -1,5 +1,5 @@
 // TUI state contracts and session state implemented by ApplicationState /
-// statemanager.StateManager: view transitions, the chat and tool-execution
+// statemanager.Store: view transitions, the chat and tool-execution
 // sessions, and the approval / plan-approval / question prompts. The agent core
 // only sees the narrow slices in agent/domain (mode, todos, pause, retry).
 
@@ -13,8 +13,8 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// ViewManager handles view state transitions
-type ViewManager interface {
+// ViewNavigator handles view state transitions
+type ViewNavigator interface {
 	GetCurrentView() ViewState
 	GetPreviousView() ViewState
 	TransitionToView(newView ViewState) error

@@ -94,7 +94,7 @@ func EnsureModel(ctx context.Context, services *container.ServiceContainer, cfg 
 		return fmt.Errorf("no model specified; use --%s or set agent.model in config", ModelFlag)
 	}
 
-	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
+	if err := services.GetGatewaySupervisor().EnsureStarted(); err != nil {
 		return fmt.Errorf("failed to start inference gateway: %w", err)
 	}
 

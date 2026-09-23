@@ -93,15 +93,15 @@ type FakeKeyHandlerContext struct {
 	getPageSizeReturnsOnCall map[int]struct {
 		result1 int
 	}
-	GetStateManagerStub        func() keybinding.StateManager
-	getStateManagerMutex       sync.RWMutex
-	getStateManagerArgsForCall []struct {
+	GetStateStoreStub        func() keybinding.StateStore
+	getStateStoreMutex       sync.RWMutex
+	getStateStoreArgsForCall []struct {
 	}
-	getStateManagerReturns struct {
-		result1 keybinding.StateManager
+	getStateStoreReturns struct {
+		result1 keybinding.StateStore
 	}
-	getStateManagerReturnsOnCall map[int]struct {
-		result1 keybinding.StateManager
+	getStateStoreReturnsOnCall map[int]struct {
+		result1 keybinding.StateStore
 	}
 	GetStatusViewStub        func() tui.StatusComponent
 	getStatusViewMutex       sync.RWMutex
@@ -563,15 +563,15 @@ func (fake *FakeKeyHandlerContext) GetPageSizeReturnsOnCall(i int, result1 int) 
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetStateManager() keybinding.StateManager {
-	fake.getStateManagerMutex.Lock()
-	ret, specificReturn := fake.getStateManagerReturnsOnCall[len(fake.getStateManagerArgsForCall)]
-	fake.getStateManagerArgsForCall = append(fake.getStateManagerArgsForCall, struct {
+func (fake *FakeKeyHandlerContext) GetStateStore() keybinding.StateStore {
+	fake.getStateStoreMutex.Lock()
+	ret, specificReturn := fake.getStateStoreReturnsOnCall[len(fake.getStateStoreArgsForCall)]
+	fake.getStateStoreArgsForCall = append(fake.getStateStoreArgsForCall, struct {
 	}{})
-	stub := fake.GetStateManagerStub
-	fakeReturns := fake.getStateManagerReturns
-	fake.recordInvocation("GetStateManager", []interface{}{})
-	fake.getStateManagerMutex.Unlock()
+	stub := fake.GetStateStoreStub
+	fakeReturns := fake.getStateStoreReturns
+	fake.recordInvocation("GetStateStore", []interface{}{})
+	fake.getStateStoreMutex.Unlock()
 	if stub != nil {
 		return stub()
 	}
@@ -581,38 +581,38 @@ func (fake *FakeKeyHandlerContext) GetStateManager() keybinding.StateManager {
 	return fakeReturns.result1
 }
 
-func (fake *FakeKeyHandlerContext) GetStateManagerCallCount() int {
-	fake.getStateManagerMutex.RLock()
-	defer fake.getStateManagerMutex.RUnlock()
-	return len(fake.getStateManagerArgsForCall)
+func (fake *FakeKeyHandlerContext) GetStateStoreCallCount() int {
+	fake.getStateStoreMutex.RLock()
+	defer fake.getStateStoreMutex.RUnlock()
+	return len(fake.getStateStoreArgsForCall)
 }
 
-func (fake *FakeKeyHandlerContext) GetStateManagerCalls(stub func() keybinding.StateManager) {
-	fake.getStateManagerMutex.Lock()
-	defer fake.getStateManagerMutex.Unlock()
-	fake.GetStateManagerStub = stub
+func (fake *FakeKeyHandlerContext) GetStateStoreCalls(stub func() keybinding.StateStore) {
+	fake.getStateStoreMutex.Lock()
+	defer fake.getStateStoreMutex.Unlock()
+	fake.GetStateStoreStub = stub
 }
 
-func (fake *FakeKeyHandlerContext) GetStateManagerReturns(result1 keybinding.StateManager) {
-	fake.getStateManagerMutex.Lock()
-	defer fake.getStateManagerMutex.Unlock()
-	fake.GetStateManagerStub = nil
-	fake.getStateManagerReturns = struct {
-		result1 keybinding.StateManager
+func (fake *FakeKeyHandlerContext) GetStateStoreReturns(result1 keybinding.StateStore) {
+	fake.getStateStoreMutex.Lock()
+	defer fake.getStateStoreMutex.Unlock()
+	fake.GetStateStoreStub = nil
+	fake.getStateStoreReturns = struct {
+		result1 keybinding.StateStore
 	}{result1}
 }
 
-func (fake *FakeKeyHandlerContext) GetStateManagerReturnsOnCall(i int, result1 keybinding.StateManager) {
-	fake.getStateManagerMutex.Lock()
-	defer fake.getStateManagerMutex.Unlock()
-	fake.GetStateManagerStub = nil
-	if fake.getStateManagerReturnsOnCall == nil {
-		fake.getStateManagerReturnsOnCall = make(map[int]struct {
-			result1 keybinding.StateManager
+func (fake *FakeKeyHandlerContext) GetStateStoreReturnsOnCall(i int, result1 keybinding.StateStore) {
+	fake.getStateStoreMutex.Lock()
+	defer fake.getStateStoreMutex.Unlock()
+	fake.GetStateStoreStub = nil
+	if fake.getStateStoreReturnsOnCall == nil {
+		fake.getStateStoreReturnsOnCall = make(map[int]struct {
+			result1 keybinding.StateStore
 		})
 	}
-	fake.getStateManagerReturnsOnCall[i] = struct {
-		result1 keybinding.StateManager
+	fake.getStateStoreReturnsOnCall[i] = struct {
+		result1 keybinding.StateStore
 	}{result1}
 }
 

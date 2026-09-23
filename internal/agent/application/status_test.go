@@ -30,7 +30,7 @@ func TestSharedAgentsReachTheGatewayThroughTheHost(t *testing.T) {
 	cfg.Gateway.URL = "http://localhost:8080"
 	cfg.Gateway.OCI = "ghcr.io/inference-gateway/inference-gateway:latest"
 
-	shared := NewAgentManager(containerruntime.SharedSessionID, cfg, config.DefaultAgentsConfig(), nil, nil)
+	shared := NewAgentSupervisor(containerruntime.SharedSessionID, cfg, config.DefaultAgentsConfig(), nil, nil)
 	if got := shared.determineGatewayURL(); got != "http://host.docker.internal:8080/v1" {
 		t.Fatalf("shared gateway URL = %q", got)
 	}

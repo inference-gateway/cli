@@ -72,27 +72,27 @@ func parseGatewayPricing(p *sdk.Pricing) (gatewayPrice, bool) {
 	return price, true
 }
 
-// PricingServiceImpl implements the PricingService interface.
-type PricingServiceImpl struct {
+// PricingService implements the PricingService interface.
+type PricingService struct {
 	config *config.PricingConfig
 }
 
 // NewPricingService creates a new pricing service instance.
 func NewPricingService(cfg *config.PricingConfig) convdomain.PricingService {
-	return &PricingServiceImpl{
+	return &PricingService{
 		config: cfg,
 	}
 }
 
 // IsEnabled returns whether pricing is enabled in the configuration.
-func (p *PricingServiceImpl) IsEnabled() bool {
+func (p *PricingService) IsEnabled() bool {
 	return p.config.Enabled
 }
 
 // resolvePricing returns the input/output price for a model and whether it's known.
 // Custom prices win, then gateway-reported prices; anything else is unknown.
 // cacheRead/cacheWrite are per-MTok when the gateway reports the rate, nil otherwise.
-func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64, cacheRead, cacheWrite *float64, ok bool) {
+func (p *PricingService) resolvePricing(model string) (input, output float64, cacheRead, cacheWrite *float64, ok bool) {
 	if customPrice, exists := p.config.CustomPrices[model]; exists {
 		return customPrice.InputPricePerMToken, customPrice.OutputPricePerMToken, nil, nil, true
 	}
@@ -105,7 +105,7 @@ func (p *PricingServiceImpl) resolvePricing(model string) (input, output float64
 // resolveRequiresPro returns whether a model is gated behind a Pro subscription.
 // Custom prices take precedence, then the gateway-reported subscription flag,
 // matching the precedent of resolvePricing.
-func (p *PricingServiceImpl) resolveRequiresPro(model string) bool {
+func (p *PricingService) resolveRequiresPro(model string) bool {
 	if customPrice, exists := p.config.CustomPrices[model]; exists {
 		return customPrice.RequiresPro
 	}
@@ -115,7 +115,7 @@ func (p *PricingServiceImpl) resolveRequiresPro(model string) bool {
 
 // RequiresPro reports whether the model is gated behind a paid Pro subscription.
 // Returns false when pricing is disabled or the model has no entry.
-func (p *PricingServiceImpl) RequiresPro(model string) bool {
+func (p *PricingService) RequiresPro(model string) bool {
 	if !p.config.Enabled {
 		return false
 	}
@@ -124,7 +124,7 @@ func (p *PricingServiceImpl) RequiresPro(model string) bool {
 
 // GetInputPrice retrieves the input price per million tokens for a specific model.
 // Returns 0.0 for unknown models (e.g., Ollama, custom models).
-func (p *PricingServiceImpl) GetInputPrice(model string) float64 {
+func (p *PricingService) GetInputPrice(model string) float64 {
 	if !p.config.Enabled {
 		return 0.0
 	}
@@ -134,7 +134,7 @@ func (p *PricingServiceImpl) GetInputPrice(model string) float64 {
 
 // GetOutputPrice retrieves the output price per million tokens for a specific model.
 // Returns 0.0 for unknown models (e.g., Ollama, custom models).
-func (p *PricingServiceImpl) GetOutputPrice(model string) float64 {
+func (p *PricingService) GetOutputPrice(model string) float64 {
 	if !p.config.Enabled {
 		return 0.0
 	}
@@ -149,7 +149,7 @@ func (p *PricingServiceImpl) GetOutputPrice(model string) float64 {
 // full input rate. Returns inputCost, outputCost, and totalCost in USD (or
 // configured currency). Subscription-gated models are billed as a flat fee,
 // so their per-token rates (if any) are informational and cost zero here.
-func (p *PricingServiceImpl) CalculateCost(model string, inputTokens, outputTokens, cachedTokens, cacheWriteTokens int) (inputCost, outputCost, totalCost float64) {
+func (p *PricingService) CalculateCost(model string, inputTokens, outputTokens, cachedTokens, cacheWriteTokens int) (inputCost, outputCost, totalCost float64) {
 	if !p.config.Enabled || p.resolveRequiresPro(model) {
 		return 0.0, 0.0, 0.0
 	}
@@ -182,7 +182,7 @@ func (p *PricingServiceImpl) CalculateCost(model string, inputTokens, outputToke
 // (callers should not assume "no entry" means "free").
 // Returns "free" only when an explicit pricing entry sets both prices to 0.0.
 // Returns "$X.XX/$Y.YY per MTok" for paid models.
-func (p *PricingServiceImpl) FormatModelPricing(model string) string {
+func (p *PricingService) FormatModelPricing(model string) string {
 	if !p.config.Enabled {
 		return ""
 	}

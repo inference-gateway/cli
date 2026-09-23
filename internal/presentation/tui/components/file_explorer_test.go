@@ -15,7 +15,7 @@ import (
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
-func newTestExplorer(t *testing.T, root string) *FileExplorerImpl {
+func newTestExplorer(t *testing.T, root string) *FileExplorer {
 	t.Helper()
 	ts := styles.NewThemeProvider()
 	e := NewFileExplorer(root, styles.NewProvider(ts), ts, config.KeybindingsConfig{})
@@ -34,7 +34,7 @@ func writeTestFile(t *testing.T, path, content string) {
 	}
 }
 
-func rowRels(e *FileExplorerImpl) []string {
+func rowRels(e *FileExplorer) []string {
 	rels := make([]string, len(e.rows))
 	for i, r := range e.rows {
 		rels[i] = r.node.relPath
@@ -42,12 +42,12 @@ func rowRels(e *FileExplorerImpl) []string {
 	return rels
 }
 
-func explorerHasRow(e *FileExplorerImpl, rel string) bool {
+func explorerHasRow(e *FileExplorer, rel string) bool {
 	_, ok := e.indexOfRel(rel)
 	return ok
 }
 
-func mustRowIndex(t *testing.T, e *FileExplorerImpl, rel string) int {
+func mustRowIndex(t *testing.T, e *FileExplorer, rel string) int {
 	t.Helper()
 	i, ok := e.indexOfRel(rel)
 	if !ok {
@@ -363,7 +363,7 @@ func TestExplorer_PreviewPlaceholder(t *testing.T) {
 // selectFileForPreview positions the explorer cursor on rel and renders once so
 // the preview pane (and previewLines) is populated. Returns the explorer for
 // chaining.
-func selectFileForPreview(t *testing.T, e *FileExplorerImpl, rel string) *FileExplorerImpl {
+func selectFileForPreview(t *testing.T, e *FileExplorer, rel string) *FileExplorer {
 	t.Helper()
 	e.cursor = mustRowIndex(t, e, rel)
 	e.selectedKey = rel

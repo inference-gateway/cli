@@ -80,7 +80,7 @@ type ServiceContainer struct {
 	// Domain services
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
-	sessionRolloverManager *conversation.SessionRolloverManager
+	sessionRolloverManager *conversation.SessionRollover
 	modelService           convdomain.ModelService
 	agent                  agentdomain.AgentService
 	toolService            agentdomain.ToolService
@@ -105,16 +105,16 @@ type ServiceContainer struct {
 	jobSupervisor          *jobs.Supervisor
 	taskRetentionService   scheddomain.TaskRetentionService
 	backgroundTaskService  scheddomain.BackgroundTaskService
-	gatewayManager         *gateway.Manager
+	gatewayManager         *gateway.Supervisor
 	mockGateway            *http.Server
-	agentManager           agentdomain.AgentManager
+	agentManager           agentdomain.AgentSupervisor
 
 	// Services
-	stateManager *statemanager.StateManager
+	stateManager *statemanager.Store
 
 	// Background services
 	titleGenerator         *conversation.ConversationTitleGenerator
-	backgroundJobManager   *scheduler.BackgroundJobManager
+	backgroundJobManager   *scheduler.TitleBackfill
 	backgroundShellService *scheduler.BackgroundShellService
 	memoryBackend          memory.MemoryBackend
 	storage                storage.ConversationStorage
@@ -134,7 +134,7 @@ type ServiceContainer struct {
 
 	// Tool registry
 	toolRegistry *tools.Registry
-	mcpManager   agentdomain.MCPManager
+	mcpManager   agentdomain.MCPSupervisor
 	// mcpStartupCancel aborts the async MCP server startup on Shutdown.
 	mcpStartupCancel context.CancelFunc
 
@@ -274,7 +274,7 @@ func (c *ServiceContainer) StartExtensionBridge() {
 // initializeGatewayManager creates the gateway manager (but does not start it)
 // Commands that need the gateway should call gatewayManager.EnsureStarted() explicitly
 func (c *ServiceContainer) initializeGatewayManager() {
-	c.gatewayManager = gateway.NewManager(c.sessionID, c.config, c.containerRuntime)
+	c.gatewayManager = gateway.NewSupervisor(c.sessionID, c.config, c.containerRuntime)
 }
 
 // startMockGateway serves a scenario library (github.com/inference-gateway/tokenless)
@@ -332,7 +332,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 		c.stateManager.InitializeAgentReadiness(agentCount)
 	}
 
-	c.agentManager = agentapp.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
+	c.agentManager = agentapp.NewAgentSupervisor(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
 
 	c.agentManager.SetStatusCallback(func(agentName string, state agentdomain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
@@ -358,7 +358,7 @@ func (c *ServiceContainer) initializeMCPManager() {
 		return
 	}
 
-	c.mcpManager = mcp.NewManager(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
+	c.mcpManager = mcp.NewSupervisor(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
 
 	hasServersToStart := c.hasAutoStartMCPServers()
 	if !hasServersToStart {
@@ -487,7 +487,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	if c.config.Compact.Enabled {
 		if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
-			c.sessionRolloverManager = conversation.NewSessionRolloverManager(
+			c.sessionRolloverManager = conversation.NewSessionRollover(
 				c.config,
 				c.conversationOptimizer,
 				persistentRepo,
@@ -514,7 +514,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.Timeout,
 		c.conversationOptimizer,
 		c.backgroundTaskRegistry,
-		c.GetSessionRolloverManager(),
+		c.GetSessionRollover(),
 		c.tokenizer,
 		c.hookCommandProvider(),
 		func() string { return plugins.InstructionsBlock(c.config) },
@@ -551,7 +551,7 @@ func (c *ServiceContainer) initializeStorageBackend(
 
 	titleClient := c.createRawSDKClient()
 	c.titleGenerator = conversation.NewConversationTitleGenerator(titleClient, stores.Conversations, c.config)
-	c.backgroundJobManager = scheduler.NewBackgroundJobManager(c.titleGenerator, c.config)
+	c.backgroundJobManager = scheduler.NewTitleBackfill(c.titleGenerator, c.config)
 
 	persistentRepo.SetTitleGenerator(c.titleGenerator)
 	persistentRepo.SetA2ATaskTracker(c.backgroundTaskRegistry)
@@ -595,7 +595,7 @@ func (c *ServiceContainer) handleStorageInitFailure(
 // initializeStateManager creates the state manager before domain services need it
 func (c *ServiceContainer) initializeStateManager() {
 	debugMode := c.config.Logging.Debug
-	stateManager := statemanager.NewStateManager(debugMode)
+	stateManager := statemanager.NewStore(debugMode)
 	stateManager.SetStallThreshold(time.Duration(c.config.Client.StallThresholdSec) * time.Second)
 	c.stateManager = stateManager
 }
@@ -627,27 +627,27 @@ func (c *ServiceContainer) initializeChatOrchestrationServices() {
 	c.approvalCoordinator = approvalcoord.NewService(approvalcoord.Options{
 		AgentService:     c.agent,
 		ConversationRepo: c.conversationRepo,
-		StateManager:     c.stateManager,
+		StateStore:       c.stateManager,
 	})
 
 	c.chatCompletionRunner = chatcompletion.NewRunner(chatcompletion.Options{
 		AgentService:     c.agent,
 		ConversationRepo: c.conversationRepo,
 		ModelService:     c.modelService,
-		StateManager:     c.stateManager,
+		StateStore:       c.stateManager,
 	})
 
 	c.directExecutionService = directexec.NewService(directexec.Options{
 		ConversationRepo:       c.conversationRepo,
 		ToolService:            c.toolService,
-		StateManager:           c.stateManager,
+		StateStore:             c.stateManager,
 		BackgroundShellService: c.BackgroundShellService(),
 		Listener:               c.chatEventListener,
 	})
 
 	c.toolExecutionCoordinator = toolcoordinator.NewCoordinator(toolcoordinator.Options{
 		ConversationRepo: c.conversationRepo,
-		StateManager:     c.stateManager,
+		StateStore:       c.stateManager,
 		DirectExec:       c.directExecutionService,
 		Listener:         c.chatEventListener,
 	})
@@ -731,9 +731,9 @@ func (c *ServiceContainer) GetConversationOptimizer() convdomain.ConversationOpt
 	return c.conversationOptimizer
 }
 
-// GetSessionRolloverManager returns nil (not a typed nil) when rollover is
+// GetSessionRollover returns nil (not a typed nil) when rollover is
 // off, so callers can nil-check the interface.
-func (c *ServiceContainer) GetSessionRolloverManager() convdomain.SessionRollover {
+func (c *ServiceContainer) GetSessionRollover() convdomain.SessionRollover {
 	if c.sessionRolloverManager == nil {
 		return nil
 	}
@@ -842,11 +842,11 @@ func (c *ServiceContainer) GetInsightsGenerator() *insights.Generator {
 	return c.insights
 }
 
-func (c *ServiceContainer) GetStateManager() *statemanager.StateManager {
+func (c *ServiceContainer) GetStateStore() *statemanager.Store {
 	return c.stateManager
 }
 
-func (c *ServiceContainer) GetAgentManager() agentdomain.AgentManager {
+func (c *ServiceContainer) GetAgentSupervisor() agentdomain.AgentSupervisor {
 	return c.agentManager
 }
 
@@ -893,8 +893,8 @@ func (c *ServiceContainer) StartScreenshotServer(sessionID string) *computerinfr
 	return server
 }
 
-// GetMCPManager returns the MCP manager (may be nil if MCP is not enabled)
-func (c *ServiceContainer) GetMCPManager() agentdomain.MCPManager {
+// GetMCPSupervisor returns the MCP manager (may be nil if MCP is not enabled)
+func (c *ServiceContainer) GetMCPSupervisor() agentdomain.MCPSupervisor {
 	return c.mcpManager
 }
 
@@ -992,8 +992,8 @@ func (c *ServiceContainer) newSDKClient(retry *sdk.RetryConfig) sdk.Client {
 	})
 }
 
-// GetBackgroundJobManager returns the background job manager
-func (c *ServiceContainer) GetBackgroundJobManager() *scheduler.BackgroundJobManager {
+// GetTitleBackfill returns the background job manager
+func (c *ServiceContainer) GetTitleBackfill() *scheduler.TitleBackfill {
 	return c.backgroundJobManager
 }
 
@@ -1011,8 +1011,8 @@ func (c *ServiceContainer) GetShellHistoryStorage() storage.ShellHistoryStorage 
 	return c.stores.ShellHistory
 }
 
-// GetGatewayManager returns the gateway manager
-func (c *ServiceContainer) GetGatewayManager() *gateway.Manager {
+// GetGatewaySupervisor returns the gateway manager
+func (c *ServiceContainer) GetGatewaySupervisor() *gateway.Supervisor {
 	return c.gatewayManager
 }
 

@@ -80,7 +80,7 @@ func (f *fakeDiffSource) Discard(fc gitdiff.FileChange) error {
 	return nil
 }
 
-func newTestDiffViewer(src *fakeDiffSource) *DiffViewerImpl {
+func newTestDiffViewer(src *fakeDiffSource) *DiffViewer {
 	ts := styles.NewThemeProvider()
 	v := NewDiffViewer(src, styles.NewProvider(ts), ts, config.KeybindingsConfig{})
 	v.SetWidth(120)
@@ -89,7 +89,7 @@ func newTestDiffViewer(src *fakeDiffSource) *DiffViewerImpl {
 	return v
 }
 
-func fileRowIndex(v *DiffViewerImpl, path string, staged bool) int {
+func fileRowIndex(v *DiffViewer, path string, staged bool) int {
 	for i, r := range v.rows {
 		if r.kind == rowFile && r.fc.Path == path && r.fc.Staged == staged {
 			return i

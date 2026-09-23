@@ -106,16 +106,16 @@ If A2A is disabled, the `/tasks` command will show an error message.
 
 ### Architecture
 
-- **Task Manager**: `TaskManagerImpl` (`internal/presentation/tui/components/task_management_view.go`) - Main UI component for task management
+- **Task Manager**: `TaskView` (`internal/presentation/tui/components/task_management_view.go`) - Main UI component for task management
 - **Task Shortcut**: `A2ATaskManagementShortcut` (`internal/presentation/shortcuts/task_management.go`) - Handles the `/tasks` command
 - **State Manager**: Manages in-memory task retention using `RetainedTaskInfo` structs
 - **Events**: Uses `TasksLoadedEvent` and `TaskCancelledEvent` for state management
 
 ### State Management
 
-- Active tasks are loaded from background task polling state in `StateManager`
+- Active tasks are loaded from background task polling state in `statemanager.Store`
 - Completed tasks are stored in-memory using `RetainedTaskInfo` with automatic retention limits
-- Task retention is managed by `StateManager` methods: `AddTaskToInMemoryRetention()`, `GetRetainedTasks()`, etc.
+- Task retention is managed by `statemanager.Store` methods: `AddTaskToInMemoryRetention()`, `GetRetainedTasks()`, etc.
 - UI state includes current view (Active/Completed/All), search query, selection, and info display modes
 
 ### View States

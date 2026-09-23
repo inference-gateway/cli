@@ -54,7 +54,7 @@ func (f *fakeOptimizer) OptimizeMessages(messages []sdk.Message, model string, f
 	return out
 }
 
-func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionRolloverManager, *PersistentConversationRepository, *fakeOptimizer, storage.SessionGroupStorage, func()) {
+func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionRollover, *PersistentConversationRepository, *fakeOptimizer, storage.SessionGroupStorage, func()) {
 	t.Helper()
 
 	storageBackend, err := storage.NewSQLiteStorage(storage.SQLiteConfig{Path: ":memory:"})
@@ -72,7 +72,7 @@ func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionR
 	opt := &fakeOptimizer{returnCount: 2}
 
 	groupStore := storage.NewMemorySessionGroupStorage()
-	mgr := NewSessionRolloverManager(cfg, opt, repo, NewTokenizerService(DefaultTokenizerConfig()), groupStore)
+	mgr := NewSessionRollover(cfg, opt, repo, NewTokenizerService(DefaultTokenizerConfig()), groupStore)
 
 	cleanup := func() {
 		_ = repo.Close()
@@ -406,7 +406,7 @@ func TestConcurrentRolloversForDifferentGroups(t *testing.T) {
 }
 
 func TestMaybeRollover_NilReceiverReturnsFalse(t *testing.T) {
-	var mgr *SessionRolloverManager
+	var mgr *SessionRollover
 	newID, fired := mgr.MaybeRollover(context.Background(), "openai/gpt-4", "")
 	if fired {
 		t.Error("nil receiver must return fired=false")

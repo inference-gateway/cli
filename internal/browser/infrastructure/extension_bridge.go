@@ -227,7 +227,7 @@ type ExtensionBridge struct {
 	toolSvc              agentdomain.ToolService
 	approval             agentdomain.ApprovalPolicy
 	models               convdomain.ModelService
-	modes                agentdomain.AgentModeManager
+	modes                agentdomain.AgentModeState
 	defaultModel         string
 	agentSvc             agentdomain.AgentService
 	history              storage.ShellHistoryStorage
@@ -268,7 +268,7 @@ func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier agentdomain.UINot
 // SetToolExecution wires the deps answering tool_request and list_models
 // frames - after construction, because the container builds the bridge before
 // the tool and model services exist. Any argument may be nil/empty.
-func (b *ExtensionBridge) SetToolExecution(toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, modes agentdomain.AgentModeManager, defaultModel string) {
+func (b *ExtensionBridge) SetToolExecution(toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, modes agentdomain.AgentModeState, defaultModel string) {
 	b.toolSvc = toolSvc
 	b.approval = approval
 	b.models = models

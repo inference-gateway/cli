@@ -19,9 +19,9 @@ import (
 
 // newRunnerForTest wires a Runner with the in-memory conversation repository
 // and counterfeiter fakes for everything else.
-func newRunnerForTest() (*Runner, *conversation.InMemoryConversationRepository, *statemanager.StateManager, *agentdomainmocks.FakeAgentService, *convmocks.FakeModelService) {
+func newRunnerForTest() (*Runner, *conversation.InMemoryConversationRepository, *statemanager.Store, *agentdomainmocks.FakeAgentService, *convmocks.FakeModelService) {
 	repo := conversation.NewInMemoryConversationRepository(nil, nil)
-	state := statemanager.NewStateManager(false)
+	state := statemanager.NewStore(false)
 	agent := &agentdomainmocks.FakeAgentService{}
 	model := &convmocks.FakeModelService{}
 
@@ -29,7 +29,7 @@ func newRunnerForTest() (*Runner, *conversation.InMemoryConversationRepository, 
 		AgentService:     agent,
 		ConversationRepo: repo,
 		ModelService:     model,
-		StateManager:     state,
+		StateStore:       state,
 	})
 	return runner, repo, state, agent, model
 }

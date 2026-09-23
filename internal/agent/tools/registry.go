@@ -26,8 +26,8 @@ import (
 
 // Note: this file deliberately does NOT call DiscoverTools synchronously at
 // construction time. MCP tool discovery is handled asynchronously by the
-// liveness probe loop in MCPManager.StartMonitoring (see
-// internal/mcp/manager.go) which emits MCPServerStatusUpdateEvent
+// liveness probe loop in MCPSupervisor.StartMonitoring (see
+// internal/mcp/supervisor.go) which emits MCPServerStatusUpdateEvent
 // once a server is reachable, and ChatApplication.handleMCPStatusUpdate
 // (internal/presentation/tui/app/chat.go) then invokes RegisterMCPServerTools below to
 // install the discovered tools.
@@ -53,7 +53,7 @@ type Registry struct {
 	musicService    agentdomain.MusicService
 	sfxService      agentdomain.SoundEffectService
 	videoService    agentdomain.VideoService
-	mcpManager      agentdomain.MCPManager
+	mcpManager      agentdomain.MCPSupervisor
 	shellService    scheddomain.BackgroundShellService
 	annotator       agentdomain.ImageAnnotator
 	frameSources    map[string]agentdomain.FrameSource
@@ -69,7 +69,7 @@ type Registry struct {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, videoService agentdomain.VideoService, mcpManager agentdomain.MCPManager, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker scheddomain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, videoService agentdomain.VideoService, mcpManager agentdomain.MCPSupervisor, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker scheddomain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = schedinfra.NewA2ATaskTracker()
 	}
@@ -346,8 +346,8 @@ func (r *Registry) IsToolEnabled(name string) bool {
 }
 
 // RegisterMCPServerTools dynamically registers tools from an MCP server.
-// The serverName must match a client registered with the MCPManager - the
-// lookup is O(1) via MCPManager.GetClient and performs no network I/O.
+// The serverName must match a client registered with the MCPSupervisor - the
+// lookup is O(1) via MCPSupervisor.GetClient and performs no network I/O.
 func (r *Registry) RegisterMCPServerTools(serverName string, tools []agentdomain.MCPDiscoveredTool) int {
 	if r.mcpManager == nil {
 		return 0

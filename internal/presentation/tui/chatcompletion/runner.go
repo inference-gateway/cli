@@ -25,20 +25,20 @@ import (
 // start/error/complete is the orchestrator's responsibility, not the
 // runner's - see the ChatHandler wrappers that call SetActiveToolCallID("")
 // before delegating to these handlers.
-// stateManager is the narrow slice of the app state manager the runner needs:
+// stateStore is the narrow slice of the app state manager the runner needs:
 // chat-session lifecycle, tool-execution teardown, and the view transition on
-// completion. *statemanager.StateManager satisfies it.
-type stateManager interface {
+// completion. *statemanager.Store satisfies it.
+type stateStore interface {
 	tui.ChatSessionState
 	tui.ToolExecutionState
-	tui.ViewManager
+	tui.ViewNavigator
 }
 
 type Runner struct {
 	agentService     agentdomain.AgentService
 	conversationRepo convdomain.ConversationRepository
 	modelService     convdomain.ModelService
-	stateManager     stateManager
+	stateManager     stateStore
 
 	pendingRestoration   string
 	pendingRestorationMu sync.RWMutex
@@ -49,7 +49,7 @@ type Options struct {
 	AgentService     agentdomain.AgentService
 	ConversationRepo convdomain.ConversationRepository
 	ModelService     convdomain.ModelService
-	StateManager     stateManager
+	StateStore       stateStore
 }
 
 // NewRunner creates a new ChatCompletionRunner.
@@ -58,7 +58,7 @@ func NewRunner(opts Options) *Runner {
 		agentService:     opts.AgentService,
 		conversationRepo: opts.ConversationRepo,
 		modelService:     opts.ModelService,
-		stateManager:     opts.StateManager,
+		stateManager:     opts.StateStore,
 	}
 }
 

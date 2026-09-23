@@ -134,12 +134,12 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 
 	telemetryRec := services.GetTelemetryRecorder()
 	sessionStart := time.Now()
-	endSessionSpan := telemetryRec.StartSession(services.GetStateManager().GetAgentMode().ModeKey())
+	endSessionSpan := telemetryRec.StartSession(services.GetStateStore().GetAgentMode().ModeKey())
 
 	doShutdown := sync.OnceFunc(func() {
 		logger.Info("received shutdown signal, cleaning up...")
 		endSessionSpan(telemetry.RunSuccess)
-		telemetryRec.RecordSession(services.GetStateManager().GetAgentMode().ModeKey(), telemetry.RunSuccess, time.Since(sessionStart))
+		telemetryRec.RecordSession(services.GetStateStore().GetAgentMode().ModeKey(), telemetry.RunSuccess, time.Since(sessionStart))
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		if err := services.Shutdown(ctx); err != nil {
@@ -150,7 +150,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	defer doShutdown()
 	utils.OnShutdownSignal(doShutdown)
 
-	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
+	if err := services.GetGatewaySupervisor().EnsureStarted(); err != nil {
 		fmt.Printf("\nFailed to start gateway automatically: %v\n", err)
 		fmt.Printf("   Continuing without local gateway.\n")
 		fmt.Printf("   Make sure the inference gateway is running at: %s\n\n", cfg.Gateway.URL)
@@ -160,7 +160,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	defer cancel()
 
 	versionInfo := version.GetVersionInfo()
-	versionInfo.GatewayVersion = services.GetGatewayManager().Version(ctx)
+	versionInfo.GatewayVersion = services.GetGatewaySupervisor().Version(ctx)
 
 	models, err := services.GetModelService().ListModels(ctx)
 	if err != nil {
@@ -186,16 +186,16 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	githubIssueService := services.GetGitHubIssueService()
 	pricingService := services.GetPricingService()
 	shortcutRegistry := services.GetShortcutRegistry()
-	stateManager := services.GetStateManager()
+	stateManager := services.GetStateStore()
 	messageQueue := services.GetMessageQueue()
 	themeService := services.GetThemeService()
 	toolRegistry := services.GetToolRegistry()
-	mcpManager := services.GetMCPManager()
+	mcpManager := services.GetMCPSupervisor()
 	taskRetentionService := services.GetTaskRetentionService()
 	backgroundTaskService := services.GetBackgroundTaskService()
-	agentManager := services.GetAgentManager()
+	agentManager := services.GetAgentSupervisor()
 	conversationOptimizer := services.GetConversationOptimizer()
-	sessionRolloverManager := services.GetSessionRolloverManager()
+	sessionRolloverManager := services.GetSessionRollover()
 
 	if sessionID != "" {
 		resumeChatSession(conversationRepo, sessionRolloverManager, sessionID)
@@ -355,7 +355,7 @@ func runNonInteractiveChat(cfg *config.Config) error {
 	_ = streamevent.SetWriter(io.Discard)
 
 	services := container.NewServiceContainer(cfg)
-	if am := services.GetAgentManager(); am != nil {
+	if am := services.GetAgentSupervisor(); am != nil {
 		if err := am.StartAgents(context.Background()); err != nil {
 			logger.Warn("failed to start agents in background", "error", err)
 		}
@@ -368,7 +368,7 @@ func runNonInteractiveChat(cfg *config.Config) error {
 	defer doShutdown()
 	utils.OnShutdownSignal(doShutdown)
 
-	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
+	if err := services.GetGatewaySupervisor().EnsureStarted(); err != nil {
 		return fmt.Errorf("failed to start gateway: %w", err)
 	}
 

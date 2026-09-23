@@ -30,8 +30,8 @@ const (
 	AgentContainerPrefix = "inference-agent-"
 )
 
-// AgentManager manages the lifecycle of A2A agent containers (local and external)
-type AgentManager struct {
+// AgentSupervisor manages the lifecycle of A2A agent containers (local and external)
+type AgentSupervisor struct {
 	sessionID            convdomain.SessionID
 	config               *config.Config
 	agentsConfig         *config.AgentsConfig
@@ -51,9 +51,9 @@ type AgentManager struct {
 	agentStates          map[string]agentdomain.AgentState
 }
 
-// NewAgentManager creates a new agent manager
-func NewAgentManager(sessionID convdomain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig, runtime containerruntime.ContainerRuntime, a2aService A2AAgentService) *AgentManager {
-	return &AgentManager{
+// NewAgentSupervisor creates a new agent manager
+func NewAgentSupervisor(sessionID convdomain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig, runtime containerruntime.ContainerRuntime, a2aService A2AAgentService) *AgentSupervisor {
+	return &AgentSupervisor{
 		sessionID:        sessionID,
 		config:           cfg,
 		agentsConfig:     agentsConfig,
@@ -68,31 +68,31 @@ func NewAgentManager(sessionID convdomain.SessionID, cfg *config.Config, agentsC
 }
 
 // SetStatusCallback sets the callback function for agent status updates
-func (am *AgentManager) SetStatusCallback(callback func(agentName string, state agentdomain.AgentState, message string, url string, image string)) {
+func (am *AgentSupervisor) SetStatusCallback(callback func(agentName string, state agentdomain.AgentState, message string, url string, image string)) {
 	am.statusCallback = callback
 }
 
 // notifyStatus calls the status callback if set
-func (am *AgentManager) notifyStatus(agentName string, state agentdomain.AgentState, message string, url string, image string) {
+func (am *AgentSupervisor) notifyStatus(agentName string, state agentdomain.AgentState, message string, url string, image string) {
 	if am.statusCallback != nil {
 		am.statusCallback(agentName, state, message, url, image)
 	}
 }
 
 // SetPullProgressCallback sets the callback function for image pull progress updates
-func (am *AgentManager) SetPullProgressCallback(callback func(agentName string, done, total int)) {
+func (am *AgentSupervisor) SetPullProgressCallback(callback func(agentName string, done, total int)) {
 	am.pullProgressCallback = callback
 }
 
 // notifyPullProgress calls the pull progress callback if set
-func (am *AgentManager) notifyPullProgress(agentName string, done, total int) {
+func (am *AgentSupervisor) notifyPullProgress(agentName string, done, total int) {
 	if am.pullProgressCallback != nil {
 		am.pullProgressCallback(agentName, done, total)
 	}
 }
 
 // StartAgents starts all local agents (run: true) and monitors external agents
-func (am *AgentManager) StartAgents(ctx context.Context) error {
+func (am *AgentSupervisor) StartAgents(ctx context.Context) error {
 	if utils.IsRunningInContainer() {
 		logger.Debug("running in container mode - skipping local agent startup, only discovering remote agents")
 		am.initializeExternalAgents(ctx)
@@ -142,7 +142,7 @@ func (am *AgentManager) StartAgents(ctx context.Context) error {
 // before the first LLM turn so the model never races an agent whose 3GB image
 // is still pulling; failed agents settle too, so a broken agent can't block
 // forever. Chat mode never calls it (the TUI streams status instead).
-func (am *AgentManager) WaitForAgentsReady(ctx context.Context) {
+func (am *AgentSupervisor) WaitForAgentsReady(ctx context.Context) {
 	settled := make(chan struct{})
 	go func() {
 		am.startWg.Wait()
@@ -165,7 +165,7 @@ func (am *AgentManager) WaitForAgentsReady(ctx context.Context) {
 }
 
 // initializeExternalAgents loads external agents and monitors their readiness
-func (am *AgentManager) initializeExternalAgents(ctx context.Context) {
+func (am *AgentSupervisor) initializeExternalAgents(ctx context.Context) {
 	if len(am.config.A2A.Agents) == 0 {
 		return
 	}
@@ -181,10 +181,10 @@ func (am *AgentManager) initializeExternalAgents(ctx context.Context) {
 }
 
 // monitorExternalAgents monitors the readiness of external agents with periodic probes
-func (am *AgentManager) monitorExternalAgents(ctx context.Context) {
+func (am *AgentSupervisor) monitorExternalAgents(ctx context.Context) {
 	time.Sleep(2 * time.Second)
 
-	if a2aSvc, ok := am.a2aAgentService.(*A2AAgentServiceImpl); !ok || a2aSvc == nil {
+	if a2aSvc, ok := am.a2aAgentService.(*A2AClient); !ok || a2aSvc == nil {
 		logger.Warn("cannot monitor external agents: A2A service not available")
 		return
 	}
@@ -227,7 +227,7 @@ func (am *AgentManager) monitorExternalAgents(ctx context.Context) {
 
 // probeExternalAgent performs a single liveness probe for an external agent
 // and emits a status update only on state change.
-func (am *AgentManager) probeExternalAgent(ctx context.Context, agentName, agentURL string) {
+func (am *AgentSupervisor) probeExternalAgent(ctx context.Context, agentName, agentURL string) {
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -276,7 +276,7 @@ func AgentNameFromURL(url string) string {
 }
 
 // startAgentAsync starts a single agent asynchronously with status updates
-func (am *AgentManager) startAgentAsync(ctx context.Context, agent config.AgentEntry) {
+func (am *AgentSupervisor) startAgentAsync(ctx context.Context, agent config.AgentEntry) {
 	if err := am.StartAgent(ctx, agent); err != nil {
 		logger.Warn("failed to start agent", "name", agent.Name, "error", err)
 		am.notifyStatus(agent.Name, agentdomain.AgentStateFailed, fmt.Sprintf("Failed to start: %v", err), agent.URL, agent.OCI)
@@ -284,7 +284,7 @@ func (am *AgentManager) startAgentAsync(ctx context.Context, agent config.AgentE
 }
 
 // StartAgent starts a single agent container with status updates
-func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry) error {
+func (am *AgentSupervisor) StartAgent(ctx context.Context, agent config.AgentEntry) error {
 	if agent.OCI == "" {
 		return fmt.Errorf("agent %s has run: true but no OCI image specified", agent.Name)
 	}
@@ -339,7 +339,7 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 }
 
 // startLocalAgentProbe starts a periodic health check for a local (docker) agent
-func (am *AgentManager) startLocalAgentProbe(ctx context.Context, agent config.AgentEntry) {
+func (am *AgentSupervisor) startLocalAgentProbe(ctx context.Context, agent config.AgentEntry) {
 	interval := time.Duration(am.config.A2A.LivenessProbeInterval) * time.Second
 	if interval <= 0 {
 		interval = 30 * time.Second
@@ -370,7 +370,7 @@ func (am *AgentManager) startLocalAgentProbe(ctx context.Context, agent config.A
 
 // probeLocalAgent performs a single health check for a local (docker) agent
 // and emits a status update only on state change.
-func (am *AgentManager) probeLocalAgent(ctx context.Context, httpClient *http.Client, agent config.AgentEntry, healthURL string) {
+func (am *AgentSupervisor) probeLocalAgent(ctx context.Context, httpClient *http.Client, agent config.AgentEntry, healthURL string) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
 	if err != nil {
 		am.handleLocalProbeResult(agent, agentdomain.AgentStateFailed, "Agent not reachable", err)
@@ -391,7 +391,7 @@ func (am *AgentManager) probeLocalAgent(ctx context.Context, httpClient *http.Cl
 }
 
 // handleLocalProbeResult processes a probe result, emitting a status update only on state change.
-func (am *AgentManager) handleLocalProbeResult(agent config.AgentEntry, newState agentdomain.AgentState, message string, probeErr error) {
+func (am *AgentSupervisor) handleLocalProbeResult(agent config.AgentEntry, newState agentdomain.AgentState, message string, probeErr error) {
 	am.containersMutex.Lock()
 	lastState := am.agentStates[agent.Name]
 	am.containersMutex.Unlock()
@@ -418,7 +418,7 @@ func (am *AgentManager) handleLocalProbeResult(agent config.AgentEntry, newState
 }
 
 // StopAgents stops all running agent containers, cancels liveness probes, and cleans up the network
-func (am *AgentManager) StopAgents(ctx context.Context) error {
+func (am *AgentSupervisor) StopAgents(ctx context.Context) error {
 	am.probeStopOnce.Do(func() { close(am.probeStop) })
 	am.probeWg.Wait()
 
@@ -440,14 +440,14 @@ func (am *AgentManager) StopAgents(ctx context.Context) error {
 }
 
 // IsRunning returns whether any agents are running
-func (am *AgentManager) IsRunning() bool {
+func (am *AgentSupervisor) IsRunning() bool {
 	return am.isRunning
 }
 
 // StopAgentByName stops this session's container for the agent even when this
 // process did not start it. With the shared session id it stops the detached
 // container started by `infer agents start`.
-func (am *AgentManager) StopAgentByName(ctx context.Context, agentName string) error {
+func (am *AgentSupervisor) StopAgentByName(ctx context.Context, agentName string) error {
 	if !am.isAgentRunning(agentName) {
 		return nil
 	}
@@ -459,7 +459,7 @@ func sharedAgentContainerName(agentName string) string {
 }
 
 // StopAgent stops a single agent container
-func (am *AgentManager) StopAgent(ctx context.Context, agentName string) error {
+func (am *AgentSupervisor) StopAgent(ctx context.Context, agentName string) error {
 	containerID, exists := am.containers[agentName]
 	if !exists || containerID == "" {
 		return nil
@@ -480,7 +480,7 @@ func (am *AgentManager) StopAgent(ctx context.Context, agentName string) error {
 }
 
 // pullImage pulls the OCI image for an agent, streaming layer progress
-func (am *AgentManager) pullImage(ctx context.Context, agent config.AgentEntry) error {
+func (am *AgentSupervisor) pullImage(ctx context.Context, agent config.AgentEntry) error {
 	progress := func(done, total int) { am.notifyPullProgress(agent.Name, done, total) }
 	if am.containerRuntime != nil {
 		return am.containerRuntime.PullImage(ctx, agent.OCI, progress)
@@ -489,7 +489,7 @@ func (am *AgentManager) pullImage(ctx context.Context, agent config.AgentEntry) 
 }
 
 // startContainer starts the agent container
-func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEntry) error {
+func (am *AgentSupervisor) startContainer(ctx context.Context, agent config.AgentEntry) error {
 	assignedPort := am.assignPort(agent)
 	containerPort := "8080"
 
@@ -596,7 +596,7 @@ func applyModelFallback(env map[string]string, model string) {
 
 // otlpEndpoint returns the CLI's OTLP collector endpoint, config first then
 // OTEL_EXPORTER_OTLP_ENDPOINT, or "" when export is disabled.
-func (am *AgentManager) otlpEndpoint() string {
+func (am *AgentSupervisor) otlpEndpoint() string {
 	if am.config != nil && am.config.Telemetry.OTLP.Endpoint != "" {
 		return am.config.Telemetry.OTLP.Endpoint
 	}
@@ -657,7 +657,7 @@ func resolveAgentEnv(env, dotEnvVars, authKeys map[string]string) map[string]str
 }
 
 // loadDotEnvFile loads environment variables from .env file in the current directory
-func (am *AgentManager) loadDotEnvFile() (map[string]string, error) {
+func (am *AgentSupervisor) loadDotEnvFile() (map[string]string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current working directory: %w", err)
@@ -679,7 +679,7 @@ func (am *AgentManager) loadDotEnvFile() (map[string]string, error) {
 
 // isAgentRunning checks if this session's container for the agent is running
 // and records it so StopAgent can stop it.
-func (am *AgentManager) isAgentRunning(agentName string) bool {
+func (am *AgentSupervisor) isAgentRunning(agentName string) bool {
 	containerID := am.runningContainerID(fmt.Sprintf("%s%s-%s", AgentContainerPrefix, agentName, am.sessionID))
 	if containerID == "" {
 		return false
@@ -692,7 +692,7 @@ func (am *AgentManager) isAgentRunning(agentName string) bool {
 
 // runningContainerID returns the id of the running container with exactly
 // that name, or "" when none is running.
-func (am *AgentManager) runningContainerID(expectedName string) string {
+func (am *AgentSupervisor) runningContainerID(expectedName string) string {
 	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", AgentContainerPrefix), "--format", "{{.ID}}\t{{.Names}}")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -709,7 +709,7 @@ func (am *AgentManager) runningContainerID(expectedName string) string {
 }
 
 // waitForReady waits for an agent to become ready
-func (am *AgentManager) waitForReady(ctx context.Context, agent config.AgentEntry) error {
+func (am *AgentSupervisor) waitForReady(ctx context.Context, agent config.AgentEntry) error {
 	healthURL := strings.TrimSuffix(agent.URL, "/") + "/health"
 
 	timeout := 30 * time.Second
@@ -742,7 +742,7 @@ func (am *AgentManager) waitForReady(ctx context.Context, agent config.AgentEntr
 }
 
 // containerExists checks if a Docker container exists by ID (running or stopped)
-func (am *AgentManager) containerExists(containerID string) bool {
+func (am *AgentSupervisor) containerExists(containerID string) bool {
 	if containerID == "" {
 		return false
 	}
@@ -751,7 +751,7 @@ func (am *AgentManager) containerExists(containerID string) bool {
 }
 
 // assignPort assigns a port for the agent, finding an available one if needed
-func (am *AgentManager) assignPort(agent config.AgentEntry) int {
+func (am *AgentSupervisor) assignPort(agent config.AgentEntry) int {
 	am.containersMutex.Lock()
 	defer am.containersMutex.Unlock()
 
@@ -766,7 +766,7 @@ func (am *AgentManager) assignPort(agent config.AgentEntry) int {
 }
 
 // determineAgentPort determines the port to use for an agent
-func (am *AgentManager) determineAgentPort(agent config.AgentEntry) int {
+func (am *AgentSupervisor) determineAgentPort(agent config.AgentEntry) int {
 	basePort := am.extractPortFromURL(agent.URL)
 	if basePort <= 0 {
 		basePort = 8080
@@ -776,7 +776,7 @@ func (am *AgentManager) determineAgentPort(agent config.AgentEntry) int {
 }
 
 // determineGatewayURL determines the gateway URL that agents should use to connect
-func (am *AgentManager) determineGatewayURL() string {
+func (am *AgentSupervisor) determineGatewayURL() string {
 	if am.config.Gateway.StandaloneBinary || am.sessionID == containerruntime.SharedSessionID {
 		gatewayURL := strings.Replace(am.config.Gateway.URL, "localhost", "host.docker.internal", 1)
 		if !strings.HasSuffix(gatewayURL, "/v1") {
@@ -808,7 +808,7 @@ func setURLPort(rawURL string, port int) string {
 }
 
 // extractPortFromURL extracts the port number from an agent URL
-func (am *AgentManager) extractPortFromURL(url string) int {
+func (am *AgentSupervisor) extractPortFromURL(url string) int {
 	if !strings.Contains(url, ":") {
 		return 8080
 	}

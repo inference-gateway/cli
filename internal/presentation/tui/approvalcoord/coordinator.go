@@ -22,15 +22,15 @@ type planRepoUpdater interface {
 	UpdatePlanStatus(action agentdomain.PlanApprovalAction)
 }
 
-// stateManager is the narrow slice of the app state manager this coordinator
+// stateStore is the narrow slice of the app state manager this coordinator
 // needs: the plan-approval and user-question overlays, computer-use pause,
-// chat-session end, and mode switching. *statemanager.StateManager satisfies it.
-type stateManager interface {
+// chat-session end, and mode switching. *statemanager.Store satisfies it.
+type stateStore interface {
 	tui.PlanApprovalPrompt
 	tui.UserQuestionPrompt
-	agentdomain.ComputerUsePauseManager
+	agentdomain.ComputerUsePause
 	tui.ChatSessionState
-	agentdomain.AgentModeManager
+	agentdomain.AgentModeState
 }
 
 // Service owns the UI side of "pause the assistant turn pending external
@@ -38,14 +38,14 @@ type stateManager interface {
 type Service struct {
 	agentService     agentdomain.AgentService
 	conversationRepo convdomain.ConversationRepository
-	stateManager     stateManager
+	stateManager     stateStore
 }
 
 // Options bundles the dependencies needed to construct a Service.
 type Options struct {
 	AgentService     agentdomain.AgentService
 	ConversationRepo convdomain.ConversationRepository
-	StateManager     stateManager
+	StateStore       stateStore
 }
 
 // NewService creates a new approval coordinator.
@@ -53,7 +53,7 @@ func NewService(opts Options) *Service {
 	return &Service{
 		agentService:     opts.AgentService,
 		conversationRepo: opts.ConversationRepo,
-		stateManager:     opts.StateManager,
+		stateManager:     opts.StateStore,
 	}
 }
 

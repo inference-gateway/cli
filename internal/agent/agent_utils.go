@@ -29,7 +29,7 @@ import (
 )
 
 // accumulateToolCalls processes multiple tool call deltas and stores them in the agent's toolCallsMap
-func (s *AgentServiceImpl) accumulateToolCalls(deltas []sdk.ChatCompletionMessageToolCallChunk) {
+func (s *Agent) accumulateToolCalls(deltas []sdk.ChatCompletionMessageToolCallChunk) {
 	s.toolCallsMux.Lock()
 	defer s.toolCallsMux.Unlock()
 
@@ -102,7 +102,7 @@ func mergeToolCallExtraContent(toolCall *sdk.ChatCompletionMessageToolCall, src 
 }
 
 // getAccumulatedToolCalls returns a sorted slice of all accumulated tool calls and clears the map
-func (s *AgentServiceImpl) getAccumulatedToolCalls() []*sdk.ChatCompletionMessageToolCall {
+func (s *Agent) getAccumulatedToolCalls() []*sdk.ChatCompletionMessageToolCall {
 	s.toolCallsMux.Lock()
 	defer s.toolCallsMux.Unlock()
 
@@ -131,7 +131,7 @@ func (s *AgentServiceImpl) getAccumulatedToolCalls() []*sdk.ChatCompletionMessag
 }
 
 // clearToolCallsMap resets the tool calls map for the next iteration
-func (s *AgentServiceImpl) clearToolCallsMap() {
+func (s *Agent) clearToolCallsMap() {
 	s.toolCallsMux.Lock()
 	defer s.toolCallsMux.Unlock()
 
@@ -144,7 +144,7 @@ func (s *AgentServiceImpl) clearToolCallsMap() {
 // LLM servers get KV-cache prefix hits; volatile context rides in
 // volatileTailMessage and per-mode behaviour in the mode-change reminder.
 // Returns "" when no base prompt is configured.
-func (s *AgentServiceImpl) BuildSystemPrompt() string {
+func (s *Agent) BuildSystemPrompt() string {
 	baseSystemPrompt := s.config.Prompts.Agent.SystemPrompt
 	if baseSystemPrompt == "" {
 		return ""
@@ -179,7 +179,7 @@ func (s *AgentServiceImpl) BuildSystemPrompt() string {
 // would send as a hidden per-request <system-reminder> user message; ok=false
 // means no tail is sent. Exposed for the `infer debug agent system_prompt`
 // command via type assertion, alongside SystemPromptSections.
-func (s *AgentServiceImpl) VolatileTailText() (string, bool) {
+func (s *Agent) VolatileTailText() (string, bool) {
 	tail, ok := s.volatileTailMessage(nil, true)
 	if !ok {
 		return "", false
@@ -192,7 +192,7 @@ func (s *AgentServiceImpl) VolatileTailText() (string, bool) {
 }
 
 // addSystemPrompt prepends the assembled system prompt to messages.
-func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
+func (s *Agent) addSystemPrompt(messages []sdk.Message) []sdk.Message {
 	prompt := s.BuildSystemPrompt()
 	if prompt == "" {
 		return messages
@@ -213,7 +213,7 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 // KV-cache prefix reuse. Called once per outbound request; ok=false means
 // append nothing. Callers gate the append on conversationAwaitsToolResults at
 // payload-finalization time, after conversation repair.
-func (s *AgentServiceImpl) volatileTailMessage(messages []sdk.Message, isChat bool) (sdk.Message, bool) {
+func (s *Agent) volatileTailMessage(messages []sdk.Message, isChat bool) (sdk.Message, bool) {
 	if s.config.Prompts.Agent.SystemPrompt == "" {
 		return sdk.Message{}, false
 	}
@@ -249,7 +249,7 @@ type PromptSection struct {
 // changes as the agent works (git, tree, skill, memory) or with the live
 // agent mode (tool roster, bash allow-list) goes in volatileContextSections
 // so message[0] stays byte-stable across mode switches.
-func (s *AgentServiceImpl) contextSections() []PromptSection {
+func (s *Agent) contextSections() []PromptSection {
 	return []PromptSection{
 		{Name: "sandbox", Text: s.buildSandboxInfo()},
 		{Name: "a2a_agents", Text: s.buildA2AAgentInfo()},
@@ -264,7 +264,7 @@ func (s *AgentServiceImpl) contextSections() []PromptSection {
 // the session progresses (or with an agent-mode switch, since the tool roster
 // and bash allow-list advertise the live mode); they are delivered per request
 // via volatileTailMessage rather than in the system prompt.
-func (s *AgentServiceImpl) volatileContextSections(currentTurn int, messages []sdk.Message, isChat bool) []PromptSection {
+func (s *Agent) volatileContextSections(currentTurn int, messages []sdk.Message, isChat bool) []PromptSection {
 	return []PromptSection{
 		{Name: "git_context", Text: s.buildGitContextInfo(currentTurn), Volatile: true},
 		{Name: "project_structure", Text: s.buildProjectTreeInfo(currentTurn), Volatile: true},
@@ -276,7 +276,7 @@ func (s *AgentServiceImpl) volatileContextSections(currentTurn int, messages []s
 }
 
 // buildContextInfo assembles the static context (sandbox, A2A, OS, working dir, GitHub, tools, skills) for the system prompt
-func (s *AgentServiceImpl) buildContextInfo() string {
+func (s *Agent) buildContextInfo() string {
 	var b strings.Builder
 	for _, section := range s.contextSections() {
 		b.WriteString(section.Text)
@@ -288,7 +288,7 @@ func (s *AgentServiceImpl) buildContextInfo() string {
 // session (turn 0) would send — the static system prompt sections followed by
 // the Volatile-marked tail sections — with empty parts omitted. Exposed for
 // the `infer debug agent system_prompt --tokens` breakdown.
-func (s *AgentServiceImpl) SystemPromptSections() []PromptSection {
+func (s *Agent) SystemPromptSections() []PromptSection {
 	sections := []PromptSection{
 		{Name: "base_prompt", Text: s.config.Prompts.Agent.SystemPrompt},
 		{Name: "custom_instructions", Text: s.config.Prompts.Agent.CustomInstructions},
@@ -315,7 +315,7 @@ func (s *AgentServiceImpl) SystemPromptSections() []PromptSection {
 // raw API with clearer errors and the standard credential chain. Emitted only
 // when Bash is enabled (otherwise the guidance is moot). Lives in the dynamic
 // context so it reaches existing users regardless of their prompts.yaml override.
-func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
+func (s *Agent) buildGitHubGuidanceInfo() string {
 	if !s.config.Tools.Bash.Enabled {
 		return ""
 	}
@@ -344,7 +344,7 @@ func (s *AgentServiceImpl) buildGitHubGuidanceInfo() string {
 // next turn without rewriting the byte-stable system prompt. Empty when the
 // Bash tool is disabled or filtered out of the current mode; an unrestricted
 // mode (".*") is described in prose.
-func (s *AgentServiceImpl) buildBashAllowInfo() string {
+func (s *Agent) buildBashAllowInfo() string {
 	if !s.config.Tools.Bash.Enabled || s.toolService == nil {
 		return ""
 	}
@@ -405,7 +405,7 @@ func (s *AgentServiceImpl) buildBashAllowInfo() string {
 // so anything absent here is advertised but disabled. It rides in the
 // volatile tail so a mode switch never rewrites message[0]; empty when tools
 // are disabled or none are registered.
-func (s *AgentServiceImpl) buildToolsInfo() string {
+func (s *Agent) buildToolsInfo() string {
 	if s.toolService == nil {
 		return ""
 	}
@@ -450,7 +450,7 @@ func (s *AgentServiceImpl) buildToolsInfo() string {
 // and invalidate the whole conversation's KV-cache prefix. The concrete path is
 // delivered by buildActiveSkillInfo in the volatile tail instead, which is
 // per-request by design.
-func (s *AgentServiceImpl) buildSkillsInfo() string {
+func (s *Agent) buildSkillsInfo() string {
 	if s.skillsService == nil {
 		return ""
 	}
@@ -529,7 +529,7 @@ var (
 // the install is user-approved at the input layer instead (see
 // ChatMessageProcessor.confirmCatalogInstall), so a not-yet-installed skill is
 // skipped here rather than fetched behind the user's back.
-func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message, isChat bool) string {
+func (s *Agent) buildActiveSkillInfo(messages []sdk.Message, isChat bool) string {
 	if s.skillsService == nil {
 		return ""
 	}
@@ -575,7 +575,7 @@ func (s *AgentServiceImpl) buildActiveSkillInfo(messages []sdk.Message, isChat b
 // buildAgentsMDInfo injects the project-root AGENTS.md into the system
 // prompt, appended after custom instructions. Returns "" when the file is
 // missing/unreadable or agent.agents_md.enabled is false.
-func (s *AgentServiceImpl) buildAgentsMDInfo() string {
+func (s *Agent) buildAgentsMDInfo() string {
 	if s.config == nil || !s.config.Agent.AgentsMD.Enabled {
 		return ""
 	}
@@ -605,7 +605,7 @@ func (s *AgentServiceImpl) buildAgentsMDInfo() string {
 // context block so the agent knows which durable facts exist; individual facts
 // are loaded on demand via the Memory tool. Cached like gitContextCache; the
 // per-turn TTL means writes from the prior turn are reflected on the next turn.
-func (s *AgentServiceImpl) buildMemoryInfo(currentTurn int) string {
+func (s *Agent) buildMemoryInfo(currentTurn int) string {
 	if !s.config.Memory.Enabled {
 		return ""
 	}
@@ -712,7 +712,7 @@ func filterMemoryIndex(index, projectSlug string) string {
 // (slash token, "/plugin:skill" ref, or "use the X skill" phrase), returning
 // the de-duplicated names of skills that are actually loaded, in first-seen
 // order. Unknown tokens are ignored so a bare "/word" in prose never errors.
-func (s *AgentServiceImpl) matchSkillTriggers(messages []sdk.Message) []string {
+func (s *Agent) matchSkillTriggers(messages []sdk.Message) []string {
 	seen := make(map[string]struct{})
 	var names []string
 
@@ -757,7 +757,7 @@ func (s *AgentServiceImpl) matchSkillTriggers(messages []sdk.Message) []string {
 }
 
 // buildA2AAgentInfo creates dynamic A2A agent information for the system prompt
-func (s *AgentServiceImpl) buildA2AAgentInfo() string {
+func (s *Agent) buildA2AAgentInfo() string {
 	if s.a2aAgentService == nil {
 		return ""
 	}
@@ -776,7 +776,7 @@ func (s *AgentServiceImpl) buildA2AAgentInfo() string {
 }
 
 // buildSandboxInfo creates dynamic sandbox information for the system prompt
-func (s *AgentServiceImpl) buildSandboxInfo() string {
+func (s *Agent) buildSandboxInfo() string {
 	sandboxDirs := s.config.GetSandboxDirectories()
 	protectedPaths := s.config.GetProtectedPaths()
 
@@ -802,7 +802,7 @@ func (s *AgentServiceImpl) buildSandboxInfo() string {
 }
 
 // buildOSInfo creates dynamic OS information for the system prompt
-func (s *AgentServiceImpl) buildOSInfo() string {
+func (s *Agent) buildOSInfo() string {
 	osInfo := fmt.Sprintf("\n\nOPERATING SYSTEM: %s", runtime.GOOS)
 
 	switch runtime.GOOS {
@@ -821,7 +821,7 @@ func (s *AgentServiceImpl) buildOSInfo() string {
 }
 
 // buildWorkingDirectoryInfo creates dynamic working directory information for the system prompt
-func (s *AgentServiceImpl) buildWorkingDirectoryInfo() string {
+func (s *Agent) buildWorkingDirectoryInfo() string {
 	cfg := s.config.GetAgentConfig()
 	if !cfg.Context.WorkingDirEnabled {
 		return ""
@@ -841,7 +841,7 @@ func (s *AgentServiceImpl) buildWorkingDirectoryInfo() string {
 // a checkout mid-run invalidates it immediately (at the cost of one cheap
 // `git branch --show-current` per request), so the model never reads a stale
 // "Current branch" line after switching branches.
-func (s *AgentServiceImpl) buildGitContextInfo(currentTurn int) string {
+func (s *Agent) buildGitContextInfo(currentTurn int) string {
 	cfg := s.config.GetAgentConfig()
 	if !cfg.Context.GitContextEnabled {
 		return ""
@@ -910,7 +910,7 @@ const projectTreeMaxLines = 100
 // (shallow directories first, so the root and top-level layout always fit the
 // line budget) and outside a git repo falls back to the ASCII tree. Shares the
 // git-context caching scheme, refreshing every GitContextRefreshTurns turns.
-func (s *AgentServiceImpl) buildProjectTreeInfo(currentTurn int) string {
+func (s *Agent) buildProjectTreeInfo(currentTurn int) string {
 	cfg := s.config.GetAgentConfig()
 	if !cfg.Context.TreeEnabled {
 		return ""
@@ -941,7 +941,7 @@ func (s *AgentServiceImpl) buildProjectTreeInfo(currentTurn int) string {
 
 // compactProjectTree renders the Tree tool's compact listing for the current
 // directory (falling back to the ASCII tree for non-git directories).
-func (s *AgentServiceImpl) compactProjectTree() string {
+func (s *Agent) compactProjectTree() string {
 	treeTool := tools.NewTreeTool(s.config)
 	execResult, err := treeTool.Execute(context.Background(), map[string]any{
 		"path":      ".",
@@ -1026,7 +1026,7 @@ func getRecentCommits(count int) []string {
 }
 
 // validateRequest validates the agent request
-func (s *AgentServiceImpl) validateRequest(req *agentdomain.AgentRequest) error {
+func (s *Agent) validateRequest(req *agentdomain.AgentRequest) error {
 	if req == nil {
 		return fmt.Errorf("request is nil")
 	}
@@ -1044,7 +1044,7 @@ func (s *AgentServiceImpl) validateRequest(req *agentdomain.AgentRequest) error 
 
 // parseProvider parses provider and model name from model string.
 // The bare fallback returns "claude" only for legacy un-prefixed inputs.
-func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
+func (s *Agent) parseProvider(model string) (string, string, error) {
 	parts := strings.SplitN(model, "/", 2)
 
 	if len(parts) == 1 {
@@ -1062,7 +1062,7 @@ func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 // agents flow every loop point through this single seam. The agent mode and
 // session id are resolved here (from the live chat mode / request context) and
 // handed to the shared, allow-list-gated command runner.
-func (s *AgentServiceImpl) dispatchHooks(agentCtx *states.AgentContext, hook agentdomain.HookPoint) {
+func (s *Agent) dispatchHooks(agentCtx *states.AgentContext, hook agentdomain.HookPoint) {
 	if hook == agentdomain.HookPreSession && s.memoryBackend != nil {
 		_ = s.memoryBackend.SyncIn(agentCtx.Ctx)
 	}
@@ -1086,7 +1086,7 @@ func (s *AgentServiceImpl) dispatchHooks(agentCtx *states.AgentContext, hook age
 // this at the completion boundary so a run never exits with orphaned
 // background tasks; chat mode never calls it (the UI ticker starts fresh
 // turns instead).
-func (s *AgentServiceImpl) waitForBackgroundTasks(ctx context.Context) {
+func (s *Agent) waitForBackgroundTasks(ctx context.Context) {
 	if s.bgRegistry == nil || s.messageQueue == nil || !s.bgRegistry.HasPending() {
 		return
 	}
@@ -1122,12 +1122,12 @@ func (s *AgentServiceImpl) waitForBackgroundTasks(ctx context.Context) {
 }
 
 // maybeRolloverSession rolls the conversation over into a new session when it
-// crosses the compact threshold (SessionRolloverManager gates and performs the
+// crosses the compact threshold (SessionRollover gates and performs the
 // rollover), then rebuilds the in-flight conversation from the now-compacted
 // repository. Called at the top of every headless turn after the first - chat
 // rollover is owned by the UI (chat_message_processor), and the first turn is
 // handled by the headless command before the run starts.
-func (s *AgentServiceImpl) maybeRolloverSession(agentCtx *states.AgentContext, req *agentdomain.AgentRequest) {
+func (s *Agent) maybeRolloverSession(agentCtx *states.AgentContext, req *agentdomain.AgentRequest) {
 	if s.rolloverManager == nil {
 		return
 	}
@@ -1144,7 +1144,7 @@ func (s *AgentServiceImpl) maybeRolloverSession(agentCtx *states.AgentContext, r
 // trackStreamOutcome records the just-finished stream's finish reason and
 // updates the consecutive no-tool-call strike counter that gates the
 // post_stream continuation nudges (on_stalled_todos / on_truncation).
-func (s *AgentServiceImpl) trackStreamOutcome(finishReason string, hadToolCalls, hadContent bool) {
+func (s *Agent) trackStreamOutcome(finishReason string, hadToolCalls, hadContent bool) {
 	s.reminderMux.Lock()
 	defer s.reminderMux.Unlock()
 	s.lastFinishReason = finishReason
@@ -1192,7 +1192,7 @@ func conversationAwaitsToolResults(conv []sdk.Message) bool {
 // across the whole chat session and `once` fires once per session. The mutex
 // guards the fired-set because the streaming goroutine (pre_session/pre_stream)
 // and the event-loop goroutine (the other points) can both reach here.
-func (s *AgentServiceImpl) injectDueReminders(agentCtx *states.AgentContext, hook agentdomain.HookPoint) {
+func (s *Agent) injectDueReminders(agentCtx *states.AgentContext, hook agentdomain.HookPoint) {
 	provider := s.reminderProvider
 	if provider == nil && s.config != nil {
 		provider = s.config.Reminders
@@ -1250,7 +1250,7 @@ func (s *AgentServiceImpl) injectDueReminders(agentCtx *states.AgentContext, hoo
 }
 
 // InjectDueReminders is the single reminder-injection seam shared by the chat
-// (AgentServiceImpl) and headless (AgentSession) loops: it resolves the
+// (Agent) and headless (AgentSession) loops: it resolves the
 // reminders due for q, delivers each via the caller-owned deliver callback
 // (the two loops hold different conversation representations), logs it, emits
 // the tagged system_reminder stream event, and marks the name in q.Fired.
@@ -1280,7 +1280,7 @@ func InjectDueReminders(provider agentdomain.SystemReminderProvider, q agentdoma
 // in the conversation (for on_repeated_failure reminders that require
 // tool_call/tool pairing). If no tool message is found, it falls back to
 // appending a standalone user message.
-func (s *AgentServiceImpl) appendToLastToolMessage(agentCtx *states.AgentContext, r agentdomain.SystemReminder) {
+func (s *Agent) appendToLastToolMessage(agentCtx *states.AgentContext, r agentdomain.SystemReminder) {
 	conv := *agentCtx.Conversation
 	for i := len(conv) - 1; i >= 0; i-- {
 		if conv[i].Role == sdk.Tool {
@@ -1298,7 +1298,7 @@ func (s *AgentServiceImpl) appendToLastToolMessage(agentCtx *states.AgentContext
 
 // injectReminderAsUserMessage appends a reminder as a hidden user message,
 // persisting it when a conversation repo is wired in.
-func (s *AgentServiceImpl) injectReminderAsUserMessage(agentCtx *states.AgentContext, r agentdomain.SystemReminder) {
+func (s *Agent) injectReminderAsUserMessage(agentCtx *states.AgentContext, r agentdomain.SystemReminder) {
 	msg := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(r.Text)}
 	*agentCtx.Conversation = append(*agentCtx.Conversation, msg)
 
@@ -1315,7 +1315,7 @@ func (s *AgentServiceImpl) injectReminderAsUserMessage(agentCtx *states.AgentCon
 // call seeds the baseline without reporting a change; a nil stateManager (the
 // headless path has no mid-session mode) never reports a change. The result
 // drives the on_mode_change reminder trigger via ReminderQuery.
-func (s *AgentServiceImpl) modeChangeSinceLastStream() (changed bool, prev, cur agentdomain.AgentMode) {
+func (s *Agent) modeChangeSinceLastStream() (changed bool, prev, cur agentdomain.AgentMode) {
 	if s.stateManager == nil {
 		return false, agentdomain.AgentModeStandard, agentdomain.AgentModeStandard
 	}
@@ -1338,7 +1338,7 @@ func (s *AgentServiceImpl) modeChangeSinceLastStream() (changed bool, prev, cur 
 // (agent.mode_adjustment_plan/_auto), so a customized mode prompt overrides
 // the built-in mode-change guidance for its mode (unless the user edited the
 // guidance key in reminders.yaml). Nil when nothing is set.
-func (s *AgentServiceImpl) modeGuidanceOverrides() map[string]string {
+func (s *Agent) modeGuidanceOverrides() map[string]string {
 	if s.config == nil {
 		return nil
 	}
@@ -1392,7 +1392,7 @@ func getTruncationRecoveryGuidance(toolName string) string {
 
 // pluginInstructionsBlock is the enabled plugins' system-prompt block, or ""
 // when none is wired.
-func (s *AgentServiceImpl) pluginInstructionsBlock() string {
+func (s *Agent) pluginInstructionsBlock() string {
 	if s.pluginInstructions == nil {
 		return ""
 	}

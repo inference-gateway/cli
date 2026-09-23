@@ -112,7 +112,7 @@ func (j *judgeEscalations) takeBypass(name, args string) bool {
 // through the regular tool approval box (requestHumanApproval), so an
 // escalation looks and behaves like any other gated call.
 type approvalEscalator struct {
-	svc       *AgentServiceImpl
+	svc       *Agent
 	publisher *eventPublisher
 }
 
@@ -151,7 +151,7 @@ func escalationNote(req agentdomain.ApprovalEscalationRequest, judgeReason strin
 // consumeJudgeBypass checks the shared registry for a user-approved escalation
 // of this call and consumes it. Used by requestJudgeApproval to skip the judge
 // for the single approved invocation.
-func (s *AgentServiceImpl) consumeJudgeBypass(tc sdk.ChatCompletionMessageToolCall) bool {
+func (s *Agent) consumeJudgeBypass(tc sdk.ChatCompletionMessageToolCall) bool {
 	if s.escalations == nil {
 		return false
 	}

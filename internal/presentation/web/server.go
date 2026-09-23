@@ -31,7 +31,7 @@ type WebTerminalServer struct {
 	cfg            *config.Config
 	server         *http.Server
 	upgrader       websocket.Upgrader
-	sessionManager *SessionManager
+	sessionManager *Sessions
 }
 
 func NewWebTerminalServer(cfg *config.Config) *WebTerminalServer {
@@ -46,7 +46,7 @@ func NewWebTerminalServer(cfg *config.Config) *WebTerminalServer {
 }
 
 func (s *WebTerminalServer) Start() error {
-	s.sessionManager = NewSessionManager(s.cfg)
+	s.sessionManager = NewSessions(s.cfg)
 
 	logger.Info("checking embedded static files...")
 	if err := fs.WalkDir(staticFiles, ".", func(path string, d fs.DirEntry, err error) error {

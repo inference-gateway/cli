@@ -19,7 +19,7 @@ func setupWriterTest(t *testing.T) (string, FileWriter, context.Context) {
 	cfg.Tools.Sandbox.Directories = []string{tempDir}
 
 	validator := NewPathValidator(cfg)
-	backupMgr := NewBackupManager(tempDir)
+	backupMgr := NewBackup(tempDir)
 	writer := NewSafeFileWriter(validator, backupMgr)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

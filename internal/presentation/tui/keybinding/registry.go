@@ -208,14 +208,14 @@ func (r *Registry) GetHelpShortcuts(app KeyHandlerContext) []HelpShortcut {
 // canExecuteAction checks if an action can be executed in current context
 func (r *Registry) canExecuteAction(action *KeyAction, app KeyHandlerContext) bool {
 	if len(action.Context.Views) > 0 {
-		currentView := app.GetStateManager().GetCurrentView()
+		currentView := app.GetStateStore().GetCurrentView()
 		if !slices.Contains(action.Context.Views, currentView) {
 			return false
 		}
 	}
 
 	if len(action.Context.ExcludeViews) > 0 {
-		currentView := app.GetStateManager().GetCurrentView()
+		currentView := app.GetStateStore().GetCurrentView()
 		if slices.Contains(action.Context.ExcludeViews, currentView) {
 			return false
 		}

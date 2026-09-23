@@ -39,8 +39,8 @@ type TaskInfo struct {
 	Output      string
 }
 
-// TaskManagerImpl implements task management UI similar to conversation selection
-type TaskManagerImpl struct {
+// TaskView implements task management UI similar to conversation selection
+type TaskView struct {
 	activeTasks           []TaskInfo
 	completedTasks        []TaskInfo
 	filteredTasks         []TaskInfo
@@ -77,19 +77,19 @@ const (
 	TaskViewCanceled
 )
 
-// NewTaskManager creates a new task manager UI component
-func NewTaskManager(
+// NewTaskView creates a new task manager UI component
+func NewTaskView(
 	themeService tui.ThemeService,
 	styleProvider *styles.Provider,
 	taskRetentionService scheddomain.TaskRetentionService,
 	backgroundTaskService scheddomain.BackgroundTaskService,
-) *TaskManagerImpl {
+) *TaskView {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
 
 	sp := newModernSpinner()
 
-	return &TaskManagerImpl{
+	return &TaskView{
 		activeTasks:           make([]TaskInfo, 0),
 		completedTasks:        make([]TaskInfo, 0),
 		filteredTasks:         make([]TaskInfo, 0),
@@ -110,7 +110,7 @@ func NewTaskManager(
 	}
 }
 
-func (t *TaskManagerImpl) Init() tea.Cmd {
+func (t *TaskView) Init() tea.Cmd {
 	return tea.Batch(t.loadTasksCmd(), t.spinner.Tick, t.armRefreshTick())
 }
 
@@ -124,7 +124,7 @@ type taskRefreshTickMsg struct{ epoch int }
 // re-armed in Update ONLY while the view is open and a task is actually running,
 // so it stops the moment nothing is running - a bounded animation tick (like the
 // spinner), not an idle poller.
-func (t *TaskManagerImpl) refreshTickCmd() tea.Cmd {
+func (t *TaskView) refreshTickCmd() tea.Cmd {
 	epoch := t.tickEpoch
 	return tea.Tick(time.Second, func(time.Time) tea.Msg { return taskRefreshTickMsg{epoch: epoch} })
 }
@@ -134,14 +134,14 @@ func (t *TaskManagerImpl) refreshTickCmd() tea.Cmd {
 // ignored when it fires - guaranteeing exactly one live chain. Callers must arm
 // only when t.tickLive is false (Init, or a new task arriving while the chain is
 // dead).
-func (t *TaskManagerImpl) armRefreshTick() tea.Cmd {
+func (t *TaskView) armRefreshTick() tea.Cmd {
 	t.tickEpoch++
 	t.tickLive = true
 	return t.refreshTickCmd()
 }
 
 // Reset resets the task manager state for reuse
-func (t *TaskManagerImpl) Reset() {
+func (t *TaskView) Reset() {
 	t.done = false
 	t.cancelled = false
 	t.confirmCancel = false
@@ -155,7 +155,7 @@ func (t *TaskManagerImpl) Reset() {
 	t.tickLive = false
 }
 
-func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
+func (t *TaskView) loadTasksCmd() tea.Cmd {
 	return func() tea.Msg {
 		if t.backgroundTaskService == nil {
 			return tui.TasksLoadedEvent{
@@ -285,7 +285,7 @@ func jobStatusLabel(s scheddomain.JobStatus) string {
 	}
 }
 
-func (t *TaskManagerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (t *TaskView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tui.TasksLoadedEvent:
 		return t.handleTasksLoaded(msg)
@@ -327,7 +327,7 @@ func (t *TaskManagerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return t, nil
 }
 
-func (t *TaskManagerImpl) handleTasksLoaded(msg tui.TasksLoadedEvent) (tea.Model, tea.Cmd) {
+func (t *TaskView) handleTasksLoaded(msg tui.TasksLoadedEvent) (tea.Model, tea.Cmd) {
 	t.loading = false
 	t.loadError = msg.Error
 
@@ -352,7 +352,7 @@ func (t *TaskManagerImpl) handleTasksLoaded(msg tui.TasksLoadedEvent) (tea.Model
 	return t, nil
 }
 
-func (t *TaskManagerImpl) handleTaskCancelled(msg tui.TaskCancelledEvent) (tea.Model, tea.Cmd) {
+func (t *TaskView) handleTaskCancelled(msg tui.TaskCancelledEvent) (tea.Model, tea.Cmd) {
 	if msg.Error != nil {
 		logger.Error("task cancellation failed", "task_id", msg.TaskID, "error", msg.Error)
 	} else {
@@ -362,7 +362,7 @@ func (t *TaskManagerImpl) handleTaskCancelled(msg tui.TaskCancelledEvent) (tea.M
 	return t, t.loadTasksCmd()
 }
 
-func (t *TaskManagerImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+func (t *TaskView) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	t.width = msg.Width
 	t.height = msg.Height
 
@@ -372,7 +372,7 @@ func (t *TaskManagerImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, 
 	return t, nil
 }
 
-func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (t *TaskView) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if t.confirmCancel {
 		return t.handleCancelConfirmation(msg)
 	}
@@ -446,7 +446,7 @@ func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 	return t, nil
 }
 
-func (t *TaskManagerImpl) handleViewSwitch(key string) {
+func (t *TaskView) handleViewSwitch(key string) {
 	switch key {
 	case "1":
 		t.currentView = TaskViewAll
@@ -462,7 +462,7 @@ func (t *TaskManagerImpl) handleViewSwitch(key string) {
 	t.applyFilters()
 }
 
-func (t *TaskManagerImpl) handleCancelConfirmation(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (t *TaskView) handleCancelConfirmation(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, taskManagerKeys.confirm):
 		t.confirmCancel = false
@@ -478,7 +478,7 @@ func (t *TaskManagerImpl) handleCancelConfirmation(msg tea.KeyPressMsg) (tea.Mod
 	return t, nil
 }
 
-func (t *TaskManagerImpl) handleInfoView(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (t *TaskView) handleInfoView(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch {
@@ -504,7 +504,7 @@ func (t *TaskManagerImpl) handleInfoView(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 	return t, cmd
 }
 
-func (t *TaskManagerImpl) handleSearchInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (t *TaskView) handleSearchInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, taskManagerKeys.escape):
 		t.searchMode = false
@@ -541,7 +541,7 @@ func isCancellable(task TaskInfo) bool {
 	return task.Status == jobStatusLabel(scheddomain.JobRunning)
 }
 
-func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
+func (t *TaskView) cancelTaskCmd(task TaskInfo) tea.Cmd {
 	return func() tea.Msg {
 		err := t.cancelTask(task)
 		if err != nil {
@@ -565,7 +565,7 @@ func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
 // in addition to winding the supervised poll job; shells and subagents wind
 // their supervised job down through the registry (a2aJob.Wind is a no-op, so
 // WindJob alone would never reach the remote agent).
-func (t *TaskManagerImpl) cancelTask(task TaskInfo) error {
+func (t *TaskView) cancelTask(task TaskInfo) error {
 	if normalizeKind(task.Kind) == scheddomain.JobKindA2A {
 		return t.backgroundTaskService.CancelBackgroundTask(task.TaskID)
 	}
@@ -580,7 +580,7 @@ func (t *TaskManagerImpl) cancelTask(task TaskInfo) error {
 // AuthRequired, ...) don't fall through to the raw "TASK_STATE_*"
 // label. Unknown states fall back to a title-cased rendering of the
 // raw value with the "TASK_STATE_" prefix stripped.
-func (t *TaskManagerImpl) mapTaskStatus(state adk.TaskState) string {
+func (t *TaskView) mapTaskStatus(state adk.TaskState) string {
 	statusMap := map[adk.TaskState]string{
 		adk.TaskStateSubmitted:     "Submitted",
 		adk.TaskStateWorking:       "Working",
@@ -606,11 +606,11 @@ func (t *TaskManagerImpl) mapTaskStatus(state adk.TaskState) string {
 }
 
 // mapTaskStateToDisplayStatus maps task state string to display status
-func (t *TaskManagerImpl) mapTaskStateToDisplayStatus(state string) string {
+func (t *TaskView) mapTaskStateToDisplayStatus(state string) string {
 	return t.mapTaskStatus(adk.TaskState(state))
 }
 
-func (t *TaskManagerImpl) applyFilters() {
+func (t *TaskView) applyFilters() {
 	var baseTasks []TaskInfo
 
 	allTasks := append(append([]TaskInfo{}, t.activeTasks...), t.completedTasks...)
@@ -676,11 +676,11 @@ func (t *TaskManagerImpl) applyFilters() {
 	}
 }
 
-func (t *TaskManagerImpl) View() tea.View {
+func (t *TaskView) View() tea.View {
 	return tea.NewView(t.viewContent())
 }
 
-func (t *TaskManagerImpl) viewContent() string {
+func (t *TaskView) viewContent() string {
 	if t.loading {
 		return t.renderLoading()
 	}
@@ -696,15 +696,15 @@ func (t *TaskManagerImpl) viewContent() string {
 	return t.renderTaskList()
 }
 
-func (t *TaskManagerImpl) renderLoading() string {
+func (t *TaskView) renderLoading() string {
 	return fmt.Sprintf("%s Loading tasks...", t.spinner.View())
 }
 
-func (t *TaskManagerImpl) renderError() string {
+func (t *TaskView) renderError() string {
 	return fmt.Sprintf("Error loading tasks: %v", t.loadError)
 }
 
-func (t *TaskManagerImpl) renderTaskInfo() string {
+func (t *TaskView) renderTaskInfo() string {
 	if t.selected >= len(t.filteredTasks) {
 		return "No task selected"
 	}
@@ -763,7 +763,7 @@ func (t *TaskManagerImpl) renderTaskInfo() string {
 }
 
 // renderTaskHistory renders the task history section
-func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskInfo) {
+func (t *TaskView) renderTaskHistory(content *strings.Builder, task TaskInfo) {
 	content.WriteString("\n")
 
 	accentColor := t.styleProvider.GetThemeColor("accent")
@@ -812,7 +812,7 @@ func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskI
 // renderTaskArtifacts surfaces the agent's produced artifacts (e.g. screenshots,
 // generated files) in the Task History panel - for many agents this is the
 // real output and Status.Message is empty.
-func (t *TaskManagerImpl) renderTaskArtifacts(content *strings.Builder, task TaskInfo) {
+func (t *TaskView) renderTaskArtifacts(content *strings.Builder, task TaskInfo) {
 	accentColor := t.styleProvider.GetThemeColor("accent")
 	dimColor := t.styleProvider.GetThemeColor("dim")
 
@@ -855,7 +855,7 @@ func (t *TaskManagerImpl) renderTaskArtifacts(content *strings.Builder, task Tas
 // renderHistoryItemRole renders the role prefix for a history item.
 // Handles both ADK enum-style values (ROLE_USER / ROLE_AGENT) and the
 // historical lowercase ones (user / assistant).
-func (t *TaskManagerImpl) renderHistoryItemRole(content *strings.Builder, role string) {
+func (t *TaskView) renderHistoryItemRole(content *strings.Builder, role string) {
 	accentColor := t.styleProvider.GetThemeColor("accent")
 	dimColor := t.styleProvider.GetThemeColor("dim")
 
@@ -887,7 +887,7 @@ func friendlyRoleLabel(role string) string {
 }
 
 // renderFinalResult renders the final result message
-func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskInfo) {
+func (t *TaskView) renderFinalResult(content *strings.Builder, task TaskInfo) {
 	textWidth := max(t.infoViewport.Width()-4, 40)
 
 	accentColor := t.styleProvider.GetThemeColor("accent")
@@ -914,7 +914,7 @@ func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskI
 // renderJobOutput renders the captured output for a shell or subagent job in
 // the detail panel. The output is bounded (truncated) so a chatty shell does
 // not blow up the viewport.
-func (t *TaskManagerImpl) renderJobOutput(content *strings.Builder, task TaskInfo) {
+func (t *TaskView) renderJobOutput(content *strings.Builder, task TaskInfo) {
 	accentColor := t.styleProvider.GetThemeColor("accent")
 	dimColor := t.styleProvider.GetThemeColor("dim")
 
@@ -946,7 +946,7 @@ func (t *TaskManagerImpl) renderJobOutput(content *strings.Builder, task TaskInf
 	}
 }
 
-func (t *TaskManagerImpl) renderTaskList() string {
+func (t *TaskView) renderTaskList() string {
 	var content strings.Builder
 
 	accentColor := t.styleProvider.GetThemeColor("accent")
@@ -984,13 +984,13 @@ func (t *TaskManagerImpl) renderTaskList() string {
 // SetBackgroundTaskRegistry wires the unified registry so the view can show live
 // counts of every background-work kind (A2A tasks, shells, subagents), not just
 // the A2A tasks listed in the table below.
-func (t *TaskManagerImpl) SetBackgroundTaskRegistry(registry scheddomain.BackgroundTaskRegistry) {
+func (t *TaskView) SetBackgroundTaskRegistry(registry scheddomain.BackgroundTaskRegistry) {
 	t.backgroundJobRegistry = registry
 }
 
 // writeJobCountsSummary writes a one-line summary of all running background work
 // from the supervisor: "Running: 2 A2A · 1 shell · 3 subagents".
-func (t *TaskManagerImpl) writeJobCountsSummary(b *strings.Builder) {
+func (t *TaskView) writeJobCountsSummary(b *strings.Builder) {
 	if t.backgroundJobRegistry == nil {
 		return
 	}
@@ -1005,7 +1005,7 @@ func (t *TaskManagerImpl) writeJobCountsSummary(b *strings.Builder) {
 }
 
 // writeViewTabs writes the view selection tabs
-func (t *TaskManagerImpl) writeViewTabs(b *strings.Builder) {
+func (t *TaskView) writeViewTabs(b *strings.Builder) {
 	accentColor := t.styleProvider.GetThemeColor("accent")
 
 	allStyle := "[1] All"
@@ -1036,7 +1036,7 @@ func (t *TaskManagerImpl) writeViewTabs(b *strings.Builder) {
 }
 
 // writeSearchInfo writes the search information section
-func (t *TaskManagerImpl) writeSearchInfo(b *strings.Builder) {
+func (t *TaskView) writeSearchInfo(b *strings.Builder) {
 	if t.searchMode {
 		statusColor := t.styleProvider.GetThemeColor("status")
 		accentColor := t.styleProvider.GetThemeColor("accent")
@@ -1054,7 +1054,7 @@ func (t *TaskManagerImpl) writeSearchInfo(b *strings.Builder) {
 // background shells, subagents). applyFilters has already ordered the rows by
 // kind, so a new section header is emitted whenever the kind changes. The row
 // index stays global across sections so the ▶ selection highlight is correct.
-func (t *TaskManagerImpl) writeTaskSections(b *strings.Builder) {
+func (t *TaskView) writeTaskSections(b *strings.Builder) {
 	prevKind := scheddomain.JobKind("")
 	for i, task := range t.filteredTasks {
 		kind := normalizeKind(task.Kind)
@@ -1070,7 +1070,7 @@ func (t *TaskManagerImpl) writeTaskSections(b *strings.Builder) {
 }
 
 // writeSectionHeader writes a per-kind table title plus its column header.
-func (t *TaskManagerImpl) writeSectionHeader(b *strings.Builder, kind scheddomain.JobKind) {
+func (t *TaskView) writeSectionHeader(b *strings.Builder, kind scheddomain.JobKind) {
 	accentColor := t.styleProvider.GetThemeColor("accent")
 	title := t.styleProvider.RenderWithColor(sectionTitle(kind), accentColor)
 	fmt.Fprintf(b, "%s\n", title)
@@ -1085,7 +1085,7 @@ func (t *TaskManagerImpl) writeSectionHeader(b *strings.Builder, kind scheddomai
 // columnHeader returns the column labels for a kind's table. A2A keeps its
 // Context ID / Task ID / Agent layout; shells and subagents share a leaner
 // ID / Detail layout (Detail = command for shells, mode for subagents).
-func (t *TaskManagerImpl) columnHeader(kind scheddomain.JobKind) string {
+func (t *TaskView) columnHeader(kind scheddomain.JobKind) string {
 	switch kind {
 	case scheddomain.JobKindShell:
 		return fmt.Sprintf("  %-40s │ %-50s │ %-15s │ %-12s", "Shell ID", "Command", "Status", "Elapsed")
@@ -1098,7 +1098,7 @@ func (t *TaskManagerImpl) columnHeader(kind scheddomain.JobKind) string {
 
 // writeTaskRow writes a single row, dispatching on kind to the matching column
 // layout. index is the global position in filteredTasks (drives selection).
-func (t *TaskManagerImpl) writeTaskRow(b *strings.Builder, task TaskInfo, index int) {
+func (t *TaskView) writeTaskRow(b *strings.Builder, task TaskInfo, index int) {
 	switch normalizeKind(task.Kind) {
 	case scheddomain.JobKindShell, scheddomain.JobKindSubagent:
 		t.writeJobRow(b, task, index)
@@ -1108,7 +1108,7 @@ func (t *TaskManagerImpl) writeTaskRow(b *strings.Builder, task TaskInfo, index 
 }
 
 // writeA2ARow writes an A2A task row: Context ID | Task ID | Agent | Status | Elapsed.
-func (t *TaskManagerImpl) writeA2ARow(b *strings.Builder, task TaskInfo, index int) {
+func (t *TaskView) writeA2ARow(b *strings.Builder, task TaskInfo, index int) {
 	taskID := formatting.TruncateText(task.TaskID, 38)
 	agentURL := formatting.TruncateText(task.AgentURL, 30)
 	contextID := formatting.TruncateText(task.ContextID, 38)
@@ -1129,7 +1129,7 @@ func (t *TaskManagerImpl) writeA2ARow(b *strings.Builder, task TaskInfo, index i
 }
 
 // writeJobRow writes a shell/subagent row: ID | Detail | Status | Elapsed.
-func (t *TaskManagerImpl) writeJobRow(b *strings.Builder, task TaskInfo, index int) {
+func (t *TaskView) writeJobRow(b *strings.Builder, task TaskInfo, index int) {
 	label := task.Label
 	if label == "" {
 		label = task.TaskID
@@ -1183,7 +1183,7 @@ func sectionTitle(kind scheddomain.JobKind) string {
 }
 
 // writeFooter writes the footer section with keyboard shortcuts
-func (t *TaskManagerImpl) writeFooter(b *strings.Builder) {
+func (t *TaskView) writeFooter(b *strings.Builder) {
 	b.WriteString("\n")
 	separator := t.styleProvider.RenderDimText(strings.Repeat("─", t.width))
 	b.WriteString(separator)
@@ -1199,7 +1199,7 @@ func (t *TaskManagerImpl) writeFooter(b *strings.Builder) {
 }
 
 // formatDuration formats a duration into a human-readable string
-func (t *TaskManagerImpl) formatDuration(d time.Duration) string {
+func (t *TaskView) formatDuration(d time.Duration) string {
 	rounded := d.Round(time.Second)
 	if rounded < time.Minute {
 		return fmt.Sprintf("%ds", int(rounded.Seconds()))
@@ -1215,7 +1215,7 @@ func (t *TaskManagerImpl) formatDuration(d time.Duration) string {
 }
 
 // GetSelectedTask returns the currently selected task (used by parent components)
-func (t *TaskManagerImpl) GetSelectedTask() *TaskInfo {
+func (t *TaskView) GetSelectedTask() *TaskInfo {
 	if t.selected < len(t.filteredTasks) {
 		return &t.filteredTasks[t.selected]
 	}
@@ -1223,27 +1223,27 @@ func (t *TaskManagerImpl) GetSelectedTask() *TaskInfo {
 }
 
 // IsDone returns true if the user has finished with the task manager
-func (t *TaskManagerImpl) IsDone() bool {
+func (t *TaskView) IsDone() bool {
 	return t.done
 }
 
 // IsCancelled returns true if the user cancelled the task manager
-func (t *TaskManagerImpl) IsCancelled() bool {
+func (t *TaskView) IsCancelled() bool {
 	return t.cancelled
 }
 
 // SetWidth sets the width of the task manager
-func (t *TaskManagerImpl) SetWidth(width int) {
+func (t *TaskView) SetWidth(width int) {
 	t.width = width
 }
 
 // SetHeight sets the height of the task manager
-func (t *TaskManagerImpl) SetHeight(height int) {
+func (t *TaskView) SetHeight(height int) {
 	t.height = height
 }
 
 // getSeparatorWidth returns a safe width for separator strings
-func (t *TaskManagerImpl) getSeparatorWidth() int {
+func (t *TaskView) getSeparatorWidth() int {
 	width := t.width - 4
 	if width < 1 {
 		return 40

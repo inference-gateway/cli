@@ -12,7 +12,7 @@ import (
 )
 
 func TestUpdate_DropsStaleChatEventsBeforeRouting(t *testing.T) {
-	sm := statemanager.NewStateManager(false)
+	sm := statemanager.NewStore(false)
 	stale := make(chan agentdomain.ChatEvent)
 	for _, active := range []bool{false, true} {
 		if active {

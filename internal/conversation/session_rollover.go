@@ -18,14 +18,14 @@ import (
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
-// SessionRolloverManager decides when to roll over a long-running conversation
+// SessionRollover decides when to roll over a long-running conversation
 // into a new file (matching the chat-mode `/compact` behavior) and exposes the
 // machinery to perform that rollover. It also resolves "group key" inputs from
 // the channel manager (e.g. `channel-telegram-XYZ`) to the current session UUID
 // via the configured SessionGroupStorage backend, so callers like the channel
 // manager can keep using a stable, deterministic identifier without worrying
 // about which physical session it points at right now.
-type SessionRolloverManager struct {
+type SessionRollover struct {
 	cfg        *config.Config
 	optimizer  convdomain.ConversationOptimizer
 	repo       *PersistentConversationRepository
@@ -34,24 +34,24 @@ type SessionRolloverManager struct {
 	indexMutex sync.Mutex
 }
 
-// NewSessionRolloverManager constructs a manager. The optimizer is required for
+// NewSessionRollover constructs a manager. The optimizer is required for
 // PerformRollover to work; if it's nil, ShouldRollover always returns false and
 // PerformRollover returns an error. This mirrors how the chat-mode /compact
 // shortcut behaves when the optimizer is disabled. groupStore is required for
 // non-UUID session-id resolution; if it is nil, group-keyed lookups will fall
 // back to passing the raw id through.
-func NewSessionRolloverManager(
+func NewSessionRollover(
 	cfg *config.Config,
 	optimizer convdomain.ConversationOptimizer,
 	repo *PersistentConversationRepository,
 	tokenizer *TokenizerService,
 	groupStore storage.SessionGroupStorage,
-) *SessionRolloverManager {
+) *SessionRollover {
 	if tokenizer == nil {
 		tokenizer = NewTokenizerService(DefaultTokenizerConfig())
 	}
 
-	return &SessionRolloverManager{
+	return &SessionRollover{
 		cfg:        cfg,
 		optimizer:  optimizer,
 		repo:       repo,
@@ -74,7 +74,7 @@ func NewSessionRolloverManager(
 // Returns (sessionID, groupKey, error). On any error reading/writing the
 // store, the function logs a warning and falls back to passing rawID through
 // unchanged so the agent can still run.
-func (m *SessionRolloverManager) ResolveSessionID(rawID string) (string, string, error) {
+func (m *SessionRollover) ResolveSessionID(rawID string) (string, string, error) {
 	if rawID == "" {
 		return "", "", nil
 	}
@@ -118,7 +118,7 @@ func (m *SessionRolloverManager) ResolveSessionID(rawID string) (string, string,
 // Returns the new session id and true if a rollover fired; "" and false
 // otherwise (whether because the gate was closed or because PerformRollover
 // errored - callers do not need to distinguish).
-func (m *SessionRolloverManager) MaybeRollover(ctx context.Context, model, groupKey string) (string, bool) {
+func (m *SessionRollover) MaybeRollover(ctx context.Context, model, groupKey string) (string, bool) {
 	if m == nil || !m.ShouldRollover(model) {
 		return "", false
 	}
@@ -134,7 +134,7 @@ func (m *SessionRolloverManager) MaybeRollover(ctx context.Context, model, group
 // both rollover triggers (idle and token threshold) and returns true if either
 // fires. Returns false on a fresh/empty conversation, when the optimizer is
 // disabled, or when compact.enabled=false.
-func (m *SessionRolloverManager) ShouldRollover(model string) bool {
+func (m *SessionRollover) ShouldRollover(model string) bool {
 	if m.optimizer == nil || m.repo == nil || !m.cfg.Compact.Enabled {
 		return false
 	}
@@ -163,7 +163,7 @@ func (m *SessionRolloverManager) ShouldRollover(model string) bool {
 
 // idleTriggerFires reports whether the most recent message is older than the
 // configured rollover_on_idle_minutes. A value of 0 disables the check.
-func (m *SessionRolloverManager) idleTriggerFires(entries []convdomain.ConversationEntry) bool {
+func (m *SessionRollover) idleTriggerFires(entries []convdomain.ConversationEntry) bool {
 	mins := m.cfg.Compact.RolloverOnIdleMinutes
 	if mins <= 0 {
 		return false
@@ -192,7 +192,7 @@ func (m *SessionRolloverManager) idleTriggerFires(entries []convdomain.Conversat
 // count of what was actually sent, including system prompt and tool
 // definitions, also what `/context` displays) and a fresh entries estimate, so
 // a single-turn tool-output spike triggers rollover before the oversized send.
-func (m *SessionRolloverManager) tokenTriggerFires(entries []convdomain.ConversationEntry, model string) bool {
+func (m *SessionRollover) tokenTriggerFires(entries []convdomain.ConversationEntry, model string) bool {
 	autoAt := m.cfg.Compact.AutoAt
 	if autoAt < 1 || autoAt > 80 {
 		autoAt = 80
@@ -221,7 +221,7 @@ func (m *SessionRolloverManager) tokenTriggerFires(entries []convdomain.Conversa
 // optimizer call, same StartNewConversation call, same AddMessage loop.
 //
 // Returns the new session UUID on success.
-func (m *SessionRolloverManager) PerformRollover(ctx context.Context, model, groupKey string) (string, error) {
+func (m *SessionRollover) PerformRollover(ctx context.Context, model, groupKey string) (string, error) {
 	if m.optimizer == nil {
 		return "", errors.New("conversation optimizer is not enabled")
 	}
@@ -297,7 +297,7 @@ func (m *SessionRolloverManager) PerformRollover(ctx context.Context, model, gro
 
 // updateGroupIndex sets the group's current_session_id to newID and appends
 // the previous ID to the history.
-func (m *SessionRolloverManager) updateGroupIndex(ctx context.Context, groupKey, newID, previousID string) error {
+func (m *SessionRollover) updateGroupIndex(ctx context.Context, groupKey, newID, previousID string) error {
 	if m.groupStore == nil {
 		return errors.New("session group storage is not configured")
 	}

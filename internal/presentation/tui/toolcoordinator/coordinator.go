@@ -28,20 +28,20 @@ type toolApprovalRepoUpdater interface {
 	AddPendingToolCall(toolCall sdk.ChatCompletionMessageToolCall, responseChan chan agentdomain.ApprovalAction) error
 }
 
-// stateManager is the narrow slice of the app state manager this coordinator
+// stateStore is the narrow slice of the app state manager this coordinator
 // needs: event broadcast, the approval overlay, chat-session lookup, and mode
-// switching. *statemanager.StateManager satisfies it.
-type stateManager interface {
+// switching. *statemanager.Store satisfies it.
+type stateStore interface {
 	tui.EventBridgeHolder
 	tui.ApprovalPrompt
 	tui.ChatSessionState
-	agentdomain.AgentModeManager
+	agentdomain.AgentModeState
 }
 
 // Coordinator handles the tool round-trip UI flow.
 type Coordinator struct {
 	conversationRepo convdomain.ConversationRepository
-	stateManager     stateManager
+	stateManager     stateStore
 	directExec       tui.DirectExecutionService
 	listener         tui.ChatEventListener
 
@@ -52,7 +52,7 @@ type Coordinator struct {
 // Options bundles the dependencies needed to construct a Coordinator.
 type Options struct {
 	ConversationRepo convdomain.ConversationRepository
-	StateManager     stateManager
+	StateStore       stateStore
 	DirectExec       tui.DirectExecutionService
 	Listener         tui.ChatEventListener
 }
@@ -61,7 +61,7 @@ type Options struct {
 func NewCoordinator(opts Options) *Coordinator {
 	return &Coordinator{
 		conversationRepo: opts.ConversationRepo,
-		stateManager:     opts.StateManager,
+		stateManager:     opts.StateStore,
 		directExec:       opts.DirectExec,
 		listener:         opts.Listener,
 	}

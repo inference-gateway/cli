@@ -18,10 +18,10 @@ import (
 
 // testBinaryManager returns a manager whose binDir is redirected via HOME and
 // whose baseURL points at srv.
-func testBinaryManager(t *testing.T, autoDownload bool, srv *httptest.Server) *BinaryManager {
+func testBinaryManager(t *testing.T, autoDownload bool, srv *httptest.Server) *BinaryStore {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
-	m := NewBinaryManager(config.SpeechToTextConfig{AutoDownload: autoDownload})
+	m := NewBinaryStore(config.SpeechToTextConfig{AutoDownload: autoDownload})
 	if srv != nil {
 		m.baseURL = srv.URL
 	}

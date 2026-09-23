@@ -27,7 +27,7 @@ type WriteTool struct {
 	enabled   bool
 	formatter agentinfra.CustomFormatter
 	writer    filewriter.FileWriter
-	chunks    filewriter.ChunkManager
+	chunks    filewriter.ChunkBuffer
 	extractor *ParameterExtractor
 }
 
@@ -35,9 +35,9 @@ type WriteTool struct {
 func NewWriteTool(cfg *config.Config) *WriteTool {
 	pathValidator := filewriter.NewPathValidator(cfg)
 	runtimeDir := config.ProjectRuntimeDir()
-	backupManager := filewriter.NewBackupManager(filepath.Join(runtimeDir, "backups"))
+	backupManager := filewriter.NewBackup(filepath.Join(runtimeDir, "backups"))
 	fileWriter := filewriter.NewSafeFileWriter(pathValidator, backupManager)
-	chunkManager := filewriter.NewStreamingChunkManager(config.ProjectTmpDir(), fileWriter)
+	chunkManager := filewriter.NewStreamingChunkBuffer(config.ProjectTmpDir(), fileWriter)
 	paramExtractor := NewParameterExtractor()
 
 	return &WriteTool{

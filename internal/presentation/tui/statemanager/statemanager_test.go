@@ -13,8 +13,8 @@ import (
 )
 
 // Test helper to create a state manager
-func createTestStateManager() *StateManager {
-	return NewStateManager(false)
+func createTestStateManager() *Store {
+	return NewStore(false)
 }
 
 func TestNewStateManager(t *testing.T) {
@@ -37,7 +37,7 @@ func TestNewStateManager(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm := NewStateManager(tt.debugMode)
+			sm := NewStore(tt.debugMode)
 
 			assert.NotNil(t, sm)
 			assert.NotNil(t, sm.state)
@@ -158,7 +158,7 @@ func TestStateManager_DebugMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm := NewStateManager(tt.initialMode)
+			sm := NewStore(tt.initialMode)
 			assert.Equal(t, tt.initialMode, sm.IsDebugMode())
 
 			sm.SetDebugMode(tt.setMode)

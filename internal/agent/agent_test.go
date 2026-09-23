@@ -52,7 +52,7 @@ func TestAgentServiceImpl_GetMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agentService := &AgentServiceImpl{
+			agentService := &Agent{
 				metrics: make(map[string]*agentdomain.ChatMetrics),
 			}
 
@@ -93,7 +93,7 @@ func TestAgentServiceImpl_CancelRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agentService := &AgentServiceImpl{
+			agentService := &Agent{
 				activeSessions: make(map[string]*sessionCancel),
 			}
 
@@ -167,7 +167,7 @@ func TestAgentServiceImpl_ValidateRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agentService := &AgentServiceImpl{}
+			agentService := &Agent{}
 
 			err := agentService.validateRequest(tt.request)
 
@@ -248,7 +248,7 @@ func TestAgentServiceImpl_StreamingDeltaAccumulation(t *testing.T) {
 func TestNewAgentService(t *testing.T) {
 	fakeToolService := &agentdomainmocks.FakeToolService{}
 	fakeConversationRepo := &convmocks.FakeConversationRepository{}
-	fakeStateManager := statemanager.NewStateManager(false)
+	fakeStateManager := statemanager.NewStore(false)
 
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
@@ -337,7 +337,7 @@ func TestAgentServiceImpl_ParseProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agentService := &AgentServiceImpl{}
+			agentService := &Agent{}
 
 			provider, model, err := agentService.parseProvider(tt.model)
 
@@ -418,7 +418,7 @@ func TestAgentServiceImpl_BuildSandboxInfo(t *testing.T) {
 				},
 			}
 
-			agentService := &AgentServiceImpl{
+			agentService := &Agent{
 				config: cfg,
 			}
 
@@ -565,7 +565,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 				},
 			}
 
-			fakeStateManager := statemanager.NewStateManager(false)
+			fakeStateManager := statemanager.NewStore(false)
 			fakeStateManager.SetAgentMode(tt.agentMode)
 
 			approvalPolicy := NewStandardApprovalPolicy(cfg, fakeStateManager)
@@ -588,7 +588,7 @@ func TestAgentServiceImpl_CreateErrorEntry(t *testing.T) {
 	testError := errors.New("test error occurred")
 	startTime := time.Now().Add(-2 * time.Second)
 
-	agentService := &AgentServiceImpl{}
+	agentService := &Agent{}
 
 	entry := agentService.createErrorEntry(toolCall, testError, startTime)
 
@@ -699,7 +699,7 @@ func TestAgentServiceImpl_AccumulateToolCalls(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agentService := &AgentServiceImpl{
+			agentService := &Agent{
 				toolCallsMap: make(map[string]*sdk.ChatCompletionMessageToolCall),
 			}
 
@@ -714,7 +714,7 @@ func TestAgentServiceImpl_AccumulateToolCalls(t *testing.T) {
 }
 
 func TestAgentServiceImpl_GetAccumulatedToolCalls(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		toolCallsMap: map[string]*sdk.ChatCompletionMessageToolCall{
 			"0": {ID: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
 			"1": {ID: "call-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write"}},
@@ -733,7 +733,7 @@ func TestAgentServiceImpl_GetAccumulatedToolCalls(t *testing.T) {
 }
 
 func TestAgentServiceImpl_ClearToolCallsMap(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		toolCallsMap: map[string]*sdk.ChatCompletionMessageToolCall{
 			"0": {ID: "call-1"},
 			"1": {ID: "call-2"},
@@ -772,7 +772,7 @@ func TestAgentServiceImpl_StoreIterationMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fakeRepo := &convmocks.FakeConversationRepository{}
 
-			agentService := &AgentServiceImpl{
+			agentService := &Agent{
 				conversationRepo: fakeRepo,
 				metrics:          make(map[string]*agentdomain.ChatMetrics),
 			}
@@ -1007,7 +1007,7 @@ func TestExecuteToolInternal_PublishesTerminalStatus(t *testing.T) {
 			fakeRepo := &convmocks.FakeConversationRepository{}
 			fakeRepo.FormatToolResultForLLMReturns("formatted result")
 
-			s := &AgentServiceImpl{
+			s := &Agent{
 				toolService:      fakeToolService,
 				conversationRepo: fakeRepo,
 			}
@@ -1055,7 +1055,7 @@ func TestExecuteToolCallsParallel_NeverRequestsApproval(t *testing.T) {
 	fakeRepo := &convmocks.FakeConversationRepository{}
 	fakeRepo.FormatToolResultForLLMReturns("formatted result")
 
-	s := &AgentServiceImpl{
+	s := &Agent{
 		config:           &config.Config{Agent: config.AgentConfig{MaxConcurrentTools: 2}},
 		toolService:      fakeToolService,
 		conversationRepo: fakeRepo,
@@ -1091,7 +1091,7 @@ func TestExecuteToolCallsParallel_NeverRequestsApproval(t *testing.T) {
 }
 
 func TestAgentServiceImpl_CancelRequest_WithCancelChannel(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		activeSessions: make(map[string]*sessionCancel),
 	}
 
@@ -1114,7 +1114,7 @@ func TestAgentServiceImpl_CancelRequest_WithCancelChannel(t *testing.T) {
 }
 
 func TestAgentServiceImpl_CancelRequest_WithBothContextAndChannel(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		activeSessions: make(map[string]*sessionCancel),
 	}
 
@@ -1142,7 +1142,7 @@ func TestAgentServiceImpl_CancelRequest_WithBothContextAndChannel(t *testing.T) 
 // Esc presses (or any repeated CancelRequest calls) are safe - no panic on
 // double-close of the cancel channel, and every call returns nil.
 func TestAgentServiceImpl_CancelRequest_IsIdempotent(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		activeSessions: make(map[string]*sessionCancel),
 	}
 
@@ -1168,7 +1168,7 @@ func TestAgentServiceImpl_CancelRequest_IsIdempotent(t *testing.T) {
 // cancellation propagates through the session-level context so downstream
 // tool execution and approval waits observe ctx.Done().
 func TestAgentServiceImpl_CancelRequest_CancelsSessionContext(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		activeSessions: make(map[string]*sessionCancel),
 	}
 
@@ -1236,9 +1236,9 @@ func TestAgentServiceImpl_BuildSystemPromptByteStableAcrossModeSwitch(t *testing
 		},
 	}
 
-	fakeStateManager := statemanager.NewStateManager(false)
+	fakeStateManager := statemanager.NewStore(false)
 	fakeStateManager.SetAgentMode(agentdomain.AgentModeStandard)
-	agentService := &AgentServiceImpl{config: cfg, stateManager: fakeStateManager}
+	agentService := &Agent{config: cfg, stateManager: fakeStateManager}
 
 	userMsg := []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("hi")}}
 	before := agentService.addSystemPrompt(userMsg)
@@ -1275,7 +1275,7 @@ func TestAgentServiceImpl_AddSystemPrompt(t *testing.T) {
 		},
 	}
 
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		config: cfg,
 	}
 
@@ -1316,7 +1316,7 @@ func TestAgentServiceImpl_BuildSystemPrompt(t *testing.T) {
 		},
 	}
 
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		config: cfg,
 	}
 
@@ -1338,7 +1338,7 @@ func TestAgentServiceImpl_BuildSystemPrompt(t *testing.T) {
 }
 
 func TestAgentServiceImpl_BuildSystemPrompt_EmptyPrompt(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		config: &config.Config{
 			Prompts: config.PromptsConfig{
 				Agent: config.PromptsAgentConfig{SystemPrompt: ""},
@@ -1358,7 +1358,7 @@ func TestAgentServiceImpl_AddSystemPrompt_EmptyPrompt(t *testing.T) {
 		},
 	}
 
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		config: cfg,
 	}
 
@@ -1373,7 +1373,7 @@ func TestAgentServiceImpl_AddSystemPrompt_EmptyPrompt(t *testing.T) {
 }
 
 func TestAgentServiceImpl_ConcurrentMetricsAccess(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		metrics: make(map[string]*agentdomain.ChatMetrics),
 	}
 
@@ -1404,7 +1404,7 @@ func TestAgentServiceImpl_ConcurrentMetricsAccess(t *testing.T) {
 }
 
 func TestAgentServiceImpl_ConcurrentToolCallsAccess(t *testing.T) {
-	agentService := &AgentServiceImpl{
+	agentService := &Agent{
 		toolCallsMap: make(map[string]*sdk.ChatCompletionMessageToolCall),
 	}
 
@@ -1480,7 +1480,7 @@ func TestAgentServiceImpl_BuildA2AAgentInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agentService := &AgentServiceImpl{
+			agentService := &Agent{
 				a2aAgentService: tt.a2aAgentService,
 			}
 
@@ -1519,7 +1519,7 @@ func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
 
 	repo := &convmocks.FakeConversationRepository{}
 
-	svc := &AgentServiceImpl{
+	svc := &Agent{
 		messageQueue:     queue,
 		conversationRepo: repo,
 	}
@@ -1590,7 +1590,7 @@ func TestAgentServiceImpl_BatchDrainQueue_IdempotentOnRepairedConversation(t *te
 	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("u2")}, "req-x")
 
 	repo := &convmocks.FakeConversationRepository{}
-	svc := &AgentServiceImpl{
+	svc := &Agent{
 		messageQueue:     queue,
 		conversationRepo: repo,
 	}

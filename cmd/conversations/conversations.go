@@ -266,7 +266,7 @@ func showConversation(state *runtime.State, cmd *cobra.Command, rawID string) er
 // via the rollover manager's session-group lookup. Falls back to the raw id when
 // no rollover manager is configured.
 func resolveConversationSessionID(services *container.ServiceContainer, rawID string) string {
-	mgr := services.GetSessionRolloverManager()
+	mgr := services.GetSessionRollover()
 	if mgr == nil {
 		return rawID
 	}

@@ -67,7 +67,7 @@ PORT=8080
 	cfg := &config.Config{}
 	agentsConfig := &config.AgentsConfig{}
 	sessionID := convdomain.GenerateSessionID()
-	am := NewAgentManager(sessionID, cfg, agentsConfig, nil, nil)
+	am := NewAgentSupervisor(sessionID, cfg, agentsConfig, nil, nil)
 
 	envMap, err := am.loadDotEnvFile()
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestAgentManager_loadDotEnvFile_NotFound(t *testing.T) {
 	cfg := &config.Config{}
 	agentsConfig := &config.AgentsConfig{}
 	sessionID := convdomain.GenerateSessionID()
-	am := NewAgentManager(sessionID, cfg, agentsConfig, nil, nil)
+	am := NewAgentSupervisor(sessionID, cfg, agentsConfig, nil, nil)
 
 	envMap, err := am.loadDotEnvFile()
 	require.Error(t, err)
@@ -119,7 +119,7 @@ func TestAgentManager_loadDotEnvFile_InvalidFormat(t *testing.T) {
 	cfg := &config.Config{}
 	agentsConfig := &config.AgentsConfig{}
 	sessionID := convdomain.GenerateSessionID()
-	am := NewAgentManager(sessionID, cfg, agentsConfig, nil, nil)
+	am := NewAgentSupervisor(sessionID, cfg, agentsConfig, nil, nil)
 
 	envMap, err := am.loadDotEnvFile()
 	if err == nil {
@@ -144,7 +144,7 @@ func TestAgentManager_loadDotEnvFile_EmptyFile(t *testing.T) {
 	cfg := &config.Config{}
 	agentsConfig := &config.AgentsConfig{}
 	sessionID := convdomain.GenerateSessionID()
-	am := NewAgentManager(sessionID, cfg, agentsConfig, nil, nil)
+	am := NewAgentSupervisor(sessionID, cfg, agentsConfig, nil, nil)
 
 	envMap, err := am.loadDotEnvFile()
 	require.NoError(t, err)
@@ -177,7 +177,7 @@ LOG_LEVEL=debug
 	cfg := &config.Config{}
 	agentsConfig := &config.AgentsConfig{}
 	sessionID := convdomain.GenerateSessionID()
-	am := NewAgentManager(sessionID, cfg, agentsConfig, nil, nil)
+	am := NewAgentSupervisor(sessionID, cfg, agentsConfig, nil, nil)
 
 	envMap, err := am.loadDotEnvFile()
 	require.NoError(t, err)
@@ -236,7 +236,7 @@ func TestSetURLPort(t *testing.T) {
 }
 
 func TestAgentManager_WaitForAgentsReady(t *testing.T) {
-	am := NewAgentManager("session", &config.Config{}, &config.AgentsConfig{}, nil, nil)
+	am := NewAgentSupervisor("session", &config.Config{}, &config.AgentsConfig{}, nil, nil)
 
 	done := make(chan struct{})
 	go func() {

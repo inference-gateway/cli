@@ -16,11 +16,11 @@ import (
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
-// TestQuestionFormReproChain checks the coordinator -> shared StateManager ->
+// TestQuestionFormReproChain checks the coordinator -> shared state store ->
 // QuestionFormView render path in isolation.
 func TestQuestionFormReproChain(t *testing.T) {
-	sm := statemanager.NewStateManager(false)
-	coord := approvalcoord.NewService(approvalcoord.Options{StateManager: sm})
+	sm := statemanager.NewStore(false)
+	coord := approvalcoord.NewService(approvalcoord.Options{StateStore: sm})
 
 	ch := make(chan []agentdomain.UserQuestionAnswer, 1)
 	if cmd := coord.HandleUserQuestionRequested(agentdomain.UserQuestionRequestedEvent{
@@ -41,7 +41,7 @@ func TestQuestionFormReproChain(t *testing.T) {
 	fv.SetWidth(80)
 	_ = fv.Begin()
 	if out := fv.Render(); !strings.Contains(out, "Backend") || !strings.Contains(out, "sqlite") {
-		t.Fatalf("form did not render from shared StateManager:\n%q", out)
+		t.Fatalf("form did not render from shared state store:\n%q", out)
 	}
 }
 
@@ -87,7 +87,7 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 		[]string{model},
 		model,
 		tui.VersionInfo{},
-		c.GetAgentManager(),
+		c.GetAgentSupervisor(),
 		c.GetAgentService(),
 		c.GetBackgroundTaskService(),
 		c.GetBackgroundTaskRegistry(),
@@ -98,12 +98,12 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 		c.GetSkillsService(),
 		c.GetGitHubIssueService(),
 		c.GetGitHubSetupService(),
-		c.GetMCPManager(),
+		c.GetMCPSupervisor(),
 		c.GetMessageQueue(),
 		c.GetModelService(),
 		c.GetPricingService(),
-		c.GetSessionRolloverManager(),
-		c.GetStateManager(),
+		c.GetSessionRollover(),
+		c.GetStateStore(),
 		c.GetTaskRetentionService(),
 		c.GetThemeService(),
 		c.GetToolService(),
@@ -117,7 +117,7 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 		c.GetTokenEstimator(),
 	)
 
-	c.GetStateManager().SetDimensions(120, 40)
+	c.GetStateStore().SetDimensions(120, 40)
 	_, _ = app.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	ch := make(chan []agentdomain.UserQuestionAnswer, 1)
@@ -128,7 +128,7 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 		ResponseChan: ch,
 	})
 
-	st := c.GetStateManager().GetUserQuestionUIState()
+	st := c.GetStateStore().GetUserQuestionUIState()
 	if st == nil || len(st.Questions) != 1 {
 		t.Fatalf("question state not set after Update: %+v", st)
 	}
@@ -142,7 +142,7 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 		ToolCallID: "call_1", ToolName: "AskUserQuestion", Status: "running", Message: "Processing...",
 	})
 
-	if st2 := c.GetStateManager().GetUserQuestionUIState(); st2 == nil {
+	if st2 := c.GetStateStore().GetUserQuestionUIState(); st2 == nil {
 		t.Fatal("question state was cleared by a tool progress tick")
 	}
 	out2 := app.viewContent()
@@ -152,7 +152,7 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 
 	pumpApp(app, tea.KeyPressMsg{Code: tea.KeyEnter}, 10)
 
-	if c.GetStateManager().GetUserQuestionUIState() != nil {
+	if c.GetStateStore().GetUserQuestionUIState() != nil {
 		t.Fatal("form was not cleared after Enter/submit")
 	}
 	select {

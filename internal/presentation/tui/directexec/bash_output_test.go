@@ -26,12 +26,12 @@ func TestHandleBashCommand_OutputVisibleToLLM(t *testing.T) {
 	repo := &convmocks.FakeConversationRepository{}
 	repo.FormatToolResultForLLMReturns("hello world")
 
-	sm := statemanager.NewStateManager(false)
+	sm := statemanager.NewStore(false)
 	sm.SetAgentMode(agentdomain.AgentModeStandard)
 
 	svc := directexec.NewService(directexec.Options{
 		ToolService:      toolSvc,
-		StateManager:     sm,
+		StateStore:       sm,
 		ConversationRepo: repo,
 		Listener:         &tuimocks.FakeChatEventListener{},
 	})

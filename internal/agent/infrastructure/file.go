@@ -10,17 +10,17 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// FileServiceImpl implements agentdomain.FileService
-type FileServiceImpl struct{}
+// FileService implements agentdomain.FileService
+type FileService struct{}
 
 // NewFileService creates a new file service
 func NewFileService() agentdomain.FileService {
-	return &FileServiceImpl{}
+	return &FileService{}
 }
 
 // ListProjectFiles returns the files under the current directory, followed by
 // the user's ~/.infer files (as "~/.infer/<path>").
-func (s *FileServiceImpl) ListProjectFiles() ([]string, error) {
+func (s *FileService) ListProjectFiles() ([]string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current directory: %w", err)
@@ -70,7 +70,7 @@ var homeInferSkipDirs = map[string]bool{
 // ValidateFile and ReadFile resolve via expandHomePath. Owner-only files
 // (auth.yaml, projects.yaml) are skipped: they hold credentials and private
 // state that must not be offered for inlining into a prompt.
-func (s *FileServiceImpl) listHomeInferFiles() []string {
+func (s *FileService) listHomeInferFiles() []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil
@@ -103,7 +103,7 @@ func (s *FileServiceImpl) listHomeInferFiles() []string {
 }
 
 // handleDirectory decides whether to skip directories and handles exclusions
-func (s *FileServiceImpl) handleDirectory(d os.DirEntry, path, cwd string) error {
+func (s *FileService) handleDirectory(d os.DirEntry, path, cwd string) error {
 	relPath, err := filepath.Rel(cwd, path)
 	if err != nil {
 		return nil
@@ -149,7 +149,7 @@ func (s *FileServiceImpl) handleDirectory(d os.DirEntry, path, cwd string) error
 // Under ./.infer/ only markdown context files are indexed; runtime artifacts
 // (tmp scratch, artifacts) live under ~/.infer/projects/<project-slug>/ and so
 // are never walked here at all.
-func (s *FileServiceImpl) shouldIncludeFile(d os.DirEntry, relPath string) bool {
+func (s *FileService) shouldIncludeFile(d os.DirEntry, relPath string) bool {
 	if !d.Type().IsRegular() {
 		return false
 	}
@@ -194,7 +194,7 @@ func (s *FileServiceImpl) shouldIncludeFile(d os.DirEntry, relPath string) bool 
 }
 
 // ReadFile reads the content of a file
-func (s *FileServiceImpl) ReadFile(path string) (string, error) {
+func (s *FileService) ReadFile(path string) (string, error) {
 	content, err := os.ReadFile(expandHomePath(path))
 	if err != nil {
 		return "", fmt.Errorf("failed to read file %s: %w", path, err)
@@ -203,7 +203,7 @@ func (s *FileServiceImpl) ReadFile(path string) (string, error) {
 }
 
 // ValidateFile checks if a file path is valid and accessible
-func (s *FileServiceImpl) ValidateFile(path string) error {
+func (s *FileService) ValidateFile(path string) error {
 	if path == "" {
 		return fmt.Errorf("file path cannot be empty")
 	}

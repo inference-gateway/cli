@@ -120,8 +120,8 @@ func awaitApproval(t *testing.T, events <-chan agentdomain.ChatEvent) agentdomai
 }
 
 // escalationService returns an agent service with one tracked judge rejection.
-func escalationService() *AgentServiceImpl {
-	svc := &AgentServiceImpl{escalations: newJudgeEscalations(), conversationRepo: &conversationmocks.FakeConversationRepository{}}
+func escalationService() *Agent {
+	svc := &Agent{escalations: newJudgeEscalations(), conversationRepo: &conversationmocks.FakeConversationRepository{}}
 	svc.escalations.record("Bash", `{"command":"git push"}`, "needs context")
 	return svc
 }
@@ -214,7 +214,7 @@ func TestApprovalEscalatorDismissedCountsAsDenied(t *testing.T) {
 }
 
 func TestApprovalEscalatorRequiresJudgeRejection(t *testing.T) {
-	svc := &AgentServiceImpl{escalations: newJudgeEscalations()}
+	svc := &Agent{escalations: newJudgeEscalations()}
 	esc := &approvalEscalator{svc: svc, publisher: &eventPublisher{requestID: "req-1", chatEvents: make(chan agentdomain.ChatEvent, 1)}}
 
 	res, err := esc.Escalate(context.Background(), agentdomain.ApprovalEscalationRequest{ToolCall: escalationToolCall("tc-1"), What: "push", Why: "ship"})
@@ -230,7 +230,7 @@ func TestApprovalEscalatorRequiresJudgeRejection(t *testing.T) {
 }
 
 func TestApprovalEscalatorOneAttemptPerRejectedCall(t *testing.T) {
-	svc := &AgentServiceImpl{escalations: newJudgeEscalations()}
+	svc := &Agent{escalations: newJudgeEscalations()}
 	svc.escalations.record("Bash", `{"command":"git push"}`, "needs context")
 	svc.escalations.claim("Bash", `{"command":"git push"}`)
 
@@ -257,7 +257,7 @@ func TestApprovalEscalatorCancelled(t *testing.T) {
 func TestRequestJudgeApprovalRecordsRejectionAndHints(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Agent.Model = "test/model"
-	svc := &AgentServiceImpl{
+	svc := &Agent{
 		config:           cfg,
 		conversationRepo: &conversationmocks.FakeConversationRepository{},
 		judge:            stubJudgeApprover{verdict: JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "curl was not requested"}},
@@ -296,7 +296,7 @@ func TestRequestJudgeApprovalRecordsRejectionAndHints(t *testing.T) {
 }
 
 func TestRequestJudgeApprovalHonoursUserApprovalBypass(t *testing.T) {
-	svc := &AgentServiceImpl{escalations: newJudgeEscalations()}
+	svc := &Agent{escalations: newJudgeEscalations()}
 	svc.escalations.record("Bash", `{"command":"git push"}`, "needs context")
 	svc.escalations.approve("Bash", `{"command":"git push"}`)
 

@@ -22,8 +22,8 @@ import (
 
 // Compile-time interface checks
 var (
-	_ agentdomain.MCPClient  = (*mcpClient)(nil)
-	_ agentdomain.MCPManager = (*Manager)(nil)
+	_ agentdomain.MCPClient     = (*mcpClient)(nil)
+	_ agentdomain.MCPSupervisor = (*Supervisor)(nil)
 )
 
 // mcpClient wraps a single MCP server connection with an initialized MCP library client
@@ -238,8 +238,8 @@ func (c *mcpClient) Close() error {
 	return nil
 }
 
-// Manager manages multiple MCP server connections and their container lifecycle
-type Manager struct {
+// Supervisor manages multiple MCP server connections and their container lifecycle
+type Supervisor struct {
 	sessionID        convdomain.SessionID
 	config           *config.MCPConfig
 	containerRuntime containerruntime.ContainerRuntime
@@ -254,10 +254,10 @@ type Manager struct {
 	assignedPorts    map[string]int
 }
 
-// NewManager creates a new MCP manager. notifier is the single UI ingress the
+// NewSupervisor creates a new MCP manager. notifier is the single UI ingress the
 // liveness probes push MCPServerStatusUpdateEvent through; a nil notifier
 // degrades to no UI pushes.
-func NewManager(sessionID convdomain.SessionID, cfg *config.MCPConfig, runtime containerruntime.ContainerRuntime, notifier agentdomain.UINotifier) *Manager {
+func NewSupervisor(sessionID convdomain.SessionID, cfg *config.MCPConfig, runtime containerruntime.ContainerRuntime, notifier agentdomain.UINotifier) *Supervisor {
 	if notifier == nil {
 		notifier = agentdomain.NoopUINotifier{}
 	}
@@ -274,7 +274,7 @@ func NewManager(sessionID convdomain.SessionID, cfg *config.MCPConfig, runtime c
 		}
 	}
 
-	return &Manager{
+	return &Supervisor{
 		sessionID:        sessionID,
 		config:           cfg,
 		containerRuntime: runtime,
@@ -286,14 +286,14 @@ func NewManager(sessionID convdomain.SessionID, cfg *config.MCPConfig, runtime c
 	}
 }
 
-// notify pushes an event to the UI loop. NewManager defaults a nil notifier to
+// notify pushes an event to the UI loop. NewSupervisor defaults a nil notifier to
 // NoopUINotifier, so m.notifier is always non-nil here.
-func (m *Manager) notify(event any) {
+func (m *Supervisor) notify(event any) {
 	m.notifier.Notify(event)
 }
 
 // GetClients returns a list of MCP clients
-func (m *Manager) GetClients() []agentdomain.MCPClient {
+func (m *Supervisor) GetClients() []agentdomain.MCPClient {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -308,7 +308,7 @@ func (m *Manager) GetClients() []agentdomain.MCPClient {
 // such client exists. Direct map lookup - does not perform any network I/O,
 // in contrast to iterating GetClients() and calling DiscoverTools to identify
 // the owning client.
-func (m *Manager) GetClient(serverName string) agentdomain.MCPClient {
+func (m *Supervisor) GetClient(serverName string) agentdomain.MCPClient {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -320,7 +320,7 @@ func (m *Manager) GetClient(serverName string) agentdomain.MCPClient {
 }
 
 // GetTotalServers returns the total number of configured MCP servers from config
-func (m *Manager) GetTotalServers() int {
+func (m *Supervisor) GetTotalServers() int {
 	return len(m.config.Servers)
 }
 
@@ -330,7 +330,7 @@ func (m *Manager) GetTotalServers() int {
 // because Notify wraps the unbuffered (*tea.Program).Send, which blocks until the
 // Bubble Tea loop consumes; emitting it synchronously from app.Init (before the
 // loop runs) would deadlock.
-func (m *Manager) StartMonitoring(ctx context.Context) {
+func (m *Supervisor) StartMonitoring(ctx context.Context) {
 	m.mu.Lock()
 	if m.monitorStarted {
 		m.mu.Unlock()
@@ -400,7 +400,7 @@ func (m *Manager) StartMonitoring(ctx context.Context) {
 }
 
 // checkClientHealth performs a health check on a client and handles reconnection
-func (m *Manager) checkClientHealth(ctx context.Context, client *mcpClient) {
+func (m *Supervisor) checkClientHealth(ctx context.Context, client *mcpClient) {
 	client.mu.RLock()
 	wasConnected := client.isConnected
 	isPermanentlyFailed := client.permanentlyFailed
@@ -424,7 +424,7 @@ func (m *Manager) checkClientHealth(ctx context.Context, client *mcpClient) {
 }
 
 // handleToolDiscovery attempts to discover tools and handles retry logic
-func (m *Manager) handleToolDiscovery(ctx context.Context, client *mcpClient, maxRetries int) {
+func (m *Supervisor) handleToolDiscovery(ctx context.Context, client *mcpClient, maxRetries int) {
 	toolsMap, err := client.DiscoverTools(ctx)
 	if err != nil {
 		m.handleDiscoveryFailure(client, maxRetries, err)
@@ -450,7 +450,7 @@ func (m *Manager) handleToolDiscovery(ctx context.Context, client *mcpClient, ma
 }
 
 // handleDiscoveryFailure handles tool discovery failures and retry logic
-func (m *Manager) handleDiscoveryFailure(client *mcpClient, maxRetries int, err error) {
+func (m *Supervisor) handleDiscoveryFailure(client *mcpClient, maxRetries int, err error) {
 	client.mu.Lock()
 	client.retryAttempt++
 	client.lastAttemptTime = time.Now()
@@ -476,7 +476,7 @@ func (m *Manager) handleDiscoveryFailure(client *mcpClient, maxRetries int, err 
 }
 
 // handlePing attempts to ping the server and handles retry logic
-func (m *Manager) handlePing(ctx context.Context, client *mcpClient, maxRetries int) {
+func (m *Supervisor) handlePing(ctx context.Context, client *mcpClient, maxRetries int) {
 	err := client.PingServer(ctx, client.serverName)
 	if err != nil {
 		m.handlePingFailure(client, maxRetries, err)
@@ -492,7 +492,7 @@ func (m *Manager) handlePing(ctx context.Context, client *mcpClient, maxRetries 
 }
 
 // handlePingFailure handles ping failures and retry logic
-func (m *Manager) handlePingFailure(client *mcpClient, maxRetries int, err error) {
+func (m *Supervisor) handlePingFailure(client *mcpClient, maxRetries int, err error) {
 	client.mu.Lock()
 	client.retryAttempt++
 	client.lastAttemptTime = time.Now()
@@ -517,7 +517,7 @@ func (m *Manager) handlePingFailure(client *mcpClient, maxRetries int, err error
 
 // calculateBackoff calculates exponential backoff delay
 // Formula: min(baseInterval * 2^attempt, maxBackoff)
-func (m *Manager) calculateBackoff(attempt int, baseInterval time.Duration) time.Duration {
+func (m *Supervisor) calculateBackoff(attempt int, baseInterval time.Duration) time.Duration {
 	const maxBackoff = 5 * time.Minute
 
 	if attempt == 0 {
@@ -546,7 +546,7 @@ func (m *Manager) calculateBackoff(attempt int, baseInterval time.Duration) time
 // sendInitialStatusUpdate pushes the current status for all connected clients. It
 // collects the connected server names under the lock, then emits after releasing
 // it: notify wraps the blocking program.Send, which must never run under m.mu.
-func (m *Manager) sendInitialStatusUpdate() {
+func (m *Supervisor) sendInitialStatusUpdate() {
 	m.mu.RLock()
 	connected := make([]string, 0, len(m.clients))
 	for _, client := range m.clients {
@@ -565,7 +565,7 @@ func (m *Manager) sendInitialStatusUpdate() {
 }
 
 // sendStatusUpdate sends a status update event to the channel without tools
-func (m *Manager) sendStatusUpdate(serverName string, connected bool) {
+func (m *Supervisor) sendStatusUpdate(serverName string, connected bool) {
 	if !connected {
 		m.mu.Lock()
 		delete(m.toolCounts, serverName)
@@ -575,7 +575,7 @@ func (m *Manager) sendStatusUpdate(serverName string, connected bool) {
 }
 
 // getMCPServerStatus calculates the current MCP server status
-func (m *Manager) getMCPServerStatus() agentdomain.MCPServerStatus {
+func (m *Supervisor) getMCPServerStatus() agentdomain.MCPServerStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -605,7 +605,7 @@ func (m *Manager) getMCPServerStatus() agentdomain.MCPServerStatus {
 // sendStatusUpdateWithTools pushes a status update event with discovered tools
 // through the UI notifier. getMCPServerStatus takes and releases m.mu before
 // notify runs, so the blocking program.Send is never called under the lock.
-func (m *Manager) sendStatusUpdateWithTools(serverName string, connected bool, tools []agentdomain.MCPDiscoveredTool) {
+func (m *Supervisor) sendStatusUpdateWithTools(serverName string, connected bool, tools []agentdomain.MCPDiscoveredTool) {
 	status := m.getMCPServerStatus()
 
 	m.notify(agentdomain.MCPServerStatusUpdateEvent{
@@ -619,21 +619,21 @@ func (m *Manager) sendStatusUpdateWithTools(serverName string, connected bool, t
 }
 
 // UpdateToolCount updates the tool count for a specific server
-func (m *Manager) UpdateToolCount(serverName string, count int) {
+func (m *Supervisor) UpdateToolCount(serverName string, count int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.toolCounts[serverName] = count
 }
 
 // ClearToolCount removes the tool count for a specific server
-func (m *Manager) ClearToolCount(serverName string) {
+func (m *Supervisor) ClearToolCount(serverName string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.toolCounts, serverName)
 }
 
 // Close stops monitoring, stops containers, and cleans up resources
-func (m *Manager) Close() error {
+func (m *Supervisor) Close() error {
 	ctx := context.Background()
 	if err := m.StopServers(ctx); err != nil {
 		logger.Warn("failed to stop MCP servers during close", "session", m.sessionID, "error", err)
@@ -669,7 +669,7 @@ func (m *Manager) Close() error {
 
 // StartServers starts all MCP servers that have run=true
 // This method is non-fatal and always returns nil
-func (m *Manager) StartServers(ctx context.Context) error {
+func (m *Supervisor) StartServers(ctx context.Context) error {
 	if utils.IsRunningInContainer() {
 		logger.Debug("running in container mode - skipping local mcp server startup")
 		return nil
@@ -713,7 +713,7 @@ func (m *Manager) StartServers(ctx context.Context) error {
 
 // StartServer starts a single MCP server container, or points the client at a
 // detached shared container when one is already running.
-func (m *Manager) StartServer(ctx context.Context, server config.MCPServerEntry) error {
+func (m *Supervisor) StartServer(ctx context.Context, server config.MCPServerEntry) error {
 	if url, ok := m.sharedServerURL(server); ok {
 		logger.Info("reusing detached MCP server container", "session", m.sessionID, "server", server.Name, "url", url)
 		m.mu.Lock()
@@ -764,13 +764,13 @@ func (m *Manager) StartServer(ctx context.Context, server config.MCPServerEntry)
 
 // StopServer stops this session's container for the named server. With the
 // shared session id it stops the detached container started by `infer mcp start`.
-func (m *Manager) StopServer(ctx context.Context, serverName string) error {
+func (m *Supervisor) StopServer(ctx context.Context, serverName string) error {
 	return m.stopContainer(ctx, fmt.Sprintf("inference-mcp-%s-%s", serverName, m.sessionID))
 }
 
 // sharedServerURL reports the URL of a running detached container for the
 // server, if any. The shared manager itself never reuses (it is the one starting).
-func (m *Manager) sharedServerURL(server config.MCPServerEntry) (string, bool) {
+func (m *Supervisor) sharedServerURL(server config.MCPServerEntry) (string, bool) {
 	if m.sessionID == containerruntime.SharedSessionID {
 		return "", false
 	}
@@ -803,7 +803,7 @@ func parseHostPort(output string) (int, bool) {
 }
 
 // StopServers stops all running MCP server containers
-func (m *Manager) StopServers(ctx context.Context) error {
+func (m *Supervisor) StopServers(ctx context.Context) error {
 	m.mu.Lock()
 	containerNames := make([]string, 0, len(m.containerIDs))
 	for k := range m.containerIDs {
@@ -826,7 +826,7 @@ func (m *Manager) StopServers(ctx context.Context) error {
 }
 
 // pullImage pulls the container image
-func (m *Manager) pullImage(ctx context.Context, image string) error {
+func (m *Supervisor) pullImage(ctx context.Context, image string) error {
 	cmd := exec.CommandContext(ctx, "docker", "pull", image)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
@@ -838,7 +838,7 @@ func (m *Manager) pullImage(ctx context.Context, image string) error {
 }
 
 // startContainer starts the MCP server container
-func (m *Manager) startContainer(ctx context.Context, server config.MCPServerEntry, assignedPort int) error {
+func (m *Supervisor) startContainer(ctx context.Context, server config.MCPServerEntry, assignedPort int) error {
 	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, m.sessionID)
 
 	var networkName string
@@ -916,7 +916,7 @@ func (m *Manager) startContainer(ctx context.Context, server config.MCPServerEnt
 }
 
 // stopContainer stops and removes a container
-func (m *Manager) stopContainer(ctx context.Context, containerName string) error {
+func (m *Supervisor) stopContainer(ctx context.Context, containerName string) error {
 	if m.containerRuntime != nil && !m.containerRuntime.ContainerExists(containerName) {
 		return nil
 	}
@@ -930,7 +930,7 @@ func (m *Manager) stopContainer(ctx context.Context, containerName string) error
 }
 
 // isServerRunning checks if a container is already running
-func (m *Manager) isServerRunning(containerName string) bool {
+func (m *Supervisor) isServerRunning(containerName string) bool {
 	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.ID}}\t{{.Names}}")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -960,7 +960,7 @@ func (m *Manager) isServerRunning(containerName string) bool {
 }
 
 // waitForReady waits for the server to become ready by using Docker's healthcheck status
-func (m *Manager) waitForReady(ctx context.Context, server config.MCPServerEntry, _ int) error {
+func (m *Supervisor) waitForReady(ctx context.Context, server config.MCPServerEntry, _ int) error {
 	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, m.sessionID)
 	timeout := time.Duration(server.GetStartupTimeout()) * time.Second
 	deadline := time.Now().Add(timeout)
@@ -994,7 +994,7 @@ func (m *Manager) waitForReady(ctx context.Context, server config.MCPServerEntry
 }
 
 // assignPort assigns a port for the server, finding an available one if needed
-func (m *Manager) assignPort(server config.MCPServerEntry) int {
+func (m *Supervisor) assignPort(server config.MCPServerEntry) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1008,7 +1008,7 @@ func (m *Manager) assignPort(server config.MCPServerEntry) int {
 }
 
 // appendPortMappings adds port mappings to docker run args
-func (m *Manager) appendPortMappings(args []string, server config.MCPServerEntry, assignedPort int) []string {
+func (m *Supervisor) appendPortMappings(args []string, server config.MCPServerEntry, assignedPort int) []string {
 	if server.Port > 0 {
 		return append(args, "-p", fmt.Sprintf("%d:3000", assignedPort))
 	}
@@ -1025,7 +1025,7 @@ func (m *Manager) appendPortMappings(args []string, server config.MCPServerEntry
 }
 
 // mapPort creates the port mapping string for docker
-func (m *Manager) mapPort(portMapping string, index int, assignedPort int) string {
+func (m *Supervisor) mapPort(portMapping string, index int, assignedPort int) string {
 	if index != 0 {
 		return portMapping
 	}
@@ -1039,7 +1039,7 @@ func (m *Manager) mapPort(portMapping string, index int, assignedPort int) strin
 }
 
 // determinePort determines the port to assign to a server
-func (m *Manager) determinePort(server config.MCPServerEntry) int {
+func (m *Supervisor) determinePort(server config.MCPServerEntry) int {
 	if server.Port > 0 {
 		return server.Port
 	}
@@ -1053,7 +1053,7 @@ func (m *Manager) determinePort(server config.MCPServerEntry) int {
 }
 
 // getPath returns the path for the server
-func (m *Manager) getPath(server config.MCPServerEntry) string {
+func (m *Supervisor) getPath(server config.MCPServerEntry) string {
 	if server.Path != "" {
 		return server.Path
 	}

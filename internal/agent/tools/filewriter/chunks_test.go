@@ -11,9 +11,9 @@ import (
 
 // setupChunkTest reuses the sandboxed writer from writer_test.go and returns a
 // chunk manager streaming through a temp dir inside the sandbox.
-func setupChunkTest(t *testing.T) (string, ChunkManager, context.Context) {
+func setupChunkTest(t *testing.T) (string, ChunkBuffer, context.Context) {
 	tempDir, writer, ctx := setupWriterTest(t)
-	return tempDir, NewStreamingChunkManager(filepath.Join(tempDir, "chunks"), writer), ctx
+	return tempDir, NewStreamingChunkBuffer(filepath.Join(tempDir, "chunks"), writer), ctx
 }
 
 func TestStreamingChunkManager_FinalizeConcatenatesChunks(t *testing.T) {

@@ -40,11 +40,11 @@ type SSHSession struct {
 	screenshotPort      int
 	localScreenshotPort int
 	sessionID           string
-	sessionManager      *SessionManager
+	sessionManager      *Sessions
 }
 
 // NewSSHSession creates a new SSH session with PTY
-func NewSSHSession(client *SSHClient, server *config.SSHServerConfig, gatewayURL string, sessionID string, sessionManager *SessionManager) (*SSHSession, error) {
+func NewSSHSession(client *SSHClient, server *config.SSHServerConfig, gatewayURL string, sessionID string, sessionManager *Sessions) (*SSHSession, error) {
 	if client == nil {
 		return nil, fmt.Errorf("SSH client is required")
 	}

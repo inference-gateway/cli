@@ -160,7 +160,7 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string, appro
 	repo := serviceContainer.GetConversationRepository()
 
 	if jsonOut && !approved {
-		policy := agent.NewStandardApprovalPolicy(cfg, serviceContainer.GetStateManager())
+		policy := agent.NewStandardApprovalPolicy(cfg, serviceContainer.GetStateStore())
 		call := &sdk.ChatCompletionMessageToolCall{Type: sdk.Function, Function: toolCall}
 		if policy.ShouldRequireApproval(context.Background(), call, true) {
 			return printJSON(execResult{ApprovalRequired: true})

@@ -258,7 +258,7 @@ func TestApprovalBox_IsActive(t *testing.T) {
 }
 
 // TestApprovalBox_IsActiveFalseAfterExternalClear guards the esc-rejection bug: esc
-// clears the StateManager's approval state without completing the form, so av.active
+// clears the state store's approval state without completing the form, so av.active
 // /av.form linger. IsActive must consult the live state and report false, or ctrl+o
 // would be swallowed by the defunct box instead of expanding the rejected result.
 func TestApprovalBox_IsActiveFalseAfterExternalClear(t *testing.T) {

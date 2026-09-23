@@ -25,8 +25,8 @@ type MCPClient interface {
 	Close() error
 }
 
-// MCPManager manages the lifecycle, health monitoring, and container orchestration of MCP servers
-type MCPManager interface {
+// MCPSupervisor manages the lifecycle, health monitoring, and container orchestration of MCP servers
+type MCPSupervisor interface {
 	// Returns a list of clients
 	GetClients() []MCPClient
 

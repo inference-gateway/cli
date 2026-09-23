@@ -19,7 +19,7 @@ import (
 // EventDrivenAgent manages agent execution using event-driven state machine
 type EventDrivenAgent struct {
 	// Core dependencies
-	service        *AgentServiceImpl
+	service        *Agent
 	cfg            *config.AgentConfig
 	stateMachine   states.AgentStateMachine
 	agentCtx       *states.AgentContext
@@ -58,7 +58,7 @@ type EventDrivenAgent struct {
 
 // NewEventDrivenAgent creates a new event-driven agent
 func NewEventDrivenAgent(
-	service *AgentServiceImpl,
+	service *Agent,
 	cfg *config.AgentConfig,
 	ctx context.Context,
 	req *agentdomain.AgentRequest,

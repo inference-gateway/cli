@@ -31,8 +31,8 @@ func modelFileName(model string) string {
 	return "ggml-" + m + ".bin"
 }
 
-// ModelManager resolves and (optionally) downloads the GGML model file.
-type ModelManager struct {
+// ModelStore resolves and (optionally) downloads the GGML model file.
+type ModelStore struct {
 	cfg config.SpeechToTextConfig
 	mu  sync.Mutex
 
@@ -40,9 +40,9 @@ type ModelManager struct {
 	hub *huggingface.Client
 }
 
-// NewModelManager creates a ModelManager from the speech-to-text config.
-func NewModelManager(cfg config.SpeechToTextConfig) *ModelManager {
-	return &ModelManager{
+// NewModelStore creates a ModelStore from the speech-to-text config.
+func NewModelStore(cfg config.SpeechToTextConfig) *ModelStore {
+	return &ModelStore{
 		cfg: cfg,
 		hub: huggingface.NewClient(),
 	}
@@ -50,7 +50,7 @@ func NewModelManager(cfg config.SpeechToTextConfig) *ModelManager {
 
 // modelsDir returns the directory holding whisper models, defaulting to
 // ~/.infer/models/whisper when not configured.
-func (m *ModelManager) modelsDir() (string, error) {
+func (m *ModelStore) modelsDir() (string, error) {
 	if strings.TrimSpace(m.cfg.ModelsDir) != "" {
 		return m.cfg.ModelsDir, nil
 	}
@@ -64,7 +64,7 @@ func (m *ModelManager) modelsDir() (string, error) {
 // EnsureModel returns the local path to the model file, downloading it on first
 // use when AutoDownload is enabled. Concurrent callers are serialized so a
 // cold cache triggers one download.
-func (m *ModelManager) EnsureModel(ctx context.Context) (string, error) {
+func (m *ModelStore) EnsureModel(ctx context.Context) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

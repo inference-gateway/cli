@@ -36,7 +36,7 @@ func TestEnsureModelCached(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m := NewModelManager(config.SpeechToTextConfig{Model: "tiny", ModelsDir: dir, AutoDownload: false})
+	m := NewModelStore(config.SpeechToTextConfig{Model: "tiny", ModelsDir: dir, AutoDownload: false})
 	got, err := m.EnsureModel(context.Background())
 	if err != nil {
 		t.Fatalf("EnsureModel: %v", err)
@@ -48,7 +48,7 @@ func TestEnsureModelCached(t *testing.T) {
 
 func TestEnsureModelMissingNoDownload(t *testing.T) {
 	dir := t.TempDir()
-	m := NewModelManager(config.SpeechToTextConfig{Model: "tiny", ModelsDir: dir, AutoDownload: false})
+	m := NewModelStore(config.SpeechToTextConfig{Model: "tiny", ModelsDir: dir, AutoDownload: false})
 	if _, err := m.EnsureModel(context.Background()); err == nil {
 		t.Fatal("expected error when model is missing and auto_download is disabled")
 	}
@@ -66,7 +66,7 @@ func TestEnsureModelDownloads(t *testing.T) {
 	defer srv.Close()
 
 	dir := t.TempDir()
-	m := NewModelManager(config.SpeechToTextConfig{Model: "tiny", ModelsDir: dir, AutoDownload: true})
+	m := NewModelStore(config.SpeechToTextConfig{Model: "tiny", ModelsDir: dir, AutoDownload: true})
 	m.hub = &huggingface.Client{BaseURL: srv.URL, HTTP: srv.Client()}
 
 	got, err := m.EnsureModel(context.Background())
@@ -94,7 +94,7 @@ func TestEnsureModelDownloadBadStatus(t *testing.T) {
 	defer srv.Close()
 
 	dir := t.TempDir()
-	m := NewModelManager(config.SpeechToTextConfig{Model: "tiny", ModelsDir: dir, AutoDownload: true})
+	m := NewModelStore(config.SpeechToTextConfig{Model: "tiny", ModelsDir: dir, AutoDownload: true})
 	m.hub = &huggingface.Client{BaseURL: srv.URL, HTTP: srv.Client()}
 
 	if _, err := m.EnsureModel(context.Background()); err == nil {

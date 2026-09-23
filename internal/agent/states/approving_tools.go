@@ -259,7 +259,7 @@ func (s *ApprovingToolsState) flushLocked(round *toolRound) {
 // lets PostToolExecution transition to Completing instead of streaming
 // another LLM turn, returning control to the user (issue #786). This is the
 // only place a rejection ends the turn; the no-approval route in
-// AgentServiceImpl.executeToolCallsParallel never sees rejections.
+// Agent.executeToolCallsParallel never sees rejections.
 func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 	round.wg.Wait()
 	s.flushReady(round)

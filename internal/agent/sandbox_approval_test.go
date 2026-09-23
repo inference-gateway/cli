@@ -29,7 +29,7 @@ func TestRequestSandboxApproval(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			events := make(chan agentdomain.ChatEvent, 1)
 			pub := newEventPublisher("req-1", events)
-			svc := &AgentServiceImpl{}
+			svc := &Agent{}
 			tc := sdk.ChatCompletionMessageToolCall{
 				ID:       "call-1",
 				Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"},

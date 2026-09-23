@@ -56,8 +56,8 @@ type AgentService interface {
 	GetReasoningEffort() string
 }
 
-// AgentManager manages the lifecycle of A2A agent containers
-type AgentManager interface {
+// AgentSupervisor manages the lifecycle of A2A agent containers
+type AgentSupervisor interface {
 	// StartAgents starts all agents configured with run: true
 	StartAgents(ctx context.Context) error
 

@@ -26,8 +26,8 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
-// Manager manages the lifecycle of the gateway container or binary
-type Manager struct {
+// Supervisor manages the lifecycle of the gateway container or binary
+type Supervisor struct {
 	sessionID        convdomain.SessionID
 	config           *config.Config
 	containerRuntime containerruntime.ContainerRuntime
@@ -37,9 +37,9 @@ type Manager struct {
 	assignedPort     int
 }
 
-// NewManager creates a new gateway manager
-func NewManager(sessionID convdomain.SessionID, cfg *config.Config, runtime containerruntime.ContainerRuntime) *Manager {
-	return &Manager{
+// NewSupervisor creates a new gateway manager
+func NewSupervisor(sessionID convdomain.SessionID, cfg *config.Config, runtime containerruntime.ContainerRuntime) *Supervisor {
+	return &Supervisor{
 		sessionID:        sessionID,
 		config:           cfg,
 		containerRuntime: runtime,
@@ -47,7 +47,7 @@ func NewManager(sessionID convdomain.SessionID, cfg *config.Config, runtime cont
 }
 
 // Start starts the gateway container or binary if configured to run locally
-func (gm *Manager) Start(ctx context.Context) error {
+func (gm *Supervisor) Start(ctx context.Context) error {
 	if !gm.config.Gateway.Run {
 		return nil
 	}
@@ -65,7 +65,7 @@ func (gm *Manager) Start(ctx context.Context) error {
 
 // EnsureStarted starts the gateway if configured and not already running
 // This is a convenience method that checks config and running state before starting
-func (gm *Manager) EnsureStarted() error {
+func (gm *Supervisor) EnsureStarted() error {
 	if !gm.config.Gateway.Run {
 		return nil
 	}
@@ -85,7 +85,7 @@ func (gm *Manager) EnsureStarted() error {
 }
 
 // startBinary downloads and runs the gateway as a binary
-func (gm *Manager) startBinary(ctx context.Context) error {
+func (gm *Supervisor) startBinary(ctx context.Context) error {
 	logger.Info("starting gateway from binary")
 
 	if gm.isBinaryRunning() {
@@ -141,7 +141,7 @@ func (gm *Manager) startBinary(ctx context.Context) error {
 }
 
 // startContainer starts the gateway in a container
-func (gm *Manager) startContainer(ctx context.Context) error {
+func (gm *Supervisor) startContainer(ctx context.Context) error {
 	if gm.config.Gateway.OCI == "" {
 		return fmt.Errorf("gateway OCI image not specified in configuration")
 	}
@@ -201,7 +201,7 @@ func (gm *Manager) startContainer(ctx context.Context) error {
 }
 
 // Stop stops the gateway container or binary and cleans up the network
-func (gm *Manager) Stop(ctx context.Context) error {
+func (gm *Supervisor) Stop(ctx context.Context) error {
 	if !gm.isRunning {
 		return nil
 	}
@@ -228,7 +228,7 @@ func (gm *Manager) Stop(ctx context.Context) error {
 // prunes stale entries (crashed processes). The binary is killed only
 // when the last live registration is gone - whichever process exits last
 // turns off the lights.
-func (gm *Manager) stopBinary() error {
+func (gm *Supervisor) stopBinary() error {
 	gm.deregisterPID()
 
 	if gm.pruneAndCheckLive() {
@@ -245,7 +245,7 @@ func (gm *Manager) stopBinary() error {
 
 // killGateway kills the shared gateway process, using the saved gateway
 // PID file or the in-process binaryCmd handle as fallback.
-func (gm *Manager) killGateway() {
+func (gm *Supervisor) killGateway() {
 	if gm.binaryCmd != nil && gm.binaryCmd.Process != nil {
 		logger.Info("last process stopping gateway binary", "pid", gm.binaryCmd.Process.Pid)
 		if err := gm.binaryCmd.Process.Kill(); err != nil {
@@ -273,22 +273,22 @@ func inferHomeDir(part string) string {
 }
 
 // inferRunDir returns the runtime state directory (~/.infer/run).
-func (gm *Manager) inferRunDir() string {
+func (gm *Supervisor) inferRunDir() string {
 	return inferHomeDir("run")
 }
 
 // pidsDir returns the consumer PID registry directory (~/.infer/run/pids).
-func (gm *Manager) pidsDir() string {
+func (gm *Supervisor) pidsDir() string {
 	return filepath.Join(gm.inferRunDir(), "pids")
 }
 
 // gatewayPIDPath returns the gateway binary PID file path (~/.infer/run/gateway.pid).
-func (gm *Manager) gatewayPIDPath() string {
+func (gm *Supervisor) gatewayPIDPath() string {
 	return filepath.Join(gm.inferRunDir(), "gateway.pid")
 }
 
 // registerPID drops a PID file for this consumer process.
-func (gm *Manager) registerPID() {
+func (gm *Supervisor) registerPID() {
 	pidDir := gm.pidsDir()
 	if err := os.MkdirAll(pidDir, 0755); err != nil {
 		logger.Warn("failed to create PID directory", "error", err)
@@ -301,7 +301,7 @@ func (gm *Manager) registerPID() {
 }
 
 // deregisterPID removes this process's PID file.
-func (gm *Manager) deregisterPID() {
+func (gm *Supervisor) deregisterPID() {
 	pidPath := filepath.Join(gm.pidsDir(), strconv.Itoa(os.Getpid()))
 	if err := os.Remove(pidPath); err != nil && !os.IsNotExist(err) {
 		logger.Warn("failed to deregister PID", "error", err)
@@ -311,7 +311,7 @@ func (gm *Manager) deregisterPID() {
 // pruneAndCheckLive prunes stale consumer PID files (dead processes) and
 // reports whether any live registrations remain. Our own PID is already
 // deregistered before this is called.
-func (gm *Manager) pruneAndCheckLive() bool {
+func (gm *Supervisor) pruneAndCheckLive() bool {
 	pidDir := gm.pidsDir()
 	entries, err := os.ReadDir(pidDir)
 	if err != nil {
@@ -337,7 +337,7 @@ func (gm *Manager) pruneAndCheckLive() bool {
 }
 
 // writeGatewayPID writes the spawned gateway binary's PID to the shared file.
-func (gm *Manager) writeGatewayPID() {
+func (gm *Supervisor) writeGatewayPID() {
 	if gm.binaryCmd == nil || gm.binaryCmd.Process == nil {
 		return
 	}
@@ -353,7 +353,7 @@ func (gm *Manager) writeGatewayPID() {
 }
 
 // readGatewayPID reads the gateway binary PID from the shared file, or 0.
-func (gm *Manager) readGatewayPID() int {
+func (gm *Supervisor) readGatewayPID() int {
 	data, err := os.ReadFile(gm.gatewayPIDPath())
 	if err != nil {
 		return 0
@@ -366,14 +366,14 @@ func (gm *Manager) readGatewayPID() int {
 }
 
 // removeGatewayPID removes the gateway PID file.
-func (gm *Manager) removeGatewayPID() {
+func (gm *Supervisor) removeGatewayPID() {
 	if err := os.Remove(gm.gatewayPIDPath()); err != nil && !os.IsNotExist(err) {
 		logger.Warn("failed to remove gateway PID file", "error", err)
 	}
 }
 
 // stopContainer stops the container (network cleanup is handled in Stop() method)
-func (gm *Manager) stopContainer(ctx context.Context) error {
+func (gm *Supervisor) stopContainer(ctx context.Context) error {
 	if gm.containerID == "" {
 		return nil
 	}
@@ -396,12 +396,12 @@ func (gm *Manager) stopContainer(ctx context.Context) error {
 }
 
 // IsRunning returns whether the gateway container is running
-func (gm *Manager) IsRunning() bool {
+func (gm *Supervisor) IsRunning() bool {
 	return gm.isRunning
 }
 
 // pullImage pulls the OCI image with progress feedback
-func (gm *Manager) pullImage(ctx context.Context) error {
+func (gm *Supervisor) pullImage(ctx context.Context) error {
 	fmt.Printf("• Pulling gateway image: %s\n", gm.config.Gateway.OCI)
 
 	cmd := exec.CommandContext(ctx, "docker", "pull", gm.config.Gateway.OCI)
@@ -417,7 +417,7 @@ func (gm *Manager) pullImage(ctx context.Context) error {
 }
 
 // runContainer runs the gateway container using docker run command
-func (gm *Manager) runContainer(ctx context.Context) error {
+func (gm *Supervisor) runContainer(ctx context.Context) error {
 	assignedPort := gm.determineGatewayPort()
 	containerPort := "8080"
 
@@ -537,7 +537,7 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 }
 
 // isContainerRunning checks if a gateway container is already running
-func (gm *Manager) isContainerRunning() bool {
+func (gm *Supervisor) isContainerRunning() bool {
 	expectedName := fmt.Sprintf("inference-gateway-%s", gm.sessionID)
 	cmd := exec.Command("docker", "ps", "--filter", "name=inference-gateway", "--format", "{{.ID}}\t{{.Names}}")
 	output, err := cmd.CombinedOutput()
@@ -566,7 +566,7 @@ func (gm *Manager) isContainerRunning() bool {
 }
 
 // waitForReady waits for the gateway to become ready
-func (gm *Manager) waitForReady(ctx context.Context) error {
+func (gm *Supervisor) waitForReady(ctx context.Context) error {
 	actualURL := gm.GetGatewayURL()
 	healthURL := strings.TrimSuffix(actualURL, "/") + "/health"
 
@@ -606,14 +606,14 @@ func (gm *Manager) waitForReady(ctx context.Context) error {
 // needsAudioRestart reports whether an already-running gateway must be
 // restarted because gateway speech or music needs its Audio API but the
 // running instance was started without AUDIO_ENABLED.
-func (gm *Manager) needsAudioRestart() bool {
+func (gm *Supervisor) needsAudioRestart() bool {
 	return gm.config.NeedsGatewayAudio() && !gm.audioAPIEnabled()
 }
 
 // audioAPIEnabled probes POST /v1/audio/speech on the running gateway. The
 // route only exists when the gateway runs with AUDIO_ENABLED, so a 404 means
 // audio is off; any other response (400, 401, 503, ...) means it is served.
-func (gm *Manager) audioAPIEnabled() bool {
+func (gm *Supervisor) audioAPIEnabled() bool {
 	url := strings.TrimSuffix(gm.config.Gateway.URL, "/") + "/v1/audio/speech"
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Post(url, "application/json", strings.NewReader("{}"))
@@ -626,7 +626,7 @@ func (gm *Manager) audioAPIEnabled() bool {
 
 // waitForStopped waits briefly for a killed gateway to stop answering health
 // checks so the replacement can bind the port.
-func (gm *Manager) waitForStopped(ctx context.Context) {
+func (gm *Supervisor) waitForStopped(ctx context.Context) {
 	deadline := time.Now().Add(5 * time.Second)
 	for gm.isBinaryRunning() && time.Now().Before(deadline) {
 		select {
@@ -641,7 +641,7 @@ func (gm *Manager) waitForStopped(ctx context.Context) {
 // when it cannot be determined. The gateway's /version endpoint wins; managed
 // modes fall back to the cached binary or the configured container image tag.
 // Externally managed gateways (Gateway.Run off) have no local source to ask.
-func (gm *Manager) Version(ctx context.Context) string {
+func (gm *Supervisor) Version(ctx context.Context) string {
 	if v := probeVersionEndpoint(ctx, gm.GetGatewayURL()); v != "" {
 		return v
 	}
@@ -752,7 +752,7 @@ func gatewayBinaryPath() string {
 }
 
 // isBinaryRunning checks if the gateway is already running on the port
-func (gm *Manager) isBinaryRunning() bool {
+func (gm *Supervisor) isBinaryRunning() bool {
 	healthURL := strings.TrimSuffix(gm.config.Gateway.URL, "/") + "/health"
 	client := &http.Client{Timeout: 1 * time.Second}
 	resp, err := client.Get(healthURL)
@@ -766,7 +766,7 @@ func (gm *Manager) isBinaryRunning() bool {
 // downloadBinary downloads the latest gateway binary release directly from
 // GitHub, authenticating the API call with GITHUB_TOKEN/GH_TOKEN when
 // available to avoid the 60 req/hour unauthenticated rate limit
-func (gm *Manager) downloadBinary(ctx context.Context) (string, error) {
+func (gm *Supervisor) downloadBinary(ctx context.Context) (string, error) {
 	binaryPath := gatewayBinaryPath()
 	if err := os.MkdirAll(filepath.Dir(binaryPath), 0755); err != nil {
 		return "", fmt.Errorf("failed to create binary directory: %w", err)
@@ -1034,7 +1034,7 @@ func extractGatewayZip(r io.Reader, destPath string) error {
 }
 
 // runBinary starts the gateway binary
-func (gm *Manager) runBinary(binaryPath string) error {
+func (gm *Supervisor) runBinary(binaryPath string) error {
 	cmd := exec.Command(binaryPath)
 	cmd.Env = gm.loadEnvironment()
 
@@ -1096,7 +1096,7 @@ func (gm *Manager) runBinary(binaryPath string) error {
 }
 
 // configureGatewayOutput sets up stdout/stderr redirection for the gateway binary
-func (gm *Manager) configureGatewayOutput(cmd *exec.Cmd) error {
+func (gm *Supervisor) configureGatewayOutput(cmd *exec.Cmd) error {
 	logDir := gm.config.Logging.Dir
 	if logDir == "" {
 		logDir = config.DefaultLogsDir()
@@ -1121,7 +1121,7 @@ func (gm *Manager) configureGatewayOutput(cmd *exec.Cmd) error {
 // loadEnvironment assembles the gateway binary environment in precedence
 // order: system environment, then project .env, then the ~/.infer/auth.yaml
 // fallback (first hit per key wins).
-func (gm *Manager) loadEnvironment() []string {
+func (gm *Supervisor) loadEnvironment() []string {
 	envVars := os.Environ()
 	seen := make(map[string]bool, len(envVars))
 	for _, entry := range envVars {
@@ -1155,7 +1155,7 @@ func (gm *Manager) loadEnvironment() []string {
 
 // determineGatewayPort determines the port to use for the gateway
 // If a port is already assigned, it returns that; otherwise finds an available port
-func (gm *Manager) determineGatewayPort() int {
+func (gm *Supervisor) determineGatewayPort() int {
 	if gm.assignedPort > 0 {
 		return gm.assignedPort
 	}
@@ -1171,7 +1171,7 @@ func (gm *Manager) determineGatewayPort() int {
 }
 
 // extractPortFromURL extracts the port number from the configured gateway URL
-func (gm *Manager) extractPortFromURL() int {
+func (gm *Supervisor) extractPortFromURL() int {
 	if !strings.Contains(gm.config.Gateway.URL, ":") {
 		return 8080
 	}
@@ -1193,7 +1193,7 @@ func (gm *Manager) extractPortFromURL() int {
 }
 
 // GetGatewayURL returns the actual gateway URL with the assigned port
-func (gm *Manager) GetGatewayURL() string {
+func (gm *Supervisor) GetGatewayURL() string {
 	if gm.assignedPort == 0 {
 		return gm.config.Gateway.URL
 	}

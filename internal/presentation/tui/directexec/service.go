@@ -17,11 +17,11 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// stateManager is the narrow slice of the app state manager the direct
+// stateStore is the narrow slice of the app state manager the direct
 // executor needs: the current agent mode, chat-session lookup, and
-// tool-execution session bookkeeping. *statemanager.StateManager satisfies it.
-type stateManager interface {
-	agentdomain.AgentModeManager
+// tool-execution session bookkeeping. *statemanager.Store satisfies it.
+type stateStore interface {
+	agentdomain.AgentModeState
 	tui.ChatSessionState
 	tui.ToolExecutionState
 }
@@ -30,7 +30,7 @@ type stateManager interface {
 type Service struct {
 	conversationRepo       convdomain.ConversationRepository
 	toolService            agentdomain.ToolService
-	stateManager           stateManager
+	stateManager           stateStore
 	backgroundShellService scheddomain.BackgroundShellService
 	listener               tui.ChatEventListener
 
@@ -46,7 +46,7 @@ type Service struct {
 type Options struct {
 	ConversationRepo       convdomain.ConversationRepository
 	ToolService            agentdomain.ToolService
-	StateManager           stateManager
+	StateStore             stateStore
 	BackgroundShellService scheddomain.BackgroundShellService
 	Listener               tui.ChatEventListener
 }
@@ -56,7 +56,7 @@ func NewService(opts Options) *Service {
 	return &Service{
 		conversationRepo:       opts.ConversationRepo,
 		toolService:            opts.ToolService,
-		stateManager:           opts.StateManager,
+		stateManager:           opts.StateStore,
 		backgroundShellService: opts.BackgroundShellService,
 		listener:               opts.Listener,
 	}
