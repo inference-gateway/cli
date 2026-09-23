@@ -125,67 +125,99 @@ func (s *ChatShortcutHandler) executeRegistryShortcut(shortcut shortcuts.Shortcu
 				StatusType: tui.StatusWorking,
 			}
 		},
-		s.performShortcutExecution(shortcut, args),
+		s.performShortcutExecution(shortcut, args, shortcutName),
 	)()
 }
 
-// performShortcutExecution performs the async shortcut execution
-func (s *ChatShortcutHandler) performShortcutExecution(shortcut shortcuts.Shortcut, args []string) tea.Cmd {
+// performShortcutExecution runs the shortcut off the Update loop. Each line a
+// command shortcut writes to stderr becomes the status while it runs. Those
+// updates and the final result share one channel drained in order, so a late
+// progress line can never overwrite the final status.
+func (s *ChatShortcutHandler) performShortcutExecution(shortcut shortcuts.Shortcut, args []string, label string) tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
-
-		sessionID := ""
-		if persistentRepo, ok := s.handler.conversationRepo.(*conversation.PersistentConversationRepository); ok {
-			sessionID = persistentRepo.GetCurrentConversationID()
-			logger.Debug("adding session ID to shortcut context", "session_id", sessionID, "shortcut", shortcut.GetName())
-		} else {
-			logger.Debug("conversationRepo is not PersistentConversationRepository", "type", fmt.Sprintf("%T", s.handler.conversationRepo))
-		}
-		ctx = context.WithValue(ctx, agentdomain.SessionIDKey, sessionID)
-
-		result, err := shortcut.Execute(ctx, args)
-		if err != nil {
-			return tui.SetStatusEvent{
-				Message:    fmt.Sprintf("Command failed: %v", err),
-				Spinner:    false,
-				StatusType: tui.StatusDefault,
+		events := make(chan tea.Msg)
+		go func() {
+			defer close(events)
+			ctx := shortcuts.WithProgress(context.Background(), func(line string) {
+				events <- tui.SetStatusEvent{
+					Message:    fmt.Sprintf("%s: %s", label, line),
+					Spinner:    true,
+					StatusType: tui.StatusWorking,
+				}
+			})
+			if msg := s.runShortcut(ctx, shortcut, args); msg != nil {
+				events <- msg
 			}
-		}
-
-		if result.Output != "" {
-			assistantEntry := convdomain.ConversationEntry{
-				Message: sdk.Message{
-					Role:    sdk.Assistant,
-					Content: sdk.NewMessageContent(result.Output),
-				},
-				Model: "",
-				Time:  time.Now(),
-			}
-
-			if addErr := s.handler.conversationRepo.AddMessage(assistantEntry); addErr != nil {
-				logger.Error("failed to add shortcut result message", "error", addErr)
-			}
-
-			if result.SideEffect == shortcuts.SideEffectNone {
-				return tea.Batch(
-					func() tea.Msg {
-						return tui.UpdateHistoryEvent{
-							History: s.handler.conversationRepo.GetMessages(),
-						}
-					},
-					func() tea.Msg {
-						return tui.SetStatusEvent{
-							Message:    "Shortcut action completed",
-							Spinner:    false,
-							StatusType: tui.StatusDefault,
-						}
-					},
-				)()
-			}
-		}
-
-		return s.handleShortcutSideEffect(result.SideEffect, result.Data)
+		}()
+		return drainShortcutEvents(events)()
 	}
+}
+
+// drainShortcutEvents delivers each event before reading the next.
+func drainShortcutEvents(events <-chan tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		msg, ok := <-events
+		if !ok {
+			return nil
+		}
+		return tea.Sequence(func() tea.Msg { return msg }, drainShortcutEvents(events))()
+	}
+}
+
+// runShortcut executes the shortcut and turns its result into the message that
+// finishes it.
+func (s *ChatShortcutHandler) runShortcut(ctx context.Context, shortcut shortcuts.Shortcut, args []string) tea.Msg {
+	sessionID := ""
+	if persistentRepo, ok := s.handler.conversationRepo.(*conversation.PersistentConversationRepository); ok {
+		sessionID = persistentRepo.GetCurrentConversationID()
+		logger.Debug("adding session ID to shortcut context", "session_id", sessionID, "shortcut", shortcut.GetName())
+	} else {
+		logger.Debug("conversationRepo is not PersistentConversationRepository", "type", fmt.Sprintf("%T", s.handler.conversationRepo))
+	}
+	ctx = context.WithValue(ctx, agentdomain.SessionIDKey, sessionID)
+
+	result, err := shortcut.Execute(ctx, args)
+	if err != nil {
+		return tui.SetStatusEvent{
+			Message:    fmt.Sprintf("Command failed: %v", err),
+			Spinner:    false,
+			StatusType: tui.StatusDefault,
+		}
+	}
+
+	if result.Output != "" {
+		assistantEntry := convdomain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: sdk.NewMessageContent(result.Output),
+			},
+			Model: "",
+			Time:  time.Now(),
+		}
+
+		if addErr := s.handler.conversationRepo.AddMessage(assistantEntry); addErr != nil {
+			logger.Error("failed to add shortcut result message", "error", addErr)
+		}
+
+		if result.SideEffect == shortcuts.SideEffectNone {
+			return tea.Batch(
+				func() tea.Msg {
+					return tui.UpdateHistoryEvent{
+						History: s.handler.conversationRepo.GetMessages(),
+					}
+				},
+				func() tea.Msg {
+					return tui.SetStatusEvent{
+						Message:    "Shortcut action completed",
+						Spinner:    false,
+						StatusType: tui.StatusDefault,
+					}
+				},
+			)()
+		}
+	}
+
+	return s.handleShortcutSideEffect(result.SideEffect, result.Data)
 }
 
 // handleShortcutSideEffect handles side effects from shortcut execution

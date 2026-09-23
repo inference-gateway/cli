@@ -73,11 +73,12 @@ func Generate(cmd *cobra.Command, services *container.ServiceContainer, cfg *con
 	}
 
 	modelFlag, _ := cmd.Flags().GetString(ModelFlag)
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Checking the gateway and model...")
 	if err := EnsureModel(cmd.Context(), services, cfg, modelFlag); err != nil {
 		return "", err
 	}
 
-	markdown, path, err := services.GetInsightsGenerator().Generate(cmd.Context(), window)
+	markdown, path, err := services.GetInsightsGenerator().Generate(cmd.Context(), window, cmd.ErrOrStderr())
 	if err != nil {
 		return "", fmt.Errorf("failed to generate insights: %w", err)
 	}
