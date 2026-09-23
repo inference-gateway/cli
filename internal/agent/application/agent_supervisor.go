@@ -60,7 +60,6 @@ func NewAgentSupervisor(sessionID convdomain.SessionID, cfg *config.Config, agen
 		containerRuntime: runtime,
 		containers:       make(map[string]string),
 		assignedPorts:    make(map[string]int),
-		externalAgents:   make(map[string]string),
 		a2aAgentService:  a2aService,
 		probeStop:        make(chan struct{}),
 		agentStates:      make(map[string]agentdomain.AgentState),
@@ -166,13 +165,9 @@ func (am *AgentSupervisor) WaitForAgentsReady(ctx context.Context) {
 
 // initializeExternalAgents loads external agents and monitors their readiness
 func (am *AgentSupervisor) initializeExternalAgents(ctx context.Context) {
-	if len(am.config.A2A.Agents) == 0 {
+	am.externalAgents = ExternalAgents(am.config, am.agentsConfig)
+	if len(am.externalAgents) == 0 {
 		return
-	}
-
-	for _, agentURL := range am.config.A2A.Agents {
-		agentName := AgentNameFromURL(agentURL)
-		am.externalAgents[agentName] = agentURL
 	}
 
 	logger.Info("monitoring external agents", "count", len(am.externalAgents))
@@ -265,6 +260,26 @@ func (am *AgentSupervisor) probeExternalAgent(ctx context.Context, agentName, ag
 	am.containersMutex.Lock()
 	am.agentStates[agentName] = agentdomain.AgentStateReady
 	am.containersMutex.Unlock()
+}
+
+// ExternalAgents returns the agents probed over the network rather than started
+// here, keyed by display name. It mirrors A2AClient.GetConfiguredAgents:
+// INFER_A2A_AGENTS when set (it overrides agents.yaml for the tools too), else
+// the run: false entries of agents.yaml (run: true ones are probed as local).
+func ExternalAgents(cfg *config.Config, agents *config.AgentsConfig) map[string]string {
+	external := make(map[string]string)
+	if len(cfg.A2A.Agents) > 0 {
+		for _, agentURL := range cfg.A2A.Agents {
+			external[AgentNameFromURL(agentURL)] = agentURL
+		}
+		return external
+	}
+	for _, agent := range agents.Agents {
+		if !agent.Run {
+			external[agent.Name] = agent.URL
+		}
+	}
+	return external
 }
 
 // AgentNameFromURL derives a display name (the bare host) from an agent URL.
