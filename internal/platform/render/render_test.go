@@ -184,7 +184,7 @@ func TestRenderJSON_QueuedNoteSplitsAssistantTurns(t *testing.T) {
 	if err := RenderJSON(queuedNoteTurns(note), &out, nil, nil, "session-1", "", nil, &convmocks.FakeConversationRepository{}); err != nil {
 		t.Fatalf("RenderJSON() err = %v", err)
 	}
-	lines := strings.Split(strings.TrimSpace(out.String()), "\n")[1:] // skip the info line
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")[1:]
 	want := [][2]string{{"assistant", "submitted, waiting"}, {"user", note}, {"assistant", "it finished"}}
 	if len(lines) != len(want) {
 		t.Fatalf("got %d message lines, want %d\n%s", len(lines), len(want), out.String())
