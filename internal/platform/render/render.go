@@ -258,8 +258,6 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 				runErr = err
 			}
 		case agentdomain.MessageQueuedEvent:
-			// A drained note starts a new turn without a ChatCompleteEvent (the
-			// headless background-job wait), so flush the turn before it.
 			if note, ok := queuedNote(e); ok {
 				if msg := assistantMessage(agentdomain.ChatCompleteEvent{Timestamp: e.Timestamp}, content.String()); msg != nil {
 					emit(msg)
