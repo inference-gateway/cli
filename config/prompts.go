@@ -105,6 +105,8 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.TextToSpeech, &defaults.TextToSpeech)
 	mergeToolDescription(&loaded.TextToMusic, &defaults.TextToMusic)
 	mergeToolDescription(&loaded.TextToSFX, &defaults.TextToSFX)
+	mergeToolDescription(&loaded.TextToVideo, &defaults.TextToVideo)
+	mergeToolDescription(&loaded.CreateAvatar, &defaults.CreateAvatar)
 }
 
 func mergeToolDescription(loaded, defaults *PromptsToolDescription) {
@@ -235,6 +237,8 @@ type PromptsToolsConfig struct {
 	TextToSpeech        PromptsToolDescription `yaml:"TextToSpeech" mapstructure:"TextToSpeech"`
 	TextToMusic         PromptsToolDescription `yaml:"TextToMusic" mapstructure:"TextToMusic"`
 	TextToSFX           PromptsToolDescription `yaml:"TextToSFX" mapstructure:"TextToSFX"`
+	TextToVideo         PromptsToolDescription `yaml:"TextToVideo" mapstructure:"TextToVideo"`
+	CreateAvatar        PromptsToolDescription `yaml:"CreateAvatar" mapstructure:"CreateAvatar"`
 }
 
 // DefaultPromptsConfig returns the in-code default prompts. This is the
@@ -701,6 +705,20 @@ Generation can take a while (music models are slow); if it fails with a temporar
 Describe the sound in prompt: the event or atmosphere and its character - a whoosh, a click, a riser, room tone, distant thunder. Optionally pass seconds (clip length in seconds, 0.5-30; omitted lets the provider pick a length that fits the prompt) and loop (true for a clip that loops seamlessly). Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP3 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name. To place the clip elsewhere, generate first and then copy the returned file.
 
 Use this for non-speech audio only: speech models are covered by TextToSpeech, music by TextToMusic. Do not claim the clip was played aloud - it is written to disk for the user to open, at the returned path.`,
+		},
+		TextToVideo: PromptsToolDescription{
+			Description: `Render a video clip from a text prompt and save it as an MP4 file. Returns the saved file path.
+
+Describe the shot in prompt. Optionally pass seconds (a string such as "4"; ignored when audio is present) and size (widthxheight such as 720x1280 portrait or 1280x720 landscape; the provider derives the resolution from the shorter side, 480/720/1080). Optionally pass avatar without audio: a library avatar's images are sent as reference images that keep that person consistent in the shot (the default model takes at most 3 and needs its default 8 seconds, so omit seconds), while a bare image file becomes the first frame. Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP4 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name.
+
+For a lip-synced talking clip pass avatar together with audio. avatar is the name of an avatar in the library (a folder under ~/.infer/avatars/; its first image is used) or a bare .png/.jpg/.jpeg/.webp file name in the working directory; an unknown name fails with the list of available avatars. audio is a bare .wav or .mp3 name, looked up in the working directory, then the TextToSpeech output dir. audio requires avatar; the dialogue comes entirely from the audio clip, prompt only describes framing, and the clip keeps the portrait's aspect ratio (the default avatar model supports 480 and 720 resolutions only). All uploads (avatar images and audio) go to a third-party provider and must stay under 10 MiB combined. Renders can take minutes - do not poll between retries. Do not claim the clip was played - it is written to disk for the user to open, at the returned path.`,
+		},
+		CreateAvatar: PromptsToolDescription{
+			Description: `Create an avatar in the TextToVideo avatar library (~/.infer/avatars/<name>/) from a photo of a person, so TextToVideo can render them. Returns the avatar name and its images.
+
+photo is a bare .png/.jpg/.jpeg/.webp file name, looked up in the working directory, then in this session's artifacts directory (where ImageGeneration and ImageEdit save their images) - no directories or absolute paths. The photo is stored as the front image, and each of angles (default: three-quarter-left and three-quarter-right; also left-profile and right-profile; [] stores the photo only) is generated from it with the ImageEdit model, so the photo is sent to that third-party provider. Only create an avatar from a photo the user asked you to use. quality defaults to high and size to 1024x1536.
+
+The tool never overwrites: an existing name fails - pick another name or use the existing avatar. It cannot delete avatars; the user runs infer avatars delete. Then call TextToVideo with avatar set to the name: with audio for a lip-synced clip, without audio to keep the person consistent in a prompt-driven shot.`,
 		},
 		ImageEdit: PromptsToolDescription{
 			Description: `Edit an existing image and save the result as a PNG under ~/.infer/projects/<project-slug>/artifacts/. Returns the saved file path.

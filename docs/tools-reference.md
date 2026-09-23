@@ -654,6 +654,79 @@ text_to_sfx:
 
 ---
 
+### TextToVideo Tool
+
+Render a video clip from a text prompt and save it as an MP4 file; with a portrait and an audio clip the render is a lip-synced talking clip - the face
+half of the desktop's Content workflow, with `TextToSpeech` as the voice half. The clip is generated behind the gateway's Videos API (`/v1/videos`) with
+`text_to_video.model` for prompt renders (default `elevenlabs/veo-3.1-fast-generate-001`) or `text_to_video.avatar_model` for lip-synced renders
+(default `elevenlabs/creatify-aurora`); the CLI holds no provider key, the gateway does. Avatar renders upload the user's
+face and voice to a third-party provider, so the tool is disabled by default: while `text_to_video.enabled` is false the tool definition is not sent to
+the LLM at all. See [text-to-video](text-to-video.md) for setup, the size rules and the upload limit.
+
+**Parameters:**
+
+- `prompt` (required unless `audio` is given): Description of the shot; for avatar renders it describes framing only - the dialogue
+  comes from the audio clip
+- `seconds` (optional): Clip length in seconds as a string; providers accept a limited set of values; ignored when `audio` is present
+- `size` (optional): Output resolution as `widthxheight` (e.g. `720x1280` portrait or `1280x720` landscape), passed through verbatim; omitted means the
+  provider default; `creatify-aurora` renders 480p or 720p only and keeps the portrait's aspect ratio
+- `avatar` (optional): The name of an avatar in the library (`~/.infer/avatars/<name>/`; see `infer avatars list`), or a bare
+  file name of a .png, .jpg, .jpeg or .webp portrait in the working directory; required with `audio`. With `audio` the avatar's
+  first image is lip-synced; without it a library avatar's images all go as `reference_images` (Veo takes at most 3), while a bare
+  file becomes the first frame
+- `audio` (optional): Bare file name of a `.wav` or `.mp3` clip that drives the render, looked up in the working directory then in the
+  `TextToSpeech` output directory; requires `avatar`
+- `output_path` (optional): Bare file name (no directories or absolute paths) for the generated MP4, placed inside
+  `text_to_video.output_dir`; defaults to a timestamped file
+
+**Configuration:**
+
+```yaml
+text_to_video:
+  enabled: true
+  # model: elevenlabs/veo-3.1-fast-generate-001 # prompt renders
+  # avatar_model: elevenlabs/creatify-aurora     # lip-synced avatar renders
+  # size: 720x1280                    # optional widthxheight passthrough
+  # output_dir: ~/.infer/tmp/video
+  # timeout: 900                      # whole-render timeout (seconds)
+  # poll_interval: 5                  # job status poll cadence (seconds)
+  require_approval: false # optional; unset = no approval, like the image tools
+```
+
+---
+
+### CreateAvatar Tool
+
+Create an avatar in the TextToVideo library (`~/.infer/avatars/<name>/`) from a photo: the agent-side twin of `infer avatars create`.
+The photo is stored as `01-front` (a JPEG upright and without metadata) and each requested angle is generated from it with
+`tools.image_edit.model`, so the photo goes to that provider. Registered only when both `text_to_video.enabled` and
+`text_to_video.create_avatar` are true, and it requires approval by default (`text_to_video.require_approval` overrides).
+See [text-to-video](text-to-video.md#createavatar-tool).
+
+**Parameters:**
+
+- `name` (required): Bare name of the new avatar; an existing name fails, nothing is overwritten
+- `photo` (required): Bare file name of a `.png`, `.jpg`, `.jpeg` or `.webp` photo, looked up in the working directory, then in the
+  session's artifacts directory; absolute paths, directories and `..` are rejected
+- `angles` (optional): Views to generate - `three-quarter-left`, `three-quarter-right`, `left-profile`, `right-profile`; defaults to
+  both three-quarter views, `[]` stores the photo only
+- `quality` (optional): `auto`, `low`, `medium`, `high` (default) or `standard`
+- `size` (optional): Generated image size as `WIDTHxHEIGHT` or `auto` (default `1024x1536`)
+
+**Configuration:**
+
+```yaml
+text_to_video:
+  enabled: true
+  create_avatar: true
+tools:
+  image_edit:
+    enabled: true              # needed to generate angles
+    model: openai/gpt-image-2
+```
+
+---
+
 ## Vision Tools
 
 ### Computer Tool

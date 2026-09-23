@@ -506,6 +506,10 @@ func (gm *Manager) runContainer(ctx context.Context) error {
 		args = append(args, "-e", "IMAGES_ENABLED=true")
 	}
 
+	if gm.config.TextToVideo.Enabled {
+		args = append(args, "-e", "VIDEOS_ENABLED=true")
+	}
+
 	if gm.config.NeedsGatewayAudio() {
 		args = append(args, "-e", "AUDIO_ENABLED=true")
 		args = append(args, "-e", fmt.Sprintf("AUDIO_LOCAL_AUTO_DOWNLOAD=%t", gm.config.TextToSpeech.AutoDownload))
@@ -1063,6 +1067,10 @@ func (gm *Manager) runBinary(binaryPath string) error {
 
 	if gm.config.Tools.ImageGeneration.Enabled || gm.config.Tools.ImageEdit.Enabled || gm.config.Tools.ImageVariation.Enabled {
 		cmd.Env = append(cmd.Env, "IMAGES_ENABLED=true")
+	}
+
+	if gm.config.TextToVideo.Enabled {
+		cmd.Env = append(cmd.Env, "VIDEOS_ENABLED=true")
 	}
 
 	if gm.config.NeedsGatewayAudio() {

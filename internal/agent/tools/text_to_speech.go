@@ -92,12 +92,22 @@ func (t *TextToSpeechTool) Validate(args map[string]any) error {
 // the working directory, falling back to the desktop voice samples library
 // (~/.infer/models/tts/samples), and returns an empty path for the stock voice.
 func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
+	dir, _ := voiceSamplesDir() // an unusable samples dir just drops the fallback
+	return resolveMediaInputPath(t.config, dir, raw, "voice_sample", "WAV file")
+}
+
+// resolveMediaInputPath is the shared input-file rule for the media tools
+// (TextToSpeech voice samples, TextToVideo avatars and driving audio): a
+// bare file name (no directories, absolute paths or ..) looked up in the
+// working directory first, then in dir; an empty name resolves to an empty
+// path (input omitted).
+func resolveMediaInputPath(cfg *config.Config, dir, raw, label, kind string) (string, error) {
 	name := strings.TrimSpace(raw)
 	if name == "" {
 		return "", nil
 	}
 	if filepath.IsAbs(name) || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
-		return "", fmt.Errorf("invalid voice_sample path %q: pass a bare file name inside the working directory", raw)
+		return "", fmt.Errorf("invalid %s path %q: pass a bare file name inside the working directory", label, raw)
 	}
 	base := filepath.Base(name)
 
@@ -106,13 +116,13 @@ func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
 		return "", fmt.Errorf("resolving working directory: %w", err)
 	}
 	workPath := filepath.Join(workDir, base)
-	if err := t.config.ValidatePathInSandbox(workPath); err != nil {
+	if err := cfg.ValidatePathInSandbox(workPath); err != nil {
 		return "", err
 	}
 
 	tried := []string{workPath}
-	if samplesDir, samplesErr := voiceSamplesDir(); samplesErr == nil {
-		tried = append(tried, filepath.Join(samplesDir, base))
+	if dir != "" {
+		tried = append(tried, filepath.Join(dir, base))
 	}
 	for _, path := range tried {
 		info, statErr := os.Stat(path)
@@ -126,7 +136,7 @@ func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
 		_ = f.Close()
 		return path, nil
 	}
-	return "", fmt.Errorf("voice_sample %q not found as a readable WAV file (tried: %s)", raw, strings.Join(tried, ", "))
+	return "", fmt.Errorf("%s %q not found as a readable %s (tried: %s)", label, raw, kind, strings.Join(tried, ", "))
 }
 
 // voiceSamplesDir returns the desktop-managed voice samples library

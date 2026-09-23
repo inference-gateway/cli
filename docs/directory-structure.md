@@ -65,6 +65,7 @@ for the full precedence rules.
 │   ├── export.yaml
 │   └── a2a.yaml
 ├── skills/               # Agent Skills - SKILL.md folders, see docs/skills.md
+├── avatars/              # TextToVideo avatar library: <name>/ folders of portrait images; survives /reset
 ├── schedules/            # cron-driven scheduled jobs (one YAML per job)
 ├── plans/                # plan-mode plans saved by RequestPlanApproval (one .md per plan)
 ├── insights/             # /insights session reports (one .md per run); survives /reset
@@ -75,6 +76,7 @@ for the full precedence rules.
 │   ├── tts/              # generated speech WAVs (text_to_speech.output_dir default)
 │   ├── music/            # generated music MP3s (text_to_music.output_dir default)
 │   ├── sfx/              # generated sound-effect MP3s (text_to_sfx.output_dir default)
+│   ├── video/            # generated video MP4s (text_to_video.output_dir default)
 │   ├── voice/            # retained inbound voice recordings (speech_to_text.recordings_dir default)
 │   └── media/            # retained inbound Telegram media (channels.telegram.media.dir default)
 ├── bin/                  # downloaded gateway binary, one shared copy per machine
@@ -214,6 +216,11 @@ the project-local `.infer/`.
 - **`~/.infer/tmp/sfx/`** *(userspace)* - generated sound-effect MP3s, the default
   of `text_to_sfx.output_dir`. See
   [Text to SFX](tools-reference.md#texttosfx-tool).
+- **`~/.infer/tmp/video/`** *(userspace)* - generated video MP4s, the default of
+  `text_to_video.output_dir`. See [Text to Video](text-to-video.md).
+- **`~/.infer/avatars/`** *(userspace)* - the avatar library: one folder per avatar
+  holding one or more portrait images, managed with `infer avatars create|list|delete` and
+  kept by `/reset`. See [Text to Video](text-to-video.md#avatar-library).
 - **`~/.infer/tmp/voice/`** *(userspace)* - retained inbound voice/audio
   recordings, the default of `speech_to_text.recordings_dir` when
   `retain_recordings` is greater than 0. See [Speech to

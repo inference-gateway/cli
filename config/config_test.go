@@ -754,6 +754,23 @@ func TestIsApprovalRequired(t *testing.T) {
 			toolName: "TodoWrite",
 			expected: true,
 		},
+		{
+			name: "createavatar requires approval by default even with global false",
+			setup: func(cfg *Config) {
+				cfg.Tools.Safety.RequireApproval = false
+			},
+			toolName: "CreateAvatar",
+			expected: true,
+		},
+		{
+			name: "createavatar follows an explicit text_to_video.require_approval",
+			setup: func(cfg *Config) {
+				cfg.Tools.Safety.RequireApproval = true
+				cfg.TextToVideo.RequireApproval = &[]bool{false}[0]
+			},
+			toolName: "CreateAvatar",
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {
