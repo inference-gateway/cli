@@ -689,9 +689,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewTracesShortcut())
 
 	if c.stores != nil {
-		// No retry: a gateway that cuts the answer off mid-way (write timeout)
-		// cuts every retry off the same way, multiplying the wait before the
-		// error surfaces. The user reruns /insights anyway.
 		c.insights = insights.New(c.newSDKClient(&sdk.RetryConfig{}), c.config, c.stores.Conversations, c.modelService)
 	}
 
