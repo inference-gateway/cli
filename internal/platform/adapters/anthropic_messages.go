@@ -123,10 +123,6 @@ func (a *AnthropicMessages) CreateImageEdit(ctx context.Context, provider sdk.Pr
 	return a.inner.CreateImageEdit(ctx, provider, request)
 }
 
-func (a *AnthropicMessages) CreateImageVariation(ctx context.Context, provider sdk.Provider, request sdk.CreateImageVariationMultipartBody) (*sdk.ImagesResponse, error) {
-	return a.inner.CreateImageVariation(ctx, provider, request)
-}
-
 func (a *AnthropicMessages) CreateSpeech(ctx context.Context, provider sdk.Provider, request sdk.CreateSpeechRequest) ([]byte, error) {
 	return a.inner.CreateSpeech(ctx, provider, request)
 }
