@@ -35,3 +35,25 @@ func TestApplySidecarEnv_StrictScalars(t *testing.T) {
 		})
 	}
 }
+
+// TestInitConfigMCPEnvOverrides pins issue #1295: INFER_MCP_* env vars must
+// override the mcp.yaml sidecar (or its defaults when the file is missing)
+// instead of being dropped when the sidecar load replaces cfg.MCP wholesale.
+func TestInitConfigMCPEnvOverrides(t *testing.T) {
+	splitHomeProjectEnv(t)
+	t.Setenv("INFER_MCP_ENABLED", "true")
+	t.Setenv("INFER_MCP_CONNECTION_TIMEOUT", "45")
+	t.Setenv("INFER_MCP_DISCOVERY_TIMEOUT", "60")
+
+	initConfig()
+
+	if !Cfg.MCP.Enabled {
+		t.Error("INFER_MCP_ENABLED=true must enable MCP even when mcp.yaml is missing")
+	}
+	if Cfg.MCP.ConnectionTimeout != 45 {
+		t.Errorf("ConnectionTimeout = %d, want 45", Cfg.MCP.ConnectionTimeout)
+	}
+	if Cfg.MCP.DiscoveryTimeout != 60 {
+		t.Errorf("DiscoveryTimeout = %d, want 60", Cfg.MCP.DiscoveryTimeout)
+	}
+}
