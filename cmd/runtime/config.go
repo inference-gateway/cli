@@ -267,6 +267,7 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 		mcpConfig = config.DefaultMCPConfig()
 	}
 	cfg.MCP = *mcpConfig
+	applySidecarEnv(&cfg.MCP, "mcp")
 
 	kbPath := sidecarPath(config.KeybindingsFileName)
 	kbConfig, err := config.LoadKeybindings(kbPath)
