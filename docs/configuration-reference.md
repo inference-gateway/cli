@@ -1066,14 +1066,21 @@ Format: `INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_<FIELD>`
 
 ## Environment Variable Substitution
 
-Configuration values support environment variable substitution using the `%VAR_NAME%` syntax:
+Values in `config.yaml` are **not** expanded - the file is read with Viper and values are passed
+through literally, so a placeholder such as `%VAR_NAME%` would reach your services as-is. Keep
+secrets out of `config.yaml` and supply them via `INFER_*` environment variables instead:
 
-```yaml
-gateway:
-  api_key: "%INFER_API_KEY%"
+```bash
+export INFER_GATEWAY_API_KEY=...
 ```
 
-This allows sensitive values to be stored as environment variables while keeping them out of configuration files.
+Any config key can be overridden from the environment with `INFER_<PATH_WITH_UNDERSCORES>` (for
+example `INFER_STORAGE_POSTGRES_PASSWORD` for `storage.postgres.password`); environment values
+take precedence over file values.
+
+Only the split sidecar YAML files (`channels.yaml`, `heartbeat.yaml`, `computer_use.yaml`,
+`browser_use.yaml`, ...) support environment substitution, using `${VAR}` syntax
+(see `config/utils/yamlfile.go`).
 
 ---
 
@@ -1082,7 +1089,7 @@ This allows sensitive values to be stored as environment variables while keeping
 ### Security
 
 - **Never commit sensitive data** (API keys, tokens) to configuration files
-- Use environment variable substitution (`%VAR_NAME%`) for sensitive values
+- Use `INFER_*` environment variables for sensitive values - `config.yaml` values are not expanded
 - Use environment variables (`INFER_*`) for CI/CD environments
 
 ### Organization

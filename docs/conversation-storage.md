@@ -220,15 +220,15 @@ storage:
     host: localhost
     port: 5432
     database: infer_conversations
-    username: "%POSTGRES_USER%"     # Can use environment variables
-    password: "%POSTGRES_PASSWORD%" # Can use environment variables
+    username: infer_user      # override with INFER_STORAGE_POSTGRES_USERNAME
+    password: your_password   # override with INFER_STORAGE_POSTGRES_PASSWORD
     ssl_mode: prefer
 
   # Redis configuration (used when type: redis)
   redis:
     host: localhost
     port: 6379
-    password: "%REDIS_PASSWORD%"  # Can use environment variables
+    password: ""  # override with INFER_STORAGE_REDIS_PASSWORD
     db: 0  # Redis database number
 ```
 
@@ -282,8 +282,8 @@ Listings scope to that project by default:
        host: your-postgres-host
        port: 5432
        database: infer_conversations
-       username: "%POSTGRES_USER%"
-       password: "%POSTGRES_PASSWORD%"
+       username: your-postgres-user
+       password: your-postgres-password
    ```
 
 4. **For Redis storage**:
@@ -295,37 +295,32 @@ Listings scope to that project by default:
      redis:
        host: your-redis-host
        port: 6379
-       password: "%REDIS_PASSWORD%"
+       password: your-redis-password
    ```
 
 5. **For in-memory storage**:
    - Set `enabled: false` or `type: memory`
    - Conversations are lost when the CLI exits
 
+Credentials can also come from the environment instead of the config file: set
+`INFER_STORAGE_POSTGRES_USERNAME`, `INFER_STORAGE_POSTGRES_PASSWORD`, or
+`INFER_STORAGE_REDIS_PASSWORD` (values in `config.yaml` are not expanded).
+
 ## Usage
 
 ### Starting a New Conversation
 
-When you start the CLI, you automatically begin a new conversation. To explicitly start with a title:
+When you start the CLI, you automatically begin a new conversation. To start a new one explicitly:
 
 ```bash
-/save My Important Discussion
+/new                          # Start a new conversation
+/new My Important Discussion  # Start a new conversation with a title
 ```
 
 ### Saving Conversations
 
-Save your current conversation:
-
-```bash
-# Save with auto-generated title
-/save
-
-# Save with custom title
-/save Discussion about API Design
-
-# Save with multi-word title
-/save Planning the Q4 Product Roadmap
-```
+Conversations are saved automatically after each interaction - there is no `/save` command.
+Use `/new [title]` to start a fresh titled conversation.
 
 ### Resuming Conversations
 
@@ -503,11 +498,12 @@ storage:
 
 ```yaml
 # Verify Redis is running
-redis:
-  host: localhost
-  port: 6379
-  database: 0
-  password: ""  # Remove if no auth
+storage:
+  redis:
+    host: localhost
+    port: 6379
+    db: 0
+    password: ""  # Remove if no auth
 ```
 
 ### Migration
@@ -516,7 +512,8 @@ When switching storage backends, you'll need to export/import conversations manu
 functionality that can help with migration:
 
 ```bash
-/compact  # Exports current conversation to markdown
+/export                    # Export the current conversation to markdown (TUI)
+infer export <session-id>  # Export a stored conversation to markdown (shell)
 ```
 
 ## API Reference
@@ -541,10 +538,10 @@ type ConversationStorage interface {
 ### Factory Function
 
 ```go
-// Create storage instance from configuration
-storage, err := storage.NewStorage(config)
+// Create storage from configuration
+stores, err := storage.NewStorage(storage.NewStorageFromConfig(cfg))
 if err != nil {
     log.Fatal("Failed to create storage:", err)
 }
-defer storage.Close()
+// stores.Conversations implements ConversationStorage
 ```
