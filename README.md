@@ -878,13 +878,13 @@ pricing:
 # Disable cost tracking entirely
 export INFER_PRICING_ENABLED=false
 
-# Override specific model pricing (use underscores in model names)
-export INFER_PRICING_CUSTOM_PRICES_OPENAI_GPT_4O_INPUT_PRICE_PER_MTOKEN=3.00
-export INFER_PRICING_CUSTOM_PRICES_OPENAI_GPT_4O_OUTPUT_PRICE_PER_MTOKEN=12.00
-
 # Hide cost from status bar
 export INFER_CHAT_STATUS_BAR_INDICATORS_COST=false
 ```
+
+> **Note:** `pricing.custom_prices` is a map keyed by `provider/model`, so its entries
+> cannot be set through environment variables. Override per-model pricing only via
+> the `custom_prices` block in `config.yaml` (shown above).
 
 **Status Bar Configuration:**
 
@@ -965,9 +965,12 @@ tools:
 
 ### Approval UI Controls
 
-- **y / Enter** - Approve execution
-- **n / Esc** - Reject execution
-- **a** - Auto-approve (disables approval for session)
+The approval box is an inline select: **left / right** moves between
+**Approve**, **Reject** and **Auto-Approve**, **enter** confirms.
+
+- **Left / Right** - Choose an option
+- **Enter** - Confirm the highlighted choice
+- **Esc** - Reject execution
 
 ## Shortcuts
 
@@ -1036,7 +1039,7 @@ actions.
 - `/shells` - List running and recent background shell processes
 - `/export` - Export the current conversation to markdown
 - `/env` - Generate a `.env.example` with all provider API keys
-- `/agents [list|add|remove|enable|disable]` - Manage A2A agents
+- `/agents [list|add|remove]` - Manage A2A agents
 - `/skills [list|install|uninstall]` - Manage Agent Skills
 
 ### AI-Powered Snippets
@@ -1321,7 +1324,7 @@ When enabled, the agent can inspect and control the desktop - read accessible co
 label, capture screenshots, move and click the mouse, scroll, and type text or key combinations. The
 display backend is detected automatically across **macOS**, **Linux**, and **Windows**.
 
-Computer Use is **off by default**. Turn it on in `computer_use.yaml` (or `infer config set computer_use.enabled true`):
+Computer Use is **off by default**. Turn it on in `computer_use.yaml` (or with `INFER_COMPUTER_USE_ENABLED=true`):
 
 ```yaml
 # .infer/computer_use.yaml
@@ -1403,9 +1406,14 @@ Two lightweight extension points fire at fixed **agent-loop hook points** - `pre
 `post_session`:
 
 - **Reminders** (`reminders.yaml`) inject a `<system-reminder>` text block at a hook point, gated by a
-  trigger (`always`, `interval`, `turns_before_max`, or `once`). Reminders ship **enabled** with two
-  defaults: `todo-hygiene` (nudges the agent to keep a todo list) and `memory-consult` (points it at
-  the memory index; auto-pruned when memory is off).
+  trigger (`always`, `interval`, `once_after`, `turns_before_max`, `once`, `on_failure`,
+  `on_mode_change`, `on_repeated_failure`, `on_truncation`, `on_stalled_todos`, or
+  `on_empty_response`; see the [configuration reference](docs/configuration-reference.md) for the
+  full table). Reminders ship **enabled** with nine defaults: `todo-hygiene` (nudges the agent to
+  keep a todo list), `mode-change-reminder`, `user-intent-focus`, `repeated-failure`,
+  `todo-continuation`, `truncation-continuation`, `empty-response-continuation`, and the memory
+  reminders `memory-consult` (points it at the memory index) and `memory-hygiene`; the memory ones
+  are auto-pruned when memory is off.
 - **Command Hooks** (`hooks.yaml`) run a shell command at a hook point - the executable sibling of
   reminders. They are **off by default**; each command still faces the per-mode bash allow-list when
   the agent runs it, so allow-list the command and set `enabled: true` to turn hooks on.
