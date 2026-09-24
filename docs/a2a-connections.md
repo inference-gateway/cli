@@ -205,7 +205,7 @@ Notes:
 - **Parameters**:
   - `agent_url` (required): URL of the A2A agent
   - `task_description` (required): Description of the task to perform
-  - `metadata` (optional): Additional task metadata as key-value pairs
+  - `context_id` (optional): Context ID from an earlier task to continue that conversation with the agent; omitting it starts an independent task
 - **Returns**: Task result with ID, status, and response content
 - **Behavior**: Submits task and waits for streaming completion
 
