@@ -218,6 +218,9 @@ the project-local `.infer/`.
   [Text to SFX](tools-reference.md#texttosfx-tool).
 - **`~/.infer/tmp/video/`** *(userspace)* - generated video MP4s, the default of
   `text_to_video.output_dir`. See [Text to Video](text-to-video.md).
+- **`~/.infer/tmp/recordings/`** *(userspace)* - screen recordings from
+  `RecordStart`, the default of `computer_use.recording.output_dir`. See
+  [RecordStart and RecordStop](tools-reference.md#recordstart-and-recordstop-tools).
 - **`~/.infer/avatars/`** *(userspace)* - the avatar library: one folder per avatar
   holding one or more portrait images, managed with `infer avatars create|list|delete` and
   kept by `/reset`. See [Text to Video](text-to-video.md#avatar-library).

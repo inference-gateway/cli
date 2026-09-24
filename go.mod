@@ -107,8 +107,8 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/inference-gateway/tokenless v0.9.0
 	github.com/invopop/jsonschema v0.14.0 // indirect
-	github.com/jezek/xgb v1.3.1 // indirect
-	github.com/jezek/xgbutil v0.0.0-20260124183602-9fd151d6a51a // indirect
+	github.com/jezek/xgb v1.3.1
+	github.com/jezek/xgbutil v0.0.0-20260124183602-9fd151d6a51a
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
@@ -138,7 +138,7 @@ require (
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/tailscale/win v0.0.0-20260619195133-2d76c33a64c1 // indirect
+	github.com/tailscale/win v0.0.0-20260619195133-2d76c33a64c1
 	github.com/tidwall/gjson v1.19.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
@@ -162,7 +162,7 @@ require (
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/sys v0.48.0
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260831171406-18b4a7587f8a // indirect

@@ -150,6 +150,9 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string, appro
 	if !toolService.IsToolEnabled(toolName) {
 		return fmt.Errorf("tool %s is not enabled", toolName)
 	}
+	if toolName == "RecordStart" || toolName == "RecordStop" {
+		return fmt.Errorf("tool %s needs a running chat or headless session: a one-shot execution would leave the recording unfinalized", toolName)
+	}
 
 	argsJSON, _ := json.Marshal(toolArgs)
 	toolCall := sdk.ChatCompletionMessageToolCallFunction{

@@ -349,6 +349,31 @@ vision:
         max_age: 24h
 ```
 
+### Screen Recording (computer_use.yaml)
+
+Settings for the [RecordStart and RecordStop](tools-reference.md#recordstart-and-recordstop-tools)
+tools, under `recording` in **`computer_use.yaml`** (project `./.infer/computer_use.yaml` overrides
+userspace `~/.infer/computer_use.yaml`). Recording works without `computer_use.enabled`.
+
+```yaml
+recording:
+  enabled: false # register RecordStart/RecordStop
+  max_duration: 120 # seconds; a recording stops and finalizes itself at this cap
+  output_dir: "" # empty = ~/.infer/tmp/recordings
+  framerate: 15 # frames per second
+```
+
+- **computer_use.recording.enabled**: Register the recording tools (default: false)
+- **computer_use.recording.max_duration**: Maximum recording length in seconds (default: 120; must
+  be positive when enabled)
+- **computer_use.recording.output_dir**: Where recordings are written (default:
+  `~/.infer/tmp/recordings`, created on first use)
+- **computer_use.recording.framerate**: Capture frame rate (default: 15; must be positive when enabled)
+
+Environment overrides: `INFER_COMPUTER_USE_RECORDING_ENABLED`,
+`INFER_COMPUTER_USE_RECORDING_MAX_DURATION`, `INFER_COMPUTER_USE_RECORDING_OUTPUT_DIR`,
+`INFER_COMPUTER_USE_RECORDING_FRAMERATE`.
+
 ### Compact Settings
 
 - **compact.enabled**: Enable automatic mid-conversation compaction at the `auto_at`

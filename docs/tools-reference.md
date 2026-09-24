@@ -750,6 +750,52 @@ The `accessibility` and `press` actions accept an optional `target`: `frontmost`
 Under `computer_use.approval: destructive`, `accessibility`, `screenshot`, and `cursor` bypass
 approval; `press` and the input actions require approval.
 
+### RecordStart and RecordStop Tools
+
+Record the screen to an MP4 file (H.264, `yuv420p`, plays in browsers and QuickTime). Enabled by
+`computer_use.recording.enabled` (off by default; see
+[Configuration Reference](configuration-reference.md#screen-recording-computer_useyaml)).
+
+**RecordStart parameters:**
+
+- `mode` (optional): `screen` (default, the entire primary display), `window`, or `region`
+- `window` (`mode=window` only): `frontmost` (default), `app:<name>`, `pid:<number>`, or a bare
+  application name - the same syntax as the `Computer` tool's `target`
+- `region` (`mode=region` only): `{x, y, width, height}` in the frame coordinate space, the same space
+  as `Computer` screenshots and accessibility bounding boxes
+
+```json
+{"mode": "screen"}
+{"mode": "window", "window": "app:Safari"}
+{"mode": "region", "region": {"x": 0, "y": 80, "width": 1280, "height": 720}}
+```
+
+`RecordStart` returns the file path and the captured rectangle, then keeps recording in the background.
+`RecordStop` takes no arguments and returns the path, duration, and size. Behaviour:
+
+- One recording at a time: a second `RecordStart`, or `RecordStop` with nothing recording, returns an
+  error and leaves the active recording alone.
+- A recording stops and finalizes itself at `computer_use.recording.max_duration` (default 120s);
+  `RecordStop` still returns that file.
+- When the CLI exits (normal exit, Ctrl+C, SIGTERM) an active recording is finalized, and no ffmpeg
+  process is left behind. Call `RecordStop` in the same session: channel and scheduled runs each
+  start a fresh process. `infer tools execute` refuses both tools.
+- `window` mode records the window's bounds at the moment the recording starts; anything drawn over
+  that area is recorded too, and moving the window does not move the capture.
+- Files go to `~/.infer/tmp/recordings/<timestamp>.mp4` unless `output_dir` is set.
+- The chat status bar shows `● REC` while a recording runs.
+
+**Requirements:** ffmpeg with libx264 and the platform's screen grabber. The recorder uses `ffmpeg`
+from `PATH`, otherwise downloads the prebuilt binary into `~/.infer/bin`.
+
+- macOS: your terminal app needs the Screen Recording permission, plus Accessibility for `window` mode
+  (System Settings > Privacy & Security).
+- Linux: an X11 session (`x11grab`). Wayland is not supported yet.
+- Windows: `gdigrab`, no extra permission.
+
+Both tools follow `computer_use.approval`: under `destructive` they count as observations and bypass
+approval; under `always` they require it.
+
 ### GetLatestFrame Tool
 
 Fetch the most recent frame from a named frame source: the built-in `screen` source (computer-use

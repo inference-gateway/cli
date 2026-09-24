@@ -87,6 +87,23 @@ func (p *subprocessProvider) Press(ctx context.Context, target, label string) er
 	return err
 }
 
+// WindowBounds returns the [x1, y1, x2, y2] screen bounds (logical points)
+// of the focused window of target, which uses the same syntax as Elements.
+func WindowBounds(ctx context.Context, target string) ([4]int, error) {
+	if runtime.GOOS != "darwin" {
+		return [4]int{}, fmt.Errorf("%w: %s", ErrUnsupported, runtime.GOOS)
+	}
+	p := &subprocessProvider{command: helperCommand, timeout: helperTimeout}
+	resp, err := p.call(ctx, request{Action: "window", Target: target})
+	if err != nil {
+		return [4]int{}, err
+	}
+	if len(resp.Elements) == 0 {
+		return [4]int{}, fmt.Errorf("%w: no window for target %q", ErrElementNotFound, target)
+	}
+	return resp.Elements[0].BBox, nil
+}
+
 func (p *subprocessProvider) call(ctx context.Context, req request) (response, error) {
 	timeout := p.timeout
 	if timeout <= 0 {

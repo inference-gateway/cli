@@ -87,6 +87,28 @@ func TestDefaultComputerUseConfig(t *testing.T) {
 	if cfg.RateLimit.WindowSeconds != 60 {
 		t.Errorf("Expected RateLimit.WindowSeconds=60, got %d", cfg.RateLimit.WindowSeconds)
 	}
+	if cfg.Recording.Enabled || cfg.Recording.MaxDuration != 120 || cfg.Recording.Framerate != 15 || cfg.Recording.OutputDir != "" {
+		t.Errorf("Expected Recording {false 120 15 \"\"}, got %+v", cfg.Recording)
+	}
+}
+
+func TestRecordingConfigResolveOutputDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	got, err := config.RecordingConfig{}.ResolveOutputDir()
+	if err != nil {
+		t.Fatalf("ResolveOutputDir() error: %v", err)
+	}
+	if want := filepath.Join(home, config.ConfigDirName, "tmp", "recordings"); got != want {
+		t.Errorf("ResolveOutputDir() = %q, want %q", got, want)
+	}
+
+	got, _ = config.RecordingConfig{OutputDir: "/srv/rec"}.ResolveOutputDir()
+	if got != "/srv/rec" {
+		t.Errorf("ResolveOutputDir() with output_dir = %q, want /srv/rec", got)
+	}
 }
 
 //nolint:gocognit // table-driven with per-case check closures

@@ -12,3 +12,10 @@ type ModelSelectedEvent struct {
 type BrowserExtensionStatusEvent struct {
 	Connected bool
 }
+
+// ScreenRecordingStatusEvent is pushed through the UI notifier when a
+// RecordStart screen recording begins or its ffmpeg process ends (RecordStop,
+// the max_duration cap, or shutdown).
+type ScreenRecordingStatusEvent struct {
+	Active bool
+}

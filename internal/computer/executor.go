@@ -212,11 +212,11 @@ func (e *Executor) pointer(ctx context.Context, controller display.DisplayContro
 	return nil
 }
 
-// captureRegion re-captures a frame-space rectangle at native resolution,
-// downscaled only when it exceeds the annotator image limits.
-func captureRegion(ctx context.Context, controller display.DisplayController, r *computerdomain.Region, frameW, frameH, screenW, screenH int) (image.Image, error) {
+// frameRegionToScreen validates a frame-space rectangle and scales it to
+// screen coordinates, rounding the size up and clamping it to the screen.
+func frameRegionToScreen(r *computerdomain.Region, frameW, frameH, screenW, screenH int) (display.Region, error) {
 	if r.Width <= 0 || r.Height <= 0 || r.X < 0 || r.Y < 0 || r.X+r.Width > frameW || r.Y+r.Height > frameH {
-		return nil, fmt.Errorf("region [x=%d y=%d w=%d h=%d] is outside the %dx%d frame space", r.X, r.Y, r.Width, r.Height, frameW, frameH)
+		return display.Region{}, fmt.Errorf("region [x=%d y=%d w=%d h=%d] is outside the %dx%d frame space", r.X, r.Y, r.Width, r.Height, frameW, frameH)
 	}
 	crop := display.Region{
 		X:      r.X * screenW / frameW,
@@ -226,6 +226,16 @@ func captureRegion(ctx context.Context, controller display.DisplayController, r 
 	}
 	crop.Width = min(crop.Width, screenW-crop.X)
 	crop.Height = min(crop.Height, screenH-crop.Y)
+	return crop, nil
+}
+
+// captureRegion re-captures a frame-space rectangle at native resolution,
+// downscaled only when it exceeds the annotator image limits.
+func captureRegion(ctx context.Context, controller display.DisplayController, r *computerdomain.Region, frameW, frameH, screenW, screenH int) (image.Image, error) {
+	crop, err := frameRegionToScreen(r, frameW, frameH, screenW, screenH)
+	if err != nil {
+		return nil, err
+	}
 
 	img, err := controller.CaptureScreen(ctx, &crop)
 	if err != nil {

@@ -503,6 +503,10 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		app.inputStatusBar.SetBrowserConnected(event.Connected)
 	}
 
+	if event, ok := msg.(agentdomain.ScreenRecordingStatusEvent); ok {
+		app.inputStatusBar.SetScreenRecording(event.Active)
+	}
+
 	if event, ok := msg.(agentdomain.MCPServerStatusUpdateEvent); ok {
 		if cmd := app.handleMCPStatusUpdate(event); cmd != nil {
 			cmds = append(cmds, cmd)

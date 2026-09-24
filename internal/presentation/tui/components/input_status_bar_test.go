@@ -1219,6 +1219,22 @@ func TestInputStatusBar_RenderRightSegmentDropOrder(t *testing.T) {
 		})
 	}
 
+	statusBar.SetScreenRecording(true)
+	for _, tc := range []struct {
+		lineWidth int
+		want      string
+	}{
+		{20, "● REC • cli v0.186.0 • gw v0.50.0 • ● Browser"},
+		{50, "● REC • ● Browser"},
+		{62, "● REC • ●"},
+		{66, "● REC"},
+	} {
+		if got := strings.TrimLeft(ansi.Strip(statusBar.renderRightSegment(tc.lineWidth)), " "); got != tc.want {
+			t.Fatalf("recording renderRightSegment(%d) = %q, want %q", tc.lineWidth, got, tc.want)
+		}
+	}
+	statusBar.SetScreenRecording(false)
+
 	statusBar.config.BrowserUse.Enabled = false
 	got := strings.TrimLeft(ansi.Strip(statusBar.renderRightSegment(20)), " ")
 	if got != "cli v0.186.0 • gw v0.50.0" {

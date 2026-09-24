@@ -464,8 +464,12 @@ func (r *Registry) GetBackgroundShellService() scheddomain.BackgroundShellServic
 }
 
 // IsComputerUseTool returns true if the given tool name is a computer use tool
-// Computer use tools operate directly on the computer (mouse, keyboard, screenshot)
-// and bypass the standard approval flow
+// Computer use tools operate directly on the computer (mouse, keyboard,
+// screenshot, screen recording) and bypass the standard approval flow
 func IsComputerUseTool(toolName string) bool {
-	return toolName == "Computer" || toolName == "GetLatestFrame"
+	switch toolName {
+	case "Computer", "GetLatestFrame", "RecordStart", "RecordStop":
+		return true
+	}
+	return false
 }

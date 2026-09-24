@@ -149,6 +149,7 @@ type ServiceContainer struct {
 	uiNotifier               *uiNotifierHolder
 	extensionBridge          *browserinfra.ExtensionBridge
 	browserDriver            browserdomain.BrowserDriver
+	screenRecorder           *computer.ScreenRecorder
 }
 
 // uiNotifierHolder is a swap-once, read-many agentdomain.UINotifier. Producers capture
@@ -407,7 +408,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.imageAnnotator = c.createImageAnnotator()
 	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.musicService, c.sfxService, c.videoService, c.mcpManager, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
-	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator))
+	c.screenRecorder = computer.NewScreenRecorder(c.config, c.uiNotifier)
+	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator, c.screenRecorder))
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 
 	for name, srcCfg := range c.config.Vision.Sources {
@@ -1046,6 +1048,10 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 
 // Shutdown gracefully shuts down the service container and its resources
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
+	if c.screenRecorder != nil {
+		c.screenRecorder.Close()
+	}
+
 	c.telemetryRecorder.Shutdown(ctx)
 
 	if c.browserDriver != nil {

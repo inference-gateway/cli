@@ -97,7 +97,7 @@ func buildApprovalCases() []approvalCase {
 	standard := standardPolicy(agentdomain.AgentModeStandard)
 	var tests []approvalCase
 	tests = append(tests, approvalCases("computer use bypasses approval:", standard, `{"action": "click", "x": 1, "y": 1}`, true, false,
-		"Computer", "GetLatestFrame")...)
+		"Computer", "GetLatestFrame", "RecordStart", "RecordStop")...)
 	tests = append(tests, approvalCases("auto-accept bypasses approval:", standardPolicy(agentdomain.AgentModeAutoAccept),
 		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep")...)
 	tests = append(tests, approvalCases("read-only subagent bypasses approval in chat:", standardPolicy(agentdomain.AgentModeReadOnly),
@@ -157,7 +157,10 @@ func TestStandardApprovalPolicy_ComputerUseApprovalLevels(t *testing.T) {
 		{"destructive bypasses accessibility", config.ComputerUseApprovalDestructive, "Computer", `{"action": "accessibility"}`, false},
 		{"destructive gates accessibility press", config.ComputerUseApprovalDestructive, "Computer", `{"action": "press", "label": "Save"}`, true},
 		{"destructive bypasses GetLatestFrame", config.ComputerUseApprovalDestructive, "GetLatestFrame", "{}", false},
+		{"destructive bypasses RecordStart", config.ComputerUseApprovalDestructive, "RecordStart", `{"mode": "screen"}`, false},
+		{"destructive bypasses RecordStop", config.ComputerUseApprovalDestructive, "RecordStop", "{}", false},
 		{"always gates screenshot", config.ComputerUseApprovalAlways, "Computer", screenshot, true},
+		{"always gates RecordStart", config.ComputerUseApprovalAlways, "RecordStart", "{}", true},
 		{"unknown value fails closed", "alway", "Computer", screenshot, true},
 	}
 	for _, tt := range tests {
