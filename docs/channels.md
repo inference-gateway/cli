@@ -102,14 +102,21 @@ telegram:
   poll_timeout: 30
 ```
 
-Agent-side settings still live in `.infer/config.yaml`:
+Agent-side settings live in `.infer/config.yaml` (model, turn budget) and
+`.infer/prompts.yaml` (prompts):
 
 ```yaml
+# .infer/config.yaml
 agent:
   model: "openai/gpt-4"
+  max_turns: 1  # recommended for conversational channel use
+```
+
+```yaml
+# .infer/prompts.yaml
+agent:
   system_prompt: "You are a helpful assistant"
   custom_instructions: ""  # clear default instructions for lightweight channel use
-  max_turns: 1  # recommended for conversational channel use
 ```
 
 Or use environment variables:
@@ -120,6 +127,7 @@ export INFER_CHANNELS_TELEGRAM_ENABLED=true
 export INFER_CHANNELS_TELEGRAM_BOT_TOKEN="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
 export INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="123456789"
 export INFER_AGENT_MODEL="openai/gpt-4"
+export INFER_PROMPTS_AGENT_SYSTEM_PROMPT="You are a helpful assistant"
 ```
 
 ### 4. Start the Channel Listener
@@ -145,7 +153,7 @@ Channel settings live in their own file:
 - **`.infer/channels.yaml`** - all channel settings (Telegram, WhatsApp,
   max workers, approval flag). Holds bot tokens, so it's listed in
   `tools.sandbox.protected_paths` and the agent cannot read or rewrite it.
-- **`.infer/config.yaml`** - agent settings (model, system prompt, etc.).
+- **`.infer/config.yaml`** - agent settings (model, max turns, etc.).
   Any legacy `channels:` block here is **ignored** at runtime; only
   `channels.yaml` is read. Run `infer init` to migrate an existing block:
   it seeds `channels.yaml` from the loaded values when no
@@ -205,11 +213,19 @@ whatsapp:
 ```yaml
 # .infer/config.yaml - recommended agent settings for channel use
 agent:
-  model: "deepseek/deepseek-v4-pro"              # Model to use
-  system_prompt: "You are a helpful assistant"  # Base identity
-  custom_instructions: ""             # Clear default instructions for lightweight use
-  max_turns: 1                        # Single-turn for conversational use
+  model: "deepseek/deepseek-v4-pro"  # Model to use
+  max_turns: 1                       # Single-turn for conversational use
 ```
+
+```yaml
+# .infer/prompts.yaml - recommended agent prompts for channel use
+agent:
+  system_prompt: "You are a helpful assistant"  # Base identity
+  custom_instructions: ""            # Clear default instructions for lightweight use
+```
+
+Or override the prompts via `INFER_PROMPTS_AGENT_SYSTEM_PROMPT` and
+`INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS`.
 
 ### Environment Variables
 
@@ -321,11 +337,12 @@ tools:
 
 ### Disabling Tool Approval
 
-To disable approval and auto-execute all tools (original behavior):
+To disable approval and auto-execute all tools (original behavior), set the
+top-level `require_approval` flag in `.infer/channels.yaml`:
 
 ```yaml
-channels:
-  require_approval: false
+# .infer/channels.yaml
+require_approval: false
 ```
 
 Or: `INFER_CHANNELS_REQUIRE_APPROVAL=false`
@@ -371,29 +388,35 @@ export INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE="Pirate-themed assistant."
 
 ### System Reminders
 
-The CLI can periodically inject a `<system-reminder>` user message into the
-conversation to nudge the agent about empty todo lists. Modern LLMs no longer
-need this nudge, so it ships **disabled by default**. Re-enable it via
-`prompts.yaml`:
+System reminders inject short `<system-reminder>` user messages into the
+conversation at points of the agent loop - for example the built-in
+`todo-hygiene` reminder nudges the agent while its todo list is still empty.
+They are configured in their own file, `reminders.yaml` (project
+`./.infer/reminders.yaml` first, then userspace `~/.infer/reminders.yaml`),
+and ship **enabled by default**. See
+[System Reminders](configuration-reference.md#system-reminders-remindersyaml)
+in the configuration reference for the full schema.
+
+A wrap-up nudge near the end of a run is a reminder with
+`trigger: turns_before_max` and a `threshold`:
 
 ```yaml
-agent:
-  system_reminders:
-    enabled: true
-    interval: 4  # inject every N turns
-    wrap_up_text: |
+# ~/.infer/reminders.yaml
+enabled: true
+merge: true  # keep the built-in reminders, add ours
+reminders:
+  - name: wrap-up
+    trigger: turns_before_max  # fire once within N turns of max_turns
+    threshold: 3
+    text: |
+      <system-reminder>
       Wrap up and commit your work before the session ends.
-    wrap_up_threshold: 3  # inject wrap_up_text when max_turns - turns <= 3
+      </system-reminder>
 ```
 
-Or via environment:
-
-```bash
-export INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_ENABLED=true
-export INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_INTERVAL=4
-export INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_WRAP_UP_TEXT="Wrap up and commit your work"
-export INFER_PROMPTS_AGENT_SYSTEM_REMINDERS_WRAP_UP_THRESHOLD=3
-```
+Via environment: `INFER_REMINDERS_CONFIG` accepts inline YAML with the same
+schema (highest precedence), and `INFER_REMINDERS_ENABLED` toggles the master
+switch.
 
 ## Adding a Custom Channel
 
