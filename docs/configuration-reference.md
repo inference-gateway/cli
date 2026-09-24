@@ -407,9 +407,17 @@ reminders:
 | `turns_before_max` | Within `threshold` turns of `max_turns` (requires `threshold > 0`). |
 | `once` | The first firing of its hook point this run. |
 | `on_failure` | **`post_tool` only** - fires only when the tool call that just ran failed. Requires `hook: post_tool`. |
+| `once_after` | Once, after `threshold` session turns have elapsed (requires `threshold > 0`). |
+| `on_mode_change` | Mode changed before the next stream; substitutes `{prev_mode}`, `{new_mode}` and `{guidance}`. Requires `hook: pre_stream`. |
+| `on_repeated_failure` | **`post_tool` only** - same tool call failed identically `threshold` times; `{tool_name}`/`{count}` substituted. |
+| `on_truncation` | **`post_stream` only** - the previous response hit the token limit (`finish_reason: length`). Requires `hook: post_stream`. |
+| `on_stalled_todos` | **`post_stream` only** - no tool call while todos are incomplete; substitutes `{todo_list}`. Requires `hook: post_stream`. |
+| `on_empty_response` | **`post_stream` only** - the response had neither text nor a tool call. Requires `hook: post_stream`. |
 
 The `on_failure` trigger lets a consumer nudge the model only when a change did not
 happen (a failed tool call), instead of paying the per-turn cost of an `always` reminder.
+The `on_repeated_failure`, `on_stalled_todos` and `on_empty_response` triggers default
+`threshold` to 3 when it is omitted.
 
 #### Supplying reminders without a file
 
@@ -426,8 +434,10 @@ Precedence, highest first: `INFER_REMINDERS_CONFIG` → `--reminders-file` → p
 
 #### Merging onto defaults (`merge: true`)
 
-By default, a supplied reminders config **replaces** the built-in defaults entirely
-(`todo-hygiene` plus the memory reminders). Set `merge: true` at the top level to
+By default, a supplied reminders config **replaces** the built-in defaults entirely:
+`todo-hygiene`, `mode-change-reminder`, `user-intent-focus`, `repeated-failure`,
+`todo-continuation`, `truncation-continuation`, `empty-response-continuation`,
+`memory-consult` and `memory-hygiene`. Set `merge: true` at the top level to
 **merge** onto the built-in set by name instead:
 
 - A supplied entry whose `name` matches a built-in **overrides** that entry in-place.
