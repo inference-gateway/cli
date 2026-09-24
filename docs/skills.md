@@ -32,8 +32,7 @@ has activated the skill.
 ### Frontmatter
 
 - `name` (required): ≤64 chars; lowercase letters, digits and hyphens only;
-  must equal the directory name; must not contain `infer`, `claude`,
-  `anthropic`, `gemini` or `openai`.
+  must equal the directory name.
 - `description` (required): non-empty, ≤1024 chars.
 
 Unknown frontmatter keys are tolerated, so vendor extensions (e.g. Gemini's
@@ -167,19 +166,19 @@ knobs as any other skill - there is no special "built-in" mode:
 
 ## Enabling
 
-Skills are **disabled by default** (zero token cost when off). Enable via
-config or environment variable:
+Skills are **enabled by default**. To turn them off - which skips the startup
+scan entirely, so there is zero token cost:
 
 ```yaml
 # .infer/config.yaml
 agent:
   skills:
-    enabled: true
+    enabled: false
     disabled_skills: []   # optional list of skill names to skip
 ```
 
 ```bash
-INFER_AGENT_SKILLS_ENABLED=true infer chat
+INFER_AGENT_SKILLS_ENABLED=false infer chat
 ```
 
 When enabled, the agent's system prompt gains an `AVAILABLE SKILLS:` block
@@ -195,7 +194,7 @@ infer skills list
 ```
 
 This always works regardless of `agent.skills.enabled`, so you can verify
-discovery before turning the feature on. The output shows each skill's name,
+discovery even with the feature disabled. The output shows each skill's name,
 scope, description, absolute path, and any validation errors for skills that
 were skipped.
 
@@ -283,10 +282,6 @@ external APIs. Treat a skill like any other piece of executable content -
 system still gates each command, but a malicious skill could craft a
 plausible-looking `Bash` call.
 
-The frontmatter `name` validator rejects names containing vendor strings
-(`claude`, `anthropic`, `gemini`, `openai`, `infer`) so impersonating an
-official skill is harder.
-
 ## Portability
 
 The on-disk contract is intentionally identical to:
@@ -301,8 +296,4 @@ work without modification when copied into `.infer/skills/` or `.agents/skills/`
 ## Out of scope (for now)
 
 - A dedicated `activate_skill` tool - the model uses `Read` directly.
-- A skill marketplace or curated index - discovery is up to the user; see
-  [Installing skills from GitHub](#installing-skills-from-github) for the
-  install flow.
-- Authenticated installs from private repositories.
 - Sandboxing beyond what the existing tool-approval system already provides.
