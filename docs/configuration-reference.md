@@ -49,15 +49,20 @@ supporting multiple configuration sources with proper precedence handling.
 
 Configuration values are resolved in the following order (highest to lowest priority):
 
-1. **Environment Variables** (`INFER_*` prefix) - **Highest Priority**
-2. **Command Line Flags**
+1. **Command Line Flags** - **Highest Priority**
+2. **Environment Variables** (`INFER_*` prefix)
 3. **Project Config** (`.infer/config.yaml`)
 4. **Userspace Config** (`~/.infer/config.yaml`)
 5. **Built-in Defaults** - **Lowest Priority**
 
 **Example**: If your userspace config sets `agent.model: "anthropic/claude-4"` and your project config
 sets `agent.model: "deepseek/deepseek-v4-pro"`, the project config wins. However, if you also set
-`INFER_AGENT_MODEL="openai/gpt-4"`, the environment variable takes precedence over both config files.
+`INFER_AGENT_MODEL="openai/gpt-4"`, the environment variable takes precedence over both config files -
+though a command-line flag (e.g. `infer headless --model`) still wins over all of them.
+
+**Exceptions**: exactly two keys let the environment variable beat the flag:
+`INFER_TOOLS_BASH_ALLOW_APPEND` (over `--tools-bash-allow-append`) and
+`INFER_REMINDERS_CONFIG` (over `--reminders-file`).
 
 > **List-valued keys replace, they do not merge.** Viper's `MergeInConfig`
 > deep-merges maps but substitutes slices wholesale, so a list in the project
@@ -119,6 +124,14 @@ tools:
       - .infer/
       - .git/
       - *.env
+      - .environment
+      - auth.yaml
+      - *.key
+      - *.pem
+      - id_rsa
+      - id_dsa
+      - id_ecdsa
+      - id_ed25519
   bash:
     enabled: true
     # Per-mode allow-list (default-deny). The effective list for a mode is
@@ -225,6 +238,14 @@ chat:
 compact:
   enabled: true # Enable automatic conversation compaction
   auto_at: 80 # Compact when context reaches this percentage (20-100)
+telemetry:
+  enabled: true # Record OTel metrics locally; written as OTLP/semconv JSON under <config-dir>/telemetry
+  retention_days: 7 # Archive telemetry files older than this many days (0 disables archiving)
+  otlp:
+    endpoint: "" # OTLP/HTTP collector base URL; empty (and OTEL_EXPORTER_OTLP_ENDPOINT unset) disables export
+    headers: {} # Headers sent on every export request
+    interval: 60 # Periodic export interval in seconds
+  receiver_address: "" # Address for the CLI's in-process OTLP receiver to listen on; empty disables it
 ```
 
 ---
@@ -294,7 +315,8 @@ compact:
 
 - **tools.enabled**: Enable/disable tool execution for LLMs (default: true)
 - **tools.sandbox.directories**: Allowed directories for tool operations (default: [".", "/tmp"])
-- **tools.sandbox.protected_paths**: Paths excluded from tool access for security (default: [".infer/", ".git/", "*.env"])
+- **tools.sandbox.protected_paths**: Paths excluded from tool access for security. Default:
+  [".infer/", ".git/", "*.env", ".environment", "auth.yaml", "*.key", "*.pem", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"]
 - **tools.bash.mode.\<mode\>.allow**: Per-mode bash allow-list (regexes matched against the whole command). `<mode>` is one of `all`
   (baseline applied in every mode), `plan`, `standard`, or `auto`. The effective list is `mode.all.allow` unioned with the active mode's
   list. Anything unmatched is denied (approval in chat, rejection in headless agent mode). The `.*` sentinel (default for `auto`) means
@@ -382,6 +404,20 @@ Environment overrides: `INFER_COMPUTER_USE_RECORDING_ENABLED`,
   summarizes the exploration-heavy planning conversation and continues execution in a
   fresh, smaller session, regardless of this setting.
 - **compact.auto_at**: Percentage of context window (20-100) at which to automatically trigger compaction (default: 80)
+
+### Telemetry Settings
+
+- **telemetry.enabled**: Record OpenTelemetry metrics locally (default: true). The recorded data is written as OTLP/semconv JSON
+  under `<config-dir>/telemetry` (always, private - no prompt/response content)
+- **telemetry.retention_days**: How long a session's telemetry file stays active before `infer stats`
+  archives it (default: 7; `0` disables archiving)
+- **telemetry.otlp.endpoint**: OTLP/HTTP collector base URL (e.g. `http://localhost:4318`). Empty - and
+  `OTEL_EXPORTER_OTLP_ENDPOINT` unset - means no export
+- **telemetry.otlp.headers**: Headers sent on every export request (e.g. auth tokens)
+- **telemetry.otlp.interval**: Periodic export interval in seconds (default: 60)
+- **telemetry.receiver_address**: Address for the CLI's in-process OTLP receiver to listen on (e.g. `0.0.0.0:0`); empty disables the receiver
+
+See [Telemetry](telemetry.md) for the baggage keys and mixed CLI/ADK deployment guidance.
 
 ### Agent Settings
 
@@ -545,16 +581,16 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
 
 ### Web Search Settings
 
-- **web_search.enabled**: Enable/disable web search tool for LLMs (default: true)
-- **web_search.default_engine**: Default search engine to use ("duckduckgo" or "google", default: "duckduckgo")
-- **web_search.max_results**: Maximum number of search results to return (1-50, default: 10)
-- **web_search.engines**: List of available search engines
-- **web_search.timeout**: Search timeout in seconds (default: 10)
+- **tools.web_search.enabled**: Enable/disable web search tool for LLMs (default: true)
+- **tools.web_search.default_engine**: Default search engine to use ("duckduckgo" or "google", default: "duckduckgo")
+- **tools.web_search.max_results**: Maximum number of search results to return (1-50, default: 10)
+- **tools.web_search.engines**: List of available search engines
+- **tools.web_search.timeout**: Search timeout in seconds (default: 10)
 
 ### Chat Interface Settings
 
 - **chat.theme**: Chat interface theme name (default: "tokyo-night")
-  - Available themes: `tokyo-night`, `github-light`, `dracula`
+  - Available themes: `tokyo-night`, `github-light`, `dracula`, `charm`
   - Can be changed during chat using `/theme [theme-name]` shortcut
   - Affects colors and styling of the chat interface
 
@@ -815,7 +851,7 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 
 ### Chat Configuration
 
-- `INFER_CHAT_THEME`: Chat UI theme (`tokyo-night`, `github-light` or `dracula`, default: `tokyo-night`)
+- `INFER_CHAT_THEME`: Chat UI theme (`tokyo-night`, `github-light`, `dracula` or `charm`, default: `tokyo-night`)
 
 ### Tools Configuration
 
@@ -1154,12 +1190,15 @@ INFER_AGENT_MAX_TURNS=100 infer chat  # Temporary turn limit
 
 ## Configuration Validation and Troubleshooting
 
-The CLI validates configuration on startup and provides helpful error messages for:
-
-- Invalid YAML syntax
-- Unknown configuration keys
-- Invalid value types (string vs boolean vs integer)
-- Missing required values
+Startup validation does **not** catch unknown keys. Invalid YAML syntax fails
+startup with an error, and `Config.Validate` rejects specific invalid values
+(e.g. `tools.safety.approval_behaviour`, `agent.reasoning_effort`), but unknown
+configuration keys are silently ignored: `loadConfigFromViper` decodes with
+non-strict `v.Unmarshal` and `Config.Validate` only checks specific settings, so
+a misspelled or removed key in `config.yaml` produces no warning (this is also
+what lets `infer init` migrate legacy `channels:` / `computer_use:` blocks out
+of `config.yaml`). Only `infer config set` rejects unknown keys - use
+`infer config get <key>` below to confirm a key actually resolves.
 
 ### Common Issues
 

@@ -744,8 +744,8 @@ agent:
 
 ### Configuration Layers
 
-1. **Environment Variables** (`INFER_*`) - Highest priority
-2. **Command Line Flags**
+1. **Command Line Flags** - Highest priority
+2. **Environment Variables** (`INFER_*`)
 3. **Project Config** (`.infer/config.yaml`)
 4. **Userspace Config** (`~/.infer/config.yaml`)
 5. **Built-in Defaults** - Lowest priority
@@ -753,15 +753,19 @@ agent:
 **Example:**
 
 ```bash
-# Set via environment variable (highest priority)
+# Set via command flag (highest priority; beats env vars and config files)
+infer headless --model "anthropic/claude-4" "Summarize this repository"
+
+# Or via environment variable (beats config files)
 export INFER_AGENT_MODEL="openai/gpt-4"
 
 # Or via config file
 infer config set agent.model "deepseek/deepseek-v4-pro"
-
-# Or via command flag (headless mode)
-infer headless --model "anthropic/claude-4" "Summarize this repository"
 ```
+
+The two exceptions where the environment variable wins over the flag:
+`INFER_TOOLS_BASH_ALLOW_APPEND` (over `--tools-bash-allow-append`) and
+`INFER_REMINDERS_CONFIG` (over `--reminders-file`).
 
 ### Key Configuration Options
 
