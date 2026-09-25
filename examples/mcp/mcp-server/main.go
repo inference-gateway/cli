@@ -1,36 +1,41 @@
+// Command mcp-server is a demo MCP server built on the official Go SDK
+// (github.com/modelcontextprotocol/go-sdk). Its stateless Streamable HTTP
+// handler speaks MCP 2026-07-28, the only revision infer supports.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	mcp "github.com/metoro-io/mcp-golang"
-	mcphttp "github.com/metoro-io/mcp-golang/transport/http"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Tool argument structures with jsonschema tags
+// Tool arguments. A jsonschema tag is the field's description; fields without
+// omitempty are required.
 
 type GetTimeArgs struct {
-	Timezone string `json:"timezone" jsonschema:"description=IANA timezone (e.g. America/New_York or UTC)"`
-	Format   string `json:"format" jsonschema:"description=Time format: rfc3339 or unix"`
+	Timezone string `json:"timezone,omitempty" jsonschema:"IANA timezone (e.g. America/New_York or UTC)"`
+	Format   string `json:"format,omitempty" jsonschema:"Time format: rfc3339 or unix"`
 }
 
 type CalculateArgs struct {
-	Expression string `json:"expression" jsonschema:"required,description=Math expression like 2 + 2 or 10 * 5"`
+	Expression string `json:"expression" jsonschema:"Math expression like 2 + 2 or 10 * 5"`
 }
 
 type ListFilesArgs struct {
-	Path    string `json:"path" jsonschema:"description=Directory path to list"`
-	Pattern string `json:"pattern" jsonschema:"description=Optional glob pattern to filter files"`
+	Path    string `json:"path,omitempty" jsonschema:"Directory path to list"`
+	Pattern string `json:"pattern,omitempty" jsonschema:"Optional glob pattern to filter files"`
 }
 
 type GetEnvArgs struct {
-	Name string `json:"name" jsonschema:"required,description=Environment variable name"`
+	Name string `json:"name" jsonschema:"Environment variable name"`
 }
 
 func main() {
@@ -38,78 +43,37 @@ func main() {
 	path := flag.String("path", "/mcp", "HTTP endpoint path")
 	flag.Parse()
 
-	// Create HTTP transport
-	transport := mcphttp.NewHTTPTransport(*path)
-	transport.WithAddr(fmt.Sprintf(":%d", *port))
+	server := mcp.NewServer(&mcp.Implementation{Name: "demo-server", Version: "1.0.0"}, nil)
+	mcp.AddTool(server, &mcp.Tool{Name: "get_time", Description: "Get the current system time in a specified timezone"}, handleGetTime)
+	mcp.AddTool(server, &mcp.Tool{Name: "calculate", Description: "Perform basic arithmetic calculations"}, handleCalculate)
+	mcp.AddTool(server, &mcp.Tool{Name: "list_files", Description: "List files in a directory with optional pattern filtering"}, handleListFiles)
+	mcp.AddTool(server, &mcp.Tool{Name: "get_env", Description: "Get an environment variable value"}, handleGetEnv)
 
-	// Create MCP server
-	server := mcp.NewServer(transport)
+	// 2026-07-28 requests are only served in stateless mode.
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server },
+		&mcp.StreamableHTTPOptions{Stateless: true})
 
-	// Register tools
-	registerTools(server)
+	mux := http.NewServeMux()
+	mux.Handle(*path, handler)
 
-	// Start server logging
 	addr := fmt.Sprintf("http://localhost:%d", *port)
-	log.Printf("🚀 Demo MCP Server starting on %s", addr)
+	log.Printf("🚀 Demo MCP Server (MCP 2026-07-28) starting on %s", addr)
 	log.Printf("📝 MCP endpoint: %s%s", addr, *path)
 	log.Printf("🔧 Available tools: get_time, calculate, list_files, get_env")
-	log.Println()
-	log.Printf("Configure in .infer/config.yaml:")
-	log.Printf("  mcp:")
-	log.Printf("    enabled: true")
-	log.Printf("    servers:")
-	log.Printf("      - name: demo-server")
-	log.Printf("        url: %s%s", addr, *path)
-	log.Printf("        enabled: true")
-	log.Println()
 
-	// Start MCP server
-	if err := server.Serve(); err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", *port), mux); err != nil {
 		log.Fatalf("Failed to start MCP server: %v", err)
 	}
 }
 
-func registerTools(server *mcp.Server) {
-	// Get Time tool
-	if err := server.RegisterTool(
-		"get_time",
-		"Get the current system time in a specified timezone",
-		handleGetTime,
-	); err != nil {
-		log.Fatalf("Failed to register get_time tool: %v", err)
-	}
-
-	// Calculate tool
-	if err := server.RegisterTool(
-		"calculate",
-		"Perform basic arithmetic calculations",
-		handleCalculate,
-	); err != nil {
-		log.Fatalf("Failed to register calculate tool: %v", err)
-	}
-
-	// List Files tool
-	if err := server.RegisterTool(
-		"list_files",
-		"List files in a directory with optional pattern filtering",
-		handleListFiles,
-	); err != nil {
-		log.Fatalf("Failed to register list_files tool: %v", err)
-	}
-
-	// Get Env tool
-	if err := server.RegisterTool(
-		"get_env",
-		"Get an environment variable value",
-		handleGetEnv,
-	); err != nil {
-		log.Fatalf("Failed to register get_env tool: %v", err)
-	}
+// text is a tool result carrying one text block.
+func text(format string, args ...any) (*mcp.CallToolResult, any, error) {
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf(format, args...)}}}, nil, nil
 }
 
 // Tool handlers
 
-func handleGetTime(args GetTimeArgs) (*mcp.ToolResponse, error) {
+func handleGetTime(_ context.Context, _ *mcp.CallToolRequest, args GetTimeArgs) (*mcp.CallToolResult, any, error) {
 	timezone := args.Timezone
 	if timezone == "" {
 		timezone = "UTC"
@@ -122,9 +86,7 @@ func handleGetTime(args GetTimeArgs) (*mcp.ToolResponse, error) {
 
 	location, err := time.LoadLocation(timezone)
 	if err != nil {
-		return mcp.NewToolResponse(
-			mcp.NewTextContent(fmt.Sprintf("Invalid timezone: %v", err)),
-		), nil
+		return text("Invalid timezone: %v", err)
 	}
 
 	now := time.Now().In(location)
@@ -139,31 +101,24 @@ func handleGetTime(args GetTimeArgs) (*mcp.ToolResponse, error) {
 		timeStr = now.Format(format)
 	}
 
-	result := fmt.Sprintf("Current time in %s: %s", timezone, timeStr)
-	return mcp.NewToolResponse(mcp.NewTextContent(result)), nil
+	return text("Current time in %s: %s", timezone, timeStr)
 }
 
-func handleCalculate(args CalculateArgs) (*mcp.ToolResponse, error) {
+func handleCalculate(_ context.Context, _ *mcp.CallToolRequest, args CalculateArgs) (*mcp.CallToolResult, any, error) {
 	expr := strings.TrimSpace(args.Expression)
 	if expr == "" {
-		return mcp.NewToolResponse(
-			mcp.NewTextContent("Error: No expression provided"),
-		), nil
+		return text("Error: No expression provided")
 	}
 
 	result, err := evaluateExpression(expr)
 	if err != nil {
-		return mcp.NewToolResponse(
-			mcp.NewTextContent(fmt.Sprintf("Calculation error: %v", err)),
-		), nil
+		return text("Calculation error: %v", err)
 	}
 
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(fmt.Sprintf("%s = %.2f", expr, result)),
-	), nil
+	return text("%s = %.2f", expr, result)
 }
 
-func handleListFiles(args ListFilesArgs) (*mcp.ToolResponse, error) {
+func handleListFiles(_ context.Context, _ *mcp.CallToolRequest, args ListFilesArgs) (*mcp.CallToolResult, any, error) {
 	path := args.Path
 	if path == "" {
 		path = "."
@@ -174,20 +129,15 @@ func handleListFiles(args ListFilesArgs) (*mcp.ToolResponse, error) {
 		pattern = "*"
 	}
 
-	// Read directory
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		return mcp.NewToolResponse(
-			mcp.NewTextContent(fmt.Sprintf("Failed to read directory: %v", err)),
-		), nil
+		return text("Failed to read directory: %v", err)
 	}
 
-	// Filter and format results
 	var files []string
 	for _, entry := range entries {
 		name := entry.Name()
 
-		// Apply pattern filter if specified
 		if pattern != "*" {
 			matched, err := filepath.Match(pattern, name)
 			if err != nil || !matched {
@@ -203,35 +153,25 @@ func handleListFiles(args ListFilesArgs) (*mcp.ToolResponse, error) {
 	}
 
 	if len(files) == 0 {
-		return mcp.NewToolResponse(
-			mcp.NewTextContent(fmt.Sprintf("No files found in %s matching pattern '%s'", path, pattern)),
-		), nil
+		return text("No files found in %s matching pattern '%s'", path, pattern)
 	}
 
-	result := fmt.Sprintf("Files in '%s' (pattern: '%s'):\n%s\n\nTotal: %d items",
+	return text("Files in '%s' (pattern: '%s'):\n%s\n\nTotal: %d items",
 		path, pattern, strings.Join(files, "\n"), len(files))
-
-	return mcp.NewToolResponse(mcp.NewTextContent(result)), nil
 }
 
-func handleGetEnv(args GetEnvArgs) (*mcp.ToolResponse, error) {
+func handleGetEnv(_ context.Context, _ *mcp.CallToolRequest, args GetEnvArgs) (*mcp.CallToolResult, any, error) {
 	name := args.Name
 	if name == "" {
-		return mcp.NewToolResponse(
-			mcp.NewTextContent("Error: No environment variable name provided"),
-		), nil
+		return text("Error: No environment variable name provided")
 	}
 
 	value := os.Getenv(name)
 	if value == "" {
-		return mcp.NewToolResponse(
-			mcp.NewTextContent(fmt.Sprintf("Environment variable '%s' is not set or empty", name)),
-		), nil
+		return text("Environment variable '%s' is not set or empty", name)
 	}
 
-	return mcp.NewToolResponse(
-		mcp.NewTextContent(fmt.Sprintf("%s=%s", name, value)),
-	), nil
+	return text("%s=%s", name, value)
 }
 
 // Helper functions

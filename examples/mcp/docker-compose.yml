@@ -31,32 +31,11 @@ services:
         - CMD
         - sh
         - -c
-        - 'curl -f -X POST http://localhost:3000/mcp -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":1}" || exit 1'
+        - 'curl -fsS -X POST http://localhost:3000/mcp -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -H "MCP-Protocol-Version: 2026-07-28" -H "Mcp-Method: server/discover" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"2026-07-28\",\"io.modelcontextprotocol/clientCapabilities\":{}}}}" > /dev/null || exit 1'
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 10s
-    networks:
-      - mcp-demo
-
-  context7:
-    image: mekayelanik/context7-mcp:latest
-    container_name: context7
-    environment:
-      PORT: "8010"
-      NODE_ENV: production
-      PROTOCOL: SHTTP
-    restart: unless-stopped
-    healthcheck:
-      test:
-        - CMD
-        - sh
-        - -c
-        - 'wget --spider -q http://127.0.0.1:8010/healthz || exit 1'
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
     networks:
       - mcp-demo
 
@@ -77,8 +56,6 @@ services:
       inference-gateway:
         condition: service_started
       mcp-demo-server:
-        condition: service_healthy
-      context7:
         condition: service_healthy
     networks:
       - mcp-demo

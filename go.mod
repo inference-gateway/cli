@@ -29,7 +29,6 @@ require (
 	github.com/inference-gateway/sdk v1.39.1
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.12.3
-	github.com/metoro-io/mcp-golang v0.16.1
 	github.com/muesli/reflow v0.3.0
 	github.com/mxschmitt/playwright-go v0.6201.1
 	github.com/oapi-codegen/runtime v1.7.0
@@ -62,9 +61,7 @@ require (
 require (
 	github.com/deckarep/golang-set/v2 v2.8.0 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
-	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/vcaesar/go-wayland v0.40.0 // indirect
-	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
 )
 
 require (
@@ -76,8 +73,6 @@ require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
-	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/catppuccin/go v0.2.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -106,7 +101,6 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/inference-gateway/tokenless v0.9.0
-	github.com/invopop/jsonschema v0.14.0 // indirect
 	github.com/jezek/xgb v1.3.1 // indirect
 	github.com/jezek/xgbutil v0.0.0-20260124183602-9fd151d6a51a // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -128,7 +122,6 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/otiai10/gosseract/v2 v2.4.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
@@ -139,10 +132,6 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tailscale/win v0.0.0-20260619195133-2d76c33a64c1 // indirect
-	github.com/tidwall/gjson v1.19.0 // indirect
-	github.com/tidwall/match v1.2.0 // indirect
-	github.com/tidwall/pretty v1.2.1 // indirect
-	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/vcaesar/gops v0.42.0 // indirect

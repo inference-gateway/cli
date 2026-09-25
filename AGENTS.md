@@ -31,7 +31,7 @@ Single test: `go test ./internal/agent -run TestBashTool`. **Run `task precommit
 ## Import Style
 
 - Import blocks have **six groups** (stdlib / external test libs / testing mocks / external / inference-gateway libs / project), one blank line apart.
-- **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `convdomain`, `scheddomain`, `browserdomain`, `computerdomain`, `mcpdomain`, `agentinfra`, `schedinfra`, `agentapp`, `containerruntime`, `githubissues`, `githubsetup`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` → `<x>mocks`.
+- **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `convdomain`, `scheddomain`, `browserdomain`, `computerdomain`, `mcpdomain`, `agentinfra`, `mcpinfra`, `schedinfra`, `agentapp`, `containerruntime`, `githubissues`, `githubsetup`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` → `<x>mocks`.
 
 ## Testing
 

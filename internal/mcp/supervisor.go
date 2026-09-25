@@ -10,12 +10,11 @@ import (
 	"sync"
 	"time"
 
-	mcp "github.com/metoro-io/mcp-golang"
-
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
+	mcpinfra "github.com/inference-gateway/cli/internal/mcp/infrastructure"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
@@ -28,21 +27,21 @@ var (
 )
 
 // mcpClient is one configured MCP server: the connection state the liveness
-// probe tracks, and the mcpdomain.Client its tools call through.
+// probe tracks, and the mcpdomain.Client its tools call through. It bounds
+// every call by the server's timeout and names the tools it lists.
 type mcpClient struct {
 	serverName        string
-	client            *mcp.Client
+	rpc               mcpdomain.Client
 	globalConfig      *config.MCPConfig
 	serverConfig      config.MCPServerEntry
 	mu                sync.RWMutex
 	isConnected       bool
-	isInitialized     bool
 	retryAttempt      int
 	lastAttemptTime   time.Time
 	permanentlyFailed bool
 }
 
-// newMCPClient creates a new MCP client (without initializing the transport yet)
+// newMCPClient creates a new MCP client (without a server URL yet)
 func newMCPClient(serverConfig config.MCPServerEntry, globalConfig *config.MCPConfig) *mcpClient {
 	return &mcpClient{
 		serverName:   serverConfig.Name,
@@ -55,110 +54,68 @@ func newMCPClient(serverConfig config.MCPServerEntry, globalConfig *config.MCPCo
 // initializeClient points the client at serverURL. StartServer calls it once
 // a container is up, while probes may be reading the client, so it takes c.mu.
 func (c *mcpClient) initializeClient(serverURL string) {
-	transport := NewSSEHTTPClientTransport(serverURL).
-		WithHeader("Accept", "application/json, text/event-stream")
-	client := mcp.NewClientWithInfo(transport, mcp.ClientInfo{
-		Name:    "inference-gateway-cli",
-		Version: "1.0.0",
-	})
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.client = client
-	c.isInitialized = false
+	c.rpc = mcpinfra.NewClient(serverURL)
 	logger.Debug("initialized MCP client", "server", c.serverName, "url", serverURL)
 }
 
-// session bounds ctx by the server's timeout and returns the initialized
-// library client. The caller must call cancel.
-func (c *mcpClient) session(ctx context.Context) (*mcp.Client, context.Context, context.CancelFunc, error) {
+// conn bounds ctx by the server's timeout and returns the server's client.
+// The caller must call cancel.
+func (c *mcpClient) conn(ctx context.Context) (mcpdomain.Client, context.Context, context.CancelFunc, error) {
 	timeout := time.Duration(c.serverConfig.GetTimeout(c.globalConfig.ConnectionTimeout)) * time.Second
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.client == nil {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.rpc == nil {
 		return nil, ctx, cancel, fmt.Errorf("MCP client not initialized yet (container may still be starting)")
 	}
-	if !c.isInitialized {
-		if _, err := c.client.Initialize(ctx); err != nil {
-			return nil, ctx, cancel, fmt.Errorf("failed to initialize MCP client: %w", err)
-		}
-		c.isInitialized = true
-	}
-	return c.client, ctx, cancel, nil
+	return c.rpc, ctx, cancel, nil
 }
 
-// Discover implements mcpdomain.Client; ping stands in for server/discover.
+// Discover implements mcpdomain.Client.
 func (c *mcpClient) Discover(ctx context.Context) error {
-	client, ctx, cancel, err := c.session(ctx)
+	rpc, ctx, cancel, err := c.conn(ctx)
 	defer cancel()
 	if err != nil {
 		return err
 	}
-	if err := client.Ping(ctx); err != nil {
-		return fmt.Errorf("ping failed: %w", err)
-	}
-	return nil
+	return rpc.Discover(ctx)
 }
 
 // ListTools implements mcpdomain.Client.
 func (c *mcpClient) ListTools(ctx context.Context) ([]mcpdomain.Tool, error) {
-	client, ctx, cancel, err := c.session(ctx)
+	rpc, ctx, cancel, err := c.conn(ctx)
 	defer cancel()
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.ListTools(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list tools: %w", err)
+	tools, err := rpc.ListTools(ctx)
+	for i := range tools {
+		tools[i].Server = c.serverName
 	}
-
-	tools := make([]mcpdomain.Tool, 0, len(resp.Tools))
-	for _, tool := range resp.Tools {
-		description := ""
-		if tool.Description != nil {
-			description = *tool.Description
-		}
-		schema, _ := tool.InputSchema.(map[string]any)
-		tools = append(tools, mcpdomain.Tool{Server: c.serverName, Name: tool.Name, Description: description, InputSchema: schema})
-	}
-	return tools, nil
+	return tools, err
 }
 
 // CallTool implements mcpdomain.Client.
 func (c *mcpClient) CallTool(ctx context.Context, name string, args map[string]any) (mcpdomain.CallResult, error) {
-	client, ctx, cancel, err := c.session(ctx)
+	rpc, ctx, cancel, err := c.conn(ctx)
 	defer cancel()
 	if err != nil {
 		return mcpdomain.CallResult{}, err
 	}
-	resp, err := client.CallTool(ctx, name, args)
-	if err != nil {
-		return mcpdomain.CallResult{}, fmt.Errorf("failed to call tool %q: %w", name, err)
-	}
-
-	var parts []string
-	for _, content := range resp.Content {
-		switch {
-		case content == nil:
-		case content.TextContent != nil && content.TextContent.Text != "":
-			parts = append(parts, content.TextContent.Text)
-		case content.ImageContent != nil:
-			parts = append(parts, "[Image content]")
-		case content.EmbeddedResource != nil && content.EmbeddedResource.TextResourceContents != nil && content.EmbeddedResource.TextResourceContents.Text != "":
-			parts = append(parts, content.EmbeddedResource.TextResourceContents.Text)
-		case content.EmbeddedResource != nil && content.EmbeddedResource.BlobResourceContents != nil:
-			parts = append(parts, "[Binary resource content]")
-		}
-	}
-	return mcpdomain.CallResult{Content: strings.Join(parts, "\n")}, nil
+	return rpc.CallTool(ctx, name, args)
 }
 
-// discoverTools lists the server's tools and wraps them for the agent,
-// recording whether the server answered.
+// discoverTools checks the server speaks our protocol, lists its tools and
+// wraps them for the agent, recording whether the server answered.
 func (c *mcpClient) discoverTools(ctx context.Context) (map[string]agentdomain.Tool, error) {
-	found, err := c.ListTools(ctx)
+	err := c.Discover(ctx)
+	var found []mcpdomain.Tool
+	if err == nil {
+		found, err = c.ListTools(ctx)
+	}
 	c.setConnected(err == nil)
 	if err != nil {
 		return nil, err
@@ -736,13 +693,21 @@ func (s *Supervisor) StopServers(ctx context.Context) error {
 	return nil
 }
 
+// defaultHealthCmd probes a container's server with a 2026-07-28 server/discover.
+const defaultHealthCmd = `sh -c 'curl -fsS -X POST http://localhost:3000/mcp` +
+	` -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream"` +
+	` -H "MCP-Protocol-Version: ` + mcpinfra.ProtocolVersion + `" -H "Mcp-Method: server/discover"` +
+	` -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\",\"params\":{\"_meta\":{` +
+	`\"io.modelcontextprotocol/protocolVersion\":\"` + mcpinfra.ProtocolVersion + `\",` +
+	`\"io.modelcontextprotocol/clientCapabilities\":{}}}}" > /dev/null || exit 1'`
+
 // startContainer runs the MCP server container detached, removed on exit.
 func (s *Supervisor) startContainer(ctx context.Context, server config.MCPServerEntry, assignedPort int) error {
 	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, s.sessionID)
 
 	healthCmd := server.HealthCmd
 	if healthCmd == "" {
-		healthCmd = `sh -c 'curl -f -X POST http://localhost:3000/mcp -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":1}" || exit 1'`
+		healthCmd = defaultHealthCmd
 	}
 
 	env := make(map[string]string, len(server.Env))
