@@ -1112,14 +1112,12 @@ shortcuts:
       - name: build
         description: "Build Docker image"
         args:
-          - build
           - -t
           - myapp
           - .
       - name: run
         description: "Run Docker container"
         args:
-          - run
           - -p
           - "8080:8080"
           - myapp
