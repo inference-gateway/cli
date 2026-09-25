@@ -1,18 +1,17 @@
-package tools
+package mcp
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-
-	mcp "github.com/metoro-io/mcp-golang"
+	mcpmocks "github.com/inference-gateway/cli/tests/mocks/mcp"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 )
 
 func TestNewMCPTool(t *testing.T) {
@@ -26,7 +25,7 @@ func TestNewMCPTool(t *testing.T) {
 		},
 	}
 
-	mockClient := &agentdomainmocks.FakeMCPClient{}
+	mockClient := &mcpmocks.FakeClient{}
 
 	tool := NewMCPTool(
 		"test-server",
@@ -74,7 +73,7 @@ func TestMCPTool_Definition(t *testing.T) {
 		},
 	}
 
-	mockClient := &agentdomainmocks.FakeMCPClient{}
+	mockClient := &mcpmocks.FakeClient{}
 
 	tool := NewMCPTool(
 		"test-server",
@@ -128,20 +127,9 @@ func TestMCPTool_Execute_Success(t *testing.T) {
 		},
 	}
 
-	mockClient := &agentdomainmocks.FakeMCPClient{}
+	mockClient := &mcpmocks.FakeClient{}
 
-	// Mock successful response
-	textContent := &mcp.TextContent{
-		Text: "File contents here",
-	}
-	mcpResponse := &mcp.ToolResponse{
-		Content: []*mcp.Content{
-			{
-				TextContent: textContent,
-			},
-		},
-	}
-	mockClient.CallToolReturns(mcpResponse, nil)
+	mockClient.CallToolReturns(mcpdomain.CallResult{Content: "File contents here"}, nil)
 
 	tool := NewMCPTool(
 		"test-server",
@@ -174,9 +162,9 @@ func TestMCPTool_Execute_Success(t *testing.T) {
 	}
 
 	// Verify the data is MCPToolResult
-	mcpData, ok := result.Data.(*agentdomain.MCPToolResult)
+	mcpData, ok := result.Data.(*mcpdomain.ToolResult)
 	if !ok {
-		t.Fatal("Expected result.Data to be *agentdomain.MCPToolResult")
+		t.Fatal("Expected result.Data to be *mcpdomain.ToolResult")
 	}
 
 	if mcpData.ServerName != "test-server" {
@@ -200,11 +188,7 @@ func TestMCPTool_Execute_Success(t *testing.T) {
 		t.Errorf("Expected CallTool to be called once, got %d", mockClient.CallToolCallCount())
 	}
 
-	_, serverName, toolName, actualArgs := mockClient.CallToolArgsForCall(0)
-	if serverName != "test-server" {
-		t.Errorf("Expected server name 'test-server', got %s", serverName)
-	}
-
+	_, toolName, actualArgs := mockClient.CallToolArgsForCall(0)
 	if toolName != "readFile" {
 		t.Errorf("Expected tool name 'readFile', got %s", toolName)
 	}
@@ -225,10 +209,9 @@ func TestMCPTool_Execute_Error(t *testing.T) {
 		},
 	}
 
-	mockClient := &agentdomainmocks.FakeMCPClient{}
+	mockClient := &mcpmocks.FakeClient{}
 
-	// Mock error response
-	mockClient.CallToolReturns(nil, &testError{msg: "connection failed"})
+	mockClient.CallToolReturns(mcpdomain.CallResult{}, errors.New("connection failed"))
 
 	tool := NewMCPTool(
 		"test-server",
@@ -258,9 +241,9 @@ func TestMCPTool_Execute_Error(t *testing.T) {
 	}
 
 	// Verify the error message is present
-	mcpData, ok := result.Data.(*agentdomain.MCPToolResult)
+	mcpData, ok := result.Data.(*mcpdomain.ToolResult)
 	if !ok {
-		t.Fatal("Expected result.Data to be *agentdomain.MCPToolResult")
+		t.Fatal("Expected result.Data to be *mcpdomain.ToolResult")
 	}
 
 	if mcpData.Error == "" {
@@ -275,7 +258,7 @@ func TestMCPTool_Execute_Error(t *testing.T) {
 func TestMCPTool_Validate(t *testing.T) {
 	tests := []struct {
 		name        string
-		inputSchema any
+		inputSchema map[string]any
 		args        map[string]any
 		wantErr     bool
 		errorMsg    string
@@ -355,7 +338,7 @@ func TestMCPTool_Validate(t *testing.T) {
 				},
 			}
 
-			mockClient := &agentdomainmocks.FakeMCPClient{}
+			mockClient := &mcpmocks.FakeClient{}
 
 			tool := NewMCPTool(
 				"test-server",
@@ -502,7 +485,7 @@ func TestMCPTool_IsEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &agentdomainmocks.FakeMCPClient{}
+			mockClient := &mcpmocks.FakeClient{}
 
 			tool := NewMCPTool(
 				tt.serverName,
@@ -523,7 +506,7 @@ func TestMCPTool_IsEnabled(t *testing.T) {
 }
 
 func TestMCPTool_ShouldCollapseArg(t *testing.T) {
-	mockClient := &agentdomainmocks.FakeMCPClient{}
+	mockClient := &mcpmocks.FakeClient{}
 	tool := NewMCPTool("server", "tool", "desc", nil, mockClient, &config.MCPConfig{})
 
 	tests := []struct {
@@ -548,7 +531,7 @@ func TestMCPTool_ShouldCollapseArg(t *testing.T) {
 }
 
 func TestMCPTool_ShouldAlwaysExpand(t *testing.T) {
-	mockClient := &agentdomainmocks.FakeMCPClient{}
+	mockClient := &mcpmocks.FakeClient{}
 	tool := NewMCPTool("server", "tool", "desc", nil, mockClient, &config.MCPConfig{})
 
 	if tool.ShouldAlwaysExpand() {
@@ -556,14 +539,18 @@ func TestMCPTool_ShouldAlwaysExpand(t *testing.T) {
 	}
 }
 
-// testError is a simple error implementation for testing
-type testError struct {
-	msg string
-}
+// A result the tool itself flagged with isError fails the execution even
+// though the JSON-RPC call succeeded.
+func TestMCPTool_Execute_ToolReportedError(t *testing.T) {
+	mockClient := &mcpmocks.FakeClient{}
+	mockClient.CallToolReturns(mcpdomain.CallResult{Content: "no such file", IsError: true}, nil)
+	tool := NewMCPTool("server", "readFile", "desc", nil, mockClient, &config.MCPConfig{})
 
-func (e *testError) Error() string {
-	return e.msg
+	result, err := tool.Execute(context.Background(), map[string]any{})
+	if err != nil {
+		t.Fatalf("Execute() should not return error, got: %v", err)
+	}
+	if result.Success || !strings.Contains(result.Error, "no such file") {
+		t.Errorf("expected a failed execution naming the tool's error, got success=%v error=%q", result.Success, result.Error)
+	}
 }
-
-// Ensure MCPTool implements agentdomain.Tool interface
-var _ agentdomain.Tool = (*MCPTool)(nil)

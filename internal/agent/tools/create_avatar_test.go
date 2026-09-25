@@ -171,7 +171,7 @@ func TestCreateAvatarTool_RegistryGating(t *testing.T) {
 			cfg := config.DefaultConfig()
 			cfg.TextToVideo.Enabled = tt.video
 			cfg.TextToVideo.CreateAvatar = tt.createAvatar
-			registry := NewRegistry(cfg, &agentdomainmocks.FakeImageService{}, nil, nil, nil, &agentdomainmocks.FakeVideoService{}, nil, nil, nil, nil, nil)
+			registry := NewRegistry(cfg, &agentdomainmocks.FakeImageService{}, nil, nil, nil, &agentdomainmocks.FakeVideoService{}, nil, nil, nil, nil)
 
 			if tt.want {
 				assert.Contains(t, registry.ListAvailableTools(), "CreateAvatar")

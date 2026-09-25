@@ -8,8 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	components "github.com/inference-gateway/cli/internal/presentation/tui/components"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
@@ -60,7 +60,7 @@ func (t *teaInputStatusBarComponent) SetHeight(int) {}
 
 func (t *teaInputStatusBarComponent) SetInputText(string) {}
 
-func (t *teaInputStatusBarComponent) UpdateMCPStatus(*agentdomain.MCPServerStatus) {}
+func (t *teaInputStatusBarComponent) UpdateMCPStatus(*mcpdomain.ServerStatus) {}
 
 func (t *teaInputStatusBarComponent) SetBrowserConnected(bool) {}
 

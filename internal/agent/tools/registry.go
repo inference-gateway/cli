@@ -24,17 +24,11 @@ import (
 	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
-// Note: this file deliberately does NOT call DiscoverTools synchronously at
-// construction time. MCP tool discovery is handled asynchronously by the
-// liveness probe loop in MCPSupervisor.StartMonitoring (see
-// internal/mcp/supervisor.go) which emits MCPServerStatusUpdateEvent
-// once a server is reachable, and ChatApplication.handleMCPStatusUpdate
-// (internal/presentation/tui/app/chat.go) then invokes RegisterMCPServerTools below to
-// install the discovered tools.
-//
-// Calling DiscoverTools here would block container construction (and
-// therefore the bubbletea TUI startup) on sequential HTTP round trips to
-// every configured MCP server - see issue #523.
+// MCP tools are not built here. The MCP context (internal/mcp) wraps each
+// server's tools as agentdomain.Tool values and they arrive through
+// RegisterTools: from the liveness loop's status events in chat, and from a
+// one-shot discovery in headless. Construction never blocks on MCP I/O
+// (issue #523).
 
 type Registry struct {
 	config          *config.Config
@@ -53,7 +47,6 @@ type Registry struct {
 	musicService    agentdomain.MusicService
 	sfxService      agentdomain.SoundEffectService
 	videoService    agentdomain.VideoService
-	mcpManager      agentdomain.MCPSupervisor
 	shellService    scheddomain.BackgroundShellService
 	annotator       agentdomain.ImageAnnotator
 	frameSources    map[string]agentdomain.FrameSource
@@ -69,7 +62,7 @@ type Registry struct {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, videoService agentdomain.VideoService, mcpManager agentdomain.MCPSupervisor, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker scheddomain.A2ATaskTracker, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, videoService agentdomain.VideoService, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker scheddomain.A2ATaskTracker, stores *storage.Stores) *Registry {
 	if taskTracker == nil {
 		taskTracker = schedinfra.NewA2ATaskTracker()
 	}
@@ -84,7 +77,6 @@ func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, spee
 		musicService:  musicService,
 		sfxService:    sfxService,
 		videoService:  videoService,
-		mcpManager:    mcpManager,
 		annotator:     annotator,
 		frameSources:  make(map[string]agentdomain.FrameSource),
 		stores:        stores,
@@ -345,55 +337,10 @@ func (r *Registry) IsToolEnabled(name string) bool {
 	return tool.IsEnabled()
 }
 
-// RegisterMCPServerTools dynamically registers tools from an MCP server.
-// The serverName must match a client registered with the MCPSupervisor - the
-// lookup is O(1) via MCPSupervisor.GetClient and performs no network I/O.
-func (r *Registry) RegisterMCPServerTools(serverName string, tools []agentdomain.MCPDiscoveredTool) int {
-	if r.mcpManager == nil {
-		return 0
-	}
-
-	targetClient := r.mcpManager.GetClient(serverName)
-	if targetClient == nil {
-		logger.Warn("could not find MCP client for server", "server", serverName)
-		return 0
-	}
-
-	toolCount := 0
-	cfg := r.config
-
-	r.toolsMu.Lock()
-	for _, tool := range tools {
-		fullToolName := fmt.Sprintf("MCP_%s_%s", serverName, tool.Name)
-
-		mcpTool := NewMCPTool(
-			serverName,
-			tool.Name,
-			tool.Description,
-			tool.InputSchema,
-			targetClient,
-			&cfg.MCP,
-		)
-
-		r.tools[fullToolName] = mcpTool
-		toolCount++
-
-		logger.Info("dynamically registered MCP tool",
-			"tool", fullToolName,
-			"server", serverName,
-			"description", tool.Description)
-	}
-	r.toolsMu.Unlock()
-
-	r.mcpManager.UpdateToolCount(serverName, toolCount)
-
-	return toolCount
-}
-
-// UnregisterMCPServerTools removes all tools from a specific MCP server
-func (r *Registry) UnregisterMCPServerTools(serverName string) int {
+// UnregisterToolsWithPrefix removes every tool whose name starts with prefix,
+// e.g. all tools of an MCP server that disconnected.
+func (r *Registry) UnregisterToolsWithPrefix(prefix string) int {
 	removedCount := 0
-	prefix := fmt.Sprintf("MCP_%s_", serverName)
 
 	r.toolsMu.Lock()
 	for toolName := range r.tools {
@@ -405,8 +352,7 @@ func (r *Registry) UnregisterMCPServerTools(serverName string) int {
 	r.toolsMu.Unlock()
 
 	if removedCount > 0 {
-		logger.Debug("unregistered MCP tools from disconnected server", "server", serverName, "count", removedCount)
-		r.mcpManager.ClearToolCount(serverName)
+		logger.Debug("unregistered tools", "prefix", prefix, "count", removedCount)
 	}
 
 	return removedCount

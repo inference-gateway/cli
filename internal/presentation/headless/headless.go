@@ -22,6 +22,7 @@ import (
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	gateway "github.com/inference-gateway/cli/internal/gateway"
+	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
@@ -45,7 +46,7 @@ type Services interface {
 	GetGatewaySupervisor() *gateway.Supervisor
 	GetAgentSupervisor() agentdomain.AgentSupervisor
 	GetAgentService() agentdomain.AgentService
-	GetMCPSupervisor() agentdomain.MCPSupervisor
+	GetMCPSupervisor() mcpdomain.Supervisor
 	GetToolRegistry() *tools.Registry
 	GetToolService() agentdomain.ToolService
 	GetFileService() agentdomain.FileService
@@ -141,8 +142,10 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		startLocalAgents(agentManager, cfg, opts.Format)
 	}
 
-	if mcpManager := svc.GetMCPSupervisor(); mcpManager != nil {
-		discoverMCPTools(context.Background(), mcpManager, svc.GetToolRegistry())
+	// Chat registers MCP tools from the liveness loop; headless has no UI
+	// loop, so it discovers them once before the first turn.
+	if mcpSupervisor := svc.GetMCPSupervisor(); mcpSupervisor != nil {
+		svc.GetToolRegistry().RegisterTools(mcpSupervisor.DiscoverTools(context.Background()))
 	}
 
 	listCtx, listCancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
@@ -523,33 +526,4 @@ func writeResultFile(path string, repo convdomain.ConversationRepository, sessio
 	if err := scheddomain.WriteSubagentResultFile(path, rf); err != nil {
 		logger.Warn("failed to write result file", "path", path, "error", err)
 	}
-}
-
-// discoverMCPTools registers MCP tools before the first turn. Chat mode does
-// this from the liveness-probe loop through the TUI handler; headless has no
-// UI loop, so probe every client once, in parallel, bounded by each server's
-// connection timeout.
-// ponytail: run:true container servers still starting in the background are
-// skipped here (their client is not initialized yet); wait on StartServers
-// if headless ever needs container-hosted MCP tools on the first turn.
-func discoverMCPTools(ctx context.Context, mcpManager agentdomain.MCPSupervisor, registry *tools.Registry) {
-	if registry == nil {
-		return
-	}
-	var wg sync.WaitGroup
-	for _, mcpClient := range mcpManager.GetClients() {
-		wg.Add(1)
-		go func(mcpClient agentdomain.MCPClient) {
-			defer wg.Done()
-			discovered, err := mcpClient.DiscoverTools(ctx)
-			if err != nil {
-				logger.Warn("mcp tool discovery failed", "error", err)
-				return
-			}
-			for server, serverTools := range discovered {
-				registry.RegisterMCPServerTools(server, serverTools)
-			}
-		}(mcpClient)
-	}
-	wg.Wait()
 }

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 )
 
 func TestNewSupervisor(t *testing.T) {
@@ -29,58 +29,54 @@ func TestNewSupervisor(t *testing.T) {
 	}
 
 	sessionID := convdomain.GenerateSessionID()
-	manager := NewSupervisor(sessionID, cfg, nil, nil)
+	supervisor := NewSupervisor(sessionID, cfg, nil, nil)
 
-	if manager == nil {
-		t.Fatal("Expected non-nil manager")
+	if supervisor == nil {
+		t.Fatal("Expected non-nil supervisor")
 	}
 
-	if manager.config != cfg {
+	if supervisor.config != cfg {
 		t.Error("Expected config to be set correctly")
 	}
 
-	clients := manager.GetClients()
+	clients := supervisor.clients
 	if len(clients) != 1 {
 		t.Errorf("Expected 1 client, got %d", len(clients))
 	}
 }
 
-func TestManager_Close(t *testing.T) {
+func TestSupervisor_Close(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled: true,
 		Servers: []config.MCPServerEntry{},
 	}
 
 	sessionID := convdomain.GenerateSessionID()
-	manager := NewSupervisor(sessionID, cfg, nil, nil)
+	supervisor := NewSupervisor(sessionID, cfg, nil, nil)
 
-	err := manager.Close()
+	err := supervisor.Close()
 	if err != nil {
 		t.Errorf("Close() returned unexpected error: %v", err)
 	}
 }
 
-func TestManager_GetClients_NoServers(t *testing.T) {
+func TestSupervisor_GetClients_NoServers(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled: true,
 		Servers: []config.MCPServerEntry{},
 	}
 
 	sessionID := convdomain.GenerateSessionID()
-	manager := NewSupervisor(sessionID, cfg, nil, nil)
+	supervisor := NewSupervisor(sessionID, cfg, nil, nil)
 
-	clients := manager.GetClients()
-
-	if clients == nil {
-		t.Fatal("Expected non-nil clients slice")
-	}
+	clients := supervisor.clients
 
 	if len(clients) != 0 {
 		t.Errorf("Expected 0 clients, got %d", len(clients))
 	}
 }
 
-func TestManager_GetClients_DisabledServer(t *testing.T) {
+func TestSupervisor_GetClients_DisabledServer(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled: true,
 		Servers: []config.MCPServerEntry{
@@ -96,16 +92,16 @@ func TestManager_GetClients_DisabledServer(t *testing.T) {
 	}
 
 	sessionID := convdomain.GenerateSessionID()
-	manager := NewSupervisor(sessionID, cfg, nil, nil)
+	supervisor := NewSupervisor(sessionID, cfg, nil, nil)
 
-	clients := manager.GetClients()
+	clients := supervisor.clients
 
 	if len(clients) != 0 {
 		t.Errorf("Expected 0 clients for disabled server, got %d", len(clients))
 	}
 }
 
-func TestManager_GetClients_MultipleServers(t *testing.T) {
+func TestSupervisor_GetClients_MultipleServers(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled: true,
 		Servers: []config.MCPServerEntry{
@@ -137,9 +133,9 @@ func TestManager_GetClients_MultipleServers(t *testing.T) {
 	}
 
 	sessionID := convdomain.GenerateSessionID()
-	manager := NewSupervisor(sessionID, cfg, nil, nil)
+	supervisor := NewSupervisor(sessionID, cfg, nil, nil)
 
-	clients := manager.GetClients()
+	clients := supervisor.clients
 
 	if len(clients) != 2 {
 		t.Errorf("Expected 2 clients, got %d", len(clients))
@@ -198,29 +194,29 @@ func monitoringTestConfig() *config.MCPConfig {
 
 // connectAll marks every client connected so the initial-status push fires
 // (initializeClient does not connect by itself - a live probe would).
-func connectAll(m *Supervisor) {
-	for _, c := range m.clients {
+func connectAll(s *Supervisor) {
+	for _, c := range s.clients {
 		c.mu.Lock()
 		c.isConnected = true
 		c.mu.Unlock()
 	}
 }
 
-// sendStatusUpdateWithTools pushes an MCPServerStatusUpdateEvent through the
+// sendStatusUpdateWithTools pushes a ServerStatusUpdateEvent through the
 // injected notifier (no channel). This is the synchronous push primitive every
 // probe path funnels through.
-func TestManager_PushesStatusThroughNotifier(t *testing.T) {
+func TestSupervisor_PushesStatusThroughNotifier(t *testing.T) {
 	rec := &recordingNotifier{}
-	manager := NewSupervisor(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	supervisor := NewSupervisor(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
 
-	manager.sendStatusUpdateWithTools("test-server", true, nil)
+	supervisor.sendStatusUpdateWithTools("test-server", true, nil)
 
 	if got := rec.count(); got != 1 {
 		t.Fatalf("expected 1 push, got %d", got)
 	}
-	ev, ok := rec.events[0].(agentdomain.MCPServerStatusUpdateEvent)
+	ev, ok := rec.events[0].(mcpdomain.ServerStatusUpdateEvent)
 	if !ok {
-		t.Fatalf("expected MCPServerStatusUpdateEvent, got %T", rec.events[0])
+		t.Fatalf("expected ServerStatusUpdateEvent, got %T", rec.events[0])
 	}
 	if ev.ServerName != "test-server" || !ev.Connected {
 		t.Errorf("unexpected event payload: %+v", ev)
@@ -230,16 +226,16 @@ func TestManager_PushesStatusThroughNotifier(t *testing.T) {
 // StartMonitoring pushes the initial status for connected clients through the
 // notifier - there is no channel to drain. A second call is a no-op (idempotent),
 // so the count stays at one connected client rather than doubling.
-func TestManager_StartMonitoring_Idempotent(t *testing.T) {
+func TestSupervisor_StartMonitoring_Idempotent(t *testing.T) {
 	rec := &recordingNotifier{}
-	manager := NewSupervisor(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
-	connectAll(manager)
+	supervisor := NewSupervisor(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	connectAll(supervisor)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	manager.StartMonitoring(ctx)
-	manager.StartMonitoring(ctx)
+	supervisor.StartMonitoring(ctx)
+	supervisor.StartMonitoring(ctx)
 
 	rec.waitForCount(1, time.Second)
 	// Settle: give a hypothetical second initial-status goroutine time to fire.
@@ -248,26 +244,26 @@ func TestManager_StartMonitoring_Idempotent(t *testing.T) {
 		t.Errorf("expected exactly 1 initial status push (idempotent), got %d", got)
 	}
 
-	_ = manager.Close()
+	_ = supervisor.Close()
 }
 
 // With liveness probes disabled, StartMonitoring still pushes the initial status
 // once through the notifier and starts no probe goroutines.
-func TestManager_StartMonitoring_DisabledProbes(t *testing.T) {
+func TestSupervisor_StartMonitoring_DisabledProbes(t *testing.T) {
 	rec := &recordingNotifier{}
-	manager := NewSupervisor(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
-	connectAll(manager)
+	supervisor := NewSupervisor(convdomain.GenerateSessionID(), monitoringTestConfig(), nil, rec)
+	connectAll(supervisor)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	manager.StartMonitoring(ctx)
+	supervisor.StartMonitoring(ctx)
 
 	if got := rec.waitForCount(1, time.Second); got != 1 {
 		t.Errorf("expected 1 initial status push with probes disabled, got %d", got)
 	}
 
-	_ = manager.Close()
+	_ = supervisor.Close()
 }
 
 func TestMCPServerEntry_ShouldIncludeTool(t *testing.T) {
@@ -389,6 +385,3 @@ func TestMCPServerEntry_GetTimeout(t *testing.T) {
 		})
 	}
 }
-
-// Ensure Supervisor implements agentdomain.MCPSupervisor interface
-var _ agentdomain.MCPSupervisor = (*Supervisor)(nil)
