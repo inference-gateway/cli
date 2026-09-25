@@ -64,6 +64,14 @@ type bridge struct {
 	windowLayer uintptr
 }
 
+func nativeResponse(req request) response {
+	elements, err := runNative(req)
+	if err != nil {
+		return errorResponse(err)
+	}
+	return response{Elements: elements}
+}
+
 func runNative(req request) ([]computerdomain.UIElement, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()

@@ -28,11 +28,7 @@ func RunHelper(input io.Reader, output io.Writer) (err error) {
 	if err := json.NewDecoder(input).Decode(&req); err != nil {
 		return encoder.Encode(response{Code: "unavailable", Error: "decode request: " + err.Error()})
 	}
-	elements, nativeErr := runNative(req)
-	if nativeErr != nil {
-		return encoder.Encode(errorResponse(nativeErr))
-	}
-	return encoder.Encode(response{Elements: elements})
+	return encoder.Encode(nativeResponse(req))
 }
 
 func errorResponse(err error) response {
