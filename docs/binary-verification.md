@@ -95,13 +95,11 @@ go install github.com/sigstore/cosign/v2/cmd/cosign@latest
 curl -L -o infer-darwin-amd64 \
   https://github.com/inference-gateway/cli/releases/latest/download/infer-darwin-amd64
 
-# Download checksums and signature files
+# Download checksums file and Sigstore bundle
 curl -L -o checksums.txt \
   https://github.com/inference-gateway/cli/releases/latest/download/checksums.txt
-curl -L -o checksums.txt.pem \
-  https://github.com/inference-gateway/cli/releases/latest/download/checksums.txt.pem
-curl -L -o checksums.txt.sig \
-  https://github.com/inference-gateway/cli/releases/latest/download/checksums.txt.sig
+curl -L -o checksums.txt.sigstore.json \
+  https://github.com/inference-gateway/cli/releases/latest/download/checksums.txt.sigstore.json
 ```
 
 ### Step 2: Verify SHA256 Checksum
@@ -121,13 +119,9 @@ grep infer-darwin-amd64 checksums.txt
 Now verify that the checksums file was signed by the project's official release workflow:
 
 ```bash
-# Decode base64 encoded certificate
-cat checksums.txt.pem | base64 -d > checksums.txt.pem.decoded
-
-# Verify the signature
+# Verify the signature using the Sigstore bundle
 cosign verify-blob \
-  --certificate checksums.txt.pem.decoded \
-  --signature checksums.txt.sig \
+  --bundle checksums.txt.sigstore.json \
   --certificate-identity "https://github.com/inference-gateway/cli/.github/workflows/release.yml@refs/heads/main" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
   checksums.txt
@@ -170,6 +164,8 @@ Replace `infer-darwin-amd64` with your platform's binary name:
 | macOS | Apple Silicon (arm64) | `infer-darwin-arm64` |
 | Linux | amd64 | `infer-linux-amd64` |
 | Linux | arm64 | `infer-linux-arm64` |
+| Windows | amd64 | `infer-windows-amd64` |
+| Windows | arm64 | `infer-windows-arm64` |
 
 ---
 
@@ -204,19 +200,7 @@ If Cosign verification fails:
 1. **Check Cosign version**: Ensure you have a recent version of Cosign installed
 2. **Verify certificate identity**: Ensure the `--certificate-identity` matches exactly
 3. **Check file permissions**: Ensure all downloaded files are readable
-4. **Re-download files**: The signature files may have been corrupted
-
-### Certificate Decoding Issues
-
-If `base64 -d` fails:
-
-```bash
-# Try alternative decoding methods
-base64 --decode checksums.txt.pem > checksums.txt.pem.decoded
-
-# Or use openssl
-openssl base64 -d -in checksums.txt.pem -out checksums.txt.pem.decoded
-```
+4. **Re-download files**: The Sigstore bundle may have been corrupted
 
 ---
 
