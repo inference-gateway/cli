@@ -164,3 +164,34 @@ func TestVendoredShortcutsDelegateToCommands(t *testing.T) {
 		})
 	}
 }
+
+// TestSCMShortcutsSpellFullGHCommands pins issue #1328: a subcommand with its
+// own command resolves to command+args verbatim, while one without gets its
+// NAME appended to the parent's args - so each /scm subcommand must declare
+// command: gh and spell out the real `gh issue ...` invocation, or the invoked
+// names ("issues", "issue") would duplicate into invalid gh commands.
+func TestSCMShortcutsSpellFullGHCommands(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "scm.yaml")
+	require.NoError(t, createSCMShortcutsFile(path))
+
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var parsed shortcuts.CustomShortcutsConfig
+	require.NoError(t, yaml.Unmarshal(raw, &parsed))
+	require.Len(t, parsed.Shortcuts, 1)
+
+	scm := parsed.Shortcuts[0]
+	require.NoError(t, scm.Validate())
+	require.Equal(t, "gh", scm.Command)
+
+	want := map[string][]string{
+		"issues": {"issue", "list"},
+		"issue":  {"issue", "view"},
+	}
+	for _, sub := range scm.Subcommands {
+		require.GreaterOrEqual(t, len(sub.Args), 2, "subcommand %q must carry the full gh command in args", sub.Name)
+		require.Equal(t, "gh", sub.Command, "subcommand %q must declare its own command", sub.Name)
+		require.Equal(t, want[sub.Name], sub.Args[:2], "subcommand %q must start with the real gh subcommand", sub.Name)
+	}
+}

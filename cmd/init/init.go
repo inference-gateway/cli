@@ -338,6 +338,7 @@ shortcuts:
     subcommands:
       - name: issues
         description: "List all GitHub issues for the repository"
+        command: gh
         args:
           - issue
           - list
@@ -348,6 +349,7 @@ shortcuts:
 
       - name: issue
         description: "Show details for a specific GitHub issue (usage: <number>)"
+        command: gh
         args:
           - issue
           - view

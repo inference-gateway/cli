@@ -248,6 +248,7 @@ shortcuts:
     subcommands:
       - name: issues
         description: "List all GitHub issues for the repository"
+        command: gh
         args:
           - issue
           - list
