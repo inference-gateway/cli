@@ -181,7 +181,7 @@ func (r *ScreenRecorder) prepare(ctx context.Context, req recordRequest) (string
 		Region:      region,
 		FrameWidth:  frameW,
 		FrameHeight: frameH,
-		Message: fmt.Sprintf("recording %s [x=%d y=%d w=%d h=%d] of the %dx%d frame space to %s; it stops automatically after %ds, call RecordStop to finish",
+		Message: fmt.Sprintf("recording %s [x=%d y=%d w=%d h=%d] of the %dx%d frame space to %s; it stops on its own after %ds or when RecordStop is called",
 			cmp.Or(req.Mode, "screen"), region.X, region.Y, region.Width, region.Height, frameW, frameH, out, rc.MaxDuration),
 	}}
 	return ffmpeg, args, rec, nil

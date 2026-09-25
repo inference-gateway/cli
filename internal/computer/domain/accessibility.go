@@ -1,7 +1,8 @@
 package domain
 
-// UIElement is one compact accessibility-tree observation. BBox uses the
-// same frame coordinate space as Computer screenshots and pointer actions.
+// UIElement is one compact accessibility-tree observation. BBox is
+// [left, top, right, bottom] in the same frame coordinate space as Computer
+// screenshots and pointer actions.
 type UIElement struct {
 	Role  string `json:"role"`
 	Label string `json:"label"`

@@ -131,7 +131,7 @@ func (e *Executor) observeAccessibility(ctx context.Context, target string, obs 
 	}
 	scaleAccessibilityElements(elements, obs.Width, obs.Height, screenW, screenH)
 	obs.Elements = elements
-	obs.Message = fmt.Sprintf("accessibility tree for %s: %d elements in the %dx%d frame space", target, len(elements), obs.Width, obs.Height)
+	obs.Message = fmt.Sprintf("accessibility tree for %s: %d elements in the %dx%d frame space, each bbox is [left, top, right, bottom]", target, len(elements), obs.Width, obs.Height)
 }
 
 func (e *Executor) pressAccessibility(ctx context.Context, target, label string, obs *computerdomain.Observation) {
