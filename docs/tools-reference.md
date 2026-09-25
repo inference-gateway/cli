@@ -1189,7 +1189,8 @@ a2a:
 ```
 
 **Note:** Artifact downloads from A2A tasks are handled via the WebFetch tool with `download=true`.
-Files are automatically saved to `<configDir>/tmp` with the filename extracted from the download URL.
+Files are automatically saved to the per-session artifacts directory
+`~/.infer/projects/<project-slug>/artifacts/<session-id>/` with the filename extracted from the download URL.
 
 ## A2A Use Cases
 

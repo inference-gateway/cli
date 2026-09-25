@@ -230,7 +230,8 @@ Configure a remote code review agent:
 infer agents add code-reviewer https://code-review.example.com
 ```
 
-This creates an entry in `.infer/agents.yaml`:
+This creates an entry in `~/.infer/agents.yaml` (the userspace baseline; pass `--project` to write
+`.infer/agents.yaml` instead):
 
 ```yaml
 agents:
@@ -379,25 +380,36 @@ The AI will use the A2A tools to delegate this task to the configured code-revie
 
 ## Local Agent Execution (Docker)
 
-When `run: true` is set, the CLI expects the agent to be available as a Docker container. The container
-lifecycle is managed externally - the CLI only communicates with the agent via HTTP.
+When `run: true` is set, the CLI runs the agent itself as a Docker container and manages the full lifecycle: it
+pulls the OCI image (reporting layer pull progress), starts the container, and waits for its health check. This
+happens automatically when a chat or headless session starts (`StartAgents` / `startAgentAsync` in
+`internal/agent/application/agent_supervisor.go`).
+
+**What the CLI does for each `run: true` agent:**
+
+- Pulls the OCI image if it is not available locally, reporting pull progress
+- Starts a container named `inference-agent-<name>-<session-id>` and assigns a host port with
+  `config.FindAvailablePort`, derived from the port in `url`
+- Injects the `environment` entries plus the model settings (`A2A_AGENT_CLIENT_PROVIDER` /
+  `A2A_AGENT_CLIENT_MODEL`, falling back to the CLI's configured `agent.model`) and gateway settings
+  (`A2A_AGENT_CLIENT_BASE_URL`)
+- Maps the artifacts server port (8081 in the container) when `artifacts_url` is set
+- Polls the agent's `/health` endpoint and reports status in the TUI; headless mode waits for local agents to
+  settle before the first turn
 
 **Requirements for local agents:**
 
 - Docker must be installed and running
-- The OCI image must be pulled or available locally
 - The agent must expose an HTTP endpoint (specified in `url`)
-- Environment variables are passed to the container
+- Environment variables listed in `environment` are resolved from `.env`, the system environment, or the literal
+  value (see [Environment Variable Substitution](#environment-variable-substitution))
 
-**Note:** The current implementation focuses on configuration. Full Docker lifecycle management (pull, run,
-stop) will be added in future versions. For now, you must manually start local agents:
+**Detached containers:** `infer agents start [name]` starts `run: true` agents as detached containers that
+outlive the command; later chat and headless sessions reuse them instead of starting their own, and
+`infer agents stop [name]` stops them (`cmd/agents/agents.go`).
 
-```bash
-docker run -d -p 8081:8080 \
-  -e API_KEY=secret \
-  -e MODEL=gpt-4 \
-  ghcr.io/org/test-runner:latest
-```
+**Note:** Do not start local agent containers by hand with `docker run`. The CLI starts its own container per
+session; a manually started container on the same port collides with the ones the CLI starts.
 
 ## Best Practices
 
@@ -445,6 +457,6 @@ infer agents add new-name https://agent.url
 
 ## Related Documentation
 
-- [A2A Tools Documentation](../README.md#a2a-tools-agent-to-agent-communication)
+- [A2A Tools Documentation](tools-reference.md#agent-to-agent-communication)
 - [Configuration Guide](../README.md#configuration)
 - [Agent Architecture](../AGENTS.md)
