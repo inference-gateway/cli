@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 	"unsafe"
 
 	purego "github.com/ebitengine/purego"
@@ -94,11 +95,13 @@ func runNative(req request) ([]computerdomain.UIElement, error) {
 
 	switch req.Action {
 	case "elements":
+		b.awaitWindowContent(root)
 		return b.collect(root, depth), nil
 	case "press":
 		if req.Label == "" {
 			return nil, fmt.Errorf("%w: label is empty", ErrElementNotFound)
 		}
+		b.awaitWindowContent(root)
 		found, code := b.pressFirst(root, req.Label, 0, depth, map[uintptr]bool{})
 		if !found {
 			return nil, fmt.Errorf("%w: %q", ErrElementNotFound, req.Label)
@@ -427,6 +430,45 @@ func (b *bridge) compactElement(element uintptr) (computerdomain.UIElement, bool
 		return computerdomain.UIElement{}, false
 	}
 	return computerdomain.UIElement{Role: role, Label: label, State: b.state(element, role, actions), BBox: box}, true
+}
+
+// awaitWindowContent gives a web view up to half a second to build its
+// accessibility tree. WebKit builds it only once a client first asks, so the
+// first walk of a WKWebView app finds the window's content group empty.
+func (b *bridge) awaitWindowContent(root uintptr) {
+	for range 5 {
+		if !b.hasEmptyContentGroup(root) {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// hasEmptyContentGroup reports whether a window of root holds a group or
+// scroll area with no children: a web view whose tree is not built yet.
+func (b *bridge) hasEmptyContentGroup(root uintptr) bool {
+	empty := false
+	b.forEachChild(root, func(window uintptr) bool {
+		if b.stringAttribute(window, "AXRole") != "AXWindow" {
+			return true
+		}
+		b.forEachChild(window, func(child uintptr) bool {
+			role := b.stringAttribute(child, "AXRole")
+			empty = (role == "AXGroup" || role == "AXScrollArea") && !b.hasChildren(child)
+			return !empty
+		})
+		return !empty
+	})
+	return empty
+}
+
+func (b *bridge) hasChildren(element uintptr) bool {
+	has := false
+	b.forEachChild(element, func(uintptr) bool {
+		has = true
+		return false
+	})
+	return has
 }
 
 func (b *bridge) collect(root uintptr, maxDepth int) []computerdomain.UIElement {
