@@ -30,7 +30,7 @@ sync with whatever the consumer reads.
 
 The defaults are the OTel semantic convention attributes and match the ADK's
 defaults byte-for-byte. The cross-repo contract is the baggage **member
-names** (the values above), not the config/env names — each side names its
+names** (the values above), not the config/env names - each side names its
 own knobs. An empty value falls back to the default.
 
 ### Mixed old/new deployment
@@ -73,5 +73,8 @@ concept is `gen_ai.conversation.id`.)
 
 OTLP/HTTP export is configured via the standard OTel environment variables
 (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, etc.) or via
-the CLI config (`telemetry.otlp_endpoint`, `telemetry.otlp_headers`). See
-the [Configuration Reference](configuration-reference.md) for details.
+the CLI config keys `telemetry.otlp.endpoint` and `telemetry.otlp.headers`
+(plus `telemetry.otlp.interval`, default 60 seconds). Export activates only
+when an endpoint (config or `OTEL_EXPORTER_OTLP_ENDPOINT`) is set. See the
+[Telemetry Settings](configuration-reference.md#telemetry-settings) section
+of the [Configuration Reference](configuration-reference.md) for details.
