@@ -150,7 +150,7 @@ The CLI answers with an empty `conversation_snapshot` for the new conversation.
 After the snapshot the CLI streams live chat activity for the active
 conversation, one frame per
 [AG-UI](https://docs.ag-ui.com/) event (same encoding as
-`infer headless --output ag-ui`, see `docs/ag-ui-output.md`):
+`infer headless --format ag-ui`, see `docs/ag-ui-output.md`):
 
 ```json
 {"type": "chat_event", "event": {"type": "TEXT_MESSAGE_CONTENT", "delta": "..."}}
