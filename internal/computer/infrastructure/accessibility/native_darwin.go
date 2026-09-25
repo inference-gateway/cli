@@ -435,16 +435,20 @@ func (b *bridge) collect(root uintptr, maxDepth int) []computerdomain.UIElement 
 	return elements
 }
 
-func (b *bridge) walk(element uintptr, depth, maxDepth int, seen map[uintptr]bool, elements *[]computerdomain.UIElement) {
-	if element == 0 || depth > maxDepth || len(*elements) >= maxTreeElements || seen[element] {
+// walk and pressFirst guard against cycles with the elements on the current
+// path only: a walked child is freed with its AXChildren array, and the next
+// array can reuse its address for a different element.
+func (b *bridge) walk(element uintptr, depth, maxDepth int, ancestors map[uintptr]bool, elements *[]computerdomain.UIElement) {
+	if element == 0 || depth > maxDepth || len(*elements) >= maxTreeElements || ancestors[element] {
 		return
 	}
-	seen[element] = true
+	ancestors[element] = true
+	defer delete(ancestors, element)
 	if compact, ok := b.compactElement(element); ok {
 		*elements = append(*elements, compact)
 	}
 	b.forEachChild(element, func(child uintptr) bool {
-		b.walk(child, depth+1, maxDepth, seen, elements)
+		b.walk(child, depth+1, maxDepth, ancestors, elements)
 		return len(*elements) < maxTreeElements
 	})
 }
@@ -465,11 +469,12 @@ func (b *bridge) forEachChild(element uintptr, visit func(uintptr) bool) {
 	}
 }
 
-func (b *bridge) pressFirst(element uintptr, label string, depth, maxDepth int, seen map[uintptr]bool) (bool, int32) {
-	if element == 0 || depth > maxDepth || seen[element] {
+func (b *bridge) pressFirst(element uintptr, label string, depth, maxDepth int, ancestors map[uintptr]bool) (bool, int32) {
+	if element == 0 || depth > maxDepth || ancestors[element] {
 		return false, axErrorSuccess
 	}
-	seen[element] = true
+	ancestors[element] = true
+	defer delete(ancestors, element)
 	if b.stringAttribute(element, "AXTitle", "AXDescription", "AXPlaceholderValue", "AXHelp", "AXIdentifier") == label &&
 		contains(b.actionNames(element), "press") {
 		return true, b.axPerformAction(element, b.attrs["AXPress"])
@@ -477,7 +482,7 @@ func (b *bridge) pressFirst(element uintptr, label string, depth, maxDepth int, 
 	var found bool
 	var code int32
 	b.forEachChild(element, func(child uintptr) bool {
-		found, code = b.pressFirst(child, label, depth+1, maxDepth, seen)
+		found, code = b.pressFirst(child, label, depth+1, maxDepth, ancestors)
 		return !found
 	})
 	return found, code
