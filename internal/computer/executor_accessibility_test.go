@@ -77,6 +77,35 @@ func TestExecutorPressAccessibilityWithoutScreenshot(t *testing.T) {
 	}
 }
 
+func TestExecutorPressMissSuggestsPressableLabels(t *testing.T) {
+	provider := &fakeAccessibilityProvider{
+		pressErr: accessibility.ErrElementNotFound,
+		elements: []computerdomain.UIElement{
+			{Role: "button", Label: "Collapse fzf", State: "enabled actions=press"},
+			{Role: "button", Label: "Select project fzf", State: "enabled actions=press,show menu"},
+			{Role: "static text", Label: "fzf", State: "enabled actions=show menu"},
+			{Role: "button", Label: "Record workflow", State: "enabled actions=press"},
+		},
+	}
+	executor := newExecutor(config.DefaultConfig(), provider)
+
+	tests := []struct {
+		label string
+		want  string
+	}{
+		{"FZF", `Pressable labels containing it: "Collapse fzf", "Select project fzf".`},
+		{"Record", `Pressable labels containing it: "Record workflow".`},
+		{"Stop", "no pressable element matched that label"},
+	}
+	for _, tt := range tests {
+		observation := &computerdomain.Observation{}
+		executor.pressAccessibility(context.Background(), "frontmost", tt.label, observation)
+		if !strings.Contains(observation.Message, tt.want) {
+			t.Errorf("press %q: Message = %q, want substring %q", tt.label, observation.Message, tt.want)
+		}
+	}
+}
+
 func TestAccessibilityFallbackClassifiesErrors(t *testing.T) {
 	tests := []struct {
 		err  error
