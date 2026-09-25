@@ -378,6 +378,8 @@ func ffmpegArgs(goos, displayName string, rect display.Region, s capture.Screen,
 	default:
 		return nil, fmt.Errorf("screen recording is not supported on %s", goos)
 	}
-	return append(args, "-t", strconv.Itoa(maxSeconds),
+	// -r pins the output rate: without it ffmpeg guesses one from the first
+	// grabbed frames (x11grab drifts to 23-26fps) and pads with duplicates.
+	return append(args, "-t", strconv.Itoa(maxSeconds), "-r", rate,
 		"-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-y", out), nil
 }

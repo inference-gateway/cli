@@ -160,7 +160,7 @@ func TestScreenRecorderStartupFailure(t *testing.T) {
 
 func TestFFmpegArgs(t *testing.T) {
 	out := "/rec/a.mp4"
-	tail := []string{"-t", "120", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-y", out}
+	tail := []string{"-t", "120", "-r", "15", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-y", out}
 	head := []string{"-hide_banner", "-loglevel", "error", "-nostats"}
 	logical := capture.Screen{Width: 1440, Height: 900, NativeWidth: 1440, NativeHeight: 900}
 	scaled := capture.Screen{Width: 1280, Height: 720, NativeWidth: 1920, NativeHeight: 1080}
