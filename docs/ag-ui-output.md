@@ -88,7 +88,7 @@ feeding each stdout line to its AG-UI client:
 import { Command } from "@tauri-apps/plugin-shell";
 
 const cmd = Command.sidecar("binaries/infer", [
-  "agent", "--output-format", "ag-ui", task,
+  "headless", "--format", "ag-ui", task,
 ]);
 cmd.stdout.on("data", (line) => {
   const event = JSON.parse(line); // an AG-UI BaseEvent, e.g. { type: "RUN_STARTED", ... }

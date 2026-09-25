@@ -69,7 +69,7 @@ for the full precedence rules.
 ├── schedules/            # cron-driven scheduled jobs (one YAML per job)
 ├── plans/                # plan-mode plans saved by RequestPlanApproval (one .md per plan)
 ├── insights/             # /insights session reports (one .md per run); survives /reset
-├── logs/                 # CLI + gateway logs (app/debug/daemon/gateway <date>.log)
+├── logs/                 # CLI + gateway logs (app/daemon/gateway <date>.log)
 ├── telemetry/            # usage stats backing `infer stats` (see docs/telemetry.md)
 ├── run/                  # daemon pid/lock files
 ├── tmp/                  # userspace scratch: agent-readable/writable, wiped by /reset
