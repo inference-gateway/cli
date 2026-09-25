@@ -76,11 +76,11 @@ These shortcuts are available out of the box:
 **Project setup:**
 
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
-- `/install-opentask` - Install the OpenTask GitHub workflow via an interactive wizard. Generates
-  `.github/workflows/infer.yml` pinned to the latest `infer-action` (issue/comment-triggered plus a
-  manual `workflow_dispatch` mode, 15-minute job timeout). For org repos it configures the GitHub App
-  org secrets; the private-key step pre-scans common locations (`~/Downloads`, `~/Desktop`, home, cwd)
-  for `.pem` files so you can pick one instantly, with manual entry and a file browser as fallbacks.
+- `/install-opentask [owner/repo] [extra context...]` - Install the OpenTask GitHub workflow via the
+  chat agent. The shortcut sends an install task to the agent as a regular chat message, so it streams
+  in the conversation like any other turn: the agent creates or updates `.github/workflows/tasks.yml`
+  on an install branch and opens (or updates) a pull request. `owner/repo` targets another repository
+  (omit it to use the current checkout's) and any extra text is passed along as workflow configuration.
 
 ### Project Initialization Shortcut
 
@@ -91,7 +91,8 @@ file. This allows you to:
 2. Review and optionally modify the prompt before sending
 3. Press Enter to send the prompt and watch the agent analyze your project interactively
 
-The prompt is configurable in your config file under `init.prompt`. The default prompt instructs the agent to:
+The prompt is configurable in `prompts.yaml` under `init.prompt` (env `INFER_PROMPTS_INIT_PROMPT`).
+The default prompt instructs the agent to:
 
 - Analyze your project structure, build tools, and configuration files
 - Create comprehensive documentation for AI agents
@@ -158,10 +159,12 @@ path and sends it with your prompt to `POST /v1/images/edits`
 (`tools.image_variation.model`). Results are saved under the session's artifacts
 dir the same way as generation.
 
-Image models never appear in the `/model` selector - they are recognised by name
-(`dall-e`, `gpt-image`, `imagen`, `flux`, `stable-diffusion`, `sdxl`, `seedream`,
-`nano-banana`, `qwen-image`, since `/v1/models` carries no modality metadata) and
-filtered out; they are only reachable through these tools. `quality` defaults to
+Image models are not selectable from the `/model` selector - they are recognised
+by gateway-reported modalities, not by name. The model list keeps only models
+whose modalities are chat-capable (text in, text out) and drops models that
+report no modalities at all, so image-generation models are filtered out of the
+selectable list (non-chat models can still be listed as view-only rows); they
+are only reachable through these tools. `quality` defaults to
 `low` and `size` to `1024x1024` - ask explicitly for high quality or a larger
 size to pay for it. Disable the tools with `tools.image_generation.enabled: false`,
 `tools.image_edit.enabled: false`, or `tools.image_variation.enabled: false`.
@@ -274,7 +277,7 @@ Beyond `/git` and `/scm`, `infer init` seeds several more shortcut files in
 | `/shells` | `shells.yaml` | List running and recent background shell processes |
 | `/export` | `export.yaml` | Export the current conversation to markdown |
 | `/env` | `env.yaml` | Generate a `.env.example` with all provider API keys |
-| `/agents <list\|add\|remove\|enable\|disable>` | `a2a.yaml` | Manage A2A agents |
+| `/agents <list\|add\|remove>` | `a2a.yaml` | Manage A2A agents |
 | `/skills <list\|install\|uninstall>` | `skills.yaml` | Manage Agent Skills |
 
 These are regular YAML shortcuts - edit or remove them like any other file in
@@ -398,7 +401,9 @@ userspace entry without losing the rest.
 
 ### Configuration File Format
 
-Create files named `custom-*.yaml` (e.g., `custom-1.yaml`, `custom-dev.yaml`) in `~/.infer/shortcuts/`:
+Create `*.yaml` files in `~/.infer/shortcuts/` (or the project `./.infer/shortcuts/`). The file name
+does not matter - every `.yaml` file in the directory is loaded, which is how the seeded `git.yaml`
+and `scm.yaml` load. Note that `.yml` files are not picked up:
 
 ```yaml
 shortcuts:
@@ -456,6 +461,13 @@ You can also pass additional arguments:
 
 Here are some useful shortcuts you might want to add:
 
+A shortcut name cannot contain spaces: the first whitespace-separated token of the input is always the
+shortcut name, so `/docker build` looks up a shortcut called `docker` and passes `build` as an argument.
+To expose several related operations, declare one shortcut with `subcommands:` and invoke it as
+`/name subcommand`. When a subcommand does not define its own `command:`, the final args are the
+shortcut's `args:`, then the subcommand's name, then the subcommand's `args:` - so a subcommand's
+`name:` is usually the actual CLI subcommand and its `args:` carries only the extra flags.
+
 **Development Shortcuts (`custom-dev.yaml`):**
 
 ```yaml
@@ -467,12 +479,14 @@ shortcuts:
       - fmt
       - ./...
 
-  - name: "mod tidy"
-    description: "Tidy up go modules"
+  - name: mod
+    description: "Go module operations"
     command: go
     args:
       - mod
-      - tidy
+    subcommands:
+      - name: tidy
+        description: "Tidy up go modules"
 
   - name: version
     description: "Show current version"
@@ -488,24 +502,27 @@ shortcuts:
 
 ```yaml
 shortcuts:
-  - name: "docker build"
-    description: "Build Docker image"
+  - name: docker
+    description: "Docker operations"
     command: docker
-    args:
-      - build
-      - -t
-      - myapp
-      - .
+    subcommands:
+      - name: build
+        description: "Build Docker image"
+        args:
+          - -t
+          - myapp
+          - .
 
-  - name: "docker run"
-    description: "Run Docker container"
-    command: docker
-    args:
-      - run
-      - -p
-      - "8080:8080"
-      - myapp
+      - name: run
+        description: "Run Docker container"
+        args:
+          - -p
+          - "8080:8080"
+          - myapp
 ```
+
+`/mod tidy` runs `go mod tidy`; `/docker build` runs `docker build -t myapp .` and
+`/docker run` runs `docker run -p 8080:8080 myapp`.
 
 **Project-Specific Shortcuts (`custom-project.yaml`):**
 
@@ -539,7 +556,8 @@ shortcuts:
 ### Shortcut Not Appearing
 
 - **Check YAML syntax**: Ensure your configuration file is valid YAML
-- **Check file naming**: Files must be named `custom-*.yaml` (not `shortcut-*.yaml` or other patterns)
+- **Check file naming**: Files must end in `.yaml` - any file name works (not just `custom-*.yaml`),
+  but `.yml` files are not picked up
 - **Check location**: Files must be in `~/.infer/shortcuts/` (or the project `./.infer/shortcuts/`)
 - **Restart chat**: Restart the chat session to reload shortcuts
 
