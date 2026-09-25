@@ -272,9 +272,9 @@ the project directory. The general guidance:
 
 - `~/.infer/` - userspace config is per-user, never per-project
 - Anything under [Created at Runtime](#created-at-runtime) above
-- Any file containing API keys - prefer `%ENV_VAR%`
-  [substitution](configuration-reference.md#environment-variable-substitution)
-  or `INFER_*` environment variables
+- Any file containing API keys - keep secrets out of `config.yaml` (its values
+  are not expanded) and supply them via `INFER_*` environment variables or
+  `~/.infer/auth.yaml`
 
 ---
 

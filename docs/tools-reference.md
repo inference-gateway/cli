@@ -131,19 +131,17 @@ tools:
 ### Write Tool
 
 Write content to files on the filesystem with security controls and directory creation support.
+Existing files are always overwritten - there is no `overwrite` option; use the Edit tool to modify an existing file's content in place.
 
 **Parameters:**
 
 - `file_path` (required): The path to the file to write
 - `content` (required): The content to write to the file
-- `create_dirs` (optional): Whether to create parent directories if they don't exist (default: true)
-- `overwrite` (optional): Whether to overwrite existing files (default: true)
-- `format` (optional): Output format - "text" or "json" (default: "text")
 
 **Features:**
 
 - **Directory Creation**: Automatically creates parent directories when needed
-- **Overwrite Control**: Configurable behavior for existing files
+- **Always Overwrites**: Existing files are always overwritten; use the Edit tool to modify an existing file's content in place
 - **Security Validation**: Respects path exclusions and security restrictions
 - **Performance Optimized**: Efficient file writing with proper error handling
 
@@ -157,8 +155,7 @@ Write content to files on the filesystem with security controls and directory cr
 **Examples:**
 
 - Create new file: `file_path: "output.txt"`, `content: "Hello, World!"`
-- Write to subdirectory: `file_path: "logs/app.log"`, `content: "log entry"`, `create_dirs: true`
-- Safe overwrite: `file_path: "config.json"`, `content: "{...}"`, `overwrite: false`
+- Write to subdirectory: `file_path: "logs/app.log"`, `content: "log entry"` (parent directories are created automatically)
 
 **Configuration:**
 
@@ -477,7 +474,7 @@ decision, and the A2A tools instruct the model to download artifact URLs with We
 ## Browser Tools
 
 Raw browser automation driven through Playwright (CDP under the hood). All
-four tools share one browser session that launches lazily on first use and
+six tools share one browser session that launches lazily on first use and
 persists across calls, so navigation state carries over. The session drives
 the user's installed browser (the configured `browser.channel`, default
 `chrome`), attaches to an already-running browser when `browser.cdp_endpoint`
@@ -496,6 +493,9 @@ editing the file.
   URL/title. Also returns browser-initiated events: console messages,
   auto-dismissed dialogs, and calls page scripts make to
   `window.inferNotify(...)` - the browser-to-CLI channel.
+- **BrowserScreenshot** - capture the current page as an image; the
+  screenshot is attached to the conversation and saved to disk.
+- **BrowserTabs** - list the open tabs (title and URL).
 
 ## Media Tools
 
@@ -583,8 +583,9 @@ models, fully local. Disabled by default: while
 **Parameters:**
 
 - `text` (required): The text to speak
-- `voice_sample` (optional): File name (inside the working directory) of a WAV of the target speaker (~10-30s of clean speech) to clone
-- `output_path` (optional): File name for the generated MP3, placed inside `text_to_speech.output_dir`; defaults to a timestamped file
+- `voice_sample` (optional): Bare file name of a WAV of the target speaker (~10-30s of clean speech) to clone; looked up
+  in the working directory, then in the voice samples library (`~/.infer/models/tts/samples`)
+- `output_path` (optional): Bare file name for the generated WAV, placed inside `text_to_speech.output_dir`; defaults to a timestamped file
 
 **Configuration:**
 
@@ -810,7 +811,7 @@ written to disk). Enabled whenever at least one frame source is registered.
   elements with bounding boxes, produced by the configured `vision.annotator`, replacing the image).
   When omitted: `annotated` if an annotator is configured, otherwise `regular`.
 
-For the `screen` source, annotated output includes element centers usable directly with `MouseClick`.
+For the `screen` source, annotated output includes element centers usable with the `Computer` tool's `click` action.
 Annotated frames carry no base64 - the text replaces the image, so text-only models can use the tool
 directly; vision models can always request `format: regular`.
 
@@ -994,7 +995,7 @@ today to call mum" - initiated from a chat with the bot.
 
 **How it works:**
 
-- Each scheduled job is persisted as a YAML file under `~/.infer/schedules/`.
+- Each scheduled job is persisted through the configured storage backend; the default jsonl backend stores it as a YAML file under `~/.infer/schedules/`.
 - The `infer daemon` process hosts the scheduler and polls storage every 2s, so newly created jobs fire without a restart.
 - Each fire spawns a brand-new `infer headless` session - no context carries between runs. Make prompts specific and
   self-contained. A run record (`session_id`, `status`, `error`, timestamps) is persisted per fire, so job output is
@@ -1061,7 +1062,6 @@ tools:
   schedule:
     enabled: false              # disabled by default
     require_approval: true      # require approval by default
-    storage_dir: ""             # default: ~/.infer/schedules
     max_jobs: 100
 ```
 
@@ -1089,13 +1089,13 @@ Submit tasks to specialized A2A agents for distributed processing.
 
 - `agent_url` (required): URL of the A2A agent server
 - `task_description` (required): Description of the task to perform
-- `metadata` (optional): Additional task metadata as key-value pairs
+- `context_id` (optional): Context ID from an earlier task to continue that conversation with the agent; omitting it starts an independent task
 
 **Features:**
 
 - **Task Delegation**: Submit complex tasks to specialized agents
 - **Streaming Responses**: Real-time task execution updates
-- **Metadata Support**: Include contextual information with tasks
+- **Task Continuity**: Continue an earlier task's conversation by passing its `context_id`
 - **Task Tracking**: Automatic tracking of submitted tasks with IDs
 - **Error Handling**: Comprehensive error reporting and retry logic
 
