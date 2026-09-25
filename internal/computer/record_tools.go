@@ -159,10 +159,10 @@ func (t *recordTool) FormatPreview(result *agentdomain.ToolExecutionResult) stri
 
 // FormatForLLM formats the result for LLM consumption
 func (t *recordTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
-	if result == nil || !result.Success {
-		if result == nil {
-			return "Error: no result"
-		}
+	if result == nil {
+		return "Error: no result"
+	}
+	if !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
 	return t.FormatPreview(result)

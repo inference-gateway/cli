@@ -71,7 +71,7 @@ func WindowBounds(_ context.Context, window string) (display.Region, error) {
 	if t.frontmost {
 		win, _ = ewmh.ActiveWindowGet(x)
 	} else {
-		stack, _ := ewmh.ClientListStackingGet(x) // bottom to top
+		stack, _ := ewmh.ClientListStackingGet(x)
 		for i := len(stack) - 1; i >= 0 && win == 0; i-- {
 			if windowMatches(x, stack[i], t) {
 				win = stack[i]

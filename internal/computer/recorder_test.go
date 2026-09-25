@@ -19,6 +19,7 @@ import (
 // TestMain lets the test binary stand in for ffmpeg: with INFER_FAKE_FFMPEG
 // set it writes the output file (the last argument), then exits on "q" from
 // stdin or once the -t duration elapses, like ffmpeg does.
+// INFER_FAKE_FFMPEG_IGNORE_Q makes it ignore "q", like a hung ffmpeg.
 func TestMain(m *testing.M) {
 	if os.Getenv("INFER_FAKE_FFMPEG") == "1" {
 		fakeFFmpeg(os.Args[1:])
@@ -38,10 +39,11 @@ func fakeFFmpeg(args []string) {
 	_ = os.WriteFile(args[len(args)-1], []byte("fake mp4"), 0o644)
 
 	quit := make(chan struct{})
+	ignoreQ := os.Getenv("INFER_FAKE_FFMPEG_IGNORE_Q") == "1"
 	go func() {
 		b := make([]byte, 1)
 		for {
-			if _, err := os.Stdin.Read(b); err != nil || b[0] == 'q' {
+			if _, err := os.Stdin.Read(b); err != nil || (b[0] == 'q' && !ignoreQ) {
 				close(quit)
 				return
 			}
@@ -117,6 +119,31 @@ func TestScreenRecorderMaxDurationCap(t *testing.T) {
 	}
 	if !status.Capped || status.Path != out {
 		t.Fatalf("Stop() = %+v, want capped recording at %s", status, out)
+	}
+
+	if err := launchFake(r, out, "0.2"); err != nil {
+		t.Fatalf("launch: %v", err)
+	}
+	<-r.cur.done
+	next := &recording{status: RecordingStatus{Path: filepath.Join(t.TempDir(), "next.mp4")}}
+	if err := r.launch(os.Args[0], []string{"-t", "30", next.status.Path}, next); err != nil {
+		t.Fatalf("launch after uncollected cap: %v", err)
+	}
+	if !strings.Contains(next.status.Message, out) {
+		t.Fatalf("status message %q does not name the uncollected recording %s", next.status.Message, out)
+	}
+	_, _ = r.Stop()
+}
+
+func TestScreenRecorderStopKillsHungFFmpeg(t *testing.T) {
+	r, _ := newFakeRecorder(t)
+	t.Setenv("INFER_FAKE_FFMPEG_IGNORE_Q", "1")
+	r.stopTimeout = 100 * time.Millisecond
+	if err := launchFake(r, filepath.Join(t.TempDir(), "hung.mp4"), "30"); err != nil {
+		t.Fatalf("launch: %v", err)
+	}
+	if _, err := r.Stop(); err == nil || !strings.Contains(err.Error(), "was killed") {
+		t.Fatalf("Stop() err = %v, want ffmpeg killed after the stop timeout", err)
 	}
 }
 

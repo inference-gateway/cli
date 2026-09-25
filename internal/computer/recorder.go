@@ -73,6 +73,7 @@ type ScreenRecorder struct {
 	cfg         *config.Config
 	notifier    agentdomain.UINotifier
 	startupWait time.Duration
+	stopTimeout time.Duration
 
 	mu     sync.Mutex
 	cur    *recording
@@ -84,7 +85,7 @@ func NewScreenRecorder(cfg *config.Config, notifier agentdomain.UINotifier) *Scr
 	if notifier == nil {
 		notifier = agentdomain.NoopUINotifier{}
 	}
-	return &ScreenRecorder{cfg: cfg, notifier: notifier, startupWait: recordStartupWait}
+	return &ScreenRecorder{cfg: cfg, notifier: notifier, startupWait: recordStartupWait, stopTimeout: recordStopTimeout}
 }
 
 // Start begins a recording. Resolving the capture area and ffmpeg (which may
@@ -223,6 +224,9 @@ func (r *ScreenRecorder) launch(ffmpeg string, args []string, rec *recording) er
 			ffmpeg, stderrTail(rec))
 	case <-time.After(r.startupWait):
 	}
+	if prev := r.cur; prev != nil {
+		rec.status.Message += fmt.Sprintf("; the previous recording %s had already stopped on its own (max_duration or an ffmpeg exit) and was never collected with RecordStop", prev.status.Path)
+	}
 	r.cur = rec
 	return nil
 }
@@ -237,7 +241,7 @@ func (r *ScreenRecorder) Stop() (RecordingStatus, error) {
 		return RecordingStatus{}, errors.New("no recording is running; call RecordStart first")
 	}
 	r.cur = nil
-	return rec.finish()
+	return rec.finish(r.stopTimeout)
 }
 
 // Close finalizes any active recording and refuses new ones. The container
@@ -248,7 +252,7 @@ func (r *ScreenRecorder) Close() {
 	r.closed = true
 	if rec := r.cur; rec != nil {
 		r.cur = nil
-		if _, err := rec.finish(); err != nil {
+		if _, err := rec.finish(r.stopTimeout); err != nil {
 			logger.Warn("failed to finalize screen recording", "error", err)
 		}
 	}
@@ -257,19 +261,19 @@ func (r *ScreenRecorder) Close() {
 // finish asks ffmpeg to quit (writing the MP4 index), waits, and reports.
 // Exit status 255 is ffmpeg finalizing after a signal (e.g. a terminal
 // Ctrl+C reaching the whole process group), which still yields a valid file.
-func (rec *recording) finish() (RecordingStatus, error) {
+func (rec *recording) finish(timeout time.Duration) (RecordingStatus, error) {
 	stopped := false
 	select {
-	case <-rec.done: // hit the time cap, or was signalled
+	case <-rec.done:
 	default:
 		stopped = true
 		_, _ = io.WriteString(rec.stdin, "q")
 		select {
 		case <-rec.done:
-		case <-time.After(recordStopTimeout):
+		case <-time.After(timeout):
 			_ = rec.cmd.Process.Kill()
 			<-rec.done
-			return RecordingStatus{}, fmt.Errorf("ffmpeg did not finalize %s within %s and was killed; the file may not play", rec.status.Path, recordStopTimeout)
+			return RecordingStatus{}, fmt.Errorf("ffmpeg did not finalize %s within %s and was killed; the file may not play", rec.status.Path, timeout)
 		}
 	}
 
@@ -375,8 +379,6 @@ func ffmpegArgs(goos, displayName string, rect display.Region, s capture.Screen,
 	default:
 		return nil, fmt.Errorf("screen recording is not supported on %s", goos)
 	}
-	// -r pins the output rate: without it ffmpeg guesses one from the first
-	// grabbed frames (x11grab drifts to 23-26fps) and pads with duplicates.
 	return append(args, "-t", strconv.Itoa(maxSeconds), "-r", rate,
 		"-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-y", out), nil
 }

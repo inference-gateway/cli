@@ -4,6 +4,7 @@ package capture
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sync"
 	"unsafe"
@@ -77,7 +78,7 @@ func WindowBounds(ctx context.Context, window string) (display.Region, error) {
 
 	var r windows.Rect
 	if err := windows.DwmGetWindowAttribute(match, windows.DWMWA_EXTENDED_FRAME_BOUNDS, unsafe.Pointer(&r), uint32(unsafe.Sizeof(r))); err != nil {
-		return display.Region{}, errNoWindow(window)
+		return display.Region{}, fmt.Errorf("read bounds of window %q: %w", window, err)
 	}
 	s, err := PrimaryScreen(ctx)
 	if err != nil {

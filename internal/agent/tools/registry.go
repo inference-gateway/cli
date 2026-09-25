@@ -419,3 +419,10 @@ func IsComputerUseTool(toolName string) bool {
 	}
 	return false
 }
+
+// IsSessionOnlyTool returns true if the tool keeps state past its own call
+// (a running screen recording) and so needs a chat or headless session that
+// finalizes it on exit; a one-shot `infer tools execute` cannot.
+func IsSessionOnlyTool(toolName string) bool {
+	return toolName == "RecordStart" || toolName == "RecordStop"
+}

@@ -17,6 +17,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agenttools "github.com/inference-gateway/cli/internal/agent/tools"
 	container "github.com/inference-gateway/cli/internal/container"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -150,7 +151,7 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string, appro
 	if !toolService.IsToolEnabled(toolName) {
 		return fmt.Errorf("tool %s is not enabled", toolName)
 	}
-	if toolName == "RecordStart" || toolName == "RecordStop" {
+	if agenttools.IsSessionOnlyTool(toolName) {
 		return fmt.Errorf("tool %s needs a running chat or headless session: a one-shot execution would leave the recording unfinalized", toolName)
 	}
 
