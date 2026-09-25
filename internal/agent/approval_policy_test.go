@@ -99,7 +99,7 @@ func buildApprovalCases() []approvalCase {
 	tests = append(tests, approvalCases("computer use bypasses approval:", standard, `{"action": "click", "x": 1, "y": 1}`, true, false,
 		"Computer", "GetLatestFrame", "RecordStop")...)
 	tests = append(tests, approvalCases("RecordStart requires approval in chat:", standard, "{}", true, true, "RecordStart")...)
-	tests = append(tests, approvalCases("RecordStart follows computer_use.approval outside chat:", standard, "{}", false, false, "RecordStart")...)
+	tests = append(tests, approvalCases("RecordStart requires approval outside chat:", standard, "{}", false, true, "RecordStart")...)
 	tests = append(tests, approvalCases("auto-accept bypasses RecordStart approval:", standardPolicy(agentdomain.AgentModeAutoAccept),
 		"{}", true, false, "RecordStart")...)
 	tests = append(tests, approvalCases("auto-accept bypasses approval:", standardPolicy(agentdomain.AgentModeAutoAccept),

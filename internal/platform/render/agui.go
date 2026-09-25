@@ -214,3 +214,10 @@ func (e *aguiEncoder) emitComputerUseResumed(reqID string) {
 	e.emit(aguievents.NewCustomEvent("computer_use_resumed",
 		aguievents.WithValue(map[string]string{"request_id": reqID})))
 }
+
+// emitScreenRecording reports a RecordStart recording starting or its ffmpeg
+// process ending, so a client can show a recording indicator.
+func (e *aguiEncoder) emitScreenRecording(active bool) {
+	e.emit(aguievents.NewCustomEvent("screen_recording",
+		aguievents.WithValue(map[string]bool{"active": active})))
+}

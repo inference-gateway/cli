@@ -794,9 +794,10 @@ from `PATH`, otherwise downloads the prebuilt binary into `~/.infer/bin`.
 - Linux: an X11 session (`x11grab`). Wayland is not supported yet.
 - Windows: `gdigrab`, no extra permission.
 
-In chat, `RecordStart` always asks for approval (except in auto-accept mode). Otherwise both tools
-follow `computer_use.approval`: under `destructive` they count as observations and bypass approval;
-under `always` they require it.
+`RecordStart` always requires approval, except in auto-accept mode: chat prompts, and headless
+follows `approval_behaviour` (IPC with `--require-approval`, otherwise blocked). `RecordStop` follows
+`computer_use.approval`: under `destructive` it counts as an observation and bypasses approval;
+under `always` it requires it.
 
 ### GetLatestFrame Tool
 

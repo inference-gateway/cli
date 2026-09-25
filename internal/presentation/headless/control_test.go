@@ -180,3 +180,33 @@ func TestHeadlessControl_UserMessage(t *testing.T) {
 		t.Fatal("empty user_message landed on the message queue")
 	}
 }
+
+func TestUIBridge_ForwardsRecordingStatusIntoStream(t *testing.T) {
+	bridge := make(uiBridge, 1)
+	bridge.Notify(agentdomain.BrowserExtensionStatusEvent{Connected: true})
+	bridge.Notify(agentdomain.ScreenRecordingStatusEvent{Active: true})
+	bridge.Notify(agentdomain.ScreenRecordingStatusEvent{Active: false})
+
+	events := make(chan agentdomain.ChatEvent)
+	merged := bridge.merge(events)
+
+	ev, ok := recvEvent(t, merged).(agentdomain.ScreenRecordingStatusEvent)
+	if !ok || !ev.Active || ev.Timestamp.IsZero() {
+		t.Fatalf("first merged event = %#v, want stamped ScreenRecordingStatusEvent{Active: true}", ev)
+	}
+
+	events <- agentdomain.ChatChunkEvent{Content: "hi"}
+	if _, ok := recvEvent(t, merged).(agentdomain.ChatChunkEvent); !ok {
+		t.Fatal("stream event not forwarded, or the full-buffer notification was not dropped")
+	}
+
+	close(events)
+	select {
+	case _, ok := <-merged:
+		if ok {
+			t.Fatal("merged stream still open after events closed")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("merged stream did not close after events closed")
+	}
+}

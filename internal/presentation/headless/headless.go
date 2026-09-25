@@ -41,6 +41,7 @@ var fileRefPattern = regexp.MustCompile(`@([^\s]+)`)
 // cmd/headless supplies the *container.ServiceContainer.
 type Services interface {
 	StartExtensionBridge()
+	SetUINotifier(n agentdomain.UINotifier)
 	Shutdown(ctx context.Context) error
 	StartScreenshotServer(sessionID string) *computerinfra.ScreenshotServer
 	GetGatewaySupervisor() *gateway.Supervisor
@@ -125,6 +126,8 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 	}()
 
 	svc := newServices()
+	notifications := make(uiBridge, 8)
+	svc.SetUINotifier(notifications)
 	svc.StartExtensionBridge()
 	shutdown := sync.OnceFunc(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -291,7 +294,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		})
 	}
 	rendered = true
-	err = renderStream(opts.Format, renderEvents, approvals, questions, sessionID, selectedModel, cfg, conversationRepo, svc.GetBackgroundTaskRegistry().Snapshot)
+	err = renderStream(opts.Format, notifications.merge(renderEvents), approvals, questions, sessionID, selectedModel, cfg, conversationRepo, svc.GetBackgroundTaskRegistry().Snapshot)
 
 	endSessionSpan(sessionOutcome(err))
 	rec.RecordSession("headless", sessionOutcome(err), time.Since(sessionStart))
