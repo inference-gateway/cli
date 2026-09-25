@@ -1686,6 +1686,13 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 		)
 	}
 
+	if r := c.ComputerUse.Recording; r.Enabled && (r.MaxDuration <= 0 || r.Framerate <= 0) {
+		return fmt.Errorf(
+			"invalid computer_use.recording: max_duration (%d) and framerate (%d) must be positive",
+			r.MaxDuration, r.Framerate,
+		)
+	}
+
 	if c.Agent.ReasoningEffort != "" && !slices.Contains(ReasoningEffortLevels, c.Agent.ReasoningEffort) {
 		return fmt.Errorf(
 			"invalid agent.reasoning_effort %q: must be one of %s",

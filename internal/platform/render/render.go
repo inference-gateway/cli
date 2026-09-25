@@ -430,6 +430,8 @@ func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 		case agentdomain.ComputerUseResumedEvent:
 			e.emitComputerUseResumed(ev.RequestID)
 			runErr = nil
+		case agentdomain.ScreenRecordingStatusEvent:
+			e.emitScreenRecording(ev.Active)
 		}
 	}
 

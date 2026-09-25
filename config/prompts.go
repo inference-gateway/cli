@@ -89,6 +89,8 @@ func mergeToolDefaults(loaded, defaults *PromptsToolsConfig) {
 	mergeToolDescription(&loaded.A2AQueryTask, &defaults.A2AQueryTask)
 	mergeToolDescription(&loaded.A2ASubmitTask, &defaults.A2ASubmitTask)
 	mergeToolDescription(&loaded.Computer, &defaults.Computer)
+	mergeToolDescription(&loaded.RecordStart, &defaults.RecordStart)
+	mergeToolDescription(&loaded.RecordStop, &defaults.RecordStop)
 	mergeToolDescription(&loaded.BrowserNavigate, &defaults.BrowserNavigate)
 	mergeToolDescription(&loaded.BrowserClick, &defaults.BrowserClick)
 	mergeToolDescription(&loaded.BrowserType, &defaults.BrowserType)
@@ -221,6 +223,8 @@ type PromptsToolsConfig struct {
 	A2AQueryTask        PromptsToolDescription `yaml:"A2A_QueryTask" mapstructure:"A2A_QueryTask"`
 	A2ASubmitTask       PromptsToolDescription `yaml:"A2A_SubmitTask" mapstructure:"A2A_SubmitTask"`
 	Computer            PromptsToolDescription `yaml:"Computer" mapstructure:"Computer"`
+	RecordStart         PromptsToolDescription `yaml:"RecordStart" mapstructure:"RecordStart"`
+	RecordStop          PromptsToolDescription `yaml:"RecordStop" mapstructure:"RecordStop"`
 	BrowserNavigate     PromptsToolDescription `yaml:"BrowserNavigate" mapstructure:"BrowserNavigate"`
 	BrowserClick        PromptsToolDescription `yaml:"BrowserClick" mapstructure:"BrowserClick"`
 	BrowserType         PromptsToolDescription `yaml:"BrowserType" mapstructure:"BrowserType"`
@@ -629,6 +633,12 @@ Each subagent is independent and cannot itself spawn further subagents. Prefer n
 		},
 		Computer: PromptsToolDescription{
 			Description: `Drives the computer's accessibility tree, mouse, keyboard, and screen through one action-based interface. PREFER "accessibility" as the first observation: it returns compact role/label/state/bbox text in the same coordinate space as screenshots, costs no vision tokens, and works for text-only models. Use "press" with an exact returned label to activate a standard control without moving the cursor or taking a screenshot. If accessibility reports empty, unavailable, unsupported, or insufficient content, fall back to "screenshot" (pass "region" to re-capture a frame-space rectangle at native resolution for small UI). Other actions: "cursor", "move"/"click"/"double_click"/"triple_click" (pointer actions at frame-space x/y), "scroll", "type" (types text INTO GUI APPLICATIONS at the cursor - DO NOT use it to run shell commands, use Bash instead), and "key" (a combo such as "enter" or "cmd+a"). To open applications on macOS, use Bash with 'open -a AppName'. Reach for GetLatestFrame only when you cannot see images yourself (its annotated text mode) or for non-screen frame sources.`,
+		},
+		RecordStart: PromptsToolDescription{
+			Description: `Starts recording the screen to an MP4 file (H.264) and returns immediately with the file path and the captured rectangle. Record the entire primary screen (mode "screen", the default), a single application window (mode "window" with window: frontmost, app:<name>, pid:<number>, or an application name - the window's bounds are taken when the recording starts), or a region (mode "region" with x/y/width/height in the frame coordinate space, the same space as Computer screenshots). A tmux pane or terminal split is not a window: record it as a region. Get its cells with tmux display -p -t "$TMUX_PANE" '#{pane_left} #{pane_top} #{pane_width} #{pane_height} #{client_width} #{client_height}' and the terminal view's bbox [left, top, right, bottom] (the scroll area in the Computer tool's accessibility tree of the terminal app), then with cw = (right-left)/client_width and ch = (bottom-top)/client_height: x = left + pane_left*cw, y = top + pane_top*ch, width = pane_width*cw, height = pane_height*ch. Only one recording runs at a time across every infer session on the machine; if another session holds it, tell the user instead of retrying. It keeps running until the user asks you to stop it (then call RecordStop in this same session) or it reaches the configured max duration. Use it to keep an audit trail of what you do on the machine or to record a demonstration.`,
+		},
+		RecordStop: PromptsToolDescription{
+			Description: `Stops the screen recording started with RecordStart, finalizes the MP4 file, and returns its path, duration, and size. Call it only when the user asks to stop the recording. Also returns the file of a recording that already stopped at its max duration. Takes no arguments.`,
 		},
 		BrowserNavigate: PromptsToolDescription{
 			Description: `Opens a URL in the automated browser session. Launches the browser on first use (or attaches to a running one when a CDP endpoint is configured) and keeps the session open across browser tool calls. Returns the final URL and page title after navigation.`,

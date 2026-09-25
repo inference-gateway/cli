@@ -1,0 +1,493 @@
+package computer
+
+import (
+	"cmp"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	audio "github.com/inference-gateway/cli/internal/audio"
+	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
+	capture "github.com/inference-gateway/cli/internal/computer/infrastructure/capture"
+	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+)
+
+const (
+	// recordStartupWait is how long RecordStart watches ffmpeg for an early
+	// exit (missing encoder, capture device, or permission) before reporting
+	// success.
+	recordStartupWait = 1500 * time.Millisecond
+	// recordStopTimeout bounds how long finalizing may take before ffmpeg is
+	// killed. It stays well under the 20s CLI shutdown budget.
+	recordStopTimeout = 10 * time.Second
+)
+
+// RecordingStatus is the result data of RecordStart and RecordStop.
+type RecordingStatus struct {
+	Path            string                `json:"path"`
+	Region          computerdomain.Region `json:"region"` // frame space
+	FrameWidth      int                   `json:"frame_width"`
+	FrameHeight     int                   `json:"frame_height"`
+	DurationSeconds float64               `json:"duration_seconds,omitempty"`
+	SizeBytes       int64                 `json:"size_bytes,omitempty"`
+	Capped          bool                  `json:"capped,omitempty"`
+	Message         string                `json:"message"`
+}
+
+// recordRequest is what RecordStart asks to capture.
+type recordRequest struct {
+	Mode   string // screen, window, or region
+	Window string
+	Region *computerdomain.Region // frame space
+}
+
+// recording is one ffmpeg process. done is closed once Wait returns; err and
+// ended are written before that, so readers wait on done first.
+type recording struct {
+	status  RecordingStatus
+	cmd     *exec.Cmd
+	stdin   io.WriteCloser
+	stderr  strings.Builder
+	started time.Time
+	done    chan struct{}
+	ended   time.Time
+	err     error
+	lock    *os.File
+}
+
+// ScreenRecorder runs at most one ffmpeg screen recording at a time, machine
+// wide: a lock file under ~/.infer/run keeps a second infer process from
+// starting a competing capture. The process outlives the RecordStart tool
+// call; RecordStop, the max_duration cap (ffmpeg -t), or Close on CLI
+// shutdown ends it. While it runs it is a background job, so a headless run
+// waits for it instead of exiting.
+type ScreenRecorder struct {
+	cfg         *config.Config
+	notifier    agentdomain.UINotifier
+	jobs        scheddomain.JobSubmitter
+	lockDir     string
+	startupWait time.Duration
+	stopTimeout time.Duration
+
+	mu     sync.Mutex
+	cur    *recording
+	closed bool
+}
+
+// NewScreenRecorder creates the recorder shared by RecordStart and RecordStop.
+// jobs may be nil, in which case a recording is not tracked as a background job.
+func NewScreenRecorder(cfg *config.Config, notifier agentdomain.UINotifier, jobs scheddomain.JobSubmitter) *ScreenRecorder {
+	if notifier == nil {
+		notifier = agentdomain.NoopUINotifier{}
+	}
+	return &ScreenRecorder{cfg: cfg, notifier: notifier, jobs: jobs, startupWait: recordStartupWait, stopTimeout: recordStopTimeout}
+}
+
+// Start begins a recording. Resolving the capture area and ffmpeg (which may
+// download it) happens before taking the lock, so Close is never held up.
+func (r *ScreenRecorder) Start(ctx context.Context, req recordRequest) (RecordingStatus, error) {
+	r.mu.Lock()
+	err := r.idleLocked()
+	r.mu.Unlock()
+	if err != nil {
+		return RecordingStatus{}, err
+	}
+
+	ffmpeg, args, rec, err := r.prepare(ctx, req)
+	if err != nil {
+		return RecordingStatus{}, err
+	}
+	if err := r.launch(ffmpeg, args, rec); err != nil {
+		return RecordingStatus{}, err
+	}
+	return rec.status, nil
+}
+
+func (r *ScreenRecorder) idleLocked() error {
+	if r.closed {
+		return errors.New("screen recorder is shut down")
+	}
+	if r.cur != nil {
+		select {
+		case <-r.cur.done:
+		default:
+			return fmt.Errorf("a recording is already running (%s); call RecordStop first", r.cur.status.Path)
+		}
+	}
+	return nil
+}
+
+// prepare resolves the capture rectangle, ffmpeg and the output file.
+func (r *ScreenRecorder) prepare(ctx context.Context, req recordRequest) (string, []string, *recording, error) {
+	if err := capture.Preflight(); err != nil {
+		return "", nil, nil, err
+	}
+	screen, err := capture.PrimaryScreen(ctx)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	frameW, frameH := r.cfg.ComputerUse.Screenshot.FitDims(screen.Width, screen.Height)
+
+	var rect display.Region
+	switch req.Mode {
+	case "region":
+		rect, err = frameRegionToScreen(req.Region, frameW, frameH, screen.Width, screen.Height)
+	case "window":
+		var bounds display.Region
+		if bounds, err = capture.WindowBounds(ctx, req.Window); err == nil {
+			rect, err = clampToScreen(bounds, screen.Width, screen.Height, req.Window)
+		}
+	default:
+		rect = display.Region{Width: screen.Width, Height: screen.Height}
+	}
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	ffmpeg, err := resolveFFmpeg(ctx)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	rc := r.cfg.ComputerUse.Recording
+	dir, err := rc.ResolveOutputDir()
+	if err != nil {
+		return "", nil, nil, err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", nil, nil, fmt.Errorf("create recordings directory: %w", err)
+	}
+	out := filepath.Join(dir, time.Now().Format("20060102-150405.000")+".mp4")
+	args, err := ffmpegArgs(runtime.GOOS, os.Getenv("DISPLAY"), rect, screen, rc.Framerate, rc.MaxDuration, out)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	region := computerdomain.Region{
+		X:      rect.X * frameW / screen.Width,
+		Y:      rect.Y * frameH / screen.Height,
+		Width:  rect.Width * frameW / screen.Width,
+		Height: rect.Height * frameH / screen.Height,
+	}
+	if req.Mode == "region" {
+		region = *req.Region
+	}
+	rec := &recording{status: RecordingStatus{
+		Path:        out,
+		Region:      region,
+		FrameWidth:  frameW,
+		FrameHeight: frameH,
+		Message: fmt.Sprintf("recording %s [x=%d y=%d w=%d h=%d] of the %dx%d frame space to %s; it stops on its own after %ds or when RecordStop is called",
+			cmp.Or(req.Mode, "screen"), region.X, region.Y, region.Width, region.Height, frameW, frameH, out, rc.MaxDuration),
+	}}
+	return ffmpeg, args, rec, nil
+}
+
+// launch starts ffmpeg and waits briefly for an early failure. The badge is
+// switched on before Start so the waiter's "off" can never overtake it. The
+// machine-wide lock is held from before Start until ffmpeg exits.
+func (r *ScreenRecorder) launch(ffmpeg string, args []string, rec *recording) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.idleLocked(); err != nil {
+		return err
+	}
+
+	cmd := exec.Command(ffmpeg, args...)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("ffmpeg stdin: %w", err)
+	}
+	cmd.Stderr = &rec.stderr
+	rec.cmd, rec.stdin, rec.done = cmd, stdin, make(chan struct{})
+	if rec.lock, err = r.lockRecording(); err != nil {
+		return err
+	}
+
+	r.notifier.Notify(agentdomain.ScreenRecordingStatusEvent{Active: true})
+	if err := cmd.Start(); err != nil {
+		_ = rec.lock.Close()
+		r.notifier.Notify(agentdomain.ScreenRecordingStatusEvent{Active: false})
+		return fmt.Errorf("start ffmpeg: %w", err)
+	}
+	rec.started = time.Now()
+	go func() {
+		rec.err = cmd.Wait()
+		rec.ended = time.Now()
+		_ = rec.lock.Close()
+		r.notifier.Notify(agentdomain.ScreenRecordingStatusEvent{Active: false})
+		close(rec.done)
+	}()
+
+	select {
+	case <-rec.done:
+		_ = os.Remove(rec.status.Path)
+		return fmt.Errorf("ffmpeg (%s) stopped right after starting: %s; it needs libx264 and screen capture support, so install a full ffmpeg build (e.g. `brew install ffmpeg`, `apt install ffmpeg`), or delete it if it is an outdated download under ~/.infer/bin",
+			ffmpeg, stderrTail(rec))
+	case <-time.After(r.startupWait):
+	}
+	if prev := r.cur; prev != nil {
+		rec.status.Message += fmt.Sprintf("; the previous recording %s had already stopped on its own (max_duration or an ffmpeg exit) and was never collected with RecordStop", prev.status.Path)
+	}
+	r.cur = rec
+	if r.jobs != nil {
+		r.jobs.Submit(newRecordingJob(r, rec))
+	}
+	return nil
+}
+
+// lockRecording takes the machine-wide recording lock. Each infer process has
+// its own recorder, so without it two sessions could capture the screen at
+// once. The OS drops the lock when the holder exits, so a crash never wedges it.
+func (r *ScreenRecorder) lockRecording() (*os.File, error) {
+	dir := r.lockDir
+	if dir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("resolve home directory for the recording lock: %w", err)
+		}
+		dir = filepath.Join(home, config.ConfigDirName, "run")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("create %s: %w", dir, err)
+	}
+	path := filepath.Join(dir, "screen-recording.lock")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("open the recording lock: %w", err)
+	}
+	if err := tryLockFile(f); err != nil {
+		_ = f.Close()
+		owner := "another infer process"
+		if pid, _ := os.ReadFile(path); len(strings.TrimSpace(string(pid))) > 0 {
+			owner += " (pid " + strings.TrimSpace(string(pid)) + ")"
+		}
+		return nil, fmt.Errorf("%s is already recording the screen and only one recording can run at a time; tell the user instead of retrying", owner)
+	}
+	_ = f.Truncate(0)
+	_, _ = fmt.Fprintf(f, "%d\n", os.Getpid())
+	return f, nil
+}
+
+// recordingJob tracks a running recording on the background job supervisor:
+// HoldsSession makes a headless run wait for it instead of exiting (which would
+// finalize it early) and lists it in the task views. It is Silent because
+// RecordStop reports the file itself; only a recording that ends on its own
+// (the max_duration cap, an ffmpeg exit, or Wind) wakes the agent to collect it.
+type recordingJob struct {
+	r    *ScreenRecorder
+	rec  *recording
+	meta scheddomain.JobMeta
+}
+
+func newRecordingJob(r *ScreenRecorder, rec *recording) *recordingJob {
+	name := filepath.Base(rec.status.Path)
+	return &recordingJob{r: r, rec: rec, meta: scheddomain.JobMeta{
+		ID:           "recording-" + strings.TrimSuffix(name, filepath.Ext(name)),
+		Kind:         scheddomain.JobKindRecording,
+		Label:        name,
+		Description:  "Screen recording",
+		Detail:       rec.status.Path,
+		StartedAt:    rec.started,
+		Silent:       true,
+		HoldsSession: true,
+	}}
+}
+
+func (j *recordingJob) Meta() scheddomain.JobMeta { return j.meta }
+
+// Run waits for ffmpeg to exit. A recording still current on the recorder at
+// that point was not collected by RecordStop or Close, so the agent is told to
+// collect it.
+func (j *recordingJob) Run(ctx context.Context, emit func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
+	select {
+	case <-j.rec.done:
+	case <-ctx.Done():
+		return agentdomain.ToolExecutionResult{ToolName: "RecordStart", Success: true}
+	}
+	j.r.mu.Lock()
+	uncollected := j.r.cur == j.rec
+	j.r.mu.Unlock()
+	if uncollected {
+		emit(scheddomain.JobSignal{Enqueue: true, Note: fmt.Sprintf(
+			"[Screen Recording Stopped: %s]\n\nThe screen recording stopped on its own (the max_duration limit, an ffmpeg exit, or a stop from the task view). Call RecordStop to finalize it and report the file to the user.",
+			j.meta.Label)})
+	}
+	return agentdomain.ToolExecutionResult{ToolName: "RecordStart", Success: j.rec.err == nil}
+}
+
+// Wind asks ffmpeg to finish, which ends Run through the uncollected path.
+func (j *recordingJob) Wind(context.Context, scheddomain.WindSignal) error {
+	select {
+	case <-j.rec.done:
+	default:
+		_, _ = io.WriteString(j.rec.stdin, "q")
+	}
+	return nil
+}
+
+func (j *recordingJob) Close() {}
+
+// Stop finalizes the active recording, or the one the time cap already
+// finished, and reports the file.
+func (r *ScreenRecorder) Stop() (RecordingStatus, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	rec := r.cur
+	if rec == nil {
+		return RecordingStatus{}, errors.New("no recording is running; call RecordStart first")
+	}
+	r.cur = nil
+	return rec.finish(r.stopTimeout)
+}
+
+// Close finalizes any active recording and refuses new ones. The container
+// calls it on shutdown (normal exit, SIGINT, SIGTERM).
+func (r *ScreenRecorder) Close() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.closed = true
+	if rec := r.cur; rec != nil {
+		r.cur = nil
+		if _, err := rec.finish(r.stopTimeout); err != nil {
+			logger.Warn("failed to finalize screen recording", "error", err)
+		}
+	}
+}
+
+// finish asks ffmpeg to quit (writing the MP4 index), waits, and reports.
+// Exit status 255 is ffmpeg finalizing after a signal (e.g. a terminal
+// Ctrl+C reaching the whole process group), which still yields a valid file.
+func (rec *recording) finish(timeout time.Duration) (RecordingStatus, error) {
+	stopped := false
+	select {
+	case <-rec.done:
+	default:
+		stopped = true
+		_, _ = io.WriteString(rec.stdin, "q")
+		select {
+		case <-rec.done:
+		case <-time.After(timeout):
+			_ = rec.cmd.Process.Kill()
+			<-rec.done
+			return RecordingStatus{}, fmt.Errorf("ffmpeg did not finalize %s within %s and was killed; the file may not play", rec.status.Path, timeout)
+		}
+	}
+
+	var exitErr *exec.ExitError
+	if rec.err != nil && (!errors.As(rec.err, &exitErr) || exitErr.ExitCode() != 255) {
+		return RecordingStatus{}, fmt.Errorf("ffmpeg failed while recording %s: %v: %s", rec.status.Path, rec.err, stderrTail(rec))
+	}
+	fi, err := os.Stat(rec.status.Path)
+	if err != nil || fi.Size() == 0 {
+		return RecordingStatus{}, fmt.Errorf("recording %s is missing or empty: %s", rec.status.Path, stderrTail(rec))
+	}
+
+	s := rec.status
+	s.DurationSeconds = rec.ended.Sub(rec.started).Round(100 * time.Millisecond).Seconds()
+	s.SizeBytes = fi.Size()
+	s.Capped = !stopped && rec.err == nil
+	s.Message = fmt.Sprintf("saved %s (%.1fs, %.1f MB)", s.Path, s.DurationSeconds, float64(s.SizeBytes)/(1<<20))
+	if s.Capped {
+		s.Message += "; it stopped automatically at the max_duration limit"
+	}
+	return s, nil
+}
+
+// stderrTail returns ffmpeg's last error line. Only call it after done.
+func stderrTail(rec *recording) string {
+	lines := strings.Split(strings.TrimSpace(rec.stderr.String()), "\n")
+	if tail := strings.TrimSpace(lines[len(lines)-1]); tail != "" {
+		return tail
+	}
+	if rec.err != nil {
+		return rec.err.Error()
+	}
+	return "no error output"
+}
+
+// resolveFFmpeg prefers ffmpeg on PATH and otherwise downloads the prebuilt
+// binary into ~/.infer/bin.
+// ponytail: no capability probe or re-download of an outdated ~/.infer/bin
+// build; it is shared with the gateway and speech tools, and the startup
+// check reports a missing encoder with the fix.
+func resolveFFmpeg(ctx context.Context) (string, error) {
+	if path, err := exec.LookPath("ffmpeg"); err == nil {
+		return path, nil
+	}
+	path, err := audio.NewBinaryStore(config.SpeechToTextConfig{AutoDownload: true}).EnsureBinary(ctx, "ffmpeg")
+	if err != nil {
+		return "", fmt.Errorf("ffmpeg is not on PATH and downloading it failed: %w; install ffmpeg (e.g. `brew install ffmpeg`, `apt install ffmpeg`)", err)
+	}
+	return path, nil
+}
+
+// clampToScreen crops window bounds to the primary screen.
+func clampToScreen(b display.Region, screenW, screenH int, window string) (display.Region, error) {
+	x0, y0 := max(b.X, 0), max(b.Y, 0)
+	x1, y1 := min(b.X+b.Width, screenW), min(b.Y+b.Height, screenH)
+	if x1 <= x0 || y1 <= y0 {
+		return display.Region{}, fmt.Errorf("window %q is not on the primary display", window)
+	}
+	return display.Region{X: x0, Y: y0, Width: x1 - x0, Height: y1 - y0}, nil
+}
+
+// nativeRect scales a logical rectangle to the pixels the grabber captures,
+// flooring the origin, clamping to the screen and rounding the size down to
+// even numbers (libx264 with yuv420p needs even dimensions).
+func nativeRect(rect display.Region, s capture.Screen) display.Region {
+	sx := float64(s.NativeWidth) / float64(s.Width)
+	sy := float64(s.NativeHeight) / float64(s.Height)
+	x, y := int(float64(rect.X)*sx), int(float64(rect.Y)*sy)
+	return display.Region{
+		X:      x,
+		Y:      y,
+		Width:  min(int(float64(rect.Width)*sx), s.NativeWidth-x) &^ 1,
+		Height: min(int(float64(rect.Height)*sy), s.NativeHeight-y) &^ 1,
+	}
+}
+
+// ffmpegArgs builds the capture command for a logical screen rectangle.
+// ponytail: records at native resolution; 5K+ displays exceed the 4096px
+// width many H.264 decoders accept, add a scale filter if that bites.
+// macOS crops relative to the captured input size, so the Retina backing
+// scale never needs to be known; X11 and GDI take the area as input options.
+func ffmpegArgs(goos, displayName string, rect display.Region, s capture.Screen, fps, maxSeconds int, out string) ([]string, error) {
+	if rect.Width < 2 || rect.Height < 2 {
+		return nil, fmt.Errorf("capture area %dx%d is too small to record", rect.Width, rect.Height)
+	}
+	args := []string{"-hide_banner", "-loglevel", "error", "-nostats"}
+	rate := strconv.Itoa(fps)
+	switch goos {
+	case "darwin":
+		crop := fmt.Sprintf("crop=w=trunc(iw*%d/%d/2)*2:h=trunc(ih*%d/%d/2)*2:x=trunc(iw*%d/%d):y=trunc(ih*%d/%d)",
+			rect.Width, s.Width, rect.Height, s.Height, rect.X, s.Width, rect.Y, s.Height)
+		args = append(args, "-f", "avfoundation", "-capture_cursor", "1", "-framerate", rate,
+			"-i", "Capture screen 0:none", "-vf", crop)
+	case "linux":
+		n := nativeRect(rect, s)
+		args = append(args, "-f", "x11grab", "-draw_mouse", "1", "-framerate", rate,
+			"-video_size", fmt.Sprintf("%dx%d", n.Width, n.Height), "-i", fmt.Sprintf("%s+%d,%d", displayName, n.X, n.Y))
+	case "windows":
+		n := nativeRect(rect, s)
+		args = append(args, "-f", "gdigrab", "-draw_mouse", "1", "-framerate", rate,
+			"-offset_x", strconv.Itoa(n.X), "-offset_y", strconv.Itoa(n.Y),
+			"-video_size", fmt.Sprintf("%dx%d", n.Width, n.Height), "-i", "desktop")
+	default:
+		return nil, fmt.Errorf("screen recording is not supported on %s", goos)
+	}
+	return append(args, "-t", strconv.Itoa(maxSeconds), "-r", rate,
+		"-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-y", out), nil
+}

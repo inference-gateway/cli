@@ -12,7 +12,9 @@ import (
 )
 
 // StandardApprovalPolicy implements the default approval policy with the following rules:
-//  1. Computer use tools (mouse, keyboard) always bypass approval (background execution)
+//  0. RecordStart always requires approval unless in auto-accept mode; delivery
+//     (chat prompt, headless IPC, judge, or block) follows approval_behaviour
+//  1. Computer use tools (mouse, keyboard) follow computer_use.approval
 //  2. Auto-accept mode bypasses all approval
 //     2.5. ReadOnly mode (Explore-like subagent) bypasses approval; its toolset is
 //     read-only by construction so nothing it can call mutates
@@ -41,6 +43,10 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 	toolCall *sdk.ChatCompletionMessageToolCall,
 	isChatMode bool,
 ) bool {
+	if toolCall.Function.Name == "RecordStart" && p.agentMode() != agentdomain.AgentModeAutoAccept {
+		return true
+	}
+
 	if tools.IsComputerUseTool(toolCall.Function.Name) {
 		return p.requiresComputerUseApproval(toolCall)
 	}

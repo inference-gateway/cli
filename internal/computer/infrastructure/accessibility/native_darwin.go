@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"unicode"
 	"unsafe"
 
 	purego "github.com/ebitengine/purego"
@@ -108,6 +107,19 @@ func runNative(req request) ([]computerdomain.UIElement, error) {
 			return nil, fmt.Errorf("%w: AXPress returned %d", ErrUnavailable, code)
 		}
 		return nil, nil
+	case "window":
+		for _, attr := range []string{"AXFocusedWindow", "AXMainWindow"} {
+			window, ok := b.copyAttribute(root, attr)
+			if !ok {
+				continue
+			}
+			bbox, ok := b.frame(window)
+			b.cfRelease(window)
+			if ok {
+				return []computerdomain.UIElement{{Role: "window", BBox: bbox}}, nil
+			}
+		}
+		return nil, fmt.Errorf("%w: no window for target %q", ErrElementNotFound, req.Target)
 	default:
 		return nil, fmt.Errorf("%w: unknown helper action %q", ErrUnavailable, req.Action)
 	}
@@ -230,7 +242,7 @@ func (b *bridge) createConstants() error {
 	for _, name := range []string{
 		"AXRole", "AXTitle", "AXDescription", "AXHelp", "AXIdentifier", "AXPlaceholderValue",
 		"AXPosition", "AXSize", "AXChildren", "AXMenuBar", "AXFocusedApplication", "AXEnabled",
-		"AXFocused", "AXSelected", "AXValue", "AXPress",
+		"AXFocused", "AXSelected", "AXValue", "AXPress", "AXFocusedWindow", "AXMainWindow",
 	} {
 		value := b.newString(name)
 		if value == 0 {
@@ -539,7 +551,7 @@ func (b *bridge) pidForApplication(name string) int32 {
 	for i := range b.cfArrayGetCount(windows) {
 		window := b.cfArrayGetValueAtIndex(windows, i)
 		owner := b.cfDictionaryGetValue(window, b.ownerName)
-		if !applicationNamesMatch(b.goString(owner), name) {
+		if !ApplicationNamesMatch(b.goString(owner), name) {
 			continue
 		}
 		if pid := b.windowPID(window); pid != 0 {
@@ -577,24 +589,6 @@ func (b *bridge) windowPID(window uintptr) int32 {
 		return 0
 	}
 	return pid
-}
-
-func applicationNamesMatch(owner, requested string) bool {
-	if strings.EqualFold(strings.TrimSpace(owner), strings.TrimSpace(requested)) {
-		return true
-	}
-	normalizedRequested := normalizeApplicationName(requested)
-	return normalizedRequested != "" && normalizeApplicationName(owner) == normalizedRequested
-}
-
-func normalizeApplicationName(name string) string {
-	var normalized strings.Builder
-	for _, char := range name {
-		if unicode.IsLetter(char) || unicode.IsDigit(char) {
-			normalized.WriteRune(unicode.ToLower(char))
-		}
-	}
-	return normalized.String()
 }
 
 func normalizeAXName(value string) string {

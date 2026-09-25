@@ -139,6 +139,7 @@ type InputStatusBarComponent interface {
 	SetInputText(text string)
 	UpdateMCPStatus(status *mcpdomain.ServerStatus)
 	SetBrowserConnected(connected bool)
+	SetScreenRecording(active bool)
 	Focus() bool
 	Blur()
 	IsFocused() bool

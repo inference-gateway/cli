@@ -46,6 +46,7 @@ type InputStatusBar struct {
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	mcpStatus              *mcpdomain.ServerStatus
 	browserConnected       bool
+	screenRecording        bool
 	versionInfo            tui.VersionInfo
 	styleProvider          *styles.Provider
 	currentInputText       string
@@ -156,6 +157,12 @@ func (isb *InputStatusBar) SetBrowserConnected(connected bool) {
 	isb.browserConnected = connected
 }
 
+// SetScreenRecording toggles the REC badge shown while a RecordStart screen
+// recording runs.
+func (isb *InputStatusBar) SetScreenRecording(active bool) {
+	isb.screenRecording = active
+}
+
 // SetInputText sets the current input text for mode detection
 func (isb *InputStatusBar) SetInputText(text string) {
 	isb.currentInputText = text
@@ -251,9 +258,10 @@ func (isb *InputStatusBar) Render() string {
 	return strings.Join(lines, "\n")
 }
 
-// renderRightSegment right-aligns "cli vX • gw vY • ● Browser" after the given
-// line width, dropping pieces until the rest fits: gateway version first, then
-// CLI version, then the Browser label (bare dot last). Empty when nothing fits.
+// renderRightSegment right-aligns "● REC • cli vX • gw vY • ● Browser" after
+// the given line width, dropping pieces until the rest fits: gateway version
+// first, then CLI version, then the Browser label (bare dot last); the REC
+// badge stays. Empty when nothing fits.
 func (isb *InputStatusBar) renderRightSegment(lineWidth int) string {
 	if isb.styleProvider == nil {
 		return ""
@@ -285,7 +293,12 @@ func (isb *InputStatusBar) renderRightSegment(lineWidth int) string {
 		return strings.Join(kept, dim(" • "))
 	}
 
-	for _, candidate := range []string{join(cli, gw, browser), join(cli, browser), browser, dot} {
+	var rec string
+	if isb.screenRecording {
+		rec = isb.styleProvider.RenderWithColor("● REC", isb.styleProvider.GetThemeColor("error"))
+	}
+
+	for _, candidate := range []string{join(rec, cli, gw, browser), join(rec, cli, browser), join(rec, browser), join(rec, dot), rec} {
 		if candidate == "" {
 			continue
 		}

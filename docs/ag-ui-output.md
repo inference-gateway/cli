@@ -29,6 +29,7 @@ a subprocess host reading stdout is a fully valid transport.
 | Background job finished | `CUSTOM` event `queued_message`; `content` is the landed note, first line `[<Kind> Completed\|Failed: <label>]` |
 | Background job submitted or finished | `CUSTOM` event `background_tasks` with `running` and `jobs` (id, kind, label, description, detail, status) |
 | LLM step completes | `CUSTOM` event `token_usage`; `value` carries the same cumulative stats as `RUN_FINISHED`'s `result` |
+| Screen recording starts or ends (`RecordStart`, `RecordStop`, `max_duration` cap) | `CUSTOM` event `screen_recording` with `active` (bool) |
 | Successful exit | `RUN_FINISHED` with a success outcome; `result` carries the session stats (keys below) |
 | Failure or panic | `RUN_ERROR` with the error message and the run id |
 
@@ -52,6 +53,14 @@ cumulative across the session (not just this run). When no model request was mad
 
 The same stats object is also emitted as a `CUSTOM` event named `token_usage`
 after each model request, so clients can track usage while the run progresses.
+
+A running recording is a `background_tasks` job with kind `recording`, and the run waits for it
+(up to `a2a.task.agent_mode_max_wait_seconds`) instead of finishing, so send the stop request as a
+`user_message` line on stdin. A recording still running when the run ends anyway is finalized as
+the process exits, after the terminal event, so no `screen_recording` event with `active: false`
+follows it: clear the indicator on `RUN_FINISHED` or `RUN_ERROR`. `RecordStart` always requires approval outside auto-accept mode, so
+run with `--require-approval` to receive it as an `approval_request`; without an approver it is
+blocked.
 
 The `approval_request` value is the legacy payload (`tool_name`, `tool_args`, `tool_call_id`);
 replies are still `approval_response` JSON lines on stdin, exactly as in `json` mode.

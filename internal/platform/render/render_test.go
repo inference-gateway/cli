@@ -679,3 +679,21 @@ func TestRenderAGUI_TokenUsageStreamsPerStep(t *testing.T) {
 		t.Errorf("zero-request run must not emit token_usage:\n%s", plain.String())
 	}
 }
+
+func TestRenderAGUI_ScreenRecordingStatus(t *testing.T) {
+	var out strings.Builder
+	err := RenderAGUI(stream(
+		agentdomain.ScreenRecordingStatusEvent{Active: true},
+		agentdomain.ScreenRecordingStatusEvent{Active: false},
+		agentdomain.ChatCompleteEvent{},
+	), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
+	if err != nil {
+		t.Fatalf("RenderAGUI() err = %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{`"name":"screen_recording","value":{"active":true}`, `"name":"screen_recording","value":{"active":false}`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in output:\n%s", want, got)
+		}
+	}
+}

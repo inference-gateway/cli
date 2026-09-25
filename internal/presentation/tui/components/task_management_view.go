@@ -1091,6 +1091,8 @@ func (t *TaskView) columnHeader(kind scheddomain.JobKind) string {
 		return fmt.Sprintf("  %-40s │ %-50s │ %-15s │ %-12s", "Shell ID", "Command", "Status", "Elapsed")
 	case scheddomain.JobKindSubagent:
 		return fmt.Sprintf("  %-40s │ %-50s │ %-15s │ %-12s", "Subagent", "Mode", "Status", "Elapsed")
+	case scheddomain.JobKindRecording:
+		return fmt.Sprintf("  %-40s │ %-50s │ %-15s │ %-12s", "Recording", "File", "Status", "Elapsed")
 	default:
 		return fmt.Sprintf("  %-36s │ %-38s │ %-30s │ %-15s │ %-12s", "Context ID", "Task ID", "Agent", "Status", "Elapsed")
 	}
@@ -1100,7 +1102,7 @@ func (t *TaskView) columnHeader(kind scheddomain.JobKind) string {
 // layout. index is the global position in filteredTasks (drives selection).
 func (t *TaskView) writeTaskRow(b *strings.Builder, task TaskInfo, index int) {
 	switch normalizeKind(task.Kind) {
-	case scheddomain.JobKindShell, scheddomain.JobKindSubagent:
+	case scheddomain.JobKindShell, scheddomain.JobKindSubagent, scheddomain.JobKindRecording:
 		t.writeJobRow(b, task, index)
 	default:
 		t.writeA2ARow(b, task, index)
@@ -1158,13 +1160,15 @@ func normalizeKind(kind scheddomain.JobKind) scheddomain.JobKind {
 }
 
 // kindRank orders rows so each kind forms one contiguous section: A2A, then
-// shells, then subagents.
+// shells, then subagents, then screen recordings.
 func kindRank(kind scheddomain.JobKind) int {
 	switch normalizeKind(kind) {
 	case scheddomain.JobKindShell:
 		return 1
 	case scheddomain.JobKindSubagent:
 		return 2
+	case scheddomain.JobKindRecording:
+		return 3
 	default:
 		return 0
 	}
@@ -1177,6 +1181,8 @@ func sectionTitle(kind scheddomain.JobKind) string {
 		return "Background Shells"
 	case scheddomain.JobKindSubagent:
 		return "Subagents"
+	case scheddomain.JobKindRecording:
+		return "Screen Recordings"
 	default:
 		return "A2A Tasks"
 	}

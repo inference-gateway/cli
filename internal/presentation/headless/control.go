@@ -236,3 +236,41 @@ func resumeRun(ctx context.Context, agentService agentdomain.AgentService, repo 
 	next.Messages = convdomain.BuildAgentMessagesFromEntries(repo.GetMessages())
 	return agentService.RunWithStream(ctx, &next)
 }
+
+// uiBridge is the headless UINotifier: it forwards the UI notifications a
+// headless client renders (screen recording status) into the rendered event
+// stream. Notify never blocks the producer; a full buffer drops the event.
+type uiBridge chan agentdomain.ChatEvent
+
+func (b uiBridge) Notify(event any) {
+	ev, ok := event.(agentdomain.ScreenRecordingStatusEvent)
+	if !ok {
+		return
+	}
+	ev.Timestamp = time.Now()
+	select {
+	case b <- ev:
+	default:
+	}
+}
+
+// merge interleaves bridged notifications into events and closes when events
+// does; notifications arriving after that are dropped.
+func (b uiBridge) merge(events <-chan agentdomain.ChatEvent) <-chan agentdomain.ChatEvent {
+	merged := make(chan agentdomain.ChatEvent)
+	go func() {
+		defer close(merged)
+		for {
+			select {
+			case ev, ok := <-events:
+				if !ok {
+					return
+				}
+				merged <- ev
+			case ev := <-b:
+				merged <- ev
+			}
+		}
+	}()
+	return merged
+}

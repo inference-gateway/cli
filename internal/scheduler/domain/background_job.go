@@ -13,9 +13,10 @@ import (
 type JobKind string
 
 const (
-	JobKindA2A      JobKind = "a2a"
-	JobKindShell    JobKind = "shell"
-	JobKindSubagent JobKind = "subagent"
+	JobKindA2A       JobKind = "a2a"
+	JobKindShell     JobKind = "shell"
+	JobKindSubagent  JobKind = "subagent"
+	JobKindRecording JobKind = "recording"
 )
 
 // JobStatus is the unified lifecycle state across every background-work kind.

@@ -635,6 +635,8 @@ use the `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub oper
 | ------ | --------- | ---------- |
 | **Computer** | Read the accessibility tree, press labelled controls, capture screenshots, and control mouse/keyboard | Configurable |
 | **GetLatestFrame** | Read the latest frame from a named source (screen, camera directory) | No |
+| **RecordStart** | Record the screen, a window, or a region to MP4 (needs `computer_use.recording.enabled`) | Configurable |
+| **RecordStop** | Stop the recording and return the file path, duration, and size | Configurable |
 
 **Media** (each gated by its own flag; all output is written to disk, never played aloud):
 

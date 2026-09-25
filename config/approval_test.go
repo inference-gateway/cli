@@ -132,3 +132,25 @@ func TestConfigValidate_ComputerUseApproval(t *testing.T) {
 		t.Error("Validate() with computer_use.approval \"alway\" should return an error")
 	}
 }
+
+func TestConfigValidate_ComputerUseRecording(t *testing.T) {
+	tests := []struct {
+		name    string
+		rec     RecordingConfig
+		wantErr bool
+	}{
+		{"disabled with zero values", RecordingConfig{}, false},
+		{"enabled with defaults", RecordingConfig{Enabled: true, MaxDuration: 120, Framerate: 24}, false},
+		{"enabled zero max_duration", RecordingConfig{Enabled: true, Framerate: 15}, true},
+		{"enabled negative framerate", RecordingConfig{Enabled: true, MaxDuration: 120, Framerate: -1}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.ComputerUse.Recording = tt.rec
+			if err := cfg.Validate(); (err != nil) != tt.wantErr {
+				t.Errorf("Validate() err = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

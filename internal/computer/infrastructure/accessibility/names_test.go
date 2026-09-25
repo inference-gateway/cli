@@ -1,5 +1,3 @@
-//go:build darwin
-
 package accessibility
 
 import "testing"
@@ -19,8 +17,8 @@ func TestApplicationNamesMatch(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := applicationNamesMatch(test.owner, test.requested); got != test.want {
-				t.Fatalf("applicationNamesMatch(%q, %q) = %v, want %v", test.owner, test.requested, got, test.want)
+			if got := ApplicationNamesMatch(test.owner, test.requested); got != test.want {
+				t.Fatalf("ApplicationNamesMatch(%q, %q) = %v, want %v", test.owner, test.requested, got, test.want)
 			}
 		})
 	}

@@ -1,7 +1,11 @@
 package config
 
 import (
+	"fmt"
 	"math"
+	"os"
+	"path/filepath"
+	"strings"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
 )
@@ -25,6 +29,29 @@ type ComputerUseConfig struct {
 	Screenshot ScreenshotToolConfig `yaml:"screenshot" mapstructure:"screenshot"`
 	RateLimit  RateLimitConfig      `yaml:"rate_limit" mapstructure:"rate_limit"`
 	Approval   string               `yaml:"approval" mapstructure:"approval"`
+	Recording  RecordingConfig      `yaml:"recording" mapstructure:"recording"`
+}
+
+// RecordingConfig contains settings for the RecordStart/RecordStop screen
+// recording tools.
+type RecordingConfig struct {
+	Enabled     bool   `yaml:"enabled" mapstructure:"enabled"`
+	MaxDuration int    `yaml:"max_duration" mapstructure:"max_duration"` // seconds
+	OutputDir   string `yaml:"output_dir" mapstructure:"output_dir"`
+	Framerate   int    `yaml:"framerate" mapstructure:"framerate"`
+}
+
+// ResolveOutputDir returns the directory recordings are written to,
+// defaulting to ~/.infer/tmp/recordings when OutputDir is unset.
+func (c RecordingConfig) ResolveOutputDir() (string, error) {
+	if strings.TrimSpace(c.OutputDir) != "" {
+		return c.OutputDir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home directory: %w", err)
+	}
+	return filepath.Join(home, ConfigDirName, "tmp", "recordings"), nil
 }
 
 // ScreenshotToolConfig contains screenshot-specific tool settings
@@ -87,6 +114,11 @@ func DefaultComputerUseConfig() *ComputerUseConfig {
 			Enabled:             true,
 			MaxActionsPerMinute: 60,
 			WindowSeconds:       60,
+		},
+		Recording: RecordingConfig{
+			Enabled:     false,
+			MaxDuration: 120,
+			Framerate:   24,
 		},
 	}
 }

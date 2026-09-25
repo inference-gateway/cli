@@ -64,6 +64,8 @@ func (t *teaInputStatusBarComponent) UpdateMCPStatus(*mcpdomain.ServerStatus) {}
 
 func (t *teaInputStatusBarComponent) SetBrowserConnected(bool) {}
 
+func (t *teaInputStatusBarComponent) SetScreenRecording(bool) {}
+
 func (t *teaInputStatusBarComponent) Focus() bool { return false }
 
 func (t *teaInputStatusBarComponent) Blur() {}
