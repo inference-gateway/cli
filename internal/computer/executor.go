@@ -11,6 +11,9 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -137,10 +140,49 @@ func (e *Executor) observeAccessibility(ctx context.Context, target string, obs 
 func (e *Executor) pressAccessibility(ctx context.Context, target, label string, obs *computerdomain.Observation) {
 	target = defaultAccessibilityTarget(target)
 	if err := e.accessibility.Press(ctx, target, label); err != nil {
-		obs.Message = accessibilityFallback("Nothing was pressed", err)
+		obs.Message = e.pressMissMessage(ctx, target, label, err)
 		return
 	}
 	obs.Message = fmt.Sprintf("pressed accessibility element %q in %s without taking a screenshot", label, target)
+}
+
+// pressMissMessage explains a failed press. When no element had the exact
+// label, it names the pressable labels containing it, so a press of "fzf"
+// learns the exact "Select project fzf" instead of falling back to a
+// screenshot.
+func (e *Executor) pressMissMessage(ctx context.Context, target, label string, err error) string {
+	fallback := accessibilityFallback("Nothing was pressed", err)
+	if !errors.Is(err, accessibility.ErrElementNotFound) {
+		return fallback
+	}
+	elements, err := e.accessibility.Elements(ctx, target)
+	if err != nil {
+		return fallback
+	}
+	labels := pressableLabelsContaining(elements, label)
+	if len(labels) == 0 {
+		return fallback
+	}
+	return fmt.Sprintf("Nothing was pressed: press needs an exact label, and none is %q. Pressable labels containing it: %s.", label, strings.Join(labels, ", "))
+}
+
+// pressableLabelsContaining returns up to three quoted labels of pressable
+// elements that contain label, ignoring case.
+func pressableLabelsContaining(elements []computerdomain.UIElement, label string) []string {
+	needle := strings.ToLower(label)
+	var labels []string
+	for _, el := range elements {
+		i := strings.LastIndex(el.State, "actions=")
+		if i < 0 || !slices.Contains(strings.Split(el.State[i+len("actions="):], ","), "press") ||
+			!strings.Contains(strings.ToLower(el.Label), needle) || slices.Contains(labels, strconv.Quote(el.Label)) {
+			continue
+		}
+		labels = append(labels, strconv.Quote(el.Label))
+		if len(labels) == 3 {
+			break
+		}
+	}
+	return labels
 }
 
 func defaultAccessibilityTarget(target string) string {
