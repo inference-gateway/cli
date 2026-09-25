@@ -195,11 +195,8 @@ func (r *ScreenRecorder) launch(ffmpeg string, args []string, rec *recording) er
 		return err
 	}
 
-	// ponytail: ffmpeg shares the CLI's process group, so closing the terminal
-	// (SIGHUP) can cut it off before the MP4 is finalized; give it its own
-	// group (Setpgid / CREATE_NEW_PROCESS_GROUP) if that matters.
-	cmd := exec.Command(ffmpeg, args...) // not CommandContext: it must outlive the tool call
-	stdin, err := cmd.StdinPipe()        // ffmpeg quits on "q"; a TTY stdin would also garble the TUI
+	cmd := exec.Command(ffmpeg, args...)
+	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("ffmpeg stdin: %w", err)
 	}
@@ -266,7 +263,7 @@ func (rec *recording) finish() (RecordingStatus, error) {
 	case <-rec.done: // hit the time cap, or was signalled
 	default:
 		stopped = true
-		_, _ = io.WriteString(rec.stdin, "q") // an error means ffmpeg is already exiting
+		_, _ = io.WriteString(rec.stdin, "q")
 		select {
 		case <-rec.done:
 		case <-time.After(recordStopTimeout):

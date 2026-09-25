@@ -1,10 +1,3 @@
-// Package capture resolves what a screen recording captures on each
-// platform: the primary screen's size and a window's bounds. Rectangles are
-// in logical screen pixels, the space the Computer tool works in.
-//
-// ponytail: window bounds are read once when a recording starts; following a
-// moved or resized window needs native window capture (ScreenCaptureKit,
-// gdigrab title=, x11grab -window_id).
 package capture
 
 import (

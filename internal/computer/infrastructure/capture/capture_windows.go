@@ -38,7 +38,6 @@ func PrimaryScreen(ctx context.Context) (Screen, error) {
 var (
 	enumMu    sync.Mutex
 	enumHwnds []windows.HWND
-	// enumProc is created once: Go callbacks are a limited, never-freed resource.
 	enumProc = windows.NewCallback(func(hwnd windows.HWND, _ uintptr) uintptr {
 		enumHwnds = append(enumHwnds, hwnd)
 		return 1
@@ -84,7 +83,6 @@ func WindowBounds(ctx context.Context, window string) (display.Region, error) {
 	if err != nil {
 		return display.Region{}, err
 	}
-	// DWM frame bounds are physical pixels; convert back to logical.
 	toLogicalX := func(v int32) int { return int(v) * s.Width / s.NativeWidth }
 	toLogicalY := func(v int32) int { return int(v) * s.Height / s.NativeHeight }
 	return display.Region{

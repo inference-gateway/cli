@@ -145,7 +145,7 @@ func TestScreenRecorderCloseFinalizesAndRefusesNew(t *testing.T) {
 
 func TestScreenRecorderStartupFailure(t *testing.T) {
 	r, _ := newFakeRecorder(t)
-	r.startupWait = 10 * time.Second // returns as soon as the fake exits
+	r.startupWait = 10 * time.Second
 	t.Setenv("INFER_FAKE_FFMPEG_FAIL", "1")
 	out := filepath.Join(t.TempDir(), "fail.mp4")
 

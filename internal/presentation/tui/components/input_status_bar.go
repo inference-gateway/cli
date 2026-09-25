@@ -293,7 +293,7 @@ func (isb *InputStatusBar) renderRightSegment(lineWidth int) string {
 		return strings.Join(kept, dim(" • "))
 	}
 
-	var rec string // never dropped: the user must see that the screen is being recorded
+	var rec string
 	if isb.screenRecording {
 		rec = isb.styleProvider.RenderWithColor("● REC", isb.styleProvider.GetThemeColor("error"))
 	}
