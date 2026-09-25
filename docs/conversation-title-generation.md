@@ -25,6 +25,18 @@ conversation:
     model: "anthropic/claude-haiku-4-5-20251001" # AI model for title generation
     batch_size: 10                   # Number of conversations to process per batch
     interval: 300                    # Background job interval in seconds (default: 300 = 5 minutes)
+```
+
+`conversation.title_generation` accepts only `enabled`, `model`, `batch_size`
+and `interval`. The custom system prompt is **not** a `config.yaml` key - a
+`system_prompt` written there is silently ignored. The prompt lives in
+`prompts.yaml` under `conversation.title_generation.system_prompt` (env:
+`INFER_PROMPTS_CONVERSATION_TITLE_GENERATION_SYSTEM_PROMPT`):
+
+```yaml
+# .infer/prompts.yaml
+conversation:
+  title_generation:
     system_prompt: |                 # Custom system prompt (optional)
       Generate a concise conversation title based on the messages provided.
 
@@ -50,7 +62,7 @@ conversation:
 - **model**: AI model to use for title generation. Falls back to `agent.model` if not specified
 - **batch_size**: Number of conversations to process in each background job run (default: 10)
 - **interval**: Background job interval in seconds (default: 300 = 5 minutes)
-- **system_prompt**: Custom prompt for title generation. Uses default if not specified
+- **system_prompt** (`prompts.yaml`, `conversation.title_generation.system_prompt`): Custom prompt for title generation. Uses default if not specified
 
 ## How It Works
 
