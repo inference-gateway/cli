@@ -360,7 +360,7 @@ recording:
   enabled: false # register RecordStart/RecordStop
   max_duration: 120 # seconds; a recording stops and finalizes itself at this cap
   output_dir: "" # empty = ~/.infer/tmp/recordings
-  framerate: 15 # frames per second
+  framerate: 24 # frames per second
 ```
 
 - **computer_use.recording.enabled**: Register the recording tools (default: false)
@@ -368,7 +368,7 @@ recording:
   be positive when enabled)
 - **computer_use.recording.output_dir**: Where recordings are written (default:
   `~/.infer/tmp/recordings`, created on first use)
-- **computer_use.recording.framerate**: Capture frame rate (default: 15; must be positive when enabled)
+- **computer_use.recording.framerate**: Capture frame rate (default: 24; must be positive when enabled)
 
 Environment overrides: `INFER_COMPUTER_USE_RECORDING_ENABLED`,
 `INFER_COMPUTER_USE_RECORDING_MAX_DURATION`, `INFER_COMPUTER_USE_RECORDING_OUTPUT_DIR`,

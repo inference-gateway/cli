@@ -140,7 +140,7 @@ func TestConfigValidate_ComputerUseRecording(t *testing.T) {
 		wantErr bool
 	}{
 		{"disabled with zero values", RecordingConfig{}, false},
-		{"enabled with defaults", RecordingConfig{Enabled: true, MaxDuration: 120, Framerate: 15}, false},
+		{"enabled with defaults", RecordingConfig{Enabled: true, MaxDuration: 120, Framerate: 24}, false},
 		{"enabled zero max_duration", RecordingConfig{Enabled: true, Framerate: 15}, true},
 		{"enabled negative framerate", RecordingConfig{Enabled: true, MaxDuration: 120, Framerate: -1}, true},
 	}

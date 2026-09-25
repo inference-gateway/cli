@@ -87,7 +87,7 @@ func TestDefaultComputerUseConfig(t *testing.T) {
 	if cfg.RateLimit.WindowSeconds != 60 {
 		t.Errorf("Expected RateLimit.WindowSeconds=60, got %d", cfg.RateLimit.WindowSeconds)
 	}
-	if cfg.Recording.Enabled || cfg.Recording.MaxDuration != 120 || cfg.Recording.Framerate != 15 || cfg.Recording.OutputDir != "" {
+	if cfg.Recording.Enabled || cfg.Recording.MaxDuration != 120 || cfg.Recording.Framerate != 24 || cfg.Recording.OutputDir != "" {
 		t.Errorf("Expected Recording {false 120 15 \"\"}, got %+v", cfg.Recording)
 	}
 }

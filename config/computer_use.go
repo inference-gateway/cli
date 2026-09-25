@@ -118,7 +118,7 @@ func DefaultComputerUseConfig() *ComputerUseConfig {
 		Recording: RecordingConfig{
 			Enabled:     false,
 			MaxDuration: 120,
-			Framerate:   15,
+			Framerate:   24,
 		},
 	}
 }
