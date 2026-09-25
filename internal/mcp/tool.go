@@ -70,7 +70,6 @@ func (t *MCPTool) Definition() sdk.ChatCompletionTool {
 		parameters = &params
 	}
 
-	// Fallback to basic schema when the server sent none
 	if parameters == nil {
 		defaultParams := sdk.FunctionParameters{
 			"type":       "object",

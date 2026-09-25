@@ -161,7 +161,6 @@ func TestMCPTool_Execute_Success(t *testing.T) {
 		t.Errorf("Expected tool name 'MCP_test-server_readFile', got %s", result.ToolName)
 	}
 
-	// Verify the data is MCPToolResult
 	mcpData, ok := result.Data.(*mcpdomain.ToolResult)
 	if !ok {
 		t.Fatal("Expected result.Data to be *mcpdomain.ToolResult")
@@ -240,7 +239,6 @@ func TestMCPTool_Execute_Error(t *testing.T) {
 		t.Error("Expected failed execution")
 	}
 
-	// Verify the error message is present
 	mcpData, ok := result.Data.(*mcpdomain.ToolResult)
 	if !ok {
 		t.Fatal("Expected result.Data to be *mcpdomain.ToolResult")

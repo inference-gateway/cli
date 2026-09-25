@@ -142,8 +142,6 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		startLocalAgents(agentManager, cfg, opts.Format)
 	}
 
-	// Chat registers MCP tools from the liveness loop; headless has no UI
-	// loop, so it discovers them once before the first turn.
 	if mcpSupervisor := svc.GetMCPSupervisor(); mcpSupervisor != nil {
 		svc.GetToolRegistry().RegisterTools(mcpSupervisor.DiscoverTools(context.Background()))
 	}

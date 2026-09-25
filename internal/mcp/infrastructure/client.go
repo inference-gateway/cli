@@ -123,8 +123,6 @@ func (c *Client) ListTools(ctx context.Context) ([]mcpdomain.Tool, error) {
 // CallTool runs a tool and flattens its content blocks to text. arguments is
 // always sent, as {} when there are none, since some servers fail to decode a
 // call without it.
-// ponytail: an input_required result (elicitation or sampling) fails the call;
-// answer it once infer can prompt for input mid-tool.
 func (c *Client) CallTool(ctx context.Context, name string, args map[string]any) (mcpdomain.CallResult, error) {
 	if args == nil {
 		args = map[string]any{}
@@ -184,8 +182,6 @@ func (b contentBlock) text() string {
 
 // rpc POSTs one JSON-RPC request and decodes its result. name is the tool of a
 // tools/call, mirrored into Mcp-Name.
-// ponytail: Mcp-Param-* headers and subscriptions/listen are not supported;
-// add them once a server declares x-mcp-header or infer needs notifications.
 func (c *Client) rpc(ctx context.Context, method, name string, params map[string]any, result any) error {
 	if params == nil {
 		params = map[string]any{}
