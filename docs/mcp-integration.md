@@ -303,11 +303,17 @@ If a server fails during discovery:
 - CLI starts successfully
 - Failed server's tools are not available
 
-Example log output:
+Failures are logged at debug level per retry attempt, with an error once retries are exhausted:
 
 ```text
-WARN Failed to discover tools from MCP server server=filesystem url=http://localhost:3000/mcp error="connection refused"
-INFO Discovered tools from MCP server server=database tool_count=5
+{"level":"debug","msg":"mCP server health check failed (tool discovery failed)","server":"filesystem","error":"connection refused"}
+{"level":"error","msg":"mCP server permanently failed after max retries","server":"filesystem","error":"connection refused"}
+```
+
+Successful discovery is logged with `server` and `toolCount` fields:
+
+```text
+{"level":"info","msg":"mCP server tools discovered successfully","server":"database","toolCount":5}
 ```
 
 ## Liveness Probes
@@ -549,14 +555,19 @@ servers:
 
 **Check 3**: Check CLI logs
 
+There is no `--log-level` flag; debug logging is enabled with the `INFER_LOGGING_DEBUG=true`
+environment variable or the global `-v/--verbose` flag. Logs are written to
+`~/.infer/logs/app-<date>.log`, not to the terminal:
+
 ```bash
-infer chat --log-level debug
+INFER_LOGGING_DEBUG=true infer chat
+grep "tools discovered successfully" ~/.infer/logs/app-*.log
 ```
 
-Look for discovery messages:
+Successful discovery is logged as:
 
 ```text
-INFO Discovered tools from MCP server server=filesystem tool_count=8
+{"level":"info","msg":"mCP server tools discovered successfully","server":"filesystem","toolCount":8}
 ```
 
 ### Connection Errors
@@ -610,10 +621,17 @@ Go servers on `go-sdk` also need `StreamableHTTPOptions{Stateless: true}`.
 
 **Issue**: Excluded tools still appear
 
-**Check**: Verify exact tool names in logs:
+**Check**: Verify exact tool names:
 
 ```bash
-infer chat --log-level debug 2>&1 | grep "Registered MCP tool"
+infer mcp status <server> --format json
+```
+
+The JSON report lists each server's `tools`. You can also check the discovery log - debug logging goes to
+`~/.infer/logs/app-<date>.log` (see [Check 3](#mcp-tools-not-appearing) above):
+
+```bash
+grep "tools discovered successfully" ~/.infer/logs/app-*.log
 ```
 
 **Fix**: Match exact tool names:

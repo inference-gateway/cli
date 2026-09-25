@@ -285,10 +285,10 @@ Enable debug logging to monitor A2A operations:
 INFER_LOGGING_DEBUG=true infer chat
 ```
 
-Check the logs:
+Check the logs (the logger writes one `app-<date>.log` file per day, or `daemon-<date>.log` under `infer daemon`):
 
 ```bash
-tail -f ~/.infer/logs/debug-*.log
+tail -f ~/.infer/logs/app-*.log
 ```
 
 ### Task Tracking
