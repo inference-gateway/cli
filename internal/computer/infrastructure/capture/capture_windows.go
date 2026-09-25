@@ -38,7 +38,7 @@ func PrimaryScreen(ctx context.Context) (Screen, error) {
 var (
 	enumMu    sync.Mutex
 	enumHwnds []windows.HWND
-	enumProc = windows.NewCallback(func(hwnd windows.HWND, _ uintptr) uintptr {
+	enumProc  = windows.NewCallback(func(hwnd windows.HWND, _ uintptr) uintptr {
 		enumHwnds = append(enumHwnds, hwnd)
 		return 1
 	})
