@@ -38,7 +38,8 @@ type silenceRunner func(ctx context.Context, name string, args []string) error
 // to ffmpeg (with arecord/sox fallbacks on Linux), mirroring the candidate-list
 // pattern used by the clipboard text writer. It adds no CGO.
 type Recorder struct {
-	cfg config.SpeechToTextConfig
+	cfg      config.SpeechToTextConfig
+	binaries *BinaryStore
 
 	// run, runSilence and lookPath are overridable in tests.
 	run        commandRunner
@@ -50,17 +51,34 @@ type Recorder struct {
 func NewRecorder(cfg config.SpeechToTextConfig) *Recorder {
 	return &Recorder{
 		cfg:        cfg,
+		binaries:   NewBinaryStore(cfg),
 		run:        execRun,
 		runSilence: runFFmpegWithSilenceStop,
 		lookPath:   exec.LookPath,
 	}
 }
 
-// EnsureAvailable reports whether a microphone capture tool is installed,
-// without recording. It lets callers fail fast (with an actionable error)
-// before prompting the user to speak.
+// ffmpegBin returns the ffmpeg binary to invoke: an explicit configured path or
+// a PATH lookup, then a prebuilt binary in ~/.infer/bin (downloaded on first use
+// when auto_download is enabled), mirroring the transcriber and converter. It
+// falls back to the plain name so callers still report the usual install hint.
+func (r *Recorder) ffmpegBin(ctx context.Context) string {
+	if bin, err := resolveFFmpeg(r.cfg.FFmpegPath, r.lookPath); err == nil {
+		return bin
+	}
+	if r.cfg.AutoDownload && r.binaries != nil {
+		if path, err := r.binaries.EnsureBinary(ctx, "ffmpeg"); err == nil {
+			return path
+		}
+	}
+	return ffmpegName(r.cfg.FFmpegPath)
+}
+
+// EnsureAvailable reports whether a microphone capture tool can be resolved
+// (possibly by downloading ffmpeg), without recording. It lets callers fail fast
+// (with an actionable error) before prompting the user to speak.
 func (r *Recorder) EnsureAvailable() error {
-	candidates := recordCandidates(runtime.GOOS, ffmpegName(r.cfg.FFmpegPath), r.cfg.InputDevice, "", 0, 0)
+	candidates := recordCandidates(runtime.GOOS, r.ffmpegBin(context.Background()), r.cfg.InputDevice, "", 0, 0)
 	if len(candidates) == 0 {
 		return fmt.Errorf("microphone recording is not supported on %s", runtime.GOOS)
 	}
@@ -86,7 +104,7 @@ func (r *Recorder) Record(ctx context.Context, maxSeconds int) (string, error) {
 		return "", err
 	}
 
-	candidates := recordCandidates(runtime.GOOS, ffmpegName(r.cfg.FFmpegPath), r.cfg.InputDevice, out, maxSeconds, r.cfg.SilenceTimeout)
+	candidates := recordCandidates(runtime.GOOS, r.ffmpegBin(ctx), r.cfg.InputDevice, out, maxSeconds, r.cfg.SilenceTimeout)
 	if len(candidates) == 0 {
 		_ = os.Remove(out)
 		return "", fmt.Errorf("microphone recording is not supported on %s", runtime.GOOS)

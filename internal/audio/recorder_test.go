@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -189,5 +190,42 @@ func TestRecordNoRecorder(t *testing.T) {
 
 	if _, err := r.Record(context.Background(), 5); err == nil {
 		t.Fatal("expected error when no recorder is available")
+	}
+}
+
+// TestRecordUsesDownloadedFFmpeg checks the recorder falls back to the prebuilt
+// ~/.infer/bin/ffmpeg when none is on PATH, like the converter and transcriber.
+func TestRecordUsesDownloadedFFmpeg(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	binDir := filepath.Join(home, config.ConfigDirName, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	want := filepath.Join(binDir, "ffmpeg"+exeSuffix())
+	if err := os.WriteFile(want, []byte("#!fake-ffmpeg"), 0o755); err != nil {
+		t.Fatalf("write fake ffmpeg: %v", err)
+	}
+
+	r := NewRecorder(config.SpeechToTextConfig{AutoDownload: true})
+	r.lookPath = func(name string) (string, error) {
+		if name == want {
+			return name, nil
+		}
+		return "", errors.New("not on PATH")
+	}
+	var gotName string
+	r.run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		gotName = name
+		return nil, nil
+	}
+
+	out, err := r.Record(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+	defer func() { _ = os.Remove(out) }()
+	if gotName != want {
+		t.Errorf("Record ran %q, want downloaded %q", gotName, want)
 	}
 }
