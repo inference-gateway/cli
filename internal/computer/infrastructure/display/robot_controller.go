@@ -8,9 +8,22 @@ import (
 	"image/png"
 	"strings"
 	"time"
-
-	robotgo "github.com/go-vgo/robotgo"
 )
+
+// robotBackend is the slice of robotgo's API the controller uses. macOS and
+// Windows use the top-level package; Linux picks X11 or Wayland at runtime
+// (robot_backend_linux.go), since robotgo's purego build hard-wires Wayland.
+type robotBackend struct {
+	GetScreenSize func() (int, int)
+	GetScaleSize  func(displayId ...int) (int, int)
+	CaptureImg    func(args ...int) (image.Image, error)
+	Location      func() (int, int)
+	Move          func(x, y int, displayId ...int)
+	Click         func(args ...any) error
+	ScrollDir     func(x int, direction ...any)
+	Type          func(str string, args ...int)
+	KeyTap        func(key string, args ...any) error
+}
 
 // Modifier and key mapping tables for robotgo key names
 var (
@@ -71,8 +84,8 @@ type robotController struct {
 var _ DisplayController = (*robotController)(nil)
 
 func newRobotController() *robotController {
-	logicalWidth, _ := robotgo.GetScreenSize()
-	physicalWidth, physicalHeight := robotgo.GetScaleSize()
+	logicalWidth, _ := robot.GetScreenSize()
+	physicalWidth, physicalHeight := robot.GetScaleSize()
 
 	scaleFactor := 1.0
 	if logicalWidth > 0 && physicalWidth > 0 {
@@ -113,7 +126,7 @@ func (c *robotController) CaptureScreen(ctx context.Context, region *Region) (im
 			x, y, width, height, logicalWidth, logicalHeight)
 	}
 
-	img, err := robotgo.CaptureImg(x, y, width, height)
+	img, err := robot.CaptureImg(x, y, width, height)
 	if err != nil {
 		return nil, fmt.Errorf("failed to capture screen: %w", err)
 	}
@@ -134,7 +147,7 @@ func (c *robotController) CaptureScreenBytes(ctx context.Context, region *Region
 }
 
 func (c *robotController) GetCursorPosition(ctx context.Context) (x, y int, err error) {
-	x, y = robotgo.Location()
+	x, y = robot.Location()
 	return x, y, nil
 }
 
@@ -145,7 +158,7 @@ func (c *robotController) MoveMouse(ctx context.Context, x, y int) error {
 			x, y, logicalWidth, logicalHeight)
 	}
 
-	robotgo.Move(x, y)
+	robot.Move(x, y)
 	return nil
 }
 
@@ -165,15 +178,15 @@ func (c *robotController) ClickMouse(ctx context.Context, button MouseButton, cl
 
 	switch clicks {
 	case 1:
-		return robotgo.Click(robotButton, false)
+		return robot.Click(robotButton, false)
 	case 2:
-		return robotgo.Click(robotButton, true)
+		return robot.Click(robotButton, true)
 	default:
-		if err := robotgo.Click(robotButton, true); err != nil {
+		if err := robot.Click(robotButton, true); err != nil {
 			return err
 		}
 		time.Sleep(100 * time.Millisecond)
-		return robotgo.Click(robotButton, false)
+		return robot.Click(robotButton, false)
 	}
 }
 
@@ -201,7 +214,7 @@ func (c *robotController) ScrollMouse(ctx context.Context, clicks int, direction
 		}
 	}
 
-	robotgo.ScrollDir(absAmount, scrollDir)
+	robot.ScrollDir(absAmount, scrollDir)
 	return nil
 }
 
@@ -212,11 +225,11 @@ func (c *robotController) TypeText(ctx context.Context, text string, delayMs int
 
 	if delayMs > 0 {
 		for _, char := range text {
-			robotgo.Type(string(char))
+			robot.Type(string(char))
 			time.Sleep(time.Duration(delayMs) * time.Millisecond)
 		}
 	} else {
-		robotgo.Type(text)
+		robot.Type(text)
 	}
 	return nil
 }
@@ -243,7 +256,7 @@ func (c *robotController) SendKeyCombo(ctx context.Context, combo string) error 
 		key = mappedKey
 	}
 
-	if err := robotgo.KeyTap(key, modifiers...); err != nil {
+	if err := robot.KeyTap(key, modifiers...); err != nil {
 		return fmt.Errorf("failed to send key combo: %w", err)
 	}
 	return nil
