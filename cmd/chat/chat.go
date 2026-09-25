@@ -190,7 +190,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	messageQueue := services.GetMessageQueue()
 	themeService := services.GetThemeService()
 	toolRegistry := services.GetToolRegistry()
-	mcpManager := services.GetMCPSupervisor()
+	mcpSupervisor := services.GetMCPSupervisor()
 	taskRetentionService := services.GetTaskRetentionService()
 	backgroundTaskService := services.GetBackgroundTaskService()
 	agentManager := services.GetAgentSupervisor()
@@ -231,7 +231,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		skillsService,
 		githubIssueService,
 		services.GetGitHubSetupService(),
-		mcpManager,
+		mcpSupervisor,
 		messageQueue,
 		modelService,
 		pricingService,

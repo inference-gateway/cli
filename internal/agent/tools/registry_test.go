@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
@@ -36,7 +35,7 @@ func createTestRegistry() *Registry {
 		},
 	}
 
-	return NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	return NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestRegistry_GetTool_Unknown(t *testing.T) {
@@ -67,7 +66,7 @@ func TestRegistry_DisabledTools(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	tools := registry.ListAvailableTools()
 
@@ -118,7 +117,7 @@ func TestRegistry_NewRegistry(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	if registry == nil {
 		t.Fatal("Expected non-nil registry")
@@ -152,7 +151,7 @@ func TestRegistry_GetTool(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -300,7 +299,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			registry := NewRegistry(tt.config, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+			registry := NewRegistry(tt.config, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 			tools := registry.ListAvailableTools()
 
 			if len(tools) < tt.expectedMin || len(tools) > tt.expectedMax {
@@ -353,7 +352,7 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 		Prompts: *config.DefaultPromptsConfig(),
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	definitions := registry.GetToolDefinitions()
 
 	if len(definitions) < 5 || len(definitions) > 15 {
@@ -402,7 +401,7 @@ func TestRegistry_IsToolEnabled(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -454,7 +453,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	fakeTool := &agentdomainmocks.FakeTool{}
 	fakeTool.IsEnabledReturns(true)
@@ -543,91 +542,6 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 	}
 }
 
-// blockingMCPSupervisor is a agentdomain.MCPSupervisor double whose GetClients() blocks
-// indefinitely (simulating a stalled discovery call). NewRegistry must never
-// reach this - see issue #523. The test uses a select-on-timeout to assert
-// that construction returns promptly even when MCP I/O would block.
-type blockingMCPSupervisor struct {
-	getClientsCalled chan struct{}
-}
-
-func (m *blockingMCPSupervisor) GetClients() []agentdomain.MCPClient {
-	close(m.getClientsCalled)
-	select {}
-}
-func (m *blockingMCPSupervisor) GetClient(string) agentdomain.MCPClient { return nil }
-func (m *blockingMCPSupervisor) GetTotalServers() int                   { return 0 }
-func (m *blockingMCPSupervisor) UpdateToolCount(string, int)            {}
-func (m *blockingMCPSupervisor) ClearToolCount(string)                  {}
-func (m *blockingMCPSupervisor) StartServers(context.Context) error     { return nil }
-func (m *blockingMCPSupervisor) StopServers(context.Context) error      { return nil }
-func (m *blockingMCPSupervisor) Close() error                           { return nil }
-func (m *blockingMCPSupervisor) StartMonitoring(context.Context)        {}
-
-// TestRegistry_NewRegistry_DoesNotBlockOnMCP is a regression test for
-// issue #523: NewRegistry must not synchronously call DiscoverTools (or any
-// other MCP RPC) during construction, because that blocks bubbletea TUI
-// startup. We verify this by handing in an MCPSupervisor whose GetClients()
-// blocks forever - construction must still return promptly.
-func TestRegistry_NewRegistry_DoesNotBlockOnMCP(t *testing.T) {
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Enabled: true,
-			Bash: config.BashToolConfig{
-				Enabled: true,
-				Mode: config.BashModesConfig{
-					All: config.BashModeAllowConfig{Allow: []string{"echo"}},
-				},
-			},
-		},
-		MCP: config.MCPConfig{
-			Enabled: true,
-			Servers: []config.MCPServerEntry{
-				{Name: "stalled-server", Enabled: true},
-			},
-			DiscoveryTimeout: 30,
-		},
-	}
-
-	blocker := &blockingMCPSupervisor{getClientsCalled: make(chan struct{})}
-
-	done := make(chan *Registry, 1)
-	go func() {
-		done <- NewRegistry(cfg, nil, nil, nil, nil, nil, blocker, nil, nil, nil, nil)
-	}()
-
-	select {
-	case r := <-done:
-		if r == nil {
-			t.Fatal("expected non-nil registry")
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("NewRegistry blocked on MCP I/O (regression of issue #523)")
-	}
-
-	// Sanity check: ensure no goroutine ever called GetClients(). If
-	// construction kicks off async discovery in a goroutine, that is fine -
-	// but it must not block the constructor return. We do NOT assert
-	// !blocker.getClientsCalled here because background discovery is
-	// permissible; we only assert the constructor returned in time above.
-}
-
-// stubMCPSupervisor is a minimal agentdomain.MCPSupervisor whose GetClient always
-// resolves, so RegisterMCPServerTools reaches the tools-map writes.
-type stubMCPSupervisor struct{ client agentdomain.MCPClient }
-
-func (m *stubMCPSupervisor) GetClients() []agentdomain.MCPClient {
-	return []agentdomain.MCPClient{m.client}
-}
-func (m *stubMCPSupervisor) GetClient(string) agentdomain.MCPClient { return m.client }
-func (m *stubMCPSupervisor) GetTotalServers() int                   { return 1 }
-func (m *stubMCPSupervisor) UpdateToolCount(string, int)            {}
-func (m *stubMCPSupervisor) ClearToolCount(string)                  {}
-func (m *stubMCPSupervisor) StartServers(context.Context) error     { return nil }
-func (m *stubMCPSupervisor) StopServers(context.Context) error      { return nil }
-func (m *stubMCPSupervisor) Close() error                           { return nil }
-func (m *stubMCPSupervisor) StartMonitoring(context.Context)        {}
-
 // TestRegistry_ConcurrentMCPToolAccess is a regression test for issue #708:
 // the MCP liveness probe registers/unregisters MCP_* tools from its own
 // goroutine while the main loop reads the same map via GetTool /
@@ -654,22 +568,20 @@ func TestRegistry_ConcurrentMCPToolAccess(t *testing.T) {
 		Prompts: *config.DefaultPromptsConfig(),
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, &stubMCPSupervisor{client: &agentdomainmocks.FakeMCPClient{}}, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
-	discovered := []agentdomain.MCPDiscoveredTool{
-		{ServerName: "flappy", Name: "alpha", Description: "a", InputSchema: map[string]any{}},
-		{ServerName: "flappy", Name: "beta", Description: "b", InputSchema: map[string]any{}},
+	discovered := map[string]agentdomain.Tool{
+		"MCP_flappy_alpha": &agentdomainmocks.FakeTool{},
+		"MCP_flappy_beta":  &agentdomainmocks.FakeTool{},
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for range 200 {
-			registry.RegisterMCPServerTools("flappy", discovered)
-			registry.UnregisterMCPServerTools("flappy")
+			registry.RegisterTools(discovered)
+			registry.UnregisterToolsWithPrefix("MCP_flappy_")
 		}
-	}()
+	})
 
 	for range 200 {
 		_, _ = registry.GetTool("MCP_flappy_alpha")

@@ -3,15 +3,18 @@
 package e2e
 
 import (
-	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	require "github.com/stretchr/testify/require"
 
 	tokenless "github.com/inference-gateway/tokenless"
+
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // TestChatTUIViaTmux drives the built binary's chat TUI end-to-end inside a tmux
@@ -182,17 +185,20 @@ func TestChatTUIApprovalBoxFollowsTail(t *testing.T) {
 
 // startTmuxHome returns a temp HOME for a chat process driven in the tmux
 // session and registers its teardown. HOME is created before the kill-session
-// cleanup so cleanups (LIFO) kill the process before TempDir removes the dir,
-// and the kill waits for the process to let go of HOME: kill-session only sends
-// SIGHUP, so an immediate RemoveAll races the exiting infer ("directory not empty").
+// cleanup so cleanups (LIFO) kill the process before TempDir removes the dir.
+// kill-session only sends SIGHUP, and infer's shutdown handler still writes to
+// HOME, so the teardown waits for the pane process to exit; removing HOME any
+// earlier races it ("directory not empty").
 func startTmuxHome(t *testing.T, session string) string {
 	t.Helper()
 	home := t.TempDir()
 	_ = exec.Command("tmux", "kill-session", "-t", session).Run()
 	t.Cleanup(func() {
+		out, _ := exec.Command("tmux", "display-message", "-p", "-t", session, "#{pane_pid}").Output()
 		_ = exec.Command("tmux", "kill-session", "-t", session).Run()
+		pid, err := strconv.Atoi(strings.TrimSpace(string(out)))
 		deadline := time.Now().Add(5 * time.Second)
-		for os.RemoveAll(home) != nil && time.Now().Before(deadline) {
+		for err == nil && utils.ProcessAlive(pid) && time.Now().Before(deadline) {
 			time.Sleep(50 * time.Millisecond)
 		}
 	})

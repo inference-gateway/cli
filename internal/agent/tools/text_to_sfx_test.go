@@ -242,7 +242,7 @@ func TestTextToSFXTool_RegistryGating(t *testing.T) {
 	t.Run("disabled by default: not registered", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToSFX.Enabled = false
-		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 		assert.NotContains(t, registry.ListAvailableTools(), "TextToSFX")
 		for _, def := range registry.GetToolDefinitions() {
@@ -256,7 +256,7 @@ func TestTextToSFXTool_RegistryGating(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToSFX.Enabled = true
 		cfg.TextToSFX.OutputDir = t.TempDir()
-		registry := NewRegistry(cfg, nil, nil, nil, &agentdomainmocks.FakeSoundEffectService{}, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, nil, &agentdomainmocks.FakeSoundEffectService{}, nil, nil, nil, nil, nil)
 
 		assert.Contains(t, registry.ListAvailableTools(), "TextToSFX")
 

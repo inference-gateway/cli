@@ -18,6 +18,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -60,7 +61,7 @@ type ChatApplication struct {
 	shortcutRegistry       *shortcuts.Registry
 	themeService           tui.ThemeService
 	toolRegistry           *tools.Registry
-	mcpManager             agentdomain.MCPSupervisor
+	mcpSupervisor          mcpdomain.Supervisor
 	taskRetentionService   scheddomain.TaskRetentionService
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
@@ -154,7 +155,7 @@ func NewChatApplication(
 	skillsService agentdomain.SkillsService,
 	githubIssueService agentdomain.GitHubIssueService,
 	githubSetupService agentdomain.GitHubSetupService,
-	mcpManager agentdomain.MCPSupervisor,
+	mcpSupervisor mcpdomain.Supervisor,
 	messageQueue convdomain.MessageQueue,
 	modelService convdomain.ModelService,
 	pricingService convdomain.PricingService,
@@ -195,7 +196,7 @@ func NewChatApplication(
 		shortcutRegistry:         shortcutRegistry,
 		themeService:             themeService,
 		toolRegistry:             toolRegistry,
-		mcpManager:               mcpManager,
+		mcpSupervisor:            mcpSupervisor,
 		taskRetentionService:     taskRetentionService,
 		backgroundTaskService:    backgroundTaskService,
 		backgroundTaskRegistry:   backgroundTaskRegistry,
@@ -421,14 +422,14 @@ func (app *ChatApplication) Init() tea.Cmd {
 		cmds = append(cmds, cmd)
 	}
 
-	if app.mcpManager != nil {
-		app.inputStatusBar.UpdateMCPStatus(&agentdomain.MCPServerStatus{
-			TotalServers:     app.mcpManager.GetTotalServers(),
+	if app.mcpSupervisor != nil {
+		app.inputStatusBar.UpdateMCPStatus(&mcpdomain.ServerStatus{
+			TotalServers:     app.mcpSupervisor.GetTotalServers(),
 			ConnectedServers: 0,
 			TotalTools:       0,
 		})
 
-		app.mcpManager.StartMonitoring(context.Background())
+		app.mcpSupervisor.StartMonitoring(context.Background())
 	}
 
 	if app.agentManager != nil {
@@ -507,7 +508,7 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		app.inputStatusBar.SetScreenRecording(event.Active)
 	}
 
-	if event, ok := msg.(agentdomain.MCPServerStatusUpdateEvent); ok {
+	if event, ok := msg.(mcpdomain.ServerStatusUpdateEvent); ok {
 		if cmd := app.handleMCPStatusUpdate(event); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -584,8 +585,8 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 }
 
 // handleMCPStatusUpdate processes MCP server connection status changes
-func (app *ChatApplication) handleMCPStatusUpdate(event agentdomain.MCPServerStatusUpdateEvent) tea.Cmd {
-	app.inputStatusBar.UpdateMCPStatus(&agentdomain.MCPServerStatus{
+func (app *ChatApplication) handleMCPStatusUpdate(event mcpdomain.ServerStatusUpdateEvent) tea.Cmd {
+	app.inputStatusBar.UpdateMCPStatus(&mcpdomain.ServerStatus{
 		TotalServers:     event.TotalServers,
 		ConnectedServers: event.ConnectedServers,
 		TotalTools:       event.TotalTools,
@@ -596,11 +597,11 @@ func (app *ChatApplication) handleMCPStatusUpdate(event agentdomain.MCPServerSta
 	}
 
 	if event.Connected && len(event.Tools) > 0 {
-		app.toolRegistry.RegisterMCPServerTools(event.ServerName, event.Tools)
+		app.toolRegistry.RegisterTools(event.Tools)
 	}
 
 	if !event.Connected {
-		app.toolRegistry.UnregisterMCPServerTools(event.ServerName)
+		app.toolRegistry.UnregisterToolsWithPrefix(mcpdomain.ToolPrefix(event.ServerName))
 	}
 
 	if app.autocomplete != nil {

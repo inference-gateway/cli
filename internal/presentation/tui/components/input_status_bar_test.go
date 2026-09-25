@@ -19,6 +19,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -382,14 +383,14 @@ func TestInputStatusBar_BuildA2AAgentsIndicator(t *testing.T) {
 func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 	tests := []struct {
 		name         string
-		mcpStatus    *agentdomain.MCPServerStatus
+		mcpStatus    *mcpdomain.ServerStatus
 		serverCount  int
 		expectedText string
 		expectEmpty  bool
 	}{
 		{
 			name: "returns MCP status with tools",
-			mcpStatus: &agentdomain.MCPServerStatus{
+			mcpStatus: &mcpdomain.ServerStatus{
 				TotalServers:     4,
 				ConnectedServers: 3,
 				TotalTools:       2500,
@@ -400,7 +401,7 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 		},
 		{
 			name: "returns MCP status without tools",
-			mcpStatus: &agentdomain.MCPServerStatus{
+			mcpStatus: &mcpdomain.ServerStatus{
 				TotalServers:     4,
 				ConnectedServers: 3,
 				TotalTools:       0,

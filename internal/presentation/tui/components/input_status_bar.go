@@ -12,6 +12,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -43,7 +44,7 @@ type InputStatusBar struct {
 	backgroundShellService scheddomain.BackgroundShellService
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
-	mcpStatus              *agentdomain.MCPServerStatus
+	mcpStatus              *mcpdomain.ServerStatus
 	browserConnected       bool
 	screenRecording        bool
 	versionInfo            tui.VersionInfo
@@ -142,7 +143,7 @@ func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry scheddomain.Backgr
 }
 
 // UpdateMCPStatus updates the MCP server status (called by event handler)
-func (isb *InputStatusBar) UpdateMCPStatus(status *agentdomain.MCPServerStatus) {
+func (isb *InputStatusBar) UpdateMCPStatus(status *mcpdomain.ServerStatus) {
 	isb.mcpStatus = status
 }
 

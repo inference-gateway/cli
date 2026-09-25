@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"strings"
 
@@ -77,4 +78,33 @@ func pruneNetworks(ctx context.Context, bin, current string) {
 	if err := exec.CommandContext(ctx, bin, args...).Run(); err != nil {
 		logger.Debug("some leaked networks could not be removed (likely in use)", "runtime", bin, "error", err)
 	}
+}
+
+// publishedPort runs `<bin> port <container>` and returns the first host port.
+func publishedPort(ctx context.Context, bin, containerIDOrName string) (int, error) {
+	output, err := exec.CommandContext(ctx, bin, "port", containerIDOrName).Output()
+	if err != nil {
+		return 0, fmt.Errorf("%s port %s: %w", bin, containerIDOrName, err)
+	}
+	port, ok := parsePublishedPort(string(output))
+	if !ok {
+		return 0, fmt.Errorf("container %s publishes no port", containerIDOrName)
+	}
+	return port, nil
+}
+
+// parsePublishedPort extracts the first host port from `docker port` / `podman
+// port` output such as "3000/tcp -> 0.0.0.0:3001".
+func parsePublishedPort(output string) (int, bool) {
+	for _, line := range strings.Split(output, "\n") {
+		_, host, found := strings.Cut(line, "->")
+		if !found {
+			continue
+		}
+		var port int
+		if _, err := fmt.Sscanf(host[strings.LastIndex(host, ":")+1:], "%d", &port); err == nil && port > 0 {
+			return port, true
+		}
+	}
+	return 0, false
 }

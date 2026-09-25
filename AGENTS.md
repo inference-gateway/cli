@@ -25,13 +25,13 @@ Single test: `go test ./internal/agent -run TestBashTool`. **Run `task precommit
 ## Architecture
 
 - The agent is an **event-driven state machine** (`internal/agent/agent_state_machine.go`); per-state executors live in `internal/agent/states/`. `internal/agent/tools/registry.go` is the source of truth for registered tools.
-- **Bounded contexts (DDD)**, each owning its contracts in a `domain/` subpackage that imports nothing internal except `agent/domain`, the shared kernel (tool results, agent mode, chat events): `agent`, `conversation`, `scheduler`, `browser`, `computer`. Adapters sit next to it in `<context>/infrastructure/`. Capabilities without one (`audio`, `mcp`, `skills`, `github`, `channels`, `plugins`) plug into the agent via `agentdomain` service ports. `platform/` is shared infrastructure; `presentation/` is the only place bubbletea, go-telegram and styling appear.
+- **Bounded contexts (DDD)**, each owning its contracts in a `domain/` subpackage that imports nothing internal except `agent/domain`, the shared kernel (tool results, agent mode, chat events): `agent`, `conversation`, `scheduler`, `browser`, `computer`, `mcp`. Adapters sit next to it in `<context>/infrastructure/`. Capabilities without one (`audio`, `skills`, `github`, `channels`, `plugins`) plug into the agent via `agentdomain` service ports. `platform/` is shared infrastructure; `presentation/` is the only place bubbletea, go-telegram and styling appear.
 - **Import direction is enforced by depguard** (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea; Playwright stays in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`. `domain/` packages stay pure, and only `cmd/` may import `internal/container`, the composition root that builds everything.
 
 ## Import Style
 
 - Import blocks have **six groups** (stdlib / external test libs / testing mocks / external / inference-gateway libs / project), one blank line apart.
-- **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `convdomain`, `scheddomain`, `browserdomain`, `computerdomain`, `agentinfra`, `schedinfra`, `agentapp`, `containerruntime`, `githubissues`, `githubsetup`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` → `<x>mocks`.
+- **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `convdomain`, `scheddomain`, `browserdomain`, `computerdomain`, `mcpdomain`, `agentinfra`, `mcpinfra`, `schedinfra`, `agentapp`, `containerruntime`, `githubissues`, `githubsetup`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` → `<x>mocks`.
 
 ## Testing
 

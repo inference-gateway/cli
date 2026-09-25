@@ -103,6 +103,14 @@ func (a *AnthropicMessages) ListTools(ctx context.Context) (*sdk.ListToolsRespon
 	return a.inner.ListTools(ctx)
 }
 
+func (a *AnthropicMessages) MCPJSONRPC(ctx context.Context, request sdk.MCPJSONRPCRequest) (*sdk.MCPJSONRPCResponse, error) {
+	return a.inner.MCPJSONRPC(ctx, request)
+}
+
+func (a *AnthropicMessages) GetMCPProtectedResourceMetadata(ctx context.Context) (*sdk.OAuthProtectedResourceMetadata, error) {
+	return a.inner.GetMCPProtectedResourceMetadata(ctx)
+}
+
 func (a *AnthropicMessages) HealthCheck(ctx context.Context) error {
 	return a.inner.HealthCheck(ctx)
 }

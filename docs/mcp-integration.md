@@ -3,6 +3,13 @@
 The Inference Gateway CLI supports direct integration with MCP (Model Context Protocol) servers, allowing you to extend
 the LLM's capabilities with custom tools from external services.
 
+> **MCP servers must speak MCP `2026-07-28`.** `infer` uses the stateless 2026-07-28 revision only: there is no
+> `initialize` handshake, no session, and no fallback to older revisions. A server on an earlier revision is shown as
+> unavailable with an error naming the versions it supports. Current SDKs serve 2026-07-28: TypeScript SDK v2
+> (`createMcpHandler`), Go [`go-sdk`](https://github.com/modelcontextprotocol/go-sdk) v1.7+ with
+> `StreamableHTTPOptions{Stateless: true}`, and Python `mcp` 2.x. The Inference Gateway's own `/mcp` endpoint speaks it
+> too, so one entry can expose every server behind the gateway (see [Example 4](#example-4-the-gateway-as-one-mcp-server)).
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -24,8 +31,8 @@ the LLM's capabilities with custom tools from external services.
 
 Model Context Protocol (MCP) is a standardized protocol for connecting AI models to external tools and data sources. It enables:
 
-- **Stateless tool execution**: Each request is independent
-- **HTTP SSE transport**: Server-Sent Events for real-time communication
+- **Stateless tool execution**: Each request is independent - no handshake, no session
+- **Streamable HTTP transport**: Each request is one HTTP POST, answered with JSON or a per-request SSE stream
 - **Dynamic tool discovery**: Tools are discovered at runtime
 - **Schema-based validation**: JSON Schema for tool parameters
 
@@ -36,8 +43,8 @@ Model Context Protocol (MCP) is a standardized protocol for connecting AI models
 │                         Inference CLI                            │
 │                                                                  │
 │  ┌────────────────┐              ┌─────────────────┐             │
-│  │ MCP Client     │              │  Tool Registry  │             │
-│  │ Manager        │──register──▶ │                 │             │
+│  │ MCP            │              │  Tool Registry  │             │
+│  │ Supervisor     │──register──▶ │                 │             │
 │  │                │   tools      │  • Bash         │             │
 │  │ • Discovery    │              │  • Read         │             │
 │  │ • Execution    │              │  • MCP_*        │             │
@@ -45,7 +52,7 @@ Model Context Protocol (MCP) is a standardized protocol for connecting AI models
 │           │                                                      │
 └───────────┼──────────────────────────────────────────────────────┘
             │
-            │ HTTP SSE (stateless)
+            │ Streamable HTTP, MCP 2026-07-28 (stateless)
             │
             ├────────────────────┬────────────────────┐
             │                    │                    │
@@ -63,8 +70,8 @@ Model Context Protocol (MCP) is a standardized protocol for connecting AI models
 
 ### Key Features
 
-- **Direct connections**: CLI connects directly to MCP servers (no gateway intermediary)
-- **Stateless design**: Each tool execution creates a new HTTP connection
+- **Direct connections**: CLI connects directly to MCP servers, or to the gateway's `/mcp` as a single entry
+- **Stateless design**: No handshake or session; every request carries its protocol version
 - **Auto-start servers**: Automatically start and manage MCP servers in OCI/Docker containers
 - **Automatic port assignment**: No need to manually configure ports for auto-started servers
 - **Per-server configuration**: Enable/disable servers independently
@@ -97,7 +104,7 @@ servers:
   - name: "filesystem"
     host: "localhost"
     port: 3000
-    path: "/sse"
+    path: "/mcp"
     enabled: true
     description: "File system operations"
 ```
@@ -141,7 +148,7 @@ servers:
   - name: "demo-server"
     host: "localhost"
     port: 3000
-    path: "/sse"
+    path: "/mcp"
     enabled: true
 ```
 
@@ -202,7 +209,7 @@ Each server in the `servers` array supports:
 | `health_cmd` | ❌ | string | Custom Docker healthcheck command |
 
 > **Manual servers** (`run: false`): set `host` / `port` / `path` to point at the running
-> server's SSE endpoint. The URL is built as `{scheme}://{host}:{port}{path}` (defaults:
+> server's MCP endpoint. The URL is built as `{scheme}://{host}:{port}{path}` (defaults:
 > `http`, `localhost`, `/mcp`).
 
 ### Tool Filtering
@@ -216,7 +223,7 @@ servers:
   - name: "database"
     host: "localhost"
     port: 3001
-    path: "/sse"
+    path: "/mcp"
     enabled: true
     include_tools:
       - "query"
@@ -233,7 +240,7 @@ servers:
   - name: "filesystem"
     host: "localhost"
     port: 3000
-    path: "/sse"
+    path: "/mcp"
     enabled: true
     exclude_tools:
       - "delete_file"  # Exclude dangerous operations
@@ -255,7 +262,7 @@ servers:
   - name: "filesystem"
     host: "${MCP_FILESYSTEM_HOST}"
     port: 3000
-    path: "/sse"
+    path: "/mcp"
     enabled: true
 ```
 
@@ -271,11 +278,13 @@ export MCP_FILESYSTEM_HOST=localhost
 
 ### Discovery Process
 
-1. **CLI startup**: MCP client manager initializes
+1. **CLI startup**: The MCP supervisor starts
 2. **Concurrent discovery**: Each enabled server is queried in parallel
-3. **Tool registration**: Discovered tools are registered in the tool registry
-4. **Filtering applied**: Include/exclude rules are enforced
-5. **Naming**: Tools are prefixed with `MCP_<server>_<tool>`
+3. **Protocol check**: `server/discover` must list `2026-07-28`; a server that doesn't is marked unavailable
+4. **Tool listing**: `tools/list`, following pagination cursors
+5. **Tool registration**: Discovered tools are registered in the tool registry
+6. **Filtering applied**: Include/exclude rules are enforced
+7. **Naming**: Tools are prefixed with `MCP_<server>_<tool>`
 
 ### Discovery Timeout
 
@@ -297,7 +306,7 @@ If a server fails during discovery:
 Example log output:
 
 ```text
-WARN Failed to discover tools from MCP server server=filesystem url=http://localhost:3000/sse error="connection refused"
+WARN Failed to discover tools from MCP server server=filesystem url=http://localhost:3000/mcp error="connection refused"
 INFO Discovered tools from MCP server server=database tool_count=5
 ```
 
@@ -308,7 +317,7 @@ display real-time connection status in the UI.
 
 ### Health Monitoring
 
-1. **Background Monitoring**: Goroutines periodically ping each enabled MCP server
+1. **Background Monitoring**: Goroutines periodically send `server/discover` to each enabled MCP server
 2. **Status Updates**: Connection changes trigger UI updates via event channels
 3. **Real-time Display**: Status bar shows "MCP: X/Y" (connected/total)
 4. **Auto-reconnection**: When server reconnects, tools become available immediately
@@ -351,9 +360,9 @@ connects to it instead of starting its own copy and leaves it running on exit.
 ### Probe Behavior
 
 - **Initial State**: Shows total servers, all marked disconnected
-- **First Connect**: When server responds to ping, status updates to connected
-- **Disconnection**: Failed ping marks server as disconnected
-- **Reconnection**: Successful ping after failure marks server as connected
+- **First Connect**: When the server answers `server/discover` and `tools/list`, status updates to connected
+- **Disconnection**: A failed probe marks the server as disconnected
+- **Reconnection**: A successful probe after failure marks the server as connected
 - **Event-Driven**: UI updates only when status actually changes (no polling)
 
 ### Disabling Probes
@@ -373,10 +382,8 @@ are still checked during initial tool discovery at startup.
 
 1. **LLM requests tool**: `MCP_filesystem_read_file`
 2. **Tool lookup**: Registry finds MCP tool wrapper
-3. **Client creation**: New HTTP SSE client created (stateless)
-4. **Server call**: Tool executed on MCP server
-5. **Result formatting**: Response formatted for LLM/UI
-6. **Connection closed**: HTTP connection terminated
+3. **Server call**: One `tools/call` POST carrying the protocol version (no session)
+4. **Result formatting**: Content blocks flattened to text for LLM/UI
 
 ### Timeouts
 
@@ -387,7 +394,7 @@ servers:
   - name: "slow-server"
     host: "slow-service"
     port: 8080
-    path: "/sse"
+    path: "/mcp"
     timeout: 120  # Override global timeout
 ```
 
@@ -407,6 +414,8 @@ Common errors and handling:
 | Timeout exceeded | Connection closed, timeout error returned |
 | Invalid arguments | Validation error before server call |
 | Server error | Error response passed to LLM |
+| Tool result with `isError` | Execution fails, the tool's message is passed to LLM |
+| Tool asks for input (`input_required`) | Execution fails; elicitation and sampling are not supported |
 
 ## Examples
 
@@ -422,7 +431,7 @@ servers:
   - name: "filesystem"
     host: "localhost"
     port: 3000
-    path: "/sse"
+    path: "/mcp"
     enabled: true
     description: "Sandboxed file system operations"
     exclude_tools:
@@ -448,7 +457,7 @@ servers:
   - name: "filesystem"
     host: "localhost"
     port: 3000
-    path: "/sse"
+    path: "/mcp"
     enabled: true
     timeout: 60
 
@@ -456,7 +465,7 @@ servers:
   - name: "postgres"
     host: "localhost"
     port: 3001
-    path: "/sse"
+    path: "/mcp"
     enabled: true
     include_tools:
       - "query"
@@ -466,7 +475,7 @@ servers:
   - name: "weather-api"
     host: "localhost"
     port: 3002
-    path: "/sse"
+    path: "/mcp"
     enabled: false
 ```
 
@@ -481,7 +490,7 @@ servers:
   - name: "production-db"
     scheme: "https"
     host: "${PROD_DB_MCP_HOST}"
-    path: "/sse"
+    path: "/mcp"
     enabled: ${PROD_DB_ENABLED:-false}
 ```
 
@@ -492,6 +501,33 @@ MCP_TIMEOUT=60
 PROD_DB_MCP_HOST=mcp.production.example.com
 PROD_DB_ENABLED=true
 ```
+
+### Example 4: The Gateway as One MCP Server
+
+The Inference Gateway serves every server in its `MCP_SERVERS` behind one MCP 2026-07-28 endpoint, `POST /mcp`.
+Point one entry at it instead of configuring each server in `infer`:
+
+```bash
+# gateway environment
+MCP_ENABLED=true
+MCP_EXPOSE=true
+MCP_SERVERS=http://filesystem:3000/mcp,http://database:3000/mcp
+```
+
+```yaml
+# .infer/mcp.yaml
+enabled: true
+servers:
+  - name: "gateway"
+    host: "localhost"
+    port: 8080
+    path: "/mcp"
+    enabled: true
+```
+
+The gateway namespaces its tools as `mcp_<alias>_<tool>`, so they surface in `infer` as
+`MCP_gateway_mcp_<alias>_<tool>`. Server entries cannot send an `Authorization` header yet, so this needs a gateway
+without auth enabled on `/mcp`.
 
 ## Troubleshooting
 
@@ -535,9 +571,17 @@ INFO Discovered tools from MCP server server=filesystem tool_count=8
 
 **Solutions**:
 
-- Verify server is running: `curl http://localhost:3000/sse`
+- Verify the server answers: `infer mcp status <server>`
 - Check URL in config
 - Check network connectivity
+
+### Server Must Speak MCP 2026-07-28
+
+**Error**: `MCP server must speak protocol version 2026-07-28 ...`
+
+The server is on an earlier MCP revision (it expects an `initialize` handshake or a session). The error names the
+versions it supports when it says. Upgrade the server to an SDK that serves 2026-07-28 (see the note at the top);
+Go servers on `go-sdk` also need `StreamableHTTPOptions{Stateless: true}`.
 
 ### Timeout Issues
 
@@ -647,7 +691,7 @@ Run MCP servers in sandboxed environments:
 
 | Feature | MCP | A2A |
 | ------- | --- | --- |
-| **Connection** | Stateless HTTP SSE | Persistent |
+| **Connection** | Stateless Streamable HTTP | Persistent |
 | **Duration** | Seconds | Minutes to hours |
 | **Use case** | Tool execution | Task delegation |
 | **Polling** | N/A | Background monitoring |
@@ -663,7 +707,7 @@ The CLI can automatically start and manage MCP servers as OCI/Docker containers.
 - **Automatic port assignment**: No need to manually configure ports
 - **Container lifecycle management**: Start, stop, and health monitoring
 - **Background execution**: Non-blocking startup, CLI ready immediately
-- **Automatic healthchecks**: Docker healthchecks with MCP ping method
+- **Automatic healthchecks**: Container healthchecks with an MCP `server/discover` request
 
 ### Auto-Start Quick Start
 
@@ -681,7 +725,7 @@ This automatically:
 1. Creates server configuration with `run: true`
 2. Assigns next available port (e.g., 3000, 3001, ...)
 3. Configures container with defaults (localhost, http, /mcp path)
-4. Adds Docker healthcheck using MCP ping method
+4. Adds a container healthcheck using an MCP `server/discover` request
 
 ### Auto-Start Configuration
 
@@ -788,12 +832,14 @@ servers:
     health_cmd: 'sh -c "curl -f http://localhost:8080/health || exit 1"'
 ```
 
-Default healthcheck (MCP ping):
+Default healthcheck (MCP `server/discover`):
 
 ```bash
-sh -c 'curl -f -X POST http://localhost:3000/mcp \
-  -H "Content-Type: application/json" \
-  -d "{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":1}" || exit 1'
+sh -c 'curl -fsS -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2026-07-28" -H "Mcp-Method: server/discover" \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"2026-07-28\",\"io.modelcontextprotocol/clientCapabilities\":{}}}}"\
+  > /dev/null || exit 1'
 ```
 
 ### Lifecycle Management
@@ -888,12 +934,13 @@ Verify the server's healthcheck endpoint:
 curl -v http://localhost:<port>/health
 ```
 
-Test MCP ping method:
+Test the MCP endpoint (it must list `2026-07-28` in `supportedVersions`):
 
 ```bash
 curl -X POST http://localhost:<port>/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"ping","id":1}'
+  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2026-07-28" -H "Mcp-Method: server/discover" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'
 ```
 
 **Image not found**:
@@ -920,33 +967,23 @@ servers:
 
 ### Custom MCP Server
 
-Create a custom MCP server using `@modelcontextprotocol/sdk` (Node.js):
+Create a custom MCP server with the official Go SDK. The stateless Streamable HTTP handler serves MCP 2026-07-28
+(a complete version lives in [`examples/mcp/mcp-server`](../examples/mcp/mcp-server/main.go)):
 
-```javascript
-import { MCPServer } from '@modelcontextprotocol/sdk';
-import { createServer } from 'http';
+```go
+server := mcp.NewServer(&mcp.Implementation{Name: "my-custom-server", Version: "1.0.0"}, nil)
+mcp.AddTool(server, &mcp.Tool{Name: "my_tool", Description: "My custom tool"},
+    func(_ context.Context, _ *mcp.CallToolRequest, in struct {
+        Input string `json:"input"`
+    }) (*mcp.CallToolResult, any, error) {
+        return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "Processed: " + in.Input}}}, nil, nil
+    })
 
-const mcp = new MCPServer({
-  name: 'my-custom-server',
-  version: '1.0.0'
-});
-
-// Register tools
-mcp.tool('my_tool', {
-  description: 'My custom tool',
-  parameters: {
-    type: 'object',
-    properties: {
-      input: { type: 'string' }
-    }
-  }
-}, async (params) => {
-  return { result: `Processed: ${params.input}` };
-});
-
-// Start HTTP SSE server
-const server = createServer(mcp.createHTTPHandler());
-server.listen(3000);
+// 2026-07-28 requests are only served in stateless mode.
+handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server },
+    &mcp.StreamableHTTPOptions{Stateless: true})
+http.Handle("/mcp", handler)
+log.Fatal(http.ListenAndServe(":3000", nil))
 ```
 
 ### Monitoring
@@ -963,9 +1000,9 @@ cat ~/.infer/logs/*.log | grep "MCP.*failed"
 
 ## References
 
-- [MCP Specification](https://github.com/anthropics/mcp)
-- [MCP SDK (Node.js)](https://www.npmjs.com/package/@modelcontextprotocol/sdk)
-- [MCP SDK (Go)](https://github.com/metoro-io/mcp-golang)
+- [MCP Specification](https://modelcontextprotocol.io/specification)
+- [MCP SDK (TypeScript)](https://www.npmjs.com/package/@modelcontextprotocol/sdk)
+- [MCP SDK (Go)](https://github.com/modelcontextprotocol/go-sdk)
 - [Example MCP Servers](../examples/mcp/)
 
 ## Support

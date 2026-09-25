@@ -221,7 +221,7 @@ func TestTextToMusicTool_RegistryGating(t *testing.T) {
 	t.Run("disabled by default: not registered", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToMusic.Enabled = false
-		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 		assert.NotContains(t, registry.ListAvailableTools(), "TextToMusic")
 		for _, def := range registry.GetToolDefinitions() {
@@ -235,7 +235,7 @@ func TestTextToMusicTool_RegistryGating(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToMusic.Enabled = true
 		cfg.TextToMusic.OutputDir = t.TempDir()
-		registry := NewRegistry(cfg, nil, nil, &agentdomainmocks.FakeMusicService{}, nil, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, &agentdomainmocks.FakeMusicService{}, nil, nil, nil, nil, nil, nil)
 
 		assert.Contains(t, registry.ListAvailableTools(), "TextToMusic")
 

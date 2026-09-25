@@ -36,6 +36,7 @@ import (
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 	insights "github.com/inference-gateway/cli/internal/insights"
 	mcp "github.com/inference-gateway/cli/internal/mcp"
+	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 	adapters "github.com/inference-gateway/cli/internal/platform/adapters"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -133,8 +134,8 @@ type ServiceContainer struct {
 	insights         *insights.Generator
 
 	// Tool registry
-	toolRegistry *tools.Registry
-	mcpManager   agentdomain.MCPSupervisor
+	toolRegistry  *tools.Registry
+	mcpSupervisor mcpdomain.Supervisor
 	// mcpStartupCancel aborts the async MCP server startup on Shutdown.
 	mcpStartupCancel context.CancelFunc
 
@@ -349,13 +350,13 @@ func (c *ServiceContainer) initializeAgentManager() {
 
 }
 
-// initializeMCPManager creates and starts MCP manager if enabled
-func (c *ServiceContainer) initializeMCPManager() {
+// initializeMCPSupervisor creates the MCP supervisor and starts its servers if enabled
+func (c *ServiceContainer) initializeMCPSupervisor() {
 	if !c.config.MCP.Enabled {
 		return
 	}
 
-	c.mcpManager = mcp.NewSupervisor(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
+	c.mcpSupervisor = mcp.NewSupervisor(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
 
 	hasServersToStart := c.hasAutoStartMCPServers()
 	if !hasServersToStart {
@@ -368,7 +369,7 @@ func (c *ServiceContainer) initializeMCPManager() {
 	go func() {
 		defer cancel()
 
-		if err := c.mcpManager.StartServers(ctx); err != nil {
+		if err := c.mcpSupervisor.StartServers(ctx); err != nil {
 			logger.Warn("some MCP servers failed to start", "error", err)
 		}
 	}()
@@ -394,7 +395,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.videoService = agentinfra.NewVideoService(c.config, c.createRawSDKClient())
 	c.messageQueue = conversation.NewMessageQueueService()
 
-	c.initializeMCPManager()
+	c.initializeMCPSupervisor()
 
 	c.ensureBackgroundTaskRegistry()
 	c.memoryBackend = memory.NewMemoryBackend(c.config)
@@ -407,7 +408,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.stores = stores
 
 	c.imageAnnotator = c.createImageAnnotator()
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.musicService, c.sfxService, c.videoService, c.mcpManager, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.musicService, c.sfxService, c.videoService, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
 	c.screenRecorder = computer.NewScreenRecorder(c.config, c.uiNotifier)
 	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator, c.screenRecorder))
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
@@ -891,9 +892,9 @@ func (c *ServiceContainer) StartScreenshotServer(sessionID string) *computerinfr
 	return server
 }
 
-// GetMCPSupervisor returns the MCP manager (may be nil if MCP is not enabled)
-func (c *ServiceContainer) GetMCPSupervisor() agentdomain.MCPSupervisor {
-	return c.mcpManager
+// GetMCPSupervisor returns the MCP supervisor (may be nil if MCP is not enabled)
+func (c *ServiceContainer) GetMCPSupervisor() mcpdomain.Supervisor {
+	return c.mcpSupervisor
 }
 
 // GetApprovalCoordinator returns the plan-approval / computer-use pause-resume
@@ -1096,9 +1097,9 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 		c.mcpStartupCancel()
 	}
 
-	if c.mcpManager != nil {
-		if err := c.mcpManager.Close(); err != nil {
-			logger.Error("failed to close MCP manager", "error", err)
+	if c.mcpSupervisor != nil {
+		if err := c.mcpSupervisor.Close(); err != nil {
+			logger.Error("failed to close MCP supervisor", "error", err)
 		}
 	}
 

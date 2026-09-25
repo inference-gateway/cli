@@ -1,6 +1,8 @@
 # MCP Demo Server
 
-A simple MCP (Model Context Protocol) server implementation in Go.
+A simple MCP (Model Context Protocol) server implementation in Go, built on the official
+[Go SDK](https://github.com/modelcontextprotocol/go-sdk). Its stateless Streamable HTTP handler serves
+MCP `2026-07-28`, the revision `infer` speaks.
 
 ## Tools
 
