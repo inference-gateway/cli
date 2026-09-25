@@ -2,13 +2,18 @@ package mcp
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
 
+	containermocks "github.com/inference-gateway/cli/tests/mocks/container"
+
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
+	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 )
 
 func TestNewSupervisor(t *testing.T) {
@@ -384,4 +389,58 @@ func TestMCPServerEntry_GetTimeout(t *testing.T) {
 			}
 		})
 	}
+}
+
+// StartServer drives containers only through the runtime port: a detached
+// shared container is reused via its published port; otherwise the image is
+// pulled, run detached and polled until its healthcheck passes.
+func TestSupervisor_StartServer_UsesContainerRuntime(t *testing.T) {
+	server := config.MCPServerEntry{
+		Name: "fs", Enabled: true, Run: true, OCI: "example/fs:latest", Port: 3100,
+		Env: map[string]string{"TOKEN": "x"},
+	}
+	cfg := &config.MCPConfig{Enabled: true, Servers: []config.MCPServerEntry{server}}
+
+	t.Run("reuses a detached shared container", func(t *testing.T) {
+		rt := &containermocks.FakeContainerRuntime{}
+		rt.PublishedPortReturns(4200, nil)
+		supervisor := NewSupervisor(convdomain.GenerateSessionID(), cfg, rt, nil)
+
+		if err := supervisor.StartServer(context.Background(), server); err != nil {
+			t.Fatalf("StartServer: %v", err)
+		}
+		if _, name := rt.PublishedPortArgsForCall(0); name != "inference-mcp-fs-shared" {
+			t.Errorf("looked up %q, want the shared container", name)
+		}
+		if rt.RunContainerCallCount() != 0 {
+			t.Error("started a container although a shared one is running")
+		}
+	})
+
+	t.Run("runs a new container and waits until healthy", func(t *testing.T) {
+		rt := &containermocks.FakeContainerRuntime{}
+		rt.PublishedPortReturns(0, errors.New("no such container"))
+		rt.RunContainerReturns("abc123", nil)
+		rt.GetContainerHealthReturns(containerruntime.HealthStatusHealthy, nil)
+		sessionID := convdomain.GenerateSessionID()
+		supervisor := NewSupervisor(sessionID, cfg, rt, nil)
+
+		if err := supervisor.StartServer(context.Background(), server); err != nil {
+			t.Fatalf("StartServer: %v", err)
+		}
+		if rt.PullImageCallCount() != 1 {
+			t.Errorf("PullImage called %d times, want 1", rt.PullImageCallCount())
+		}
+		_, opts := rt.RunContainerArgsForCall(0)
+		name := "inference-mcp-fs-" + string(sessionID)
+		if opts.Name != name || opts.Image != server.OCI || !opts.Detached || !opts.RemoveOnExit {
+			t.Errorf("unexpected run options: %+v", opts)
+		}
+		if !slices.Equal(opts.Ports, []string{"3100:3000"}) || opts.Environment["TOKEN"] != "x" {
+			t.Errorf("unexpected ports/env: %v %v", opts.Ports, opts.Environment)
+		}
+		if supervisor.containerIDs[name] != "abc123" {
+			t.Errorf("container id not recorded: %v", supervisor.containerIDs)
+		}
+	})
 }

@@ -3,10 +3,8 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"io"
 	"maps"
 	"os"
-	"os/exec"
 	"slices"
 	"strings"
 	"sync"
@@ -613,11 +611,13 @@ func (s *Supervisor) StartServers(ctx context.Context) error {
 	if len(serversToStart) == 0 {
 		return nil
 	}
+	if s.containerRuntime == nil {
+		logger.Warn("no container runtime configured; skipping run:true MCP servers", "session", s.sessionID)
+		return nil
+	}
 
-	if s.containerRuntime != nil {
-		if err := s.containerRuntime.EnsureNetwork(ctx); err != nil {
-			logger.Warn("failed to create Docker network", "session", s.sessionID, "error", err)
-		}
+	if err := s.containerRuntime.EnsureNetwork(ctx); err != nil {
+		logger.Warn("failed to create container network", "session", s.sessionID, "error", err)
 	}
 
 	var wg sync.WaitGroup
@@ -642,7 +642,10 @@ func (s *Supervisor) StartServers(ctx context.Context) error {
 // StartServer starts a single MCP server container, or points the client at a
 // detached shared container when one is already running.
 func (s *Supervisor) StartServer(ctx context.Context, server config.MCPServerEntry) error {
-	if url, ok := s.sharedServerURL(server); ok {
+	if s.containerRuntime == nil {
+		return fmt.Errorf("no container runtime configured to run MCP server %q", server.Name)
+	}
+	if url, ok := s.sharedServerURL(ctx, server); ok {
 		logger.Info("reusing detached MCP server container", "session", s.sessionID, "server", server.Name, "url", url)
 		s.mu.Lock()
 		if client, exists := s.clients[server.Name]; exists {
@@ -656,12 +659,12 @@ func (s *Supervisor) StartServer(ctx context.Context, server config.MCPServerEnt
 
 	assignedPort := s.assignPort(server)
 
-	if s.isServerRunning(containerName) {
+	if s.isServerRunning(ctx, containerName) {
 		logger.Info("mCP server container already running", "session", s.sessionID, "server", server.Name, "port", assignedPort)
 		return nil
 	}
 
-	if err := s.pullImage(ctx, server.OCI); err != nil {
+	if err := s.containerRuntime.PullImage(ctx, server.OCI, nil); err != nil {
 		logger.Warn("failed to pull image, using cached version", "session", s.sessionID, "image", server.OCI, "error", err)
 	}
 
@@ -673,7 +676,7 @@ func (s *Supervisor) StartServer(ctx context.Context, server config.MCPServerEnt
 
 	logger.Info("waiting for MCP server to become ready", "session", s.sessionID, "server", server.Name)
 
-	if err := s.waitForReady(ctx, server, assignedPort); err != nil {
+	if err := s.waitForReady(ctx, containerName, server.GetStartupTimeout()); err != nil {
 		_ = s.stopContainer(ctx, containerName)
 		return fmt.Errorf("server failed to become ready: %w", err)
 	}
@@ -697,37 +700,17 @@ func (s *Supervisor) StopServer(ctx context.Context, serverName string) error {
 }
 
 // sharedServerURL reports the URL of a running detached container for the
-// server, if any. The shared manager itself never reuses (it is the one starting).
-func (s *Supervisor) sharedServerURL(server config.MCPServerEntry) (string, bool) {
+// server, if any. The shared supervisor itself never reuses (it is the one starting).
+func (s *Supervisor) sharedServerURL(ctx context.Context, server config.MCPServerEntry) (string, bool) {
 	if s.sessionID == containerruntime.SharedSessionID {
 		return "", false
 	}
 	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, containerruntime.SharedSessionID)
-	output, err := exec.Command("docker", "port", containerName).Output()
+	port, err := s.containerRuntime.PublishedPort(ctx, containerName)
 	if err != nil {
 		return "", false
 	}
-	port, ok := parseHostPort(string(output))
-	if !ok {
-		return "", false
-	}
 	return fmt.Sprintf("http://localhost:%d%s", port, s.getPath(server)), true
-}
-
-// parseHostPort extracts the first published host port from `docker port`
-// output such as "3000/tcp -> 0.0.0.0:3001".
-func parseHostPort(output string) (int, bool) {
-	for _, line := range strings.Split(output, "\n") {
-		_, host, found := strings.Cut(line, "->")
-		if !found {
-			continue
-		}
-		var port int
-		if _, err := fmt.Sscanf(host[strings.LastIndex(host, ":")+1:], "%d", &port); err == nil && port > 0 {
-			return port, true
-		}
-	}
-	return 0, false
 }
 
 // StopServers stops all running MCP server containers
@@ -753,133 +736,66 @@ func (s *Supervisor) StopServers(ctx context.Context) error {
 	return nil
 }
 
-// pullImage pulls the container image
-func (s *Supervisor) pullImage(ctx context.Context, image string) error {
-	cmd := exec.CommandContext(ctx, "docker", "pull", image)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker pull failed: %w", err)
-	}
-	return nil
-}
-
-// startContainer starts the MCP server container
+// startContainer runs the MCP server container detached, removed on exit.
 func (s *Supervisor) startContainer(ctx context.Context, server config.MCPServerEntry, assignedPort int) error {
 	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, s.sessionID)
-
-	var networkName string
-	if s.containerRuntime != nil {
-		networkName = s.containerRuntime.GetNetworkName()
-	}
-	args := []string{
-		"run",
-		"-d",
-		"--name", containerName,
-		"--network", networkName,
-		"--rm",
-	}
-
-	args = s.appendPortMappings(args, server, assignedPort)
 
 	healthCmd := server.HealthCmd
 	if healthCmd == "" {
 		healthCmd = `sh -c 'curl -f -X POST http://localhost:3000/mcp -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":1}" || exit 1'`
 	}
-	args = append(args,
-		"--health-cmd", healthCmd,
-		"--health-interval", "10s",
-		"--health-timeout", "5s",
-		"--health-retries", "3",
-		"--health-start-period", "10s",
-	)
 
+	env := make(map[string]string, len(server.Env))
 	for key, value := range server.Env {
-		expandedValue := os.ExpandEnv(value)
-		args = append(args, "-e", fmt.Sprintf("%s=%s", key, expandedValue))
+		env[key] = os.ExpandEnv(value)
 	}
 
-	for _, volume := range server.Volumes {
-		args = append(args, "-v", volume)
+	containerID, err := s.containerRuntime.RunContainer(ctx, containerruntime.RunContainerOptions{
+		Name:         containerName,
+		Image:        server.OCI,
+		Network:      s.containerRuntime.GetNetworkName(),
+		Ports:        s.portMappings(server, assignedPort),
+		Environment:  env,
+		Volumes:      server.Volumes,
+		Entrypoint:   server.Entrypoint,
+		Command:      server.Command,
+		Args:         server.Args,
+		HealthCmd:    healthCmd,
+		RemoveOnExit: true,
+		Detached:     true,
+	})
+	if err != nil {
+		return err
 	}
 
-	if len(server.Entrypoint) > 0 {
-		args = append(args, "--entrypoint", server.Entrypoint[0])
-	}
-
-	args = append(args, server.OCI)
-
-	if len(server.Entrypoint) > 1 {
-		args = append(args, server.Entrypoint[1:]...)
-	} else if len(server.Command) > 0 {
-		args = append(args, server.Command...)
-	}
-
-	if len(server.Args) > 0 {
-		args = append(args, server.Args...)
-	}
-
-	logger.Info("starting MCP server container",
-		"session", s.sessionID,
-		"server", server.Name,
-		"command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
-
-	cmd := exec.CommandContext(ctx, "docker", args...)
-
-	var outputBuf strings.Builder
-	cmd.Stdout = &outputBuf
-	cmd.Stderr = io.Discard
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker run failed: %w", err)
-	}
-
-	containerID := strings.TrimSpace(outputBuf.String())
 	s.mu.Lock()
 	s.containerIDs[containerName] = containerID
 	s.mu.Unlock()
-
 	return nil
 }
 
-// stopContainer stops and removes a container
+// stopContainer stops a container; failures are logged, never returned, so
+// shutdown is not blocked by a container that is already gone.
 func (s *Supervisor) stopContainer(ctx context.Context, containerName string) error {
-	if s.containerRuntime != nil && !s.containerRuntime.ContainerExists(containerName) {
+	if s.containerRuntime == nil {
 		return nil
 	}
-
-	cmd := exec.CommandContext(ctx, "docker", "stop", containerName)
-	if err := cmd.Run(); err != nil {
+	if err := s.containerRuntime.StopContainer(ctx, containerName); err != nil {
 		logger.Warn("failed to stop container", "session", s.sessionID, "container", containerName, "error", err)
 	}
-
 	return nil
 }
 
 // isServerRunning checks if a container is already running
-func (s *Supervisor) isServerRunning(containerName string) bool {
-	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.ID}}\t{{.Names}}")
-	output, err := cmd.CombinedOutput()
+func (s *Supervisor) isServerRunning(ctx context.Context, containerName string) bool {
+	containers, err := s.containerRuntime.ListRunningContainers(ctx, containerName)
 	if err != nil {
 		return false
 	}
-
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		parts := strings.Split(line, "\t")
-		if len(parts) != 2 {
-			continue
-		}
-		containerID := parts[0]
-		foundName := parts[1]
-
-		if foundName == containerName {
+	for _, container := range containers {
+		if container.Name == containerName {
 			s.mu.Lock()
-			s.containerIDs[containerName] = containerID
+			s.containerIDs[containerName] = container.ID
 			s.mu.Unlock()
 			return true
 		}
@@ -887,34 +803,27 @@ func (s *Supervisor) isServerRunning(containerName string) bool {
 	return false
 }
 
-// waitForReady waits for the server to become ready by using Docker's healthcheck status
-func (s *Supervisor) waitForReady(ctx context.Context, server config.MCPServerEntry, _ int) error {
-	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, s.sessionID)
-	timeout := time.Duration(server.GetStartupTimeout()) * time.Second
-	deadline := time.Now().Add(timeout)
+// waitForReady polls the container's healthcheck until it passes, fails, or
+// the startup timeout (seconds) runs out.
+func (s *Supervisor) waitForReady(ctx context.Context, containerName string, startupTimeout int) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(startupTimeout)*time.Second)
+	defer cancel()
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("timeout waiting for server to become ready: %w", ctx.Err())
 		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for server to become ready")
-			}
-
-			cmd := exec.Command("docker", "inspect", "--format", "{{.State.Health.Status}}", containerName)
-			output, err := cmd.Output()
+			health, err := s.containerRuntime.GetContainerHealth(ctx, containerName)
 			if err != nil {
 				continue
 			}
-
-			healthStatus := strings.TrimSpace(string(output))
-			if healthStatus == "healthy" {
+			switch health {
+			case containerruntime.HealthStatusHealthy:
 				return nil
-			}
-			if healthStatus == "unhealthy" {
+			case containerruntime.HealthStatusUnhealthy:
 				return fmt.Errorf("container became unhealthy during startup")
 			}
 		}
@@ -935,24 +844,24 @@ func (s *Supervisor) assignPort(server config.MCPServerEntry) int {
 	return port
 }
 
-// appendPortMappings adds port mappings to docker run args
-func (s *Supervisor) appendPortMappings(args []string, server config.MCPServerEntry, assignedPort int) []string {
+// portMappings returns the host:container port mappings for the container
+func (s *Supervisor) portMappings(server config.MCPServerEntry, assignedPort int) []string {
 	if server.Port > 0 {
-		return append(args, "-p", fmt.Sprintf("%d:3000", assignedPort))
+		return []string{fmt.Sprintf("%d:3000", assignedPort)}
 	}
 
 	if len(server.Ports) > 0 {
+		mappings := make([]string, 0, len(server.Ports))
 		for i, portMapping := range server.Ports {
-			mappedPort := s.mapPort(portMapping, i, assignedPort)
-			args = append(args, "-p", mappedPort)
+			mappings = append(mappings, s.mapPort(portMapping, i, assignedPort))
 		}
-		return args
+		return mappings
 	}
 
-	return append(args, "-p", fmt.Sprintf("%d:8080", assignedPort))
+	return []string{fmt.Sprintf("%d:8080", assignedPort)}
 }
 
-// mapPort creates the port mapping string for docker
+// mapPort maps the first configured port onto the assigned host port
 func (s *Supervisor) mapPort(portMapping string, index int, assignedPort int) string {
 	if index != 0 {
 		return portMapping
