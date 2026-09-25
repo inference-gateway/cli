@@ -22,6 +22,7 @@ import (
 	capture "github.com/inference-gateway/cli/internal/computer/infrastructure/capture"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 const (
@@ -64,14 +65,20 @@ type recording struct {
 	done    chan struct{}
 	ended   time.Time
 	err     error
+	lock    *os.File
 }
 
-// ScreenRecorder runs at most one ffmpeg screen recording at a time. The
-// process outlives the RecordStart tool call; RecordStop, the max_duration
-// cap (ffmpeg -t), or Close on CLI shutdown ends it.
+// ScreenRecorder runs at most one ffmpeg screen recording at a time, machine
+// wide: a lock file under ~/.infer/run keeps a second infer process from
+// starting a competing capture. The process outlives the RecordStart tool
+// call; RecordStop, the max_duration cap (ffmpeg -t), or Close on CLI
+// shutdown ends it. While it runs it is a background job, so a headless run
+// waits for it instead of exiting.
 type ScreenRecorder struct {
 	cfg         *config.Config
 	notifier    agentdomain.UINotifier
+	jobs        scheddomain.JobSubmitter
+	lockDir     string
 	startupWait time.Duration
 	stopTimeout time.Duration
 
@@ -81,11 +88,12 @@ type ScreenRecorder struct {
 }
 
 // NewScreenRecorder creates the recorder shared by RecordStart and RecordStop.
-func NewScreenRecorder(cfg *config.Config, notifier agentdomain.UINotifier) *ScreenRecorder {
+// jobs may be nil, in which case a recording is not tracked as a background job.
+func NewScreenRecorder(cfg *config.Config, notifier agentdomain.UINotifier, jobs scheddomain.JobSubmitter) *ScreenRecorder {
 	if notifier == nil {
 		notifier = agentdomain.NoopUINotifier{}
 	}
-	return &ScreenRecorder{cfg: cfg, notifier: notifier, startupWait: recordStartupWait, stopTimeout: recordStopTimeout}
+	return &ScreenRecorder{cfg: cfg, notifier: notifier, jobs: jobs, startupWait: recordStartupWait, stopTimeout: recordStopTimeout}
 }
 
 // Start begins a recording. Resolving the capture area and ffmpeg (which may
@@ -188,7 +196,8 @@ func (r *ScreenRecorder) prepare(ctx context.Context, req recordRequest) (string
 }
 
 // launch starts ffmpeg and waits briefly for an early failure. The badge is
-// switched on before Start so the waiter's "off" can never overtake it.
+// switched on before Start so the waiter's "off" can never overtake it. The
+// machine-wide lock is held from before Start until ffmpeg exits.
 func (r *ScreenRecorder) launch(ffmpeg string, args []string, rec *recording) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -203,9 +212,13 @@ func (r *ScreenRecorder) launch(ffmpeg string, args []string, rec *recording) er
 	}
 	cmd.Stderr = &rec.stderr
 	rec.cmd, rec.stdin, rec.done = cmd, stdin, make(chan struct{})
+	if rec.lock, err = r.lockRecording(); err != nil {
+		return err
+	}
 
 	r.notifier.Notify(agentdomain.ScreenRecordingStatusEvent{Active: true})
 	if err := cmd.Start(); err != nil {
+		_ = rec.lock.Close()
 		r.notifier.Notify(agentdomain.ScreenRecordingStatusEvent{Active: false})
 		return fmt.Errorf("start ffmpeg: %w", err)
 	}
@@ -213,6 +226,7 @@ func (r *ScreenRecorder) launch(ffmpeg string, args []string, rec *recording) er
 	go func() {
 		rec.err = cmd.Wait()
 		rec.ended = time.Now()
+		_ = rec.lock.Close()
 		r.notifier.Notify(agentdomain.ScreenRecordingStatusEvent{Active: false})
 		close(rec.done)
 	}()
@@ -228,8 +242,103 @@ func (r *ScreenRecorder) launch(ffmpeg string, args []string, rec *recording) er
 		rec.status.Message += fmt.Sprintf("; the previous recording %s had already stopped on its own (max_duration or an ffmpeg exit) and was never collected with RecordStop", prev.status.Path)
 	}
 	r.cur = rec
+	if r.jobs != nil {
+		r.jobs.Submit(newRecordingJob(r, rec))
+	}
 	return nil
 }
+
+// lockRecording takes the machine-wide recording lock. Each infer process has
+// its own recorder, so without it two sessions could capture the screen at
+// once. The OS drops the lock when the holder exits, so a crash never wedges it.
+func (r *ScreenRecorder) lockRecording() (*os.File, error) {
+	dir := r.lockDir
+	if dir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("resolve home directory for the recording lock: %w", err)
+		}
+		dir = filepath.Join(home, config.ConfigDirName, "run")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("create %s: %w", dir, err)
+	}
+	path := filepath.Join(dir, "screen-recording.lock")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("open the recording lock: %w", err)
+	}
+	if err := tryLockFile(f); err != nil {
+		_ = f.Close()
+		owner := "another infer process"
+		if pid, _ := os.ReadFile(path); len(strings.TrimSpace(string(pid))) > 0 {
+			owner += " (pid " + strings.TrimSpace(string(pid)) + ")"
+		}
+		return nil, fmt.Errorf("%s is already recording the screen and only one recording can run at a time; tell the user instead of retrying", owner)
+	}
+	_ = f.Truncate(0)
+	_, _ = fmt.Fprintf(f, "%d\n", os.Getpid())
+	return f, nil
+}
+
+// recordingJob tracks a running recording on the background job supervisor:
+// HoldsSession makes a headless run wait for it instead of exiting (which would
+// finalize it early) and lists it in the task views. It is Silent because
+// RecordStop reports the file itself; only a recording that ends on its own
+// (the max_duration cap, an ffmpeg exit, or Wind) wakes the agent to collect it.
+type recordingJob struct {
+	r    *ScreenRecorder
+	rec  *recording
+	meta scheddomain.JobMeta
+}
+
+func newRecordingJob(r *ScreenRecorder, rec *recording) *recordingJob {
+	name := filepath.Base(rec.status.Path)
+	return &recordingJob{r: r, rec: rec, meta: scheddomain.JobMeta{
+		ID:           "recording-" + strings.TrimSuffix(name, filepath.Ext(name)),
+		Kind:         scheddomain.JobKindRecording,
+		Label:        name,
+		Description:  "Screen recording",
+		Detail:       rec.status.Path,
+		StartedAt:    rec.started,
+		Silent:       true,
+		HoldsSession: true,
+	}}
+}
+
+func (j *recordingJob) Meta() scheddomain.JobMeta { return j.meta }
+
+// Run waits for ffmpeg to exit. A recording still current on the recorder at
+// that point was not collected by RecordStop or Close, so the agent is told to
+// collect it.
+func (j *recordingJob) Run(ctx context.Context, emit func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
+	select {
+	case <-j.rec.done:
+	case <-ctx.Done():
+		return agentdomain.ToolExecutionResult{ToolName: "RecordStart", Success: true}
+	}
+	j.r.mu.Lock()
+	uncollected := j.r.cur == j.rec
+	j.r.mu.Unlock()
+	if uncollected {
+		emit(scheddomain.JobSignal{Enqueue: true, Note: fmt.Sprintf(
+			"[Screen Recording Stopped: %s]\n\nThe screen recording stopped on its own (the max_duration limit, an ffmpeg exit, or a stop from the task view). Call RecordStop to finalize it and report the file to the user.",
+			j.meta.Label)})
+	}
+	return agentdomain.ToolExecutionResult{ToolName: "RecordStart", Success: j.rec.err == nil}
+}
+
+// Wind asks ffmpeg to finish, which ends Run through the uncollected path.
+func (j *recordingJob) Wind(context.Context, scheddomain.WindSignal) error {
+	select {
+	case <-j.rec.done:
+	default:
+		_, _ = io.WriteString(j.rec.stdin, "q")
+	}
+	return nil
+}
+
+func (j *recordingJob) Close() {}
 
 // Stop finalizes the active recording, or the one the time cap already
 // finished, and reports the file.

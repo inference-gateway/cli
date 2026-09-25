@@ -409,7 +409,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.imageAnnotator = c.createImageAnnotator()
 	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.musicService, c.sfxService, c.videoService, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
-	c.screenRecorder = computer.NewScreenRecorder(c.config, c.uiNotifier)
+	c.screenRecorder = computer.NewScreenRecorder(c.config, c.uiNotifier, c.backgroundTaskRegistry)
 	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator, c.screenRecorder))
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 

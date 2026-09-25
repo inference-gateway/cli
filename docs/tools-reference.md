@@ -774,8 +774,14 @@ Record the screen to an MP4 file (H.264, `yuv420p`, plays in browsers and QuickT
 `RecordStart` returns the file path and the captured rectangle, then keeps recording in the background.
 `RecordStop` takes no arguments and returns the path, duration, and size. Behaviour:
 
-- One recording at a time: a second `RecordStart`, or `RecordStop` with nothing recording, returns an
-  error and leaves the active recording alone.
+- One recording at a time, machine wide: a second `RecordStart` (from this or any other `infer`
+  process, which holds `~/.infer/run/screen-recording.lock` while its ffmpeg runs), or `RecordStop`
+  with nothing recording, returns an error and leaves the active recording alone.
+- A running recording is a background job (kind `recording`): it is listed in `/tasks`, and a
+  headless run waits for it, up to `a2a.task.agent_mode_max_wait_seconds`, instead of exiting, so
+  a follow-up `user_message` on stdin can ask for `RecordStop` in the same process. A recording that
+  stops on its own (the max duration, an ffmpeg exit, or a stop from `/tasks`) queues a note asking
+  the agent to collect it with `RecordStop`.
 - A recording stops and finalizes itself at `computer_use.recording.max_duration` (default 120s);
   `RecordStop` still returns that file.
 - When the CLI exits (normal exit, Ctrl+C, SIGTERM) an active recording is finalized, and no ffmpeg

@@ -54,9 +54,11 @@ cumulative across the session (not just this run). When no model request was mad
 The same stats object is also emitted as a `CUSTOM` event named `token_usage`
 after each model request, so clients can track usage while the run progresses.
 
-A recording still running when the run ends is finalized as the process exits, after the terminal
-event, so no `screen_recording` event with `active: false` follows it: clear the indicator on
-`RUN_FINISHED` or `RUN_ERROR`. `RecordStart` always requires approval outside auto-accept mode, so
+A running recording is a `background_tasks` job with kind `recording`, and the run waits for it
+(up to `a2a.task.agent_mode_max_wait_seconds`) instead of finishing, so send the stop request as a
+`user_message` line on stdin. A recording still running when the run ends anyway is finalized as
+the process exits, after the terminal event, so no `screen_recording` event with `active: false`
+follows it: clear the indicator on `RUN_FINISHED` or `RUN_ERROR`. `RecordStart` always requires approval outside auto-accept mode, so
 run with `--require-approval` to receive it as an `approval_request`; without an approver it is
 blocked.
 

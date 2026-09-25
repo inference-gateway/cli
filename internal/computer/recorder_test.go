@@ -14,6 +14,7 @@ import (
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	capture "github.com/inference-gateway/cli/internal/computer/infrastructure/capture"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // TestMain lets the test binary stand in for ffmpeg: with INFER_FAKE_FFMPEG
@@ -60,12 +61,17 @@ type chanNotifier chan any
 
 func (c chanNotifier) Notify(event any) { c <- event }
 
+type jobSink struct{ jobs []scheddomain.BackgroundJob }
+
+func (s *jobSink) Submit(job scheddomain.BackgroundJob) { s.jobs = append(s.jobs, job) }
+
 func newFakeRecorder(t *testing.T) (*ScreenRecorder, chanNotifier) {
 	t.Helper()
 	t.Setenv("INFER_FAKE_FFMPEG", "1")
 	events := make(chanNotifier, 16)
-	r := NewScreenRecorder(&config.Config{}, events)
+	r := NewScreenRecorder(&config.Config{}, events, nil)
 	r.startupWait = 50 * time.Millisecond
+	r.lockDir = t.TempDir()
 	return r, events
 }
 
@@ -182,6 +188,87 @@ func TestScreenRecorderStartupFailure(t *testing.T) {
 	}
 	if r.cur != nil {
 		t.Fatal("a failed start must not become the active recording")
+	}
+}
+
+func TestScreenRecorderLockIsMachineWide(t *testing.T) {
+	first, _ := newFakeRecorder(t)
+	second, _ := newFakeRecorder(t)
+	second.lockDir = first.lockDir
+
+	if err := launchFake(first, filepath.Join(t.TempDir(), "first.mp4"), "30"); err != nil {
+		t.Fatalf("first launch: %v", err)
+	}
+	err := launchFake(second, filepath.Join(t.TempDir(), "second.mp4"), "30")
+	if err == nil || !strings.Contains(err.Error(), "already recording the screen") || !strings.Contains(err.Error(), "pid ") {
+		t.Fatalf("second launch: err = %v, want the lock held by the first recorder's pid", err)
+	}
+	if second.cur != nil {
+		t.Fatal("a locked-out start must not become the active recording")
+	}
+
+	if _, err := first.Stop(); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if err := launchFake(second, filepath.Join(t.TempDir(), "second.mp4"), "30"); err != nil {
+		t.Fatalf("launch after the first recording stopped: %v", err)
+	}
+	_, _ = second.Stop()
+}
+
+func TestScreenRecorderBackgroundJob(t *testing.T) {
+	tests := []struct {
+		name     string
+		seconds  string
+		stop     bool
+		wantNote bool
+	}{
+		{"RecordStop collects it silently", "30", true, false},
+		{"max_duration cap asks the agent to collect it", "0.2", false, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _ := newFakeRecorder(t)
+			sink := &jobSink{}
+			r.jobs = sink
+			if err := launchFake(r, filepath.Join(t.TempDir(), "job.mp4"), tt.seconds); err != nil {
+				t.Fatalf("launch: %v", err)
+			}
+			if len(sink.jobs) != 1 {
+				t.Fatalf("submitted %d jobs, want 1", len(sink.jobs))
+			}
+			job := sink.jobs[0]
+			if meta := job.Meta(); meta.Kind != scheddomain.JobKindRecording || !meta.HoldsSession || !meta.Silent {
+				t.Fatalf("Meta() = %+v, want a silent, session-holding recording job", meta)
+			}
+
+			var notes []string
+			done := make(chan agentdomain.ToolExecutionResult, 1)
+			go func() {
+				done <- job.Run(t.Context(), func(sig scheddomain.JobSignal) {
+					if sig.Enqueue {
+						notes = append(notes, sig.Note)
+					}
+				})
+			}()
+			if tt.stop {
+				if _, err := r.Stop(); err != nil {
+					t.Fatalf("Stop: %v", err)
+				}
+			}
+			select {
+			case res := <-done:
+				if !res.Success {
+					t.Fatalf("Run() = %+v, want success", res)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("job Run did not return after the recording ended")
+			}
+			if gotNote := len(notes) == 1 && strings.Contains(notes[0], "RecordStop"); gotNote != tt.wantNote {
+				t.Fatalf("notes = %q, want a RecordStop note: %v", notes, tt.wantNote)
+			}
+			_, _ = r.Stop()
+		})
 	}
 }
 
