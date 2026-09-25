@@ -89,7 +89,8 @@ An agentic command-line assistant that writes code, understands project context,
 - **Model Thinking Visualization**: When models use extended thinking,
   their internal reasoning process is displayed as collapsible blocks above responses (toggle with **ctrl+k** by default, configurable via `display_toggle_thinking`)
 - **Extensible Shortcuts System**: Create custom commands with AI-powered snippets - [Learn more →](docs/shortcuts-guide.md)
-- **MCP Server Support**: Direct integration with Model Context Protocol servers for extended tool capabilities -
+- **MCP Server Support**: Direct integration with Model Context Protocol servers for extended tool capabilities.
+  Servers must speak MCP `2026-07-28`; the gateway's `/mcp` works as a single entry for all its servers -
   [Learn more →](docs/mcp-integration.md)
 - **Web Terminal Interface**: Browser-based terminal access with tabbed sessions for remote access and multi-session workflows - [Learn more →](docs/web-terminal.md)
 - **Remote Messaging Channels**: Control the agent from Telegram, WhatsApp, and other platforms via a pluggable channel system - [Learn more →](docs/channels.md)

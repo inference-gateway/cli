@@ -6,6 +6,7 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 )
 
@@ -136,7 +137,7 @@ type InputStatusBarComponent interface {
 	SetWidth(width int)
 	SetHeight(height int)
 	SetInputText(text string)
-	UpdateMCPStatus(status *agentdomain.MCPServerStatus)
+	UpdateMCPStatus(status *mcpdomain.ServerStatus)
 	SetBrowserConnected(connected bool)
 	Focus() bool
 	Blur()

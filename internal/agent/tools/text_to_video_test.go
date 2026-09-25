@@ -339,7 +339,7 @@ func TestTextToVideoTool_RegistryGating(t *testing.T) {
 	t.Run("disabled by default: not registered", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToVideo.Enabled = false
-		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 		assert.NotContains(t, registry.ListAvailableTools(), "TextToVideo")
 		for _, def := range registry.GetToolDefinitions() {
@@ -353,7 +353,7 @@ func TestTextToVideoTool_RegistryGating(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToVideo.Enabled = true
 		cfg.TextToVideo.OutputDir = t.TempDir()
-		registry := NewRegistry(cfg, nil, nil, nil, nil, &agentdomainmocks.FakeVideoService{}, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, nil, nil, &agentdomainmocks.FakeVideoService{}, nil, nil, nil, nil)
 
 		assert.Contains(t, registry.ListAvailableTools(), "TextToVideo")
 

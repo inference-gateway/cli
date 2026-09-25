@@ -29,6 +29,8 @@ type ContainerRuntime interface {
 	// Container inspection
 	GetContainerHealth(ctx context.Context, containerIDOrName string) (HealthStatus, error)
 	ListRunningContainers(ctx context.Context, nameFilter string) ([]ContainerInfo, error)
+	// PublishedPort returns the first host port a running container publishes.
+	PublishedPort(ctx context.Context, containerIDOrName string) (int, error)
 }
 
 // RunContainerOptions contains all options for running a container

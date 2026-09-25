@@ -15,19 +15,7 @@ servers:
     description: "Demo MCP server with example tools"
     # run: false (default) - server must be started manually
 
-  # Example 2: Context7 - Production documentation search with Streamable HTTP
-  - name: context7
-    host: context7
-    port: 8010
-    enabled: true
-    description: "Context7 - Up-to-date code documentation for LLMs"
-    path: /mcp
-    # run: false (default) - server must be started via docker-compose
-    # Context7 provides library documentation search tools:
-    # - MCP_context7_resolve-library-id: Find library IDs from package names
-    # - MCP_context7_get-library-docs: Fetch up-to-date docs for any library
-
-  # Example 3: Auto-started server with automatic port mapping
+  # Example 2: Auto-started server with automatic port mapping
   # - name: filesystem
   #   enabled: true
   #   run: true  # Auto-start this server when CLI starts
@@ -44,7 +32,7 @@ servers:
   #   exclude_tools:
   #     - delete_file
 
-  # Example 4: Auto-started server with multiple ports
+  # Example 3: Auto-started server with multiple ports
   # - name: web-search
   #   enabled: true
   #   run: true

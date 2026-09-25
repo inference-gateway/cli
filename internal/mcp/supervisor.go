@@ -3,18 +3,18 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"io"
+	"maps"
 	"os"
-	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	mcp "github.com/metoro-io/mcp-golang"
-
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
+	mcpinfra "github.com/inference-gateway/cli/internal/mcp/infrastructure"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
@@ -22,25 +22,26 @@ import (
 
 // Compile-time interface checks
 var (
-	_ agentdomain.MCPClient     = (*mcpClient)(nil)
-	_ agentdomain.MCPSupervisor = (*Supervisor)(nil)
+	_ mcpdomain.Client     = (*mcpClient)(nil)
+	_ mcpdomain.Supervisor = (*Supervisor)(nil)
 )
 
-// mcpClient wraps a single MCP server connection with an initialized MCP library client
+// mcpClient is one configured MCP server: the connection state the liveness
+// probe tracks, and the mcpdomain.Client its tools call through. It bounds
+// every call by the server's timeout and names the tools it lists.
 type mcpClient struct {
 	serverName        string
-	client            *mcp.Client
+	rpc               mcpdomain.Client
 	globalConfig      *config.MCPConfig
 	serverConfig      config.MCPServerEntry
 	mu                sync.RWMutex
 	isConnected       bool
-	isInitialized     bool
 	retryAttempt      int
 	lastAttemptTime   time.Time
 	permanentlyFailed bool
 }
 
-// newMCPClient creates a new MCP client (without initializing the transport yet)
+// newMCPClient creates a new MCP client (without a server URL yet)
 func newMCPClient(serverConfig config.MCPServerEntry, globalConfig *config.MCPConfig) *mcpClient {
 	return &mcpClient{
 		serverName:   serverConfig.Name,
@@ -50,192 +51,89 @@ func newMCPClient(serverConfig config.MCPServerEntry, globalConfig *config.MCPCo
 	}
 }
 
-// initializeClient creates the actual MCP client with the given URL
+// initializeClient points the client at serverURL. StartServer calls it once
+// a container is up, while probes may be reading the client, so it takes c.mu.
 func (c *mcpClient) initializeClient(serverURL string) {
-	transport := NewSSEHTTPClientTransport(serverURL).
-		WithHeader("Accept", "application/json, text/event-stream")
-
-	c.client = mcp.NewClientWithInfo(transport, mcp.ClientInfo{
-		Name:    "inference-gateway-cli",
-		Version: "1.0.0",
-	})
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.rpc = mcpinfra.NewClient(serverURL)
 	logger.Debug("initialized MCP client", "server", c.serverName, "url", serverURL)
 }
 
-// DiscoverTools discovers tools from this MCP server
-func (c *mcpClient) DiscoverTools(ctx context.Context) (map[string][]agentdomain.MCPDiscoveredTool, error) {
-	c.mu.Lock()
-	if c.client == nil {
-		c.mu.Unlock()
-		return nil, fmt.Errorf("MCP client not initialized yet (container may still be starting)")
-	}
-	c.mu.Unlock()
-
+// conn bounds ctx by the server's timeout and returns the server's client.
+// The caller must call cancel.
+func (c *mcpClient) conn(ctx context.Context) (mcpdomain.Client, context.Context, context.CancelFunc, error) {
 	timeout := time.Duration(c.serverConfig.GetTimeout(c.globalConfig.ConnectionTimeout)) * time.Second
-	serverCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 
-	logger.Info("attempting to discover tools from MCP server",
-		"server", c.serverName,
-		"url", c.serverConfig.GetURL(),
-		"timeout", timeout)
-
-	c.mu.Lock()
-	if !c.isInitialized {
-		logger.Info("initializing MCP client", "server", c.serverName)
-		initResp, err := c.client.Initialize(serverCtx)
-		if err != nil {
-			c.isConnected = false
-			c.mu.Unlock()
-			logger.Error("failed to initialize MCP client",
-				"server", c.serverName,
-				"error", err)
-			return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
-		}
-		c.isInitialized = true
-		logger.Info("mCP client initialized successfully",
-			"server", c.serverName,
-			"serverInfo", initResp.ServerInfo)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.rpc == nil {
+		return nil, ctx, cancel, fmt.Errorf("MCP client not initialized yet (container may still be starting)")
 	}
-	c.mu.Unlock()
-
-	logger.Info("listing tools from MCP server", "server", c.serverName)
-	toolsResp, err := c.client.ListTools(serverCtx, nil)
-	if err != nil {
-		c.mu.Lock()
-		c.isConnected = false
-		c.mu.Unlock()
-		logger.Error("failed to list tools from MCP server",
-			"server", c.serverName,
-			"error", err)
-		return nil, fmt.Errorf("failed to list tools: %w", err)
-	}
-
-	logger.Info("successfully retrieved tools from MCP server",
-		"server", c.serverName,
-		"toolCount", len(toolsResp.Tools))
-
-	tools := make([]agentdomain.MCPDiscoveredTool, 0, len(toolsResp.Tools))
-	for _, tool := range toolsResp.Tools {
-		description := ""
-		if tool.Description != nil {
-			description = *tool.Description
-		}
-
-		tools = append(tools, agentdomain.MCPDiscoveredTool{
-			ServerName:  c.serverName,
-			Name:        tool.Name,
-			Description: description,
-			InputSchema: tool.InputSchema,
-		})
-	}
-
-	result := make(map[string][]agentdomain.MCPDiscoveredTool)
-	result[c.serverName] = tools
-
-	c.mu.Lock()
-	c.isConnected = true
-	c.mu.Unlock()
-
-	return result, nil
+	return c.rpc, ctx, cancel, nil
 }
 
-// CallTool executes a tool on this MCP server
-func (c *mcpClient) CallTool(ctx context.Context, serverName, toolName string, args map[string]any) (any, error) {
-	if serverName != c.serverName {
-		return nil, fmt.Errorf("server name mismatch: expected %q, got %q", c.serverName, serverName)
-	}
-
-	c.mu.Lock()
-	if c.client == nil {
-		c.mu.Unlock()
-		return nil, fmt.Errorf("MCP client not initialized yet (container may still be starting)")
-	}
-	c.mu.Unlock()
-
-	timeout := time.Duration(c.serverConfig.GetTimeout(c.globalConfig.ConnectionTimeout)) * time.Second
-	execCtx, cancel := context.WithTimeout(ctx, timeout)
+// Discover implements mcpdomain.Client.
+func (c *mcpClient) Discover(ctx context.Context) error {
+	rpc, ctx, cancel, err := c.conn(ctx)
 	defer cancel()
-
-	c.mu.Lock()
-	if !c.isInitialized {
-		_, err := c.client.Initialize(execCtx)
-		if err != nil {
-			c.mu.Unlock()
-			return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
-		}
-		c.isInitialized = true
-	}
-	c.mu.Unlock()
-
-	result, err := c.client.CallTool(execCtx, toolName, args)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call tool %q: %w", toolName, err)
+		return err
 	}
-
-	return result, nil
+	return rpc.Discover(ctx)
 }
 
-// PingServer pings this MCP server
-func (c *mcpClient) PingServer(ctx context.Context, serverName string) error {
-	if serverName != c.serverName {
-		return fmt.Errorf("server name mismatch: expected %q, got %q", c.serverName, serverName)
-	}
-
-	c.mu.Lock()
-	if c.client == nil {
-		c.mu.Unlock()
-		return fmt.Errorf("MCP client not initialized yet (container may still be starting)")
-	}
-	c.mu.Unlock()
-
-	timeout := time.Duration(c.serverConfig.GetTimeout(c.globalConfig.ConnectionTimeout)) * time.Second
-	pingCtx, cancel := context.WithTimeout(ctx, timeout)
+// ListTools implements mcpdomain.Client.
+func (c *mcpClient) ListTools(ctx context.Context) ([]mcpdomain.Tool, error) {
+	rpc, ctx, cancel, err := c.conn(ctx)
 	defer cancel()
-
-	logger.Debug("pinging MCP server", "server", c.serverName, "url", c.serverConfig.GetURL())
-
-	c.mu.Lock()
-	if !c.isInitialized {
-		logger.Debug("initializing MCP client for ping", "server", c.serverName)
-		_, err := c.client.Initialize(pingCtx)
-		if err != nil {
-			c.isConnected = false
-			c.mu.Unlock()
-			logger.Warn("failed to initialize MCP client during ping",
-				"server", c.serverName,
-				"error", err)
-			return fmt.Errorf("failed to initialize MCP client: %w", err)
-		}
-		c.isInitialized = true
-		logger.Debug("mCP client initialized successfully for ping", "server", c.serverName)
-	}
-	c.mu.Unlock()
-
-	err := c.client.Ping(pingCtx)
 	if err != nil {
-		c.mu.Lock()
-		c.isConnected = false
-		c.mu.Unlock()
-		logger.Warn("mCP server ping failed",
-			"server", c.serverName,
-			"error", err)
-		return fmt.Errorf("ping failed: %w", err)
+		return nil, err
 	}
-
-	logger.Debug("mCP server ping successful", "server", c.serverName)
-
-	c.mu.Lock()
-	c.isConnected = true
-	c.mu.Unlock()
-
-	return nil
+	tools, err := rpc.ListTools(ctx)
+	for i := range tools {
+		tools[i].Server = c.serverName
+	}
+	return tools, err
 }
 
-// Close cleans up resources for this client
-func (c *mcpClient) Close() error {
-	// No persistent connection to close in stateless HTTP implementation
-	return nil
+// CallTool implements mcpdomain.Client.
+func (c *mcpClient) CallTool(ctx context.Context, name string, args map[string]any) (mcpdomain.CallResult, error) {
+	rpc, ctx, cancel, err := c.conn(ctx)
+	defer cancel()
+	if err != nil {
+		return mcpdomain.CallResult{}, err
+	}
+	return rpc.CallTool(ctx, name, args)
+}
+
+// discoverTools checks the server speaks our protocol, lists its tools and
+// wraps them for the agent, recording whether the server answered.
+func (c *mcpClient) discoverTools(ctx context.Context) (map[string]agentdomain.Tool, error) {
+	err := c.Discover(ctx)
+	var found []mcpdomain.Tool
+	if err == nil {
+		found, err = c.ListTools(ctx)
+	}
+	c.setConnected(err == nil)
+	if err != nil {
+		return nil, err
+	}
+	return newTools(found, c, c.globalConfig), nil
+}
+
+// probe is the liveness check of a server that already answered once.
+func (c *mcpClient) probe(ctx context.Context) error {
+	err := c.Discover(ctx)
+	c.setConnected(err == nil)
+	return err
+}
+
+func (c *mcpClient) setConnected(connected bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.isConnected = connected
 }
 
 // Supervisor manages multiple MCP server connections and their container lifecycle
@@ -254,8 +152,8 @@ type Supervisor struct {
 	assignedPorts    map[string]int
 }
 
-// NewSupervisor creates a new MCP manager. notifier is the single UI ingress the
-// liveness probes push MCPServerStatusUpdateEvent through; a nil notifier
+// NewSupervisor creates a new MCP supervisor. notifier is the single UI ingress the
+// liveness probes push ServerStatusUpdateEvent through; a nil notifier
 // degrades to no UI pushes.
 func NewSupervisor(sessionID convdomain.SessionID, cfg *config.MCPConfig, runtime containerruntime.ContainerRuntime, notifier agentdomain.UINotifier) *Supervisor {
 	if notifier == nil {
@@ -287,82 +185,91 @@ func NewSupervisor(sessionID convdomain.SessionID, cfg *config.MCPConfig, runtim
 }
 
 // notify pushes an event to the UI loop. NewSupervisor defaults a nil notifier to
-// NoopUINotifier, so m.notifier is always non-nil here.
-func (m *Supervisor) notify(event any) {
-	m.notifier.Notify(event)
+// NoopUINotifier, so s.notifier is always non-nil here.
+func (s *Supervisor) notify(event any) {
+	s.notifier.Notify(event)
 }
 
-// GetClients returns a list of MCP clients
-func (m *Supervisor) GetClients() []agentdomain.MCPClient {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+// DiscoverTools probes every server once, in parallel, and returns the tools
+// of those that answered. Headless calls it before the first turn, since it has
+// no liveness loop to register tools as servers come up.
+// ponytail: run:true container servers still starting in the background are
+// skipped (their client has no URL yet); wait on StartServers if headless ever
+// needs container-hosted MCP tools on the first turn.
+func (s *Supervisor) DiscoverTools(ctx context.Context) map[string]agentdomain.Tool {
+	s.mu.RLock()
+	clients := slices.Collect(maps.Values(s.clients))
+	s.mu.RUnlock()
 
-	clients := make([]agentdomain.MCPClient, 0, len(m.clients))
-	for _, client := range m.clients {
-		clients = append(clients, client)
+	// Buffered to len(clients) so no sender ever blocks; this function owns
+	// the channel and closes it once every sender is done. Each probe is
+	// bounded by its server's timeout, so wg.Wait always returns.
+	found := make(chan map[string]agentdomain.Tool, len(clients))
+	var wg sync.WaitGroup
+	for _, client := range clients {
+		wg.Go(func() {
+			tools, err := client.discoverTools(ctx)
+			if err != nil {
+				logger.Warn("mcp tool discovery failed", "server", client.serverName, "error", err)
+				return
+			}
+			found <- tools
+		})
 	}
-	return clients
-}
+	wg.Wait()
+	close(found)
 
-// GetClient returns the client for a specific server by name, or nil if no
-// such client exists. Direct map lookup - does not perform any network I/O,
-// in contrast to iterating GetClients() and calling DiscoverTools to identify
-// the owning client.
-func (m *Supervisor) GetClient(serverName string) agentdomain.MCPClient {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	client, ok := m.clients[serverName]
-	if !ok {
-		return nil
+	all := make(map[string]agentdomain.Tool)
+	for tools := range found {
+		maps.Copy(all, tools)
 	}
-	return client
+	return all
 }
 
 // GetTotalServers returns the total number of configured MCP servers from config
-func (m *Supervisor) GetTotalServers() int {
-	return len(m.config.Servers)
+func (s *Supervisor) GetTotalServers() int {
+	return len(s.config.Servers)
 }
 
 // StartMonitoring begins background health monitoring, pushing every
-// MCPServerStatusUpdateEvent through the injected UI notifier. It is idempotent -
+// ServerStatusUpdateEvent through the injected UI notifier. It is idempotent -
 // subsequent calls are no-ops. The initial status is emitted from a goroutine
 // because Notify wraps the unbuffered (*tea.Program).Send, which blocks until the
 // Bubble Tea loop consumes; emitting it synchronously from app.Init (before the
 // loop runs) would deadlock.
-func (m *Supervisor) StartMonitoring(ctx context.Context) {
-	m.mu.Lock()
-	if m.monitorStarted {
-		m.mu.Unlock()
+func (s *Supervisor) StartMonitoring(ctx context.Context) {
+	s.mu.Lock()
+	if s.monitorStarted {
+		s.mu.Unlock()
 		return
 	}
-	m.monitorStarted = true
-	m.mu.Unlock()
+	s.monitorStarted = true
+	s.mu.Unlock()
 
-	go m.sendInitialStatusUpdate()
+	go s.sendInitialStatusUpdate()
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if !m.config.LivenessProbeEnabled {
+	if !s.config.LivenessProbeEnabled {
 		return
 	}
 
-	interval := time.Duration(m.config.LivenessProbeInterval) * time.Second
+	interval := time.Duration(s.config.LivenessProbeInterval) * time.Second
 	if interval <= 0 {
 		interval = 10 * time.Second
 	}
 
 	probeCtx, cancel := context.WithCancel(ctx)
-	m.probeCancel = cancel
+	s.probeCancel = cancel
 
-	logger.Info("starting MCP liveness probes", "interval", interval, "client_count", len(m.clients))
-	for _, client := range m.clients {
-		m.probeWg.Add(1)
+	logger.Info("starting MCP liveness probes", "interval", interval, "client_count", len(s.clients))
+	for _, client := range s.clients {
+		s.probeWg.Add(1)
 		go func(c *mcpClient) {
-			defer m.probeWg.Done()
+			defer s.probeWg.Done()
 
-			m.checkClientHealth(probeCtx, c)
+			s.checkClientHealth(probeCtx, c)
 
 			for {
 				select {
@@ -384,14 +291,14 @@ func (m *Supervisor) StartMonitoring(ctx context.Context) {
 					if isConnected {
 						delay = interval
 					} else {
-						delay = m.calculateBackoff(retryAttempt, interval)
+						delay = s.calculateBackoff(retryAttempt, interval)
 					}
 
 					select {
 					case <-probeCtx.Done():
 						return
 					case <-time.After(delay):
-						m.checkClientHealth(probeCtx, c)
+						s.checkClientHealth(probeCtx, c)
 					}
 				}
 			}
@@ -400,7 +307,7 @@ func (m *Supervisor) StartMonitoring(ctx context.Context) {
 }
 
 // checkClientHealth performs a health check on a client and handles reconnection
-func (m *Supervisor) checkClientHealth(ctx context.Context, client *mcpClient) {
+func (s *Supervisor) checkClientHealth(ctx context.Context, client *mcpClient) {
 	client.mu.RLock()
 	wasConnected := client.isConnected
 	isPermanentlyFailed := client.permanentlyFailed
@@ -410,24 +317,24 @@ func (m *Supervisor) checkClientHealth(ctx context.Context, client *mcpClient) {
 		return
 	}
 
-	maxRetries := m.config.MaxRetries
+	maxRetries := s.config.MaxRetries
 	if maxRetries <= 0 {
 		maxRetries = 10
 	}
 
 	if !wasConnected {
-		m.handleToolDiscovery(ctx, client, maxRetries)
+		s.handleToolDiscovery(ctx, client, maxRetries)
 		return
 	}
 
-	m.handlePing(ctx, client, maxRetries)
+	s.handlePing(ctx, client, maxRetries)
 }
 
 // handleToolDiscovery attempts to discover tools and handles retry logic
-func (m *Supervisor) handleToolDiscovery(ctx context.Context, client *mcpClient, maxRetries int) {
-	toolsMap, err := client.DiscoverTools(ctx)
+func (s *Supervisor) handleToolDiscovery(ctx context.Context, client *mcpClient, maxRetries int) {
+	tools, err := client.discoverTools(ctx)
 	if err != nil {
-		m.handleDiscoveryFailure(client, maxRetries, err)
+		s.handleDiscoveryFailure(client, maxRetries, err)
 		return
 	}
 
@@ -436,21 +343,19 @@ func (m *Supervisor) handleToolDiscovery(ctx context.Context, client *mcpClient,
 	client.lastAttemptTime = time.Now()
 	client.mu.Unlock()
 
-	tools := toolsMap[client.serverName]
-
-	m.mu.Lock()
-	m.toolCounts[client.serverName] = len(tools)
-	m.mu.Unlock()
+	s.mu.Lock()
+	s.toolCounts[client.serverName] = len(tools)
+	s.mu.Unlock()
 
 	logger.Info("mCP server tools discovered successfully",
 		"server", client.serverName,
 		"toolCount", len(tools))
 
-	m.sendStatusUpdateWithTools(client.serverName, true, tools)
+	s.sendStatusUpdateWithTools(client.serverName, true, tools)
 }
 
 // handleDiscoveryFailure handles tool discovery failures and retry logic
-func (m *Supervisor) handleDiscoveryFailure(client *mcpClient, maxRetries int, err error) {
+func (s *Supervisor) handleDiscoveryFailure(client *mcpClient, maxRetries int, err error) {
 	client.mu.Lock()
 	client.retryAttempt++
 	client.lastAttemptTime = time.Now()
@@ -476,10 +381,10 @@ func (m *Supervisor) handleDiscoveryFailure(client *mcpClient, maxRetries int, e
 }
 
 // handlePing attempts to ping the server and handles retry logic
-func (m *Supervisor) handlePing(ctx context.Context, client *mcpClient, maxRetries int) {
-	err := client.PingServer(ctx, client.serverName)
+func (s *Supervisor) handlePing(ctx context.Context, client *mcpClient, maxRetries int) {
+	err := client.probe(ctx)
 	if err != nil {
-		m.handlePingFailure(client, maxRetries, err)
+		s.handlePingFailure(client, maxRetries, err)
 		return
 	}
 
@@ -492,7 +397,7 @@ func (m *Supervisor) handlePing(ctx context.Context, client *mcpClient, maxRetri
 }
 
 // handlePingFailure handles ping failures and retry logic
-func (m *Supervisor) handlePingFailure(client *mcpClient, maxRetries int, err error) {
+func (s *Supervisor) handlePingFailure(client *mcpClient, maxRetries int, err error) {
 	client.mu.Lock()
 	client.retryAttempt++
 	client.lastAttemptTime = time.Now()
@@ -506,18 +411,18 @@ func (m *Supervisor) handlePingFailure(client *mcpClient, maxRetries int, err er
 			"retryAttempt", retryCount,
 			"maxRetries", maxRetries,
 			"error", err)
-		m.sendStatusUpdate(client.serverName, false)
+		s.sendStatusUpdate(client.serverName, false)
 		return
 	}
 	client.mu.Unlock()
 
 	logger.Warn("mCP server became unhealthy", "server", client.serverName, "error", err)
-	m.sendStatusUpdate(client.serverName, false)
+	s.sendStatusUpdate(client.serverName, false)
 }
 
 // calculateBackoff calculates exponential backoff delay
 // Formula: min(baseInterval * 2^attempt, maxBackoff)
-func (m *Supervisor) calculateBackoff(attempt int, baseInterval time.Duration) time.Duration {
+func (s *Supervisor) calculateBackoff(attempt int, baseInterval time.Duration) time.Duration {
 	const maxBackoff = 5 * time.Minute
 
 	if attempt == 0 {
@@ -545,11 +450,11 @@ func (m *Supervisor) calculateBackoff(attempt int, baseInterval time.Duration) t
 
 // sendInitialStatusUpdate pushes the current status for all connected clients. It
 // collects the connected server names under the lock, then emits after releasing
-// it: notify wraps the blocking program.Send, which must never run under m.mu.
-func (m *Supervisor) sendInitialStatusUpdate() {
-	m.mu.RLock()
-	connected := make([]string, 0, len(m.clients))
-	for _, client := range m.clients {
+// it: notify wraps the blocking program.Send, which must never run under s.mu.
+func (s *Supervisor) sendInitialStatusUpdate() {
+	s.mu.RLock()
+	connected := make([]string, 0, len(s.clients))
+	for _, client := range s.clients {
 		client.mu.RLock()
 		isConnected := client.isConnected
 		client.mu.RUnlock()
@@ -557,33 +462,33 @@ func (m *Supervisor) sendInitialStatusUpdate() {
 			connected = append(connected, client.serverName)
 		}
 	}
-	m.mu.RUnlock()
+	s.mu.RUnlock()
 
 	for _, name := range connected {
-		m.sendStatusUpdateWithTools(name, true, nil)
+		s.sendStatusUpdateWithTools(name, true, nil)
 	}
 }
 
 // sendStatusUpdate sends a status update event to the channel without tools
-func (m *Supervisor) sendStatusUpdate(serverName string, connected bool) {
+func (s *Supervisor) sendStatusUpdate(serverName string, connected bool) {
 	if !connected {
-		m.mu.Lock()
-		delete(m.toolCounts, serverName)
-		m.mu.Unlock()
+		s.mu.Lock()
+		delete(s.toolCounts, serverName)
+		s.mu.Unlock()
 	}
-	m.sendStatusUpdateWithTools(serverName, connected, nil)
+	s.sendStatusUpdateWithTools(serverName, connected, nil)
 }
 
 // getMCPServerStatus calculates the current MCP server status
-func (m *Supervisor) getMCPServerStatus() agentdomain.MCPServerStatus {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+func (s *Supervisor) getMCPServerStatus() mcpdomain.ServerStatus {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-	totalServers := len(m.config.Servers)
+	totalServers := len(s.config.Servers)
 	connectedServers := 0
 	totalTools := 0
 
-	for _, client := range m.clients {
+	for _, client := range s.clients {
 		client.mu.RLock()
 		if client.isConnected {
 			connectedServers++
@@ -591,11 +496,11 @@ func (m *Supervisor) getMCPServerStatus() agentdomain.MCPServerStatus {
 		client.mu.RUnlock()
 	}
 
-	for _, count := range m.toolCounts {
+	for _, count := range s.toolCounts {
 		totalTools += count
 	}
 
-	return agentdomain.MCPServerStatus{
+	return mcpdomain.ServerStatus{
 		TotalServers:     totalServers,
 		ConnectedServers: connectedServers,
 		TotalTools:       totalTools,
@@ -603,12 +508,12 @@ func (m *Supervisor) getMCPServerStatus() agentdomain.MCPServerStatus {
 }
 
 // sendStatusUpdateWithTools pushes a status update event with discovered tools
-// through the UI notifier. getMCPServerStatus takes and releases m.mu before
+// through the UI notifier. getMCPServerStatus takes and releases s.mu before
 // notify runs, so the blocking program.Send is never called under the lock.
-func (m *Supervisor) sendStatusUpdateWithTools(serverName string, connected bool, tools []agentdomain.MCPDiscoveredTool) {
-	status := m.getMCPServerStatus()
+func (s *Supervisor) sendStatusUpdateWithTools(serverName string, connected bool, tools map[string]agentdomain.Tool) {
+	status := s.getMCPServerStatus()
 
-	m.notify(agentdomain.MCPServerStatusUpdateEvent{
+	s.notify(mcpdomain.ServerStatusUpdateEvent{
 		ServerName:       serverName,
 		Connected:        connected,
 		TotalServers:     status.TotalServers,
@@ -618,47 +523,25 @@ func (m *Supervisor) sendStatusUpdateWithTools(serverName string, connected bool
 	})
 }
 
-// UpdateToolCount updates the tool count for a specific server
-func (m *Supervisor) UpdateToolCount(serverName string, count int) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.toolCounts[serverName] = count
-}
-
-// ClearToolCount removes the tool count for a specific server
-func (m *Supervisor) ClearToolCount(serverName string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.toolCounts, serverName)
-}
-
 // Close stops monitoring, stops containers, and cleans up resources
-func (m *Supervisor) Close() error {
+func (s *Supervisor) Close() error {
 	ctx := context.Background()
-	if err := m.StopServers(ctx); err != nil {
-		logger.Warn("failed to stop MCP servers during close", "session", m.sessionID, "error", err)
+	if err := s.StopServers(ctx); err != nil {
+		logger.Warn("failed to stop MCP servers during close", "session", s.sessionID, "error", err)
 	}
 
-	m.mu.Lock()
-	if m.probeCancel != nil {
-		m.probeCancel()
-		m.probeCancel = nil
+	s.mu.Lock()
+	if s.probeCancel != nil {
+		s.probeCancel()
+		s.probeCancel = nil
 	}
-	m.mu.Unlock()
+	s.mu.Unlock()
 
-	m.probeWg.Wait()
+	s.probeWg.Wait()
 
-	m.mu.RLock()
-	for _, client := range m.clients {
-		if err := client.Close(); err != nil {
-			logger.Warn("failed to close MCP client", "session", m.sessionID, "error", err)
-		}
-	}
-	m.mu.RUnlock()
-
-	if m.containerRuntime != nil {
-		if err := m.containerRuntime.CleanupNetwork(ctx); err != nil {
-			logger.Warn("failed to cleanup network during MCP manager close", "session", m.sessionID, "error", err)
+	if s.containerRuntime != nil {
+		if err := s.containerRuntime.CleanupNetwork(ctx); err != nil {
+			logger.Warn("failed to cleanup network during MCP supervisor close", "session", s.sessionID, "error", err)
 		}
 	}
 
@@ -669,14 +552,14 @@ func (m *Supervisor) Close() error {
 
 // StartServers starts all MCP servers that have run=true
 // This method is non-fatal and always returns nil
-func (m *Supervisor) StartServers(ctx context.Context) error {
+func (s *Supervisor) StartServers(ctx context.Context) error {
 	if utils.IsRunningInContainer() {
 		logger.Debug("running in container mode - skipping local mcp server startup")
 		return nil
 	}
 
 	serversToStart := make([]config.MCPServerEntry, 0)
-	for _, server := range m.config.Servers {
+	for _, server := range s.config.Servers {
 		if server.Run && server.Enabled {
 			serversToStart = append(serversToStart, server)
 		}
@@ -685,11 +568,13 @@ func (m *Supervisor) StartServers(ctx context.Context) error {
 	if len(serversToStart) == 0 {
 		return nil
 	}
+	if s.containerRuntime == nil {
+		logger.Warn("no container runtime configured; skipping run:true MCP servers", "session", s.sessionID)
+		return nil
+	}
 
-	if m.containerRuntime != nil {
-		if err := m.containerRuntime.EnsureNetwork(ctx); err != nil {
-			logger.Warn("failed to create Docker network", "session", m.sessionID, "error", err)
-		}
+	if err := s.containerRuntime.EnsureNetwork(ctx); err != nil {
+		logger.Warn("failed to create container network", "session", s.sessionID, "error", err)
 	}
 
 	var wg sync.WaitGroup
@@ -697,12 +582,12 @@ func (m *Supervisor) StartServers(ctx context.Context) error {
 		wg.Add(1)
 		go func(srv config.MCPServerEntry) {
 			defer wg.Done()
-			if err := m.StartServer(ctx, srv); err != nil {
+			if err := s.StartServer(ctx, srv); err != nil {
 				logger.Warn("failed to start MCP server",
-					"session", m.sessionID,
+					"session", s.sessionID,
 					"server", srv.Name,
 					"error", err,
-					"container", fmt.Sprintf("inference-mcp-%s-%s", srv.Name, m.sessionID))
+					"container", fmt.Sprintf("inference-mcp-%s-%s", srv.Name, s.sessionID))
 			}
 		}(server)
 	}
@@ -713,280 +598,197 @@ func (m *Supervisor) StartServers(ctx context.Context) error {
 
 // StartServer starts a single MCP server container, or points the client at a
 // detached shared container when one is already running.
-func (m *Supervisor) StartServer(ctx context.Context, server config.MCPServerEntry) error {
-	if url, ok := m.sharedServerURL(server); ok {
-		logger.Info("reusing detached MCP server container", "session", m.sessionID, "server", server.Name, "url", url)
-		m.mu.Lock()
-		if client, exists := m.clients[server.Name]; exists {
+func (s *Supervisor) StartServer(ctx context.Context, server config.MCPServerEntry) error {
+	if s.containerRuntime == nil {
+		return fmt.Errorf("no container runtime configured to run MCP server %q", server.Name)
+	}
+	if url, ok := s.sharedServerURL(ctx, server); ok {
+		logger.Info("reusing detached MCP server container", "session", s.sessionID, "server", server.Name, "url", url)
+		s.mu.Lock()
+		if client, exists := s.clients[server.Name]; exists {
 			client.initializeClient(url)
 		}
-		m.mu.Unlock()
+		s.mu.Unlock()
 		return nil
 	}
 
-	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, m.sessionID)
+	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, s.sessionID)
 
-	assignedPort := m.assignPort(server)
+	assignedPort := s.assignPort(server)
 
-	if m.isServerRunning(containerName) {
-		logger.Info("mCP server container already running", "session", m.sessionID, "server", server.Name, "port", assignedPort)
+	if s.isServerRunning(ctx, containerName) {
+		logger.Info("mCP server container already running", "session", s.sessionID, "server", server.Name, "port", assignedPort)
 		return nil
 	}
 
-	if err := m.pullImage(ctx, server.OCI); err != nil {
-		logger.Warn("failed to pull image, using cached version", "session", m.sessionID, "image", server.OCI, "error", err)
+	if err := s.containerRuntime.PullImage(ctx, server.OCI, nil); err != nil {
+		logger.Warn("failed to pull image, using cached version", "session", s.sessionID, "image", server.OCI, "error", err)
 	}
 
-	logger.Info("starting MCP server", "session", m.sessionID, "server", server.Name, "port", assignedPort)
+	logger.Info("starting MCP server", "session", s.sessionID, "server", server.Name, "port", assignedPort)
 
-	if err := m.startContainer(ctx, server, assignedPort); err != nil {
+	if err := s.startContainer(ctx, server, assignedPort); err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 
-	logger.Info("waiting for MCP server to become ready", "session", m.sessionID, "server", server.Name)
+	logger.Info("waiting for MCP server to become ready", "session", s.sessionID, "server", server.Name)
 
-	if err := m.waitForReady(ctx, server, assignedPort); err != nil {
-		_ = m.stopContainer(ctx, containerName)
+	if err := s.waitForReady(ctx, containerName, server.GetStartupTimeout()); err != nil {
+		_ = s.stopContainer(ctx, containerName)
 		return fmt.Errorf("server failed to become ready: %w", err)
 	}
 
-	fullURL := fmt.Sprintf("http://localhost:%d%s", assignedPort, m.getPath(server))
-	logger.Info("mCP server started successfully", "session", m.sessionID, "server", server.Name, "url", fullURL)
+	fullURL := fmt.Sprintf("http://localhost:%d%s", assignedPort, s.getPath(server))
+	logger.Info("mCP server started successfully", "session", s.sessionID, "server", server.Name, "url", fullURL)
 
-	m.mu.Lock()
-	if client, exists := m.clients[server.Name]; exists {
+	s.mu.Lock()
+	if client, exists := s.clients[server.Name]; exists {
 		client.initializeClient(fullURL)
 	}
-	m.mu.Unlock()
+	s.mu.Unlock()
 
 	return nil
 }
 
 // StopServer stops this session's container for the named server. With the
 // shared session id it stops the detached container started by `infer mcp start`.
-func (m *Supervisor) StopServer(ctx context.Context, serverName string) error {
-	return m.stopContainer(ctx, fmt.Sprintf("inference-mcp-%s-%s", serverName, m.sessionID))
+func (s *Supervisor) StopServer(ctx context.Context, serverName string) error {
+	return s.stopContainer(ctx, fmt.Sprintf("inference-mcp-%s-%s", serverName, s.sessionID))
 }
 
 // sharedServerURL reports the URL of a running detached container for the
-// server, if any. The shared manager itself never reuses (it is the one starting).
-func (m *Supervisor) sharedServerURL(server config.MCPServerEntry) (string, bool) {
-	if m.sessionID == containerruntime.SharedSessionID {
+// server, if any. The shared supervisor itself never reuses (it is the one starting).
+func (s *Supervisor) sharedServerURL(ctx context.Context, server config.MCPServerEntry) (string, bool) {
+	if s.sessionID == containerruntime.SharedSessionID {
 		return "", false
 	}
 	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, containerruntime.SharedSessionID)
-	output, err := exec.Command("docker", "port", containerName).Output()
+	port, err := s.containerRuntime.PublishedPort(ctx, containerName)
 	if err != nil {
 		return "", false
 	}
-	port, ok := parseHostPort(string(output))
-	if !ok {
-		return "", false
-	}
-	return fmt.Sprintf("http://localhost:%d%s", port, m.getPath(server)), true
-}
-
-// parseHostPort extracts the first published host port from `docker port`
-// output such as "3000/tcp -> 0.0.0.0:3001".
-func parseHostPort(output string) (int, bool) {
-	for _, line := range strings.Split(output, "\n") {
-		_, host, found := strings.Cut(line, "->")
-		if !found {
-			continue
-		}
-		var port int
-		if _, err := fmt.Sscanf(host[strings.LastIndex(host, ":")+1:], "%d", &port); err == nil && port > 0 {
-			return port, true
-		}
-	}
-	return 0, false
+	return fmt.Sprintf("http://localhost:%d%s", port, s.getPath(server)), true
 }
 
 // StopServers stops all running MCP server containers
-func (m *Supervisor) StopServers(ctx context.Context) error {
-	m.mu.Lock()
-	containerNames := make([]string, 0, len(m.containerIDs))
-	for k := range m.containerIDs {
+func (s *Supervisor) StopServers(ctx context.Context) error {
+	s.mu.Lock()
+	containerNames := make([]string, 0, len(s.containerIDs))
+	for k := range s.containerIDs {
 		containerNames = append(containerNames, k)
 	}
-	m.mu.Unlock()
+	s.mu.Unlock()
 
 	for _, name := range containerNames {
-		if err := m.stopContainer(ctx, name); err != nil {
-			logger.Warn("failed to stop MCP server container", "session", m.sessionID, "container", name, "error", err)
+		if err := s.stopContainer(ctx, name); err != nil {
+			logger.Warn("failed to stop MCP server container", "session", s.sessionID, "container", name, "error", err)
 		} else {
-			logger.Info("stopped MCP server container", "session", m.sessionID, "container", name)
+			logger.Info("stopped MCP server container", "session", s.sessionID, "container", name)
 		}
-		m.mu.Lock()
-		delete(m.containerIDs, name)
-		m.mu.Unlock()
+		s.mu.Lock()
+		delete(s.containerIDs, name)
+		s.mu.Unlock()
 	}
 
 	return nil
 }
 
-// pullImage pulls the container image
-func (m *Supervisor) pullImage(ctx context.Context, image string) error {
-	cmd := exec.CommandContext(ctx, "docker", "pull", image)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
+// defaultHealthCmd probes a container's server with a 2026-07-28 server/discover.
+const defaultHealthCmd = `sh -c 'curl -fsS -X POST http://localhost:3000/mcp` +
+	` -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream"` +
+	` -H "MCP-Protocol-Version: ` + mcpinfra.ProtocolVersion + `" -H "Mcp-Method: server/discover"` +
+	` -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\",\"params\":{\"_meta\":{` +
+	`\"io.modelcontextprotocol/protocolVersion\":\"` + mcpinfra.ProtocolVersion + `\",` +
+	`\"io.modelcontextprotocol/clientCapabilities\":{}}}}" > /dev/null || exit 1'`
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker pull failed: %w", err)
-	}
-	return nil
-}
-
-// startContainer starts the MCP server container
-func (m *Supervisor) startContainer(ctx context.Context, server config.MCPServerEntry, assignedPort int) error {
-	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, m.sessionID)
-
-	var networkName string
-	if m.containerRuntime != nil {
-		networkName = m.containerRuntime.GetNetworkName()
-	}
-	args := []string{
-		"run",
-		"-d",
-		"--name", containerName,
-		"--network", networkName,
-		"--rm",
-	}
-
-	args = m.appendPortMappings(args, server, assignedPort)
+// startContainer runs the MCP server container detached, removed on exit.
+func (s *Supervisor) startContainer(ctx context.Context, server config.MCPServerEntry, assignedPort int) error {
+	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, s.sessionID)
 
 	healthCmd := server.HealthCmd
 	if healthCmd == "" {
-		healthCmd = `sh -c 'curl -f -X POST http://localhost:3000/mcp -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":1}" || exit 1'`
+		healthCmd = defaultHealthCmd
 	}
-	args = append(args,
-		"--health-cmd", healthCmd,
-		"--health-interval", "10s",
-		"--health-timeout", "5s",
-		"--health-retries", "3",
-		"--health-start-period", "10s",
-	)
 
+	env := make(map[string]string, len(server.Env))
 	for key, value := range server.Env {
-		expandedValue := os.ExpandEnv(value)
-		args = append(args, "-e", fmt.Sprintf("%s=%s", key, expandedValue))
+		env[key] = os.ExpandEnv(value)
 	}
 
-	for _, volume := range server.Volumes {
-		args = append(args, "-v", volume)
+	containerID, err := s.containerRuntime.RunContainer(ctx, containerruntime.RunContainerOptions{
+		Name:         containerName,
+		Image:        server.OCI,
+		Network:      s.containerRuntime.GetNetworkName(),
+		Ports:        s.portMappings(server, assignedPort),
+		Environment:  env,
+		Volumes:      server.Volumes,
+		Entrypoint:   server.Entrypoint,
+		Command:      server.Command,
+		Args:         server.Args,
+		HealthCmd:    healthCmd,
+		RemoveOnExit: true,
+		Detached:     true,
+	})
+	if err != nil {
+		return err
 	}
 
-	if len(server.Entrypoint) > 0 {
-		args = append(args, "--entrypoint", server.Entrypoint[0])
-	}
-
-	args = append(args, server.OCI)
-
-	if len(server.Entrypoint) > 1 {
-		args = append(args, server.Entrypoint[1:]...)
-	} else if len(server.Command) > 0 {
-		args = append(args, server.Command...)
-	}
-
-	if len(server.Args) > 0 {
-		args = append(args, server.Args...)
-	}
-
-	logger.Info("starting MCP server container",
-		"session", m.sessionID,
-		"server", server.Name,
-		"command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
-
-	cmd := exec.CommandContext(ctx, "docker", args...)
-
-	var outputBuf strings.Builder
-	cmd.Stdout = &outputBuf
-	cmd.Stderr = io.Discard
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker run failed: %w", err)
-	}
-
-	containerID := strings.TrimSpace(outputBuf.String())
-	m.mu.Lock()
-	m.containerIDs[containerName] = containerID
-	m.mu.Unlock()
-
+	s.mu.Lock()
+	s.containerIDs[containerName] = containerID
+	s.mu.Unlock()
 	return nil
 }
 
-// stopContainer stops and removes a container
-func (m *Supervisor) stopContainer(ctx context.Context, containerName string) error {
-	if m.containerRuntime != nil && !m.containerRuntime.ContainerExists(containerName) {
+// stopContainer stops a container; failures are logged, never returned, so
+// shutdown is not blocked by a container that is already gone.
+func (s *Supervisor) stopContainer(ctx context.Context, containerName string) error {
+	if s.containerRuntime == nil {
 		return nil
 	}
-
-	cmd := exec.CommandContext(ctx, "docker", "stop", containerName)
-	if err := cmd.Run(); err != nil {
-		logger.Warn("failed to stop container", "session", m.sessionID, "container", containerName, "error", err)
+	if err := s.containerRuntime.StopContainer(ctx, containerName); err != nil {
+		logger.Warn("failed to stop container", "session", s.sessionID, "container", containerName, "error", err)
 	}
-
 	return nil
 }
 
 // isServerRunning checks if a container is already running
-func (m *Supervisor) isServerRunning(containerName string) bool {
-	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.ID}}\t{{.Names}}")
-	output, err := cmd.CombinedOutput()
+func (s *Supervisor) isServerRunning(ctx context.Context, containerName string) bool {
+	containers, err := s.containerRuntime.ListRunningContainers(ctx, containerName)
 	if err != nil {
 		return false
 	}
-
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		parts := strings.Split(line, "\t")
-		if len(parts) != 2 {
-			continue
-		}
-		containerID := parts[0]
-		foundName := parts[1]
-
-		if foundName == containerName {
-			m.mu.Lock()
-			m.containerIDs[containerName] = containerID
-			m.mu.Unlock()
+	for _, container := range containers {
+		if container.Name == containerName {
+			s.mu.Lock()
+			s.containerIDs[containerName] = container.ID
+			s.mu.Unlock()
 			return true
 		}
 	}
 	return false
 }
 
-// waitForReady waits for the server to become ready by using Docker's healthcheck status
-func (m *Supervisor) waitForReady(ctx context.Context, server config.MCPServerEntry, _ int) error {
-	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, m.sessionID)
-	timeout := time.Duration(server.GetStartupTimeout()) * time.Second
-	deadline := time.Now().Add(timeout)
+// waitForReady polls the container's healthcheck until it passes, fails, or
+// the startup timeout (seconds) runs out.
+func (s *Supervisor) waitForReady(ctx context.Context, containerName string, startupTimeout int) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(startupTimeout)*time.Second)
+	defer cancel()
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("timeout waiting for server to become ready: %w", ctx.Err())
 		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for server to become ready")
-			}
-
-			cmd := exec.Command("docker", "inspect", "--format", "{{.State.Health.Status}}", containerName)
-			output, err := cmd.Output()
+			health, err := s.containerRuntime.GetContainerHealth(ctx, containerName)
 			if err != nil {
 				continue
 			}
-
-			healthStatus := strings.TrimSpace(string(output))
-			if healthStatus == "healthy" {
+			switch health {
+			case containerruntime.HealthStatusHealthy:
 				return nil
-			}
-			if healthStatus == "unhealthy" {
+			case containerruntime.HealthStatusUnhealthy:
 				return fmt.Errorf("container became unhealthy during startup")
 			}
 		}
@@ -994,38 +796,38 @@ func (m *Supervisor) waitForReady(ctx context.Context, server config.MCPServerEn
 }
 
 // assignPort assigns a port for the server, finding an available one if needed
-func (m *Supervisor) assignPort(server config.MCPServerEntry) int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *Supervisor) assignPort(server config.MCPServerEntry) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if port, exists := m.assignedPorts[server.Name]; exists {
+	if port, exists := s.assignedPorts[server.Name]; exists {
 		return port
 	}
 
-	port := m.determinePort(server)
-	m.assignedPorts[server.Name] = port
+	port := s.determinePort(server)
+	s.assignedPorts[server.Name] = port
 	return port
 }
 
-// appendPortMappings adds port mappings to docker run args
-func (m *Supervisor) appendPortMappings(args []string, server config.MCPServerEntry, assignedPort int) []string {
+// portMappings returns the host:container port mappings for the container
+func (s *Supervisor) portMappings(server config.MCPServerEntry, assignedPort int) []string {
 	if server.Port > 0 {
-		return append(args, "-p", fmt.Sprintf("%d:3000", assignedPort))
+		return []string{fmt.Sprintf("%d:3000", assignedPort)}
 	}
 
 	if len(server.Ports) > 0 {
+		mappings := make([]string, 0, len(server.Ports))
 		for i, portMapping := range server.Ports {
-			mappedPort := m.mapPort(portMapping, i, assignedPort)
-			args = append(args, "-p", mappedPort)
+			mappings = append(mappings, s.mapPort(portMapping, i, assignedPort))
 		}
-		return args
+		return mappings
 	}
 
-	return append(args, "-p", fmt.Sprintf("%d:8080", assignedPort))
+	return []string{fmt.Sprintf("%d:8080", assignedPort)}
 }
 
-// mapPort creates the port mapping string for docker
-func (m *Supervisor) mapPort(portMapping string, index int, assignedPort int) string {
+// mapPort maps the first configured port onto the assigned host port
+func (s *Supervisor) mapPort(portMapping string, index int, assignedPort int) string {
 	if index != 0 {
 		return portMapping
 	}
@@ -1039,7 +841,7 @@ func (m *Supervisor) mapPort(portMapping string, index int, assignedPort int) st
 }
 
 // determinePort determines the port to assign to a server
-func (m *Supervisor) determinePort(server config.MCPServerEntry) int {
+func (s *Supervisor) determinePort(server config.MCPServerEntry) int {
 	if server.Port > 0 {
 		return server.Port
 	}
@@ -1053,7 +855,7 @@ func (m *Supervisor) determinePort(server config.MCPServerEntry) int {
 }
 
 // getPath returns the path for the server
-func (m *Supervisor) getPath(server config.MCPServerEntry) string {
+func (s *Supervisor) getPath(server config.MCPServerEntry) string {
 	if server.Path != "" {
 		return server.Path
 	}

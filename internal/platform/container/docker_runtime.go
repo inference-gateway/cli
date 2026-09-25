@@ -265,3 +265,8 @@ func (dr *DockerRuntime) ListRunningContainers(ctx context.Context, nameFilter s
 
 	return containers, nil
 }
+
+// PublishedPort returns the first host port the container publishes
+func (dr *DockerRuntime) PublishedPort(ctx context.Context, containerIDOrName string) (int, error) {
+	return publishedPort(ctx, "docker", containerIDOrName)
+}

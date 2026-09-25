@@ -1,4 +1,4 @@
-package tools
+package mcp
 
 import (
 	"context"
@@ -6,65 +6,70 @@ import (
 	"strings"
 	"time"
 
-	mcp "github.com/metoro-io/mcp-golang"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 )
 
-// MCPTool wraps an MCP server tool to implement the agentdomain.Tool interface
+var _ agentdomain.Tool = (*MCPTool)(nil)
+
+// MCPTool is the agent's view of one tool on an MCP server: it presents the
+// server's tool to the LLM under its namespaced name and calls it through the
+// server's Client.
 type MCPTool struct {
-	serverName    string
-	toolName      string
-	description   string
-	inputSchema   any
-	clientManager agentdomain.MCPClient
-	config        *config.MCPConfig
-	formatter     agentinfra.BaseFormatter
+	serverName  string
+	toolName    string
+	description string
+	inputSchema map[string]any
+	client      mcpdomain.Client
+	config      *config.MCPConfig
+	formatter   agentinfra.BaseFormatter
 }
 
 // NewMCPTool creates a new MCP tool wrapper
 func NewMCPTool(
 	serverName, toolName, description string,
-	inputSchema any,
-	clientManager agentdomain.MCPClient,
+	inputSchema map[string]any,
+	client mcpdomain.Client,
 	mcpConfig *config.MCPConfig,
 ) *MCPTool {
-	// Tool name format: MCP_<servername>_<toolname>
-	fullToolName := fmt.Sprintf("MCP_%s_%s", serverName, toolName)
-
 	return &MCPTool{
-		serverName:    serverName,
-		toolName:      toolName,
-		description:   description,
-		inputSchema:   inputSchema,
-		clientManager: clientManager,
-		config:        mcpConfig,
-		formatter:     agentinfra.NewBaseFormatter(fullToolName),
+		serverName:  serverName,
+		toolName:    toolName,
+		description: description,
+		inputSchema: inputSchema,
+		client:      client,
+		config:      mcpConfig,
+		formatter:   agentinfra.NewBaseFormatter(mcpdomain.ToolName(serverName, toolName)),
 	}
+}
+
+// newTools wraps a server's discovered tools as agent tools keyed by their
+// namespaced name, the set the registry takes (like browser.NewTools).
+func newTools(found []mcpdomain.Tool, client mcpdomain.Client, cfg *config.MCPConfig) map[string]agentdomain.Tool {
+	tools := make(map[string]agentdomain.Tool, len(found))
+	for _, tool := range found {
+		tools[mcpdomain.ToolName(tool.Server, tool.Name)] = NewMCPTool(tool.Server, tool.Name, tool.Description, tool.InputSchema, client, cfg)
+	}
+	return tools
 }
 
 // Definition returns the tool definition for the LLM
 func (t *MCPTool) Definition() sdk.ChatCompletionTool {
-	// Format: MCP_<servername>_<toolname>
-	fullToolName := fmt.Sprintf("MCP_%s_%s", t.serverName, t.toolName)
+	fullToolName := mcpdomain.ToolName(t.serverName, t.toolName)
 
 	// Enhance description with server context
 	enhancedDescription := fmt.Sprintf("[MCP:%s] %s", t.serverName, t.description)
 
-	// Convert input schema to FunctionParameters
 	var parameters *sdk.FunctionParameters
 	if t.inputSchema != nil {
-		if schemaMap, ok := t.inputSchema.(map[string]any); ok {
-			params := sdk.FunctionParameters(schemaMap)
-			parameters = &params
-		}
+		params := sdk.FunctionParameters(t.inputSchema)
+		parameters = &params
 	}
 
-	// Fallback to basic schema if conversion fails
 	if parameters == nil {
 		defaultParams := sdk.FunctionParameters{
 			"type":       "object",
@@ -86,81 +91,32 @@ func (t *MCPTool) Definition() sdk.ChatCompletionTool {
 // Execute runs the MCP tool with given arguments
 func (t *MCPTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	start := time.Now()
-	fullToolName := fmt.Sprintf("MCP_%s_%s", t.serverName, t.toolName)
 
-	response, err := t.clientManager.CallTool(ctx, t.serverName, t.toolName, args)
-
-	duration := time.Since(start)
-	success := err == nil
-
-	var content string
-	var errorMsg string
-
-	if err != nil {
-		errorMsg = err.Error()
-	} else if response != nil {
-		if mcpResp, ok := response.(*mcp.ToolResponse); ok {
-			content = t.formatMCPContent(mcpResp)
-		} else {
-			errorMsg = "unexpected response type from MCP server"
-		}
+	response, err := t.client.CallTool(ctx, t.toolName, args)
+	if err == nil && response.IsError {
+		err = fmt.Errorf("tool reported an error: %s", response.Content)
 	}
 
-	toolData := &agentdomain.MCPToolResult{
+	toolData := &mcpdomain.ToolResult{
 		ServerName: t.serverName,
 		ToolName:   t.toolName,
-		Content:    content,
-		Error:      errorMsg,
 	}
-
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  fullToolName,
+		ToolName:  mcpdomain.ToolName(t.serverName, t.toolName),
 		Arguments: args,
-		Success:   success,
-		Duration:  duration,
+		Success:   err == nil,
+		Duration:  time.Since(start),
 		Data:      toolData,
 	}
 
 	if err != nil {
+		toolData.Error = err.Error()
 		result.Error = fmt.Sprintf("MCP tool execution failed: %v", err)
+	} else {
+		toolData.Content = response.Content
 	}
 
 	return result, nil
-}
-
-// formatMCPContent formats the MCP response content for display
-func (t *MCPTool) formatMCPContent(response *mcp.ToolResponse) string {
-	if response == nil {
-		return ""
-	}
-
-	var contentParts []string
-	for _, content := range response.Content {
-		if content == nil {
-			continue
-		}
-
-		// Handle TextContent
-		if content.TextContent != nil && content.TextContent.Text != "" {
-			contentParts = append(contentParts, content.TextContent.Text)
-		}
-
-		// Handle ImageContent
-		if content.ImageContent != nil {
-			contentParts = append(contentParts, "[Image content]")
-		}
-
-		// Handle EmbeddedResource
-		if content.EmbeddedResource != nil {
-			if content.EmbeddedResource.TextResourceContents != nil && content.EmbeddedResource.TextResourceContents.Text != "" {
-				contentParts = append(contentParts, content.EmbeddedResource.TextResourceContents.Text)
-			} else if content.EmbeddedResource.BlobResourceContents != nil {
-				contentParts = append(contentParts, "[Binary resource content]")
-			}
-		}
-	}
-
-	return strings.Join(contentParts, "\n")
 }
 
 // Validate checks if the tool arguments are valid
@@ -174,16 +130,11 @@ func (t *MCPTool) Validate(args map[string]any) error {
 		return nil
 	}
 
-	schemaMap, ok := t.inputSchema.(map[string]any)
-	if !ok {
-		return nil
-	}
-
-	if err := t.validateRequiredFields(schemaMap, args); err != nil {
+	if err := t.validateRequiredFields(t.inputSchema, args); err != nil {
 		return err
 	}
 
-	return t.validatePropertyTypes(schemaMap, args)
+	return t.validatePropertyTypes(t.inputSchema, args)
 }
 
 // validateRequiredFields checks that all required fields are present
@@ -298,7 +249,7 @@ func (t *MCPTool) FormatPreview(result *agentdomain.ToolExecutionResult) string 
 		return "MCP tool execution result unavailable"
 	}
 
-	mcpResult, ok := result.Data.(*agentdomain.MCPToolResult)
+	mcpResult, ok := result.Data.(*mcpdomain.ToolResult)
 	if !ok {
 		if result.Success {
 			return "MCP tool executed successfully"
@@ -365,7 +316,7 @@ func (t *MCPTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 
 // formatMCPData formats MCP-specific data for display
 func (t *MCPTool) formatMCPData(data any) string {
-	mcpResult, ok := data.(*agentdomain.MCPToolResult)
+	mcpResult, ok := data.(*mcpdomain.ToolResult)
 	if !ok {
 		return "Invalid MCP data format"
 	}

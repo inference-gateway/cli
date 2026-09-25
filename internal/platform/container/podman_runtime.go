@@ -265,3 +265,8 @@ func (pr *PodmanRuntime) ListRunningContainers(ctx context.Context, nameFilter s
 
 	return containers, nil
 }
+
+// PublishedPort returns the first host port the container publishes
+func (pr *PodmanRuntime) PublishedPort(ctx context.Context, containerIDOrName string) (int, error) {
+	return publishedPort(ctx, "podman", containerIDOrName)
+}

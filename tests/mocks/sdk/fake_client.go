@@ -176,6 +176,19 @@ type FakeClient struct {
 		result1 <-chan sdk.SSEvent
 		result2 error
 	}
+	GetMCPProtectedResourceMetadataStub        func(context.Context) (*sdk.OAuthProtectedResourceMetadata, error)
+	getMCPProtectedResourceMetadataMutex       sync.RWMutex
+	getMCPProtectedResourceMetadataArgsForCall []struct {
+		arg1 context.Context
+	}
+	getMCPProtectedResourceMetadataReturns struct {
+		result1 *sdk.OAuthProtectedResourceMetadata
+		result2 error
+	}
+	getMCPProtectedResourceMetadataReturnsOnCall map[int]struct {
+		result1 *sdk.OAuthProtectedResourceMetadata
+		result2 error
+	}
 	HealthCheckStub        func(context.Context) error
 	healthCheckMutex       sync.RWMutex
 	healthCheckArgsForCall []struct {
@@ -227,6 +240,20 @@ type FakeClient struct {
 	}
 	listToolsReturnsOnCall map[int]struct {
 		result1 *sdk.ListToolsResponse
+		result2 error
+	}
+	MCPJSONRPCStub        func(context.Context, sdk.MCPJSONRPCRequest) (*sdk.MCPJSONRPCResponse, error)
+	mCPJSONRPCMutex       sync.RWMutex
+	mCPJSONRPCArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.MCPJSONRPCRequest
+	}
+	mCPJSONRPCReturns struct {
+		result1 *sdk.MCPJSONRPCResponse
+		result2 error
+	}
+	mCPJSONRPCReturnsOnCall map[int]struct {
+		result1 *sdk.MCPJSONRPCResponse
 		result2 error
 	}
 	RetrieveVideoStub        func(context.Context, sdk.Provider, string) (*sdk.VideoJob, error)
@@ -1053,6 +1080,70 @@ func (fake *FakeClient) GenerateContentStreamReturnsOnCall(i int, result1 <-chan
 	}{result1, result2}
 }
 
+func (fake *FakeClient) GetMCPProtectedResourceMetadata(arg1 context.Context) (*sdk.OAuthProtectedResourceMetadata, error) {
+	fake.getMCPProtectedResourceMetadataMutex.Lock()
+	ret, specificReturn := fake.getMCPProtectedResourceMetadataReturnsOnCall[len(fake.getMCPProtectedResourceMetadataArgsForCall)]
+	fake.getMCPProtectedResourceMetadataArgsForCall = append(fake.getMCPProtectedResourceMetadataArgsForCall, struct {
+		arg1 context.Context
+	}{arg1})
+	stub := fake.GetMCPProtectedResourceMetadataStub
+	fakeReturns := fake.getMCPProtectedResourceMetadataReturns
+	fake.recordInvocation("GetMCPProtectedResourceMetadata", []interface{}{arg1})
+	fake.getMCPProtectedResourceMetadataMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) GetMCPProtectedResourceMetadataCallCount() int {
+	fake.getMCPProtectedResourceMetadataMutex.RLock()
+	defer fake.getMCPProtectedResourceMetadataMutex.RUnlock()
+	return len(fake.getMCPProtectedResourceMetadataArgsForCall)
+}
+
+func (fake *FakeClient) GetMCPProtectedResourceMetadataCalls(stub func(context.Context) (*sdk.OAuthProtectedResourceMetadata, error)) {
+	fake.getMCPProtectedResourceMetadataMutex.Lock()
+	defer fake.getMCPProtectedResourceMetadataMutex.Unlock()
+	fake.GetMCPProtectedResourceMetadataStub = stub
+}
+
+func (fake *FakeClient) GetMCPProtectedResourceMetadataArgsForCall(i int) context.Context {
+	fake.getMCPProtectedResourceMetadataMutex.RLock()
+	defer fake.getMCPProtectedResourceMetadataMutex.RUnlock()
+	argsForCall := fake.getMCPProtectedResourceMetadataArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeClient) GetMCPProtectedResourceMetadataReturns(result1 *sdk.OAuthProtectedResourceMetadata, result2 error) {
+	fake.getMCPProtectedResourceMetadataMutex.Lock()
+	defer fake.getMCPProtectedResourceMetadataMutex.Unlock()
+	fake.GetMCPProtectedResourceMetadataStub = nil
+	fake.getMCPProtectedResourceMetadataReturns = struct {
+		result1 *sdk.OAuthProtectedResourceMetadata
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) GetMCPProtectedResourceMetadataReturnsOnCall(i int, result1 *sdk.OAuthProtectedResourceMetadata, result2 error) {
+	fake.getMCPProtectedResourceMetadataMutex.Lock()
+	defer fake.getMCPProtectedResourceMetadataMutex.Unlock()
+	fake.GetMCPProtectedResourceMetadataStub = nil
+	if fake.getMCPProtectedResourceMetadataReturnsOnCall == nil {
+		fake.getMCPProtectedResourceMetadataReturnsOnCall = make(map[int]struct {
+			result1 *sdk.OAuthProtectedResourceMetadata
+			result2 error
+		})
+	}
+	fake.getMCPProtectedResourceMetadataReturnsOnCall[i] = struct {
+		result1 *sdk.OAuthProtectedResourceMetadata
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeClient) HealthCheck(arg1 context.Context) error {
 	fake.healthCheckMutex.Lock()
 	ret, specificReturn := fake.healthCheckReturnsOnCall[len(fake.healthCheckArgsForCall)]
@@ -1305,6 +1396,71 @@ func (fake *FakeClient) ListToolsReturnsOnCall(i int, result1 *sdk.ListToolsResp
 	}
 	fake.listToolsReturnsOnCall[i] = struct {
 		result1 *sdk.ListToolsResponse
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) MCPJSONRPC(arg1 context.Context, arg2 sdk.MCPJSONRPCRequest) (*sdk.MCPJSONRPCResponse, error) {
+	fake.mCPJSONRPCMutex.Lock()
+	ret, specificReturn := fake.mCPJSONRPCReturnsOnCall[len(fake.mCPJSONRPCArgsForCall)]
+	fake.mCPJSONRPCArgsForCall = append(fake.mCPJSONRPCArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.MCPJSONRPCRequest
+	}{arg1, arg2})
+	stub := fake.MCPJSONRPCStub
+	fakeReturns := fake.mCPJSONRPCReturns
+	fake.recordInvocation("MCPJSONRPC", []interface{}{arg1, arg2})
+	fake.mCPJSONRPCMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) MCPJSONRPCCallCount() int {
+	fake.mCPJSONRPCMutex.RLock()
+	defer fake.mCPJSONRPCMutex.RUnlock()
+	return len(fake.mCPJSONRPCArgsForCall)
+}
+
+func (fake *FakeClient) MCPJSONRPCCalls(stub func(context.Context, sdk.MCPJSONRPCRequest) (*sdk.MCPJSONRPCResponse, error)) {
+	fake.mCPJSONRPCMutex.Lock()
+	defer fake.mCPJSONRPCMutex.Unlock()
+	fake.MCPJSONRPCStub = stub
+}
+
+func (fake *FakeClient) MCPJSONRPCArgsForCall(i int) (context.Context, sdk.MCPJSONRPCRequest) {
+	fake.mCPJSONRPCMutex.RLock()
+	defer fake.mCPJSONRPCMutex.RUnlock()
+	argsForCall := fake.mCPJSONRPCArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeClient) MCPJSONRPCReturns(result1 *sdk.MCPJSONRPCResponse, result2 error) {
+	fake.mCPJSONRPCMutex.Lock()
+	defer fake.mCPJSONRPCMutex.Unlock()
+	fake.MCPJSONRPCStub = nil
+	fake.mCPJSONRPCReturns = struct {
+		result1 *sdk.MCPJSONRPCResponse
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) MCPJSONRPCReturnsOnCall(i int, result1 *sdk.MCPJSONRPCResponse, result2 error) {
+	fake.mCPJSONRPCMutex.Lock()
+	defer fake.mCPJSONRPCMutex.Unlock()
+	fake.MCPJSONRPCStub = nil
+	if fake.mCPJSONRPCReturnsOnCall == nil {
+		fake.mCPJSONRPCReturnsOnCall = make(map[int]struct {
+			result1 *sdk.MCPJSONRPCResponse
+			result2 error
+		})
+	}
+	fake.mCPJSONRPCReturnsOnCall[i] = struct {
+		result1 *sdk.MCPJSONRPCResponse
 		result2 error
 	}{result1, result2}
 }

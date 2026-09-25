@@ -83,13 +83,13 @@ func probeServer(ctx context.Context, cfg *config.MCPConfig, server config.MCPSe
 
 	client := newMCPClient(server, cfg)
 	client.initializeClient(server.GetURL())
-	discovered, err := client.DiscoverTools(ctx)
+	tools, err := client.discoverTools(ctx)
 	if err != nil {
 		status.Error = err.Error()
 		return status
 	}
 
 	status.Connected = true
-	status.Tools = len(discovered[server.Name])
+	status.Tools = len(tools)
 	return status
 }
