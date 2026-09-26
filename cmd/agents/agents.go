@@ -97,6 +97,10 @@ For known agents (browser-agent, mock-agent, google-calendar-agent, documentatio
 you can simply provide the name and sensible defaults will be used. You can override any default
 with flags.
 
+Any other agent published in the agents catalog (inference-gateway/agents) also resolves by name:
+the URL and OCI image are derived from its catalog entry. Built-in defaults win; the catalog is
+consulted only for names without them.
+
 Examples:
   # Add a known agent with defaults
   infer agents add browser-agent
@@ -128,6 +132,9 @@ Examples:
 
 			defaults := config.GetAgentDefaults(name)
 
+			if url == "" && defaults == nil {
+				defaults = resolveCatalogAgent(cmd.Context(), name)
+			}
 			if url == "" && defaults == nil {
 				return fmt.Errorf("URL is required for unknown agent '%s'. Known agents: %v", name, config.ListKnownAgents())
 			}
