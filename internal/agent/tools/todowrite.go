@@ -133,7 +133,8 @@ func (t *TodoWriteTool) IsEnabled() bool {
 
 // executeTodoWrite processes the todo list update
 func (t *TodoWriteTool) executeTodoWrite(todosRaw []any) (*agentdomain.TodoWriteToolResult, error) {
-	var todos []agentdomain.TodoItem
+	// Non-nil so an empty list (the agent or user clearing it) serializes as [].
+	todos := make([]agentdomain.TodoItem, 0, len(todosRaw))
 
 	for i, todoRaw := range todosRaw {
 		todoMap, ok := todoRaw.(map[string]any)
@@ -192,10 +193,6 @@ func (t *TodoWriteTool) executeTodoWrite(todosRaw []any) (*agentdomain.TodoWrite
 
 // validateTodos validates the raw todos array
 func (t *TodoWriteTool) validateTodos(todosRaw []any) error {
-	if len(todosRaw) == 0 {
-		return fmt.Errorf("todos array cannot be empty")
-	}
-
 	var todos []agentdomain.TodoItem
 	for i, todoRaw := range todosRaw {
 		todoMap, ok := todoRaw.(map[string]any)

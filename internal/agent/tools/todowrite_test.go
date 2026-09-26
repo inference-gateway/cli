@@ -119,6 +119,12 @@ func testValidTodoWriteValidation(t *testing.T, tool *TodoWriteTool) {
 				},
 			},
 		},
+		{
+			name: "empty todos array clears the list",
+			args: map[string]any{
+				"todos": []any{},
+			},
+		},
 	}
 
 	for _, tt := range validTests {
@@ -148,13 +154,6 @@ func testInvalidTodoWriteValidation(t *testing.T, tool *TodoWriteTool) {
 				"todos": "not an array",
 			},
 			errorMsg: "todos parameter is required and must be an array",
-		},
-		{
-			name: "empty todos array",
-			args: map[string]any{
-				"todos": []any{},
-			},
-			errorMsg: "todos array cannot be empty",
 		},
 		{
 			name: "duplicate IDs",
@@ -311,6 +310,13 @@ func TestTodoWriteTool_Execute(t *testing.T) {
 			wantSuccess:       true,
 			expectedTodos:     2,
 			expectedCompleted: 2,
+		},
+		{
+			name: "empty list clears the todos",
+			args: map[string]any{
+				"todos": []any{},
+			},
+			wantSuccess: true,
 		},
 		{
 			name: "failed execution with invalid data",
