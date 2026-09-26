@@ -115,11 +115,12 @@ func (s *PostStreamState) transitionToCompleting() error {
 	return nil
 }
 
-// transitionToStreaming starts another LLM turn. Reached when completion is
-// not possible yet with an empty queue - e.g. a hook appended a hidden
-// user-role reminder to the conversation, which the model must answer.
+// transitionToStreaming starts another LLM turn when completion is not yet
+// possible, e.g. a hook appended a hidden user reminder. The finished turn's
+// completion is published first so renderers emit it as its own line.
 func (s *PostStreamState) transitionToStreaming() error {
 	logger.Debug("continuing agent loop (need more turns)")
+	s.ctx.PublishChatComplete(*s.ctx.CurrentReasoning, nil, s.ctx.GetMetrics(s.ctx.Request.RequestID))
 	if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateStreamingLLM); err != nil {
 		logger.Error("failed to transition to streaming", "error", err)
 		return err

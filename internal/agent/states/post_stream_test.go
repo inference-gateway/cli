@@ -95,6 +95,20 @@ func TestPostStreamState_Handle(t *testing.T) {
 			wantEvents:      []states.AgentEvent{states.StartStreamingEvent{}},
 		},
 		{
+			name: "continuation nudge publishes the finished turn before streaming again",
+			setup: func(f *stateFixture) {
+				f.ctx.AgentCtx.Turns = 1
+				*f.ctx.CurrentReasoning = "reasoned"
+			},
+			wantTransitions: []states.AgentExecutionState{states.StateStreamingLLM},
+			wantEvents:      []states.AgentEvent{states.StartStreamingEvent{}},
+			check: func(t *testing.T, f *stateFixture) {
+				require.Len(t, f.completeCalls, 1, "the nudged turn must be published before the loop continues")
+				assert.Empty(t, f.completeCalls[0].toolCalls)
+				assert.Equal(t, "reasoned", f.completeCalls[0].reasoning)
+			},
+		},
+		{
 			name: "transition failure is returned",
 			setup: func(f *stateFixture) {
 				f.ctx.AgentCtx.Turns = 1
