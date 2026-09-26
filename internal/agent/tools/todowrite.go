@@ -133,7 +133,6 @@ func (t *TodoWriteTool) IsEnabled() bool {
 
 // executeTodoWrite processes the todo list update
 func (t *TodoWriteTool) executeTodoWrite(todosRaw []any) (*agentdomain.TodoWriteToolResult, error) {
-	// Non-nil so an empty list (the agent or user clearing it) serializes as [].
 	todos := make([]agentdomain.TodoItem, 0, len(todosRaw))
 
 	for i, todoRaw := range todosRaw {
