@@ -1996,7 +1996,6 @@ func (app *ChatApplication) layoutChatInterface() {
 		app.autocomplete,
 		app.inputStatusBar,
 		app.statusView,
-		app.modeIndicator,
 		app.helpBar,
 		app.queueBoxView,
 		app.todoBoxView,
