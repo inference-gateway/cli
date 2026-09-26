@@ -41,18 +41,21 @@ func modeIndicatorFor(mode agentdomain.AgentMode) *ModeIndicator {
 }
 
 // TestStatusRowSharesOneLineWithMode pins the layout contract: the agent mode
-// label rides the status row instead of claiming a row of its own, and no line
-// ever grows past the width the row was given.
+// label rides the status row instead of claiming a row of its own, no line ever
+// grows past the width the row was given, and a status too long to share the
+// row is truncated rather than pushing the mode label off it.
 func TestStatusRowSharesOneLineWithMode(t *testing.T) {
 	const width = 80
 	renderer := NewApplicationViewRenderer(styles.NewProvider(styles.NewThemeProvider()))
 
 	tests := []struct {
-		name         string
-		status       string
-		mode         agentdomain.AgentMode
-		wantLines    int
-		wantModeText string
+		name          string
+		status        string
+		judgeModel    string
+		mode          agentdomain.AgentMode
+		wantLines     int
+		wantModeText  string
+		wantTruncated bool
 	}{
 		{
 			name:         "spinner and mode share the row",
@@ -81,11 +84,24 @@ func TestStatusRowSharesOneLineWithMode(t *testing.T) {
 			wantLines:    2,
 			wantModeText: "▸ AUTO",
 		},
+		{
+			name:          "long status is truncated to make room for the mode",
+			status:        " ⠋ Processing... a very long status message that would definitely overflow the row budget (1.2s)",
+			judgeModel:    "ollama_cloud/glm-5.3-flash",
+			mode:          agentdomain.AgentModeAutoWithJudge,
+			wantLines:     1,
+			wantModeText:  "▸ AUTO+JUDGE · ollama_cloud/glm-5.3-flash",
+			wantTruncated: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rows := renderer.appendStatusRow(nil, stubStatusView{rendered: tt.status}, modeIndicatorFor(tt.mode), width, 1)
+			indicator := modeIndicatorFor(tt.mode)
+			if tt.judgeModel != "" {
+				indicator.SetJudgeModelFn(func() string { return tt.judgeModel })
+			}
+			rows := renderer.appendStatusRow(nil, stubStatusView{rendered: tt.status}, indicator, width, 1)
 			if len(rows) != 1 {
 				t.Fatalf("expected exactly one row, got %d", len(rows))
 			}
@@ -112,7 +128,12 @@ func TestStatusRowSharesOneLineWithMode(t *testing.T) {
 				t.Errorf("mode %q must end the first line, got %q", tt.wantModeText, got)
 			}
 
-			if tt.status != "" && !strings.Contains(plain(lines[0]), strings.Split(tt.status, "\n")[0]) {
+			firstStatusLine := strings.Split(tt.status, "\n")[0]
+			if tt.wantTruncated {
+				if got := visibleWidth(lines[0]); got >= visibleWidth(firstStatusLine) {
+					t.Errorf("first line is %d columns, want it truncated below the input's %d", got, visibleWidth(firstStatusLine))
+				}
+			} else if tt.status != "" && !strings.Contains(plain(lines[0]), firstStatusLine) {
 				t.Errorf("status %q must share the mode's line, got %q", tt.status, plain(lines[0]))
 			}
 		})
