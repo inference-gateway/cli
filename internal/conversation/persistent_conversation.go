@@ -251,7 +251,7 @@ func (r *PersistentConversationRepository) AddMessage(msg convdomain.Conversatio
 		now := time.Now()
 
 		title := "New Conversation"
-		if msg.Message.Role == sdk.User {
+		if msg.Message.Role == sdk.User && !msg.Hidden {
 			contentStr, _ := msg.Message.Content.AsMessageContent0()
 			title = convdomain.CreateTitleFromMessage(contentStr)
 		}
@@ -276,7 +276,7 @@ func (r *PersistentConversationRepository) AddMessage(msg convdomain.Conversatio
 		r.metadataMutex.Unlock()
 	}
 
-	if msg.Message.Role == sdk.User {
+	if msg.Message.Role == sdk.User && !msg.Hidden {
 		if contentStr, _ := msg.Message.Content.AsMessageContent0(); strings.TrimSpace(contentStr) != "" {
 			r.metadataMutex.Lock()
 			if !r.metadata.TitleGenerated && (r.metadata.Title == "" || r.metadata.Title == "New Conversation") {
@@ -390,7 +390,7 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 		title := "New Conversation"
 		messages := r.GetMessages()
 		for _, entry := range messages {
-			if entry.Message.Role == sdk.User {
+			if entry.Message.Role == sdk.User && !entry.Hidden {
 				contentStr, _ := entry.Message.Content.AsMessageContent0()
 				title = convdomain.CreateTitleFromMessage(contentStr)
 				break
