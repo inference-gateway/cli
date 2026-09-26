@@ -410,8 +410,8 @@ const clipboardFlashDuration = 1500 * time.Millisecond
 
 // flashStatus shows a short, auto-dismissing status message. When a spinner is
 // active it saves and restores the status state so the loading indicator is not
-// interrupted (same approach as handleCycleAgentMode); otherwise it clears the
-// status line afterwards. Mirrors the double-esc sequence-hint behaviour.
+// interrupted; otherwise it clears the status line afterwards. Mirrors the
+// double-esc sequence-hint behaviour.
 func flashStatus(app KeyHandlerContext, message string) tea.Cmd {
 	statusView := app.GetStatusView()
 	if statusView != nil && statusView.IsShowingSpinner() {
@@ -703,42 +703,11 @@ func handleToggleTodoBox(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd 
 }
 
 func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateStore()
-	statusView := app.GetStatusView()
-	newMode := stateManager.CycleAgentMode()
+	app.GetStateStore().CycleAgentMode()
 
-	if statusView.IsShowingSpinner() {
-		return tea.Batch(
-			func() tea.Msg {
-				return tui.SaveStatusStateEvent{}
-			},
-			func() tea.Msg {
-				return tui.SetStatusEvent{
-					Message: fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
-					Spinner: false,
-				}
-			},
-			func() tea.Msg {
-				time.Sleep(800 * time.Millisecond)
-				return tui.RestoreStatusStateEvent{}
-			},
-			func() tea.Msg {
-				return tui.RefreshAutocompleteEvent{}
-			},
-		)
+	return func() tea.Msg {
+		return tui.RefreshAutocompleteEvent{}
 	}
-
-	return tea.Batch(
-		func() tea.Msg {
-			return tui.SetStatusEvent{
-				Message: fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
-				Spinner: false,
-			}
-		},
-		func() tea.Msg {
-			return tui.RefreshAutocompleteEvent{}
-		},
-	)
 }
 
 // Dispatcher manages the key binding system for ChatApplication
