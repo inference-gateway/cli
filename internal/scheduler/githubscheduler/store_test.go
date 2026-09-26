@@ -205,3 +205,46 @@ func TestSaveJobRunOnceAllowed(t *testing.T) {
 		t.Fatalf("SaveJob run_once: %v", err)
 	}
 }
+
+func TestWorkflowFilePath(t *testing.T) {
+	tests := []struct {
+		name string
+		id   string
+		want string
+	}{
+		{"plain", "abc", "/checkout/.github/workflows/abc.yml"},
+		{"uuid", "6f1c0f6e-2f7a-4d3e-9a1b-0c2d3e4f5a6b", "/checkout/.github/workflows/6f1c0f6e-2f7a-4d3e-9a1b-0c2d3e4f5a6b.yml"},
+		{"parent traversal", "../evil", "/checkout/.github/evil.yml"},
+		{"deep traversal", "a/../../b", "/checkout/.github/b.yml"},
+		{"absolute", "/etc/passwd", "/checkout/.github/workflows/etc/passwd.yml"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := workflowFilePath("/checkout", tt.id)
+			if got != tt.want {
+				t.Errorf("workflowFilePath(%q) = %q, want %q", tt.id, got, tt.want)
+			}
+			if !strings.HasPrefix(got, "/checkout/") {
+				t.Errorf("workflowFilePath(%q) = %q escapes the checkout dir", tt.id, got)
+			}
+		})
+	}
+}
+
+func TestSaveJobInvalidIDRejectedBeforeAnyCommand(t *testing.T) {
+	runner := &scriptRunner{}
+	store, inner := newTestStore(runner, config.SchedulerGitHubConfig{Repository: "me/.routines"})
+
+	job := testJob()
+	job.ID = "../escape"
+	err := store.SaveJob(context.Background(), job)
+	if err == nil || !strings.Contains(err.Error(), "invalid job ID") {
+		t.Fatalf("want invalid job ID rejection, got %v", err)
+	}
+	if len(runner.commands) != 0 {
+		t.Errorf("no gh/git command should run on invalid job ID: %v", runner.commands)
+	}
+	if _, err := inner.LoadJob(context.Background(), job.ID); err == nil {
+		t.Errorf("job must not be persisted locally")
+	}
+}

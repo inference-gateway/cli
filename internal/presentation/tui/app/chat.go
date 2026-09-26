@@ -551,14 +551,13 @@ func (app *ChatApplication) forwardToOverlayForms(msg tea.Msg) []tea.Cmd {
 		return nil
 	}
 
-	var cmds []tea.Cmd
 	if app.stateManager.GetUserQuestionUIState() != nil {
-		cmds = append(cmds, app.questionFormView.Forward(msg))
+		return []tea.Cmd{app.questionFormView.Forward(msg)}
 	}
 	if app.stateManager.GetApprovalUIState() != nil {
-		cmds = append(cmds, app.approvalBoxView.Forward(msg))
+		return []tea.Cmd{app.approvalBoxView.Forward(msg)}
 	}
-	return cmds
+	return nil
 }
 
 // handleAppEvents handles application-level events (not component-specific)
@@ -1996,7 +1995,6 @@ func (app *ChatApplication) layoutChatInterface() {
 		app.autocomplete,
 		app.inputStatusBar,
 		app.statusView,
-		app.modeIndicator,
 		app.helpBar,
 		app.queueBoxView,
 		app.todoBoxView,

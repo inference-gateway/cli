@@ -1,15 +1,13 @@
 package components
 
 import (
-	"strings"
-
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
-// ModeIndicator displays the current agent mode (PLAN/AUTO) on its own line
+// ModeIndicator names the current agent mode (PLAN/AUTO/JUDGE) as a label the
+// application view lays out on the right of the status row.
 type ModeIndicator struct {
-	width         int
 	stateManager  agentdomain.AgentModeState
 	styleProvider *styles.Provider
 	judgeModel    func() string
@@ -20,11 +18,6 @@ func NewModeIndicator(styleProvider *styles.Provider) *ModeIndicator {
 	return &ModeIndicator{
 		styleProvider: styleProvider,
 	}
-}
-
-// SetWidth sets the width of the mode indicator
-func (mi *ModeIndicator) SetWidth(width int) {
-	mi.width = width
 }
 
 // SetJudgeModelFn names the model that approves tool calls in Auto+Judge mode
@@ -39,48 +32,44 @@ func (mi *ModeIndicator) SetStateManager(stateManager agentdomain.AgentModeState
 	mi.stateManager = stateManager
 }
 
-// Render renders the mode indicator line
-func (mi *ModeIndicator) Render() string {
-	if mi.stateManager == nil || mi.width == 0 {
+// Text returns the styled mode label, empty while the default mode is active.
+func (mi *ModeIndicator) Text() string {
+	if mi.stateManager == nil {
 		return ""
 	}
 
-	agentMode := mi.stateManager.GetAgentMode()
-	if agentMode == agentdomain.AgentModeStandard {
+	label := mi.modeLabel(mi.stateManager.GetAgentMode())
+	if label == "" {
 		return ""
 	}
 
-	var modeText string
-	switch agentMode {
-	case agentdomain.AgentModePlan:
-		modeText = "▶ PLAN"
-	case agentdomain.AgentModeAutoAccept:
-		modeText = "▸ AUTO"
-	case agentdomain.AgentModeAutoWithJudge:
-		modeText = "▸ AUTO+JUDGE"
-		if mi.judgeModel != nil {
-			if m := mi.judgeModel(); m != "" {
-				modeText += " · " + m
-			}
-		}
-	case agentdomain.AgentModeReadOnly:
-		modeText = "▸ READ-ONLY"
-	}
-
-	styledMode := mi.styleProvider.RenderStyledText(
-		modeText,
+	return mi.styleProvider.RenderStyledText(
+		label,
 		styles.StyleOptions{
 			Foreground: mi.styleProvider.GetThemeColor("accent"),
 			Bold:       true,
 		},
 	)
+}
 
-	modeWidth := len([]rune(modeText))
-	availableWidth := mi.width - 4
-	spacingWidth := availableWidth - modeWidth
-
-	if spacingWidth > 0 {
-		return strings.Repeat(" ", spacingWidth) + styledMode
+// modeLabel names the mode, appending the judge model for Auto+Judge. The
+// default (standard) mode has no indicator, so it maps to an empty label.
+func (mi *ModeIndicator) modeLabel(mode agentdomain.AgentMode) string {
+	switch mode {
+	case agentdomain.AgentModePlan:
+		return "▶ PLAN"
+	case agentdomain.AgentModeAutoAccept:
+		return "▸ AUTO"
+	case agentdomain.AgentModeAutoWithJudge:
+		label := "▸ AUTO+JUDGE"
+		if mi.judgeModel != nil {
+			if model := mi.judgeModel(); model != "" {
+				label += " · " + model
+			}
+		}
+		return label
+	case agentdomain.AgentModeReadOnly:
+		return "▸ READ-ONLY"
 	}
-	return styledMode
+	return ""
 }

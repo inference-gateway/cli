@@ -40,7 +40,6 @@ func (r *ApplicationViewRenderer) Layout(
 	autocomplete tui.AutocompleteComponent,
 	inputStatusBar tui.InputStatusBarComponent,
 	statusView tui.StatusComponent,
-	modeIndicator *ModeIndicator,
 	helpBar tui.HelpBarComponent,
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
@@ -55,7 +54,7 @@ func (r *ApplicationViewRenderer) Layout(
 	r.heights = r.calculateComponentHeights(data, data.Height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments)
 
 	r.setComponentDimensions(data.Width, conversationView, inputView, autocomplete, inputStatusBar, statusView,
-		modeIndicator, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, r.heights)
+		queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, r.heights)
 }
 
 // RenderChatInterface renders the main chat interface using the sizes set by
@@ -179,7 +178,6 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	autocomplete tui.AutocompleteComponent,
 	inputStatusBar tui.InputStatusBarComponent,
 	statusView tui.StatusComponent,
-	modeIndicator *ModeIndicator,
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
 	approvalBoxView *ApprovalBoxView,
@@ -195,10 +193,6 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	inputView.SetHeight(heights.inputHeight)
 	inputStatusBar.SetWidth(width)
 	statusView.SetWidth(width)
-
-	if modeIndicator != nil {
-		modeIndicator.SetWidth(width)
-	}
 
 	if autocomplete != nil {
 		autocomplete.SetWidth(width)
@@ -255,8 +249,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 
 	components = r.appendQueueBox(components, data, queueBoxView)
 	components = r.appendTodoBox(components, todoBoxView)
-	components = r.appendModeIndicator(components, modeIndicator)
-	components = r.appendStatusView(components, statusView, statusHeight)
+	components = r.appendStatusRow(components, statusView, modeIndicator, width, statusHeight)
 	components = r.appendApprovalBox(components, approvalBoxView)
 	components = r.appendQuestionForm(components, questionFormView)
 	components = append(components, inputArea)
@@ -309,29 +302,42 @@ func (r *ApplicationViewRenderer) appendSnippetAttachments(
 	return components
 }
 
-// appendStatusView appends status view content if available
-func (r *ApplicationViewRenderer) appendStatusView(
+// appendStatusRow appends the row shared by the status message and the agent
+// mode label, which is right-aligned on the first line of the status text. The
+// row is appended even when both are empty so a mode change never reflows the
+// layout.
+func (r *ApplicationViewRenderer) appendStatusRow(
 	components []string,
 	statusView tui.StatusComponent,
-	statusHeight int,
+	modeIndicator *ModeIndicator,
+	width, statusHeight int,
 ) []string {
+	var status string
 	if statusHeight > 0 {
-		if statusContent := statusView.Render(); statusContent != "" {
-			components = append(components, statusContent)
-		}
+		status = statusView.Render()
 	}
-	return components
+
+	var mode string
+	if modeIndicator != nil {
+		mode = modeIndicator.Text()
+	}
+
+	return append(components, r.statusRow(status, mode, width))
 }
 
-// appendModeIndicator appends mode indicator content (always to maintain fixed height)
-func (r *ApplicationViewRenderer) appendModeIndicator(
-	components []string,
-	modeIndicator *ModeIndicator,
-) []string {
-	if modeIndicator != nil {
-		components = append(components, modeIndicator.Render())
+// statusRow lays the mode label out on the right of the first status line,
+// truncating that line when the two cannot share the row. Without a mode the
+// status text is returned unchanged.
+func (r *ApplicationViewRenderer) statusRow(status, mode string, width int) string {
+	if mode == "" {
+		return status
 	}
-	return components
+
+	lines := strings.Split(status, "\n")
+	contentWidth := width - 4
+	budget := contentWidth - 1 - r.styleProvider.GetWidth(mode)
+	lines[0] = r.styleProvider.PlaceHorizontal(contentWidth, formatting.TruncateText(lines[0], budget), mode)
+	return strings.Join(lines, "\n")
 }
 
 // appendApprovalBox appends approval box content if available
