@@ -472,6 +472,50 @@ func TestExtensionBridgeMirrorsChatEvents(t *testing.T) {
 	}
 }
 
+// readFrameContaining reads raw frames until one contains needle, failing on timeout.
+func readFrameContaining(t *testing.T, conn *websocket.Conn, needle string) {
+	t.Helper()
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read frame containing %q: %v", needle, err)
+		}
+		if strings.Contains(string(msg), needle) {
+			return
+		}
+	}
+}
+
+func TestExtensionBridgeLeavesQuestionAnswerableByTUI(t *testing.T) {
+	events := conversation.NewEventBridge()
+	bridge := startBridge(t, bridgeConfig(), nil, events)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	time.Sleep(50 * time.Millisecond)
+	responseChan := make(chan []agentdomain.UserQuestionAnswer, 1)
+	events.Publish(agentdomain.UserQuestionRequestedEvent{
+		RequestID:    "req-1",
+		ToolCallID:   "call-q1",
+		Questions:    []agentdomain.UserQuestion{{Header: "Path", Question: "Which path?"}},
+		ResponseChan: responseChan,
+	})
+	readFrameContaining(t, conn, "user_question_request")
+
+	events.Publish(agentdomain.ChatChunkEvent{Content: "after-question"})
+	readFrameContaining(t, conn, "after-question")
+
+	select {
+	case _, open := <-responseChan:
+		if !open {
+			t.Fatal("bridge closed the question's response channel; only the TUI may answer or dismiss it")
+		}
+		t.Fatal("bridge answered the question; only the TUI may answer it")
+	default:
+	}
+}
+
 func TestExtensionBridgeCancelledTurnSendsInterrupted(t *testing.T) {
 	events := conversation.NewEventBridge()
 	bridge := startBridge(t, bridgeConfig(), nil, events)
