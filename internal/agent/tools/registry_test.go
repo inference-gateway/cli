@@ -542,12 +542,11 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 	}
 }
 
-// TestRegistry_ConcurrentMCPToolAccess is a regression test for issue #708:
-// the MCP liveness probe registers/unregisters MCP_* tools from its own
-// goroutine while the main loop reads the same map via GetTool /
-// ListAvailableTools / GetToolDefinitions / IsToolEnabled. It is meaningful
-// under -race: without the registry's toolsMu it fails with a detected data
-// race (or a concurrent map read/write panic).
+// TestRegistry_ConcurrentMCPToolAccess is a regression test: the MCP liveness
+// probe registers/unregisters MCP_* tools from its own goroutine while the
+// main loop reads the same map via GetTool / ListAvailableTools /
+// GetToolDefinitions / IsToolEnabled. It is meaningful under -race: without
+// the registry's toolsMu it fails with a detected data race.
 func TestRegistry_ConcurrentMCPToolAccess(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{

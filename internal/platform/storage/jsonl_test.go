@@ -913,7 +913,7 @@ func newConformanceJsonlStorage(t *testing.T) *JsonlStorage {
 
 // TestJsonlStorage_SchedulesAreMachineGlobal saves a job through a storage
 // rooted in one project and reads it back through a storage rooted in
-// another - both must resolve the same ~/.infer/schedules dir (#1053).
+// another - both must resolve the same ~/.infer/schedules dir.
 func TestJsonlStorage_SchedulesAreMachineGlobal(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

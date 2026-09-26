@@ -605,7 +605,7 @@ func TestAutocomplete_SkillsMidText(t *testing.T) {
 	})
 }
 
-// TestAutocomplete_ToolsAllOptionalSchema covers the regression in issue #690:
+// TestAutocomplete_ToolsAllOptionalSchema covers the regression:
 // a tool whose useful arguments are not top-level "required" (a one-of /
 // all-optional schema like the Agent tool) must still surface its arguments in
 // the !! skeleton and the dropdown description, rather than showing a bare

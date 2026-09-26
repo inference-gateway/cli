@@ -714,7 +714,7 @@ func TestProcessEvents_PublishesCancelledFlag(t *testing.T) {
 
 // TestProcessEvents_RecoversPanicToChatError verifies that a panic inside a
 // state handler is recovered and surfaced as a ChatErrorEvent instead of
-// crashing the process, so headless consumers get an agent_error line (#1042).
+// crashing the process, so headless consumers get an agent_error line.
 func TestProcessEvents_RecoversPanicToChatError(t *testing.T) {
 	mocks := setupTestMocks()
 	agent := createTestAgent(mocks, createTestContext(mocks))

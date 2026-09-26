@@ -1,13 +1,10 @@
 package migrations
 
-// GetPostgresMigrations returns all PostgreSQL migrations in order.
-//
-// The schema mirrors GetSQLiteMigrations one-for-one (single conversations
-// table with messages stored as an embedded JSON blob) so both dialects share
-// the same SQL core (see issue #839); only the column types differ (TIMESTAMP
-// WITH TIME ZONE for datetimes). JSON columns are TEXT because the application
-// marshals/unmarshals JSON itself — switch to JSONB only if server-side JSON
-// querying is ever needed.
+// GetPostgresMigrations returns all PostgreSQL migrations in order. The schema
+// mirrors GetSQLiteMigrations one-for-one (single conversations table with
+// embedded JSON messages) so both dialects share the same SQL core; only the
+// column types differ. JSON columns are TEXT: the app marshals JSON itself -
+// switch to JSONB only if server-side JSON querying is ever needed.
 func GetPostgresMigrations() []Migration {
 	return []Migration{
 		{

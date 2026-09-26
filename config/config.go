@@ -690,7 +690,7 @@ type CompactConfig struct {
 	SummaryMaxTokens      int  `yaml:"summary_max_tokens" mapstructure:"summary_max_tokens"`
 }
 
-// ProvisionerConfig contains on-demand GPU provisioning settings (issue #939).
+// ProvisionerConfig contains on-demand GPU provisioning settings.
 // The provider API key is management-plane only (provision/list/destroy); the
 // running pod is reached exclusively through the llamacpp provider env vars.
 type ProvisionerConfig struct {

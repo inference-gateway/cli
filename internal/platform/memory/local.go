@@ -3,8 +3,7 @@ package memory
 import "context"
 
 // LocalBackend is the default no-op memory backend. Memory lives only on the
-// local disk, so there is nothing to sync in or out - this preserves the
-// pre-#683 behavior exactly.
+// local disk, so there is nothing to sync in or out.
 type LocalBackend struct{}
 
 // NewLocalBackend returns the no-op backend.

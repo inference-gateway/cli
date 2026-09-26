@@ -54,7 +54,7 @@ func runInit(t *testing.T, flags map[string]bool) error {
 	return initializeProject(runtime.NewState(), cmd)
 }
 
-// TestInitializeProject pins the userspace-first model (issues #680/#1125):
+// TestInitializeProject pins the userspace-first model:
 // a plain `infer init` seeds the full baseline into ~/.infer/ and writes
 // nothing into the project. A project override layer is created only by
 // explicit `infer config set --project` writes, never by init.
@@ -165,11 +165,11 @@ func TestVendoredShortcutsDelegateToCommands(t *testing.T) {
 	}
 }
 
-// TestSCMShortcutsSpellFullGHCommands pins issue #1328: a subcommand with its
-// own command resolves to command+args verbatim, while one without gets its
-// NAME appended to the parent's args - so each /scm subcommand must declare
-// command: gh and spell out the real `gh issue ...` invocation, or the invoked
-// names ("issues", "issue") would duplicate into invalid gh commands.
+// TestSCMShortcutsSpellFullGHCommands pins the shortcut resolution: a
+// subcommand with its own command resolves to command+args verbatim, while
+// one without gets its NAME appended to the parent's args - so each /scm
+// subcommand must declare command: gh and spell out the real `gh issue ...`
+// invocation, or the invoked names would duplicate into invalid gh commands.
 func TestSCMShortcutsSpellFullGHCommands(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "scm.yaml")
 	require.NoError(t, createSCMShortcutsFile(path))

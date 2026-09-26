@@ -557,7 +557,7 @@ func getChatEventTestCases() []chatHandlerTestCase {
 			expectedCmd: true,
 		},
 		{
-			// Note: post-refactor (#529) this dispatch case now delegates to
+			// Note: this dispatch case now delegates to
 			// ChatCompletionRunner.HandleChatChunk via the fake runner, which
 			// always returns a non-nil cmd. The "no session returns nil" path
 			// is tested directly in chatcompletion/runner_test.go.
@@ -628,7 +628,7 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 			expectedCmd: true,
 		},
 		{
-			// Note: post-refactor (#529) this dispatch case delegates to
+			// Note: this dispatch case delegates to
 			// ToolExecutionCoordinator.HandleToolExecutionProgress via the
 			// fake, which always returns a non-nil cmd. The "unknown status
 			// returns nil" path is tested directly in

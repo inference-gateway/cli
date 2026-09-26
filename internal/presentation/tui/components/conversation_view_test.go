@@ -410,7 +410,7 @@ func TestConversationView_StreamingLifecycle(t *testing.T) {
 	}
 }
 
-// TestConversationView_StreamingRenderCoalesced pins the issue #888 fix: streamed
+// TestConversationView_StreamingRenderCoalesced pins the coalescing contract: streamed
 // deltas must not each trigger a full viewport rebuild. Instead they mark the view
 // dirty and a single coalescing tick performs one rebuild, re-arming until the
 // stream ends. Per-token rebuilds are what scrambled the screen mid-generation.

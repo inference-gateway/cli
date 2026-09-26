@@ -422,10 +422,10 @@ func TestSyncRunParsesNonStreamingResponse(t *testing.T) {
 	require.Equal(t, "openai", reqs[0].Provider)
 }
 
-// TestSyncAndStreamAccumulateIdenticalSessionTokens is the acceptance check for
-// issue #835: both the sync (headless) and streaming (chat) paths funnel through
-// the same storeIterationMetrics accumulator, so for an identical scenario the
-// session totals in the shared conversation repository must match.
+// TestSyncAndStreamAccumulateIdenticalSessionTokens is the acceptance check:
+// both the sync (headless) and streaming (chat) paths funnel through the same
+// storeIterationMetrics accumulator, so for an identical scenario the session
+// totals in the shared conversation repository must match.
 func TestSyncAndStreamAccumulateIdenticalSessionTokens(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 	defer cancel()

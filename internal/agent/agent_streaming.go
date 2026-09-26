@@ -193,10 +193,8 @@ func (a *EventDrivenAgent) outboundConversation() []sdk.Message {
 }
 
 // recoverPanic converts a panic on an agent goroutine into the terminal
-// stream-error path (ChatErrorEvent + StateError), so headless consumers get
-// an agent_error line instead of a process crash (#1042). Deferred at every
-// goroutine root that runs task code: the event loop, streaming, and tool
-// execution.
+// stream-error path (ChatErrorEvent + StateError) so headless consumers get an
+// agent_error line instead of a process crash. Deferred at every goroutine root.
 func (a *EventDrivenAgent) recoverPanic() {
 	if r := recover(); r != nil {
 		logger.Error("agent panic recovered", "panic", r, "stack", string(debug.Stack()))

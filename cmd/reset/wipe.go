@@ -18,15 +18,9 @@ import (
 
 // wiper removes all local runtime state so the agent starts as if freshly
 // installed: conversations, plans, scratch dirs, artifacts, history, backups,
-// exports, logs, telemetry, scheduled jobs, pid/lock files, and the userspace
-// tmp tree (generated speech, retained recordings, channel media). This is
-// machine-wide, not project-scoped - it clears the runtime dirs of every project
-// under ~/.infer/projects, which is why the preview lists them all.
-// Configuration (config.yaml, custom shortcuts, skills, projects.yaml) and the
-// insights reports are preserved. Remote stores (postgres, redis, d1) are
-// skipped. Dirs explicitly overridden outside ~/.infer (e.g.
-// text_to_speech.output_dir pointed at /data/tts) are outside the userspace
-// layer and are left alone.
+// exports, logs, telemetry, scheduled jobs, pid/lock files and the userspace
+// tmp tree - machine-wide, across every project under ~/.infer/projects.
+// Config, shortcuts, skills, insights and remote stores are preserved; dirs outside ~/.infer are left alone.
 type wiper struct {
 	cfg   *config.Config
 	store storage.ConversationStorage
@@ -110,12 +104,9 @@ func (w *wiper) resolve() targets {
 
 // stale reports whether a project slug names a working directory that no longer
 // exists, in which case the whole runtime dir goes rather than just its
-// subdirectories.
-//
-// The slug is the cwd with every separator replaced by "-" (config.projectRuntimeSlug),
-// which is ambiguous: /a/my-project and /a/my/project produce the same slug. A
-// wrong guess would delete a live project's state, so a slug counts as stale
-// only when NO reading of it exists on disk.
+// subdirectories. The slug is the cwd with every separator replaced by "-"
+// (config.projectRuntimeSlug), which is ambiguous - /a/my-project and
+// /a/my/project collide - so a slug is stale only when NO reading of it exists on disk.
 func stale(slug string) bool {
 	if !strings.HasPrefix(slug, "-") {
 		return false // "workspace", "default": not an absolute path, never stale

@@ -36,7 +36,7 @@ func TestApplySidecarEnv_StrictScalars(t *testing.T) {
 	}
 }
 
-// TestInitConfigMCPEnvOverrides pins issue #1295: INFER_MCP_* env vars must
+// TestInitConfigMCPEnvOverrides pins that INFER_MCP_* env vars must
 // override the mcp.yaml sidecar (or its defaults when the file is missing)
 // instead of being dropped when the sidecar load replaces cfg.MCP wholesale.
 func TestInitConfigMCPEnvOverrides(t *testing.T) {

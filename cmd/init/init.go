@@ -466,8 +466,7 @@ func createPromptsConfigFile(path string) error {
 
 // createRemindersConfigFile writes a fresh reminders.yaml seeded from the
 // in-code defaults (disabled, one todo-hygiene reminder). Reminders attach to
-// the agent-loop hook-point catalog; the companion executable hooks (#270) get
-// their own hooks.yaml.
+// the agent-loop hook-point catalog; executable command hooks live in hooks.yaml.
 func createRemindersConfigFile(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
@@ -598,12 +597,10 @@ func createSkillsDir(dir string) error {
 }
 
 // createMemoryConfigFile seeds ~/.infer/memory.yaml from the in-code defaults
-// (enabled by default) when it does not already exist, returning whether a new file was
+// (enabled by default) when it does not exist, returning whether a new file was
 // written. Memory is global, so its config lives in the home directory and is
-// never clobbered by re-running init - that would otherwise reset a user's
-// enabled memory from an unrelated project init. The memory store itself
-// (MEMORY.md plus per-fact files) is created lazily by the Memory tool on first
-// write, so init only seeds the config knob - it does not touch the memory dir.
+// never clobbered by re-running init - that would reset a user's enabled memory.
+// The memory store itself is created lazily by the Memory tool on first write.
 func createMemoryConfigFile(path string) (bool, error) {
 	if _, err := os.Stat(path); err == nil {
 		return false, nil

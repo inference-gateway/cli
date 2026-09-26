@@ -90,10 +90,9 @@ type Agent struct {
 
 // sessionCancel bundles the two cancellation primitives for a single
 // RunWithStream session: a context.CancelFunc that aborts in-flight
-// streaming/tool/approval work, and a broadcast channel that wakes the
-// agent's main event loop and any polling goroutines. sync.Once makes
-// Cancel safe to call repeatedly so the UI can fire it on every Esc
-// press without panicking on double-close.
+// streaming/tool/approval work, and a broadcast channel that wakes the agent's
+// main event loop and any polling goroutines. sync.Once makes Cancel safe to
+// call repeatedly so the UI can fire it on every Esc press without double-close.
 type sessionCancel struct {
 	cancelCtx  context.CancelFunc
 	cancelChan chan struct{}
@@ -122,12 +121,11 @@ func newEventPublisher(requestID string, chatEvents chan<- agentdomain.ChatEvent
 	}
 }
 
-// chatQuestionBroker implements agentdomain.UserQuestionBroker for the chat executor.
-// It publishes a UserQuestionRequestedEvent onto the per-request chatEvents
-// channel and blocks on the response channel, mirroring requestToolApproval.
-// The agent loop is only blocked in the tool's Execute goroutine; the TUI keeps
-// running and the answers arrive via the UI. When the user dismisses the form
-// the UI closes the channel (ok=false); session cancellation unblocks ctx.Done.
+// chatQuestionBroker implements agentdomain.UserQuestionBroker for the chat
+// executor: it publishes a UserQuestionRequestedEvent onto the per-request
+// chatEvents channel and blocks on the response channel, mirroring
+// requestToolApproval. Only the tool's Execute goroutine blocks; the TUI keeps
+// running. Dismissing the form closes the channel (ok=false); ctx.Done unblocks.
 type chatQuestionBroker struct {
 	publisher  *eventPublisher
 	toolCallID string
@@ -450,10 +448,9 @@ func (s *Agent) GetReasoningEffort() string {
 
 // reasoningEffortOptionFor maps the current effort level onto the optional
 // chat-completions request field. Anthropic models get the raw value - the
-// AnthropicMessages adapter reads it back from the options and translates it
-// to output_config.effort (including minimal -> low). Every other provider
-// clamps the Anthropic-only xhigh/max levels to high, the chat-completions
-// ceiling.
+// AnthropicMessages adapter translates it to output_config.effort (including
+// minimal -> low). Every other provider clamps the Anthropic-only xhigh/max
+// levels to high, the chat-completions ceiling.
 func (s *Agent) reasoningEffortOptionFor(model string) *sdk.CreateChatCompletionRequestReasoningEffort {
 	effort := s.GetReasoningEffort()
 	if effort == "" {
@@ -498,10 +495,6 @@ type turnOutput struct {
 // client and returns the assembled output.
 type turnExec func(ctx context.Context, client sdk.Client, provider sdk.Provider, model string, messages []sdk.Message) (turnOutput, error)
 
-// runTurn wraps a single model turn with the shared preamble/postamble - message
-// prep, timeout + span, client + tool construction, metrics, response assembly -
-// and delegates the model call itself to exec. Run and RunStreaming differ only
-// in exec (and whether streaming usage is requested).
 // advertisedTools returns the tool definitions to send with a request. All
 // mid-session modes advertise the same full list so a mode switch never
 // invalidates the provider's prompt cache; restrictions apply at execution
@@ -517,6 +510,10 @@ func (s *Agent) advertisedTools() []sdk.ChatCompletionTool {
 	return s.toolService.ListTools()
 }
 
+// runTurn wraps a single model turn with the shared preamble/postamble - message
+// prep, timeout + span, client + tool construction, metrics, response assembly -
+// and delegates the model call itself to exec. Run and RunStreaming differ only
+// in exec (and whether streaming usage is requested).
 func (s *Agent) runTurn(ctx context.Context, req *agentdomain.AgentRequest, stream bool, exec turnExec) (*agentdomain.ChatSyncResponse, error) {
 	if err := s.validateRequest(req); err != nil {
 		return nil, err
@@ -603,12 +600,10 @@ func (s *Agent) Run(ctx context.Context, req *agentdomain.AgentRequest) (*agentd
 	})
 }
 
-// RunStreaming executes a single model turn with streaming, invoking onDelta for
-// each content/reasoning/tool-call delta as it arrives, and returns the same
-// assembled ChatSyncResponse as Run. It is the streaming counterpart of Run for
-// callers that own their own agentic loop (the headless AG-UI agent) and want
-// token-level output without adopting the full EventDrivenAgent. onDelta may be
-// nil.
+// RunStreaming executes a single model turn with streaming, invoking onDelta
+// for each content/reasoning/tool-call delta as it arrives, and returns the
+// same assembled ChatSyncResponse as Run: the streaming counterpart for callers
+// that own their own agentic loop (the headless AG-UI agent). onDelta may be nil.
 func (s *Agent) RunStreaming(
 	ctx context.Context,
 	req *agentdomain.AgentRequest,
@@ -746,20 +741,10 @@ func extractFirstChoice(response *sdk.CreateChatCompletionResponse) (string, str
 }
 
 // ensureConversationIntegrity enforces the OpenAI tool_call/response
-// invariant by inserting a synthetic Tool-role message for every
-// orphan tool_call_id in the current conversation. Returns the number
-// of synthetics inserted.
-//
-// persistSynthetics:
-//   - true at the drain-time chokepoint (real corruption point - JSONL
-//     append order matches logical order, so repo state stays valid).
-//   - false at defensive call sites (e.g. before sending to the
-//     gateway) where the orphan may have come from a pre-existing
-//     disk state we cannot retroactively repair without rewriting the
-//     JSONL.
-//
-// Idempotent: re-running on an already-repaired conversation is a
-// no-op (returns 0).
+// invariant by inserting a synthetic Tool-role message for every orphan
+// tool_call_id, returning the number inserted; idempotent. persistSynthetics
+// is true at the drain-time chokepoint (the real corruption point), false at
+// defensive call sites where the orphan may pre-exist on disk.
 func (s *Agent) ensureConversationIntegrity(
 	conversation *[]sdk.Message,
 	publisher *eventPublisher,
@@ -938,13 +923,11 @@ func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 	return chatEvents, nil
 }
 
-// CancelRequest cancels an active request. Safe to call multiple times for
-// the same requestID - subsequent calls are no-ops via sync.Once on the
-// underlying sessionCancel. Returns nil even when the request is unknown,
-// so the UI can fire it on every Esc press without surfacing spurious
-// errors after the session has already torn down. The agent loop publishes
-// ChatCompleteEvent{Cancelled:true} as the single cancel-completion signal;
-// no separate CancelledEvent broadcast is needed.
+// CancelRequest cancels an active request. Safe to call repeatedly - no-ops
+// via sync.Once on the underlying sessionCancel - and returns nil even for an
+// unknown requestID, so the UI can fire it on every Esc press without spurious
+// errors after teardown. The agent loop publishes ChatCompleteEvent{Cancelled:true}
+// as the single cancel-completion signal.
 func (s *Agent) CancelRequest(requestID string) error {
 	s.sessionMux.RLock()
 	sc, sessionExists := s.activeSessions[requestID]
@@ -983,7 +966,6 @@ func (s *Agent) GetMetrics(requestID string) *agentdomain.ChatMetrics {
 	return nil
 }
 
-// storeIterationMetricsInput holds the data needed for token usage polyfill calculation
 // cacheCreationTokenSource is implemented by clients that report Anthropic
 // cache-creation (cache-write) tokens out of band, since the OpenAI-shaped
 // usage struct has no field for them. The /v1/messages adapter
@@ -993,6 +975,7 @@ type cacheCreationTokenSource interface {
 	TakeCacheCreationTokens() int
 }
 
+// storeIterationMetricsInput holds the data needed for token usage polyfill calculation.
 type storeIterationMetricsInput struct {
 	inputMessages   []sdk.Message
 	outputContent   string
@@ -1004,7 +987,7 @@ type storeIterationMetricsInput struct {
 // If the provider doesn't return usage metrics, it uses the tokenizer polyfill to estimate them.
 // It returns the effective (possibly polyfilled) usage that was accumulated, or nil when there
 // was nothing to record. Both the streaming path and the sync Run path funnel through here so
-// chat and headless token accounting stay identical (issue #835).
+// chat and headless token accounting stay identical.
 func (s *Agent) storeIterationMetrics(
 	ctx context.Context,
 	requestID string,
@@ -1801,7 +1784,7 @@ func (s *Agent) requestJudgeApproval(
 
 	// The tool-result reason names the judge so the driver and the user see who decided.
 	// Rejections carry the escalation hint so the driver learns it can ask the
-	// user to override (issue #1156).
+	// user to override.
 	if verdict.Approved() {
 		return true, "", nil
 	}

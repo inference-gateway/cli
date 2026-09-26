@@ -98,20 +98,14 @@ This is an automated check, not a message from the user. Your previous response 
 const defaultRepeatedFailureThreshold = 3
 
 // defaultStalledTodosThreshold caps the consecutive no-tool-call strikes
-// before the on_stalled_todos trigger stops firing (3-strike cap from #946).
+// before the on_stalled_todos trigger stops firing (three-strike cap).
 const defaultStalledTodosThreshold = 3
 
 // ReminderConfig is one named reminder: text injected at a pre-defined hook
-// point, gated by a trigger.
-//
-// Guidance is consulted only by the on_mode_change trigger: it maps a mode key
-// ("standard"/"plan"/"auto", the same keys as tools.bash.mode.<key>) to the
-// text substituted for the {guidance} placeholder when that mode is entered.
-// Since the mode-change reminder is the sole carrier of per-mode instructions
-// (the system prompt stays byte-stable across mode switches for the KV cache),
-// the default texts below carry the full mode behaviour the old per-mode
-// system prompts used to hold. Keys the user omits keep their built-in
-// defaults (per-key merge with effective()).
+// point, gated by a trigger. Guidance is consulted only by the on_mode_change
+// trigger: it maps a mode key (the keys of tools.bash.mode.<key>) to the text
+// substituted for the {guidance} placeholder when that mode is entered. Keys
+// the user omits keep their built-in defaults (per-key merge with effective()).
 type ReminderConfig struct {
 	Name      string                `yaml:"name" mapstructure:"name"`
 	Text      string                `yaml:"text" mapstructure:"text"`
@@ -128,14 +122,10 @@ type ReminderConfig struct {
 const ReminderWhenTodosEmpty = "todos_empty"
 
 // RemindersConfig is the content of reminders.yaml: the master switch plus the
-// list of named reminders. Each reminder attaches to a pre-defined agent-loop
-// hook point (agentdomain.HookPoint) with a trigger. RemindersConfig implements
-// agentdomain.SystemReminderProvider. The companion executable hooks (#270) get their
-// own hooks.yaml so "inject text" and "run code" stay separate concerns.
-//
-// When Merge is true, the file's reminders are merged onto the built-in defaults
-// by name: a supplied entry with a built-in name overrides that entry; new names
-// are appended. When false (default), the file's reminders fully replace defaults.
+// list of named reminders, each attached to a pre-defined agent-loop hook point
+// with a trigger (agentdomain.SystemReminderProvider); executable command hooks
+// get their own hooks.yaml so "inject text" and "run code" stay separate. With
+// Merge=true the entries merge onto the built-in defaults by name, else replace.
 type RemindersConfig struct {
 	Enabled   bool             `yaml:"enabled" mapstructure:"enabled"`
 	Merge     bool             `yaml:"merge,omitempty" mapstructure:"merge"`
@@ -149,12 +139,10 @@ The agent mode has changed mid-session from {prev_mode} to {new_mode}. {guidance
 </system-reminder>`
 
 // defaultModeChangeGuidance is the built-in {guidance} text per target-mode
-// key. Mode adjustments - the old per-mode system prompts (restrictions,
-// workflow, tool set, plan format, destructive-action policy) - live here so
-// users override them in one place: the reminder's guidance map in
-// reminders.yaml. prompts.yaml's agent.mode_adjustment_plan/_auto act as
-// per-mode overrides layered through ReminderQuery.ModeGuidance when set
-// (see resolveModeChangeText).
+// key. The old per-mode system prompts (restrictions, workflow, tool set,
+// plan format, destructive-action policy) live here so users override them in
+// one place: the guidance map in reminders.yaml. prompts.yaml's
+// agent.mode_adjustment_plan/_auto act as overrides on top (resolveModeChangeText).
 var defaultModeChangeGuidance = map[string]string{
 	"plan": "You are now in Plan Mode: a read-only mode. Analyze the user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them. " +
 		"TOOL SET: only Read, Grep, Tree, TodoWrite, AskUserQuestion, RequestPlanApproval, A2A_QueryAgent, and Wait remain executable - " +

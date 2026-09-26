@@ -26,9 +26,7 @@ import (
 
 // MCP tools are not built here. The MCP context (internal/mcp) wraps each
 // server's tools as agentdomain.Tool values and they arrive through
-// RegisterTools: from the liveness loop's status events in chat, and from a
-// one-shot discovery in headless. Construction never blocks on MCP I/O
-// (issue #523).
+// RegisterTools; construction never blocks on MCP I/O.
 
 type Registry struct {
 	config          *config.Config

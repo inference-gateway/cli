@@ -167,12 +167,6 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// configWriteTarget returns a fresh viper bound to the file `config set` should
-// write, plus that path. Writes target the userspace baseline
-// (~/.infer/config.yaml) by default; --project (toProject) writes a sparse
-// override into the project .infer/config.yaml. Either way the existing file is
-// pre-loaded into a fresh viper so only the single key being set is added - the
-// merged/effective config is never written back, keeping both files sparse.
 // resolveConfigKeyKind walks the Config struct by mapstructure tag to find the
 // kind of the field a dotted key points at. Returns false for unknown keys and
 // for keys whose section is excluded from config.yaml (mapstructure:"-").

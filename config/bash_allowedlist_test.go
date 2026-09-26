@@ -789,7 +789,7 @@ func TestBashCommandRejectionHint(t *testing.T) {
 }
 
 // TestBashAllowFor_ModeBuckets pins the single AgentMode -> allow-list bucket
-// mapping (#1149): each mode sees the mode.all baseline plus exactly its own
+// mapping: each mode sees the mode.all baseline plus exactly its own
 // bucket, and reports the expected canonical mode key.
 func TestBashAllowFor_ModeBuckets(t *testing.T) {
 	cfg := &Config{Tools: ToolsConfig{Bash: BashToolConfig{Mode: BashModesConfig{

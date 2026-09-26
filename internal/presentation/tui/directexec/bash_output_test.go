@@ -16,8 +16,8 @@ import (
 )
 
 // TestHandleBashCommand_OutputVisibleToLLM guards the "LLM can't see !command
-// output" fix: the user-bash- tool pair is dropped from LLM history (issue
-// #474), so the output must also land in a Hidden user entry that
+// output" fix: the user-bash tool-call pair is dropped from LLM history, so
+// the output must also land in a Hidden user entry that
 // BuildAgentMessagesFromEntries keeps.
 func TestHandleBashCommand_OutputVisibleToLLM(t *testing.T) {
 	toolSvc := &agentdomainmocks.FakeToolService{}

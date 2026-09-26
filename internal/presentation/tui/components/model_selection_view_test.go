@@ -68,8 +68,8 @@ func TestModelSelector_FilterBuckets(t *testing.T) {
 	assert.ElementsMatch(t, []string{"subscription-model"}, filteredFor(ModelViewSubscription, models))
 }
 
-// TestModelSelector_SubscriptionModelExcludedFromFree is the core bug fix for
-// issue #590: a subscription model is $0/$0 but must never be shown under the
+// TestModelSelector_SubscriptionModelExcludedFromFree pins the pricing filter:
+// a subscription model is $0/$0 but must never be shown under the
 // Free tab.
 func TestModelSelector_SubscriptionModelExcludedFromFree(t *testing.T) {
 	models := []string{"subscription-model"}

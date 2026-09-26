@@ -94,8 +94,7 @@ func fetchAgentCatalog(ctx context.Context, catalogURL string) []agentCatalogEnt
 // returns defaults derived the same way the registry site renders its install
 // command: URL from spec.server, image from spec.deployment with a ghcr.io
 // fallback for inference-gateway-sourced agents, run enabled only when an
-// image exists. Nil when the catalog is unreachable or does not list the name,
-// leaving built-in defaults and the caller's error path in charge.
+// image exists. Nil when the catalog is unreachable or lacks the name.
 func resolveCatalogAgent(ctx context.Context, name string) *config.AgentDefaults {
 	return resolveCatalogAgentFrom(ctx, agentsCatalogURL(), name)
 }

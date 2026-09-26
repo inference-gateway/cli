@@ -377,7 +377,7 @@ func (t *DiffViewer) HintText() string {
 }
 
 // FooterBar renders the per-mode keybinding legend shown beneath the diff pane,
-// greedy-wrapped to width so no binding is truncated (issue #875).
+// greedy-wrapped to width so no binding is truncated.
 func (t *DiffViewer) FooterBar(width int) string {
 	if width <= 0 {
 		return ""

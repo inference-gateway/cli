@@ -14,11 +14,7 @@ import (
 // PostgreSQL server. It is skipped unless INFER_TEST_POSTGRES_DSN is set (a
 // space-separated keyword DSN, e.g.
 // "host=localhost port=5432 user=postgres password=postgres dbname=infer_test sslmode=disable").
-//
-// This is the postgres backend's first happy-path coverage — the bug it now
-// exercises (list queries referencing a non-existent "summary" column) shipped
-// undetected because postgres had no test (see issue #839). CI wires this via a
-// postgres service container.
+// CI wires the DSN via a postgres service container.
 func TestPostgresStorage_Conformance(t *testing.T) {
 	dsn := os.Getenv("INFER_TEST_POSTGRES_DSN")
 	if dsn == "" {

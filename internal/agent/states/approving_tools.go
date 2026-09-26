@@ -258,17 +258,14 @@ func (s *ApprovingToolsState) flushLocked(round *toolRound) {
 // remaining results, and signals the state machine. Results are flushed
 // incrementally by completeSlot as they complete; this final drain covers
 // gaps left by cancellation.
-//
-// A user rejection ends the turn: HasToolResults is cleared so canComplete
-// lets PostToolExecution transition to Completing instead of streaming
-// another LLM turn, returning control to the user (issue #786). This is the
-// only place a rejection ends the turn; the no-approval route in
-// Agent.executeToolCallsParallel never sees rejections.
 func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 	round.wg.Wait()
 	s.flushReady(round)
 
 	s.ctx.AgentCtx.LastToolFailed = AnyToolFailed(*s.ctx.ToolResults)
+	// A user rejection ends the turn: clearing HasToolResults lets canComplete
+	// route to Completing instead of streaming another LLM turn. This is the
+	// only place a rejection ends the turn; the no-approval route never sees them.
 	if AnyToolRejected(*s.ctx.ToolResults) {
 		s.ctx.AgentCtx.HasToolResults = false
 	}

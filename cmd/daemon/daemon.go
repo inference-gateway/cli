@@ -190,8 +190,6 @@ func RunDaemonCommand(cfg *config.Config) error {
 	return nil
 }
 
-// startScheduler initialises the schedule scheduler service when the schedule
-// tool is enabled. Returns nil scheduler when disabled.
 // acquireDaemonLock enforces one daemon per machine via a PID file in
 // ~/.infer/run/daemon.pid (next to gateway.pid). Stale files (dead PID) are
 // overwritten. The returned release func removes the file.
@@ -216,6 +214,8 @@ func acquireDaemonLock() (func(), error) {
 	return func() { _ = os.Remove(pidPath) }, nil
 }
 
+// startScheduler initialises the schedule scheduler service when the schedule
+// tool is enabled. Returns nil scheduler when disabled.
 func startScheduler(ctx context.Context, cm *telegram.ChannelManagerService, cfg *config.Config) (*scheduler.Service, error) {
 	if !cfg.Tools.Schedule.Enabled {
 		return nil, nil

@@ -541,7 +541,7 @@ func (h *ChatHandler) HandleComputerUseResumedEvent(msg agentdomain.ComputerUseR
 }
 
 // SetBashDetachChan satisfies the legacy tui.ChatHandler interface by
-// forwarding to DirectExecutionService (the actual owner post-#529).
+// forwarding to DirectExecutionService.
 func (h *ChatHandler) SetBashDetachChan(ch chan<- struct{}) {
 	h.directExec.SetBashDetachChan(ch)
 }
@@ -559,7 +559,7 @@ func (h *ChatHandler) ClearBashDetachChan() {
 }
 
 // GetActiveToolCallID satisfies the legacy tui.ChatHandler interface by
-// forwarding to ToolExecutionCoordinator (the actual owner post-#529).
+// forwarding to ToolExecutionCoordinator.
 func (h *ChatHandler) GetActiveToolCallID() string {
 	return h.toolCoordinator.GetActiveToolCallID()
 }

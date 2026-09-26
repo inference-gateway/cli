@@ -468,7 +468,7 @@ func TestBuildConversationShowJSON_OmitsEmptyOptionalFields(t *testing.T) {
 // A tool entry's content is a render for humans and the LLM, so a consumer that
 // rebuilds a transcript cannot recover success from it - "error" in a commit
 // subject reads the same as a real failure. The structured result must survive
-// the projection. Regression test for inference-gateway/desktop#289.
+// the projection.
 func TestBuildConversationShowJSON_CarriesStructuredToolResult(t *testing.T) {
 	toolCallID := "call_x"
 	entry := convdomain.ConversationEntry{
