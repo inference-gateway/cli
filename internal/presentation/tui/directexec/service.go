@@ -1,9 +1,3 @@
-// Package directexec owns the UI side of user-typed direct-execution
-// commands: `!command` (bash) and `!!Tool(...)` (tool). It synthesizes the
-// conversation entries that wrap each invocation, spawns the goroutine that
-// runs the tool, owns the per-invocation event channel that pipes
-// progress/output back to the Bubble Tea loop, and acts as the
-// BashDetachChannelHolder the agent core looks up via context.
 package directexec
 
 import (

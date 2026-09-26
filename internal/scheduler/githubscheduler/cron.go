@@ -1,7 +1,3 @@
-// Package githubscheduler implements the "github" scheduling backend: each
-// scheduled job is materialized as a GitHub Actions scheduled workflow in a
-// user-configured repository, deployed via pull requests. GitHub runs the
-// jobs; nothing executes locally except the optional artifact poller.
 package githubscheduler
 
 import (

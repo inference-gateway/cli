@@ -1,6 +1,3 @@
-// Package provisioner rents on-demand GPU instances running llama.cpp and
-// exposes them as a llamacpp provider endpoint (issue #939). RunPod is the
-// first driver; the surface is plain CRUD on instances.
 package provisioner
 
 import (

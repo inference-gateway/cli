@@ -1,9 +1,3 @@
-// Package githubissues provides cached, gh-CLI-backed access to the current
-// repository's GitHub issues for the chat input's "#" autocomplete and "#N"
-// inline expansion features. It shells out to the user's existing gh
-// installation so authentication is inherited automatically; when gh is
-// missing, the repo has no remote, or auth has expired, the service returns
-// empty results without error so the chat features become silent no-ops.
 package issues
 
 import (

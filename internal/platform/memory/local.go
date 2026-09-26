@@ -1,8 +1,3 @@
-// Package memory provides pluggable sync backends for the agent's persistent
-// memory directory (the fact-files + MEMORY.md index shipped in #670). The
-// backend is selected by memory.backend.type: "local" (default) is a no-op;
-// "git" clones/pulls the directory on run start and commits/pushes it back when
-// a fact changes. The factory here mirrors internal/platform/storage/factory.go.
 package memory
 
 import "context"

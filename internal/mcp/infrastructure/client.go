@@ -1,7 +1,3 @@
-// Package infrastructure is the MCP context's adapter to MCP servers: a
-// stateless MCP 2026-07-28 client over Streamable HTTP. It is the
-// anti-corruption layer for the wire model - JSON-RPC envelopes, _meta and
-// content blocks stop here, and only mcpdomain values leave.
 package infrastructure
 
 import (

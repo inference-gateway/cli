@@ -1,7 +1,3 @@
-// Package clipboard provides cgo-free clipboard access. Text goes through
-// robotgo's exec-based clipboard subpackage (pbcopy/pbpaste, xclip/xsel,
-// Windows API); image reads shell out to the platform's clipboard tool
-// (osascript, wl-paste/xclip, PowerShell). Image writes are not supported.
 package clipboard
 
 import (

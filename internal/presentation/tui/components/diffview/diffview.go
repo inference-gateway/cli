@@ -1,20 +1,3 @@
-// Package diffview renders unified or side-by-side file diffs to a string of
-// ANSI-styled output, using go-udiff for the underlying diff algorithm and
-// chroma for in-line syntax highlighting.
-//
-// The structure (file/style/split/builder) mirrors charmbracelet/crush's
-// internal/ui/diffview package, adapted to lipgloss v1 and the existing infer
-// CLI styling abstractions.
-//
-// Typical use:
-//
-//	out := diffview.New().
-//	    Before(path, oldContent).
-//	    After(path, newContent).
-//	    FileName(path).
-//	    Width(termWidth).
-//	    Style(diffview.DefaultDarkStyle()).
-//	    String()
 package diffview
 
 import (

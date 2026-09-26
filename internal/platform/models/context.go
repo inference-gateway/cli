@@ -1,4 +1,3 @@
-// Package models provides utilities for working with LLM models.
 package models
 
 import (

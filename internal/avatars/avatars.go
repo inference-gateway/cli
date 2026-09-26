@@ -1,9 +1,3 @@
-// Package avatars manages the avatar library: ~/.infer/avatars/<name>/, one
-// folder per avatar holding one or more portrait images of the same person
-// (e.g. shots from different angles). The TextToVideo tool renders
-// lip-synced clips from an avatar's primary image and sends every image as a
-// reference in prompt renders; `infer avatars` creates, lists and deletes
-// them.
 package avatars
 
 import (

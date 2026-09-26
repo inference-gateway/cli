@@ -1,9 +1,3 @@
-// Package render formats agentdomain.ChatEvent streams for the headless CLI.
-//
-// Each format function consumes the event channel from
-// AgentService.RunWithStream and writes formatted output to an io.Writer.
-// All renderers drain the channel until it closes (the engine closes it when
-// the run ends), so the producer is never left blocked mid-run.
 package render
 
 import (

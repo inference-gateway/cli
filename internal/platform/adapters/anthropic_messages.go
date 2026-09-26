@@ -1,5 +1,3 @@
-// Package adapters bridges external SDK surfaces to the shapes the agent
-// consumes.
 package adapters
 
 import (

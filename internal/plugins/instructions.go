@@ -1,6 +1,3 @@
-// Package plugins implements installation and runtime surfacing of Claude
-// Code-format plugins: SKILL.md skills plus an optional AGENTS.md instruction
-// ruleset. Plugin code (hooks/, commands/) is never executed.
 package plugins
 
 import (

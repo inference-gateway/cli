@@ -1,12 +1,3 @@
-// Package jobs provides the Supervisor: the single, long-lived owner of every
-// background-work monitor goroutine in an agent session. It is the unified
-// replacement for the per-request A2ATaskPoller and SubagentPoller and the
-// per-shell monitor that used to live in BackgroundShellService. Submit spawns
-// one monitor goroutine per job at creation (no discovery ticker), runs the
-// shared finish-once logic, and tracks live and recently-finished jobs so the
-// task view and status line can report them. It lives in a services subpackage
-// (not top-level services) so the tools package can submit jobs to it without an
-// import cycle - it depends only on domain.
 package jobs
 
 import (

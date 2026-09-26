@@ -1,9 +1,5 @@
 //go:build e2e
 
-// Package e2e runs the real `infer` binary as a subprocess against an
-// in-test mock inference-gateway (internal/mockgateway), asserting on the
-// headless JSON output contract, the piped-chat streaming path, tool side
-// effects on disk, and the exact requests received by the gateway.
 package e2e
 
 import (

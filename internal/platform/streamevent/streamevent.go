@@ -1,25 +1,3 @@
-// Package streamevent emits diagnostic JSON-line events on stdout so
-// observers (the inference-gateway/infer-action runner, log scrapers,
-// human eyeballs in CI) can see internal agent lifecycle moments that
-// are otherwise silent - system reminder injections, conversation
-// compaction triggers, and similar checkpoints.
-//
-// Events are HIDDEN BY DEFAULT and only emitted when the global logger
-// is configured at debug level (via `--verbose`, `logging.debug=true`,
-// or env var `INFER_LOGGING_DEBUG=true`). This keeps normal `infer
-// agent` runs quiet on stdout while letting operators turn on the
-// firehose when they need to diagnose.
-//
-// Two shapes are emitted:
-//
-//   - EmitDebugMessage mirrors a real conversation message
-//     (`role`, `content`) with `hidden: true` and a `kind` discriminator.
-//     Use this when surfacing an internally-injected message the LLM
-//     received - e.g. a hidden user-role system-reminder turn.
-//
-//   - EmitDebugEvent emits an operational lifecycle event keyed by
-//     `type`, not `role`. Use this for things that aren't conversation
-//     turns at all - e.g. "auto-compaction crossed the token threshold".
 package streamevent
 
 import (

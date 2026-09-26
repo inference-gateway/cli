@@ -1,6 +1,3 @@
-// Command mcp-server is a demo MCP server built on the official Go SDK
-// (github.com/modelcontextprotocol/go-sdk). Its stateless Streamable HTTP
-// handler speaks MCP 2026-07-28, the only revision infer supports.
 package main
 
 import (

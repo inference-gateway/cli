@@ -1,7 +1,3 @@
-// Package integration exercises the agent end-to-end against a mock
-// inference-gateway over real HTTP: real SDK client, real SSE parsing and
-// tool-call accumulation, real state machine and tool execution - no
-// interface fakes on the LLM path (issue #815).
 package integration
 
 import (

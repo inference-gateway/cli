@@ -1,10 +1,3 @@
-// Package audio provides CGO-free microphone capture, audio-format conversion,
-// and speech-to-text. Capture and conversion shell out to ffmpeg (with
-// arecord/sox fallbacks on Linux) to produce 16kHz mono WAV; transcription
-// shells out to a local whisper.cpp binary (whisper-cli / whisper-cpp),
-// downloading binaries and GGML models on demand. Gated by
-// config.SpeechToTextConfig and used by the chat /voice shortcut and Telegram
-// voice-message transcription.
 package audio
 
 import (

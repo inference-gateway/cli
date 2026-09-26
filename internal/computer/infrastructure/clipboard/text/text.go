@@ -1,7 +1,3 @@
-// Package text provides a CGO-free, cross-platform clipboard text writer that
-// shells out to the platform's native clipboard utility (pbcopy, wl-copy,
-// xclip, xsel, or clip). It is intentionally separate from the image-focused
-// internal/clipboard package, which relies on CGO and is only built on macOS.
 package text
 
 import (

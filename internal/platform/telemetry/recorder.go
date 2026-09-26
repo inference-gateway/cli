@@ -1,19 +1,3 @@
-// Package telemetry records and exports the CLI's OpenTelemetry metrics and
-// traces.
-//
-// Metrics: tool outcomes, token usage, and sessions, recorded into OTel SDK
-// instruments named per the GenAI semantic conventions and infer-action's
-// exporter, so they line up with the gateway's OTLP ingest and existing
-// dashboards.
-//
-// Traces: one root span per session, child spans for each LLM turn and each
-// tool call. No prompt/response content is recorded.
-//
-// Both signals share the same resource and OTLP endpoint/headers config.
-// Local file export is always attempted; OTLP/HTTP export is opt-in via an
-// endpoint (config or OTEL_EXPORTER_OTLP_ENDPOINT). Metrics use delta
-// temporality (required by the gateway ingest, and what makes the local
-// files trivially summable by `infer stats`).
 package telemetry
 
 import (
