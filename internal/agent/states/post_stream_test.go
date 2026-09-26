@@ -11,7 +11,8 @@ import (
 )
 
 // TestPostStreamState_Handle covers the routing after a completed stream:
-// queued messages win over everything, tool calls route to EvaluatingTools,
+// tool calls route to EvaluatingTools even with messages queued (the queue
+// drains after the tools run), queued messages otherwise return to CheckingQueue,
 // no tools after at least one turn completes (publishing the final chat event
 // and clearing HasToolResults), and turn zero continues the loop.
 func TestPostStreamState_Handle(t *testing.T) {
@@ -33,6 +34,15 @@ func TestPostStreamState_Handle(t *testing.T) {
 		{
 			name:            "tool calls route to evaluating tools",
 			setup:           func(f *stateFixture) { *f.ctx.CurrentToolCalls = makeTools(1) },
+			wantTransitions: []states.AgentExecutionState{states.StateEvaluatingTools},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
+		},
+		{
+			name: "tool calls run before queued messages",
+			setup: func(f *stateFixture) {
+				f.queue.IsEmptyReturns(false)
+				*f.ctx.CurrentToolCalls = makeTools(2)
+			},
 			wantTransitions: []states.AgentExecutionState{states.StateEvaluatingTools},
 			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
 		},

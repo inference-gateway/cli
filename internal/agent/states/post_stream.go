@@ -11,8 +11,8 @@ import (
 //
 // This state:
 //  1. Stores assistant message to conversation
-//  2. Checks if messages were queued during stream → CheckingQueue
-//  3. If tool calls exist → EvaluatingTools
+//  2. If tool calls exist → EvaluatingTools (queued messages drain after the tools run)
+//  3. Checks if messages were queued during stream → CheckingQueue
 //  4. If no tools and can complete → Completing
 //  5. Otherwise → CheckingQueue
 type PostStreamState struct {
@@ -44,6 +44,10 @@ func (s *PostStreamState) Handle(event AgentEvent) error {
 		s.ctx.DispatchHooks(agentdomain.HookPostStream)
 	}
 
+	if len(*s.ctx.CurrentToolCalls) > 0 {
+		return s.transitionToEvaluatingTools()
+	}
+
 	if !s.ctx.AgentCtx.MessageQueue.IsEmpty() {
 		logger.Debug("messages queued during stream, returning to checking queue")
 		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateCheckingQueue); err != nil {
@@ -52,10 +56,6 @@ func (s *PostStreamState) Handle(event AgentEvent) error {
 		}
 		s.ctx.Events <- MessageReceivedEvent{}
 		return nil
-	}
-
-	if len(*s.ctx.CurrentToolCalls) > 0 {
-		return s.transitionToEvaluatingTools()
 	}
 
 	return s.handleNoToolCallsScenario()
