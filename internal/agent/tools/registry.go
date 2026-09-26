@@ -93,7 +93,24 @@ func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, spee
 	}
 
 	registry.registerTools()
+	registry.loadMarkdownAgents()
 	return registry
+}
+
+// loadMarkdownAgents loads the Markdown subagent definitions (.infer/agents/*.md)
+// once per session and installs them into the Agent tool, so its tool
+// description lists them and tool-name validation runs against the tools this
+// session actually registered. MCP tools register later and are unknown here.
+func (r *Registry) loadMarkdownAgents() {
+	agentTool, ok := r.tools["Agent"].(*AgentTool)
+	if !ok {
+		return
+	}
+	known := make(map[string]bool, len(r.tools))
+	for name := range r.tools {
+		known[name] = true
+	}
+	agentTool.setMarkdownAgents(loadMarkdownAgents(nil, known))
 }
 
 // RegisterFrameSource adds (or replaces) a named frame source. The

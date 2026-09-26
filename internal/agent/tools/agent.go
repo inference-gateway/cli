@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,6 +36,11 @@ const subagentDepthEnv = "INFER_SUBAGENT_DEPTH"
 // subagent (read in initConfig), so each subagent can run with its own role.
 const subagentSystemPromptEnv = "INFER_SUBAGENT_SYSTEM_PROMPT"
 
+// SubagentToolsEnv carries a named subagent's tool allowlist to the spawned
+// subagent, which enforces it in LLMToolService.isToolEnabled - that single
+// check gates both what is advertised to the model and what ExecuteTool accepts.
+const SubagentToolsEnv = "INFER_SUBAGENT_TOOLS"
+
 // AgentTaskSpec is one delegated unit of work within an Agent tool call.
 type AgentTaskSpec struct {
 	Label        string
@@ -42,6 +48,12 @@ type AgentTaskSpec struct {
 	Model        string
 	Files        []string
 	SystemPrompt string
+	// Agent, when set, names a Markdown-defined agent (see mdagent.go) whose
+	// system prompt, model and tool allowlist replace the per-task overrides.
+	Agent string
+	// Tools is the resolved allowlist passed to the subagent via
+	// SubagentToolsEnv; nil means inherit the parent's tools.
+	Tools []string
 	// Mode is the subagent's capability, resolved from the `type` argument:
 	// ReadOnly -> AgentModeReadOnly (Explore-like, no approval), ReadWrite ->
 	// AgentModeStandard (can mutate, approval applies).
@@ -76,6 +88,10 @@ type AgentTool struct {
 	formatter agentinfra.BaseFormatter
 	binary    string
 
+	// mdAgents holds the Markdown-defined agents loaded once per session by
+	// the registry (see mdagent.go); read-only after setMarkdownAgents.
+	mdAgents []markdownAgent
+
 	// Injection points for tests; default to real implementations.
 	runHeadless          func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error)
 	interactiveAvailable func() bool
@@ -104,6 +120,9 @@ func NewAgentTool(cfg *config.Config, tracker scheddomain.SubagentTracker, submi
 // Definition returns the tool definition for the LLM.
 func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 	description := t.config.Prompts.Tools.Agent.Description
+	if list := t.markdownAgentCatalog(); list != "" {
+		description += "\n\n" + list
+	}
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
@@ -122,6 +141,7 @@ func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 								"label":         map[string]any{"type": "string", "description": "Short label for the subagent (shown in progress/panes)"},
 								"model":         map[string]any{"type": "string", "description": "Optional model override for this subagent"},
 								"system_prompt": map[string]any{"type": "string", "description": "Optional system prompt giving THIS subagent a specialized role/persona for its task"},
+								"agent":         map[string]any{"type": "string", "description": "Optional name of a Markdown-defined agent (see Available agents) that supplies the system prompt, model and tool allowlist; type is then derived from that allowlist"},
 								"type":          map[string]any{"type": "string", "enum": []string{"ReadOnly", "ReadWrite"}, "description": "Capability. ReadOnly (default) is Explore-like: read/search tools only, never needs approval - use for investigation/research. ReadWrite can modify files and run commands; its mutations require approval."},
 							},
 							"required": []string{"description"},
@@ -134,6 +154,10 @@ func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 					"system_prompt": map[string]any{
 						"type":        "string",
 						"description": "Optional system prompt for the single-task (description) form, giving the subagent a specialized role",
+					},
+					"agent": map[string]any{
+						"type":        "string",
+						"description": "Optional name of a Markdown-defined agent (see Available agents) that supplies the system prompt, model and tool allowlist; type is then derived from that allowlist",
 					},
 					"type": map[string]any{
 						"type":        "string",
@@ -189,6 +213,9 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 	parentModel := agentdomain.GetModel(ctx)
 	logger.Debug("agent tool invoked", "mode", mode, "wait", wait, "tasks", len(specs), "parent_session", parentSession)
 	for i := range specs {
+		if err := t.applyNamedAgent(&specs[i]); err != nil {
+			return t.errorResult(args, start, err.Error()), nil
+		}
 		specs[i].Model = t.resolveModel(specs[i].Model, parentModel)
 	}
 
@@ -446,6 +473,9 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, parentSession, sess
 	if spec.SystemPrompt != "" {
 		parts = append(parts, subagentSystemPromptEnv+"="+shellQuote(spec.SystemPrompt))
 	}
+	if len(spec.Tools) > 0 {
+		parts = append(parts, SubagentToolsEnv+"="+shellQuote(strings.Join(spec.Tools, ",")))
+	}
 	if spec.Mode != agentdomain.AgentModeStandard {
 		parts = append(parts, scheddomain.EnvSubagentAgentMode+"="+shellQuote(spec.Mode.ModeKey()))
 	}
@@ -480,6 +510,9 @@ func (t *AgentTool) subagentExtraEnv(ctx context.Context, spec AgentTaskSpec) []
 	env = append(env, "INFER_INVOKED_BY=agent")
 	if spec.SystemPrompt != "" {
 		env = append(env, subagentSystemPromptEnv+"="+spec.SystemPrompt)
+	}
+	if len(spec.Tools) > 0 {
+		env = append(env, SubagentToolsEnv+"="+strings.Join(spec.Tools, ","))
 	}
 	if spec.Mode != agentdomain.AgentModeStandard {
 		env = append(env, scheddomain.EnvSubagentAgentMode+"="+spec.Mode.ModeKey())
@@ -630,6 +663,83 @@ func (t *AgentTool) resolveMode() string {
 // per-call LLM choice - so there is no wait parameter the model can override.
 func (t *AgentTool) resolveWait() bool {
 	return t.config.Tools.Agent.Wait
+}
+
+// setMarkdownAgents installs the Markdown-defined agents loaded once per
+// session by the registry (see mdagent.go). Called during construction, before
+// the tool is shared, so no synchronization is needed.
+func (t *AgentTool) setMarkdownAgents(agents []markdownAgent) {
+	t.mdAgents = agents
+}
+
+// lookupMarkdownAgent returns the named agent, exact-match on the frontmatter
+// name (which need not equal the file name).
+func (t *AgentTool) lookupMarkdownAgent(name string) (markdownAgent, bool) {
+	for _, agent := range t.mdAgents {
+		if agent.name == name {
+			return agent, true
+		}
+	}
+	return markdownAgent{}, false
+}
+
+// markdownAgentCatalog renders the Available agents list appended to the tool
+// description, or "" when no agents are loaded (description stays unchanged).
+func (t *AgentTool) markdownAgentCatalog() string {
+	if len(t.mdAgents) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(t.mdAgents))
+	for _, agent := range t.mdAgents {
+		names = append(names, agent.name)
+	}
+	sort.Strings(names)
+
+	var out strings.Builder
+	out.WriteString("Available agents:")
+	for _, name := range names {
+		agent, _ := t.lookupMarkdownAgent(name)
+		fmt.Fprintf(&out, "\n- %s: %s", name, agent.description)
+	}
+	return out.String()
+}
+
+// markdownAgentNames returns the sorted names of the loaded agents, for the
+// unknown-agent error message.
+func (t *AgentTool) markdownAgentNames() []string {
+	names := make([]string, 0, len(t.mdAgents))
+	for _, agent := range t.mdAgents {
+		names = append(names, agent.name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// applyNamedAgent overlays a Markdown-defined agent preset onto the task spec:
+// the file body wins as the system prompt, a frontmatter model wins over the
+// per-task model (inherit falls through to resolveModel), and the capability
+// mode is derived from the resolved tool allowlist - ReadOnly when every
+// allowed tool is read-only, ReadWrite otherwise. With no allowlist the
+// subagent keeps the parent's tools and runs as ReadWrite.
+func (t *AgentTool) applyNamedAgent(spec *AgentTaskSpec) error {
+	if spec.Agent == "" {
+		return nil
+	}
+	agent, ok := t.lookupMarkdownAgent(spec.Agent)
+	if !ok {
+		return fmt.Errorf("unknown agent %q; available agents: %s", spec.Agent, strings.Join(t.markdownAgentNames(), ", "))
+	}
+	spec.SystemPrompt = agent.systemPrompt
+	if agent.model != "" {
+		spec.Model = agent.model
+	}
+	if len(agent.tools) > 0 {
+		spec.Tools = agent.tools
+		spec.Mode = deriveSubagentMode(agent.tools)
+	} else {
+		spec.Mode = agentdomain.AgentModeStandard
+	}
+	return nil
 }
 
 // resolveModel picks the subagent model: explicit per-task override, else the
@@ -789,6 +899,7 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 				Model:        optionalString(m, "model"),
 				Files:        optionalStringSlice(m, "files"),
 				SystemPrompt: optionalString(m, "system_prompt"),
+				Agent:        optionalString(m, "agent"),
 				Mode:         resolveSubagentType(optionalString(m, "type")),
 			})
 		}
@@ -802,6 +913,7 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 			Model:        optionalString(args, "model"),
 			Files:        optionalStringSlice(args, "files"),
 			SystemPrompt: optionalString(args, "system_prompt"),
+			Agent:        optionalString(args, "agent"),
 			Mode:         resolveSubagentType(optionalString(args, "type")),
 		}}, nil
 	}
