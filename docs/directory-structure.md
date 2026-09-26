@@ -56,6 +56,7 @@ for the full precedence rules.
 ├── computer_use.yaml     # computer-use / vision settings
 ├── browser_use.yaml      # browser automation (Playwright) settings
 ├── agents.yaml           # A2A agent registry
+├── agents/               # Markdown subagent definitions (<name>.md), see docs/subagents.md
 ├── mcp.yaml              # MCP server registry
 ├── shortcuts/            # /-prefixed chat shortcuts (built-in + custom)
 │   ├── git.yaml
@@ -97,7 +98,8 @@ for the full precedence rules.
 ├── mcp.yaml              # project MCP servers (project-then-home lookup)
 ├── keybindings.yaml      # project keybindings (project-then-home lookup)
 ├── shortcuts/            # project shortcuts, overlaid by name onto ~/.infer/shortcuts/
-└── skills/               # project skills, still discovered when present
+├── skills/               # project skills, still discovered when present
+└── agents/               # project Markdown subagents (override ~/.infer/agents/ by name)
 
 .agents/                  # open-standard project layer (cross-tool skills)
 └── skills/               # Agent Skills - SKILL.md folders (read-only discovery)
@@ -143,6 +145,10 @@ project wants to override a config file it commits its own sparse
 - **`skills/`** - Agent Skills directory. Drop a `SKILL.md` folder here (or
   into the cross-tool `.agents/skills/` open standard) to extend the agent.
   See [Skills](skills.md).
+- **`agents/`** - Markdown subagent definitions you create yourself, one
+  `<name>.md` per agent (frontmatter plus a system-prompt body, Claude Code /
+  Gemini CLI compatible); not seeded by init. A project `.infer/agents/`
+  overrides a same-named file here. See [Markdown Subagents](subagents.md).
 
 The split into separate YAML files (rather than one giant `config.yaml`) is
 deliberate: each concern has its own file so changes stay focused and
