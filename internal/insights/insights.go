@@ -330,7 +330,8 @@ func countMemoryFacts(index string) int {
 	return count
 }
 
-// buildDigest renders the prompt payload; pure, so the tests target it directly.
+// buildDigest renders the prompt payload with secrets masked; pure, so the
+// tests target it directly.
 func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telemetry.ToolStat, memory string, logs logDigest) string {
 	var b strings.Builder
 
@@ -384,7 +385,7 @@ func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telem
 		}
 	}
 
-	return truncate(b.String(), maxDigestChars)
+	return redact(truncate(b.String(), maxDigestChars))
 }
 
 func topErrors(f toolFailure) []string {
@@ -529,7 +530,7 @@ func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.Too
 	b.WriteString("## Analysis\n\n")
 	b.WriteString(strings.TrimSpace(analysis))
 	b.WriteString("\n")
-	return b.String()
+	return redact(b.String())
 }
 
 // writeUsage records what the analysis cost.
