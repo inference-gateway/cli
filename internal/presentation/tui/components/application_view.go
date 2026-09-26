@@ -334,8 +334,9 @@ func (r *ApplicationViewRenderer) statusRow(status, mode string, width int) stri
 	}
 
 	lines := strings.Split(status, "\n")
-	budget := width - 5 - r.styleProvider.GetWidth(mode)
-	lines[0] = r.styleProvider.PlaceHorizontal(width-4, formatting.TruncateText(lines[0], budget), mode)
+	contentWidth := width - 4
+	budget := contentWidth - 1 - r.styleProvider.GetWidth(mode)
+	lines[0] = r.styleProvider.PlaceHorizontal(contentWidth, formatting.TruncateText(lines[0], budget), mode)
 	return strings.Join(lines, "\n")
 }
 
