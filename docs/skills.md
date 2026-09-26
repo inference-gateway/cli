@@ -150,6 +150,10 @@ skill you authored there yourself. Current built-ins:
 
 - **`tmux`** - drive interactive terminal programs (TUIs, REPLs, another CLI's
   chat UI) by scripting tmux with `send-keys` / `capture-pane`.
+- **`bug`** - turn `/bug <context>` into a reproduced, well-formed GitHub
+  issue: it gathers context, reproduces the bug in a scratch directory,
+  optionally records a window / region GIF, and files a `[BUG]` issue only
+  after your approval.
 
 Because they are ordinary user-scope skills, you customise them with the same
 knobs as any other skill - there is no special "built-in" mode:
