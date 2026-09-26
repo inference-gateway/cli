@@ -1557,7 +1557,7 @@ task fmt   # Format code
 task lint  # Run linter
 ```
 
-See [CLAUDE.md](CLAUDE.md) for detailed development documentation.
+See [AGENTS.md](AGENTS.md) for detailed development documentation.
 
 ## License
 

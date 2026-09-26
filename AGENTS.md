@@ -44,8 +44,9 @@ Single test: `go test ./internal/agent -run TestBashTool`. **Run `task precommit
 - Write self-explanatory code: clear names and small, single-purpose functions carry the intent.
   If a block needs a comment to be understood, extract it into a well-named function or variable.
 - No inline comments inside function bodies.
-- Doc comments on functions, types, and modules are at most 5 lines: what it does and why, not how.
-  Aim for 3; genuinely multi-step docs (ordered lists, state routing) restructure their steps into the code body instead of growing the docblock. Never reference GitHub issues or PRs - ticket context belongs in commit messages, PR bodies, and CHANGELOG.md. No comment above a `package` statement.
+- Doc comments on functions and types are at most 5 lines: what it does and why, not how.
+  Aim for 3; genuinely multi-step docs (ordered lists, state routing) restructure their steps into the code body instead of growing the docblock. Never reference GitHub issues or PRs - ticket context belongs in commit messages, PR bodies, and CHANGELOG.md.
+- No comments above modules, packages, or files.
 - Tool directives are not comments and stay where the tool needs them (lint suppressions, build
   tags, compiler pragmas, code generation markers). Here: `//nolint:...`, `//go:...` (incl. `//go:build`, `//go:generate`), `#nosec`.
 - Conventional Commits (`.commitlintrc.json`): `feat:`, `fix:`, `docs:`, `chore:`, … `.editorconfig`: two-space indent (tabs in Go), UTF-8, LF, final newline.
