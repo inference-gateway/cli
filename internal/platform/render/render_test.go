@@ -210,6 +210,41 @@ func TestRenderText_QueuedNoteSplitsTurns(t *testing.T) {
 	}
 }
 
+// nudgeBoundaryTurns is a post_stream continuation nudge: the text-only turn
+// ends with a completion event (published by transitionToStreaming), then the
+// nudged turn calls a tool before the final completion.
+func nudgeBoundaryTurns() <-chan agentdomain.ChatEvent {
+	return stream(
+		agentdomain.ChatChunkEvent{Content: "Review complete. Here is my verdict."},
+		agentdomain.ChatCompleteEvent{},
+		agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{
+			{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "TodoWrite", Arguments: "{}"}},
+		}},
+		agentdomain.ChatCompleteEvent{},
+	)
+}
+
+func TestRenderJSON_NudgeBoundarySplitsAssistantTurns(t *testing.T) {
+	var out strings.Builder
+	if err := RenderJSON(nudgeBoundaryTurns(), &out, nil, nil, "session-1", "", nil, &convmocks.FakeConversationRepository{}); err != nil {
+		t.Fatalf("RenderJSON() err = %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")[1:]
+	want := [][2]string{{"assistant", "Review complete. Here is my verdict."}, {"assistant", ""}}
+	if len(lines) != len(want) {
+		t.Fatalf("got %d message lines, want %d\n%s", len(lines), len(want), out.String())
+	}
+	for i, line := range lines {
+		var msg map[string]any
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			t.Fatalf("line %d is not JSON: %v", i, err)
+		}
+		if msg["role"] != want[i][0] || msg["content"] != want[i][1] {
+			t.Errorf("line %d = %v/%q, want %v/%q", i, msg["role"], msg["content"], want[i][0], want[i][1])
+		}
+	}
+}
+
 func TestAgentStartupEmitter(t *testing.T) {
 	var out strings.Builder
 	emit := AgentStartupEmitter(&out, "ag-ui")
