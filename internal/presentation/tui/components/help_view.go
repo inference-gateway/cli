@@ -212,8 +212,6 @@ func (h *HelpView) renderKeybindingsTable(width int, accent, dim, border color.C
 // so it never wastes space), and the second column absorbs the remaining width
 // and wraps long descriptions rather than clipping them.
 func renderHelpTable(width int, accent, dim, border color.Color, h0, h1 string, rows [][2]string) string {
-	// Cell padding is one column on each side; the rounded border takes three
-	// columns total (left edge, middle divider, right edge).
 	const cellPadding = 2
 	const borderCols = 3
 

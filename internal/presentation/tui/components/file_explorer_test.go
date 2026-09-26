@@ -215,11 +215,11 @@ func TestExplorer_Navigation(t *testing.T) {
 	e := newTestExplorer(t, root)
 	start := e.cursor
 
-	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'}) // nav_down
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
 	if e.cursor != start+1 {
 		t.Fatalf("nav_down: cursor = %d, want %d", e.cursor, start+1)
 	}
-	e.Update(tea.KeyPressMsg{Text: "k", Code: 'k'}) // nav_up
+	e.Update(tea.KeyPressMsg{Text: "k", Code: 'k'})
 	if e.cursor != start {
 		t.Fatalf("nav_up: cursor = %d, want %d", e.cursor, start)
 	}
@@ -492,13 +492,11 @@ func TestExplorer_ToggleRangeSelection(t *testing.T) {
 	selectFileForPreview(t, e, "f.go")
 	e.enterSelectMode()
 
-	// Anchor at line 0.
-	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // toggle_select (space)
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
 	if e.selAnchor != 0 {
 		t.Fatalf("after toggle_select selAnchor = %d, want 0", e.selAnchor)
 	}
 
-	// Move cursor to line 2.
 	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
 	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
 
@@ -507,7 +505,6 @@ func TestExplorer_ToggleRangeSelection(t *testing.T) {
 		t.Fatalf("previewSelectionRange = (%d,%d,%v), want (0,2,true)", lo, hi, ok)
 	}
 
-	// Toggle again clears the anchor.
 	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
 	if e.selAnchor != -1 {
 		t.Fatalf("after second toggle selAnchor = %d, want -1", e.selAnchor)
@@ -525,17 +522,14 @@ func TestExplorer_AnnotateConfirmStoresSelection(t *testing.T) {
 	selectFileForPreview(t, e, "f.go")
 	e.enterSelectMode()
 
-	// Anchor at line 0, move to line 1.
 	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
 	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
 
-	// Enter annotate mode.
 	e.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
 	if !e.annotateMode {
 		t.Fatal("annotate key should enter annotate mode")
 	}
 
-	// Type the instruction.
 	e.Update(tea.KeyPressMsg{Text: "r", Code: 'r'})
 	e.Update(tea.KeyPressMsg{Text: "e", Code: 'e'})
 	e.Update(tea.KeyPressMsg{Text: "f", Code: 'f'})
@@ -543,7 +537,6 @@ func TestExplorer_AnnotateConfirmStoresSelection(t *testing.T) {
 		t.Fatalf("annotateInput = %q, want ref", e.annotateInput)
 	}
 
-	// Confirm with enter.
 	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if e.annotateMode {
@@ -572,8 +565,8 @@ func TestExplorer_AnnotateEscapeDiscards(t *testing.T) {
 	selectFileForPreview(t, e, "f.go")
 	e.enterSelectMode()
 
-	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // anchor
-	e.Update(tea.KeyPressMsg{Text: "a", Code: 'a'}) // annotate
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
+	e.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
 	e.Update(tea.KeyPressMsg{Text: "x", Code: 'x'})
 	e.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 
@@ -583,7 +576,6 @@ func TestExplorer_AnnotateEscapeDiscards(t *testing.T) {
 	if len(e.Selections()) != 0 {
 		t.Fatalf("Selections = %d, want 0 after esc discard", len(e.Selections()))
 	}
-	// Anchor is retained so the user can retry.
 	if e.selAnchor < 0 {
 		t.Fatal("selAnchor should be retained after annotate esc")
 	}
@@ -595,7 +587,6 @@ func TestExplorer_MultipleSelectionsAcrossFiles(t *testing.T) {
 	writeTestFile(t, filepath.Join(root, "b.go"), "d\ne\nf\n")
 	e := newTestExplorer(t, root)
 
-	// File A: select+annotate lines 1-2.
 	selectFileForPreview(t, e, "a.go")
 	e.enterSelectMode()
 	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
@@ -604,11 +595,9 @@ func TestExplorer_MultipleSelectionsAcrossFiles(t *testing.T) {
 	e.Update(tea.KeyPressMsg{Text: "x", Code: 'x'})
 	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	// Exit select mode, then navigate to file B (tree nav).
-	e.Update(tea.KeyPressMsg{Code: tea.KeyEscape})  // exit select mode
-	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'}) // nav_down in tree
+	e.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	e.Update(tea.KeyPressMsg{Text: "j", Code: 'j'})
 
-	// File B: select+annotate line 1.
 	selectFileForPreview(t, e, "b.go")
 	e.enterSelectMode()
 	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
@@ -665,9 +654,8 @@ func TestExplorer_CloseCarriesSelections(t *testing.T) {
 	e.enterSelectMode()
 
 	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
-	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // attach a range
+	e.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	// q closes the explorer normally (done), carrying selections to chat.
 	e.Update(tea.KeyPressMsg{Text: "q", Code: 'q'})
 	if !e.IsDone() {
 		t.Fatal("q should close the explorer (done) so selections are carried")
@@ -686,7 +674,7 @@ func TestExplorer_EscExitsSelectMode(t *testing.T) {
 	e := newTestExplorer(t, root)
 	selectFileForPreview(t, e, "f.go")
 	e.enterSelectMode()
-	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '}) // anchor a range
+	e.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
 	e.selections = append(e.selections, SnippetSelection{File: "f.go", StartLine: 1, EndLine: 1, Annotation: "prior"})
 
 	e.Update(tea.KeyPressMsg{Code: tea.KeyEscape})

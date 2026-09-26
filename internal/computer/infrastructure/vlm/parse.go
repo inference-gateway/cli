@@ -1,7 +1,3 @@
-// Package vlm provides image annotation (image -> scene summary + numbered
-// element list) via a side-call to a vision model through the inference
-// gateway. Gated by config.VisionConfig. The gateway also serves local
-// models (e.g. Ollama), so offline annotation is a gateway concern.
 package vlm
 
 import (

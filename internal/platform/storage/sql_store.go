@@ -18,7 +18,7 @@ import (
 // SessionGroupStorage. Both the SQLite and Postgres backends embed it: they
 // speak the same single-table, embedded-messages schema (the one D1 also uses
 // via GetSQLiteMigrations) and differ only in placeholder style, which rebind
-// normalizes. See issue #839.
+// normalizes.
 type sqlStore struct {
 	db      *sql.DB
 	dialect string // "sqlite" | "postgres"

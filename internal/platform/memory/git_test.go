@@ -305,7 +305,7 @@ func TestGitBackend_ReconcilesOriginOnRepoChange(t *testing.T) {
 // memory.
 func TestGitBackend_SyncInSeedsMissingRemoteBranch(t *testing.T) {
 	isolatedGitEnv(t)
-	bare := initBareRemote(t) // empty: no main branch yet
+	bare := initBareRemote(t)
 
 	memDir := filepath.Join(t.TempDir(), "memory")
 	mustGit(t, "", "init", "-b", "main", memDir)
@@ -371,7 +371,7 @@ func clearGitIdentity(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(t.TempDir(), "no-such-gitconfig"))
 	t.Setenv("GIT_CONFIG_SYSTEM", os.DevNull)
 	for _, k := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"} {
-		t.Setenv(k, "") // register cleanup to restore the original value...
+		t.Setenv(k, "")
 		_ = os.Unsetenv(k)
 	}
 }
@@ -409,7 +409,7 @@ func TestGitBackend_SyncInAdoptsPopulatedRemote(t *testing.T) {
 	isolatedGitEnv(t)
 	bare := initBareRemote(t)
 	seedRemote(t, bare, "remote.md", "from-remote")
-	seedRemote(t, bare, "MEMORY.md", "# remote index\n") // conflicts with local below
+	seedRemote(t, bare, "MEMORY.md", "# remote index\n")
 
 	memDir := filepath.Join(t.TempDir(), "memory")
 	if err := os.MkdirAll(memDir, 0o755); err != nil {
@@ -425,14 +425,12 @@ func TestGitBackend_SyncInAdoptsPopulatedRemote(t *testing.T) {
 	if !isGitRepo(memDir) {
 		t.Fatalf("expected repo initialized in place at %s", memDir)
 	}
-	requireFile(t, filepath.Join(memDir, "remote.md")) // remote-only file adopted
-	requireFile(t, filepath.Join(memDir, "local.md"))  // local file preserved
+	requireFile(t, filepath.Join(memDir, "remote.md"))
+	requireFile(t, filepath.Join(memDir, "local.md"))
 	if got, _ := os.ReadFile(filepath.Join(memDir, "MEMORY.md")); !strings.Contains(string(got), "local index") {
 		t.Errorf("expected local MEMORY.md to win the conflict, got:\n%s", got)
 	}
 
-	// Adopt pushes the union, so a fresh clone sees both contributions and a later
-	// sync-out is a clean no-op (no unrelated-history failure).
 	if err := b.SyncOut(context.Background()); err != nil {
 		t.Fatalf("SyncOut after adopt: %v", err)
 	}

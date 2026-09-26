@@ -1,5 +1,3 @@
-// Package application holds agent-context orchestration contracts that touch
-// external A2A (adk) types; they are deliberately outside the pure domain.
 package application
 
 import (

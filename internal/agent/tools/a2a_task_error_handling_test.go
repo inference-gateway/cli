@@ -126,7 +126,6 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 
 		assert.Contains(t, result.Error, "Previous task no longer exists (cleared from tracker)")
 
-		// Verify RemoveTask was called
 		assert.Equal(t, 1, tracker.RemoveTaskCallCount())
 	})
 
@@ -304,11 +303,9 @@ func TestA2ASubmitTaskTool_MultipleAgents(t *testing.T) {
 		context1 := "context-agent1"
 		context2 := "context-agent2"
 
-		// Agent 1 has a context with a working task
 		tracker.GetLatestContextForAgentReturnsOnCall(0, context1)
 		tracker.GetLatestTaskForContextReturnsOnCall(0, "working-task-agent1")
 
-		// Agent 2 has no context
 		tracker.GetLatestContextForAgentReturnsOnCall(1, "")
 
 		workingTaskAgent1 := adk.Task{
@@ -353,7 +350,6 @@ func TestA2ASubmitTaskTool_MultipleAgents(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, result2.Success)
 
-		// Verify new API methods were called
 		assert.GreaterOrEqual(t, tracker.AddTaskCallCount(), 1)
 		assert.GreaterOrEqual(t, tracker.RegisterContextCallCount(), 1)
 	})

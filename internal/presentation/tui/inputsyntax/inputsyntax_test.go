@@ -63,7 +63,6 @@ func TestHighlight_Skill(t *testing.T) {
 
 func TestHighlight_PartialTokenLeftUnstyled(t *testing.T) {
 	h := newSkillHighlighter("plan")
-	// Simulates a token split by the cursor: "/pl" is not a known skill.
 	assert.Equal(t, "/pl", h.Highlight("/pl"))
 }
 

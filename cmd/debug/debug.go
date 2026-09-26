@@ -80,12 +80,10 @@ const volatileTailDivider = "--- volatile context: sent each request as a separa
 	"<system-reminder> user message; NOT part of the system prompt ---"
 
 // syncedAgentService builds the service container and syncs memory in before
-// returning the agent service. The sync mirrors the headless agent's
-// pre-session hook: with the git memory backend on a fresh machine, MEMORY.md
-// only exists locally after SyncIn, and without it the rendered prompt
-// silently omits the PERSISTENT MEMORY INDEX section the real agent would
-// receive. Fail-soft like the agent: a sync failure must never break the
-// debug render.
+// returning the agent service, mirroring the headless agent's pre-session hook:
+// with the git memory backend on a fresh machine, MEMORY.md only exists locally
+// after SyncIn - without it the prompt silently omits the PERSISTENT MEMORY
+// INDEX section. Fail-soft: a sync failure never breaks the debug render.
 func syncedAgentService(ctx context.Context, cfg *config.Config) agentdomain.AgentService {
 	services := container.NewServiceContainer(cfg)
 	_ = services.GetMemoryBackend().SyncIn(ctx)

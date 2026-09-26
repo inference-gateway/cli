@@ -54,7 +54,6 @@ func TestFileTranscriberSuccess(t *testing.T) {
 	if tr.gotWAV != wavPath {
 		t.Errorf("transcriber got wav %q, want %q", tr.gotWAV, wavPath)
 	}
-	// The intermediate WAV must be cleaned up.
 	if _, err := os.Stat(wavPath); !os.IsNotExist(err) {
 		t.Errorf("expected intermediate wav removed, stat err = %v", err)
 	}

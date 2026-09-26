@@ -249,7 +249,6 @@ func TestCreateNormalizesPhoto(t *testing.T) {
 	if b := img.Bounds(); b.Dx() != 8 || b.Dy() != 16 {
 		t.Fatalf("stored size = %v, want 8x16 (rotated upright)", b.Size())
 	}
-	// Orientation 6 turns the stored left (red) half into the top.
 	if r, _, bl, _ := img.At(4, 3).RGBA(); r <= bl {
 		t.Fatal("top of the upright photo is not the red half")
 	}
@@ -298,13 +297,13 @@ func exifSegment(order binary.AppendByteOrder, orientation uint16) []byte {
 	}
 	tiff = order.AppendUint16(tiff, 42)
 	tiff = order.AppendUint32(tiff, 8)
-	tiff = order.AppendUint16(tiff, 1)           // one IFD entry
-	tiff = order.AppendUint16(tiff, 0x0112)      // Orientation
-	tiff = order.AppendUint16(tiff, 3)           // SHORT
-	tiff = order.AppendUint32(tiff, 1)           // count
-	tiff = order.AppendUint16(tiff, orientation) // value, left-justified
+	tiff = order.AppendUint16(tiff, 1)
+	tiff = order.AppendUint16(tiff, 0x0112)
+	tiff = order.AppendUint16(tiff, 3)
+	tiff = order.AppendUint32(tiff, 1)
+	tiff = order.AppendUint16(tiff, orientation)
 	tiff = order.AppendUint16(tiff, 0)
-	tiff = order.AppendUint32(tiff, 0) // no next IFD
+	tiff = order.AppendUint32(tiff, 0)
 	tiff = append(tiff, "GPS-SECRET"...)
 	payload := append([]byte("Exif\x00\x00"), tiff...)
 	return append(binary.BigEndian.AppendUint16([]byte{0xFF, 0xE1}, uint16(len(payload)+2)), payload...)
@@ -332,7 +331,6 @@ func TestExifOrientation(t *testing.T) {
 }
 
 func TestOrient(t *testing.T) {
-	// Stored 2x2 image [A B; C D] and how each EXIF orientation displays it.
 	const a, b, c, d = 10, 20, 30, 40
 	src := image.NewGray(image.Rect(0, 0, 2, 2))
 	src.Pix = []uint8{a, b, c, d}

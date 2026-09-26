@@ -154,7 +154,6 @@ func listConversations(state *runtime.State, renderer *output.Renderer, cmd *cob
 }
 
 func renderConversationsJSON(conversations []convdomain.ConversationSummary) error {
-	// Normalize default values for graceful degradation
 	for i := range conversations {
 		if conversations[i].InvokedBy == "" {
 			conversations[i].InvokedBy = "human"

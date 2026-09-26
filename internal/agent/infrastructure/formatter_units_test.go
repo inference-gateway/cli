@@ -57,8 +57,6 @@ func TestTruncateText(t *testing.T) {
 		{"max 3 and long", "abcdef", 3, "..."},
 		{"max 0 and long", "abcdef", 0, "..."},
 		{"empty text", "", 0, ""},
-		// Byte-based slicing splits the 2-byte é rune mid-sequence: current
-		// behavior emits invalid UTF-8, pinned here as a regression guard.
 		{"multibyte split", "héllo world", 5, "h\xc3..."},
 	}
 	for _, tt := range tests {
@@ -83,7 +81,6 @@ func TestCollapseArgValue(t *testing.T) {
 		{"truncated", "abcdefgh", 6, "abc..."},
 		{"max 3", "abcdefgh", 3, "..."},
 		{"non-string value", 12345, 4, "1..."},
-		// Same rune-splitting behavior as TruncateText.
 		{"multibyte split", "héllo world", 5, "h\xc3..."},
 	}
 	for _, tt := range tests {
@@ -173,7 +170,6 @@ func TestFormatToolCall(t *testing.T) {
 		{"base sorted keys", func() string {
 			return base.FormatToolCall(map[string]any{"b": 2, "a": 1}, false)
 		}, "Read(a=1, b=2)"},
-		// BaseFormatter never collapses (ShouldCollapseArg is always false).
 		{"base long value kept", func() string {
 			return base.FormatToolCall(map[string]any{"path": longVal}, false)
 		}, "Read(path=" + longVal + ")"},
@@ -212,7 +208,6 @@ func TestFormatAsJSON(t *testing.T) {
 	if got := f.FormatAsJSON(map[string]any{"a": 1}); got != "{\n  \"a\": 1\n}" {
 		t.Errorf("FormatAsJSON(map) = %q", got)
 	}
-	// NaN is not JSON-marshalable, so it falls back to %+v.
 	if got := f.FormatAsJSON(math.NaN()); got != "NaN" {
 		t.Errorf("FormatAsJSON(NaN) = %q, want NaN", got)
 	}

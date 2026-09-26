@@ -243,7 +243,6 @@ func TestSupervisor_StartMonitoring_Idempotent(t *testing.T) {
 	supervisor.StartMonitoring(ctx)
 
 	rec.waitForCount(1, time.Second)
-	// Settle: give a hypothetical second initial-status goroutine time to fire.
 	time.Sleep(50 * time.Millisecond)
 	if got := rec.count(); got != 1 {
 		t.Errorf("expected exactly 1 initial status push (idempotent), got %d", got)

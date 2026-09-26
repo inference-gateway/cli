@@ -630,8 +630,6 @@ func (t *TaskView) applyFilters() {
 	case TaskViewCompleted:
 		baseTasks = make([]TaskInfo, 0)
 		for _, task := range t.completedTasks {
-			// There is no Failed tab, so failed shells/subagents (and failed A2A
-			// tasks) belong under Completed; Canceled stays A2A-only.
 			if task.Status == "Completed" || task.Status == "Failed" {
 				baseTasks = append(baseTasks, task)
 			}
@@ -645,9 +643,6 @@ func (t *TaskView) applyFilters() {
 		}
 	}
 
-	// Group rows by kind (A2A, then shells, then subagents) so each kind renders
-	// as one contiguous table. Stable sort keeps the within-kind order built above
-	// (active rows before completed rows).
 	slices.SortStableFunc(baseTasks, func(a, b TaskInfo) int {
 		return kindRank(a.Kind) - kindRank(b.Kind)
 	})

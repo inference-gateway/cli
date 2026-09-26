@@ -41,6 +41,8 @@ Single test: `go test ./internal/agent -run TestBashTool`. **Run `task precommit
 ## Style & Commits
 
 - Linter caps: gocyclo/cyclop 25, funlen 150 lines/80 statements, gocognit 45. Prefer `//nolint:funlen,gocyclo` over splitting cohesive functions.
+- **Doc comments**: never reference GitHub issues or PRs - ticket context belongs in commit messages, PR bodies, and CHANGELOG.md, not docblocks. A docblock describing a declaration is at most 5 comment lines (aim for 3); genuinely multi-step docs (ordered lists, state routing) restructure their steps into the code body instead of growing the docblock. No comment above a `package` statement (`//go:build` constraints stay).
+- **No inline comments in function bodies**: code narrates itself - rename, extract, or restructure instead of adding `//` or `/* */` notes inside a body. Machine directives (`//nolint:...`, `//go:...`, `#nosec`) are the only in-body comments.
 - Conventional Commits (`.commitlintrc.json`): `feat:`, `fix:`, `docs:`, `chore:`, … `.editorconfig`: two-space indent (tabs in Go), UTF-8, LF, final newline.
 
 ## Security Gotchas

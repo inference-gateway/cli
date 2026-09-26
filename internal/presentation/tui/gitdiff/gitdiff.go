@@ -1,13 +1,3 @@
-// Package gitdiff is a small, focused data layer behind the `/diff` changes
-// panel. It shells out to the git CLI via platform/utils.RunGit to list
-// working-tree changes and to fetch the before/after content for a single
-// changed file.
-//
-// It deliberately returns raw before/after content rather than a preformatted
-// patch: the UI renders the diff via the diffview package, which computes the
-// line diff itself. The Source interface lives here (not in a domain package) so
-// it does not trigger counterfeiter mock regeneration - the only consumer is
-// the diff viewer component, which can be tested with a hand-written fake.
 package gitdiff
 
 import (

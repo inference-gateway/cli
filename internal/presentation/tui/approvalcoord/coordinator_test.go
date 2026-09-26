@@ -62,7 +62,6 @@ func TestService_HandlePlanApprovalRequested(t *testing.T) {
 func TestService_HandlePlanApprovalResponse(t *testing.T) {
 	t.Run("nil approval UI state returns nil cmd and restart=false without side effects", func(t *testing.T) {
 		svc, _, state, _ := newCoordinator()
-		// Fresh state manager has no plan approval UI state.
 		state.SetAgentMode(agentdomain.AgentModePlan)
 
 		cmd, restart := svc.HandlePlanApprovalResponse(tui.PlanApprovalResponseEvent{

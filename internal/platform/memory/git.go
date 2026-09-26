@@ -117,17 +117,8 @@ func (b *GitBackend) syncInFresh(ctx context.Context, dir, branch string, remote
 }
 
 // adoptRemoteBranch unions pre-existing local memory with an already-populated
-// remote branch. ensureRepo has just init'd an in-place repo whose history is
-// unrelated to the remote's, so a plain pull --rebase would fail forever on the
-// unrelated histories; instead this commits the local files, fetches the remote
-// branch, and merges it with --allow-unrelated-histories so later push/pull
-// reconcile normally. Conflicting files resolve to the local copy (-X ours),
-// matching the backend's last-writer-wins posture; the merge still adopts every
-// remote-only fact file. (One known gap, in line with #683's out-of-scope
-// conflict-resolution: a conflicting MEMORY.md keeps the local index, so
-// remote-only facts may be present as files but not listed until the next write.)
-// Best-effort: on failure it aborts the merge, returns the error, and the caller
-// logs and continues.
+// remote branch: commit local files, fetch the remote branch, then merge with
+// --allow-unrelated-histories (-X ours) so later push/pull reconcile normally.
 func (b *GitBackend) adoptRemoteBranch(ctx context.Context, dir, branch string) error {
 	if _, err := b.run(ctx, dir, "add", "-A"); err != nil {
 		logger.Warn("memory git sync: adopt add failed", "error", err)
@@ -152,9 +143,6 @@ func (b *GitBackend) adoptRemoteBranch(ctx context.Context, dir, branch string) 
 		_, _ = b.run(ctx, dir, "merge", "--abort")
 		return err
 	}
-	// The merge commit is ahead of the remote but the tree is clean, so a later
-	// stageCommitPush would no-op; push the union now (like the seed path) so the
-	// local contribution reaches the remote instead of waiting for the next write.
 	return b.pushWithRetry(ctx, dir, branch)
 }
 

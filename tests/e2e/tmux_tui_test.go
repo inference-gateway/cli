@@ -136,9 +136,9 @@ func TestChatTUIBackgroundSubagentOutput(t *testing.T) {
 		"the subagent output never appeared in the detail panel; last frame:\n%s", capturePane(session))
 }
 
-// TestChatTUIApprovalBoxFollowsTail pins issue #1286: opening the approval box
-// shrinks the conversation viewport, which used to drop follow mode, hiding the
-// prompt behind the box and leaving the final reply below the fold after approval.
+// TestChatTUIApprovalBoxFollowsTail pins the follow-tail contract: opening the
+// approval box shrinks the conversation viewport, which used to drop follow
+// mode and leave the final reply below the fold after approval.
 func TestChatTUIApprovalBoxFollowsTail(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not installed; skipping TUI drive test")

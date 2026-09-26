@@ -717,7 +717,6 @@ func (t *AgentTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string
 func (t *AgentTool) formatAgentData(data any) string {
 	d, ok := data.(AgentToolResult)
 	if !ok {
-		// Async single-subagent completions carry an AgentSubResult.
 		if sub, okSub := data.(AgentSubResult); okSub {
 			return formatSubResult(sub)
 		}

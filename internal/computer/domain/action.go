@@ -1,7 +1,3 @@
-// Package domain holds the computer-use bounded context's contracts:
-// actions the agent can perform, targets they act on, observations they
-// return, and the capabilities the platform supports. It is pure - stdlib
-// imports only.
 package domain
 
 // ActionKind enumerates what the Computer tool can do.

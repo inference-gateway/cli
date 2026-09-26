@@ -94,8 +94,6 @@ func (s *browserSession) ensureBrowser() error {
 	if s.pw == nil {
 		pw, err := playwright.Run()
 		if err != nil {
-			// Driver not installed yet - fetch it (browsers are skipped; we
-			// prefer the user's own browser via the configured channel).
 			if instErr := playwright.Install(&playwright.RunOptions{SkipInstallBrowsers: true}); instErr != nil {
 				return fmt.Errorf("failed to install playwright driver: %w", instErr)
 			}
@@ -125,8 +123,6 @@ func (s *browserSession) ensureBrowser() error {
 
 	browser, err := s.pw.Chromium.Launch(opts)
 	if err != nil && s.cfg.Browser.Channel != "" {
-		// The configured browser is not installed - fall back to Playwright's
-		// bundled Chromium (downloading it if needed).
 		logger.Warn("failed to launch configured browser channel, falling back to bundled chromium",
 			"channel", s.cfg.Browser.Channel, "error", err)
 		if instErr := playwright.Install(); instErr != nil {

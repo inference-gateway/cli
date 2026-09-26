@@ -33,10 +33,9 @@ func TestMidFileInsertNoCascade(t *testing.T) {
 		Layout(LayoutUnified).
 		String()
 
-	// strip ANSI for content-level assertions
 	plain := stripANSI(out)
 
-	if strings.Count(plain, "+") < 2 { // 1 from hunk header @@..@@ and 1 from insert symbol
+	if strings.Count(plain, "+") < 2 {
 		t.Fatalf("expected at least one insert marker, got:\n%s", plain)
 	}
 	if strings.Contains(plain, "- line3") || strings.Contains(plain, "- line4") || strings.Contains(plain, "- line5") {
@@ -91,7 +90,7 @@ func TestAutoLayoutPicksSplitWhenWide(t *testing.T) {
 	dv := New().
 		Before("f", "a\n").
 		After("f", "b\n").
-		Width(200) // > defaultSplitMinWidth (160)
+		Width(200)
 	_ = dv.String()
 	if dv.resolvedLayout != LayoutSplit {
 		t.Fatalf("expected split, got %v", dv.resolvedLayout)

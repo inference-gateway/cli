@@ -216,8 +216,6 @@ func (s *Service) fire(job scheddomain.ScheduledJob) {
 	s.emit(job, scheddomain.RunEvent{Done: true, Err: err})
 
 	if job.RunOnce {
-		// Unregister immediately - waiting for the next poll tick would let
-		// short intervals (e.g. @every 2s) fire again before the delete lands.
 		s.removeJob(job.ID)
 		if err := s.store.DeleteJob(context.Background(), job.ID); err != nil {
 			logger.Warn("failed to delete one-off scheduled job after fire", "id", job.ID, "error", err)
@@ -242,7 +240,6 @@ func (s *Service) saveRun(run *scheddomain.RunRecord) {
 func (s *Service) persistRun(job *scheddomain.ScheduledJob) {
 	current, err := s.store.LoadJob(context.Background(), job.ID)
 	if err != nil {
-		// Job may have been deleted concurrently; ignore.
 		return
 	}
 	current.LastRun = job.LastRun

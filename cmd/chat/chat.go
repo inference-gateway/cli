@@ -454,19 +454,16 @@ type programNotifier struct{ program *tea.Program }
 
 // Notify MUST only ever be called from a background goroutine, never from the
 // Update loop. (*tea.Program).Send is unbuffered - it blocks until the loop
-// consumes the message - so a synchronous Notify from inside Update would deadlock
-// the loop against itself. That failure is also invisible: the slow-update warn
-// runs in a deferred call, and a deadlocked Update never returns to fire it. Every
-// producer captures this notifier at construction and calls it from its own
-// goroutine; keep it that way.
+// consumes the message - so a synchronous Notify from inside Update would
+// deadlock the loop, invisibly (the slow-update warn is a deferred call that a
+// deadlocked Update never reaches). Producers call it from their own goroutines.
 func (p programNotifier) Notify(event any) { p.program.Send(event) }
 
 // runUIHeartbeat is the app's one periodic producer: it pushes a
 // HeartbeatEvent through the UI notifier every interval until ctx is done. It
 // is the only clock feeding the Update loop, so components needing a periodic
-// freshness check subscribe to this event rather than re-arming their own
-// tea.Tick. Notify blocks until Update consumes the message, so a slow Update
-// simply delays the next beat instead of piling up.
+// freshness check subscribe to this event rather than re-arming tea.Tick.
+// Notify blocks until Update consumes, so a slow Update just delays the next beat.
 func runUIHeartbeat(ctx context.Context, notifier agentdomain.UINotifier, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()

@@ -336,7 +336,6 @@ func TestExtensionBridgeNavigateRoundTrip(t *testing.T) {
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
-	// Fake extension: answer the first browser_command.
 	go func() {
 		for {
 			var cmd map[string]any
@@ -355,7 +354,6 @@ func TestExtensionBridgeNavigateRoundTrip(t *testing.T) {
 		}
 	}()
 
-	// The connection is adopted asynchronously after the ack; retry briefly.
 	var result browserdomain.BrowserToolResult
 	var err error
 	deadline := time.Now().Add(2 * time.Second)
@@ -459,7 +457,6 @@ func TestExtensionBridgeMirrorsChatEvents(t *testing.T) {
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
-	// Give the chat pump a moment to subscribe, then publish a chunk.
 	time.Sleep(50 * time.Millisecond)
 	events.Publish(agentdomain.ChatChunkEvent{Content: "streamed text"})
 
@@ -522,7 +519,6 @@ func TestExtensionBridgeReplacesConnection(t *testing.T) {
 	second := dial(t, bridge)
 	hello(t, second, "test-token")
 
-	// The first connection should be closed by the replacement.
 	_ = first.SetReadDeadline(time.Now().Add(2 * time.Second))
 	for {
 		if _, _, err := first.ReadMessage(); err != nil {
@@ -530,7 +526,6 @@ func TestExtensionBridgeReplacesConnection(t *testing.T) {
 		}
 	}
 
-	// Commands go to the second connection.
 	go func() {
 		for {
 			var cmd map[string]any
@@ -879,7 +874,6 @@ func TestExtensionBridgeInterruptCancelsActiveTurn(t *testing.T) {
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
-	// chatPump subscribes asynchronously after adopt; republish until it has seen the start.
 	deadline := time.Now().Add(2 * time.Second)
 	for id, _ := bridge.activeRequestID.Load().(string); id != "turn-1" && time.Now().Before(deadline); id, _ = bridge.activeRequestID.Load().(string) {
 		events.Publish(agentdomain.ChatStartEvent{RequestID: "turn-1", Timestamp: time.Now()})

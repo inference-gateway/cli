@@ -109,10 +109,10 @@ func TestCancelBackgroundTask_WindsSupervisor(t *testing.T) {
 	}
 }
 
-// TestA2ADivergenceGone is the regression guard for #693: while an A2A task runs,
-// the status-bar count (CountRunningJobs) and the /tasks active list
-// (GetBackgroundTasks) agree because both derive from the supervisor, and when it
-// finishes both drop together.
+// TestA2ADivergenceGone guards status divergence: while an A2A task runs, the
+// status-bar count (CountRunningJobs) and the /tasks active list
+// (GetBackgroundTasks) agree because both derive from the supervisor, and when
+// it finishes both drop together.
 func TestA2ADivergenceGone(t *testing.T) {
 	sup := jobs.NewSupervisor(nil, nil, nil)
 	defer sup.Stop()

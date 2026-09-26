@@ -33,7 +33,7 @@ func TestPublish_DeliversControlEventWhenBufferFull(t *testing.T) {
 
 // SubscribeFuture must not replay the ring buffer: subscribers that backfill
 // history another way (the extension bridge snapshot) would otherwise
-// double-render the last turn (issue #1067). Subscribe, by contrast, replays.
+// double-render the last turn. Subscribe, by contrast, replays.
 func TestSubscribeFuture_SkipsRingBuffer(t *testing.T) {
 	eb := NewEventBridge()
 

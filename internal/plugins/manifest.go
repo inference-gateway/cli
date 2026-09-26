@@ -54,7 +54,7 @@ func parseManifest(dir string) (*Manifest, error) {
 func sanitizePluginName(raw string) (string, error) {
 	lower := strings.ToLower(strings.TrimSpace(raw))
 	var b strings.Builder
-	prevDash := true // trims leading dashes
+	prevDash := true
 	for _, r := range lower {
 		switch {
 		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):

@@ -1,11 +1,3 @@
-// Package agentrunner centralizes spawning `infer headless` as a subprocess and
-// streaming its stdout. It is the single implementation shared by the channel
-// manager, scheduler, heartbeat, and the Agent tool (local subagents), so the
-// spawn/scan/approval-IPC loop lives in exactly one place.
-//
-// It is a leaf package (stdlib + platform/ipc) so every context can depend on
-// it without an import cycle. FormatAgentMessage turns its stdout lines into
-// channel-ready text.
 package agentrunner
 
 import (

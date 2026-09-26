@@ -1,9 +1,3 @@
-// Package skills implements discovery of Agent Skills. A skill is a folder
-// containing a SKILL.md whose YAML frontmatter (name, description) is parsed
-// at startup; the body is read lazily by the model via the Read tool.
-//
-// The on-disk format intentionally matches the contract shared by the standard,
-// so a folder authored for any of them drops in unchanged.
 package skills
 
 import (

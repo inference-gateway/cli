@@ -86,9 +86,9 @@ func TestBuildAgentMessagesFromEntries_FiltersPlanEntries(t *testing.T) {
 }
 
 // TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries is a
-// regression test for issue #786: the UI-only pending-approval placeholder
-// (empty assistant entry) left behind by a rejected tool must not be
-// serialized between the assistant tool_calls message and its tool response.
+// regression test: the UI-only pending-approval placeholder (empty assistant
+// entry) left behind by a rejected tool must not be serialized between the
+// assistant tool_calls message and its tool response.
 func TestBuildAgentMessagesFromEntries_FiltersPendingToolCallEntries(t *testing.T) {
 	entries := []ConversationEntry{
 		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("edit the file")}},
@@ -149,12 +149,11 @@ func TestBuildAgentMessagesFromEntries_PreservesNonPlanEntries(t *testing.T) {
 	}
 }
 
-// Regression for issue #474: when finalizeStream stored an assistant entry
-// without populating Message.Reasoning (the pre-fix behavior for non-tool-call
-// assistant turns), the rebuilt request would lack reasoning_content and
-// thinking-mode providers (e.g. Deepseek) would 400. The helper now backfills
+// Regression: when finalizeStream stored an assistant entry without populating
+// Message.Reasoning, the rebuilt request would lack reasoning_content and
+// thinking-mode providers (e.g. Deepseek) would 400. The helper backfills
 // Message.Reasoning/ReasoningContent from the entry's top-level
-// ReasoningContent so legacy entries and any future writers stay safe.
+// ReasoningContent so legacy entries and future writers stay safe.
 func TestBuildAgentMessagesFromEntries_BackfillsReasoningFromEntry(t *testing.T) {
 	reasoning := "I should retry with a different path."
 
@@ -181,12 +180,11 @@ func TestBuildAgentMessagesFromEntries_BackfillsReasoningFromEntry(t *testing.T)
 	}
 }
 
-// Regression for the second flavor of issue #474: user-typed `!command`
-// shortcuts synthesize an assistant entry (with tool_calls but no
-// reasoning_content) followed by a tool result. Tool-call IDs are prefixed
-// with `user-bash-`. Previously these were sent verbatim to the model and
-// rejected by thinking-mode providers (DeepSeek 400) on the next turn. Both
-// the assistant and the matching tool entry must be filtered.
+// Regression, second flavor: user-typed `!command` shortcuts synthesize an
+// assistant entry (tool_calls but no reasoning_content, IDs prefixed
+// `user-bash-`) followed by a tool result; sent verbatim these were rejected
+// by thinking-mode providers (DeepSeek 400) on the next turn. Both the
+// assistant and the matching tool entry must be filtered.
 func TestBuildAgentMessagesFromEntries_FiltersUserBashEntries(t *testing.T) {
 	userBashID := "user-bash-1234567890"
 

@@ -29,7 +29,7 @@ func ResolveApprovalDelivery(behaviour string, brokerAttached, isChat bool) stri
 			return ApprovalBehaviourIPC
 		}
 		return ApprovalBehaviourBlock
-	default: // prompt, plus any unrecognised value -> safe default
+	default:
 		if isChat {
 			return ApprovalBehaviourPrompt
 		}

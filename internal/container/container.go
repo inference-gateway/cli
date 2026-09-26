@@ -618,7 +618,7 @@ func (c *ServiceContainer) initializeServices() {
 }
 
 // initializeChatOrchestrationServices wires the services extracted from the
-// monolithic ChatHandler (issue #529). All deps from earlier init phases must
+// monolithic ChatHandler. All deps from earlier init phases must
 // be in place by the time this runs.
 func (c *ServiceContainer) initializeChatOrchestrationServices() {
 	c.chatEventListener = eventlistener.NewService()

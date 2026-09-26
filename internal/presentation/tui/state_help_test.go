@@ -35,7 +35,6 @@ func TestTransition_ChatToHelpAndBack(t *testing.T) {
 func TestTransition_HelpFromNonChatIsInvalid(t *testing.T) {
 	s := NewApplicationState()
 
-	// Model selection only allows transitioning into chat, not directly to help.
 	if err := s.TransitionToView(ViewStateHelp); err == nil {
 		t.Error("expected model-selection -> help to be rejected")
 	}

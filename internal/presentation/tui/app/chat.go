@@ -1437,10 +1437,6 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if app.taskManager == nil {
-		// The task view shows all background work - shells, subagents, and A2A
-		// tasks - so it is no longer gated on A2A. Shell/subagent rows come from the
-		// unified BackgroundTaskRegistry's supervisor snapshot; A2A rows from the
-		// poller/retention service. Either source may simply be empty.
 		styleProvider := styles.NewProvider(app.themeService)
 		app.taskManager = components.NewTaskView(app.themeService, styleProvider, app.taskRetentionService, app.backgroundTaskService)
 		if app.backgroundTaskRegistry != nil {
@@ -2393,9 +2389,6 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 
 	app.conversationView.ResetUserScroll()
 
-	// Keep just-sent image files on disk - the message references their path
-	// so the model can inspect them via ImageDecode. Stale ones are pruned by
-	// retention instead of deleted on send.
 	for _, img := range images {
 		if img.SourcePath != "" {
 			utils.PruneClipboardImages(filepath.Dir(img.SourcePath))

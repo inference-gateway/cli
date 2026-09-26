@@ -368,7 +368,7 @@ func TestSupervisor_DuplicateSubmitIgnored(t *testing.T) {
 	job := newFakeJob("dup", scheddomain.JobKindShell)
 	sup.Submit(job)
 	<-job.started
-	sup.Submit(newFakeJob("dup", scheddomain.JobKindShell)) // same ID
+	sup.Submit(newFakeJob("dup", scheddomain.JobKindShell))
 	if got := sup.CountRunning(""); got != 1 {
 		t.Fatalf("CountRunning = %d, want 1 (duplicate ignored)", got)
 	}

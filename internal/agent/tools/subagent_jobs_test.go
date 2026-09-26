@@ -60,7 +60,6 @@ func TestInteractiveSubagentJob_HarvestEmitsCompletionOnce(t *testing.T) {
 	defer stop()
 
 	waitUntil(t, func() bool { return len(notes()) >= 1 }, "the harvested turn to be emitted")
-	// Give it a few more ticks; the same harvest must not re-emit.
 	time.Sleep(30 * time.Millisecond)
 
 	all := notes()
@@ -104,7 +103,7 @@ func TestInteractiveSubagentJob_BusyPaneNotFalselyCompleted(t *testing.T) {
 	stop, notes := runJobCollecting(j)
 	defer stop()
 
-	time.Sleep(60 * time.Millisecond) // many polls
+	time.Sleep(60 * time.Millisecond)
 	if all := notes(); len(all) != 0 {
 		t.Fatalf("busy pane falsely completed: %v", all)
 	}

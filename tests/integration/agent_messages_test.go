@@ -63,12 +63,11 @@ func cacheControlCount(t *testing.T, req sdk.CreateMessagesRequest) int {
 	return strings.Count(string(b), `"cache_control"`)
 }
 
-// TestMessagesToolLoop is the end-to-end acceptance check for issue #942: the
-// agent drives a full tool round-trip over the native Anthropic endpoint -
-// thinking and text deltas reach the TUI event stream, tool arguments
-// reassemble from input_json_delta fragments, tool results return as
-// tool_result blocks, and every request carries the three cache_control
-// breakpoints with the volatile <system-reminder> tail left uncached.
+// TestMessagesToolLoop is the end-to-end acceptance check: the agent drives a
+// full tool round-trip over the native Anthropic endpoint - thinking and text
+// deltas reach the TUI event stream, tool arguments reassemble from
+// input_json_delta fragments, tool results return as tool_result blocks, and
+// every request carries the three cache_control breakpoints (tail uncached).
 func TestMessagesToolLoop(t *testing.T) {
 	e := newAnthropicEnv(t)
 	e.writeFixtures(t, "a.txt")

@@ -791,7 +791,6 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 				b.answerApproval(conn, msg.RequestID, msg.Action)
 			}
 		default:
-			// Unknown frame types are ignored for forward compatibility.
 		}
 	}
 }

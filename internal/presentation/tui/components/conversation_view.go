@@ -87,8 +87,6 @@ type ConversationView struct {
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
-	// Keyboard scrolling is routed through the configurable keybindings
-	// (ScrollRequestEvent); the viewport only owns wheel input.
 	vp.KeyMap = viewport.KeyMap{}
 	vp.MouseWheelEnabled = true
 	vp.MouseWheelDelta = 3
@@ -430,11 +428,9 @@ func (cv *ConversationView) updateViewportContent() {
 }
 
 // streamingRenderInterval bounds how often the viewport is rebuilt while an
-// assistant message streams. Deltas arrive far faster than this (a real model
-// emits many tokens/sec); rebuilding + SetContent + GotoBottom on every delta
-// hands the 60fps renderer a fully-reflowed frame per token, which the terminal
-// cannot paint cleanly and shows as mid-stream scrambling (issue #888). We
-// coalesce to ~30fps: visually live, but at most one rebuild per tick.
+// assistant message streams. A rebuild on every delta hands the renderer a
+// fully-reflowed frame per token, which scrambles mid-stream; we coalesce to
+// ~30fps: visually live, but at most one rebuild per tick.
 const streamingRenderInterval = 33 * time.Millisecond
 
 // streamingRenderTickMsg drives the coalesced streaming re-render loop.
@@ -966,7 +962,6 @@ func (cv *ConversationView) formatExpandedContent(entry convdomain.ConversationE
 }
 
 func (cv *ConversationView) formatCompactContent(entry convdomain.ConversationEntry) string {
-	// Tool results own their themed status line, preview and expand hint.
 	if entry.ToolExecution != nil && cv.toolFormatter != nil {
 		return cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
 	}
@@ -1258,7 +1253,7 @@ func (cv *ConversationView) handleStreamingContentEvent(msg tui.StreamingContent
 }
 
 // handleStreamingRenderTick performs the coalesced viewport rebuild: at most one
-// rebuild per tick while streaming, re-arming until streaming ends (issue #888).
+// rebuild per tick while streaming, re-arming until streaming ends.
 func (cv *ConversationView) handleStreamingRenderTick(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if cv.streamingDirty {
 		cv.streamingDirty = false

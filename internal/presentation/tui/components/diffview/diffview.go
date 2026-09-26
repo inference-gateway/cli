@@ -1,20 +1,3 @@
-// Package diffview renders unified or side-by-side file diffs to a string of
-// ANSI-styled output, using go-udiff for the underlying diff algorithm and
-// chroma for in-line syntax highlighting.
-//
-// The structure (file/style/split/builder) mirrors charmbracelet/crush's
-// internal/ui/diffview package, adapted to lipgloss v1 and the existing infer
-// CLI styling abstractions.
-//
-// Typical use:
-//
-//	out := diffview.New().
-//	    Before(path, oldContent).
-//	    After(path, newContent).
-//	    FileName(path).
-//	    Width(termWidth).
-//	    Style(diffview.DefaultDarkStyle()).
-//	    String()
 package diffview
 
 import (
@@ -202,8 +185,6 @@ func (dv *DiffView) computeDiff() error {
 		return dv.err
 	}
 	dv.isComputed = true
-	// Lines is the line-level edit script which produces clean line-shift
-	// hunks; Strings would be rune-level and visually misleads on text diffs.
 	edits := udiff.Lines(dv.before.content, dv.after.content)
 	dv.unified, dv.err = udiff.ToUnifiedDiff(
 		dv.before.path, dv.after.path,
@@ -223,7 +204,7 @@ func (dv *DiffView) resolveLayout() {
 	switch dv.layout {
 	case LayoutUnified, LayoutSplit:
 		dv.resolvedLayout = dv.layout
-	default: // Auto
+	default:
 		if dv.width >= dv.splitMinWidth {
 			dv.resolvedLayout = LayoutSplit
 		} else {
@@ -523,8 +504,6 @@ func (dv *DiffView) renderSplitSide(b *strings.Builder, l *udiff.Line, isBefore 
 
 func (dv *DiffView) lineContent(in string, ls LineStyle) (string, bool) {
 	content := strings.TrimSuffix(in, "\n")
-	// Pull the background color out of the lipgloss v2 style as RGB hex so
-	// the chroma formatter can preserve it across tokens.
 	bg := ""
 	if r, g, bch, a := ls.Code.GetBackground().RGBA(); a > 0 {
 		bg = fmt.Sprintf("#%02x%02x%02x", uint8(r>>8), uint8(g>>8), uint8(bch>>8))

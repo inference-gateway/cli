@@ -32,7 +32,7 @@ func minimalPNG() []byte {
 
 func newTestVideoTool(t *testing.T, enabled bool, video agentdomain.VideoService) *TextToVideoTool {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir()) // isolate the avatar library (~/.infer/avatars)
+	t.Setenv("HOME", t.TempDir())
 	cfg := config.DefaultConfig()
 	cfg.Prompts = *config.DefaultPromptsConfig()
 	cfg.TextToVideo.Enabled = enabled

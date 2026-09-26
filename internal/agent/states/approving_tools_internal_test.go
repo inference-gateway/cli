@@ -15,6 +15,10 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
+// TestApprovingToolsState_RejectionEntryKeepsArguments verifies the rejected
+// tool entry carries the original call arguments so the UI renders
+// "Bash(command=...)" instead of a bare "Bash()", and that a "failed" progress
+// event is published so the queued preview line is dropped.
 func TestApprovingToolsState_RejectionEntryKeepsArguments(t *testing.T) {
 	var published []agentdomain.ChatEvent
 	ctx := &StateContext{
@@ -71,8 +75,8 @@ func TestApprovingToolsState_JudgeRejectionCarriesReason(t *testing.T) {
 }
 
 // A call the approval policy does not gate (TodoWrite batched with a gated
-// tool) must execute directly instead of prompting - issue #881 follow-up:
-// only gated calls reach RequestToolApproval.
+// tool) must execute directly instead of prompting: only gated calls reach
+// RequestToolApproval.
 func TestApprovingToolsState_UngatedToolRunsWithoutPrompt(t *testing.T) {
 	var mu sync.Mutex
 	var approvalPrompts []string

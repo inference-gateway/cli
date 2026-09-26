@@ -169,8 +169,8 @@ func TestListAllActions(t *testing.T) {
 }
 
 // TestKeybindingsExcludedFromMainConfigYAML verifies that the Keybindings
-// field is hidden from the main config.yaml via the yaml/mapstructure "-" tags.
-// This guards the issue #435 invariant: keybindings live in their own file.
+// field is hidden from the main config.yaml via the yaml/mapstructure "-" tags:
+// keybindings live in their own file.
 func TestKeybindingsExcludedFromMainConfigYAML(t *testing.T) {
 	cfgType := reflect.TypeFor[config.ChatConfig]()
 	field, ok := cfgType.FieldByName("Keybindings")

@@ -61,7 +61,6 @@ func newTools(found []mcpdomain.Tool, client mcpdomain.Client, cfg *config.MCPCo
 func (t *MCPTool) Definition() sdk.ChatCompletionTool {
 	fullToolName := mcpdomain.ToolName(t.serverName, t.toolName)
 
-	// Enhance description with server context
 	enhancedDescription := fmt.Sprintf("[MCP:%s] %s", t.serverName, t.description)
 
 	var parameters *sdk.FunctionParameters
@@ -121,7 +120,6 @@ func (t *MCPTool) Execute(ctx context.Context, args map[string]any) (*agentdomai
 
 // Validate checks if the tool arguments are valid
 func (t *MCPTool) Validate(args map[string]any) error {
-	// Basic validation - check if args is not nil
 	if args == nil {
 		return fmt.Errorf("arguments cannot be nil")
 	}
@@ -166,7 +164,7 @@ func (t *MCPTool) validatePropertyTypes(schema map[string]any, args map[string]a
 	for key, value := range args {
 		propSchema, exists := properties[key]
 		if !exists {
-			continue // Allow extra fields
+			continue
 		}
 
 		propMap, ok := propSchema.(map[string]any)
@@ -214,14 +212,12 @@ func (t *MCPTool) IsEnabled() bool {
 		return false
 	}
 
-	// Check if the specific server is enabled
 	for _, server := range t.config.Servers {
 		if server.Name == t.serverName {
 			if !server.Enabled {
 				return false
 			}
 
-			// Check tool filtering
 			return server.ShouldIncludeTool(t.toolName)
 		}
 	}

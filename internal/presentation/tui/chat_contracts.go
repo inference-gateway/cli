@@ -91,15 +91,11 @@ type ApprovalCoordinator interface {
 	HandleComputerUseResumed(msg agentdomain.ComputerUseResumedEvent) (cmd tea.Cmd, restart bool)
 }
 
-// ChatCompletionRunner owns the LLM streaming lifecycle - initiating
-// streaming, translating chat-start / chat-chunk / chat-complete / chat-error
-// events into UI state transitions, and handling the model-restoration side
-// effect after a temporary /model switch.
-//
-// Start takes a BashDetachChannelHolder because the agent core needs that
-// narrow interface attached to its context when launching tools that may
-// require backgrounding. In #529 commit 3 that holder is the orchestrator
-// itself; in commit 4 it becomes the DirectExecutionService.
+// ChatCompletionRunner owns the LLM streaming lifecycle - initiating streaming,
+// translating chat-start / chat-chunk / chat-complete / chat-error events into
+// UI state transitions, and restoring the model after a temporary /model switch.
+// Start takes a BashDetachChannelHolder: the narrow interface the agent core
+// needs on its context when launching tools that may require backgrounding.
 type ChatCompletionRunner interface {
 	Start(holder agentdomain.BashDetachChannelHolder) tea.Cmd
 	HandleChatStart(msg agentdomain.ChatStartEvent) tea.Cmd

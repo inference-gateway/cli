@@ -781,7 +781,7 @@ func (s *ApplicationState) GetAgentReadiness() *AgentReadinessState {
 // AreAllAgentsReady returns true if all agents are ready
 func (s *ApplicationState) AreAllAgentsReady() bool {
 	if s.agentReadiness == nil {
-		return true // No agents to wait for
+		return true
 	}
 	return s.agentReadiness.ReadyAgents >= s.agentReadiness.TotalAgents
 }

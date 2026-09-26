@@ -41,7 +41,7 @@ func TestApproveSubagentTool_Validate(t *testing.T) {
 // ApproveSubagent is always approval-gated so the human confirms the relay.
 func TestApproveSubagentTool_AlwaysRequiresApproval(t *testing.T) {
 	cfg := config.DefaultConfig()
-	cfg.Tools.Safety.RequireApproval = false // even with global approval off
+	cfg.Tools.Safety.RequireApproval = false
 	if !cfg.IsApprovalRequired("ApproveSubagent") {
 		t.Fatalf("ApproveSubagent must always require approval")
 	}

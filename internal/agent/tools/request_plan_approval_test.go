@@ -296,8 +296,6 @@ func TestRequestPlanApprovalTool_Execute_SameSecondSameTitleUpserts(t *testing.T
 		"plan":  "body",
 	}
 
-	// The plan ID is <stamp>-<slug>; with a fixed clock all three submissions
-	// share one ID and upsert into a single record/file.
 	for i := range 3 {
 		result, err := tool.Execute(context.Background(), args)
 		if err != nil || !result.Success {

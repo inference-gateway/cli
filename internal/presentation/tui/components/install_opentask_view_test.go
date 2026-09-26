@@ -10,7 +10,7 @@ import (
 
 func TestInitWizard_RendersTitleAndConfirm(t *testing.T) {
 	v := NewInstallOpentaskView(createMockStyleProviderForHelpBar())
-	v.Init() // the chat app initializes the form when the wizard is shown
+	v.Init()
 	out := v.View().Content
 	if !strings.Contains(out, "Init GitHub Action Setup Wizard") {
 		t.Fatalf("expected wizard title in view, got:\n%s", out)

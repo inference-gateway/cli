@@ -165,7 +165,6 @@ func newMockServer(t *testing.T, repo fakeRepo) *httptest.Server {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/repos/", func(w http.ResponseWriter, r *http.Request) {
-		// path looks like /repos/<owner>/<repo>/git/trees/<ref>
 		if !strings.Contains(r.URL.Path, "/git/trees/") {
 			http.NotFound(w, r)
 			return
@@ -182,7 +181,6 @@ func newMockServer(t *testing.T, repo fakeRepo) *httptest.Server {
 		_ = json.NewEncoder(w).Encode(resp)
 	})
 
-	// Raw file fetches: /<owner>/<repo>/<ref>/<path>
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/"), "/", 4)
 		if len(parts) < 4 {
@@ -243,17 +241,11 @@ func TestInstallFromGitHub_HappyPath(t *testing.T) {
 	require.FileExists(t, filepath.Join(skillDir, "reference.md"))
 	require.FileExists(t, filepath.Join(skillDir, "scripts", "run.sh"))
 
-	// Sibling skill must not be downloaded.
 	_, err = os.Stat(filepath.Join(dest, "other"))
 	require.True(t, os.IsNotExist(err))
 }
 
 func TestInstallFromGitHub_ShorthandResolves(t *testing.T) {
-	// Shorthand "acme/skill-creator" should resolve to the "skills" repo
-	// under the acme org with path "skills/skill-creator". The mock server
-	// doesn't care about owner/repo/ref segments - it just looks at the
-	// repo path prefix - so we need a SKILL.md at
-	// skills/skill-creator/SKILL.md to match the resolved tree path.
 	repo := fakeRepo{
 		Files: map[string]string{
 			"skills/skill-creator/SKILL.md": validSkillBody("skill-creator", "Test skill."),
@@ -326,7 +318,6 @@ func TestInstallFromGitHub_NoFilesUnderPath(t *testing.T) {
 }
 
 func TestInstallFromGitHub_InvalidFrontmatterRollsBack(t *testing.T) {
-	// SKILL.md exists but `name` doesn't match dirname - validator rejects.
 	repo := fakeRepo{
 		Files: map[string]string{
 			"skills/pdf/SKILL.md": validSkillBody("not-pdf", "wrong name"),
@@ -346,7 +337,6 @@ func TestInstallFromGitHub_InvalidFrontmatterRollsBack(t *testing.T) {
 }
 
 func TestInstallFromGitHub_MissingSkillMD(t *testing.T) {
-	// Files exist under the prefix but none is SKILL.md.
 	repo := fakeRepo{
 		Files: map[string]string{
 			"skills/pdf/reference.md": "# refs",
@@ -380,7 +370,6 @@ func TestInstallFromGitHub_ExistingDirRequiresOverwrite(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "--overwrite")
 
-	// marker still there.
 	_, statErr := os.Stat(filepath.Join(dest, "pdf", "marker"))
 	require.NoError(t, statErr)
 }
@@ -530,7 +519,6 @@ func TestInstallFromGitHub_OverwriteReplaces(t *testing.T) {
 		"https://github.com/foo/bar/tree/main/skills/pdf", dest, true)
 	require.NoError(t, err)
 
-	// marker gone, SKILL.md present.
 	_, statErr := os.Stat(filepath.Join(dest, "pdf", "marker"))
 	require.True(t, os.IsNotExist(statErr))
 	body, err := os.ReadFile(filepath.Join(dest, "pdf", "SKILL.md"))

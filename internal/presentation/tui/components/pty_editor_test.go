@@ -115,7 +115,7 @@ func TestEditorColorArgs(t *testing.T) {
 		{"cat", true, nil},
 		{"code", true, nil},
 		{"nano", true, nil},
-		{"view", true, nil}, // read-only vim: not in the family, left untouched
+		{"view", true, nil},
 	}
 	for _, tt := range tests {
 		if got := editorColorArgs(tt.bin, tt.dark); !reflect.DeepEqual(got, tt.want) {
@@ -131,7 +131,6 @@ func TestBuildEditorArgv(t *testing.T) {
 		t.Errorf("vim-family argv = %v, want %v", got, want)
 	}
 
-	// non-vim: no flags injected, file appended directly.
 	got = buildEditorArgv([]string{"nano"}, "/tmp/f.go", true)
 	want = []string{"nano", "/tmp/f.go"}
 	if !reflect.DeepEqual(got, want) {
@@ -170,17 +169,13 @@ func TestPTYEditor_VimEmitsColor(t *testing.T) {
 	}
 	defer e.close()
 
-	// vim draws then idles waiting for input; the re-arming reader would block once
-	// it goes idle. Pump PTY output over a channel from a reader goroutine (which
-	// never touches the emulator), and feed the emulator only here in the main
-	// goroutine until a quiet period - so there is no concurrent emulator access.
 	out := make(chan []byte, 64)
 	done := make(chan struct{})
 	go func() {
 		for readCmd != nil {
 			o, ok := readCmd().(ptyOutputMsg)
 			if !ok {
-				return // ptyExitMsg
+				return
 			}
 			select {
 			case out <- o.data:
@@ -208,7 +203,7 @@ loop:
 			quiet.Reset(800 * time.Millisecond)
 		case <-quiet.C:
 			if got {
-				break loop // vim finished drawing
+				break loop
 			}
 			quiet.Reset(800 * time.Millisecond)
 		case <-hard:

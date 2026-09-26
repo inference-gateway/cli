@@ -89,7 +89,6 @@ func stripSGR(s string) string {
 		case inEsc && r == 'm':
 			inEsc = false
 		case inEsc:
-			// skip
 		default:
 			b.WriteRune(r)
 		}

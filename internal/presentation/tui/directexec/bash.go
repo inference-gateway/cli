@@ -288,9 +288,9 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 }
 
 // addHiddenBashOutputEntry persists the output of a user-typed `!command` as a
-// hidden user message so the model can see it: the synthesized user-bash- tool
-// pair is dropped from LLM history (BuildAgentMessagesFromEntries, issue #474),
-// while hidden entries are invisible in the TUI but still sent to the model.
+// hidden user message so the model can see it: the synthesized user-bash tool
+// pair is dropped from LLM history (BuildAgentMessagesFromEntries), while
+// hidden entries are invisible in the TUI but still sent to the model.
 func (s *Service) addHiddenBashOutputEntry(command, output string) {
 	_ = s.conversationRepo.AddMessage(convdomain.ConversationEntry{
 		Message: sdk.Message{

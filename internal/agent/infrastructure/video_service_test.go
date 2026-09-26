@@ -202,7 +202,7 @@ func TestVideoService_Render(t *testing.T) { // nolint:funlen
 
 		cfg := config.DefaultConfig()
 		cfg.TextToVideo.Model = "elevenlabs/creatify-aurora"
-		cfg.TextToVideo.Timeout = 1 // second
+		cfg.TextToVideo.Timeout = 1
 		cfg.TextToVideo.PollInterval = 5
 		svc := NewVideoService(cfg, client)
 		outPath := filepath.Join(t.TempDir(), "out.mp4")

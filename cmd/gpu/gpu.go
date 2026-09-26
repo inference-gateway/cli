@@ -206,13 +206,11 @@ func gpuProvision(state *runtime.State, cmd *cobra.Command) error {
 func gpuAskChoices(types []provisioner.GPUType, model string, yes bool) (string, string, error) {
 	var gpuType string
 	fields := []huh.Field{
-		// Height caps the list so the title/filter line stays on screen ("/" to filter).
 		huh.NewSelect[string]().Title("GPU type (cheapest first)").Options(gpuTypeOptions(types)...).Height(15).Value(&gpuType),
 	}
 	if !yes {
 		fields = append(fields, huh.NewInput().Title("Model (Hugging Face GGUF, <repo>:<quant>)").Value(&model))
 	}
-	// One group so shift+tab navigates back to change an earlier answer.
 	if err := huh.NewForm(huh.NewGroup(fields...)).Run(); err != nil {
 		return "", "", err
 	}

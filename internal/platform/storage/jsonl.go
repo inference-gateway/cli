@@ -966,8 +966,7 @@ func (s *JsonlStorage) ListSessionGroups(_ context.Context) (map[string]SessionG
 
 // schedulesDir returns the machine-global schedules directory. Jobs are
 // executed by the single per-machine daemon, so they live under the user's
-// home config dir regardless of where conversation storage points -
-// project-local storage used to orphan jobs the daemon never saw (#1053).
+// home config dir regardless of where conversation storage points.
 func (s *JsonlStorage) schedulesDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -1327,7 +1326,6 @@ func (s *JsonlStorage) LoadHistory(_ context.Context, limit int) ([]string, erro
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("error reading history file: %w", err)
 	}
-	// Return most recent `limit` lines
 	if limit > 0 && len(allLines) > limit {
 		allLines = allLines[len(allLines)-limit:]
 	}

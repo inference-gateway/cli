@@ -246,7 +246,6 @@ func TestService_PollReload_AddsNewJob(t *testing.T) {
 		t.Fatalf("SaveJob: %v", err)
 	}
 
-	// Wait for the poller to pick up the change (2s poll interval)
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if len(svc.JobIDs()) == 1 {
@@ -285,8 +284,6 @@ func TestService_PollReload_UpdatesChangedJob(t *testing.T) {
 		t.Fatalf("SaveJob update: %v", err)
 	}
 
-	// The changed fingerprint re-registers the job; there must never be a
-	// duplicate or a dropped entry.
 	time.Sleep(3 * time.Second)
 	if got := svc.JobIDs(); len(got) != 1 || got[0] != "editable" {
 		t.Fatalf("expected [editable] after update, got %v", got)
@@ -369,7 +366,6 @@ func TestService_Fire_RunOnce_DeletesAfterFire(t *testing.T) {
 	if fired.Load() < 1 {
 		t.Fatal("expected job to fire at least once")
 	}
-	// The run record must survive the job deletion.
 	runs, err := store.ListRuns(context.Background(), "one-shot")
 	if err != nil {
 		t.Fatalf("ListRuns: %v", err)

@@ -1,9 +1,3 @@
-// Package avatars manages the avatar library: ~/.infer/avatars/<name>/, one
-// folder per avatar holding one or more portrait images of the same person
-// (e.g. shots from different angles). The TextToVideo tool renders
-// lip-synced clips from an avatar's primary image and sends every image as a
-// reference in prompt renders; `infer avatars` creates, lists and deletes
-// them.
 package avatars
 
 import (
@@ -122,8 +116,6 @@ func Create(ctx context.Context, dir, name, photo string, angles []string, edit 
 	if !slices.Contains(ImageExtensions, ext) {
 		return Avatar{}, fmt.Errorf("photo %q must be a .png, .jpg, .jpeg or .webp image", photo)
 	}
-	// Swap each requested angle for the library's own key, so generated file
-	// names are built from the Angles keys, never from caller input.
 	views := make([]string, len(angles))
 	for i, angle := range angles {
 		for known := range Angles {
@@ -225,7 +217,7 @@ func exifOrientation(jpg []byte) int {
 	for i := 2; i+4 <= len(jpg) && jpg[i] == 0xFF; {
 		marker, size := jpg[i+1], int(binary.BigEndian.Uint16(jpg[i+2:]))
 		end := i + 2 + size
-		if marker == 0xDA || size < 2 || end > len(jpg) { // start of scan: no metadata after it
+		if marker == 0xDA || size < 2 || end > len(jpg) {
 			break
 		}
 		if seg := jpg[i+4 : end]; marker == 0xE1 && bytes.HasPrefix(seg, []byte("Exif\x00\x00")) {
@@ -330,5 +322,5 @@ func read(dir, name string) (Avatar, error) {
 	if len(avatar.Images) == 0 {
 		return Avatar{}, fmt.Errorf("avatar %q in %s holds no .png, .jpg, .jpeg or .webp image", name, dir)
 	}
-	return avatar, nil // os.ReadDir sorts by file name
+	return avatar, nil
 }

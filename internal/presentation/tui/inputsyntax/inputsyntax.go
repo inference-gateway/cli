@@ -1,17 +1,3 @@
-// Package inputsyntax highlights reserved tokens in the chat input field. It is
-// a small, extensible parser: each token class (skill "/x", shortcut "/x", file
-// ref "@x", and - in future - issue ref "#365") is described by a Rule, and a
-// Highlighter paints every matching token with that rule's theme color.
-//
-// The package is intentionally pure: it imports only regexp/strings and receives
-// color resolution and rendering as function values, so it never depends on the
-// UI theme/style packages and is unit-testable without asserting raw ANSI.
-//
-// Highlighter.Highlight runs over an ALREADY-rendered string (after wrapping and
-// cursor insertion). That is safe because token sigils ('/', '@', '#') never
-// appear inside ANSI escape sequences ("\x1b[...m"), so a boundary-anchored match
-// can never land inside an escape. A token split by the cursor or a wrap newline
-// yields a partial body that fails the rule's Validate and is left unstyled.
 package inputsyntax
 
 import (

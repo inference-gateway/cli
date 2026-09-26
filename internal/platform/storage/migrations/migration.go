@@ -92,19 +92,16 @@ func (r *MigrationRunner) GetAppliedMigrations(ctx context.Context) (map[string]
 
 // ApplyMigration applies a single migration
 func (r *MigrationRunner) ApplyMigration(ctx context.Context, migration Migration) error {
-	// Start transaction
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Execute migration SQL
 	if _, err := tx.ExecContext(ctx, migration.UpSQL); err != nil {
 		return fmt.Errorf("failed to execute migration %s: %w", migration.Version, err)
 	}
 
-	// Record migration as applied
 	var recordSQL string
 	switch r.dialect {
 	case "sqlite":
@@ -117,7 +114,6 @@ func (r *MigrationRunner) ApplyMigration(ctx context.Context, migration Migratio
 		return fmt.Errorf("failed to record migration %s: %w", migration.Version, err)
 	}
 
-	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit migration %s: %w", migration.Version, err)
 	}
@@ -127,12 +123,10 @@ func (r *MigrationRunner) ApplyMigration(ctx context.Context, migration Migratio
 
 // ApplyMigrations applies all pending migrations
 func (r *MigrationRunner) ApplyMigrations(ctx context.Context, migrations []Migration) (int, error) {
-	// Ensure migration table exists
 	if err := r.EnsureMigrationTable(ctx); err != nil {
 		return 0, err
 	}
 
-	// Get applied migrations
 	applied, err := r.GetAppliedMigrations(ctx)
 	if err != nil {
 		return 0, err
@@ -145,7 +139,7 @@ func (r *MigrationRunner) ApplyMigrations(ctx context.Context, migrations []Migr
 	appliedCount := 0
 	for _, migration := range migrations {
 		if applied[migration.Version] {
-			continue // Skip already applied migrations
+			continue
 		}
 
 		if err := r.ApplyMigration(ctx, migration); err != nil {
@@ -160,18 +154,15 @@ func (r *MigrationRunner) ApplyMigrations(ctx context.Context, migrations []Migr
 
 // GetMigrationStatus returns the current migration status
 func (r *MigrationRunner) GetMigrationStatus(ctx context.Context, availableMigrations []Migration) ([]MigrationStatus, error) {
-	// Ensure migration table exists
 	if err := r.EnsureMigrationTable(ctx); err != nil {
 		return nil, err
 	}
 
-	// Get applied migrations
 	applied, err := r.GetAppliedMigrations(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Build status list
 	var status []MigrationStatus
 	for _, migration := range availableMigrations {
 		status = append(status, MigrationStatus{

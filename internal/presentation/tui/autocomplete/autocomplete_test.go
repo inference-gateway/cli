@@ -138,8 +138,6 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 		"required": []string{"command"},
 	})
 
-	// loadTools now sources the !! suggestions from ListToolsForMode (the same
-	// mode-aware gating the agent uses for the LLM).
 	mockToolService.ListToolsForModeReturns([]sdk.ChatCompletionTool{
 		{
 			Type: sdk.Function,
@@ -265,14 +263,12 @@ func TestAutocomplete_ToolsRespectAgentMode(t *testing.T) {
 	ac.SetToolService(mockToolService)
 	ac.SetStateManager(sm)
 
-	// Standard mode: the stub only returns AskUserQuestion in plan mode, so it must not autocomplete.
 	sm.SetAgentMode(agentdomain.AgentModeStandard)
 	ac.Update("!!AskUser", 9)
 	if ac.IsVisible() {
 		t.Error("AskUserQuestion should not autocomplete in standard mode")
 	}
 
-	// Plan mode: it appears.
 	sm.SetAgentMode(agentdomain.AgentModePlan)
 	ac.Update("!!AskUser", 9)
 	if !ac.IsVisible() {
@@ -411,7 +407,7 @@ func TestAutocomplete_IssueMode(t *testing.T) {
 		},
 		{
 			name: "numeric prefix filters by number", input: "#12", cursorPos: 3,
-			expectedVisible: true, expectedCount: 2, // #12 and #120
+			expectedVisible: true, expectedCount: 2,
 		},
 		{
 			name: "non-numeric query filters by title substring", input: "#auth", cursorPos: 5,
@@ -605,7 +601,7 @@ func TestAutocomplete_SkillsMidText(t *testing.T) {
 	})
 }
 
-// TestAutocomplete_ToolsAllOptionalSchema covers the regression in issue #690:
+// TestAutocomplete_ToolsAllOptionalSchema covers the regression:
 // a tool whose useful arguments are not top-level "required" (a one-of /
 // all-optional schema like the Agent tool) must still surface its arguments in
 // the !! skeleton and the dropdown description, rather than showing a bare

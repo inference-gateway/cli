@@ -1,6 +1,3 @@
-// Package project derives the identity of the project the process runs in.
-// It is a leaf package so both the agent and its tools can share it without
-// import cycles.
 package project
 
 import (

@@ -40,7 +40,7 @@ func getBasicToolCallTestCases() []testCase {
 					},
 				},
 				{Role: "tool", Content: sdk.NewMessageContent("file content"), ToolCallID: stringPtr("call_A")},
-				{Role: "assistant", Content: sdk.NewMessageContent("Intermediate response")}, // Breaks the loop
+				{Role: "assistant", Content: sdk.NewMessageContent("Intermediate response")},
 				{Role: "tool", Content: sdk.NewMessageContent("write success"), ToolCallID: stringPtr("call_B")},
 				{Role: "assistant", Content: sdk.NewMessageContent("All done")},
 				{Role: "user", Content: sdk.NewMessageContent("Thank you")},
@@ -147,7 +147,7 @@ func getBasicToolCallTestCases() []testCase {
 					},
 				},
 				{Role: "tool", Content: sdk.NewMessageContent("result 1"), ToolCallID: stringPtr("call_1")},
-				{Role: "user", Content: sdk.NewMessageContent("Next request")}, // User interrupts
+				{Role: "user", Content: sdk.NewMessageContent("Next request")},
 				{Role: "tool", Content: sdk.NewMessageContent("result 2"), ToolCallID: stringPtr("call_2")},
 			},
 			keepFirstMessages: 1,
@@ -545,7 +545,6 @@ func createMockSDKClient(t *testing.T, summaryText string) *sdkmocks.FakeClient 
 
 	mockClient := &sdkmocks.FakeClient{}
 
-	// Configure the mock to return a summary response
 	content := sdk.NewMessageContent(summaryText)
 	mockClient.GenerateContentReturns(&sdk.CreateChatCompletionResponse{
 		Choices: []sdk.ChatCompletionChoice{
@@ -558,7 +557,6 @@ func createMockSDKClient(t *testing.T, summaryText string) *sdkmocks.FakeClient 
 		},
 	}, nil)
 
-	// Return self for chaining
 	mockClient.WithOptionsReturns(mockClient)
 	mockClient.WithMiddlewareOptionsReturns(mockClient)
 

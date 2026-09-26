@@ -317,7 +317,6 @@ func (a *Autocomplete) loadTools() {
 	for _, toolDef := range a.toolService.ListToolsForMode(mode) {
 		toolName := toolDef.Function.Name
 		if toolName == "RequestPlanApproval" {
-			// The plan-submission tool isn't a meaningful manual !! command.
 			continue
 		}
 
@@ -967,7 +966,7 @@ func (a *Autocomplete) calculateVisibleRange() (int, int) {
 // calculateMaxShortcutWidth calculates the maximum width for shortcut display
 func (a *Autocomplete) calculateMaxShortcutWidth() int {
 	if a.completionMode == "files" {
-		return max(10, a.width-4) // paths have no description column; use the full row
+		return max(10, a.width-4)
 	}
 	maxShortcutWidth := 0
 	for _, cmd := range a.filtered {
@@ -1140,7 +1139,6 @@ func (a *Autocomplete) ClearUsageHint() {
 // extractUsageHint extracts the usage pattern from a description
 // Example: "Remove an A2A agent (usage: <name>)" -> "<name>"
 func (a *Autocomplete) extractUsageHint(description string) string {
-	// Look for "(usage: ...)" pattern
 	usageStart := strings.Index(description, "(usage:")
 	if usageStart == -1 {
 		if argStart := strings.IndexAny(description, "<["); argStart != -1 {

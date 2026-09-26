@@ -675,7 +675,6 @@ func (t *WebSearchTool) formatSearchData(data any) string {
 		fmt.Fprintf(&output, "Error: %s\n", searchResponse.Error)
 	}
 
-	// Search results
 	if len(searchResponse.Results) > 0 {
 		output.WriteString("\nSearch Results:\n")
 		for i, result := range searchResponse.Results {

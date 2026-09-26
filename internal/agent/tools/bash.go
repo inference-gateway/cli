@@ -329,7 +329,6 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 			return result, nil
 
 		case <-done:
-			// TODO: run some cleanups perhaps
 		}
 	} else {
 		wg.Wait()

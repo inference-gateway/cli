@@ -7,9 +7,8 @@ import (
 )
 
 // ShortcutResult.Output is never printed - its only consumer persists it as an
-// assistant message (tui/handlers.ChatShortcutHandler). Terminal styling there
-// is written straight to storage, where it surfaces as literal escape codes in
-// any non-terminal reader. Regression test for inference-gateway/desktop#289.
+// assistant message (tui/handlers.ChatShortcutHandler), where terminal styling
+// surfaces as literal escape codes in any non-terminal reader.
 func TestCustomShortcutOutputCarriesNoTerminalStyling(t *testing.T) {
 	c := &CustomShortcut{}
 	snippet := &SnippetConfig{Prompt: "describe {x}", Template: "{llm}"}

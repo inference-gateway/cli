@@ -49,8 +49,6 @@ func hunkToSplit(h *udiff.Hunk) splitHunk {
 			ulCopy := ul
 			sl.before = &ulCopy
 
-			// pair this delete with the next insert if one comes before any
-			// equal line - represents an in-place modification
 			for i, l := range lines {
 				if l.Kind == udiff.Equal {
 					break

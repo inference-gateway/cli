@@ -372,15 +372,12 @@ func TestBuildSkillsInfo_LargeCatalogStaysBounded(t *testing.T) {
 	fake.ListReturns(all)
 	got := (&Agent{config: skillsCapConfig(maxChars), skillsService: fake}).buildSkillsInfo()
 
-	// The tail line is written after the cap check, so allow one line of slack -
-	// what must not happen is growth proportional to the catalog.
 	require.Less(t, len(got), maxChars+200,
 		"skills section must stay within its char budget regardless of catalog size")
 	require.Contains(t, got, "more skills not expanded")
 	require.NotContains(t, got, "catalog-skill-0999",
 		"omitted skills must be counted, never named")
 
-	// The one actionable skill outranks 1000 path-less catalog entries.
 	require.Contains(t, got, "/abs/.infer/skills/local-one/SKILL.md")
 }
 

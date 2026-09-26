@@ -94,6 +94,5 @@ func TestScheduleNotifier_FailureEvent(t *testing.T) {
 func TestScheduleNotifier_UnregisteredChannelIsSkipped(t *testing.T) {
 	n := newNotifierWithChannel(nil)
 	job := scheddomain.ScheduledJob{ID: "j1", Channel: "telegram", RecipientID: "user1"}
-	// Must not panic on nil channel lookup.
 	n.Notify(job, scheddomain.RunEvent{Line: []byte(`{"role":"assistant","content":"hello"}`)})
 }

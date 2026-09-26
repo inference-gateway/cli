@@ -1,8 +1,3 @@
-// Package domain holds the MCP bounded context's contracts: the tools a
-// server advertises, the Client port they are called through, and the
-// Supervisor port the composition root and the UI consume. It imports only
-// the agent/domain shared kernel, whose Tool contract MCP tools are handed to
-// the agent as.
 package domain
 
 import (

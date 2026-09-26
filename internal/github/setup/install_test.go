@@ -125,7 +125,7 @@ func (r *installScriptRunner) Run(_ context.Context, name string, args ...string
 		}
 		return []byte("couldn't find remote ref"), errors.New("exit 128")
 	case strings.Contains(call, "diff --cached --quiet"):
-		return nil, errors.New("exit 1") // staged changes present
+		return nil, errors.New("exit 1")
 	case strings.Contains(call, "gh api repos/acme/app/languages"):
 		return []byte("Go, Rust\n"), nil
 	case strings.Contains(call, "gh pr create"):
@@ -197,7 +197,7 @@ func TestInstallWorkflowAgentNoChanges(t *testing.T) {
 		if strings.Contains(call, "fetch origin") {
 			return nil, errors.New("no remote ref")
 		}
-		return nil, nil // diff --cached --quiet exits 0: nothing staged
+		return nil, nil
 	}}
 	service := NewService(runner)
 	service.SetAgentRunner(func(_ context.Context, _ agentrunner.Options) (agentrunner.Result, error) {

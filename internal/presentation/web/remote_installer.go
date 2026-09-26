@@ -38,7 +38,6 @@ func (i *RemoteInstaller) sendProgress(message string) {
 		select {
 		case i.progressCh <- message:
 		default:
-			// Channel full or closed, skip message
 		}
 	}
 }

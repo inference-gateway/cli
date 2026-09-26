@@ -74,7 +74,7 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 			expectedSuccess: 1,
 			expectedFailure: 0,
 			expectedTotal:   2,
-			expectedResults: 1, // Only one has ToolExecution
+			expectedResults: 1,
 			expectEventSent: true,
 		},
 		{
@@ -94,14 +94,11 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup
 			chatEvents := make(chan agentdomain.ChatEvent, 10)
 			publisher := newEventPublisher("test-request-123", chatEvents)
 
-			// Execute
 			publisher.publishToolExecutionCompleted(tt.results)
 
-			// Assert
 			select {
 			case event := <-chatEvents:
 				if !tt.expectEventSent {
@@ -121,7 +118,6 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 				assert.Len(t, completedEvent.Results, tt.expectedResults)
 				assert.False(t, completedEvent.Timestamp.IsZero())
 
-				// Verify that only entries with non-nil ToolExecution are included
 				for _, result := range completedEvent.Results {
 					assert.NotNil(t, result)
 				}

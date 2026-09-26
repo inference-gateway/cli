@@ -1,13 +1,3 @@
-// Package heartbeat implements a periodic "wake-up" service that
-// spawns the agent on a fixed interval to check for pending work. It
-// is hosted by the daemon (peer to the scheduler)
-// and is disabled by default.
-//
-// Unlike the scheduler, heartbeat does not route output to a channel.
-// Each tick fires `infer headless --heartbeat`, the agent runs to
-// completion using a tailored system prompt, and the agent's stdout
-// is logged. Whatever externally-visible action the agent takes (e.g.
-// posting to Telegram, opening a PR) it does via its own tools.
 package heartbeat
 
 import (

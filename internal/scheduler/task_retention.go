@@ -60,7 +60,6 @@ func (t *TaskRetentionService) SetMaxRetention(maxRetention int) {
 
 	t.maxRetention = maxRetention
 
-	// Truncate if needed
 	if len(t.tasks) > maxRetention {
 		t.tasks = t.tasks[:maxRetention]
 	}

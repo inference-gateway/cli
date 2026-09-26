@@ -172,20 +172,9 @@ func applySidecarEnv(cfg any, prefix string) {
 }
 
 // resolveRemindersConfig resolves the reminders configuration, layering the
-// content sources embedded consumers need (issue #733) on top of the on-disk
-// files. Precedence, highest first:
-//  1. INFER_REMINDERS_CONFIG - inline YAML, so a consumer (e.g. infer-action)
-//     never has to write ~/.infer/reminders.yaml.
-//  2. --reminders-file - an arbitrary path, not constrained to ~/.infer/.
-//  3. project .infer/reminders.yaml, then ~/.infer/reminders.yaml
-//     (sidecarPath).
-//  4. built-in defaults (LoadReminders returns them when the file is missing).
-//
-// Env wins over the flag, matching the documented flags < env layering.
-//
-// When the resolved config has Merge=true, its entries are merged onto the
-// built-in defaults by name instead of replacing them (see MergeWithDefaults).
-// This lets consumers add reminders without re-declaring the built-in set.
+// content sources embedded consumers need on top of the on-disk files. Env wins
+// over the flag; when the resolved config has Merge=true its entries are merged
+// onto the built-in defaults by name (see MergeWithDefaults).
 func resolveRemindersConfig(root *cobra.Command) (*config.RemindersConfig, error) {
 	var cfg *config.RemindersConfig
 	var err error
@@ -438,11 +427,9 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 // applyKeybindingEnvOverrides walks INFER_CHAT_KEYBINDINGS_BINDINGS_*
 // environment variables and applies them directly to the in-memory
 // keybindings config. Run AFTER loading keybindings.yaml so env vars win.
-//
 // Supported forms:
-//
-//	INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_KEYS="key1,key2"
-//	INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_ENABLED="true|false"
+// INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_KEYS="key1,key2"
+// INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_ENABLED="true|false"
 func applyKeybindingEnvOverrides(cfg *config.Config) {
 	const prefix = "INFER_CHAT_KEYBINDINGS_BINDINGS_"
 
@@ -501,10 +488,9 @@ func applyKeybindingEnvOverrides(cfg *config.Config) {
 
 // pruneMemoryRemindersIfDisabled drops the built-in memory reminders (see
 // config.MemoryReminders) when memory is disabled, so the enabled-by-default
-// reminder set does not tell the agent to consult or record memory that isn't
-// active. When memory is enabled the built-ins are delivered through the config
-// file (fresh init, or `init --overwrite`), keeping reminders.yaml the single
-// source of truth. Run AFTER both reminders and memory config are loaded.
+// set does not tell the agent to consult memory that isn't active. When memory
+// is enabled the built-ins are delivered through reminders.yaml, keeping it the
+// single source of truth. Run AFTER both reminders and memory config are loaded.
 func pruneMemoryRemindersIfDisabled(cfg *config.Config) {
 	if cfg.Memory.Enabled {
 		return
@@ -524,8 +510,8 @@ func pruneMemoryRemindersIfDisabled(cfg *config.Config) {
 }
 
 // GetProjectFlag checks for the --project flag on the current command or any
-// parent command. Userspace-first model (issue #680): config writes target the
-// home ~/.infer/ baseline by default; --project opts into a project override.
+// parent command. Userspace-first model: config writes target the home
+// ~/.infer/ baseline by default; --project opts into a project override.
 func ProjectFlag(cmd *cobra.Command) bool {
 	if project, err := cmd.Flags().GetBool("project"); err == nil && project {
 		return true

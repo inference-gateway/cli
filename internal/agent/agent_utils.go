@@ -140,10 +140,9 @@ func (s *Agent) clearToolCallsMap() {
 
 // BuildSystemPrompt assembles the static system prompt sent as message[0]
 // (base prompt + custom instructions + AGENTS.md + plugins + static context).
-// It is deliberately byte-identical across turns and agent-mode switches so
-// LLM servers get KV-cache prefix hits; volatile context rides in
-// volatileTailMessage and per-mode behaviour in the mode-change reminder.
-// Returns "" when no base prompt is configured.
+// It is deliberately byte-identical across turns and agent-mode switches so LLM
+// servers get KV-cache prefix hits; volatile context rides in volatileTailMessage
+// and per-mode behaviour in the mode-change reminder. Returns "" when unset.
 func (s *Agent) BuildSystemPrompt() string {
 	baseSystemPrompt := s.config.Prompts.Agent.SystemPrompt
 	if baseSystemPrompt == "" {
@@ -209,10 +208,8 @@ func (s *Agent) addSystemPrompt(messages []sdk.Message) []sdk.Message {
 // volatileTailMessage builds the per-request <system-reminder> user message
 // carrying the volatile context (git, tree, active skill, memory, current
 // date, live-mode tool roster and bash allow-list), appended to the outbound
-// payload only — never persisted — so message[0] stays byte-stable for
-// KV-cache prefix reuse. Called once per outbound request; ok=false means
-// append nothing. Callers gate the append on conversationAwaitsToolResults at
-// payload-finalization time, after conversation repair.
+// payload only, never persisted, so message[0] stays byte-stable for KV-cache
+// reuse. ok=false means append nothing; callers gate the append after repair.
 func (s *Agent) volatileTailMessage(messages []sdk.Message, isChat bool) (sdk.Message, bool) {
 	if s.config.Prompts.Agent.SystemPrompt == "" {
 		return sdk.Message{}, false
@@ -245,10 +242,9 @@ type PromptSection struct {
 
 // contextSections lists the static context builders in prompt order; it is
 // the single source for both prompt assembly and diagnostics. Only sections
-// that are stable for the WHOLE chat session belong here - anything that
-// changes as the agent works (git, tree, skill, memory) or with the live
-// agent mode (tool roster, bash allow-list) goes in volatileContextSections
-// so message[0] stays byte-stable across mode switches.
+// stable for the WHOLE chat session belong here - anything that changes with
+// the work or the live agent mode (tool roster, bash allow-list) goes in
+// volatileContextSections so message[0] stays byte-stable across mode switches.
 func (s *Agent) contextSections() []PromptSection {
 	return []PromptSection{
 		{Name: "sandbox", Text: s.buildSandboxInfo()},
@@ -354,8 +350,6 @@ func (s *Agent) buildBashAllowInfo() string {
 		mode = s.stateManager.GetAgentMode()
 	}
 
-	// Skip when Bash is not callable in this mode (plan mode filters it out), so
-	// the prompt never advertises an allow-list for a tool the model cannot use.
 	bashAvailable := false
 	for _, def := range s.toolService.ListToolsForMode(mode) {
 		if def.Function.Name == "Bash" {
@@ -469,10 +463,6 @@ func (s *Agent) buildSkillsInfo() string {
 	if s.config != nil {
 		maxChars = s.config.GetAgentConfig().Skills.MaxChars
 	}
-	// Expand path-bearing skills before catalog ones: those are the entries the
-	// model can act on with the Read tool, whereas a catalog entry is just a
-	// name only the user can invoke. Under budget pressure the latter is what
-	// should drop. skills is List()'s defensive copy, so sorting is local.
 	sort.SliceStable(skills, func(i, j int) bool {
 		return skills[i].Scope != agentdomain.SkillScopeCatalog && skills[j].Scope == agentdomain.SkillScopeCatalog
 	})
@@ -1058,10 +1048,8 @@ func (s *Agent) parseProvider(model string) (string, string, error) {
 }
 
 // dispatchHooks runs the actions attached to a hook point: system-reminder
-// injection (text action) and command hooks (executable action, #270). Both
-// agents flow every loop point through this single seam. The agent mode and
-// session id are resolved here (from the live chat mode / request context) and
-// handed to the shared, allow-list-gated command runner.
+// injection (text action) and executable command hooks. Mode and session id are
+// resolved here and handed to the shared, allow-list-gated command runner.
 func (s *Agent) dispatchHooks(agentCtx *states.AgentContext, hook agentdomain.HookPoint) {
 	if hook == agentdomain.HookPreSession && s.memoryBackend != nil {
 		_ = s.memoryBackend.SyncIn(agentCtx.Ctx)

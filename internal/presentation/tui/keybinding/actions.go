@@ -163,8 +163,6 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 
-	// Dismiss any pending AskUserQuestion form so it doesn't linger after the
-	// turn is cancelled (closing the channel unblocks the tool's Execute).
 	stateManager.ClearUserQuestionUIState()
 	stateManager.EndChatSession()
 	stateManager.EndToolExecution()

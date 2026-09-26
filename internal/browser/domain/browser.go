@@ -1,6 +1,3 @@
-// Package domain holds the browser-use bounded context's contracts: the
-// driver interface the tools consume and the wire/result types it produces.
-// It is pure - stdlib imports only.
 package domain
 
 import "context"

@@ -1,6 +1,3 @@
-// Package utils provides generic file-IO helpers shared by every sub-config
-// in package config. They are deliberately domain-agnostic - anything that
-// knows about a specific config type belongs in package config itself.
 package utils
 
 import (

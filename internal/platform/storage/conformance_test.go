@@ -20,10 +20,6 @@ import (
 // backend on every call so the groups below don't contaminate each other's
 // list/count assertions. Backends that also implement SessionGroupStorage get
 // the session-group group; the others skip it.
-//
-// This is the shared home for the assertions the sqlite and d1 tests used to
-// copy by hand, and the first happy-path coverage the postgres backend has ever
-// had (see issue #839).
 func runConversationStorageConformance(t *testing.T, newStorage func(t *testing.T) ConversationStorage) {
 	t.Helper()
 
@@ -235,7 +231,7 @@ func conformanceListNeedingTitles(t *testing.T, storage ConversationStorage) {
 
 	for i := range 3 {
 		id := fmt.Sprintf("needs-title-%d", i)
-		entries := createTestEntries() // 4 entries → count >= 2
+		entries := createTestEntries()
 		metadata := createTestMetadata(id)
 		metadata.TitleGenerated = false
 		metadata.UpdatedAt = time.Now().Add(time.Duration(i) * time.Hour)

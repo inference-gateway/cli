@@ -184,7 +184,7 @@ func TestFormatToolResultForUI_SummaryFallsBackToPreview(t *testing.T) {
 }
 
 func TestFormatToolResultForUI_NoBodyOmitsPreview(t *testing.T) {
-	tool := &fakeTool{name: "Bash", hasBody: true, body: ""} // empty body, e.g. silent success
+	tool := &fakeTool{name: "Bash", hasBody: true, body: ""}
 	svc := newTestService(tool)
 
 	lines := strings.Split(stripCard(stripANSI(svc.FormatToolResultForUI(bashResult(true, nil), 80))), "\n")

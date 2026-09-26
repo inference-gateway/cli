@@ -161,7 +161,6 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 		}, nil
 	}
 
-	// Parse and validate edits
 	edits, err := t.parseEdits(editsArray)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{

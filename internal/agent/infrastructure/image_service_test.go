@@ -304,7 +304,6 @@ func TestImageService_EditImage(t *testing.T) {
 	pngBytes := onePixelPNG(t)
 	b64 := base64.StdEncoding.EncodeToString(pngBytes)
 
-	// writeInput writes a valid PNG so ReadImageFromFile can decode it.
 	writeInput := func(t *testing.T) string {
 		t.Helper()
 		path := filepath.Join(t.TempDir(), "input.png")

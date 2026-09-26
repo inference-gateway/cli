@@ -1,7 +1,3 @@
-// Package toolcoordinator owns the UI side of the tool round-trip - the
-// streaming-status events emitted while the model is producing a tool call,
-// the approval handshake that forwards the user's accept/reject back to the
-// agent, and the execution-progress events while the tool runs.
 package toolcoordinator
 
 import (

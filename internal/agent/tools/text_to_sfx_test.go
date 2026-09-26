@@ -27,12 +27,12 @@ func minimalWAV() []byte {
 	buf = append(buf, "WAVE"...)
 	buf = append(buf, "fmt "...)
 	buf = binary.LittleEndian.AppendUint32(buf, 16)
-	buf = binary.LittleEndian.AppendUint16(buf, 1)    // PCM
-	buf = binary.LittleEndian.AppendUint16(buf, 1)    // mono
-	buf = binary.LittleEndian.AppendUint32(buf, 8000) // sample rate
-	buf = binary.LittleEndian.AppendUint32(buf, 8000) // byte rate == data bytes per second
-	buf = binary.LittleEndian.AppendUint16(buf, 1)    // block align
-	buf = binary.LittleEndian.AppendUint16(buf, 8)    // bits per sample
+	buf = binary.LittleEndian.AppendUint16(buf, 1)
+	buf = binary.LittleEndian.AppendUint16(buf, 1)
+	buf = binary.LittleEndian.AppendUint32(buf, 8000)
+	buf = binary.LittleEndian.AppendUint32(buf, 8000)
+	buf = binary.LittleEndian.AppendUint16(buf, 1)
+	buf = binary.LittleEndian.AppendUint16(buf, 8)
 	buf = append(buf, "data"...)
 	buf = binary.LittleEndian.AppendUint32(buf, dataBytes)
 	return append(buf, make([]byte, dataBytes)...)

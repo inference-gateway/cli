@@ -99,7 +99,6 @@ func TestFlashStatusClearsWhenIdle(t *testing.T) {
 	if ev.Message != "Text pasted from clipboard" {
 		t.Errorf("expected message %q, got %q", "Text pasted from clipboard", ev.Message)
 	}
-	// batch[1] clears the status line after clipboardFlashDuration; not executed.
 }
 
 // TestHandlePasteEventFlashesAndInserts verifies the bracketed-paste (Cmd+V)
@@ -277,7 +276,7 @@ func TestTextareaKeyFlowPrintableIsInsertedOnce(t *testing.T) {
 
 func TestTextareaKeyFlowAltEscIsNotTyped(t *testing.T) {
 	ctx, input := newTextareaEditTestCtx(t)
-	keyMsg := tea.KeyPressMsg{Code: tea.KeyEscape, Mod: tea.ModAlt} // Esc pressed twice quickly
+	keyMsg := tea.KeyPressMsg{Code: tea.KeyEscape, Mod: tea.ModAlt}
 	NewDispatcher(ctx, nil).ProcessKey(keyMsg)
 	model, _ := input.Update(keyMsg)
 	if got := model.(*components.InputView).GetInput(); got != "" {

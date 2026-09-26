@@ -15,11 +15,11 @@ func userMsg(content string) sdk.Message {
 func TestMessageQueueService(t *testing.T) {
 	tests := []struct {
 		name       string
-		enqueue    []string // request IDs, enqueued in order
+		enqueue    []string
 		dequeues   int
 		wantSize   int
 		wantEmpty  bool
-		wantPeekID string // "" means Peek returns nil
+		wantPeekID string
 	}{
 		{name: "empty queue", wantSize: 0, wantEmpty: true},
 		{name: "single message", enqueue: []string{"r1"}, wantSize: 1, wantPeekID: "r1"},
@@ -42,7 +42,6 @@ func TestMessageQueueService(t *testing.T) {
 				}
 			}
 
-			// FIFO: dequeued IDs are the enqueue prefix
 			expectedDequeued := append([]string{}, tt.enqueue[:min(tt.dequeues, len(tt.enqueue))]...)
 			assert.Equal(t, expectedDequeued, dequeued)
 

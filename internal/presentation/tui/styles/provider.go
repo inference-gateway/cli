@@ -257,12 +257,12 @@ func (p *Provider) spliceBranchIntoTopBorder(box, label, borderColor, labelColor
 	}
 
 	const (
-		corners       = 2 // ╭ + ╮
-		rightMargin   = 2 // dashes between label and the right corner
+		corners       = 2
+		rightMargin   = 2
 		minLeftDashes = 1
-		minTitleWidth = 8  // below this, render a plain border instead
-		maxTitleWidth = 40 // cap so a long branch never dominates a wide box
-		spaces        = 2  // one space on each side of the label
+		minTitleWidth = 8
+		maxTitleWidth = 40
+		spaces        = 2
 		ellipsis      = "..."
 	)
 

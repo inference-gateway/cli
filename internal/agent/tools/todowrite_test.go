@@ -330,7 +330,7 @@ func TestTodoWriteTool_Execute(t *testing.T) {
 					map[string]any{
 						"id":      "2",
 						"content": "Task 2",
-						"status":  "in_progress", // This should fail - multiple in_progress
+						"status":  "in_progress",
 					},
 				},
 			},

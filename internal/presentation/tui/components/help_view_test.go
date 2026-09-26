@@ -113,7 +113,6 @@ func TestHelpView_DismissKeysCancel(t *testing.T) {
 
 func TestHelpView_ScrollMovesViewport(t *testing.T) {
 	h := newTestHelpView()
-	// Many rows so content overflows a short viewport and scrolling is required.
 	commands := make([]HelpCommand, 0, 40)
 	for i := 0; i < 40; i++ {
 		commands = append(commands, HelpCommand{Name: "cmd", Description: "description"})

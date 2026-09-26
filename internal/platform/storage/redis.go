@@ -238,9 +238,6 @@ func (s *RedisStorage) ListConversations(ctx context.Context, project string, li
 		}
 
 		if project != "" && metadata.Project != project {
-			// ponytail: filter after the paged ZRANGE means sparse pages when
-			// projects share the index; paginate per project only if offset
-			// exactness ever matters.
 			continue
 		}
 		summaries = append(summaries, summary)
@@ -756,7 +753,6 @@ func (s *RedisStorage) LoadHistory(ctx context.Context, limit int) ([]string, er
 	if err != nil {
 		return nil, fmt.Errorf("load shell history: %w", err)
 	}
-	// Reverse to get chronological order
 	for i, j := 0, len(commands)-1; i < j; i, j = i+1, j-1 {
 		commands[i], commands[j] = commands[j], commands[i]
 	}

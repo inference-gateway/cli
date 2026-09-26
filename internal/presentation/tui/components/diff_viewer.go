@@ -314,7 +314,6 @@ func newDiffKeymap(kb config.KeybindingsConfig, namespace config.KeyNamespace) d
 	for id, keys := range raw {
 		opts := []key.BindingOpt{key.WithKeys(keys...)}
 		if len(keys) > 0 {
-			// primary key drives footer hints via display()/Help().Key
 			opts = append(opts, key.WithHelp(keys[0], ""))
 		}
 		bindings[id] = key.NewBinding(opts...)
@@ -377,7 +376,7 @@ func (t *DiffViewer) HintText() string {
 }
 
 // FooterBar renders the per-mode keybinding legend shown beneath the diff pane,
-// greedy-wrapped to width so no binding is truncated (issue #875).
+// greedy-wrapped to width so no binding is truncated.
 func (t *DiffViewer) FooterBar(width int) string {
 	if width <= 0 {
 		return ""

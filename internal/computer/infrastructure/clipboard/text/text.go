@@ -1,7 +1,3 @@
-// Package text provides a CGO-free, cross-platform clipboard text writer that
-// shells out to the platform's native clipboard utility (pbcopy, wl-copy,
-// xclip, xsel, or clip). It is intentionally separate from the image-focused
-// internal/clipboard package, which relies on CGO and is only built on macOS.
 package text
 
 import (
@@ -76,12 +72,12 @@ func clipboardCandidates() []candidate {
 		return []candidate{{name: "pbcopy"}}
 	case "windows":
 		return []candidate{{name: "clip"}}
-	default: // linux, *bsd, etc.
+	default:
 		return []candidate{
-			{name: "wl-copy"}, // Wayland
-			{name: "xclip", args: []string{"-selection", "clipboard"}}, // X11
-			{name: "xsel", args: []string{"--clipboard", "--input"}},   // X11 alternative
-			{name: "clip.exe"}, // WSL -> Windows host
+			{name: "wl-copy"},
+			{name: "xclip", args: []string{"-selection", "clipboard"}},
+			{name: "xsel", args: []string{"--clipboard", "--input"}},
+			{name: "clip.exe"},
 		}
 	}
 }

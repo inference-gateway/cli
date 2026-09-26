@@ -26,10 +26,10 @@ func TestUserContextWindowOverride(t *testing.T) {
 		expectedSize  int
 		expectedKnown bool
 	}{
-		{"llamacpp/qwen2", 32768, true},           // override catches qwen2
-		{"llamacpp/qwen3-coder", 65536, true},     // longest pattern wins over "qwen"
-		{"llamacpp/my-model-q4.gguf", 4096, true}, // case-insensitive, unknown model becomes known
-		{"anthropic/claude-opus-4-8", 0, false},   // no override, no gateway data -> unknown
+		{"llamacpp/qwen2", 32768, true},
+		{"llamacpp/qwen3-coder", 65536, true},
+		{"llamacpp/my-model-q4.gguf", 4096, true},
+		{"anthropic/claude-opus-4-8", 0, false},
 		{"ollama_cloud/brand-new-model", 0, false},
 	}
 

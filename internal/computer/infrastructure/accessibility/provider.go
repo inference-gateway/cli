@@ -1,5 +1,3 @@
-// Package accessibility provides crash-isolated platform accessibility-tree
-// access for the computer-use capability.
 package accessibility
 
 import (

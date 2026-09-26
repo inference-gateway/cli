@@ -1,6 +1,3 @@
-// Package githubsetup implements agentdomain.GitHubSetupService for the GitHub Action
-// CI setup flow. Every git/gh command runs through the injected CommandRunner
-// under a 30-second timeout so a wedged subprocess cannot hang the UI.
 package setup
 
 import (

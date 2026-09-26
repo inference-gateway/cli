@@ -22,6 +22,5 @@ func (s *StoppedState) Name() AgentExecutionState {
 // Handle processes events in Stopped state
 // This is a terminal state, so no events are expected
 func (s *StoppedState) Handle(event AgentEvent) error {
-	// Terminal state - no events to handle
 	return nil
 }

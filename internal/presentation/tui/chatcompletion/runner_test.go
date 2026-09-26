@@ -73,12 +73,9 @@ func TestRunner_Start(t *testing.T) {
 	})
 }
 
-// TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns is a regression test
-// for issue #992: after the first turn (tool execution, IsFirstChunk consumed),
-// a reasoning chunk must still flip the status line to "Thinking..." on later
-// turns. Previously the comparison ran after UpdateChatStatus had already
-// mutated chatSession.Status, so no status event was ever emitted and the
-// spinner stayed on "Starting response..." for the whole thinking phase.
+// TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns is a regression test:
+// on later turns (IsFirstChunk already consumed) a reasoning chunk must still
+// flip the status line to "Thinking..." instead of leaving the old status set.
 func TestRunner_HandleStatusUpdate_EmitsThinkingOnLaterTurns(t *testing.T) {
 	t.Run("first chunk emits SetStatusEvent Thinking...", func(t *testing.T) {
 		runner, _, state, _, _ := newRunnerForTest()

@@ -178,7 +178,7 @@ func TestTruncateText(t *testing.T) {
 		{"maxLen 1 clamps to budget", "hello", 1, "."},
 		{"maxLen 0 is empty", "hello", 0, ""},
 		{"empty input", "", 10, ""},
-		{"wide runes fit exactly", "你好", 4, "你好"}, // each CJK rune is 2 columns
+		{"wide runes fit exactly", "你好", 4, "你好"},
 	}
 	for _, tt := range exact {
 		t.Run(tt.name, func(t *testing.T) {

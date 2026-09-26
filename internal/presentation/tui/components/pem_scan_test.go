@@ -40,7 +40,6 @@ func TestScanPemDir_FindsAndSortsByModTime(t *testing.T) {
 	if len(out) != 3 {
 		t.Fatalf("expected 3 candidates, got %d: %v", len(out), out)
 	}
-	// scanPemFiles sorts; here verify contents only.
 	found := map[string]bool{}
 	for _, c := range out {
 		found[filepath.Base(c.Path)] = true

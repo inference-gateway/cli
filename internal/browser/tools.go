@@ -1,6 +1,3 @@
-// Package browser is the browser-use capability: Playwright-driven (or
-// extension-bridged) page automation exposed to the agent as agentdomain.Tool
-// implementations. Playwright is imported only by this package.
 package browser
 
 import (

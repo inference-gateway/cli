@@ -58,10 +58,9 @@ func (s *PostToolExecutionState) Handle(event AgentEvent) error {
 	return nil
 }
 
-// handleQueuedMessages drains queued messages into conversation history. If
-// the session ctx was cancelled (Esc), it short-circuits to Completing so
-// the queued input is preserved without starting another LLM turn -
-// matching the "drain then stop" contract from issue #532.
+// handleQueuedMessages drains queued messages into conversation history. On a
+// cancelled session ctx (Esc) it short-circuits to Completing, preserving the
+// queued input without starting another LLM turn ("drain then stop").
 func (s *PostToolExecutionState) handleQueuedMessages() error {
 	logger.Debug("messages queued during tool execution, draining queue")
 	if s.ctx.DispatchHooks != nil {

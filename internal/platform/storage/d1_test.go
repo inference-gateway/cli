@@ -181,7 +181,7 @@ func TestD1Storage_MigrationsAreIdempotent(t *testing.T) {
 
 // TestD1Storage_Conformance runs the shared storage suite against the D1 driver,
 // backed by the httptest mock over real SQLite (unconditional in CI). D1 uses
-// the same single-table schema as SQLite/Postgres (see #839).
+// the same single-table schema as SQLite/Postgres.
 func TestD1Storage_Conformance(t *testing.T) {
 	runConversationStorageConformance(t, func(t *testing.T) ConversationStorage {
 		return setupTestD1Storage(t)

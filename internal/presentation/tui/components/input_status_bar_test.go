@@ -422,7 +422,6 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.DefaultConfig()
-			// Add server configs if needed
 			if tt.serverCount > 0 {
 				cfg.MCP.Servers = make([]config.MCPServerEntry, tt.serverCount)
 			}

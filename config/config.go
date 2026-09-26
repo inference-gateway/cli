@@ -690,7 +690,7 @@ type CompactConfig struct {
 	SummaryMaxTokens      int  `yaml:"summary_max_tokens" mapstructure:"summary_max_tokens"`
 }
 
-// ProvisionerConfig contains on-demand GPU provisioning settings (issue #939).
+// ProvisionerConfig contains on-demand GPU provisioning settings.
 // The provider API key is management-plane only (provision/list/destroy); the
 // running pod is reached exclusively through the llamacpp provider env vars.
 type ProvisionerConfig struct {
@@ -1264,13 +1264,13 @@ func DefaultConfig() *Config { //nolint:funlen
 				RequireApproval: &[]bool{false}[0],
 				AllowedDomains:  []string{"golang.org", "localhost", "github.com", "raw.githubusercontent.com", "agents.md"},
 				Safety: FetchSafetyConfig{
-					MaxSize: 10485760, // 10MB
-					Timeout: 30,       // 30 seconds
+					MaxSize: 10485760,
+					Timeout: 30,
 				},
 				Cache: FetchCacheConfig{
 					Enabled: true,
-					TTL:     3600,     // 1 hour
-					MaxSize: 52428800, // 50MB
+					TTL:     3600,
+					MaxSize: 52428800,
 				},
 			},
 			WebSearch: WebSearchToolConfig{
@@ -1329,13 +1329,13 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Image: ImageConfig{
-			MaxSize: 5242880, // 5MB
-			Timeout: 30,      // 30 seconds
+			MaxSize: 5242880,
+			Timeout: 30,
 			ClipboardOptimize: ClipboardImageOptimizeConfig{
 				Enabled:     true,
-				MaxWidth:    1920, // 1920px max width
-				MaxHeight:   1080, // 1080px max height
-				Quality:     75,   // 75% JPEG quality
+				MaxWidth:    1920,
+				MaxHeight:   1080,
+				Quality:     75,
 				ConvertJPEG: true,
 			},
 		},

@@ -75,9 +75,6 @@ func (r *Renderer) updateRenderer() {
 		glamour.WithWordWrap(r.width),
 	)
 	if err != nil {
-		// Fallback to default if custom style fails. Glamour v2 removed
-		// WithAutoStyle and now defaults to dark when no style option is
-		// supplied, so omitting it gives us the same fallback semantics.
 		renderer, _ = glamour.NewTermRenderer(
 			glamour.WithWordWrap(r.width),
 		)
@@ -291,16 +288,16 @@ func containsMarkdown(content string) bool {
 	}
 
 	patterns := []string{
-		"```",  // Code blocks
-		"**",   // Bold
-		"__",   // Bold (alt)
-		"# ",   // Headers
-		"## ",  // H2
-		"### ", // H3
-		"1. ",  // Ordered list
-		"> ",   // Blockquote
-		"---",  // Horizontal rule
-		"***",  // Horizontal rule (alt)
+		"```",
+		"**",
+		"__",
+		"# ",
+		"## ",
+		"### ",
+		"1. ",
+		"> ",
+		"---",
+		"***",
 	}
 
 	for _, pattern := range patterns {

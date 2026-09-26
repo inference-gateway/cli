@@ -10,10 +10,8 @@ import (
 )
 
 // TestPostToolExecutionState_Handle covers the routing after a completed tool
-// batch: an empty queue either completes or continues to the next turn, a
-// non-empty queue is drained (with drain hooks) before continuing, and a
-// cancelled session drains then completes without another LLM turn (the
-// issue #532 contract). The post_tool hook fires on every path.
+// batch: queue drain, completion, and the cancelled-session "drain then stop"
+// path - with the post_tool hook firing on every path.
 func TestPostToolExecutionState_Handle(t *testing.T) {
 	tests := []struct {
 		name            string

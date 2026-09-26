@@ -34,9 +34,6 @@ func (c *Config) bashAllowFor(mode agentdomain.AgentMode) []string {
 	case agentdomain.AgentModeAutoAccept:
 		out = append(out, m.Auto.Allow...)
 	case agentdomain.AgentModeReadOnly:
-		// ReadOnly subagents are never offered the Bash tool (ListToolsForMode), so
-		// this is unreachable in practice; keep an explicit case (baseline only) so a
-		// future Bash entry can't silently fall through to the wrong list.
 	default:
 		out = append(out, m.Standard.Allow...)
 	}
@@ -464,7 +461,6 @@ func splitBashSegments(command string) (segments []string, ok bool) {
 		case '&':
 			i += consumeAmpersand(runes, i, &cur, flush)
 		case '|':
-			// "||" and "|&" are two-char control operators; "|" is a pipe. All split.
 			if i+1 < len(runes) && (runes[i+1] == '|' || runes[i+1] == '&') {
 				i++
 			}

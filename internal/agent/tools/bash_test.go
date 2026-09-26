@@ -292,8 +292,7 @@ func TestBashTool_Execute_NonZeroExitSurfacesError(t *testing.T) {
 
 // Stored tool output and the LLM's context must never carry escape codes, no
 // matter whether the CLI's own stdout is a terminal - a TTY session used to keep
-// them, and they then surfaced verbatim in non-terminal readers of the saved
-// conversation. Regression test for inference-gateway/desktop#289.
+// them, and they surfaced verbatim in non-terminal readers of the saved conversation.
 func TestBashTool_Execute_StripsANSIEvenWithColorsEnabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{

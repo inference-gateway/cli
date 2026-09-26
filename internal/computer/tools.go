@@ -1,7 +1,3 @@
-// Package computer is the computer-use capability: the Computer tool drives
-// the mouse, keyboard, and screen through robotgo; GetLatestFrame serves
-// frames from the screen ring buffer and configured frame sources;
-// RecordStart/RecordStop record the screen to MP4 with ffmpeg.
 package computer
 
 import (

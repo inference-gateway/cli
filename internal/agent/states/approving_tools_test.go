@@ -101,8 +101,7 @@ func waitForAllToolsProcessed(t *testing.T, events chan states.AgentEvent) {
 // TestApprovingToolsState_OverlapsExecution proves that approved tools execute
 // concurrently while the remaining tools are still being approved. Each tool's
 // execution blocks on a barrier until ALL tools have started executing; if the
-// state serialized execution (running each approved tool to completion before
-// requesting the next approval), only one tool would ever reach the barrier and
+// state serialized execution, only one tool would ever reach the barrier and
 // states.AllToolsProcessedEvent would never arrive within the timeout.
 func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 	const n = 3
@@ -114,7 +113,7 @@ func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 			select {
 			case <-arrivals:
 			case <-time.After(2 * time.Second):
-				return // never closes allArrived -> overlap did not happen
+				return
 			}
 		}
 		close(allArrived)
@@ -124,7 +123,7 @@ func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 		arrivals <- struct{}{}
 		select {
 		case <-allArrived:
-		case <-time.After(5 * time.Second): // safety so goroutines don't leak on failure
+		case <-time.After(5 * time.Second):
 		}
 		return toolEntry(tc)
 	}
@@ -151,7 +150,7 @@ func TestApprovingToolsState_PreservesToolCallOrder(t *testing.T) {
 	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
 		switch tc.ID {
 		case "call-0":
-			time.Sleep(60 * time.Millisecond) // finishes last
+			time.Sleep(60 * time.Millisecond)
 		case "call-1":
 			time.Sleep(30 * time.Millisecond)
 		}
@@ -176,7 +175,7 @@ func TestApprovingToolsState_PreservesToolCallOrder(t *testing.T) {
 	}
 }
 
-// TestApprovingToolsState_ReadWaitsForEarlierWrite pins issue #1290: an ungated
+// TestApprovingToolsState_ReadWaitsForEarlierWrite pins the batch-ordering rule: an ungated
 // Read issued after an approved Write in the same batch must run after the Write
 // finishes, not alongside it.
 func TestApprovingToolsState_ReadWaitsForEarlierWrite(t *testing.T) {
@@ -249,8 +248,8 @@ func TestApprovingToolsState_FlushesResultsIncrementally(t *testing.T) {
 	waitForAllToolsProcessed(t, events)
 }
 
-// TestApprovingToolsState_RejectionStopsTurn is a regression test for issue
-// #786: rejecting a tool must end the turn instead of feeding the rejection
+// TestApprovingToolsState_RejectionStopsTurn pins the turn-ending rejection:
+// rejecting a tool must end the turn instead of feeding the rejection
 // back for another LLM turn. The rejection entry must carry
 // ToolExecution.Rejected and HasToolResults must be cleared even when another
 // tool in the batch was approved and executed.
@@ -281,11 +280,6 @@ func TestApprovingToolsState_RejectionStopsTurn(t *testing.T) {
 	assert.True(t, ctx.AgentCtx.LastToolFailed, "rejection counts as a failed tool")
 	assert.False(t, ctx.AgentCtx.HasToolResults, "rejection must clear HasToolResults so the turn completes")
 }
-
-// TestApprovingToolsState_RejectionEntryKeepsArguments verifies the rejected
-// tool entry carries the original call arguments so the UI renders
-// "Bash(command=...)" instead of a bare "Bash()", and that a "failed" progress
-// event is published so the queued preview line is dropped (issue #861).
 
 // TestApprovingToolsState_ApprovedBatchKeepsToolResults verifies the inverse of
 // the rejection case: a fully approved batch leaves HasToolResults set so the

@@ -1,9 +1,5 @@
 //go:build e2e
 
-// Package e2e runs the real `infer` binary as a subprocess against an
-// in-test mock inference-gateway (internal/mockgateway), asserting on the
-// headless JSON output contract, the piped-chat streaming path, tool side
-// effects on disk, and the exact requests received by the gateway.
 package e2e
 
 import (
@@ -127,12 +123,11 @@ func TestAgentTextOnlyTerminatesAfterOneTurn(t *testing.T) {
 	require.True(t, reqs[0].Stream, "headless agent uses the streaming path")
 }
 
-// TestAgentNudgesOnIncompleteTodos guards the todo-aware completion gate
-// (#946; regression via #994): a text-only reply while the model's own todo
-// list still has open items is a stall, not completion — the loop injects up
-// to two continuation nudges listing the open items before giving up. A run
-// with no todos (TestAgentTextOnlyTerminatesAfterOneTurn) still ends on the
-// first no-tool-call turn.
+// TestAgentNudgesOnIncompleteTodos guards the todo-aware completion gate: a
+// text-only reply while the model's own todo list still has open items is a
+// stall, not completion - the loop injects up to two continuation nudges
+// listing the open items before giving up. A todo-free run ends on the first
+// no-tool-call turn.
 func TestAgentNudgesOnIncompleteTodos(t *testing.T) {
 	m := startMock(t)
 
@@ -204,8 +199,9 @@ func TestAgentParallelReadsExecuteAndReturnInOrder(t *testing.T) {
 	}
 }
 
-// TestAgentReadAfterWriteInSameBatchSeesWrite pins issue #1290: batched calls
-// run concurrently, but a Read must not overtake the Write issued before it.
+// TestAgentReadAfterWriteInSameBatchSeesWrite pins the batch-ordering rule:
+// batched calls run concurrently, but a Read must not overtake the Write
+// issued before it.
 func TestAgentReadAfterWriteInSameBatchSeesWrite(t *testing.T) {
 	m := startMock(t)
 

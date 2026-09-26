@@ -43,7 +43,6 @@ func TestValidTransitions_BasicFlow(t *testing.T) {
 	sm := NewAgentStateMachine()
 	ctx := createTestAgentContext()
 
-	// Test Idle to CheckingQueue
 	err := sm.Transition(ctx, states.StateCheckingQueue)
 	if err != nil {
 		t.Errorf("Idle → CheckingQueue should succeed, got error: %v", err)
@@ -52,14 +51,12 @@ func TestValidTransitions_BasicFlow(t *testing.T) {
 		t.Errorf("Expected state CheckingQueue, got %s", sm.GetCurrentState())
 	}
 
-	// Test CheckingQueue to StreamingLLM
 	*ctx.Conversation = []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}}
 	err = sm.Transition(ctx, states.StateStreamingLLM)
 	if err != nil {
 		t.Errorf("CheckingQueue → StreamingLLM should succeed, got error: %v", err)
 	}
 
-	// Test StreamingLLM to PostStream
 	err = sm.Transition(ctx, states.StatePostStream)
 	if err != nil {
 		t.Errorf("StreamingLLM → PostStream should succeed, got error: %v", err)

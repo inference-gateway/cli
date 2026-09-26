@@ -256,7 +256,7 @@ func TestRemindersDue_OnceAcrossCalls(t *testing.T) {
 	if len(first) != 1 {
 		t.Fatalf("once reminder should fire first time, got %v", first)
 	}
-	fired[first[0].Name] = true // the agent marks fired after injecting
+	fired[first[0].Name] = true
 
 	if got := r.RemindersDue(query(agentdomain.HookPreSession, 2, 0, fired)); got != nil {
 		t.Fatalf("once reminder should be suppressed after firing, got %v", got)

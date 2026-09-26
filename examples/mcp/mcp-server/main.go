@@ -1,6 +1,3 @@
-// Command mcp-server is a demo MCP server built on the official Go SDK
-// (github.com/modelcontextprotocol/go-sdk). Its stateless Streamable HTTP
-// handler speaks MCP 2026-07-28, the only revision infer supports.
 package main
 
 import (
@@ -49,7 +46,6 @@ func main() {
 	mcp.AddTool(server, &mcp.Tool{Name: "list_files", Description: "List files in a directory with optional pattern filtering"}, handleListFiles)
 	mcp.AddTool(server, &mcp.Tool{Name: "get_env", Description: "Get an environment variable value"}, handleGetEnv)
 
-	// 2026-07-28 requests are only served in stateless mode.
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{Stateless: true})
 
@@ -177,7 +173,6 @@ func handleGetEnv(_ context.Context, _ *mcp.CallToolRequest, args GetEnvArgs) (*
 // Helper functions
 
 func evaluateExpression(expr string) (float64, error) {
-	// Simple parser for basic operations
 	var result float64
 	var operator rune
 	var currentNumber string
@@ -210,7 +205,6 @@ func evaluateExpression(expr string) (float64, error) {
 		}
 	}
 
-	// Process last number
 	if currentNumber != "" {
 		var num float64
 		_, err := fmt.Sscanf(currentNumber, "%f", &num)

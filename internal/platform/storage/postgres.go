@@ -12,7 +12,7 @@ import (
 )
 
 // PostgresStorage implements ConversationStorage on top of the shared sqlStore
-// core. It speaks the same single-table schema as SQLite/D1 (see #839); only
+// core. It speaks the same single-table schema as SQLite/D1; only
 // the placeholder style differs, which sqlStore.rebind normalizes.
 type PostgresStorage struct {
 	*sqlStore
