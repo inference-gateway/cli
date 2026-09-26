@@ -795,6 +795,13 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 	}
 }
 
+// displayOnlyQuestion strips the question's response channel so the panel can
+// show it but only the TUI, which owns the channel, answers or dismisses it.
+func displayOnlyQuestion(question agentdomain.UserQuestionRequestedEvent) agentdomain.UserQuestionRequestedEvent {
+	question.ResponseChan = nil
+	return question
+}
+
 // chatPump mirrors chat events to the extension as chat_event frames, and turns
 // ToolApprovalRequestedEvent / ToolApprovalResolvedEvent into approval_request /
 // approval_resolved frames so the panel can drive the approval handshake.
@@ -834,6 +841,9 @@ func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
 				if _, isResolved := ev.(agentdomain.ToolApprovalResolvedEvent); isResolved {
 					b.resolvePendingApprovals(conn)
 					continue
+				}
+				if question, isQuestion := ev.(agentdomain.UserQuestionRequestedEvent); isQuestion {
+					ev = displayOnlyQuestion(question)
 				}
 				select {
 				case filtered <- ev:
