@@ -201,6 +201,56 @@ func TestPersistentConversationRepository_TitleWithPreassignedSessionID(t *testi
 	assert.Equal(t, "Hi can you read a file?", metadata.Title)
 }
 
+func TestPersistentConversationRepository_HiddenMessagesDoNotSeedTitles(t *testing.T) {
+	hiddenReminder := func() convdomain.ConversationEntry {
+		return convdomain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: sdk.NewMessageContent("<system-reminder>\nThe persistent memory index (MEMORY.md) is already injected into your context.\n</system-reminder>"),
+			},
+			Time:   time.Now(),
+			Hidden: true,
+		}
+	}
+
+	newRepo := func(t *testing.T) *PersistentConversationRepository {
+		t.Helper()
+		repo, cleanup := setupTestRepository(t)
+		t.Cleanup(cleanup)
+		repo.SetAutoSave(true)
+		return repo
+	}
+
+	t.Run("hidden first message keeps the default title", func(t *testing.T) {
+		repo := newRepo(t)
+
+		require.NoError(t, repo.AddMessage(hiddenReminder()))
+
+		assert.Equal(t, "New Conversation", repo.GetCurrentConversationTitle())
+	})
+
+	t.Run("hidden message keeps the title of a pre-assigned session", func(t *testing.T) {
+		repo := newRepo(t)
+		repo.SetConversationID("channel-session-1")
+
+		require.NoError(t, repo.AddMessage(hiddenReminder()))
+
+		assert.Equal(t, "New Conversation", repo.GetCurrentConversationTitle())
+	})
+
+	t.Run("first visible user message titles the conversation", func(t *testing.T) {
+		repo := newRepo(t)
+
+		require.NoError(t, repo.AddMessage(hiddenReminder()))
+		require.NoError(t, repo.AddMessage(convdomain.ConversationEntry{
+			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hi can you read a file?")},
+			Time:    time.Now(),
+		}))
+
+		assert.Equal(t, "Hi can you read a file?", repo.GetCurrentConversationTitle())
+	})
+}
+
 func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 	mockStorage := &storagemocks.FakeConversationStorage{}
 	var formatterService ToolFormatter
