@@ -68,6 +68,9 @@ func (s *Store) ListJobs(ctx context.Context) ([]*scheddomain.ScheduledJob, erro
 // SaveJob renders the job's workflow, deploys it to the repo, then persists
 // the job locally. Validation failures and gh errors abort before the local save.
 func (s *Store) SaveJob(ctx context.Context, job *scheddomain.ScheduledJob) error {
+	if !scheddomain.ValidJobID(job.ID) {
+		return fmt.Errorf("invalid job ID %q", job.ID)
+	}
 	ghCron, err := TranslateCron(job.CronExpression)
 	if err != nil {
 		return err
@@ -81,7 +84,7 @@ func (s *Store) SaveJob(ctx context.Context, job *scheddomain.ScheduledJob) erro
 	defer s.mu.Unlock()
 
 	prURL, err := s.syncRepo(ctx, job, func(dir string) (bool, error) {
-		path := filepath.Join(dir, WorkflowPath(job.ID))
+		path := workflowFilePath(dir, job.ID)
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return false, err
 		}
@@ -109,7 +112,7 @@ func (s *Store) DeleteJob(ctx context.Context, id string) error {
 	defer s.mu.Unlock()
 
 	prURL, err := s.syncRepo(ctx, job, func(dir string) (bool, error) {
-		path := filepath.Join(dir, WorkflowPath(id))
+		path := workflowFilePath(dir, id)
 		if _, err := os.Stat(path); err != nil {
 			return false, nil
 		}
@@ -249,6 +252,13 @@ func (s *Store) run(ctx context.Context, timeout time.Duration, name string, arg
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return s.runner.Run(ctx, name, args...)
+}
+
+// workflowFilePath joins a job's workflow file under the checkout dir. Prefixing
+// with "/" before filepath.Clean keeps even a malicious job ID (IDs arrive as
+// raw LLM tool arguments) from escaping dir.
+func workflowFilePath(dir, jobID string) string {
+	return filepath.Join(dir, filepath.Clean("/"+WorkflowPath(jobID)))
 }
 
 func prBody(job *scheddomain.ScheduledJob, verb string, cfg config.SchedulerGitHubConfig) string {
