@@ -61,7 +61,7 @@ func TestCircularScreenshotBufferWrapAround(t *testing.T) {
 		maxSize        int
 		adds           int
 		wantCount      int
-		wantRecentIDs  []string // recent-first
+		wantRecentIDs  []string
 		wantEvictedIDs []string
 	}{
 		{"under capacity", 3, 2, 2, []string{"s2", "s1"}, nil},
@@ -161,7 +161,6 @@ func TestCircularScreenshotBufferClear(t *testing.T) {
 		assert.NoFileExists(t, p)
 	}
 
-	// buffer stays usable after Clear
 	require.NoError(t, buf.Add(testFrame("after")))
 	assert.Equal(t, 1, buf.Count())
 	latest, err := buf.GetLatest()

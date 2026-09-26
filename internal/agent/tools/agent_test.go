@@ -96,7 +96,7 @@ func TestAgentTool_SyncFanOut(t *testing.T) {
 func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
-	cfg.Tools.Agent.Mode = "interactive" // mode is config-driven, not an LLM arg
+	cfg.Tools.Agent.Mode = "interactive"
 	tool := NewAgentTool(cfg, schedinfra.NewSubagentTracker(), nil)
 	tool.interactiveAvailable = func() bool { return false }
 	tool.launchPane = func(ctx context.Context, title, command string) (string, error) {

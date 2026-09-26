@@ -71,7 +71,6 @@ func TestInputView_Highlighter_SkippedInBashAndToolsModes(t *testing.T) {
 	require.NotEmpty(t, iv.Render())
 	require.Nil(t, iv.highlighter, "tools mode must skip the highlighter entirely")
 
-	// Switching back to a normal prompt builds and applies it.
 	iv.SetText("/maintainer")
 	iv.SetCursor(len(iv.GetInput()))
 	require.NotEmpty(t, iv.Render())

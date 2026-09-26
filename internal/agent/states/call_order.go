@@ -18,8 +18,6 @@ type CallOrder struct {
 func (o *CallOrder) Next(toolName string) (wait func(), done func()) {
 	d := make(chan struct{})
 	deps := []<-chan struct{}{o.barrier}
-	// Read-only calls run together; anything else waits for every earlier
-	// call, so a Read issued after a Write still sees the written file.
 	if agentdomain.ReadOnlyTools[toolName] {
 		o.since = append(o.since, d)
 	} else {

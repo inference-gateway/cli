@@ -108,7 +108,7 @@ func TestCreateAvatarTool_Execute(t *testing.T) {
 
 	t.Run("no angles stores the photo without calling the provider", func(t *testing.T) {
 		tool, images, workDir := newTestAvatarTool(t)
-		tool.config.Tools.ImageEdit.Enabled = false // not needed without angles
+		tool.config.Tools.ImageEdit.Enabled = false
 		require.NoError(t, os.WriteFile(filepath.Join(workDir, "me.png"), minimalPNG(), 0o600))
 
 		res, err := tool.Execute(context.Background(), map[string]any{"name": "presenter", "photo": "me.png", "angles": []any{}})

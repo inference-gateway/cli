@@ -169,8 +169,6 @@ func TestRecordTimeoutReturnsActionableError(t *testing.T) {
 		return nil, errors.New("signal: killed")
 	}
 
-	// A cancelled parent context simulates the wall-clock guard firing (a hung
-	// ffmpeg that never produced audio).
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 

@@ -651,7 +651,6 @@ func TestTreeTool_ConcurrentGitignoreCache(t *testing.T) {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("failed to create dir: %v", err)
 		}
-		// Half the directories carry a .gitignore so both cache-write branches run.
 		if i%2 == 0 {
 			if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("*.tmp\n"), 0o644); err != nil {
 				t.Fatalf("failed to write .gitignore: %v", err)

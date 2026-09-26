@@ -63,8 +63,6 @@ func (w *SafeFileWriter) Write(ctx context.Context, req WriteRequest) (*WriteRes
 	if err := w.writeAtomically(absPath, req.Content); err != nil {
 		if backupPath != "" {
 			if restoreErr := w.backupManager.RestoreBackup(ctx, backupPath, absPath); restoreErr != nil {
-				// Log restore failure and return combined error
-				// TODO: Add proper logging when logger is available
 				return nil, fmt.Errorf("write failed: %w, and backup restore failed: %w", err, restoreErr)
 			}
 		}

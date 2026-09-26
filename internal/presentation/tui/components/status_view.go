@@ -193,7 +193,6 @@ func (sv *StatusView) SetWidth(width int) {
 }
 
 func (sv *StatusView) SetHeight(height int) {
-	// Status view has dynamic height
 }
 
 // SetKeyHintFormatter sets the key hint formatter for displaying keybinding hints

@@ -292,7 +292,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 				},
 			},
 			expectedMin:      0,
-			expectedMax:      5, // Allow for always-enabled tools
+			expectedMax:      5,
 			shouldNotContain: []string{"Bash", "Read", "Grep", "WebFetch", "WebSearch"},
 		},
 	}

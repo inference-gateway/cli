@@ -92,7 +92,7 @@ func (t *TextToSpeechTool) Validate(args map[string]any) error {
 // the working directory, falling back to the desktop voice samples library
 // (~/.infer/models/tts/samples), and returns an empty path for the stock voice.
 func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
-	dir, _ := voiceSamplesDir() // an unusable samples dir just drops the fallback
+	dir, _ := voiceSamplesDir()
 	return resolveMediaInputPath(t.config, dir, raw, "voice_sample", "WAV file")
 }
 

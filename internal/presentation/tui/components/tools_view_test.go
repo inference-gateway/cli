@@ -52,7 +52,7 @@ func newToolsViewForTest(tools []sdk.ChatCompletionTool) (*ToolsView, *agentdoma
 func TestToolsView_ItemsReflectAvailableTools(t *testing.T) {
 	view, toolService, _ := newToolsViewForTest([]sdk.ChatCompletionTool{
 		toolDef("Read", "Read a file from the filesystem"),
-		toolDef("Bash", ""), // nil description must be safe
+		toolDef("Bash", ""),
 	})
 
 	items := view.list.Items()

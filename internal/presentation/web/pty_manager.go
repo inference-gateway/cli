@@ -225,12 +225,6 @@ func (s *LocalPTYSession) Start(cols, rows int) error {
 	}
 
 	s.cmd = buildLocalSessionCommand(s.cfg, execPath)
-	// The web terminal is its own environment (the browser), not the shell that
-	// launched `infer chat --web`. Strip any inherited $TMUX so: (a) a tmux-wrapped
-	// session binds to the dedicated infer-web server rather than the user's outer
-	// tmux; and (b) a plain session doesn't think it is inside the user's tmux -
-	// otherwise interactive subagents open panes in the user's terminal instead of
-	// the browser.
 	s.cmd.Env = filterEnv(
 		append(os.Environ(), "TERM=xterm-256color", "INFER_WEB_MODE=true"),
 		"TMUX", "TMUX_PANE",

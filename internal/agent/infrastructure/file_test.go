@@ -9,7 +9,7 @@ import (
 )
 
 func TestFileServiceImpl_ListProjectFiles(t *testing.T) {
-	t.Setenv("HOME", t.TempDir()) // keep the real ~/.infer out of the listing
+	t.Setenv("HOME", t.TempDir())
 	tmpDir := t.TempDir()
 
 	testFiles := []struct {
@@ -29,7 +29,7 @@ func TestFileServiceImpl_ListProjectFiles(t *testing.T) {
 		{".infer/tmp/artifact.txt", "generated", false},
 		{"src/file.go", "package src", false},
 		{"node_modules/package/index.js", "module.exports = {}", false},
-		{"large_file.txt", string(make([]byte, 200*1024)), false}, // 200KB file
+		{"large_file.txt", string(make([]byte, 200*1024)), false},
 		{".hidden_file.txt", "hidden", false},
 	}
 
@@ -89,14 +89,14 @@ func TestFileServiceImpl_ListProjectFiles(t *testing.T) {
 	}
 
 	excludedFiles := []string{
-		".gitignore",                    // Hidden files are excluded
-		".git/config",                   // .git directory is excluded
-		".github/workflows/ci.yml",      // .github directory is excluded
-		config.DefaultConfigPath,        // Only .md files from .infer are included
-		".infer/debug.log",              // Only .md files from .infer are included
-		"node_modules/package/index.js", // node_modules is excluded
-		"large_file.txt",                // Files over 100KB are excluded
-		".hidden_file.txt",              // Hidden files are excluded
+		".gitignore",
+		".git/config",
+		".github/workflows/ci.yml",
+		config.DefaultConfigPath,
+		".infer/debug.log",
+		"node_modules/package/index.js",
+		"large_file.txt",
+		".hidden_file.txt",
 	}
 
 	for _, excluded := range excludedFiles {
@@ -167,12 +167,12 @@ func TestFileServiceImpl_ValidateFile(t *testing.T) {
 		t.Fatalf("Failed to create small file: %v", err)
 	}
 
-	largeContent := make([]byte, 60*1024) // 60KB
+	largeContent := make([]byte, 60*1024)
 	if err := os.WriteFile(largeFile, largeContent, 0644); err != nil {
 		t.Fatalf("Failed to create large file: %v", err)
 	}
 
-	markdownContent := make([]byte, 100*1024) // 100KB
+	markdownContent := make([]byte, 100*1024)
 	if err := os.WriteFile(markdownFile, markdownContent, 0644); err != nil {
 		t.Fatalf("Failed to create markdown file: %v", err)
 	}

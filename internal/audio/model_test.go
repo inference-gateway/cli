@@ -81,7 +81,6 @@ func TestEnsureModelDownloads(t *testing.T) {
 		t.Errorf("downloaded content = %q, want %q", data, body)
 	}
 
-	// Second call should hit the cache (server would 404 a different path anyway).
 	if _, err := m.EnsureModel(context.Background()); err != nil {
 		t.Fatalf("cached EnsureModel: %v", err)
 	}
@@ -100,7 +99,6 @@ func TestEnsureModelDownloadBadStatus(t *testing.T) {
 	if _, err := m.EnsureModel(context.Background()); err == nil {
 		t.Fatal("expected error on non-200 download status")
 	}
-	// Failed download must not leave a partial model behind.
 	if _, err := os.Stat(filepath.Join(dir, "ggml-tiny.bin")); !os.IsNotExist(err) {
 		t.Errorf("expected no model file after failed download, stat err = %v", err)
 	}

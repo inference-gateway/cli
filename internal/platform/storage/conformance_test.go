@@ -231,7 +231,7 @@ func conformanceListNeedingTitles(t *testing.T, storage ConversationStorage) {
 
 	for i := range 3 {
 		id := fmt.Sprintf("needs-title-%d", i)
-		entries := createTestEntries() // 4 entries → count >= 2
+		entries := createTestEntries()
 		metadata := createTestMetadata(id)
 		metadata.TitleGenerated = false
 		metadata.UpdatedAt = time.Now().Add(time.Duration(i) * time.Hour)

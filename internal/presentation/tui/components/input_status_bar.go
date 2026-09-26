@@ -173,7 +173,6 @@ func (isb *InputStatusBar) SetWidth(width int) {
 }
 
 func (isb *InputStatusBar) SetHeight(height int) {
-	// Status bar has fixed height
 }
 
 // Focus moves keyboard focus onto the indicator row, selecting the first
@@ -902,12 +901,10 @@ func (isb *InputStatusBar) buildCostIndicator() string {
 
 	costStats := isb.conversationRepo.GetSessionCostStats()
 
-	// Don't show if cost is zero or pricing disabled
 	if costStats.TotalCost == 0 {
 		return ""
 	}
 
-	// Format: $0.0234
 	if costStats.TotalCost < 0.01 {
 		return fmt.Sprintf("$%.4f", costStats.TotalCost)
 	} else if costStats.TotalCost < 1.0 {

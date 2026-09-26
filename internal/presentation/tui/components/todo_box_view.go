@@ -54,7 +54,6 @@ func (tv *TodoBoxView) SetTodos(todos []agentdomain.TodoItem) {
 	tv.todos = todos
 	tv.lastUpdate = time.Now()
 
-	// Auto-expand when todos are updated
 	if len(todos) > 0 && !tv.expanded {
 		tv.expanded = true
 		tv.autoExpanded = true
@@ -69,13 +68,13 @@ func (tv *TodoBoxView) GetTodos() []agentdomain.TodoItem {
 // SetExpanded sets the expanded state (user action)
 func (tv *TodoBoxView) SetExpanded(expanded bool) {
 	tv.expanded = expanded
-	tv.autoExpanded = false // user took control
+	tv.autoExpanded = false
 }
 
 // Toggle toggles the expanded state
 func (tv *TodoBoxView) Toggle() {
 	tv.expanded = !tv.expanded
-	tv.autoExpanded = false // user took control
+	tv.autoExpanded = false
 }
 
 // IsExpanded returns whether the component is expanded
@@ -112,9 +111,8 @@ func (tv *TodoBoxView) GetHeight() int {
 		return 0
 	}
 	if !tv.expanded {
-		return 1 // collapsed: single line
+		return 1
 	}
-	// expanded: header + todos + padding
 	return len(tv.todos) + 3
 }
 

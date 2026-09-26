@@ -107,13 +107,11 @@ func TestCheckFileExists(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	// Test non-existent file
 	err = checkFileExists(tmpDir+"/nonexistent.txt", "test file")
 	if err != nil {
 		t.Errorf("checkFileExists() should not error for non-existent file: %v", err)
 	}
 
-	// Test existing file
 	existingFile := tmpDir + "/existing.txt"
 	if err := os.WriteFile(existingFile, []byte("test"), 0644); err != nil {
 		t.Fatalf("failed to create test file: %v", err)

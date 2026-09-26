@@ -400,12 +400,10 @@ func TestDiffViewer_PatchSelectionAppliesLines(t *testing.T) {
 	if !v.patchMode {
 		t.Fatal("expected patch mode")
 	}
-	// Change lines are at hunk-line indices 1,2,4,5.
 	if len(v.patchRows) != 4 {
 		t.Fatalf("patchRows = %d, want 4 change lines", len(v.patchRows))
 	}
 
-	// Select the first edit only (cursor row 0 -> 1, i.e. -old1/+new1).
 	v.togglePatchSelection()
 	v.movePatchCursor(1)
 	apply := v.applyPatchCmd()
@@ -437,7 +435,6 @@ func TestDiffViewer_PatchApplyWholeHunkWithoutSelection(t *testing.T) {
 	v := newTestDiffViewer(src)
 	v.Update(v.enterPatchCmd()())
 
-	// No selection -> apply acts on the whole hunk under the cursor.
 	if cmd := v.applyPatchCmd(); cmd != nil {
 		cmd()
 	}
@@ -457,7 +454,7 @@ func TestDiffViewer_PatchSplitKey(t *testing.T) {
 		t.Fatalf("hunks before split = %d, want 1", len(v.patchFile.Hunks))
 	}
 
-	v.Update(tea.KeyPressMsg{Text: "s", Code: 's'}) // patch_split
+	v.Update(tea.KeyPressMsg{Text: "s", Code: 's'})
 	if len(v.patchFile.Hunks) != 2 {
 		t.Fatalf("hunks after split = %d, want 2 (one per edit)", len(v.patchFile.Hunks))
 	}

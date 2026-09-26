@@ -87,7 +87,6 @@ func TestService_RespectsInitialDelay(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 
-	// At 100ms, the initial delay (200ms) should not yet have elapsed.
 	time.Sleep(100 * time.Millisecond)
 	if got := fired.Load(); got != 0 {
 		t.Errorf("expected 0 fires before initial_delay elapses, got %d", got)
@@ -102,9 +101,6 @@ func TestService_RespectsInitialDelay(t *testing.T) {
 
 func TestService_SkipsOverlappingTicks(t *testing.T) {
 	fired := &atomic.Int32{}
-	// Each fire blocks for 200ms (sleep), so with interval=50ms several
-	// ticks would overlap if we did not guard against it. Expect roughly
-	// one fire per 200ms window.
 	svc, err := NewService(Options{
 		Config: Config{
 			Interval:     50 * time.Millisecond,
@@ -127,8 +123,6 @@ func TestService_SkipsOverlappingTicks(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 
-	// Run for 500ms - without guard we'd see ~10 fires; with the guard
-	// we expect at most ~3 (one every 200ms).
 	time.Sleep(500 * time.Millisecond)
 
 	stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)

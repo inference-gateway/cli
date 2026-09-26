@@ -108,7 +108,7 @@ func TestWaitReadyReportsDownloadPhase(t *testing.T) {
 		case "/health":
 			probes++
 			if probes == 1 {
-				w.WriteHeader(http.StatusServiceUnavailable) // llama.cpp still loading the model
+				w.WriteHeader(http.StatusServiceUnavailable)
 				return
 			}
 			w.WriteHeader(http.StatusOK)

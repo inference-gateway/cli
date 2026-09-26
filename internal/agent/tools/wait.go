@@ -185,7 +185,6 @@ func (t *WaitTool) Validate(args map[string]any) error {
 
 	switch condition {
 	case "shells", "file", "command":
-		// valid
 	default:
 		return fmt.Errorf("condition must be one of: shells, file, command (got %q)", condition)
 	}

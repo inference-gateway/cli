@@ -116,10 +116,6 @@ func TestRunHarvestsFinalAssistantAndStreamsLines(t *testing.T) {
 }
 
 func TestRunBrokersApprovalOverStdin(t *testing.T) {
-	// The agent prints an approval request, blocks on stdin, mirrors what it
-	// read to stderr, then prints a fixed assistant line. Reaching that line
-	// proves the runner wrote the approval response to stdin (otherwise `read`
-	// would block forever and Run would hang).
 	script := `printf '%s\n' '{"type":"approval_request","tool_name":"Bash","tool_args":"{}","tool_call_id":"c1"}'
 read line
 printf 'received:%s\n' "$line" 1>&2

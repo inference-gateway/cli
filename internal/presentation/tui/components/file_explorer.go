@@ -275,8 +275,6 @@ func (t *FileExplorer) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	switch m := msg.(type) {
 	case agentdomain.ToolExecutionCompletedEvent, tui.BashCommandCompletedEvent:
-		// The agent's own edits / git commands are exactly what change the tree;
-		// refresh off those in-loop events instead of a clock.
 		t.refresh()
 		return t, nil
 	case explorerWalkDoneMsg:
@@ -315,11 +313,11 @@ func (t *FileExplorer) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if t.findMode {
 		return t.handleFindKey(msg)
 	}
-	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+c"))) { // universal escape; intentionally not remappable
+	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+c"))) {
 		t.cancel = true
 		return t, nil
 	}
-	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+r"))) { // manual refresh
+	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+r"))) {
 		t.refresh()
 		return t, nil
 	}
@@ -328,7 +326,6 @@ func (t *FileExplorer) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		actExpOpen, actExpFind, actExpToggleHidden, actExpSelect,
 		actExpScrollUp, actExpScrollDown, actExpHalfUp, actExpHalfDown, actExpCancel) {
 	case actExpCancel:
-		// esc/q closes the explorer, carrying any captured selections to chat.
 		t.done = true
 	case actExpNavUp:
 		t.moveCursor(-1)
@@ -369,8 +366,6 @@ func (t *FileExplorer) moveCursor(delta int) {
 	t.selectedKey = t.rows[t.cursor].node.relPath
 	if t.selectedFilePath() != prev {
 		t.dirtyPreview = true
-		// Leaving the current file resets select-mode state (the preview cursor
-		// and anchor belong to the previous file); captured selections persist.
 		if t.selectMode {
 			t.exitSelectMode()
 		}
@@ -411,7 +406,7 @@ func (t *FileExplorer) toggleHidden() {
 	t.showHidden = !t.showHidden
 	t.ignore = newIgnoreFilter(t.root, t.showHidden)
 	t.children = make(map[string][]explorerNode)
-	t.candidates = nil // force a fresh fuzzy walk under the new filter
+	t.candidates = nil
 	t.ensureChildren("")
 	t.flatten()
 	t.reanchorSelection()
@@ -651,7 +646,6 @@ func (t *FileExplorer) movePreviewCursor(delta int) {
 
 	height := t.viewport.Height()
 	if height <= 0 {
-		// No render has sized the viewport yet; fall back to the simple pin.
 		t.viewport.SetYOffset(t.previewCursor)
 		return
 	}
@@ -663,11 +657,10 @@ func (t *FileExplorer) movePreviewCursor(delta int) {
 	case t.previewCursor > top+height-1:
 		t.viewport.SetYOffset(t.previewCursor - height + 1)
 	}
-	// else: cursor already visible - leave YOffset unchanged.
 }
 
 func (t *FileExplorer) handleSelectKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+c"))) { // universal escape; intentionally not remappable
+	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+c"))) {
 		t.cancel = true
 		return t, nil
 	}
@@ -675,8 +668,6 @@ func (t *FileExplorer) handleSelectKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 		actExpNavUp, actExpNavDown, actExpToggleSelect, actExpAnnotate,
 		actExpSubmit, actExpCancel) {
 	case actExpCancel:
-		// esc exits select mode (preserving selections); q (or any other cancel
-		// binding) closes the explorer, carrying captured selections to chat.
 		if key.Matches(msg, key.NewBinding(key.WithKeys("esc"))) {
 			t.exitSelectMode()
 		} else {
@@ -693,15 +684,12 @@ func (t *FileExplorer) handleSelectKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 			t.selAnchor = t.previewCursor
 		}
 	case actExpAnnotate:
-		// No explicit range: treat the single cursor line as a 1-line selection.
 		if t.selAnchor < 0 {
 			t.selAnchor = t.previewCursor
 		}
 		t.annotateMode = true
 		t.annotateInput = ""
 	case actExpSubmit:
-		// Attach the current range immediately (annotation optional); stay in
-		// select mode so the user can capture more ranges before closing.
 		t.attachCurrentSelection()
 	}
 	return t, nil
@@ -792,7 +780,6 @@ func FormatAnnotations(root string, sels []SnippetSelection) string {
 		return ""
 	}
 
-	// Group selections by file, preserving first-seen order.
 	fileOrder := make([]string, 0, len(sels))
 	byFile := make(map[string][]SnippetSelection)
 	for _, s := range sels {

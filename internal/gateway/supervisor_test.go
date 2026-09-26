@@ -22,7 +22,6 @@ func TestPIDRegistry(t *testing.T) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	// Start a fake gateway process (long-running sleep) and write its PID.
 	gwCmd := exec.Command("sleep", "30")
 	if err := gwCmd.Start(); err != nil {
 		t.Fatal(err)
@@ -65,7 +64,6 @@ func TestPIDRegistry(t *testing.T) {
 	_ = con2.Process.Kill()
 	_ = con2.Wait()
 
-	// pruneAndCheckLive prunes dead entries and reports whether any live remain.
 	if gm.pruneAndCheckLive() {
 		t.Fatal("expected no live registrations after all consumers exited")
 	}
@@ -216,7 +214,7 @@ func TestVersionFallbacks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir()) // no managed binary cached
+			t.Setenv("HOME", t.TempDir())
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/version" {

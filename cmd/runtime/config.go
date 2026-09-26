@@ -176,11 +176,6 @@ func applySidecarEnv(cfg any, prefix string) {
 // over the flag; when the resolved config has Merge=true its entries are merged
 // onto the built-in defaults by name (see MergeWithDefaults).
 func resolveRemindersConfig(root *cobra.Command) (*config.RemindersConfig, error) {
-	// Precedence, highest first: INFER_REMINDERS_CONFIG (inline YAML, so a
-	// consumer never has to write ~/.infer/reminders.yaml), --reminders-file
-	// (any path), project .infer/reminders.yaml then ~/.infer/reminders.yaml
-	// (sidecarPath), then the built-in defaults (LoadReminders returns them
-	// when the file is missing).
 	var cfg *config.RemindersConfig
 	var err error
 

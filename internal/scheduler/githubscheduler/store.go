@@ -111,7 +111,7 @@ func (s *Store) DeleteJob(ctx context.Context, id string) error {
 	prURL, err := s.syncRepo(ctx, job, func(dir string) (bool, error) {
 		path := filepath.Join(dir, WorkflowPath(id))
 		if _, err := os.Stat(path); err != nil {
-			return false, nil // never deployed; nothing to remove
+			return false, nil
 		}
 		return true, os.Remove(path)
 	}, "remove")

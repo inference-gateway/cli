@@ -110,9 +110,6 @@ func (r *Recorder) Record(ctx context.Context, maxSeconds int) (string, error) {
 		return "", fmt.Errorf("microphone recording is not supported on %s", runtime.GOOS)
 	}
 
-	// Hard wall-clock guard: kill a capture tool that ignores its duration flag
-	// and blocks forever (e.g. ffmpeg avfoundation waiting on a macOS microphone
-	// permission prompt) rather than hanging the session indefinitely.
 	runCtx, cancel := context.WithTimeout(ctx, time.Duration(maxSeconds+recordGraceSeconds)*time.Second)
 	defer cancel()
 
@@ -170,12 +167,10 @@ func recordCandidates(goos, ffmpeg, device, out string, seconds, silenceTimeout 
 
 	switch goos {
 	case "darwin":
-		// ":default" selects the user's system default input device; an explicit
-		// index (e.g. "1") overrides it. See `ffmpeg -f avfoundation -list_devices true -i ""`.
 		return []candidate{ffmpegCapture("avfoundation", ":"+deviceOr(device, "default"))}
 	case "windows":
 		return []candidate{ffmpegCapture("dshow", "audio="+deviceOr(device, "default"))}
-	default: // linux, *bsd
+	default:
 		dev := deviceOr(device, "default")
 		return []candidate{
 			ffmpegCapture("alsa", dev),
@@ -229,7 +224,7 @@ func runFFmpegWithSilenceStop(ctx context.Context, name string, args []string) e
 		sc := bufio.NewScanner(stderr)
 		for sc.Scan() {
 			if stopped.Load() {
-				continue // keep draining stderr so ffmpeg's pipe never blocks
+				continue
 			}
 			if t, ok := parseSilenceStart(sc.Text()); ok && t >= minSilenceStartSeconds {
 				stopped.Store(true)
@@ -241,7 +236,7 @@ func runFFmpegWithSilenceStop(ctx context.Context, name string, args []string) e
 	waitErr := cmd.Wait()
 	<-done
 	if stopped.Load() {
-		return nil // graceful early stop; ffmpeg finalized the WAV
+		return nil
 	}
 	return waitErr
 }

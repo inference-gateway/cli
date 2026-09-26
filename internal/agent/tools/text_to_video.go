@@ -149,7 +149,7 @@ func (t *TextToVideoTool) resolveAudioPath(raw string) (string, error) {
 	if ext := strings.ToLower(filepath.Ext(name)); !slices.Contains(audioExtensions, ext) {
 		return "", fmt.Errorf("audio %q must be a .wav or .mp3 file", raw)
 	}
-	dir, _ := t.config.TextToSpeech.ResolveOutputDir() // an unusable dir just drops the fallback
+	dir, _ := t.config.TextToSpeech.ResolveOutputDir()
 	return resolveMediaInputPath(t.config, dir, raw, "audio", ".wav or .mp3 file")
 }
 
@@ -197,9 +197,6 @@ func (t *TextToVideoTool) Execute(ctx context.Context, args map[string]any) (*ag
 		Size:      size,
 		AudioPath: audioPath,
 	}
-	// A library avatar in a prompt render goes as reference images (every
-	// angle keeps the subject consistent); lip-sync and one-off portraits
-	// send the single portrait. The gateway rejects the two together.
 	switch {
 	case library && audioPath == "":
 		request.ReferencePaths = avatarPaths

@@ -132,7 +132,6 @@ func (s *FileService) handleDirectory(d os.DirEntry, path, cwd string) error {
 		return filepath.SkipDir
 	}
 
-	// Allow walking into .infer directory to find .md files, but we'll filter non-.md files later
 	if d.Name() == ".infer" {
 		return nil
 	}

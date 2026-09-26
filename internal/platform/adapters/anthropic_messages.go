@@ -369,7 +369,7 @@ func stageMessages(messages []sdk.Message) []*stagedMessage {
 		switch msg.Role {
 		case sdk.System:
 			if i == 0 {
-				continue // hoisted into the top-level system field
+				continue
 			}
 			if text := messageText(msg); text != "" {
 				appendBlocks(sdk.MessagesMessageRoleUser, isVolatile(text), textBlock(text))
@@ -641,7 +641,7 @@ type streamTranslator struct {
 
 func (t *streamTranslator) translate(event sdk.SSEvent) []sdk.SSEvent {
 	if event.Event == nil || event.Data == nil {
-		return []sdk.SSEvent{event} // transport errors pass through untouched
+		return []sdk.SSEvent{event}
 	}
 
 	var ev sdk.MessagesStreamEvent

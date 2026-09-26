@@ -256,10 +256,6 @@ func (m *SessionRollover) PerformRollover(ctx context.Context, model, groupKey s
 
 	optimized := m.optimizer.OptimizeMessages(messages, model, true)
 	if len(optimized) >= len(messages) {
-		// Optimizer decided no compaction was useful (e.g. very short
-		// conversation that hit the idle trigger). Fall back to passing the
-		// existing messages through to the new session unchanged so the
-		// continuity is preserved.
 		logger.Debug("optimizer returned no reduction, copying messages as-is")
 	}
 

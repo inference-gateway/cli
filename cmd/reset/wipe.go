@@ -109,7 +109,7 @@ func (w *wiper) resolve() targets {
 // /a/my/project collide - so a slug is stale only when NO reading of it exists on disk.
 func stale(slug string) bool {
 	if !strings.HasPrefix(slug, "-") {
-		return false // "workspace", "default": not an absolute path, never stale
+		return false
 	}
 	return !resolves(string(filepath.Separator), strings.Split(strings.TrimPrefix(slug, "-"), "-"))
 }

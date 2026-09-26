@@ -314,7 +314,6 @@ func newDiffKeymap(kb config.KeybindingsConfig, namespace config.KeyNamespace) d
 	for id, keys := range raw {
 		opts := []key.BindingOpt{key.WithKeys(keys...)}
 		if len(keys) > 0 {
-			// primary key drives footer hints via display()/Help().Key
 			opts = append(opts, key.WithHelp(keys[0], ""))
 		}
 		bindings[id] = key.NewBinding(opts...)

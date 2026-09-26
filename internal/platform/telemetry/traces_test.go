@@ -216,7 +216,7 @@ func TestTraceSessions(t *testing.T) {
 	write("old-traces.jsonl", "{}\n", base)
 	write("new-traces.jsonl", "{}\n", base.Add(time.Minute))
 	write("empty-traces.jsonl", "", base)
-	write("metrics.jsonl", "{}\n", base) // metric file, not a trace file
+	write("metrics.jsonl", "{}\n", base)
 
 	sessions, err := TraceSessions(dir)
 	if err != nil {

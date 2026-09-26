@@ -74,9 +74,6 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 		}, nil
 	}
 
-	// A completed interactive subagent: return its real last assistant message
-	// from the result file (its chat wrote it on turn completion). The pane is
-	// never scraped - its TUI chrome is noise - so output is "" if none was written.
 	if s.Mode == scheddomain.SubagentModeInteractive {
 		return &agentdomain.ToolExecutionResult{
 			ToolName:  "GetSubagentResult",

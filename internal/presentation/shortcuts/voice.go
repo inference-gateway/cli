@@ -71,8 +71,6 @@ func (v *VoiceShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 		seconds = n
 	}
 
-	// Fail fast before recording if a required external tool is missing, so the
-	// user sees an actionable error instead of being prompted to speak in vain.
 	if err := v.transcriber.EnsureAvailable(); err != nil {
 		return ShortcutResult{Output: fmt.Sprintf("%v", err), Success: false}, nil
 	}

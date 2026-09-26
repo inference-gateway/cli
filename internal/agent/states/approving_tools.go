@@ -263,9 +263,6 @@ func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 	s.flushReady(round)
 
 	s.ctx.AgentCtx.LastToolFailed = AnyToolFailed(*s.ctx.ToolResults)
-	// A user rejection ends the turn: clearing HasToolResults lets canComplete
-	// route to Completing instead of streaming another LLM turn. This is the
-	// only place a rejection ends the turn; the no-approval route never sees them.
 	if AnyToolRejected(*s.ctx.ToolResults) {
 		s.ctx.AgentCtx.HasToolResults = false
 	}

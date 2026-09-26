@@ -49,7 +49,7 @@ func (cm *ChannelManagerService) parseChannelCommand(content string) (string, []
 	if err != nil {
 		return "", nil, false
 	}
-	name, _, _ = strings.Cut(name, "@") // Telegram group form: /clear@MyBot
+	name, _, _ = strings.Cut(name, "@")
 	name = strings.ToLower(name)
 	if _, exists := cm.shortcutRegistry.Get(name); !exists {
 		return "", nil, false
@@ -216,7 +216,7 @@ func (cm *ChannelManagerService) listConversations(ctx context.Context, groupKey
 		}
 		_, meta, err := cm.convStore.LoadConversation(ctx, id)
 		if err != nil {
-			continue // never saved (fresh session) or removed server-side
+			continue
 		}
 		title := meta.Title
 		if title == "" {
@@ -329,7 +329,7 @@ func lastExchangeRecap(entries []convdomain.ConversationEntry) string {
 }
 
 func truncateSnippet(s string) string {
-	s = strings.Join(strings.Fields(s), " ") // collapse newlines for a compact recap
+	s = strings.Join(strings.Fields(s), " ")
 	if r := []rune(s); len(r) > recapSnippetLen {
 		return string(r[:recapSnippetLen-1]) + "…"
 	}

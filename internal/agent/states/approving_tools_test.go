@@ -113,7 +113,7 @@ func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 			select {
 			case <-arrivals:
 			case <-time.After(2 * time.Second):
-				return // never closes allArrived -> overlap did not happen
+				return
 			}
 		}
 		close(allArrived)
@@ -123,7 +123,7 @@ func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 		arrivals <- struct{}{}
 		select {
 		case <-allArrived:
-		case <-time.After(5 * time.Second): // safety so goroutines don't leak on failure
+		case <-time.After(5 * time.Second):
 		}
 		return toolEntry(tc)
 	}
@@ -150,7 +150,7 @@ func TestApprovingToolsState_PreservesToolCallOrder(t *testing.T) {
 	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
 		switch tc.ID {
 		case "call-0":
-			time.Sleep(60 * time.Millisecond) // finishes last
+			time.Sleep(60 * time.Millisecond)
 		case "call-1":
 			time.Sleep(30 * time.Millisecond)
 		}

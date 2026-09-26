@@ -122,14 +122,14 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 			handler := NewChatHandler(
 				mockAgent,
 				conversationRepo,
-				nil, // conversationOptimizer
-				nil, // sessionRolloverManager
+				nil,
+				nil,
 				mockModel,
 				mockTool,
 				mockFile,
 				nil,
-				nil, // skillsService
-				nil, // githubIssueService
+				nil,
+				nil,
 				shortcutRegistry,
 				stateManager,
 				messageQueue,
@@ -138,10 +138,10 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				nil,
 				nil,
 				config.DefaultConfig(),
-				nil, // approvalCoordinator
+				nil,
 				fakeRunner,
 				fakeDirect,
-				nil, // toolCoordinator
+				nil,
 			)
 
 			processor := NewChatMessageProcessor(handler)
@@ -692,8 +692,6 @@ func TestChatMessageProcessor_confirmCatalogInstall(t *testing.T) {
 	require.NotNil(t, p.confirmCatalogInstall(agentdomain.UserInputEvent{Content: "/rust go"}),
 		"a catalog skill must prompt before downloading")
 
-	// A declined skill is never re-prompted, so re-submitting the same input
-	// cannot loop.
 	p.declinedSkills["rust"] = true
 	require.Nil(t, p.confirmCatalogInstall(agentdomain.UserInputEvent{Content: "/rust go"}))
 }

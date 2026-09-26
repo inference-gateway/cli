@@ -345,7 +345,7 @@ func (iv *InputView) SetText(text string) {
 
 func (iv *InputView) SetWidth(width int) {
 	iv.width = width
-	iv.ta.SetWidth(width - 4) // account for border and "> " prefix
+	iv.ta.SetWidth(width - 4)
 	iv.resizeTextarea()
 }
 
@@ -925,16 +925,11 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		iv.gitDirty, iv.gitUnpushed = msg.Dirty, msg.Unpushed
 		return iv, cmd
 	case tui.HeartbeatEvent:
-		// Catches changes made outside the TUI (editor saves, commits from
-		// another terminal). The git call runs in the returned Cmd, never here.
 		return iv, tea.Batch(cmd, iv.gitStatusCmd())
 	case tui.BashCommandCompletedEvent:
 		iv.InvalidateGitBranchCache()
 		return iv, tea.Batch(cmd, fetchGitPRCmd(), iv.gitStatusCmd())
 	case agentdomain.ToolExecutionCompletedEvent:
-		// Any tool (Write/Edit/Delete, not only Bash) can dirty the tree, so the
-		// status refetch always runs; the PR refetch is a network call and stays
-		// gated on a Bash result.
 		cmds := []tea.Cmd{cmd, iv.gitStatusCmd()}
 		for _, result := range msg.Results {
 			if result != nil && result.ToolName == "Bash" {
@@ -967,8 +962,6 @@ func (iv *InputView) HandleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return iv, nil
 	}
 
-	// navUp/navDown already returned above; only cursor-movement keys should
-	// preserve history navigation, everything else resets it.
 	if !isNavigationKey(k) {
 		iv.historyManager.ResetNavigation()
 	}

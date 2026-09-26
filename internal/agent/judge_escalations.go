@@ -127,8 +127,6 @@ func (e *approvalEscalator) Escalate(ctx context.Context, req agentdomain.Approv
 		return agentdomain.ApprovalEscalationResult{Status: status, JudgeReason: reason}, nil
 	}
 
-	// The escalated call gets its own ID so the pending entry the TUI records
-	// for the approval box never collides with the RequestApproval call itself.
 	tc.ID = agentdomain.GetToolCallID(ctx) + "-escalation"
 	approved, _, err := e.svc.requestHumanApproval(ctx, tc, e.publisher, escalationNote(req, reason))
 	if err != nil {

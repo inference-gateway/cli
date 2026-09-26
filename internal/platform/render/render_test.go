@@ -32,7 +32,7 @@ func TestRenderText_MultiTurn(t *testing.T) {
 	var out strings.Builder
 	err := RenderText(stream(
 		agentdomain.ChatChunkEvent{Content: "turn one"},
-		agentdomain.ChatCompleteEvent{}, // per-turn completion must not stop rendering
+		agentdomain.ChatCompleteEvent{},
 		agentdomain.ChatChunkEvent{Content: "turn two"},
 		agentdomain.ChatCompleteEvent{},
 	), &out)

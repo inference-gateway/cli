@@ -133,9 +133,6 @@ func (s *VideoService) buildCreateRequest(request agentdomain.VideoRequest, mode
 			return sdk.CreateVideoRequest{}, err
 		}
 	}
-	// ponytail: no per-model image limits here (veo takes 3, seedance 9-30);
-	// the gateway rejects an over-limit or unsupported model with a message
-	// that names the limit, and that surfaces through Render's error.
 	if len(request.ReferencePaths) > 0 {
 		refs := make([]openapi_types.File, 0, len(request.ReferencePaths))
 		for _, path := range request.ReferencePaths {

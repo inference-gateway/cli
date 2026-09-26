@@ -125,8 +125,6 @@ func (m *ModelSelector) buildForm() {
 		Height(m.selectHeight(len(visible))).
 		Value(&m.choice)
 
-	// huh's own / filter renders the query into the title line instead of a
-	// real input, so it stays disabled in favour of the search textinput.
 	keymap := huh.NewDefaultKeyMap()
 	keymap.Select.Filter.SetEnabled(false)
 

@@ -177,7 +177,6 @@ func TestAskUserQuestionTool_Validate(t *testing.T) {
 func TestAskUserQuestionTool_Execute_HeadlessDegrade(t *testing.T) {
 	tool := newAskUserQuestionToolForTest()
 
-	// No broker in context -> degrade gracefully without blocking.
 	result, err := tool.Execute(context.Background(), validQuestionArgs())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

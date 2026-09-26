@@ -26,7 +26,7 @@ func freshListShellsData() map[string]any {
 				"started_at":  "12:00:00",
 				"elapsed":     "5s",
 				"output_size": int64(1234),
-				"exit_code":   (*int)(nil), // running shell: no exit code
+				"exit_code":   (*int)(nil),
 			},
 			{
 				"shell_id":    "shell-2",
@@ -69,7 +69,6 @@ func TestListShellsTool_FormatAfterJSONRoundTrip(t *testing.T) {
 
 	for name, result := range cases {
 		t.Run(name, func(t *testing.T) {
-			// A panic here (the bug) fails the test loudly with the offending stack.
 			if got := tool.FormatPreview(result); got != "Found 2 background shell(s)" {
 				t.Errorf("FormatPreview = %q, want %q", got, "Found 2 background shell(s)")
 			}
@@ -87,7 +86,6 @@ func TestListShellsTool_FormatAfterJSONRoundTrip(t *testing.T) {
 					t.Errorf("FormatterLLM output missing %q:\n%s", want, llm)
 				}
 			}
-			// Only the completed shell has an exit code; the running one must not print one.
 			if n := strings.Count(llm, "Exit Code:"); n != 1 {
 				t.Errorf("FormatterLLM rendered %d exit codes, want 1:\n%s", n, llm)
 			}
@@ -150,11 +148,9 @@ func TestAsMapSlice(t *testing.T) {
 	if got := asMapSlice([]map[string]any{{"a": 1}, {"a": 2}}); len(got) != 2 {
 		t.Errorf("fresh []map[string]any: len = %d, want 2", len(got))
 	}
-	// JSON round-trip shape: []any whose elements are map[string]any.
 	if got := asMapSlice([]any{map[string]any{"a": 1.0}, map[string]any{"a": 2.0}}); len(got) != 2 {
 		t.Errorf("[]any of maps: len = %d, want 2", len(got))
 	}
-	// Non-map elements are skipped.
 	if got := asMapSlice([]any{map[string]any{"a": 1}, "not-a-map", 42}); len(got) != 1 {
 		t.Errorf("mixed slice: len = %d, want 1", len(got))
 	}

@@ -72,12 +72,12 @@ func clipboardCandidates() []candidate {
 		return []candidate{{name: "pbcopy"}}
 	case "windows":
 		return []candidate{{name: "clip"}}
-	default: // linux, *bsd, etc.
+	default:
 		return []candidate{
-			{name: "wl-copy"}, // Wayland
-			{name: "xclip", args: []string{"-selection", "clipboard"}}, // X11
-			{name: "xsel", args: []string{"--clipboard", "--input"}},   // X11 alternative
-			{name: "clip.exe"}, // WSL -> Windows host
+			{name: "wl-copy"},
+			{name: "xclip", args: []string{"-selection", "clipboard"}},
+			{name: "xsel", args: []string{"--clipboard", "--input"}},
+			{name: "clip.exe"},
 		}
 	}
 }

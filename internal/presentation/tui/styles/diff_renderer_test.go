@@ -85,7 +85,6 @@ func TestDiffRenderer_RenderDiff(t *testing.T) {
 		if !strings.Contains(out, "test.go") {
 			t.Fatalf("expected file path in output:\n%s", out)
 		}
-		// no hunks should be present for identical input
 		if strings.Contains(out, "@@") {
 			t.Fatalf("did not expect hunks for identical content:\n%s", out)
 		}

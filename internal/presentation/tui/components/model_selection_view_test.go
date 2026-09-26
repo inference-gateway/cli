@@ -140,12 +140,9 @@ func TestModelSelector_SearchFiltersByNameOnly(t *testing.T) {
 	typeString(m, "/")
 	assert.True(t, m.searchMode)
 
-	// "free" appears in paid-model's suffix via pricing labels but must only
-	// match the model whose NAME contains it.
 	typeString(m, "free")
 	assert.Equal(t, []string{"free-model"}, m.visibleModels())
 
-	// No name matches "per MTok" even though every paid suffix contains it.
 	typeString(m, "x")
 	assert.Empty(t, m.visibleModels())
 
@@ -200,21 +197,20 @@ func TestModelSelector_CapabilityFilter(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{"free-model", "paid-model", "p/whisper"}, m.tabModels())
 
-	typeString(m, "6") // Vision
+	typeString(m, "6")
 	assert.Equal(t, CapabilityVision, m.capability)
 	assert.ElementsMatch(t, []string{"free-model"}, m.tabModels())
 
-	typeString(m, "7") // Audio: only the view-only whisper qualifies
+	typeString(m, "7")
 	assert.ElementsMatch(t, []string{"p/whisper"}, m.tabModels())
 	assert.Contains(t, m.formatModelSuffix("p/whisper"), "view-only")
 
-	typeString(m, "8") // Video: nothing
+	typeString(m, "8")
 	assert.Empty(t, m.tabModels())
 
-	typeString(m, "5") // back to Any
+	typeString(m, "5")
 	assert.Len(t, m.tabModels(), 3)
 
-	// Capability AND pricing: vision + free keeps only the free vision model.
 	typeString(m, "62")
 	assert.ElementsMatch(t, []string{"free-model"}, m.tabModels())
 }

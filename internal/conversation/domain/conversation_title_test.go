@@ -34,7 +34,7 @@ func TestCreateTitleFromMessage(t *testing.T) {
 		},
 		{
 			name:    "long title truncated to 80 bytes with ellipsis",
-			content: strings.Repeat("abcdefghi ", 10), // 10 words x 9 chars = 99 chars joined
+			content: strings.Repeat("abcdefghi ", 10),
 			want:    strings.Repeat("abcdefghi ", 7) + "abcdefg" + "...",
 		},
 		{
@@ -55,7 +55,7 @@ func TestCreateTitleFromMessage(t *testing.T) {
 // bytes is cut at byte 77 regardless of rune boundaries. The result is always
 // 80 bytes ending in "...".
 func TestCreateTitleFromMessage_MultibyteTruncation(t *testing.T) {
-	title := CreateTitleFromMessage(strings.Repeat("日", 30)) // one 90-byte word
+	title := CreateTitleFromMessage(strings.Repeat("日", 30))
 	assert.Len(t, title, 80)
 	assert.True(t, strings.HasSuffix(title, "..."))
 }

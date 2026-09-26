@@ -149,7 +149,7 @@ func attrOf(attrs []otlpAttr, key string) string {
 func foldFile(path string, since time.Time, conversationID string, tools map[string]*toolAgg, models map[string]*ModelStat, sessions map[string]*SessionStat, seen *bool) error {
 	fh, err := os.Open(path)
 	if err != nil {
-		return nil // best-effort: skip unreadable files
+		return nil
 	}
 	defer func() { _ = fh.Close() }()
 

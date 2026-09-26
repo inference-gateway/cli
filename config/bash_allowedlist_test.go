@@ -216,8 +216,6 @@ func TestIsBashCommandAllowed_GhSearch(t *testing.T) {
 func TestIsBashCommandAllowed_GhProject(t *testing.T) {
 	cfg := DefaultConfig()
 
-	// Read-only project commands are in the mode.all baseline - allowed even in
-	// read-only plan mode.
 	reads := []string{
 		"gh project item-list 7 --owner inference-gateway",
 		"gh project field-list 7 --owner inference-gateway",
@@ -232,8 +230,6 @@ func TestIsBashCommandAllowed_GhProject(t *testing.T) {
 		}
 	}
 
-	// Project writes and destructive actions are NOT auto-approved in any
-	// interactive mode - they fall through to approval.
 	denied := []string{
 		"gh project item-add 7 --owner inference-gateway --url https://github.com/inference-gateway/cli/issues/123",
 		"gh project item-edit 7 --item-id PVTI_xxx --field Status --value Todo",
@@ -803,7 +799,7 @@ func TestBashAllowFor_ModeBuckets(t *testing.T) {
 	tests := []struct {
 		mode    agentdomain.AgentMode
 		key     string
-		allowed string // bucket entry expected to pass; "" for baseline only
+		allowed string
 	}{
 		{agentdomain.AgentModeStandard, "standard", "standard-only"},
 		{agentdomain.AgentModePlan, "plan", "plan-only"},

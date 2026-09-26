@@ -231,7 +231,7 @@ func (r *Runner) writeSubagentResultFileError(runErr error) {
 		return
 	}
 	rf := scheddomain.SubagentResultFile{
-		FinalAssistant: convdomain.LastAssistantText(r.conversationRepo.GetMessages()), // partial text, may be ""
+		FinalAssistant: convdomain.LastAssistantText(r.conversationRepo.GetMessages()),
 		Success:        false,
 	}
 	if runErr != nil {

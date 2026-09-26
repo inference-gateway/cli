@@ -377,28 +377,28 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 	messageQueue := conversation.NewMessageQueueService()
 
 	handler := NewChatHandler(
-		nil, // agentService
+		nil,
 		conversationRepo,
-		nil, // conversationOptimizer
-		nil, // sessionRolloverManager
-		nil, // modelService
-		nil, // toolService
-		nil, // fileService
-		nil, // imageService
-		nil, // skillsService
-		nil, // githubIssueService
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
 		shortcutRegistry,
-		nil, // stateManager
+		nil,
 		messageQueue,
-		nil, // taskRetentionService
-		nil, // backgroundTaskService
-		nil, // backgroundShellService
-		nil, // agentManager
+		nil,
+		nil,
+		nil,
+		nil,
 		config.DefaultConfig(),
-		nil, // approvalCoordinator
-		nil, // completionRunner
-		nil, // directExec
-		nil, // toolCoordinator
+		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	err := conversationRepo.AddTokenUsage("test-model", 100, 50, 150, 0, 0)
@@ -557,10 +557,6 @@ func getChatEventTestCases() []chatHandlerTestCase {
 			expectedCmd: true,
 		},
 		{
-			// Note: this dispatch case now delegates to
-			// ChatCompletionRunner.HandleChatChunk via the fake runner, which
-			// always returns a non-nil cmd. The "no session returns nil" path
-			// is tested directly in chatcompletion/runner_test.go.
 			name: "ChatChunkEvent - with content (no session)",
 			msg: agentdomain.ChatChunkEvent{
 				RequestID: "test-123",
@@ -628,11 +624,6 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 			expectedCmd: true,
 		},
 		{
-			// Note: this dispatch case delegates to
-			// ToolExecutionCoordinator.HandleToolExecutionProgress via the
-			// fake, which always returns a non-nil cmd. The "unknown status
-			// returns nil" path is tested directly in
-			// toolcoordinator/coordinator_test.go.
 			name: "ToolExecutionProgressEvent",
 			msg: agentdomain.ToolExecutionProgressEvent{
 				BaseChatEvent: agentdomain.BaseChatEvent{
@@ -679,9 +670,6 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*agentdomainmocks.FakeAg
 	shortcutRegistry := shortcuts.NewRegistry()
 	messageQueue := conversation.NewMessageQueueService()
 
-	// Configure the fake services to return non-nil cmds so the handler's
-	// Handle() dispatcher returns non-nil for the events that delegate.
-	// Individual cmd contents are exercised by the per-service tests.
 	nonNilCmd := func() tea.Msg { return nil }
 	fakeRunner := &tuimocks.FakeChatCompletionRunner{}
 	fakeRunner.HandleChatStartReturns(nonNilCmd)
@@ -709,14 +697,14 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*agentdomainmocks.FakeAg
 	return NewChatHandler(
 		mockAgent,
 		conversationRepo,
-		nil, // conversationOptimizer
-		nil, // sessionRolloverManager
+		nil,
+		nil,
 		mockModel,
 		mockTool,
 		mockFile,
 		nil,
-		nil, // skillsService
-		nil, // githubIssueService
+		nil,
+		nil,
 		shortcutRegistry,
 		stateManager,
 		messageQueue,
@@ -725,7 +713,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*agentdomainmocks.FakeAg
 		nil,
 		nil,
 		cfg,
-		nil, // approvalCoordinator
+		nil,
 		fakeRunner,
 		fakeDirect,
 		fakeToolCoord,

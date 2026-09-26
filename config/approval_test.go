@@ -10,19 +10,16 @@ func TestResolveApprovalDelivery(t *testing.T) {
 		isChat    bool
 		want      string
 	}{
-		// prompt (default): adapts to the reachable channel, else blocks.
 		{"prompt chat", ApprovalBehaviourPrompt, false, true, ApprovalBehaviourPrompt},
 		{"prompt chat with broker still prompts", ApprovalBehaviourPrompt, true, true, ApprovalBehaviourPrompt},
 		{"prompt headless+broker -> ipc (telegram)", ApprovalBehaviourPrompt, true, false, ApprovalBehaviourIPC},
 		{"prompt headless no broker -> block (ci)", ApprovalBehaviourPrompt, false, false, ApprovalBehaviourBlock},
 
-		// ipc: only delivers over a broker, blocks otherwise (incl. chat).
 		{"ipc headless+broker", ApprovalBehaviourIPC, true, false, ApprovalBehaviourIPC},
 		{"ipc chat+broker", ApprovalBehaviourIPC, true, true, ApprovalBehaviourIPC},
 		{"ipc no broker -> block", ApprovalBehaviourIPC, false, false, ApprovalBehaviourBlock},
 		{"ipc chat no broker -> block", ApprovalBehaviourIPC, false, true, ApprovalBehaviourBlock},
 
-		// block: always blocks.
 		{"block chat", ApprovalBehaviourBlock, false, true, ApprovalBehaviourBlock},
 		{"block headless+broker", ApprovalBehaviourBlock, true, false, ApprovalBehaviourBlock},
 
@@ -57,7 +54,7 @@ func TestApprovalBehaviourFor(t *testing.T) {
 		{ApprovalBehaviourBlock, ApprovalBehaviourBlock},
 		{ApprovalBehaviourJudge, ApprovalBehaviourJudge},
 		{"", ApprovalBehaviourPrompt},
-		{"bogus", ApprovalBehaviourPrompt}, // unknown -> safe default
+		{"bogus", ApprovalBehaviourPrompt},
 	}
 	for _, tt := range tests {
 		cfg := DefaultConfig()

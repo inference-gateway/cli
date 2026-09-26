@@ -111,7 +111,7 @@ func textContent(t *testing.T, s string) sdk.MessageContent {
 func multimodalContent(t *testing.T, parts ...sdk.ContentPart) sdk.MessageContent {
 	t.Helper()
 	if parts == nil {
-		parts = []sdk.ContentPart{} // nil marshals to JSON null, not []
+		parts = []sdk.ContentPart{}
 	}
 	var c sdk.MessageContent
 	if err := c.FromMessageContent1(parts); err != nil {

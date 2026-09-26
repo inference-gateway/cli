@@ -379,7 +379,6 @@ func (t *WebFetchTool) FormatPreview(result *agentdomain.ToolExecutionResult) st
 		return "Web fetch failed"
 	}
 
-	// Extract domain from URL for display
 	domain := t.extractDomain(fetchResult.URL)
 
 	statusText := fmt.Sprintf("HTTP %d", fetchResult.Status)
@@ -487,7 +486,6 @@ func (t *WebFetchTool) formatFetchData(data any) string {
 
 // extractDomain extracts domain from URL for display
 func (t *WebFetchTool) extractDomain(url string) string {
-	// Simple domain extraction
 	if strings.HasPrefix(url, "http://") {
 		url = url[7:]
 	} else if strings.HasPrefix(url, "https://") {
@@ -579,7 +577,6 @@ func (t *WebFetchTool) saveToFile(ctx context.Context, fetchResult *agentdomain.
 		return "", fmt.Errorf("failed to create directory %s: %w", baseDir, err)
 	}
 
-	// Clean filename for safety
 	filename = filepath.Base(filename)
 
 	fullPath := filepath.Join(baseDir, filename)

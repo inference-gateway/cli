@@ -824,7 +824,7 @@ func extractImagePaths(content string) ([]string, string) {
 	last := 0
 	for _, loc := range fenceRe.FindAllStringIndex(content, -1) {
 		out.WriteString(extract(content[last:loc[0]]))
-		out.WriteString(content[loc[0]:loc[1]]) // fenced block preserved verbatim
+		out.WriteString(content[loc[0]:loc[1]])
 		last = loc[1]
 	}
 	out.WriteString(extract(content[last:]))

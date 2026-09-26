@@ -55,8 +55,6 @@ func TestRunner_writeSubagentResultFile(t *testing.T) {
 		t.Fatalf("unexpected result file: %+v", rf)
 	}
 
-	// Gated: pending tool calls, a cancelled turn, and an empty last message must
-	// NOT write (the turn isn't a final answer).
 	mustNotWrite := func(name string, rr *Runner, msg agentdomain.ChatCompleteEvent) {
 		_ = os.Remove(path)
 		rr.writeSubagentResultFile(msg)

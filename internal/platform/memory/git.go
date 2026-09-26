@@ -139,16 +139,10 @@ func (b *GitBackend) adoptRemoteBranch(ctx context.Context, dir, branch string) 
 		return err
 	}
 	if _, err := b.run(ctx, dir, "merge", "--allow-unrelated-histories", "-X", "ours", "--no-edit", "FETCH_HEAD"); err != nil {
-		// -X ours resolves conflicts to the local copy (last-writer-wins posture) and
-		// still adopts every remote-only fact file; a conflicting MEMORY.md keeps the
-		// local index, so remote-only facts may be present but unlisted until the next write.
 		logger.Warn("memory git sync: adopt merge failed", "error", err)
 		_, _ = b.run(ctx, dir, "merge", "--abort")
 		return err
 	}
-	// The merge commit is ahead of the remote but the tree is clean, so a later
-	// stageCommitPush would no-op; push the union now (like the seed path) so the
-	// local contribution reaches the remote instead of waiting for the next write.
 	return b.pushWithRetry(ctx, dir, branch)
 }
 

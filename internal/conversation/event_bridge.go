@@ -131,8 +131,8 @@ func (eb *EventBridge) Tap(input <-chan agentdomain.ChatEvent) <-chan agentdomai
 	go func() {
 		defer close(output)
 		for event := range input {
-			output <- event   // Forward to TUI
-			eb.Publish(event) // Multicast to subscribers
+			output <- event
+			eb.Publish(event)
 		}
 	}()
 

@@ -245,7 +245,6 @@ func TestConversationView_DefaultExpandedDiffTools(t *testing.T) {
 		},
 	})
 
-	// Edit/MultiEdit diffs are expanded by default; other tools stay collapsed.
 	if !cv.IsToolResultExpanded(0) {
 		t.Error("expected Edit tool result to be expanded by default")
 	}
@@ -253,7 +252,6 @@ func TestConversationView_DefaultExpandedDiffTools(t *testing.T) {
 		t.Error("expected Bash tool result to be collapsed by default")
 	}
 
-	// ctrl+o / per-entry toggle must still collapse a default-expanded diff.
 	cv.ToggleToolResultExpansion(0)
 	if cv.IsToolResultExpanded(0) {
 		t.Error("expected Edit tool result to collapse after toggle")
@@ -276,7 +274,6 @@ func TestConversationView_ToggleAllCollapsesDefaultExpanded(t *testing.T) {
 		},
 	})
 
-	// The diff is expanded by default, so the first ctrl+o should collapse it.
 	if !cv.IsToolResultExpanded(0) {
 		t.Fatal("precondition: MultiEdit should be expanded by default")
 	}
@@ -300,12 +297,12 @@ func TestConversationView_ToggleAllExpandsCollapsedAmongExpanded(t *testing.T) {
 	cv.SetConversation([]convdomain.ConversationEntry{
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("edited")},
-			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Edit"}, // default-expanded
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Edit"},
 			Time:          time.Now(),
 		},
 		{
 			Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("rejected")},
-			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Write", Rejected: true}, // collapsed
+			ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Write", Rejected: true},
 			Time:          time.Now(),
 		},
 	})
@@ -675,7 +672,7 @@ func TestRebuildPreservingScroll_AnchorsAboveViewportEntry(t *testing.T) {
 func TestRebuildPreservingScroll_IgnoresBelowViewportEntry(t *testing.T) {
 	cv := scrollTestView(t)
 
-	cv.Viewport.SetYOffset(0) // viewport top at the very top; entry 5 is below it
+	cv.Viewport.SetYOffset(0)
 	before := cv.Viewport.YOffset()
 
 	cv.ToggleToolResultExpansion(5)

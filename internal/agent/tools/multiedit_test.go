@@ -555,7 +555,6 @@ func TestMultiEditTool_Execute_ReplaceAll(t *testing.T) {
 		t.Errorf("Should replace 3 occurrences, got %d", multiEditResult.Edits[0].ReplacedCount)
 	}
 
-	// Verify file content
 	newContent, err := os.ReadFile(testFile)
 	if err != nil {
 		t.Fatal(err)
@@ -618,7 +617,6 @@ func TestMultiEditTool_Execute_NewFileCreation(t *testing.T) {
 		t.Errorf("Execute should succeed for new file creation, got error: %s", result.Error)
 	}
 
-	// Verify file was created and has correct content
 	newContent, err := os.ReadFile(testFile)
 	if err != nil {
 		t.Fatal("New file should be created")

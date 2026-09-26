@@ -21,6 +21,5 @@ func (s *ErrorState) Name() AgentExecutionState {
 // Handle processes events in Error state
 // This is a terminal state, so no events are expected
 func (s *ErrorState) Handle(event AgentEvent) error {
-	// Terminal state - no events to handle
 	return nil
 }

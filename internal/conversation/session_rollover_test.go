@@ -151,7 +151,6 @@ func TestResolveSessionID_GroupKeyAfterRollover(t *testing.T) {
 	mgr, _, _, groupStore, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
-	// Pre-populate the index as if a rollover has already happened.
 	rolledOverID := uuid.New().String()
 	if err := groupStore.PutSessionGroup(context.Background(), "channel-telegram-12345", storage.SessionGroupEntry{
 		CurrentSessionID: rolledOverID,
@@ -289,7 +288,6 @@ func TestPerformRollover_CreatesNewSessionAndUpdatesIndex(t *testing.T) {
 	mgr, repo, opt, groupStore, cleanup := newRolloverManagerForTest(t, 80, 30)
 	defer cleanup()
 
-	// Seed the group index so PerformRollover has a known initial state.
 	if _, _, err := mgr.ResolveSessionID("channel-telegram-12345"); err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
@@ -317,7 +315,6 @@ func TestPerformRollover_CreatesNewSessionAndUpdatesIndex(t *testing.T) {
 		t.Errorf("repo should now point at new session: got %q want %q", got, newID)
 	}
 
-	// Index should now reflect the rollover.
 	entry, ok, err := groupStore.GetSessionGroup(context.Background(), "channel-telegram-12345")
 	if err != nil {
 		t.Fatalf("GetSessionGroup: %v", err)

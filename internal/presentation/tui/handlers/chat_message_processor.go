@@ -159,8 +159,6 @@ func (p *ChatMessageProcessor) confirmCatalogInstall(msg agentdomain.UserInputEv
 		return nil
 	}
 
-	// Extension-originated input has no terminal question UI to answer on -
-	// install directly, like headless runs do in buildActiveSkillInfo.
 	if msg.FromExtension {
 		return func() tea.Msg {
 			for _, name := range names {
@@ -436,11 +434,6 @@ func (p *ChatMessageProcessor) processChatMessage(
 		}
 	}
 
-	// Auto-rollover BEFORE appending the new user message - otherwise the new
-	// message resets the idle clock and never triggers. Mirrors what /compact
-	// does manually: produces a summary, starts a new conversation file, and
-	// the new user message lands in the new file via AddMessage in the tail
-	// helper below.
 	if p.shouldRolloverNow() {
 		return p.compactThenContinue(message, images)
 	}

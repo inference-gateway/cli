@@ -56,7 +56,6 @@ func TestLoadTasksCmd_SkipsA2AFromSnapshotAndSplitsByStatus(t *testing.T) {
 	done := time.Now()
 	reg := &schedmocks.FakeBackgroundTaskRegistry{}
 	reg.SnapshotReturns([]scheddomain.TrackedJob{
-		// A2A in the snapshot must be skipped (already listed via the poller).
 		{Meta: scheddomain.JobMeta{ID: "a2a-1", Kind: scheddomain.JobKindA2A}, Status: scheddomain.JobRunning},
 		{Meta: scheddomain.JobMeta{ID: "shell-1", Kind: scheddomain.JobKindShell, Label: "shell-1", Detail: "npm run build", StartedAt: time.Now()}, Status: scheddomain.JobRunning},
 		{Meta: scheddomain.JobMeta{ID: "sub-1", Kind: scheddomain.JobKindSubagent, Label: "refactor", Detail: "headless", StartedAt: time.Now()}, Status: scheddomain.JobCompleted, CompletedAt: &done},

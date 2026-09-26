@@ -1326,7 +1326,6 @@ func (s *JsonlStorage) LoadHistory(_ context.Context, limit int) ([]string, erro
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("error reading history file: %w", err)
 	}
-	// Return most recent `limit` lines
 	if limit > 0 && len(allLines) > limit {
 		allLines = allLines[len(allLines)-limit:]
 	}

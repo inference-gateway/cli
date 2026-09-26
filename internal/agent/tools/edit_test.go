@@ -456,7 +456,6 @@ func TestEditTool_Execute_ReadToolNotUsed(t *testing.T) {
 }
 
 func TestEditTool_Execute_Success(t *testing.T) {
-	// Create temporary test file
 	tempDir := t.TempDir()
 	testFile := filepath.Join(tempDir, "test.txt")
 	originalContent := "Hello world\nThis is a test\nHello again"
@@ -512,7 +511,6 @@ func TestEditTool_Execute_Success(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset file content
 			err := os.WriteFile(testFile, []byte(originalContent), 0644)
 			if err != nil {
 				t.Fatalf("Failed to reset test file: %v", err)
@@ -537,7 +535,6 @@ func TestEditTool_Execute_Success(t *testing.T) {
 				return
 			}
 
-			// Check result data
 			editResult, ok := result.Data.(*agentdomain.EditToolResult)
 			if !ok {
 				t.Fatal("Expected EditToolResult in result data")
@@ -551,7 +548,6 @@ func TestEditTool_Execute_Success(t *testing.T) {
 				t.Errorf("Expected FileModified = %v, got %v", tt.expectedModified, editResult.FileModified)
 			}
 
-			// Check file content
 			if tt.expectedModified {
 				content, err := os.ReadFile(testFile)
 				if err != nil {

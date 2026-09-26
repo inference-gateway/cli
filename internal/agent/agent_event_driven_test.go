@@ -582,9 +582,6 @@ func TestHandlePostToolExecutionState_DrainsThenStopsWhenCancelled(t *testing.T)
 	ctx.Turns = 1
 	ctx.MaxTurns = 10
 
-	// Calls 1+2 (the entry-log and the outer `if !IsEmpty()`) report
-	// queue-not-empty; calls 3+ (inside batchDrainQueue's drain loop)
-	// report empty so the loop exits.
 	callCount := 0
 	mocks.queue.IsEmptyCalls(func() bool {
 		callCount++

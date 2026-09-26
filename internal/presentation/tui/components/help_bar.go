@@ -63,7 +63,6 @@ func (hb *HelpBar) SetWidth(width int) {
 }
 
 func (hb *HelpBar) SetHeight(height int) {
-	// Help bar height is driven by its content
 }
 
 // Render draws the shortcuts as a multi-column cheat sheet using

@@ -270,8 +270,6 @@ func testWriteWithDirCreation(t *testing.T, tempDir string, tool *WriteTool, ctx
 		t.Errorf("Expected success=true, got %v", result.Success)
 	}
 
-	// Directory creation is automatic and not tracked in this implementation
-
 	writtenContent, err := os.ReadFile(filePath)
 	if err != nil {
 		t.Fatalf("Failed to read written file: %v", err)

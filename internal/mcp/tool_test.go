@@ -182,7 +182,6 @@ func TestMCPTool_Execute_Success(t *testing.T) {
 		t.Errorf("Expected no error, got %s", mcpData.Error)
 	}
 
-	// Verify the mock was called correctly
 	if mockClient.CallToolCallCount() != 1 {
 		t.Errorf("Expected CallTool to be called once, got %d", mockClient.CallToolCallCount())
 	}
@@ -226,7 +225,6 @@ func TestMCPTool_Execute_Error(t *testing.T) {
 
 	result, err := tool.Execute(ctx, args)
 
-	// Execute should return result with error, not an error itself
 	if err != nil {
 		t.Fatalf("Execute() should not return error, got: %v", err)
 	}

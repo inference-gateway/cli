@@ -451,7 +451,6 @@ func (c *SwitchShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		}, nil
 	}
 
-	// Temporarily switch model for a single prompt (2+ args)
 	prompt := strings.Join(args[1:], " ")
 
 	if err := c.modelService.ValidateModel(modelID); err != nil {

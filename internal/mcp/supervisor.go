@@ -201,9 +201,6 @@ func (s *Supervisor) DiscoverTools(ctx context.Context) map[string]agentdomain.T
 	clients := slices.Collect(maps.Values(s.clients))
 	s.mu.RUnlock()
 
-	// Buffered to len(clients) so no sender ever blocks; this function owns
-	// the channel and closes it once every sender is done. Each probe is
-	// bounded by its server's timeout, so wg.Wait always returns.
 	found := make(chan map[string]agentdomain.Tool, len(clients))
 	var wg sync.WaitGroup
 	for _, client := range clients {
@@ -429,10 +426,9 @@ func (s *Supervisor) calculateBackoff(attempt int, baseInterval time.Duration) t
 		return baseInterval
 	}
 
-	// Calculate 2^attempt with overflow protection
 	multiplier := 1 << uint(attempt)
 	if multiplier > 32 {
-		multiplier = 32 // Cap at 2^5 = 32x
+		multiplier = 32
 	}
 
 	backoff := baseInterval * time.Duration(multiplier)

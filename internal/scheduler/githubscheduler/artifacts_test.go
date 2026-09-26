@@ -105,7 +105,6 @@ func TestPollerDownloadsAndIsIdempotent(t *testing.T) {
 		t.Fatalf("second tick re-downloaded: downloads = %d", downloads)
 	}
 
-	// State survives a restart (fresh poller, same state path).
 	p2 := newTestPoller(t, runner)
 	p2.opts.StatePath = p.opts.StatePath
 	p2.loadState()

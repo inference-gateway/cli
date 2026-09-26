@@ -430,7 +430,7 @@ func (s *Supervisor) wind(sj *supervised, sig scheddomain.WindSignal) error {
 	logger.Debug("winding background job", "id", sj.meta.ID, "kind", sj.meta.Kind, "signal", sig.String())
 	err := sj.job.Wind(context.Background(), sig)
 	if sig == scheddomain.WindStop && sj.cancel != nil {
-		sj.cancel() // backstop: unblock Run even if the job ignored the signal
+		sj.cancel()
 	}
 	return err
 }

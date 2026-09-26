@@ -600,11 +600,9 @@ func TestEffectiveContextTokens(t *testing.T) {
 		t.Fatalf("estimate should be positive, got %d", est)
 	}
 
-	// Stale small last-input count must not mask the large pending estimate.
 	if got := tok.EffectiveContextTokens(1000, msgs); got != est {
 		t.Errorf("estimate spike should win: got %d, want %d", got, est)
 	}
-	// When the reported count is larger, it wins.
 	if got := tok.EffectiveContextTokens(est+5000, msgs); got != est+5000 {
 		t.Errorf("larger lastInput should win: got %d, want %d", got, est+5000)
 	}

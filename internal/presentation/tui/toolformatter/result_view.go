@@ -259,7 +259,7 @@ func treeContinuationIndent(prefix string) string {
 		switch r {
 		case '├', '│':
 			b.WriteRune('│')
-		default: // '└', '─', ' '
+		default:
 			b.WriteRune(' ')
 		}
 	}

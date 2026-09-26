@@ -459,7 +459,6 @@ func (c *command) addMCPServer(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Status: %s\n", enabledText(enabled))
 	fmt.Printf("\nConfiguration saved to %s\n", configPath)
 	fmt.Printf("\nNote: If using chat mode, restart the chat session to connect to the new MCP server.\n")
-	// TODO: Implement hot-reload for MCP configuration changes without requiring chat restart
 
 	return nil
 }

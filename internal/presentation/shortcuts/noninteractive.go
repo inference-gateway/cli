@@ -101,7 +101,7 @@ func resolve(reg *Registry, input string) (string, []string, bool) {
 	if err != nil {
 		return "", nil, false
 	}
-	name, _, _ = strings.Cut(strings.ToLower(name), "@") // channel group form: /help@MyBot
+	name, _, _ = strings.Cut(strings.ToLower(name), "@")
 
 	if _, exists := reg.Get(name); !exists || name == "voice" {
 		return "", nil, false

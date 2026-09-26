@@ -121,7 +121,6 @@ func (s *Service) publishInstall(ctx context.Context, dir, repo, title, body str
 	if out, err := s.runTimed(ctx, installShortTimeout, "git", "-C", dir, "add", ".github/workflows"); err != nil {
 		return "", fmt.Errorf("git add: %s: %w", strings.TrimSpace(string(out)), err)
 	}
-	// diff --cached --quiet exits 0 when nothing is staged.
 	if _, err := s.runTimed(ctx, installShortTimeout, "git", "-C", dir, "diff", "--cached", "--quiet"); err == nil {
 		return "", fmt.Errorf("the agent made no workflow changes - the workflow is already up to date")
 	}

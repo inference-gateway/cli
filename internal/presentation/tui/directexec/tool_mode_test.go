@@ -26,8 +26,6 @@ func TestHandleToolCommand_BlocksToolNotInCurrentMode(t *testing.T) {
 
 	svc := directexec.NewService(directexec.Options{ToolService: toolSvc, StateStore: sm})
 
-	// AskUserQuestion is not in the mocked standard-mode tool list, so !!
-	// must refuse it rather than run it.
 	cmd := svc.HandleToolCommand(`AskUserQuestion({"questions":[]})`)
 	if cmd == nil {
 		t.Fatal("expected an error command")

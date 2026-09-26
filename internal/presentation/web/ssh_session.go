@@ -184,7 +184,6 @@ func (s *SSHSession) Resize(cols, rows int) error {
 
 // HandleConnection bridges WebSocket and SSH session I/O
 func (s *SSHSession) HandleConnection(conn *websocket.Conn) error {
-	// Store WebSocket connection for later use
 	s.mu.Lock()
 	s.ws = conn
 	s.mu.Unlock()
@@ -284,7 +283,7 @@ func (s *SSHSession) handleTextMessage(data []byte) error {
 // handleSSHOutput reads from SSH stdout/stderr and writes to WebSocket
 func (s *SSHSession) handleSSHOutput(conn *websocket.Conn) error {
 	output := io.MultiReader(s.stdout, s.stderr)
-	buf := make([]byte, 32*1024) // 32KB buffer
+	buf := make([]byte, 32*1024)
 
 	for {
 		select {
@@ -347,7 +346,6 @@ func (s *SSHSession) SetupPortForwarding(remotePort int) (int, error) {
 	s.screenshotPort = remotePort
 	s.localScreenshotPort = localPort
 
-	// Create context for tunnel management
 	s.tunnelCtx, s.tunnelCancel = context.WithCancel(context.Background())
 
 	logger.Info("setting up port forwarding",

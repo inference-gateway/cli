@@ -350,8 +350,6 @@ func (s *Agent) buildBashAllowInfo() string {
 		mode = s.stateManager.GetAgentMode()
 	}
 
-	// Skip when Bash is not callable in this mode (plan mode filters it out), so
-	// the prompt never advertises an allow-list for a tool the model cannot use.
 	bashAvailable := false
 	for _, def := range s.toolService.ListToolsForMode(mode) {
 		if def.Function.Name == "Bash" {
@@ -465,10 +463,6 @@ func (s *Agent) buildSkillsInfo() string {
 	if s.config != nil {
 		maxChars = s.config.GetAgentConfig().Skills.MaxChars
 	}
-	// Expand path-bearing skills before catalog ones: those are the entries the
-	// model can act on with the Read tool, whereas a catalog entry is just a
-	// name only the user can invoke. Under budget pressure the latter is what
-	// should drop. skills is List()'s defensive copy, so sorting is local.
 	sort.SliceStable(skills, func(i, j int) bool {
 		return skills[i].Scope != agentdomain.SkillScopeCatalog && skills[j].Scope == agentdomain.SkillScopeCatalog
 	})

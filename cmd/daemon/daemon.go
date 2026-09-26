@@ -428,15 +428,6 @@ func registerChannels(cm *telegram.ChannelManagerService, cfg *config.Config, co
 		logger.Info("registered channel", "channel", "telegram")
 	}
 
-	// WhatsApp channel is not yet implemented; enable this block once
-	// channels.NewWhatsAppChannel exists.
-	// if cfg.Channels.WhatsApp.Enabled {
-	// 	whatsappCh := channels.NewWhatsAppChannel(cfg.Channels.WhatsApp)
-	// 	cm.Register(whatsappCh)
-	// 	registered++
-	// 	logger.Info("registered channel", "channel", "whatsapp")
-	// }
-
 	if registered == 0 {
 		return fmt.Errorf("no channels are enabled. Enable at least one channel in config")
 	}

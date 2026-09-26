@@ -147,7 +147,6 @@ func TestScheduleTool_Execute_CRUDLifecycle(t *testing.T) {
 	tool := NewScheduleTool(cfg, storage.NewMemoryStorage())
 	ctx := channelCtx("telegram", "12345")
 
-	// Create - channel + recipient are derived from session ID, never passed by caller.
 	createArgs := map[string]any{
 		"operation":       "create",
 		"cron_expression": "0 8 * * *",
@@ -170,21 +169,18 @@ func TestScheduleTool_Execute_CRUDLifecycle(t *testing.T) {
 		t.Fatal("expected RunOnce=false by default")
 	}
 
-	// List should contain it
 	r, _ = tool.Execute(ctx, map[string]any{"operation": "list"})
 	listed := r.Data.(*ScheduleToolResult)
 	if len(listed.Jobs) != 1 || listed.Jobs[0].ID != id {
 		t.Fatalf("list returned wrong content: %+v", listed.Jobs)
 	}
 
-	// Get
 	r, _ = tool.Execute(ctx, map[string]any{"operation": "get", "job_id": id})
 	got := r.Data.(*ScheduleToolResult)
 	if got.Job == nil || got.Job.ID != id || got.Job.Name != "morning" {
 		t.Fatalf("get returned wrong: %+v", got.Job)
 	}
 
-	// Update prompt + flip to one-off
 	r, _ = tool.Execute(ctx, map[string]any{
 		"operation": "update",
 		"job_id":    id,
@@ -202,20 +198,17 @@ func TestScheduleTool_Execute_CRUDLifecycle(t *testing.T) {
 		t.Fatalf("update accidentally changed untouched field: %+v", updated.Job)
 	}
 
-	// Delete
 	r, _ = tool.Execute(ctx, map[string]any{"operation": "delete", "job_id": id})
 	if !r.Success {
 		t.Fatalf("delete failed: %+v", r)
 	}
 
-	// List should be empty
 	r, _ = tool.Execute(ctx, map[string]any{"operation": "list"})
 	listed = r.Data.(*ScheduleToolResult)
 	if len(listed.Jobs) != 0 {
 		t.Fatalf("expected empty list after delete, got %d", len(listed.Jobs))
 	}
 
-	// Second delete should fail
 	r, _ = tool.Execute(ctx, map[string]any{"operation": "delete", "job_id": id})
 	if r.Success {
 		t.Fatal("delete on missing job should fail")
@@ -261,7 +254,7 @@ func TestScheduleTool_Execute_NonChannelSessionCreatesRecordOnlyJob(t *testing.T
 }
 
 func TestScheduleTool_Execute_RejectsDisabledChannel(t *testing.T) {
-	tool := NewScheduleTool(newScheduleCfg(t, false), storage.NewMemoryStorage()) // telegram disabled
+	tool := NewScheduleTool(newScheduleCfg(t, false), storage.NewMemoryStorage())
 	r, err := tool.Execute(channelCtx("telegram", "1"), map[string]any{
 		"operation":       "create",
 		"cron_expression": "0 8 * * *",

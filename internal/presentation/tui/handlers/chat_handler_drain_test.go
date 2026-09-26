@@ -76,8 +76,6 @@ func TestHandleDrainQueueEvent(t *testing.T) {
 				t.Fatalf("drainRetryArmed = %v, want %v", h.drainRetryArmed, tt.wantArmed)
 			}
 
-			// SetChatPending() creates a "pending" chat session; it must be called
-			// exactly when a turn starts, to guard the double-start window.
 			if got := sm.GetChatSession() != nil; got != tt.wantStart {
 				t.Fatalf("SetChatPending observable (pending chat session present) = %v, want %v", got, tt.wantStart)
 			}

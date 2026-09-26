@@ -283,8 +283,6 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 			StatusType: tui.StatusDefault,
 		}
 
-		// Clear ToolCallRenderer previews now that the tool entry is in
-		// conversation history.
 		eventChan <- agentdomain.ChatCompleteEvent{
 			RequestID: toolCallID,
 			Timestamp: time.Now(),

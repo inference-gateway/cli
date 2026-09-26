@@ -43,7 +43,7 @@ func TestWaitForBackgroundTasks(t *testing.T) {
 		case <-time.After(200 * time.Millisecond):
 		}
 
-		queue.IsEmptyReturns(false) // background task posted its result
+		queue.IsEmptyReturns(false)
 		select {
 		case <-done:
 		case <-time.After(3 * time.Second):

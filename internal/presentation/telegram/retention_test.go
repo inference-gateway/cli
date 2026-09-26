@@ -92,7 +92,6 @@ func TestPruneRecordingsKeepsNewest(t *testing.T) {
 	dir := t.TempDir()
 	base := time.Now().Add(-time.Hour)
 
-	// names[i] gets mod time base+i*minute, so names[4] is the newest.
 	var names []string
 	for i := range 5 {
 		name := filepath.Join(dir, fmt.Sprintf("%s%d.oga", recordingFilePrefix, i))
@@ -106,7 +105,6 @@ func TestPruneRecordingsKeepsNewest(t *testing.T) {
 		names = append(names, name)
 	}
 
-	// A non-recording file must never be pruned.
 	other := filepath.Join(dir, "keep-me.txt")
 	if err := os.WriteFile(other, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)

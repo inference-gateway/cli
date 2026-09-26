@@ -1782,9 +1782,6 @@ func (s *Agent) requestJudgeApproval(
 		logger.Warn("judge rejected tool call", "tool", tc.Function.Name, "model", model, "reason", verdict.Reason)
 	}
 
-	// The tool-result reason names the judge so the driver and the user see who decided.
-	// Rejections carry the escalation hint so the driver learns it can ask the
-	// user to override.
 	if verdict.Approved() {
 		return true, "", nil
 	}

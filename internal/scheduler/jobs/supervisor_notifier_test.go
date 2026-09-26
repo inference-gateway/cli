@@ -51,7 +51,7 @@ func TestSupervisor_PushesNotifierEvents(t *testing.T) {
 	sup.Submit(job)
 	<-job.started
 	close(job.finish)
-	sup.Stop() // waits for the monitor goroutine, so finish has fully run
+	sup.Stop()
 
 	c := rec.counts()
 	if got := c["domain.DrainQueueEvent"]; got != 1 {
@@ -94,12 +94,10 @@ func TestSupervisor_CleanupWarnsLongRunningJobOnce(t *testing.T) {
 	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 
 	job := newFakeJob("slow", scheddomain.JobKindShell)
-	job.meta.StartedAt = time.Now().Add(-10 * time.Minute) // exceeds the 5m threshold
+	job.meta.StartedAt = time.Now().Add(-10 * time.Minute)
 	sup.Submit(job)
 	<-job.started
 
-	// The job is still running, so it is never reaped; only the long-run warning
-	// fires, and only on the first sweep.
 	sup.Cleanup(time.Hour)
 	sup.Cleanup(time.Hour)
 

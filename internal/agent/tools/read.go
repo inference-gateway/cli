@@ -112,7 +112,6 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 		limit = int(limitFloat)
 	}
 
-	// Check if file is an image - images cannot be read with this tool
 	if t.isImageFile(filePath) {
 		return &agentdomain.ToolExecutionResult{
 			ToolName:  "Read",

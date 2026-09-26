@@ -463,9 +463,9 @@ func TestPricingService_CalculateCost(t *testing.T) {
 
 	inputCost, outputCost, totalCost := service.CalculateCost("test-model", 100000, 50000, 0, 0)
 
-	expectedInputCost := (100000.0 / 1_000_000.0) * 10.00       // $1.00
-	expectedOutputCost := (50000.0 / 1_000_000.0) * 20.00       // $1.00
-	expectedTotalCost := expectedInputCost + expectedOutputCost // $2.00
+	expectedInputCost := (100000.0 / 1_000_000.0) * 10.00
+	expectedOutputCost := (50000.0 / 1_000_000.0) * 20.00
+	expectedTotalCost := expectedInputCost + expectedOutputCost
 
 	assert.InDelta(t, expectedInputCost, inputCost, 0.01)
 	assert.InDelta(t, expectedOutputCost, outputCost, 0.01)

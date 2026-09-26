@@ -67,7 +67,6 @@ func TestShellJob_WaitsForReadersDoneBeforeReaping(t *testing.T) {
 	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
-	// `true` exits immediately; the job must still park on ReadersDone.
 	shell := startShell(t, "s-drain", "true")
 	readersDone := make(chan struct{})
 	shell.ReadersDone = readersDone
@@ -98,7 +97,7 @@ func TestShellJob_WindStopUnblocksReadersWait(t *testing.T) {
 	defer sup.Stop()
 
 	shell := startShell(t, "s-stuck", "sleep", "60")
-	shell.ReadersDone = make(chan struct{}) // never closed
+	shell.ReadersDone = make(chan struct{})
 	_ = tracker.Add(shell)
 	sup.Submit(NewShellJob(shell, tracker))
 

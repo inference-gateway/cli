@@ -105,7 +105,6 @@ func createEnvExample(cmd *cobra.Command) error {
 	fmt.Println("  Edit .env and add your API keys")
 	fmt.Println("")
 
-	// Ensure .env is in .gitignore
 	if err := EnsureEnvInGitignore(); err != nil {
 		return err
 	}

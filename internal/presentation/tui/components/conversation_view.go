@@ -87,8 +87,6 @@ type ConversationView struct {
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
-	// Keyboard scrolling is routed through the configurable keybindings
-	// (ScrollRequestEvent); the viewport only owns wheel input.
 	vp.KeyMap = viewport.KeyMap{}
 	vp.MouseWheelEnabled = true
 	vp.MouseWheelDelta = 3
@@ -964,7 +962,6 @@ func (cv *ConversationView) formatExpandedContent(entry convdomain.ConversationE
 }
 
 func (cv *ConversationView) formatCompactContent(entry convdomain.ConversationEntry) string {
-	// Tool results own their themed status line, preview and expand hint.
 	if entry.ToolExecution != nil && cv.toolFormatter != nil {
 		return cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
 	}

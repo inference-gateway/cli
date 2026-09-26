@@ -89,7 +89,6 @@ func (mq *MessageQueueService) GetAll() []convdomain.QueuedMessage {
 	mq.mu.RLock()
 	defer mq.mu.RUnlock()
 
-	// Return a copy to prevent external modification
 	result := make([]convdomain.QueuedMessage, len(mq.messages))
 	copy(result, mq.messages)
 	return result
