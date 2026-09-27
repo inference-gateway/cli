@@ -6,6 +6,8 @@ import (
 	assert "github.com/stretchr/testify/assert"
 
 	sdk "github.com/inference-gateway/sdk"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func userMsg(content string) sdk.Message {
@@ -32,7 +34,7 @@ func TestMessageQueueService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mq := NewMessageQueueService()
 			for _, id := range tt.enqueue {
-				mq.Enqueue(userMsg("msg-"+id), id)
+				mq.Enqueue(userMsg("msg-"+id), convdomain.QueueSourceComposer, id)
 			}
 
 			dequeued := make([]string, 0, tt.dequeues)
@@ -60,6 +62,7 @@ func TestMessageQueueService(t *testing.T) {
 			assert.Len(t, all, tt.wantSize)
 			for i, qm := range all {
 				assert.Equal(t, tt.enqueue[tt.dequeues+i], qm.RequestID)
+				assert.Equal(t, convdomain.QueueSourceComposer, qm.Source)
 			}
 
 			mq.Clear()
@@ -72,7 +75,7 @@ func TestMessageQueueService(t *testing.T) {
 
 func TestMessageQueueService_GetAllReturnsCopy(t *testing.T) {
 	mq := NewMessageQueueService()
-	mq.Enqueue(userMsg("a"), "r1")
+	mq.Enqueue(userMsg("a"), convdomain.QueueSourceComposer, "r1")
 
 	all := mq.GetAll()
 	all[0].RequestID = "mutated"

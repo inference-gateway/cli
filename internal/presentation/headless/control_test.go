@@ -11,6 +11,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
@@ -171,8 +172,8 @@ func TestHeadlessControl_UserMessage(t *testing.T) {
 	if queue.EnqueueCallCount() != 1 {
 		t.Fatalf("user_message enqueue calls = %d, want 1", queue.EnqueueCallCount())
 	}
-	if msg, reqID := queue.EnqueueArgsForCall(0); reqID != ipc.UserMessageRequestID || msg.Role != sdk.User {
-		t.Fatalf("enqueued (%+v, %q), want user role tagged %q", msg, reqID, ipc.UserMessageRequestID)
+	if msg, source, reqID := queue.EnqueueArgsForCall(0); source != convdomain.QueueSourceStdin || reqID != ipc.UserMessageRequestID || msg.Role != sdk.User {
+		t.Fatalf("enqueued (%+v, %q, %q), want user role tagged %q", msg, source, reqID, ipc.UserMessageRequestID)
 	}
 
 	ctl.dispatchLine([]byte(`{"type":"user_message","content":""}`))

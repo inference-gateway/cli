@@ -16,6 +16,7 @@ import (
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -44,6 +45,7 @@ type InputStatusBar struct {
 	backgroundShellService scheddomain.BackgroundShellService
 	backgroundTaskService  scheddomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
+	messageQueue           convdomain.MessageQueue
 	mcpStatus              *mcpdomain.ServerStatus
 	browserConnected       bool
 	screenRecording        bool
@@ -140,6 +142,13 @@ func (isb *InputStatusBar) SetBackgroundTaskService(service scheddomain.Backgrou
 // source for the live A2A/shell/subagent counts shown in the status line.
 func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry scheddomain.BackgroundTaskRegistry) {
 	isb.backgroundTaskRegistry = registry
+}
+
+// SetMessageQueue sets the shared message queue so the bar can show what is
+// waiting while the agent is busy. Read live at render time, so enqueues and
+// drains show up on the next render without extra event plumbing.
+func (isb *InputStatusBar) SetMessageQueue(mq convdomain.MessageQueue) {
+	isb.messageQueue = mq
 }
 
 // UpdateMCPStatus updates the MCP server status (called by event handler)
@@ -457,6 +466,8 @@ func (isb *InputStatusBar) getAllIndicatorParts() []indicatorPart {
 // buildIndicatorParts builds individual indicator parts without joining them.
 // The git branch is not included here - it is rendered in the input box top
 // border by InputView, not in the status bar.
+//
+//nolint:gocyclo,cyclop // one gated block per indicator, in build order
 func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorPart {
 	parts := []indicatorPart{}
 
@@ -497,6 +508,16 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 	if isb.shouldShowIndicator("background_shells") || isb.shouldShowIndicator("a2a_tasks") {
 		if jobsInfo := isb.getBackgroundJobsInfo(); jobsInfo != "" {
 			parts = append(parts, indicatorPart{text: jobsInfo, action: tui.StatusIndicatorActionTaskManagement})
+		}
+	}
+
+	if isb.shouldShowIndicator("queue") {
+		if queuePart := isb.buildQueueIndicator(); queuePart != "" {
+			var color string
+			if isb.styleProvider != nil {
+				color = isb.styleProvider.GetThemeColor("accent")
+			}
+			parts = append(parts, indicatorPart{text: queuePart, color: color})
 		}
 	}
 
@@ -698,6 +719,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return indicators.BackgroundShells
 	case "a2a_tasks":
 		return indicators.A2ATasks
+	case "queue":
+		return indicators.Queue
 	case "mcp":
 		return indicators.MCP
 	case "context_usage":
@@ -957,6 +980,15 @@ func (isb *InputStatusBar) getBackgroundJobsInfo() string {
 		return ""
 	}
 	return "⚙ " + strings.Join(segments, " · ")
+}
+
+// buildQueueIndicator counts the messages waiting in the shared queue while
+// the agent is busy. Empty while the queue is empty.
+func (isb *InputStatusBar) buildQueueIndicator() string {
+	if isb.messageQueue == nil || isb.messageQueue.IsEmpty() {
+		return ""
+	}
+	return fmt.Sprintf("%s %d queued", icons.QueueIcon, isb.messageQueue.Size())
 }
 
 // getContextUsageIndicator returns a context usage indicator string.

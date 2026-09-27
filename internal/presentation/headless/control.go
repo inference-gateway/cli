@@ -94,7 +94,7 @@ func (c *headlessControl) dispatchLine(line []byte) {
 		if json.Unmarshal(line, &msg) != nil || msg.Content == "" || c.messageQueue == nil {
 			return
 		}
-		c.messageQueue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(msg.Content)}, ipc.UserMessageRequestID)
+		c.messageQueue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(msg.Content)}, convdomain.QueueSourceStdin, ipc.UserMessageRequestID)
 	case "computer_use_control":
 		var ctrl ipc.ComputerUseControlMessage
 		if json.Unmarshal(line, &ctrl) != nil {

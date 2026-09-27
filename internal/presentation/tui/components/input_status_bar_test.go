@@ -23,6 +23,7 @@ import (
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -1244,5 +1245,86 @@ func TestInputStatusBar_RenderRightSegmentDropOrder(t *testing.T) {
 	statusBar.SetVersionInfo(tui.VersionInfo{Version: "dev"})
 	if got := strings.TrimLeft(ansi.Strip(statusBar.renderRightSegment(20)), " "); got != "cli dev" {
 		t.Fatalf("dev build got %q", got)
+	}
+}
+
+func TestInputStatusBar_QueueIndicator(t *testing.T) {
+	tests := []struct {
+		name          string
+		isEmpty       bool
+		size          int
+		queueDisabled bool
+		want          string
+	}{
+		{name: "empty queue has no indicator", isEmpty: true, size: 0, want: ""},
+		{name: "one queued message", size: 1, want: icons.QueueIcon + " 1 queued"},
+		{name: "several queued messages", size: 3, want: icons.QueueIcon + " 3 queued"},
+		{name: "toggle off hides the indicator", size: 3, queueDisabled: true, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusBar := newSelectableStatusBar(false)
+			statusBar.styleProvider = agentStartupProvider()
+			if tt.queueDisabled {
+				statusBar.config.Chat.StatusBar.Indicators.Queue = false
+			}
+			queue := &convmocks.FakeMessageQueue{}
+			queue.IsEmptyReturns(tt.isEmpty)
+			queue.SizeReturns(tt.size)
+			statusBar.SetMessageQueue(queue)
+
+			got := ""
+			for _, part := range statusBar.buildIndicatorParts("test-model") {
+				if strings.Contains(part.text, "queued") {
+					got = part.text
+					break
+				}
+			}
+			if got != tt.want {
+				t.Errorf("queue indicator = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestInputStatusBar_QueueIndicatorAccentColor(t *testing.T) {
+	statusBar := newSelectableStatusBar(false)
+	statusBar.styleProvider = agentStartupProvider()
+	queue := &convmocks.FakeMessageQueue{}
+	queue.IsEmptyReturns(false)
+	queue.SizeReturns(2)
+	statusBar.SetMessageQueue(queue)
+
+	for _, part := range statusBar.buildIndicatorParts("test-model") {
+		if !strings.Contains(part.text, "queued") {
+			continue
+		}
+		if part.color != "#ff9e64" {
+			t.Errorf("queue indicator color = %q, want the theme accent #ff9e64", part.color)
+		}
+		return
+	}
+	t.Fatal("queue indicator missing from indicator parts")
+}
+
+// TestInputStatusBar_QueueIndicatorRenderLifecycle pins the read-live-queue
+// behavior: the segment appears as soon as an entry lands and is gone once the
+// queue drains, without any extra event plumbing.
+func TestInputStatusBar_QueueIndicatorRenderLifecycle(t *testing.T) {
+	statusBar := newSelectableStatusBar(false)
+	statusBar.styleProvider = agentStartupProvider()
+	queue := &convmocks.FakeMessageQueue{}
+	queue.IsEmptyReturns(false)
+	queue.SizeReturns(2)
+	statusBar.SetMessageQueue(queue)
+
+	if bar := ansi.Strip(statusBar.Render()); !strings.Contains(bar, icons.QueueIcon+" 2 queued") {
+		t.Errorf("rendered bar missing the queue indicator: %q", bar)
+	}
+
+	queue.IsEmptyReturns(true)
+	queue.SizeReturns(0)
+	if bar := ansi.Strip(statusBar.Render()); strings.Contains(bar, "queued") {
+		t.Errorf("drained queue must drop the indicator, got %q", bar)
 	}
 }
