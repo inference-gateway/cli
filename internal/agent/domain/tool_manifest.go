@@ -14,31 +14,34 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// PlanMode says whether a tool may run in plan mode. It gates execution and
-// approval, not advertisement: every mode advertises the same tool list so a
-// mode switch never invalidates the provider's prompt cache.
-type PlanMode string
-
-const (
-	PlanModeHidden  PlanMode = "hidden"
-	PlanModeAllowed PlanMode = "allowed"
-	PlanModeOnly    PlanMode = "only"
-)
-
 var toolNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,63}$`)
 
-// ToolManifest defines a tool: the JSON Schema the model sees and its default
-// policy; the Go tool registered under the same name executes it. A nil
-// RequireApproval inherits tools.safety.require_approval, so the zero value
-// (not read-only, hidden in plan mode) is the policy of any tool without a
-// manifest, such as an MCP tool.
+// ToolManifest defines a tool: the JSON Schema the model sees, the agent modes
+// it may run in and its default approval; the Go tool registered under the same
+// name executes it. Nil Modes means defaultToolModes and a nil RequireApproval
+// inherits tools.safety.require_approval, so the zero value is the policy of
+// any tool without a manifest, such as an MCP tool.
 type ToolManifest struct {
 	Name            string         `yaml:"name"`
 	Description     string         `yaml:"description"`
 	Parameters      map[string]any `yaml:"parameters"`
+	Modes           []AgentMode    `yaml:"modes,omitempty"`
 	RequireApproval *bool          `yaml:"require_approval,omitempty"`
-	ReadOnly        bool           `yaml:"read_only,omitempty"`
-	PlanMode        PlanMode       `yaml:"plan_mode,omitempty"`
+}
+
+// defaultToolModes are the modes that offer every tool: they change how calls
+// are approved, not which tools may run.
+var defaultToolModes = []AgentMode{AgentModeStandard, AgentModeAutoAccept, AgentModeAutoWithJudge}
+
+// UnmarshalYAML reads an agent mode from its mode key, such as "plan", and
+// rejects an unknown one.
+func (m *AgentMode) UnmarshalYAML(node *yaml.Node) error {
+	mode, ok := ParseAgentMode(node.Value)
+	if !ok {
+		return fmt.Errorf("line %d: unknown agent mode %q", node.Line, node.Value)
+	}
+	*m = mode
+	return nil
 }
 
 // ParseToolManifest decodes and validates a manifest, rejecting unknown fields
@@ -57,17 +60,14 @@ func ParseToolManifest(data []byte) (ToolManifest, error) {
 	return manifest, nil
 }
 
-// Validate checks the name, the description, the plan mode and that the
-// parameters are a JSON Schema object whose required fields are declared.
+// Validate checks the name, the description and that the parameters are a
+// JSON Schema object whose required fields are declared.
 func (m ToolManifest) Validate() error {
 	if !toolNamePattern.MatchString(m.Name) {
 		return fmt.Errorf("tool name %q must match %s", m.Name, toolNamePattern)
 	}
 	if strings.TrimSpace(m.Description) == "" {
 		return fmt.Errorf("tool %s: description is required", m.Name)
-	}
-	if !slices.Contains([]PlanMode{"", PlanModeHidden, PlanModeAllowed, PlanModeOnly}, m.PlanMode) {
-		return fmt.Errorf("tool %s: plan_mode %q must be one of hidden, allowed, only", m.Name, m.PlanMode)
 	}
 	return m.validateParameters()
 }
@@ -96,16 +96,6 @@ func (m ToolManifest) validateParameters() error {
 	return nil
 }
 
-// AllowedInPlanMode reports whether the tool may run in plan mode.
-func (m ToolManifest) AllowedInPlanMode() bool {
-	return m.PlanMode == PlanModeAllowed || m.PlanMode == PlanModeOnly
-}
-
-// OnlyInPlanMode reports whether the tool may run in plan mode alone.
-func (m ToolManifest) OnlyInPlanMode() bool {
-	return m.PlanMode == PlanModeOnly
-}
-
 // WithRequireApproval returns the manifest with the approval setting a user
 // configured for the tool, when there is one.
 func (m ToolManifest) WithRequireApproval(configured *bool) ToolManifest {
@@ -124,18 +114,12 @@ func (m ToolManifest) RequiresApproval(inherited bool) bool {
 	return inherited
 }
 
-// OfferedInMode reports whether the tool is offered to the model in mode:
-// plan mode offers the tools allowed there, read-only mode the read-only
-// tools, and every other mode all tools except the plan-only ones.
-func (m ToolManifest) OfferedInMode(mode AgentMode) bool {
-	switch mode {
-	case AgentModePlan:
-		return m.AllowedInPlanMode()
-	case AgentModeReadOnly:
-		return m.ReadOnly
-	default:
-		return !m.OnlyInPlanMode()
+// AvailableIn reports whether the tool may run in mode.
+func (m ToolManifest) AvailableIn(mode AgentMode) bool {
+	if m.Modes == nil {
+		return slices.Contains(defaultToolModes, mode)
 	}
+	return slices.Contains(m.Modes, mode)
 }
 
 // Definition builds the definition sent to the model. The parameters are a

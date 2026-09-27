@@ -38,5 +38,5 @@ func (o *CallOrder) Next(toolName string) (wait func(), done func()) {
 }
 
 func (o *CallOrder) isReadOnly(toolName string) bool {
-	return o.Tools != nil && o.Tools.Manifest(toolName).ReadOnly
+	return o.Tools != nil && o.Tools.Manifest(toolName).AvailableIn(agentdomain.AgentModeReadOnly)
 }

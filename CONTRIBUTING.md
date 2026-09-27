@@ -120,10 +120,13 @@ parameters:
       description: Description of parameter 1
   required:
     - param1
-read_only: true          # safe to run alongside other read-only calls and in read-only subagents
-plan_mode: allowed       # hidden (default) | allowed | only
+modes: [standard, auto, auto-with-judge, plan, readonly]  # omit for standard, auto, auto-with-judge
 require_approval: false  # omit to inherit tools.safety.require_approval
 ```
+
+List `readonly` only for a tool that changes nothing: read-only subagents get it, and its calls run
+concurrently with other read-only calls. Every mode still advertises the same tools; a call outside the
+tool's modes is rejected when it runs.
 
 Add the name to the constants in `tool_manifests.go` (`ToolYourTool = "YourTool"`) and use the constant
 everywhere instead of the string. Values only known at runtime (config-driven enums or limits) stay out

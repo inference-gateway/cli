@@ -8,4 +8,4 @@ parameters:
       description: URL of the A2A agent to retrieve metadata from
   required:
     - agent_url
-plan_mode: allowed
+modes: [standard, auto, auto-with-judge, plan]

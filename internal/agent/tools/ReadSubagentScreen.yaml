@@ -13,4 +13,4 @@ parameters:
   required:
     - subagent_id
 require_approval: false
-read_only: true
+modes: [standard, auto, auto-with-judge, readonly]

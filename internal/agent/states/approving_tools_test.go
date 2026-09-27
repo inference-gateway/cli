@@ -66,7 +66,7 @@ func newApprovingCtx(
 		WaitGroup:            wg,
 		Mutex:                mu,
 		CurrentToolCalls:     &calls,
-		Tools:                agentdomain.ToolManifests{tools.ToolRead: {Name: tools.ToolRead, ReadOnly: true}},
+		Tools:                agentdomain.ToolManifests{tools.ToolRead: {Name: tools.ToolRead, Modes: []agentdomain.AgentMode{agentdomain.AgentModeReadOnly}}},
 		ToolsNeedingApproval: &tna,
 		CurrentToolIndex:     &idx,
 		ToolResults:          &tr,

@@ -272,7 +272,7 @@ func (m markdownAgent) subagentInfo(tools agentdomain.ToolManifestLookup) agentd
 // ReadOnly only when every allowed tool is read-only, else ReadWrite.
 func deriveSubagentMode(names []string, tools agentdomain.ToolManifestLookup) agentdomain.AgentMode {
 	for _, name := range names {
-		if !tools.Manifest(name).ReadOnly {
+		if !tools.Manifest(name).AvailableIn(agentdomain.AgentModeReadOnly) {
 			return agentdomain.AgentModeStandard
 		}
 	}

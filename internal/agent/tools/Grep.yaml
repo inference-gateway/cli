@@ -58,5 +58,4 @@ parameters:
       description: 'File type to search (rg --type). Common types: js, py, rust, go, java, etc. More efficient than include for standard file types.'
   required:
     - pattern
-read_only: true
-plan_mode: allowed
+modes: [standard, auto, auto-with-judge, plan, readonly]

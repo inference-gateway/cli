@@ -6,4 +6,4 @@ parameters:
   properties: {}
   required: []
 require_approval: false
-read_only: true
+modes: [standard, auto, auto-with-judge, readonly]

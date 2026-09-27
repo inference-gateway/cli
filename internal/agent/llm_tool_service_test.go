@@ -63,9 +63,9 @@ func TestListToolsForMode_AskUserQuestionModes(t *testing.T) {
 	}
 }
 
-// TestExecuteTool_ModeGuard verifies execution-time mode enforcement: plan
-// mode rejects tools outside the plan allow-set, other modes reject plan-only
-// tools, and a context without a mode fails open.
+// TestExecuteTool_ModeGuard verifies execution-time mode enforcement: a mode
+// rejects the tools it does not make available, and a context without a mode
+// fails open.
 func TestExecuteTool_ModeGuard(t *testing.T) {
 	cfg := config.DefaultConfig()
 	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
@@ -78,12 +78,14 @@ func TestExecuteTool_ModeGuard(t *testing.T) {
 		tool    string
 		wantErr string
 	}{
-		{"plan rejects Write", agentdomain.AgentModePlan, true, "Write", "disabled in plan mode"},
-		{"plan rejects Bash", agentdomain.AgentModePlan, true, "Bash", "disabled in plan mode"},
-		{"standard rejects RequestPlanApproval", agentdomain.AgentModeStandard, true, "RequestPlanApproval", "only available in plan mode"},
-		{"standard allows AskUserQuestion", agentdomain.AgentModeStandard, true, "AskUserQuestion", ""},
-		{"auto allows AskUserQuestion", agentdomain.AgentModeAutoAccept, true, "AskUserQuestion", ""},
-		{"no mode fails open", agentdomain.AgentModeStandard, false, "Write", ""},
+		{"plan rejects Write", agentdomain.AgentModePlan, true, tools.ToolWrite, "disabled in plan mode"},
+		{"plan rejects Bash", agentdomain.AgentModePlan, true, tools.ToolBash, "disabled in plan mode"},
+		{"standard rejects RequestPlanApproval", agentdomain.AgentModeStandard, true, tools.ToolRequestPlanApproval, "not available in standard mode"},
+		{"readonly rejects Write", agentdomain.AgentModeReadOnly, true, tools.ToolWrite, "not available in readonly mode"},
+		{"readonly allows Read", agentdomain.AgentModeReadOnly, true, tools.ToolRead, ""},
+		{"standard allows AskUserQuestion", agentdomain.AgentModeStandard, true, tools.ToolAskUserQuestion, ""},
+		{"auto allows AskUserQuestion", agentdomain.AgentModeAutoAccept, true, tools.ToolAskUserQuestion, ""},
+		{"no mode fails open", agentdomain.AgentModeStandard, false, tools.ToolWrite, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

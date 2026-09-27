@@ -29,4 +29,4 @@ parameters:
     - title
     - plan
 require_approval: false
-plan_mode: only
+modes: [plan]

@@ -24,4 +24,4 @@ parameters:
       description: The search query to execute
   required:
     - query
-read_only: true
+modes: [standard, auto, auto-with-judge, readonly]

@@ -30,5 +30,4 @@ parameters:
       minimum: 1
   required:
     - file_path
-read_only: true
-plan_mode: allowed
+modes: [standard, auto, auto-with-judge, plan, readonly]

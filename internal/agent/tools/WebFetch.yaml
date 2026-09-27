@@ -19,4 +19,4 @@ parameters:
       description: The URL to fetch content from
   required:
     - url
-read_only: true
+modes: [standard, auto, auto-with-judge, readonly]

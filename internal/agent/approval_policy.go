@@ -16,7 +16,8 @@ import (
 //     itself, ahead of the agent mode
 //  2. Auto-accept mode bypasses all approval
 //     2.5. ReadOnly mode (Explore-like subagent) bypasses approval; its toolset is
-//     read-only by construction so nothing it can call mutates
+//     read-only by construction so nothing it can call mutates. Neither needs
+//     a call the mode does not make available: execution rejects it
 //  3. Non-chat (headless agent) mode bypasses approval; there the Bash tool's own
 //     per-mode gate (executeBash) decides what runs
 //  4. Bash commands are governed by the per-mode allow-list (config.IsBashCommandAllowed):
@@ -67,7 +68,7 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 	}
 
 	manifest := p.manifest(toolCall.Function.Name)
-	if p.stateManager != nil && p.stateManager.GetAgentMode() == agentdomain.AgentModePlan && !manifest.AllowedInPlanMode() {
+	if !manifest.AvailableIn(p.agentMode()) {
 		return false
 	}
 

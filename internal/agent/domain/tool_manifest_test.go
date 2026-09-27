@@ -17,8 +17,7 @@ parameters:
   required:
     - text
 require_approval: false
-read_only: true
-plan_mode: allowed
+modes: [plan, readonly]
 `
 
 func TestParseToolManifest(t *testing.T) {
@@ -33,7 +32,7 @@ func TestParseToolManifest(t *testing.T) {
 		{name: "unknown field", yaml: validManifest + "readonly: true\n", wantErr: "field readonly not found"},
 		{name: "parameters not an object", yaml: strings.Replace(validManifest, "type: object", "type: array", 1), wantErr: "type object"},
 		{name: "undeclared required parameter", yaml: strings.Replace(validManifest, "- text", "- other", 1), wantErr: `"other" is not declared`},
-		{name: "unknown plan mode", yaml: strings.Replace(validManifest, "plan_mode: allowed", "plan_mode: sometimes", 1), wantErr: "plan_mode"},
+		{name: "unknown agent mode", yaml: strings.Replace(validManifest, "readonly]", "sometimes]", 1), wantErr: `unknown agent mode "sometimes"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -59,13 +58,36 @@ func TestParseToolManifest_Policy(t *testing.T) {
 	if manifest.RequireApproval == nil || *manifest.RequireApproval {
 		t.Errorf("RequireApproval = %v, want explicit false", manifest.RequireApproval)
 	}
-	if !manifest.ReadOnly || !manifest.AllowedInPlanMode() || manifest.OnlyInPlanMode() {
-		t.Errorf("policy = %+v, want read-only and allowed (not only) in plan mode", manifest)
+	if zero := (ToolManifest{}); zero.RequireApproval != nil {
+		t.Errorf("zero manifest must inherit approval")
 	}
+}
 
-	var zero ToolManifest
-	if zero.RequireApproval != nil || zero.ReadOnly || zero.AllowedInPlanMode() {
-		t.Errorf("zero manifest must inherit approval, not be read-only and be hidden in plan mode")
+func TestToolManifest_AvailableIn(t *testing.T) {
+	manifest, err := ParseToolManifest([]byte(validManifest))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name     string
+		manifest ToolManifest
+		mode     AgentMode
+		want     bool
+	}{
+		{name: "listed mode", manifest: manifest, mode: AgentModePlan, want: true},
+		{name: "unlisted mode", manifest: manifest, mode: AgentModeStandard, want: false},
+		{name: "no modes means standard", mode: AgentModeStandard, want: true},
+		{name: "no modes means auto", mode: AgentModeAutoAccept, want: true},
+		{name: "no modes means auto with judge", mode: AgentModeAutoWithJudge, want: true},
+		{name: "no modes excludes plan", mode: AgentModePlan, want: false},
+		{name: "no modes excludes readonly", mode: AgentModeReadOnly, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.manifest.AvailableIn(tt.mode); got != tt.want {
+				t.Errorf("AvailableIn(%s) = %v, want %v", tt.mode, got, tt.want)
+			}
+		})
 	}
 }
 

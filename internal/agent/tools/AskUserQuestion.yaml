@@ -65,4 +65,4 @@ parameters:
   required:
     - questions
 require_approval: false
-plan_mode: allowed
+modes: [standard, auto, auto-with-judge, plan]

@@ -78,7 +78,7 @@ func (s *LLMToolService) ListToolsForMode(mode agentdomain.AgentMode) []sdk.Chat
 	var definitions []sdk.ChatCompletionTool
 	for _, tool := range s.registry.GetToolDefinitions() {
 		name := tool.Function.Name
-		if s.isToolAdvertised(name) && s.registry.Manifest(name).OfferedInMode(mode) {
+		if s.isToolAdvertised(name) && s.registry.Manifest(name).AvailableIn(mode) {
 			definitions = append(definitions, tool)
 		}
 	}
@@ -116,16 +116,20 @@ func (s *LLMToolService) isA2ATool(toolName string) bool {
 	return strings.HasPrefix(toolName, "A2A_")
 }
 
+// toolUnavailableError tells the model that a tool it called does not run in
+// the current mode, so it can pick another instead of retrying.
+func toolUnavailableError(name string, mode agentdomain.AgentMode) error {
+	if mode == agentdomain.AgentModePlan {
+		return fmt.Errorf("tool not allowed: %s is disabled in plan mode (read-only) - use %s/%s/%s to research, %s to clarify, and %s to submit the plan; do not retry this tool until the plan is approved",
+			name, tools.ToolRead, tools.ToolGrep, tools.ToolTree, tools.ToolAskUserQuestion, tools.ToolRequestPlanApproval)
+	}
+	return fmt.Errorf("tool not allowed: %s is not available in %s mode", name, mode.ModeKey())
+}
+
 // ExecuteTool executes a tool with the given arguments
 func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
-	if mode, ok := agentdomain.AgentModeFromContext(ctx); ok {
-		manifest := s.registry.Manifest(toolCall.Name)
-		if mode == agentdomain.AgentModePlan && !manifest.AllowedInPlanMode() {
-			return nil, fmt.Errorf("tool not allowed: %s is disabled in plan mode (read-only) - use Read/Grep/Tree to research, AskUserQuestion to clarify, and RequestPlanApproval to submit the plan; do not retry this tool until the plan is approved", toolCall.Name)
-		}
-		if mode != agentdomain.AgentModePlan && manifest.OnlyInPlanMode() {
-			return nil, fmt.Errorf("tool not allowed: %s is only available in plan mode", toolCall.Name)
-		}
+	if mode, ok := agentdomain.AgentModeFromContext(ctx); ok && !s.registry.Manifest(toolCall.Name).AvailableIn(mode) {
+		return nil, toolUnavailableError(toolCall.Name, mode)
 	}
 
 	if !s.isToolEnabled(toolCall.Name) {
