@@ -74,11 +74,6 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
 func requireFile(t *testing.T, path string) {
 	t.Helper()
 	if !fileExists(path) {
@@ -438,4 +433,57 @@ func TestGitBackend_SyncInAdoptsPopulatedRemote(t *testing.T) {
 	mustGit(t, "", "clone", "-b", "main", bare, check)
 	requireFile(t, filepath.Join(check, "remote.md"))
 	requireFile(t, filepath.Join(check, "local.md"))
+}
+
+func TestGitBackend_PushUnionMergesConcurrentIndexAppends(t *testing.T) {
+	isolatedGitEnv(t)
+	bare := initBareRemote(t)
+	seedRemote(t, bare, "MEMORY.md", "# Memory Index\n\n- [a](a.md) - first\n")
+
+	memDir := filepath.Join(t.TempDir(), "memory")
+	mustGit(t, "", "clone", "-b", "main", bare, memDir)
+
+	seedRemote(t, bare, "MEMORY.md", "# Memory Index\n\n- [a](a.md) - first\n- [other](other.md) - from other\n")
+	writeFile(t, filepath.Join(memDir, "MEMORY.md"), "# Memory Index\n\n- [a](a.md) - first\n- [mine](mine.md) - from me\n")
+
+	b := newGitBackend(t, memDir, bare)
+	if err := b.SyncOut(context.Background()); err != nil {
+		t.Fatalf("SyncOut should union-merge concurrent index appends, got: %v", err)
+	}
+
+	check := filepath.Join(t.TempDir(), "check")
+	mustGit(t, "", "clone", "-b", "main", bare, check)
+	got, _ := os.ReadFile(filepath.Join(check, "MEMORY.md"))
+	for _, want := range []string{"- [mine](mine.md)", "- [other](other.md)"} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("remote MEMORY.md missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestGitBackend_RecoversInterruptedRebase(t *testing.T) {
+	isolatedGitEnv(t)
+	bare := initBareRemote(t)
+	seedRemote(t, bare, "x.md", "base\n")
+
+	memDir := filepath.Join(t.TempDir(), "memory")
+	mustGit(t, "", "clone", "-b", "main", bare, memDir)
+	writeFile(t, filepath.Join(memDir, "x.md"), "local\n")
+	mustGit(t, memDir, "commit", "-am", "local edit")
+	seedRemote(t, bare, "x.md", "remote\n")
+	if out, err := exec.Command("git", "-C", memDir, "pull", "--rebase", "origin", "main").CombinedOutput(); err == nil {
+		t.Fatalf("expected the conflicting pull to fail, got:\n%s", out)
+	}
+	requireFile(t, filepath.Join(memDir, ".git", "rebase-merge"))
+
+	b := newGitBackend(t, memDir, bare)
+	if err := b.SyncOut(context.Background()); err != nil && strings.Contains(err.Error(), "rebase-merge") {
+		t.Fatalf("SyncOut still tripped over the interrupted rebase: %v", err)
+	}
+	if fileExists(filepath.Join(memDir, ".git", "rebase-merge")) {
+		t.Fatal("expected the interrupted rebase to be aborted")
+	}
+	if got, _ := os.ReadFile(filepath.Join(memDir, "x.md")); string(got) != "local\n" {
+		t.Errorf("x.md = %q, want the local content without conflict markers", got)
+	}
 }

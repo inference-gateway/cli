@@ -88,6 +88,7 @@ func (b *GitBackend) syncInExisting(ctx context.Context, dir, branch string, rem
 	}
 	if _, err := b.run(ctx, dir, "pull", "--rebase", "--autostash", "origin", branch); err != nil {
 		logger.Warn("memory git sync: pull failed", "error", err)
+		_, _ = b.run(ctx, dir, "rebase", "--abort")
 		return err
 	}
 	return nil
@@ -280,10 +281,15 @@ func (b *GitBackend) pushWithRetry(ctx context.Context, dir, branch string) erro
 }
 
 // ensureRepo makes dir a git repo on the configured branch with the origin
-// remote set, initializing it in place if needed (idempotent).
+// remote set, initializing it in place if needed (idempotent). An existing repo
+// is first recovered from any rebase/merge an earlier sync left half-done.
 func (b *GitBackend) ensureRepo(ctx context.Context, dir string) error {
 	g := b.git()
 	if isGitRepo(dir) {
+		b.abortInterruptedSync(ctx, dir)
+		if err := ensureIndexUnionMerge(dir); err != nil {
+			return err
+		}
 		return b.ensureOrigin(ctx, dir, g.Repo)
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -301,7 +307,50 @@ func (b *GitBackend) ensureRepo(ctx context.Context, dir string) error {
 			return err
 		}
 	}
-	return nil
+	return ensureIndexUnionMerge(dir)
+}
+
+// abortInterruptedSync aborts a rebase or merge a previous sync left in
+// progress (killed by timeout, crash, or an older build that never aborted), so
+// the agent never reads conflict markers and later syncs don't fail on it.
+func (b *GitBackend) abortInterruptedSync(ctx context.Context, dir string) {
+	gitDir := filepath.Join(dir, ".git")
+	if fileExists(filepath.Join(gitDir, "rebase-merge")) || fileExists(filepath.Join(gitDir, "rebase-apply")) {
+		logger.Warn("memory git sync: aborting interrupted rebase", "dir", dir)
+		_, _ = b.run(ctx, dir, "rebase", "--abort")
+	}
+	if fileExists(filepath.Join(gitDir, "MERGE_HEAD")) {
+		logger.Warn("memory git sync: aborting interrupted merge", "dir", dir)
+		_, _ = b.run(ctx, dir, "merge", "--abort")
+	}
+}
+
+// indexUnionMergeRule makes git keep both sides of a MEMORY.md conflict. Every
+// write appends to that shared index, so two writers always collide at its end.
+// ponytail: two writers editing the same entry keep both lines until the next rewrite.
+const indexUnionMergeRule = config.MemoryIndexFileName + " merge=union\n"
+
+// ensureIndexUnionMerge adds indexUnionMergeRule to the clone-local
+// .git/info/attributes, so the rule applies without committing a file.
+func ensureIndexUnionMerge(dir string) error {
+	path := filepath.Join(dir, ".git", "info", "attributes")
+	current, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if strings.Contains(string(current), indexUnionMergeRule) {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+	_, err = f.WriteString(indexUnionMergeRule)
+	return err
 }
 
 // ensureOrigin points the origin remote at repo, adding it when missing and
@@ -352,6 +401,11 @@ func (b *GitBackend) run(ctx context.Context, workdir string, args ...string) ([
 func isGitRepo(dir string) bool {
 	info, err := os.Stat(filepath.Join(dir, ".git"))
 	return err == nil && info.IsDir()
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func isEmptyOrMissing(dir string) bool {
