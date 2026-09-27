@@ -56,7 +56,7 @@ func reconstructReadiness(readiness *tui.AgentReadinessState) *tui.ApplicationSt
 	return st
 }
 
-func TestAgentsView_MergesA2AAndLocalRows(t *testing.T) {
+func TestAgentsView_GroupsA2AOnTopAndLocalsBelow(t *testing.T) {
 	view, _ := newAgentsViewForTest(
 		&tui.AgentReadinessState{
 			TotalAgents: 2,
@@ -72,25 +72,44 @@ func TestAgentsView_MergesA2AAndLocalRows(t *testing.T) {
 	)
 
 	items := view.list.Items()
-	if len(items) != 3 {
-		t.Fatalf("expected a2a and local rows merged, got %d", len(items))
+	if len(items) != 5 {
+		t.Fatalf("expected two section headers around the a2a and local rows, got %d", len(items))
 	}
 
-	first := items[0].(agentItem)
-	if first.kind != agentKindA2A || first.name != "coder" || !first.failed || first.detail != "connection refused" {
-		t.Errorf("rows must be merged and sorted by name, got %+v", first)
+	if items[0].(agentSection).title != a2aSectionTitle {
+		t.Errorf("the a2a group must come first, got %+v", items[0])
 	}
-	second := items[1].(agentItem)
-	if second.kind != agentKindLocal || second.name != "explorer" || second.state != "read-only" || second.detail != "tools: Grep, Read | model: inherit | project" {
-		t.Errorf("unexpected local row: %+v", second)
+	coder := items[1].(agentItem)
+	if coder.kind != agentKindA2A || coder.name != "coder" || !coder.failed || coder.detail != "connection refused" {
+		t.Errorf("a2a rows must be sorted by name, got %+v", coder)
 	}
-	last := items[2].(agentItem)
-	if last.kind != agentKindA2A || last.name != "writer" || last.state != "ready" || last.detail != "http://localhost:8081" {
-		t.Errorf("unexpected a2a row: %+v", last)
+	writer := items[2].(agentItem)
+	if writer.kind != agentKindA2A || writer.name != "writer" || writer.state != "ready" || writer.detail != "http://localhost:8081" {
+		t.Errorf("unexpected a2a row: %+v", writer)
+	}
+
+	if items[3].(agentSection).title != markdownSectionTitle {
+		t.Errorf("the markdown group must follow the a2a one, got %+v", items[3])
+	}
+	explorer := items[4].(agentItem)
+	if explorer.kind != agentKindLocal || explorer.name != "explorer" || explorer.state != "read-only" || explorer.detail != "tools: Grep, Read | model: inherit | project" {
+		t.Errorf("unexpected local row: %+v", explorer)
 	}
 
 	if view.list.Title != "Agents (3)" {
-		t.Errorf("title = %q, want the merged count", view.list.Title)
+		t.Errorf("title = %q, want the count of agents without section rows", view.list.Title)
+	}
+}
+
+func TestAgentsView_SingleGroupGetsNoEmptySection(t *testing.T) {
+	view, _ := newAgentsViewForTest(nil, []agentdomain.SubagentInfo{{Name: "explorer"}})
+
+	items := view.list.Items()
+	if len(items) != 2 || items[0].(agentSection).title != markdownSectionTitle {
+		t.Fatalf("expected only the markdown section, got %d items", len(items))
+	}
+	if view.list.Title != "Agents (1)" {
+		t.Errorf("title = %q, want the markdown agent count", view.list.Title)
 	}
 }
 
@@ -136,7 +155,7 @@ func TestAgentsView_LiveUpdatesOnAgentStatusEvent(t *testing.T) {
 	model, _ := view.Update(tui.AgentStatusUpdateEvent{AgentName: "writer", State: agentdomain.AgentStatePullingImage})
 	view = model.(*AgentsView)
 
-	if got := view.list.Items()[0].(agentItem); got.detail != "Pulling image: img (3/7 layers)" {
+	if got := view.list.Items()[1].(agentItem); got.detail != "Pulling image: img (3/7 layers)" {
 		t.Errorf("event should refresh pull progress in the detail, got %+v", got)
 	}
 
@@ -147,7 +166,7 @@ func TestAgentsView_LiveUpdatesOnAgentStatusEvent(t *testing.T) {
 	if view.list.Title != "Agents (1)" {
 		t.Errorf("title = %q, want the refreshed count", view.list.Title)
 	}
-	if got := view.list.Items()[0].(agentItem); got.state != "ready" {
+	if got := view.list.Items()[1].(agentItem); got.state != "ready" {
 		t.Errorf("event should re-read agent state, got %+v", got)
 	}
 }
