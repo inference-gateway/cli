@@ -383,6 +383,7 @@ recording:
   max_duration: 120 # seconds; a recording stops and finalizes itself at this cap
   output_dir: "" # empty = ~/.infer/tmp/recordings
   framerate: 24 # frames per second
+  require_approval: true # unset = true; false lets RecordStart run unattended (headless CI)
 ```
 
 - **computer_use.recording.enabled**: Register the recording tools (default: false)
@@ -391,10 +392,13 @@ recording:
 - **computer_use.recording.output_dir**: Where recordings are written (default:
   `~/.infer/tmp/recordings`, created on first use)
 - **computer_use.recording.framerate**: Capture frame rate (default: 24; must be positive when enabled)
+- **computer_use.recording.require_approval**: Whether `RecordStart` needs approval outside
+  auto-accept mode (default: true). Set it to false for unattended runs that have no approver,
+  such as headless CI recording a virtual display; `RecordStart` then follows `computer_use.approval`
 
 Environment overrides: `INFER_COMPUTER_USE_RECORDING_ENABLED`,
 `INFER_COMPUTER_USE_RECORDING_MAX_DURATION`, `INFER_COMPUTER_USE_RECORDING_OUTPUT_DIR`,
-`INFER_COMPUTER_USE_RECORDING_FRAMERATE`.
+`INFER_COMPUTER_USE_RECORDING_FRAMERATE`, `INFER_COMPUTER_USE_RECORDING_REQUIRE_APPROVAL`.
 
 ### Compact Settings
 

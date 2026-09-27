@@ -35,10 +35,17 @@ type ComputerUseConfig struct {
 // RecordingConfig contains settings for the RecordStart/RecordStop screen
 // recording tools.
 type RecordingConfig struct {
-	Enabled     bool   `yaml:"enabled" mapstructure:"enabled"`
-	MaxDuration int    `yaml:"max_duration" mapstructure:"max_duration"` // seconds
-	OutputDir   string `yaml:"output_dir" mapstructure:"output_dir"`
-	Framerate   int    `yaml:"framerate" mapstructure:"framerate"`
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	MaxDuration     int    `yaml:"max_duration" mapstructure:"max_duration"` // seconds
+	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
+	Framerate       int    `yaml:"framerate" mapstructure:"framerate"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"` // nil = required
+}
+
+// ApprovalRequired reports whether RecordStart must be approved outside
+// auto-accept mode; unset keeps the safe default (required).
+func (c RecordingConfig) ApprovalRequired() bool {
+	return c.RequireApproval == nil || *c.RequireApproval
 }
 
 // ResolveOutputDir returns the directory recordings are written to,
