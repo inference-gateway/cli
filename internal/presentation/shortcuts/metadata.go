@@ -32,7 +32,7 @@ func NewMetadataRegistry(cfg *config.Config) *Registry {
 	reg.Register(NewInstallOpentaskShortcut())
 	reg.Register(NewInitShortcut(cfg))
 	if cfg.IsAgentToolEnabled() {
-		reg.Register(NewSubagentsShortcut())
+		reg.Register(NewAgentsShortcut())
 	}
 	if cfg.IsA2AToolsEnabled() {
 		reg.Register(NewA2ATaskManagementShortcut(cfg))

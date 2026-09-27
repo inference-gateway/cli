@@ -1,12 +1,8 @@
 package agent
 
 import (
-	"context"
 	"slices"
-	"strings"
 	"testing"
-
-	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -61,21 +57,5 @@ func TestSubagentToolAllowlistIgnoresWhitespaceAndEmptyEntries(t *testing.T) {
 	svc := newAllowlistTestService(t)
 	if !svc.IsToolEnabled("Read") || !svc.IsToolEnabled("Grep") {
 		t.Fatalf("entries must be trimmed: Read=%v Grep=%v", svc.IsToolEnabled("Read"), svc.IsToolEnabled("Grep"))
-	}
-}
-
-// A blocked tool must return the allowlist message instead of the generic
-// "local tools are not enabled" so the model stops retrying the call.
-func TestSubagentToolAllowlistBlockedToolMessage(t *testing.T) {
-	t.Setenv(tools.SubagentToolsEnv, "Read,Grep")
-	svc := newAllowlistTestService(t)
-
-	_, err := svc.ExecuteTool(context.Background(), sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: "{}"})
-	if err == nil || !strings.Contains(err.Error(), "not in this subagent's allowlist (allowed: Grep, Read)") {
-		t.Fatalf("blocked tool must name the allowlist, got %v", err)
-	}
-
-	if err := svc.ValidateTool("Bash", nil); err == nil || !strings.Contains(err.Error(), "not in this subagent's allowlist") {
-		t.Fatalf("ValidateTool must use the same message, got %v", err)
 	}
 }

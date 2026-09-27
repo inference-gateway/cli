@@ -98,8 +98,7 @@ type ChatApplication struct {
 	fileExplorer         *components.FileExplorer
 	helpView             *components.HelpView
 	toolsView            *components.ToolsView
-	a2aAgentsView        *components.A2AAgentsView
-	subagentsView        *components.SubagentsView
+	agentsView           *components.AgentsView
 
 	snippetAttachmentsView *components.SnippetAttachmentsView
 
@@ -308,8 +307,7 @@ func NewChatApplication(
 	app.modelSelector = components.NewModelSelector(models, app.modelService, app.pricingService, app.config, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.toolsView = components.NewToolsView(app.toolService, app.stateManager, styleProvider)
-	app.a2aAgentsView = components.NewA2AAgentsView(app.stateManager, styleProvider)
-	app.subagentsView = components.NewSubagentsView(app.toolService, styleProvider)
+	app.agentsView = components.NewAgentsView(app.stateManager, app.toolService, styleProvider)
 	app.installOpentaskView = components.NewInstallOpentaskView(styleProvider)
 
 	app.installOpentaskView.SetSecretsExistChecker(func(appID string) bool {
@@ -475,12 +473,8 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		app.modelSelector.Reset()
 	}
 
-	if viewBefore == tui.ViewStateA2AAgents && app.lastView != tui.ViewStateA2AAgents {
-		app.a2aAgentsView.Reset()
-	}
-
-	if viewBefore == tui.ViewStateSubagents && app.lastView != tui.ViewStateSubagents {
-		app.subagentsView.Reset()
+	if viewBefore != app.lastView && (viewBefore == tui.ViewStateA2AAgents || viewBefore == tui.ViewStateAgents) {
+		app.agentsView.Reset(agentsViewScope(viewBefore))
 	}
 
 	var cmds []tea.Cmd
@@ -665,10 +659,8 @@ func (app *ChatApplication) dispatchViewMessage(currentView tui.ViewState, msg t
 		return app.handleHelpView(msg)
 	case tui.ViewStateToolsList:
 		return app.handleToolsListView(msg)
-	case tui.ViewStateA2AAgents:
-		return app.handleA2AAgentsView(msg)
-	case tui.ViewStateSubagents:
-		return app.handleSubagentsView(msg)
+	case tui.ViewStateA2AAgents, tui.ViewStateAgents:
+		return app.handleAgentsView(msg)
 	default:
 		return nil
 	}
@@ -1011,10 +1003,8 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderHelp()
 	case tui.ViewStateToolsList:
 		return app.renderToolsList()
-	case tui.ViewStateA2AAgents:
-		return app.renderA2AAgents()
-	case tui.ViewStateSubagents:
-		return app.renderSubagents()
+	case tui.ViewStateA2AAgents, tui.ViewStateAgents:
+		return app.renderAgents()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -1640,23 +1630,23 @@ func (app *ChatApplication) renderToolsList() string {
 	return app.toolsView.View().Content
 }
 
-// handleA2AAgentsView drives the read-only A2A agents list, mirroring
-// handleToolsListView: a leftover cancelled flag means re-entry, so Reset
-// rebuilds the items from the latest agent readiness.
-func (app *ChatApplication) handleA2AAgentsView(msg tea.Msg) []tea.Cmd {
+// handleAgentsView drives the read-only agents list (local Markdown presets
+// plus remote A2A agents), mirroring handleToolsListView: a leftover cancelled
+// flag means re-entry, so Reset rebuilds the items from the latest state.
+func (app *ChatApplication) handleAgentsView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	if app.a2aAgentsView.IsCancelled() {
-		app.a2aAgentsView.Reset()
+	if app.agentsView.IsCancelled() {
+		app.agentsView.Reset(agentsViewScope(app.stateManager.GetCurrentView()))
 	}
 
-	model, cmd := app.a2aAgentsView.Update(msg)
-	app.a2aAgentsView = model.(*components.A2AAgentsView)
+	model, cmd := app.agentsView.Update(msg)
+	app.agentsView = model.(*components.AgentsView)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
-	if app.a2aAgentsView.IsCancelled() {
+	if app.agentsView.IsCancelled() {
 		if err := app.stateManager.TransitionToView(tui.ViewStateChat); err != nil {
 			cmds = append(cmds, func() tea.Msg {
 				return tui.ShowErrorEvent{
@@ -1671,49 +1661,20 @@ func (app *ChatApplication) handleA2AAgentsView(msg tea.Msg) []tea.Cmd {
 	return cmds
 }
 
-func (app *ChatApplication) renderA2AAgents() string {
+func (app *ChatApplication) renderAgents() string {
 	width, height := app.stateManager.GetDimensions()
-	app.a2aAgentsView.SetWidth(width)
-	app.a2aAgentsView.SetHeight(height)
-	return app.a2aAgentsView.View().Content
+	app.agentsView.SetWidth(width)
+	app.agentsView.SetHeight(height)
+	return app.agentsView.View().Content
 }
 
-// handleSubagentsView drives the read-only Markdown subagents list, mirroring
-// handleA2AAgentsView: a leftover cancelled flag means re-entry, so Reset
-// rebuilds the items from the loaded presets.
-func (app *ChatApplication) handleSubagentsView(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	if app.subagentsView.IsCancelled() {
-		app.subagentsView.Reset()
+// agentsViewScope maps the entry point to the row scope: the /a2a alias
+// pre-filters the list to a2a agents.
+func agentsViewScope(view tui.ViewState) string {
+	if view == tui.ViewStateA2AAgents {
+		return components.AgentsScopeA2A
 	}
-
-	model, cmd := app.subagentsView.Update(msg)
-	app.subagentsView = model.(*components.SubagentsView)
-	if cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-
-	if app.subagentsView.IsCancelled() {
-		if err := app.stateManager.TransitionToView(tui.ViewStateChat); err != nil {
-			cmds = append(cmds, func() tea.Msg {
-				return tui.ShowErrorEvent{
-					Error:  fmt.Sprintf("Failed to return to chat: %v", err),
-					Sticky: false,
-				}
-			})
-		}
-		app.focusedComponent = app.inputView
-	}
-
-	return cmds
-}
-
-func (app *ChatApplication) renderSubagents() string {
-	width, height := app.stateManager.GetDimensions()
-	app.subagentsView.SetWidth(width)
-	app.subagentsView.SetHeight(height)
-	return app.subagentsView.View().Content
+	return components.AgentsScopeAll
 }
 
 func (app *ChatApplication) renderConversationSelection() string {

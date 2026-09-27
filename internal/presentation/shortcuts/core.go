@@ -561,26 +561,26 @@ func (c *A2AAgentsShortcut) Execute(ctx context.Context, args []string) (Shortcu
 	}, nil
 }
 
-// SubagentsShortcut shows the Markdown-defined subagent presets
-// (.infer/agents/*.md) and their capabilities.
-type SubagentsShortcut struct{}
+// AgentsShortcut shows every agent the chat can use: local Markdown subagent
+// presets (.infer/agents/*.md) and remote A2A agents.
+type AgentsShortcut struct{}
 
-func NewSubagentsShortcut() *SubagentsShortcut {
-	return &SubagentsShortcut{}
+func NewAgentsShortcut() *AgentsShortcut {
+	return &AgentsShortcut{}
 }
 
-func (c *SubagentsShortcut) GetName() string { return "agents" }
-func (c *SubagentsShortcut) GetDescription() string {
-	return "Show configured Markdown subagents and their capabilities"
+func (c *AgentsShortcut) GetName() string { return "agents" }
+func (c *AgentsShortcut) GetDescription() string {
+	return "Show configured agents (local presets and remote A2A)"
 }
-func (c *SubagentsShortcut) GetUsage() string              { return "/agents" }
-func (c *SubagentsShortcut) CanExecute(args []string) bool { return len(args) == 0 }
+func (c *AgentsShortcut) GetUsage() string              { return "/agents" }
+func (c *AgentsShortcut) CanExecute(args []string) bool { return len(args) == 0 }
 
-func (c *SubagentsShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+func (c *AgentsShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	return ShortcutResult{
 		Output:     "",
 		Success:    true,
-		SideEffect: SideEffectShowSubagents,
+		SideEffect: SideEffectShowAgents,
 	}, nil
 }
 

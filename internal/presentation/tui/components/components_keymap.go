@@ -124,7 +124,7 @@ var helpViewKeys = struct {
 	bottom:  key.NewBinding(key.WithKeys("end", "G")),
 }
 
-// listViewKeys is shared by a2a_agents, tools, and theme selection views.
+// listViewKeys is shared by the agents, tools, and theme selection views.
 var listViewKeys = struct {
 	cancel    key.Binding
 	esc       key.Binding
