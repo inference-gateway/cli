@@ -154,6 +154,11 @@ skill you authored there yourself. Current built-ins:
   issue: it gathers context, reproduces the bug in a scratch directory,
   optionally records a window / region GIF, and files a `[BUG]` issue only
   after your approval.
+- **`demo`** - turn `/demo` (e.g. `@infer /demo` on a pull request) into a
+  short demo GIF of any project - a CLI, TUI or GUI app: it works out what
+  the change does, rehearses it unrecorded, records one take and converts it
+  to a single GIF in `~/.infer/artifacts`. Recordings never enter the
+  repository.
 
 Because they are ordinary user-scope skills, you customise them with the same
 knobs as any other skill - there is no special "built-in" mode:
