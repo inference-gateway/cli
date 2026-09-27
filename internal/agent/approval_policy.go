@@ -12,7 +12,8 @@ import (
 )
 
 // StandardApprovalPolicy implements the default approval policy with the following rules:
-//  0. RecordStart always requires approval unless in auto-accept mode; delivery
+//  0. RecordStart requires approval unless in auto-accept mode or
+//     computer_use.recording.require_approval is false; delivery
 //     (chat prompt, headless IPC, judge, or block) follows approval_behaviour
 //  1. Computer use tools (mouse, keyboard) follow computer_use.approval
 //  2. Auto-accept mode bypasses all approval
@@ -43,7 +44,8 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 	toolCall *sdk.ChatCompletionMessageToolCall,
 	isChatMode bool,
 ) bool {
-	if toolCall.Function.Name == "RecordStart" && p.agentMode() != agentdomain.AgentModeAutoAccept {
+	if toolCall.Function.Name == "RecordStart" && p.config.ComputerUse.Recording.ApprovalRequired() &&
+		p.agentMode() != agentdomain.AgentModeAutoAccept {
 		return true
 	}
 

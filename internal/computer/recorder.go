@@ -171,7 +171,7 @@ func (r *ScreenRecorder) prepare(ctx context.Context, req recordRequest) (string
 		return "", nil, nil, fmt.Errorf("create recordings directory: %w", err)
 	}
 	out := filepath.Join(dir, time.Now().Format("20060102-150405.000")+".mp4")
-	args, err := ffmpegArgs(runtime.GOOS, os.Getenv("DISPLAY"), rect, screen, rc.Framerate, rc.MaxDuration, out)
+	args, err := ffmpegArgs(runtime.GOOS, os.Getenv("DISPLAY"), rect, screen, rc, out)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -464,30 +464,34 @@ func nativeRect(rect display.Region, s capture.Screen) display.Region {
 // width many H.264 decoders accept, add a scale filter if that bites.
 // macOS crops relative to the captured input size, so the Retina backing
 // scale never needs to be known; X11 and GDI take the area as input options.
-func ffmpegArgs(goos, displayName string, rect display.Region, s capture.Screen, fps, maxSeconds int, out string) ([]string, error) {
+func ffmpegArgs(goos, displayName string, rect display.Region, s capture.Screen, rc config.RecordingConfig, out string) ([]string, error) {
 	if rect.Width < 2 || rect.Height < 2 {
 		return nil, fmt.Errorf("capture area %dx%d is too small to record", rect.Width, rect.Height)
 	}
 	args := []string{"-hide_banner", "-loglevel", "error", "-nostats"}
-	rate := strconv.Itoa(fps)
+	rate := strconv.Itoa(rc.Framerate)
+	cursor := "1"
+	if rc.HideCursor {
+		cursor = "0"
+	}
 	switch goos {
 	case "darwin":
 		crop := fmt.Sprintf("crop=w=trunc(iw*%d/%d/2)*2:h=trunc(ih*%d/%d/2)*2:x=trunc(iw*%d/%d):y=trunc(ih*%d/%d)",
 			rect.Width, s.Width, rect.Height, s.Height, rect.X, s.Width, rect.Y, s.Height)
-		args = append(args, "-f", "avfoundation", "-capture_cursor", "1", "-framerate", rate,
+		args = append(args, "-f", "avfoundation", "-capture_cursor", cursor, "-framerate", rate,
 			"-i", "Capture screen 0:none", "-vf", crop)
 	case "linux":
 		n := nativeRect(rect, s)
-		args = append(args, "-f", "x11grab", "-draw_mouse", "1", "-framerate", rate,
+		args = append(args, "-f", "x11grab", "-draw_mouse", cursor, "-framerate", rate,
 			"-video_size", fmt.Sprintf("%dx%d", n.Width, n.Height), "-i", fmt.Sprintf("%s+%d,%d", displayName, n.X, n.Y))
 	case "windows":
 		n := nativeRect(rect, s)
-		args = append(args, "-f", "gdigrab", "-draw_mouse", "1", "-framerate", rate,
+		args = append(args, "-f", "gdigrab", "-draw_mouse", cursor, "-framerate", rate,
 			"-offset_x", strconv.Itoa(n.X), "-offset_y", strconv.Itoa(n.Y),
 			"-video_size", fmt.Sprintf("%dx%d", n.Width, n.Height), "-i", "desktop")
 	default:
 		return nil, fmt.Errorf("screen recording is not supported on %s", goos)
 	}
-	return append(args, "-t", strconv.Itoa(maxSeconds), "-r", rate,
+	return append(args, "-t", strconv.Itoa(rc.MaxDuration), "-r", rate,
 		"-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-y", out), nil
 }
