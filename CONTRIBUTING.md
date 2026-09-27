@@ -95,144 +95,89 @@ flox activate -- task release:build  # Build for all platforms
 
 ## Adding New Tools
 
-The CLI uses a modular tools architecture where each tool is implemented as a separate module in the
-`internal/agent/tools/` package. This section describes how to add new tools for LLM integration.
+Each bounded context owns its tools: agent tools live in `internal/agent/tools/`, browser tools in
+`internal/browser/`, computer-use tools in `internal/computer/`. A tool is two things side by side:
 
-### Tool Architecture Overview
-
-```text
-internal/agent/tools/
-├── registry.go        # Tool management and registration
-├── bash.go           # Example: Bash command execution tool
-├── read.go           # Example: File reading tool
-├── grep.go           # Example: Grep tool
-├── fetch.go          # Example: Content fetching tool
-├── websearch.go      # Example: Web search tool
-└── [your-tool].go    # Your new tool implementation
-```
+- a **manifest** (`<ToolName>.yaml`) - the name, the description and parameter schema the LLM sees, and
+  its policy;
+- a **Go implementation** - validation and execution.
 
 ### Step-by-Step Guide
 
-#### 1. Create Your Tool File
+#### 1. Write the Manifest
 
-Create a new file `internal/agent/tools/your_tool.go`:
+Create `internal/agent/tools/YourTool.yaml` (browser and computer tools use their package's `tools/`
+directory). The file name must match `name`:
 
-```go
-package tools
-
-import (
-    "context"
-    "fmt"
-
-    "github.com/inference-gateway/cli/config"
-    "github.com/inference-gateway/cli/internal/agent/domain"
-    "github.com/inference-gateway/sdk"
-)
-
-// YourTool handles your specific functionality
-type YourTool struct {
-    config  *config.Config
-    enabled bool
-    // Add any additional dependencies here
-}
-
-// NewYourTool creates a new instance of your tool
-func NewYourTool(cfg *config.Config /* add other dependencies */) *YourTool {
-    return &YourTool{
-        config:  cfg,
-        enabled: cfg.Tools.Enabled, // or specific config section
-        // Initialize dependencies
-    }
-}
+```yaml
+name: YourTool
+description: Description of what your tool does.
+parameters:
+  type: object
+  properties:
+    param1:
+      type: string
+      description: Description of parameter 1
+  required:
+    - param1
+read_only: true          # safe to run alongside other read-only calls and in read-only subagents
+plan_mode: allowed       # hidden (default) | allowed | only
+require_approval: false  # omit to inherit tools.safety.require_approval
 ```
+
+Add the name to the constants in `tool_manifests.go` (`ToolYourTool = "YourTool"`) and use the constant
+everywhere instead of the string. Values only known at runtime (config-driven enums or limits) stay out
+of the YAML; set them in `Definition()` with `agentdomain.PropertySchema`.
 
 #### 2. Implement the Tool Interface
 
-Your tool must implement the `Tool` interface defined in `interfaces.go`:
+Create `internal/agent/tools/your_tool.go`. `Manifest()` hands the registry the tool's policy, and
+`Definition()` is built from it:
 
 ```go
-// Definition returns the tool definition for the LLM
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *YourTool) Manifest() agentdomain.ToolManifest {
+    return toolManifests.MustGet(ToolYourTool).WithRequireApproval(t.config.Tools.YourTool.RequireApproval)
+}
+
+// Definition returns the tool definition for the LLM.
 func (t *YourTool) Definition() sdk.ChatCompletionTool {
-    description := "Description of what your tool does"
-    parameters := sdk.FunctionParameters(map[string]any{
-        "type": "object",
-        "properties": map[string]any{
-            "param1": map[string]any{
-                "type":        "string",
-                "description": "Description of parameter 1",
-            },
-            "param2": map[string]any{
-                "type":        "integer",
-                "description": "Description of parameter 2",
-                "minimum":     1,
-            },
-        },
-        "required": []string{"param1"},
-    })
-
-    return sdk.ChatCompletionTool{
-        Type: sdk.Function,
-        Function: sdk.FunctionObject{
-            Name:        "YourTool",
-            Description: &description,
-            Parameters:  &parameters,
-        },
-    }
+    return t.Manifest().Definition()
 }
 
-// Execute runs the tool with given arguments
-func (t *YourTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
-    if !t.enabled {
-        return nil, fmt.Errorf("YourTool is not enabled")
-    }
-
-    // Validate and extract arguments
-    param1, ok := args["param1"].(string)
-    if !ok {
-        return nil, fmt.Errorf("param1 must be a string")
-    }
-
-    // Implement your tool logic here
-    result := fmt.Sprintf("Processing: %s", param1)
-
-    return &domain.ToolExecutionResult{
-        Output: result,
-        // Add other result fields as needed
-    }, nil
+// Execute runs the tool with the given arguments.
+func (t *YourTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
+    param1, _ := args["param1"].(string)
+    return &agentdomain.ToolExecutionResult{ToolName: ToolYourTool, Arguments: args, Success: true, Data: param1}, nil
 }
 
-// Validate checks if the tool arguments are valid
+// Validate checks if the tool arguments are valid.
 func (t *YourTool) Validate(args map[string]any) error {
-    // Implement validation logic
-    if _, exists := args["param1"]; !exists {
-        return fmt.Errorf("param1 is required")
+    if _, ok := args["param1"].(string); !ok {
+        return fmt.Errorf("param1 must be a string")
     }
     return nil
 }
-
-// IsEnabled returns whether this tool is enabled
-func (t *YourTool) IsEnabled() bool {
-    return t.enabled
-}
 ```
+
+Drop `WithRequireApproval` when the tool has no `require_approval` setting of its own. A tool whose
+approval depends on its arguments implements `agentdomain.CallApprover`, as the computer-use tools do.
 
 #### 3. Register Your Tool
 
-Add your tool to the registry in `internal/agent/tools/registry.go`:
+Agent tools register in `internal/agent/tools/registry.go`, keyed by their manifest name:
 
 ```go
-// In the registerTools() method, add:
-r.tools["YourTool"] = NewYourTool(r.config /* add dependencies */)
-```
-
-For conditional tools (e.g., requiring external services or configuration):
-
-```go
-// Example for conditional registration
-if r.config.YourService.Enabled {
-    r.tools["YourTool"] = NewYourTool(r.config, r.yourService)
+if cfg.YourService.Enabled {
+    r.register(NewYourTool(cfg, r.yourService))
 }
 ```
+
+Tools from another context are built by that context (e.g. `computer.NewTools`) and handed to the
+registry by the container via `RegisterTools`.
+
+Then update `internal/agent/testdata/tool_definitions.golden.json` with
+`go test ./internal/agent -run TestToolDefinitionsGolden -update` and review the diff.
 
 #### 4. Add Configuration (if needed)
 
@@ -349,7 +294,7 @@ Study the existing tools for implementation patterns:
 - **BashTool** (`bash.go`): Shows command execution with security validation
 - **ReadTool** (`read.go`): Demonstrates file system operations
 - **GrepTool** (`grep.go`): Shows complex parameter handling with ripgrep integration
-- **WebSearchTool** (`websearch.go`): Shows integration with external services
+- **WebSearchTool** (`web_search.go`): Shows integration with external services and runtime schema values
 
 ## Release Process
 
