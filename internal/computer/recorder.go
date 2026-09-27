@@ -418,11 +418,10 @@ func stderrTail(rec *recording) string {
 	return "no error output"
 }
 
-// resolveFFmpeg prefers ffmpeg on PATH and otherwise downloads the prebuilt
-// binary into ~/.infer/bin.
-// ponytail: no capability probe or re-download of an outdated ~/.infer/bin
-// build; it is shared with the gateway and speech tools, and the startup
-// check reports a missing encoder with the fix.
+// resolveFFmpeg prefers ffmpeg on PATH and otherwise installs the prebuilt
+// binary into ~/.infer/bin/tools (upgrading a stale download).
+// ponytail: no capability probe; a build missing libx264 is diagnosed at the
+// startup check, which reports a missing encoder with the fix.
 func resolveFFmpeg(ctx context.Context) (string, error) {
 	if path, err := exec.LookPath("ffmpeg"); err == nil {
 		return path, nil

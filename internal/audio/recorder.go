@@ -59,9 +59,10 @@ func NewRecorder(cfg config.SpeechToTextConfig) *Recorder {
 }
 
 // ffmpegBin returns the ffmpeg binary to invoke: an explicit configured path or
-// a PATH lookup, then a prebuilt binary in ~/.infer/bin (downloaded on first use
-// when auto_download is enabled), mirroring the transcriber and converter. It
-// falls back to the plain name so callers still report the usual install hint.
+// a PATH lookup, then a prebuilt binary in ~/.infer/bin/tools (installed and
+// upgraded on first use when auto_download is enabled), mirroring the
+// transcriber and converter. It falls back to the plain name so callers still
+// report the usual install hint.
 func (r *Recorder) ffmpegBin(ctx context.Context) string {
 	if bin, err := resolveFFmpeg(r.cfg.FFmpegPath, r.lookPath); err == nil {
 		return bin

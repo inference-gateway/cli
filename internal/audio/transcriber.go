@@ -84,7 +84,8 @@ func (w *WhisperTranscriber) Transcribe(ctx context.Context, wavPath string) (st
 
 // resolveBinary returns the whisper binary to invoke: an explicit configured
 // path first, then PATH lookup of the known names, then a prebuilt binary in
-// ~/.infer/bin (downloaded on first use when auto_download is enabled).
+// ~/.infer/bin/tools (installed/upgraded on first use when auto_download is
+// enabled).
 func (w *WhisperTranscriber) resolveBinary(ctx context.Context) (string, error) {
 	if p := strings.TrimSpace(w.cfg.BinaryPath); p != "" {
 		if _, err := w.lookPath(p); err == nil {

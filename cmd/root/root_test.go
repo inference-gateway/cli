@@ -12,7 +12,7 @@ import (
 func TestCommandTopology(t *testing.T) {
 	command := NewCommand()
 	want := []string{
-		"agents", "avatars", "chat", "config", "conversation-title", "conversations", "daemon", "debug", "env",
+		"agents", "avatars", "binaries", "chat", "config", "conversation-title", "conversations", "daemon", "debug", "env",
 		"export", "gpu", "headless", "init", "insights", "keybindings", "mcp", "migrate", "plans",
 		"plugins", "reset", "shortcuts", "skills", "stats", "status", "tools", "traces", "version",
 		"workflow",

@@ -15,8 +15,8 @@ import (
 type Converter struct {
 	ffmpegPath string
 
-	// ensureBinary, when set, downloads a prebuilt ffmpeg into ~/.infer/bin as
-	// a last resort after config-path and PATH resolution fail (see
+	// ensureBinary, when set, installs a prebuilt ffmpeg into ~/.infer/bin/tools
+	// as a last resort after config-path and PATH resolution fail (see
 	// BinaryStore, injected via SetBinaryEnsurer to avoid an import cycle).
 	ensureBinary func(ctx context.Context, name string) (string, error)
 

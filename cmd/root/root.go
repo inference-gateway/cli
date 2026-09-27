@@ -12,6 +12,7 @@ import (
 
 	agents "github.com/inference-gateway/cli/cmd/agents"
 	avatarscmd "github.com/inference-gateway/cli/cmd/avatars"
+	binaries "github.com/inference-gateway/cli/cmd/binaries"
 	chat "github.com/inference-gateway/cli/cmd/chat"
 	configcmd "github.com/inference-gateway/cli/cmd/config"
 	conversations "github.com/inference-gateway/cli/cmd/conversations"
@@ -86,6 +87,7 @@ deployment, monitoring, and management of inference services.`,
 	command.AddCommand(
 		agents.NewCommand(state, renderer),
 		avatarscmd.NewCommand(state, renderer),
+		binaries.NewCommand(),
 		chat.NewCommand(state),
 		configcmd.NewCommand(state),
 		conversationtitle.NewCommand(state),

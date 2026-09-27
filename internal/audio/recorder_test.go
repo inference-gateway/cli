@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -192,20 +191,21 @@ func TestRecordNoRecorder(t *testing.T) {
 }
 
 // TestRecordUsesDownloadedFFmpeg checks the recorder falls back to the prebuilt
-// ~/.infer/bin/ffmpeg when none is on PATH, like the converter and transcriber.
+// ~/.infer/bin/tools/ffmpeg when none is on PATH, like the converter and
+// transcriber.
 func TestRecordUsesDownloadedFFmpeg(t *testing.T) {
+	srv := binaryServer(t, "ffmpeg", "#!fake-ffmpeg", nil)
+	defer srv.Close()
+
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	binDir := filepath.Join(home, config.ConfigDirName, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		t.Fatalf("mkdir bin: %v", err)
-	}
-	want := filepath.Join(binDir, "ffmpeg"+exeSuffix())
-	if err := os.WriteFile(want, []byte("#!fake-ffmpeg"), 0o755); err != nil {
-		t.Fatalf("write fake ffmpeg: %v", err)
-	}
+	resetVerified(t)
+	want := toolsPath(t, "ffmpeg")
+	writeBinary(t, want, "#!fake-ffmpeg")
 
 	r := NewRecorder(config.SpeechToTextConfig{AutoDownload: true})
+	r.binaries.baseURL = srv.URL
+	r.binaries.installerURL = srv.URL + "/install.sh"
 	r.lookPath = func(name string) (string, error) {
 		if name == want {
 			return name, nil

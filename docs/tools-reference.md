@@ -793,7 +793,7 @@ Record the screen to an MP4 file (H.264, `yuv420p`, plays in browsers and QuickT
 - The chat status bar shows `● REC` while a recording runs.
 
 **Requirements:** ffmpeg with libx264 and the platform's screen grabber. The recorder uses `ffmpeg`
-from `PATH`, otherwise downloads the prebuilt binary into `~/.infer/bin`.
+from `PATH`, otherwise installs the prebuilt binary into `~/.infer/bin/tools` (upgraded when its sha256 no longer matches the release).
 
 - macOS: your terminal app needs the Screen Recording permission, plus Accessibility for `window` mode
   (System Settings > Privacy & Security).

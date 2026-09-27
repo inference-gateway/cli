@@ -99,8 +99,8 @@ func (s *Synthesizer) Synthesize(ctx context.Context, text, voiceSamplePath, out
 }
 
 // resolveBinary returns the configured llama-tts binary, finds it on PATH, or
-// auto-downloads it from the binaries release into ~/.infer/bin - the same
-// resolution order and cache the gateway's local engine uses.
+// auto-installs it from the binaries release into ~/.infer/bin/tools - the
+// same resolution order and cache the gateway's local engine uses.
 func (s *Synthesizer) resolveBinary(ctx context.Context) (string, error) {
 	if p := strings.TrimSpace(s.cfg.BinaryPath); p != "" {
 		if _, err := s.lookPath(p); err == nil {
