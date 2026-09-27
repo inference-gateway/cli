@@ -103,7 +103,7 @@ func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, spee
 // description lists them and tool-name validation runs against the tools this
 // session actually registered. MCP tools register later and are unknown here.
 func (r *Registry) loadMarkdownAgents() {
-	agentTool, ok := r.tools["Agent"].(*AgentTool)
+	agentTool, ok := r.tools[ToolAgent].(*AgentTool)
 	if !ok {
 		return
 	}
@@ -112,7 +112,7 @@ func (r *Registry) loadMarkdownAgents() {
 		known[name] = true
 	}
 	r.mdAgents = loadMarkdownAgents(nil, known)
-	agentTool.setMarkdownAgents(r.mdAgents)
+	agentTool.setMarkdownAgents(r.mdAgents, r)
 }
 
 // MarkdownSubagents returns the Markdown-defined subagent presets loaded this
@@ -123,7 +123,7 @@ func (r *Registry) MarkdownSubagents() []agentdomain.SubagentInfo {
 	}
 	infos := make([]agentdomain.SubagentInfo, 0, len(r.mdAgents))
 	for _, agent := range r.mdAgents {
-		infos = append(infos, agent.subagentInfo())
+		infos = append(infos, agent.subagentInfo(r))
 	}
 	return infos
 }
@@ -167,22 +167,22 @@ func (r *Registry) FrameSourceNames() []string {
 func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 	cfg := r.config
 
-	r.tools["Bash"] = NewBashTool(cfg, r.shellService)
+	r.register(NewBashTool(cfg, r.shellService))
 
 	if cfg.Tools.Bash.BackgroundShells.Enabled && r.shellService != nil {
-		r.tools["BashOutput"] = NewBashOutputTool(cfg, r.shellService)
-		r.tools["KillShell"] = NewKillShellTool(cfg, r.shellService)
-		r.tools["ListShells"] = NewListShellsTool(cfg, r.shellService)
+		r.register(NewBashOutputTool(cfg, r.shellService))
+		r.register(NewKillShellTool(cfg, r.shellService))
+		r.register(NewListShellsTool(cfg, r.shellService))
 	}
 
-	r.tools["Read"] = NewReadTool(cfg)
-	r.tools["Write"] = NewWriteTool(cfg)
-	r.tools["Edit"] = NewEditToolWithRegistry(cfg, r)
-	r.tools["MultiEdit"] = NewMultiEditToolWithRegistry(cfg, r)
-	r.tools["Delete"] = NewDeleteTool(cfg)
-	r.tools["Grep"] = NewGrepTool(cfg)
-	r.tools["Tree"] = NewTreeTool(cfg)
-	r.tools["TodoWrite"] = NewTodoWriteTool(cfg)
+	r.register(NewReadTool(cfg))
+	r.register(NewWriteTool(cfg))
+	r.register(NewEditToolWithRegistry(cfg, r))
+	r.register(NewMultiEditToolWithRegistry(cfg, r))
+	r.register(NewDeleteTool(cfg))
+	r.register(NewGrepTool(cfg))
+	r.register(NewTreeTool(cfg))
+	r.register(NewTodoWriteTool(cfg))
 
 	var planStore storage.PlanStorage
 	var jobStore storage.ScheduledJobStorage
@@ -190,50 +190,50 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 		planStore = r.stores.Plans
 		jobStore = r.stores.ScheduledJobs
 	}
-	r.tools["RequestPlanApproval"] = NewRequestPlanApprovalTool(cfg, planStore)
+	r.register(NewRequestPlanApprovalTool(cfg, planStore))
 
 	if cfg.Tools.AskUserQuestion.Enabled {
-		r.tools["AskUserQuestion"] = NewAskUserQuestionTool(cfg)
+		r.register(NewAskUserQuestionTool(cfg))
 	}
 
-	r.tools["RequestApproval"] = NewRequestApprovalTool(cfg)
+	r.register(NewRequestApprovalTool(cfg))
 
 	if cfg.Tools.Schedule.Enabled {
-		r.tools["Schedule"] = NewScheduleTool(cfg, jobStore)
+		r.register(NewScheduleTool(cfg, jobStore))
 	}
 
 	if cfg.Tools.Wait.Enabled {
-		r.tools["Wait"] = NewWaitTool(cfg, r.shellService)
+		r.register(NewWaitTool(cfg, r.shellService))
 	}
 
 	if cfg.IsAgentToolEnabled() && r.subagentTracker != nil {
-		r.tools["Agent"] = NewAgentTool(cfg, r.subagentTracker, r.jobSubmitter)
-		r.tools["ListSubagents"] = NewListSubagentsTool(cfg, r.subagentTracker)
-		r.tools["GetSubagentResult"] = NewGetSubagentResultTool(cfg, r.subagentTracker)
-		r.tools["CloseSubagent"] = NewCloseSubagentTool(cfg, r.subagentTracker, r.jobStopper)
-		r.tools["ReadSubagentScreen"] = NewReadSubagentScreenTool(cfg, r.subagentTracker)
-		r.tools["SendSubagentInput"] = NewSendSubagentInputTool(cfg, r.subagentTracker)
-		r.tools["ApproveSubagent"] = NewApproveSubagentTool(cfg, r.subagentTracker)
+		r.register(NewAgentTool(cfg, r.subagentTracker, r.jobSubmitter))
+		r.register(NewListSubagentsTool(cfg, r.subagentTracker))
+		r.register(NewGetSubagentResultTool(cfg, r.subagentTracker))
+		r.register(NewCloseSubagentTool(cfg, r.subagentTracker, r.jobStopper))
+		r.register(NewReadSubagentScreenTool(cfg, r.subagentTracker))
+		r.register(NewSendSubagentInputTool(cfg, r.subagentTracker))
+		r.register(NewApproveSubagentTool(cfg, r.subagentTracker))
 	}
 
 	if cfg.Tools.WebFetch.Enabled {
-		r.tools["WebFetch"] = NewWebFetchTool(cfg)
+		r.register(NewWebFetchTool(cfg))
 	}
 
 	if cfg.Tools.WebSearch.Enabled {
-		r.tools["WebSearch"] = NewWebSearchTool(cfg)
+		r.register(NewWebSearchTool(cfg))
 	}
 
 	if cfg.Tools.ImageGeneration.Enabled && r.imageService != nil {
-		r.tools["ImageGeneration"] = NewImageGenerationTool(cfg, r.imageService)
+		r.register(NewImageGenerationTool(cfg, r.imageService))
 	}
 
 	if cfg.Tools.ImageEdit.Enabled && r.imageService != nil {
-		r.tools["ImageEdit"] = NewImageEditTool(cfg, r.imageService)
+		r.register(NewImageEditTool(cfg, r.imageService))
 	}
 
 	if cfg.Tools.ImageVariation.Enabled && r.imageService != nil {
-		r.tools["ImageVariation"] = NewImageVariationTool(cfg, r.imageService)
+		r.register(NewImageVariationTool(cfg, r.imageService))
 	}
 
 	if cfg.TextToSpeech.Enabled {
@@ -241,33 +241,33 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 	}
 
 	if cfg.TextToMusic.Enabled && r.musicService != nil {
-		r.tools["TextToMusic"] = NewTextToMusicTool(cfg, r.musicService)
+		r.register(NewTextToMusicTool(cfg, r.musicService))
 	}
 
 	if cfg.TextToSFX.Enabled && r.sfxService != nil {
-		r.tools["TextToSFX"] = NewTextToSFXTool(cfg, r.sfxService)
+		r.register(NewTextToSFXTool(cfg, r.sfxService))
 	}
 
 	if cfg.TextToVideo.Enabled && r.videoService != nil {
-		r.tools["TextToVideo"] = NewTextToVideoTool(cfg, r.videoService)
+		r.register(NewTextToVideoTool(cfg, r.videoService))
 	}
 
 	if cfg.TextToVideo.Enabled && cfg.TextToVideo.CreateAvatar && r.imageService != nil {
-		r.tools["CreateAvatar"] = NewCreateAvatarTool(cfg, r.imageService)
+		r.register(NewCreateAvatarTool(cfg, r.imageService))
 	}
 
 	if cfg.IsA2AToolsEnabled() {
-		r.tools["A2A_QueryAgent"] = NewA2AQueryAgentTool(cfg)
-		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(cfg, r.jobLiveness)
-		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(cfg, r.taskTracker, r.jobSubmitter)
+		r.register(NewA2AQueryAgentTool(cfg))
+		r.register(NewA2AQueryTaskTool(cfg, r.jobLiveness))
+		r.register(NewA2ASubmitTaskTool(cfg, r.taskTracker, r.jobSubmitter))
 	}
 
 	if r.imageService != nil {
-		r.tools["ImageDecode"] = NewImageDecodeTool(cfg, r.imageService, r.annotator)
+		r.register(NewImageDecodeTool(cfg, r.imageService, r.annotator))
 	}
 
 	if cfg.Memory.Enabled {
-		r.tools["Memory"] = NewMemoryTool(cfg, r.memoryBackend, project.Detect())
+		r.register(NewMemoryTool(cfg, r.memoryBackend, project.Detect()))
 	}
 }
 
@@ -277,16 +277,17 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 func (r *Registry) registerTextToSpeech(cfg *config.Config) {
 	if cfg.TextToSpeech.IsGatewayEngine() {
 		if r.speechService != nil {
-			r.tools["TextToSpeech"] = NewTextToSpeechTool(cfg, r.speechService)
+			r.register(NewTextToSpeechTool(cfg, r.speechService))
 		}
 		return
 	}
-	r.tools["TextToSpeech"] = NewTextToSpeechTool(cfg, audio.NewSynthesizer(cfg.TextToSpeech))
+	r.register(NewTextToSpeechTool(cfg, audio.NewSynthesizer(cfg.TextToSpeech)))
 }
 
 // RegisterTools installs capability tools constructed outside this package
-// (browser use, and later computer use). The agent core consumes them through
-// the agentdomain.Tool contract only.
+// (browser use, computer use, MCP). The agent core consumes them through the
+// agentdomain.Tool contract only; a tool that brings its own manifest also
+// brings its policy.
 func (r *Registry) RegisterTools(tools map[string]agentdomain.Tool) {
 	r.toolsMu.Lock()
 	defer r.toolsMu.Unlock()
@@ -298,6 +299,32 @@ func (r *Registry) RegisterTools(tools map[string]agentdomain.Tool) {
 	}
 }
 
+// Manifest returns the named tool's manifest, including its configured
+// require_approval: a registered tool answers for itself, an agent tool that
+// is not enabled falls back to its embedded manifest, and any other tool,
+// such as an MCP tool, gets the default policy.
+func (r *Registry) Manifest(name string) agentdomain.ToolManifest {
+	r.toolsMu.RLock()
+	tool := r.tools[name]
+	r.toolsMu.RUnlock()
+	if manifestTool, ok := tool.(agentdomain.ManifestTool); ok {
+		return manifestTool.Manifest()
+	}
+	return toolManifests.Manifest(name)
+}
+
+// builtinTool is an agent tool defined by an embedded manifest.
+type builtinTool interface {
+	agentdomain.Tool
+	agentdomain.ManifestTool
+}
+
+// register adds a built-in tool under the name its manifest declares. Callers
+// hold toolsMu or run before the registry is shared.
+func (r *Registry) register(tool builtinTool) {
+	r.tools[tool.Manifest().Name] = tool
+}
+
 // SetMemoryBackend wires the memory sync backend into the Memory tool so a
 // write/delete pushes to the remote. The container calls this after
 // constructing the shared backend; it re-registers the Memory tool so the
@@ -307,7 +334,7 @@ func (r *Registry) SetMemoryBackend(backend memory.MemoryBackend) {
 	r.memoryBackend = backend
 	if r.config.Memory.Enabled {
 		r.toolsMu.Lock()
-		r.tools["Memory"] = NewMemoryTool(r.config, backend, project.Detect())
+		r.register(NewMemoryTool(r.config, backend, project.Detect()))
 		r.toolsMu.Unlock()
 	}
 }
@@ -437,22 +464,4 @@ func normalizeReadPath(path string) string {
 // GetBackgroundShellService returns the background shell service instance
 func (r *Registry) GetBackgroundShellService() scheddomain.BackgroundShellService {
 	return r.shellService
-}
-
-// IsComputerUseTool returns true if the given tool name is a computer use tool
-// Computer use tools operate directly on the computer (mouse, keyboard,
-// screenshot, screen recording) and bypass the standard approval flow
-func IsComputerUseTool(toolName string) bool {
-	switch toolName {
-	case "Computer", "GetLatestFrame", "RecordStart", "RecordStop":
-		return true
-	}
-	return false
-}
-
-// IsSessionOnlyTool returns true if the tool keeps state past its own call
-// (a running screen recording) and so needs a chat or headless session that
-// finalizes it on exit; a one-shot `infer tools execute` cannot.
-func IsSessionOnlyTool(toolName string) bool {
-	return toolName == "RecordStart" || toolName == "RecordStop"
 }

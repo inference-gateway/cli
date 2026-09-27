@@ -123,6 +123,38 @@ func (m ToolManifest) OnlyInPlanMode() bool {
 	return m.PlanMode == PlanModeOnly
 }
 
+// WithRequireApproval returns the manifest with the approval setting a user
+// configured for the tool, when there is one.
+func (m ToolManifest) WithRequireApproval(configured *bool) ToolManifest {
+	if configured != nil {
+		m.RequireApproval = configured
+	}
+	return m
+}
+
+// RequiresApproval reports whether a call needs approval: the tool's own
+// setting when it has one, else the inherited global require_approval.
+func (m ToolManifest) RequiresApproval(inherited bool) bool {
+	if m.RequireApproval != nil {
+		return *m.RequireApproval
+	}
+	return inherited
+}
+
+// OfferedInMode reports whether the tool is offered to the model in mode:
+// plan mode offers the tools allowed there, read-only mode the read-only
+// tools, and every other mode all tools except the plan-only ones.
+func (m ToolManifest) OfferedInMode(mode AgentMode) bool {
+	switch mode {
+	case AgentModePlan:
+		return m.AllowedInPlanMode()
+	case AgentModeReadOnly:
+		return m.ReadOnly
+	default:
+		return !m.OnlyInPlanMode()
+	}
+}
+
 // Definition builds the definition sent to the model. A non-empty description,
 // a user override from prompts.yaml, replaces the manifest's. The parameters
 // are a deep copy, so the caller may adjust them.
@@ -140,8 +172,23 @@ func (m ToolManifest) Definition(description string) sdk.ChatCompletionTool {
 	}
 }
 
+// ManifestTool is implemented by tools that bring their own manifest, such as
+// the browser and computer tools, so the tool registry can answer their policy.
+type ManifestTool interface {
+	Manifest() ToolManifest
+}
+
 // ToolManifests are a bounded context's built-in tool manifests by tool name.
 type ToolManifests map[string]ToolManifest
+
+// Manifest returns the named tool's manifest. A tool without one gets a
+// manifest carrying only its name, which is the default policy.
+func (ms ToolManifests) Manifest(name string) ToolManifest {
+	if manifest, ok := ms[name]; ok {
+		return manifest
+	}
+	return ToolManifest{Name: name}
+}
 
 // LoadToolManifests parses every *.yaml file in dir of fsys. Each file is
 // named after its tool, e.g. Read.yaml.
@@ -178,14 +225,14 @@ func MustLoadToolManifests(fsys fs.FS, dir string) ToolManifests {
 	return manifests
 }
 
-// Definition builds the named built-in tool's definition, see
-// ToolManifest.Definition. A missing manifest is a programming error.
-func (ms ToolManifests) Definition(name, description string) sdk.ChatCompletionTool {
+// MustGet returns a built-in tool's manifest. A built-in tool without one is a
+// programming error.
+func (ms ToolManifests) MustGet(name string) ToolManifest {
 	manifest, ok := ms[name]
 	if !ok {
 		panic(fmt.Sprintf("no manifest for built-in tool %q", name))
 	}
-	return manifest.Definition(description)
+	return manifest
 }
 
 // PropertySchema returns the schema of one parameter of def so a tool can fill

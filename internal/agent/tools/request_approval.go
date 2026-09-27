@@ -31,13 +31,18 @@ func NewRequestApprovalTool(cfg *config.Config) *RequestApprovalTool {
 	return &RequestApprovalTool{
 		config:    cfg,
 		enabled:   true,
-		formatter: agentinfra.NewBaseFormatter("RequestApproval"),
+		formatter: agentinfra.NewBaseFormatter(ToolRequestApproval),
 	}
+}
+
+// Manifest returns the tool's manifest.
+func (t *RequestApprovalTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolRequestApproval)
 }
 
 // Definition returns the tool definition for the LLM.
 func (t *RequestApprovalTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("RequestApproval", t.config.Prompts.Tools.RequestApproval.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.RequestApproval.Description)
 }
 
 // Execute escalates one judge-rejected call to the user and returns the
@@ -144,7 +149,7 @@ func (t *RequestApprovalTool) result(args map[string]any, start time.Time, statu
 	data["status"] = status
 	data["approved"] = approved
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "RequestApproval",
+		ToolName:  ToolRequestApproval,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -154,7 +159,7 @@ func (t *RequestApprovalTool) result(args map[string]any, start time.Time, statu
 
 func (t *RequestApprovalTool) failure(args map[string]any, start time.Time, msg string) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "RequestApproval",
+		ToolName:  ToolRequestApproval,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),

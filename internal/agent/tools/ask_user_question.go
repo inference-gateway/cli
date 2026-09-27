@@ -46,13 +46,18 @@ func NewAskUserQuestionTool(cfg *config.Config) *AskUserQuestionTool {
 	return &AskUserQuestionTool{
 		config:    cfg,
 		enabled:   true,
-		formatter: agentinfra.NewBaseFormatter("AskUserQuestion"),
+		formatter: agentinfra.NewBaseFormatter(ToolAskUserQuestion),
 	}
+}
+
+// Manifest returns the tool's manifest.
+func (t *AskUserQuestionTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolAskUserQuestion)
 }
 
 // Definition returns the tool definition for the LLM.
 func (t *AskUserQuestionTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("AskUserQuestion", t.config.Prompts.Tools.AskUserQuestion.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.AskUserQuestion.Description)
 }
 
 // Execute presents the questions to the user and returns their answers. The
@@ -112,7 +117,7 @@ func (t *AskUserQuestionTool) IsEnabled() bool {
 
 func (t *AskUserQuestionTool) result(args map[string]any, start time.Time, data map[string]any) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "AskUserQuestion",
+		ToolName:  ToolAskUserQuestion,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -122,7 +127,7 @@ func (t *AskUserQuestionTool) result(args map[string]any, start time.Time, data 
 
 func (t *AskUserQuestionTool) failure(args map[string]any, start time.Time, msg string) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "AskUserQuestion",
+		ToolName:  ToolAskUserQuestion,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),

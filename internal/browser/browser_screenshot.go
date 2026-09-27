@@ -26,7 +26,7 @@ type BrowserScreenshotTool struct {
 func NewBrowserScreenshotTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserScreenshotTool {
 	return &BrowserScreenshotTool{
 		browserToolBase: browserToolBase{
-			name:        "BrowserScreenshot",
+			name:        ToolScreenshot,
 			enabled:     cfg.BrowserUse.Enabled && cfg.BrowserUse.Tools.Screenshot.Enabled,
 			driver:      driver,
 			rateLimiter: rateLimiter,
@@ -35,9 +35,14 @@ func NewBrowserScreenshotTool(cfg *config.Config, rateLimiter rateLimiter, drive
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *BrowserScreenshotTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolScreenshot)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *BrowserScreenshotTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("BrowserScreenshot", t.config.Prompts.Tools.BrowserScreenshot.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.BrowserScreenshot.Description)
 }
 
 // Execute captures the screenshot and returns it as an attached image

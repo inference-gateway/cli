@@ -568,7 +568,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 			fakeStateManager := statemanager.NewStore(false)
 			fakeStateManager.SetAgentMode(tt.agentMode)
 
-			approvalPolicy := NewStandardApprovalPolicy(cfg, fakeStateManager)
+			approvalPolicy := newTestPolicy(cfg, fakeStateManager)
 
 			result := approvalPolicy.ShouldRequireApproval(context.Background(), tt.toolCall, tt.isChatMode)
 

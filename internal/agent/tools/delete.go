@@ -27,13 +27,18 @@ func NewDeleteTool(cfg *config.Config) *DeleteTool {
 	return &DeleteTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.Delete.Enabled,
-		formatter: agentinfra.NewBaseFormatter("Delete"),
+		formatter: agentinfra.NewBaseFormatter(ToolDelete),
 	}
+}
+
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *DeleteTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolDelete).WithRequireApproval(t.config.Tools.Delete.RequireApproval)
 }
 
 // Definition returns the tool definition for the LLM
 func (t *DeleteTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("Delete", t.config.Prompts.Tools.Delete.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.Delete.Description)
 }
 
 // Execute runs the delete tool with given arguments
@@ -46,7 +51,7 @@ func (t *DeleteTool) Execute(ctx context.Context, args map[string]any) (*agentdo
 	path, ok := args["path"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Delete",
+			ToolName:  ToolDelete,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -87,7 +92,7 @@ func (t *DeleteTool) Execute(ctx context.Context, args map[string]any) (*agentdo
 	}
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "Delete",
+		ToolName:  ToolDelete,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

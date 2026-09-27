@@ -29,9 +29,14 @@ func NewTextToMusicTool(cfg *config.Config, music agentdomain.MusicService) *Tex
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *TextToMusicTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolTextToMusic).WithRequireApproval(t.config.TextToMusic.RequireApproval)
+}
+
 // Definition returns the tool definition for TextToMusic
 func (t *TextToMusicTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("TextToMusic", t.config.Prompts.Tools.TextToMusic.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.TextToMusic.Description)
 }
 
 // Validate validates TextToMusic arguments
@@ -113,7 +118,7 @@ func (t *TextToMusicTool) Execute(ctx context.Context, args map[string]any) (*ag
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToMusic",
+		ToolName:  ToolTextToMusic,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -127,7 +132,7 @@ func (t *TextToMusicTool) Execute(ctx context.Context, args map[string]any) (*ag
 // failure builds the failed ToolExecutionResult for Execute.
 func (t *TextToMusicTool) failure(start time.Time, args map[string]any, err error) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToMusic",
+		ToolName:  ToolTextToMusic,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),
@@ -167,7 +172,7 @@ func (t *TextToMusicTool) FormatForLLM(result *agentdomain.ToolExecutionResult) 
 	}
 	path, _ := data["path"].(string)
 	summary := fmt.Sprintf("Music saved to %s", path)
-	formatter := agentinfra.NewBaseFormatter("TextToMusic")
+	formatter := agentinfra.NewBaseFormatter(ToolTextToMusic)
 	return formatter.FormatExpanded(result, summary)
 }
 

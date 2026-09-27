@@ -22,7 +22,7 @@ type BrowserTypeTool struct {
 func NewBrowserTypeTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserTypeTool {
 	return &BrowserTypeTool{
 		browserToolBase: browserToolBase{
-			name:        "BrowserType",
+			name:        ToolType,
 			enabled:     cfg.BrowserUse.Enabled && cfg.BrowserUse.Tools.Type.Enabled,
 			driver:      driver,
 			rateLimiter: rateLimiter,
@@ -31,9 +31,14 @@ func NewBrowserTypeTool(cfg *config.Config, rateLimiter rateLimiter, driver brow
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *BrowserTypeTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolType)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *BrowserTypeTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("BrowserType", t.config.Prompts.Tools.BrowserType.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.BrowserType.Description)
 }
 
 // Execute runs the browser type tool with given arguments

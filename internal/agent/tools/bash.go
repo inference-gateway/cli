@@ -47,9 +47,14 @@ func NewBashTool(cfg *config.Config, backgroundShellService scheddomain.Backgrou
 	return &BashTool{
 		config:                 cfg,
 		enabled:                cfg.Tools.Enabled && cfg.Tools.Bash.Enabled,
-		formatter:              agentinfra.NewBaseFormatter("Bash"),
+		formatter:              agentinfra.NewBaseFormatter(ToolBash),
 		backgroundShellService: backgroundShellService,
 	}
+}
+
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *BashTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolBash).WithRequireApproval(t.config.Tools.Bash.RequireApproval)
 }
 
 // Definition returns the tool definition for the LLM. The command parameter is
@@ -59,7 +64,7 @@ func NewBashTool(cfg *config.Config, backgroundShellService scheddomain.Backgrou
 // instead; off-list commands still execute via approval (chat) or are rejected
 // with a reason (agent mode).
 func (t *BashTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("Bash", t.config.Prompts.Tools.Bash.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.Bash.Description)
 }
 
 // Execute runs the bash tool with given arguments
@@ -68,7 +73,7 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	command, ok := args["command"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Bash",
+			ToolName:  ToolBash,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -94,7 +99,7 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	}
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "Bash",
+		ToolName:  ToolBash,
 		Arguments: args,
 		Success:   success,
 		Duration:  time.Since(start),

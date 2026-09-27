@@ -40,7 +40,7 @@ func NewEditTool(cfg *config.Config) *EditTool {
 	return &EditTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		formatter: agentinfra.NewCustomFormatter("Edit", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolEdit, func(key string) bool {
 			return key == "old_string" || key == "new_string"
 		}),
 	}
@@ -52,15 +52,20 @@ func NewEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *Edit
 		config:   cfg,
 		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
 		registry: registry,
-		formatter: agentinfra.NewCustomFormatter("Edit", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolEdit, func(key string) bool {
 			return key == "old_string" || key == "new_string"
 		}),
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *EditTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolEdit).WithRequireApproval(t.config.Tools.Edit.RequireApproval)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *EditTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("Edit", t.config.Prompts.Tools.Edit.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.Edit.Description)
 }
 
 // Execute runs the edit tool with given arguments
@@ -72,7 +77,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 
 	if t.registry != nil && !t.registry.IsReadToolUsed() {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Edit",
+			ToolName:  ToolEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -83,7 +88,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	filePath, ok := args["file_path"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Edit",
+			ToolName:  ToolEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -93,7 +98,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 
 	if msg := staleReadError(t.registry, filePath); msg != "" {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Edit",
+			ToolName:  ToolEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -104,7 +109,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	oldString, ok := args["old_string"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Edit",
+			ToolName:  ToolEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -115,7 +120,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	newString, ok := args["new_string"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Edit",
+			ToolName:  ToolEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -125,7 +130,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 
 	if oldString == newString {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Edit",
+			ToolName:  ToolEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -143,7 +148,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	editResult, err := t.executeEdit(filePath, oldString, newString, replaceAll)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Edit",
+			ToolName:  ToolEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -152,7 +157,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	}
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "Edit",
+		ToolName:  ToolEdit,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

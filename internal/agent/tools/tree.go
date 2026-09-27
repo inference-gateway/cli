@@ -35,16 +35,21 @@ func NewTreeTool(cfg *config.Config) *TreeTool {
 	tool := &TreeTool{
 		config:         cfg,
 		enabled:        cfg.Tools.Enabled && cfg.Tools.Tree.Enabled,
-		formatter:      agentinfra.NewBaseFormatter("Tree"),
+		formatter:      agentinfra.NewBaseFormatter(ToolTree),
 		gitignoreCache: make(map[string]*ignore.GitIgnore),
 	}
 	tool.loadGitignore()
 	return tool
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *TreeTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolTree).WithRequireApproval(t.config.Tools.Tree.RequireApproval)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *TreeTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("Tree", t.config.Prompts.Tools.Tree.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.Tree.Description)
 }
 
 // Execute runs the tree tool with given arguments
@@ -106,7 +111,7 @@ func (t *TreeTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	}
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "Tree",
+		ToolName:  ToolTree,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

@@ -43,9 +43,14 @@ func NewImageGenerationTool(cfg *config.Config, imageService agentdomain.ImageSe
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *ImageGenerationTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolImageGeneration).WithRequireApproval(t.config.Tools.ImageGeneration.RequireApproval)
+}
+
 // Definition returns the tool definition for ImageGeneration
 func (t *ImageGenerationTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("ImageGeneration", t.config.Prompts.Tools.ImageGeneration.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.ImageGeneration.Description)
 }
 
 // Validate validates ImageGeneration arguments
@@ -94,7 +99,7 @@ func (t *ImageGenerationTool) Execute(ctx context.Context, args map[string]any) 
 	path, err := t.imageService.GenerateImage(ctx, model, prompt, quality, size)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ImageGeneration",
+			ToolName:  ToolImageGeneration,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -103,7 +108,7 @@ func (t *ImageGenerationTool) Execute(ctx context.Context, args map[string]any) 
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ImageGeneration",
+		ToolName:  ToolImageGeneration,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -151,7 +156,7 @@ func (t *ImageGenerationTool) FormatForLLM(result *agentdomain.ToolExecutionResu
 	path, _ := data["path"].(string)
 	quality, _ := data["quality"].(string)
 	size, _ := data["size"].(string)
-	formatter := agentinfra.NewBaseFormatter("ImageGeneration")
+	formatter := agentinfra.NewBaseFormatter(ToolImageGeneration)
 	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (quality: %s, size: %s)", path, quality, size))
 }
 

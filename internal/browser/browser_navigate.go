@@ -23,7 +23,7 @@ type BrowserNavigateTool struct {
 func NewBrowserNavigateTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserNavigateTool {
 	return &BrowserNavigateTool{
 		browserToolBase: browserToolBase{
-			name:        "BrowserNavigate",
+			name:        ToolNavigate,
 			enabled:     cfg.BrowserUse.Enabled && cfg.BrowserUse.Tools.Navigate.Enabled,
 			driver:      driver,
 			rateLimiter: rateLimiter,
@@ -32,9 +32,14 @@ func NewBrowserNavigateTool(cfg *config.Config, rateLimiter rateLimiter, driver 
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *BrowserNavigateTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolNavigate)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *BrowserNavigateTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("BrowserNavigate", t.config.Prompts.Tools.BrowserNavigate.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.BrowserNavigate.Description)
 }
 
 // Execute runs the browser navigate tool with given arguments

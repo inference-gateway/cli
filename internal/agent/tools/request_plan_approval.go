@@ -41,15 +41,20 @@ func NewRequestPlanApprovalTool(cfg *config.Config, planStore storage.PlanStorag
 	return &RequestPlanApprovalTool{
 		config:    cfg,
 		enabled:   true,
-		formatter: agentinfra.NewBaseFormatter("RequestPlanApproval"),
+		formatter: agentinfra.NewBaseFormatter(ToolRequestPlanApproval),
 		now:       time.Now,
 		planStore: planStore,
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *RequestPlanApprovalTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolRequestPlanApproval)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *RequestPlanApprovalTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("RequestPlanApproval", t.config.Prompts.Tools.RequestPlanApproval.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.RequestPlanApproval.Description)
 }
 
 // Execute runs the RequestPlanApproval tool with given arguments. It persists
@@ -62,7 +67,7 @@ func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]a
 	title, plan, err := extractPlanArgs(args)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "RequestPlanApproval",
+			ToolName:  ToolRequestPlanApproval,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -73,7 +78,7 @@ func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]a
 	planID, err := t.savePlanToStore(ctx, title, plan, start)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "RequestPlanApproval",
+			ToolName:  ToolRequestPlanApproval,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -84,7 +89,7 @@ func (t *RequestPlanApprovalTool) Execute(ctx context.Context, args map[string]a
 	planURI := fmt.Sprintf("infer://plans/%s", planID)
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "RequestPlanApproval",
+		ToolName:  ToolRequestPlanApproval,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

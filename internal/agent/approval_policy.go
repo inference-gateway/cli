@@ -12,10 +12,8 @@ import (
 )
 
 // StandardApprovalPolicy implements the default approval policy with the following rules:
-//  0. RecordStart requires approval unless in auto-accept mode or
-//     computer_use.recording.require_approval is false; delivery
-//     (chat prompt, headless IPC, judge, or block) follows approval_behaviour
-//  1. Computer use tools (mouse, keyboard) follow computer_use.approval
+//  1. A tool that approves per call (agentdomain.CallApprover) decides for
+//     itself, ahead of the agent mode
 //  2. Auto-accept mode bypasses all approval
 //     2.5. ReadOnly mode (Explore-like subagent) bypasses approval; its toolset is
 //     read-only by construction so nothing it can call mutates
@@ -24,17 +22,29 @@ import (
 //  4. Bash commands are governed by the per-mode allow-list (config.IsBashCommandAllowed):
 //     reached only in chat, non-auto mode, so allowed commands bypass approval and
 //     anything off-list prompts the user
-//  5. Other tools check configuration (per-tool or global require_approval setting)
+//  5. Other tools follow their own require_approval setting, then their
+//     manifest's default, then the global require_approval setting
 type StandardApprovalPolicy struct {
 	config       *config.Config
 	stateManager agentdomain.AgentModeState
+	tools        ApprovalTools
 }
 
-// NewStandardApprovalPolicy creates a new standard approval policy
-func NewStandardApprovalPolicy(cfg *config.Config, stateManager agentdomain.AgentModeState) *StandardApprovalPolicy {
+// ApprovalTools is what the approval policy needs to know about the tools: a
+// tool's manifest, and the tool itself when it approves per call.
+type ApprovalTools interface {
+	agentdomain.ToolManifestLookup
+	GetTool(name string) (agentdomain.Tool, error)
+}
+
+// NewStandardApprovalPolicy creates a new standard approval policy. tools
+// resolves each tool's manifest for its plan-mode and approval defaults; with
+// nil every tool gets the default policy.
+func NewStandardApprovalPolicy(cfg *config.Config, stateManager agentdomain.AgentModeState, tools ApprovalTools) *StandardApprovalPolicy {
 	return &StandardApprovalPolicy{
 		config:       cfg,
 		stateManager: stateManager,
+		tools:        tools,
 	}
 }
 
@@ -44,13 +54,8 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 	toolCall *sdk.ChatCompletionMessageToolCall,
 	isChatMode bool,
 ) bool {
-	if toolCall.Function.Name == "RecordStart" && p.config.ComputerUse.Recording.ApprovalRequired() &&
-		p.agentMode() != agentdomain.AgentModeAutoAccept {
-		return true
-	}
-
-	if tools.IsComputerUseTool(toolCall.Function.Name) {
-		return p.requiresComputerUseApproval(toolCall)
+	if approver, ok := p.callApprover(toolCall.Function.Name); ok {
+		return approver.RequiresApproval(callArguments(toolCall), p.agentMode())
 	}
 
 	if p.stateManager != nil && p.stateManager.GetAgentMode() == agentdomain.AgentModeAutoAccept {
@@ -61,38 +66,45 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 		return false
 	}
 
-	if p.stateManager != nil && p.stateManager.GetAgentMode() == agentdomain.AgentModePlan && !planModeAllowedTools[toolCall.Function.Name] {
+	manifest := p.manifest(toolCall.Function.Name)
+	if p.stateManager != nil && p.stateManager.GetAgentMode() == agentdomain.AgentModePlan && !manifest.AllowedInPlanMode() {
 		return false
 	}
 
-	if toolCall.Function.Name == "Bash" {
+	if toolCall.Function.Name == tools.ToolBash {
 		return !p.isBashCommandAllowed(toolCall)
 	}
 
-	return p.config.IsApprovalRequired(toolCall.Function.Name)
+	return manifest.RequiresApproval(p.config.Tools.Safety.RequireApproval)
 }
 
-// requiresComputerUseApproval checks whether a computer-use tool requires
-// approval based on the computer_use.approval config setting. Unknown values
-// fail closed: config load rejects them, but a config that bypassed
-// validation must not silently disable a safety gate.
-func (p *StandardApprovalPolicy) requiresComputerUseApproval(toolCall *sdk.ChatCompletionMessageToolCall) bool {
-	switch p.config.ComputerUse.Approval {
-	case config.ComputerUseApprovalNever, "":
-		return false
-	case config.ComputerUseApprovalDestructive:
-		if toolCall.Function.Name != "Computer" {
-			return false
-		}
-		var args map[string]any
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-			return true
-		}
-		action, _ := args["action"].(string)
-		return action != "screenshot" && action != "cursor" && action != "accessibility"
-	default:
-		return true
+func (p *StandardApprovalPolicy) manifest(toolName string) agentdomain.ToolManifest {
+	if p.tools == nil {
+		return agentdomain.ToolManifest{Name: toolName}
 	}
+	return p.tools.Manifest(toolName)
+}
+
+func (p *StandardApprovalPolicy) callApprover(toolName string) (agentdomain.CallApprover, bool) {
+	if p.tools == nil {
+		return nil, false
+	}
+	tool, err := p.tools.GetTool(toolName)
+	if err != nil {
+		return nil, false
+	}
+	approver, ok := tool.(agentdomain.CallApprover)
+	return approver, ok
+}
+
+// callArguments decodes a call's JSON arguments; malformed arguments decode
+// to none, which a per-call approver treats as its most cautious case.
+func callArguments(toolCall *sdk.ChatCompletionMessageToolCall) map[string]any {
+	var args map[string]any
+	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+		return nil
+	}
+	return args
 }
 
 // isBashCommandAllowed checks whether a Bash tool call's command is auto-approved

@@ -6,6 +6,16 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
+// Names of the browser tools, as their manifests declare them.
+const (
+	ToolClick      = "BrowserClick"
+	ToolNavigate   = "BrowserNavigate"
+	ToolRead       = "BrowserRead"
+	ToolScreenshot = "BrowserScreenshot"
+	ToolTabs       = "BrowserTabs"
+	ToolType       = "BrowserType"
+)
+
 //go:embed tools/*.yaml
 var toolManifestFiles embed.FS
 

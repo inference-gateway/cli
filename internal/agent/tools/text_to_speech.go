@@ -37,9 +37,14 @@ func NewTextToSpeechTool(cfg *config.Config, synth voiceSynthesizer) *TextToSpee
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *TextToSpeechTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolTextToSpeech).WithRequireApproval(t.config.TextToSpeech.RequireApproval)
+}
+
 // Definition returns the tool definition for TextToSpeech
 func (t *TextToSpeechTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("TextToSpeech", t.config.Prompts.Tools.TextToSpeech.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.TextToSpeech.Description)
 }
 
 // Validate validates TextToSpeech arguments
@@ -195,7 +200,7 @@ func (t *TextToSpeechTool) Execute(ctx context.Context, args map[string]any) (*a
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToSpeech",
+		ToolName:  ToolTextToSpeech,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -211,7 +216,7 @@ func (t *TextToSpeechTool) Execute(ctx context.Context, args map[string]any) (*a
 // failure builds the failed ToolExecutionResult for Execute.
 func (t *TextToSpeechTool) failure(start time.Time, args map[string]any, err error) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToSpeech",
+		ToolName:  ToolTextToSpeech,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),
@@ -258,7 +263,7 @@ func (t *TextToSpeechTool) FormatForLLM(result *agentdomain.ToolExecutionResult)
 	if d, ok := data["duration_seconds"].(float64); ok && d > 0 {
 		summary = fmt.Sprintf("%s (%.1fs of audio)", summary, d)
 	}
-	formatter := agentinfra.NewBaseFormatter("TextToSpeech")
+	formatter := agentinfra.NewBaseFormatter(ToolTextToSpeech)
 	return formatter.FormatExpanded(result, summary)
 }
 

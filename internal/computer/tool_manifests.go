@@ -6,6 +6,14 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
+// Names of the computer tools, as their manifests declare them.
+const (
+	ToolComputer       = "Computer"
+	ToolGetLatestFrame = "GetLatestFrame"
+	ToolRecordStart    = "RecordStart"
+	ToolRecordStop     = "RecordStop"
+)
+
 //go:embed tools/*.yaml
 var toolManifestFiles embed.FS
 

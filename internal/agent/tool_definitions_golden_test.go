@@ -56,19 +56,18 @@ func TestToolDefinitionsGolden(t *testing.T) {
 
 	snapshot := toolDefinitionsSnapshot{
 		Definitions: defs,
-		Modes: map[string][]string{
-			"standard": toolNamesForMode(svc, agentdomain.AgentModeStandard),
-			"plan":     toolNamesForMode(svc, agentdomain.AgentModePlan),
-			"readonly": toolNamesForMode(svc, agentdomain.AgentModeReadOnly),
-		},
-		Approval: map[string]map[string]bool{},
+		Modes:       map[string][]string{},
+		Approval:    map[string]map[string]bool{},
+	}
+	for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModeStandard, agentdomain.AgentModePlan, agentdomain.AgentModeReadOnly} {
+		snapshot.Modes[mode.ModeKey()] = toolNamesForMode(svc, mode)
 	}
 	configs := map[string]*config.Config{"configured": cfg, "no_tool_overrides": withoutToolApprovalOverrides(cfg)}
 	for cfgName, approvalCfg := range configs {
 		for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModeStandard, agentdomain.AgentModePlan} {
 			for _, global := range []bool{true, false} {
 				key := fmt.Sprintf("%s/%s/global_%t", cfgName, mode.ModeKey(), global)
-				snapshot.Approval[key] = approvalOutcomes(t, approvalCfg, registry, mode, global, defs)
+				snapshot.Approval[key] = approvalOutcomes(t, approvalCfg, mode, global, defs)
 			}
 		}
 	}
@@ -159,13 +158,13 @@ func goldenRegistry(cfg *config.Config) *tools.Registry {
 
 // approvalOutcomes asks the approval policy about every tool in a chat
 // session in the given mode, with empty arguments.
-func approvalOutcomes(t *testing.T, cfg *config.Config, registry *tools.Registry, mode agentdomain.AgentMode, global bool, defs []sdk.ChatCompletionTool) map[string]bool {
+func approvalOutcomes(t *testing.T, cfg *config.Config, mode agentdomain.AgentMode, global bool, defs []sdk.ChatCompletionTool) map[string]bool {
 	t.Helper()
 	modeCfg := *cfg
 	modeCfg.Tools.Safety.RequireApproval = global
 	stateManager := statemanager.NewStore(false)
 	stateManager.SetAgentMode(mode)
-	policy := newGoldenApprovalPolicy(&modeCfg, stateManager, registry)
+	policy := newGoldenApprovalPolicy(&modeCfg, stateManager, goldenRegistry(&modeCfg))
 
 	outcomes := make(map[string]bool, len(defs))
 	for _, def := range defs {
@@ -179,8 +178,8 @@ func approvalOutcomes(t *testing.T, cfg *config.Config, registry *tools.Registry
 	return outcomes
 }
 
-func newGoldenApprovalPolicy(cfg *config.Config, stateManager agentdomain.AgentModeState, _ *tools.Registry) *StandardApprovalPolicy {
-	return NewStandardApprovalPolicy(cfg, stateManager)
+func newGoldenApprovalPolicy(cfg *config.Config, stateManager agentdomain.AgentModeState, registry *tools.Registry) *StandardApprovalPolicy {
+	return NewStandardApprovalPolicy(cfg, stateManager, registry)
 }
 
 func assertGolden(t *testing.T, path string, got []byte) {

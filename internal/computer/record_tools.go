@@ -23,9 +23,14 @@ type recordTool struct {
 
 func (t *recordTool) name() string {
 	if t.stop {
-		return "RecordStop"
+		return ToolRecordStop
 	}
-	return "RecordStart"
+	return ToolRecordStart
+}
+
+// Manifest returns the tool's manifest so the tool registry knows its policy.
+func (t *recordTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(t.name())
 }
 
 // Definition returns the tool definition for the LLM
@@ -34,7 +39,7 @@ func (t *recordTool) Definition() sdk.ChatCompletionTool {
 	if t.stop {
 		description = t.config.Prompts.Tools.RecordStop.Description
 	}
-	return toolManifests.Definition(t.name(), description)
+	return t.Manifest().Definition(description)
 }
 
 // parseRecordRequest maps RecordStart arguments onto a request, rejecting

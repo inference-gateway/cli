@@ -36,9 +36,14 @@ func NewImageDecodeTool(cfg *config.Config, imageService agentdomain.ImageServic
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *ImageDecodeTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolImageDecode)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *ImageDecodeTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("ImageDecode", t.config.Prompts.Tools.ImageDecode.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.ImageDecode.Description)
 }
 
 // Execute returns the image as an attachment (vision models see it natively)
@@ -48,7 +53,7 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*ag
 	start := time.Now()
 	fail := func(msg string) (*agentdomain.ToolExecutionResult, error) {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ImageDecode",
+			ToolName:  ToolImageDecode,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -79,7 +84,7 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*ag
 
 	if t.annotator == nil || !t.config.Vision.AnnotatorReady() {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ImageDecode",
+			ToolName:  ToolImageDecode,
 			Arguments: args,
 			Success:   true,
 			Duration:  time.Since(start),
@@ -105,7 +110,7 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*ag
 	result.Annotated = true
 	result.Annotation = annotation
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ImageDecode",
+		ToolName:  ToolImageDecode,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

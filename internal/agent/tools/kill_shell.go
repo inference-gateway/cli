@@ -27,9 +27,14 @@ func NewKillShellTool(cfg *config.Config, shellService scheddomain.BackgroundShe
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *KillShellTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolKillShell)
+}
+
 // Definition returns the tool definition for the SDK
 func (t *KillShellTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("KillShell", t.config.Prompts.Tools.KillShell.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.KillShell.Description)
 }
 
 // Execute cancels a background shell
@@ -43,7 +48,7 @@ func (t *KillShellTool) Execute(ctx context.Context, args map[string]any) (*agen
 	shell := t.shellService.GetShell(shellID)
 	if shell == nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName: "KillShell",
+			ToolName: ToolKillShell,
 			Success:  false,
 			Error:    fmt.Sprintf("Shell not found: %s", shellID),
 		}, nil
@@ -51,7 +56,7 @@ func (t *KillShellTool) Execute(ctx context.Context, args map[string]any) (*agen
 
 	if err := t.shellService.CancelShell(shellID); err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName: "KillShell",
+			ToolName: ToolKillShell,
 			Success:  false,
 			Error:    fmt.Sprintf("Failed to cancel shell: %v", err),
 		}, nil
@@ -64,7 +69,7 @@ func (t *KillShellTool) Execute(ctx context.Context, args map[string]any) (*agen
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName: "KillShell",
+		ToolName: ToolKillShell,
 		Success:  true,
 		Data:     result,
 	}, nil

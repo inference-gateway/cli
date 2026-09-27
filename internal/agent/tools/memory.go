@@ -22,8 +22,6 @@ import (
 )
 
 const (
-	ToolNameMemory = "Memory"
-
 	OperationRead   = "read"
 	OperationWrite  = "write"
 	OperationDelete = "delete"
@@ -58,16 +56,21 @@ func NewMemoryTool(cfg *config.Config, backend memory.MemoryBackend, proj projec
 		config:  cfg,
 		enabled: cfg.Memory.Enabled,
 		project: proj,
-		formatter: agentinfra.NewCustomFormatter(ToolNameMemory, func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolMemory, func(key string) bool {
 			return key == "content"
 		}),
 		backend: backend,
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *MemoryTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolMemory)
+}
+
 // Definition returns the tool definition for the LLM.
 func (t *MemoryTool) Definition() sdk.ChatCompletionTool {
-	def := toolManifests.Definition(ToolNameMemory, t.config.Prompts.Tools.Memory.Description)
+	def := t.Manifest().Definition(t.config.Prompts.Tools.Memory.Description)
 	agentdomain.PropertySchema(def, "content")["description"] = fmt.Sprintf("The fact body in Markdown, at most %d characters. Required for write.", t.config.Memory.EffectiveMaxEntryChars())
 	return def
 }
@@ -650,7 +653,7 @@ func writeFileAtomic(path, content string) error {
 
 func (t *MemoryTool) errResult(args map[string]any, start time.Time, msg string) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  ToolNameMemory,
+		ToolName:  ToolMemory,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),
@@ -660,7 +663,7 @@ func (t *MemoryTool) errResult(args map[string]any, start time.Time, msg string)
 
 func (t *MemoryTool) okResult(args map[string]any, start time.Time, data *MemoryToolResult) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  ToolNameMemory,
+		ToolName:  ToolMemory,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

@@ -36,14 +36,19 @@ func NewWaitTool(cfg *config.Config, shellService scheddomain.BackgroundShellSer
 	return &WaitTool{
 		config:       cfg,
 		enabled:      cfg.Tools.Enabled && cfg.Tools.Wait.Enabled,
-		formatter:    agentinfra.NewBaseFormatter("Wait"),
+		formatter:    agentinfra.NewBaseFormatter(ToolWait),
 		shellService: shellService,
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *WaitTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolWait)
+}
+
 // Definition returns the tool definition for the LLM.
 func (t *WaitTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("Wait", t.config.Prompts.Tools.Wait.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.Wait.Description)
 }
 
 // Execute runs the Wait tool with given arguments.
@@ -52,7 +57,7 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 
 	if err := t.Validate(args); err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Wait",
+			ToolName:  ToolWait,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -87,7 +92,7 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 		result = t.waitCommand(waitCtx, args)
 	default:
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Wait",
+			ToolName:  ToolWait,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -117,7 +122,7 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "Wait",
+		ToolName:  ToolWait,
 		Arguments: args,
 		Success:   success,
 		Duration:  elapsed,

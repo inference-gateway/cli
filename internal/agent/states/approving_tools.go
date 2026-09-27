@@ -69,6 +69,7 @@ func (s *ApprovingToolsState) Handle(event AgentEvent) error {
 			results: make([]convdomain.ConversationEntry, len(*s.ctx.ToolsNeedingApproval)),
 			ready:   make([]bool, len(*s.ctx.ToolsNeedingApproval)),
 			sem:     make(chan struct{}, s.maxConcurrent()),
+			order:   CallOrder{Tools: s.ctx.Tools},
 		}
 
 		logger.Debug("starting tool approval", "total_tools", len(*s.ctx.ToolsNeedingApproval))

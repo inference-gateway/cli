@@ -36,9 +36,14 @@ func NewApproveSubagentTool(cfg *config.Config, tracker scheddomain.SubagentTrac
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *ApproveSubagentTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolApproveSubagent)
+}
+
 // Definition returns the tool definition for the LLM.
 func (t *ApproveSubagentTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("ApproveSubagent", t.config.Prompts.Tools.ApproveSubagent.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.ApproveSubagent.Description)
 }
 
 // Execute relays the decision to the named subagent's pane.
@@ -70,7 +75,7 @@ func (t *ApproveSubagentTool) Execute(ctx context.Context, args map[string]any) 
 	_ = os.Remove(subagentApprovalFilePath(s.SessionID))
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ApproveSubagent",
+		ToolName:  ToolApproveSubagent,
 		Arguments: args,
 		Success:   true,
 		Data: map[string]any{
@@ -84,7 +89,7 @@ func (t *ApproveSubagentTool) Execute(ctx context.Context, args map[string]any) 
 
 func (t *ApproveSubagentTool) fail(args map[string]any, msg string) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ApproveSubagent",
+		ToolName:  ToolApproveSubagent,
 		Arguments: args,
 		Success:   false,
 		Error:     msg,

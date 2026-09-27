@@ -92,6 +92,7 @@ type StateContext struct {
 	CurrentReasoning *string
 
 	// Tool processing state
+	Tools                agentdomain.ToolManifestLookup
 	ToolsNeedingApproval *[]sdk.ChatCompletionMessageToolCall
 	CurrentToolIndex     *int
 	ToolResults          *[]convdomain.ConversationEntry

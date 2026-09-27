@@ -42,9 +42,14 @@ func NewImageEditTool(cfg *config.Config, imageService agentdomain.ImageService)
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *ImageEditTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolImageEdit).WithRequireApproval(t.config.Tools.ImageEdit.RequireApproval)
+}
+
 // Definition returns the tool definition for ImageEdit
 func (t *ImageEditTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("ImageEdit", t.config.Prompts.Tools.ImageEdit.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.ImageEdit.Description)
 }
 
 // Validate validates ImageEdit arguments
@@ -113,7 +118,7 @@ func (t *ImageEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	path, err := t.imageService.EditImage(ctx, model, prompt, image, quality, size, mask)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ImageEdit",
+			ToolName:  ToolImageEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -122,7 +127,7 @@ func (t *ImageEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ImageEdit",
+		ToolName:  ToolImageEdit,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -171,7 +176,7 @@ func (t *ImageEditTool) FormatForLLM(result *agentdomain.ToolExecutionResult) st
 	path, _ := data["path"].(string)
 	quality, _ := data["quality"].(string)
 	size, _ := data["size"].(string)
-	formatter := agentinfra.NewBaseFormatter("ImageEdit")
+	formatter := agentinfra.NewBaseFormatter(ToolImageEdit)
 	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (quality: %s, size: %s)", path, quality, size))
 }
 

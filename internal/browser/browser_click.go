@@ -22,7 +22,7 @@ type BrowserClickTool struct {
 func NewBrowserClickTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserClickTool {
 	return &BrowserClickTool{
 		browserToolBase: browserToolBase{
-			name:        "BrowserClick",
+			name:        ToolClick,
 			enabled:     cfg.BrowserUse.Enabled && cfg.BrowserUse.Tools.Click.Enabled,
 			driver:      driver,
 			rateLimiter: rateLimiter,
@@ -31,9 +31,14 @@ func NewBrowserClickTool(cfg *config.Config, rateLimiter rateLimiter, driver bro
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *BrowserClickTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolClick)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *BrowserClickTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("BrowserClick", t.config.Prompts.Tools.BrowserClick.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.BrowserClick.Description)
 }
 
 // Execute runs the browser click tool with given arguments

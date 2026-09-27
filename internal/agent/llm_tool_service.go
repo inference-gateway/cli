@@ -43,26 +43,6 @@ func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry)
 	return s
 }
 
-// planModeAllowedTools is the default-deny set of tools executable in plan
-// mode. It gates execution and approval, not advertisement: all modes
-// advertise the same tool list so a mode switch never invalidates the
-// provider's prompt cache.
-var planModeAllowedTools = map[string]bool{
-	"Read":                true,
-	"Grep":                true,
-	"Tree":                true,
-	"A2A_QueryAgent":      true,
-	"TodoWrite":           true,
-	"RequestPlanApproval": true,
-	"AskUserQuestion":     true,
-	"Wait":                true,
-}
-
-// planOnlyTools are executable only in plan mode.
-var planOnlyTools = map[string]bool{
-	"RequestPlanApproval": true,
-}
-
 // isToolEnabled checks if a tool should be included based on its type and configuration
 func (s *LLMToolService) isToolEnabled(toolName string) bool {
 	if s.allowlist != nil && !s.allowlist[toolName] {
@@ -95,36 +75,20 @@ func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
 
 // ListToolsForMode returns definitions for enabled tools filtered by agent mode
 func (s *LLMToolService) ListToolsForMode(mode agentdomain.AgentMode) []sdk.ChatCompletionTool {
-	if mode == agentdomain.AgentModePlan {
-		var definitions []sdk.ChatCompletionTool
-		allTools := s.registry.GetToolDefinitions()
-		for _, tool := range allTools {
-			if s.isToolAdvertised(tool.Function.Name) && planModeAllowedTools[tool.Function.Name] {
-				definitions = append(definitions, tool)
-			}
-		}
-		return definitions
-	}
-
-	if mode == agentdomain.AgentModeReadOnly {
-		var definitions []sdk.ChatCompletionTool
-		allTools := s.registry.GetToolDefinitions()
-		for _, tool := range allTools {
-			if s.isToolAdvertised(tool.Function.Name) && agentdomain.ReadOnlyTools[tool.Function.Name] {
-				definitions = append(definitions, tool)
-			}
-		}
-		return definitions
-	}
-
 	var definitions []sdk.ChatCompletionTool
-	allTools := s.registry.GetToolDefinitions()
-	for _, tool := range allTools {
-		if s.isToolAdvertised(tool.Function.Name) && !planOnlyTools[tool.Function.Name] {
+	for _, tool := range s.registry.GetToolDefinitions() {
+		name := tool.Function.Name
+		if s.isToolAdvertised(name) && s.registry.Manifest(name).OfferedInMode(mode) {
 			definitions = append(definitions, tool)
 		}
 	}
 	return definitions
+}
+
+// Manifest returns the named tool's manifest, whichever bounded context
+// defines the tool.
+func (s *LLMToolService) Manifest(name string) agentdomain.ToolManifest {
+	return s.registry.Manifest(name)
 }
 
 // ListAvailableTools returns names of all enabled tools
@@ -155,10 +119,11 @@ func (s *LLMToolService) isA2ATool(toolName string) bool {
 // ExecuteTool executes a tool with the given arguments
 func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	if mode, ok := agentdomain.AgentModeFromContext(ctx); ok {
-		if mode == agentdomain.AgentModePlan && !planModeAllowedTools[toolCall.Name] {
+		manifest := s.registry.Manifest(toolCall.Name)
+		if mode == agentdomain.AgentModePlan && !manifest.AllowedInPlanMode() {
 			return nil, fmt.Errorf("tool not allowed: %s is disabled in plan mode (read-only) - use Read/Grep/Tree to research, AskUserQuestion to clarify, and RequestPlanApproval to submit the plan; do not retry this tool until the plan is approved", toolCall.Name)
 		}
-		if mode != agentdomain.AgentModePlan && planOnlyTools[toolCall.Name] {
+		if mode != agentdomain.AgentModePlan && manifest.OnlyInPlanMode() {
 			return nil, fmt.Errorf("tool not allowed: %s is only available in plan mode", toolCall.Name)
 		}
 	}
@@ -190,10 +155,10 @@ func (s *LLMToolService) ExecuteToolDirect(ctx context.Context, toolCall sdk.Cha
 
 	if err == nil && result != nil && result.Success {
 		switch toolCall.Name {
-		case "Read":
+		case tools.ToolRead:
 			s.registry.SetReadToolUsed()
 			s.snapshotFile(args)
-		case "Edit", "MultiEdit", "Write":
+		case tools.ToolEdit, tools.ToolMultiEdit, tools.ToolWrite:
 			s.snapshotFile(args)
 		}
 	}
@@ -251,6 +216,10 @@ type NoOpToolService struct{}
 // NewNoOpToolService creates a new no-op tool service
 func NewNoOpToolService() *NoOpToolService {
 	return &NoOpToolService{}
+}
+
+func (s *NoOpToolService) Manifest(name string) agentdomain.ToolManifest {
+	return agentdomain.ToolManifest{Name: name}
 }
 
 func (s *NoOpToolService) ListTools() []sdk.ChatCompletionTool {

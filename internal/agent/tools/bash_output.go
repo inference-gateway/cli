@@ -27,9 +27,14 @@ func NewBashOutputTool(cfg *config.Config, shellService scheddomain.BackgroundSh
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *BashOutputTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolBashOutput)
+}
+
 // Definition returns the tool definition for the SDK
 func (t *BashOutputTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("BashOutput", t.config.Prompts.Tools.BashOutput.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.BashOutput.Description)
 }
 
 // Execute retrieves output from a background shell
@@ -54,7 +59,7 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*age
 
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName: "BashOutput",
+			ToolName: ToolBashOutput,
 			Success:  false,
 			Error:    fmt.Sprintf("Failed to get shell output: %v", err),
 		}, nil
@@ -63,7 +68,7 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*age
 	shell := t.shellService.GetShell(bashID)
 	if shell == nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName: "BashOutput",
+			ToolName: ToolBashOutput,
 			Success:  false,
 			Error:    fmt.Sprintf("Shell not found: %s", bashID),
 		}, nil
@@ -101,7 +106,7 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*age
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName: "BashOutput",
+		ToolName: ToolBashOutput,
 		Success:  true,
 		Data:     result,
 	}, nil

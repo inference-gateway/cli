@@ -20,13 +20,13 @@ func TestMarkdownAgentSubagentInfo(t *testing.T) {
 			agent: markdownAgent{
 				name:        "explorer",
 				description: "Read-only explorer",
-				tools:       []string{"Grep", "Read"},
+				tools:       []string{ToolGrep, ToolRead},
 				source:      "project",
 			},
 			expected: agentdomain.SubagentInfo{
 				Name:        "explorer",
 				Description: "Read-only explorer",
-				Tools:       []string{"Grep", "Read"},
+				Tools:       []string{ToolGrep, ToolRead},
 				ReadOnly:    true,
 				Source:      "project",
 			},
@@ -36,13 +36,13 @@ func TestMarkdownAgentSubagentInfo(t *testing.T) {
 			agent: markdownAgent{
 				name:        "runner",
 				description: "Runs tests",
-				tools:       []string{"Bash", "Read"},
+				tools:       []string{ToolBash, ToolRead},
 				source:      "user",
 			},
 			expected: agentdomain.SubagentInfo{
 				Name:        "runner",
 				Description: "Runs tests",
-				Tools:       []string{"Bash", "Read"},
+				Tools:       []string{ToolBash, ToolRead},
 				ReadOnly:    false,
 				Source:      "user",
 			},
@@ -67,7 +67,7 @@ func TestMarkdownAgentSubagentInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.agent.subagentInfo()
+			got := tt.agent.subagentInfo(toolManifests)
 			if got.Name != tt.expected.Name || got.Description != tt.expected.Description ||
 				got.Model != tt.expected.Model || got.ReadOnly != tt.expected.ReadOnly ||
 				got.Source != tt.expected.Source {

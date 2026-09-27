@@ -35,7 +35,7 @@ func NewWebSearchTool(cfg *config.Config) *WebSearchTool {
 			Timeout: time.Duration(cfg.Tools.WebSearch.Timeout) * time.Second,
 		},
 		enabled:   cfg.Tools.Enabled && cfg.Tools.WebSearch.Enabled,
-		formatter: agentinfra.NewBaseFormatter("WebSearch"),
+		formatter: agentinfra.NewBaseFormatter(ToolWebSearch),
 	}
 }
 
@@ -47,9 +47,14 @@ func (t *WebSearchTool) engines() []string {
 	return []string{"duckduckgo", "google"}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *WebSearchTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolWebSearch).WithRequireApproval(t.config.Tools.WebSearch.RequireApproval)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *WebSearchTool) Definition() sdk.ChatCompletionTool {
-	def := toolManifests.Definition("WebSearch", t.config.Prompts.Tools.WebSearch.Description)
+	def := t.Manifest().Definition(t.config.Prompts.Tools.WebSearch.Description)
 	engine := agentdomain.PropertySchema(def, "engine")
 	engine["enum"] = t.engines()
 	engine["default"] = t.config.Tools.WebSearch.DefaultEngine
@@ -68,7 +73,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*agen
 	query, ok := args["query"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "WebSearch",
+			ToolName:  ToolWebSearch,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -99,7 +104,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*agen
 		searchResult, err = t.searchDuckDuckGo(ctx, query, limit)
 	default:
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "WebSearch",
+			ToolName:  ToolWebSearch,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -110,7 +115,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*agen
 	success := err == nil
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "WebSearch",
+		ToolName:  ToolWebSearch,
 		Arguments: args,
 		Success:   success,
 		Duration:  time.Since(start),

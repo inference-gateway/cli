@@ -38,9 +38,14 @@ func NewTextToVideoTool(cfg *config.Config, video agentdomain.VideoService) *Tex
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *TextToVideoTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolTextToVideo).WithRequireApproval(t.config.TextToVideo.RequireApproval)
+}
+
 // Definition returns the tool definition for TextToVideo
 func (t *TextToVideoTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("TextToVideo", t.config.Prompts.Tools.TextToVideo.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.TextToVideo.Description)
 }
 
 // Validate validates TextToVideo arguments
@@ -174,7 +179,7 @@ func (t *TextToVideoTool) Execute(ctx context.Context, args map[string]any) (*ag
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToVideo",
+		ToolName:  ToolTextToVideo,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -192,7 +197,7 @@ func (t *TextToVideoTool) Execute(ctx context.Context, args map[string]any) (*ag
 // failure builds the failed ToolExecutionResult for Execute.
 func (t *TextToVideoTool) failure(start time.Time, args map[string]any, err error) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToVideo",
+		ToolName:  ToolTextToVideo,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),
@@ -232,7 +237,7 @@ func (t *TextToVideoTool) FormatForLLM(result *agentdomain.ToolExecutionResult) 
 	}
 	path, _ := data["path"].(string)
 	summary := fmt.Sprintf("Video saved to %s", path)
-	formatter := agentinfra.NewBaseFormatter("TextToVideo")
+	formatter := agentinfra.NewBaseFormatter(ToolTextToVideo)
 	return formatter.FormatExpanded(result, summary)
 }
 

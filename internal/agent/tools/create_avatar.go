@@ -34,9 +34,14 @@ func NewCreateAvatarTool(cfg *config.Config, imageService agentdomain.ImageServi
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *CreateAvatarTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolCreateAvatar).WithRequireApproval(t.config.TextToVideo.RequireApproval)
+}
+
 // Definition returns the tool definition for CreateAvatar
 func (t *CreateAvatarTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("CreateAvatar", t.config.Prompts.Tools.CreateAvatar.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.CreateAvatar.Description)
 }
 
 // Validate validates CreateAvatar arguments. The avatar name's form and an
@@ -128,7 +133,7 @@ func (t *CreateAvatarTool) Execute(ctx context.Context, args map[string]any) (*a
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "CreateAvatar",
+		ToolName:  ToolCreateAvatar,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -142,7 +147,7 @@ func (t *CreateAvatarTool) Execute(ctx context.Context, args map[string]any) (*a
 // failure builds the failed ToolExecutionResult for Execute.
 func (t *CreateAvatarTool) failure(start time.Time, args map[string]any, err error) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "CreateAvatar",
+		ToolName:  ToolCreateAvatar,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),
@@ -185,7 +190,7 @@ func (t *CreateAvatarTool) FormatForLLM(result *agentdomain.ToolExecutionResult)
 	name, _ := data["name"].(string)
 	images, _ := data["images"].([]string)
 	summary := fmt.Sprintf("Created avatar %s with images %s; pass avatar %q to TextToVideo", name, strings.Join(images, ", "), name)
-	formatter := agentinfra.NewBaseFormatter("CreateAvatar")
+	formatter := agentinfra.NewBaseFormatter(ToolCreateAvatar)
 	return formatter.FormatExpanded(result, summary)
 }
 

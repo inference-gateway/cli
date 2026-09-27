@@ -27,7 +27,7 @@ func NewMultiEditTool(cfg *config.Config) *MultiEditTool {
 	return &MultiEditTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		formatter: agentinfra.NewCustomFormatter("MultiEdit", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolMultiEdit, func(key string) bool {
 			return key == "edits"
 		}),
 	}
@@ -39,15 +39,20 @@ func NewMultiEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) 
 		config:   cfg,
 		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
 		registry: registry,
-		formatter: agentinfra.NewCustomFormatter("MultiEdit", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolMultiEdit, func(key string) bool {
 			return key == "edits"
 		}),
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *MultiEditTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolMultiEdit).WithRequireApproval(t.config.Tools.MultiEdit.RequireApproval)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *MultiEditTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("MultiEdit", t.config.Prompts.Tools.MultiEdit.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.MultiEdit.Description)
 }
 
 // Execute runs the multi-edit tool with given arguments
@@ -59,7 +64,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 
 	if t.registry != nil && !t.registry.IsReadToolUsed() {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -70,7 +75,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	filePath, ok := args["file_path"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -80,7 +85,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 
 	if msg := staleReadError(t.registry, filePath); msg != "" {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -91,7 +96,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	editsInterface, ok := args["edits"]
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -102,7 +107,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	editsArray, ok := editsInterface.([]any)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -112,7 +117,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 
 	if len(editsArray) == 0 {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -123,7 +128,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	edits, err := t.parseEdits(editsArray)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -134,7 +139,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	multiEditResult, err := t.executeMultiEdit(filePath, edits)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -143,7 +148,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	}
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "MultiEdit",
+		ToolName:  ToolMultiEdit,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

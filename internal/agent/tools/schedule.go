@@ -49,14 +49,19 @@ func NewScheduleTool(cfg *config.Config, store storage.ScheduledJobStorage) *Sch
 	return &ScheduleTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.Schedule.Enabled,
-		formatter: agentinfra.NewBaseFormatter("Schedule"),
+		formatter: agentinfra.NewBaseFormatter(ToolSchedule),
 		store:     store,
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *ScheduleTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolSchedule).WithRequireApproval(t.config.Tools.Schedule.RequireApproval)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *ScheduleTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("Schedule", t.config.Prompts.Tools.Schedule.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.Schedule.Description)
 }
 
 // Execute runs the Schedule tool with the given arguments.
@@ -326,7 +331,7 @@ func (t *ScheduleTool) execDelete(args map[string]any, store storage.ScheduledJo
 
 func (t *ScheduleTool) success(args map[string]any, start time.Time, data *ScheduleToolResult) (*agentdomain.ToolExecutionResult, error) {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "Schedule",
+		ToolName:  ToolSchedule,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -336,7 +341,7 @@ func (t *ScheduleTool) success(args map[string]any, start time.Time, data *Sched
 
 func (t *ScheduleTool) fail(args map[string]any, start time.Time, err error) (*agentdomain.ToolExecutionResult, error) {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "Schedule",
+		ToolName:  ToolSchedule,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),

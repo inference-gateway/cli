@@ -6,20 +6,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// ReadOnlyTools never change state: they make up the ReadOnly subagent
-// toolset and may run concurrently within a batch. Every other tool runs in
-// batch order.
-var ReadOnlyTools = map[string]bool{
-	"Read":               true,
-	"Grep":               true,
-	"Tree":               true,
-	"WebFetch":           true,
-	"WebSearch":          true,
-	"ListSubagents":      true,
-	"GetSubagentResult":  true,
-	"ReadSubagentScreen": true,
-}
-
 // SubagentInfo describes one Markdown-defined subagent preset (.infer/agents/*.md)
 // for user-facing listings like /agents. An empty Model means inherit and an
 // empty Tools list means the parent's tools are inherited.
@@ -32,8 +18,16 @@ type SubagentInfo struct {
 	Source      string   `json:"source"`
 }
 
+// ToolManifestLookup resolves a tool's manifest by name, so callers can ask
+// for its policy (read-only, plan mode, default approval) without knowing
+// which bounded context defines the tool.
+type ToolManifestLookup interface {
+	Manifest(name string) ToolManifest
+}
+
 // ToolService handles tool execution
 type ToolService interface {
+	ToolManifestLookup
 	ListTools() []sdk.ChatCompletionTool
 	ListToolsForMode(mode AgentMode) []sdk.ChatCompletionTool
 	ListAvailableTools() []string

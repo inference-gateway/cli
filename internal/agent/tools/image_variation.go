@@ -30,9 +30,14 @@ func NewImageVariationTool(cfg *config.Config, imageService agentdomain.ImageSer
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *ImageVariationTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolImageVariation).WithRequireApproval(t.config.Tools.ImageVariation.RequireApproval)
+}
+
 // Definition returns the tool definition for ImageVariation
 func (t *ImageVariationTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("ImageVariation", t.config.Prompts.Tools.ImageVariation.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.ImageVariation.Description)
 }
 
 // Validate validates ImageVariation arguments
@@ -73,7 +78,7 @@ func (t *ImageVariationTool) Execute(ctx context.Context, args map[string]any) (
 	path, err := t.imageService.CreateImageVariation(ctx, model, image, size)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ImageVariation",
+			ToolName:  ToolImageVariation,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -82,7 +87,7 @@ func (t *ImageVariationTool) Execute(ctx context.Context, args map[string]any) (
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ImageVariation",
+		ToolName:  ToolImageVariation,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -128,7 +133,7 @@ func (t *ImageVariationTool) FormatForLLM(result *agentdomain.ToolExecutionResul
 	}
 	path, _ := data["path"].(string)
 	size, _ := data["size"].(string)
-	formatter := agentinfra.NewBaseFormatter("ImageVariation")
+	formatter := agentinfra.NewBaseFormatter(ToolImageVariation)
 	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (size: %s)", path, size))
 }
 

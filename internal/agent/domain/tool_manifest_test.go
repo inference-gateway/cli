@@ -69,6 +69,29 @@ func TestParseToolManifest_Policy(t *testing.T) {
 	}
 }
 
+func TestToolManifest_RequiresApproval(t *testing.T) {
+	yes, no := true, false
+	tests := []struct {
+		name       string
+		manifest   ToolManifest
+		configured *bool
+		inherited  bool
+		want       bool
+	}{
+		{name: "inherits the global setting", inherited: true, want: true},
+		{name: "manifest default beats the global setting", manifest: ToolManifest{RequireApproval: &no}, inherited: true, want: false},
+		{name: "configured setting beats the manifest default", manifest: ToolManifest{RequireApproval: &no}, configured: &yes, want: true},
+		{name: "configured setting beats the global setting", configured: &no, inherited: true, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.manifest.WithRequireApproval(tt.configured).RequiresApproval(tt.inherited); got != tt.want {
+				t.Errorf("RequiresApproval = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestParseCustomToolManifest_RequiresCommand(t *testing.T) {
 	if _, err := ParseCustomToolManifest([]byte(validManifest)); err == nil || !strings.Contains(err.Error(), "command is required") {
 		t.Fatalf("error = %v, want a missing command to be rejected", err)

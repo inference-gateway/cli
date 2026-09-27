@@ -40,7 +40,7 @@ func NewGrepTool(cfg *config.Config) *GrepTool {
 	tool := &GrepTool{
 		config:         cfg,
 		enabled:        cfg.Tools.Enabled && cfg.Tools.Grep.Enabled,
-		formatter:      agentinfra.NewBaseFormatter("Grep"),
+		formatter:      agentinfra.NewBaseFormatter(ToolGrep),
 		gitignoreCache: make(map[string]*ignore.GitIgnore),
 	}
 	tool.loadGitignore()
@@ -82,9 +82,14 @@ func (t *GrepTool) detectRipgrep() {
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *GrepTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolGrep).WithRequireApproval(t.config.Tools.Grep.RequireApproval)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *GrepTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("Grep", t.config.Prompts.Tools.Grep.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.Grep.Description)
 }
 
 // Execute runs the grep tool with given arguments
@@ -97,7 +102,7 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	pattern, ok := args["pattern"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Grep",
+			ToolName:  ToolGrep,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -116,7 +121,7 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	success := err == nil
 
 	toolResult := &agentdomain.ToolExecutionResult{
-		ToolName:  "Grep",
+		ToolName:  ToolGrep,
 		Arguments: args,
 		Success:   success,
 		Duration:  time.Since(start),

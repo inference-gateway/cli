@@ -34,14 +34,19 @@ type A2AQueryAgentResult struct {
 func NewA2AQueryAgentTool(cfg *config.Config) *A2AQueryAgentTool {
 	return &A2AQueryAgentTool{
 		config: cfg,
-		formatter: agentinfra.NewCustomFormatter("A2A_QueryAgent", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolA2AQueryAgent, func(key string) bool {
 			return key == "metadata"
 		}),
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *A2AQueryAgentTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolA2AQueryAgent).WithRequireApproval(t.config.A2A.Tools.QueryAgent.RequireApproval)
+}
+
 func (t *A2AQueryAgentTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("A2A_QueryAgent", t.config.Prompts.Tools.A2AQueryAgent.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.A2AQueryAgent.Description)
 }
 
 func (t *A2AQueryAgentTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
@@ -49,7 +54,7 @@ func (t *A2AQueryAgentTool) Execute(ctx context.Context, args map[string]any) (*
 
 	if !t.IsEnabled() {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "A2A_QueryAgent",
+			ToolName:  ToolA2AQueryAgent,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
@@ -76,7 +81,7 @@ func (t *A2AQueryAgentTool) Execute(ctx context.Context, args map[string]any) (*
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "A2A_QueryAgent",
+		ToolName:  ToolA2AQueryAgent,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
@@ -93,7 +98,7 @@ func (t *A2AQueryAgentTool) Execute(ctx context.Context, args map[string]any) (*
 
 func (t *A2AQueryAgentTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*agentdomain.ToolExecutionResult, error) {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "A2A_QueryAgent",
+		ToolName:  ToolA2AQueryAgent,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(startTime),

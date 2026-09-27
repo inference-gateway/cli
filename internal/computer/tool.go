@@ -40,9 +40,14 @@ func NewComputerTool(cfg *config.Config, limiter rateLimiter) *ComputerTool {
 	return &ComputerTool{config: cfg, executor: NewExecutor(cfg), rateLimiter: limiter}
 }
 
+// Manifest returns the tool's manifest so the tool registry knows its policy.
+func (t *ComputerTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolComputer)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *ComputerTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("Computer", t.config.Prompts.Tools.Computer.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.Computer.Description)
 }
 
 // parseAction maps tool arguments onto a domain Action.
@@ -112,7 +117,7 @@ func (t *ComputerTool) Execute(ctx context.Context, args map[string]any) (*agent
 		return nil, err
 	}
 	if t.rateLimiter != nil {
-		if err := t.rateLimiter.CheckAndRecord("Computer"); err != nil {
+		if err := t.rateLimiter.CheckAndRecord(ToolComputer); err != nil {
 			return nil, err
 		}
 	}
@@ -120,7 +125,7 @@ func (t *ComputerTool) Execute(ctx context.Context, args map[string]any) (*agent
 	obs, err := t.executor.Do(ctx, a)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Computer",
+			ToolName:  ToolComputer,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -129,7 +134,7 @@ func (t *ComputerTool) Execute(ctx context.Context, args map[string]any) (*agent
 	}
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "Computer",
+		ToolName:  ToolComputer,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

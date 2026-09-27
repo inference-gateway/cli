@@ -463,7 +463,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	if c.extensionBridge != nil {
 		c.extensionBridge.SetToolExecution(c.toolService,
-			agent.NewStandardApprovalPolicy(c.config, c.stateManager),
+			agent.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService),
 			c.modelService, c.stateManager, c.config.Agent.Model)
 		c.extensionBridge.SetHistoryStorage(c.GetShellHistoryStorage())
 	}

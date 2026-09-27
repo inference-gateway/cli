@@ -46,9 +46,14 @@ func NewSendSubagentInputTool(cfg *config.Config, tracker scheddomain.SubagentTr
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *SendSubagentInputTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolSendSubagentInput)
+}
+
 // Definition returns the tool definition for the LLM.
 func (t *SendSubagentInputTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("SendSubagentInput", t.config.Prompts.Tools.SendSubagentInput.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.SendSubagentInput.Description)
 }
 
 // Execute sends the input to the named subagent's pane.
@@ -98,7 +103,7 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 		msg += " Use ReadSubagentScreen to see the result."
 	}
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "SendSubagentInput",
+		ToolName:  ToolSendSubagentInput,
 		Arguments: args,
 		Success:   true,
 		Data: map[string]any{
@@ -113,7 +118,7 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 
 func (t *SendSubagentInputTool) fail(args map[string]any, msg string) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "SendSubagentInput",
+		ToolName:  ToolSendSubagentInput,
 		Arguments: args,
 		Success:   false,
 		Error:     msg,

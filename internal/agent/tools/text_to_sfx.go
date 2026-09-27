@@ -29,9 +29,14 @@ func NewTextToSFXTool(cfg *config.Config, sfx agentdomain.SoundEffectService) *T
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *TextToSFXTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolTextToSFX).WithRequireApproval(t.config.TextToSFX.RequireApproval)
+}
+
 // Definition returns the tool definition for TextToSFX
 func (t *TextToSFXTool) Definition() sdk.ChatCompletionTool {
-	return toolManifests.Definition("TextToSFX", t.config.Prompts.Tools.TextToSFX.Description)
+	return t.Manifest().Definition(t.config.Prompts.Tools.TextToSFX.Description)
 }
 
 // Validate validates TextToSFX arguments
@@ -113,7 +118,7 @@ func (t *TextToSFXTool) Execute(ctx context.Context, args map[string]any) (*agen
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToSFX",
+		ToolName:  ToolTextToSFX,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -127,7 +132,7 @@ func (t *TextToSFXTool) Execute(ctx context.Context, args map[string]any) (*agen
 // failure builds the failed ToolExecutionResult for Execute.
 func (t *TextToSFXTool) failure(start time.Time, args map[string]any, err error) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToSFX",
+		ToolName:  ToolTextToSFX,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),
@@ -167,7 +172,7 @@ func (t *TextToSFXTool) FormatForLLM(result *agentdomain.ToolExecutionResult) st
 	}
 	path, _ := data["path"].(string)
 	summary := fmt.Sprintf("Sound effect saved to %s", path)
-	formatter := agentinfra.NewBaseFormatter("TextToSFX")
+	formatter := agentinfra.NewBaseFormatter(ToolTextToSFX)
 	return formatter.FormatExpanded(result, summary)
 }
 
