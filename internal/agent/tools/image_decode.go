@@ -43,7 +43,7 @@ func (t *ImageDecodeTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *ImageDecodeTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.ImageDecode.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute returns the image as an attachment (vision models see it natively)

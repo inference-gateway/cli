@@ -32,7 +32,7 @@ func (t *GetSubagentResultTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM.
 func (t *GetSubagentResultTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.GetSubagentResult.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute returns the latest output of the named subagent.

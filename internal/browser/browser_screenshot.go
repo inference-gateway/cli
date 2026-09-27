@@ -42,7 +42,7 @@ func (t *BrowserScreenshotTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *BrowserScreenshotTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.BrowserScreenshot.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute captures the screenshot and returns it as an attached image

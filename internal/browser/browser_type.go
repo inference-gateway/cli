@@ -38,7 +38,7 @@ func (t *BrowserTypeTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *BrowserTypeTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.BrowserType.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the browser type tool with given arguments

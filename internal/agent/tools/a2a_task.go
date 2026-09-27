@@ -105,7 +105,7 @@ func (t *A2ASubmitTaskTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.A2ASubmitTask.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute submits a task to an A2A agent. The agent's latest tracked task is

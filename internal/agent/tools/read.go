@@ -58,7 +58,7 @@ func (t *ReadTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *ReadTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.Read.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the read tool with given arguments

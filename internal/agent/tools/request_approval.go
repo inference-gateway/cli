@@ -42,7 +42,7 @@ func (t *RequestApprovalTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM.
 func (t *RequestApprovalTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.RequestApproval.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute escalates one judge-rejected call to the user and returns the

@@ -111,12 +111,9 @@ func TestToolManifest_Definition(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	def := manifest.Definition("")
+	def := manifest.Definition()
 	if *def.Function.Description != "Echoes its input." {
 		t.Errorf("description = %q, want the manifest's", *def.Function.Description)
-	}
-	if got := *manifest.Definition("override").Function.Description; got != "override" {
-		t.Errorf("description = %q, want the override", got)
 	}
 
 	required, ok := (*def.Function.Parameters)["required"].([]string)
@@ -125,7 +122,7 @@ func TestToolManifest_Definition(t *testing.T) {
 	}
 	PropertySchema(def, "text")["enum"].([]string)[0] = "changed"
 	required[0] = "changed"
-	fresh := manifest.Definition("")
+	fresh := manifest.Definition()
 	if PropertySchema(fresh, "text")["enum"].([]string)[0] != "a" || (*fresh.Function.Parameters)["required"].([]string)[0] != "text" {
 		t.Error("modifying a definition must not leak into the manifest")
 	}

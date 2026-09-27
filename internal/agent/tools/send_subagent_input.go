@@ -53,7 +53,7 @@ func (t *SendSubagentInputTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM.
 func (t *SendSubagentInputTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.SendSubagentInput.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute sends the input to the named subagent's pane.

@@ -70,7 +70,7 @@ func (t *MemoryTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM.
 func (t *MemoryTool) Definition() sdk.ChatCompletionTool {
-	def := t.Manifest().Definition(t.config.Prompts.Tools.Memory.Description)
+	def := t.Manifest().Definition()
 	agentdomain.PropertySchema(def, "content")["description"] = fmt.Sprintf("The fact body in Markdown, at most %d characters. Required for write.", t.config.Memory.EffectiveMaxEntryChars())
 	return def
 }

@@ -51,7 +51,7 @@ func (t *A2AQueryTaskTool) Manifest() agentdomain.ToolManifest {
 }
 
 func (t *A2AQueryTaskTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.A2AQueryTask.Description)
+	return t.Manifest().Definition()
 }
 
 func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {

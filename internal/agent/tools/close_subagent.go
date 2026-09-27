@@ -43,7 +43,7 @@ func (t *CloseSubagentTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM.
 func (t *CloseSubagentTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.CloseSubagent.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute closes the named subagent.

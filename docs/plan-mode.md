@@ -187,27 +187,20 @@ flow:
 
 Plan mode itself has no separate config - it ships with the CLI. You can
 customise the per-mode adjustment instructions (delivered by the mode-change
-reminder, not the system prompt) and the tool description in
-`.infer/prompts.yaml`:
+reminder, not the system prompt) in `.infer/prompts.yaml`:
 
 ```yaml
 agent:
   mode_adjustment_plan: |-
     # your custom plan-mode adjustment instructions
-tools:
-  RequestPlanApproval:
-    description: |-
-      # your custom tool description
 ```
 
 Empty fields fall back to the built-in reminder guidance (see
 `config/reminders.go::defaultModeChangeGuidance`; it is user-overridable via
 the `guidance.plan` key of the mode-change reminder in reminders.yaml).
 Because these instructions ride the mode-change reminder, they are not
-delivered when `reminders.enabled: false`. Environment-variable overrides:
-
-- `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN`
-- `INFER_PROMPTS_TOOLS_REQUEST_PLAN_APPROVAL_DESCRIPTION`
+delivered when `reminders.enabled: false`. Environment-variable override:
+`INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN`.
 
 ## Related
 

@@ -45,7 +45,7 @@ func (t *ReadSubagentScreenTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM.
 func (t *ReadSubagentScreenTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.ReadSubagentScreen.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute captures the named subagent's terminal screen.

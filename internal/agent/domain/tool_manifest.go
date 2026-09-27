@@ -2,7 +2,6 @@ package domain
 
 import (
 	"bytes"
-	"cmp"
 	"fmt"
 	"io/fs"
 	"path"
@@ -155,11 +154,10 @@ func (m ToolManifest) OfferedInMode(mode AgentMode) bool {
 	}
 }
 
-// Definition builds the definition sent to the model. A non-empty description,
-// a user override from prompts.yaml, replaces the manifest's. The parameters
-// are a deep copy, so the caller may adjust them.
-func (m ToolManifest) Definition(description string) sdk.ChatCompletionTool {
-	description = cmp.Or(description, m.Description)
+// Definition builds the definition sent to the model. The parameters are a
+// deep copy, so the caller may adjust them.
+func (m ToolManifest) Definition() sdk.ChatCompletionTool {
+	description := m.Description
 	parameters, _ := cloneSchema(m.Parameters).(map[string]any)
 	functionParameters := sdk.FunctionParameters(parameters)
 	return sdk.ChatCompletionTool{

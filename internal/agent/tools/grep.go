@@ -89,7 +89,7 @@ func (t *GrepTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *GrepTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.Grep.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the grep tool with given arguments

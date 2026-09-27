@@ -65,7 +65,7 @@ func (t *EditTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *EditTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.Edit.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the edit tool with given arguments

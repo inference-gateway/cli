@@ -40,7 +40,7 @@ func (t *ListSubagentsTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM.
 func (t *ListSubagentsTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.ListSubagents.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute lists all tracked subagents.

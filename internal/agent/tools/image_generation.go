@@ -50,7 +50,7 @@ func (t *ImageGenerationTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for ImageGeneration
 func (t *ImageGenerationTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.ImageGeneration.Description)
+	return t.Manifest().Definition()
 }
 
 // Validate validates ImageGeneration arguments

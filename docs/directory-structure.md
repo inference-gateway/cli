@@ -120,8 +120,7 @@ project wants to override a config file it commits its own sparse
   settings. Edit by hand or via `infer config ...`. Full option-by-option
   reference: [Configuration Reference](configuration-reference.md).
 - **`prompts.yaml`** - system prompts the LLM sees (agent, git,
-  conversation, init, tools). Tool descriptions live under
-  `tools.<ToolName>.description`.
+  conversation, init, vision).
 - **`keybindings.yaml`** - keyboard shortcuts for the chat TUI. Edit via
   `infer keybindings set/disable/reset` or by hand.
 - **`channels.yaml`** - remote messaging transports (Telegram, ...) and

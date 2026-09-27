@@ -57,7 +57,7 @@ func (t *AskUserQuestionTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM.
 func (t *AskUserQuestionTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.AskUserQuestion.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute presents the questions to the user and returns their answers. The

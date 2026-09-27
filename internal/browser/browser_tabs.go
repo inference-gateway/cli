@@ -40,7 +40,7 @@ func (t *BrowserTabsTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *BrowserTabsTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.BrowserTabs.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute lists the open tabs

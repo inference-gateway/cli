@@ -37,7 +37,7 @@ func (t *ImageVariationTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for ImageVariation
 func (t *ImageVariationTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.ImageVariation.Description)
+	return t.Manifest().Definition()
 }
 
 // Validate validates ImageVariation arguments

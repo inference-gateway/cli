@@ -49,7 +49,7 @@ func (t *ImageEditTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for ImageEdit
 func (t *ImageEditTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.ImageEdit.Description)
+	return t.Manifest().Definition()
 }
 
 // Validate validates ImageEdit arguments

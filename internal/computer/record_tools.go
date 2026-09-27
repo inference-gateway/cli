@@ -35,11 +35,7 @@ func (t *recordTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *recordTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.RecordStart.Description
-	if t.stop {
-		description = t.config.Prompts.Tools.RecordStop.Description
-	}
-	return t.Manifest().Definition(description)
+	return t.Manifest().Definition()
 }
 
 // parseRecordRequest maps RecordStart arguments onto a request, rejecting

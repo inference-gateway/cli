@@ -36,7 +36,7 @@ func (t *TodoWriteTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *TodoWriteTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.TodoWrite.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the TodoWrite tool with given arguments

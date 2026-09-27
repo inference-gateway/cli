@@ -43,7 +43,7 @@ func (t *ApproveSubagentTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM.
 func (t *ApproveSubagentTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.ApproveSubagent.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute relays the decision to the named subagent's pane.

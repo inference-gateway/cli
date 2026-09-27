@@ -54,7 +54,7 @@ func (t *WebSearchTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *WebSearchTool) Definition() sdk.ChatCompletionTool {
-	def := t.Manifest().Definition(t.config.Prompts.Tools.WebSearch.Description)
+	def := t.Manifest().Definition()
 	engine := agentdomain.PropertySchema(def, "engine")
 	engine["enum"] = t.engines()
 	engine["default"] = t.config.Tools.WebSearch.DefaultEngine

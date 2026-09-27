@@ -52,7 +52,7 @@ func (t *MultiEditTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *MultiEditTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.MultiEdit.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the multi-edit tool with given arguments

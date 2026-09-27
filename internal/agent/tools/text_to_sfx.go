@@ -36,7 +36,7 @@ func (t *TextToSFXTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for TextToSFX
 func (t *TextToSFXTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.TextToSFX.Description)
+	return t.Manifest().Definition()
 }
 
 // Validate validates TextToSFX arguments

@@ -683,30 +683,6 @@ infer config set tools.grep.backend ripgrep
 infer config set tools.web_fetch.allowed_domains "example.com,github.com"
 ```
 
-**Customising Tool Descriptions:**
-
-The description each tool exposes to the LLM is configurable in
-`.infer/prompts.yaml` under the `tools` key - useful when a model
-misinterprets a default or when you want to nudge usage:
-
-```yaml
-# .infer/prompts.yaml
-tools:
-  Bash:
-    description: |-
-      Execute allowed bash commands securely. Only pre-approved
-      commands from the allowed list can be executed.
-  Read:
-    description: |-
-      Reads a file from the local filesystem. Always prefer reading
-      whole files unless the file is very large.
-```
-
-Any tool you omit falls back to the in-code default. Env-var override:
-`INFER_PROMPTS_TOOLS_<UPPER_SNAKE_NAME>_DESCRIPTION` (e.g.
-`INFER_PROMPTS_TOOLS_BASH_DESCRIPTION`). MCP tool descriptions are not
-configurable here - they come from the MCP server at runtime.
-
 See [Tools Reference](docs/tools-reference.md) for complete documentation.
 
 ## Configuration

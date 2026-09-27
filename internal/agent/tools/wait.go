@@ -48,7 +48,7 @@ func (t *WaitTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM.
 func (t *WaitTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.Wait.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the Wait tool with given arguments.

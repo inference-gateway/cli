@@ -126,7 +126,7 @@ func (t *AgentTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM.
 func (t *AgentTool) Definition() sdk.ChatCompletionTool {
-	def := t.Manifest().Definition(t.config.Prompts.Tools.Agent.Description)
+	def := t.Manifest().Definition()
 	if list := t.markdownAgentCatalog(); list != "" {
 		description := *def.Function.Description + "\n\n" + list
 		def.Function.Description = &description

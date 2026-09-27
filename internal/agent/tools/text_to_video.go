@@ -45,7 +45,7 @@ func (t *TextToVideoTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for TextToVideo
 func (t *TextToVideoTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.TextToVideo.Description)
+	return t.Manifest().Definition()
 }
 
 // Validate validates TextToVideo arguments

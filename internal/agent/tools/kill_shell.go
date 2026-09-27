@@ -34,7 +34,7 @@ func (t *KillShellTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the SDK
 func (t *KillShellTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.KillShell.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute cancels a background shell

@@ -58,7 +58,7 @@ func (t *WriteTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *WriteTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.Write.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the write tool with given arguments

@@ -54,7 +54,7 @@ func (t *RequestPlanApprovalTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *RequestPlanApprovalTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.RequestPlanApproval.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the RequestPlanApproval tool with given arguments. It persists

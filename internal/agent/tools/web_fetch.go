@@ -53,7 +53,7 @@ func (t *WebFetchTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *WebFetchTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.WebFetch.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the fetch tool with given arguments

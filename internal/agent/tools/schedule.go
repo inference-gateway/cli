@@ -61,7 +61,7 @@ func (t *ScheduleTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *ScheduleTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.Schedule.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the Schedule tool with the given arguments.

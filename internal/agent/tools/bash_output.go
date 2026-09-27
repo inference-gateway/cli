@@ -34,7 +34,7 @@ func (t *BashOutputTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the SDK
 func (t *BashOutputTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.BashOutput.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute retrieves output from a background shell

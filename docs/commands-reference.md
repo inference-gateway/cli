@@ -161,8 +161,8 @@ infer config set tools.web_fetch.allowed_domains "example.com,github.com"
 infer config set agent.model "openai/gpt-4o" --project
 ```
 
-> System prompts and per-tool descriptions live in `prompts.yaml` (e.g.
-> `prompts.agent.system_prompt`), which is edited directly rather than via `config set`.
+> System prompts live in `prompts.yaml` (e.g. `prompts.agent.system_prompt`), which is edited
+> directly rather than via `config set`.
 
 Tool *configuration* (enable/disable, allowed, sandbox, backends, domains, approval) is done with
 `config get`/`config set` on the `tools.*` keys - see the examples above. To run a tool directly or

@@ -41,7 +41,7 @@ func (t *CreateAvatarTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for CreateAvatar
 func (t *CreateAvatarTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.CreateAvatar.Description)
+	return t.Manifest().Definition()
 }
 
 // Validate validates CreateAvatar arguments. The avatar name's form and an

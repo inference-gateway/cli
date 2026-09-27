@@ -49,7 +49,7 @@ func (t *TreeTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *TreeTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.Tree.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the tree tool with given arguments

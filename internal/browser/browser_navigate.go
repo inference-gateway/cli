@@ -39,7 +39,7 @@ func (t *BrowserNavigateTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *BrowserNavigateTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.BrowserNavigate.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the browser navigate tool with given arguments

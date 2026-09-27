@@ -44,7 +44,7 @@ func (t *TextToSpeechTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for TextToSpeech
 func (t *TextToSpeechTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.TextToSpeech.Description)
+	return t.Manifest().Definition()
 }
 
 // Validate validates TextToSpeech arguments

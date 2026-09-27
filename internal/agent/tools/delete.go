@@ -38,7 +38,7 @@ func (t *DeleteTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *DeleteTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.Delete.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the delete tool with given arguments

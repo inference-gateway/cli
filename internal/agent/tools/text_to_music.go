@@ -36,7 +36,7 @@ func (t *TextToMusicTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for TextToMusic
 func (t *TextToMusicTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.TextToMusic.Description)
+	return t.Manifest().Definition()
 }
 
 // Validate validates TextToMusic arguments

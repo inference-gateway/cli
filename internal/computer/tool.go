@@ -47,7 +47,7 @@ func (t *ComputerTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *ComputerTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.Computer.Description)
+	return t.Manifest().Definition()
 }
 
 // parseAction maps tool arguments onto a domain Action.

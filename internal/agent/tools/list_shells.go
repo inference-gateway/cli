@@ -34,7 +34,7 @@ func (t *ListShellsTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *ListShellsTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.ListShells.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute lists all background shells

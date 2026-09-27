@@ -64,7 +64,7 @@ func (t *BashTool) Manifest() agentdomain.ToolManifest {
 // instead; off-list commands still execute via approval (chat) or are rejected
 // with a reason (agent mode).
 func (t *BashTool) Definition() sdk.ChatCompletionTool {
-	return t.Manifest().Definition(t.config.Prompts.Tools.Bash.Description)
+	return t.Manifest().Definition()
 }
 
 // Execute runs the bash tool with given arguments

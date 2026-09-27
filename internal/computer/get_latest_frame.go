@@ -71,7 +71,7 @@ func (t *GetLatestFrameTool) Manifest() agentdomain.ToolManifest {
 
 // Definition returns the tool definition for the LLM
 func (t *GetLatestFrameTool) Definition() sdk.ChatCompletionTool {
-	def := t.Manifest().Definition(t.config.Prompts.Tools.GetLatestFrame.Description)
+	def := t.Manifest().Definition()
 	agentdomain.PropertySchema(def, "source")["description"] = fmt.Sprintf("Frame source name. Configured sources: %s. Defaults to the only source, or \"screen\" when present.", strings.Join(t.sources.FrameSourceNames(), ", "))
 	return def
 }
