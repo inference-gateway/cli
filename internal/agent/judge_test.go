@@ -151,6 +151,29 @@ func TestUserIntents_RootAndLatest(t *testing.T) {
 		t.Errorf("single message: userIntents() = %q/%q, want empty root and only ask", root, latest)
 	}
 
+	textPart, err := sdk.NewTextContentPart("remove the status on the left")
+	if err != nil {
+		t.Fatal(err)
+	}
+	imagePart, err := sdk.NewImageContentPart("data:image/jpeg;base64,AAAA", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.GetMessagesReturns([]convdomain.ConversationEntry{
+		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent([]sdk.ContentPart{textPart, imagePart})}},
+	})
+	if _, latest := userIntents(repo); !strings.Contains(latest, "remove the status on the left") {
+		t.Errorf("multimodal message: latest = %q, want its text part", latest)
+	}
+
+	repo.GetMessagesReturns([]convdomain.ConversationEntry{
+		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("execute the approved plan")}, Hidden: true},
+		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("reminder")}, Hidden: true},
+	})
+	if root, latest := userIntents(repo); root != "" || latest != "execute the approved plan" {
+		t.Errorf("hidden-only: userIntents() = %q/%q, want empty root and the first hidden message", root, latest)
+	}
+
 	if root, latest := userIntents(nil); root != "" || latest != "" {
 		t.Errorf("userIntents(nil) = %q/%q, want empty", root, latest)
 	}
