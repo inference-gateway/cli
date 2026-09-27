@@ -24,14 +24,14 @@ The CLI connects to A2A agents using their URL endpoints through the ADK client 
 
 ## Usage
 
-### Using the /agents Shortcut
+### Managing Agent Configuration
 
-The `/agents` shortcut provides command-line interface for managing A2A agent configurations:
+Use the `infer agents` commands to manage A2A agent configurations:
 
 #### List A2A Agents
 
 ```bash
-/agents list
+infer agents list
 ```
 
 This displays a list of all configured A2A agents showing:
@@ -46,7 +46,7 @@ This displays a list of all configured A2A agents showing:
 #### Add an Agent
 
 ```bash
-/agents add my-agent http://localhost:8081 --run --model openai/gpt-4
+infer agents add my-agent http://localhost:8081 --run --model openai/gpt-4
 ```
 
 Options:
@@ -60,7 +60,7 @@ Options:
 #### Remove an Agent
 
 ```bash
-/agents remove my-agent
+infer agents remove my-agent
 ```
 
 ### Using the A2A Tools
@@ -232,7 +232,7 @@ Notes:
 
 ### A2A Tool Configuration
 
-**Note**: The `/agents` shortcut is used for **agent configuration management**,
+**Note**: The `infer agents` commands are used for **agent configuration management**,
 while the A2A tools below are used for **runtime interaction** with configured agents.
 
 A2A tools are configured in the `a2a.tools` section of your configuration:
@@ -346,14 +346,14 @@ Enable verbose logging and check for:
 
 ## Examples
 
-### Agent Configuration with /agents Shortcut
+### Agent Configuration with the infer agents CLI
 
 ```bash
-# First, configure an agent using the /agents shortcut
-/agents add code-reviewer http://localhost:8081 --run --model openai/gpt-4 --environment GITHUB_TOKEN=xxx
+# First, configure an agent with the CLI
+infer agents add code-reviewer http://localhost:8081 --run --model openai/gpt-4 --environment GITHUB_TOKEN=xxx
 
 # List configured agents
-/agents list
+infer agents list
 ```
 
 ### Code Review Task
