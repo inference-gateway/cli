@@ -40,6 +40,7 @@ type RecordingConfig struct {
 	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
 	Framerate       int    `yaml:"framerate" mapstructure:"framerate"`
 	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	HideCursor      bool   `yaml:"hide_cursor" mapstructure:"hide_cursor"`
 }
 
 // ApprovalRequired reports whether RecordStart must be approved outside
