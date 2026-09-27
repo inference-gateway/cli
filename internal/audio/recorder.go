@@ -14,6 +14,8 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
+	binariesinfra "github.com/inference-gateway/cli/internal/binaries/infrastructure"
 )
 
 // recordGraceSeconds is how long past the requested duration a capture tool is
@@ -39,7 +41,7 @@ type silenceRunner func(ctx context.Context, name string, args []string) error
 // pattern used by the clipboard text writer. It adds no CGO.
 type Recorder struct {
 	cfg      config.SpeechToTextConfig
-	binaries *BinaryStore
+	binaries binariesdomain.Store
 
 	// run, runSilence and lookPath are overridable in tests.
 	run        commandRunner
@@ -51,7 +53,7 @@ type Recorder struct {
 func NewRecorder(cfg config.SpeechToTextConfig) *Recorder {
 	return &Recorder{
 		cfg:        cfg,
-		binaries:   NewBinaryStore(cfg),
+		binaries:   binariesinfra.NewStore(cfg.AutoDownload),
 		run:        execRun,
 		runSilence: runFFmpegWithSilenceStop,
 		lookPath:   exec.LookPath,
@@ -59,15 +61,16 @@ func NewRecorder(cfg config.SpeechToTextConfig) *Recorder {
 }
 
 // ffmpegBin returns the ffmpeg binary to invoke: an explicit configured path or
-// a PATH lookup, then a prebuilt binary in ~/.infer/bin (downloaded on first use
-// when auto_download is enabled), mirroring the transcriber and converter. It
-// falls back to the plain name so callers still report the usual install hint.
+// a PATH lookup, then a prebuilt binary in ~/.infer/bin/tools (installed and
+// upgraded on first use when auto_download is enabled), mirroring the
+// transcriber and converter. It falls back to the plain name so callers still
+// report the usual install hint.
 func (r *Recorder) ffmpegBin(ctx context.Context) string {
 	if bin, err := resolveFFmpeg(r.cfg.FFmpegPath, r.lookPath); err == nil {
 		return bin
 	}
 	if r.cfg.AutoDownload && r.binaries != nil {
-		if path, err := r.binaries.EnsureBinary(ctx, "ffmpeg"); err == nil {
+		if path, err := r.binaries.Ensure(ctx, binariesdomain.FFmpeg); err == nil {
 			return path
 		}
 	}

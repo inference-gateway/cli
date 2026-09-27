@@ -7,6 +7,7 @@ import (
 	"os/exec"
 
 	config "github.com/inference-gateway/cli/config"
+	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
 )
 
 // Converter converts arbitrary audio files into Whisper-ready 16kHz mono WAV.
@@ -15,10 +16,10 @@ import (
 type Converter struct {
 	ffmpegPath string
 
-	// ensureBinary, when set, downloads a prebuilt ffmpeg into ~/.infer/bin as
-	// a last resort after config-path and PATH resolution fail (see
-	// BinaryStore, injected via SetBinaryEnsurer to avoid an import cycle).
-	ensureBinary func(ctx context.Context, name string) (string, error)
+	// ensureBinary, when set, installs a prebuilt ffmpeg into ~/.infer/bin/tools
+	// as a last resort after config-path and PATH resolution fail (the binaries
+	// context's Store, injected via SetBinaryEnsurer to keep Converter testable).
+	ensureBinary func(ctx context.Context, name binariesdomain.Name) (string, error)
 
 	// run and lookPath are overridable in tests.
 	run      commandRunner
@@ -27,7 +28,7 @@ type Converter struct {
 
 // SetBinaryEnsurer installs a fallback that resolves (downloading if needed) a
 // named binary when it is not found on PATH.
-func (c *Converter) SetBinaryEnsurer(f func(ctx context.Context, name string) (string, error)) {
+func (c *Converter) SetBinaryEnsurer(f func(ctx context.Context, name binariesdomain.Name) (string, error)) {
 	c.ensureBinary = f
 }
 
@@ -45,7 +46,7 @@ func NewConverter(cfg config.SpeechToTextConfig) *Converter {
 func (c *Converter) ToWhisperWAV(ctx context.Context, srcPath string) (string, error) {
 	ffmpeg, err := resolveFFmpeg(c.ffmpegPath, c.lookPath)
 	if err != nil && c.ensureBinary != nil {
-		if path, dlErr := c.ensureBinary(ctx, "ffmpeg"); dlErr == nil {
+		if path, dlErr := c.ensureBinary(ctx, binariesdomain.FFmpeg); dlErr == nil {
 			ffmpeg, err = path, nil
 		}
 	}

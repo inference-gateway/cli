@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	binariesmocks "github.com/inference-gateway/cli/tests/mocks/binaries"
+
 	config "github.com/inference-gateway/cli/config"
 )
 
@@ -191,21 +193,16 @@ func TestRecordNoRecorder(t *testing.T) {
 	}
 }
 
-// TestRecordUsesDownloadedFFmpeg checks the recorder falls back to the prebuilt
-// ~/.infer/bin/ffmpeg when none is on PATH, like the converter and transcriber.
-func TestRecordUsesDownloadedFFmpeg(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	binDir := filepath.Join(home, config.ConfigDirName, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		t.Fatalf("mkdir bin: %v", err)
-	}
-	want := filepath.Join(binDir, "ffmpeg"+exeSuffix())
-	if err := os.WriteFile(want, []byte("#!fake-ffmpeg"), 0o755); err != nil {
-		t.Fatalf("write fake ffmpeg: %v", err)
-	}
+// TestRecordUsesEnsuredFFmpeg checks the recorder falls back to the binary the
+// binaries context ensured (~/.infer/bin/tools/ffmpeg) when none is on PATH,
+// like the converter and transcriber.
+func TestRecordUsesEnsuredFFmpeg(t *testing.T) {
+	want := filepath.Join(t.TempDir(), "ffmpeg")
 
 	r := NewRecorder(config.SpeechToTextConfig{AutoDownload: true})
+	store := &binariesmocks.FakeStore{}
+	store.EnsureReturns(want, nil)
+	r.binaries = store
 	r.lookPath = func(name string) (string, error) {
 		if name == want {
 			return name, nil
@@ -224,6 +221,6 @@ func TestRecordUsesDownloadedFFmpeg(t *testing.T) {
 	}
 	defer func() { _ = os.Remove(out) }()
 	if gotName != want {
-		t.Errorf("Record ran %q, want downloaded %q", gotName, want)
+		t.Errorf("Record ran %q, want the ensured %q", gotName, want)
 	}
 }

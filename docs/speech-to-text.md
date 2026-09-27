@@ -69,6 +69,34 @@ slower and heavier:
 Append `.en` (e.g. `base.en`) for English-only variants. You can also pass a full filename
 (`ggml-small.bin`) or place a model in `models_dir` manually and set `auto_download: false`.
 
+## Prebuilt binaries
+
+When a required tool is neither configured nor on `PATH` and `auto_download` is on, the CLI installs
+the prebuilt binary from [inference-gateway/binaries](https://github.com/inference-gateway/binaries)
+into `~/.infer/bin/tools` (the shared location Desktop and opentask use too). It runs the release's
+[install.sh](https://github.com/inference-gateway/binaries/blob/main/install.sh) (downloads through
+`gh` when authenticated, `curl` otherwise) and verifies every binary against the release's
+`checksums.txt`; on Windows without a POSIX shell a Go fallback downloader applies the same rule.
+An existing binary is kept when it matches the release and replaced when it does not; if the
+release cannot be reached (offline), the existing binary is kept as-is.
+
+The CLI is the single owner of these binaries on a local machine, and you can drive it directly:
+
+```bash
+# Read-only report; exits non-zero unless everything is current
+infer binaries status            # all tools
+infer binaries status ffmpeg     # one tool
+
+# Install or upgrade (no names = whisper-cli ffmpeg llama-tts)
+infer binaries install
+infer binaries install ffmpeg --version v0.5.0
+```
+
+`status` is on the default approval-free bash allow-list, so an agent can check availability
+without a prompt and only needs approval for an actual install. Legacy copies under
+`~/.infer/bin/` (the old download location) are removed automatically once the tools dir holds
+current ones.
+
 ## Using `/voice` in chat
 
 1. Type `/voice` and press Enter - recording starts immediately.

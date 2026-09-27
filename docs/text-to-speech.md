@@ -22,7 +22,7 @@ Two synthesis engines are available, selected by `text_to_speech.engine`:
   in the path; the CLI downloads the binary and models itself.
 
 Whichever side synthesizes also owns the downloads, and both fill the same
-caches (`~/.infer/bin`, `~/.infer/models/tts`), so switching engines never
+caches (`~/.infer/bin/tools`, `~/.infer/models/tts`), so switching engines never
 re-downloads what the other already fetched.
 
 The feature is **disabled by default**: while `text_to_speech.enabled` is
@@ -67,16 +67,17 @@ binary):
 
 | Tool | Used for | Install |
 | --- | --- | --- |
-| `llama-tts` | Synthesis | Auto-downloaded from the [binaries release](https://github.com/inference-gateway/binaries/releases) into `~/.infer/bin` when `auto_download` is on; or install llama.cpp yourself and set `text_to_speech.binary_path`. **A self-built binary needs `qwen3tts` architecture support** - see below |
+| `llama-tts` | Synthesis | Installed from the [binaries release](https://github.com/inference-gateway/binaries/releases) into `~/.infer/bin/tools` when `auto_download` is on (or with `infer binaries install`); or install llama.cpp yourself and set `text_to_speech.binary_path`. **A self-built binary needs `qwen3tts` architecture support** - see below |
 | `ffmpeg` | Normalizing the voice sample (16kHz mono WAV, 30s cap) | Auto-downloaded the same way; or `brew install ffmpeg` / `apt install ffmpeg` |
 
 ffmpeg is only needed for voice cloning (stock-voice synthesis passes text
 straight to `llama-tts`). Both binaries are resolved from config/`PATH` first
-and only downloaded (sha256-verified, per-platform assets for Linux, macOS and
-Windows) as a fallback - the same release and `~/.infer/bin` cache the
-gateway's `local/qwen3-tts` engine uses. If a required tool is missing and
-`auto_download` is off, the CLI reports an actionable error naming what to
-install - it never fails silently.
+and only installed (sha256-verified against the release, per-platform assets
+for Linux, macOS and Windows) as a fallback - the same release and
+`~/.infer/bin/tools` cache the gateway's `local/qwen3-tts` engine uses, and
+`infer binaries status`/`install` manage both directly. If a required tool is
+missing and `auto_download` is off, the CLI reports an actionable error naming
+what to install - it never fails silently.
 
 Building `llama-tts` from llama.cpp yourself is one cmake invocation, e.g.
 `cmake -B build -DGGML_NATIVE=ON && cmake --build build --target llama-tts`.
@@ -141,10 +142,12 @@ automatically. You can also pass explicit filenames as
 manually, and set `auto_download: false`.
 
 The `llama-tts` binary itself is resolved from `binary_path`, then from
-`PATH`, and finally auto-downloaded from the
+`PATH`, and finally installed from the
 [binaries release](https://github.com/inference-gateway/binaries/releases)
-into `~/.infer/bin` (sha256-verified), like ffmpeg. Set `auto_download: false`
-to require a locally installed build instead.
+into `~/.infer/bin/tools` (sha256-verified, like ffmpeg), where a stale
+download is upgraded. `infer binaries status`/`install` manage the tools
+directly. Set `auto_download: false` to require a locally installed build
+instead.
 
 ## Using the agent tool
 
