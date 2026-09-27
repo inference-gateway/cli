@@ -37,12 +37,21 @@ var autocompleteKeys = struct {
 	esc:     key.NewBinding(key.WithKeys("esc")),
 }
 
+// Kinds for ShortcutOption: where a "/" suggestion came from, mirroring the
+// desktop composer's badges.
+const (
+	KindCommand     = "command"
+	KindShortcut    = "shortcut"
+	KindSkill       = "skill"
+	KindRemoteSkill = "remote skill"
+)
+
 // ShortcutOption represents a shortcut option for autocomplete
 type ShortcutOption struct {
 	Shortcut    string
 	Description string
 	Usage       string
-	Catalog     bool
+	Kind        string
 	Matches     []int
 }
 
@@ -216,6 +225,7 @@ func (a *Autocomplete) loadShortcuts() {
 			Shortcut:    "/" + shortcut.GetName(),
 			Description: shortcut.GetDescription(),
 			Usage:       shortcut.GetUsage(),
+			Kind:        shortcutKind(shortcut),
 		})
 	}
 
@@ -243,7 +253,7 @@ func (a *Autocomplete) appendSkills(seen map[string]bool) {
 			Shortcut:    "/" + displayName,
 			Description: skill.Description,
 			Usage:       "",
-			Catalog:     skill.Path == "",
+			Kind:        skillKind(skill),
 		})
 	}
 }
@@ -265,9 +275,27 @@ func (a *Autocomplete) loadSkillsOnly() {
 			Shortcut:    "/" + displayName,
 			Description: skill.Description,
 			Usage:       "",
-			Catalog:     skill.Path == "",
+			Kind:        skillKind(skill),
 		})
 	}
+}
+
+// shortcutKind labels a registry entry: YAML-defined *CustomShortcut entries
+// are "shortcut", every other registered shortcut is a built-in "command".
+func shortcutKind(shortcut shortcuts.Shortcut) string {
+	if _, ok := shortcut.(*shortcuts.CustomShortcut); ok {
+		return KindShortcut
+	}
+	return KindCommand
+}
+
+// skillKind labels a skill by its scope: catalog entries are not installed yet
+// and download on first use, everything else is already installed.
+func skillKind(skill agentdomain.Skill) string {
+	if skill.Scope == agentdomain.SkillScopeCatalog {
+		return KindRemoteSkill
+	}
+	return KindSkill
 }
 
 // SubcommandProvider is an interface for shortcuts that provide subcommands
@@ -293,6 +321,7 @@ func (a *Autocomplete) loadSubcommands(shortcutName string) {
 						Shortcut:    subCmd.Name,
 						Description: subCmd.Description,
 						Usage:       fmt.Sprintf("/%s %s", shortcutName, subCmd.Name),
+						Kind:        shortcutKind(shortcut),
 					})
 				}
 			}
@@ -936,9 +965,10 @@ func (a *Autocomplete) Render() string {
 	var b strings.Builder
 	start, end := a.calculateVisibleRange()
 	maxShortcutWidth := a.calculateMaxShortcutWidth()
-	descWidth := a.calculateDescriptionWidth(maxShortcutWidth)
+	kindWidth := a.calculateKindWidth()
+	descWidth := a.calculateDescriptionWidth(maxShortcutWidth, kindWidth)
 
-	a.renderItems(&b, start, end, maxShortcutWidth, descWidth)
+	a.renderItems(&b, start, end, maxShortcutWidth, kindWidth, descWidth)
 	a.renderHelpText(&b)
 
 	return b.String()
@@ -994,10 +1024,28 @@ func (a *Autocomplete) calculateMaxShortcutWidth() int {
 	return maxShortcutWidth
 }
 
-// calculateDescriptionWidth calculates the width for description display
-func (a *Autocomplete) calculateDescriptionWidth(maxShortcutWidth int) int {
+// calculateKindWidth returns the widest kind label among the filtered rows so
+// all rows share one aligned kind column; zero when the list carries no labels
+// (models, tools, files, issues).
+func (a *Autocomplete) calculateKindWidth() int {
+	kindWidth := 0
+	for _, cmd := range a.filtered {
+		if w := ansi.StringWidth(cmd.Kind); w > kindWidth {
+			kindWidth = w
+		}
+	}
+	return kindWidth
+}
+
+// calculateDescriptionWidth calculates the width for description display,
+// reserving room for the kind column when the list carries labels.
+func (a *Autocomplete) calculateDescriptionWidth(maxShortcutWidth, kindWidth int) int {
 	const reservedSpace = 7
-	descWidth := a.width - maxShortcutWidth - reservedSpace
+	reserved := reservedSpace
+	if kindWidth > 0 {
+		reserved += 2 + kindWidth
+	}
+	descWidth := a.width - maxShortcutWidth - reserved
 	if descWidth < 20 {
 		descWidth = 20
 	}
@@ -1013,7 +1061,7 @@ func (a *Autocomplete) getShortcutDisplayText(cmd ShortcutOption) string {
 }
 
 // renderItems renders all visible autocomplete items
-func (a *Autocomplete) renderItems(b *strings.Builder, start, end, maxShortcutWidth, descWidth int) {
+func (a *Autocomplete) renderItems(b *strings.Builder, start, end, maxShortcutWidth, kindWidth, descWidth int) {
 	const leftPadding = "  "
 
 	for i := start; i < end; i++ {
@@ -1031,7 +1079,7 @@ func (a *Autocomplete) renderItems(b *strings.Builder, start, end, maxShortcutWi
 			paddedDescription = " │ " + formatting.PadText(cmd.Description, descWidth)
 		}
 
-		a.renderItem(b, i == a.selected, leftPadding, marker, paddedShortcut, paddedDescription, cmd.Catalog)
+		a.renderItem(b, i == a.selected, leftPadding, marker, paddedShortcut, paddedDescription, cmd.Kind, kindWidth)
 
 		if i < end-1 {
 			b.WriteString("\n")
@@ -1039,32 +1087,39 @@ func (a *Autocomplete) renderItems(b *strings.Builder, start, end, maxShortcutWi
 	}
 }
 
-// renderItem renders a single autocomplete item. catalog entries (skills that
-// live in the remote catalog and are not installed yet) are painted in the
-// status color so they read as "available, but will be downloaded first".
-func (a *Autocomplete) renderItem(b *strings.Builder, selected bool, leftPadding, marker, paddedShortcut, paddedDescription string, catalog bool) {
+// renderItem renders a single autocomplete item. The kind tag (command,
+// shortcut, skill, remote skill) renders dim in its own column after the name;
+// remote skills keep the status-colored name so they still read as "downloaded
+// on first use".
+func (a *Autocomplete) renderItem(b *strings.Builder, selected bool, leftPadding, marker, paddedShortcut, paddedDescription, kind string, kindWidth int) {
 	nameColor := ""
-	if catalog {
+	if kind == KindRemoteSkill {
 		nameColor = a.theme.GetStatusColor()
 	}
+	paddedKind := ""
+	if kindWidth > 0 {
+		paddedKind = formatting.PadText(kind, kindWidth)
+	}
 	if selected {
-		line := fmt.Sprintf("%s%s%s%s%s%s%s%s",
+		line := fmt.Sprintf("%s%s%s%s%s%s%s%s%s",
 			leftPadding,
 			a.theme.GetAccentColor(),
 			marker,
 			nameColor,
 			paddedShortcut,
 			a.theme.GetDimColor(),
+			paddedKind,
 			paddedDescription,
 			colors.Reset)
 		b.WriteString(line)
 	} else {
-		line := fmt.Sprintf("%s%s%s%s%s%s%s",
+		line := fmt.Sprintf("%s%s%s%s%s%s%s%s",
 			leftPadding,
 			marker,
 			nameColor,
 			paddedShortcut,
 			a.theme.GetDimColor(),
+			paddedKind,
 			paddedDescription,
 			colors.Reset)
 		b.WriteString(line)

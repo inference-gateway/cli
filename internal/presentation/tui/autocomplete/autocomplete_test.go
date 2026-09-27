@@ -900,3 +900,99 @@ func TestAutocomplete_FileMode(t *testing.T) {
 		assert.Equal(t, len("look at @internal/agent/tools/registry.go "), ac.GetCompletionCursorPos())
 	})
 }
+
+// TestAutocomplete_KindLabels locks in the per-row kind tags: built-in registry
+// shortcuts label "command", YAML *CustomShortcut entries "shortcut", installed
+// skills "skill" and catalog skills "remote skill", in both the start-of-input
+// slash list and the mid-text skills list.
+func TestAutocomplete_KindLabels(t *testing.T) {
+	builtin := &shortcutsmocks.FakeShortcut{}
+	builtin.GetNameReturns("agents")
+	builtin.GetDescriptionReturns("Show agents view")
+
+	custom := shortcuts.NewCustomShortcut(shortcuts.CustomShortcutConfig{
+		Name:        "git",
+		Description: "Git helper",
+	}, nil, nil, nil, nil)
+
+	mockRegistry := &tuimocks.FakeShortcutRegistry{}
+	mockRegistry.GetAllReturns([]shortcuts.Shortcut{builtin, custom})
+
+	skillsSvc := &agentdomainmocks.FakeSkillsService{}
+	skillsSvc.ListReturns([]agentdomain.Skill{
+		{Name: "rust", Description: "Idiomatic Rust", Scope: agentdomain.SkillScopeUser},
+		{Name: "maintainer", Description: "Maintain the org", Scope: agentdomain.SkillScopeCatalog},
+	})
+
+	theme := &tuimocks.FakeTheme{}
+	theme.GetDimColorReturns("#808080")
+
+	t.Run("start-of-input slash list labels every kind", func(t *testing.T) {
+		ac := autocomplete.NewAutocomplete(theme, mockRegistry)
+		ac.SetSkillsService(skillsSvc)
+		ac.Update("/", 1)
+		assert.True(t, ac.IsVisible())
+		rendered := ansi.Strip(ac.Render())
+		assertRowKind(t, rendered, "/agents", "command")
+		assertRowKind(t, rendered, "/git", "shortcut")
+		assertRowKind(t, rendered, "/rust", "skill")
+		assertRowKind(t, rendered, "/maintainer", "remote skill")
+	})
+
+	t.Run("mid-text skills completion shows the same labels", func(t *testing.T) {
+		ac := autocomplete.NewAutocomplete(theme, mockRegistry)
+		ac.SetSkillsService(skillsSvc)
+		input := "use /"
+		ac.Update(input, len(input))
+		assert.True(t, ac.IsVisible())
+		rendered := ansi.Strip(ac.Render())
+		assertRowKind(t, rendered, "/rust", "skill")
+		assertRowKind(t, rendered, "/maintainer", "remote skill")
+		assert.NotContains(t, rendered, "command")
+		assert.NotContains(t, rendered, "shortcut")
+	})
+
+	t.Run("remote skill rows keep the status-colored name", func(t *testing.T) {
+		theme := &tuimocks.FakeTheme{}
+		theme.GetDimColorReturns("#808080")
+		theme.GetStatusColorReturns("\x1b[33m")
+		ac := autocomplete.NewAutocomplete(theme, mockRegistry)
+		ac.SetSkillsService(skillsSvc)
+		ac.Update("/mai", 4)
+		assert.True(t, ac.IsVisible())
+		assert.Contains(t, ac.Render(), "\x1b[33m", "remote skill names stay status-colored")
+	})
+
+	t.Run("labels stay readable at narrow widths", func(t *testing.T) {
+		ac := autocomplete.NewAutocomplete(theme, mockRegistry)
+		ac.SetSkillsService(skillsSvc)
+		ac.SetWidth(60)
+		ac.Update("/", 1)
+		assert.True(t, ac.IsVisible())
+		assert.Contains(t, ansi.Strip(ac.Render()), "remote skill", "the kind label must not be truncated away")
+		lines := strings.Split(ansi.Strip(ac.Render()), "\n")
+		for i, line := range lines[:4] {
+			assert.Equal(t, ansi.StringWidth(lines[0]), ansi.StringWidth(line),
+				"row %d must align with the others; columns are padded by display width", i)
+		}
+	})
+}
+
+// assertRowKind finds the suggestion row for shortcut and asserts its kind tag
+// sits between the name and the description separator.
+func assertRowKind(t *testing.T, rendered, shortcut, kind string) {
+	t.Helper()
+	for _, line := range strings.Split(rendered, "\n") {
+		if !strings.Contains(line, shortcut) {
+			continue
+		}
+		afterName := line[strings.Index(line, shortcut)+len(shortcut):]
+		tag := afterName
+		if sep := strings.Index(afterName, " │ "); sep >= 0 {
+			tag = afterName[:sep]
+		}
+		assert.Contains(t, tag, kind, "row %q must carry the %q label", shortcut, kind)
+		return
+	}
+	t.Fatalf("no row for %s in:\n%s", shortcut, rendered)
+}
