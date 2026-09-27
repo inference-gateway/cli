@@ -13,6 +13,8 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
+	binariesinfra "github.com/inference-gateway/cli/internal/binaries/infrastructure"
 )
 
 // defaultSynthesisTimeoutSeconds is the fallback when text_to_speech.timeout is
@@ -29,7 +31,7 @@ const maxVoiceSampleSeconds = 30
 type Synthesizer struct {
 	cfg      config.TextToSpeechConfig
 	models   *TTSModelStore
-	binaries *BinaryStore
+	binaries binariesdomain.Store
 
 	run      commandRunner
 	lookPath func(string) (string, error)
@@ -37,11 +39,10 @@ type Synthesizer struct {
 
 // NewSynthesizer creates a synthesizer from the text-to-speech config.
 func NewSynthesizer(cfg config.TextToSpeechConfig) *Synthesizer {
-	binaries := NewBinaryStore(config.SpeechToTextConfig{AutoDownload: cfg.AutoDownload})
 	return &Synthesizer{
 		cfg:      cfg,
 		models:   NewTTSModelStore(cfg),
-		binaries: binaries,
+		binaries: binariesinfra.NewStore(cfg.AutoDownload),
 		run:      execRun,
 		lookPath: exec.LookPath,
 	}
@@ -99,8 +100,8 @@ func (s *Synthesizer) Synthesize(ctx context.Context, text, voiceSamplePath, out
 }
 
 // resolveBinary returns the configured llama-tts binary, finds it on PATH, or
-// auto-downloads it from the binaries release into ~/.infer/bin - the same
-// resolution order and cache the gateway's local engine uses.
+// auto-installs it from the binaries release into ~/.infer/bin/tools - the
+// same resolution order and cache the gateway's local engine uses.
 func (s *Synthesizer) resolveBinary(ctx context.Context) (string, error) {
 	if p := strings.TrimSpace(s.cfg.BinaryPath); p != "" {
 		if _, err := s.lookPath(p); err == nil {
@@ -117,7 +118,7 @@ func (s *Synthesizer) resolveBinary(ctx context.Context) (string, error) {
 	}
 
 	if s.cfg.AutoDownload {
-		path, err := s.binaries.EnsureBinary(ctx, "llama-tts")
+		path, err := s.binaries.Ensure(ctx, binariesdomain.LlamaTTS)
 		if err != nil {
 			return "", fmt.Errorf("downloading llama-tts: %w", err)
 		}
@@ -134,7 +135,7 @@ func (s *Synthesizer) resolveBinary(ctx context.Context) (string, error) {
 func (s *Synthesizer) normalizeVoiceSample(ctx context.Context, srcPath string) (string, error) {
 	ffmpeg, err := resolveFFmpeg(s.cfg.FFmpegPath, s.lookPath)
 	if err != nil && s.cfg.AutoDownload {
-		if path, dlErr := s.binaries.EnsureBinary(ctx, "ffmpeg"); dlErr == nil {
+		if path, dlErr := s.binaries.Ensure(ctx, binariesdomain.FFmpeg); dlErr == nil {
 			ffmpeg, err = path, nil
 		}
 	}

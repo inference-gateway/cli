@@ -17,7 +17,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	audio "github.com/inference-gateway/cli/internal/audio"
+	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
+	binariesinfra "github.com/inference-gateway/cli/internal/binaries/infrastructure"
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	capture "github.com/inference-gateway/cli/internal/computer/infrastructure/capture"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
@@ -418,16 +419,15 @@ func stderrTail(rec *recording) string {
 	return "no error output"
 }
 
-// resolveFFmpeg prefers ffmpeg on PATH and otherwise downloads the prebuilt
-// binary into ~/.infer/bin.
-// ponytail: no capability probe or re-download of an outdated ~/.infer/bin
-// build; it is shared with the gateway and speech tools, and the startup
-// check reports a missing encoder with the fix.
+// resolveFFmpeg prefers ffmpeg on PATH and otherwise installs the prebuilt
+// binary into ~/.infer/bin/tools (upgrading a stale download).
+// ponytail: no capability probe; a build missing libx264 is diagnosed at the
+// startup check, which reports a missing encoder with the fix.
 func resolveFFmpeg(ctx context.Context) (string, error) {
 	if path, err := exec.LookPath("ffmpeg"); err == nil {
 		return path, nil
 	}
-	path, err := audio.NewBinaryStore(config.SpeechToTextConfig{AutoDownload: true}).EnsureBinary(ctx, "ffmpeg")
+	path, err := binariesinfra.NewStore(true).Ensure(ctx, binariesdomain.FFmpeg)
 	if err != nil {
 		return "", fmt.Errorf("ffmpeg is not on PATH and downloading it failed: %w; install ffmpeg (e.g. `brew install ffmpeg`, `apt install ffmpeg`)", err)
 	}

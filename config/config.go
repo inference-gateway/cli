@@ -1218,6 +1218,7 @@ func DefaultConfig() *Config { //nolint:funlen
 						`gh project (list|view|item-list|field-list)( .*)?`,
 						`gh api repos/[^ ]+/contents/[^ ]+`,
 						`gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?`,
+						`infer binaries status( .*)?`,
 					}},
 					Plan:     BashModeAllowConfig{Allow: []string{}},
 					Standard: BashModeAllowConfig{Allow: []string{}},

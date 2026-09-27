@@ -493,6 +493,30 @@ The headless command supports multimodal content for vision-capable models:
 
 ## Utility Commands
 
+### `infer binaries`
+
+Manage the prebuilt tools (`whisper-cli`, `ffmpeg`, `llama-tts`) published by
+[inference-gateway/binaries](https://github.com/inference-gateway/binaries) in
+`~/.infer/bin/tools`. The CLI is the single owner of these binaries on a local
+machine: install.sh verifies against the release's `checksums.txt` and replaces
+any binary whose sha256 differs (a matching one is kept).
+
+**Subcommands:**
+
+- `install [name...]`: Install or upgrade via the release's `install.sh`; no
+  names means all tools. `--version <tag>` pins a release (default latest).
+- `status [name...]`: Read-only report of each binary as `missing`, `stale` or
+  `current` against the latest release; exits non-zero unless all are current.
+  On the default approval-free bash allow-list, so agents can check without a
+  prompt.
+
+**Examples:**
+
+```bash
+infer binaries status ffmpeg
+infer binaries install --version v0.5.0
+```
+
 ### `infer status`
 
 Check the status of the inference gateway including health checks and resource usage.

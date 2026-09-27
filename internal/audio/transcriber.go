@@ -10,6 +10,8 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
+	binariesinfra "github.com/inference-gateway/cli/internal/binaries/infrastructure"
 )
 
 // nonSpeechMarkerRe matches whisper.cpp's bracketed non-speech annotations (e.g.
@@ -25,7 +27,7 @@ var whisperBinaryCandidates = []string{"whisper-cli", "whisper-cpp"}
 type WhisperTranscriber struct {
 	cfg      config.SpeechToTextConfig
 	models   *ModelStore
-	binaries *BinaryStore
+	binaries binariesdomain.Store
 
 	// run and lookPath are overridable in tests.
 	run      commandRunner
@@ -37,7 +39,7 @@ func NewWhisperTranscriber(cfg config.SpeechToTextConfig) *WhisperTranscriber {
 	return &WhisperTranscriber{
 		cfg:      cfg,
 		models:   NewModelStore(cfg),
-		binaries: NewBinaryStore(cfg),
+		binaries: binariesinfra.NewStore(cfg.AutoDownload),
 		run:      execRun,
 		lookPath: exec.LookPath,
 	}
@@ -84,7 +86,8 @@ func (w *WhisperTranscriber) Transcribe(ctx context.Context, wavPath string) (st
 
 // resolveBinary returns the whisper binary to invoke: an explicit configured
 // path first, then PATH lookup of the known names, then a prebuilt binary in
-// ~/.infer/bin (downloaded on first use when auto_download is enabled).
+// ~/.infer/bin/tools (installed/upgraded on first use when auto_download is
+// enabled).
 func (w *WhisperTranscriber) resolveBinary(ctx context.Context) (string, error) {
 	if p := strings.TrimSpace(w.cfg.BinaryPath); p != "" {
 		if _, err := w.lookPath(p); err == nil {
@@ -103,7 +106,7 @@ func (w *WhisperTranscriber) resolveBinary(ctx context.Context) (string, error) 
 	}
 
 	if w.cfg.AutoDownload && w.binaries != nil {
-		if path, err := w.binaries.EnsureBinary(ctx, "whisper-cli"); err == nil {
+		if path, err := w.binaries.Ensure(ctx, binariesdomain.WhisperCLI); err == nil {
 			return path, nil
 		}
 	}
