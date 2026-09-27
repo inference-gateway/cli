@@ -1417,8 +1417,9 @@ Two lightweight extension points fire at fixed **agent-loop hook points** - `pre
   full table). Reminders ship **enabled** with nine defaults: `todo-hygiene` (nudges the agent to
   keep a todo list), `mode-change-reminder`, `user-intent-focus`, `repeated-failure`,
   `todo-continuation`, `truncation-continuation`, `empty-response-continuation`, and the memory
-  reminders `memory-consult` (points it at the memory index) and `memory-hygiene`; the memory ones
-  are auto-pruned when memory is off.
+  reminders `memory-consult` (points it at the memory index) and `memory-hygiene` (one nudge after
+  25 turns to save what a future session would otherwise miss); the memory ones are auto-pruned
+  when memory is off.
 - **Command Hooks** (`hooks.yaml`) run a shell command at a hook point - the executable sibling of
   reminders. They are **off by default**; each command still faces the per-mode bash allow-list when
   the agent runs it, so allow-list the command and set `enabled: true` to turn hooks on.
