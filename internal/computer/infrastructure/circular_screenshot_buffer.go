@@ -178,6 +178,9 @@ func (b *CircularScreenshotBuffer) writeToDisk(screenshot *agentdomain.Frame) er
 	if extension == "" {
 		extension = "png"
 	}
+	if err := os.MkdirAll(b.tempDir, 0755); err != nil {
+		return fmt.Errorf("failed to create screenshot directory: %w", err)
+	}
 	filename := filepath.Join(b.tempDir, fmt.Sprintf("screenshot-%s.%s", screenshot.ID, extension))
 	if err := os.WriteFile(filename, imageData, 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)

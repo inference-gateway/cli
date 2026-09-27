@@ -180,3 +180,13 @@ func TestCircularScreenshotBufferCleanup(t *testing.T) {
 	_, statErr := os.Stat(buf.tempDir)
 	assert.True(t, os.IsNotExist(statErr), "session temp dir must be removed")
 }
+
+func TestCircularScreenshotBufferRecreatesDeletedDir(t *testing.T) {
+	buf := newTestBuffer(t, 3)
+	require.NoError(t, os.RemoveAll(buf.tempDir))
+
+	frame := testFrame("after-prune")
+	require.NoError(t, buf.Add(frame))
+	require.NotEmpty(t, frame.Path, "frame must be written to disk after its directory was pruned")
+	assert.FileExists(t, frame.Path)
+}
