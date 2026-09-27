@@ -155,20 +155,30 @@ func (s *ScreenshotServer) startCaptureLoop() {
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 
-	if err := s.captureScreenshot(); err != nil {
-		logger.Warn("screenshot capture failed", "error", err)
-	}
-
+	failing := logCaptureResult(s.captureScreenshot(), false)
 	for {
 		select {
 		case <-s.captureCtx.Done():
 			return
 		case <-ticker.C:
-			if err := s.captureScreenshot(); err != nil {
-				logger.Warn("screenshot capture failed", "error", err)
-			}
+			failing = logCaptureResult(s.captureScreenshot(), failing)
 		}
 	}
+}
+
+// logCaptureResult warns once when capture starts failing and logs once when it
+// recovers, so a screen that stays locked or unpermitted for hours doesn't flood
+// the log with one warning per tick. It reports whether capture is now failing.
+func logCaptureResult(err error, failing bool) bool {
+	switch {
+	case err != nil && !failing:
+		logger.Warn("screenshot capture failed, suppressing repeats until it recovers", "error", err)
+	case err != nil:
+		logger.Debug("screenshot capture still failing", "error", err)
+	case failing:
+		logger.Info("screenshot capture recovered")
+	}
+	return err != nil
 }
 
 // captureScreenshot captures a screenshot and adds it to the buffer
