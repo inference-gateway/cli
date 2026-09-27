@@ -12,6 +12,7 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // Registry manages all available shortcuts
@@ -30,7 +31,9 @@ func NewRegistry() *Registry {
 // LoadCustomShortcuts loads user-defined shortcuts from each base directory in
 // turn, so config.ConfigLookupDirs() can pass the userspace baseline followed by
 // the project override: later directories overlay earlier ones by shortcut name
-// rather than replacing the whole set.
+// rather than replacing the whole set. A custom shortcut never shadows a
+// built-in one (registered first), which keeps an init-seeded file like
+// ~/.infer/shortcuts/a2a.yaml from hiding /agents.
 func (r *Registry) LoadCustomShortcuts(baseDirs []string, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -42,11 +45,27 @@ func (r *Registry) LoadCustomShortcuts(baseDirs []string, client sdk.Client, mod
 		}
 
 		for _, shortcut := range customShortcuts {
-			r.shortcuts[shortcut.GetName()] = shortcut
+			name := shortcut.GetName()
+			if existing, exists := r.shortcuts[name]; exists {
+				if _, isCustom := existing.(*CustomShortcut); !isCustom {
+					logger.Warn("ignoring custom shortcut that shadows a built-in shortcut", "name", name, "file", customShortcutSourceFile(shortcut))
+					continue
+				}
+			}
+			r.shortcuts[name] = shortcut
 		}
 	}
 
 	return nil
+}
+
+// customShortcutSourceFile names the YAML file a custom shortcut was loaded
+// from, for warnings; empty for anything else.
+func customShortcutSourceFile(shortcut Shortcut) string {
+	if cs, ok := shortcut.(*CustomShortcut); ok {
+		return cs.sourceFile
+	}
+	return ""
 }
 
 // Register adds a shortcut to the registry
