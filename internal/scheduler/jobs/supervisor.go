@@ -201,7 +201,7 @@ func (s *Supervisor) onSignal(sj *supervised, sig scheddomain.JobSignal) {
 	}
 
 	if sig.Enqueue && sig.Note != "" {
-		s.enqueue(sig.Note)
+		s.enqueue(sig.Note, sj.meta.Kind)
 	}
 }
 
@@ -252,7 +252,7 @@ func (s *Supervisor) finish(sj *supervised, result agentdomain.ToolExecutionResu
 
 	if !sj.meta.Silent {
 		res := result
-		s.enqueue(s.formatResult(sj.job, sj.meta, &res))
+		s.enqueue(s.formatResult(sj.job, sj.meta, &res), sj.meta.Kind)
 	}
 }
 
@@ -344,16 +344,31 @@ func asRetainer(job scheddomain.BackgroundJob) scheddomain.TaskRetainer {
 // pushes a DrainQueueEvent so an idle agent on the chat view starts a turn to
 // read it. The gate (HandleDrainQueueEvent) drops the event when the agent is
 // busy or off-chat; that work is then picked up at the next turn completion or on
-// returning to chat.
-func (s *Supervisor) enqueue(content string) {
+// returning to chat. The entry carries the job kind's queue source so the UI
+// can tell job results from typed messages.
+func (s *Supervisor) enqueue(content string, kind scheddomain.JobKind) {
 	if s.messageQueue == nil {
 		return
 	}
 	s.messageQueue.Enqueue(sdk.Message{
 		Role:    sdk.User,
 		Content: sdk.NewMessageContent(content),
-	}, "system")
+	}, queueSourceForKind(kind), "system")
 	s.notify(agentdomain.DrainQueueEvent{})
+}
+
+// queueSourceForKind maps a background job kind to its queued-message source.
+func queueSourceForKind(kind scheddomain.JobKind) convdomain.QueuedMessageSource {
+	switch kind {
+	case scheddomain.JobKindA2A:
+		return convdomain.QueueSourceA2A
+	case scheddomain.JobKindShell:
+		return convdomain.QueueSourceShell
+	case scheddomain.JobKindSubagent:
+		return convdomain.QueueSourceSubagent
+	default:
+		return convdomain.QueueSourceJob
+	}
 }
 
 // Wind delivers a graceful wind-down or hard stop to a single running job by id.

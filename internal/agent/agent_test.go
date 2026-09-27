@@ -1515,7 +1515,7 @@ func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
 	}
 
 	queue := conv.NewMessageQueueService()
-	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hi")}, "req-1")
+	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hi")}, convdomain.QueueSourceComposer, "req-1")
 
 	repo := &convmocks.FakeConversationRepository{}
 
@@ -1587,7 +1587,7 @@ func TestAgentServiceImpl_BatchDrainQueue_IdempotentOnRepairedConversation(t *te
 	}
 
 	queue := conv.NewMessageQueueService()
-	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("u2")}, "req-x")
+	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("u2")}, convdomain.QueueSourceComposer, "req-x")
 
 	repo := &convmocks.FakeConversationRepository{}
 	svc := &Agent{

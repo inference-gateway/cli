@@ -800,8 +800,11 @@ from `PATH`, otherwise installs the prebuilt binary into `~/.infer/bin/tools` (u
 - Linux: an X11 session (`x11grab`). Wayland is not supported yet.
 - Windows: `gdigrab`, no extra permission.
 
-`RecordStart` always requires approval, except in auto-accept mode: chat prompts, and headless
-follows `approval_behaviour` (IPC with `--require-approval`, otherwise blocked). `RecordStop` follows
+`RecordStart` requires approval, except in auto-accept mode or with
+`computer_use.recording.require_approval: false`: chat prompts, and headless follows
+`approval_behaviour` (IPC with `--require-approval`, otherwise blocked). Unattended runs with no
+approver (CI on a virtual display) set `INFER_COMPUTER_USE_RECORDING_REQUIRE_APPROVAL=false`, after
+which `RecordStart` follows `computer_use.approval` like `RecordStop`. `RecordStop` follows
 `computer_use.approval`: under `destructive` it counts as an observation and bypasses approval;
 under `always` it requires it.
 

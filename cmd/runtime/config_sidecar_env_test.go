@@ -36,6 +36,32 @@ func TestApplySidecarEnv_StrictScalars(t *testing.T) {
 	}
 }
 
+// INFER_COMPUTER_USE_RECORDING_REQUIRE_APPROVAL is how headless CI (infer-action)
+// lets RecordStart run without an approval broker; unset must keep approval on.
+func TestApplySidecarEnv_RecordingRequireApproval(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+		want bool
+	}{
+		{"unset keeps approval", "", true},
+		{"false skips approval", "false", false},
+		{"true keeps approval", "true", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != "" {
+				t.Setenv("INFER_COMPUTER_USE_RECORDING_REQUIRE_APPROVAL", tt.env)
+			}
+			cfg := &config.Config{ComputerUse: *config.DefaultComputerUseConfig()}
+			applySidecarEnv(&cfg.ComputerUse, "computer_use")
+			if got := cfg.ComputerUse.Recording.ApprovalRequired(); got != tt.want {
+				t.Errorf("ApprovalRequired() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // TestInitConfigMCPEnvOverrides pins that INFER_MCP_* env vars must
 // override the mcp.yaml sidecar (or its defaults when the file is missing)
 // instead of being dropped when the sidecar load replaces cfg.MCP wholesale.

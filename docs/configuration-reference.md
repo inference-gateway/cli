@@ -231,6 +231,7 @@ chat:
       a2a_agents: true
       tools: true
       background_shells: true
+      queue: true
       mcp: true
       context_usage: true
       session_tokens: true
@@ -383,6 +384,8 @@ recording:
   max_duration: 120 # seconds; a recording stops and finalizes itself at this cap
   output_dir: "" # empty = ~/.infer/tmp/recordings
   framerate: 24 # frames per second
+  require_approval: true # unset = true; false lets RecordStart run unattended (headless CI)
+  hide_cursor: false # true leaves the mouse pointer out of recordings
 ```
 
 - **computer_use.recording.enabled**: Register the recording tools (default: false)
@@ -391,10 +394,16 @@ recording:
 - **computer_use.recording.output_dir**: Where recordings are written (default:
   `~/.infer/tmp/recordings`, created on first use)
 - **computer_use.recording.framerate**: Capture frame rate (default: 24; must be positive when enabled)
+- **computer_use.recording.require_approval**: Whether `RecordStart` needs approval outside
+  auto-accept mode (default: true). Set it to false for unattended runs that have no approver,
+  such as headless CI recording a virtual display; `RecordStart` then follows `computer_use.approval`
+- **computer_use.recording.hide_cursor**: Leave the mouse pointer out of recordings (default:
+  false). Useful for terminal demos on a virtual display, where the idle pointer sits mid-screen
 
 Environment overrides: `INFER_COMPUTER_USE_RECORDING_ENABLED`,
 `INFER_COMPUTER_USE_RECORDING_MAX_DURATION`, `INFER_COMPUTER_USE_RECORDING_OUTPUT_DIR`,
-`INFER_COMPUTER_USE_RECORDING_FRAMERATE`.
+`INFER_COMPUTER_USE_RECORDING_FRAMERATE`, `INFER_COMPUTER_USE_RECORDING_REQUIRE_APPROVAL`,
+`INFER_COMPUTER_USE_RECORDING_HIDE_CURSOR`.
 
 ### Compact Settings
 
@@ -607,6 +616,8 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
     - **a2a_agents**: A2A agent readiness (ready/total) (default: `true`)
     - **tools**: Tool count and token usage (default: `true`)
     - **background_shells**: Running background shell count (default: `true`)
+    - **queue**: Messages waiting in the queue while the agent is busy (default: `true`)
+      - Shows a `☰ N queued` segment in the accent color while the shared message queue has entries; hidden once it drains
     - **mcp**: MCP server status and tool count (default: `true`)
     - **context_usage**: Token consumption percentage (default: `true`)
     - **session_tokens**: Session token usage statistics, plus the `C.` cached-tokens segment when the provider reports cache hits (default: `true`)
@@ -632,6 +643,7 @@ chat:
       a2a_agents: true
       tools: true
       background_shells: false # Hide background shells indicator
+      queue: true            # Show queued-message indicator while the agent is busy
       mcp: true
       context_usage: true
       session_tokens: true

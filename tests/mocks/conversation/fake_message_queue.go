@@ -23,11 +23,12 @@ type FakeMessageQueue struct {
 	dequeueReturnsOnCall map[int]struct {
 		result1 *domain.QueuedMessage
 	}
-	EnqueueStub        func(sdk.Message, string)
+	EnqueueStub        func(sdk.Message, domain.QueuedMessageSource, string)
 	enqueueMutex       sync.RWMutex
 	enqueueArgsForCall []struct {
 		arg1 sdk.Message
-		arg2 string
+		arg2 domain.QueuedMessageSource
+		arg3 string
 	}
 	GetAllStub        func() []domain.QueuedMessage
 	getAllMutex       sync.RWMutex
@@ -150,17 +151,18 @@ func (fake *FakeMessageQueue) DequeueReturnsOnCall(i int, result1 *domain.Queued
 	}{result1}
 }
 
-func (fake *FakeMessageQueue) Enqueue(arg1 sdk.Message, arg2 string) {
+func (fake *FakeMessageQueue) Enqueue(arg1 sdk.Message, arg2 domain.QueuedMessageSource, arg3 string) {
 	fake.enqueueMutex.Lock()
 	fake.enqueueArgsForCall = append(fake.enqueueArgsForCall, struct {
 		arg1 sdk.Message
-		arg2 string
-	}{arg1, arg2})
+		arg2 domain.QueuedMessageSource
+		arg3 string
+	}{arg1, arg2, arg3})
 	stub := fake.EnqueueStub
-	fake.recordInvocation("Enqueue", []interface{}{arg1, arg2})
+	fake.recordInvocation("Enqueue", []interface{}{arg1, arg2, arg3})
 	fake.enqueueMutex.Unlock()
 	if stub != nil {
-		fake.EnqueueStub(arg1, arg2)
+		fake.EnqueueStub(arg1, arg2, arg3)
 	}
 }
 
@@ -170,17 +172,17 @@ func (fake *FakeMessageQueue) EnqueueCallCount() int {
 	return len(fake.enqueueArgsForCall)
 }
 
-func (fake *FakeMessageQueue) EnqueueCalls(stub func(sdk.Message, string)) {
+func (fake *FakeMessageQueue) EnqueueCalls(stub func(sdk.Message, domain.QueuedMessageSource, string)) {
 	fake.enqueueMutex.Lock()
 	defer fake.enqueueMutex.Unlock()
 	fake.EnqueueStub = stub
 }
 
-func (fake *FakeMessageQueue) EnqueueArgsForCall(i int) (sdk.Message, string) {
+func (fake *FakeMessageQueue) EnqueueArgsForCall(i int) (sdk.Message, domain.QueuedMessageSource, string) {
 	fake.enqueueMutex.RLock()
 	defer fake.enqueueMutex.RUnlock()
 	argsForCall := fake.enqueueArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
 func (fake *FakeMessageQueue) GetAll() []domain.QueuedMessage {

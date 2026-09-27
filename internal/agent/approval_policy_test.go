@@ -77,6 +77,19 @@ func standardPolicy(mode agentdomain.AgentMode) func(t *testing.T) agentdomain.A
 	return func(t *testing.T) agentdomain.ApprovalPolicy { return newStandardPolicy(t, mode) }
 }
 
+// recordingApprovalPolicy builds a standard-mode policy with
+// computer_use.recording.require_approval set to requireApproval.
+func recordingApprovalPolicy(requireApproval bool) func(t *testing.T) agentdomain.ApprovalPolicy {
+	return func(t *testing.T) agentdomain.ApprovalPolicy {
+		t.Helper()
+		cfg := createTestConfig()
+		cfg.ComputerUse.Recording.RequireApproval = &requireApproval
+		stateManager := statemanager.NewStore(false)
+		stateManager.SetAgentMode(agentdomain.AgentModeStandard)
+		return NewStandardApprovalPolicy(cfg, stateManager)
+	}
+}
+
 // bashCases builds one Bash case per command with the given expectation.
 func bashCases(prefix string, policy func(t *testing.T) agentdomain.ApprovalPolicy, want bool, commands ...string) []approvalCase {
 	cases := make([]approvalCase, 0, len(commands))
@@ -102,6 +115,12 @@ func buildApprovalCases() []approvalCase {
 	tests = append(tests, approvalCases("RecordStart requires approval outside chat:", standard, "{}", false, true, "RecordStart")...)
 	tests = append(tests, approvalCases("auto-accept bypasses RecordStart approval:", standardPolicy(agentdomain.AgentModeAutoAccept),
 		"{}", true, false, "RecordStart")...)
+	tests = append(tests, approvalCases("require_approval false skips RecordStart approval outside chat:", recordingApprovalPolicy(false),
+		"{}", false, false, "RecordStart")...)
+	tests = append(tests, approvalCases("require_approval false skips RecordStart approval in chat:", recordingApprovalPolicy(false),
+		"{}", true, false, "RecordStart")...)
+	tests = append(tests, approvalCases("require_approval true keeps RecordStart approval outside chat:", recordingApprovalPolicy(true),
+		"{}", false, true, "RecordStart")...)
 	tests = append(tests, approvalCases("auto-accept bypasses approval:", standardPolicy(agentdomain.AgentModeAutoAccept),
 		`{"command": "rm -rf /"}`, true, false, "Bash", "Read", "Write", "Edit", "Grep")...)
 	tests = append(tests, approvalCases("read-only subagent bypasses approval in chat:", standardPolicy(agentdomain.AgentModeReadOnly),

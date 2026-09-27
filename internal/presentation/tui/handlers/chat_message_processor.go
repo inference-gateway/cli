@@ -420,7 +420,7 @@ func (p *ChatMessageProcessor) processChatMessage(
 
 	if p.handler.stateManager.IsAgentBusy() {
 		requestID := fmt.Sprintf("queued-%d", time.Now().UnixNano())
-		p.handler.messageQueue.Enqueue(message, requestID)
+		p.handler.messageQueue.Enqueue(message, convdomain.QueueSourceComposer, requestID)
 		logger.Info("chat input queued - agent busy",
 			"request_id", requestID,
 			"queue_size_after_enqueue", p.handler.messageQueue.Size())

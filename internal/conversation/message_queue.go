@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"sync"
+	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -21,14 +22,16 @@ func NewMessageQueueService() *MessageQueueService {
 	}
 }
 
-// Enqueue adds a message to the queue
-func (mq *MessageQueueService) Enqueue(message sdk.Message, requestID string) {
+// Enqueue adds a message to the queue with its origin source and request ID
+func (mq *MessageQueueService) Enqueue(message sdk.Message, source convdomain.QueuedMessageSource, requestID string) {
 	mq.mu.Lock()
 	defer mq.mu.Unlock()
 
 	mq.messages = append(mq.messages, convdomain.QueuedMessage{
 		Message:   message,
+		QueuedAt:  time.Now(),
 		RequestID: requestID,
+		Source:    source,
 	})
 }
 

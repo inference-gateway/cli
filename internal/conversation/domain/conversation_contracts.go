@@ -177,8 +177,8 @@ type ModelService interface {
 
 // MessageQueue handles centralized message queuing for all components
 type MessageQueue interface {
-	// Enqueue adds a message to the queue
-	Enqueue(message sdk.Message, requestID string)
+	// Enqueue adds a message to the queue, tagged with where it came from
+	Enqueue(message sdk.Message, source QueuedMessageSource, requestID string)
 
 	// Dequeue removes and returns the next message from the queue
 	// Returns nil if the queue is empty

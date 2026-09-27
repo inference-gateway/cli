@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -57,11 +58,45 @@ func (qv *QueueBoxView) renderQueuedMessages(queuedMessages []convdomain.QueuedM
 	return strings.Join(messageLines, "\n")
 }
 
+// jobResultHeaderRe matches the "[<Kind> Completed/Failed: <label>]" header
+// Supervisor.formatResult writes on every finished job's queue note.
+var jobResultHeaderRe = regexp.MustCompile(`^\[[A-Za-z0-9 ]+ (Completed|Failed): `)
+
+// queueSourceMarker maps a queued message's origin to its display tag so a
+// typed message reads differently from an agent or job result.
+func queueSourceMarker(source convdomain.QueuedMessageSource) string {
+	switch source {
+	case convdomain.QueueSourceComposer:
+		return "[You]"
+	case convdomain.QueueSourceStdin:
+		return "[Stdin]"
+	case convdomain.QueueSourceA2A:
+		return "[A2A]"
+	case convdomain.QueueSourceShell:
+		return "[Shell]"
+	case convdomain.QueueSourceSubagent:
+		return "[Subagent]"
+	default:
+		return "[Job]"
+	}
+}
+
+// isJobSource reports whether the entry came from a supervisor job (result or
+// note) rather than a human.
+func isJobSource(source convdomain.QueuedMessageSource) bool {
+	switch source {
+	case convdomain.QueueSourceA2A, convdomain.QueueSourceShell, convdomain.QueueSourceSubagent, convdomain.QueueSourceJob:
+		return true
+	default:
+		return false
+	}
+}
+
 func (qv *QueueBoxView) formatQueuedMessage(queuedMsg convdomain.QueuedMessage) string {
 	dimColor := qv.styleProvider.GetThemeColor("dim")
 	preview := qv.formatMessagePreview(queuedMsg)
 
-	formattedLine := fmt.Sprintf("   %s", preview)
+	formattedLine := fmt.Sprintf("   %s %s", queueSourceMarker(queuedMsg.Source), preview)
 
 	return qv.styleProvider.RenderWithColor(formattedLine, dimColor)
 }
@@ -78,11 +113,9 @@ func (qv *QueueBoxView) formatMessagePreview(queuedMsg convdomain.QueuedMessage)
 		contentStr = formatting.ExtractTextFromContent(msg.Content, nil)
 	}
 
-	if strings.HasPrefix(contentStr, "[A2A Task Completed:") || strings.HasPrefix(contentStr, "[A2A Task Failed:") {
-		lines := strings.Split(contentStr, "\n")
-		if len(lines) > 0 {
-			return strings.TrimSpace(lines[0])
-		}
+	if isJobSource(queuedMsg.Source) && jobResultHeaderRe.MatchString(contentStr) {
+		header, _, _ := strings.Cut(contentStr, "\n")
+		return strings.TrimSpace(header)
 	}
 
 	content := contentStr

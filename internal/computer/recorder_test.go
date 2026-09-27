@@ -278,12 +278,14 @@ func TestFFmpegArgs(t *testing.T) {
 	head := []string{"-hide_banner", "-loglevel", "error", "-nostats"}
 	logical := capture.Screen{Width: 1440, Height: 900, NativeWidth: 1440, NativeHeight: 900}
 	scaled := capture.Screen{Width: 1280, Height: 720, NativeWidth: 1920, NativeHeight: 1080}
+	rc := config.RecordingConfig{Framerate: 15, MaxDuration: 120}
 
 	tests := []struct {
 		name   string
 		goos   string
 		rect   display.Region
 		screen capture.Screen
+		hide   bool
 		want   []string
 	}{
 		{
@@ -310,6 +312,23 @@ func TestFFmpegArgs(t *testing.T) {
 				"-video_size", "960x540", "-i", "desktop"},
 		},
 		{
+			name: "darwin hide_cursor", goos: "darwin", hide: true,
+			rect: display.Region{Width: 1440, Height: 900}, screen: logical,
+			want: []string{"-f", "avfoundation", "-capture_cursor", "0", "-framerate", "15", "-i", "Capture screen 0:none",
+				"-vf", "crop=w=trunc(iw*1440/1440/2)*2:h=trunc(ih*900/900/2)*2:x=trunc(iw*0/1440):y=trunc(ih*0/900)"},
+		},
+		{
+			name: "linux hide_cursor", goos: "linux", hide: true,
+			rect: display.Region{Width: 1280, Height: 720}, screen: logical,
+			want: []string{"-f", "x11grab", "-draw_mouse", "0", "-framerate", "15", "-video_size", "1280x720", "-i", ":0+0,0"},
+		},
+		{
+			name: "windows hide_cursor", goos: "windows", hide: true,
+			rect: display.Region{Width: 1280, Height: 720}, screen: scaled,
+			want: []string{"-f", "gdigrab", "-draw_mouse", "0", "-framerate", "15", "-offset_x", "0", "-offset_y", "0",
+				"-video_size", "1920x1080", "-i", "desktop"},
+		},
+		{
 			name: "windows screen", goos: "windows",
 			rect: display.Region{Width: 1280, Height: 720}, screen: scaled,
 			want: []string{"-f", "gdigrab", "-draw_mouse", "1", "-framerate", "15", "-offset_x", "0", "-offset_y", "0",
@@ -318,7 +337,9 @@ func TestFFmpegArgs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ffmpegArgs(tt.goos, ":0", tt.rect, tt.screen, 15, 120, out)
+			cfg := rc
+			cfg.HideCursor = tt.hide
+			got, err := ffmpegArgs(tt.goos, ":0", tt.rect, tt.screen, cfg, out)
 			if err != nil {
 				t.Fatalf("ffmpegArgs: %v", err)
 			}
@@ -329,10 +350,10 @@ func TestFFmpegArgs(t *testing.T) {
 		})
 	}
 
-	if _, err := ffmpegArgs("plan9", "", display.Region{Width: 10, Height: 10}, logical, 15, 120, out); err == nil {
+	if _, err := ffmpegArgs("plan9", "", display.Region{Width: 10, Height: 10}, logical, rc, out); err == nil {
 		t.Error("unsupported OS should fail")
 	}
-	if _, err := ffmpegArgs("linux", ":0", display.Region{Width: 1, Height: 10}, logical, 15, 120, out); err == nil {
+	if _, err := ffmpegArgs("linux", ":0", display.Region{Width: 1, Height: 10}, logical, rc, out); err == nil {
 		t.Error("a 1px wide area should fail")
 	}
 }
