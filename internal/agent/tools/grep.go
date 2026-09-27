@@ -84,72 +84,7 @@ func (t *GrepTool) detectRipgrep() {
 
 // Definition returns the tool definition for the LLM
 func (t *GrepTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Grep.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "Grep",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"$schema": "http://json-schema.org/draft-07/schema#",
-				"type":    "object",
-				"properties": map[string]any{
-					"pattern": map[string]any{
-						"type":        "string",
-						"description": "The regular expression pattern to search for in file contents",
-					},
-					"path": map[string]any{
-						"type":        "string",
-						"description": "File or directory to search in (rg PATH). Defaults to current working directory.",
-					},
-					"glob": map[string]any{
-						"type":        "string",
-						"description": "Glob pattern to filter files (e.g. \"*.js\", \"*.{ts,tsx}\") - maps to rg --glob",
-					},
-					"type": map[string]any{
-						"type":        "string",
-						"description": "File type to search (rg --type). Common types: js, py, rust, go, java, etc. More efficient than include for standard file types.",
-					},
-					"output_mode": map[string]any{
-						"type":        "string",
-						"description": "Output mode: \"content\" shows matching lines (supports -A/-B/-C context, -n line numbers), \"files_with_matches\" shows file paths (supports head_limit), \"count\" shows match counts (supports head_limit). Defaults to \"files_with_matches\".",
-						"enum":        []string{"content", "files_with_matches", "count"},
-						"default":     "files_with_matches",
-					},
-					"-i": map[string]any{
-						"type":        "boolean",
-						"description": "Case insensitive search (rg -i)",
-					},
-					"-n": map[string]any{
-						"type":        "boolean",
-						"description": "Show line numbers in output (rg -n). Requires output_mode: \"content\", ignored otherwise.",
-					},
-					"-A": map[string]any{
-						"type":        "number",
-						"description": "Number of lines to show after each match (rg -A). Requires output_mode: \"content\", ignored otherwise.",
-					},
-					"-B": map[string]any{
-						"type":        "number",
-						"description": "Number of lines to show before each match (rg -B). Requires output_mode: \"content\", ignored otherwise.",
-					},
-					"-C": map[string]any{
-						"type":        "number",
-						"description": "Number of lines to show before and after each match (rg -C). Requires output_mode: \"content\", ignored otherwise.",
-					},
-					"multiline": map[string]any{
-						"type":        "boolean",
-						"description": "Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall). Default: false.",
-						"default":     false,
-					},
-					"head_limit": map[string]any{
-						"type":        "number",
-						"description": "Limit output to first N lines/entries, equivalent to \"| head -N\". Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count (limits count entries). When unspecified, shows all results from ripgrep.",
-					},
-				},
-				"required": []string{"pattern"},
-			},
-		},
-	}
+	return toolManifests.Definition("Grep", t.config.Prompts.Tools.Grep.Description)
 }
 
 // Execute runs the grep tool with given arguments

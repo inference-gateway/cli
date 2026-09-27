@@ -33,40 +33,7 @@ func NewDeleteTool(cfg *config.Config) *DeleteTool {
 
 // Definition returns the tool definition for the LLM
 func (t *DeleteTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Delete.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "Delete",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"path": map[string]any{
-						"type":        "string",
-						"description": "The path to the file or directory to delete. Supports wildcard patterns like '*.txt' or 'temp/*' when wildcards are enabled.",
-					},
-					"recursive": map[string]any{
-						"type":        "boolean",
-						"description": "Whether to delete directories recursively",
-						"default":     false,
-					},
-					"force": map[string]any{
-						"type":        "boolean",
-						"description": "Whether to force deletion (ignore non-existent files)",
-						"default":     false,
-					},
-					"format": map[string]any{
-						"type":        "string",
-						"description": "Output format (text or json)",
-						"enum":        []string{"text", "json"},
-						"default":     "text",
-					},
-				},
-				"required": []string{"path"},
-			},
-		},
-	}
+	return toolManifests.Definition("Delete", t.config.Prompts.Tools.Delete.Description)
 }
 
 // Execute runs the delete tool with given arguments

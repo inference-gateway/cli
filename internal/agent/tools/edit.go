@@ -60,37 +60,7 @@ func NewEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *Edit
 
 // Definition returns the tool definition for the LLM
 func (t *EditTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Edit.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "Edit",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"file_path": map[string]any{
-						"type":        "string",
-						"description": "The absolute path to the file to modify",
-					},
-					"old_string": map[string]any{
-						"type":        "string",
-						"description": "The text to replace",
-					},
-					"new_string": map[string]any{
-						"type":        "string",
-						"description": "The text to replace it with (must be different from old_string)",
-					},
-					"replace_all": map[string]any{
-						"type":        "boolean",
-						"description": "Replace all occurrences of old_string (default false)",
-						"default":     false,
-					},
-				},
-				"required": []string{"file_path", "old_string", "new_string"},
-			},
-		},
-	}
+	return toolManifests.Definition("Edit", t.config.Prompts.Tools.Edit.Description)
 }
 
 // Execute runs the edit tool with given arguments

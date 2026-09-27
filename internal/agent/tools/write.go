@@ -54,28 +54,7 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 
 // Definition returns the tool definition for the LLM
 func (t *WriteTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Write.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        ToolName,
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"file_path": map[string]any{
-						"type":        "string",
-						"description": "The absolute path to the file to write (must be absolute, not relative)",
-					},
-					"content": map[string]any{
-						"type":        "string",
-						"description": "The content to write to the file",
-					},
-				},
-				"required": []string{"file_path", "content"},
-			},
-		},
-	}
+	return toolManifests.Definition(ToolName, t.config.Prompts.Tools.Write.Description)
 }
 
 // Execute runs the write tool with given arguments

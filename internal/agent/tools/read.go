@@ -53,35 +53,7 @@ func NewReadTool(cfg *config.Config) *ReadTool {
 
 // Definition returns the tool definition for the LLM
 func (t *ReadTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Read.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "Read",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type":                 "object",
-				"additionalProperties": false,
-				"properties": map[string]any{
-					"file_path": map[string]any{
-						"type":        "string",
-						"description": "The path to the file to read (can be absolute or relative)",
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "The number of lines to read. Only provide if the file is too large to read at once.",
-						"minimum":     1,
-					},
-					"offset": map[string]any{
-						"type":        "integer",
-						"description": "The line number to start reading from. Only provide if the file is too large to read at once",
-						"minimum":     1,
-					},
-				},
-				"required": []string{"file_path"},
-			},
-		},
-	}
+	return toolManifests.Definition("Read", t.config.Prompts.Tools.Read.Description)
 }
 
 // Execute runs the read tool with given arguments

@@ -47,48 +47,7 @@ func NewMultiEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) 
 
 // Definition returns the tool definition for the LLM
 func (t *MultiEditTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.MultiEdit.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "MultiEdit",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"file_path": map[string]any{
-						"type":        "string",
-						"description": "The absolute path to the file to modify",
-					},
-					"edits": map[string]any{
-						"type":        "array",
-						"description": "Array of edit operations to perform sequentially on the file",
-						"minItems":    1,
-						"items": map[string]any{
-							"type": "object",
-							"properties": map[string]any{
-								"old_string": map[string]any{
-									"type":        "string",
-									"description": "The text to replace",
-								},
-								"new_string": map[string]any{
-									"type":        "string",
-									"description": "The text to replace it with",
-								},
-								"replace_all": map[string]any{
-									"type":        "boolean",
-									"description": "Replace all occurrences of old_string (default false).",
-									"default":     false,
-								},
-							},
-							"required": []string{"old_string", "new_string"},
-						},
-					},
-				},
-				"required": []string{"file_path", "edits"},
-			},
-		},
-	}
+	return toolManifests.Definition("MultiEdit", t.config.Prompts.Tools.MultiEdit.Description)
 }
 
 // Execute runs the multi-edit tool with given arguments
