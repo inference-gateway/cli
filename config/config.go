@@ -883,6 +883,7 @@ type StatusBarIndicators struct {
 	Tools            bool `yaml:"tools" mapstructure:"tools"`
 	BackgroundShells bool `yaml:"background_shells" mapstructure:"background_shells"`
 	A2ATasks         bool `yaml:"a2a_tasks" mapstructure:"a2a_tasks"`
+	Queue            bool `yaml:"queue" mapstructure:"queue"`
 	MCP              bool `yaml:"mcp" mapstructure:"mcp"`
 	ContextUsage     bool `yaml:"context_usage" mapstructure:"context_usage"`
 	SessionTokens    bool `yaml:"session_tokens" mapstructure:"session_tokens"`
@@ -1095,6 +1096,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			Tools:            true,
 			BackgroundShells: true,
 			A2ATasks:         true,
+			Queue:            true,
 			MCP:              true,
 			ContextUsage:     true,
 			SessionTokens:    true,

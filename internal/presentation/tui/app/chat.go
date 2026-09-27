@@ -268,6 +268,7 @@ func NewChatApplication(
 		if app.backgroundTaskRegistry != nil {
 			isb.SetBackgroundTaskRegistry(app.backgroundTaskRegistry)
 		}
+		isb.SetMessageQueue(app.messageQueue)
 	}
 
 	app.statusView = factory.CreateStatusView(app.themeService)

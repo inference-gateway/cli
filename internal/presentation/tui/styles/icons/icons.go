@@ -11,6 +11,7 @@ const (
 	CheckMark = "✓"
 	CrossMark = "✗"
 	GitBranch = "⎇"
+	QueueIcon = "☰"
 )
 
 // Tool execution icons - modern Unicode symbols
