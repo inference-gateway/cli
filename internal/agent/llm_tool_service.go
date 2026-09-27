@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -152,6 +154,16 @@ func (s *LLMToolService) isA2ATool(toolName string) bool {
 	return strings.HasPrefix(toolName, "A2A_")
 }
 
+// allowlistRejection returns the error for a tool blocked by the subagent
+// allowlist, or nil when the allowlist does not block it.
+func (s *LLMToolService) allowlistRejection(toolName string) error {
+	if s.allowlist == nil || s.allowlist[toolName] {
+		return nil
+	}
+	allowed := strings.Join(slices.Sorted(maps.Keys(s.allowlist)), ", ")
+	return fmt.Errorf("tool not allowed: %s is not in this subagent's allowlist (allowed: %s); do not retry this tool", toolName, allowed)
+}
+
 // ExecuteTool executes a tool with the given arguments
 func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	if mode, ok := agentdomain.AgentModeFromContext(ctx); ok {
@@ -161,6 +173,10 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompl
 		if mode != agentdomain.AgentModePlan && planOnlyTools[toolCall.Name] {
 			return nil, fmt.Errorf("tool not allowed: %s is only available in plan mode", toolCall.Name)
 		}
+	}
+
+	if err := s.allowlistRejection(toolCall.Name); err != nil {
+		return nil, err
 	}
 
 	if !s.isToolEnabled(toolCall.Name) {
@@ -222,6 +238,10 @@ func (s *LLMToolService) IsToolEnabled(name string) bool {
 
 // ValidateTool validates tool arguments
 func (s *LLMToolService) ValidateTool(name string, args map[string]any) error {
+	if err := s.allowlistRejection(name); err != nil {
+		return err
+	}
+
 	if !s.isToolEnabled(name) {
 		if s.isA2ATool(name) {
 			return fmt.Errorf("A2A tools are not enabled")
