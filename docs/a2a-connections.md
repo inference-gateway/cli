@@ -34,14 +34,9 @@ Use the `infer agents` commands to manage A2A agent configurations:
 infer agents list
 ```
 
-This displays a list of all configured A2A agents showing:
-
-- Agent name
-- URL endpoint
-- OCI container image (if configured)
-- Run locally status (enabled/disabled)
-- Model configuration
-- Enabled/disabled status
+`infer agents list` shows the A2A agents in their own table - agent name, source (agents.yaml or `INFER_A2A_AGENTS`),
+URL endpoint, OCI container image, run-locally status, model and environment variables - followed by a second table
+with the Markdown-defined subagent presets.
 
 #### Add an Agent
 

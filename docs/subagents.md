@@ -12,7 +12,10 @@ system prompt.
 Markdown agents are reusable presets for the `Agent` tool's arguments: the
 main agent delegates work to them by name instead of spelling out a system
 prompt each time. They are separate from `.infer/agents.yaml`, the A2A agent
-registry - see [A2A Agents](agents-configuration.md) for that.
+registry - see [A2A Agents](agents-configuration.md) for that. Both listing
+surfaces show the two kinds grouped: `infer agents list` renders the A2A
+agents first, then the Markdown presets, and the `/agents` view in the TUI
+does the same in one view.
 
 ## Table of Contents
 
@@ -126,7 +129,9 @@ Gemini CLI agent files load as-is:
   tool wildcards such as `mcp_*` are not honored in v1; MCP tools register
   after session start, so MCP tool names in a `tools` list are treated as
   unknown and dropped with a warning.
-- There is no CLI command to list or create Markdown agents yet.
+- Markdown agents are created by writing the file yourself - there is no
+  scaffolding command yet (they are listed via `infer agents list` and the
+  `/agents` view).
 
 ---
 
