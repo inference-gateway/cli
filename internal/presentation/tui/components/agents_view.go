@@ -18,13 +18,6 @@ import (
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
-// Row scopes for the agents list: every row, or the /a2a pre-filter to a2a
-// rows only.
-const (
-	AgentsScopeAll = ""
-	AgentsScopeA2A = "a2a"
-)
-
 // Row kinds, shown as type chips.
 const (
 	agentKindLocal = "local"
@@ -105,8 +98,7 @@ func subagentCapabilities(info agentdomain.SubagentInfo) string {
 }
 
 // AgentsView is a read-only, filterable list of every agent the chat can use:
-// local Markdown presets (.infer/agents/*.md) and remote A2A agents. The /a2a
-// alias opens it pre-filtered to the a2a rows.
+// local Markdown presets (.infer/agents/*.md) and remote A2A agents.
 type AgentsView struct {
 	list          list.Model
 	width         int
@@ -114,7 +106,6 @@ type AgentsView struct {
 	cancelled     bool
 	readiness     AgentReadiness
 	catalog       SubagentCatalog
-	scope         string
 	styleProvider *styles.Provider
 }
 
@@ -142,7 +133,7 @@ func NewAgentsView(readiness AgentReadiness, catalog SubagentCatalog, styleProvi
 		catalog:       catalog,
 		styleProvider: styleProvider,
 	}
-	m.Reset(AgentsScopeAll)
+	m.Reset()
 	return m
 }
 
@@ -211,11 +202,8 @@ func (m *AgentsView) SetHeight(height int) {
 	m.list.SetSize(m.width, height)
 }
 
-// Reset returns the view to its initial state and rebuilds the items within
-// the given row scope.
-func (m *AgentsView) Reset(scope string) {
-	m.cancelled = false
-	m.scope = scope
+// Reset returns the view to its initial state and rebuilds the items.
+func (m *AgentsView) Reset() {
 	m.list.ResetFilter()
 	m.refreshItems()
 	m.list.Select(0)
@@ -232,13 +220,6 @@ func (m *AgentsView) refreshItems() tea.Cmd {
 }
 
 func (m *AgentsView) listTitle(count int) string {
-	if m.scope == AgentsScopeA2A {
-		ready, total := 0, 0
-		if r := m.readinessState(); r != nil {
-			ready, total = r.ReadyAgents, r.TotalAgents
-		}
-		return fmt.Sprintf("A2A Agents (%d/%d ready)", ready, total)
-	}
 	return fmt.Sprintf("Agents (%d)", count)
 }
 
@@ -277,7 +258,7 @@ func (m *AgentsView) agentItems() []list.Item {
 		}
 	}
 
-	if m.scope != AgentsScopeA2A && m.catalog != nil {
+	if m.catalog != nil {
 		for _, info := range m.catalog.ListMarkdownSubagents() {
 			state := "read-write"
 			if info.ReadOnly {

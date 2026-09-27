@@ -539,28 +539,6 @@ func (c *ToolsShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 	}, nil
 }
 
-// A2AAgentsShortcut shows the registered A2A agents and their readiness
-type A2AAgentsShortcut struct{}
-
-func NewA2AAgentsShortcut() *A2AAgentsShortcut {
-	return &A2AAgentsShortcut{}
-}
-
-func (c *A2AAgentsShortcut) GetName() string { return "a2a" }
-func (c *A2AAgentsShortcut) GetDescription() string {
-	return "Show registered A2A agents and their status"
-}
-func (c *A2AAgentsShortcut) GetUsage() string              { return "/a2a" }
-func (c *A2AAgentsShortcut) CanExecute(args []string) bool { return len(args) == 0 }
-
-func (c *A2AAgentsShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	return ShortcutResult{
-		Output:     "",
-		Success:    true,
-		SideEffect: SideEffectShowA2AAgents,
-	}, nil
-}
-
 // AgentsShortcut shows every agent the chat can use: local Markdown subagent
 // presets (.infer/agents/*.md) and remote A2A agents.
 type AgentsShortcut struct{}

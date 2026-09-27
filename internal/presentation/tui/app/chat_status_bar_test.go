@@ -194,7 +194,7 @@ func TestStatusBarEnterOpensToolsList(t *testing.T) {
 	}
 }
 
-func TestStatusBarEnterOpensA2AAgents(t *testing.T) {
+func TestStatusBarEnterOpensAgentsView(t *testing.T) {
 	app, stateManager := newStatusBarTestApp(t, false, false)
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)
 	barStateManager := statemanager.NewStore(false)
@@ -207,8 +207,8 @@ func TestStatusBarEnterOpensA2AAgents(t *testing.T) {
 	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
 	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if got := stateManager.GetCurrentView(); got != tui.ViewStateA2AAgents {
-		t.Errorf("transitioned to %v, want the A2A agents view", got)
+	if got := stateManager.GetCurrentView(); got != tui.ViewStateAgents {
+		t.Errorf("transitioned to %v, want the Agents view", got)
 	}
 	if len(cmds) != 1 {
 		t.Fatalf("expected one status command, got %d", len(cmds))

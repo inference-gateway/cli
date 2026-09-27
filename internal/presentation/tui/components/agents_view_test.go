@@ -94,26 +94,6 @@ func TestAgentsView_MergesA2AAndLocalRows(t *testing.T) {
 	}
 }
 
-func TestAgentsView_A2AScopeHidesLocalRows(t *testing.T) {
-	view, _ := newAgentsViewForTest(
-		&tui.AgentReadinessState{
-			TotalAgents: 1,
-			ReadyAgents: 1,
-			Agents:      map[string]*tui.AgentStatus{"writer": {Name: "writer", State: agentdomain.AgentStateReady}},
-		},
-		[]agentdomain.SubagentInfo{{Name: "explorer", Description: "Read-only code explorer"}},
-	)
-
-	view.Reset(AgentsScopeA2A)
-
-	if got := len(view.list.Items()); got != 1 {
-		t.Fatalf("expected only a2a rows in the /a2a alias, got %d", got)
-	}
-	if view.list.Title != "A2A Agents (1/1 ready)" {
-		t.Errorf("title = %q, want the readiness summary", view.list.Title)
-	}
-}
-
 func TestAgentsView_NilPortsAreSafe(t *testing.T) {
 	view, _ := newAgentsViewForTest(nil, nil)
 
@@ -150,7 +130,7 @@ func TestAgentsView_LiveUpdatesOnAgentStatusEvent(t *testing.T) {
 		},
 		nil,
 	)
-	view.Reset(AgentsScopeA2A)
+	view.Reset()
 
 	stateManager.UpdateAgentPullProgress("writer", 3, 7)
 	model, _ := view.Update(tui.AgentStatusUpdateEvent{AgentName: "writer", State: agentdomain.AgentStatePullingImage})
@@ -164,8 +144,8 @@ func TestAgentsView_LiveUpdatesOnAgentStatusEvent(t *testing.T) {
 	model, _ = view.Update(tui.AgentStatusUpdateEvent{AgentName: "writer", State: agentdomain.AgentStateReady})
 	view = model.(*AgentsView)
 
-	if view.list.Title != "A2A Agents (1/1 ready)" {
-		t.Errorf("title = %q, want the refreshed readiness", view.list.Title)
+	if view.list.Title != "Agents (1)" {
+		t.Errorf("title = %q, want the refreshed count", view.list.Title)
 	}
 	if got := view.list.Items()[0].(agentItem); got.state != "ready" {
 		t.Errorf("event should re-read agent state, got %+v", got)
