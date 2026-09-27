@@ -47,6 +47,5 @@ const (
 	SideEffectShowDiffViewer
 	SideEffectShowExplorer
 	SideEffectShowToolsList
-	SideEffectShowA2AAgents
 	SideEffectShowAgents
 )

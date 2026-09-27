@@ -79,6 +79,7 @@ type CustomShortcut struct {
 	modelService convdomain.ModelService
 	imageService agentdomain.ImageService
 	toolService  agentdomain.ToolService
+	sourceFile   string
 }
 
 // NewCustomShortcut creates a new custom shortcut from configuration
@@ -601,7 +602,9 @@ func loadShortcutsFromFile(filename string, client sdk.Client, modelService conv
 			continue
 		}
 
-		shortcuts = append(shortcuts, NewCustomShortcut(shortcutConfig, client, modelService, imageService, toolService))
+		shortcut := NewCustomShortcut(shortcutConfig, client, modelService, imageService, toolService)
+		shortcut.sourceFile = filename
+		shortcuts = append(shortcuts, shortcut)
 	}
 
 	return shortcuts, nil

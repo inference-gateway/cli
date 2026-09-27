@@ -69,7 +69,7 @@ These shortcuts are available out of the box:
 - `/diff` - Open the changes panel (interactive diff viewer); keybindings show as a legend at the bottom, updated per view (tree / patch / PR tab)
 - `/explorer` - Open the file explorer (tree + fuzzy finder)
 - `/tools` - Show the tools available to the agent (read-only, filterable list)
-- `/a2a` - Show registered A2A agents and their status (requires A2A)
+- `/agents` - Show every configured agent: local presets and remote A2A agents (A2A rows require A2A)
 - `/tasks` - Show the A2A task-management interface (requires A2A)
 - `/release-notes [version]` - Show GitHub release notes for a version or the latest (requires the `gh` CLI installed and authenticated)
 
@@ -278,7 +278,6 @@ Beyond `/git` and `/scm`, `infer init` seeds several more shortcut files in
 | `/shells` | `shells.yaml` | List running and recent background shell processes |
 | `/export` | `export.yaml` | Export the current conversation to markdown |
 | `/env` | `env.yaml` | Generate a `.env.example` with all provider API keys |
-| `/agents <list\|add\|remove>` | `a2a.yaml` | Manage A2A agents |
 | `/skills <list\|install\|uninstall>` | `skills.yaml` | Manage Agent Skills |
 
 These are regular YAML shortcuts - edit or remove them like any other file in

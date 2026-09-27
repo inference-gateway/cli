@@ -704,7 +704,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 
 	if c.config.IsA2AToolsEnabled() {
 		c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut(c.config))
-		c.shortcutRegistry.Register(shortcuts.NewA2AAgentsShortcut())
 	}
 
 	if c.config.IsAgentToolEnabled() {

@@ -56,6 +56,27 @@ func TestLoadCustomShortcutsLayered(t *testing.T) {
 	require.Equal(t, "project deploy", deploy.GetDescription())
 }
 
+// TestLoadCustomShortcutsBuiltinsWin pins that a custom YAML shortcut cannot
+// shadow a built-in one: the init-seeded a2a.yaml once overwrote /agents, so
+// the Agents view never opened on any machine that had run `infer init`.
+func TestLoadCustomShortcutsBuiltinsWin(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	writeShortcutFile(t, filepath.Join(homeDir, config.ConfigDirName), "a2a.yaml", "agents", "custom agents")
+
+	registry := NewRegistry()
+	registry.Register(NewAgentsShortcut())
+	require.NoError(t, registry.LoadCustomShortcuts(config.ConfigLookupDirs(), nil, nil, nil, nil))
+
+	agents, ok := registry.Get("agents")
+	require.True(t, ok)
+	_, isBuiltin := agents.(*AgentsShortcut)
+	require.True(t, isBuiltin, "built-in /agents must win over the custom a2a.yaml shortcut")
+
+	_, ok = registry.Get("a2a")
+	require.False(t, ok, "the /a2a alias is removed: nothing registers it")
+}
+
 // TestConfigLookupDirsWithoutProjectLayer pins that a project dir is only added
 // when it actually exists, so the userspace baseline stands alone by default.
 func TestConfigLookupDirsWithoutProjectLayer(t *testing.T) {

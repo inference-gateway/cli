@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,8 @@ import (
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	container "github.com/inference-gateway/cli/internal/container"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 )
 
@@ -266,8 +269,8 @@ Examples:
 func (c *command) newListCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: "List all configured A2A agents",
-		Long:  `List all Agent-to-Agent (A2A) agents configured in agents.yaml.`,
+		Short: "List all configured agents (Markdown presets and A2A)",
+		Long:  `List every agent the CLI can delegate to: the Markdown-defined subagent presets (.infer/agents/*.md) and the Agent-to-Agent (A2A) agents configured in agents.yaml.`,
 		RunE:  c.listAgents,
 	}
 }
@@ -516,13 +519,15 @@ func (c *command) listAgents(cmd *cobra.Command, _ []string) error {
 	localAgents := cfg.ListEntries()
 
 	externalAgents := extractExternalAgents(c.state.Config())
+	markdownAgents := c.markdownSubagents()
 
-	totalAgents := len(localAgents) + len(externalAgents)
+	totalAgents := len(localAgents) + len(externalAgents) + len(markdownAgents)
 
 	format, _ := cmd.Flags().GetString("format")
 
 	if format == "json" {
 		combinedOutput := map[string]any{
+			"markdown": markdownAgents,
 			"local":    localAgents,
 			"external": externalAgents,
 			"total":    totalAgents,
@@ -541,11 +546,27 @@ func (c *command) listAgents(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	fmt.Println(c.renderer.Title(fmt.Sprintf("Configured A2A Agents (%d)", totalAgents)))
-	fmt.Println(c.renderer.Hint(fmt.Sprintf("%d local, %d external", len(localAgents), len(externalAgents))))
-	fmt.Println()
+	a2aCount := len(localAgents) + len(externalAgents)
+	if a2aCount > 0 {
+		c.printA2AAgents(a2aCount, localAgents, externalAgents)
+	}
+	if len(markdownAgents) > 0 {
+		if a2aCount > 0 {
+			fmt.Println()
+		}
+		c.printMarkdownAgents(markdownAgents)
+	}
 
-	agentsTable := c.renderer.NewListTable("Source", "Name", "URL", "OCI Image", "Local", "Model", "Env")
+	fmt.Println()
+	return nil
+}
+
+// printA2AAgents renders the A2A table (agents.yaml entries plus INFER_A2A_AGENTS),
+// the agent name left-aligned and the metadata columns right-aligned.
+func (c *command) printA2AAgents(count int, localAgents []config.AgentEntry, externalAgents []ExternalAgent) {
+	fmt.Println(c.renderer.Title(fmt.Sprintf("A2A Agents (%d)", count)))
+
+	agentsTable := c.renderer.NewAgentsListTable("Name", "Source", "URL", "OCI Image", "Local", "Model", "Env")
 	for _, agent := range localAgents {
 		oci := "-"
 		if agent.OCI != "" {
@@ -558,26 +579,54 @@ func (c *command) listAgents(cmd *cobra.Command, _ []string) error {
 			runLocally = c.renderer.StatusIcon(true)
 		}
 
-		model := "-"
-		if agent.Model != "" {
-			model = agent.Model
-		}
-
 		envStr := "-"
 		if len(agent.Environment) > 0 {
 			envStr = fmt.Sprintf("%d", len(agent.Environment))
 		}
 
-		agentsTable.Row("yaml", agent.Name, agent.URL, oci, runLocally, model, envStr)
+		agentsTable.Row(agent.Name, "yaml", agent.URL, oci, runLocally, cmp.Or(agent.Model, "-"), envStr)
 	}
 
 	for _, agent := range externalAgents {
-		agentsTable.Row("env", agent.Name, agent.URL, "-", "-", "-", "-")
+		agentsTable.Row(agent.Name, "env", agent.URL, "-", "-", "-", "-")
 	}
 	fmt.Println(agentsTable.Render())
+}
 
-	fmt.Println()
-	return nil
+// printMarkdownAgents renders the Markdown-defined subagent presets table,
+// the agent name left-aligned and the metadata columns right-aligned.
+func (c *command) printMarkdownAgents(markdownAgents []agentdomain.SubagentInfo) {
+	fmt.Println(c.renderer.Title(fmt.Sprintf("Markdown Agents (%d)", len(markdownAgents))))
+
+	mdTable := c.renderer.NewAgentsListTable("Name", "Description", "Tools", "Model", "Mode", "Source")
+	for _, info := range markdownAgents {
+		mdTable.Row(info.Name, info.Description, markdownAgentTools(info), cmp.Or(info.Model, "inherit"), markdownAgentMode(info), info.Source)
+	}
+	fmt.Println(mdTable.Render())
+}
+
+// markdownAgentMode renders the capability mode derived from the allowlist.
+func markdownAgentMode(info agentdomain.SubagentInfo) string {
+	if info.ReadOnly {
+		return "read-only"
+	}
+	return "read-write"
+}
+
+// markdownAgentTools renders the preset's tool allowlist, or the inherited parent set.
+func markdownAgentTools(info agentdomain.SubagentInfo) string {
+	if len(info.Tools) == 0 {
+		return "all tools (inherited)"
+	}
+	return strings.Join(info.Tools, ", ")
+}
+
+// markdownSubagents loads the Markdown subagent presets through the same tool
+// registry a chat session builds, so the listing matches the session: tool
+// allowlists resolve against the session's real tool set.
+func (c *command) markdownSubagents() []agentdomain.SubagentInfo {
+	services := container.NewServiceContainer(c.state.Config())
+	return services.GetToolRegistry().MarkdownSubagents()
 }
 
 func (c *command) agentsStatus(cmd *cobra.Command, args []string) error {

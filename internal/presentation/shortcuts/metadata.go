@@ -36,7 +36,6 @@ func NewMetadataRegistry(cfg *config.Config) *Registry {
 	}
 	if cfg.IsA2AToolsEnabled() {
 		reg.Register(NewA2ATaskManagementShortcut(cfg))
-		reg.Register(NewA2AAgentsShortcut())
 	}
 
 	configDirs := config.ConfigLookupDirs()

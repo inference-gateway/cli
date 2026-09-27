@@ -76,7 +76,6 @@ const (
 	ViewStateExplorer
 	ViewStateHelp
 	ViewStateToolsList
-	ViewStateA2AAgents
 	ViewStateAgents
 )
 
@@ -104,8 +103,6 @@ func (v ViewState) String() string {
 		return "Help"
 	case ViewStateToolsList:
 		return "ToolsList"
-	case ViewStateA2AAgents:
-		return "A2AAgents"
 	case ViewStateAgents:
 		return "Agents"
 	default:
@@ -209,7 +206,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateExplorer,
 			ViewStateHelp,
 			ViewStateToolsList,
-			ViewStateA2AAgents,
 			ViewStateAgents,
 		},
 		ViewStateConversationSelection: {ViewStateChat},
@@ -221,7 +217,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateExplorer:              {ViewStateChat},
 		ViewStateHelp:                  {ViewStateChat},
 		ViewStateToolsList:             {ViewStateChat},
-		ViewStateA2AAgents:             {ViewStateChat},
 		ViewStateAgents:                {ViewStateChat},
 	}
 

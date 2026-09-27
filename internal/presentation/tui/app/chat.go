@@ -473,8 +473,8 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		app.modelSelector.Reset()
 	}
 
-	if viewBefore != app.lastView && (viewBefore == tui.ViewStateA2AAgents || viewBefore == tui.ViewStateAgents) {
-		app.agentsView.Reset(agentsViewScope(viewBefore))
+	if viewBefore != app.lastView && viewBefore == tui.ViewStateAgents {
+		app.agentsView.Reset()
 	}
 
 	var cmds []tea.Cmd
@@ -659,7 +659,7 @@ func (app *ChatApplication) dispatchViewMessage(currentView tui.ViewState, msg t
 		return app.handleHelpView(msg)
 	case tui.ViewStateToolsList:
 		return app.handleToolsListView(msg)
-	case tui.ViewStateA2AAgents, tui.ViewStateAgents:
+	case tui.ViewStateAgents:
 		return app.handleAgentsView(msg)
 	default:
 		return nil
@@ -934,7 +934,7 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 			}
 		}}
 	case tui.StatusIndicatorActionA2AAgents:
-		_ = app.stateManager.TransitionToView(tui.ViewStateA2AAgents)
+		_ = app.stateManager.TransitionToView(tui.ViewStateAgents)
 		return []tea.Cmd{func() tea.Msg {
 			return tui.SetStatusEvent{
 				Message:    "",
@@ -1003,7 +1003,7 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderHelp()
 	case tui.ViewStateToolsList:
 		return app.renderToolsList()
-	case tui.ViewStateA2AAgents, tui.ViewStateAgents:
+	case tui.ViewStateAgents:
 		return app.renderAgents()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
@@ -1637,7 +1637,7 @@ func (app *ChatApplication) handleAgentsView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if app.agentsView.IsCancelled() {
-		app.agentsView.Reset(agentsViewScope(app.stateManager.GetCurrentView()))
+		app.agentsView.Reset()
 	}
 
 	model, cmd := app.agentsView.Update(msg)
@@ -1666,15 +1666,6 @@ func (app *ChatApplication) renderAgents() string {
 	app.agentsView.SetWidth(width)
 	app.agentsView.SetHeight(height)
 	return app.agentsView.View().Content
-}
-
-// agentsViewScope maps the entry point to the row scope: the /a2a alias
-// pre-filters the list to a2a agents.
-func agentsViewScope(view tui.ViewState) string {
-	if view == tui.ViewStateA2AAgents {
-		return components.AgentsScopeA2A
-	}
-	return components.AgentsScopeAll
 }
 
 func (app *ChatApplication) renderConversationSelection() string {

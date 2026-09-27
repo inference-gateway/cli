@@ -60,7 +60,6 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	shellsShortcutsPath := filepath.Join(shortcutsDir, "shells.yaml")
 	exportShortcutsPath := filepath.Join(shortcutsDir, "export.yaml")
 	envShortcutsPath := filepath.Join(shortcutsDir, "env.yaml")
-	a2aShortcutsPath := filepath.Join(shortcutsDir, "a2a.yaml")
 	skillsShortcutsPath := filepath.Join(shortcutsDir, "skills.yaml")
 	resetShortcutsPath := filepath.Join(shortcutsDir, "reset.yaml")
 	insightsShortcutsPath := filepath.Join(shortcutsDir, "insights.yaml")
@@ -82,7 +81,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		pathsToCheck := []string{
 			configPath, scmShortcutsPath, gitShortcutsPath,
 			mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath,
-			envShortcutsPath, a2aShortcutsPath, skillsShortcutsPath,
+			envShortcutsPath, skillsShortcutsPath,
 			mcpPath, promptsPath, hooksPath, agentsPath,
 		}
 		if err := validateFilesNotExist(pathsToCheck...); err != nil {
@@ -116,10 +115,6 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 
 	if err := createEnvShortcutsFile(envShortcutsPath); err != nil {
 		return fmt.Errorf("failed to create Env shortcuts file: %w", err)
-	}
-
-	if err := createA2AShortcutsFile(a2aShortcutsPath); err != nil {
-		return fmt.Errorf("failed to create A2A shortcuts file: %w", err)
 	}
 
 	if err := createSkillsShortcutsFile(skillsShortcutsPath); err != nil {
@@ -218,7 +213,6 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	fmt.Printf("   Created: %s\n", shellsShortcutsPath)
 	fmt.Printf("   Created: %s\n", exportShortcutsPath)
 	fmt.Printf("   Created: %s\n", envShortcutsPath)
-	fmt.Printf("   Created: %s\n", a2aShortcutsPath)
 	fmt.Printf("   Created: %s\n", skillsShortcutsPath)
 	fmt.Printf("   Created: %s\n", resetShortcutsPath)
 	fmt.Printf("   Created: %s\n", insightsShortcutsPath)
@@ -748,39 +742,6 @@ shortcuts:
 `
 
 	return os.WriteFile(path, []byte(envShortcutsContent), 0644)
-}
-
-// createA2AShortcutsFile creates the A2A shortcuts YAML file
-func createA2AShortcutsFile(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("failed to create shortcuts directory: %w", err)
-	}
-
-	a2aShortcutsContent := `---
-# A2A (Agent-to-Agent) Shortcuts
-# Manage A2A agent configuration from within chat
-#
-# Usage:
-# - /agents list - List all configured A2A agents
-# - /agents add - Add a new A2A agent
-# - /agents remove - Remove an A2A agent
-
-shortcuts:
-  - name: agents
-    description: "Manage A2A agents"
-    command: infer
-    args:
-      - agents
-    subcommands:
-      - name: list
-        description: "List all configured A2A agents"
-      - name: add
-        description: "Add a new A2A agent (usage: <name> [url] [options])"
-      - name: remove
-        description: "Remove an A2A agent (usage: <name>)"
-`
-
-	return os.WriteFile(path, []byte(a2aShortcutsContent), 0644)
 }
 
 // createSkillsShortcutsFile creates the Agent Skills shortcuts YAML file

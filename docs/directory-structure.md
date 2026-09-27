@@ -138,7 +138,7 @@ project wants to override a config file it commits its own sparse
 - **`mcp.yaml`** - MCP server registry and liveness probe settings. Manage
   via `infer mcp ...` or by hand. See [MCP Integration](mcp-integration.md).
 - **`shortcuts/*.yaml`** - `/git`, `/scm`, `/mcp`, `/shells`, `/export`, `/env`,
-  `/agents`, `/skills` shortcuts plus any you add. Drop new YAML files into
+  `/skills` shortcuts plus any you add. Drop new YAML files into
   `shortcuts/`. A project `./.infer/shortcuts/` is overlaid on top by shortcut
   name, so it adds to (or replaces individual entries of) the userspace set
   rather than hiding it. See [Shortcuts Guide](shortcuts-guide.md).
