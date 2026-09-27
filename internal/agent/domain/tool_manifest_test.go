@@ -92,19 +92,6 @@ func TestToolManifest_RequiresApproval(t *testing.T) {
 	}
 }
 
-func TestParseCustomToolManifest_RequiresCommand(t *testing.T) {
-	if _, err := ParseCustomToolManifest([]byte(validManifest)); err == nil || !strings.Contains(err.Error(), "command is required") {
-		t.Fatalf("error = %v, want a missing command to be rejected", err)
-	}
-	manifest, err := ParseCustomToolManifest([]byte(validManifest + "command: [echo-tool, run]\ntimeout: 10\n"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(manifest.Command) != 2 || manifest.Timeout != 10 {
-		t.Errorf("manifest = %+v, want the command and timeout parsed", manifest)
-	}
-}
-
 func TestToolManifest_Definition(t *testing.T) {
 	manifest, err := ParseToolManifest([]byte(validManifest))
 	if err != nil {

@@ -28,20 +28,17 @@ const (
 var toolNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,63}$`)
 
 // ToolManifest defines a tool: the JSON Schema the model sees and its default
-// policy. A manifest without Command binds to the Go tool registered under the
-// same name. A nil RequireApproval inherits tools.safety.require_approval, so
-// the zero value (not read-only, hidden in plan mode) is the policy of any
-// tool without a manifest, such as an MCP tool.
+// policy; the Go tool registered under the same name executes it. A nil
+// RequireApproval inherits tools.safety.require_approval, so the zero value
+// (not read-only, hidden in plan mode) is the policy of any tool without a
+// manifest, such as an MCP tool.
 type ToolManifest struct {
 	Name            string         `yaml:"name"`
 	Description     string         `yaml:"description"`
-	Command         []string       `yaml:"command,omitempty"`
 	Parameters      map[string]any `yaml:"parameters"`
 	RequireApproval *bool          `yaml:"require_approval,omitempty"`
 	ReadOnly        bool           `yaml:"read_only,omitempty"`
 	PlanMode        PlanMode       `yaml:"plan_mode,omitempty"`
-	Timeout         int            `yaml:"timeout,omitempty"`
-	Enabled         *bool          `yaml:"enabled,omitempty"`
 }
 
 // ParseToolManifest decodes and validates a manifest, rejecting unknown fields
@@ -56,19 +53,6 @@ func ParseToolManifest(data []byte) (ToolManifest, error) {
 	manifest.Parameters, _ = normalizeSchema(manifest.Parameters).(map[string]any)
 	if err := manifest.Validate(); err != nil {
 		return ToolManifest{}, err
-	}
-	return manifest, nil
-}
-
-// ParseCustomToolManifest parses a manifest loaded from disk, which must name
-// the command that runs the tool.
-func ParseCustomToolManifest(data []byte) (ToolManifest, error) {
-	manifest, err := ParseToolManifest(data)
-	if err != nil {
-		return ToolManifest{}, err
-	}
-	if len(manifest.Command) == 0 {
-		return ToolManifest{}, fmt.Errorf("tool %s: command is required for a custom tool", manifest.Name)
 	}
 	return manifest, nil
 }
