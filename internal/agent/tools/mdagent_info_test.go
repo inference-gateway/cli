@@ -90,3 +90,20 @@ func TestSubagentSourceLabel(t *testing.T) {
 		t.Errorf("temp dir classified as %q, want project", got)
 	}
 }
+
+// TestSubagentSourceLabelRelativeProjectDir covers the default load path where
+// the project agents dir is cwd-relative while the home dir is absolute: the
+// project label must survive, not degrade to "user".
+func TestSubagentSourceLabelRelativeProjectDir(t *testing.T) {
+	home := t.TempDir()
+	project := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Chdir(project)
+
+	if got := subagentSourceLabel(filepath.Join(config.ConfigDirName, "agents")); got != "project" {
+		t.Errorf("relative project agents dir classified as %q, want project", got)
+	}
+	if got := subagentSourceLabel(filepath.Join(home, config.ConfigDirName, "agents")); got != "user" {
+		t.Errorf("home agents dir classified as %q, want user", got)
+	}
+}

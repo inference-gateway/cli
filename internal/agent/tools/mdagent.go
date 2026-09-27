@@ -239,9 +239,14 @@ func flexStringList(v any) []string {
 }
 
 // subagentSourceLabel classifies an agents directory as "user" (the home
-// config dir) or "project", for user-facing listings.
+// config dir) or "project", for user-facing listings. The project dir is
+// cwd-relative, so both sides are normalized to absolute paths before the
+// comparison - otherwise filepath.Rel errors and everything reads as "user".
 func subagentSourceLabel(dir string) string {
 	if home, err := os.UserHomeDir(); err == nil {
+		if abs, err := filepath.Abs(dir); err == nil {
+			dir = abs
+		}
 		if same, _ := filepath.Rel(filepath.Join(home, config.ConfigDirName), dir); same == "." || !strings.HasPrefix(same, "..") {
 			return "user"
 		}
