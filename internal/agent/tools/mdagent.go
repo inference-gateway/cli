@@ -170,13 +170,20 @@ func resolveMarkdownAgentModel(model, path string) string {
 
 // resolveMarkdownAgentTools computes the tool allowlist: an explicit `tools`
 // list (or the full known set when only `disallowedTools` is given) minus
-// unknown names and the disallowed set. A restriction that resolves to no
-// tool is a broken definition and skips the file; with neither key set the
-// agent inherits the parent's tools (nil allowlist).
+// unknown names and the disallowed set. A key that is set but parses to no
+// usable entries, or a restriction that resolves to no known tool, skips the
+// file; with neither key set the agent inherits the parent's tools (nil).
 func resolveMarkdownAgentTools(fm markdownAgentFrontmatter, path string, knownTools map[string]bool) ([]string, string) {
 	requested := flexStringList(fm.Tools)
+	disallowedNames := flexStringList(fm.DisallowedTools)
+	if fm.Tools != nil && len(requested) == 0 {
+		return nil, "`tools` was set but is not a non-empty list or comma-separated string"
+	}
+	if fm.DisallowedTools != nil && len(disallowedNames) == 0 {
+		return nil, "`disallowedTools` was set but is not a non-empty list or comma-separated string"
+	}
 	disallowed := make(map[string]bool)
-	for _, name := range flexStringList(fm.DisallowedTools) {
+	for _, name := range disallowedNames {
 		disallowed[name] = true
 	}
 	if requested == nil && len(disallowed) == 0 {
@@ -212,7 +219,8 @@ func resolveMarkdownAgentTools(fm markdownAgentFrontmatter, path string, knownTo
 }
 
 // flexStringList accepts a YAML list (Gemini CLI) or a comma-separated string
-// (Claude Code) and returns the trimmed entries.
+// (Claude Code) and returns the trimmed entries; any other shape yields nil,
+// which callers must reject when the key was set.
 func flexStringList(v any) []string {
 	switch t := v.(type) {
 	case nil:

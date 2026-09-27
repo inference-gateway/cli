@@ -177,6 +177,9 @@ func TestLoadMarkdownAgents_SkipsInvalidFiles(t *testing.T) {
 	writeAgentFile(t, dir, "no-description.md", "---\nname: no-description\n---\nbody")
 	writeAgentFile(t, dir, "all-unknown-tools.md", "---\nname: all-unknown-tools\ndescription: d\ntools: Glob, WebGrep\n---\nbody")
 	writeAgentFile(t, dir, "empty-list.md", "---\nname: empty-list\ndescription: d\ntools: []\n---\nbody")
+	writeAgentFile(t, dir, "empty-string-tools.md", "---\nname: empty-string-tools\ndescription: d\ntools: \"\"\n---\nbody")
+	writeAgentFile(t, dir, "tools-map.md", "---\nname: tools-map\ndescription: d\ntools: {Read: true}\n---\nbody")
+	writeAgentFile(t, dir, "disallowed-map.md", "---\nname: disallowed-map\ndescription: d\ndisallowedTools: {Read: true}\n---\nbody")
 	writeAgentFile(t, dir, "disallow-all.md", "---\nname: disallow-all\ndescription: d\ntools: Read, Grep\ndisallowedTools: [Read, Grep]\n---\nbody")
 	writeAgentFile(t, dir, "ignored.txt", "---\nname: ignored\ndescription: not markdown\n---\nbody")
 
