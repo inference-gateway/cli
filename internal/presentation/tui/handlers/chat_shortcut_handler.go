@@ -220,7 +220,7 @@ func (s *ChatShortcutHandler) runShortcut(ctx context.Context, shortcut shortcut
 }
 
 // handleShortcutSideEffect handles side effects from shortcut execution
-func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectType, data any) tea.Msg {
+func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectType, data any) tea.Msg { //nolint:cyclop
 	switch sideEffect {
 	case shortcuts.SideEffectSwitchModel:
 		return s.handleSwitchModelSideEffect()
@@ -252,6 +252,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowToolsListSideEffect()
 	case shortcuts.SideEffectShowA2AAgents:
 		return s.handleShowA2AAgentsSideEffect()
+	case shortcuts.SideEffectShowAgents:
+		return s.handleShowAgentsSideEffect()
 	case shortcuts.SideEffectSetInput:
 		return s.handleSetInputSideEffect(data)
 	case shortcuts.SideEffectGenerateSnippet:
@@ -306,6 +308,15 @@ func (s *ChatShortcutHandler) handleShowToolsListSideEffect() tea.Msg {
 
 func (s *ChatShortcutHandler) handleShowA2AAgentsSideEffect() tea.Msg {
 	_ = s.handler.stateManager.TransitionToView(tui.ViewStateA2AAgents)
+	return tui.SetStatusEvent{
+		Message:    "",
+		Spinner:    false,
+		StatusType: tui.StatusDefault,
+	}
+}
+
+func (s *ChatShortcutHandler) handleShowAgentsSideEffect() tea.Msg {
+	_ = s.handler.stateManager.TransitionToView(tui.ViewStateAgents)
 	return tui.SetStatusEvent{
 		Message:    "",
 		Spinner:    false,

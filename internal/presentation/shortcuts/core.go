@@ -561,6 +561,29 @@ func (c *A2AAgentsShortcut) Execute(ctx context.Context, args []string) (Shortcu
 	}, nil
 }
 
+// AgentsShortcut shows every agent the chat can use: local Markdown subagent
+// presets (.infer/agents/*.md) and remote A2A agents.
+type AgentsShortcut struct{}
+
+func NewAgentsShortcut() *AgentsShortcut {
+	return &AgentsShortcut{}
+}
+
+func (c *AgentsShortcut) GetName() string { return "agents" }
+func (c *AgentsShortcut) GetDescription() string {
+	return "Show configured agents (local presets and remote A2A)"
+}
+func (c *AgentsShortcut) GetUsage() string              { return "/agents" }
+func (c *AgentsShortcut) CanExecute(args []string) bool { return len(args) == 0 }
+
+func (c *AgentsShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+	return ShortcutResult{
+		Output:     "",
+		Success:    true,
+		SideEffect: SideEffectShowAgents,
+	}, nil
+}
+
 // EffortShortcut shows or sets the reasoning effort level applied to
 // subsequent requests. Anthropic models only - other providers reject the
 // switch. Runtime-only, like /model - agent.reasoning_effort in config

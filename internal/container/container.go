@@ -707,6 +707,10 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		c.shortcutRegistry.Register(shortcuts.NewA2AAgentsShortcut())
 	}
 
+	if c.config.IsAgentToolEnabled() {
+		c.shortcutRegistry.Register(shortcuts.NewAgentsShortcut())
+	}
+
 	if c.config.IsSpeechToTextEnabled() {
 		c.shortcutRegistry.Register(shortcuts.NewVoiceShortcut(
 			c.config.SpeechToText,

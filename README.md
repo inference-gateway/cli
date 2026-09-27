@@ -111,7 +111,9 @@ An agentic command-line assistant that writes code, understands project context,
 - **Persistent Memory**: Cross-session memory stored as individual Markdown fact-files with an
   auto-maintained `MEMORY.md` index that is injected at session start - on by default - [Learn more →](#persistent-memory)
 - **Subagents**: Spawn parallel `infer headless` subprocesses from chat with the `Agent` tool to fan out
-  independent work (research, edits, investigations) and fold their results back into the conversation
+  independent work (research, edits, investigations) and fold their results back into the conversation;
+  define reusable presets as Markdown files in `.infer/agents/` (Claude Code / Gemini CLI compatible)
+  - [Learn more →](docs/subagents.md)
 - **Computer Use**: Let the agent drive the desktop - mouse, keyboard, screenshots, app focus - across
   macOS, X11, and Wayland - off by default - [Learn more →](#computer-use)
 - **Reminders & Command Hooks**: Inject system reminders or run shell commands at agent-loop hook
@@ -329,6 +331,7 @@ Now that you're up and running, explore these guides:
 - **[Web Terminal](docs/web-terminal.md)** - Browser-based terminal interface
 - **[Shortcuts Guide](docs/shortcuts-guide.md)** - Custom shortcuts and AI-powered snippets
 - **[A2A Agents](docs/agents-configuration.md)** - Agent-to-agent communication setup
+- **[Markdown Subagents](docs/subagents.md)** - Reusable subagent presets in `.infer/agents/<name>.md`
 - **[Telemetry](docs/telemetry.md)** - OpenTelemetry traces/metrics and baggage propagation
 - **[AG-UI Output](docs/ag-ui-output.md)** - AG-UI protocol event stream for the headless agent
 

@@ -325,9 +325,14 @@ func LoadSkillMetadata(skillDir, dirName string, scope agentdomain.SkillScope, p
 		return nil, &agentdomain.SkillLoadError{Path: absPath, Reason: fmt.Sprintf("read failed: %v", err)}
 	}
 
-	fm, parseErr := parseFrontmatter(data)
-	if parseErr != nil {
-		return nil, &agentdomain.SkillLoadError{Path: absPath, Reason: parseErr.Error()}
+	fmBlock, _, splitErr := SplitFrontmatter(data)
+	if splitErr != nil {
+		return nil, &agentdomain.SkillLoadError{Path: absPath, Reason: splitErr.Error()}
+	}
+
+	var fm frontmatter
+	if err := yaml.Unmarshal([]byte(fmBlock), &fm); err != nil {
+		return nil, &agentdomain.SkillLoadError{Path: absPath, Reason: fmt.Errorf("invalid YAML in frontmatter: %w", err).Error()}
 	}
 
 	if validationErr := validate(fm, dirName); validationErr != nil {
@@ -343,27 +348,22 @@ func LoadSkillMetadata(skillDir, dirName string, scope agentdomain.SkillScope, p
 	}, nil
 }
 
-// parseFrontmatter extracts the YAML block delimited by `---` lines at the
-// top of the file. The body after the second delimiter is discarded - we
-// only care about metadata at startup.
-func parseFrontmatter(data []byte) (frontmatter, error) {
-	var fm frontmatter
-
+// SplitFrontmatter extracts the YAML block delimited by `---` lines at the top
+// of the file, returning the raw YAML block and the Markdown body after it.
+// Shared with the Markdown subagent definitions (.infer/agents/*.md), which
+// have their own frontmatter schema.
+func SplitFrontmatter(data []byte) (string, string, error) {
 	content := strings.TrimLeft(string(data), "\ufeff \t\r\n")
 	if !strings.HasPrefix(content, frontmatterDelim) {
-		return fm, fmt.Errorf("missing YAML frontmatter (expected `---` at top of file)")
+		return "", "", fmt.Errorf("missing YAML frontmatter (expected `---` at top of file)")
 	}
 
 	parts := strings.SplitN(content, frontmatterDelim, frontmatterMinParts)
 	if len(parts) < frontmatterMinParts {
-		return fm, fmt.Errorf("malformed frontmatter (expected closing `---` delimiter)")
+		return "", "", fmt.Errorf("malformed frontmatter (expected closing `---` delimiter)")
 	}
 
-	if err := yaml.Unmarshal([]byte(parts[1]), &fm); err != nil {
-		return fm, fmt.Errorf("invalid YAML in frontmatter: %w", err)
-	}
-
-	return fm, nil
+	return parts[1], parts[2], nil
 }
 
 // validate enforces the official spec rules.

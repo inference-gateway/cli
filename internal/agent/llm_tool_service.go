@@ -16,18 +16,31 @@ import (
 
 // LLMToolService implements ToolService with the new tools package architecture
 type LLMToolService struct {
-	registry *tools.Registry
-	enabled  bool
-	config   *config.Config
+	registry  *tools.Registry
+	enabled   bool
+	config    *config.Config
+	allowlist map[string]bool
 }
 
 // NewLLMToolServiceWithRegistry creates a new LLM tool service with an existing registry
 func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry) *LLMToolService {
-	return &LLMToolService{
+	s := &LLMToolService{
 		registry: registry,
 		enabled:  cfg.Tools.Enabled,
 		config:   cfg,
 	}
+	// A named Markdown subagent receives its tool allowlist through the
+	// SubagentToolsEnv channel; when set, only those tools are advertised to
+	// the model and accepted for execution.
+	if raw := os.Getenv(tools.SubagentToolsEnv); raw != "" {
+		s.allowlist = make(map[string]bool)
+		for _, name := range strings.Split(raw, ",") {
+			if name = strings.TrimSpace(name); name != "" {
+				s.allowlist[name] = true
+			}
+		}
+	}
+	return s
 }
 
 // planModeAllowedTools is the default-deny set of tools executable in plan
@@ -52,6 +65,9 @@ var planOnlyTools = map[string]bool{
 
 // isToolEnabled checks if a tool should be included based on its type and configuration
 func (s *LLMToolService) isToolEnabled(toolName string) bool {
+	if s.allowlist != nil && !s.allowlist[toolName] {
+		return false
+	}
 	if s.isA2ATool(toolName) {
 		return s.config.IsA2AToolsEnabled() && s.registry.IsToolEnabled(toolName)
 	}
@@ -123,6 +139,12 @@ func (s *LLMToolService) ListAvailableTools() []string {
 	}
 
 	return tools
+}
+
+// ListMarkdownSubagents returns the Markdown-defined subagent presets loaded
+// this session (.infer/agents/*.md and ~/.infer/agents/*.md), for /agents.
+func (s *LLMToolService) ListMarkdownSubagents() []agentdomain.SubagentInfo {
+	return s.registry.MarkdownSubagents()
 }
 
 // isA2ATool checks if a tool is an A2A-related tool
@@ -241,6 +263,10 @@ func (s *NoOpToolService) ListToolsForMode(mode agentdomain.AgentMode) []sdk.Cha
 
 func (s *NoOpToolService) ListAvailableTools() []string {
 	return []string{}
+}
+
+func (s *NoOpToolService) ListMarkdownSubagents() []agentdomain.SubagentInfo {
+	return nil
 }
 
 func (s *NoOpToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {

@@ -51,6 +51,7 @@ type Registry struct {
 	frameSourcesMu  sync.RWMutex
 	memoryBackend   memory.MemoryBackend
 	stores          *storage.Stores
+	mdAgents        []markdownAgent
 }
 
 // NewRegistry creates a new tool registry with self-contained tools.
@@ -93,7 +94,38 @@ func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, spee
 	}
 
 	registry.registerTools()
+	registry.loadMarkdownAgents()
 	return registry
+}
+
+// loadMarkdownAgents loads the Markdown subagent definitions (.infer/agents/*.md)
+// once per session and installs them into the Agent tool, so its tool
+// description lists them and tool-name validation runs against the tools this
+// session actually registered. MCP tools register later and are unknown here.
+func (r *Registry) loadMarkdownAgents() {
+	agentTool, ok := r.tools["Agent"].(*AgentTool)
+	if !ok {
+		return
+	}
+	known := make(map[string]bool, len(r.tools))
+	for name := range r.tools {
+		known[name] = true
+	}
+	r.mdAgents = loadMarkdownAgents(nil, known)
+	agentTool.setMarkdownAgents(r.mdAgents)
+}
+
+// MarkdownSubagents returns the Markdown-defined subagent presets loaded this
+// session (.infer/agents/*.md, project then user home), for the /agents listing.
+func (r *Registry) MarkdownSubagents() []agentdomain.SubagentInfo {
+	if len(r.mdAgents) == 0 {
+		return nil
+	}
+	infos := make([]agentdomain.SubagentInfo, 0, len(r.mdAgents))
+	for _, agent := range r.mdAgents {
+		infos = append(infos, agent.subagentInfo())
+	}
+	return infos
 }
 
 // RegisterFrameSource adds (or replaces) a named frame source. The

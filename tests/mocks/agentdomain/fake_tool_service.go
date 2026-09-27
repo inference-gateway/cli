@@ -72,6 +72,16 @@ type FakeToolService struct {
 	listAvailableToolsReturnsOnCall map[int]struct {
 		result1 []string
 	}
+	ListMarkdownSubagentsStub        func() []domain.SubagentInfo
+	listMarkdownSubagentsMutex       sync.RWMutex
+	listMarkdownSubagentsArgsForCall []struct {
+	}
+	listMarkdownSubagentsReturns struct {
+		result1 []domain.SubagentInfo
+	}
+	listMarkdownSubagentsReturnsOnCall map[int]struct {
+		result1 []domain.SubagentInfo
+	}
 	ListToolsStub        func() []sdk.ChatCompletionTool
 	listToolsMutex       sync.RWMutex
 	listToolsArgsForCall []struct {
@@ -414,6 +424,59 @@ func (fake *FakeToolService) ListAvailableToolsReturnsOnCall(i int, result1 []st
 	}
 	fake.listAvailableToolsReturnsOnCall[i] = struct {
 		result1 []string
+	}{result1}
+}
+
+func (fake *FakeToolService) ListMarkdownSubagents() []domain.SubagentInfo {
+	fake.listMarkdownSubagentsMutex.Lock()
+	ret, specificReturn := fake.listMarkdownSubagentsReturnsOnCall[len(fake.listMarkdownSubagentsArgsForCall)]
+	fake.listMarkdownSubagentsArgsForCall = append(fake.listMarkdownSubagentsArgsForCall, struct {
+	}{})
+	stub := fake.ListMarkdownSubagentsStub
+	fakeReturns := fake.listMarkdownSubagentsReturns
+	fake.recordInvocation("ListMarkdownSubagents", []interface{}{})
+	fake.listMarkdownSubagentsMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeToolService) ListMarkdownSubagentsCallCount() int {
+	fake.listMarkdownSubagentsMutex.RLock()
+	defer fake.listMarkdownSubagentsMutex.RUnlock()
+	return len(fake.listMarkdownSubagentsArgsForCall)
+}
+
+func (fake *FakeToolService) ListMarkdownSubagentsCalls(stub func() []domain.SubagentInfo) {
+	fake.listMarkdownSubagentsMutex.Lock()
+	defer fake.listMarkdownSubagentsMutex.Unlock()
+	fake.ListMarkdownSubagentsStub = stub
+}
+
+func (fake *FakeToolService) ListMarkdownSubagentsReturns(result1 []domain.SubagentInfo) {
+	fake.listMarkdownSubagentsMutex.Lock()
+	defer fake.listMarkdownSubagentsMutex.Unlock()
+	fake.ListMarkdownSubagentsStub = nil
+	fake.listMarkdownSubagentsReturns = struct {
+		result1 []domain.SubagentInfo
+	}{result1}
+}
+
+func (fake *FakeToolService) ListMarkdownSubagentsReturnsOnCall(i int, result1 []domain.SubagentInfo) {
+	fake.listMarkdownSubagentsMutex.Lock()
+	defer fake.listMarkdownSubagentsMutex.Unlock()
+	fake.ListMarkdownSubagentsStub = nil
+	if fake.listMarkdownSubagentsReturnsOnCall == nil {
+		fake.listMarkdownSubagentsReturnsOnCall = make(map[int]struct {
+			result1 []domain.SubagentInfo
+		})
+	}
+	fake.listMarkdownSubagentsReturnsOnCall[i] = struct {
+		result1 []domain.SubagentInfo
 	}{result1}
 }
 
