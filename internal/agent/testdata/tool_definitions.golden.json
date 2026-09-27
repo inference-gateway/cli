@@ -1,0 +1,2237 @@
+{
+  "definitions": [
+    {
+      "function": {
+        "description": "Retrieve an A2A agent's metadata card showing its capabilities and configuration. Use ONLY for discovering what an agent can do. For asking questions or requesting work from an agent, use the Agent tool instead.",
+        "name": "A2A_QueryAgent",
+        "parameters": {
+          "properties": {
+            "agent_url": {
+              "description": "URL of the A2A agent to retrieve metadata from",
+              "type": "string"
+            }
+          },
+          "required": [
+            "agent_url"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Query the status and result of a specific A2A task. Returns the complete task object including status, artifacts, and message data. IMPORTANT: When you submit a task via A2A_SubmitTask, it automatically monitors the task in the background and emits an event when complete - you will be notified automatically. DO NOT manually query recently submitted tasks during background monitoring. Only use this tool to: 1) Check tasks from previous conversations, 2) Check tasks submitted outside this session, or 3) Get detailed results AFTER you receive a completion notification.",
+        "name": "A2A_QueryTask",
+        "parameters": {
+          "properties": {
+            "agent_url": {
+              "description": "URL of the A2A agent server",
+              "type": "string"
+            },
+            "context_id": {
+              "description": "Context ID for the task",
+              "type": "string"
+            },
+            "task_id": {
+              "description": "ID of the task to query",
+              "type": "string"
+            }
+          },
+          "required": [
+            "agent_url",
+            "context_id",
+            "task_id"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Submit work to an A2A agent server and delegate it to run in the background. IMPORTANT: This tool returns IMMEDIATELY after submission. DO NOT poll, query, or download artifacts right after submission. The system automatically monitors the task in the background and you will be AUTOMATICALLY NOTIFIED when it completes - the result will appear in the conversation. After submission, you MUST wait for the automatic notification before taking any follow-up actions. You can tell the user the task is running and you're waiting for it to complete. Use this for ANY interaction where you need an agent to respond with answers or complete work. The A2A_QueryTask tool is ONLY for retrieving metadata/capabilities or checking status of previously submitted tasks, NOT for polling just-submitted tasks.",
+        "name": "A2A_SubmitTask",
+        "parameters": {
+          "properties": {
+            "agent_url": {
+              "description": "URL of the A2A agent server",
+              "type": "string"
+            },
+            "context_id": {
+              "description": "Optional context ID from an earlier task to continue that conversation with the agent. Omit to start an independent task; independent tasks on the same agent run in parallel",
+              "type": "string"
+            },
+            "task_description": {
+              "description": "The question to ask or work to perform. Can be a question, task, action, or continuation of existing work",
+              "type": "string"
+            }
+          },
+          "required": [
+            "agent_url",
+            "task_description"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Spawn local subagents - each an autonomous \"infer headless\" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.\n\nProvide either 'tasks' (an array of {description, label?, model?, system_prompt?, type?} objects) to run several subagents at once, or 'description' for a single subagent. Give a subagent a specialized role/persona by setting its system_prompt (each subagent can have its own).\n\nChoose each subagent's capability with 'type': ReadOnly (DEFAULT) is Explore-like - read/search tools only, never needs approval - use it for investigation, research, and reading code. ReadWrite can modify files and run commands; its mutations require approval. Prefer ReadOnly unless the task must change something.\n\nThe subagent surface (headless background vs. an interactive tmux pane you can watch) is set by the operator via config (tools.agent.mode) - you do NOT choose it and there is no mode parameter; just describe the task.\n\nIn EVERY mode you are AUTOMATICALLY NOTIFIED when each subagent finishes (its result is folded into this conversation). After dispatching, END YOUR TURN and wait: do NOT poll with ListSubagents/GetSubagentResult and do NOT CloseSubagent to fetch a result (closing only stops one early). The '[Subagent Completed: ...]' message arrives on its own - act on it then.\n- Headless subagents honor tools.agent.wait: blocking (default) waits until all finish and returns their aggregated results (fan-out / fan-in); async returns immediately and notifies you as each completes.\n- Interactive subagents are fire-and-watch: the call returns once their tmux panes launch; you watch them live and are notified when each finishes. Use CloseSubagent only to stop one early.\n\nEach subagent is independent and cannot itself spawn further subagents. Prefer narrow, self-contained task descriptions.",
+        "name": "Agent",
+        "parameters": {
+          "properties": {
+            "agent": {
+              "description": "Optional name of a Markdown-defined agent (see Available agents) that supplies the system prompt, model and tool allowlist; type is then derived from that allowlist",
+              "type": "string"
+            },
+            "description": {
+              "description": "Shorthand for a single subagent task (alternative to tasks)",
+              "type": "string"
+            },
+            "system_prompt": {
+              "description": "Optional system prompt for the single-task (description) form, giving the subagent a specialized role",
+              "type": "string"
+            },
+            "tasks": {
+              "description": "Subagent tasks to run in parallel. Each runs in its own isolated session.",
+              "items": {
+                "properties": {
+                  "agent": {
+                    "description": "Optional name of a Markdown-defined agent (see Available agents) that supplies the system prompt, model and tool allowlist; type is then derived from that allowlist",
+                    "type": "string"
+                  },
+                  "description": {
+                    "description": "The task for the subagent to perform",
+                    "type": "string"
+                  },
+                  "label": {
+                    "description": "Short label for the subagent (shown in progress/panes)",
+                    "type": "string"
+                  },
+                  "model": {
+                    "description": "Optional model override for this subagent",
+                    "type": "string"
+                  },
+                  "system_prompt": {
+                    "description": "Optional system prompt giving THIS subagent a specialized role/persona for its task",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "Capability. ReadOnly (default) is Explore-like: read/search tools only, never needs approval - use for investigation/research. ReadWrite can modify files and run commands; its mutations require approval.",
+                    "enum": [
+                      "ReadOnly",
+                      "ReadWrite"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "description"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "type": {
+              "description": "Capability for the single-task form. ReadOnly (default) is Explore-like: read/search only, never needs approval. ReadWrite can modify files and run commands; mutations require approval.",
+              "enum": [
+                "ReadOnly",
+                "ReadWrite"
+              ],
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Respond to an interactive subagent that is waiting for tool approval (you are notified with a '[Subagent ... awaiting approval]' message showing what it wants to run). decision='approve' lets it proceed, 'reject' declines. This action itself requires YOUR confirmation in this chat before it is relayed. Only Approve/Reject - do not auto-approve. Pass the subagent_id from ListSubagents.",
+        "name": "ApproveSubagent",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "decision": {
+              "description": "approve lets the subagent run the pending tool; reject declines it",
+              "enum": [
+                "approve",
+                "reject"
+              ],
+              "type": "string"
+            },
+            "subagent_id": {
+              "description": "The interactive subagent id from ListSubagents",
+              "type": "string"
+            }
+          },
+          "required": [
+            "subagent_id",
+            "decision"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Ask the user 1-4 multiple-choice clarifying questions as an interactive form.\n\nUse this when a decision hinges on a discrete choice the user should make - format, scope, approach, naming, trade-off - instead of guessing or asking in prose. In plan mode, call it BEFORE RequestPlanApproval and fold the answers into the plan, then submit the plan.\n\nEach question has:\n- header: a short chip/tag (\u003c= 12 chars), e.g. \"Scope\", \"Format\"\n- question: the full question text\n- options: 2-4 choices, each with a concise label (returned as the answer) and a description of the trade-off\n- multiSelect (optional): set true to let the user pick more than one option\n\nThe UI always adds an \"Other\" free-text choice, so you do not need an \"Other\" option yourself. The user answers with the keyboard and the selected labels (and any free text) are returned to you.\n\nNotes:\n- Ask only what you genuinely need - prefer one focused round of questions over many.\n- If no interactive user is available (headless run), you will be told to proceed with stated assumptions instead.",
+        "name": "AskUserQuestion",
+        "parameters": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "additionalProperties": false,
+          "properties": {
+            "questions": {
+              "description": "1-4 clarifying questions to ask the user.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "header": {
+                    "description": "Short label/chip shown as a tag (\u003c= 12 chars).",
+                    "maxLength": 12,
+                    "type": "string"
+                  },
+                  "multiSelect": {
+                    "default": false,
+                    "description": "Allow selecting multiple options.",
+                    "type": "boolean"
+                  },
+                  "options": {
+                    "description": "2-4 selectable options. An 'Other' free-text choice is always added by the UI.",
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "description": {
+                          "description": "What this option means / its trade-off.",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Concise option value returned as the answer.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "description"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 4,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  "question": {
+                    "description": "The full question text to display.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "header",
+                  "question",
+                  "options"
+                ],
+                "type": "object"
+              },
+              "maxItems": 4,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "questions"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Execute allowed bash commands securely. Only pre-approved commands from the allowed list can be executed. Each segment of a pipe or \u0026\u0026/||/; chain must itself be allowed, and file-write redirections (\u003e, \u003e\u003e) and command substitution ($(...), backticks) are blocked unless an anchored allowed list pattern (^...$) explicitly allows them; benign redirects like 2\u003e\u00261 or \u003e/dev/null are fine.",
+        "name": "Bash",
+        "parameters": {
+          "properties": {
+            "command": {
+              "description": "The bash command to execute. Run ONE command per call - pipes and operators (|, \u0026\u0026, ||, ;) are not auto-approved. Which commands run without approval depends on the current agent mode and is listed in the system prompt; anything off that list requires approval (chat) or is rejected (agent mode).",
+              "type": "string"
+            },
+            "detached": {
+              "default": false,
+              "description": "Run the command in the background and return immediately. Use BashOutput to read output and Wait to wait for completion. Equivalent to pressing Ctrl+B during execution.",
+              "type": "boolean"
+            },
+            "format": {
+              "default": "text",
+              "description": "Output format (text or json)",
+              "enum": [
+                "text",
+                "json"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "command"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Retrieves output from a running or completed background bash shell. Returns only new output since the last read. Use this to monitor long-running commands that were moved to the background.",
+        "name": "BashOutput",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "bash_id": {
+              "description": "The shell ID returned when the command was moved to background",
+              "type": "string"
+            },
+            "filter": {
+              "description": "Optional regex pattern to filter output lines. Only lines matching the pattern will be returned.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "bash_id"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Clicks in the current browser page, either at an element (CSS selector or text= / role-based Playwright selector) or at viewport x/y coordinates (CSS pixels) taken from a BrowserScreenshot. Provide 'selector' OR both 'x' and 'y'. Use BrowserRead or BrowserScreenshot first to locate the target. Coordinate clicks are not available on the extension backend. Requires an active page (call BrowserNavigate first).",
+        "name": "BrowserClick",
+        "parameters": {
+          "properties": {
+            "selector": {
+              "description": "CSS or Playwright selector of the element to click (e.g. 'button.submit', 'text=Sign in'). Provide this OR x/y coordinates.",
+              "type": "string"
+            },
+            "x": {
+              "description": "Viewport x coordinate (CSS pixels) to click, from a BrowserScreenshot. Must be paired with y.",
+              "type": "number"
+            },
+            "y": {
+              "description": "Viewport y coordinate (CSS pixels) to click, from a BrowserScreenshot. Must be paired with x.",
+              "type": "number"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Opens a URL in the automated browser session. Launches the browser on first use (or attaches to a running one when a CDP endpoint is configured) and keeps the session open across browser tool calls. Returns the final URL and page title after navigation.",
+        "name": "BrowserNavigate",
+        "parameters": {
+          "properties": {
+            "url": {
+              "description": "URL to navigate to, including scheme (e.g. https://example.com)",
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Reads the current browser page: URL, title, and visible text (of the whole page or of the element matched by an optional selector). Sensitive input values (passwords, tokens, one-time codes) are redacted. Also returns recent browser-initiated events (console messages, dialogs, and window.inferNotify(...) calls from page scripts) so pages can signal back to you. Read-only.",
+        "name": "BrowserRead",
+        "parameters": {
+          "properties": {
+            "selector": {
+              "description": "Optional CSS or Playwright selector to read a specific element; omit to read the whole page body",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Captures a screenshot of the current browser page/active tab and attaches it as an image (models with vision see it inline). Use it to see what the user is looking at, then act with BrowserClick (by selector or x/y coordinates). Password fields render masked by the browser. Read-only.",
+        "name": "BrowserScreenshot",
+        "parameters": {
+          "properties": {},
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Lists the browser's open tabs (index, URL, title) and marks the active one, so you know which page the user is currently on. Read-only.",
+        "name": "BrowserTabs",
+        "parameters": {
+          "properties": {},
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Types text into an input element in the current browser page identified by a selector, replacing its existing value. Set press_enter to true to submit afterwards (e.g. search boxes, forms). Requires an active page (call BrowserNavigate first).",
+        "name": "BrowserType",
+        "parameters": {
+          "properties": {
+            "press_enter": {
+              "default": false,
+              "description": "Press Enter after typing to submit (defaults to false)",
+              "type": "boolean"
+            },
+            "selector": {
+              "description": "CSS or Playwright selector of the input element (e.g. 'input[name=q]')",
+              "type": "string"
+            },
+            "text": {
+              "description": "Text to type; replaces the element's current value",
+              "type": "string"
+            }
+          },
+          "required": [
+            "selector",
+            "text"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Stop a subagent early or tidy a finished interactive pane. You do NOT need to close a subagent to receive its result - results arrive automatically when it finishes. Never CloseSubagent just to fetch a result or because its output looks empty; wait for the automatic notification. For an interactive subagent this folds in its last assistant message and kills the pane; for a headless one it cancels the subprocess. Pass the subagent_id from ListSubagents.",
+        "name": "CloseSubagent",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "subagent_id": {
+              "description": "The subagent id from ListSubagents",
+              "type": "string"
+            }
+          },
+          "required": [
+            "subagent_id"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Drives the computer's accessibility tree, mouse, keyboard, and screen through one action-based interface. PREFER \"accessibility\" as the first observation: it returns compact role/label/state/bbox text in the same coordinate space as screenshots, costs no vision tokens, and works for text-only models. Use \"press\" with an exact returned label to activate a standard control without moving the cursor or taking a screenshot. If accessibility reports empty, unavailable, unsupported, or insufficient content, fall back to \"screenshot\" (pass \"region\" to re-capture a frame-space rectangle at native resolution for small UI). Other actions: \"cursor\", \"move\"/\"click\"/\"double_click\"/\"triple_click\" (pointer actions at frame-space x/y), \"scroll\", \"type\" (types text INTO GUI APPLICATIONS at the cursor - DO NOT use it to run shell commands, use Bash instead), and \"key\" (a combo such as \"enter\" or \"cmd+a\"). To open applications on macOS, use Bash with 'open -a AppName'. Reach for GetLatestFrame only when you cannot see images yourself (its annotated text mode) or for non-screen frame sources.",
+        "name": "Computer",
+        "parameters": {
+          "properties": {
+            "action": {
+              "description": "What to do: accessibility (preferred first observation: compact UI tree with clickable bounding boxes), press (invoke a labelled element without moving the cursor), screenshot (visual fallback, optionally a region), cursor, pointer actions, scroll, type, or key.",
+              "enum": [
+                "accessibility",
+                "press",
+                "screenshot",
+                "cursor",
+                "move",
+                "click",
+                "double_click",
+                "triple_click",
+                "scroll",
+                "type",
+                "key"
+              ],
+              "type": "string"
+            },
+            "amount": {
+              "description": "scroll: wheel clicks (default 3); negative scrolls up / left.",
+              "type": "integer"
+            },
+            "button": {
+              "description": "click actions: mouse button (default left).",
+              "enum": [
+                "left",
+                "right",
+                "middle"
+              ],
+              "type": "string"
+            },
+            "combo": {
+              "description": "key: a key combination such as \"enter\", \"cmd+a\", \"ctrl+shift+t\".",
+              "type": "string"
+            },
+            "direction": {
+              "description": "scroll: axis (default vertical).",
+              "enum": [
+                "vertical",
+                "horizontal"
+              ],
+              "type": "string"
+            },
+            "label": {
+              "description": "press only: exact label returned by the accessibility action (first pressable match wins).",
+              "type": "string"
+            },
+            "region": {
+              "description": "screenshot only: capture just this rectangle of the frame space at native resolution, so small UI becomes readable.",
+              "properties": {
+                "height": {
+                  "type": "integer"
+                },
+                "width": {
+                  "type": "integer"
+                },
+                "x": {
+                  "type": "integer"
+                },
+                "y": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "width",
+                "height"
+              ],
+              "type": "object"
+            },
+            "target": {
+              "description": "accessibility/press only: frontmost (default), dock, menubar, pid:\u003cnumber\u003e, app:\u003cname\u003e, or a bare application name.",
+              "type": "string"
+            },
+            "text": {
+              "description": "type: the text to type.",
+              "type": "string"
+            },
+            "x": {
+              "description": "Pointer target X in the frame coordinate space (same space as screenshots).",
+              "type": "integer"
+            },
+            "y": {
+              "description": "Pointer target Y in the frame coordinate space.",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Create an avatar in the TextToVideo avatar library (~/.infer/avatars/\u003cname\u003e/) from a photo of a person, so TextToVideo can render them. Returns the avatar name and its images.\n\nphoto is a bare .png/.jpg/.jpeg/.webp file name, looked up in the working directory, then in this session's artifacts directory (where ImageGeneration and ImageEdit save their images) - no directories or absolute paths. The photo is stored as the front image, and each of angles (default: three-quarter-left and three-quarter-right; also left-profile and right-profile; [] stores the photo only) is generated from it with the ImageEdit model, so the photo is sent to that third-party provider. Only create an avatar from a photo the user asked you to use. quality defaults to high and size to 1024x1536.\n\nThe tool never overwrites: an existing name fails - pick another name or use the existing avatar. It cannot delete avatars; the user runs infer avatars delete. Then call TextToVideo with avatar set to the name: with audio for a lip-synced clip, without audio to keep the person consistent in a prompt-driven shot.",
+        "name": "CreateAvatar",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "angles": {
+              "description": "Views to generate from the photo; defaults to both three-quarter views; [] stores the photo only",
+              "items": {
+                "enum": [
+                  "left-profile",
+                  "right-profile",
+                  "three-quarter-left",
+                  "three-quarter-right"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "name": {
+              "description": "Name of the new avatar: a bare folder name such as \"presenter\"; an existing name fails",
+              "type": "string"
+            },
+            "photo": {
+              "description": "Bare file name (no directories or absolute paths) of a front-facing .png, .jpg, .jpeg or .webp photo, looked up in the working directory, then in this session's artifacts directory",
+              "type": "string"
+            },
+            "quality": {
+              "default": "high",
+              "description": "Generated image quality",
+              "enum": [
+                "auto",
+                "low",
+                "medium",
+                "high",
+                "standard"
+              ],
+              "type": "string"
+            },
+            "size": {
+              "default": "1024x1536",
+              "description": "Generated image size as WIDTHxHEIGHT, or auto",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "photo"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Delete files or directories from the filesystem. Supports wildcard patterns for batch operations. Restricted to current working directory for security.",
+        "name": "Delete",
+        "parameters": {
+          "properties": {
+            "force": {
+              "default": false,
+              "description": "Whether to force deletion (ignore non-existent files)",
+              "type": "boolean"
+            },
+            "format": {
+              "default": "text",
+              "description": "Output format (text or json)",
+              "enum": [
+                "text",
+                "json"
+              ],
+              "type": "string"
+            },
+            "path": {
+              "description": "The path to the file or directory to delete. Supports wildcard patterns like '*.txt' or 'temp/*' when wildcards are enabled.",
+              "type": "string"
+            },
+            "recursive": {
+              "default": false,
+              "description": "Whether to delete directories recursively",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Performs exact string replacements in files.\n\nUsage:\n- You must use your Read tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file.\n- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: spaces + line number + tab. Everything after that tab is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.\n- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.\n- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.\n- The edit will FAIL if old_string is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use replace_all to change every instance of old_string.\n- Use replace_all for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.",
+        "name": "Edit",
+        "parameters": {
+          "properties": {
+            "file_path": {
+              "description": "The absolute path to the file to modify",
+              "type": "string"
+            },
+            "new_string": {
+              "description": "The text to replace it with (must be different from old_string)",
+              "type": "string"
+            },
+            "old_string": {
+              "description": "The text to replace",
+              "type": "string"
+            },
+            "replace_all": {
+              "default": false,
+              "description": "Replace all occurrences of old_string (default false)",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "file_path",
+            "old_string",
+            "new_string"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Retrieves the latest frame from a named frame source. This is a read-only operation that does NOT require approval. For the desktop, first use Computer's \"accessibility\" action; use Computer \"screenshot\" or this tool's annotated text only when the accessibility tree is empty, unavailable, or insufficient. Use this tool when you cannot see images yourself (\"annotated\" calls the configured vision annotator) or for non-screen frame sources such as cameras. Sources: \"screen\" (the screenshot ring buffer, captured every few seconds when streaming is enabled) and any configured directory sources. When format is omitted it is chosen automatically based on your vision capability. Pass \"region\" to zoom: the given frame-space rectangle is re-captured at native resolution, the reliable way to read small UI.",
+        "name": "GetLatestFrame",
+        "parameters": {
+          "properties": {
+            "format": {
+              "description": "\"regular\" returns the raw image; \"annotated\" returns a text summary + element list instead of the image. Omitted: annotated when an annotator is configured, regular otherwise.",
+              "enum": [
+                "regular",
+                "annotated"
+              ],
+              "type": "string"
+            },
+            "region": {
+              "description": "Zoom into a sub-region of the screen (screen source only): the region is re-captured at native resolution, so small UI (Dock icons, dense toolbars) becomes readable. Coordinates are in the same frame space as MouseClick and previous annotations; returned element coordinates are translated back into that space.",
+              "properties": {
+                "height": {
+                  "type": "integer"
+                },
+                "width": {
+                  "type": "integer"
+                },
+                "x": {
+                  "type": "integer"
+                },
+                "y": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "width",
+                "height"
+              ],
+              "type": "object"
+            },
+            "source": {
+              "description": "Frame source name. Configured sources: screen. Defaults to the only source, or \"screen\" when present.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Re-read a completed interactive subagent's last assistant message on demand. Do NOT use this to poll for completion - you are notified automatically when a subagent finishes; a running subagent refuses this call. If you just dispatched a subagent, END YOUR TURN and wait for the notification instead of calling this. Pass the subagent_id from ListSubagents.",
+        "name": "GetSubagentResult",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "subagent_id": {
+              "description": "The subagent id from ListSubagents",
+              "type": "string"
+            }
+          },
+          "required": [
+            "subagent_id"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "A powerful search tool with configurable backend (ripgrep or Go implementation)\n\n Usage:\n - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n - Use the Agent tool for open-ended searches requiring multiple rounds\n - Pattern syntax: When using ripgrep backend - literal braces need escaping (use `interface\\{\\}` to find `any` in Go code)\n - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
+        "name": "Grep",
+        "parameters": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "properties": {
+            "-A": {
+              "description": "Number of lines to show after each match (rg -A). Requires output_mode: \"content\", ignored otherwise.",
+              "type": "number"
+            },
+            "-B": {
+              "description": "Number of lines to show before each match (rg -B). Requires output_mode: \"content\", ignored otherwise.",
+              "type": "number"
+            },
+            "-C": {
+              "description": "Number of lines to show before and after each match (rg -C). Requires output_mode: \"content\", ignored otherwise.",
+              "type": "number"
+            },
+            "-i": {
+              "description": "Case insensitive search (rg -i)",
+              "type": "boolean"
+            },
+            "-n": {
+              "description": "Show line numbers in output (rg -n). Requires output_mode: \"content\", ignored otherwise.",
+              "type": "boolean"
+            },
+            "glob": {
+              "description": "Glob pattern to filter files (e.g. \"*.js\", \"*.{ts,tsx}\") - maps to rg --glob",
+              "type": "string"
+            },
+            "head_limit": {
+              "description": "Limit output to first N lines/entries, equivalent to \"| head -N\". Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count (limits count entries). When unspecified, shows all results from ripgrep.",
+              "type": "number"
+            },
+            "multiline": {
+              "default": false,
+              "description": "Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall). Default: false.",
+              "type": "boolean"
+            },
+            "output_mode": {
+              "default": "files_with_matches",
+              "description": "Output mode: \"content\" shows matching lines (supports -A/-B/-C context, -n line numbers), \"files_with_matches\" shows file paths (supports head_limit), \"count\" shows match counts (supports head_limit). Defaults to \"files_with_matches\".",
+              "enum": [
+                "content",
+                "files_with_matches",
+                "count"
+              ],
+              "type": "string"
+            },
+            "path": {
+              "description": "File or directory to search in (rg PATH). Defaults to current working directory.",
+              "type": "string"
+            },
+            "pattern": {
+              "description": "The regular expression pattern to search for in file contents",
+              "type": "string"
+            },
+            "type": {
+              "description": "File type to search (rg --type). Common types: js, py, rust, go, java, etc. More efficient than include for standard file types.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "pattern"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Looks at a local image file or http(s) URL. If you can see images, the image itself is attached to the next message; otherwise (or additionally, when a vision annotator is configured) you get a text description: a scene summary plus a numbered list of detected elements (label, text, bounding box). Use it to inspect any image on disk or from a URL - e.g. video keyframes, outputs of ImageGeneration/ImageEdit under ~/.infer/projects/\u003cproject-slug\u003e/artifacts, @-referenced image paths, downloaded files, or remote images. Pass an optional prompt to ask a specific question about the image; the summary then answers it. Read-only, does not require approval.",
+        "name": "ImageDecode",
+        "parameters": {
+          "properties": {
+            "image": {
+              "description": "Path to a local image file or http(s) URL (png, jpg, jpeg, gif, webp)",
+              "type": "string"
+            },
+            "prompt": {
+              "description": "Optional question about the image; the summary answers it",
+              "type": "string"
+            }
+          },
+          "required": [
+            "image"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Edit an existing image and save the result as a PNG under ~/.infer/projects/\u003cproject-slug\u003e/artifacts/. Returns the saved file path.\n\nProvide the local file path of the image to edit and a plain prompt describing the change. The request goes to /v1/images/edits using the image model configured for this tool (not the chat model), so do not ask which model to use.\n\nOptionally pass mask: a local file path to a PNG whose fully transparent areas (alpha = 0) mark the region to edit; all other pixels are preserved exactly. The mask must be a PNG with the same dimensions as the input image. Omit mask to let the model localize the change from the prompt alone.\n\nCost control: quality defaults to \"auto\" and size to \"1024x1024\". Keep those defaults unless the user explicitly asks for a different tier or size - higher tiers cost significantly more and take longer.",
+        "name": "ImageEdit",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "image": {
+              "description": "Local file path of the image to edit",
+              "type": "string"
+            },
+            "mask": {
+              "description": "Optional local file path to a PNG mask whose fully transparent areas (alpha = 0) mark the editable region; all other pixels are preserved exactly. Must have the same dimensions as the input image.",
+              "type": "string"
+            },
+            "prompt": {
+              "description": "A text description of the desired edit",
+              "type": "string"
+            },
+            "quality": {
+              "default": "auto",
+              "description": "Image quality. Always use 'auto' unless the user explicitly asks for a different tier",
+              "enum": [
+                "auto",
+                "low",
+                "medium",
+                "high",
+                "standard"
+              ],
+              "type": "string"
+            },
+            "size": {
+              "default": "1024x1024",
+              "description": "Image size. Always use '1024x1024' unless the user explicitly asks for a larger or differently shaped image",
+              "enum": [
+                "1024x1024",
+                "1536x1024",
+                "1024x1536"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "image",
+            "prompt"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Generate an image from a text prompt and save it as a PNG under ~/.infer/projects/\u003cproject-slug\u003e/artifacts/. Returns the saved file path.\n\nThe image is generated by the image model configured for this tool (not the chat model), so do not ask which model to use. Write the prompt yourself from the user's intent and the conversation context; it is sent to the image model verbatim.\n\nCost control: quality defaults to \"low\" and size to \"1024x1024\". Keep those defaults unless the user explicitly asks for higher quality or a different size - higher tiers cost significantly more and take longer. \"make it nicer\" is not an explicit request for high quality; \"high quality\", \"hd\", \"1536x1024\" are.",
+        "name": "ImageGeneration",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "prompt": {
+              "description": "A text description of the desired image",
+              "type": "string"
+            },
+            "quality": {
+              "default": "low",
+              "description": "Image quality. Always use 'low' unless the user explicitly asks for higher quality - it is markedly cheaper and faster",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            },
+            "size": {
+              "default": "1024x1024",
+              "description": "Image size. Always use '1024x1024' unless the user explicitly asks for a larger or differently shaped image",
+              "enum": [
+                "1024x1024",
+                "1536x1024",
+                "1024x1536"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "prompt"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Create a variation of an existing image and save the result as a PNG under ~/.infer/projects/\u003cproject-slug\u003e/artifacts/. Returns the saved file path.\n\nProvide the local file path of the image to base the variation on. The request goes to /v1/images/edits using the image model configured for this tool (not the chat model), so do not ask which model to use.\n\nCost control: size defaults to \"1024x1024\". Keep that default unless the user explicitly asks for a different size - larger sizes cost significantly more and take longer.",
+        "name": "ImageVariation",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "image": {
+              "description": "Local file path of the image to base the variation on",
+              "type": "string"
+            },
+            "size": {
+              "default": "1024x1024",
+              "description": "Image size. Always use '1024x1024' unless the user explicitly asks for a larger or differently shaped image",
+              "enum": [
+                "1024x1024",
+                "1536x1024",
+                "1024x1536"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "image"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Kills a running background bash shell by its ID. Sends SIGTERM first, then SIGKILL if needed after 5 seconds.",
+        "name": "KillShell",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "shell_id": {
+              "description": "The ID of the background shell to kill",
+              "type": "string"
+            }
+          },
+          "required": [
+            "shell_id"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Lists all background shell processes currently running or recently completed. Shows shell ID, command, state, elapsed time, and output size for each shell. Use this to monitor background processes started with the Bash tool.",
+        "name": "ListShells",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Snapshot the local subagents spawned by the Agent tool (id, label, mode, status). Running subagents notify you automatically when they finish - this is a one-off status check, NOT a way to poll for completion. Use a returned subagent_id with GetSubagentResult or CloseSubagent.",
+        "name": "ListSubagents",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Persistent memory shared across sessions: one short Markdown fact per entry, listed in the MEMORY.md index. The index entries for the current project and global facts are already in your context; other projects are listed by name only.\n\nEvery call sets \"operation\":\n- read: {\"operation\": \"read\"} returns the full index. {\"operation\": \"read\", \"name\": \"inference-gateway-cli/build-commands\"} returns one fact; use the name exactly as the index shows it.\n- write: {\"operation\": \"write\", \"name\": \"build-commands\", \"description\": \"How to build and test the CLI\", \"type\": \"project\", \"content\": \"Run task build, then task test.\"}. name, description, type and content are all required. Writing an existing name replaces that fact.\n- delete: {\"operation\": \"delete\", \"name\": \"inference-gateway-cli/build-commands\"} removes a fact that turned out wrong or stale.\n\ntype is one of: user (who the user is and their preferences), feedback (a correction or confirmed approach from the user), project (a non-obvious fact about this codebase or its environment), reference (a pointer to an external resource). Omit project: user facts are stored globally and everything else under the current project. Pass project only for a fact about another repository, as org/repo.\n\nOnly save what a future session would otherwise get wrong or have to rediscover. Do not save task progress, PR or issue numbers or status, one-off errors, or anything already in the repository (code, README, AGENTS.md, git history). Check the index first and update an existing entry instead of adding a near-duplicate. Keep content short - one fact, a few lines.",
+        "name": "Memory",
+        "parameters": {
+          "properties": {
+            "content": {
+              "description": "The fact body in Markdown, at most 2000 characters. Required for write.",
+              "type": "string"
+            },
+            "description": {
+              "description": "One-line summary shown in the MEMORY.md index and stored in the file's frontmatter. Required for write.",
+              "type": "string"
+            },
+            "name": {
+              "description": "For write, a short slug such as \"build-commands\" (no project prefix; the project is chosen for you). For read and delete, the name exactly as shown in the index, e.g. \"inference-gateway-cli/build-commands\". Required for write and delete; optional for read.",
+              "type": "string"
+            },
+            "operation": {
+              "description": "The memory operation. read: with no name, return the MEMORY.md index; with a name, return that fact-file. write: create or update a fact-file and its index entry. delete: remove a fact-file and its index entry.",
+              "enum": [
+                "read",
+                "write",
+                "delete"
+              ],
+              "type": "string"
+            },
+            "project": {
+              "description": "Optional, write only. Where the fact belongs: omit to use the default (user facts are global; feedback/project/reference facts go under the current project), pass \"global\" to force a global fact, or an org/repo name to file it under another project.",
+              "type": "string"
+            },
+            "type": {
+              "description": "The kind of fact being stored. Required for write.",
+              "enum": [
+                "user",
+                "feedback",
+                "project",
+                "reference"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "operation"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "This is a tool for making multiple edits to a single file in one operation. It is built on top of the Edit tool and allows you to perform multiple find-and-replace operations efficiently. Prefer this tool over the Edit tool when you need to make multiple edits to the same file.\n\nBefore using this tool:\n\n1. Use the Read tool to understand the file's contents and context\n2. Verify the directory path is correct\n\nTo make multiple file edits, provide the following:\n1. file_path: The absolute path to the file to modify (must be absolute, not relative)\n2. edits: An array of edit operations to perform, where each edit contains:\n   - old_string: The text to replace (must match the file contents exactly, including all whitespace and indentation)\n   - new_string: The edited text to replace the old_string\n   - replace_all: Replace all occurrences of old_string. This parameter is optional and defaults to false.\n\nIMPORTANT:\n- All edits are applied in sequence, in the order they are provided\n- Each edit operates on the result of the previous edit\n- All edits must be valid for the operation to succeed - if any edit fails, none will be applied\n- This tool is ideal when you need to make several changes to different parts of the same file\n- For Jupyter notebooks (.ipynb files), use the NotebookEdit instead\n\nCRITICAL REQUIREMENTS:\n1. All edits follow the same requirements as the single Edit tool\n2. The edits are atomic - either all succeed or none are applied\n3. Plan your edits carefully to avoid conflicts between sequential operations\n\nWARNING:\n- The tool will fail if edits.old_string doesn't match the file contents exactly (including whitespace)\n- The tool will fail if edits.old_string and edits.new_string are the same\n- Since edits are applied in sequence, ensure that earlier edits don't affect the text that later edits are trying to find\n\nWhen making edits:\n- Ensure all edits result in idiomatic, correct code\n- Do not leave the code in a broken state\n- Always use absolute file paths (starting with /)\n- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.\n- Use replace_all for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.\n\nIf you want to create a new file, use:\n- A new file path, including dir name if needed\n- First edit: empty old_string and the new file's contents as new_string\n- Subsequent edits: normal edit operations on the created content",
+        "name": "MultiEdit",
+        "parameters": {
+          "properties": {
+            "edits": {
+              "description": "Array of edit operations to perform sequentially on the file",
+              "items": {
+                "properties": {
+                  "new_string": {
+                    "description": "The text to replace it with",
+                    "type": "string"
+                  },
+                  "old_string": {
+                    "description": "The text to replace",
+                    "type": "string"
+                  },
+                  "replace_all": {
+                    "default": false,
+                    "description": "Replace all occurrences of old_string (default false).",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "old_string",
+                  "new_string"
+                ],
+                "type": "object"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "file_path": {
+              "description": "The absolute path to the file to modify",
+              "type": "string"
+            }
+          },
+          "required": [
+            "file_path",
+            "edits"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Reads a file from the local filesystem. You can access any file directly by using this tool.\nAssume this tool is able to read all files on the machine. Only read paths you have seen - in the PROJECT STRUCTURE context, Tree/Grep output, a previous tool result, or the user's message. Never guess or invent file paths; if unsure, run the Tree tool on the directory first.\n\nUsage:\n- The file_path parameter can be either an absolute path or a relative path (relative paths will be resolved to absolute paths)\n- By default, it reads up to 2000 lines starting from the beginning of the file\n- You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters\n- Any lines longer than 2000 characters will be truncated\n- Results are returned using cat -n format, with line numbers starting at 1\n- This tool can read PDF files (.pdf). PDFs are processed page by page, extracting both text and visual content for analysis.\n- This tool cannot read image files. If the user wants to share an image, they should use the @ file reference syntax to attach it directly to their message.\n- You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.\n- If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.",
+        "name": "Read",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "file_path": {
+              "description": "The path to the file to read (can be absolute or relative)",
+              "type": "string"
+            },
+            "limit": {
+              "description": "The number of lines to read. Only provide if the file is too large to read at once.",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "offset": {
+              "description": "The line number to start reading from. Only provide if the file is too large to read at once",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "file_path"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Capture the RAW terminal screen of an interactive subagent's tmux pane - the rendered TUI exactly as drawn (input box, status bar, menus and all). Use this to inspect or test a subagent's live TUI; unlike GetSubagentResult it works while the subagent is running and is NOT a way to poll for completion (you are notified automatically when a subagent finishes). Optional 'lines' bounds the output to the last N lines. Interactive subagents only. Pass the subagent_id from ListSubagents. To drive an interactive terminal program that is NOT a subagent (a TUI, REPL, or another CLI), use the `tmux` skill (raw tmux via Bash) instead of this tool.",
+        "name": "ReadSubagentScreen",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "lines": {
+              "description": "Optional: return only the last N lines of the screen (default: the full visible screen)",
+              "type": "integer"
+            },
+            "subagent_id": {
+              "description": "The interactive subagent id from ListSubagents",
+              "type": "string"
+            }
+          },
+          "required": [
+            "subagent_id"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Starts recording the screen to an MP4 file (H.264) and returns immediately with the file path and the captured rectangle. Record the entire primary screen (mode \"screen\", the default), a single application window (mode \"window\" with window: frontmost, app:\u003cname\u003e, pid:\u003cnumber\u003e, or an application name - the window's bounds are taken when the recording starts), or a region (mode \"region\" with x/y/width/height in the frame coordinate space, the same space as Computer screenshots). A tmux pane or terminal split is not a window: record it as a region. Get its cells with tmux display -p -t \"$TMUX_PANE\" '#{pane_left} #{pane_top} #{pane_width} #{pane_height} #{client_width} #{client_height}' and the terminal view's bbox [left, top, right, bottom] (the scroll area in the Computer tool's accessibility tree of the terminal app), then with cw = (right-left)/client_width and ch = (bottom-top)/client_height: x = left + pane_left*cw, y = top + pane_top*ch, width = pane_width*cw, height = pane_height*ch. Only one recording runs at a time across every infer session on the machine; if another session holds it, tell the user instead of retrying. It keeps running until the user asks you to stop it (then call RecordStop in this same session) or it reaches the configured max duration. Use it to keep an audit trail of what you do on the machine or to record a demonstration.",
+        "name": "RecordStart",
+        "parameters": {
+          "properties": {
+            "mode": {
+              "description": "What to record: the entire primary screen (default), one window, or a region.",
+              "enum": [
+                "screen",
+                "window",
+                "region"
+              ],
+              "type": "string"
+            },
+            "region": {
+              "description": "mode=region only: the rectangle to record, in the frame coordinate space (same space as Computer screenshots).",
+              "properties": {
+                "height": {
+                  "type": "integer"
+                },
+                "width": {
+                  "type": "integer"
+                },
+                "x": {
+                  "type": "integer"
+                },
+                "y": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "width",
+                "height"
+              ],
+              "type": "object"
+            },
+            "window": {
+              "description": "mode=window only: frontmost (default), app:\u003cname\u003e, pid:\u003cnumber\u003e, or a bare application name.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Stops the screen recording started with RecordStart, finalizes the MP4 file, and returns its path, duration, and size. Call it only when the user asks to stop the recording. Also returns the file of a recording that already stopped at its max duration. Takes no arguments.",
+        "name": "RecordStop",
+        "parameters": {
+          "properties": {},
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Ask the user to override a judge rejection so the rejected tool call can run once.\n\nCall this ONLY after the judge rejected a tool call (the rejection result names the judge and hints at this tool). Never call it pre-emptively: off-list commands and other gated calls are not blocked - the judge decides them when you make the call, so make the call first. Pass the exact rejected call (tool + arguments), what you need permission for, and why - the judge's rejection reason is shown to the user alongside your justification.\n\nThe user sees the regular approval prompt with the judge's reason and your justification:\n- APPROVED: the tool result tells you to re-issue the exact same call; it runs without another prompt (the judge is bypassed for that one invocation).\n- DENIED: adjust your next step instead of asking again - each rejected call can be escalated only once; the user may explain in their next message.\n\nIf no interactive approver is reachable (headless run), the result says so and you must not retry.",
+        "name": "RequestApproval",
+        "parameters": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "additionalProperties": false,
+          "properties": {
+            "arguments": {
+              "description": "The exact arguments of the rejected call (must match the rejected invocation).",
+              "type": "object"
+            },
+            "tool": {
+              "description": "Name of the judge-rejected tool you want to run.",
+              "type": "string"
+            },
+            "what": {
+              "description": "What you need permission for, in one sentence.",
+              "type": "string"
+            },
+            "why": {
+              "description": "Why the action serves the user's request, in your own words.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "tool",
+            "arguments",
+            "what",
+            "why"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Submit your completed plan for user approval and persist it to storage.\n\nWhat happens:\n- The plan is saved to the configured storage backend with an infer://plans/\u003cid\u003e URI (on the default jsonl backend it also lands as \u003cconfigDir\u003e/plans/\u003cid\u003e.md); retrieve it any time with 'infer plans show \u003cid\u003e'\n- The plan is displayed to the user with Accept / Reject / Approve Each Step options\n- Accept switches to auto-approve mode; Approve Each Step keeps standard mode (per-action approval)\n- If approved, you'll switch to execution mode with full tool access\n- If rejected, the stored plan remains as an audit trail and the user provides feedback\n\nRequired parameters:\n- title: A short human-readable phrase (≤ 60 chars, no slashes). Becomes the H1 heading and the filename slug.\n- plan: The full plan as Markdown using H2 sections in this order - ## Context, ## Files to Modify, ## Current Code, ## Changes, ## Performance Impact, ## Critical Files, ## Edge Cases, ## Verification. Omit any section that is not applicable.\n\nOnly call this tool when the plan is final. If you need clarification, ask the user in a normal assistant turn first.",
+        "name": "RequestPlanApproval",
+        "parameters": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "additionalProperties": false,
+          "properties": {
+            "plan": {
+              "description": "The complete plan as Markdown. Use H2 sections (## Context, ## Files to Modify, ## Current Code, ## Changes, ## Performance Impact, ## Critical Files, ## Edge Cases, ## Verification) - include only sections that apply.",
+              "type": "string"
+            },
+            "title": {
+              "description": "A short human-readable title for the plan. Used as the H1 heading and to derive the on-disk filename.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "plan"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Schedule a task that fires on a cron schedule. Each fire runs an agent and records the run to storage; when the current session was triggered by a messaging channel (e.g. Telegram), the output is also delivered back through that channel.\n\nIMPORTANT - clarify intent before creating: ALWAYS confirm with the user whether they want the task to run **once** (e.g. \"remind me at 6pm today to call mum\") or **recurring** (e.g. \"send me a quote every morning\"). If their request is ambiguous, ASK them - do not guess. Set run_once=true for one-off tasks; the scheduler will delete the job automatically after it fires once. Set run_once=false (or omit) for recurring tasks.\n\nEach fire creates a brand-new agent session - no context is carried between runs. Choose narrow, specific prompts to avoid wasted compute.\n\nOperations:\n- create: Add a new scheduled job. Required: cron_expression, prompt. Optional: run_once, name, description, model.\n- list: List all scheduled jobs.\n- get: Fetch one job. Required: job_id.\n- update: Modify an existing job. Required: job_id. Any of cron_expression, prompt, run_once, name, description, model can be updated.\n- delete: Remove a job. Required: job_id.\n\nDelivery routing (channel + recipient) is derived automatically from the current session - you never pass it. From a channel-driven session (e.g. responding to a Telegram message) the job delivers its output back to that channel; from any other session the job is record-only and its results are read from storage.\n\nCron expression format: standard 5-field crontab syntax (minute hour day-of-month month day-of-week). The \"@every \u003cduration\u003e\" descriptor is also supported. Examples:\n- \"0 8 * * *\"       - every day at 08:00 (recurring)\n- \"*/15 * * * *\"    - every 15 minutes (recurring)\n- \"0 9 * * 1-5\"     - weekdays at 09:00 (recurring)\n- \"@every 1h\"       - every hour (recurring)\n- \"0 18 26 4 *\"     - April 26 at 18:00 (use with run_once=true for \"today at 6pm\")\n\nFor one-off jobs, build a cron expression that pinpoints the exact moment (use the current date's day/month) and set run_once=true. The job will fire once at that time and then be deleted automatically.\n\nThe scheduler runs inside the 'infer daemon' process. Jobs only fire while that daemon is running.",
+        "name": "Schedule",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "cron_expression": {
+              "description": "Standard crontab expression (5 fields) or '@every \u003cduration\u003e'. Required for create; optional for update.",
+              "type": "string"
+            },
+            "description": {
+              "description": "Optional longer description of the job's purpose.",
+              "type": "string"
+            },
+            "job_id": {
+              "description": "Job identifier. Required for get/update/delete; ignored for create/list.",
+              "type": "string"
+            },
+            "model": {
+              "description": "Optional model override (e.g. 'openai/gpt-4o-mini'). Defaults to the configured agent model.",
+              "type": "string"
+            },
+            "name": {
+              "description": "Optional human-friendly name for the job.",
+              "type": "string"
+            },
+            "operation": {
+              "description": "The CRUD operation to perform.",
+              "enum": [
+                "create",
+                "list",
+                "get",
+                "update",
+                "delete"
+              ],
+              "type": "string"
+            },
+            "prompt": {
+              "description": "The task to give the agent on each fire. Should be specific and self-contained - no prior context is available.",
+              "type": "string"
+            },
+            "run_once": {
+              "description": "When true, the job is deleted automatically after its first fire (one-off reminder). Default false (recurring). ALWAYS confirm with the user whether they want one-off or recurring before creating the job.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "operation"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Type into an interactive subagent's TUI - to re-prompt it or drive its interface. Provide 'text' (typed literally) and/or 'keys' (named keys: Enter, Escape, Up, Down, Left, Right, Tab, BSpace, Space, Home, End, PageUp, PageDown). With submit=true (default) it presses Enter to send a new prompt and you are AUTOMATICALLY NOTIFIED when the subagent finishes the resulting turn - do not poll. With submit=false it only sends the keys (for TUI navigation/testing); observe the effect with ReadSubagentScreen. Interactive subagents only. Pass the subagent_id from ListSubagents. To drive an interactive terminal program that is NOT a subagent, use the `tmux` skill (raw tmux via Bash) instead of this tool.",
+        "name": "SendSubagentInput",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "keys": {
+              "description": "Named keys to send after the text. Allowed: Enter, Escape, Tab, Space, BSpace, Up, Down, Left, Right, Home, End, PageUp, PageDown",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "subagent_id": {
+              "description": "The interactive subagent id from ListSubagents",
+              "type": "string"
+            },
+            "submit": {
+              "description": "Press Enter to submit a prompt and wait for the subagent to finish (default true). Set false to only send keys for TUI navigation - then inspect with ReadSubagentScreen.",
+              "type": "boolean"
+            },
+            "text": {
+              "description": "Literal text to type into the subagent (e.g. a follow-up prompt)",
+              "type": "string"
+            }
+          },
+          "required": [
+            "subagent_id"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Compose a music clip from a text prompt and save it as an MP3 file. Returns the saved file path.\n\nDescribe the music in prompt: genre, mood, instruments, tempo. Optionally pass seconds (clip length in seconds; omitted lets the provider pick a length that fits the prompt) and instrumental (true to guarantee no vocals). Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP3 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name. To place the clip elsewhere, compose first and then copy the returned file.\n\nGeneration can take a while (music models are slow); if it fails with a temporarily-unavailable error, wait a few seconds and retry once. Do not claim the clip was played aloud - it is written to disk for the user to open, at the returned path.",
+        "name": "TextToMusic",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "instrumental": {
+              "description": "Optional: true to guarantee the generated clip has no vocals",
+              "type": "boolean"
+            },
+            "output_path": {
+              "description": "Optional bare file name (no directories or absolute paths) for the generated MP3; it is always placed in the configured output directory. Defaults to a timestamped file",
+              "type": "string"
+            },
+            "prompt": {
+              "description": "Description of the music to compose - genre, mood, instruments, tempo",
+              "type": "string"
+            },
+            "seconds": {
+              "description": "Optional clip length in seconds; omitted lets the provider pick a length that fits the prompt",
+              "type": "number"
+            }
+          },
+          "required": [
+            "prompt"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Generate a short sound effect or ambience clip from a text prompt and save it as an MP3 file. Returns the saved file path.\n\nDescribe the sound in prompt: the event or atmosphere and its character - a whoosh, a click, a riser, room tone, distant thunder. Optionally pass seconds (clip length in seconds, 0.5-30; omitted lets the provider pick a length that fits the prompt) and loop (true for a clip that loops seamlessly). Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP3 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name. To place the clip elsewhere, generate first and then copy the returned file.\n\nUse this for non-speech audio only: speech models are covered by TextToSpeech, music by TextToMusic. Do not claim the clip was played aloud - it is written to disk for the user to open, at the returned path.",
+        "name": "TextToSFX",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "loop": {
+              "description": "Optional: true to generate a clip that loops seamlessly",
+              "type": "boolean"
+            },
+            "output_path": {
+              "description": "Optional bare file name (no directories or absolute paths) for the generated MP3; it is always placed in the configured output directory. Defaults to a timestamped file",
+              "type": "string"
+            },
+            "prompt": {
+              "description": "Description of the sound to generate - the event or atmosphere and its character (e.g. a whoosh, a click, a riser, room tone)",
+              "type": "string"
+            },
+            "seconds": {
+              "description": "Optional clip length in seconds (0.5-30); omitted lets the provider pick a length that fits the prompt",
+              "type": "number"
+            }
+          },
+          "required": [
+            "prompt"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Synthesize speech from text and save it as an MP3 file. Returns the saved file path.\n\nPass only text for a stock voice. Pass voice_sample to clone a voice: a bare file name (no directories, no absolute paths) of a WAV in the working directory, ideally 10-30 seconds of clean single-speaker speech. Pass output_path to name the file: also a bare file name only - the MP3 is ALWAYS written into the configured output directory, never the working directory or any path you choose, so never pass directories or absolute paths; omit it for a timestamped name. To place the audio elsewhere, synthesize first and then copy the returned file.\n\nThe first call may be slow (engine warmup or model download); if it fails with a not-ready or temporarily-unavailable error, wait a few seconds and retry once. Do not claim the audio was played aloud - it is written to disk for the user to open, at the returned path.",
+        "name": "TextToSpeech",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "output_path": {
+              "description": "Optional bare file name (no directories or absolute paths) for the generated WAV; it is always placed in the configured output directory. Defaults to a timestamped file",
+              "type": "string"
+            },
+            "text": {
+              "description": "The text to speak",
+              "type": "string"
+            },
+            "voice_sample": {
+              "description": "Optional bare file name (no directories or absolute paths) of a WAV recording the target speaker; looked up in the working directory, then in the voice samples library (~/.infer/models/tts/samples); when set, the output clones that voice. Around 10-30 seconds of clean single-speaker speech works best",
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Render a video clip from a text prompt and save it as an MP4 file. Returns the saved file path.\n\nDescribe the shot in prompt. Optionally pass seconds (a string such as \"4\"; ignored when audio is present) and size (widthxheight such as 720x1280 portrait or 1280x720 landscape; the provider derives the resolution from the shorter side, 480/720/1080). Optionally pass avatar without audio: a library avatar's images are sent as reference images that keep that person consistent in the shot (the default model takes at most 3 and needs its default 8 seconds, so omit seconds), while a bare image file becomes the first frame. Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP4 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name.\n\nFor a lip-synced talking clip pass avatar together with audio. avatar is the name of an avatar in the library (a folder under ~/.infer/avatars/; its first image is used) or a bare .png/.jpg/.jpeg/.webp file name in the working directory; an unknown name fails with the list of available avatars. audio is a bare .wav or .mp3 name, looked up in the working directory, then the TextToSpeech output dir. audio requires avatar; the dialogue comes entirely from the audio clip, prompt only describes framing, and the clip keeps the portrait's aspect ratio (the default avatar model supports 480 and 720 resolutions only). All uploads (avatar images and audio) go to a third-party provider and must stay under 10 MiB combined. Renders can take minutes - do not poll between retries. Do not claim the clip was played - it is written to disk for the user to open, at the returned path.",
+        "name": "TextToVideo",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "audio": {
+              "description": "Optional bare file name (no directories or absolute paths) of a .wav or .mp3 clip that drives the render; requires avatar; looked up in the working directory, then in the TextToSpeech output directory",
+              "type": "string"
+            },
+            "avatar": {
+              "description": "Optional subject: the name of an avatar in the library (~/.infer/avatars/\u003cname\u003e/), or a bare file name (no directories or absolute paths) of a .png, .jpg, .jpeg or .webp image in the working directory. With audio the avatar's first image (or the file) is lip-synced to the clip; without audio a library avatar's images are sent as reference images that keep the person consistent (veo takes at most 3 and needs the default 8 seconds, so omit seconds), while a file is the first frame",
+              "type": "string"
+            },
+            "output_path": {
+              "description": "Optional bare file name (no directories or absolute paths) for the generated MP4; it is always placed in the configured output directory. Defaults to a timestamped file",
+              "type": "string"
+            },
+            "prompt": {
+              "description": "Description of the shot to render; required unless audio is provided, and for avatar renders it describes framing only - the dialogue comes from the audio clip",
+              "type": "string"
+            },
+            "seconds": {
+              "description": "Optional clip length in seconds as a string (e.g. \"4\"); providers accept a limited set of values; ignored when audio is present",
+              "type": "string"
+            },
+            "size": {
+              "description": "Optional output resolution as widthxheight (e.g. 720x1280 portrait or 1280x720 landscape); passed through verbatim, the provider derives the resolution from the shorter side (480, 720 or 1080; the default avatar model creatify-aurora supports 480 and 720 only, and avatar renders keep the portrait's aspect ratio); omitted means the provider default",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.\nIt also helps the user understand the progress of the task and overall progress of their requests.\n\n## When to Use This Tool\nUse this tool proactively in these scenarios:\n\n1. Complex multi-step tasks - When a task requires 3 or more distinct steps or actions\n2. Non-trivial and complex tasks - Tasks that require careful planning or multiple operations\n3. User explicitly requests todo list - When the user directly asks you to use the todo list\n4. User provides multiple tasks - When users provide a list of things to be done (numbered or comma-separated)\n5. After receiving new instructions - Immediately capture user requirements as todos\n6. When you start working on a task - Mark it as in_progress BEFORE beginning work. Ideally you should only have one todo as in_progress at a time\n7. After completing a task - Mark it as completed and add any new follow-up tasks discovered during implementation\n\n## When NOT to Use This Tool\n\nSkip using this tool when:\n1. There is only a single, straightforward task\n2. The task is trivial and tracking it provides no organizational benefit\n3. The task can be completed in less than 3 trivial steps\n4. The task is purely conversational or informational\n\nNOTE that you should not use this tool if there is only one trivial task to do. In this case you are better off just doing the task directly.\n\n## Task States and Management\n\n1. **Task States**: Use these states to track progress:\n   - pending: Task not yet started\n   - in_progress: Currently working on (limit to ONE task at a time)\n   - completed: Task finished successfully\n\n2. **Task Management**:\n   - Update task status in real-time as you work\n   - Mark tasks complete IMMEDIATELY after finishing (don't batch completions)\n   - Only have ONE task in_progress at any time\n   - Complete current tasks before starting new ones\n   - Remove tasks that are no longer relevant from the list entirely\n\n3. **Task Completion Requirements**:\n   - ONLY mark a task as completed when you have FULLY accomplished it\n   - If you encounter errors, blockers, or cannot finish, keep the task as in_progress\n   - When blocked, create a new task describing what needs to be resolved\n   - Never mark a task as completed if:\n     - Tests are failing\n     - Implementation is partial\n     - You encountered unresolved errors\n     - You couldn't find necessary files or dependencies\n\n4. **Task Breakdown**:\n   - Create specific, actionable items\n   - Break complex tasks into smaller, manageable steps\n   - Use clear, descriptive task names\n\nWhen in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully.",
+        "name": "TodoWrite",
+        "parameters": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "additionalProperties": false,
+          "properties": {
+            "todos": {
+              "description": "The updated todo list",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "content": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "Optional unique identifier. If not provided, will be auto-generated.",
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "pending",
+                      "in_progress",
+                      "completed"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "content",
+                  "status"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "todos"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Display directory structure in a tree format, similar to the Unix tree command. Use format \"compact\" for a token-efficient one-directory-per-line listing (root-first, git-tracked non-ignored files only) when you just need to see where files live.",
+        "name": "Tree",
+        "parameters": {
+          "properties": {
+            "format": {
+              "default": "text",
+              "description": "Output format: text (ASCII tree), json, or compact (one directory per line, root-first, git-tracked non-ignored files only)",
+              "enum": [
+                "text",
+                "json",
+                "compact"
+              ],
+              "type": "string"
+            },
+            "max_depth": {
+              "default": 3,
+              "description": "Maximum depth to traverse (optional, defaults to 3 for efficiency)",
+              "maximum": 10,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "max_files": {
+              "default": 100,
+              "description": "Maximum number of files to display (optional, defaults to 100 for efficiency)",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "path": {
+              "default": ".",
+              "description": "The path to display tree structure for (defaults to current directory)",
+              "type": "string"
+            },
+            "respect_gitignore": {
+              "default": true,
+              "description": "Whether to automatically exclude patterns from .gitignore (defaults to true)",
+              "type": "boolean"
+            },
+            "show_hidden": {
+              "default": false,
+              "description": "Whether to show hidden files and directories (defaults to false)",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Block until a condition is met, then return once with the outcome. Use this instead of sleep-and-poll loops (Bash(\"sleep N\") + BashOutput) to avoid wasting LLM round-trips.\n\nConditions:\n- shells: block until the given background shell ID(s) exit (or all pending background tasks when omitted). Returns exit codes and tail output for each shell.\n- file: block until a file path is created, modified, or removed (uses fsnotify).\n- command: re-run a check command server-side at a fixed interval until it exits 0 (e.g. \"curl -sf localhost:8080/health\"). The check command goes through the same bash allow-list as the Bash tool. Optional pending_exit_codes lists exit codes that mean \"still pending, keep polling\"; include 0 for commands like 'gh run view --exit-status' that exit 0 for both 'still running' and 'completed successfully'. Any exit code not in this list ends the wait immediately with reason check_failed and the command's output, so checks that distinguish pending from failed return the moment the outcome is known.\n\nWaiting for CI after a push: Wait(condition=command, command=\"gh pr checks\", pending_exit_codes=[8], timeout_seconds=600). gh pr checks exits 0 when all checks pass, 8 while checks are pending, and non-zero otherwise, so the wait returns as soon as CI concludes either way. On check_failed the last output lists the failing checks (dig deeper with \"gh run view --log-failed\"). If the wait times out while checks are still pending, call Wait again - waiting costs zero completions.\n\nEvery mode requires timeout_seconds (bounded by the config ceiling). Returns a structured result: the outcome (condition_met, check_failed, or timeout), elapsed time, and the condition details (exit codes, last output) - included on failure too.\n\nCancellation: Esc in chat or session cancel interrupts the wait immediately.",
+        "name": "Wait",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "command": {
+              "description": "Check command to re-run until it exits 0 (condition=command). Goes through the same bash allow-list as the Bash tool.",
+              "type": "string"
+            },
+            "condition": {
+              "description": "The condition to wait for: 'shells' (background shell(s) exit), 'file' (file path created/modified/removed), or 'command' (check command exits 0).",
+              "enum": [
+                "shells",
+                "file",
+                "command"
+              ],
+              "type": "string"
+            },
+            "event": {
+              "description": "File event to wait for: 'create', 'modify', 'remove', or 'any' (default). Only used with condition=file.",
+              "enum": [
+                "create",
+                "modify",
+                "remove",
+                "any"
+              ],
+              "type": "string"
+            },
+            "path": {
+              "description": "File path to watch (condition=file).",
+              "type": "string"
+            },
+            "pending_exit_codes": {
+              "description": "Exit codes that mean 'still pending, keep polling' (condition=command). Include 0 for commands like 'gh run view --exit-status' that exit 0 for both 'still running' and 'completed successfully'. Any exit code not in this list ends the wait immediately with reason 'check_failed'. Omit to keep polling on every non-zero exit. Example: [8] for 'gh pr checks'.",
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "shell_ids": {
+              "description": "Shell ID(s) to wait for (condition=shells). Omit to wait for all pending background shells.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "timeout_seconds": {
+              "description": "Maximum time to wait in seconds (bounded by the config ceiling). Required.",
+              "type": "number"
+            }
+          },
+          "required": [
+            "condition",
+            "timeout_seconds"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Fetch content from allowed URLs. Set download=true to save the file to disk automatically. Useful for downloading A2A task artifacts or other files.",
+        "name": "WebFetch",
+        "parameters": {
+          "properties": {
+            "download": {
+              "default": false,
+              "description": "Set to true to automatically save the fetched content to disk. File will be saved with a name extracted from the URL.",
+              "type": "boolean"
+            },
+            "format": {
+              "default": "text",
+              "description": "Output format (text or json)",
+              "enum": [
+                "text",
+                "json"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The URL to fetch content from",
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Search the web using Google or DuckDuckGo search engines",
+        "name": "WebSearch",
+        "parameters": {
+          "properties": {
+            "engine": {
+              "default": "duckduckgo",
+              "description": "The search engine to use (duckduckgo or google). duckduckgo is recommended for reliable results.",
+              "enum": [
+                "duckduckgo",
+                "google"
+              ],
+              "type": "string"
+            },
+            "format": {
+              "default": "text",
+              "description": "Output format (text or json)",
+              "enum": [
+                "text",
+                "json"
+              ],
+              "type": "string"
+            },
+            "limit": {
+              "default": 10,
+              "description": "Maximum number of search results to return",
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "query": {
+              "description": "The search query to execute",
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Writes a file to the local filesystem.\nUsage:\n- This tool will overwrite the existing file if there is one at the provided path.\n- If this is an existing file, you MUST use the Read tool first to read the file's contents. This tool will fail if you did not read the file first.\n- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.\n- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.\n- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.",
+        "name": "Write",
+        "parameters": {
+          "properties": {
+            "content": {
+              "description": "The content to write to the file",
+              "type": "string"
+            },
+            "file_path": {
+              "description": "The absolute path to the file to write (must be absolute, not relative)",
+              "type": "string"
+            }
+          },
+          "required": [
+            "file_path",
+            "content"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    }
+  ],
+  "modes": {
+    "plan": [
+      "A2A_QueryAgent",
+      "AskUserQuestion",
+      "Grep",
+      "Read",
+      "RequestPlanApproval",
+      "TodoWrite",
+      "Tree",
+      "Wait"
+    ],
+    "readonly": [
+      "GetSubagentResult",
+      "Grep",
+      "ListSubagents",
+      "Read",
+      "ReadSubagentScreen",
+      "Tree",
+      "WebFetch",
+      "WebSearch"
+    ],
+    "standard": [
+      "A2A_QueryAgent",
+      "A2A_QueryTask",
+      "A2A_SubmitTask",
+      "Agent",
+      "ApproveSubagent",
+      "AskUserQuestion",
+      "Bash",
+      "BashOutput",
+      "BrowserClick",
+      "BrowserNavigate",
+      "BrowserRead",
+      "BrowserScreenshot",
+      "BrowserTabs",
+      "BrowserType",
+      "CloseSubagent",
+      "Computer",
+      "CreateAvatar",
+      "Delete",
+      "Edit",
+      "GetLatestFrame",
+      "GetSubagentResult",
+      "Grep",
+      "ImageDecode",
+      "ImageEdit",
+      "ImageGeneration",
+      "ImageVariation",
+      "KillShell",
+      "ListShells",
+      "ListSubagents",
+      "Memory",
+      "MultiEdit",
+      "Read",
+      "ReadSubagentScreen",
+      "RecordStart",
+      "RecordStop",
+      "RequestApproval",
+      "Schedule",
+      "SendSubagentInput",
+      "TextToMusic",
+      "TextToSFX",
+      "TextToSpeech",
+      "TextToVideo",
+      "TodoWrite",
+      "Tree",
+      "Wait",
+      "WebFetch",
+      "WebSearch",
+      "Write"
+    ]
+  },
+  "approval": {
+    "configured/plan/global_false": {
+      "A2A_QueryAgent": false,
+      "A2A_QueryTask": false,
+      "A2A_SubmitTask": false,
+      "Agent": false,
+      "ApproveSubagent": false,
+      "AskUserQuestion": false,
+      "Bash": false,
+      "BashOutput": false,
+      "BrowserClick": false,
+      "BrowserNavigate": false,
+      "BrowserRead": false,
+      "BrowserScreenshot": false,
+      "BrowserTabs": false,
+      "BrowserType": false,
+      "CloseSubagent": false,
+      "Computer": false,
+      "CreateAvatar": false,
+      "Delete": false,
+      "Edit": false,
+      "GetLatestFrame": false,
+      "GetSubagentResult": false,
+      "Grep": false,
+      "ImageDecode": false,
+      "ImageEdit": false,
+      "ImageGeneration": false,
+      "ImageVariation": false,
+      "KillShell": false,
+      "ListShells": false,
+      "ListSubagents": false,
+      "Memory": false,
+      "MultiEdit": false,
+      "Read": false,
+      "ReadSubagentScreen": false,
+      "RecordStart": true,
+      "RecordStop": false,
+      "RequestApproval": false,
+      "RequestPlanApproval": false,
+      "Schedule": false,
+      "SendSubagentInput": false,
+      "TextToMusic": false,
+      "TextToSFX": false,
+      "TextToSpeech": false,
+      "TextToVideo": false,
+      "TodoWrite": false,
+      "Tree": false,
+      "Wait": false,
+      "WebFetch": false,
+      "WebSearch": false,
+      "Write": false
+    },
+    "configured/plan/global_true": {
+      "A2A_QueryAgent": false,
+      "A2A_QueryTask": false,
+      "A2A_SubmitTask": false,
+      "Agent": false,
+      "ApproveSubagent": false,
+      "AskUserQuestion": false,
+      "Bash": false,
+      "BashOutput": false,
+      "BrowserClick": false,
+      "BrowserNavigate": false,
+      "BrowserRead": false,
+      "BrowserScreenshot": false,
+      "BrowserTabs": false,
+      "BrowserType": false,
+      "CloseSubagent": false,
+      "Computer": false,
+      "CreateAvatar": false,
+      "Delete": false,
+      "Edit": false,
+      "GetLatestFrame": false,
+      "GetSubagentResult": false,
+      "Grep": false,
+      "ImageDecode": false,
+      "ImageEdit": false,
+      "ImageGeneration": false,
+      "ImageVariation": false,
+      "KillShell": false,
+      "ListShells": false,
+      "ListSubagents": false,
+      "Memory": false,
+      "MultiEdit": false,
+      "Read": false,
+      "ReadSubagentScreen": false,
+      "RecordStart": true,
+      "RecordStop": false,
+      "RequestApproval": false,
+      "RequestPlanApproval": false,
+      "Schedule": false,
+      "SendSubagentInput": false,
+      "TextToMusic": false,
+      "TextToSFX": false,
+      "TextToSpeech": false,
+      "TextToVideo": false,
+      "TodoWrite": false,
+      "Tree": false,
+      "Wait": false,
+      "WebFetch": false,
+      "WebSearch": false,
+      "Write": false
+    },
+    "configured/standard/global_false": {
+      "A2A_QueryAgent": false,
+      "A2A_QueryTask": false,
+      "A2A_SubmitTask": true,
+      "Agent": true,
+      "ApproveSubagent": true,
+      "AskUserQuestion": false,
+      "Bash": true,
+      "BashOutput": false,
+      "BrowserClick": false,
+      "BrowserNavigate": false,
+      "BrowserRead": false,
+      "BrowserScreenshot": false,
+      "BrowserTabs": false,
+      "BrowserType": false,
+      "CloseSubagent": false,
+      "Computer": false,
+      "CreateAvatar": true,
+      "Delete": true,
+      "Edit": true,
+      "GetLatestFrame": false,
+      "GetSubagentResult": false,
+      "Grep": false,
+      "ImageDecode": false,
+      "ImageEdit": false,
+      "ImageGeneration": false,
+      "ImageVariation": false,
+      "KillShell": false,
+      "ListShells": false,
+      "ListSubagents": false,
+      "Memory": false,
+      "MultiEdit": true,
+      "Read": false,
+      "ReadSubagentScreen": false,
+      "RecordStart": true,
+      "RecordStop": false,
+      "RequestApproval": false,
+      "RequestPlanApproval": false,
+      "Schedule": true,
+      "SendSubagentInput": false,
+      "TextToMusic": false,
+      "TextToSFX": false,
+      "TextToSpeech": false,
+      "TextToVideo": false,
+      "TodoWrite": false,
+      "Tree": false,
+      "Wait": false,
+      "WebFetch": false,
+      "WebSearch": false,
+      "Write": true
+    },
+    "configured/standard/global_true": {
+      "A2A_QueryAgent": false,
+      "A2A_QueryTask": false,
+      "A2A_SubmitTask": true,
+      "Agent": true,
+      "ApproveSubagent": true,
+      "AskUserQuestion": false,
+      "Bash": true,
+      "BashOutput": true,
+      "BrowserClick": true,
+      "BrowserNavigate": true,
+      "BrowserRead": false,
+      "BrowserScreenshot": false,
+      "BrowserTabs": false,
+      "BrowserType": true,
+      "CloseSubagent": true,
+      "Computer": false,
+      "CreateAvatar": true,
+      "Delete": true,
+      "Edit": true,
+      "GetLatestFrame": false,
+      "GetSubagentResult": false,
+      "Grep": false,
+      "ImageDecode": false,
+      "ImageEdit": false,
+      "ImageGeneration": false,
+      "ImageVariation": false,
+      "KillShell": true,
+      "ListShells": true,
+      "ListSubagents": false,
+      "Memory": false,
+      "MultiEdit": true,
+      "Read": false,
+      "ReadSubagentScreen": false,
+      "RecordStart": true,
+      "RecordStop": false,
+      "RequestApproval": false,
+      "RequestPlanApproval": false,
+      "Schedule": true,
+      "SendSubagentInput": true,
+      "TextToMusic": false,
+      "TextToSFX": false,
+      "TextToSpeech": false,
+      "TextToVideo": false,
+      "TodoWrite": false,
+      "Tree": false,
+      "Wait": false,
+      "WebFetch": false,
+      "WebSearch": true,
+      "Write": true
+    },
+    "no_tool_overrides/plan/global_false": {
+      "A2A_QueryAgent": false,
+      "A2A_QueryTask": false,
+      "A2A_SubmitTask": false,
+      "Agent": false,
+      "ApproveSubagent": false,
+      "AskUserQuestion": false,
+      "Bash": false,
+      "BashOutput": false,
+      "BrowserClick": false,
+      "BrowserNavigate": false,
+      "BrowserRead": false,
+      "BrowserScreenshot": false,
+      "BrowserTabs": false,
+      "BrowserType": false,
+      "CloseSubagent": false,
+      "Computer": false,
+      "CreateAvatar": false,
+      "Delete": false,
+      "Edit": false,
+      "GetLatestFrame": false,
+      "GetSubagentResult": false,
+      "Grep": false,
+      "ImageDecode": false,
+      "ImageEdit": false,
+      "ImageGeneration": false,
+      "ImageVariation": false,
+      "KillShell": false,
+      "ListShells": false,
+      "ListSubagents": false,
+      "Memory": false,
+      "MultiEdit": false,
+      "Read": false,
+      "ReadSubagentScreen": false,
+      "RecordStart": true,
+      "RecordStop": false,
+      "RequestApproval": false,
+      "RequestPlanApproval": false,
+      "Schedule": false,
+      "SendSubagentInput": false,
+      "TextToMusic": false,
+      "TextToSFX": false,
+      "TextToSpeech": false,
+      "TextToVideo": false,
+      "TodoWrite": false,
+      "Tree": false,
+      "Wait": false,
+      "WebFetch": false,
+      "WebSearch": false,
+      "Write": false
+    },
+    "no_tool_overrides/plan/global_true": {
+      "A2A_QueryAgent": true,
+      "A2A_QueryTask": false,
+      "A2A_SubmitTask": false,
+      "Agent": false,
+      "ApproveSubagent": false,
+      "AskUserQuestion": false,
+      "Bash": false,
+      "BashOutput": false,
+      "BrowserClick": false,
+      "BrowserNavigate": false,
+      "BrowserRead": false,
+      "BrowserScreenshot": false,
+      "BrowserTabs": false,
+      "BrowserType": false,
+      "CloseSubagent": false,
+      "Computer": false,
+      "CreateAvatar": false,
+      "Delete": false,
+      "Edit": false,
+      "GetLatestFrame": false,
+      "GetSubagentResult": false,
+      "Grep": true,
+      "ImageDecode": false,
+      "ImageEdit": false,
+      "ImageGeneration": false,
+      "ImageVariation": false,
+      "KillShell": false,
+      "ListShells": false,
+      "ListSubagents": false,
+      "Memory": false,
+      "MultiEdit": false,
+      "Read": true,
+      "ReadSubagentScreen": false,
+      "RecordStart": true,
+      "RecordStop": false,
+      "RequestApproval": false,
+      "RequestPlanApproval": false,
+      "Schedule": false,
+      "SendSubagentInput": false,
+      "TextToMusic": false,
+      "TextToSFX": false,
+      "TextToSpeech": false,
+      "TextToVideo": false,
+      "TodoWrite": false,
+      "Tree": true,
+      "Wait": false,
+      "WebFetch": false,
+      "WebSearch": false,
+      "Write": false
+    },
+    "no_tool_overrides/standard/global_false": {
+      "A2A_QueryAgent": false,
+      "A2A_QueryTask": false,
+      "A2A_SubmitTask": false,
+      "Agent": false,
+      "ApproveSubagent": true,
+      "AskUserQuestion": false,
+      "Bash": true,
+      "BashOutput": false,
+      "BrowserClick": false,
+      "BrowserNavigate": false,
+      "BrowserRead": false,
+      "BrowserScreenshot": false,
+      "BrowserTabs": false,
+      "BrowserType": false,
+      "CloseSubagent": false,
+      "Computer": false,
+      "CreateAvatar": true,
+      "Delete": false,
+      "Edit": false,
+      "GetLatestFrame": false,
+      "GetSubagentResult": false,
+      "Grep": false,
+      "ImageDecode": false,
+      "ImageEdit": false,
+      "ImageGeneration": false,
+      "ImageVariation": false,
+      "KillShell": false,
+      "ListShells": false,
+      "ListSubagents": false,
+      "Memory": false,
+      "MultiEdit": false,
+      "Read": false,
+      "ReadSubagentScreen": false,
+      "RecordStart": true,
+      "RecordStop": false,
+      "RequestApproval": false,
+      "RequestPlanApproval": false,
+      "Schedule": false,
+      "SendSubagentInput": false,
+      "TextToMusic": false,
+      "TextToSFX": false,
+      "TextToSpeech": false,
+      "TextToVideo": false,
+      "TodoWrite": false,
+      "Tree": false,
+      "Wait": false,
+      "WebFetch": false,
+      "WebSearch": false,
+      "Write": false
+    },
+    "no_tool_overrides/standard/global_true": {
+      "A2A_QueryAgent": true,
+      "A2A_QueryTask": true,
+      "A2A_SubmitTask": true,
+      "Agent": true,
+      "ApproveSubagent": true,
+      "AskUserQuestion": false,
+      "Bash": true,
+      "BashOutput": true,
+      "BrowserClick": true,
+      "BrowserNavigate": true,
+      "BrowserRead": false,
+      "BrowserScreenshot": false,
+      "BrowserTabs": false,
+      "BrowserType": true,
+      "CloseSubagent": true,
+      "Computer": false,
+      "CreateAvatar": true,
+      "Delete": true,
+      "Edit": true,
+      "GetLatestFrame": false,
+      "GetSubagentResult": false,
+      "Grep": true,
+      "ImageDecode": false,
+      "ImageEdit": false,
+      "ImageGeneration": false,
+      "ImageVariation": false,
+      "KillShell": true,
+      "ListShells": true,
+      "ListSubagents": false,
+      "Memory": false,
+      "MultiEdit": true,
+      "Read": true,
+      "ReadSubagentScreen": false,
+      "RecordStart": true,
+      "RecordStop": false,
+      "RequestApproval": false,
+      "RequestPlanApproval": false,
+      "Schedule": true,
+      "SendSubagentInput": true,
+      "TextToMusic": false,
+      "TextToSFX": false,
+      "TextToSpeech": false,
+      "TextToVideo": false,
+      "TodoWrite": false,
+      "Tree": true,
+      "Wait": false,
+      "WebFetch": true,
+      "WebSearch": true,
+      "Write": true
+    }
+  }
+}
