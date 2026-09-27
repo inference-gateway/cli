@@ -66,6 +66,25 @@ func (r *Renderer) NewListTable(headers ...string) *table.Table {
 		})
 }
 
+// NewAgentsListTable is NewListTable with the agent name (first column)
+// left-aligned and the metadata columns right-aligned.
+func (r *Renderer) NewAgentsListTable(headers ...string) *table.Table {
+	return table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(r.tableBorderInk).
+		Headers(headers...).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			style := r.tableBodyCell
+			if row == table.HeaderRow {
+				style = r.tableHeaderCell
+			}
+			if col > 0 {
+				return style.Align(lipgloss.Right)
+			}
+			return style
+		})
+}
+
 func (r *Renderer) Title(title string) string { return r.titleStyle.Render(title) }
 
 func (r *Renderer) Field(label, value string) string {
