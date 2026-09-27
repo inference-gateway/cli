@@ -66,39 +66,9 @@ func NewGetLatestFrameTool(cfg *config.Config, sources frameSourceLookup, annota
 
 // Definition returns the tool definition for the LLM
 func (t *GetLatestFrameTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.GetLatestFrame.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "GetLatestFrame",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"source": map[string]any{
-						"type":        "string",
-						"description": fmt.Sprintf("Frame source name. Configured sources: %s. Defaults to the only source, or \"screen\" when present.", strings.Join(t.sources.FrameSourceNames(), ", ")),
-					},
-					"format": map[string]any{
-						"type":        "string",
-						"enum":        []string{"regular", "annotated"},
-						"description": "\"regular\" returns the raw image; \"annotated\" returns a text summary + element list instead of the image. Omitted: annotated when an annotator is configured, regular otherwise.",
-					},
-					"region": map[string]any{
-						"type":        "object",
-						"description": "Zoom into a sub-region of the screen (screen source only): the region is re-captured at native resolution, so small UI (Dock icons, dense toolbars) becomes readable. Coordinates are in the same frame space as MouseClick and previous annotations; returned element coordinates are translated back into that space.",
-						"properties": map[string]any{
-							"x":      map[string]any{"type": "integer"},
-							"y":      map[string]any{"type": "integer"},
-							"width":  map[string]any{"type": "integer"},
-							"height": map[string]any{"type": "integer"},
-						},
-						"required": []string{"x", "y", "width", "height"},
-					},
-				},
-			},
-		},
-	}
+	def := toolManifests.Definition("GetLatestFrame", t.config.Prompts.Tools.GetLatestFrame.Description)
+	agentdomain.PropertySchema(def, "source")["description"] = fmt.Sprintf("Frame source name. Configured sources: %s. Defaults to the only source, or \"screen\" when present.", strings.Join(t.sources.FrameSourceNames(), ", "))
+	return def
 }
 
 // Execute retrieves the latest frame from the requested source

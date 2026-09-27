@@ -33,24 +33,7 @@ func NewBrowserReadTool(cfg *config.Config, rateLimiter rateLimiter, driver brow
 
 // Definition returns the tool definition for the LLM
 func (t *BrowserReadTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.BrowserRead.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "BrowserRead",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"selector": map[string]any{
-						"type":        "string",
-						"description": "Optional CSS or Playwright selector to read a specific element; omit to read the whole page body",
-					},
-				},
-				"required": []string{},
-			},
-		},
-	}
+	return toolManifests.Definition("BrowserRead", t.config.Prompts.Tools.BrowserRead.Description)
 }
 
 // Execute runs the browser read tool with given arguments

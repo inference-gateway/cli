@@ -31,43 +31,10 @@ func (t *recordTool) name() string {
 // Definition returns the tool definition for the LLM
 func (t *recordTool) Definition() sdk.ChatCompletionTool {
 	description := t.config.Prompts.Tools.RecordStart.Description
-	params := sdk.FunctionParameters{
-		"type": "object",
-		"properties": map[string]any{
-			"mode": map[string]any{
-				"type":        "string",
-				"enum":        []string{"screen", "window", "region"},
-				"description": "What to record: the entire primary screen (default), one window, or a region.",
-			},
-			"window": map[string]any{
-				"type":        "string",
-				"description": "mode=window only: frontmost (default), app:<name>, pid:<number>, or a bare application name.",
-			},
-			"region": map[string]any{
-				"type":        "object",
-				"description": "mode=region only: the rectangle to record, in the frame coordinate space (same space as Computer screenshots).",
-				"properties": map[string]any{
-					"x":      map[string]any{"type": "integer"},
-					"y":      map[string]any{"type": "integer"},
-					"width":  map[string]any{"type": "integer"},
-					"height": map[string]any{"type": "integer"},
-				},
-				"required": []string{"x", "y", "width", "height"},
-			},
-		},
-	}
 	if t.stop {
 		description = t.config.Prompts.Tools.RecordStop.Description
-		params = sdk.FunctionParameters{"type": "object", "properties": map[string]any{}}
 	}
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        t.name(),
-			Description: &description,
-			Parameters:  &params,
-		},
-	}
+	return toolManifests.Definition(t.name(), description)
 }
 
 // parseRecordRequest maps RecordStart arguments onto a request, rejecting

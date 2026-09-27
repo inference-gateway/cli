@@ -1,0 +1,7 @@
+name: BrowserScreenshot
+description: Captures a screenshot of the current browser page/active tab and attaches it as an image (models with vision see it inline). Use it to see what the user is looking at, then act with BrowserClick (by selector or x/y coordinates). Password fields render masked by the browser. Read-only.
+parameters:
+  type: object
+  properties: {}
+  required: []
+require_approval: false

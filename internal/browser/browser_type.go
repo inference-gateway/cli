@@ -33,33 +33,7 @@ func NewBrowserTypeTool(cfg *config.Config, rateLimiter rateLimiter, driver brow
 
 // Definition returns the tool definition for the LLM
 func (t *BrowserTypeTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.BrowserType.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "BrowserType",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"selector": map[string]any{
-						"type":        "string",
-						"description": "CSS or Playwright selector of the input element (e.g. 'input[name=q]')",
-					},
-					"text": map[string]any{
-						"type":        "string",
-						"description": "Text to type; replaces the element's current value",
-					},
-					"press_enter": map[string]any{
-						"type":        "boolean",
-						"description": "Press Enter after typing to submit (defaults to false)",
-						"default":     false,
-					},
-				},
-				"required": []string{"selector", "text"},
-			},
-		},
-	}
+	return toolManifests.Definition("BrowserType", t.config.Prompts.Tools.BrowserType.Description)
 }
 
 // Execute runs the browser type tool with given arguments

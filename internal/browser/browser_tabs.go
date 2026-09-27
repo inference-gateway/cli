@@ -35,19 +35,7 @@ func NewBrowserTabsTool(cfg *config.Config, rateLimiter rateLimiter, driver brow
 
 // Definition returns the tool definition for the LLM
 func (t *BrowserTabsTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.BrowserTabs.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "BrowserTabs",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type":       "object",
-				"properties": map[string]any{},
-				"required":   []string{},
-			},
-		},
-	}
+	return toolManifests.Definition("BrowserTabs", t.config.Prompts.Tools.BrowserTabs.Description)
 }
 
 // Execute lists the open tabs

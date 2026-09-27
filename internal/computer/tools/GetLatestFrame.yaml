@@ -1,0 +1,32 @@
+name: GetLatestFrame
+description: 'Retrieves the latest frame from a named frame source. This is a read-only operation that does NOT require approval. For the desktop, first use Computer''s "accessibility" action; use Computer "screenshot" or this tool''s annotated text only when the accessibility tree is empty, unavailable, or insufficient. Use this tool when you cannot see images yourself ("annotated" calls the configured vision annotator) or for non-screen frame sources such as cameras. Sources: "screen" (the screenshot ring buffer, captured every few seconds when streaming is enabled) and any configured directory sources. When format is omitted it is chosen automatically based on your vision capability. Pass "region" to zoom: the given frame-space rectangle is re-captured at native resolution, the reliable way to read small UI.'
+parameters:
+  type: object
+  properties:
+    format:
+      type: string
+      description: '"regular" returns the raw image; "annotated" returns a text summary + element list instead of the image. Omitted: annotated when an annotator is configured, regular otherwise.'
+      enum:
+        - regular
+        - annotated
+    region:
+      type: object
+      description: 'Zoom into a sub-region of the screen (screen source only): the region is re-captured at native resolution, so small UI (Dock icons, dense toolbars) becomes readable. Coordinates are in the same frame space as MouseClick and previous annotations; returned element coordinates are translated back into that space.'
+      properties:
+        height:
+          type: integer
+        width:
+          type: integer
+        x:
+          type: integer
+        "y":
+          type: integer
+      required:
+        - x
+        - "y"
+        - width
+        - height
+    # description lists the registered frame sources at runtime.
+    source:
+      type: string
+require_approval: false

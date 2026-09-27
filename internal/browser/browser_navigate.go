@@ -34,24 +34,7 @@ func NewBrowserNavigateTool(cfg *config.Config, rateLimiter rateLimiter, driver 
 
 // Definition returns the tool definition for the LLM
 func (t *BrowserNavigateTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.BrowserNavigate.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "BrowserNavigate",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"url": map[string]any{
-						"type":        "string",
-						"description": "URL to navigate to, including scheme (e.g. https://example.com)",
-					},
-				},
-				"required": []string{"url"},
-			},
-		},
-	}
+	return toolManifests.Definition("BrowserNavigate", t.config.Prompts.Tools.BrowserNavigate.Description)
 }
 
 // Execute runs the browser navigate tool with given arguments

@@ -37,19 +37,7 @@ func NewBrowserScreenshotTool(cfg *config.Config, rateLimiter rateLimiter, drive
 
 // Definition returns the tool definition for the LLM
 func (t *BrowserScreenshotTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.BrowserScreenshot.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "BrowserScreenshot",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type":       "object",
-				"properties": map[string]any{},
-				"required":   []string{},
-			},
-		},
-	}
+	return toolManifests.Definition("BrowserScreenshot", t.config.Prompts.Tools.BrowserScreenshot.Description)
 }
 
 // Execute captures the screenshot and returns it as an attached image
