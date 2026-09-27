@@ -141,6 +141,12 @@ func (s *LLMToolService) ListAvailableTools() []string {
 	return tools
 }
 
+// ListMarkdownSubagents returns the Markdown-defined subagent presets loaded
+// this session (.infer/agents/*.md and ~/.infer/agents/*.md), for /agents.
+func (s *LLMToolService) ListMarkdownSubagents() []agentdomain.SubagentInfo {
+	return s.registry.MarkdownSubagents()
+}
+
 // isA2ATool checks if a tool is an A2A-related tool
 func (s *LLMToolService) isA2ATool(toolName string) bool {
 	return strings.HasPrefix(toolName, "A2A_")
@@ -257,6 +263,10 @@ func (s *NoOpToolService) ListToolsForMode(mode agentdomain.AgentMode) []sdk.Cha
 
 func (s *NoOpToolService) ListAvailableTools() []string {
 	return []string{}
+}
+
+func (s *NoOpToolService) ListMarkdownSubagents() []agentdomain.SubagentInfo {
+	return nil
 }
 
 func (s *NoOpToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {

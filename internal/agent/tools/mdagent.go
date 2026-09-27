@@ -37,6 +37,9 @@ type markdownAgent struct {
 	tools        []string
 	systemPrompt string
 	path         string
+	// source classifies where the file was loaded from ("project" or "user"),
+	// for user-facing listings.
+	source string
 }
 
 // markdownAgentFrontmatter is deliberately permissive: only the keys we honor
@@ -90,6 +93,7 @@ func loadMarkdownAgents(dirs []string, knownTools map[string]bool) []markdownAge
 				logger.Warn("skipping invalid markdown agent", "file", path, "reason", reason)
 				continue
 			}
+			agent.source = subagentSourceLabel(dir)
 			if seen[agent.name] {
 				logger.Debug("markdown agent name already loaded from higher-priority directory, skipping", "name", agent.name, "file", path)
 				continue
@@ -231,6 +235,31 @@ func flexStringList(v any) []string {
 		return out
 	default:
 		return nil
+	}
+}
+
+// subagentSourceLabel classifies an agents directory as "user" (the home
+// config dir) or "project", for user-facing listings.
+func subagentSourceLabel(dir string) string {
+	if home, err := os.UserHomeDir(); err == nil {
+		if same, _ := filepath.Rel(filepath.Join(home, config.ConfigDirName), dir); same == "." || !strings.HasPrefix(same, "..") {
+			return "user"
+		}
+	}
+	return "project"
+}
+
+// subagentInfo renders the agent as the shared SubagentInfo DTO for the
+// /agents listing. With no allowlist the subagent inherits the parent's tools
+// and runs ReadWrite, so ReadOnly is only true for a resolved read-only list.
+func (m markdownAgent) subagentInfo() agentdomain.SubagentInfo {
+	return agentdomain.SubagentInfo{
+		Name:        m.name,
+		Description: m.description,
+		Model:       m.model,
+		Tools:       m.tools,
+		ReadOnly:    len(m.tools) > 0 && deriveSubagentMode(m.tools) == agentdomain.AgentModeReadOnly,
+		Source:      m.source,
 	}
 }
 
