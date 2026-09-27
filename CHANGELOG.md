@@ -5,6 +5,85 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.214.0](https://github.com/inference-gateway/cli/compare/v0.213.0...v0.214.0) (2026-09-27)
+
+### 🚀 Features
+
+* **shortcuts:** /agents is the single Agents view entry point ([#1359](https://github.com/inference-gateway/cli/issues/1359)) ([5f943af](https://github.com/inference-gateway/cli/commit/5f943afa09c136d38403b341f4fdfadb3af0aebc)), closes [#1357](https://github.com/inference-gateway/cli/issues/1357)
+* **agent:** markdown subagent definitions in .infer/agents/<name>.md ([#1348](https://github.com/inference-gateway/cli/issues/1348)) ([e9fb964](https://github.com/inference-gateway/cli/commit/e9fb964c39714d3f361f0066f778fab7663d4fc2)), closes [#1343](https://github.com/inference-gateway/cli/issues/1343)
+
+### 🐛 Bug Fixes
+
+* **judge:** read user intent from multimodal and hidden messages ([#1361](https://github.com/inference-gateway/cli/issues/1361)) ([15bc121](https://github.com/inference-gateway/cli/commit/15bc121cbf8c0dede4434bf71e73e90083588dc3))
+* **memory:** record fewer, better facts and cut Memory tool errors ([#1356](https://github.com/inference-gateway/cli/issues/1356)) ([ae05249](https://github.com/inference-gateway/cli/commit/ae05249f86ff237aa546452952130c4e0d38d592)), references [#345](https://github.com/inference-gateway/cli/issues/345) [#1344](https://github.com/inference-gateway/cli/issues/1344)
+* **memory:** recover interrupted git sync and union-merge MEMORY.md ([#1360](https://github.com/inference-gateway/cli/issues/1360)) ([235c456](https://github.com/inference-gateway/cli/commit/235c45636ac50e9ce32121c4bdf9c4361d23f51e))
+* **computer:** recreate screenshot dir and dedupe capture failure logs ([#1362](https://github.com/inference-gateway/cli/issues/1362)) ([674f6df](https://github.com/inference-gateway/cli/commit/674f6df2920d073c7fef2a504ebd9b8414a5f960))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.214.0 --help
+npx @inference-gateway/cli@0.214.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.214.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.214.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.214.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.214.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.214.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.213.0](https://github.com/inference-gateway/cli/compare/v0.212.0...v0.213.0) (2026-09-27)
 
 ### 🚀 Features
