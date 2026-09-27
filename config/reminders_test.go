@@ -96,9 +96,8 @@ func TestDefaultRemindersConfig(t *testing.T) {
 	}
 }
 
-// memory-hygiene is a periodic (every-13-turns) nudge to record durable facts,
-// mirroring todo-hygiene but less frequent; it fires on pre_stream when
-// SessionTurn % 13 == 0.
+// memory-hygiene nudges once per session, from turn 25 on, so short sessions
+// are never pushed to record something and long ones are pushed only once.
 func TestDefaultRemindersConfig_MemoryHygiene(t *testing.T) {
 	cfg := config.DefaultRemindersConfig()
 
@@ -111,23 +110,26 @@ func TestDefaultRemindersConfig_MemoryHygiene(t *testing.T) {
 	if mh == nil {
 		t.Fatal("default reminders should include memory-hygiene")
 	}
-	if mh.Hook != agentdomain.HookPreStream || mh.Trigger != config.ReminderTriggerInterval || mh.Interval != 13 {
-		t.Errorf("memory-hygiene should fire every 13 turns on pre_stream: %+v", *mh)
+	if mh.Hook != agentdomain.HookPreStream || mh.Trigger != config.ReminderTriggerOnceAfter || mh.Threshold != 25 {
+		t.Errorf("memory-hygiene should fire once after 25 turns on pre_stream: %+v", *mh)
 	}
 
-	fires := func(turn int) bool {
-		for _, r := range cfg.RemindersDue(query(agentdomain.HookPreStream, turn, 0, nil)) {
+	fires := func(turn int, fired map[string]bool) bool {
+		for _, r := range cfg.RemindersDue(query(agentdomain.HookPreStream, turn, 0, fired)) {
 			if r.Name == "memory-hygiene" {
 				return true
 			}
 		}
 		return false
 	}
-	if fires(1) || fires(10) {
-		t.Error("memory-hygiene should not fire before turn 13")
+	if fires(13, nil) || fires(24, nil) {
+		t.Error("memory-hygiene should not fire before turn 25")
 	}
-	if !fires(13) || !fires(26) {
-		t.Error("memory-hygiene should fire at turns 13 and 26")
+	if !fires(25, nil) || !fires(40, nil) {
+		t.Error("memory-hygiene should fire from turn 25 until it has fired")
+	}
+	if fires(50, map[string]bool{"memory-hygiene": true}) {
+		t.Error("memory-hygiene should not fire again once fired")
 	}
 }
 

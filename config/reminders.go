@@ -56,9 +56,10 @@ func (t ReminderTrigger) Valid() bool { return slices.Contains(ReminderTriggers,
 
 const defaultReminderInterval = 10
 
-// defaultMemoryReminderInterval is the cadence of the memory-hygiene reminder -
-// less frequent than todo-hygiene since durable facts accrue more slowly.
-const defaultMemoryReminderInterval = 13
+// defaultMemoryHygieneThreshold is the session turn at which memory-hygiene
+// fires, once: short sessions rarely learn anything durable, and a recurring
+// nudge made the agent record task noise just to satisfy it.
+const defaultMemoryHygieneThreshold = 25
 
 // defaultUserIntentFocusThreshold is the turn threshold for the
 // user-intent-focus reminder - fires once after 3 turns.
@@ -69,7 +70,7 @@ This is a reminder to keep your todo list current. If you are working on tasks t
 </system-reminder>`
 
 const defaultMemoryHygieneReminderText = `<system-reminder>
-If you have learned durable facts about the user, project, or workflow this session - preferences, conventions, recurring gotchas, decisions worth keeping - record them now with the Memory tool (write) so they persist across sessions; it keeps the MEMORY.md index in sync. Skip if there is nothing durable to save. Do not mention this reminder to the user.
+If this session taught you something a future session would otherwise get wrong or have to rediscover - a user preference or correction, a non-obvious gotcha you verified - save it with the Memory tool (operation "write"), updating the existing entry when the index already covers it. Do not save task progress, PR or issue status, or anything already in the repository (code, README, AGENTS.md, git history). Most sessions need no new memory. Do not mention this reminder to the user.
 </system-reminder>`
 
 const defaultUserIntentFocusReminderText = `<system-reminder>
@@ -170,14 +171,13 @@ var defaultModeChangeGuidance = map[string]string{
 }
 
 const defaultMemoryConsultReminderText = `<system-reminder>
-The persistent memory index (MEMORY.md) is already injected into your context. Before relying on a fact, load it in full with the Memory tool (read with its name). As you learn durable facts about the user, project, or workflow, record them with the Memory tool (write); it keeps the index in sync. Do not mention this reminder to the user.
+The persistent memory index (MEMORY.md) is already injected into your context. Before relying on a fact, load it in full with the Memory tool (operation "read" with its name). Do not mention this reminder to the user.
 </system-reminder>`
 
 // MemoryReminders returns the built-in reminders coupled to the memory feature:
-// memory-consult (turn-1 orientation) and memory-hygiene (a periodic nudge to
-// record durable facts). They are the single source of truth used to seed
-// reminders.yaml (fresh init or init --overwrite) and to identify which
-// reminders to prune when memory is disabled (see pruneMemoryRemindersIfDisabled).
+// memory-consult (turn-1 orientation) and memory-hygiene (one nudge per long
+// session). They seed reminders.yaml and name the reminders to prune when
+// memory is disabled (see pruneMemoryRemindersIfDisabled).
 func MemoryReminders() []ReminderConfig {
 	return []ReminderConfig{
 		{
@@ -187,11 +187,11 @@ func MemoryReminders() []ReminderConfig {
 			Text:    defaultMemoryConsultReminderText,
 		},
 		{
-			Name:     "memory-hygiene",
-			Hook:     agentdomain.HookPreStream,
-			Trigger:  ReminderTriggerInterval,
-			Interval: defaultMemoryReminderInterval,
-			Text:     defaultMemoryHygieneReminderText,
+			Name:      "memory-hygiene",
+			Hook:      agentdomain.HookPreStream,
+			Trigger:   ReminderTriggerOnceAfter,
+			Threshold: defaultMemoryHygieneThreshold,
+			Text:      defaultMemoryHygieneReminderText,
 		},
 	}
 }

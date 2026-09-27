@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -141,6 +142,56 @@ func TestMemoryTool_Definition(t *testing.T) {
 	if got := strings.Join(enum, ","); got != "read,write,delete" {
 		t.Errorf("Expected operation enum read,write,delete, got %q", got)
 	}
+
+	content, _ := props["content"].(map[string]any)
+	wantCap := fmt.Sprintf("at most %d characters", tool.config.Memory.EffectiveMaxEntryChars())
+	if desc, _ := content["description"].(string); !strings.Contains(desc, wantCap) {
+		t.Errorf("content description should state the entry cap %q, got %q", wantCap, desc)
+	}
+}
+
+func TestMemoryTool_Execute_WriteWithoutOperation(t *testing.T) {
+	tool, dir := newTestMemoryTool(t)
+
+	res := execOK(t, tool, map[string]any{
+		"name": "no-op-given", "description": "d", "type": "reference", "content": "b",
+	})
+	if res.Operation != OperationWrite {
+		t.Errorf("a call with content should default to write, got %q", res.Operation)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "no-op-given.md")); err != nil {
+		t.Errorf("fact should be persisted: %v", err)
+	}
+}
+
+func TestMemoryTool_Write_CurrentRepoShortNameIsCanonical(t *testing.T) {
+	detected := project.Identity{Name: "inference-gateway/docs", Slug: "inference-gateway-docs"}
+
+	tests := []struct {
+		name string
+		args map[string]any
+		want string
+	}{
+		{name: "short name prefix", args: map[string]any{"name": "docs/nav"}, want: "inference-gateway-docs/nav"},
+		{name: "short project arg", args: map[string]any{"name": "nav", "project": "docs"}, want: "inference-gateway-docs/nav"},
+		{name: "full slug prefix", args: map[string]any{"name": "inference-gateway-docs/nav"}, want: "inference-gateway-docs/nav"},
+		{name: "short prefix with full project arg", args: map[string]any{"name": "docs/nav", "project": "inference-gateway/docs"}, want: "inference-gateway-docs/nav"},
+		{name: "other repo short name stays", args: map[string]any{"name": "sdk/nav"}, want: "sdk/nav"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool, dir := newTestMemoryToolWithProject(t, detected)
+			args := map[string]any{"operation": "write", "description": "d", "type": "project", "content": "b"}
+			maps.Copy(args, tt.args)
+			res := execOK(t, tool, args)
+			if res.Name != tt.want {
+				t.Errorf("name = %q, want %q", res.Name, tt.want)
+			}
+			if _, err := os.Stat(filepath.Join(dir, tt.want+".md")); err != nil {
+				t.Errorf("fact should be filed at %s.md: %v", tt.want, err)
+			}
+		})
+	}
 }
 
 func TestMemoryTool_IsEnabled(t *testing.T) {
@@ -171,14 +222,19 @@ func TestMemoryTool_Validate(t *testing.T) {
 			name: "write valid",
 			args: map[string]any{"operation": "write", "name": "foo", "description": "a fact", "type": "project", "content": "body"},
 		},
-		{name: "write missing name", args: map[string]any{"operation": "write", "description": "d", "type": "project", "content": "b"}, wantErr: true, errMsg: "name"},
-		{name: "write missing description", args: map[string]any{"operation": "write", "name": "foo", "type": "project", "content": "b"}, wantErr: true, errMsg: "description"},
-		{name: "write missing content", args: map[string]any{"operation": "write", "name": "foo", "description": "d", "type": "project"}, wantErr: true, errMsg: "content"},
-		{name: "write missing type", args: map[string]any{"operation": "write", "name": "foo", "description": "d", "content": "b"}, wantErr: true, errMsg: "type"},
-		{name: "write bad type", args: map[string]any{"operation": "write", "name": "foo", "description": "d", "type": "bogus", "content": "b"}, wantErr: true, errMsg: "type"},
+		{name: "write missing name", args: map[string]any{"operation": "write", "description": "d", "type": "project", "content": "b"}, wantErr: true, errMsg: "missing: name"},
+		{name: "write missing description", args: map[string]any{"operation": "write", "name": "foo", "type": "project", "content": "b"}, wantErr: true, errMsg: "missing: description"},
+		{name: "write missing content", args: map[string]any{"operation": "write", "name": "foo", "description": "d", "type": "project"}, wantErr: true, errMsg: "missing: content"},
+		{name: "write missing type", args: map[string]any{"operation": "write", "name": "foo", "description": "d", "content": "b"}, wantErr: true, errMsg: "missing: type"},
+		{name: "write lists every missing field", args: map[string]any{"operation": "write", "name": "foo"}, wantErr: true, errMsg: "missing: description, type, content"},
+		{name: "write empty description", args: map[string]any{"operation": "write", "name": "foo", "description": "  ", "type": "project", "content": "b"}, wantErr: true, errMsg: "missing: description"},
+		{name: "write bad type", args: map[string]any{"operation": "write", "name": "foo", "description": "d", "type": "bogus", "content": "b"}, wantErr: true, errMsg: "type must be one of"},
 		{name: "delete valid", args: map[string]any{"operation": "delete", "name": "foo"}},
 		{name: "delete missing name", args: map[string]any{"operation": "delete"}, wantErr: true, errMsg: "name"},
-		{name: "missing operation", args: map[string]any{"name": "foo"}, wantErr: true, errMsg: "operation"},
+		{name: "missing operation reads", args: map[string]any{"name": "foo"}},
+		{name: "missing operation with content writes", args: map[string]any{"name": "foo", "description": "d", "type": "project", "content": "b"}},
+		{name: "missing operation with incomplete write", args: map[string]any{"content": "b"}, wantErr: true, errMsg: "missing: name, description, type"},
+		{name: "non-string operation", args: map[string]any{"operation": 1}, wantErr: true, errMsg: "operation"},
 		{name: "invalid operation", args: map[string]any{"operation": "frobnicate"}, wantErr: true, errMsg: "operation"},
 	}
 

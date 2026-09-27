@@ -86,8 +86,8 @@ func (t *MemoryTool) Definition() sdk.ChatCompletionTool {
 					},
 					"name": map[string]any{
 						"type": "string",
-						"description": "Name identifying the memory: \"<slug>\" for a global fact (e.g. \"build-commands\") or " +
-							"\"<project>/<slug>\" for a project fact (e.g. \"inference-gateway-cli/build-commands\"), exactly as shown in the index. " +
+						"description": "For write, a short slug such as \"build-commands\" (no project prefix; the project is chosen for you). " +
+							"For read and delete, the name exactly as shown in the index, e.g. \"inference-gateway-cli/build-commands\". " +
 							"Required for write and delete; optional for read.",
 					},
 					"project": map[string]any{
@@ -107,7 +107,7 @@ func (t *MemoryTool) Definition() sdk.ChatCompletionTool {
 					},
 					"content": map[string]any{
 						"type":        "string",
-						"description": "The fact body in Markdown. Required for write.",
+						"description": fmt.Sprintf("The fact body in Markdown, at most %d characters. Required for write.", t.config.Memory.EffectiveMaxEntryChars()),
 					},
 				},
 				"required": []string{"operation"},
@@ -128,7 +128,7 @@ func (t *MemoryTool) Execute(ctx context.Context, args map[string]any) (*agentdo
 		return t.errResult(args, start, err.Error()), nil
 	}
 
-	operation, _ := args["operation"].(string)
+	operation, _ := memoryOperation(args)
 	switch operation {
 	case OperationRead:
 		return t.execRead(args, start)
@@ -301,6 +301,8 @@ func resolveWriteTarget(name, projectArg, memType string, detected project.Ident
 			}
 		}
 	}
+	nameProject = canonicalProject(nameProject, detected)
+	argSlug = canonicalProject(argSlug, detected)
 
 	if nameProject != "" {
 		if strings.TrimSpace(projectArg) != "" && argSlug != nameProject {
@@ -315,6 +317,17 @@ func resolveWriteTarget(name, projectArg, memType string, detected project.Ident
 		return "", slug, nil
 	}
 	return detected.Slug, slug, nil
+}
+
+// canonicalProject maps the bare repo name of the detected project ("docs"
+// inside inference-gateway/docs) to its full slug, so a fact the model files
+// under the short name still lands where session start loads it.
+func canonicalProject(slug string, detected project.Identity) string {
+	_, repo, found := strings.Cut(detected.Name, "/")
+	if found && slug != "" && slug == project.Slugify(repo) {
+		return detected.Slug
+	}
+	return slug
 }
 
 // execDelete removes a fact-file and its index entry (idempotent).
@@ -369,9 +382,9 @@ func (t *MemoryTool) Validate(args map[string]any) error {
 		return fmt.Errorf("memory tool is not enabled")
 	}
 
-	operation, ok := args["operation"].(string)
-	if !ok {
-		return fmt.Errorf("operation parameter is required and must be a string")
+	operation, err := memoryOperation(args)
+	if err != nil {
+		return err
 	}
 
 	switch operation {
@@ -386,6 +399,23 @@ func (t *MemoryTool) Validate(args map[string]any) error {
 	}
 }
 
+// memoryOperation returns the requested operation. When it is omitted, which
+// weaker models often do, a call carrying content is a write and anything else
+// a read; delete is never inferred.
+func memoryOperation(args map[string]any) (string, error) {
+	switch op := args["operation"].(type) {
+	case string:
+		return op, nil
+	case nil:
+		if _, ok := args["content"]; ok {
+			return OperationWrite, nil
+		}
+		return OperationRead, nil
+	default:
+		return "", fmt.Errorf("operation must be a string: one of read, write, delete")
+	}
+}
+
 func validateReadArgs(args map[string]any) error {
 	if v, ok := args["name"]; ok {
 		if _, ok := v.(string); !ok {
@@ -396,20 +426,16 @@ func validateReadArgs(args map[string]any) error {
 }
 
 func validateWriteArgs(args map[string]any) error {
-	if err := requireStringArg(args, "name"); err != nil {
-		return err
+	var missing []string
+	for _, key := range []string{"name", "description", "type", "content"} {
+		if s, ok := args[key].(string); !ok || strings.TrimSpace(s) == "" {
+			missing = append(missing, key)
+		}
 	}
-	if err := requireStringArg(args, "description"); err != nil {
-		return err
+	if len(missing) > 0 {
+		return fmt.Errorf("write needs name, description, type and content as non-empty strings; missing: %s", strings.Join(missing, ", "))
 	}
-	if err := requireStringArg(args, "content"); err != nil {
-		return err
-	}
-	memType, err := requireStringArgValue(args, "type")
-	if err != nil {
-		return err
-	}
-	if !validMemoryType(memType) {
+	if memType, _ := args["type"].(string); !validMemoryType(memType) {
 		return fmt.Errorf("type must be one of: user, feedback, project, reference")
 	}
 	if v, ok := args["project"]; ok {
