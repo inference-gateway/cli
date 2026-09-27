@@ -27,25 +27,7 @@ func NewGetSubagentResultTool(cfg *config.Config, tracker scheddomain.SubagentTr
 
 // Definition returns the tool definition for the LLM.
 func (t *GetSubagentResultTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.GetSubagentResult.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "GetSubagentResult",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"subagent_id": map[string]any{
-						"type":        "string",
-						"description": "The subagent id from ListSubagents",
-					},
-				},
-				"required":             []string{"subagent_id"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("GetSubagentResult", t.config.Prompts.Tools.GetSubagentResult.Description)
 }
 
 // Execute returns the latest output of the named subagent.

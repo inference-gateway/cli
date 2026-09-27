@@ -29,30 +29,7 @@ func NewBashOutputTool(cfg *config.Config, shellService scheddomain.BackgroundSh
 
 // Definition returns the tool definition for the SDK
 func (t *BashOutputTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.BashOutput.Description
-
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "BashOutput",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"bash_id": map[string]any{
-						"type":        "string",
-						"description": "The shell ID returned when the command was moved to background",
-					},
-					"filter": map[string]any{
-						"type":        "string",
-						"description": "Optional regex pattern to filter output lines. Only lines matching the pattern will be returned.",
-					},
-				},
-				"required":             []string{"bash_id"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("BashOutput", t.config.Prompts.Tools.BashOutput.Description)
 }
 
 // Execute retrieves output from a background shell

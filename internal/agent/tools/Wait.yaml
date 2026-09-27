@@ -1,0 +1,57 @@
+name: Wait
+description: |-
+  Block until a condition is met, then return once with the outcome. Use this instead of sleep-and-poll loops (Bash("sleep N") + BashOutput) to avoid wasting LLM round-trips.
+
+  Conditions:
+  - shells: block until the given background shell ID(s) exit (or all pending background tasks when omitted). Returns exit codes and tail output for each shell.
+  - file: block until a file path is created, modified, or removed (uses fsnotify).
+  - command: re-run a check command server-side at a fixed interval until it exits 0 (e.g. "curl -sf localhost:8080/health"). The check command goes through the same bash allow-list as the Bash tool. Optional pending_exit_codes lists exit codes that mean "still pending, keep polling"; include 0 for commands like 'gh run view --exit-status' that exit 0 for both 'still running' and 'completed successfully'. Any exit code not in this list ends the wait immediately with reason check_failed and the command's output, so checks that distinguish pending from failed return the moment the outcome is known.
+
+  Waiting for CI after a push: Wait(condition=command, command="gh pr checks", pending_exit_codes=[8], timeout_seconds=600). gh pr checks exits 0 when all checks pass, 8 while checks are pending, and non-zero otherwise, so the wait returns as soon as CI concludes either way. On check_failed the last output lists the failing checks (dig deeper with "gh run view --log-failed"). If the wait times out while checks are still pending, call Wait again - waiting costs zero completions.
+
+  Every mode requires timeout_seconds (bounded by the config ceiling). Returns a structured result: the outcome (condition_met, check_failed, or timeout), elapsed time, and the condition details (exit codes, last output) - included on failure too.
+
+  Cancellation: Esc in chat or session cancel interrupts the wait immediately.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    command:
+      type: string
+      description: Check command to re-run until it exits 0 (condition=command). Goes through the same bash allow-list as the Bash tool.
+    condition:
+      type: string
+      description: 'The condition to wait for: ''shells'' (background shell(s) exit), ''file'' (file path created/modified/removed), or ''command'' (check command exits 0).'
+      enum:
+        - shells
+        - file
+        - command
+    event:
+      type: string
+      description: 'File event to wait for: ''create'', ''modify'', ''remove'', or ''any'' (default). Only used with condition=file.'
+      enum:
+        - create
+        - modify
+        - remove
+        - any
+    path:
+      type: string
+      description: File path to watch (condition=file).
+    pending_exit_codes:
+      type: array
+      description: 'Exit codes that mean ''still pending, keep polling'' (condition=command). Include 0 for commands like ''gh run view --exit-status'' that exit 0 for both ''still running'' and ''completed successfully''. Any exit code not in this list ends the wait immediately with reason ''check_failed''. Omit to keep polling on every non-zero exit. Example: [8] for ''gh pr checks''.'
+      items:
+        type: number
+    shell_ids:
+      type: array
+      description: Shell ID(s) to wait for (condition=shells). Omit to wait for all pending background shells.
+      items:
+        type: string
+    timeout_seconds:
+      type: number
+      description: Maximum time to wait in seconds (bounded by the config ceiling). Required.
+  required:
+    - condition
+    - timeout_seconds
+require_approval: false
+plan_mode: allowed

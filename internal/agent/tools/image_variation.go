@@ -32,31 +32,7 @@ func NewImageVariationTool(cfg *config.Config, imageService agentdomain.ImageSer
 
 // Definition returns the tool definition for ImageVariation
 func (t *ImageVariationTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ImageVariation.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ImageVariation",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"image": map[string]any{
-						"type":        "string",
-						"description": "Local file path of the image to base the variation on",
-					},
-					"size": map[string]any{
-						"type":        "string",
-						"enum":        imageSizes,
-						"description": "Image size. Always use '1024x1024' unless the user explicitly asks for a larger or differently shaped image",
-						"default":     string(sdk.ImageSize1024X1024),
-					},
-				},
-				"required":             []string{"image"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("ImageVariation", t.config.Prompts.Tools.ImageVariation.Description)
 }
 
 // Validate validates ImageVariation arguments

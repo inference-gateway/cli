@@ -100,32 +100,7 @@ func (t *A2ASubmitTaskTool) shouldResumeTask(ctx context.Context, adkClient clie
 
 // Definition returns the tool definition for the LLM
 func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.A2ASubmitTask.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "A2A_SubmitTask",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"agent_url": map[string]any{
-						"type":        "string",
-						"description": "URL of the A2A agent server",
-					},
-					"task_description": map[string]any{
-						"type":        "string",
-						"description": "The question to ask or work to perform. Can be a question, task, action, or continuation of existing work",
-					},
-					"context_id": map[string]any{
-						"type":        "string",
-						"description": "Optional context ID from an earlier task to continue that conversation with the agent. Omit to start an independent task; independent tasks on the same agent run in parallel",
-					},
-				},
-				"required": []string{"agent_url", "task_description"},
-			},
-		},
-	}
+	return toolManifests.Definition("A2A_SubmitTask", t.config.Prompts.Tools.A2ASubmitTask.Description)
 }
 
 // Execute submits a task to an A2A agent. The agent's latest tracked task is

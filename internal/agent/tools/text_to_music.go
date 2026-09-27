@@ -31,37 +31,7 @@ func NewTextToMusicTool(cfg *config.Config, music agentdomain.MusicService) *Tex
 
 // Definition returns the tool definition for TextToMusic
 func (t *TextToMusicTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.TextToMusic.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "TextToMusic",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"prompt": map[string]any{
-						"type":        "string",
-						"description": "Description of the music to compose - genre, mood, instruments, tempo",
-					},
-					"seconds": map[string]any{
-						"type":        "number",
-						"description": "Optional clip length in seconds; omitted lets the provider pick a length that fits the prompt",
-					},
-					"instrumental": map[string]any{
-						"type":        "boolean",
-						"description": "Optional: true to guarantee the generated clip has no vocals",
-					},
-					"output_path": map[string]any{
-						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) for the generated MP3; it is always placed in the configured output directory. Defaults to a timestamped file",
-					},
-				},
-				"required":             []string{"prompt"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("TextToMusic", t.config.Prompts.Tools.TextToMusic.Description)
 }
 
 // Validate validates TextToMusic arguments

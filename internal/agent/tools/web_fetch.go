@@ -48,35 +48,7 @@ func NewWebFetchTool(cfg *config.Config) *WebFetchTool {
 
 // Definition returns the tool definition for the LLM
 func (t *WebFetchTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.WebFetch.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "WebFetch",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"url": map[string]any{
-						"type":        "string",
-						"description": "The URL to fetch content from",
-					},
-					"format": map[string]any{
-						"type":        "string",
-						"description": "Output format (text or json)",
-						"enum":        []string{"text", "json"},
-						"default":     "text",
-					},
-					"download": map[string]any{
-						"type":        "boolean",
-						"description": "Set to true to automatically save the fetched content to disk. File will be saved with a name extracted from the URL.",
-						"default":     false,
-					},
-				},
-				"required": []string{"url"},
-			},
-		},
-	}
+	return toolManifests.Definition("WebFetch", t.config.Prompts.Tools.WebFetch.Description)
 }
 
 // Execute runs the fetch tool with given arguments

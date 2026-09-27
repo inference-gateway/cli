@@ -1,0 +1,68 @@
+name: AskUserQuestion
+description: |-
+  Ask the user 1-4 multiple-choice clarifying questions as an interactive form.
+
+  Use this when a decision hinges on a discrete choice the user should make - format, scope, approach, naming, trade-off - instead of guessing or asking in prose. In plan mode, call it BEFORE RequestPlanApproval and fold the answers into the plan, then submit the plan.
+
+  Each question has:
+  - header: a short chip/tag (<= 12 chars), e.g. "Scope", "Format"
+  - question: the full question text
+  - options: 2-4 choices, each with a concise label (returned as the answer) and a description of the trade-off
+  - multiSelect (optional): set true to let the user pick more than one option
+
+  The UI always adds an "Other" free-text choice, so you do not need an "Other" option yourself. The user answers with the keyboard and the selected labels (and any free text) are returned to you.
+
+  Notes:
+  - Ask only what you genuinely need - prefer one focused round of questions over many.
+  - If no interactive user is available (headless run), you will be told to proceed with stated assumptions instead.
+parameters:
+  $schema: http://json-schema.org/draft-07/schema#
+  type: object
+  additionalProperties: false
+  properties:
+    questions:
+      type: array
+      description: 1-4 clarifying questions to ask the user.
+      items:
+        type: object
+        additionalProperties: false
+        properties:
+          header:
+            type: string
+            description: Short label/chip shown as a tag (<= 12 chars).
+            maxLength: 12
+          multiSelect:
+            type: boolean
+            description: Allow selecting multiple options.
+            default: false
+          options:
+            type: array
+            description: 2-4 selectable options. An 'Other' free-text choice is always added by the UI.
+            items:
+              type: object
+              additionalProperties: false
+              properties:
+                description:
+                  type: string
+                  description: What this option means / its trade-off.
+                label:
+                  type: string
+                  description: Concise option value returned as the answer.
+              required:
+                - label
+                - description
+            minItems: 2
+            maxItems: 4
+          question:
+            type: string
+            description: The full question text to display.
+        required:
+          - header
+          - question
+          - options
+      minItems: 1
+      maxItems: 4
+  required:
+    - questions
+require_approval: false
+plan_mode: allowed

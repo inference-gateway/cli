@@ -49,43 +49,13 @@ func (t *WebSearchTool) engines() []string {
 
 // Definition returns the tool definition for the LLM
 func (t *WebSearchTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.WebSearch.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "WebSearch",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"query": map[string]any{
-						"type":        "string",
-						"description": "The search query to execute",
-					},
-					"engine": map[string]any{
-						"type":        "string",
-						"description": fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(t.engines(), " or "), t.config.Tools.WebSearch.DefaultEngine),
-						"enum":        t.engines(),
-						"default":     t.config.Tools.WebSearch.DefaultEngine,
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "Maximum number of search results to return",
-						"minimum":     1,
-						"maximum":     50,
-						"default":     t.config.Tools.WebSearch.MaxResults,
-					},
-					"format": map[string]any{
-						"type":        "string",
-						"description": "Output format (text or json)",
-						"enum":        []string{"text", "json"},
-						"default":     "text",
-					},
-				},
-				"required": []string{"query"},
-			},
-		},
-	}
+	def := toolManifests.Definition("WebSearch", t.config.Prompts.Tools.WebSearch.Description)
+	engine := agentdomain.PropertySchema(def, "engine")
+	engine["enum"] = t.engines()
+	engine["default"] = t.config.Tools.WebSearch.DefaultEngine
+	engine["description"] = fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(t.engines(), " or "), t.config.Tools.WebSearch.DefaultEngine)
+	agentdomain.PropertySchema(def, "limit")["default"] = t.config.Tools.WebSearch.MaxResults
+	return def
 }
 
 // Execute runs the web search tool with given arguments

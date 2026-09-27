@@ -39,33 +39,7 @@ func NewTextToSpeechTool(cfg *config.Config, synth voiceSynthesizer) *TextToSpee
 
 // Definition returns the tool definition for TextToSpeech
 func (t *TextToSpeechTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.TextToSpeech.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "TextToSpeech",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"text": map[string]any{
-						"type":        "string",
-						"description": "The text to speak",
-					},
-					"voice_sample": map[string]any{
-						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) of a WAV recording the target speaker; looked up in the working directory, then in the voice samples library (~/.infer/models/tts/samples); when set, the output clones that voice. Around 10-30 seconds of clean single-speaker speech works best",
-					},
-					"output_path": map[string]any{
-						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) for the generated WAV; it is always placed in the configured output directory. Defaults to a timestamped file",
-					},
-				},
-				"required":             []string{"text"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("TextToSpeech", t.config.Prompts.Tools.TextToSpeech.Description)
 }
 
 // Validate validates TextToSpeech arguments

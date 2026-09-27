@@ -31,45 +31,7 @@ func NewTodoWriteTool(cfg *config.Config) *TodoWriteTool {
 
 // Definition returns the tool definition for the LLM
 func (t *TodoWriteTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.TodoWrite.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "TodoWrite",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"$schema":              "http://json-schema.org/draft-07/schema#",
-				"additionalProperties": false,
-				"type":                 "object",
-				"required":             []string{"todos"},
-				"properties": map[string]any{
-					"todos": map[string]any{
-						"description": "The updated todo list",
-						"type":        "array",
-						"items": map[string]any{
-							"type":                 "object",
-							"additionalProperties": false,
-							"required":             []string{"content", "status"},
-							"properties": map[string]any{
-								"content": map[string]any{
-									"type":      "string",
-									"minLength": 1,
-								},
-								"id": map[string]any{
-									"type":        "string",
-									"description": "Optional unique identifier. If not provided, will be auto-generated.",
-								},
-								"status": map[string]any{
-									"type": "string",
-									"enum": []string{"pending", "in_progress", "completed"},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
+	return toolManifests.Definition("TodoWrite", t.config.Prompts.Tools.TodoWrite.Description)
 }
 
 // Execute runs the TodoWrite tool with given arguments

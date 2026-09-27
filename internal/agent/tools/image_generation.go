@@ -45,37 +45,7 @@ func NewImageGenerationTool(cfg *config.Config, imageService agentdomain.ImageSe
 
 // Definition returns the tool definition for ImageGeneration
 func (t *ImageGenerationTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ImageGeneration.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ImageGeneration",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"prompt": map[string]any{
-						"type":        "string",
-						"description": "A text description of the desired image",
-					},
-					"quality": map[string]any{
-						"type":        "string",
-						"enum":        imageQualities,
-						"description": "Image quality. Always use 'low' unless the user explicitly asks for higher quality - it is markedly cheaper and faster",
-						"default":     string(sdk.CreateImageRequestQualityLow),
-					},
-					"size": map[string]any{
-						"type":        "string",
-						"enum":        imageSizes,
-						"description": "Image size. Always use '1024x1024' unless the user explicitly asks for a larger or differently shaped image",
-						"default":     string(sdk.ImageSize1024X1024),
-					},
-				},
-				"required":             []string{"prompt"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("ImageGeneration", t.config.Prompts.Tools.ImageGeneration.Description)
 }
 
 // Validate validates ImageGeneration arguments

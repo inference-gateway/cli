@@ -1,0 +1,19 @@
+name: ApproveSubagent
+description: Respond to an interactive subagent that is waiting for tool approval (you are notified with a '[Subagent ... awaiting approval]' message showing what it wants to run). decision='approve' lets it proceed, 'reject' declines. This action itself requires YOUR confirmation in this chat before it is relayed. Only Approve/Reject - do not auto-approve. Pass the subagent_id from ListSubagents.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    decision:
+      type: string
+      description: approve lets the subagent run the pending tool; reject declines it
+      enum:
+        - approve
+        - reject
+    subagent_id:
+      type: string
+      description: The interactive subagent id from ListSubagents
+  required:
+    - subagent_id
+    - decision
+require_approval: true

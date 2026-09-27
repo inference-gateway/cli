@@ -1,0 +1,32 @@
+name: RequestPlanApproval
+description: |-
+  Submit your completed plan for user approval and persist it to storage.
+
+  What happens:
+  - The plan is saved to the configured storage backend with an infer://plans/<id> URI (on the default jsonl backend it also lands as <configDir>/plans/<id>.md); retrieve it any time with 'infer plans show <id>'
+  - The plan is displayed to the user with Accept / Reject / Approve Each Step options
+  - Accept switches to auto-approve mode; Approve Each Step keeps standard mode (per-action approval)
+  - If approved, you'll switch to execution mode with full tool access
+  - If rejected, the stored plan remains as an audit trail and the user provides feedback
+
+  Required parameters:
+  - title: A short human-readable phrase (≤ 60 chars, no slashes). Becomes the H1 heading and the filename slug.
+  - plan: The full plan as Markdown using H2 sections in this order - ## Context, ## Files to Modify, ## Current Code, ## Changes, ## Performance Impact, ## Critical Files, ## Edge Cases, ## Verification. Omit any section that is not applicable.
+
+  Only call this tool when the plan is final. If you need clarification, ask the user in a normal assistant turn first.
+parameters:
+  $schema: http://json-schema.org/draft-07/schema#
+  type: object
+  additionalProperties: false
+  properties:
+    plan:
+      type: string
+      description: 'The complete plan as Markdown. Use H2 sections (## Context, ## Files to Modify, ## Current Code, ## Changes, ## Performance Impact, ## Critical Files, ## Edge Cases, ## Verification) - include only sections that apply.'
+    title:
+      type: string
+      description: A short human-readable title for the plan. Used as the H1 heading and to derive the on-disk filename.
+  required:
+    - title
+    - plan
+require_approval: false
+plan_mode: only

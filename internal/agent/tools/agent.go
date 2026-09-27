@@ -119,55 +119,12 @@ func NewAgentTool(cfg *config.Config, tracker scheddomain.SubagentTracker, submi
 
 // Definition returns the tool definition for the LLM.
 func (t *AgentTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Agent.Description
+	def := toolManifests.Definition("Agent", t.config.Prompts.Tools.Agent.Description)
 	if list := t.markdownAgentCatalog(); list != "" {
-		description += "\n\n" + list
+		description := *def.Function.Description + "\n\n" + list
+		def.Function.Description = &description
 	}
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "Agent",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"tasks": map[string]any{
-						"type":        "array",
-						"description": "Subagent tasks to run in parallel. Each runs in its own isolated session.",
-						"items": map[string]any{
-							"type": "object",
-							"properties": map[string]any{
-								"description":   map[string]any{"type": "string", "description": "The task for the subagent to perform"},
-								"label":         map[string]any{"type": "string", "description": "Short label for the subagent (shown in progress/panes)"},
-								"model":         map[string]any{"type": "string", "description": "Optional model override for this subagent"},
-								"system_prompt": map[string]any{"type": "string", "description": "Optional system prompt giving THIS subagent a specialized role/persona for its task"},
-								"agent":         map[string]any{"type": "string", "description": "Optional name of a Markdown-defined agent (see Available agents) that supplies the system prompt, model and tool allowlist; type is then derived from that allowlist"},
-								"type":          map[string]any{"type": "string", "enum": []string{"ReadOnly", "ReadWrite"}, "description": "Capability. ReadOnly (default) is Explore-like: read/search tools only, never needs approval - use for investigation/research. ReadWrite can modify files and run commands; its mutations require approval."},
-							},
-							"required": []string{"description"},
-						},
-					},
-					"description": map[string]any{
-						"type":        "string",
-						"description": "Shorthand for a single subagent task (alternative to tasks)",
-					},
-					"system_prompt": map[string]any{
-						"type":        "string",
-						"description": "Optional system prompt for the single-task (description) form, giving the subagent a specialized role",
-					},
-					"agent": map[string]any{
-						"type":        "string",
-						"description": "Optional name of a Markdown-defined agent (see Available agents) that supplies the system prompt, model and tool allowlist; type is then derived from that allowlist",
-					},
-					"type": map[string]any{
-						"type":        "string",
-						"enum":        []string{"ReadOnly", "ReadWrite"},
-						"description": "Capability for the single-task form. ReadOnly (default) is Explore-like: read/search only, never needs approval. ReadWrite can modify files and run commands; mutations require approval.",
-					},
-				},
-			},
-		},
-	}
+	return def
 }
 
 // Execute runs the tool with the given arguments.

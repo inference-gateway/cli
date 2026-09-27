@@ -37,39 +37,7 @@ func NewRequestApprovalTool(cfg *config.Config) *RequestApprovalTool {
 
 // Definition returns the tool definition for the LLM.
 func (t *RequestApprovalTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.RequestApproval.Description
-
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "RequestApproval",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"$schema":              "http://json-schema.org/draft-07/schema#",
-				"additionalProperties": false,
-				"type":                 "object",
-				"required":             []string{"tool", "arguments", "what", "why"},
-				"properties": map[string]any{
-					"tool": map[string]any{
-						"type":        "string",
-						"description": "Name of the judge-rejected tool you want to run.",
-					},
-					"arguments": map[string]any{
-						"type":        "object",
-						"description": "The exact arguments of the rejected call (must match the rejected invocation).",
-					},
-					"what": map[string]any{
-						"type":        "string",
-						"description": "What you need permission for, in one sentence.",
-					},
-					"why": map[string]any{
-						"type":        "string",
-						"description": "Why the action serves the user's request, in your own words.",
-					},
-				},
-			},
-		},
-	}
+	return toolManifests.Definition("RequestApproval", t.config.Prompts.Tools.RequestApproval.Description)
 }
 
 // Execute escalates one judge-rejected call to the user and returns the

@@ -36,45 +36,7 @@ func NewCreateAvatarTool(cfg *config.Config, imageService agentdomain.ImageServi
 
 // Definition returns the tool definition for CreateAvatar
 func (t *CreateAvatarTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.CreateAvatar.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "CreateAvatar",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"name": map[string]any{
-						"type":        "string",
-						"description": "Name of the new avatar: a bare folder name such as \"presenter\"; an existing name fails",
-					},
-					"photo": map[string]any{
-						"type":        "string",
-						"description": "Bare file name (no directories or absolute paths) of a front-facing .png, .jpg, .jpeg or .webp photo, looked up in the working directory, then in this session's artifacts directory",
-					},
-					"angles": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string", "enum": slices.Sorted(maps.Keys(avatars.Angles))},
-						"description": "Views to generate from the photo; defaults to both three-quarter views; [] stores the photo only",
-					},
-					"quality": map[string]any{
-						"type":        "string",
-						"enum":        imageEditQualities,
-						"description": "Generated image quality",
-						"default":     string(sdk.CreateImageEditMultipartBodyQualityHigh),
-					},
-					"size": map[string]any{
-						"type":        "string",
-						"description": "Generated image size as WIDTHxHEIGHT, or auto",
-						"default":     string(sdk.ImageSize1024X1536),
-					},
-				},
-				"required":             []string{"name", "photo"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("CreateAvatar", t.config.Prompts.Tools.CreateAvatar.Description)
 }
 
 // Validate validates CreateAvatar arguments. The avatar name's form and an

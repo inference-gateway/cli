@@ -46,32 +46,7 @@ func NewA2AQueryTaskTool(cfg *config.Config, liveness scheddomain.JobLivenessRep
 }
 
 func (t *A2AQueryTaskTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.A2AQueryTask.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "A2A_QueryTask",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"agent_url": map[string]any{
-						"type":        "string",
-						"description": "URL of the A2A agent server",
-					},
-					"context_id": map[string]any{
-						"type":        "string",
-						"description": "Context ID for the task",
-					},
-					"task_id": map[string]any{
-						"type":        "string",
-						"description": "ID of the task to query",
-					},
-				},
-				"required": []string{"agent_url", "context_id", "task_id"},
-			},
-		},
-	}
+	return toolManifests.Definition("A2A_QueryTask", t.config.Prompts.Tools.A2AQueryTask.Description)
 }
 
 func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {

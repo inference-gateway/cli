@@ -56,55 +56,7 @@ func NewScheduleTool(cfg *config.Config, store storage.ScheduledJobStorage) *Sch
 
 // Definition returns the tool definition for the LLM
 func (t *ScheduleTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Schedule.Description
-
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "Schedule",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type":                 "object",
-				"additionalProperties": false,
-				"properties": map[string]any{
-					"operation": map[string]any{
-						"type":        "string",
-						"description": "The CRUD operation to perform.",
-						"enum":        []string{scheduleOpCreate, scheduleOpList, scheduleOpGet, scheduleOpUpdate, scheduleOpDelete},
-					},
-					"job_id": map[string]any{
-						"type":        "string",
-						"description": "Job identifier. Required for get/update/delete; ignored for create/list.",
-					},
-					"cron_expression": map[string]any{
-						"type":        "string",
-						"description": "Standard crontab expression (5 fields) or '@every <duration>'. Required for create; optional for update.",
-					},
-					"prompt": map[string]any{
-						"type":        "string",
-						"description": "The task to give the agent on each fire. Should be specific and self-contained - no prior context is available.",
-					},
-					"run_once": map[string]any{
-						"type":        "boolean",
-						"description": "When true, the job is deleted automatically after its first fire (one-off reminder). Default false (recurring). ALWAYS confirm with the user whether they want one-off or recurring before creating the job.",
-					},
-					"name": map[string]any{
-						"type":        "string",
-						"description": "Optional human-friendly name for the job.",
-					},
-					"description": map[string]any{
-						"type":        "string",
-						"description": "Optional longer description of the job's purpose.",
-					},
-					"model": map[string]any{
-						"type":        "string",
-						"description": "Optional model override (e.g. 'openai/gpt-4o-mini'). Defaults to the configured agent model.",
-					},
-				},
-				"required": []string{"operation"},
-			},
-		},
-	}
+	return toolManifests.Definition("Schedule", t.config.Prompts.Tools.Schedule.Description)
 }
 
 // Execute runs the Schedule tool with the given arguments.

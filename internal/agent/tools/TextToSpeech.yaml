@@ -1,0 +1,23 @@
+name: TextToSpeech
+description: |-
+  Synthesize speech from text and save it as an MP3 file. Returns the saved file path.
+
+  Pass only text for a stock voice. Pass voice_sample to clone a voice: a bare file name (no directories, no absolute paths) of a WAV in the working directory, ideally 10-30 seconds of clean single-speaker speech. Pass output_path to name the file: also a bare file name only - the MP3 is ALWAYS written into the configured output directory, never the working directory or any path you choose, so never pass directories or absolute paths; omit it for a timestamped name. To place the audio elsewhere, synthesize first and then copy the returned file.
+
+  The first call may be slow (engine warmup or model download); if it fails with a not-ready or temporarily-unavailable error, wait a few seconds and retry once. Do not claim the audio was played aloud - it is written to disk for the user to open, at the returned path.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    output_path:
+      type: string
+      description: Optional bare file name (no directories or absolute paths) for the generated WAV; it is always placed in the configured output directory. Defaults to a timestamped file
+    text:
+      type: string
+      description: The text to speak
+    voice_sample:
+      type: string
+      description: Optional bare file name (no directories or absolute paths) of a WAV recording the target speaker; looked up in the working directory, then in the voice samples library (~/.infer/models/tts/samples); when set, the output clones that voice. Around 10-30 seconds of clean single-speaker speech works best
+  required:
+    - text
+require_approval: false

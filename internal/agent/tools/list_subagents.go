@@ -35,20 +35,7 @@ func NewListSubagentsTool(cfg *config.Config, tracker scheddomain.SubagentTracke
 
 // Definition returns the tool definition for the LLM.
 func (t *ListSubagentsTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ListSubagents.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ListSubagents",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type":                 "object",
-				"properties":           map[string]any{},
-				"required":             []string{},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("ListSubagents", t.config.Prompts.Tools.ListSubagents.Description)
 }
 
 // Execute lists all tracked subagents.

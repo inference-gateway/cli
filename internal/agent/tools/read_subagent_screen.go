@@ -40,29 +40,7 @@ func NewReadSubagentScreenTool(cfg *config.Config, tracker scheddomain.SubagentT
 
 // Definition returns the tool definition for the LLM.
 func (t *ReadSubagentScreenTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ReadSubagentScreen.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ReadSubagentScreen",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"subagent_id": map[string]any{
-						"type":        "string",
-						"description": "The interactive subagent id from ListSubagents",
-					},
-					"lines": map[string]any{
-						"type":        "integer",
-						"description": "Optional: return only the last N lines of the screen (default: the full visible screen)",
-					},
-				},
-				"required":             []string{"subagent_id"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("ReadSubagentScreen", t.config.Prompts.Tools.ReadSubagentScreen.Description)
 }
 
 // Execute captures the named subagent's terminal screen.

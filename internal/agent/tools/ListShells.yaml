@@ -1,0 +1,7 @@
+name: ListShells
+description: Lists all background shell processes currently running or recently completed. Shows shell ID, command, state, elapsed time, and output size for each shell. Use this to monitor background processes started with the Bash tool.
+parameters:
+  type: object
+  additionalProperties: false
+  properties: {}
+  required: []

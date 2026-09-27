@@ -1,0 +1,11 @@
+name: A2A_QueryAgent
+description: Retrieve an A2A agent's metadata card showing its capabilities and configuration. Use ONLY for discovering what an agent can do. For asking questions or requesting work from an agent, use the Agent tool instead.
+parameters:
+  type: object
+  properties:
+    agent_url:
+      type: string
+      description: URL of the A2A agent to retrieve metadata from
+  required:
+    - agent_url
+plan_mode: allowed

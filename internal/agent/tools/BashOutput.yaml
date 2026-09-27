@@ -1,0 +1,14 @@
+name: BashOutput
+description: Retrieves output from a running or completed background bash shell. Returns only new output since the last read. Use this to monitor long-running commands that were moved to the background.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    bash_id:
+      type: string
+      description: The shell ID returned when the command was moved to background
+    filter:
+      type: string
+      description: Optional regex pattern to filter output lines. Only lines matching the pattern will be returned.
+  required:
+    - bash_id

@@ -1,0 +1,14 @@
+name: ImageDecode
+description: 'Looks at a local image file or http(s) URL. If you can see images, the image itself is attached to the next message; otherwise (or additionally, when a vision annotator is configured) you get a text description: a scene summary plus a numbered list of detected elements (label, text, bounding box). Use it to inspect any image on disk or from a URL - e.g. video keyframes, outputs of ImageGeneration/ImageEdit under ~/.infer/projects/<project-slug>/artifacts, @-referenced image paths, downloaded files, or remote images. Pass an optional prompt to ask a specific question about the image; the summary then answers it. Read-only, does not require approval.'
+parameters:
+  type: object
+  properties:
+    image:
+      type: string
+      description: Path to a local image file or http(s) URL (png, jpg, jpeg, gif, webp)
+    prompt:
+      type: string
+      description: Optional question about the image; the summary answers it
+  required:
+    - image
+require_approval: false

@@ -29,21 +29,7 @@ func NewListShellsTool(cfg *config.Config, shellService scheddomain.BackgroundSh
 
 // Definition returns the tool definition for the LLM
 func (t *ListShellsTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ListShells.Description
-
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ListShells",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type":                 "object",
-				"properties":           map[string]any{},
-				"required":             []string{},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("ListShells", t.config.Prompts.Tools.ListShells.Description)
 }
 
 // Execute lists all background shells

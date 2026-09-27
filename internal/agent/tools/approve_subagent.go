@@ -38,30 +38,7 @@ func NewApproveSubagentTool(cfg *config.Config, tracker scheddomain.SubagentTrac
 
 // Definition returns the tool definition for the LLM.
 func (t *ApproveSubagentTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ApproveSubagent.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ApproveSubagent",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"subagent_id": map[string]any{
-						"type":        "string",
-						"description": "The interactive subagent id from ListSubagents",
-					},
-					"decision": map[string]any{
-						"type":        "string",
-						"enum":        []string{"approve", "reject"},
-						"description": "approve lets the subagent run the pending tool; reject declines it",
-					},
-				},
-				"required":             []string{"subagent_id", "decision"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("ApproveSubagent", t.config.Prompts.Tools.ApproveSubagent.Description)
 }
 
 // Execute relays the decision to the named subagent's pane.

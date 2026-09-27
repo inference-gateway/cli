@@ -1,0 +1,13 @@
+name: GetSubagentResult
+description: Re-read a completed interactive subagent's last assistant message on demand. Do NOT use this to poll for completion - you are notified automatically when a subagent finishes; a running subagent refuses this call. If you just dispatched a subagent, END YOUR TURN and wait for the notification instead of calling this. Pass the subagent_id from ListSubagents.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    subagent_id:
+      type: string
+      description: The subagent id from ListSubagents
+  required:
+    - subagent_id
+require_approval: false
+read_only: true

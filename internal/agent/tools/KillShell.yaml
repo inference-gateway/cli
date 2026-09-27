@@ -1,0 +1,11 @@
+name: KillShell
+description: Kills a running background bash shell by its ID. Sends SIGTERM first, then SIGKILL if needed after 5 seconds.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    shell_id:
+      type: string
+      description: The ID of the background shell to kill
+  required:
+    - shell_id

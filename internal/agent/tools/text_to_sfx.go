@@ -31,37 +31,7 @@ func NewTextToSFXTool(cfg *config.Config, sfx agentdomain.SoundEffectService) *T
 
 // Definition returns the tool definition for TextToSFX
 func (t *TextToSFXTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.TextToSFX.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "TextToSFX",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"prompt": map[string]any{
-						"type":        "string",
-						"description": "Description of the sound to generate - the event or atmosphere and its character (e.g. a whoosh, a click, a riser, room tone)",
-					},
-					"seconds": map[string]any{
-						"type":        "number",
-						"description": "Optional clip length in seconds (0.5-30); omitted lets the provider pick a length that fits the prompt",
-					},
-					"loop": map[string]any{
-						"type":        "boolean",
-						"description": "Optional: true to generate a clip that loops seamlessly",
-					},
-					"output_path": map[string]any{
-						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) for the generated MP3; it is always placed in the configured output directory. Defaults to a timestamped file",
-					},
-				},
-				"required":             []string{"prompt"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("TextToSFX", t.config.Prompts.Tools.TextToSFX.Description)
 }
 
 // Validate validates TextToSFX arguments

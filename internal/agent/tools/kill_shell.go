@@ -29,26 +29,7 @@ func NewKillShellTool(cfg *config.Config, shellService scheddomain.BackgroundShe
 
 // Definition returns the tool definition for the SDK
 func (t *KillShellTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.KillShell.Description
-
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "KillShell",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"shell_id": map[string]any{
-						"type":        "string",
-						"description": "The ID of the background shell to kill",
-					},
-				},
-				"required":             []string{"shell_id"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("KillShell", t.config.Prompts.Tools.KillShell.Description)
 }
 
 // Execute cancels a background shell

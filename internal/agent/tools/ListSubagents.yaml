@@ -1,0 +1,9 @@
+name: ListSubagents
+description: Snapshot the local subagents spawned by the Agent tool (id, label, mode, status). Running subagents notify you automatically when they finish - this is a one-off status check, NOT a way to poll for completion. Use a returned subagent_id with GetSubagentResult or CloseSubagent.
+parameters:
+  type: object
+  additionalProperties: false
+  properties: {}
+  required: []
+require_approval: false
+read_only: true

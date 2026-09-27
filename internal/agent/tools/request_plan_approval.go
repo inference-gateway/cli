@@ -49,31 +49,7 @@ func NewRequestPlanApprovalTool(cfg *config.Config, planStore storage.PlanStorag
 
 // Definition returns the tool definition for the LLM
 func (t *RequestPlanApprovalTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.RequestPlanApproval.Description
-
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "RequestPlanApproval",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"$schema":              "http://json-schema.org/draft-07/schema#",
-				"additionalProperties": false,
-				"type":                 "object",
-				"required":             []string{"title", "plan"},
-				"properties": map[string]any{
-					"title": map[string]any{
-						"type":        "string",
-						"description": "A short human-readable title for the plan. Used as the H1 heading and to derive the on-disk filename.",
-					},
-					"plan": map[string]any{
-						"type":        "string",
-						"description": "The complete plan as Markdown. Use H2 sections (## Context, ## Files to Modify, ## Current Code, ## Changes, ## Performance Impact, ## Critical Files, ## Edge Cases, ## Verification) - include only sections that apply.",
-					},
-				},
-			},
-		},
-	}
+	return toolManifests.Definition("RequestPlanApproval", t.config.Prompts.Tools.RequestPlanApproval.Description)
 }
 
 // Execute runs the RequestPlanApproval tool with given arguments. It persists

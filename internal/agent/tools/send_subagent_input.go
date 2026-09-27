@@ -48,38 +48,7 @@ func NewSendSubagentInputTool(cfg *config.Config, tracker scheddomain.SubagentTr
 
 // Definition returns the tool definition for the LLM.
 func (t *SendSubagentInputTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.SendSubagentInput.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "SendSubagentInput",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"subagent_id": map[string]any{
-						"type":        "string",
-						"description": "The interactive subagent id from ListSubagents",
-					},
-					"text": map[string]any{
-						"type":        "string",
-						"description": "Literal text to type into the subagent (e.g. a follow-up prompt)",
-					},
-					"keys": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Named keys to send after the text. Allowed: " + allowedSubagentKeyList,
-					},
-					"submit": map[string]any{
-						"type":        "boolean",
-						"description": "Press Enter to submit a prompt and wait for the subagent to finish (default true). Set false to only send keys for TUI navigation - then inspect with ReadSubagentScreen.",
-					},
-				},
-				"required":             []string{"subagent_id"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return toolManifests.Definition("SendSubagentInput", t.config.Prompts.Tools.SendSubagentInput.Description)
 }
 
 // Execute sends the input to the named subagent's pane.

@@ -52,71 +52,7 @@ func NewAskUserQuestionTool(cfg *config.Config) *AskUserQuestionTool {
 
 // Definition returns the tool definition for the LLM.
 func (t *AskUserQuestionTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.AskUserQuestion.Description
-
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "AskUserQuestion",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"$schema":              "http://json-schema.org/draft-07/schema#",
-				"additionalProperties": false,
-				"type":                 "object",
-				"required":             []string{"questions"},
-				"properties": map[string]any{
-					"questions": map[string]any{
-						"type":        "array",
-						"minItems":    minQuestions,
-						"maxItems":    maxQuestions,
-						"description": "1-4 clarifying questions to ask the user.",
-						"items": map[string]any{
-							"type":                 "object",
-							"additionalProperties": false,
-							"required":             []string{"header", "question", "options"},
-							"properties": map[string]any{
-								"header": map[string]any{
-									"type":        "string",
-									"maxLength":   maxQuestionHeader,
-									"description": "Short label/chip shown as a tag (<= 12 chars).",
-								},
-								"question": map[string]any{
-									"type":        "string",
-									"description": "The full question text to display.",
-								},
-								"multiSelect": map[string]any{
-									"type":        "boolean",
-									"default":     false,
-									"description": "Allow selecting multiple options.",
-								},
-								"options": map[string]any{
-									"type":        "array",
-									"minItems":    minOptions,
-									"maxItems":    maxOptions,
-									"description": "2-4 selectable options. An 'Other' free-text choice is always added by the UI.",
-									"items": map[string]any{
-										"type":                 "object",
-										"additionalProperties": false,
-										"required":             []string{"label", "description"},
-										"properties": map[string]any{
-											"label": map[string]any{
-												"type":        "string",
-												"description": "Concise option value returned as the answer.",
-											},
-											"description": map[string]any{
-												"type":        "string",
-												"description": "What this option means / its trade-off.",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
+	return toolManifests.Definition("AskUserQuestion", t.config.Prompts.Tools.AskUserQuestion.Description)
 }
 
 // Execute presents the questions to the user and returns their answers. The

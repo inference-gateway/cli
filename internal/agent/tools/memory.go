@@ -67,53 +67,9 @@ func NewMemoryTool(cfg *config.Config, backend memory.MemoryBackend, proj projec
 
 // Definition returns the tool definition for the LLM.
 func (t *MemoryTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Memory.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        ToolNameMemory,
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"operation": map[string]any{
-						"type": "string",
-						"enum": []string{OperationRead, OperationWrite, OperationDelete},
-						"description": "The memory operation. " +
-							"read: with no name, return the MEMORY.md index; with a name, return that fact-file. " +
-							"write: create or update a fact-file and its index entry. " +
-							"delete: remove a fact-file and its index entry.",
-					},
-					"name": map[string]any{
-						"type": "string",
-						"description": "For write, a short slug such as \"build-commands\" (no project prefix; the project is chosen for you). " +
-							"For read and delete, the name exactly as shown in the index, e.g. \"inference-gateway-cli/build-commands\". " +
-							"Required for write and delete; optional for read.",
-					},
-					"project": map[string]any{
-						"type": "string",
-						"description": "Optional, write only. Where the fact belongs: omit to use the default " +
-							"(user facts are global; feedback/project/reference facts go under the current project), " +
-							"pass \"global\" to force a global fact, or an org/repo name to file it under another project.",
-					},
-					"description": map[string]any{
-						"type":        "string",
-						"description": "One-line summary shown in the MEMORY.md index and stored in the file's frontmatter. Required for write.",
-					},
-					"type": map[string]any{
-						"type":        "string",
-						"enum":        []string{MemoryTypeUser, MemoryTypeFeedback, MemoryTypeProject, MemoryTypeReference},
-						"description": "The kind of fact being stored. Required for write.",
-					},
-					"content": map[string]any{
-						"type":        "string",
-						"description": fmt.Sprintf("The fact body in Markdown, at most %d characters. Required for write.", t.config.Memory.EffectiveMaxEntryChars()),
-					},
-				},
-				"required": []string{"operation"},
-			},
-		},
-	}
+	def := toolManifests.Definition(ToolNameMemory, t.config.Prompts.Tools.Memory.Description)
+	agentdomain.PropertySchema(def, "content")["description"] = fmt.Sprintf("The fact body in Markdown, at most %d characters. Required for write.", t.config.Memory.EffectiveMaxEntryChars())
+	return def
 }
 
 // Execute runs the memory tool with the given arguments.

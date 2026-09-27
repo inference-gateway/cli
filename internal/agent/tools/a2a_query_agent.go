@@ -41,24 +41,7 @@ func NewA2AQueryAgentTool(cfg *config.Config) *A2AQueryAgentTool {
 }
 
 func (t *A2AQueryAgentTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.A2AQueryAgent.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "A2A_QueryAgent",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"agent_url": map[string]any{
-						"type":        "string",
-						"description": "URL of the A2A agent to retrieve metadata from",
-					},
-				},
-				"required": []string{"agent_url"},
-			},
-		},
-	}
+	return toolManifests.Definition("A2A_QueryAgent", t.config.Prompts.Tools.A2AQueryAgent.Description)
 }
 
 func (t *A2AQueryAgentTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {

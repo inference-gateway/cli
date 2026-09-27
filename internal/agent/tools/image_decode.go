@@ -38,28 +38,7 @@ func NewImageDecodeTool(cfg *config.Config, imageService agentdomain.ImageServic
 
 // Definition returns the tool definition for the LLM
 func (t *ImageDecodeTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ImageDecode.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ImageDecode",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"image": map[string]any{
-						"type":        "string",
-						"description": "Path to a local image file or http(s) URL (png, jpg, jpeg, gif, webp)",
-					},
-					"prompt": map[string]any{
-						"type":        "string",
-						"description": "Optional question about the image; the summary answers it",
-					},
-				},
-				"required": []string{"image"},
-			},
-		},
-	}
+	return toolManifests.Definition("ImageDecode", t.config.Prompts.Tools.ImageDecode.Description)
 }
 
 // Execute returns the image as an attachment (vision models see it natively)

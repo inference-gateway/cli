@@ -1,0 +1,27 @@
+name: WebSearch
+description: Search the web using Google or DuckDuckGo search engines
+parameters:
+  type: object
+  properties:
+    # enum, default and description are set at runtime from tools.web_search.
+    engine:
+      type: string
+    format:
+      type: string
+      description: Output format (text or json)
+      enum:
+        - text
+        - json
+      default: text
+    # default is set at runtime from tools.web_search.max_results.
+    limit:
+      type: integer
+      description: Maximum number of search results to return
+      minimum: 1
+      maximum: 50
+    query:
+      type: string
+      description: The search query to execute
+  required:
+    - query
+read_only: true
