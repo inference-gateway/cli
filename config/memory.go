@@ -42,9 +42,8 @@ const (
 // context at session start; the agent reads individual facts on demand.
 //
 // Runtime knobs live here (in memory.yaml); the tool's LLM-facing description
-// lives at PromptsConfig.Tools.Memory.Description in prompts.yaml, and the
-// session reminder lives in reminders.yaml - keeping each concern in its own
-// file, like Heartbeat/ComputerUse/Channels.
+// lives in its manifest, and the session reminder lives in reminders.yaml -
+// keeping each concern in its own file, like Heartbeat/ComputerUse/Channels.
 type MemoryConfig struct {
 	Enabled       bool                `yaml:"enabled" mapstructure:"enabled"`
 	Dir           string              `yaml:"dir" mapstructure:"dir"`                         // "" => ~/.infer/memory

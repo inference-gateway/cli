@@ -39,11 +39,18 @@ func TestRequestPlanApprovalTool_Definition(t *testing.T) {
 	tool, _ := newPlanToolForTest(t)
 	def := tool.Definition()
 
-	if def.Function.Name != "RequestPlanApproval" {
-		t.Errorf("expected name 'RequestPlanApproval', got %s", def.Function.Name)
+	if def.Function.Name != ToolRequestPlanApproval {
+		t.Errorf("expected name %q, got %s", ToolRequestPlanApproval, def.Function.Name)
 	}
-	if def.Function.Description == nil || *def.Function.Description == "" {
-		t.Fatal("expected non-empty description")
+	if def.Function.Description == nil {
+		t.Fatal("expected a description")
+	}
+	desc := *def.Function.Description
+	if !strings.Contains(desc, "title") || !strings.Contains(desc, "plan") {
+		t.Errorf("description should mention both 'title' and 'plan' parameters, got %q", desc)
+	}
+	if !strings.Contains(desc, "<configDir>/plans/") {
+		t.Errorf("description should mention the on-disk path, got %q", desc)
 	}
 
 	params := def.Function.Parameters

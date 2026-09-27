@@ -27,23 +27,14 @@ func NewListShellsTool(cfg *config.Config, shellService scheddomain.BackgroundSh
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *ListShellsTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolListShells)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *ListShellsTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ListShells.Description
-
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ListShells",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type":                 "object",
-				"properties":           map[string]any{},
-				"required":             []string{},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute lists all background shells
@@ -52,7 +43,7 @@ func (t *ListShellsTool) Execute(ctx context.Context, args map[string]any) (*age
 
 	if len(shells) == 0 {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ListShells",
+			ToolName:  ToolListShells,
 			Arguments: args,
 			Success:   true,
 			Data: map[string]any{
@@ -78,7 +69,7 @@ func (t *ListShellsTool) Execute(ctx context.Context, args map[string]any) (*age
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ListShells",
+		ToolName:  ToolListShells,
 		Arguments: args,
 		Success:   true,
 		Data: map[string]any{

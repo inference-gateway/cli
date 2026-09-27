@@ -1,0 +1,74 @@
+name: Computer
+description: 'Drives the computer''s accessibility tree, mouse, keyboard, and screen through one action-based interface. PREFER "accessibility" as the first observation: it returns compact role/label/state/bbox text in the same coordinate space as screenshots, costs no vision tokens, and works for text-only models. Use "press" with an exact returned label to activate a standard control without moving the cursor or taking a screenshot. If accessibility reports empty, unavailable, unsupported, or insufficient content, fall back to "screenshot" (pass "region" to re-capture a frame-space rectangle at native resolution for small UI). Other actions: "cursor", "move"/"click"/"double_click"/"triple_click" (pointer actions at frame-space x/y), "scroll", "type" (types text INTO GUI APPLICATIONS at the cursor - DO NOT use it to run shell commands, use Bash instead), and "key" (a combo such as "enter" or "cmd+a"). To open applications on macOS, use Bash with ''open -a AppName''. Reach for GetLatestFrame only when you cannot see images yourself (its annotated text mode) or for non-screen frame sources.'
+parameters:
+  type: object
+  properties:
+    action:
+      type: string
+      description: 'What to do: accessibility (preferred first observation: compact UI tree with clickable bounding boxes), press (invoke a labelled element without moving the cursor), screenshot (visual fallback, optionally a region), cursor, pointer actions, scroll, type, or key.'
+      enum:
+        - accessibility
+        - press
+        - screenshot
+        - cursor
+        - move
+        - click
+        - double_click
+        - triple_click
+        - scroll
+        - type
+        - key
+    amount:
+      type: integer
+      description: 'scroll: wheel clicks (default 3); negative scrolls up / left.'
+    button:
+      type: string
+      description: 'click actions: mouse button (default left).'
+      enum:
+        - left
+        - right
+        - middle
+    combo:
+      type: string
+      description: 'key: a key combination such as "enter", "cmd+a", "ctrl+shift+t".'
+    direction:
+      type: string
+      description: 'scroll: axis (default vertical).'
+      enum:
+        - vertical
+        - horizontal
+    label:
+      type: string
+      description: 'press only: exact label returned by the accessibility action (first pressable match wins).'
+    region:
+      type: object
+      description: 'screenshot only: capture just this rectangle of the frame space at native resolution, so small UI becomes readable.'
+      properties:
+        height:
+          type: integer
+        width:
+          type: integer
+        x:
+          type: integer
+        "y":
+          type: integer
+      required:
+        - x
+        - "y"
+        - width
+        - height
+    target:
+      type: string
+      description: 'accessibility/press only: frontmost (default), dock, menubar, pid:<number>, app:<name>, or a bare application name.'
+    text:
+      type: string
+      description: 'type: the text to type.'
+    x:
+      type: integer
+      description: Pointer target X in the frame coordinate space (same space as screenshots).
+    "y":
+      type: integer
+      description: Pointer target Y in the frame coordinate space.
+  required:
+    - action
+require_approval: false

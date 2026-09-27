@@ -1,0 +1,7 @@
+name: BrowserTabs
+description: Lists the browser's open tabs (index, URL, title) and marks the active one, so you know which page the user is currently on. Read-only.
+parameters:
+  type: object
+  properties: {}
+  required: []
+require_approval: false

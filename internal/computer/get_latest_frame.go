@@ -56,7 +56,7 @@ func NewGetLatestFrameTool(cfg *config.Config, sources frameSourceLookup, annota
 
 	return &GetLatestFrameTool{
 		config:          cfg,
-		formatter:       agentinfra.NewBaseFormatter("GetLatestFrame"),
+		formatter:       agentinfra.NewBaseFormatter(ToolGetLatestFrame),
 		sources:         sources,
 		annotator:       annotator,
 		lastCallTimes:   make(map[string]time.Time),
@@ -64,41 +64,16 @@ func NewGetLatestFrameTool(cfg *config.Config, sources frameSourceLookup, annota
 	}
 }
 
+// Manifest returns the tool's manifest so the tool registry knows its policy.
+func (t *GetLatestFrameTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolGetLatestFrame)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *GetLatestFrameTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.GetLatestFrame.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "GetLatestFrame",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"source": map[string]any{
-						"type":        "string",
-						"description": fmt.Sprintf("Frame source name. Configured sources: %s. Defaults to the only source, or \"screen\" when present.", strings.Join(t.sources.FrameSourceNames(), ", ")),
-					},
-					"format": map[string]any{
-						"type":        "string",
-						"enum":        []string{"regular", "annotated"},
-						"description": "\"regular\" returns the raw image; \"annotated\" returns a text summary + element list instead of the image. Omitted: annotated when an annotator is configured, regular otherwise.",
-					},
-					"region": map[string]any{
-						"type":        "object",
-						"description": "Zoom into a sub-region of the screen (screen source only): the region is re-captured at native resolution, so small UI (Dock icons, dense toolbars) becomes readable. Coordinates are in the same frame space as MouseClick and previous annotations; returned element coordinates are translated back into that space.",
-						"properties": map[string]any{
-							"x":      map[string]any{"type": "integer"},
-							"y":      map[string]any{"type": "integer"},
-							"width":  map[string]any{"type": "integer"},
-							"height": map[string]any{"type": "integer"},
-						},
-						"required": []string{"x", "y", "width", "height"},
-					},
-				},
-			},
-		},
-	}
+	def := t.Manifest().Definition()
+	agentdomain.PropertySchema(def, "source")["description"] = fmt.Sprintf("Frame source name. Configured sources: %s. Defaults to the only source, or \"screen\" when present.", strings.Join(t.sources.FrameSourceNames(), ", "))
+	return def
 }
 
 // Execute retrieves the latest frame from the requested source
@@ -106,7 +81,7 @@ func (t *GetLatestFrameTool) Execute(ctx context.Context, args map[string]any) (
 	start := time.Now()
 	fail := func(msg string) (*agentdomain.ToolExecutionResult, error) {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "GetLatestFrame",
+			ToolName:  ToolGetLatestFrame,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -158,7 +133,7 @@ func (t *GetLatestFrameTool) Execute(ctx context.Context, args map[string]any) (
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "GetLatestFrame",
+		ToolName:  ToolGetLatestFrame,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -233,7 +208,7 @@ func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[strin
 	degrade := func(note string) (*agentdomain.ToolExecutionResult, error) {
 		result.Note = note
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "GetLatestFrame",
+			ToolName:  ToolGetLatestFrame,
 			Arguments: args,
 			Success:   true,
 			Duration:  time.Since(start),
@@ -258,7 +233,7 @@ func (t *GetLatestFrameTool) annotatedResult(ctx context.Context, args map[strin
 	result.Annotated = true
 	result.Annotation = annotation
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "GetLatestFrame",
+		ToolName:  ToolGetLatestFrame,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -358,7 +333,7 @@ func (t *GetLatestFrameTool) regionResult(ctx context.Context, args map[string]a
 	}
 	success := func() (*agentdomain.ToolExecutionResult, error) {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "GetLatestFrame",
+			ToolName:  ToolGetLatestFrame,
 			Arguments: args,
 			Success:   true,
 			Duration:  time.Since(start),

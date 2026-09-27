@@ -22,7 +22,7 @@ type BrowserClickTool struct {
 func NewBrowserClickTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserClickTool {
 	return &BrowserClickTool{
 		browserToolBase: browserToolBase{
-			name:        "BrowserClick",
+			name:        ToolClick,
 			enabled:     cfg.BrowserUse.Enabled && cfg.BrowserUse.Tools.Click.Enabled,
 			driver:      driver,
 			rateLimiter: rateLimiter,
@@ -31,34 +31,14 @@ func NewBrowserClickTool(cfg *config.Config, rateLimiter rateLimiter, driver bro
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *BrowserClickTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolClick)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *BrowserClickTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.BrowserClick.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "BrowserClick",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"selector": map[string]any{
-						"type":        "string",
-						"description": "CSS or Playwright selector of the element to click (e.g. 'button.submit', 'text=Sign in'). Provide this OR x/y coordinates.",
-					},
-					"x": map[string]any{
-						"type":        "number",
-						"description": "Viewport x coordinate (CSS pixels) to click, from a BrowserScreenshot. Must be paired with y.",
-					},
-					"y": map[string]any{
-						"type":        "number",
-						"description": "Viewport y coordinate (CSS pixels) to click, from a BrowserScreenshot. Must be paired with x.",
-					},
-				},
-				"required": []string{},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute runs the browser click tool with given arguments

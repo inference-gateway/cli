@@ -20,6 +20,7 @@ import (
 	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
@@ -392,7 +393,7 @@ func NewAgent(
 	hookProvider agentdomain.HookCommandProvider,
 	pluginInstructions func() string,
 ) *Agent {
-	approvalPolicy := NewStandardApprovalPolicy(cfg, stateManager)
+	approvalPolicy := NewStandardApprovalPolicy(cfg, stateManager, toolService)
 
 	return &Agent{
 		client:             client,
@@ -1102,7 +1103,7 @@ func (s *Agent) executeToolCallsParallel(
 	panicked := make(chan any, 1)
 
 	var wg sync.WaitGroup
-	var order states.CallOrder
+	order := states.CallOrder{Tools: s.toolService}
 	for i, tc := range toolCalls {
 		wait, done := order.Next(tc.Function.Name)
 		wg.Add(1)
@@ -1345,7 +1346,7 @@ func (s *Agent) executeToolOnce(
 		eventPublisher.publishToolProgress(tc.ID, tc.Function.Name, message)
 	})
 
-	if tc.Function.Name == "Bash" {
+	if tc.Function.Name == tools.ToolBash {
 		bashCallback := func(line string) {
 			eventPublisher.publishBashOutputChunk(tc.ID, line, false)
 		}
@@ -1362,11 +1363,11 @@ func (s *Agent) executeToolOnce(
 		execCtx = agentdomain.WithBashDetachChannel(execCtx, detachChan)
 	}
 
-	if tc.Function.Name == "AskUserQuestion" && (agentdomain.GetChatHandler(ctx) != nil || agentdomain.UserQuestionsAvailable(ctx)) {
+	if tc.Function.Name == tools.ToolAskUserQuestion && (agentdomain.GetChatHandler(ctx) != nil || agentdomain.UserQuestionsAvailable(ctx)) {
 		execCtx = agentdomain.WithUserQuestionBroker(execCtx, &chatQuestionBroker{publisher: eventPublisher, toolCallID: tc.ID})
 	}
 
-	if tc.Function.Name == "RequestApproval" && agentdomain.GetChatHandler(ctx) != nil {
+	if tc.Function.Name == tools.ToolRequestApproval && agentdomain.GetChatHandler(ctx) != nil {
 		execCtx = agentdomain.WithApprovalEscalation(execCtx, &approvalEscalator{svc: s, publisher: eventPublisher})
 	}
 
@@ -1425,7 +1426,7 @@ func (s *Agent) executeToolOnce(
 		Images:    result.Images,
 	}
 
-	if result.ToolName == "TodoWrite" && result.Success {
+	if result.ToolName == tools.ToolTodoWrite && result.Success {
 		if todoResult, ok := result.Data.(*agentdomain.TodoWriteToolResult); ok && todoResult != nil {
 			if s.stateManager != nil {
 				s.stateManager.SetTodos(todoResult.Todos)
@@ -1434,7 +1435,7 @@ func (s *Agent) executeToolOnce(
 		}
 	}
 
-	if result.ToolName == "RequestPlanApproval" && result.Success {
+	if result.ToolName == tools.ToolRequestPlanApproval && result.Success {
 		if extractPlanContent(result) == "" {
 			logger.Warn("requestPlanApproval succeeded but plan content is empty")
 		}
@@ -1485,7 +1486,7 @@ func (s *Agent) handleToolResults(
 // tool succeeded in the batch.
 func (s *Agent) checkPlanApproval(toolResults []convdomain.ConversationEntry) (planContent, planID string) {
 	for _, entry := range toolResults {
-		if entry.ToolExecution == nil || entry.ToolExecution.ToolName != "RequestPlanApproval" || !entry.ToolExecution.Success {
+		if entry.ToolExecution == nil || entry.ToolExecution.ToolName != tools.ToolRequestPlanApproval || !entry.ToolExecution.Success {
 			continue
 		}
 		planContent = extractPlanContent(entry.ToolExecution)

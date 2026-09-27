@@ -30,33 +30,14 @@ func NewImageVariationTool(cfg *config.Config, imageService agentdomain.ImageSer
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *ImageVariationTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolImageVariation).WithRequireApproval(t.config.Tools.ImageVariation.RequireApproval)
+}
+
 // Definition returns the tool definition for ImageVariation
 func (t *ImageVariationTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ImageVariation.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ImageVariation",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"image": map[string]any{
-						"type":        "string",
-						"description": "Local file path of the image to base the variation on",
-					},
-					"size": map[string]any{
-						"type":        "string",
-						"enum":        imageSizes,
-						"description": "Image size. Always use '1024x1024' unless the user explicitly asks for a larger or differently shaped image",
-						"default":     string(sdk.ImageSize1024X1024),
-					},
-				},
-				"required":             []string{"image"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Validate validates ImageVariation arguments
@@ -97,7 +78,7 @@ func (t *ImageVariationTool) Execute(ctx context.Context, args map[string]any) (
 	path, err := t.imageService.CreateImageVariation(ctx, model, image, size)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ImageVariation",
+			ToolName:  ToolImageVariation,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -106,7 +87,7 @@ func (t *ImageVariationTool) Execute(ctx context.Context, args map[string]any) (
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ImageVariation",
+		ToolName:  ToolImageVariation,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -152,7 +133,7 @@ func (t *ImageVariationTool) FormatForLLM(result *agentdomain.ToolExecutionResul
 	}
 	path, _ := data["path"].(string)
 	size, _ := data["size"].(string)
-	formatter := agentinfra.NewBaseFormatter("ImageVariation")
+	formatter := agentinfra.NewBaseFormatter(ToolImageVariation)
 	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (size: %s)", path, size))
 }
 

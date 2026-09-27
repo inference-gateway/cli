@@ -1,0 +1,25 @@
+name: Delete
+description: Delete files or directories from the filesystem. Supports wildcard patterns for batch operations. Restricted to current working directory for security.
+parameters:
+  type: object
+  properties:
+    force:
+      type: boolean
+      description: Whether to force deletion (ignore non-existent files)
+      default: false
+    format:
+      type: string
+      description: Output format (text or json)
+      enum:
+        - text
+        - json
+      default: text
+    path:
+      type: string
+      description: The path to the file or directory to delete. Supports wildcard patterns like '*.txt' or 'temp/*' when wildcards are enabled.
+    recursive:
+      type: boolean
+      description: Whether to delete directories recursively
+      default: false
+  required:
+    - path

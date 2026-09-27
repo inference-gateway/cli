@@ -1,0 +1,10 @@
+name: BrowserNavigate
+description: Opens a URL in the automated browser session. Launches the browser on first use (or attaches to a running one when a CDP endpoint is configured) and keeps the session open across browser tool calls. Returns the final URL and page title after navigation.
+parameters:
+  type: object
+  properties:
+    url:
+      type: string
+      description: URL to navigate to, including scheme (e.g. https://example.com)
+  required:
+    - url

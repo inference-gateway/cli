@@ -24,7 +24,7 @@ type BrowserTabsTool struct {
 func NewBrowserTabsTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserTabsTool {
 	return &BrowserTabsTool{
 		browserToolBase: browserToolBase{
-			name:        "BrowserTabs",
+			name:        ToolTabs,
 			enabled:     cfg.BrowserUse.Enabled && cfg.BrowserUse.Tools.Tabs.Enabled,
 			driver:      driver,
 			rateLimiter: rateLimiter,
@@ -33,21 +33,14 @@ func NewBrowserTabsTool(cfg *config.Config, rateLimiter rateLimiter, driver brow
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *BrowserTabsTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolTabs)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *BrowserTabsTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.BrowserTabs.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "BrowserTabs",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type":       "object",
-				"properties": map[string]any{},
-				"required":   []string{},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute lists the open tabs

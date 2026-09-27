@@ -36,34 +36,21 @@ func NewCloseSubagentTool(cfg *config.Config, tracker scheddomain.SubagentTracke
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *CloseSubagentTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolCloseSubagent)
+}
+
 // Definition returns the tool definition for the LLM.
 func (t *CloseSubagentTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.CloseSubagent.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "CloseSubagent",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"subagent_id": map[string]any{
-						"type":        "string",
-						"description": "The subagent id from ListSubagents",
-					},
-				},
-				"required":             []string{"subagent_id"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute closes the named subagent.
 func (t *CloseSubagentTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
 	if err := t.Validate(args); err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "CloseSubagent",
+			ToolName:  ToolCloseSubagent,
 			Arguments: args,
 			Success:   false,
 			Error:     err.Error(),
@@ -74,7 +61,7 @@ func (t *CloseSubagentTool) Execute(ctx context.Context, args map[string]any) (*
 	s := t.tracker.GetSubagent(subagentID)
 	if s == nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "CloseSubagent",
+			ToolName:  ToolCloseSubagent,
 			Arguments: args,
 			Success:   false,
 			Error:     fmt.Sprintf("Subagent not found: %s (it may have already been closed or completed).", subagentID),
@@ -101,7 +88,7 @@ func (t *CloseSubagentTool) closeInteractive(ctx context.Context, args map[strin
 	_ = os.Remove(subagentResultFilePath(s.SessionID))
 	_ = t.tracker.RemoveSubagent(s.ID)
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "CloseSubagent",
+		ToolName:  ToolCloseSubagent,
 		Arguments: args,
 		Success:   true,
 		Data: map[string]any{
@@ -122,7 +109,7 @@ func (t *CloseSubagentTool) closeHeadless(args map[string]any, s *scheddomain.Su
 		s.CancelFunc()
 	}
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "CloseSubagent",
+		ToolName:  ToolCloseSubagent,
 		Arguments: args,
 		Success:   true,
 		Data: map[string]any{

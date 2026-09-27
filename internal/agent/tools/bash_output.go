@@ -27,32 +27,14 @@ func NewBashOutputTool(cfg *config.Config, shellService scheddomain.BackgroundSh
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *BashOutputTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolBashOutput)
+}
+
 // Definition returns the tool definition for the SDK
 func (t *BashOutputTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.BashOutput.Description
-
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "BashOutput",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"bash_id": map[string]any{
-						"type":        "string",
-						"description": "The shell ID returned when the command was moved to background",
-					},
-					"filter": map[string]any{
-						"type":        "string",
-						"description": "Optional regex pattern to filter output lines. Only lines matching the pattern will be returned.",
-					},
-				},
-				"required":             []string{"bash_id"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute retrieves output from a background shell
@@ -77,7 +59,7 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*age
 
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName: "BashOutput",
+			ToolName: ToolBashOutput,
 			Success:  false,
 			Error:    fmt.Sprintf("Failed to get shell output: %v", err),
 		}, nil
@@ -86,7 +68,7 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*age
 	shell := t.shellService.GetShell(bashID)
 	if shell == nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName: "BashOutput",
+			ToolName: ToolBashOutput,
 			Success:  false,
 			Error:    fmt.Sprintf("Shell not found: %s", bashID),
 		}, nil
@@ -124,7 +106,7 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*age
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName: "BashOutput",
+		ToolName: ToolBashOutput,
 		Success:  true,
 		Data:     result,
 	}, nil

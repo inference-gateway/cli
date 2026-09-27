@@ -46,40 +46,14 @@ func NewSendSubagentInputTool(cfg *config.Config, tracker scheddomain.SubagentTr
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *SendSubagentInputTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolSendSubagentInput)
+}
+
 // Definition returns the tool definition for the LLM.
 func (t *SendSubagentInputTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.SendSubagentInput.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "SendSubagentInput",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"subagent_id": map[string]any{
-						"type":        "string",
-						"description": "The interactive subagent id from ListSubagents",
-					},
-					"text": map[string]any{
-						"type":        "string",
-						"description": "Literal text to type into the subagent (e.g. a follow-up prompt)",
-					},
-					"keys": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Named keys to send after the text. Allowed: " + allowedSubagentKeyList,
-					},
-					"submit": map[string]any{
-						"type":        "boolean",
-						"description": "Press Enter to submit a prompt and wait for the subagent to finish (default true). Set false to only send keys for TUI navigation - then inspect with ReadSubagentScreen.",
-					},
-				},
-				"required":             []string{"subagent_id"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute sends the input to the named subagent's pane.
@@ -129,7 +103,7 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 		msg += " Use ReadSubagentScreen to see the result."
 	}
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "SendSubagentInput",
+		ToolName:  ToolSendSubagentInput,
 		Arguments: args,
 		Success:   true,
 		Data: map[string]any{
@@ -144,7 +118,7 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 
 func (t *SendSubagentInputTool) fail(args map[string]any, msg string) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "SendSubagentInput",
+		ToolName:  ToolSendSubagentInput,
 		Arguments: args,
 		Success:   false,
 		Error:     msg,

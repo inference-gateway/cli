@@ -1,0 +1,26 @@
+name: TextToSFX
+description: |-
+  Generate a short sound effect or ambience clip from a text prompt and save it as an MP3 file. Returns the saved file path.
+
+  Describe the sound in prompt: the event or atmosphere and its character - a whoosh, a click, a riser, room tone, distant thunder. Optionally pass seconds (clip length in seconds, 0.5-30; omitted lets the provider pick a length that fits the prompt) and loop (true for a clip that loops seamlessly). Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP3 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name. To place the clip elsewhere, generate first and then copy the returned file.
+
+  Use this for non-speech audio only: speech models are covered by TextToSpeech, music by TextToMusic. Do not claim the clip was played aloud - it is written to disk for the user to open, at the returned path.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    loop:
+      type: boolean
+      description: 'Optional: true to generate a clip that loops seamlessly'
+    output_path:
+      type: string
+      description: Optional bare file name (no directories or absolute paths) for the generated MP3; it is always placed in the configured output directory. Defaults to a timestamped file
+    prompt:
+      type: string
+      description: Description of the sound to generate - the event or atmosphere and its character (e.g. a whoosh, a click, a riser, room tone)
+    seconds:
+      type: number
+      description: Optional clip length in seconds (0.5-30); omitted lets the provider pick a length that fits the prompt
+  required:
+    - prompt
+require_approval: false

@@ -37,35 +37,14 @@ func NewTextToSpeechTool(cfg *config.Config, synth voiceSynthesizer) *TextToSpee
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *TextToSpeechTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolTextToSpeech).WithRequireApproval(t.config.TextToSpeech.RequireApproval)
+}
+
 // Definition returns the tool definition for TextToSpeech
 func (t *TextToSpeechTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.TextToSpeech.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "TextToSpeech",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"text": map[string]any{
-						"type":        "string",
-						"description": "The text to speak",
-					},
-					"voice_sample": map[string]any{
-						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) of a WAV recording the target speaker; looked up in the working directory, then in the voice samples library (~/.infer/models/tts/samples); when set, the output clones that voice. Around 10-30 seconds of clean single-speaker speech works best",
-					},
-					"output_path": map[string]any{
-						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) for the generated WAV; it is always placed in the configured output directory. Defaults to a timestamped file",
-					},
-				},
-				"required":             []string{"text"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Validate validates TextToSpeech arguments
@@ -221,7 +200,7 @@ func (t *TextToSpeechTool) Execute(ctx context.Context, args map[string]any) (*a
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToSpeech",
+		ToolName:  ToolTextToSpeech,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -237,7 +216,7 @@ func (t *TextToSpeechTool) Execute(ctx context.Context, args map[string]any) (*a
 // failure builds the failed ToolExecutionResult for Execute.
 func (t *TextToSpeechTool) failure(start time.Time, args map[string]any, err error) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToSpeech",
+		ToolName:  ToolTextToSpeech,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),
@@ -284,7 +263,7 @@ func (t *TextToSpeechTool) FormatForLLM(result *agentdomain.ToolExecutionResult)
 	if d, ok := data["duration_seconds"].(float64); ok && d > 0 {
 		summary = fmt.Sprintf("%s (%.1fs of audio)", summary, d)
 	}
-	formatter := agentinfra.NewBaseFormatter("TextToSpeech")
+	formatter := agentinfra.NewBaseFormatter(ToolTextToSpeech)
 	return formatter.FormatExpanded(result, summary)
 }
 

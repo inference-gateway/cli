@@ -23,14 +23,14 @@ type rateLimiter interface {
 // recorder, on computer_use.recording.enabled.
 func NewTools(cfg *config.Config, frames FrameSourceLookup, annotator agentdomain.ImageAnnotator, recorder *ScreenRecorder) map[string]agentdomain.Tool {
 	tools := map[string]agentdomain.Tool{
-		"GetLatestFrame": NewGetLatestFrameTool(cfg, frames, annotator),
+		ToolGetLatestFrame: NewGetLatestFrameTool(cfg, frames, annotator),
 	}
 	if cfg.ComputerUse.Enabled {
-		tools["Computer"] = NewComputerTool(cfg, utils.NewRateLimiter(cfg.ComputerUse.RateLimit))
+		tools[ToolComputer] = NewComputerTool(cfg, utils.NewRateLimiter(cfg.ComputerUse.RateLimit))
 	}
 	if cfg.ComputerUse.Recording.Enabled {
-		tools["RecordStart"] = &recordTool{config: cfg, recorder: recorder}
-		tools["RecordStop"] = &recordTool{config: cfg, recorder: recorder, stop: true}
+		tools[ToolRecordStart] = &recordTool{config: cfg, recorder: recorder}
+		tools[ToolRecordStop] = &recordTool{config: cfg, recorder: recorder, stop: true}
 	}
 	return tools
 }

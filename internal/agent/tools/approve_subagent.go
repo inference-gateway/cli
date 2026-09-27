@@ -36,32 +36,14 @@ func NewApproveSubagentTool(cfg *config.Config, tracker scheddomain.SubagentTrac
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *ApproveSubagentTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolApproveSubagent)
+}
+
 // Definition returns the tool definition for the LLM.
 func (t *ApproveSubagentTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ApproveSubagent.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ApproveSubagent",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"subagent_id": map[string]any{
-						"type":        "string",
-						"description": "The interactive subagent id from ListSubagents",
-					},
-					"decision": map[string]any{
-						"type":        "string",
-						"enum":        []string{"approve", "reject"},
-						"description": "approve lets the subagent run the pending tool; reject declines it",
-					},
-				},
-				"required":             []string{"subagent_id", "decision"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute relays the decision to the named subagent's pane.
@@ -93,7 +75,7 @@ func (t *ApproveSubagentTool) Execute(ctx context.Context, args map[string]any) 
 	_ = os.Remove(subagentApprovalFilePath(s.SessionID))
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ApproveSubagent",
+		ToolName:  ToolApproveSubagent,
 		Arguments: args,
 		Success:   true,
 		Data: map[string]any{
@@ -107,7 +89,7 @@ func (t *ApproveSubagentTool) Execute(ctx context.Context, args map[string]any) 
 
 func (t *ApproveSubagentTool) fail(args map[string]any, msg string) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ApproveSubagent",
+		ToolName:  ToolApproveSubagent,
 		Arguments: args,
 		Success:   false,
 		Error:     msg,

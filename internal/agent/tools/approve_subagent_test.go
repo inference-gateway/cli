@@ -42,7 +42,7 @@ func TestApproveSubagentTool_Validate(t *testing.T) {
 func TestApproveSubagentTool_AlwaysRequiresApproval(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Tools.Safety.RequireApproval = false
-	if !cfg.IsApprovalRequired("ApproveSubagent") {
+	if !NewApproveSubagentTool(cfg, nil).Manifest().RequiresApproval(cfg.Tools.Safety.RequireApproval) {
 		t.Fatalf("ApproveSubagent must always require approval")
 	}
 }

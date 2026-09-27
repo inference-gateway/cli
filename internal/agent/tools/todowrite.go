@@ -25,51 +25,18 @@ func NewTodoWriteTool(cfg *config.Config) *TodoWriteTool {
 	return &TodoWriteTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.TodoWrite.Enabled,
-		formatter: agentinfra.NewBaseFormatter("TodoWrite"),
+		formatter: agentinfra.NewBaseFormatter(ToolTodoWrite),
 	}
+}
+
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *TodoWriteTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolTodoWrite).WithRequireApproval(t.config.Tools.TodoWrite.RequireApproval)
 }
 
 // Definition returns the tool definition for the LLM
 func (t *TodoWriteTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.TodoWrite.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "TodoWrite",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"$schema":              "http://json-schema.org/draft-07/schema#",
-				"additionalProperties": false,
-				"type":                 "object",
-				"required":             []string{"todos"},
-				"properties": map[string]any{
-					"todos": map[string]any{
-						"description": "The updated todo list",
-						"type":        "array",
-						"items": map[string]any{
-							"type":                 "object",
-							"additionalProperties": false,
-							"required":             []string{"content", "status"},
-							"properties": map[string]any{
-								"content": map[string]any{
-									"type":      "string",
-									"minLength": 1,
-								},
-								"id": map[string]any{
-									"type":        "string",
-									"description": "Optional unique identifier. If not provided, will be auto-generated.",
-								},
-								"status": map[string]any{
-									"type": "string",
-									"enum": []string{"pending", "in_progress", "completed"},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute runs the TodoWrite tool with given arguments
@@ -82,7 +49,7 @@ func (t *TodoWriteTool) Execute(ctx context.Context, args map[string]any) (*agen
 	todos, ok := args["todos"].([]any)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "TodoWrite",
+			ToolName:  ToolTodoWrite,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -93,7 +60,7 @@ func (t *TodoWriteTool) Execute(ctx context.Context, args map[string]any) (*agen
 	todoResult, err := t.executeTodoWrite(todos)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "TodoWrite",
+			ToolName:  ToolTodoWrite,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -102,7 +69,7 @@ func (t *TodoWriteTool) Execute(ctx context.Context, args map[string]any) (*agen
 	}
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "TodoWrite",
+		ToolName:  ToolTodoWrite,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

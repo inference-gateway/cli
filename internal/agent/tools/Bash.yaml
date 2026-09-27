@@ -1,0 +1,21 @@
+name: Bash
+description: Execute allowed bash commands securely. Only pre-approved commands from the allowed list can be executed. Each segment of a pipe or &&/||/; chain must itself be allowed, and file-write redirections (>, >>) and command substitution ($(...), backticks) are blocked unless an anchored allowed list pattern (^...$) explicitly allows them; benign redirects like 2>&1 or >/dev/null are fine.
+parameters:
+  type: object
+  properties:
+    command:
+      type: string
+      description: The bash command to execute. Run ONE command per call - pipes and operators (|, &&, ||, ;) are not auto-approved. Which commands run without approval depends on the current agent mode and is listed in the system prompt; anything off that list requires approval (chat) or is rejected (agent mode).
+    detached:
+      type: boolean
+      description: Run the command in the background and return immediately. Use BashOutput to read output and Wait to wait for completion. Equivalent to pressing Ctrl+B during execution.
+      default: false
+    format:
+      type: string
+      description: Output format (text or json)
+      enum:
+        - text
+        - json
+      default: text
+  required:
+    - command

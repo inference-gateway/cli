@@ -38,46 +38,14 @@ func NewTextToVideoTool(cfg *config.Config, video agentdomain.VideoService) *Tex
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *TextToVideoTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolTextToVideo).WithRequireApproval(t.config.TextToVideo.RequireApproval)
+}
+
 // Definition returns the tool definition for TextToVideo
 func (t *TextToVideoTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.TextToVideo.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "TextToVideo",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"prompt": map[string]any{
-						"type":        "string",
-						"description": "Description of the shot to render; required unless audio is provided, and for avatar renders it describes framing only - the dialogue comes from the audio clip",
-					},
-					"seconds": map[string]any{
-						"type":        "string",
-						"description": "Optional clip length in seconds as a string (e.g. \"4\"); providers accept a limited set of values; ignored when audio is present",
-					},
-					"size": map[string]any{
-						"type":        "string",
-						"description": "Optional output resolution as widthxheight (e.g. 720x1280 portrait or 1280x720 landscape); passed through verbatim, the provider derives the resolution from the shorter side (480, 720 or 1080; the default avatar model creatify-aurora supports 480 and 720 only, and avatar renders keep the portrait's aspect ratio); omitted means the provider default",
-					},
-					"avatar": map[string]any{
-						"type":        "string",
-						"description": "Optional subject: the name of an avatar in the library (~/.infer/avatars/<name>/), or a bare file name (no directories or absolute paths) of a .png, .jpg, .jpeg or .webp image in the working directory. With audio the avatar's first image (or the file) is lip-synced to the clip; without audio a library avatar's images are sent as reference images that keep the person consistent (veo takes at most 3 and needs the default 8 seconds, so omit seconds), while a file is the first frame",
-					},
-					"audio": map[string]any{
-						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) of a .wav or .mp3 clip that drives the render; requires avatar; looked up in the working directory, then in the TextToSpeech output directory",
-					},
-					"output_path": map[string]any{
-						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) for the generated MP4; it is always placed in the configured output directory. Defaults to a timestamped file",
-					},
-				},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Validate validates TextToVideo arguments
@@ -211,7 +179,7 @@ func (t *TextToVideoTool) Execute(ctx context.Context, args map[string]any) (*ag
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToVideo",
+		ToolName:  ToolTextToVideo,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -229,7 +197,7 @@ func (t *TextToVideoTool) Execute(ctx context.Context, args map[string]any) (*ag
 // failure builds the failed ToolExecutionResult for Execute.
 func (t *TextToVideoTool) failure(start time.Time, args map[string]any, err error) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToVideo",
+		ToolName:  ToolTextToVideo,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),
@@ -269,7 +237,7 @@ func (t *TextToVideoTool) FormatForLLM(result *agentdomain.ToolExecutionResult) 
 	}
 	path, _ := data["path"].(string)
 	summary := fmt.Sprintf("Video saved to %s", path)
-	formatter := agentinfra.NewBaseFormatter("TextToVideo")
+	formatter := agentinfra.NewBaseFormatter(ToolTextToVideo)
 	return formatter.FormatExpanded(result, summary)
 }
 

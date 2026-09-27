@@ -19,7 +19,7 @@ func writeAgentFile(t *testing.T, dir, name, content string) {
 }
 
 func testKnownTools() map[string]bool {
-	return map[string]bool{"Read": true, "Grep": true, "Tree": true, "Bash": true, "Edit": true}
+	return map[string]bool{ToolRead: true, ToolGrep: true, ToolTree: true, ToolBash: true, ToolEdit: true}
 }
 
 func TestLoadMarkdownAgents(t *testing.T) {
@@ -113,7 +113,7 @@ User body.`)
 	if a.description != "Reviews a diff for correctness bugs." || a.model != "deepseek/deepseek-v4-pro" {
 		t.Fatalf("code-reviewer not parsed: %+v", a)
 	}
-	if !slices.Equal(a.tools, []string{"Grep", "Read"}) {
+	if !slices.Equal(a.tools, []string{ToolGrep, ToolRead}) {
 		t.Fatalf("comma tools = %v, want [Grep Read]", a.tools)
 	}
 	if a.systemPrompt != "You are a senior reviewer." {
@@ -121,7 +121,7 @@ User body.`)
 	}
 
 	g := byName["gemini-style"]
-	if !slices.Equal(g.tools, []string{"Read", "Tree"}) {
+	if !slices.Equal(g.tools, []string{ToolRead, ToolTree}) {
 		t.Fatalf("list tools = %v, want [Read Tree]", g.tools)
 	}
 
@@ -129,17 +129,17 @@ User body.`)
 	if c.model != "" {
 		t.Fatalf("claude alias model %q must fall back to inherit", c.model)
 	}
-	if !slices.Equal(c.tools, []string{"Grep", "Read"}) {
+	if !slices.Equal(c.tools, []string{ToolGrep, ToolRead}) {
 		t.Fatalf("tools after dropping Glob = %v, want [Grep Read] (Bash was never requested)", c.tools)
 	}
-	if e := byName["editor"]; !slices.Equal(e.tools, []string{"Edit", "Read"}) {
+	if e := byName["editor"]; !slices.Equal(e.tools, []string{ToolEdit, ToolRead}) {
 		t.Fatalf("editor tools = %v, want [Edit Read]", e.tools)
 	}
 
 	if i := byName["inherits"]; i.model != "" || i.tools != nil {
 		t.Fatalf("inherits agent must have no model and no allowlist: %+v", i)
 	}
-	if e := byName["explicit-inherit"]; e.model != "" || !slices.Equal(e.tools, []string{"Read"}) {
+	if e := byName["explicit-inherit"]; e.model != "" || !slices.Equal(e.tools, []string{ToolRead}) {
 		t.Fatalf("explicit-inherit not parsed: %+v", e)
 	}
 	if r := byName["not-the-filename"]; r.name != "not-the-filename" {
@@ -220,10 +220,10 @@ func TestResolveMarkdownAgentModel(t *testing.T) {
 }
 
 func TestDeriveSubagentMode(t *testing.T) {
-	if got := deriveSubagentMode([]string{"Read", "Grep", "Tree"}); got != agentdomain.AgentModeReadOnly {
+	if got := deriveSubagentMode([]string{ToolRead, ToolGrep, ToolTree}, toolManifests); got != agentdomain.AgentModeReadOnly {
 		t.Errorf("all read-only tools -> ReadOnly, got %v", got)
 	}
-	if got := deriveSubagentMode([]string{"Read", "Bash"}); got != agentdomain.AgentModeStandard {
+	if got := deriveSubagentMode([]string{ToolRead, ToolBash}, toolManifests); got != agentdomain.AgentModeStandard {
 		t.Errorf("any mutating tool -> ReadWrite, got %v", got)
 	}
 }

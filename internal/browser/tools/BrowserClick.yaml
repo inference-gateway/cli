@@ -1,0 +1,15 @@
+name: BrowserClick
+description: Clicks in the current browser page, either at an element (CSS selector or text= / role-based Playwright selector) or at viewport x/y coordinates (CSS pixels) taken from a BrowserScreenshot. Provide 'selector' OR both 'x' and 'y'. Use BrowserRead or BrowserScreenshot first to locate the target. Coordinate clicks are not available on the extension backend. Requires an active page (call BrowserNavigate first).
+parameters:
+  type: object
+  properties:
+    selector:
+      type: string
+      description: CSS or Playwright selector of the element to click (e.g. 'button.submit', 'text=Sign in'). Provide this OR x/y coordinates.
+    x:
+      type: number
+      description: Viewport x coordinate (CSS pixels) to click, from a BrowserScreenshot. Must be paired with y.
+    "y":
+      type: number
+      description: Viewport y coordinate (CSS pixels) to click, from a BrowserScreenshot. Must be paired with x.
+  required: []

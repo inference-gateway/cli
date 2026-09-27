@@ -27,46 +27,18 @@ func NewDeleteTool(cfg *config.Config) *DeleteTool {
 	return &DeleteTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.Delete.Enabled,
-		formatter: agentinfra.NewBaseFormatter("Delete"),
+		formatter: agentinfra.NewBaseFormatter(ToolDelete),
 	}
+}
+
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *DeleteTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolDelete).WithRequireApproval(t.config.Tools.Delete.RequireApproval)
 }
 
 // Definition returns the tool definition for the LLM
 func (t *DeleteTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Delete.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "Delete",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"path": map[string]any{
-						"type":        "string",
-						"description": "The path to the file or directory to delete. Supports wildcard patterns like '*.txt' or 'temp/*' when wildcards are enabled.",
-					},
-					"recursive": map[string]any{
-						"type":        "boolean",
-						"description": "Whether to delete directories recursively",
-						"default":     false,
-					},
-					"force": map[string]any{
-						"type":        "boolean",
-						"description": "Whether to force deletion (ignore non-existent files)",
-						"default":     false,
-					},
-					"format": map[string]any{
-						"type":        "string",
-						"description": "Output format (text or json)",
-						"enum":        []string{"text", "json"},
-						"default":     "text",
-					},
-				},
-				"required": []string{"path"},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute runs the delete tool with given arguments
@@ -79,7 +51,7 @@ func (t *DeleteTool) Execute(ctx context.Context, args map[string]any) (*agentdo
 	path, ok := args["path"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Delete",
+			ToolName:  ToolDelete,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -120,7 +92,7 @@ func (t *DeleteTool) Execute(ctx context.Context, args map[string]any) (*agentdo
 	}
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "Delete",
+		ToolName:  ToolDelete,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

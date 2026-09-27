@@ -1,0 +1,32 @@
+name: RecordStart
+description: 'Starts recording the screen to an MP4 file (H.264) and returns immediately with the file path and the captured rectangle. Record the entire primary screen (mode "screen", the default), a single application window (mode "window" with window: frontmost, app:<name>, pid:<number>, or an application name - the window''s bounds are taken when the recording starts), or a region (mode "region" with x/y/width/height in the frame coordinate space, the same space as Computer screenshots). A tmux pane or terminal split is not a window: record it as a region. Get its cells with tmux display -p -t "$TMUX_PANE" ''#{pane_left} #{pane_top} #{pane_width} #{pane_height} #{client_width} #{client_height}'' and the terminal view''s bbox [left, top, right, bottom] (the scroll area in the Computer tool''s accessibility tree of the terminal app), then with cw = (right-left)/client_width and ch = (bottom-top)/client_height: x = left + pane_left*cw, y = top + pane_top*ch, width = pane_width*cw, height = pane_height*ch. Only one recording runs at a time across every infer session on the machine; if another session holds it, tell the user instead of retrying. It keeps running until the user asks you to stop it (then call RecordStop in this same session) or it reaches the configured max duration. Use it to keep an audit trail of what you do on the machine or to record a demonstration.'
+parameters:
+  type: object
+  properties:
+    mode:
+      type: string
+      description: 'What to record: the entire primary screen (default), one window, or a region.'
+      enum:
+        - screen
+        - window
+        - region
+    region:
+      type: object
+      description: 'mode=region only: the rectangle to record, in the frame coordinate space (same space as Computer screenshots).'
+      properties:
+        height:
+          type: integer
+        width:
+          type: integer
+        x:
+          type: integer
+        "y":
+          type: integer
+      required:
+        - x
+        - "y"
+        - width
+        - height
+    window:
+      type: string
+      description: 'mode=window only: frontmost (default), app:<name>, pid:<number>, or a bare application name.'

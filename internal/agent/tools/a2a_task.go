@@ -55,7 +55,7 @@ func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker scheddomain.A2ATaskTra
 		taskTracker: taskTracker,
 		submitter:   submitter,
 		client:      nil,
-		formatter: agentinfra.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolA2ASubmitTask, func(key string) bool {
 			return key == "metadata"
 		}),
 	}
@@ -68,7 +68,7 @@ func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker scheddomain.
 		taskTracker: taskTracker,
 		submitter:   submitter,
 		client:      client,
-		formatter: agentinfra.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolA2ASubmitTask, func(key string) bool {
 			return key == "metadata"
 		}),
 	}
@@ -98,34 +98,14 @@ func (t *A2ASubmitTaskTool) shouldResumeTask(ctx context.Context, adkClient clie
 	return existingTask.Status.State, true, nil
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *A2ASubmitTaskTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolA2ASubmitTask).WithRequireApproval(t.config.A2A.Tools.SubmitTask.RequireApproval)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.A2ASubmitTask.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "A2A_SubmitTask",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"agent_url": map[string]any{
-						"type":        "string",
-						"description": "URL of the A2A agent server",
-					},
-					"task_description": map[string]any{
-						"type":        "string",
-						"description": "The question to ask or work to perform. Can be a question, task, action, or continuation of existing work",
-					},
-					"context_id": map[string]any{
-						"type":        "string",
-						"description": "Optional context ID from an earlier task to continue that conversation with the agent. Omit to start an independent task; independent tasks on the same agent run in parallel",
-					},
-				},
-				"required": []string{"agent_url", "task_description"},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute submits a task to an A2A agent. The agent's latest tracked task is
@@ -139,7 +119,7 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 
 	if !t.IsEnabled() {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "A2A_SubmitTask",
+			ToolName:  ToolA2ASubmitTask,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
@@ -276,7 +256,7 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "A2A_SubmitTask",
+		ToolName:  ToolA2ASubmitTask,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
@@ -324,7 +304,7 @@ func (t *A2ASubmitTaskTool) runA2APolling(
 		select {
 		case <-ctx.Done():
 			return agentdomain.ToolExecutionResult{
-				ToolName: "A2A_SubmitTask",
+				ToolName: ToolA2ASubmitTask,
 				Success:  false,
 				Error:    "task cancelled",
 				Data: A2ASubmitTaskResult{
@@ -355,7 +335,7 @@ func (t *A2ASubmitTaskTool) runA2APolling(
 				if taskResult != nil {
 					return *taskResult
 				}
-				return agentdomain.ToolExecutionResult{ToolName: "A2A_SubmitTask", Success: false, Error: "task ended without a result"}
+				return agentdomain.ToolExecutionResult{ToolName: ToolA2ASubmitTask, Success: false, Error: "task ended without a result"}
 			}
 
 			currentInterval = t.applyExponentialBackoff(agentURL, taskID, strategy, currentInterval, pollAttempt, state, ticker)
@@ -455,7 +435,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* 
 		}
 
 		result := &agentdomain.ToolExecutionResult{
-			ToolName: "A2A_SubmitTask",
+			ToolName: ToolA2ASubmitTask,
 			Success:  true,
 			Duration: time.Since(state.StartedAt),
 			Data: A2ASubmitTaskResult{
@@ -480,7 +460,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* 
 		}
 
 		result := &agentdomain.ToolExecutionResult{
-			ToolName: "A2A_SubmitTask",
+			ToolName: ToolA2ASubmitTask,
 			Success:  false,
 			Duration: time.Since(state.StartedAt),
 			Error:    finalResult,
@@ -504,7 +484,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* 
 		}
 
 		result := &agentdomain.ToolExecutionResult{
-			ToolName: "A2A_SubmitTask",
+			ToolName: ToolA2ASubmitTask,
 			Success:  true,
 			Duration: time.Since(state.StartedAt),
 			Data: A2ASubmitTaskResult{
@@ -526,7 +506,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* 
 		}
 
 		result := &agentdomain.ToolExecutionResult{
-			ToolName: "A2A_SubmitTask",
+			ToolName: ToolA2ASubmitTask,
 			Success:  false,
 			Duration: time.Since(state.StartedAt),
 			Data: A2ASubmitTaskResult{
@@ -859,7 +839,7 @@ func (t *A2ASubmitTaskTool) errorResult(args map[string]any, startTime time.Time
 	agentURL, _ := args["agent_url"].(string)
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "A2A_SubmitTask",
+		ToolName:  ToolA2ASubmitTask,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(startTime),

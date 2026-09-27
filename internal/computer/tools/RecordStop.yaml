@@ -1,0 +1,5 @@
+name: RecordStop
+description: Stops the screen recording started with RecordStart, finalizes the MP4 file, and returns its path, duration, and size. Call it only when the user asks to stop the recording. Also returns the file of a recording that already stopped at its max duration. Takes no arguments.
+parameters:
+  type: object
+  properties: {}

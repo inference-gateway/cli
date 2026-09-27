@@ -1,0 +1,10 @@
+name: BrowserRead
+description: 'Reads the current browser page: URL, title, and visible text (of the whole page or of the element matched by an optional selector). Sensitive input values (passwords, tokens, one-time codes) are redacted. Also returns recent browser-initiated events (console messages, dialogs, and window.inferNotify(...) calls from page scripts) so pages can signal back to you. Read-only.'
+parameters:
+  type: object
+  properties:
+    selector:
+      type: string
+      description: Optional CSS or Playwright selector to read a specific element; omit to read the whole page body
+  required: []
+require_approval: false

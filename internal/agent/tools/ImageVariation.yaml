@@ -1,0 +1,25 @@
+name: ImageVariation
+description: |-
+  Create a variation of an existing image and save the result as a PNG under ~/.infer/projects/<project-slug>/artifacts/. Returns the saved file path.
+
+  Provide the local file path of the image to base the variation on. The request goes to /v1/images/edits using the image model configured for this tool (not the chat model), so do not ask which model to use.
+
+  Cost control: size defaults to "1024x1024". Keep that default unless the user explicitly asks for a different size - larger sizes cost significantly more and take longer.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    image:
+      type: string
+      description: Local file path of the image to base the variation on
+    size:
+      type: string
+      description: Image size. Always use '1024x1024' unless the user explicitly asks for a larger or differently shaped image
+      enum:
+        - 1024x1024
+        - 1536x1024
+        - 1024x1536
+      default: 1024x1024
+  required:
+    - image
+require_approval: false

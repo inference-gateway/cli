@@ -19,20 +19,20 @@ func namedAgentTool(t *testing.T) *AgentTool {
 		name:         "code-reviewer",
 		description:  "Reviews a diff for correctness bugs.",
 		model:        "deepseek/deepseek-v4-pro",
-		tools:        []string{"Grep", "Read"},
+		tools:        []string{ToolGrep, ToolRead},
 		systemPrompt: "You are a senior reviewer.",
 	}, {
 		name:        "all-readonly",
 		description: "Only read-only tools.",
-		tools:       []string{"Read", "Grep", "Tree"},
+		tools:       []string{ToolRead, ToolGrep, ToolTree},
 	}, {
 		name:        "editor",
 		description: "Reads and edits files.",
-		tools:       []string{"Read", "Edit"},
+		tools:       []string{ToolRead, ToolEdit},
 	}, {
 		name:        "unrestricted",
 		description: "No tool restriction.",
-	}})
+	}}, toolManifests)
 	return tool
 }
 
@@ -145,9 +145,9 @@ func TestAgentTool_NamedAgentInteractivePaneCommand(t *testing.T) {
 		name:         "code-reviewer",
 		description:  "Reviews a diff for correctness bugs.",
 		model:        "deepseek/deepseek-v4-pro",
-		tools:        []string{"Grep", "Read"},
+		tools:        []string{ToolGrep, ToolRead},
 		systemPrompt: "You are a senior reviewer.",
-	}})
+	}}, toolManifests)
 	tool.interactiveAvailable = func() bool { return true }
 	var cmd string
 	tool.launchPane = func(ctx context.Context, title, command string) (string, error) {

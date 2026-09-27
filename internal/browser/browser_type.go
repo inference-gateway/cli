@@ -22,7 +22,7 @@ type BrowserTypeTool struct {
 func NewBrowserTypeTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserTypeTool {
 	return &BrowserTypeTool{
 		browserToolBase: browserToolBase{
-			name:        "BrowserType",
+			name:        ToolType,
 			enabled:     cfg.BrowserUse.Enabled && cfg.BrowserUse.Tools.Type.Enabled,
 			driver:      driver,
 			rateLimiter: rateLimiter,
@@ -31,35 +31,14 @@ func NewBrowserTypeTool(cfg *config.Config, rateLimiter rateLimiter, driver brow
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *BrowserTypeTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolType)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *BrowserTypeTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.BrowserType.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "BrowserType",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"selector": map[string]any{
-						"type":        "string",
-						"description": "CSS or Playwright selector of the input element (e.g. 'input[name=q]')",
-					},
-					"text": map[string]any{
-						"type":        "string",
-						"description": "Text to type; replaces the element's current value",
-					},
-					"press_enter": map[string]any{
-						"type":        "boolean",
-						"description": "Press Enter after typing to submit (defaults to false)",
-						"default":     false,
-					},
-				},
-				"required": []string{"selector", "text"},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute runs the browser type tool with given arguments

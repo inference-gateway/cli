@@ -29,39 +29,14 @@ func NewTextToMusicTool(cfg *config.Config, music agentdomain.MusicService) *Tex
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *TextToMusicTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolTextToMusic).WithRequireApproval(t.config.TextToMusic.RequireApproval)
+}
+
 // Definition returns the tool definition for TextToMusic
 func (t *TextToMusicTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.TextToMusic.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "TextToMusic",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"prompt": map[string]any{
-						"type":        "string",
-						"description": "Description of the music to compose - genre, mood, instruments, tempo",
-					},
-					"seconds": map[string]any{
-						"type":        "number",
-						"description": "Optional clip length in seconds; omitted lets the provider pick a length that fits the prompt",
-					},
-					"instrumental": map[string]any{
-						"type":        "boolean",
-						"description": "Optional: true to guarantee the generated clip has no vocals",
-					},
-					"output_path": map[string]any{
-						"type":        "string",
-						"description": "Optional bare file name (no directories or absolute paths) for the generated MP3; it is always placed in the configured output directory. Defaults to a timestamped file",
-					},
-				},
-				"required":             []string{"prompt"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Validate validates TextToMusic arguments
@@ -143,7 +118,7 @@ func (t *TextToMusicTool) Execute(ctx context.Context, args map[string]any) (*ag
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToMusic",
+		ToolName:  ToolTextToMusic,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -157,7 +132,7 @@ func (t *TextToMusicTool) Execute(ctx context.Context, args map[string]any) (*ag
 // failure builds the failed ToolExecutionResult for Execute.
 func (t *TextToMusicTool) failure(start time.Time, args map[string]any, err error) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "TextToMusic",
+		ToolName:  ToolTextToMusic,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),
@@ -197,7 +172,7 @@ func (t *TextToMusicTool) FormatForLLM(result *agentdomain.ToolExecutionResult) 
 	}
 	path, _ := data["path"].(string)
 	summary := fmt.Sprintf("Music saved to %s", path)
-	formatter := agentinfra.NewBaseFormatter("TextToMusic")
+	formatter := agentinfra.NewBaseFormatter(ToolTextToMusic)
 	return formatter.FormatExpanded(result, summary)
 }
 

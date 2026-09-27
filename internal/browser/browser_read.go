@@ -22,7 +22,7 @@ type BrowserReadTool struct {
 func NewBrowserReadTool(cfg *config.Config, rateLimiter rateLimiter, driver browserdomain.BrowserDriver) *BrowserReadTool {
 	return &BrowserReadTool{
 		browserToolBase: browserToolBase{
-			name:        "BrowserRead",
+			name:        ToolRead,
 			enabled:     cfg.BrowserUse.Enabled && cfg.BrowserUse.Tools.Read.Enabled,
 			driver:      driver,
 			rateLimiter: rateLimiter,
@@ -31,26 +31,14 @@ func NewBrowserReadTool(cfg *config.Config, rateLimiter rateLimiter, driver brow
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *BrowserReadTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolRead)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *BrowserReadTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.BrowserRead.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "BrowserRead",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"selector": map[string]any{
-						"type":        "string",
-						"description": "Optional CSS or Playwright selector to read a specific element; omit to read the whole page body",
-					},
-				},
-				"required": []string{},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute runs the browser read tool with given arguments

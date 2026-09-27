@@ -47,9 +47,14 @@ func NewBashTool(cfg *config.Config, backgroundShellService scheddomain.Backgrou
 	return &BashTool{
 		config:                 cfg,
 		enabled:                cfg.Tools.Enabled && cfg.Tools.Bash.Enabled,
-		formatter:              agentinfra.NewBaseFormatter("Bash"),
+		formatter:              agentinfra.NewBaseFormatter(ToolBash),
 		backgroundShellService: backgroundShellService,
 	}
+}
+
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *BashTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolBash).WithRequireApproval(t.config.Tools.Bash.RequireApproval)
 }
 
 // Definition returns the tool definition for the LLM. The command parameter is
@@ -59,40 +64,7 @@ func NewBashTool(cfg *config.Config, backgroundShellService scheddomain.Backgrou
 // instead; off-list commands still execute via approval (chat) or are rejected
 // with a reason (agent mode).
 func (t *BashTool) Definition() sdk.ChatCompletionTool {
-	commandDescription := "The bash command to execute. Run ONE command per call - " +
-		"pipes and operators (|, &&, ||, ;) are not auto-approved. Which commands run " +
-		"without approval depends on the current agent mode and is listed in the system " +
-		"prompt; anything off that list requires approval (chat) or is rejected (agent mode)."
-
-	description := t.config.Prompts.Tools.Bash.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "Bash",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"command": map[string]any{
-						"type":        "string",
-						"description": commandDescription,
-					},
-					"format": map[string]any{
-						"type":        "string",
-						"description": "Output format (text or json)",
-						"enum":        []string{"text", "json"},
-						"default":     "text",
-					},
-					"detached": map[string]any{
-						"type":        "boolean",
-						"description": "Run the command in the background and return immediately. Use BashOutput to read output and Wait to wait for completion. Equivalent to pressing Ctrl+B during execution.",
-						"default":     false,
-					},
-				},
-				"required": []string{"command"},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute runs the bash tool with given arguments
@@ -101,7 +73,7 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	command, ok := args["command"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Bash",
+			ToolName:  ToolBash,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -127,7 +99,7 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	}
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "Bash",
+		ToolName:  ToolBash,
 		Arguments: args,
 		Success:   success,
 		Duration:  time.Since(start),

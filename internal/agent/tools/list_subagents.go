@@ -33,22 +33,14 @@ func NewListSubagentsTool(cfg *config.Config, tracker scheddomain.SubagentTracke
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *ListSubagentsTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolListSubagents)
+}
+
 // Definition returns the tool definition for the LLM.
 func (t *ListSubagentsTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ListSubagents.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ListSubagents",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type":                 "object",
-				"properties":           map[string]any{},
-				"required":             []string{},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute lists all tracked subagents.
@@ -56,7 +48,7 @@ func (t *ListSubagentsTool) Execute(ctx context.Context, args map[string]any) (*
 	subagents := t.tracker.GetAllSubagents()
 	if len(subagents) == 0 {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ListSubagents",
+			ToolName:  ToolListSubagents,
 			Arguments: args,
 			Success:   true,
 			Data: map[string]any{
@@ -71,7 +63,7 @@ func (t *ListSubagentsTool) Execute(ctx context.Context, args map[string]any) (*
 		infos = append(infos, t.subagentInfo(ctx, s))
 	}
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ListSubagents",
+		ToolName:  ToolListSubagents,
 		Arguments: args,
 		Success:   true,
 		Data: map[string]any{

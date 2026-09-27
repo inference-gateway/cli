@@ -40,50 +40,14 @@ func NewComputerTool(cfg *config.Config, limiter rateLimiter) *ComputerTool {
 	return &ComputerTool{config: cfg, executor: NewExecutor(cfg), rateLimiter: limiter}
 }
 
+// Manifest returns the tool's manifest so the tool registry knows its policy.
+func (t *ComputerTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolComputer)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *ComputerTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Computer.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "Computer",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"action": map[string]any{
-						"type":        "string",
-						"enum":        []string{"accessibility", "press", "screenshot", "cursor", "move", "click", "double_click", "triple_click", "scroll", "type", "key"},
-						"description": "What to do: accessibility (preferred first observation: compact UI tree with clickable bounding boxes), press (invoke a labelled element without moving the cursor), screenshot (visual fallback, optionally a region), cursor, pointer actions, scroll, type, or key.",
-					},
-					"target": map[string]any{
-						"type":        "string",
-						"description": "accessibility/press only: frontmost (default), dock, menubar, pid:<number>, app:<name>, or a bare application name.",
-					},
-					"label": map[string]any{"type": "string", "description": "press only: exact label returned by the accessibility action (first pressable match wins)."},
-					"x":     map[string]any{"type": "integer", "description": "Pointer target X in the frame coordinate space (same space as screenshots)."},
-					"y":     map[string]any{"type": "integer", "description": "Pointer target Y in the frame coordinate space."},
-					"region": map[string]any{
-						"type":        "object",
-						"description": "screenshot only: capture just this rectangle of the frame space at native resolution, so small UI becomes readable.",
-						"properties": map[string]any{
-							"x":      map[string]any{"type": "integer"},
-							"y":      map[string]any{"type": "integer"},
-							"width":  map[string]any{"type": "integer"},
-							"height": map[string]any{"type": "integer"},
-						},
-						"required": []string{"x", "y", "width", "height"},
-					},
-					"text":      map[string]any{"type": "string", "description": "type: the text to type."},
-					"combo":     map[string]any{"type": "string", "description": "key: a key combination such as \"enter\", \"cmd+a\", \"ctrl+shift+t\"."},
-					"button":    map[string]any{"type": "string", "enum": []string{"left", "right", "middle"}, "description": "click actions: mouse button (default left)."},
-					"direction": map[string]any{"type": "string", "enum": []string{"vertical", "horizontal"}, "description": "scroll: axis (default vertical)."},
-					"amount":    map[string]any{"type": "integer", "description": "scroll: wheel clicks (default 3); negative scrolls up / left."},
-				},
-				"required": []string{"action"},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // parseAction maps tool arguments onto a domain Action.
@@ -153,7 +117,7 @@ func (t *ComputerTool) Execute(ctx context.Context, args map[string]any) (*agent
 		return nil, err
 	}
 	if t.rateLimiter != nil {
-		if err := t.rateLimiter.CheckAndRecord("Computer"); err != nil {
+		if err := t.rateLimiter.CheckAndRecord(ToolComputer); err != nil {
 			return nil, err
 		}
 	}
@@ -161,7 +125,7 @@ func (t *ComputerTool) Execute(ctx context.Context, args map[string]any) (*agent
 	obs, err := t.executor.Do(ctx, a)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Computer",
+			ToolName:  ToolComputer,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -170,7 +134,7 @@ func (t *ComputerTool) Execute(ctx context.Context, args map[string]any) (*agent
 	}
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "Computer",
+		ToolName:  ToolComputer,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

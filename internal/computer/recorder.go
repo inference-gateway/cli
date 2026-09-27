@@ -316,7 +316,7 @@ func (j *recordingJob) Run(ctx context.Context, emit func(scheddomain.JobSignal)
 	select {
 	case <-j.rec.done:
 	case <-ctx.Done():
-		return agentdomain.ToolExecutionResult{ToolName: "RecordStart", Success: true}
+		return agentdomain.ToolExecutionResult{ToolName: ToolRecordStart, Success: true}
 	}
 	j.r.mu.Lock()
 	uncollected := j.r.cur == j.rec
@@ -326,7 +326,7 @@ func (j *recordingJob) Run(ctx context.Context, emit func(scheddomain.JobSignal)
 			"[Screen Recording Stopped: %s]\n\nThe screen recording stopped on its own (the max_duration limit, an ffmpeg exit, or a stop from the task view). Call RecordStop to finalize it and report the file to the user.",
 			j.meta.Label)})
 	}
-	return agentdomain.ToolExecutionResult{ToolName: "RecordStart", Success: j.rec.err == nil}
+	return agentdomain.ToolExecutionResult{ToolName: ToolRecordStart, Success: j.rec.err == nil}
 }
 
 // Wind asks ffmpeg to finish, which ends Run through the uncollected path.

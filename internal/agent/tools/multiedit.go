@@ -27,7 +27,7 @@ func NewMultiEditTool(cfg *config.Config) *MultiEditTool {
 	return &MultiEditTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		formatter: agentinfra.NewCustomFormatter("MultiEdit", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolMultiEdit, func(key string) bool {
 			return key == "edits"
 		}),
 	}
@@ -39,56 +39,20 @@ func NewMultiEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) 
 		config:   cfg,
 		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
 		registry: registry,
-		formatter: agentinfra.NewCustomFormatter("MultiEdit", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolMultiEdit, func(key string) bool {
 			return key == "edits"
 		}),
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *MultiEditTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolMultiEdit).WithRequireApproval(t.config.Tools.MultiEdit.RequireApproval)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *MultiEditTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.MultiEdit.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "MultiEdit",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"file_path": map[string]any{
-						"type":        "string",
-						"description": "The absolute path to the file to modify",
-					},
-					"edits": map[string]any{
-						"type":        "array",
-						"description": "Array of edit operations to perform sequentially on the file",
-						"minItems":    1,
-						"items": map[string]any{
-							"type": "object",
-							"properties": map[string]any{
-								"old_string": map[string]any{
-									"type":        "string",
-									"description": "The text to replace",
-								},
-								"new_string": map[string]any{
-									"type":        "string",
-									"description": "The text to replace it with",
-								},
-								"replace_all": map[string]any{
-									"type":        "boolean",
-									"description": "Replace all occurrences of old_string (default false).",
-									"default":     false,
-								},
-							},
-							"required": []string{"old_string", "new_string"},
-						},
-					},
-				},
-				"required": []string{"file_path", "edits"},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute runs the multi-edit tool with given arguments
@@ -100,7 +64,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 
 	if t.registry != nil && !t.registry.IsReadToolUsed() {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -111,7 +75,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	filePath, ok := args["file_path"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -121,7 +85,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 
 	if msg := staleReadError(t.registry, filePath); msg != "" {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -132,7 +96,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	editsInterface, ok := args["edits"]
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -143,7 +107,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	editsArray, ok := editsInterface.([]any)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -153,7 +117,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 
 	if len(editsArray) == 0 {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -164,7 +128,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	edits, err := t.parseEdits(editsArray)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -175,7 +139,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	multiEditResult, err := t.executeMultiEdit(filePath, edits)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "MultiEdit",
+			ToolName:  ToolMultiEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -184,7 +148,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	}
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "MultiEdit",
+		ToolName:  ToolMultiEdit,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

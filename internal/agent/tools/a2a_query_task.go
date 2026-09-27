@@ -38,40 +38,20 @@ type A2AQueryTaskResult struct {
 func NewA2AQueryTaskTool(cfg *config.Config, liveness scheddomain.JobLivenessReporter) *A2AQueryTaskTool {
 	return &A2AQueryTaskTool{
 		config: cfg,
-		formatter: agentinfra.NewCustomFormatter("A2A_QueryTask", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolA2AQueryTask, func(key string) bool {
 			return key == "metadata"
 		}),
 		liveness: liveness,
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *A2AQueryTaskTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolA2AQueryTask).WithRequireApproval(t.config.A2A.Tools.QueryTask.RequireApproval)
+}
+
 func (t *A2AQueryTaskTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.A2AQueryTask.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "A2A_QueryTask",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"agent_url": map[string]any{
-						"type":        "string",
-						"description": "URL of the A2A agent server",
-					},
-					"context_id": map[string]any{
-						"type":        "string",
-						"description": "Context ID for the task",
-					},
-					"task_id": map[string]any{
-						"type":        "string",
-						"description": "ID of the task to query",
-					},
-				},
-				"required": []string{"agent_url", "context_id", "task_id"},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*agentdomain.ToolExecutionResult, error) {
@@ -79,7 +59,7 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*a
 
 	if !t.IsEnabled() {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "A2A_QueryTask",
+			ToolName:  ToolA2AQueryTask,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
@@ -142,7 +122,7 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*a
 	result.Message = fmt.Sprintf("Task %s is %s", taskID, task.Status.State)
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "A2A_QueryTask",
+		ToolName:  ToolA2AQueryTask,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
@@ -160,7 +140,7 @@ func (t *A2AQueryTaskTool) buildPollingBlockedError(agentURL string) string {
 
 func (t *A2AQueryTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*agentdomain.ToolExecutionResult, error) {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "A2A_QueryTask",
+		ToolName:  ToolA2AQueryTask,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(startTime),

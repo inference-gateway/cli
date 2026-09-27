@@ -38,31 +38,14 @@ func NewReadSubagentScreenTool(cfg *config.Config, tracker scheddomain.SubagentT
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *ReadSubagentScreenTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolReadSubagentScreen)
+}
+
 // Definition returns the tool definition for the LLM.
 func (t *ReadSubagentScreenTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ReadSubagentScreen.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ReadSubagentScreen",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"subagent_id": map[string]any{
-						"type":        "string",
-						"description": "The interactive subagent id from ListSubagents",
-					},
-					"lines": map[string]any{
-						"type":        "integer",
-						"description": "Optional: return only the last N lines of the screen (default: the full visible screen)",
-					},
-				},
-				"required":             []string{"subagent_id"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute captures the named subagent's terminal screen.
@@ -75,7 +58,7 @@ func (t *ReadSubagentScreenTool) Execute(ctx context.Context, args map[string]an
 	s := t.tracker.GetSubagent(subagentID)
 	if s == nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ReadSubagentScreen",
+			ToolName:  ToolReadSubagentScreen,
 			Arguments: args,
 			Success:   false,
 			Error:     fmt.Sprintf("Subagent not found: %s (it may have been closed).", subagentID),
@@ -84,7 +67,7 @@ func (t *ReadSubagentScreenTool) Execute(ctx context.Context, args map[string]an
 
 	if s.Mode != scheddomain.SubagentModeInteractive || s.PaneID == "" {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ReadSubagentScreen",
+			ToolName:  ToolReadSubagentScreen,
 			Arguments: args,
 			Success:   false,
 			Error:     fmt.Sprintf("Subagent %s is headless and has no terminal screen. Only interactive (tmux-pane) subagents have a TUI; use GetSubagentResult for a subagent's result.", labelOrSession(s.Label, s.SessionID)),
@@ -93,7 +76,7 @@ func (t *ReadSubagentScreenTool) Execute(ctx context.Context, args map[string]an
 
 	screen := t.capture(ctx, s.PaneID, toInt(args["lines"]))
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ReadSubagentScreen",
+		ToolName:  ToolReadSubagentScreen,
 		Arguments: args,
 		Success:   true,
 		Data: map[string]any{

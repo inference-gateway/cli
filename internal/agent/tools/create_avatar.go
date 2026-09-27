@@ -34,47 +34,14 @@ func NewCreateAvatarTool(cfg *config.Config, imageService agentdomain.ImageServi
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *CreateAvatarTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolCreateAvatar).WithRequireApproval(t.config.TextToVideo.RequireApproval)
+}
+
 // Definition returns the tool definition for CreateAvatar
 func (t *CreateAvatarTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.CreateAvatar.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "CreateAvatar",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"name": map[string]any{
-						"type":        "string",
-						"description": "Name of the new avatar: a bare folder name such as \"presenter\"; an existing name fails",
-					},
-					"photo": map[string]any{
-						"type":        "string",
-						"description": "Bare file name (no directories or absolute paths) of a front-facing .png, .jpg, .jpeg or .webp photo, looked up in the working directory, then in this session's artifacts directory",
-					},
-					"angles": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string", "enum": slices.Sorted(maps.Keys(avatars.Angles))},
-						"description": "Views to generate from the photo; defaults to both three-quarter views; [] stores the photo only",
-					},
-					"quality": map[string]any{
-						"type":        "string",
-						"enum":        imageEditQualities,
-						"description": "Generated image quality",
-						"default":     string(sdk.CreateImageEditMultipartBodyQualityHigh),
-					},
-					"size": map[string]any{
-						"type":        "string",
-						"description": "Generated image size as WIDTHxHEIGHT, or auto",
-						"default":     string(sdk.ImageSize1024X1536),
-					},
-				},
-				"required":             []string{"name", "photo"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Validate validates CreateAvatar arguments. The avatar name's form and an
@@ -166,7 +133,7 @@ func (t *CreateAvatarTool) Execute(ctx context.Context, args map[string]any) (*a
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "CreateAvatar",
+		ToolName:  ToolCreateAvatar,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -180,7 +147,7 @@ func (t *CreateAvatarTool) Execute(ctx context.Context, args map[string]any) (*a
 // failure builds the failed ToolExecutionResult for Execute.
 func (t *CreateAvatarTool) failure(start time.Time, args map[string]any, err error) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "CreateAvatar",
+		ToolName:  ToolCreateAvatar,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),
@@ -223,7 +190,7 @@ func (t *CreateAvatarTool) FormatForLLM(result *agentdomain.ToolExecutionResult)
 	name, _ := data["name"].(string)
 	images, _ := data["images"].([]string)
 	summary := fmt.Sprintf("Created avatar %s with images %s; pass avatar %q to TextToVideo", name, strings.Join(images, ", "), name)
-	formatter := agentinfra.NewBaseFormatter("CreateAvatar")
+	formatter := agentinfra.NewBaseFormatter(ToolCreateAvatar)
 	return formatter.FormatExpanded(result, summary)
 }
 

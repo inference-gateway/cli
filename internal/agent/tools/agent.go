@@ -91,6 +91,8 @@ type AgentTool struct {
 	// mdAgents holds the Markdown-defined agents loaded once per session by
 	// the registry (see mdagent.go); read-only after setMarkdownAgents.
 	mdAgents []markdownAgent
+	// toolManifests resolves which of an agent's allowed tools are read-only.
+	toolManifests agentdomain.ToolManifestLookup
 
 	// Injection points for tests; default to real implementations.
 	runHeadless          func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error)
@@ -107,7 +109,7 @@ func NewAgentTool(cfg *config.Config, tracker scheddomain.SubagentTracker, submi
 		config:    cfg,
 		tracker:   tracker,
 		submitter: submitter,
-		formatter: agentinfra.NewBaseFormatter("Agent"),
+		formatter: agentinfra.NewBaseFormatter(ToolAgent),
 		binary:    os.Args[0],
 	}
 	t.runHeadless = agentrunner.Run
@@ -117,57 +119,19 @@ func NewAgentTool(cfg *config.Config, tracker scheddomain.SubagentTracker, submi
 	return t
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *AgentTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolAgent).WithRequireApproval(t.config.Tools.Agent.RequireApproval)
+}
+
 // Definition returns the tool definition for the LLM.
 func (t *AgentTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Agent.Description
+	def := t.Manifest().Definition()
 	if list := t.markdownAgentCatalog(); list != "" {
-		description += "\n\n" + list
+		description := *def.Function.Description + "\n\n" + list
+		def.Function.Description = &description
 	}
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "Agent",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"tasks": map[string]any{
-						"type":        "array",
-						"description": "Subagent tasks to run in parallel. Each runs in its own isolated session.",
-						"items": map[string]any{
-							"type": "object",
-							"properties": map[string]any{
-								"description":   map[string]any{"type": "string", "description": "The task for the subagent to perform"},
-								"label":         map[string]any{"type": "string", "description": "Short label for the subagent (shown in progress/panes)"},
-								"model":         map[string]any{"type": "string", "description": "Optional model override for this subagent"},
-								"system_prompt": map[string]any{"type": "string", "description": "Optional system prompt giving THIS subagent a specialized role/persona for its task"},
-								"agent":         map[string]any{"type": "string", "description": "Optional name of a Markdown-defined agent (see Available agents) that supplies the system prompt, model and tool allowlist; type is then derived from that allowlist"},
-								"type":          map[string]any{"type": "string", "enum": []string{"ReadOnly", "ReadWrite"}, "description": "Capability. ReadOnly (default) is Explore-like: read/search tools only, never needs approval - use for investigation/research. ReadWrite can modify files and run commands; its mutations require approval."},
-							},
-							"required": []string{"description"},
-						},
-					},
-					"description": map[string]any{
-						"type":        "string",
-						"description": "Shorthand for a single subagent task (alternative to tasks)",
-					},
-					"system_prompt": map[string]any{
-						"type":        "string",
-						"description": "Optional system prompt for the single-task (description) form, giving the subagent a specialized role",
-					},
-					"agent": map[string]any{
-						"type":        "string",
-						"description": "Optional name of a Markdown-defined agent (see Available agents) that supplies the system prompt, model and tool allowlist; type is then derived from that allowlist",
-					},
-					"type": map[string]any{
-						"type":        "string",
-						"enum":        []string{"ReadOnly", "ReadWrite"},
-						"description": "Capability for the single-task form. ReadOnly (default) is Explore-like: read/search only, never needs approval. ReadWrite can modify files and run commands; mutations require approval.",
-					},
-				},
-			},
-		},
-	}
+	return def
 }
 
 // Execute runs the tool with the given arguments.
@@ -277,7 +241,7 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 		}
 	}
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "Agent",
+		ToolName:  ToolAgent,
 		Arguments: args,
 		Success:   success,
 		Duration:  time.Since(start),
@@ -332,7 +296,7 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 		msg += " (" + strings.Join(notes, "; ") + ")"
 	}
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "Agent",
+		ToolName:  ToolAgent,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -438,7 +402,7 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 		msg += " (" + strings.Join(notes, "; ") + ")"
 	}
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "Agent",
+		ToolName:  ToolAgent,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -666,10 +630,12 @@ func (t *AgentTool) resolveWait() bool {
 }
 
 // setMarkdownAgents installs the Markdown-defined agents loaded once per
-// session by the registry (see mdagent.go). Called during construction, before
-// the tool is shared, so no synchronization is needed.
-func (t *AgentTool) setMarkdownAgents(agents []markdownAgent) {
+// session by the registry (see mdagent.go), and the manifests that decide
+// whether an agent's tool allowlist is read-only. Called during construction,
+// before the tool is shared, so no synchronization is needed.
+func (t *AgentTool) setMarkdownAgents(agents []markdownAgent, toolManifests agentdomain.ToolManifestLookup) {
 	t.mdAgents = agents
+	t.toolManifests = toolManifests
 }
 
 // lookupMarkdownAgent returns the named agent, exact-match on the frontmatter
@@ -735,7 +701,7 @@ func (t *AgentTool) applyNamedAgent(spec *AgentTaskSpec) error {
 	}
 	if len(agent.tools) > 0 {
 		spec.Tools = agent.tools
-		spec.Mode = deriveSubagentMode(agent.tools)
+		spec.Mode = deriveSubagentMode(agent.tools, t.toolManifests)
 	} else {
 		spec.Mode = agentdomain.AgentModeStandard
 	}
@@ -758,7 +724,7 @@ func (t *AgentTool) resolveModel(taskModel, parentModel string) string {
 
 func (t *AgentTool) errorResult(args map[string]any, start time.Time, msg string) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "Agent",
+		ToolName:  ToolAgent,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),

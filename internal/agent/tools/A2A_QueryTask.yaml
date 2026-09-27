@@ -1,0 +1,18 @@
+name: A2A_QueryTask
+description: 'Query the status and result of a specific A2A task. Returns the complete task object including status, artifacts, and message data. IMPORTANT: When you submit a task via A2A_SubmitTask, it automatically monitors the task in the background and emits an event when complete - you will be notified automatically. DO NOT manually query recently submitted tasks during background monitoring. Only use this tool to: 1) Check tasks from previous conversations, 2) Check tasks submitted outside this session, or 3) Get detailed results AFTER you receive a completion notification.'
+parameters:
+  type: object
+  properties:
+    agent_url:
+      type: string
+      description: URL of the A2A agent server
+    context_id:
+      type: string
+      description: Context ID for the task
+    task_id:
+      type: string
+      description: ID of the task to query
+  required:
+    - agent_url
+    - context_id
+    - task_id

@@ -1,0 +1,44 @@
+name: ImageEdit
+description: |-
+  Edit an existing image and save the result as a PNG under ~/.infer/projects/<project-slug>/artifacts/. Returns the saved file path.
+
+  Provide the local file path of the image to edit and a plain prompt describing the change. The request goes to /v1/images/edits using the image model configured for this tool (not the chat model), so do not ask which model to use.
+
+  Optionally pass mask: a local file path to a PNG whose fully transparent areas (alpha = 0) mark the region to edit; all other pixels are preserved exactly. The mask must be a PNG with the same dimensions as the input image. Omit mask to let the model localize the change from the prompt alone.
+
+  Cost control: quality defaults to "auto" and size to "1024x1024". Keep those defaults unless the user explicitly asks for a different tier or size - higher tiers cost significantly more and take longer.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    image:
+      type: string
+      description: Local file path of the image to edit
+    mask:
+      type: string
+      description: Optional local file path to a PNG mask whose fully transparent areas (alpha = 0) mark the editable region; all other pixels are preserved exactly. Must have the same dimensions as the input image.
+    prompt:
+      type: string
+      description: A text description of the desired edit
+    quality:
+      type: string
+      description: Image quality. Always use 'auto' unless the user explicitly asks for a different tier
+      enum:
+        - auto
+        - low
+        - medium
+        - high
+        - standard
+      default: auto
+    size:
+      type: string
+      description: Image size. Always use '1024x1024' unless the user explicitly asks for a larger or differently shaped image
+      enum:
+        - 1024x1024
+        - 1536x1024
+        - 1024x1536
+      default: 1024x1024
+  required:
+    - image
+    - prompt
+require_approval: false

@@ -1,0 +1,45 @@
+name: CreateAvatar
+description: |-
+  Create an avatar in the TextToVideo avatar library (~/.infer/avatars/<name>/) from a photo of a person, so TextToVideo can render them. Returns the avatar name and its images.
+
+  photo is a bare .png/.jpg/.jpeg/.webp file name, looked up in the working directory, then in this session's artifacts directory (where ImageGeneration and ImageEdit save their images) - no directories or absolute paths. The photo is stored as the front image, and each of angles (default: three-quarter-left and three-quarter-right; also left-profile and right-profile; [] stores the photo only) is generated from it with the ImageEdit model, so the photo is sent to that third-party provider. Only create an avatar from a photo the user asked you to use. quality defaults to high and size to 1024x1536.
+
+  The tool never overwrites: an existing name fails - pick another name or use the existing avatar. It cannot delete avatars; the user runs infer avatars delete. Then call TextToVideo with avatar set to the name: with audio for a lip-synced clip, without audio to keep the person consistent in a prompt-driven shot.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    angles:
+      type: array
+      description: Views to generate from the photo; defaults to both three-quarter views; [] stores the photo only
+      items:
+        type: string
+        enum:
+          - left-profile
+          - right-profile
+          - three-quarter-left
+          - three-quarter-right
+    name:
+      type: string
+      description: 'Name of the new avatar: a bare folder name such as "presenter"; an existing name fails'
+    photo:
+      type: string
+      description: Bare file name (no directories or absolute paths) of a front-facing .png, .jpg, .jpeg or .webp photo, looked up in the working directory, then in this session's artifacts directory
+    quality:
+      type: string
+      description: Generated image quality
+      enum:
+        - auto
+        - low
+        - medium
+        - high
+        - standard
+      default: high
+    size:
+      type: string
+      description: Generated image size as WIDTHxHEIGHT, or auto
+      default: 1024x1536
+  required:
+    - name
+    - photo
+require_approval: true

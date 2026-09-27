@@ -1,0 +1,16 @@
+name: ReadSubagentScreen
+description: Capture the RAW terminal screen of an interactive subagent's tmux pane - the rendered TUI exactly as drawn (input box, status bar, menus and all). Use this to inspect or test a subagent's live TUI; unlike GetSubagentResult it works while the subagent is running and is NOT a way to poll for completion (you are notified automatically when a subagent finishes). Optional 'lines' bounds the output to the last N lines. Interactive subagents only. Pass the subagent_id from ListSubagents. To drive an interactive terminal program that is NOT a subagent (a TUI, REPL, or another CLI), use the `tmux` skill (raw tmux via Bash) instead of this tool.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    lines:
+      type: integer
+      description: 'Optional: return only the last N lines of the screen (default: the full visible screen)'
+    subagent_id:
+      type: string
+      description: The interactive subagent id from ListSubagents
+  required:
+    - subagent_id
+require_approval: false
+modes: [standard, auto, auto-with-judge, readonly]

@@ -46,77 +46,18 @@ func NewAskUserQuestionTool(cfg *config.Config) *AskUserQuestionTool {
 	return &AskUserQuestionTool{
 		config:    cfg,
 		enabled:   true,
-		formatter: agentinfra.NewBaseFormatter("AskUserQuestion"),
+		formatter: agentinfra.NewBaseFormatter(ToolAskUserQuestion),
 	}
+}
+
+// Manifest returns the tool's manifest.
+func (t *AskUserQuestionTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolAskUserQuestion)
 }
 
 // Definition returns the tool definition for the LLM.
 func (t *AskUserQuestionTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.AskUserQuestion.Description
-
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "AskUserQuestion",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"$schema":              "http://json-schema.org/draft-07/schema#",
-				"additionalProperties": false,
-				"type":                 "object",
-				"required":             []string{"questions"},
-				"properties": map[string]any{
-					"questions": map[string]any{
-						"type":        "array",
-						"minItems":    minQuestions,
-						"maxItems":    maxQuestions,
-						"description": "1-4 clarifying questions to ask the user.",
-						"items": map[string]any{
-							"type":                 "object",
-							"additionalProperties": false,
-							"required":             []string{"header", "question", "options"},
-							"properties": map[string]any{
-								"header": map[string]any{
-									"type":        "string",
-									"maxLength":   maxQuestionHeader,
-									"description": "Short label/chip shown as a tag (<= 12 chars).",
-								},
-								"question": map[string]any{
-									"type":        "string",
-									"description": "The full question text to display.",
-								},
-								"multiSelect": map[string]any{
-									"type":        "boolean",
-									"default":     false,
-									"description": "Allow selecting multiple options.",
-								},
-								"options": map[string]any{
-									"type":        "array",
-									"minItems":    minOptions,
-									"maxItems":    maxOptions,
-									"description": "2-4 selectable options. An 'Other' free-text choice is always added by the UI.",
-									"items": map[string]any{
-										"type":                 "object",
-										"additionalProperties": false,
-										"required":             []string{"label", "description"},
-										"properties": map[string]any{
-											"label": map[string]any{
-												"type":        "string",
-												"description": "Concise option value returned as the answer.",
-											},
-											"description": map[string]any{
-												"type":        "string",
-												"description": "What this option means / its trade-off.",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute presents the questions to the user and returns their answers. The
@@ -176,7 +117,7 @@ func (t *AskUserQuestionTool) IsEnabled() bool {
 
 func (t *AskUserQuestionTool) result(args map[string]any, start time.Time, data map[string]any) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "AskUserQuestion",
+		ToolName:  ToolAskUserQuestion,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -186,7 +127,7 @@ func (t *AskUserQuestionTool) result(args map[string]any, start time.Time, data 
 
 func (t *AskUserQuestionTool) failure(args map[string]any, start time.Time, msg string) *agentdomain.ToolExecutionResult {
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "AskUserQuestion",
+		ToolName:  ToolAskUserQuestion,
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(start),

@@ -1,0 +1,45 @@
+name: Memory
+description: |-
+  Persistent memory shared across sessions: one short Markdown fact per entry, listed in the MEMORY.md index. The index entries for the current project and global facts are already in your context; other projects are listed by name only.
+
+  Every call sets "operation":
+  - read: {"operation": "read"} returns the full index. {"operation": "read", "name": "inference-gateway-cli/build-commands"} returns one fact; use the name exactly as the index shows it.
+  - write: {"operation": "write", "name": "build-commands", "description": "How to build and test the CLI", "type": "project", "content": "Run task build, then task test."}. name, description, type and content are all required. Writing an existing name replaces that fact.
+  - delete: {"operation": "delete", "name": "inference-gateway-cli/build-commands"} removes a fact that turned out wrong or stale.
+
+  type is one of: user (who the user is and their preferences), feedback (a correction or confirmed approach from the user), project (a non-obvious fact about this codebase or its environment), reference (a pointer to an external resource). Omit project: user facts are stored globally and everything else under the current project. Pass project only for a fact about another repository, as org/repo.
+
+  Only save what a future session would otherwise get wrong or have to rediscover. Do not save task progress, PR or issue numbers or status, one-off errors, or anything already in the repository (code, README, AGENTS.md, git history). Check the index first and update an existing entry instead of adding a near-duplicate. Keep content short - one fact, a few lines.
+parameters:
+  type: object
+  properties:
+    # description is set at runtime from memory.max_entry_chars.
+    content:
+      type: string
+    description:
+      type: string
+      description: One-line summary shown in the MEMORY.md index and stored in the file's frontmatter. Required for write.
+    name:
+      type: string
+      description: For write, a short slug such as "build-commands" (no project prefix; the project is chosen for you). For read and delete, the name exactly as shown in the index, e.g. "inference-gateway-cli/build-commands". Required for write and delete; optional for read.
+    operation:
+      type: string
+      description: 'The memory operation. read: with no name, return the MEMORY.md index; with a name, return that fact-file. write: create or update a fact-file and its index entry. delete: remove a fact-file and its index entry.'
+      enum:
+        - read
+        - write
+        - delete
+    project:
+      type: string
+      description: 'Optional, write only. Where the fact belongs: omit to use the default (user facts are global; feedback/project/reference facts go under the current project), pass "global" to force a global fact, or an org/repo name to file it under another project.'
+    type:
+      type: string
+      description: The kind of fact being stored. Required for write.
+      enum:
+        - user
+        - feedback
+        - project
+        - reference
+  required:
+    - operation
+require_approval: false

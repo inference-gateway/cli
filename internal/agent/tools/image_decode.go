@@ -36,30 +36,14 @@ func NewImageDecodeTool(cfg *config.Config, imageService agentdomain.ImageServic
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *ImageDecodeTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolImageDecode)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *ImageDecodeTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ImageDecode.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ImageDecode",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"image": map[string]any{
-						"type":        "string",
-						"description": "Path to a local image file or http(s) URL (png, jpg, jpeg, gif, webp)",
-					},
-					"prompt": map[string]any{
-						"type":        "string",
-						"description": "Optional question about the image; the summary answers it",
-					},
-				},
-				"required": []string{"image"},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute returns the image as an attachment (vision models see it natively)
@@ -69,7 +53,7 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*ag
 	start := time.Now()
 	fail := func(msg string) (*agentdomain.ToolExecutionResult, error) {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ImageDecode",
+			ToolName:  ToolImageDecode,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -100,7 +84,7 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*ag
 
 	if t.annotator == nil || !t.config.Vision.AnnotatorReady() {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ImageDecode",
+			ToolName:  ToolImageDecode,
 			Arguments: args,
 			Success:   true,
 			Duration:  time.Since(start),
@@ -126,7 +110,7 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*ag
 	result.Annotated = true
 	result.Annotation = annotation
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ImageDecode",
+		ToolName:  ToolImageDecode,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

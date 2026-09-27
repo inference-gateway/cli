@@ -22,49 +22,12 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 		"git.commit_message.system_prompt":            cfg.Git.CommitMessage.SystemPrompt,
 		"conversation.title_generation.system_prompt": cfg.Conversation.TitleGeneration.SystemPrompt,
 		"init.prompt":                                 cfg.Init.Prompt,
-		"tools.Bash.description":                      cfg.Tools.Bash.Description,
-		"tools.BashOutput.description":                cfg.Tools.BashOutput.Description,
-		"tools.KillShell.description":                 cfg.Tools.KillShell.Description,
-		"tools.ListShells.description":                cfg.Tools.ListShells.Description,
-		"tools.Read.description":                      cfg.Tools.Read.Description,
-		"tools.Write.description":                     cfg.Tools.Write.Description,
-		"tools.Edit.description":                      cfg.Tools.Edit.Description,
-		"tools.MultiEdit.description":                 cfg.Tools.MultiEdit.Description,
-		"tools.Delete.description":                    cfg.Tools.Delete.Description,
-		"tools.Grep.description":                      cfg.Tools.Grep.Description,
-		"tools.Tree.description":                      cfg.Tools.Tree.Description,
-		"tools.TodoWrite.description":                 cfg.Tools.TodoWrite.Description,
-		"tools.RequestPlanApproval.description":       cfg.Tools.RequestPlanApproval.Description,
-		"tools.WebFetch.description":                  cfg.Tools.WebFetch.Description,
-		"tools.WebSearch.description":                 cfg.Tools.WebSearch.Description,
-		"tools.Schedule.description":                  cfg.Tools.Schedule.Description,
-		"tools.A2A_QueryAgent.description":            cfg.Tools.A2AQueryAgent.Description,
-		"tools.A2A_QueryTask.description":             cfg.Tools.A2AQueryTask.Description,
-		"tools.A2A_SubmitTask.description":            cfg.Tools.A2ASubmitTask.Description,
-		"tools.Computer.description":                  cfg.Tools.Computer.Description,
-		"tools.GetLatestFrame.description":            cfg.Tools.GetLatestFrame.Description,
 	}
 
 	for key, val := range cases {
 		if val == "" {
 			t.Errorf("default prompt %q is empty", key)
 		}
-	}
-}
-
-// The plan Markdown template no longer ships as a system prompt: the built-in
-// plan guidance lives in the mode-change reminder (reminders.go) and is
-// asserted in reminders_mode_change_test.go. The tool description contract
-// stays here.
-func TestDefaultPromptsConfig_RequestPlanApprovalDescription(t *testing.T) {
-	cfg := config.DefaultPromptsConfig()
-
-	desc := cfg.Tools.RequestPlanApproval.Description
-	if !strings.Contains(desc, "title") || !strings.Contains(desc, "plan") {
-		t.Errorf("RequestPlanApproval description should mention both 'title' and 'plan' parameters, got %q", desc)
-	}
-	if !strings.Contains(desc, "<configDir>/plans/") {
-		t.Errorf("RequestPlanApproval description should mention the on-disk path, got %q", desc)
 	}
 }
 
@@ -89,9 +52,7 @@ func TestDefaultPromptsConfig_OptionalPromptsBlank(t *testing.T) {
 // Reminders moved out of prompts.yaml into their own reminders.yaml; their
 // defaults are covered by TestDefaultRemindersConfig in reminders_test.go.
 
-// LoadPrompts backfills unset fields from DefaultPromptsConfig() (via
-// mergeToolDefaults for tools), and tool YAML keys use the LLM-visible
-// names (PascalCase or A2A_* forms) - both contracts are guarded here.
+// LoadPrompts backfills unset prompts from DefaultPromptsConfig().
 func checkPromptsValidYAML(t *testing.T, cfg *config.PromptsConfig) {
 	t.Helper()
 	if cfg.Agent.SystemPrompt != "custom agent prompt" {
@@ -156,46 +117,6 @@ agent:
 				}
 				if cfg.Git.CommitMessage.SystemPrompt != defaults.Git.CommitMessage.SystemPrompt {
 					t.Errorf("Expected unset commit prompt to be backfilled with default, got %q", cfg.Git.CommitMessage.SystemPrompt)
-				}
-			},
-		},
-		{
-			name: "partial tool override backfills other tools",
-			yaml: `---
-tools:
-  Bash:
-    description: my custom bash description
-`,
-			check: func(t *testing.T, cfg *config.PromptsConfig) {
-				if cfg.Tools.Bash.Description != "my custom bash description" {
-					t.Errorf("Expected Bash override to be preserved, got %q", cfg.Tools.Bash.Description)
-				}
-				if cfg.Tools.Read.Description != defaults.Tools.Read.Description {
-					t.Errorf("Expected unset Read description to be backfilled, got %q", cfg.Tools.Read.Description)
-				}
-				if cfg.Tools.Edit.Description != defaults.Tools.Edit.Description {
-					t.Errorf("Expected unset Edit description to be backfilled, got %q", cfg.Tools.Edit.Description)
-				}
-				if cfg.Tools.A2ASubmitTask.Description != defaults.Tools.A2ASubmitTask.Description {
-					t.Errorf("Expected unset A2A_SubmitTask description to be backfilled, got %q", cfg.Tools.A2ASubmitTask.Description)
-				}
-			},
-		},
-		{
-			name: "tool yaml key contract",
-			yaml: `---
-tools:
-  MultiEdit:
-    description: pascal case worked
-  A2A_SubmitTask:
-    description: a2a key worked
-`,
-			check: func(t *testing.T, cfg *config.PromptsConfig) {
-				if cfg.Tools.MultiEdit.Description != "pascal case worked" {
-					t.Errorf("Expected MultiEdit YAML key to map to MultiEdit field, got %q", cfg.Tools.MultiEdit.Description)
-				}
-				if cfg.Tools.A2ASubmitTask.Description != "a2a key worked" {
-					t.Errorf("Expected A2A_SubmitTask YAML key to map to A2ASubmitTask field, got %q", cfg.Tools.A2ASubmitTask.Description)
 				}
 			},
 		},

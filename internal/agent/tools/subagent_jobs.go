@@ -72,7 +72,7 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(scheddomain.JobSig
 	logger.Debug("headless subagent finished", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "success", sub.Success)
 
 	return agentdomain.ToolExecutionResult{
-		ToolName:  "Agent",
+		ToolName:  ToolAgent,
 		Arguments: map[string]any{"label": sub.Label, "session_id": j.state.SessionID},
 		Success:   sub.Success,
 		Error:     sub.Error,
@@ -166,14 +166,14 @@ func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(scheddomain.
 		select {
 		case <-ctx.Done():
 			logger.Debug("interactive subagent monitor cancelled", "subagent_id", j.state.ID, "pane_id", j.state.PaneID)
-			return agentdomain.ToolExecutionResult{ToolName: "Agent", Success: true}
+			return agentdomain.ToolExecutionResult{ToolName: ToolAgent, Success: true}
 		case <-ticker.C:
 			obs := j.inspect(ctx, j.state.PaneID, j.state.SessionID)
 
 			if obs.Gone || obs.Dead {
 				logger.Debug("interactive subagent pane closed", "subagent_id", j.state.ID, "pane_id", j.state.PaneID, "gone", obs.Gone, "dead", obs.Dead)
 				j.harvestTurn(obs.Harvested, &lastHarvest, emit)
-				return agentdomain.ToolExecutionResult{ToolName: "Agent", Success: true}
+				return agentdomain.ToolExecutionResult{ToolName: ToolAgent, Success: true}
 			}
 
 			if obs.AwaitingApproval {

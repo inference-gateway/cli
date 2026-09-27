@@ -1,0 +1,22 @@
+name: WebFetch
+description: Fetch content from allowed URLs. Set download=true to save the file to disk automatically. Useful for downloading A2A task artifacts or other files.
+parameters:
+  type: object
+  properties:
+    download:
+      type: boolean
+      description: Set to true to automatically save the fetched content to disk. File will be saved with a name extracted from the URL.
+      default: false
+    format:
+      type: string
+      description: Output format (text or json)
+      enum:
+        - text
+        - json
+      default: text
+    url:
+      type: string
+      description: The URL to fetch content from
+  required:
+    - url
+modes: [standard, auto, auto-with-judge, readonly]

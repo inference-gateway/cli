@@ -47,41 +47,18 @@ func NewReadTool(cfg *config.Config) *ReadTool {
 	return &ReadTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.Read.Enabled,
-		formatter: agentinfra.NewBaseFormatter("Read"),
+		formatter: agentinfra.NewBaseFormatter(ToolRead),
 	}
+}
+
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *ReadTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolRead).WithRequireApproval(t.config.Tools.Read.RequireApproval)
 }
 
 // Definition returns the tool definition for the LLM
 func (t *ReadTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Read.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "Read",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type":                 "object",
-				"additionalProperties": false,
-				"properties": map[string]any{
-					"file_path": map[string]any{
-						"type":        "string",
-						"description": "The path to the file to read (can be absolute or relative)",
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "The number of lines to read. Only provide if the file is too large to read at once.",
-						"minimum":     1,
-					},
-					"offset": map[string]any{
-						"type":        "integer",
-						"description": "The line number to start reading from. Only provide if the file is too large to read at once",
-						"minimum":     1,
-					},
-				},
-				"required": []string{"file_path"},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute runs the read tool with given arguments
@@ -94,7 +71,7 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	filePath, ok := args["file_path"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Read",
+			ToolName:  ToolRead,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -114,7 +91,7 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 
 	if t.isImageFile(filePath) {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Read",
+			ToolName:  ToolRead,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -125,7 +102,7 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	readResult, err := t.executeRead(filePath, offset, limit)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Read",
+			ToolName:  ToolRead,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -146,7 +123,7 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	}
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "Read",
+		ToolName:  ToolRead,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

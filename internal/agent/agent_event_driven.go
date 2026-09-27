@@ -121,6 +121,7 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 		CurrentMessage:         &a.currentMessage,
 		CurrentToolCalls:       &a.currentToolCalls,
 		CurrentReasoning:       &a.currentReasoning,
+		Tools:                  a.service.toolService,
 		ToolsNeedingApproval:   &a.toolsNeedingApproval,
 		CurrentToolIndex:       &a.currentToolIndex,
 		ToolResults:            &a.toolResults,

@@ -25,27 +25,14 @@ func NewGetSubagentResultTool(cfg *config.Config, tracker scheddomain.SubagentTr
 	return &GetSubagentResultTool{config: cfg, tracker: tracker}
 }
 
+// Manifest returns the tool's manifest.
+func (t *GetSubagentResultTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolGetSubagentResult)
+}
+
 // Definition returns the tool definition for the LLM.
 func (t *GetSubagentResultTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.GetSubagentResult.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "GetSubagentResult",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"subagent_id": map[string]any{
-						"type":        "string",
-						"description": "The subagent id from ListSubagents",
-					},
-				},
-				"required":             []string{"subagent_id"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute returns the latest output of the named subagent.
@@ -58,7 +45,7 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 	s := t.tracker.GetSubagent(subagentID)
 	if s == nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "GetSubagentResult",
+			ToolName:  ToolGetSubagentResult,
 			Arguments: args,
 			Success:   false,
 			Error:     fmt.Sprintf("Subagent not found: %s. It may have completed (headless subagents are removed once their result is delivered) or already been closed.", subagentID),
@@ -67,7 +54,7 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 
 	if s.Status == scheddomain.SubagentRunning {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "GetSubagentResult",
+			ToolName:  ToolGetSubagentResult,
 			Arguments: args,
 			Success:   false,
 			Error:     fmt.Sprintf("Subagent %s is still running and will notify you AUTOMATICALLY when it finishes. END YOUR TURN NOW - do NOT call this again, and do NOT CloseSubagent to fetch a result. Its '[Subagent Completed: ...]' message arrives in the conversation on its own; act on it then.", labelOrSession(s.Label, s.SessionID)),
@@ -76,7 +63,7 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 
 	if s.Mode == scheddomain.SubagentModeInteractive {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "GetSubagentResult",
+			ToolName:  ToolGetSubagentResult,
 			Arguments: args,
 			Success:   true,
 			Data: map[string]any{
@@ -91,7 +78,7 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "GetSubagentResult",
+		ToolName:  ToolGetSubagentResult,
 		Arguments: args,
 		Success:   true,
 		Data: map[string]any{

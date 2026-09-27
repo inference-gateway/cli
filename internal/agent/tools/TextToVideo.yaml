@@ -1,0 +1,30 @@
+name: TextToVideo
+description: |-
+  Render a video clip from a text prompt and save it as an MP4 file. Returns the saved file path.
+
+  Describe the shot in prompt. Optionally pass seconds (a string such as "4"; ignored when audio is present) and size (widthxheight such as 720x1280 portrait or 1280x720 landscape; the provider derives the resolution from the shorter side, 480/720/1080). Optionally pass avatar without audio: a library avatar's images are sent as reference images that keep that person consistent in the shot (the default model takes at most 3 and needs its default 8 seconds, so omit seconds), while a bare image file becomes the first frame. Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP4 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name.
+
+  For a lip-synced talking clip pass avatar together with audio. avatar is the name of an avatar in the library (a folder under ~/.infer/avatars/; its first image is used) or a bare .png/.jpg/.jpeg/.webp file name in the working directory; an unknown name fails with the list of available avatars. audio is a bare .wav or .mp3 name, looked up in the working directory, then the TextToSpeech output dir. audio requires avatar; the dialogue comes entirely from the audio clip, prompt only describes framing, and the clip keeps the portrait's aspect ratio (the default avatar model supports 480 and 720 resolutions only). All uploads (avatar images and audio) go to a third-party provider and must stay under 10 MiB combined. Renders can take minutes - do not poll between retries. Do not claim the clip was played - it is written to disk for the user to open, at the returned path.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    audio:
+      type: string
+      description: Optional bare file name (no directories or absolute paths) of a .wav or .mp3 clip that drives the render; requires avatar; looked up in the working directory, then in the TextToSpeech output directory
+    avatar:
+      type: string
+      description: 'Optional subject: the name of an avatar in the library (~/.infer/avatars/<name>/), or a bare file name (no directories or absolute paths) of a .png, .jpg, .jpeg or .webp image in the working directory. With audio the avatar''s first image (or the file) is lip-synced to the clip; without audio a library avatar''s images are sent as reference images that keep the person consistent (veo takes at most 3 and needs the default 8 seconds, so omit seconds), while a file is the first frame'
+    output_path:
+      type: string
+      description: Optional bare file name (no directories or absolute paths) for the generated MP4; it is always placed in the configured output directory. Defaults to a timestamped file
+    prompt:
+      type: string
+      description: Description of the shot to render; required unless audio is provided, and for avatar renders it describes framing only - the dialogue comes from the audio clip
+    seconds:
+      type: string
+      description: Optional clip length in seconds as a string (e.g. "4"); providers accept a limited set of values; ignored when audio is present
+    size:
+      type: string
+      description: Optional output resolution as widthxheight (e.g. 720x1280 portrait or 1280x720 landscape); passed through verbatim, the provider derives the resolution from the shorter side (480, 720 or 1080; the default avatar model creatify-aurora supports 480 and 720 only, and avatar renders keep the portrait's aspect ratio); omitted means the provider default
+require_approval: false

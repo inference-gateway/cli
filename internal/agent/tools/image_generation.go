@@ -43,39 +43,14 @@ func NewImageGenerationTool(cfg *config.Config, imageService agentdomain.ImageSe
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *ImageGenerationTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolImageGeneration).WithRequireApproval(t.config.Tools.ImageGeneration.RequireApproval)
+}
+
 // Definition returns the tool definition for ImageGeneration
 func (t *ImageGenerationTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ImageGeneration.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ImageGeneration",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"prompt": map[string]any{
-						"type":        "string",
-						"description": "A text description of the desired image",
-					},
-					"quality": map[string]any{
-						"type":        "string",
-						"enum":        imageQualities,
-						"description": "Image quality. Always use 'low' unless the user explicitly asks for higher quality - it is markedly cheaper and faster",
-						"default":     string(sdk.CreateImageRequestQualityLow),
-					},
-					"size": map[string]any{
-						"type":        "string",
-						"enum":        imageSizes,
-						"description": "Image size. Always use '1024x1024' unless the user explicitly asks for a larger or differently shaped image",
-						"default":     string(sdk.ImageSize1024X1024),
-					},
-				},
-				"required":             []string{"prompt"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Validate validates ImageGeneration arguments
@@ -124,7 +99,7 @@ func (t *ImageGenerationTool) Execute(ctx context.Context, args map[string]any) 
 	path, err := t.imageService.GenerateImage(ctx, model, prompt, quality, size)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ImageGeneration",
+			ToolName:  ToolImageGeneration,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -133,7 +108,7 @@ func (t *ImageGenerationTool) Execute(ctx context.Context, args map[string]any) 
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ImageGeneration",
+		ToolName:  ToolImageGeneration,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -181,7 +156,7 @@ func (t *ImageGenerationTool) FormatForLLM(result *agentdomain.ToolExecutionResu
 	path, _ := data["path"].(string)
 	quality, _ := data["quality"].(string)
 	size, _ := data["size"].(string)
-	formatter := agentinfra.NewBaseFormatter("ImageGeneration")
+	formatter := agentinfra.NewBaseFormatter(ToolImageGeneration)
 	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (quality: %s, size: %s)", path, quality, size))
 }
 

@@ -42,47 +42,14 @@ func NewImageEditTool(cfg *config.Config, imageService agentdomain.ImageService)
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *ImageEditTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolImageEdit).WithRequireApproval(t.config.Tools.ImageEdit.RequireApproval)
+}
+
 // Definition returns the tool definition for ImageEdit
 func (t *ImageEditTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.ImageEdit.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "ImageEdit",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"image": map[string]any{
-						"type":        "string",
-						"description": "Local file path of the image to edit",
-					},
-					"prompt": map[string]any{
-						"type":        "string",
-						"description": "A text description of the desired edit",
-					},
-					"quality": map[string]any{
-						"type":        "string",
-						"enum":        imageEditQualities,
-						"description": "Image quality. Always use 'auto' unless the user explicitly asks for a different tier",
-						"default":     string(sdk.CreateImageEditMultipartBodyQualityAuto),
-					},
-					"size": map[string]any{
-						"type":        "string",
-						"enum":        imageSizes,
-						"description": "Image size. Always use '1024x1024' unless the user explicitly asks for a larger or differently shaped image",
-						"default":     string(sdk.ImageSize1024X1024),
-					},
-					"mask": map[string]any{
-						"type":        "string",
-						"description": "Optional local file path to a PNG mask whose fully transparent areas (alpha = 0) mark the editable region; all other pixels are preserved exactly. Must have the same dimensions as the input image.",
-					},
-				},
-				"required":             []string{"image", "prompt"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Validate validates ImageEdit arguments
@@ -151,7 +118,7 @@ func (t *ImageEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	path, err := t.imageService.EditImage(ctx, model, prompt, image, quality, size, mask)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "ImageEdit",
+			ToolName:  ToolImageEdit,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -160,7 +127,7 @@ func (t *ImageEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "ImageEdit",
+		ToolName:  ToolImageEdit,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
@@ -209,7 +176,7 @@ func (t *ImageEditTool) FormatForLLM(result *agentdomain.ToolExecutionResult) st
 	path, _ := data["path"].(string)
 	quality, _ := data["quality"].(string)
 	size, _ := data["size"].(string)
-	formatter := agentinfra.NewBaseFormatter("ImageEdit")
+	formatter := agentinfra.NewBaseFormatter(ToolImageEdit)
 	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (quality: %s, size: %s)", path, quality, size))
 }
 

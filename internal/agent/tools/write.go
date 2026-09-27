@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	ToolName      = "Write"
 	DefaultFormat = "text"
 	JSONFormat    = "json"
 )
@@ -43,7 +42,7 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 	return &WriteTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Write.Enabled,
-		formatter: agentinfra.NewCustomFormatter("Write", func(key string) bool {
+		formatter: agentinfra.NewCustomFormatter(ToolWrite, func(key string) bool {
 			return key == "content"
 		}),
 		writer:    fileWriter,
@@ -52,30 +51,14 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 	}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *WriteTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolWrite).WithRequireApproval(t.config.Tools.Write.RequireApproval)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *WriteTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Write.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        ToolName,
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"file_path": map[string]any{
-						"type":        "string",
-						"description": "The absolute path to the file to write (must be absolute, not relative)",
-					},
-					"content": map[string]any{
-						"type":        "string",
-						"description": "The content to write to the file",
-					},
-				},
-				"required": []string{"file_path", "content"},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute runs the write tool with given arguments
@@ -84,7 +67,7 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 
 	if !t.enabled {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  ToolName,
+			ToolName:  ToolWrite,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -95,7 +78,7 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 	params, err := t.extractor.ExtractWriteParams(args)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  ToolName,
+			ToolName:  ToolWrite,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -254,7 +237,7 @@ func (t *WriteTool) executeWrite(ctx context.Context, params *WriteParams, args 
 	writeResult, err := t.writer.Write(ctx, writeReq)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  ToolName,
+			ToolName:  ToolWrite,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -272,7 +255,7 @@ func (t *WriteTool) executeWrite(ctx context.Context, params *WriteParams, args 
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  ToolName,
+		ToolName:  ToolWrite,
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),

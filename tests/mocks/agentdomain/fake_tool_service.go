@@ -103,6 +103,17 @@ type FakeToolService struct {
 	listToolsForModeReturnsOnCall map[int]struct {
 		result1 []sdk.ChatCompletionTool
 	}
+	ManifestStub        func(string) domain.ToolManifest
+	manifestMutex       sync.RWMutex
+	manifestArgsForCall []struct {
+		arg1 string
+	}
+	manifestReturns struct {
+		result1 domain.ToolManifest
+	}
+	manifestReturnsOnCall map[int]struct {
+		result1 domain.ToolManifest
+	}
 	ValidateToolStub        func(string, map[string]any) error
 	validateToolMutex       sync.RWMutex
 	validateToolArgsForCall []struct {
@@ -591,6 +602,67 @@ func (fake *FakeToolService) ListToolsForModeReturnsOnCall(i int, result1 []sdk.
 	}
 	fake.listToolsForModeReturnsOnCall[i] = struct {
 		result1 []sdk.ChatCompletionTool
+	}{result1}
+}
+
+func (fake *FakeToolService) Manifest(arg1 string) domain.ToolManifest {
+	fake.manifestMutex.Lock()
+	ret, specificReturn := fake.manifestReturnsOnCall[len(fake.manifestArgsForCall)]
+	fake.manifestArgsForCall = append(fake.manifestArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.ManifestStub
+	fakeReturns := fake.manifestReturns
+	fake.recordInvocation("Manifest", []interface{}{arg1})
+	fake.manifestMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeToolService) ManifestCallCount() int {
+	fake.manifestMutex.RLock()
+	defer fake.manifestMutex.RUnlock()
+	return len(fake.manifestArgsForCall)
+}
+
+func (fake *FakeToolService) ManifestCalls(stub func(string) domain.ToolManifest) {
+	fake.manifestMutex.Lock()
+	defer fake.manifestMutex.Unlock()
+	fake.ManifestStub = stub
+}
+
+func (fake *FakeToolService) ManifestArgsForCall(i int) string {
+	fake.manifestMutex.RLock()
+	defer fake.manifestMutex.RUnlock()
+	argsForCall := fake.manifestArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeToolService) ManifestReturns(result1 domain.ToolManifest) {
+	fake.manifestMutex.Lock()
+	defer fake.manifestMutex.Unlock()
+	fake.ManifestStub = nil
+	fake.manifestReturns = struct {
+		result1 domain.ToolManifest
+	}{result1}
+}
+
+func (fake *FakeToolService) ManifestReturnsOnCall(i int, result1 domain.ToolManifest) {
+	fake.manifestMutex.Lock()
+	defer fake.manifestMutex.Unlock()
+	fake.ManifestStub = nil
+	if fake.manifestReturnsOnCall == nil {
+		fake.manifestReturnsOnCall = make(map[int]struct {
+			result1 domain.ToolManifest
+		})
+	}
+	fake.manifestReturnsOnCall[i] = struct {
+		result1 domain.ToolManifest
 	}{result1}
 }
 

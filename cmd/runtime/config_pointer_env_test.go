@@ -102,8 +102,8 @@ func TestPointerDefaultsSurviveWithoutEnvOverride(t *testing.T) {
 	}
 }
 
-// An unset option must stay unset, so IsApprovalRequired keeps falling through
-// to the global tools.safety.require_approval default.
+// An unset option must stay unset, so the tool keeps falling through to its
+// manifest default and then the global tools.safety.require_approval.
 func TestPointerOptionsStayNilWithoutEnv(t *testing.T) {
 	cfg := config.DefaultConfig()
 	if cfg.TextToSpeech.RequireApproval != nil {
@@ -177,10 +177,6 @@ text_to_speech:
 			}
 			if got := cfg.Tools.Write.RequireApproval; got == nil || *got != tt.wantWr {
 				t.Errorf("tools.write.require_approval = %v, want %v", deref(got), tt.wantWr)
-			}
-
-			if got := cfg.IsApprovalRequired("TextToSpeech"); got != tt.wantTTS {
-				t.Errorf("IsApprovalRequired(TextToSpeech) = %v, want %v", got, tt.wantTTS)
 			}
 		})
 	}

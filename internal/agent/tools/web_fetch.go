@@ -35,7 +35,7 @@ func NewWebFetchTool(cfg *config.Config) *WebFetchTool {
 	t := &WebFetchTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.WebFetch.Enabled,
-		formatter: agentinfra.NewBaseFormatter("WebFetch"),
+		formatter: agentinfra.NewBaseFormatter(ToolWebFetch),
 	}
 	t.client = &http.Client{
 		Timeout: time.Duration(cfg.Tools.WebFetch.Safety.Timeout) * time.Second,
@@ -46,37 +46,14 @@ func NewWebFetchTool(cfg *config.Config) *WebFetchTool {
 	return t
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *WebFetchTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolWebFetch).WithRequireApproval(t.config.Tools.WebFetch.RequireApproval)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *WebFetchTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.WebFetch.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "WebFetch",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"url": map[string]any{
-						"type":        "string",
-						"description": "The URL to fetch content from",
-					},
-					"format": map[string]any{
-						"type":        "string",
-						"description": "Output format (text or json)",
-						"enum":        []string{"text", "json"},
-						"default":     "text",
-					},
-					"download": map[string]any{
-						"type":        "boolean",
-						"description": "Set to true to automatically save the fetched content to disk. File will be saved with a name extracted from the URL.",
-						"default":     false,
-					},
-				},
-				"required": []string{"url"},
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute runs the fetch tool with given arguments
@@ -89,7 +66,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*agent
 	url, ok := args["url"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "WebFetch",
+			ToolName:  ToolWebFetch,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -99,7 +76,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*agent
 
 	if err := t.validateURL(url); err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "WebFetch",
+			ToolName:  ToolWebFetch,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -113,7 +90,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*agent
 	success := err == nil
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "WebFetch",
+		ToolName:  ToolWebFetch,
 		Arguments: args,
 		Success:   success,
 		Duration:  time.Since(start),

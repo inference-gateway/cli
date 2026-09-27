@@ -103,7 +103,7 @@ func ValidateTool(cfg *config.Config, command string) error {
 		"command": command,
 	}
 
-	err := toolService.ValidateTool("Bash", toolArgs)
+	err := toolService.ValidateTool(agenttools.ToolBash, toolArgs)
 	if err != nil {
 		fmt.Printf("%s\n", formatting.FormatErrorCLI(fmt.Sprintf("Command not allowed: %s", command)))
 		fmt.Printf("Reason: %s\n", err.Error())
@@ -151,8 +151,8 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string, appro
 	if !toolService.IsToolEnabled(toolName) {
 		return fmt.Errorf("tool %s is not enabled", toolName)
 	}
-	if agenttools.IsSessionOnlyTool(toolName) {
-		return fmt.Errorf("tool %s needs a running chat or headless session: a one-shot execution would leave the recording unfinalized", toolName)
+	if needsSession(toolService, toolName) {
+		return fmt.Errorf("tool %s needs a running chat or headless session: a one-shot execution would leave its state unfinalized", toolName)
 	}
 
 	argsJSON, _ := json.Marshal(toolArgs)
@@ -164,7 +164,7 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string, appro
 	repo := serviceContainer.GetConversationRepository()
 
 	if jsonOut && !approved {
-		policy := agent.NewStandardApprovalPolicy(cfg, serviceContainer.GetStateStore())
+		policy := agent.NewStandardApprovalPolicy(cfg, serviceContainer.GetStateStore(), toolService)
 		call := &sdk.ChatCompletionMessageToolCall{Type: sdk.Function, Function: toolCall}
 		if policy.ShouldRequireApproval(context.Background(), call, true) {
 			return printJSON(execResult{ApprovalRequired: true})
@@ -257,4 +257,15 @@ func canonicalToolName(available []string, name string) string {
 		}
 	}
 	return name
+}
+
+// needsSession reports whether the tool keeps state past its own call, which a
+// one-shot execution cannot finalize.
+func needsSession(toolService agentdomain.ToolService, toolName string) bool {
+	tool, err := toolService.GetTool(toolName)
+	if err != nil {
+		return false
+	}
+	sessionTool, ok := tool.(agentdomain.SessionTool)
+	return ok && sessionTool.NeedsSession()
 }

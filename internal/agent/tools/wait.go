@@ -36,64 +36,19 @@ func NewWaitTool(cfg *config.Config, shellService scheddomain.BackgroundShellSer
 	return &WaitTool{
 		config:       cfg,
 		enabled:      cfg.Tools.Enabled && cfg.Tools.Wait.Enabled,
-		formatter:    agentinfra.NewBaseFormatter("Wait"),
+		formatter:    agentinfra.NewBaseFormatter(ToolWait),
 		shellService: shellService,
 	}
 }
 
+// Manifest returns the tool's manifest.
+func (t *WaitTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolWait)
+}
+
 // Definition returns the tool definition for the LLM.
 func (t *WaitTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.Wait.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "Wait",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"condition": map[string]any{
-						"type": "string",
-						"description": "The condition to wait for: 'shells' (background shell(s) exit), " +
-							"'file' (file path created/modified/removed), or 'command' (check command exits 0).",
-						"enum": []string{"shells", "file", "command"},
-					},
-					"shell_ids": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "Shell ID(s) to wait for (condition=shells). Omit to wait for all pending background shells.",
-					},
-					"path": map[string]any{
-						"type":        "string",
-						"description": "File path to watch (condition=file).",
-					},
-					"event": map[string]any{
-						"type":        "string",
-						"description": "File event to wait for: 'create', 'modify', 'remove', or 'any' (default). Only used with condition=file.",
-						"enum":        []string{"create", "modify", "remove", "any"},
-					},
-					"command": map[string]any{
-						"type":        "string",
-						"description": "Check command to re-run until it exits 0 (condition=command). Goes through the same bash allow-list as the Bash tool.",
-					},
-					"pending_exit_codes": map[string]any{
-						"type":  "array",
-						"items": map[string]any{"type": "number"},
-						"description": "Exit codes that mean 'still pending, keep polling' (condition=command). " +
-							"Include 0 for commands like 'gh run view --exit-status' that exit 0 for both 'still running' " +
-							"and 'completed successfully'. Any exit code not in this list ends the wait immediately " +
-							"with reason 'check_failed'. Omit to keep polling on every non-zero exit. Example: [8] for 'gh pr checks'.",
-					},
-					"timeout_seconds": map[string]any{
-						"type":        "number",
-						"description": "Maximum time to wait in seconds (bounded by the config ceiling). Required.",
-					},
-				},
-				"required":             []string{"condition", "timeout_seconds"},
-				"additionalProperties": false,
-			},
-		},
-	}
+	return t.Manifest().Definition()
 }
 
 // Execute runs the Wait tool with given arguments.
@@ -102,7 +57,7 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 
 	if err := t.Validate(args); err != nil {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Wait",
+			ToolName:  ToolWait,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -137,7 +92,7 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 		result = t.waitCommand(waitCtx, args)
 	default:
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "Wait",
+			ToolName:  ToolWait,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -167,7 +122,7 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	}
 
 	return &agentdomain.ToolExecutionResult{
-		ToolName:  "Wait",
+		ToolName:  ToolWait,
 		Arguments: args,
 		Success:   success,
 		Duration:  elapsed,

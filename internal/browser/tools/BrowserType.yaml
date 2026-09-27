@@ -1,0 +1,18 @@
+name: BrowserType
+description: Types text into an input element in the current browser page identified by a selector, replacing its existing value. Set press_enter to true to submit afterwards (e.g. search boxes, forms). Requires an active page (call BrowserNavigate first).
+parameters:
+  type: object
+  properties:
+    press_enter:
+      type: boolean
+      description: Press Enter after typing to submit (defaults to false)
+      default: false
+    selector:
+      type: string
+      description: CSS or Playwright selector of the input element (e.g. 'input[name=q]')
+    text:
+      type: string
+      description: Text to type; replaces the element's current value
+  required:
+    - selector
+    - text

@@ -15,19 +15,20 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
 func makeTools(n int) []*sdk.ChatCompletionMessageToolCall {
-	tools := make([]*sdk.ChatCompletionMessageToolCall, n)
+	calls := make([]*sdk.ChatCompletionMessageToolCall, n)
 	for i := 0; i < n; i++ {
 		id := fmt.Sprintf("call-%d", i)
-		tools[i] = &sdk.ChatCompletionMessageToolCall{
+		calls[i] = &sdk.ChatCompletionMessageToolCall{
 			ID:       id,
-			Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: "{}"},
+			Function: sdk.ChatCompletionMessageToolCallFunction{Name: tools.ToolRead, Arguments: "{}"},
 		}
 	}
-	return tools
+	return calls
 }
 
 func toolEntry(tc sdk.ChatCompletionMessageToolCall) convdomain.ConversationEntry {
@@ -47,7 +48,7 @@ func toolEntry(tc sdk.ChatCompletionMessageToolCall) convdomain.ConversationEntr
 }
 
 func newApprovingCtx(
-	tools []*sdk.ChatCompletionMessageToolCall,
+	calls []*sdk.ChatCompletionMessageToolCall,
 	mode agentdomain.AgentMode,
 	execStub func(sdk.ChatCompletionMessageToolCall, bool) convdomain.ConversationEntry,
 	approveStub func(sdk.ChatCompletionMessageToolCall) (bool, string, error),
@@ -64,7 +65,8 @@ func newApprovingCtx(
 		Events:               events,
 		WaitGroup:            wg,
 		Mutex:                mu,
-		CurrentToolCalls:     &tools,
+		CurrentToolCalls:     &calls,
+		Tools:                agentdomain.ToolManifests{tools.ToolRead: {Name: tools.ToolRead, Modes: []agentdomain.AgentMode{agentdomain.AgentModeReadOnly}}},
 		ToolsNeedingApproval: &tna,
 		CurrentToolIndex:     &idx,
 		ToolResults:          &tr,
@@ -179,13 +181,13 @@ func TestApprovingToolsState_PreservesToolCallOrder(t *testing.T) {
 // Read issued after an approved Write in the same batch must run after the Write
 // finishes, not alongside it.
 func TestApprovingToolsState_ReadWaitsForEarlierWrite(t *testing.T) {
-	tools := []*sdk.ChatCompletionMessageToolCall{
-		{ID: "call-0", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write", Arguments: "{}"}},
-		{ID: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: "{}"}},
+	calls := []*sdk.ChatCompletionMessageToolCall{
+		{ID: "call-0", Function: sdk.ChatCompletionMessageToolCallFunction{Name: tools.ToolWrite, Arguments: "{}"}},
+		{ID: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: tools.ToolRead, Arguments: "{}"}},
 	}
 	var written, readSawWrite atomic.Bool
 	execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
-		if tc.Function.Name == "Write" {
+		if tc.Function.Name == tools.ToolWrite {
 			time.Sleep(50 * time.Millisecond)
 			written.Store(true)
 		} else {
@@ -195,8 +197,8 @@ func TestApprovingToolsState_ReadWaitsForEarlierWrite(t *testing.T) {
 	}
 	approveStub := func(sdk.ChatCompletionMessageToolCall) (bool, string, error) { return true, "", nil }
 
-	ctx, _, _, events := newApprovingCtx(tools, agentdomain.AgentModeStandard, execStub, approveStub)
-	ctx.ShouldRequireApproval = func(tc *sdk.ChatCompletionMessageToolCall, _ bool) bool { return tc.Function.Name == "Write" }
+	ctx, _, _, events := newApprovingCtx(calls, agentdomain.AgentModeStandard, execStub, approveStub)
+	ctx.ShouldRequireApproval = func(tc *sdk.ChatCompletionMessageToolCall, _ bool) bool { return tc.Function.Name == tools.ToolWrite }
 	s := states.NewApprovingToolsState(ctx)
 
 	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))

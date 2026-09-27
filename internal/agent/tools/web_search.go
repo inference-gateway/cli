@@ -35,7 +35,7 @@ func NewWebSearchTool(cfg *config.Config) *WebSearchTool {
 			Timeout: time.Duration(cfg.Tools.WebSearch.Timeout) * time.Second,
 		},
 		enabled:   cfg.Tools.Enabled && cfg.Tools.WebSearch.Enabled,
-		formatter: agentinfra.NewBaseFormatter("WebSearch"),
+		formatter: agentinfra.NewBaseFormatter(ToolWebSearch),
 	}
 }
 
@@ -47,45 +47,20 @@ func (t *WebSearchTool) engines() []string {
 	return []string{"duckduckgo", "google"}
 }
 
+// Manifest returns the tool's manifest with its configured require_approval.
+func (t *WebSearchTool) Manifest() agentdomain.ToolManifest {
+	return toolManifests.MustGet(ToolWebSearch).WithRequireApproval(t.config.Tools.WebSearch.RequireApproval)
+}
+
 // Definition returns the tool definition for the LLM
 func (t *WebSearchTool) Definition() sdk.ChatCompletionTool {
-	description := t.config.Prompts.Tools.WebSearch.Description
-	return sdk.ChatCompletionTool{
-		Type: sdk.Function,
-		Function: sdk.FunctionObject{
-			Name:        "WebSearch",
-			Description: &description,
-			Parameters: &sdk.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"query": map[string]any{
-						"type":        "string",
-						"description": "The search query to execute",
-					},
-					"engine": map[string]any{
-						"type":        "string",
-						"description": fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(t.engines(), " or "), t.config.Tools.WebSearch.DefaultEngine),
-						"enum":        t.engines(),
-						"default":     t.config.Tools.WebSearch.DefaultEngine,
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "Maximum number of search results to return",
-						"minimum":     1,
-						"maximum":     50,
-						"default":     t.config.Tools.WebSearch.MaxResults,
-					},
-					"format": map[string]any{
-						"type":        "string",
-						"description": "Output format (text or json)",
-						"enum":        []string{"text", "json"},
-						"default":     "text",
-					},
-				},
-				"required": []string{"query"},
-			},
-		},
-	}
+	def := t.Manifest().Definition()
+	engine := agentdomain.PropertySchema(def, "engine")
+	engine["enum"] = t.engines()
+	engine["default"] = t.config.Tools.WebSearch.DefaultEngine
+	engine["description"] = fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(t.engines(), " or "), t.config.Tools.WebSearch.DefaultEngine)
+	agentdomain.PropertySchema(def, "limit")["default"] = t.config.Tools.WebSearch.MaxResults
+	return def
 }
 
 // Execute runs the web search tool with given arguments
@@ -98,7 +73,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*agen
 	query, ok := args["query"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "WebSearch",
+			ToolName:  ToolWebSearch,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -129,7 +104,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*agen
 		searchResult, err = t.searchDuckDuckGo(ctx, query, limit)
 	default:
 		return &agentdomain.ToolExecutionResult{
-			ToolName:  "WebSearch",
+			ToolName:  ToolWebSearch,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -140,7 +115,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*agen
 	success := err == nil
 
 	result := &agentdomain.ToolExecutionResult{
-		ToolName:  "WebSearch",
+		ToolName:  ToolWebSearch,
 		Arguments: args,
 		Success:   success,
 		Duration:  time.Since(start),

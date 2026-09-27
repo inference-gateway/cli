@@ -36,6 +36,18 @@ type Tool interface {
 	ShouldAlwaysExpand() bool
 }
 
+// CallApprover is implemented by tools that decide per call whether it needs
+// approval, ahead of the agent mode, such as the computer-use tools.
+type CallApprover interface {
+	RequiresApproval(args map[string]any, mode AgentMode) bool
+}
+
+// SessionTool is implemented by tools that keep state past their own call,
+// such as a running screen recording, and so need a chat or headless session.
+type SessionTool interface {
+	NeedsSession() bool
+}
+
 // FormatterType defines the context for formatting tool results
 type FormatterType string
 

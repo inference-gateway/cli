@@ -12,11 +12,11 @@ import (
 func NewTools(cfg *config.Config, driver browserdomain.BrowserDriver) map[string]agentdomain.Tool {
 	rateLimiter := utils.NewRateLimiter(cfg.BrowserUse.RateLimit)
 	return map[string]agentdomain.Tool{
-		"BrowserNavigate":   NewBrowserNavigateTool(cfg, rateLimiter, driver),
-		"BrowserClick":      NewBrowserClickTool(cfg, rateLimiter, driver),
-		"BrowserType":       NewBrowserTypeTool(cfg, rateLimiter, driver),
-		"BrowserRead":       NewBrowserReadTool(cfg, rateLimiter, driver),
-		"BrowserScreenshot": NewBrowserScreenshotTool(cfg, rateLimiter, driver),
-		"BrowserTabs":       NewBrowserTabsTool(cfg, rateLimiter, driver),
+		ToolNavigate:   NewBrowserNavigateTool(cfg, rateLimiter, driver),
+		ToolClick:      NewBrowserClickTool(cfg, rateLimiter, driver),
+		ToolType:       NewBrowserTypeTool(cfg, rateLimiter, driver),
+		ToolRead:       NewBrowserReadTool(cfg, rateLimiter, driver),
+		ToolScreenshot: NewBrowserScreenshotTool(cfg, rateLimiter, driver),
+		ToolTabs:       NewBrowserTabsTool(cfg, rateLimiter, driver),
 	}
 }

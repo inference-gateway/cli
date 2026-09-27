@@ -257,22 +257,22 @@ func subagentSourceLabel(dir string) string {
 // subagentInfo renders the agent as the shared SubagentInfo DTO for the
 // /agents listing. With no allowlist the subagent inherits the parent's tools
 // and runs ReadWrite, so ReadOnly is only true for a resolved read-only list.
-func (m markdownAgent) subagentInfo() agentdomain.SubagentInfo {
+func (m markdownAgent) subagentInfo(tools agentdomain.ToolManifestLookup) agentdomain.SubagentInfo {
 	return agentdomain.SubagentInfo{
 		Name:        m.name,
 		Description: m.description,
 		Model:       m.model,
 		Tools:       m.tools,
-		ReadOnly:    len(m.tools) > 0 && deriveSubagentMode(m.tools) == agentdomain.AgentModeReadOnly,
+		ReadOnly:    len(m.tools) > 0 && deriveSubagentMode(m.tools, tools) == agentdomain.AgentModeReadOnly,
 		Source:      m.source,
 	}
 }
 
 // deriveSubagentMode maps a resolved tool allowlist to a capability mode:
 // ReadOnly only when every allowed tool is read-only, else ReadWrite.
-func deriveSubagentMode(tools []string) agentdomain.AgentMode {
-	for _, name := range tools {
-		if !agentdomain.ReadOnlyTools[name] {
+func deriveSubagentMode(names []string, tools agentdomain.ToolManifestLookup) agentdomain.AgentMode {
+	for _, name := range names {
+		if !tools.Manifest(name).AvailableIn(agentdomain.AgentModeReadOnly) {
 			return agentdomain.AgentModeStandard
 		}
 	}
