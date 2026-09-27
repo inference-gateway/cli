@@ -13,6 +13,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 )
@@ -194,17 +195,23 @@ func truncateForJudge(s string, maxLen int) string {
 // userIntents returns the first and the latest non-hidden user messages of
 // the conversation: the session's root task and the most recent ask (which
 // may be a bare "continue" that only makes sense next to the root). With a
-// single user message root is empty so the judge is not shown it twice.
+// single user message root is empty so the judge is not shown it twice. With
+// only hidden user messages (a session started by plan approval) the first is used.
 func userIntents(repo convdomain.ConversationRepository) (root, latest string) {
 	if repo == nil {
 		return "", ""
 	}
+	var firstHidden string
 	for _, entry := range repo.GetMessages() {
-		if entry.Hidden || entry.Message.Role != sdk.User {
+		if entry.Message.Role != sdk.User {
 			continue
 		}
-		content, err := entry.Message.Content.AsMessageContent0()
-		if err != nil || strings.TrimSpace(content) == "" {
+		content := formatting.ExtractTextFromContent(entry.Message.Content, nil)
+		if strings.TrimSpace(content) == "" {
+			continue
+		}
+		if entry.Hidden {
+			firstHidden = cmp.Or(firstHidden, content)
 			continue
 		}
 		if root == "" {
@@ -214,7 +221,7 @@ func userIntents(repo convdomain.ConversationRepository) (root, latest string) {
 		latest = content
 	}
 	if latest == "" {
-		return "", root
+		return "", cmp.Or(root, firstHidden)
 	}
 	return root, latest
 }
