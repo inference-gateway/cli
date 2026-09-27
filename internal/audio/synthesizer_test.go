@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	binariesmocks "github.com/inference-gateway/cli/tests/mocks/binaries"
+
 	config "github.com/inference-gateway/cli/config"
 	huggingface "github.com/inference-gateway/cli/internal/platform/huggingface"
 )
@@ -75,25 +77,20 @@ func TestResolveTTSBinaryCandidateFallback(t *testing.T) {
 }
 
 func TestResolveTTSBinaryAutoDownload(t *testing.T) {
-	srv := binaryServer(t, "llama-tts", "#!fake-llama-tts", nil)
-	defer srv.Close()
+	want := filepath.Join(t.TempDir(), "llama-tts")
 
-	t.Setenv("HOME", t.TempDir())
-	resetVerified(t)
 	s := NewSynthesizer(config.TextToSpeechConfig{AutoDownload: true})
-	s.binaries.baseURL = srv.URL
-	s.binaries.installerURL = srv.URL + "/install.sh"
+	store := &binariesmocks.FakeStore{}
+	store.EnsureReturns(want, nil)
+	s.binaries = store
 	s.lookPath = notFound
 
 	got, err := s.resolveBinary(context.Background())
 	if err != nil {
 		t.Fatalf("resolveBinary: %v", err)
 	}
-	if !strings.HasSuffix(got, filepath.Join(".infer", "bin", "tools", "llama-tts")+exeSuffix()) {
-		t.Errorf("resolveBinary = %q, want the ~/.infer/bin/tools cache path", got)
-	}
-	if _, err := os.Stat(got); err != nil {
-		t.Errorf("installed binary missing: %v", err)
+	if got != want {
+		t.Errorf("resolveBinary = %q, want the ensured prebuilt path %q", got, want)
 	}
 }
 

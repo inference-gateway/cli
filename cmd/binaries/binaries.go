@@ -5,8 +5,8 @@ import (
 
 	cobra "github.com/spf13/cobra"
 
-	config "github.com/inference-gateway/cli/config"
-	audio "github.com/inference-gateway/cli/internal/audio"
+	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
+	binariesinfra "github.com/inference-gateway/cli/internal/binaries/infrastructure"
 )
 
 func NewCommand() *cobra.Command {
@@ -27,8 +27,7 @@ through these commands instead of downloading on their own.`,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version, _ := cmd.Flags().GetString("version")
-			return audio.NewBinaryStore(config.SpeechToTextConfig{AutoDownload: true}).
-				Install(cmd.Context(), version, args)
+			return binariesinfra.NewStore(true).Install(cmd.Context(), version, namesFromArgs(args))
 		},
 	}
 	installCommand.Flags().String("version", "", "pin a release tag (e.g. v0.5.0); default latest")
@@ -38,7 +37,7 @@ through these commands instead of downloading on their own.`,
 		Short:        "Report each prebuilt binary as missing, stale or current (read-only)",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			statuses, err := audio.NewBinaryStore(config.SpeechToTextConfig{}).Status(cmd.Context(), args)
+			statuses, err := binariesinfra.NewStore(false).Status(cmd.Context(), namesFromArgs(args))
 			if err != nil {
 				return err
 			}
@@ -49,7 +48,7 @@ through these commands instead of downloading on their own.`,
 					line += " (" + st.Detail + ")"
 				}
 				fmt.Println(line)
-				if st.State != audio.BinaryCurrent {
+				if st.State != binariesdomain.Current {
 					notCurrent++
 				}
 			}
@@ -62,4 +61,13 @@ through these commands instead of downloading on their own.`,
 
 	command.AddCommand(installCommand, statusCommand)
 	return command
+}
+
+// namesFromArgs adapts free CLI arguments to the domain's binary names.
+func namesFromArgs(args []string) []binariesdomain.Name {
+	names := make([]binariesdomain.Name, 0, len(args))
+	for _, arg := range args {
+		names = append(names, binariesdomain.Name(arg))
+	}
+	return names
 }

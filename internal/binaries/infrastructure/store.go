@@ -1,4 +1,4 @@
-package audio
+package infrastructure
 
 import (
 	"context"
@@ -16,11 +16,14 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
 	download "github.com/inference-gateway/cli/internal/platform/download"
 )
 
-// binariesBase is the release hosting prebuilt speech binaries (whisper-cli,
-// ffmpeg, llama-tts), published as <base>/<name>-<GOOS>-<GOARCH>[.exe] plus a
+var _ binariesdomain.Store = (*Store)(nil)
+
+// binariesBase is the release hosting the prebuilt tools (whisper-cli, ffmpeg,
+// llama-tts), published as <base>/<name>-<GOOS>-<GOARCH>[.exe] plus a
 // checksums.txt with sha256 sums. It tracks the latest release, matching the
 // gateway's own downloader so both fill the same ~/.infer/bin/tools cache.
 const binariesBase = "https://github.com/inference-gateway/binaries/releases/latest/download"
@@ -31,36 +34,15 @@ const binariesBase = "https://github.com/inference-gateway/binaries/releases/lat
 // differs from the release.
 const installerURL = "https://raw.githubusercontent.com/inference-gateway/binaries/main/install.sh"
 
-// defaultBinaries is the install.sh default set, used when no names are given.
-var defaultBinaries = []string{"whisper-cli", "ffmpeg", "llama-tts"}
-
 // verified records binaries confirmed current (or freshly installed) in this
-// process, so EnsureBinary checks the release at most once per binary. It is
-// reset in tests.
+// process, so Ensure checks the release at most once per binary. It is reset
+// in tests.
 var verified sync.Map
 
-// BinaryState compares a local binary against the latest release's checksums.txt.
-type BinaryState string
-
-const (
-	BinaryMissing BinaryState = "missing"
-	BinaryStale   BinaryState = "stale"
-	BinaryCurrent BinaryState = "current"
-)
-
-// BinaryStatus is the result of checking one local prebuilt binary.
-type BinaryStatus struct {
-	Name   string
-	Path   string
-	State  BinaryState
-	Detail string
-}
-
-// BinaryStore installs prebuilt speech helper binaries (whisper-cli, ffmpeg,
-// llama-tts) into ~/.infer/bin/tools on demand, mirroring ModelStore for GGML
-// models. It is the CLI's single owner of these binaries on a local machine.
-type BinaryStore struct {
-	cfg config.SpeechToTextConfig
+// Store installs the prebuilt tools published by the binaries release into
+// ~/.infer/bin/tools on demand, mirroring ModelStore for GGML models.
+type Store struct {
+	autoDownload bool
 
 	// baseURL, installerURL, client and shLookup are overridable in tests.
 	baseURL      string
@@ -69,10 +51,11 @@ type BinaryStore struct {
 	shLookup     func() (string, error)
 }
 
-// NewBinaryStore creates a BinaryStore from the speech-to-text config.
-func NewBinaryStore(cfg config.SpeechToTextConfig) *BinaryStore {
-	return &BinaryStore{
-		cfg:          cfg,
+// NewStore creates a Store; autoDownload gates Ensure's release check and
+// install, while Install and Status always run.
+func NewStore(autoDownload bool) *Store {
+	return &Store{
+		autoDownload: autoDownload,
 		baseURL:      binariesBase,
 		installerURL: installerURL,
 		client:       http.DefaultClient,
@@ -102,8 +85,8 @@ func binDir(sub string) (string, error) {
 }
 
 // assetName returns the release asset name for a binary on this platform.
-func assetName(name string) string {
-	return fmt.Sprintf("%s-%s-%s%s", name, runtime.GOOS, runtime.GOARCH, exeSuffix())
+func assetName(name binariesdomain.Name) string {
+	return fmt.Sprintf("%s-%s-%s%s", string(name), runtime.GOOS, runtime.GOARCH, exeSuffix())
 }
 
 // exeSuffix returns ".exe" on Windows, matching both the release asset names
@@ -115,24 +98,24 @@ func exeSuffix() string {
 	return ""
 }
 
-// EnsureBinary returns the local path to the named binary under
-// ~/.infer/bin/tools, installing it via install.sh when it is missing or its
-// sha256 no longer matches the latest release (release checked at most once
-// per process per binary). An unreachable release (offline) keeps an existing
-// binary, and auto_download disabled never installs or downloads.
-func (b *BinaryStore) EnsureBinary(ctx context.Context, name string) (string, error) {
+// Ensure returns the local path to the named binary under ~/.infer/bin/tools,
+// installing it via install.sh when it is missing or its sha256 no longer
+// matches the latest release (release checked at most once per process per
+// binary). An unreachable release (offline) keeps an existing binary, and
+// auto_download disabled never installs or downloads.
+func (s *Store) Ensure(ctx context.Context, name binariesdomain.Name) (string, error) {
 	dir, err := toolsBinDir()
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, name+exeSuffix())
+	path := filepath.Join(dir, string(name)+exeSuffix())
 
-	needsInstall, err := b.needsInstall(ctx, name, path)
+	needsInstall, err := s.needsInstall(ctx, name, path)
 	if err != nil {
 		return "", err
 	}
 	if needsInstall {
-		if err := b.runInstaller(ctx, "", []string{name}); err != nil {
+		if err := s.runInstaller(ctx, "", []binariesdomain.Name{name}); err != nil {
 			return "", err
 		}
 		markCurrent(name)
@@ -145,21 +128,21 @@ func (b *BinaryStore) EnsureBinary(ctx context.Context, name string) (string, er
 // auto_download disabled never checks the release: it errors on a missing
 // binary and keeps an existing one whatever its content, and an unreachable
 // release (offline) keeps an existing binary too.
-func (b *BinaryStore) needsInstall(ctx context.Context, name, path string) (bool, error) {
+func (s *Store) needsInstall(ctx context.Context, name binariesdomain.Name, path string) (bool, error) {
 	fi, statErr := os.Stat(path)
 	if statErr != nil || fi.IsDir() {
-		if !b.cfg.AutoDownload {
+		if !s.autoDownload {
 			return false, fmt.Errorf("%s not found at %s and auto_download is disabled", name, path)
 		}
 		return true, nil
 	}
-	if !b.cfg.AutoDownload {
+	if !s.autoDownload {
 		return false, nil
 	}
 	if _, checked := verified.Load(name); checked {
 		return false, nil
 	}
-	want, err := b.fetchChecksum(ctx, b.baseURL, assetName(name))
+	want, err := s.fetchChecksum(ctx, s.baseURL, assetName(name))
 	if err != nil {
 		return false, nil
 	}
@@ -177,11 +160,11 @@ func (b *BinaryStore) needsInstall(ctx context.Context, name, path string) (bool
 // Install runs install.sh for the named binaries (default: all) into
 // ~/.infer/bin/tools, upgrading any binary whose sha256 differs from the
 // release. version pins a release tag ("" = latest).
-func (b *BinaryStore) Install(ctx context.Context, version string, names []string) error {
+func (s *Store) Install(ctx context.Context, version string, names []binariesdomain.Name) error {
 	if len(names) == 0 {
-		names = defaultBinaries
+		names = binariesdomain.DefaultNames
 	}
-	if err := b.runInstaller(ctx, version, names); err != nil {
+	if err := s.runInstaller(ctx, version, names); err != nil {
 		return err
 	}
 	for _, name := range names {
@@ -193,11 +176,11 @@ func (b *BinaryStore) Install(ctx context.Context, version string, names []strin
 // Status reports each named binary (default: all) as missing, stale or current
 // by comparing its sha256 against the latest release's checksums.txt. It never
 // downloads.
-func (b *BinaryStore) Status(ctx context.Context, names []string) ([]BinaryStatus, error) {
+func (s *Store) Status(ctx context.Context, names []binariesdomain.Name) ([]binariesdomain.Status, error) {
 	if len(names) == 0 {
-		names = defaultBinaries
+		names = binariesdomain.DefaultNames
 	}
-	sums, err := b.checksums(ctx, b.baseURL)
+	sums, err := s.checksums(ctx, s.baseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -206,17 +189,17 @@ func (b *BinaryStore) Status(ctx context.Context, names []string) ([]BinaryStatu
 		return nil, err
 	}
 
-	statuses := make([]BinaryStatus, 0, len(names))
+	statuses := make([]binariesdomain.Status, 0, len(names))
 	for _, name := range names {
-		path := filepath.Join(dir, name+exeSuffix())
-		st := BinaryStatus{Name: name, Path: path, State: BinaryMissing}
+		path := filepath.Join(dir, string(name)+exeSuffix())
+		st := binariesdomain.Status{Name: name, Path: path, State: binariesdomain.Missing}
 		if want, ok := sums[assetName(name)]; !ok {
 			st.Detail = fmt.Sprintf("no prebuilt %s in the release for %s/%s", assetName(name), runtime.GOOS, runtime.GOARCH)
 		} else if got, err := fileChecksum(path); err == nil {
 			if strings.EqualFold(got, want) {
-				st.State = BinaryCurrent
+				st.State = binariesdomain.Current
 			} else {
-				st.State = BinaryStale
+				st.State = binariesdomain.Stale
 			}
 		}
 		statuses = append(statuses, st)
@@ -227,13 +210,13 @@ func (b *BinaryStore) Status(ctx context.Context, names []string) ([]BinaryStatu
 // runInstaller fetches install.sh and runs it with INSTALL_DIR pointed at the
 // tools dir and VERSION pinned (empty = latest). Without a POSIX shell it
 // falls back to the native Go downloader.
-func (b *BinaryStore) runInstaller(ctx context.Context, version string, names []string) error {
-	sh, err := b.shLookup()
+func (s *Store) runInstaller(ctx context.Context, version string, names []binariesdomain.Name) error {
+	sh, err := s.shLookup()
 	if err != nil {
-		return b.installNative(ctx, version, names)
+		return s.installNative(ctx, version, names)
 	}
 
-	script, err := b.fetchInstaller(ctx)
+	script, err := s.fetchInstaller(ctx)
 	if err != nil {
 		return err
 	}
@@ -244,19 +227,19 @@ func (b *BinaryStore) runInstaller(ctx context.Context, version string, names []
 		return err
 	}
 
-	cmd := exec.Command(sh, append([]string{script}, names...)...) //nolint:gosec // pinned shell running our fetched installer
+	cmd := exec.Command(sh, append([]string{script}, namesToStrings(names)...)...) //nolint:gosec // pinned shell running our fetched installer
 	cmd.Env = append(os.Environ(), "INSTALL_DIR="+dir, "VERSION="+version)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("install.sh failed for %s: %w: %s", strings.Join(names, ","), err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("install.sh failed for %s: %w: %s", strings.Join(namesToStrings(names), ","), err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
 
 // fetchInstaller downloads install.sh into a temp file and returns its path,
 // so a failed fetch fails the caller instead of piping an empty script into sh.
-func (b *BinaryStore) fetchInstaller(ctx context.Context) (string, error) {
-	body, err := b.get(ctx, b.installerURL)
+func (s *Store) fetchInstaller(ctx context.Context) (string, error) {
+	body, err := s.get(ctx, s.installerURL)
 	if err != nil {
 		return "", fmt.Errorf("fetching install.sh: %w", err)
 	}
@@ -282,10 +265,10 @@ func (b *BinaryStore) fetchInstaller(ctx context.Context) (string, error) {
 // installNative is the fallback when no POSIX shell is available (Windows
 // without sh): the Go downloader applies install.sh's rule - keep a binary
 // whose sha256 matches the release, replace anything else.
-func (b *BinaryStore) installNative(ctx context.Context, version string, names []string) error {
-	base := b.baseURL
+func (s *Store) installNative(ctx context.Context, version string, names []binariesdomain.Name) error {
+	base := s.baseURL
 	if version != "" {
-		base = strings.Replace(b.baseURL, "/releases/latest/download", "/releases/download/"+version, 1)
+		base = strings.Replace(s.baseURL, "/releases/latest/download", "/releases/download/"+version, 1)
 	}
 	dir, err := toolsBinDir()
 	if err != nil {
@@ -294,18 +277,18 @@ func (b *BinaryStore) installNative(ctx context.Context, version string, names [
 
 	for _, name := range names {
 		asset := assetName(name)
-		want, err := b.fetchChecksum(ctx, base, asset)
+		want, err := s.fetchChecksum(ctx, base, asset)
 		if err != nil {
 			return err
 		}
-		path := filepath.Join(dir, name+exeSuffix())
+		path := filepath.Join(dir, string(name)+exeSuffix())
 		if got, err := fileChecksum(path); err == nil && strings.EqualFold(got, want) {
 			continue
 		}
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("creating bin directory: %w", err)
 		}
-		if err := b.download(ctx, base+"/"+asset, path, want); err != nil {
+		if err := s.download(ctx, base+"/"+asset, path, want); err != nil {
 			return err
 		}
 	}
@@ -314,16 +297,16 @@ func (b *BinaryStore) installNative(ctx context.Context, version string, names [
 
 // markCurrent records a binary as current for this process and drops any
 // legacy ~/.infer/bin/<name> copy now that the tools dir holds a current one.
-func markCurrent(name string) {
+func markCurrent(name binariesdomain.Name) {
 	verified.Store(name, struct{}{})
 	if legacy, err := legacyBinDir(); err == nil {
-		_ = os.Remove(filepath.Join(legacy, name+exeSuffix()))
+		_ = os.Remove(filepath.Join(legacy, string(name)+exeSuffix()))
 	}
 }
 
 // fetchChecksum returns the expected sha256 for asset from base's checksums.txt.
-func (b *BinaryStore) fetchChecksum(ctx context.Context, base, asset string) (string, error) {
-	sums, err := b.checksums(ctx, base)
+func (s *Store) fetchChecksum(ctx context.Context, base, asset string) (string, error) {
+	sums, err := s.checksums(ctx, base)
 	if err != nil {
 		return "", err
 	}
@@ -335,8 +318,8 @@ func (b *BinaryStore) fetchChecksum(ctx context.Context, base, asset string) (st
 }
 
 // checksums fetches and parses base's checksums.txt ("<hex>  <asset>" per line).
-func (b *BinaryStore) checksums(ctx context.Context, base string) (map[string]string, error) {
-	body, err := b.get(ctx, base+"/checksums.txt")
+func (s *Store) checksums(ctx context.Context, base string) (map[string]string, error) {
+	body, err := s.get(ctx, base+"/checksums.txt")
 	if err != nil {
 		return nil, fmt.Errorf("fetching binary checksums: %w", err)
 	}
@@ -374,8 +357,8 @@ func fileChecksum(path string) (string, error) {
 
 // download fetches url into dstPath atomically (temp file + rename), verifying
 // the sha256 checksum before the file becomes visible, and marks it executable.
-func (b *BinaryStore) download(ctx context.Context, url, dstPath, wantSum string) error {
-	body, err := b.get(ctx, url)
+func (s *Store) download(ctx context.Context, url, dstPath, wantSum string) error {
+	body, err := s.get(ctx, url)
 	if err != nil {
 		return fmt.Errorf("downloading %s: %w", filepath.Base(dstPath), err)
 	}
@@ -412,14 +395,14 @@ func (b *BinaryStore) download(ctx context.Context, url, dstPath, wantSum string
 }
 
 // get issues a GET and returns the body, following GitHub release redirects.
-func (b *BinaryStore) get(ctx context.Context, url string) (io.ReadCloser, error) {
+func (s *Store) get(ctx context.Context, url string) (io.ReadCloser, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request for %s: %w", url, err)
 	}
 	req.Header.Set("User-Agent", "inference-gateway-cli")
 
-	resp, err := b.client.Do(req)
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -428,4 +411,13 @@ func (b *BinaryStore) get(ctx context.Context, url string) (io.ReadCloser, error
 		return nil, fmt.Errorf("status %d from %s", resp.StatusCode, url)
 	}
 	return resp.Body, nil
+}
+
+// namesToStrings adapts []binariesdomain.Name for exec's argv, which is []string.
+func namesToStrings(names []binariesdomain.Name) []string {
+	out := make([]string, len(names))
+	for i, name := range names {
+		out[i] = string(name)
+	}
+	return out
 }

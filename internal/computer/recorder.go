@@ -17,7 +17,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	audio "github.com/inference-gateway/cli/internal/audio"
+	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
+	binariesinfra "github.com/inference-gateway/cli/internal/binaries/infrastructure"
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	capture "github.com/inference-gateway/cli/internal/computer/infrastructure/capture"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
@@ -426,7 +427,7 @@ func resolveFFmpeg(ctx context.Context) (string, error) {
 	if path, err := exec.LookPath("ffmpeg"); err == nil {
 		return path, nil
 	}
-	path, err := audio.NewBinaryStore(config.SpeechToTextConfig{AutoDownload: true}).EnsureBinary(ctx, "ffmpeg")
+	path, err := binariesinfra.NewStore(true).Ensure(ctx, binariesdomain.FFmpeg)
 	if err != nil {
 		return "", fmt.Errorf("ffmpeg is not on PATH and downloading it failed: %w; install ffmpeg (e.g. `brew install ffmpeg`, `apt install ffmpeg`)", err)
 	}

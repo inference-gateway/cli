@@ -1,4 +1,4 @@
-package audio
+package infrastructure
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"sync"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
+	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
 )
 
 // resetVerified clears the package-level process cache so tests stay isolated.
@@ -25,18 +25,18 @@ func resetVerified(t *testing.T) {
 	t.Cleanup(func() { verified = sync.Map{} })
 }
 
-// testBinaryStore returns a store whose tools dir is redirected via HOME and
+// testStore returns a store whose tools dir is redirected via HOME and
 // whose baseURL/installerURL point at srv.
-func testBinaryStore(t *testing.T, autoDownload bool, srv *httptest.Server) *BinaryStore {
+func testStore(t *testing.T, autoDownload bool, srv *httptest.Server) *Store {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	resetVerified(t)
-	m := NewBinaryStore(config.SpeechToTextConfig{AutoDownload: autoDownload})
+	s := NewStore(autoDownload)
 	if srv != nil {
-		m.baseURL = srv.URL
-		m.installerURL = srv.URL + "/install.sh"
+		s.baseURL = srv.URL
+		s.installerURL = srv.URL + "/install.sh"
 	}
-	return m
+	return s
 }
 
 // binaryServer serves checksums.txt covering all default binaries and the
@@ -45,15 +45,15 @@ func testBinaryStore(t *testing.T, autoDownload bool, srv *httptest.Server) *Bin
 // the counter is non-nil), simulating a successful install.
 func binaryServer(t *testing.T, name, content string, installerFetches *int) *httptest.Server {
 	t.Helper()
-	asset := assetName(name)
+	asset := assetName(binariesdomain.Name(name))
 	sum := sha256hex(content)
 	script := "#!/bin/sh\nmkdir -p \"$INSTALL_DIR\"\nprintf '%s' " + strconv.Quote(content) + " > \"$INSTALL_DIR/$1\"\nchmod +x \"$INSTALL_DIR/$1\"\n"
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/checksums.txt"):
-			_, _ = fmt.Fprintf(w, "%s  %s\n", sum, assetName("whisper-cli"))
-			_, _ = fmt.Fprintf(w, "%s  %s\n", sum, assetName("ffmpeg"))
-			_, _ = fmt.Fprintf(w, "%s  %s\n", sum, assetName("llama-tts"))
+			_, _ = fmt.Fprintf(w, "%s  %s\n", sum, assetName(binariesdomain.WhisperCLI))
+			_, _ = fmt.Fprintf(w, "%s  %s\n", sum, assetName(binariesdomain.FFmpeg))
+			_, _ = fmt.Fprintf(w, "%s  %s\n", sum, assetName(binariesdomain.LlamaTTS))
 		case strings.HasSuffix(r.URL.Path, "/"+asset):
 			_, _ = w.Write([]byte(content))
 		case strings.HasSuffix(r.URL.Path, "/install.sh"):
@@ -108,17 +108,17 @@ func sha256hex(s string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func TestEnsureBinaryInstalls(t *testing.T) {
+func TestEnsureInstalls(t *testing.T) {
 	srv := binaryServer(t, "whisper-cli", "#!fake-binary", nil)
 	defer srv.Close()
 
-	m := testBinaryStore(t, true, srv)
-	path, err := m.EnsureBinary(context.Background(), "whisper-cli")
+	s := testStore(t, true, srv)
+	path, err := s.Ensure(context.Background(), binariesdomain.WhisperCLI)
 	if err != nil {
-		t.Fatalf("EnsureBinary: %v", err)
+		t.Fatalf("Ensure: %v", err)
 	}
 	if path != toolsPath(t, "whisper-cli") {
-		t.Errorf("EnsureBinary = %q, want the tools path %q", path, toolsPath(t, "whisper-cli"))
+		t.Errorf("Ensure = %q, want the tools path %q", path, toolsPath(t, "whisper-cli"))
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -138,37 +138,32 @@ func TestEnsureBinaryInstalls(t *testing.T) {
 	}
 }
 
-func TestEnsureBinaryCurrentSkipped(t *testing.T) {
+func TestEnsureCurrentSkipped(t *testing.T) {
 	var installerFetches int
 	srv := binaryServer(t, "whisper-cli", "#!fake-binary", &installerFetches)
 	defer srv.Close()
 
-	m := testBinaryStore(t, true, srv)
-	if err := os.MkdirAll(filepath.Dir(toolsPath(t, "whisper-cli")), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(toolsPath(t, "whisper-cli"), []byte("#!fake-binary"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	s := testStore(t, true, srv)
+	writeBinary(t, toolsPath(t, "whisper-cli"), "#!fake-binary")
 
-	path, err := m.EnsureBinary(context.Background(), "whisper-cli")
+	path, err := s.Ensure(context.Background(), binariesdomain.WhisperCLI)
 	if err != nil {
-		t.Fatalf("EnsureBinary: %v", err)
+		t.Fatalf("Ensure: %v", err)
 	}
 	if path != toolsPath(t, "whisper-cli") {
-		t.Errorf("EnsureBinary = %q, want cached %q", path, toolsPath(t, "whisper-cli"))
+		t.Errorf("Ensure = %q, want cached %q", path, toolsPath(t, "whisper-cli"))
 	}
 	if installerFetches != 0 {
 		t.Errorf("install.sh fetched %d times for a current binary, want 0", installerFetches)
 	}
 }
 
-func TestEnsureBinaryStaleReplaced(t *testing.T) {
+func TestEnsureStaleReplaced(t *testing.T) {
 	var installerFetches int
 	srv := binaryServer(t, "whisper-cli", "#!fake-binary-v2", &installerFetches)
 	defer srv.Close()
 
-	m := testBinaryStore(t, true, srv)
+	s := testStore(t, true, srv)
 	writeBinary(t, toolsPath(t, "whisper-cli"), "#!fake-binary-v1")
 	legacy, err := legacyBinDir()
 	if err != nil {
@@ -176,9 +171,9 @@ func TestEnsureBinaryStaleReplaced(t *testing.T) {
 	}
 	writeBinary(t, filepath.Join(legacy, "whisper-cli"), "#!fake-binary-v1")
 
-	path, err := m.EnsureBinary(context.Background(), "whisper-cli")
+	path, err := s.Ensure(context.Background(), binariesdomain.WhisperCLI)
 	if err != nil {
-		t.Fatalf("EnsureBinary: %v", err)
+		t.Fatalf("Ensure: %v", err)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -195,17 +190,17 @@ func TestEnsureBinaryStaleReplaced(t *testing.T) {
 	}
 }
 
-func TestEnsureBinaryStaleReplacedNative(t *testing.T) {
+func TestEnsureStaleReplacedNative(t *testing.T) {
 	srv := binaryServer(t, "whisper-cli", "#!fake-binary-v2", nil)
 	defer srv.Close()
 
-	m := testBinaryStore(t, true, srv)
-	m.shLookup = func() (string, error) { return "", fmt.Errorf("no POSIX shell") }
+	s := testStore(t, true, srv)
+	s.shLookup = func() (string, error) { return "", fmt.Errorf("no POSIX shell") }
 	writeBinary(t, toolsPath(t, "whisper-cli"), "#!fake-binary-v1")
 
-	path, err := m.EnsureBinary(context.Background(), "whisper-cli")
+	path, err := s.Ensure(context.Background(), binariesdomain.WhisperCLI)
 	if err != nil {
-		t.Fatalf("EnsureBinary: %v", err)
+		t.Fatalf("Ensure: %v", err)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -216,19 +211,19 @@ func TestEnsureBinaryStaleReplacedNative(t *testing.T) {
 	}
 }
 
-func TestEnsureBinaryOfflineKeepsExisting(t *testing.T) {
+func TestEnsureOfflineKeepsExisting(t *testing.T) {
 	srv := binaryServer(t, "whisper-cli", "#!fake-binary", nil)
-	m := testBinaryStore(t, true, srv)
+	s := testStore(t, true, srv)
 	existing := toolsPath(t, "whisper-cli")
 	writeBinary(t, existing, "#!local-binary")
 	srv.Close()
 
-	path, err := m.EnsureBinary(context.Background(), "whisper-cli")
+	path, err := s.Ensure(context.Background(), binariesdomain.WhisperCLI)
 	if err != nil {
-		t.Fatalf("EnsureBinary kept the binary offline: %v", err)
+		t.Fatalf("Ensure kept the binary offline: %v", err)
 	}
 	if path != existing {
-		t.Errorf("EnsureBinary = %q, want the existing %q", path, existing)
+		t.Errorf("Ensure = %q, want the existing %q", path, existing)
 	}
 	data, err := os.ReadFile(existing)
 	if err != nil || string(data) != "#!local-binary" {
@@ -236,39 +231,39 @@ func TestEnsureBinaryOfflineKeepsExisting(t *testing.T) {
 	}
 }
 
-func TestEnsureBinaryChecksOncePerProcess(t *testing.T) {
+func TestEnsureChecksOncePerProcess(t *testing.T) {
 	srv := binaryServer(t, "whisper-cli", "#!fake-binary", nil)
-	m := testBinaryStore(t, true, srv)
+	s := testStore(t, true, srv)
 	writeBinary(t, toolsPath(t, "whisper-cli"), "#!fake-binary")
 
-	if _, err := m.EnsureBinary(context.Background(), "whisper-cli"); err != nil {
-		t.Fatalf("first EnsureBinary: %v", err)
+	if _, err := s.Ensure(context.Background(), binariesdomain.WhisperCLI); err != nil {
+		t.Fatalf("first Ensure: %v", err)
 	}
 	srv.Close()
 
-	path, err := m.EnsureBinary(context.Background(), "whisper-cli")
+	path, err := s.Ensure(context.Background(), binariesdomain.WhisperCLI)
 	if err != nil {
-		t.Fatalf("second EnsureBinary hit the (closed) release despite the per-process check: %v", err)
+		t.Fatalf("second Ensure hit the (closed) release despite the per-process check: %v", err)
 	}
 	if path != toolsPath(t, "whisper-cli") {
-		t.Errorf("EnsureBinary = %q, want %q", path, toolsPath(t, "whisper-cli"))
+		t.Errorf("Ensure = %q, want %q", path, toolsPath(t, "whisper-cli"))
 	}
 }
 
-func TestEnsureBinaryStaleKeptWhenAutoDownloadDisabled(t *testing.T) {
+func TestEnsureStaleKeptWhenAutoDownloadDisabled(t *testing.T) {
 	srv := binaryServer(t, "whisper-cli", "#!fake-binary-v2", nil)
 	defer srv.Close()
 
-	m := testBinaryStore(t, false, srv)
+	s := testStore(t, false, srv)
 	existing := toolsPath(t, "whisper-cli")
 	writeBinary(t, existing, "#!fake-binary-v1")
 
-	path, err := m.EnsureBinary(context.Background(), "whisper-cli")
+	path, err := s.Ensure(context.Background(), binariesdomain.WhisperCLI)
 	if err != nil {
-		t.Fatalf("EnsureBinary: %v", err)
+		t.Fatalf("Ensure: %v", err)
 	}
 	if path != existing {
-		t.Errorf("EnsureBinary = %q, want the existing %q", path, existing)
+		t.Errorf("Ensure = %q, want the existing %q", path, existing)
 	}
 	data, err := os.ReadFile(existing)
 	if err != nil || string(data) != "#!fake-binary-v1" {
@@ -276,20 +271,20 @@ func TestEnsureBinaryStaleKeptWhenAutoDownloadDisabled(t *testing.T) {
 	}
 }
 
-func TestEnsureBinaryAutoDownloadDisabled(t *testing.T) {
-	m := testBinaryStore(t, false, nil)
-	_, err := m.EnsureBinary(context.Background(), "whisper-cli")
+func TestEnsureAutoDownloadDisabled(t *testing.T) {
+	s := testStore(t, false, nil)
+	_, err := s.Ensure(context.Background(), binariesdomain.WhisperCLI)
 	if err == nil || !strings.Contains(err.Error(), "auto_download is disabled") {
 		t.Fatalf("expected auto_download disabled error, got %v", err)
 	}
 }
 
-func TestEnsureBinaryUnsupportedPlatform(t *testing.T) {
+func TestEnsureUnsupportedPlatform(t *testing.T) {
 	srv := unsupportedPlatformServer()
 	defer srv.Close()
 
-	m := testBinaryStore(t, true, srv)
-	_, err := m.EnsureBinary(context.Background(), "whisper-cli")
+	s := testStore(t, true, srv)
+	_, err := s.Ensure(context.Background(), binariesdomain.WhisperCLI)
 	if err == nil || !strings.Contains(err.Error(), "install.sh failed") {
 		t.Fatalf("expected the installer's no-asset error, got %v", err)
 	}
@@ -299,18 +294,18 @@ func TestStatusStates(t *testing.T) {
 	srv := binaryServer(t, "whisper-cli", "#!fake-binary", nil)
 	defer srv.Close()
 
-	m := testBinaryStore(t, true, srv)
+	s := testStore(t, true, srv)
 	writeBinary(t, toolsPath(t, "whisper-cli"), "#!fake-binary")
 	writeBinary(t, toolsPath(t, "ffmpeg"), "#!stale-ffmpeg")
 
-	statuses, err := m.Status(context.Background(), nil)
+	statuses, err := s.Status(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
-	want := map[string]BinaryState{
-		"whisper-cli": BinaryCurrent,
-		"ffmpeg":      BinaryStale,
-		"llama-tts":   BinaryMissing,
+	want := map[binariesdomain.Name]binariesdomain.State{
+		binariesdomain.WhisperCLI: binariesdomain.Current,
+		binariesdomain.FFmpeg:     binariesdomain.Stale,
+		binariesdomain.LlamaTTS:   binariesdomain.Missing,
 	}
 	if len(statuses) != len(want) {
 		t.Fatalf("Status returned %d entries, want %d", len(statuses), len(want))
@@ -326,13 +321,13 @@ func TestStatusUnknownName(t *testing.T) {
 	srv := binaryServer(t, "whisper-cli", "#!fake-binary", nil)
 	defer srv.Close()
 
-	m := testBinaryStore(t, true, srv)
-	statuses, err := m.Status(context.Background(), []string{"not-a-tool"})
+	s := testStore(t, true, srv)
+	statuses, err := s.Status(context.Background(), []binariesdomain.Name{"not-a-tool"})
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
 	st := statuses[0]
-	if st.State != BinaryMissing {
+	if st.State != binariesdomain.Missing {
 		t.Errorf("unknown name state = %q, want missing", st.State)
 	}
 	if !strings.Contains(st.Detail, "no prebuilt") {
