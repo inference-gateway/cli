@@ -36,10 +36,10 @@ type ComputerUseConfig struct {
 // recording tools.
 type RecordingConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
-	MaxDuration     int    `yaml:"max_duration" mapstructure:"max_duration"` // seconds
+	MaxDuration     int    `yaml:"max_duration" mapstructure:"max_duration"`
 	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
 	Framerate       int    `yaml:"framerate" mapstructure:"framerate"`
-	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"` // nil = required
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // ApprovalRequired reports whether RecordStart must be approved outside
