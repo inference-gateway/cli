@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -683,23 +683,24 @@ func (t *AgentTool) lookupMarkdownAgent(name string) (markdownAgent, bool) {
 	return markdownAgent{}, false
 }
 
+// sortedMarkdownAgents returns the loaded agents in name order without
+// mutating the tool's slice.
+func (t *AgentTool) sortedMarkdownAgents() []markdownAgent {
+	sorted := slices.Clone(t.mdAgents)
+	slices.SortFunc(sorted, func(a, b markdownAgent) int { return strings.Compare(a.name, b.name) })
+	return sorted
+}
+
 // markdownAgentCatalog renders the Available agents list appended to the tool
 // description, or "" when no agents are loaded (description stays unchanged).
 func (t *AgentTool) markdownAgentCatalog() string {
 	if len(t.mdAgents) == 0 {
 		return ""
 	}
-	names := make([]string, 0, len(t.mdAgents))
-	for _, agent := range t.mdAgents {
-		names = append(names, agent.name)
-	}
-	sort.Strings(names)
-
 	var out strings.Builder
 	out.WriteString("Available agents:")
-	for _, name := range names {
-		agent, _ := t.lookupMarkdownAgent(name)
-		fmt.Fprintf(&out, "\n- %s: %s", name, agent.description)
+	for _, agent := range t.sortedMarkdownAgents() {
+		fmt.Fprintf(&out, "\n- %s: %s", agent.name, agent.description)
 	}
 	return out.String()
 }
@@ -708,10 +709,9 @@ func (t *AgentTool) markdownAgentCatalog() string {
 // unknown-agent error message.
 func (t *AgentTool) markdownAgentNames() []string {
 	names := make([]string, 0, len(t.mdAgents))
-	for _, agent := range t.mdAgents {
+	for _, agent := range t.sortedMarkdownAgents() {
 		names = append(names, agent.name)
 	}
-	sort.Strings(names)
 	return names
 }
 
