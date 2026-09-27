@@ -73,7 +73,7 @@ happens in `capture-pane` or Screenshot, which are free. Never record to
 probe geometry or timing: the geometry is fixed above and the rehearsal
 tells you the timing.
 
-1. Build with the repo's own command. AGENTS.md, CLAUDE.md, the README or
+1. Build with the repo's own command. AGENTS.md, the README or
    the Taskfile/Makefile/package.json say how - and often how to run the app
    without real credentials (a mock or demo mode). Prefer that over real API
    keys. Put fixtures and sample input under `/tmp`, never in the repository.
