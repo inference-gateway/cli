@@ -561,6 +561,29 @@ func (c *A2AAgentsShortcut) Execute(ctx context.Context, args []string) (Shortcu
 	}, nil
 }
 
+// SubagentsShortcut shows the Markdown-defined subagent presets
+// (.infer/agents/*.md) and their capabilities.
+type SubagentsShortcut struct{}
+
+func NewSubagentsShortcut() *SubagentsShortcut {
+	return &SubagentsShortcut{}
+}
+
+func (c *SubagentsShortcut) GetName() string { return "agents" }
+func (c *SubagentsShortcut) GetDescription() string {
+	return "Show configured Markdown subagents and their capabilities"
+}
+func (c *SubagentsShortcut) GetUsage() string              { return "/agents" }
+func (c *SubagentsShortcut) CanExecute(args []string) bool { return len(args) == 0 }
+
+func (c *SubagentsShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+	return ShortcutResult{
+		Output:     "",
+		Success:    true,
+		SideEffect: SideEffectShowSubagents,
+	}, nil
+}
+
 // EffortShortcut shows or sets the reasoning effort level applied to
 // subsequent requests. Anthropic models only - other providers reject the
 // switch. Runtime-only, like /model - agent.reasoning_effort in config

@@ -48,4 +48,5 @@ const (
 	SideEffectShowExplorer
 	SideEffectShowToolsList
 	SideEffectShowA2AAgents
+	SideEffectShowSubagents
 )

@@ -99,6 +99,7 @@ type ChatApplication struct {
 	helpView             *components.HelpView
 	toolsView            *components.ToolsView
 	a2aAgentsView        *components.A2AAgentsView
+	subagentsView        *components.SubagentsView
 
 	snippetAttachmentsView *components.SnippetAttachmentsView
 
@@ -308,6 +309,7 @@ func NewChatApplication(
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.toolsView = components.NewToolsView(app.toolService, app.stateManager, styleProvider)
 	app.a2aAgentsView = components.NewA2AAgentsView(app.stateManager, styleProvider)
+	app.subagentsView = components.NewSubagentsView(app.toolService, styleProvider)
 	app.installOpentaskView = components.NewInstallOpentaskView(styleProvider)
 
 	app.installOpentaskView.SetSecretsExistChecker(func(appID string) bool {
@@ -475,6 +477,10 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if viewBefore == tui.ViewStateA2AAgents && app.lastView != tui.ViewStateA2AAgents {
 		app.a2aAgentsView.Reset()
+	}
+
+	if viewBefore == tui.ViewStateSubagents && app.lastView != tui.ViewStateSubagents {
+		app.subagentsView.Reset()
 	}
 
 	var cmds []tea.Cmd
@@ -661,6 +667,8 @@ func (app *ChatApplication) dispatchViewMessage(currentView tui.ViewState, msg t
 		return app.handleToolsListView(msg)
 	case tui.ViewStateA2AAgents:
 		return app.handleA2AAgentsView(msg)
+	case tui.ViewStateSubagents:
+		return app.handleSubagentsView(msg)
 	default:
 		return nil
 	}
@@ -1005,6 +1013,8 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderToolsList()
 	case tui.ViewStateA2AAgents:
 		return app.renderA2AAgents()
+	case tui.ViewStateSubagents:
+		return app.renderSubagents()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -1666,6 +1676,44 @@ func (app *ChatApplication) renderA2AAgents() string {
 	app.a2aAgentsView.SetWidth(width)
 	app.a2aAgentsView.SetHeight(height)
 	return app.a2aAgentsView.View().Content
+}
+
+// handleSubagentsView drives the read-only Markdown subagents list, mirroring
+// handleA2AAgentsView: a leftover cancelled flag means re-entry, so Reset
+// rebuilds the items from the loaded presets.
+func (app *ChatApplication) handleSubagentsView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.subagentsView.IsCancelled() {
+		app.subagentsView.Reset()
+	}
+
+	model, cmd := app.subagentsView.Update(msg)
+	app.subagentsView = model.(*components.SubagentsView)
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	if app.subagentsView.IsCancelled() {
+		if err := app.stateManager.TransitionToView(tui.ViewStateChat); err != nil {
+			cmds = append(cmds, func() tea.Msg {
+				return tui.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to return to chat: %v", err),
+					Sticky: false,
+				}
+			})
+		}
+		app.focusedComponent = app.inputView
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) renderSubagents() string {
+	width, height := app.stateManager.GetDimensions()
+	app.subagentsView.SetWidth(width)
+	app.subagentsView.SetHeight(height)
+	return app.subagentsView.View().Content
 }
 
 func (app *ChatApplication) renderConversationSelection() string {

@@ -228,3 +228,32 @@ func TestA2AAgentsShortcut_Execute_OpensAgentsView(t *testing.T) {
 		t.Error("expected Success to be true")
 	}
 }
+
+func TestSubagentsShortcut_Execute_OpensSubagentsView(t *testing.T) {
+	subagents := NewSubagentsShortcut()
+
+	if subagents.GetName() != "agents" {
+		t.Errorf("expected the /agents name, got: %q", subagents.GetName())
+	}
+	if !subagents.CanExecute(nil) {
+		t.Error("expected /agents to accept no arguments")
+	}
+	if subagents.CanExecute([]string{"extra"}) {
+		t.Error("expected /agents to reject arguments")
+	}
+
+	res, err := subagents.Execute(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if res.Output != "" {
+		t.Errorf("expected empty output so nothing is appended to the conversation, got: %q", res.Output)
+	}
+	if res.SideEffect != SideEffectShowSubagents {
+		t.Errorf("expected SideEffectShowSubagents to drive the view, got: %v", res.SideEffect)
+	}
+	if !res.Success {
+		t.Error("expected Success to be true")
+	}
+}
