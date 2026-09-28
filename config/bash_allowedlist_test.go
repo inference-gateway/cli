@@ -256,10 +256,21 @@ func TestIsBashCommandAllowed_MkdirLn(t *testing.T) {
 		"ln -s AGENTS.md CLAUDE.md",
 		"ln -s ../.agents/skills .claude/skills",
 	}
+	denied := []string{
+		"ln ~/.aws/credentials creds",
+		"ln -sf /dev/null main.go",
+		"ln -s /dev/null main.go -f",
+		"ln --force -s /dev/null main.go",
+	}
 	for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModePlan, agentdomain.AgentModeStandard} {
 		for _, cmd := range allowed {
 			if !cfg.IsBashCommandAllowed(cmd, mode) {
 				t.Errorf("expected %q to be allowed in %s mode", cmd, mode)
+			}
+		}
+		for _, cmd := range denied {
+			if cfg.IsBashCommandAllowed(cmd, mode) {
+				t.Errorf("expected %q NOT to be allowed in %s mode", cmd, mode)
 			}
 		}
 	}
