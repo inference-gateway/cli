@@ -1,16 +1,20 @@
-package render
+package agui
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sync"
 
 	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
 	uuid "github.com/google/uuid"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	render "github.com/inference-gateway/cli/internal/platform/render"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -220,4 +224,161 @@ func (e *aguiEncoder) emitComputerUseResumed(reqID string) {
 func (e *aguiEncoder) emitScreenRecording(active bool) {
 	e.emit(aguievents.NewCustomEvent("screen_recording",
 		aguievents.WithValue(map[string]bool{"active": active})))
+}
+
+// RenderAGUI renders events as newline-delimited AG-UI protocol events. The
+// run gets exactly one RUN_STARTED and one terminal event (RUN_FINISHED or
+// RUN_ERROR); per-turn events in between carry deltas, tool calls, and results.
+// When approvals is non-nil it acts as the IPC approval broker, same as
+// RenderJSON. A ComputerUseResumedEvent clears any error carried over from
+// the paused (cancelled) run, same as RenderJSON. After the channel closes the
+// session stats from repo are attached to RUN_FINISHED's result, the AG-UI
+// counterpart of RenderJSON's session_stats line. After each LLM step the same
+// cumulative stats are also published as a token_usage CUSTOM event, so clients
+// track usage mid-run (the desktop status bar) instead of only at the end.
+// RenderAGUI streams the run as AG-UI events. jobs, when non-nil, is the
+// supervisor's snapshot and is published as a background_tasks event after every
+// tool result (a job may have been submitted) and every drained queue note (a
+// job just finished). ponytail: intermediate job state changes are not
+// published; bridge the UI notifier into the chat stream if a client needs them.
+//
+//nolint:gocyclo,cyclop // cohesive event switch; each case renders one ChatEvent variant
+func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob) error {
+	e := &aguiEncoder{w: w, threadID: sessionID}
+	e.emitRunStarted(sessionID)
+	snapshot := func() {
+		if jobs != nil {
+			e.emitBackgroundTasks(jobs())
+		}
+	}
+
+	var runErr error
+	for event := range events {
+		switch ev := event.(type) {
+		case agentdomain.ChatChunkEvent:
+			if ev.ReasoningContent != "" {
+				e.streamReasoning(ev.ReasoningContent)
+			}
+			if ev.Content != "" {
+				e.streamText(ev.Content)
+			}
+		case agentdomain.ChatCompleteEvent:
+			e.closeMessage()
+			for _, tc := range ev.ToolCalls {
+				e.emitToolCallStart(tc.ID, tc.Function.Name)
+				e.emitToolCallArgs(tc.ID, tc.Function.Arguments)
+				e.emitToolCallEnd(tc.ID)
+			}
+			if usage := sessionResult(model, repo); usage != nil {
+				e.emitTokenUsage(usage)
+			}
+			if err := render.CompletionErr(ev); err != nil {
+				runErr = err
+			}
+		case agentdomain.ChatErrorEvent:
+			runErr = ev.Error
+		case agentdomain.UserMessageChatEvent:
+			e.emitUserMessage(ev.Content)
+		case agentdomain.ToolExecutionCompletedEvent:
+			for _, r := range ev.Results {
+				if r != nil {
+					e.emitToolResult(r)
+				}
+			}
+			snapshot()
+		case agentdomain.MessageQueuedEvent:
+			if note, ok := render.QueuedNote(ev); ok {
+				e.emitQueuedMessage(note)
+			}
+			snapshot()
+		case agentdomain.TodoUpdateChatEvent:
+			e.emitTodos(ev.Todos)
+		case agentdomain.JudgeVerdictChatEvent:
+			e.emitJudgeVerdict(ev)
+			render.JudgeStderr(ev)
+		case agentdomain.ToolApprovalRequestedEvent:
+			e.emitApprovalRequest(ipc.ApprovalRequest{
+				Type: "approval_request", ToolName: ev.ToolCall.Function.Name,
+				ToolArgs: ev.ToolCall.Function.Arguments, ToolCallID: ev.ToolCall.ID,
+			})
+			render.AnswerApproval(ev, approvals)
+		case agentdomain.UserQuestionRequestedEvent:
+			e.emitUserQuestionRequest(render.UserQuestionRequest(ev))
+			render.AnswerQuestions(ev, questions)
+		case agentdomain.ComputerUsePausedEvent:
+			e.emitComputerUsePaused(ev.RequestID)
+		case agentdomain.ComputerUseResumedEvent:
+			e.emitComputerUseResumed(ev.RequestID)
+			runErr = nil
+		case agentdomain.ScreenRecordingStatusEvent:
+			e.emitScreenRecording(ev.Active)
+		}
+	}
+
+	e.closeMessage()
+	if runErr != nil {
+		e.emitRunError(runErr.Error())
+		return fmt.Errorf("agent error: %w", runErr)
+	}
+	e.emitRunFinished(sessionResult(model, repo))
+	return nil
+}
+
+// sessionResult builds the per-session totals the desktop consumes from the
+// per-step token_usage CUSTOM events and the terminal RUN_FINISHED event (see
+// docs/ag-ui-output.md), mirroring the session_stats line of RenderJSON. nil
+// when the run made no LLM requests (e.g. a shortcut answer), so no event
+// carries a result.
+func sessionResult(model string, repo convdomain.ConversationRepository) map[string]any {
+	if repo == nil {
+		return nil
+	}
+	tokens := repo.GetSessionTokens()
+	if tokens.RequestCount <= 0 {
+		return nil
+	}
+	result := map[string]any{
+		"inputTokens":     tokens.TotalInputTokens,
+		"outputTokens":    tokens.TotalOutputTokens,
+		"cacheReadTokens": tokens.TotalCachedTokens,
+		"totalToolCalls":  countToolCalls(repo.GetMessages()),
+		"cost":            repo.GetSessionCostStats().TotalCost,
+		"lastInputTokens": tokens.LastInputTokens,
+	}
+	if window, ok := models.LookupContextWindow(model); ok {
+		result["contextWindow"] = window
+	}
+	return result
+}
+
+// countToolCalls sums the tool calls recorded on the session's assistant messages.
+func countToolCalls(entries []convdomain.ConversationEntry) int {
+	count := 0
+	for _, e := range entries {
+		if e.Message.ToolCalls != nil {
+			count += len(*e.Message.ToolCalls)
+		}
+	}
+	return count
+}
+
+// AgentStartupEmitter reports local A2A agent startup (image pull, container
+// start, health check) as agent_status custom events before the run's events
+// begin, so a client can show progress instead of silence while a multi-GB
+// image pulls.
+func AgentStartupEmitter(w io.Writer) func(name, state, message string, done, total int) {
+	var mu sync.Mutex
+	e := &aguiEncoder{w: w}
+	return func(name, state, message string, done, total int) {
+		mu.Lock()
+		defer mu.Unlock()
+		e.emitAgentStatus(name, state, message, done, total)
+	}
+}
+
+// EmitRunError writes a RUN_ERROR event for a failure that happens before the
+// run starts (gateway down, unknown model, ...) so stdout consumers see the
+// failure instead of silence.
+func EmitRunError(w io.Writer, message string) {
+	(&aguiEncoder{w: w}).emitRunError(message)
 }
