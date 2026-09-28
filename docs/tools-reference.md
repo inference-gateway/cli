@@ -2,6 +2,10 @@
 
 [← Back to README](../README.md)
 
+**What** - every tool an LLM can call through the Inference Gateway CLI, with its parameters and approval default.
+**Why** - a tool's scope, side effects, and gating differ; picking the wrong one either fails the task or runs something you did not sanction.
+**How** - find the tool by category in the overview below, then read its section for the exact contract.
+
 This document provides comprehensive documentation for all tools available to LLMs when tool execution
 is enabled in the Inference Gateway CLI.
 
@@ -31,6 +35,117 @@ is enabled in the Inference Gateway CLI.
   - [A2A_QueryAgent Tool](#a2a_queryagent-tool)
   - [A2A_QueryTask Tool](#a2a_querytask-tool)
 - [Custom Tools](#custom-tools)
+
+---
+
+## Tool Overview
+
+Tools are grouped by category. Many are gated behind a config flag (noted per group); the
+always-available set is registered for every session. There is **no built-in GitHub tool** - use the
+`gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub operations.
+
+**Core file & search** (always available):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **Read** | Read file contents with line ranges | No |
+| **Write** | Write content to files | Yes |
+| **Edit** | Exact string replacements in files | Yes |
+| **MultiEdit** | Multiple atomic edits to a single file | Yes |
+| **Delete** | Delete files and directories | Yes |
+| **Grep** | Search files with regex (ripgrep/Go) | No |
+| **Tree** | Display directory structure | No |
+
+**Shell** (Bash is always available; the background-shell trio needs `tools.bash.background_shells.enabled`):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **Bash** | Execute shell commands (per-mode allow-list) | Optional |
+| **BashOutput** | Read new output from a running background shell | Yes |
+| **KillShell** | Terminate a background shell | Yes |
+| **ListShells** | List background shells and their state | Yes |
+| **Wait** | Block until a condition is met (shells exit, file event, or check command succeeds) - no LLM round-trips wasted | No |
+
+**Task & planning** (`AskUserQuestion` needs `tools.ask_user_question.enabled`):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **TodoWrite** | Create and manage task lists | No |
+| **RequestPlanApproval** | Submit a plan for approval and persist it (plan mode) | No |
+| **AskUserQuestion** | Ask the user multiple-choice questions | No |
+| **RequestApproval** | Ask the user to override a judge rejection once (judge mode) | No |
+
+**Web** (`WebSearch`/`WebFetch` need their respective config flag):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **WebSearch** | Search the web (DuckDuckGo/Google) | Yes |
+| **WebFetch** | Fetch content from a URL | No |
+
+`WebFetch` does not require approval by default; set `tools.web_fetch.require_approval: true` to require it.
+
+**Subagents** (the `Agent` tool and its companions, enabled by default):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **Agent** | Spawn an `infer headless` subprocess to run work in parallel | Yes |
+| **ListSubagents** | List spawned subagents and their status | No |
+| **GetSubagentResult** | Re-read a finished subagent's last message | No |
+| **ReadSubagentScreen** | Capture an interactive subagent's terminal screen | No |
+| **SendSubagentInput** | Type into an interactive subagent's TUI | Yes |
+| **CloseSubagent** | Stop a subagent or tidy a finished pane | Yes |
+| **ApproveSubagent** | Relay an approval decision to a waiting subagent | Yes |
+
+**Computer Use** (require `computer_use.enabled`; these bypass the approval prompt and run silently):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **Computer** | Read the accessibility tree, press labelled controls, capture screenshots, and control mouse/keyboard | Configurable |
+| **GetLatestFrame** | Read the latest frame from a named source (screen, camera directory) | No |
+| **RecordStart** | Record the screen, a window, or a region to MP4 (needs `computer_use.recording.enabled`) | Configurable |
+| **RecordStop** | Stop the recording and return the file path, duration, and size | Configurable |
+
+**Media** (each gated by its own flag; all output is written to disk, never played aloud):
+
+| Tool | Purpose | Approval | Enabled by |
+| ------ | --------- | ---------- | ------------ |
+| **ImageGeneration** | Generate an image from a prompt into `~/.infer/projects/<project-slug>/artifacts/` | No | `tools.image_generation.enabled` |
+| **ImageEdit** | Edit an existing image and save the result | No | `tools.image_edit.enabled` |
+| **ImageVariation** | Produce a variation of an existing image | No | `tools.image_variation.enabled` |
+| **TextToSpeech** | Synthesize speech to a WAV (local llama-tts or gateway Audio API), optionally cloning a voice | No | `text_to_speech.enabled` |
+
+**Memory, scheduling & A2A** (each gated by its own flag):
+
+| Tool | Purpose | Approval | Enabled by |
+| ------ | --------- | ---------- | ------------ |
+| **Memory** | Persistent, cross-session fact storage | No | `memory.enabled` (default on) |
+| **Schedule** | Cron-driven recurring/one-off tasks via the originating channel | Yes | `tools.schedule.enabled` |
+| **A2A_SubmitTask** | Submit a task to an A2A agent | Yes | A2A enabled |
+| **A2A_QueryAgent** | Query an A2A agent's capabilities | No | A2A enabled |
+| **A2A_QueryTask** | Check an A2A task's status | No | A2A enabled |
+
+> **Approval** reflects the default policy. The global default is `tools.safety.require_approval: true`,
+> so a tool is **No** only where it is explicitly exempt in code (read-only file/search tools, Memory,
+> the plan/question tools, subagent reads, and computer-use). Bash is governed instead by the per-mode
+> bash allow-list. Override any tool with `tools.<name>.require_approval`.
+>
+> **MCP tools** are not listed here - they are discovered and registered dynamically at runtime from your
+> configured MCP servers and surface as `MCP_<server>_<tool>` (see [MCP Integration](mcp-integration.md)).
+
+**Tool Configuration:**
+
+Tools can be enabled/disabled and configured individually:
+
+```bash
+# Enable/disable specific tools
+infer config set tools.bash.enabled true
+infer config set tools.write.enabled true
+
+# Configure tool settings
+infer config set tools.grep.backend ripgrep
+# List values are comma-separated and replace the whole list
+infer config set tools.web_fetch.allowed_domains "example.com,github.com"
+```
 
 ---
 

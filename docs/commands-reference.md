@@ -11,6 +11,7 @@ This document provides comprehensive documentation for all commands available in
 - [Agent Management](#agent-management)
 - [Chat and Agent Execution](#chat-and-agent-execution)
 - [Utility Commands](#utility-commands)
+- [Global Flags](#global-flags)
 
 ---
 
@@ -625,6 +626,133 @@ Display version information for the Inference Gateway CLI.
 ```bash
 infer version
 ```
+
+### `infer skills`
+
+Manage Agent Skills (reusable `SKILL.md` instruction folders).
+
+**Examples:**
+
+```bash
+infer skills list                                # List discovered skills
+infer skills install skill-creator               # Install a skill from GitHub
+infer skills install acme/internal-comms --user  # Install to ~/.infer/skills
+infer skills uninstall pdf                        # Remove a skill by name
+```
+
+See [Agent Skills](skills.md) for the authoring format and discovery locations.
+
+### `infer plugins`
+
+Manage Claude Code-format plugins (skills plus an always-on `AGENTS.md` ruleset).
+
+**Examples:**
+
+```bash
+infer plugins install DietrichGebert/ponytail    # Install a plugin from GitHub
+infer plugins list                               # List installed plugins
+infer plugins disable ponytail                   # Unload its skills + instructions
+infer plugins update                             # Re-fetch all plugins
+infer plugins remove ponytail                    # Remove entirely
+```
+
+See [Plugins](plugins.md) for the mapping and security model.
+
+### `infer avatars`
+
+Create and manage the TextToVideo avatar library (`~/.infer/avatars/<name>/` portrait folders).
+
+**Examples:**
+
+```bash
+infer avatars create presenter --from me.jpg   # Photo + generated three-quarter views
+infer avatars list                             # List avatars and their images
+infer avatars list --format json               # Machine-readable listing
+infer avatars delete presenter                 # Remove an avatar folder
+```
+
+See [Text-to-Video](text-to-video.md#avatar-library) for the layout. With `text_to_video.create_avatar`
+the agent can build avatars itself through the `CreateAvatar` tool.
+
+### `infer export`
+
+Export a conversation to a Markdown file.
+
+**Examples:**
+
+```bash
+infer conversations list      # Find the session ID
+infer export <session-id>     # Writes ~/.infer/projects/<slug>/exports/chat_export_<timestamp>.md
+```
+
+### `infer insights`
+
+Analyze past sessions for repeatable workflows and recurring tool failures.
+
+**Examples:**
+
+```bash
+infer insights                # Every saved session
+infer insights 7d             # Only the last 7 days (also 24h, 30d)
+infer insights --model <id>   # Pick the model; defaults to agent.model
+```
+
+Writes a markdown report to `~/.infer/insights/`. Needs conversation storage enabled.
+
+Reads the conversation store, the telemetry directory, the log directory and the persistent memory
+index (`MEMORY.md`, capped at `memory.max_chars`). `infer reset insights` runs the analysis before the
+wipe, so the facts survive in the report even though the memory directory does not.
+
+The logs are the only source that sees a failure which never reached a saved session - a startup
+crash, a gateway that never came up, a background job that died. They are deduplicated before the
+model sees them: records at or above `logging.insights_min_level` (default `warn`) inside the window
+are folded by normalized message, so lines differing only in a path, an id or a number become one
+group with a count, a first/last timestamp and one verbatim sample. The report's frontmatter states
+how many records were read (`log_records`) and how many groups survived (`log_groups`). Only the
+structured `app-*.log` and `daemon-*.log` files and their `.gz` archives are read; `gateway-*.log` is
+raw subprocess output with no level or timestamp to filter on, and the gateway's own failures are
+logged through zap into `app-*.log` anyway.
+
+The analysis runs on `agent.max_tokens` (default 8192) rather than a fixed budget - a reasoning model
+spends that budget thinking before it answers, and too small a value fails the run outright. The
+written analysis is capped at 200 lines / 16000 characters, so a model that ignores the requested
+length cannot flood the report.
+
+Each report records what it cost to produce in its own frontmatter (`analysis_prompt_tokens`,
+`analysis_completion_tokens`, `analysis_total_tokens`, and `analysis_reasoning_tokens` where the
+provider breaks it out), so the price of a run is visible in the artifact rather than guessed at.
+
+### `infer reset`
+
+Wipe all local runtime state and start fresh.
+
+**Examples:**
+
+```bash
+infer reset             # Preview every path that would be deleted; deletes nothing
+infer reset confirm     # Perform the wipe
+infer reset insights    # Analyze past sessions first, then preview (takes --model)
+```
+
+Clears the runtime directories of **every project on this machine**, the persistent memory directory
+and the local conversation store. Per-project runtime directories are deleted rather than recreated
+empty, and a project whose working directory no longer exists is removed entirely.
+
+Config, custom shortcuts, skills and saved insights are preserved; remote stores (postgres, redis, d1)
+are skipped, and a git-backed memory directory syncs back from its remote on the next run.
+
+The `/reset` and `/insights` chat shortcuts are thin YAML wrappers over these commands, written to
+`~/.infer/shortcuts/` by `infer init` - edit them like any other shortcut.
+
+## Global Flags
+
+These flags are available on every command:
+
+- `-v, --verbose`: Enable verbose output
+- `--no-colors`: Disable ANSI colors in command output (colors are also auto-disabled when stdout is not a terminal or `NO_COLOR` is set)
+- `--tools-bash-allow-append <cmds>`: Comma/newline-separated commands added to the bash allow-list in every mode
+  (`standard`, `plan`, `auto`); `INFER_TOOLS_BASH_ALLOW_APPEND` takes precedence
+- `--reminders-file <path>`: Path to a reminders YAML file, overriding project `.infer/` and `~/.infer/` reminders
 
 ---
 
