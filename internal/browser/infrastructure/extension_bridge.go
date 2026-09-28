@@ -98,8 +98,8 @@ type extInbound struct {
 	Attachments      []agentdomain.ImageAttachment `json:"attachments,omitempty"`
 }
 
-// maxAttachmentBytes caps one decoded attachment; the panel enforces the same
-// limit, this is the trust-boundary check.
+// maxAttachmentBytes caps one decoded attachment. The panel enforces the same
+// limit, and this is the trust-boundary check.
 const maxAttachmentBytes = 10 * 1024 * 1024
 
 // unsafeFilenameChars matches everything outside the portable filename set.
@@ -116,12 +116,12 @@ func safeFilename(name string) string {
 }
 
 // modelImageMimeTypes are the image formats providers accept as image content
-// parts; anything else is handed to the agent as a file path instead.
+// parts. Anything else is handed to the agent as a file path instead.
 var modelImageMimeTypes = map[string]bool{"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true}
 
 // saveAttachments writes each attachment into the project tmp dir (where
 // clipboard images also land). Images come back as ImageAttachments with
-// SourcePath set so they flow to the model as image parts; other files come
+// SourcePath set so they flow to the model as image parts. Other files come
 // back as text notes naming the saved path so the agent can Read them.
 func saveAttachments(attachments []agentdomain.ImageAttachment) ([]agentdomain.ImageAttachment, []string) {
 	if len(attachments) == 0 {
