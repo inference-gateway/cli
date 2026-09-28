@@ -336,7 +336,7 @@ telemetry:
   The default makes headless runs **secure by default**: an off-allow-list or mutating action is blocked in CI and sent for approval under
   the channel manager, instead of running unattended. For a controlled-autonomy CI profile, set `block` and grant only what the agent needs
   (e.g. `tools.write.require_approval: false` plus a curated bash allow-list / the `mode.all` append override).
-- **Individual tool settings**: Each tool (Bash, Read, Write, Edit, Delete, Grep, Tree, WebFetch, WebSearch, TodoWrite) has:
+- **Individual tool settings**: Each tool (Read, Write, Edit, Delete, Grep, Tree, WebFetch, WebSearch, TodoWrite) has:
   - **enabled**: Enable/disable the specific tool
   - **require_approval**: Override global safety setting for this tool (optional)
 - **tools.edit.strict_whitespace**: `false` (default) enables indentation-tolerant matching for Edit/MultiEdit; `true` requires byte-exact

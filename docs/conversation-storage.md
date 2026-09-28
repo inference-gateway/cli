@@ -392,6 +392,8 @@ Messages are stored with:
 
 ## Database Schema
 
+Schema changes ship as versioned migrations - see [Database Migrations](database-migrations.md).
+
 ### SQLite / PostgreSQL / Cloudflare D1
 
 All three SQL backends share a single-table schema: the conversation messages
