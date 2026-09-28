@@ -6,8 +6,8 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
-	a2ainfra "github.com/inference-gateway/cli/internal/a2a/infrastructure"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
+	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 )
 
 // AgentStatus is the probe result for one configured A2A agent.

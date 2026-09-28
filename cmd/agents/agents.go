@@ -15,10 +15,10 @@ import (
 	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
-	a2a "github.com/inference-gateway/cli/internal/a2a"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
+	a2a "github.com/inference-gateway/cli/internal/protocols/a2a"
 )
 
 type command struct {

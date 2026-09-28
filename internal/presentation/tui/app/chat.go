@@ -15,11 +15,9 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -35,6 +33,8 @@ import (
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 

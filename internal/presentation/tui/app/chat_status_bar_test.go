@@ -13,12 +13,12 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	components "github.com/inference-gateway/cli/internal/presentation/tui/components"
 	keybinding "github.com/inference-gateway/cli/internal/presentation/tui/keybinding"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
 // newStatusBarTestApp wires the minimal ChatApplication surface used by the

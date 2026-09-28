@@ -6,8 +6,8 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
+	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 )
 
 // KeyShortcut represents a keyboard shortcut with description

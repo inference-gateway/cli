@@ -12,11 +12,11 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
 // PersistentConversationRepository wraps the InMemoryConversationRepository

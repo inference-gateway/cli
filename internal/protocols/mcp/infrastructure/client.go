@@ -14,7 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 )
 
 // infer speaks one MCP revision. 2026-07-28 is stateless: there is no

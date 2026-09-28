@@ -70,11 +70,11 @@ linters:
           list-mode: lax
           files:
             - "**"
-            - "!**/internal/a2a/**"
+            - "!**/internal/protocols/a2a/**"
             - "!**/tests/mocks/adk/**"
           deny:
             - pkg: github.com/inference-gateway/adk
-              desc: "the A2A ADK is confined to the a2a context; consume internal/a2a/domain instead"
+              desc: "the A2A ADK is confined to the a2a context; consume internal/protocols/a2a/domain instead"
         playwright-only-in-browser:
           list-mode: lax
           files:

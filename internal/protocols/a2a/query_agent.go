@@ -10,10 +10,10 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	a2ainfra "github.com/inference-gateway/cli/internal/a2a/infrastructure"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 )
 
 type QueryAgentTool struct {

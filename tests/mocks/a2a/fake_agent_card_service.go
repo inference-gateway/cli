@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/a2a/domain"
+	"github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
 type FakeAgentCardService struct {

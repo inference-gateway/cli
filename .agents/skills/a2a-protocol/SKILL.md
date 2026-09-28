@@ -65,7 +65,7 @@ draft (`TASK_STATE_*` states, unified `Part`, `supportedInterfaces` alongside th
 deprecated `url`/`preferredTransport`), but its JSON-RPC methods are still v0.x
 slash names (`message/send`, `tasks/get`). Remote agents may report either state
 casing - the CLI maps both through `NormalizeTaskState`
-(`internal/a2a/domain/tasks.go`).
+(`internal/protocols/a2a/domain/tasks.go`).
 
 > **Do not mix shapes.** Pick a target version, read *that* version's schema, and
 > use its field/method names. The well-known path also moved with versions:
@@ -253,7 +253,8 @@ failure** (the work ran and failed → a Task in state `failed`, reason in
   **[ADL](https://github.com/inference-gateway/adl)** +
   [`adl-cli`](https://github.com/inference-gateway/adl-cli) and scaffold.
 - **Consume from the CLI:** the `A2A_QueryAgent` / `A2A_SubmitTask` /
-  `A2A_QueryTask` tools (`internal/a2a/`, manifests in `internal/a2a/tools/`),
+  `A2A_QueryTask` tools (`internal/protocols/a2a/`, manifests in
+  `internal/protocols/a2a/tools/`),
   gated by `a2a.enabled` in `.infer` config; register agents in
   `.infer/agents.yaml`.
 - **Debug:** [`a2a-debugger`](https://github.com/inference-gateway/a2a-debugger)

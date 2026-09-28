@@ -11,7 +11,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 )
 
 var _ agentdomain.Tool = (*MCPTool)(nil)

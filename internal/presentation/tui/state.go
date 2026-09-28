@@ -6,9 +6,9 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
 // ApplicationState represents the overall application state with proper typing

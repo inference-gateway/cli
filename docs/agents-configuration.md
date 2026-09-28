@@ -388,7 +388,7 @@ The AI will use the A2A tools to delegate this task to the configured code-revie
 When `run: true` is set, the CLI runs the agent itself as a Docker container and manages the full lifecycle: it
 pulls the OCI image (reporting layer pull progress), starts the container, and waits for its health check. This
 happens automatically when a chat or headless session starts (`StartAgents` / `startAgentAsync` in
-`internal/a2a/supervisor.go`).
+`internal/protocols/a2a/supervisor.go`).
 
 **What the CLI does for each `run: true` agent:**
 
