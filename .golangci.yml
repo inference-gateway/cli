@@ -109,6 +109,15 @@ linters:
           deny:
             - pkg: github.com/go-vgo/robotgo
               desc: "robotgo is confined to the computer capability"
+    websocket-only-in-browser-and-web:
+          list-mode: lax
+          files:
+            - "**"
+            - "!**/internal/browser/**"
+            - "!**/internal/presentation/**"
+          deny:
+            - pkg: github.com/gorilla/websocket
+              desc: "the extension socket lives in the browser capability and the web terminal in presentation; open sockets nowhere else"
     gocyclo:
       min-complexity: 25
     cyclop:
