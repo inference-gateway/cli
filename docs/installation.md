@@ -6,9 +6,6 @@
 **Why** - the channels trade convenience against repeatability and control: a quick look, a pinned production install, or a source build for CLI development.
 **How** - use npm/npx to try it, the install script, Nix, or a container image for production, and build from source when you are working on the CLI itself.
 
-> **Early development stage**: breaking changes are expected until the project reaches a stable version.
-> Always pin a specific version tag when downloading binaries or using install scripts.
-
 ## Using npm/npx (recommended)
 
 If you already have Node.js (>= 18), run the CLI with npx - no Go toolchain or manual
@@ -129,25 +126,8 @@ Available binaries:
 | Windows amd64 | `infer-windows-amd64` (rename to `infer.exe`) |
 | Windows arm64 | `infer-windows-arm64` (rename to `infer.exe`) |
 
-**Verify the binary** (recommended for security):
-
-```bash
-# Download binary and checksums
-curl -L -o infer-darwin-amd64 \
-  https://github.com/inference-gateway/cli/releases/latest/download/infer-darwin-amd64
-curl -L -o checksums.txt \
-  https://github.com/inference-gateway/cli/releases/latest/download/checksums.txt
-
-# Verify checksum
-shasum -a 256 infer-darwin-amd64
-grep infer-darwin-amd64 checksums.txt
-
-# Install
-chmod +x infer-darwin-amd64
-sudo mv infer-darwin-amd64 /usr/local/bin/infer
-```
-
-For advanced verification with Cosign signatures, see the [Binary Verification Guide](binary-verification.md).
+Verify the download against `checksums.txt` or its Cosign signature before installing - see the
+[Binary Verification Guide](binary-verification.md) - then `chmod +x` it and move it onto your `PATH` as `infer`.
 
 ## Build from Source
 

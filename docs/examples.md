@@ -8,8 +8,7 @@
 
 ## Docker Compose Examples
 
-Each directory under [`examples/`](../examples/) is a self-contained, runnable setup with its own README,
-most with a Docker Compose file:
+Most examples ship a Docker Compose file:
 
 | Example | Demonstrates |
 | --------- | -------------- |
@@ -30,22 +29,6 @@ most with a Docker Compose file:
 There is also an [examples/kubernetes](../examples/kubernetes/) manifest set for running the gateway and an
 agent on a cluster.
 
-## Basic Workflow
-
-```bash
-# Initialize project
-infer init
-
-# Start interactive chat
-infer chat
-
-# Execute autonomous task
-infer headless "Fix the bug in issue #42"
-
-# Check gateway status
-infer status
-```
-
 ## Working on a GitHub Issue
 
 ```bash
@@ -64,38 +47,6 @@ infer chat
 # Ask the agent to open the PR when ready
 > Create a pull request for these changes - it fixes the authentication timeout issue
 ```
-
-## Configuration Example
-
-```bash
-# Set default model
-infer config set agent.model "deepseek/deepseek-v4-pro"
-
-# Enable bash tool
-infer config set tools.bash.enabled true
-
-# Configure web search
-infer config set tools.web_search.enabled true
-
-# Check current configuration
-infer config get
-```
-
-## Web Terminal Example
-
-```bash
-# Start web terminal server
-infer chat --web
-
-# Open browser to http://localhost:3000
-# Click "+" to create new terminal tabs
-# Each tab is an independent chat session
-
-# Custom port for remote access
-infer chat --web --port 8080 --host 0.0.0.0
-```
-
-See the [Web Terminal](web-terminal.md) page for configuration and security notes.
 
 ## Related
 

@@ -2,7 +2,9 @@
 
 [← Back to README](../README.md)
 
-This document provides comprehensive documentation for all commands available in the Inference Gateway CLI.
+**What** - every `infer` subcommand, its flags and examples, plus the global flags.
+**Why** - the chat TUI covers daily use, but setup, automation and maintenance happen on the command line.
+**How** - find the command by group in the table of contents; each section lists its flags and examples.
 
 ## Table of Contents
 
@@ -629,50 +631,19 @@ infer version
 
 ### `infer skills`
 
-Manage Agent Skills (reusable `SKILL.md` instruction folders).
-
-**Examples:**
-
-```bash
-infer skills list                                # List discovered skills
-infer skills install skill-creator               # Install a skill from GitHub
-infer skills install acme/internal-comms --user  # Install to ~/.infer/skills
-infer skills uninstall pdf                        # Remove a skill by name
-```
-
-See [Agent Skills](skills.md) for the authoring format and discovery locations.
+Manage Agent Skills (reusable `SKILL.md` instruction folders): `list`, `search`, `install`, `uninstall`. See
+[Agent Skills](skills.md#installing-skills-from-github) for the flags, the authoring format and discovery locations.
 
 ### `infer plugins`
 
-Manage Claude Code-format plugins (skills plus an always-on `AGENTS.md` ruleset).
-
-**Examples:**
-
-```bash
-infer plugins install DietrichGebert/ponytail    # Install a plugin from GitHub
-infer plugins list                               # List installed plugins
-infer plugins disable ponytail                   # Unload its skills + instructions
-infer plugins update                             # Re-fetch all plugins
-infer plugins remove ponytail                    # Remove entirely
-```
-
-See [Plugins](plugins.md) for the mapping and security model.
+Manage Claude Code-format plugins (skills plus an always-on `AGENTS.md` ruleset): `install`, `list`, `enable`,
+`disable`, `update`, `remove`, `enable-hooks`, `disable-hooks`. See [Plugins](plugins.md) for the flags, the mapping and
+the security model.
 
 ### `infer avatars`
 
-Create and manage the TextToVideo avatar library (`~/.infer/avatars/<name>/` portrait folders).
-
-**Examples:**
-
-```bash
-infer avatars create presenter --from me.jpg   # Photo + generated three-quarter views
-infer avatars list                             # List avatars and their images
-infer avatars list --format json               # Machine-readable listing
-infer avatars delete presenter                 # Remove an avatar folder
-```
-
-See [Text-to-Video](text-to-video.md#avatar-library) for the layout. With `text_to_video.create_avatar`
-the agent can build avatars itself through the `CreateAvatar` tool.
+Create and manage the TextToVideo avatar library (`~/.infer/avatars/<name>/` portrait folders): `create`, `list`,
+`delete`. See [Text-to-Video](text-to-video.md#avatar-library) for the commands and the layout.
 
 ### `infer export`
 
