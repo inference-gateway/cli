@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -563,14 +564,75 @@ func (s *Agent) buildActiveSkillInfo(messages []sdk.Message, isChat bool) string
 	return b.String()
 }
 
-// buildAgentsMDInfo injects the project-root AGENTS.md into the system
-// prompt, appended after custom instructions. Returns "" when the file is
-// missing/unreadable or agent.agents_md.enabled is false.
-func (s *Agent) buildAgentsMDInfo() string {
-	if s.config == nil || !s.config.Agent.AgentsMD.Enabled {
+// agentsMDMaxDepth bounds nested AGENTS.md discovery so a large monorepo
+// cannot slow prompt assembly.
+const agentsMDMaxDepth = 4
+
+// agentsMDMaxListed bounds the nested AGENTS.md pointer list so a large
+// monorepo cannot inflate the system prompt.
+const agentsMDMaxListed = 20
+
+// agentsMDSkipDirs names dependency trees that never hold AGENTS.md briefs.
+var agentsMDSkipDirs = map[string]bool{"node_modules": true, "vendor": true}
+
+// findNestedAgentsMD walks the working directory to agentsMDMaxDepth and
+// returns the slash paths of the AGENTS.md files below it in lexical order.
+// Hidden and vendored trees are skipped.
+func findNestedAgentsMD() []string {
+	var found []string
+	_ = filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			logger.Debug("skipping path while discovering AGENTS.md files", "path", path, "error", err)
+			return nil
+		}
+		if d.IsDir() {
+			tooDeep := strings.Count(path, string(filepath.Separator)) >= agentsMDMaxDepth
+			if path != "." && (strings.HasPrefix(d.Name(), ".") || agentsMDSkipDirs[d.Name()] || tooDeep) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.Name() == "AGENTS.md" && path != "AGENTS.md" {
+			found = append(found, filepath.ToSlash(path))
+		}
+		return nil
+	})
+	return found
+}
+
+// nestedAgentsMDListing points the model at nested AGENTS.md files without
+// injecting them, so it reads a brief only when it works in that directory.
+// Paths are listed only when the project tree is off, since the tree shows them.
+func (s *Agent) nestedAgentsMDListing() string {
+	paths := findNestedAgentsMD()
+	if len(paths) == 0 {
 		return ""
 	}
+	const rule = "Nested AGENTS.md files hold rules for their directory that take precedence over the root AGENTS.md. Read the one covering a directory before working there"
+	if s.projectTreeShown() {
+		return rule + ". The PROJECT STRUCTURE listing shows where they are."
+	}
+	var b strings.Builder
+	b.WriteString(rule + ":")
+	for _, p := range paths[:min(len(paths), agentsMDMaxListed)] {
+		fmt.Fprintf(&b, "\n- %s", p)
+	}
+	if more := len(paths) - agentsMDMaxListed; more > 0 {
+		fmt.Fprintf(&b, "\n- ... %d more below the working directory", more)
+	}
+	return b.String()
+}
 
+// projectTreeShown reports whether the volatile tail carries the PROJECT
+// STRUCTURE listing, which already names the nested AGENTS.md files.
+func (s *Agent) projectTreeShown() bool {
+	cfg := s.config.GetAgentConfig()
+	return cfg.SystemPromptWithDefaults && cfg.Context.TreeEnabled
+}
+
+// rootAgentsMD reads the working directory's AGENTS.md, capped at the
+// agent.agents_md line and char limits. Returns "" when missing or empty.
+func (s *Agent) rootAgentsMD() string {
 	data, err := os.ReadFile("AGENTS.md")
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -588,8 +650,30 @@ func (s *Agent) buildAgentsMDInfo() string {
 	if marker != "" {
 		content += "\n" + marker
 	}
+	return content
+}
 
-	return "PROJECT INSTRUCTIONS (AGENTS.md):\n" + content
+// buildAgentsMDInfo injects the project-root AGENTS.md into the system prompt,
+// after custom instructions, followed by the paths of nested AGENTS.md files.
+// Returns "" when disabled or when no AGENTS.md was found.
+// ponytail: walks the tree per prompt build. Cache on the Agent if a monorepo shows it in profiles.
+func (s *Agent) buildAgentsMDInfo() string {
+	if s.config == nil || !s.config.Agent.AgentsMD.Enabled {
+		return ""
+	}
+
+	var parts []string
+	if root := s.rootAgentsMD(); root != "" {
+		parts = append(parts, root)
+	}
+	if listing := s.nestedAgentsMDListing(); listing != "" {
+		parts = append(parts, listing)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return "PROJECT INSTRUCTIONS (AGENTS.md):\n" + strings.Join(parts, "\n\n")
 }
 
 // buildMemoryInfo loads the MEMORY.md index once per session and injects it as a

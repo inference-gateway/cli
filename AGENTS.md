@@ -37,7 +37,7 @@ Repo-wide invariants:
 
 ## Package AGENTS files
 
-`internal/tools/AGENTS.md` and `internal/presentation/AGENTS.md` hold package-only rules and take precedence for their directory. `infer` injects only the `AGENTS.md` in its working directory, so read the nested one before editing there.
+`internal/tools/AGENTS.md` and `internal/presentation/AGENTS.md` hold package-only rules and take precedence for their directory. `infer` injects the `AGENTS.md` in its working directory and only points at the nested ones, so read the nested one before editing there.
 
 ## Import Style
 

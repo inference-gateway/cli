@@ -464,6 +464,16 @@ See [Telemetry](telemetry.md) for the baggage keys and mixed CLI/ADK deployment 
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
 - **agent.max_concurrent_tools**: Maximum number of tools that can execute concurrently (default: 5)
+- **agent.agents_md** (config.yaml): Injects the working directory's `AGENTS.md` into the system prompt as a
+  `PROJECT INSTRUCTIONS (AGENTS.md)` section. Sub-keys: `enabled` (default true), `max_lines` (default 399)
+  and `max_chars` (default 8000) cap that file. Env: `INFER_AGENT_AGENTS_MD_ENABLED`,
+  `INFER_AGENT_AGENTS_MD_MAX_LINES`, `INFER_AGENT_AGENTS_MD_MAX_CHARS`.
+- Nested AGENTS.md files: following the [agents.md](https://agents.md) standard, an `AGENTS.md` in a
+  subdirectory takes precedence over the root file for that directory. `infer` points the model at them
+  without injecting their content, and the model reads one when it works there. When the project tree
+  (`agent.context.tree_enabled`) is in the prompt it already shows them, so the section adds only the
+  precedence rule. Otherwise it lists their paths, up to 4 levels deep and at most 20 entries, skipping
+  hidden trees and `node_modules`/`vendor`.
 
 ### System Reminders (reminders.yaml)
 

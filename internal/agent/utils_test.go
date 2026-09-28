@@ -704,6 +704,95 @@ func TestBuildAgentsMDInfo(t *testing.T) {
 		require.NotContains(t, got, strings.Repeat("x", 11))
 		require.Contains(t, got, "[truncated at 10 chars]")
 	})
+
+	manyBriefs := map[string]string{}
+	for i := range agentsMDMaxListed + 5 {
+		manyBriefs[fmt.Sprintf("pkg%02d/AGENTS.md", i)] = "rules"
+	}
+
+	nestedTests := []struct {
+		name        string
+		maxChars    int
+		tree        bool
+		files       map[string]string
+		contains    []string
+		notContains []string
+	}{
+		{
+			name: "lists nested files after the root without injecting them",
+			files: map[string]string{
+				"AGENTS.md":                       "root rules",
+				"internal/presentation/AGENTS.md": "presentation rules",
+				"internal/tools/AGENTS.md":        "tools rules",
+			},
+			contains:    []string{"root rules\n\nNested AGENTS.md files", "\n- internal/presentation/AGENTS.md\n- internal/tools/AGENTS.md"},
+			notContains: []string{"presentation rules", "tools rules"},
+		},
+		{
+			name: "points at the project tree instead of listing paths when the tree is shown",
+			tree: true,
+			files: map[string]string{
+				"AGENTS.md":                "root rules",
+				"internal/tools/AGENTS.md": "tools rules",
+			},
+			contains:    []string{"root rules\n\nNested AGENTS.md files", "The PROJECT STRUCTURE listing shows where they are."},
+			notContains: []string{"- internal/tools/AGENTS.md", "tools rules"},
+		},
+		{
+			name:     "keeps the root whole when nested files exist",
+			maxChars: 20,
+			files: map[string]string{
+				"AGENTS.md":                strings.Repeat("r", 20),
+				"internal/tools/AGENTS.md": strings.Repeat("t", 50),
+			},
+			contains:    []string{strings.Repeat("r", 20)},
+			notContains: []string{"truncated"},
+		},
+		{
+			name:     "lists nested files when the root is missing",
+			files:    map[string]string{"internal/tools/AGENTS.md": "tools rules"},
+			contains: []string{"PROJECT INSTRUCTIONS (AGENTS.md):\nNested AGENTS.md files", "\n- internal/tools/AGENTS.md"},
+		},
+		{
+			name:        "caps the listing at agentsMDMaxListed",
+			files:       manyBriefs,
+			contains:    []string{"\n- pkg19/AGENTS.md\n- ... 5 more below the working directory"},
+			notContains: []string{"pkg20/"},
+		},
+		{
+			name: "skips hidden, vendored and too-deep directories",
+			files: map[string]string{
+				"deep/a/b/c/AGENTS.md":   "rules",
+				"deep/a/b/c/d/AGENTS.md": "rules",
+				".hidden/AGENTS.md":      "rules",
+				"node_modules/AGENTS.md": "rules",
+				"vendor/AGENTS.md":       "rules",
+			},
+			contains:    []string{"\n- deep/a/b/c/AGENTS.md"},
+			notContains: []string{"deep/a/b/c/d/", ".hidden/", "node_modules/", "vendor/"},
+		},
+	}
+	for _, tt := range nestedTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			for path, text := range tt.files {
+				path = filepath.FromSlash(path)
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+				require.NoError(t, os.WriteFile(path, []byte(text), 0o644))
+			}
+
+			svc := newSvc(true, tt.maxChars)
+			svc.config.Agent.SystemPromptWithDefaults = tt.tree
+			svc.config.Agent.Context.TreeEnabled = tt.tree
+			got := svc.buildAgentsMDInfo()
+			for _, want := range tt.contains {
+				require.Contains(t, got, want)
+			}
+			for _, unwanted := range tt.notContains {
+				require.NotContains(t, got, unwanted)
+			}
+		})
+	}
 }
 
 func TestBuildProjectTreeInfo(t *testing.T) {
