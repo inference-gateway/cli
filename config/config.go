@@ -1800,11 +1800,7 @@ func InsightsDir() string {
 // wherever config resolves from, and a config-relative check would only look at
 // ./.infer once a project supplies its own config.yaml.
 func isWithinInsightsDir(absPath string) bool {
-	dir, err := filepath.Abs(InsightsDir())
-	if err != nil {
-		return false
-	}
-	return absPath == dir || strings.HasPrefix(absPath, dir+string(filepath.Separator))
+	return isWithinDir(absPath, InsightsDir())
 }
 
 // IsBashCommandAllowed (and the per-mode allow-list resolution) lives in
@@ -1812,12 +1808,26 @@ func isWithinInsightsDir(absPath string) bool {
 // stripping, compound-command splitting, command-substitution rejection) it
 // relies on.
 
-// ValidatePathInSandbox checks if a path is within the configured sandbox directories
+// ValidatePathInSandbox checks that a path and the file it resolves to through
+// symlinks are both inside the sandbox. Checking the target stops a link inside
+// the sandbox from reaching a file outside it.
 func (c *Config) ValidatePathInSandbox(path string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
+	if err := c.checkPathInSandbox(path, absPath); err != nil {
+		return err
+	}
+	if target := realPath(absPath); target != absPath {
+		return c.checkPathInSandbox(target, target)
+	}
+	return nil
+}
+
+// checkPathInSandbox checks one spelling of a path against the carve-outs, the
+// protected paths and the sandbox directories.
+func (c *Config) checkPathInSandbox(path, absPath string) error {
 
 	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
 		(c.Plugins.Enabled && c.isWithinPluginsDir(absPath)) ||
@@ -1840,17 +1850,7 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	}
 
 	for _, sandboxDir := range append(grantedSandboxDirectories(), c.Tools.Sandbox.Directories...) {
-		absSandboxDir, err := filepath.Abs(sandboxDir)
-		if err != nil {
-			continue
-		}
-
-		relPath, err := filepath.Rel(absSandboxDir, absPath)
-		if err != nil {
-			continue
-		}
-
-		if !strings.HasPrefix(relPath, "..") {
+		if isWithinDir(absPath, sandboxDir) {
 			return nil
 		}
 	}
@@ -1873,7 +1873,7 @@ func (c *Config) ValidatePathInSandboxWrite(path string) error {
 	if err := c.ValidatePathInSandbox(path); err != nil {
 		return err
 	}
-	if isWithinGoLibDirs(absPath) {
+	if isWithinGoLibDirs(realPath(absPath)) {
 		return fmt.Errorf("path '%s' is in a read-only library directory", path)
 	}
 	return nil
@@ -1941,19 +1941,13 @@ func CanonicalPath(absPath string) string {
 // though the broader .infer/ directory is in ProtectedPaths. File-level
 // protections like *.env still apply.
 func isWithinSkillsDir(absPath string) bool {
-	dirs := make([]string, 0, 3)
-	if projectDir, err := filepath.Abs(filepath.Join(ConfigDirName, "skills")); err == nil {
-		dirs = append(dirs, projectDir)
-	}
-	if agentsDir, err := filepath.Abs(filepath.Join(AgentsDirName, "skills")); err == nil {
-		dirs = append(dirs, agentsDir)
-	}
+	dirs := []string{filepath.Join(ConfigDirName, "skills"), filepath.Join(AgentsDirName, "skills")}
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		dirs = append(dirs, filepath.Join(homeDir, ConfigDirName, "skills"))
 	}
 
 	for _, dir := range dirs {
-		if absPath == dir || strings.HasPrefix(absPath, dir+string(filepath.Separator)) {
+		if isWithinDir(absPath, dir) {
 			return true
 		}
 	}
@@ -1966,14 +1960,20 @@ func isWithinSkillsDir(absPath string) bool {
 // instead of a second hardcoded copy.
 var RuntimeArtifactDirNames = []string{"history", "backups", "tmp", ArtifactsDirName, "exports"}
 
-// isWithinDir reports whether absPath is dir itself or lives beneath it.
-// dir may be relative; it is resolved before comparison.
+// isWithinDir reports whether absPath is dir itself or lives beneath it. dir may
+// be relative, and it matches both as written and with its symlinks resolved, so
+// a resolved path still lands inside a symlinked dir such as /tmp on macOS.
 func isWithinDir(absPath, dir string) bool {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return false
 	}
-	return absPath == absDir || strings.HasPrefix(absPath, absDir+string(filepath.Separator))
+	return isBeneath(absPath, absDir) || isBeneath(absPath, realPath(absDir))
+}
+
+func isBeneath(absPath, absDir string) bool {
+	rel, err := filepath.Rel(absDir, absPath)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // UserspaceRuntimeDirNames are runtime dirs pinned directly under ~/.infer no
@@ -2042,11 +2042,7 @@ func (c *Config) isWithinPluginsDir(absPath string) bool {
 	if err != nil {
 		return false
 	}
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		return false
-	}
-	return absPath == absDir || strings.HasPrefix(absPath, absDir+string(filepath.Separator))
+	return isWithinDir(absPath, dir)
 }
 
 // isWithinGoLibDirs reports whether absPath lives inside a well-known Go
@@ -2069,23 +2065,12 @@ func isWithinGoLibDirs(absPath string) bool {
 		}
 		gomodcache = filepath.Join(gopath, "pkg", "mod")
 	}
-	if absGoMod, err := filepath.Abs(gomodcache); err == nil {
-		if absPath == absGoMod || strings.HasPrefix(absPath, absGoMod+string(filepath.Separator)) {
-			return true
-		}
+	if isWithinDir(absPath, gomodcache) {
+		return true
 	}
 
 	goroot := os.Getenv("GOROOT")
-	if goroot != "" {
-		gorootSrc := filepath.Join(goroot, "src")
-		if absGoRootSrc, err := filepath.Abs(gorootSrc); err == nil {
-			if absPath == absGoRootSrc || strings.HasPrefix(absPath, absGoRootSrc+string(filepath.Separator)) {
-				return true
-			}
-		}
-	}
-
-	return false
+	return goroot != "" && isWithinDir(absPath, filepath.Join(goroot, "src"))
 }
 
 // isWithinMemoryDir reports whether absPath lives inside the global memory
@@ -2105,11 +2090,7 @@ func isWithinMemoryDir(absPath string, m MemoryConfig) bool {
 		}
 		dir = filepath.Join(home, ConfigDirName, MemoryDirName)
 	}
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		return false
-	}
-	return absPath == absDir || strings.HasPrefix(absPath, absDir+string(filepath.Separator))
+	return isWithinDir(absPath, dir)
 }
 
 // checkProtectedPaths checks if a path matches any protected path patterns. When

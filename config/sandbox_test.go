@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,6 +58,90 @@ func TestAddSandboxDirectoryGrantsAccessWithoutChangingPromptList(t *testing.T) 
 	}
 	if got := cfg.GetSandboxDirectories(); len(got) != 1 || got[0] != sandbox {
 		t.Fatalf("GetSandboxDirectories must stay prompt-stable, got %v", got)
+	}
+}
+
+func TestValidatePathInSandbox_Symlinks(t *testing.T) {
+	t.Cleanup(func() {
+		sandboxGrantsMu.Lock()
+		sandboxGrants = nil
+		sandboxGrantsMu.Unlock()
+	})
+
+	sandbox := t.TempDir()
+	outside := t.TempDir()
+	outsideDir := t.TempDir()
+	secret := filepath.Join(outside, "secret.txt")
+	mustWrite(t, secret)
+	mustWrite(t, filepath.Join(sandbox, "inside.txt"))
+	mustWrite(t, filepath.Join(sandbox, "id_ed25519"))
+	mustSymlink(t, filepath.Join(sandbox, "inside.txt"), filepath.Join(sandbox, "file-in"))
+	mustSymlink(t, secret, filepath.Join(sandbox, "file-out"))
+	mustSymlink(t, outsideDir, filepath.Join(sandbox, "dir-out"))
+	mustSymlink(t, filepath.Join(sandbox, "id_ed25519"), filepath.Join(sandbox, "notes.txt"))
+	sandboxLink := filepath.Join(t.TempDir(), "sandbox-link")
+	mustSymlink(t, sandbox, sandboxLink)
+
+	cfg := DefaultConfig()
+	cfg.Tools.Sandbox.Directories = []string{sandbox}
+
+	tests := []struct {
+		name       string
+		dirs       []string
+		path       string
+		wantDenied string
+		protected  bool
+	}{
+		{name: "a regular file", path: filepath.Join(sandbox, "inside.txt")},
+		{name: "a link to a file inside", path: filepath.Join(sandbox, "file-in")},
+		{name: "a link to a file outside", path: filepath.Join(sandbox, "file-out"), wantDenied: realPath(secret)},
+		{name: "a new file through a linked dir", path: filepath.Join(sandbox, "dir-out", "new.txt"), wantDenied: filepath.Join(realPath(outsideDir), "new.txt")},
+		{name: "a link to a protected file", path: filepath.Join(sandbox, "notes.txt"), protected: true},
+		{name: "a file through a symlinked sandbox dir", dirs: []string{sandboxLink}, path: filepath.Join(sandboxLink, "inside.txt")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.dirs != nil {
+				cfg := *cfg
+				cfg.Tools.Sandbox.Directories = tt.dirs
+				if err := cfg.ValidatePathInSandbox(tt.path); err != nil {
+					t.Fatalf("expected %s allowed, got %v", tt.path, err)
+				}
+				return
+			}
+			err := cfg.ValidatePathInSandboxWrite(tt.path)
+			var denied *SandboxPathError
+			switch {
+			case tt.protected:
+				if err == nil || !strings.Contains(err.Error(), "excluded for security") {
+					t.Fatalf("expected %s protected, got %v", tt.path, err)
+				}
+			case tt.wantDenied != "":
+				if !errors.As(err, &denied) || denied.Path != tt.wantDenied {
+					t.Fatalf("expected denial of %s, got %v", tt.wantDenied, err)
+				}
+				AddSandboxDirectory(filepath.Dir(denied.Path))
+				if err := cfg.ValidatePathInSandboxWrite(tt.path); err != nil {
+					t.Fatalf("expected %s allowed once its target dir is granted, got %v", tt.path, err)
+				}
+			case err != nil:
+				t.Fatalf("expected %s allowed, got %v", tt.path, err)
+			}
+		})
+	}
+}
+
+func mustWrite(t *testing.T, path string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustSymlink(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
 	}
 }
 
