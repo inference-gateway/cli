@@ -11,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -23,7 +22,7 @@ import (
 type RequestApprovalTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter agentinfra.BaseFormatter
+	formatter BaseFormatter
 }
 
 // NewRequestApprovalTool creates a new RequestApproval tool.
@@ -31,7 +30,7 @@ func NewRequestApprovalTool(cfg *config.Config) *RequestApprovalTool {
 	return &RequestApprovalTool{
 		config:    cfg,
 		enabled:   true,
-		formatter: agentinfra.NewBaseFormatter(ToolRequestApproval),
+		formatter: NewBaseFormatter(ToolRequestApproval),
 	}
 }
 

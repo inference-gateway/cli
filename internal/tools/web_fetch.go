@@ -17,7 +17,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	download "github.com/inference-gateway/cli/internal/platform/download"
 )
@@ -27,7 +26,7 @@ type WebFetchTool struct {
 	config    *config.Config
 	enabled   bool
 	client    *http.Client
-	formatter agentinfra.BaseFormatter
+	formatter BaseFormatter
 }
 
 // NewWebFetchTool creates a new fetch tool
@@ -35,7 +34,7 @@ func NewWebFetchTool(cfg *config.Config) *WebFetchTool {
 	t := &WebFetchTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.WebFetch.Enabled,
-		formatter: agentinfra.NewBaseFormatter(ToolWebFetch),
+		formatter: NewBaseFormatter(ToolWebFetch),
 	}
 	t.client = &http.Client{
 		Timeout: time.Duration(cfg.Tools.WebFetch.Safety.Timeout) * time.Second,

@@ -11,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -39,7 +38,7 @@ type ScheduleToolResult struct {
 type ScheduleTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter agentinfra.BaseFormatter
+	formatter BaseFormatter
 	store     storage.ScheduledJobStorage
 }
 
@@ -49,7 +48,7 @@ func NewScheduleTool(cfg *config.Config, store storage.ScheduledJobStorage) *Sch
 	return &ScheduleTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.Schedule.Enabled,
-		formatter: agentinfra.NewBaseFormatter(ToolSchedule),
+		formatter: NewBaseFormatter(ToolSchedule),
 		store:     store,
 	}
 }

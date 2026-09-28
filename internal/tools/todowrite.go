@@ -10,14 +10,13 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // TodoWriteTool handles structured task list management for coding sessions
 type TodoWriteTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter agentinfra.BaseFormatter
+	formatter BaseFormatter
 }
 
 // NewTodoWriteTool creates a new TodoWrite tool
@@ -25,7 +24,7 @@ func NewTodoWriteTool(cfg *config.Config) *TodoWriteTool {
 	return &TodoWriteTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.TodoWrite.Enabled,
-		formatter: agentinfra.NewBaseFormatter(ToolTodoWrite),
+		formatter: NewBaseFormatter(ToolTodoWrite),
 	}
 }
 

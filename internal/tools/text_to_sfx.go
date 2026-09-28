@@ -11,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // TextToSFXTool generates a short sound effect or ambience clip from a text
@@ -172,7 +171,7 @@ func (t *TextToSFXTool) FormatForLLM(result *agentdomain.ToolExecutionResult) st
 	}
 	path, _ := data["path"].(string)
 	summary := fmt.Sprintf("Sound effect saved to %s", path)
-	formatter := agentinfra.NewBaseFormatter(ToolTextToSFX)
+	formatter := NewBaseFormatter(ToolTextToSFX)
 	return formatter.FormatExpanded(result, summary)
 }
 

@@ -11,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -38,7 +37,7 @@ const (
 type AskUserQuestionTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter agentinfra.BaseFormatter
+	formatter BaseFormatter
 }
 
 // NewAskUserQuestionTool creates a new AskUserQuestion tool.
@@ -46,7 +45,7 @@ func NewAskUserQuestionTool(cfg *config.Config) *AskUserQuestionTool {
 	return &AskUserQuestionTool{
 		config:    cfg,
 		enabled:   true,
-		formatter: agentinfra.NewBaseFormatter(ToolAskUserQuestion),
+		formatter: NewBaseFormatter(ToolAskUserQuestion),
 	}
 }
 

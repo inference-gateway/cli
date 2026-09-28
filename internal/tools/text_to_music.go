@@ -11,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // TextToMusicTool composes music from a text prompt through the gateway's
@@ -172,7 +171,7 @@ func (t *TextToMusicTool) FormatForLLM(result *agentdomain.ToolExecutionResult) 
 	}
 	path, _ := data["path"].(string)
 	summary := fmt.Sprintf("Music saved to %s", path)
-	formatter := agentinfra.NewBaseFormatter(ToolTextToMusic)
+	formatter := NewBaseFormatter(ToolTextToMusic)
 	return formatter.FormatExpanded(result, summary)
 }
 

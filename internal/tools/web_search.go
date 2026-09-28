@@ -16,7 +16,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // WebSearchTool handles web search operations
@@ -24,7 +23,7 @@ type WebSearchTool struct {
 	config    *config.Config
 	client    *http.Client
 	enabled   bool
-	formatter agentinfra.BaseFormatter
+	formatter BaseFormatter
 }
 
 // NewWebSearchTool creates a new web search tool
@@ -35,7 +34,7 @@ func NewWebSearchTool(cfg *config.Config) *WebSearchTool {
 			Timeout: time.Duration(cfg.Tools.WebSearch.Timeout) * time.Second,
 		},
 		enabled:   cfg.Tools.Enabled && cfg.Tools.WebSearch.Enabled,
-		formatter: agentinfra.NewBaseFormatter(ToolWebSearch),
+		formatter: NewBaseFormatter(ToolWebSearch),
 	}
 }
 

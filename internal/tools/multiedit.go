@@ -11,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // MultiEditTool handles multiple exact string replacements in a single file atomically
@@ -19,7 +18,7 @@ type MultiEditTool struct {
 	config    *config.Config
 	enabled   bool
 	registry  ReadToolTracker
-	formatter agentinfra.CustomFormatter
+	formatter CustomFormatter
 }
 
 // NewMultiEditTool creates a new multi-edit tool
@@ -27,7 +26,7 @@ func NewMultiEditTool(cfg *config.Config) *MultiEditTool {
 	return &MultiEditTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		formatter: agentinfra.NewCustomFormatter(ToolMultiEdit, func(key string) bool {
+		formatter: NewCustomFormatter(ToolMultiEdit, func(key string) bool {
 			return key == "edits"
 		}),
 	}
@@ -39,7 +38,7 @@ func NewMultiEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) 
 		config:   cfg,
 		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
 		registry: registry,
-		formatter: agentinfra.NewCustomFormatter(ToolMultiEdit, func(key string) bool {
+		formatter: NewCustomFormatter(ToolMultiEdit, func(key string) bool {
 			return key == "edits"
 		}),
 	}

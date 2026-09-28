@@ -17,7 +17,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // TreeTool handles directory tree visualization operations
@@ -27,7 +26,7 @@ type TreeTool struct {
 	gitignore      *ignore.GitIgnore
 	gitignoreCache map[string]*ignore.GitIgnore
 	cacheMutex     sync.RWMutex
-	formatter      agentinfra.BaseFormatter
+	formatter      BaseFormatter
 }
 
 // NewTreeTool creates a new tree tool
@@ -35,7 +34,7 @@ func NewTreeTool(cfg *config.Config) *TreeTool {
 	tool := &TreeTool{
 		config:         cfg,
 		enabled:        cfg.Tools.Enabled && cfg.Tools.Tree.Enabled,
-		formatter:      agentinfra.NewBaseFormatter(ToolTree),
+		formatter:      NewBaseFormatter(ToolTree),
 		gitignoreCache: make(map[string]*ignore.GitIgnore),
 	}
 	tool.loadGitignore()

@@ -12,14 +12,13 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // DeleteTool handles file and directory deletion operations
 type DeleteTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter agentinfra.BaseFormatter
+	formatter BaseFormatter
 }
 
 // NewDeleteTool creates a new delete tool
@@ -27,7 +26,7 @@ func NewDeleteTool(cfg *config.Config) *DeleteTool {
 	return &DeleteTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.Delete.Enabled,
-		formatter: agentinfra.NewBaseFormatter(ToolDelete),
+		formatter: NewBaseFormatter(ToolDelete),
 	}
 }
 

@@ -11,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
@@ -29,7 +28,7 @@ var titleSlugRegex = regexp.MustCompile(`[^a-z0-9]+`)
 type RequestPlanApprovalTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter agentinfra.BaseFormatter
+	formatter BaseFormatter
 	now       func() time.Time
 	planStore storage.PlanStorage
 }
@@ -41,7 +40,7 @@ func NewRequestPlanApprovalTool(cfg *config.Config, planStore storage.PlanStorag
 	return &RequestPlanApprovalTool{
 		config:    cfg,
 		enabled:   true,
-		formatter: agentinfra.NewBaseFormatter(ToolRequestPlanApproval),
+		formatter: NewBaseFormatter(ToolRequestPlanApproval),
 		now:       time.Now,
 		planStore: planStore,
 	}

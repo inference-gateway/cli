@@ -16,7 +16,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // Error constants for consistent error handling
@@ -39,7 +38,7 @@ const (
 type ReadTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter agentinfra.BaseFormatter
+	formatter BaseFormatter
 }
 
 // NewReadTool creates a new read tool
@@ -47,7 +46,7 @@ func NewReadTool(cfg *config.Config) *ReadTool {
 	return &ReadTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.Read.Enabled,
-		formatter: agentinfra.NewBaseFormatter(ToolRead),
+		formatter: NewBaseFormatter(ToolRead),
 	}
 }
 

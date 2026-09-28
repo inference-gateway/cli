@@ -20,7 +20,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	project "github.com/inference-gateway/cli/internal/platform/project"
@@ -85,7 +84,7 @@ type AgentTool struct {
 	config    *config.Config
 	tracker   scheddomain.SubagentTracker
 	submitter scheddomain.JobSubmitter
-	formatter agentinfra.BaseFormatter
+	formatter BaseFormatter
 	binary    string
 
 	// mdAgents holds the Markdown-defined agents loaded once per session by
@@ -109,7 +108,7 @@ func NewAgentTool(cfg *config.Config, tracker scheddomain.SubagentTracker, submi
 		config:    cfg,
 		tracker:   tracker,
 		submitter: submitter,
-		formatter: agentinfra.NewBaseFormatter(ToolAgent),
+		formatter: NewBaseFormatter(ToolAgent),
 		binary:    os.Args[0],
 	}
 	t.runHeadless = agentrunner.Run

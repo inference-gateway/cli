@@ -16,7 +16,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 )
@@ -40,7 +39,7 @@ const (
 type MemoryTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter agentinfra.CustomFormatter
+	formatter CustomFormatter
 	backend   memory.MemoryBackend
 	project   project.Identity
 }
@@ -56,7 +55,7 @@ func NewMemoryTool(cfg *config.Config, backend memory.MemoryBackend, proj projec
 		config:  cfg,
 		enabled: cfg.Memory.Enabled,
 		project: proj,
-		formatter: agentinfra.NewCustomFormatter(ToolMemory, func(key string) bool {
+		formatter: NewCustomFormatter(ToolMemory, func(key string) bool {
 			return key == "content"
 		}),
 		backend: backend,

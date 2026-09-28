@@ -14,7 +14,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	avatars "github.com/inference-gateway/cli/internal/avatars"
 )
 
@@ -237,7 +236,7 @@ func (t *TextToVideoTool) FormatForLLM(result *agentdomain.ToolExecutionResult) 
 	}
 	path, _ := data["path"].(string)
 	summary := fmt.Sprintf("Video saved to %s", path)
-	formatter := agentinfra.NewBaseFormatter(ToolTextToVideo)
+	formatter := NewBaseFormatter(ToolTextToVideo)
 	return formatter.FormatExpanded(result, summary)
 }
 

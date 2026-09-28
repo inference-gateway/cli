@@ -12,13 +12,13 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	a2ainfra "github.com/inference-gateway/cli/internal/a2a/infrastructure"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 type QueryAgentTool struct {
 	config    *config.Config
-	formatter agentinfra.CustomFormatter
+	formatter tools.CustomFormatter
 }
 
 type QueryAgentResult struct {
@@ -33,7 +33,7 @@ type QueryAgentResult struct {
 func NewQueryAgentTool(cfg *config.Config) *QueryAgentTool {
 	return &QueryAgentTool{
 		config: cfg,
-		formatter: agentinfra.NewCustomFormatter(ToolQueryAgent, func(key string) bool {
+		formatter: tools.NewCustomFormatter(ToolQueryAgent, func(key string) bool {
 			return key == "metadata"
 		}),
 	}

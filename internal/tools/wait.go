@@ -16,7 +16,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -27,7 +26,7 @@ import (
 type WaitTool struct {
 	config       *config.Config
 	enabled      bool
-	formatter    agentinfra.BaseFormatter
+	formatter    BaseFormatter
 	shellService scheddomain.BackgroundShellService
 }
 
@@ -36,7 +35,7 @@ func NewWaitTool(cfg *config.Config, shellService scheddomain.BackgroundShellSer
 	return &WaitTool{
 		config:       cfg,
 		enabled:      cfg.Tools.Enabled && cfg.Tools.Wait.Enabled,
-		formatter:    agentinfra.NewBaseFormatter(ToolWait),
+		formatter:    NewBaseFormatter(ToolWait),
 		shellService: shellService,
 	}
 }

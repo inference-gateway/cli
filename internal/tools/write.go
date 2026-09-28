@@ -11,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	filewriter "github.com/inference-gateway/cli/internal/tools/filewriter"
 )
 
@@ -24,7 +23,7 @@ const (
 type WriteTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter agentinfra.CustomFormatter
+	formatter CustomFormatter
 	writer    filewriter.FileWriter
 	chunks    filewriter.ChunkBuffer
 	extractor *ParameterExtractor
@@ -42,7 +41,7 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 	return &WriteTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Write.Enabled,
-		formatter: agentinfra.NewCustomFormatter(ToolWrite, func(key string) bool {
+		formatter: NewCustomFormatter(ToolWrite, func(key string) bool {
 			return key == "content"
 		}),
 		writer:    fileWriter,

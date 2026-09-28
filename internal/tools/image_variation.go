@@ -10,7 +10,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // ImageVariationTool creates a variation of an existing image with the
@@ -133,7 +132,7 @@ func (t *ImageVariationTool) FormatForLLM(result *agentdomain.ToolExecutionResul
 	}
 	path, _ := data["path"].(string)
 	size, _ := data["size"].(string)
-	formatter := agentinfra.NewBaseFormatter(ToolImageVariation)
+	formatter := NewBaseFormatter(ToolImageVariation)
 	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (size: %s)", path, size))
 }
 

@@ -12,7 +12,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // ImageEditTool edits an existing image with the configured image model and
@@ -176,7 +175,7 @@ func (t *ImageEditTool) FormatForLLM(result *agentdomain.ToolExecutionResult) st
 	path, _ := data["path"].(string)
 	quality, _ := data["quality"].(string)
 	size, _ := data["size"].(string)
-	formatter := agentinfra.NewBaseFormatter(ToolImageEdit)
+	formatter := NewBaseFormatter(ToolImageEdit)
 	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (quality: %s, size: %s)", path, quality, size))
 }
 

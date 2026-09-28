@@ -17,8 +17,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // Vision image limits of the annotator model class (long edge px, total px);
@@ -39,7 +39,7 @@ type frameSourceLookup interface {
 // image or as annotated text for models without vision.
 type GetLatestFrameTool struct {
 	config          *config.Config
-	formatter       agentinfra.BaseFormatter
+	formatter       tools.BaseFormatter
 	sources         frameSourceLookup
 	annotator       agentdomain.ImageAnnotator
 	lastCallMu      sync.Mutex
@@ -56,7 +56,7 @@ func NewGetLatestFrameTool(cfg *config.Config, sources frameSourceLookup, annota
 
 	return &GetLatestFrameTool{
 		config:          cfg,
-		formatter:       agentinfra.NewBaseFormatter(ToolGetLatestFrame),
+		formatter:       tools.NewBaseFormatter(ToolGetLatestFrame),
 		sources:         sources,
 		annotator:       annotator,
 		lastCallTimes:   make(map[string]time.Time),

@@ -20,7 +20,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // GrepTool handles search operations with ripgrep fallback to Go implementation
@@ -32,7 +31,7 @@ type GrepTool struct {
 	cacheMutex     sync.RWMutex
 	ripgrepPath    string
 	useRipgrep     bool
-	formatter      agentinfra.BaseFormatter
+	formatter      BaseFormatter
 }
 
 // NewGrepTool creates a new grep tool
@@ -40,7 +39,7 @@ func NewGrepTool(cfg *config.Config) *GrepTool {
 	tool := &GrepTool{
 		config:         cfg,
 		enabled:        cfg.Tools.Enabled && cfg.Tools.Grep.Enabled,
-		formatter:      agentinfra.NewBaseFormatter(ToolGrep),
+		formatter:      NewBaseFormatter(ToolGrep),
 		gitignoreCache: make(map[string]*ignore.GitIgnore),
 	}
 	tool.loadGitignore()

@@ -13,7 +13,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	avatars "github.com/inference-gateway/cli/internal/avatars"
 )
 
@@ -190,7 +189,7 @@ func (t *CreateAvatarTool) FormatForLLM(result *agentdomain.ToolExecutionResult)
 	name, _ := data["name"].(string)
 	images, _ := data["images"].([]string)
 	summary := fmt.Sprintf("Created avatar %s with images %s; pass avatar %q to TextToVideo", name, strings.Join(images, ", "), name)
-	formatter := agentinfra.NewBaseFormatter(ToolCreateAvatar)
+	formatter := NewBaseFormatter(ToolCreateAvatar)
 	return formatter.FormatExpanded(result, summary)
 }
 

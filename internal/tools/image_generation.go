@@ -10,7 +10,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // ImageGenerationTool generates an image with the configured image model and
@@ -156,7 +155,7 @@ func (t *ImageGenerationTool) FormatForLLM(result *agentdomain.ToolExecutionResu
 	path, _ := data["path"].(string)
 	quality, _ := data["quality"].(string)
 	size, _ := data["size"].(string)
-	formatter := agentinfra.NewBaseFormatter(ToolImageGeneration)
+	formatter := NewBaseFormatter(ToolImageGeneration)
 	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (quality: %s, size: %s)", path, quality, size))
 }
 

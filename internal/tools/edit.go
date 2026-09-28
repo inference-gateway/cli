@@ -11,7 +11,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // inlineDiffContextLines mirrors styles.InlineDiffContextLines for the plain-text
@@ -23,7 +22,7 @@ type EditTool struct {
 	config    *config.Config
 	enabled   bool
 	registry  ReadToolTracker
-	formatter agentinfra.CustomFormatter
+	formatter CustomFormatter
 }
 
 // ReadToolTracker interface for tracking read tool usage and per-file read freshness.
@@ -40,7 +39,7 @@ func NewEditTool(cfg *config.Config) *EditTool {
 	return &EditTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		formatter: agentinfra.NewCustomFormatter(ToolEdit, func(key string) bool {
+		formatter: NewCustomFormatter(ToolEdit, func(key string) bool {
 			return key == "old_string" || key == "new_string"
 		}),
 	}
@@ -52,7 +51,7 @@ func NewEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *Edit
 		config:   cfg,
 		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
 		registry: registry,
-		formatter: agentinfra.NewCustomFormatter(ToolEdit, func(key string) bool {
+		formatter: NewCustomFormatter(ToolEdit, func(key string) bool {
 			return key == "old_string" || key == "new_string"
 		}),
 	}

@@ -14,8 +14,8 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // ponytail: 1 MiB tail per stream, the model sees at most tools.max_result_bytes
@@ -32,7 +32,7 @@ type Tool struct {
 	manifest  agentdomain.ToolManifest
 	command   []string
 	timeout   time.Duration
-	formatter agentinfra.BaseFormatter
+	formatter tools.BaseFormatter
 }
 
 func newTool(m manifest, dir string) *Tool {
@@ -40,7 +40,7 @@ func newTool(m manifest, dir string) *Tool {
 		manifest:  m.ToolManifest,
 		command:   resolveCommand(m.Command, dir),
 		timeout:   cmp.Or(time.Duration(m.Timeout)*time.Second, defaultTimeout),
-		formatter: agentinfra.NewBaseFormatter(m.Name),
+		formatter: tools.NewBaseFormatter(m.Name),
 	}
 }
 

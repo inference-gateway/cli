@@ -12,7 +12,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	audio "github.com/inference-gateway/cli/internal/audio"
 )
 
@@ -263,7 +262,7 @@ func (t *TextToSpeechTool) FormatForLLM(result *agentdomain.ToolExecutionResult)
 	if d, ok := data["duration_seconds"].(float64); ok && d > 0 {
 		summary = fmt.Sprintf("%s (%.1fs of audio)", summary, d)
 	}
-	formatter := agentinfra.NewBaseFormatter(ToolTextToSpeech)
+	formatter := NewBaseFormatter(ToolTextToSpeech)
 	return formatter.FormatExpanded(result, summary)
 }
 
