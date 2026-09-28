@@ -21,6 +21,7 @@ const (
 	MemoryDirName       = "memory"
 	MemoryIndexFileName = "MEMORY.md"
 	InsightsDirName     = "insights"
+	CustomToolsDirName  = "tools"
 
 	DefaultConfigPath           = ConfigDirName + "/" + ConfigFileName
 	DefaultMemoryMaxChars       = 2000
@@ -1862,17 +1863,67 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 // src). Write/Edit/Delete tools must call this instead of ValidatePathInSandbox
 // so the Go lib carve-out remains read-only.
 func (c *Config) ValidatePathInSandboxWrite(path string) error {
-	if err := c.ValidatePathInSandbox(path); err != nil {
-		return err
-	}
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+	if c.isWithinCustomToolsDir(absPath) {
+		return fmt.Errorf("path '%s' is in a custom tools directory, which infer's file tools never edit", path)
+	}
+	if err := c.ValidatePathInSandbox(path); err != nil {
+		return err
 	}
 	if isWithinGoLibDirs(absPath) {
 		return fmt.Errorf("path '%s' is in a read-only library directory", path)
 	}
 	return nil
+}
+
+// CustomToolsDir is the directory the user's custom tools load from:
+// tools.custom_dir, else ~/.infer/tools.
+func (c *Config) CustomToolsDir() string {
+	return cmp.Or(c.Tools.CustomDir, filepath.Join(UserSpaceConfigDir(), CustomToolsDirName))
+}
+
+// ProjectToolsDirs are the working directory's custom tool directories, the
+// first taking precedence: .infer/tools, then .agents/tools.
+func ProjectToolsDirs() []string {
+	return []string{filepath.Join(ConfigDirName, CustomToolsDirName), filepath.Join(AgentsDirName, CustomToolsDirName)}
+}
+
+// isWithinCustomToolsDir reports whether absPath is inside a directory custom
+// tools load from. It resolves symlinks and ignores case, so neither a link
+// nor another spelling on a case-insensitive filesystem reaches one.
+func (c *Config) isWithinCustomToolsDir(absPath string) bool {
+	path := strings.ToLower(realPath(absPath))
+	for _, dir := range append(ProjectToolsDirs(), c.CustomToolsDir()) {
+		absDir, err := filepath.Abs(dir)
+		if err != nil {
+			continue
+		}
+		toolsDir := strings.ToLower(realPath(absDir))
+		if path == toolsDir || strings.HasPrefix(path, toolsDir+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// realPath resolves the symlinks in the longest existing prefix of absPath,
+// so a path that does not exist yet still resolves through its parents.
+func realPath(absPath string) string {
+	existing, rest := absPath, ""
+	for {
+		if resolved, err := filepath.EvalSymlinks(existing); err == nil {
+			return filepath.Join(resolved, rest)
+		}
+		parent := filepath.Dir(existing)
+		if parent == existing {
+			return absPath
+		}
+		rest = filepath.Join(filepath.Base(existing), rest)
+		existing = parent
+	}
 }
 
 // isWithinSkillsDir reports whether absPath lives inside one of the skills
