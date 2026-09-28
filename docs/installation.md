@@ -60,7 +60,7 @@ With [Flox](https://flox.dev), pin it in your environment manifest (`.flox/env/m
 infer.flake = "github:inference-gateway/cli"
 ```
 
-Then `flox activate` makes `infer` available in the environment. Pin a release by appending the tag: `github:inference-gateway/cli/v0.135.0`.
+Then `flox activate` makes `infer` available in the environment. Pin a release by appending the tag: `github:inference-gateway/cli/v0.217.0`.
 
 ## Using Container Image
 
