@@ -20,7 +20,7 @@ A `Form` is a sequence of `Group`s (one visible at a time); a `Group` holds
 ## The contract: embedding a form in a Bubble Tea model
 
 The canonical in-repo example is
-`internal/presentation/tui/components/init_github_action_view.go`. Hold a `*huh.Form`,
+`internal/presentation/tui/components/install_opentask_view.go`. Hold a `*huh.Form`,
 delegate `Update`, type-assert the returned model, switch on `form.State`,
 and rebuild + `Init()` a fresh form per phase:
 
@@ -86,7 +86,7 @@ a single `Update` call.
 | --- | --- | --- |
 | `Input` | one-line text | `.Validate(func(string) error)`, `.Placeholder` |
 | `Text` | multi-line text | `.Lines(n)` |
-| `Select[T]` | pick one | generic over the value type; `.Height(n)` viewport; `/` filter built in; `.Inline(true)` = one-line ←/→ carousel; `.OptionsFunc` for dynamic options; `.GetFiltering()` |
+| `Select[T]` | pick one | generic over the value; `.Height(n)`; `/` filter built in; `.Inline(true)` carousel; `.OptionsFunc`, `.GetFiltering()` |
 | `MultiSelect[T]` | pick many | toggle with space/x; `.Validate` for "at least one" |
 | `Confirm` | yes/no | `.Affirmative("Yes")` / `.Negative("No")` |
 | `FilePicker` | pick a file | `.CurrentDirectory`, `.AllowedTypes([]string{".pem"})`, `.Height` |
@@ -110,14 +110,14 @@ Options carry a display key and a typed value: `huh.NewOption("label", value)`.
   including any suffix text you baked into the label.
 - **Conditional groups**: `huh.NewGroup(...).WithHideFunc(func() bool)` -
   evaluated live, the standard trick for "show this input only when X chosen"
-  (see the private-key fallbacks in `init_github_action_view.go`).
+  (see the private-key fallbacks in `install_opentask_view.go`).
 - **Theming**: this repo maps the active style-provider palette via
   `huhTheme(styleProvider)` in `internal/presentation/tui/components/huh_theme.go` - use it
   on every form (`.WithTheme(huhTheme(p))`). The theme is captured at build
   time; the rebuild-per-phase pattern picks up theme switches for free.
 - **Plain-terminal prompts** (outside any Bubble Tea program): call `Run()`
   directly - `huh.NewConfirm().Title("Proceed?").Value(&ok).Run()` runs its
-  own mini program (see `confirmInstall` in `cmd/plugins.go`). Guard for
+  own mini program (see `confirmInstall` in `cmd/plugins/plugins.go`). Guard for
   non-interactive stdin first.
 - **Sizing**: overlay forms never see `tea.WindowSizeMsg`; set `.WithWidth`
   from your component's own width at build time.

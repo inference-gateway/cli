@@ -7,7 +7,7 @@ description: >
   plus Cobra/Viper conventions where applicable. Use when a user has a Go spec to
   review, asks "is this spec ready?", or is about to implement from a written
   design. Distilled from spf13/go-skills and adapted to this repo's conventions.
-license: Apache-2.0
+license: MIT
 ---
 
 # Go Spec Reviewer
@@ -28,8 +28,8 @@ spec gate.
 ## How to dispatch
 
 Spawn a `general-purpose` subagent (the **Agent** tool) pointed at the spec file,
-with the prompt below. It returns **Status / Issues / Recommendations** - it does
-not edit code.
+with the prompt below. No subagent available? Run the same steps inline. It returns
+**Status / Issues / Questions / Recommendations** - it does not edit code.
 
 ```text
 You are a Go spec reviewer. Verify this spec is complete and ready for
@@ -41,56 +41,74 @@ Think like spf13: if it's a CLI, does it follow Cobra/Viper conventions?
 
 Spec to review: <SPEC_FILE_PATH>
 
+Step 0 - Load the standards. Read .agents/skills/go/SKILL.md and
+.agents/skills/cobra-viper/SKILL.md first. They define "idiomatic" for this review;
+don't re-derive standards that conflict with them.
+
 Step 1 - Codebase context. Before reviewing, explore the repo for conventions and
-conflicts: list packages under internal/ and cmd/; for a Cobra CLI, scan cmd/ for
-package-level flag vars (all cmd files share one package -> name collisions); check
-cmd/root.go for command registration; note existing types/interfaces the spec
-should reuse rather than reinvent.
+conflicts: map the bounded contexts under internal/ (AGENTS.md "Architecture") and
+the commands under cmd/; commands are NewCommand(...) factories registered in
+cmd/root/root.go via AddCommand - a new subcommand must appear in the spec's file
+list with that registration point, and must not add package-level command or flag
+vars; note existing types/interfaces the spec should reuse rather than reinvent;
+note the Go version in go.mod and flag idioms it has obsoleted (third-party routers
+where ServeMux suffices, interface{}, loops that slices/maps handle, hand-rolled
+worker pools or semaphores).
 
 Step 2 - Go philosophy:
-| Concern     | Look for |
-| ----------- | -------- |
-| Simplicity  | layers/abstractions with one implementation; over-engineering |
-| Interfaces  | consumer-defined? small (1-3 methods)? real polymorphism? |
-| Errors      | returned explicitly, wrapped with %w, never silently swallowed? |
-| Context     | ctx threaded through I/O and long calls? timeouts set? |
-| Concurrency | goroutines with clear ownership and a stop condition? races? |
-| Packages    | one clear purpose each? new package justified vs extending one? |
-| Naming      | short, no stutter (pkg.PkgThing)? |
-| YAGNI       | driven by stated requirements, not speculative futures? |
+| Concern      | Look for |
+| ------------ | -------- |
+| Simplicity   | layers/abstractions with one implementation; over-engineering |
+| Dependencies | each new third-party dependency justified against a stdlib option? |
+| Interfaces   | consumer-defined? small (1-3 methods)? real polymorphism? |
+| Errors       | returned explicitly, wrapped with %w, never swallowed? sentinels named where callers branch? |
+| Context      | ctx threaded through I/O and long calls? timeouts set? |
+| Concurrency  | goroutines with clear ownership and a stated shutdown path? bounded fan-out? races? |
+| Packages     | one clear purpose each? new package justified vs extending one? no utils/common? |
+| Naming       | short, no stutter (pkg.PkgThing), no Get prefix? |
+| Testing      | says how it's tested? fakes at I/O boundaries, table-driven core logic, in-memory CLI runs? |
+| YAGNI        | driven by stated requirements, not speculative futures? |
 
 Step 3 - Cobra/Viper (skip if not a CLI):
 | Concern      | Look for |
 | ------------ | -------- |
-| Flag naming  | package-level flag vars unique across cmd/ (one shared package) |
-| Registration | new subcommands added in cmd/root.go via AddCommand? |
+| Construction | new commands built by factory functions, not package-level vars? |
+| Registration | new subcommands added in cmd/root/root.go via AddCommand? |
 | RunE vs Run  | RunE so errors propagate |
+| Args         | positional args validated with cobra.Args, not counted inside RunE? |
 | Flag scope   | config-level on root (persistent); per-operation on the subcommand |
-| Viper        | env names + config keys bound, defaults set? |
+| Viper        | new keys in the config struct with a default in DefaultConfig()? env names bound? business logic gets typed config, never Viper? |
+| Output       | written via cmd.OutOrStdout() so it's testable? |
+| Path clash   | --input and --output guarded against resolving to the same path? |
 
 Step 4 - Completeness:
-| Category     | Look for |
-| ------------ | -------- |
-| Completeness | TODO/TBD/placeholders, missing error paths |
-| Consistency  | contradictions, types named differently across sections |
-| Clarity      | ambiguity that would make two implementors build different things |
-| Scope        | one focused implementation, not several subsystems |
-| Security     | user input sanitized before shell/path/external use? |
+| Category      | Look for |
+| ------------- | -------- |
+| Completeness  | TODO/TBD/placeholders, missing error paths |
+| Consistency   | contradictions, types named differently across sections |
+| Clarity       | ambiguity that would make two implementors build different things |
+| Scope         | one focused implementation, not several subsystems |
+| Data flow     | clear what enters and exits each function or step? |
+| Compatibility | changed behavior, flags, config keys or APIs come with a migration/deprecation story? |
+| Security      | user input sanitized before shell/path/external use? |
 
 Calibration: only flag issues that would cause real implementation problems - a
 missing error path, a flag collision that won't compile, an abstraction that adds
-complexity without enabling anything. Skip wording and formatting nits. Respect
-THIS repo's established conventions (the internal/ domain-infra-services split, the
-DI container, counterfeiter-generated mocks, the per-mode bash allow-list,
-pluggable storage backends) - judge idiomaticity within them; do not flag the
-chosen architecture itself as a defect. Approve unless gaps would lead to a flawed
-or incomplete implementation.
+complexity without enabling anything. Skip wording and formatting nits. An unclear
+requirement in an otherwise sound spec is a Question, not an Issue. Respect THIS
+repo's established conventions (DDD bounded contexts with pure domain/ packages and
+depguard-enforced import direction, the DI container as composition root,
+counterfeiter-generated mocks, YAML tool manifests, the per-mode bash allow-list) -
+judge idiomaticity within them; do not flag the chosen architecture itself as a
+defect. Approve unless gaps would lead to a flawed or incomplete implementation.
 
 Output:
 ## Go Spec Review
-Status: Approved | Issues Found
-Issues (if any):
+Status: Approved | Approved with Questions | Issues Found
+Issues (block implementation):
 - [Section X]: [specific issue] - [why it matters for implementation]
+Questions for Author (need answers, don't block a sound design):
+- [Section Y]: [the ambiguity] - [the readings an implementor could take]
 Recommendations (advisory, non-blocking):
 - [correctness / idiomaticity / clarity suggestions]
 ```
