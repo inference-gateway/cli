@@ -153,7 +153,7 @@ type ServiceContainer struct {
 	directExecutionService   tui.DirectExecutionService
 	toolExecutionCoordinator tui.ToolExecutionCoordinator
 	uiNotifier               *uiNotifierHolder
-	extensionBridge          *browserinfra.Bridge
+	extensionBridge          *browserinfra.ExtensionBridge
 	browserDriver            browserdomain.BrowserDriver
 	screenRecorder           *computer.ScreenRecorder
 }
@@ -249,7 +249,7 @@ func (c *ServiceContainer) initializeBrowserTools() {
 			c.stateManager.SetEventBridge(eventBridge)
 		}
 
-		c.extensionBridge = browserinfra.NewBridge(browserinfra.Deps{
+		c.extensionBridge = browserinfra.NewExtensionBridge(browserinfra.Deps{
 			Config:        buCfg,
 			Notifier:      c.uiNotifier,
 			Conversations: c.conversationRepo,

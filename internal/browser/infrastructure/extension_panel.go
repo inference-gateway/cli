@@ -17,7 +17,7 @@ import (
 // conversationListLimit caps list_conversations, mirroring the TUI selector.
 const conversationListLimit = 50
 
-// historyListLimit caps list_history replies; the panel only needs recent
+// historyListLimit caps list_history replies. The panel only needs recent
 // entries for arrow-up recall.
 const historyListLimit = 1000
 
@@ -31,8 +31,8 @@ type conversationLister interface {
 // conversations answers the panel's conversation picker from the conversation
 // repository the CLI is running on.
 type conversations struct {
-	sink sink
-	repo convdomain.ConversationRepository
+	write frameWriter
+	repo  convdomain.ConversationRepository
 }
 
 // snapshot ships the active conversation's history so the panel shows it, not
@@ -47,7 +47,7 @@ func (c *conversations) snapshot(conn *websocket.Conn) {
 			results[*entry.Message.ToolCallID] = entry.ToolExecution.Success
 		}
 	}
-	c.sink.write(conn, extSnapshot{Type: outboundConversationSnapshot, Messages: messages, ToolResults: results})
+	c.write(conn, extSnapshot{Type: outboundConversationSnapshot, Messages: messages, ToolResults: results})
 }
 
 // list answers list_conversations with the stored conversations (newest-first),
@@ -55,13 +55,13 @@ func (c *conversations) snapshot(conn *websocket.Conn) {
 func (c *conversations) list(conn *websocket.Conn) {
 	lister, ok := c.repo.(conversationLister)
 	if !ok {
-		c.sink.write(conn, extConversations{Type: outboundConversations})
+		c.write(conn, extConversations{Type: outboundConversations})
 		return
 	}
 	summaries, err := lister.ListSavedConversations(context.Background(), conversationListLimit, 0)
 	if err != nil {
 		logger.Debug("extension bridge failed to list conversations", "error", err)
-		c.sink.write(conn, extConversations{Type: outboundConversations})
+		c.write(conn, extConversations{Type: outboundConversations})
 		return
 	}
 	out := make([]extConversationSummary, 0, len(summaries))
@@ -73,7 +73,7 @@ func (c *conversations) list(conn *websocket.Conn) {
 			MessageCount: s.MessageCount,
 		})
 	}
-	c.sink.write(conn, extConversations{Type: outboundConversations, Conversations: out})
+	c.write(conn, extConversations{Type: outboundConversations, Conversations: out})
 }
 
 // start begins a fresh conversation synchronously in the read loop (mirroring
@@ -104,17 +104,17 @@ func (c *conversations) resume(conn *websocket.Conn, id string) {
 // history holds the shared shell input history: panel messages land in the same
 // store the TUI's arrow-up navigation walks, and the panel lists it back.
 type history struct {
-	sink  sink
+	write frameWriter
 	store storage.ShellHistoryStorage
 }
 
 // newHistory falls back to an empty store when storage failed to initialize, so
 // the handlers never have to check for a missing store.
-func newHistory(s sink, store storage.ShellHistoryStorage) *history {
+func newHistory(write frameWriter, store storage.ShellHistoryStorage) *history {
 	if store == nil {
 		store = noHistory{}
 	}
-	return &history{sink: s, store: store}
+	return &history{write: write, store: store}
 }
 
 // noHistory is the empty shell-history store.
@@ -135,7 +135,7 @@ func (h *history) list(conn *websocket.Conn) {
 	if loaded == nil {
 		loaded = []string{}
 	}
-	h.sink.write(conn, extHistory{Type: outboundHistory, History: loaded})
+	h.write(conn, extHistory{Type: outboundHistory, History: loaded})
 }
 
 // append records a panel-sent message in the shared shell history, mirroring
@@ -157,7 +157,7 @@ func (h *history) append(content string) {
 // (project, .agents, user, plugin, catalog) the skills service already merged
 // with precedence, so the panel's "/" menu mirrors what the TUI offers.
 type skills struct {
-	sink    sink
+	write   frameWriter
 	service agentdomain.SkillsService
 }
 
@@ -167,17 +167,16 @@ func (s *skills) list(conn *websocket.Conn) {
 	for _, skill := range loaded {
 		out = append(out, skill.Summary())
 	}
-	s.sink.write(conn, extSkills{Type: outboundSkills, Skills: out})
+	s.write(conn, extSkills{Type: outboundSkills, Skills: out})
 }
 
 // models answers the panel's model picker from the CLI's model service, listing
 // the gateway's models with the configured default first.
 type models struct {
-	sink         sink
+	write        frameWriter
 	service      convdomain.ModelService
 	defaultModel string
 	notifier     agentdomain.UINotifier
-	modes        *modes
 }
 
 // list answers list_models with the models the gateway serves, the CLI's
@@ -196,12 +195,12 @@ func (m *models) list(conn *websocket.Conn) {
 			out = append(out, name)
 		}
 	}
-	m.sink.write(conn, extModels{Type: outboundModels, Models: out, Current: m.service.GetCurrentModel()})
+	m.write(conn, extModels{Type: outboundModels, Models: out, Current: m.service.GetCurrentModel()})
 }
 
 // selectModel switches the CLI's active model (same as the TUI's /model) and
-// re-sends the model list and mode, so the panel reflects the outcome whether or
-// not the switch was accepted.
+// re-sends the model list, so the panel reflects the outcome whether or not the
+// switch was accepted.
 func (m *models) selectModel(conn *websocket.Conn, name string) {
 	if name != "" {
 		if err := m.service.SelectModel(name); err != nil {
@@ -211,20 +210,19 @@ func (m *models) selectModel(conn *websocket.Conn, name string) {
 		}
 	}
 	m.list(conn)
-	m.modes.send(conn)
 }
 
 // modes mirrors the CLI's current agent mode (standard/plan/auto/auto-with-judge)
 // to the panel's toggle, and applies set_mode to the same shared state the TUI's
 // shift+tab cycle uses.
 type modes struct {
-	sink  sink
+	write frameWriter
 	state agentdomain.AgentModeState
 }
 
 // send reports the CLI's current agent mode as its canonical mode key.
 func (m *modes) send(conn *websocket.Conn) {
-	m.sink.write(conn, extMode{Type: outboundMode, Mode: m.state.GetAgentMode().ModeKey()})
+	m.write(conn, extMode{Type: outboundMode, Mode: m.state.GetAgentMode().ModeKey()})
 }
 
 // set switches the CLI's agent mode - it also governs tool_request approvals -
@@ -234,21 +232,4 @@ func (m *modes) set(conn *websocket.Conn, mode string) {
 		m.state.SetAgentMode(parsed)
 	}
 	m.send(conn)
-}
-
-// userInput turns a panel message into the same user-input event the TUI
-// submits, saving any attachments and recording the message in the shared shell
-// history.
-type userInput struct {
-	notifier agentdomain.UINotifier
-	history  *history
-}
-
-func (u *userInput) submit(msg extInbound) {
-	if msg.Content != "" {
-		images, notes := saveAttachments(msg.Attachments)
-		content := strings.Join(append([]string{msg.Content}, notes...), "\n")
-		u.notifier.Notify(agentdomain.UserInputEvent{Content: content, Images: images, FromExtension: true})
-	}
-	u.history.append(msg.Content)
 }

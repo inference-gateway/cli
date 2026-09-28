@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"bytes"
 	"sync"
 	"sync/atomic"
 
@@ -17,16 +18,16 @@ import (
 // approvals holds the agent-approval cards the panel has not answered yet, so a
 // resolved approval can clear them and a stale reply is ignored.
 type approvals struct {
-	sink     sink
+	write    frameWriter
 	notifier agentdomain.UINotifier
 
 	mu      sync.Mutex
 	pending map[string]sdk.ChatCompletionMessageToolCall
 }
 
-func newApprovals(s sink, notifier agentdomain.UINotifier) *approvals {
+func newApprovals(write frameWriter, notifier agentdomain.UINotifier) *approvals {
 	return &approvals{
-		sink:     s,
+		write:    write,
 		notifier: notifier,
 		pending:  make(map[string]sdk.ChatCompletionMessageToolCall),
 	}
@@ -44,7 +45,7 @@ func (a *approvals) request(conn *websocket.Conn, req agentdomain.ToolApprovalRe
 	a.mu.Lock()
 	a.pending[req.RequestID] = req.ToolCall
 	a.mu.Unlock()
-	a.sink.write(conn, extApprovalRequest{
+	a.write(conn, extApprovalRequest{
 		Type:      outboundApprovalRequest,
 		RequestID: req.RequestID,
 		ToolName:  req.ToolCall.Function.Name,
@@ -68,7 +69,7 @@ func (a *approvals) resolvePending(conn *websocket.Conn) {
 	a.pending = make(map[string]sdk.ChatCompletionMessageToolCall)
 	a.mu.Unlock()
 	for _, id := range ids {
-		a.sink.write(conn, extApprovalResolved{Type: outboundApprovalResolved, RequestID: id})
+		a.write(conn, extApprovalResolved{Type: outboundApprovalResolved, RequestID: id})
 	}
 }
 
@@ -86,10 +87,10 @@ func (a *approvals) answer(conn *websocket.Conn, requestID, action string) {
 		Action:   approvalAction(action),
 		ToolCall: toolCall,
 	})
-	a.sink.write(conn, extApprovalResolved{Type: outboundApprovalResolved, RequestID: requestID})
+	a.write(conn, extApprovalResolved{Type: outboundApprovalResolved, RequestID: requestID})
 }
 
-// approvalAction maps the wire action to a decision; anything but "approve"
+// approvalAction maps the wire action to a decision. Anything but "approve"
 // (including unknown values) is treated as a reject, failing safe.
 func approvalAction(action string) agentdomain.ApprovalAction {
 	if action == approvalActionApprove {
@@ -102,7 +103,7 @@ func approvalAction(action string) agentdomain.ApprovalAction {
 // frames, approval events as the panel's approval handshake, and an interrupt
 // frame cancels the turn the events belong to.
 type chatMirror struct {
-	sink      sink
+	write     frameWriter
 	events    agentdomain.EventBridge
 	repo      convdomain.ConversationRepository
 	approvals *approvals
@@ -112,9 +113,9 @@ type chatMirror struct {
 	activeRequestID atomic.Value
 }
 
-func newChatMirror(s sink, deps Deps, approvals *approvals) *chatMirror {
+func newChatMirror(write frameWriter, deps Deps, approvals *approvals) *chatMirror {
 	return &chatMirror{
-		sink:      s,
+		write:     write,
 		events:    deps.Events,
 		repo:      deps.Conversations,
 		approvals: approvals,
@@ -153,7 +154,7 @@ func (m *chatMirror) run(conn *websocket.Conn, stop chan struct{}) {
 		}
 	}()
 
-	writer := &chatEventWriter{bridge: m.sink, conn: conn}
+	writer := &chatEventWriter{write: m.write, conn: conn}
 	if err := agui.Render(filtered, writer, nil, nil, m.sessionID, "", m.repo, nil); err != nil {
 		logger.Debug("extension bridge chat pump ended", "error", err)
 	}
@@ -187,13 +188,13 @@ func (m *chatMirror) track(conn *websocket.Conn, ev agentdomain.ChatEvent) {
 			m.activeRequestID.Store("")
 		}
 		if e.Cancelled {
-			m.sink.write(conn, extInterrupted{Type: outboundInterrupted})
+			m.write(conn, extInterrupted{Type: outboundInterrupted})
 		}
 	}
 }
 
-// interrupt cancels the chat turn currently streaming, if any. Idempotent; a
-// stale or unknown id is a no-op in AgentService.CancelRequest.
+// interrupt cancels the chat turn currently streaming, if any. It is idempotent,
+// and a stale or unknown id is a no-op in AgentService.CancelRequest.
 func (m *chatMirror) interrupt() {
 	id, _ := m.activeRequestID.Load().(string)
 	if id == "" {
@@ -211,29 +212,22 @@ func displayOnlyQuestion(question agentdomain.UserQuestionRequestedEvent) agentd
 
 // chatEventWriter adapts the AG-UI line stream to chat_event frames.
 type chatEventWriter struct {
-	bridge sink
-	conn   *websocket.Conn
-	buf    []byte
+	write frameWriter
+	conn  *websocket.Conn
+	buf   []byte
 }
 
 func (w *chatEventWriter) Write(p []byte) (int, error) {
 	w.buf = append(w.buf, p...)
 	for {
-		idx := -1
-		for i, c := range w.buf {
-			if c == '\n' {
-				idx = i
-				break
-			}
-		}
+		idx := bytes.IndexByte(w.buf, '\n')
 		if idx < 0 {
 			return len(p), nil
 		}
-		line := make([]byte, idx)
-		copy(line, w.buf[:idx])
+		line := bytes.Clone(w.buf[:idx])
 		w.buf = w.buf[idx+1:]
 		if len(line) > 0 {
-			w.bridge.write(w.conn, extChatEvent{Type: outboundChatEvent, Event: line})
+			w.write(w.conn, extChatEvent{Type: outboundChatEvent, Event: line})
 		}
 	}
 }

@@ -13,14 +13,13 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
-	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // toolRequests runs extension-initiated tool calls through the standard pipeline:
 // the enabled check, the agent's approval policy, execution, and the same
 // conversation recording the TUI's direct-exec path does.
 type toolRequests struct {
-	sink      sink
+	write     frameWriter
 	service   agentdomain.ToolService
 	approval  agentdomain.ApprovalPolicy
 	repo      convdomain.ConversationRepository
@@ -32,9 +31,9 @@ type toolRequests struct {
 	pending map[string]chan bool
 }
 
-func newToolRequests(s sink, deps Deps) *toolRequests {
+func newToolRequests(write frameWriter, deps Deps) *toolRequests {
 	return &toolRequests{
-		sink:      s,
+		write:     write,
 		service:   deps.Tools,
 		approval:  deps.Approval,
 		repo:      deps.Conversations,
@@ -58,7 +57,7 @@ func (t *toolRequests) reset() {
 // prompt surface.
 func (t *toolRequests) run(conn *websocket.Conn, stop chan struct{}, msg extInbound) {
 	reply := func(success bool, output, errStr string) {
-		t.sink.write(conn, extToolResult{Type: outboundToolResult, ID: msg.ID, Success: success, Output: output, Error: errStr})
+		t.write(conn, extToolResult{Type: outboundToolResult, ID: msg.ID, Success: success, Output: output, Error: errStr})
 	}
 
 	if !t.service.IsToolEnabled(msg.ToolName) {
@@ -91,7 +90,7 @@ func (t *toolRequests) run(conn *websocket.Conn, stop chan struct{}, msg extInbo
 		return
 	}
 	t.record(toolCall, result)
-	reply(result.Success, t.resultOutput(result), result.Error)
+	reply(result.Success, convdomain.ToolResultOutput(result, t.repo.FormatToolResultForLLM), result.Error)
 }
 
 // awaitApproval sends an approval_request for an extension-initiated tool call
@@ -103,7 +102,7 @@ func (t *toolRequests) awaitApproval(conn *websocket.Conn, stop chan struct{}, t
 	t.mu.Lock()
 	t.pending[requestID] = decision
 	t.mu.Unlock()
-	t.sink.write(conn, extApprovalRequest{
+	t.write(conn, extApprovalRequest{
 		Type:      outboundApprovalRequest,
 		RequestID: requestID,
 		ToolName:  toolCall.Function.Name,
@@ -133,7 +132,7 @@ func (t *toolRequests) resolveApproval(conn *websocket.Conn, requestID, action s
 		return false
 	}
 	decision <- action == approvalActionApprove
-	t.sink.write(conn, extApprovalResolved{Type: outboundApprovalResolved, RequestID: requestID})
+	t.write(conn, extApprovalResolved{Type: outboundApprovalResolved, RequestID: requestID})
 	return true
 }
 
@@ -171,10 +170,4 @@ func (t *toolRequests) record(toolCall sdk.ChatCompletionMessageToolCall, result
 		ToolCalls: []sdk.ChatCompletionMessageToolCall{toolCall},
 	})
 	t.events.Publish(completed)
-}
-
-// resultOutput extracts the human-facing output of a tool result.
-func (t *toolRequests) resultOutput(result *agentdomain.ToolExecutionResult) string {
-	logger.Debug("extension bridge formatting direct tool result", "tool", result.ToolName)
-	return convdomain.ToolResultOutput(result, t.repo.FormatToolResultForLLM)
 }

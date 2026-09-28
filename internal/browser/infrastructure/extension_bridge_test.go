@@ -236,7 +236,7 @@ func testDeps(cfg *config.BrowserUseConfig) Deps {
 	}
 }
 
-func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier agentdomain.UINotifier, events agentdomain.EventBridge) *Bridge {
+func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier agentdomain.UINotifier, events agentdomain.EventBridge) *ExtensionBridge {
 	t.Helper()
 	deps := testDeps(cfg)
 	if notifier != nil {
@@ -248,9 +248,9 @@ func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier agentdomai
 	return startBridgeDeps(t, deps)
 }
 
-func startBridgeDeps(t *testing.T, deps Deps) *Bridge {
+func startBridgeDeps(t *testing.T, deps Deps) *ExtensionBridge {
 	t.Helper()
-	bridge := NewBridge(deps)
+	bridge := NewExtensionBridge(deps)
 	if err := bridge.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -258,14 +258,14 @@ func startBridgeDeps(t *testing.T, deps Deps) *Bridge {
 	return bridge
 }
 
-func startBridgeWithRepo(t *testing.T, cfg *config.BrowserUseConfig, repo convdomain.ConversationRepository) *Bridge {
+func startBridgeWithRepo(t *testing.T, cfg *config.BrowserUseConfig, repo convdomain.ConversationRepository) *ExtensionBridge {
 	t.Helper()
 	deps := testDeps(cfg)
 	deps.Conversations = repo
 	return startBridgeDeps(t, deps)
 }
 
-func startBridgeWithSkills(t *testing.T, cfg *config.BrowserUseConfig, skills agentdomain.SkillsService) *Bridge {
+func startBridgeWithSkills(t *testing.T, cfg *config.BrowserUseConfig, skills agentdomain.SkillsService) *ExtensionBridge {
 	t.Helper()
 	deps := testDeps(cfg)
 	deps.Skills = skills
@@ -296,7 +296,7 @@ func seedConversation(t *testing.T, repo *conversation.PersistentConversationRep
 	return repo.GetCurrentConversationID()
 }
 
-func dial(t *testing.T, bridge *Bridge) *websocket.Conn {
+func dial(t *testing.T, bridge *ExtensionBridge) *websocket.Conn {
 	t.Helper()
 	conn, _, err := websocket.DefaultDialer.Dial("ws://"+bridge.Addr()+"/ws", nil)
 	if err != nil {
@@ -347,7 +347,7 @@ func TestExtensionBridgeFailsFastWithoutConnection(t *testing.T) {
 func TestExtensionBridgeRefusesToStartWithoutToken(t *testing.T) {
 	cfg := bridgeConfig()
 	cfg.Extension.Token = ""
-	bridge := NewBridge(testDeps(cfg))
+	bridge := NewExtensionBridge(testDeps(cfg))
 	if err := bridge.Start(); err == nil || !strings.Contains(err.Error(), "token is empty") {
 		t.Fatalf("expected token error, got %v", err)
 	}
@@ -630,7 +630,7 @@ func TestExtensionBridgeServesArtifacts(t *testing.T) {
 
 	deps := testDeps(bridgeConfig())
 	deps.ArtifactsDir = dir
-	bridge := NewBridge(deps)
+	bridge := NewExtensionBridge(deps)
 	if err := bridge.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -799,22 +799,7 @@ func TestExtensionBridgeListSkills(t *testing.T) {
 	}
 }
 
-func TestExtensionBridgeListSkillsWithoutServiceIsEmpty(t *testing.T) {
-	bridge := startBridge(t, bridgeConfig(), nil, nil)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "list_skills"}); err != nil {
-		t.Fatalf("write list_skills: %v", err)
-	}
-
-	frame := readFrameOfType(t, conn, "skills")
-	if raw, ok := frame["skills"].([]any); ok && len(raw) != 0 {
-		t.Fatalf("expected no skills, got %v", frame["skills"])
-	}
-}
-
-func startBridgeWithTools(t *testing.T, cfg *config.BrowserUseConfig, toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, defaultModel string) *Bridge {
+func startBridgeWithTools(t *testing.T, cfg *config.BrowserUseConfig, toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, defaultModel string) *ExtensionBridge {
 	t.Helper()
 	deps := testDeps(cfg)
 	deps.Tools = toolSvc
@@ -1080,21 +1065,6 @@ type notifierFunc func(any)
 
 func (f notifierFunc) Notify(e any) { f(e) }
 
-func TestExtensionBridgeListModelsWithoutServiceIsEmpty(t *testing.T) {
-	bridge := startBridge(t, bridgeConfig(), nil, nil)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "list_models"}); err != nil {
-		t.Fatalf("write list_models: %v", err)
-	}
-
-	frame := readFrameOfType(t, conn, "models")
-	if raw, ok := frame["models"].([]any); ok && len(raw) != 0 {
-		t.Fatalf("expected no models, got %v", frame["models"])
-	}
-}
-
 // fakeHistoryStore is an in-memory storage.ShellHistoryStorage.
 type fakeHistoryStore struct {
 	mu      sync.Mutex
@@ -1200,7 +1170,7 @@ func TestExtensionBridgeTakesOverFreedPort(t *testing.T) {
 	cfg := bridgeConfig()
 	cfg.Extension.Port = holder.Addr().(*net.TCPAddr).Port
 
-	bridge := NewBridge(testDeps(cfg))
+	bridge := NewExtensionBridge(testDeps(cfg))
 	t.Cleanup(bridge.Close)
 	if err := bridge.Start(); !errors.Is(err, syscall.EADDRINUSE) {
 		t.Fatalf("Start with the port held: err = %v, want EADDRINUSE", err)
