@@ -4,8 +4,8 @@
 
 **What** - real-time estimates of what each chat session costs, per model and in aggregate.
 **Why** - API spend is easy to lose track of, and a per-model breakdown shows which model is actually driving the bill.
-**How** - costs are computed from token usage times a per-model price table; view them with
-`/cost`, and override or add prices in `config.yaml` when the built-in table does not fit.
+**How** - costs are computed from token usage times each model's price from the gateway; view them with
+`/cost`, and override or add prices under `pricing.custom_prices` in `config.yaml`.
 
 ## Viewing Costs
 
@@ -23,12 +23,12 @@ This displays:
 - **Per-model breakdown** when using multiple models
 - **Token usage** for each model
 
-**Status Bar**: Session costs are also displayed in the status bar (e.g., `$0.0234`) if enabled, once the cost is above zero.
+**Status Bar**: Session costs are also displayed in the status bar (e.g., `$0.023`) if enabled, once the cost is above zero.
 
 ## Configuring Pricing
 
 Prices come from the gateway's `/models` listing, and `pricing.custom_prices` entries take
-precedence over them. A model with neither is unpriced.
+precedence over them. A model with neither is unpriced: it costs $0 and appears under **Free**.
 
 The model picker groups models into three categories you can filter with the
 `[1] All` / `[2] Free` / `[3] Pay-as-you-go` / `[4] Subscription` tabs:
@@ -106,5 +106,5 @@ chat:
 
 ## Related
 
-- [Commands Reference](commands-reference.md) - the `infer stats` and `infer insights` commands
+- [Commands Reference](commands-reference.md#infer-insights) - the `infer insights` command
 - [Configuration Reference](configuration-reference.md#chat-interface-settings) - status bar options

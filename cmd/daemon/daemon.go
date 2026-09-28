@@ -48,8 +48,8 @@ enabled in config:
 
 Each channel message spawns a new agent invocation with a deterministic session
 ID per sender, so conversations persist across messages. Channel configuration
-lives in .infer/channels.yaml (seeded by 'infer init') or INFER_CHANNELS_*
-environment variables.
+lives in ~/.infer/channels.yaml (seeded by 'infer init'), a project
+.infer/channels.yaml that replaces it, or INFER_CHANNELS_* environment variables.
 
 Examples:
   # Start the daemon (scheduler and/or channels, per config)

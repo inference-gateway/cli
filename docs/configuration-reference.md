@@ -374,6 +374,26 @@ vision:
         max_age: 24h
 ```
 
+### Computer Use (computer_use.yaml)
+
+Settings for the [Computer Use](computer-use.md) tools in **`computer_use.yaml`** (project
+`./.infer/computer_use.yaml` overrides userspace `~/.infer/computer_use.yaml`).
+
+```yaml
+enabled: false # register the Computer tool
+approval: never # never | destructive | always
+rate_limit:
+  enabled: true
+  max_actions_per_minute: 60
+  window_seconds: 60
+```
+
+- **computer_use.approval**: When a computer-use action needs approval (default: `never`). `destructive`
+  gates input actions (click, type, key, move, scroll) and lets observations such as screenshots through.
+  `always` gates every action.
+- **computer_use.rate_limit**: Caps actions to `max_actions_per_minute` within a sliding `window_seconds`
+  window (defaults: on, 60, 60).
+
 ### Screen Recording (computer_use.yaml)
 
 Settings for the [RecordStart and RecordStop](tools-reference.md#recordstart-and-recordstop-tools)

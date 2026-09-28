@@ -153,4 +153,4 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for the development workflow.
 
 - [Quick Start](../README.md#quick-start) - first chat in three commands
 - [Configuration Reference](configuration-reference.md) - providers, models, tools, and environment variables
-- [Directory Structure](directory-structure.md) - every file and directory the CLI creates under `.infer/` and `~/.infer/`
+- [Directory Structure](directory-structure.md) - the files and directories the CLI creates under `.infer/` and `~/.infer/`

@@ -10,8 +10,8 @@ and the tools return normal tool results.
 
 - `NewTools(...)` builds `A2A_SubmitTask`, `A2A_QueryAgent` and `A2A_QueryTask` from the manifests in `tools/`.
   Their approval is set under `a2a.tools.*`.
-- Submitted tasks are tracked by the job supervisor and polled until they finish. Artifacts are downloaded
-  through the `WebFetch` tool with `download=true`.
+- Submitted tasks are tracked by the job supervisor and polled until they finish. `A2A_SubmitTask` downloads the
+  artifacts itself when `a2a.task.artifacts_auto_download` is on. Otherwise it tells the model to fetch them with `WebFetch`.
 - `AgentSupervisor` starts the configured local agent containers. Agents are declared in `agents.yaml`, and the
   feature is gated by the `a2a` config section.
 - The `/agents` and `/tasks` shortcuts read the same state.

@@ -6,9 +6,10 @@
 
 ## How it plugs in
 
-- `speech_to_text` enables the voice shortcut. The Whisper model is downloaded on first use.
-- `text_to_speech` enables the `TextToSpeech` tool. The local `qwen3-tts` backend synthesizes through this
-  package; the default `gateway` backend goes through the agent's speech service instead.
+- `speech_to_text` enables the voice shortcut and the transcription of Telegram voice messages. The Whisper
+  model is downloaded on first use.
+- `text_to_speech` enables the `TextToSpeech` tool. The local `qwen3-tts` engine synthesizes through this
+  package; the default `gateway` engine goes through the agent's speech service instead.
 - Music, sound effects and video are not here: those tools call the gateway through the agent's media ports.
 
 ## Related

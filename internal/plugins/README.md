@@ -8,8 +8,8 @@
 
 - Skills contributed by a plugin flow through `internal/skills` as the `plugin` scope.
 - The container feeds the enabled plugins' instructions into prompt assembly.
-- A plugin may ship command hooks (`hooks.yaml`). They stay off until `infer plugins enable-hooks <name>` and then
-  run as agent command hooks - the only way a plugin executes code.
+- A plugin may ship command hooks (`hooks.yaml`). They stay off until `infer plugins enable-hooks <name>`, and
+  also need the global `hooks.enabled`. They then run as agent command hooks - the only way a plugin executes code.
 - A disabled plugin stops contributing all three, without deleting the download.
 
 ## Related

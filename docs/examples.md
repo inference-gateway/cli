@@ -6,7 +6,7 @@
 **Why** - seeing a feature wired up end to end, config and all, is faster than reading a reference and guessing.
 **How** - each directory under [`examples/`](../examples/) is self-contained with its own README; copy the one closest to your setup and adapt it.
 
-## Docker Compose Examples
+## Runnable Examples
 
 Most examples ship a Docker Compose file:
 
@@ -51,5 +51,5 @@ infer chat
 ## Related
 
 - [Quick Start](../README.md#quick-start) - first chat in three commands
-- [Commands Reference](commands-reference.md) - every command and global flag
+- [Commands Reference](commands-reference.md) - the main commands and the global flags
 - [Directory Structure](directory-structure.md) - what the CLI writes where

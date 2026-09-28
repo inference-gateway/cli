@@ -307,33 +307,8 @@ prompts the channel user and waits for confirmation.
 
 ### Which Tools Require Approval
 
-This reuses the existing `tools.*.require_approval` configuration:
-
-| Tool      | Default                                           |
-|-----------|---------------------------------------------------|
-| Bash      | Requires approval (unless command is allowed).    |
-| Write     | Requires approval                                 |
-| Edit      | Requires approval                                 |
-| Delete    | Requires approval                                 |
-| Read      | No approval needed                                |
-| Grep      | No approval needed                                |
-| Tree      | No approval needed                                |
-| TodoWrite | No approval needed                                |
-
-You can customize per-tool behavior in `.infer/config.yaml`:
-
-```yaml
-tools:
-  bash:
-    require_approval: true
-    mode:
-      all:
-        allow: ["ls( .*)?", "pwd( .*)?", "git status( .*)?"]
-  write:
-    require_approval: true
-  read:
-    require_approval: false
-```
+Channels use the same approval policy as the TUI. See the
+[Tool Overview](tools-reference.md#tool-overview) for each tool's default and how to override it.
 
 ### Disabling Tool Approval
 

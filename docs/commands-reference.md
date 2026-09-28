@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md)
 
-**What** - every `infer` subcommand, its flags and examples, plus the global flags.
+**What** - the main `infer` subcommands, their flags and examples, plus the global flags. Run `infer --help` for the full list.
 **Why** - the chat TUI covers daily use, but setup, automation and maintenance happen on the command line.
 **How** - find the command by group in the table of contents; each section lists its flags and examples.
 
@@ -353,19 +353,8 @@ The chat interface supports four operational modes that can be toggled with **sh
 The current mode is displayed below the input field when not in Standard mode. Toggle between modes
 anytime during a chat session.
 
-**System Reminders:**
-
-System reminders inject short `<system-reminder>` messages into the conversation at defined points
-of the agent loop (hook points) to keep durable guidance in context. They are configured in
-`reminders.yaml` (project `./.infer/` or `~/.infer/`), each with a `hook` and a `trigger`. See
-[System Reminders](configuration-reference.md#system-reminders-remindersyaml) for the full schema.
-
-- **Hook points**: fire at `pre_stream`, `post_tool`, `pre_session`, and more
-- **Triggers**: gate firing - `always`, every Nth turn (`interval`), near the turn limit
-  (`turns_before_max`), `once` per run, or only after a failed tool call (`on_failure`)
-- **Non-intrusive**: reminders are sent to the model but don't interrupt the user experience
-- **Inline/CI supply**: provide reminders without a file via `INFER_REMINDERS_CONFIG` (inline YAML)
-  or `--reminders-file PATH`
+**System Reminders:** short `<system-reminder>` messages injected at agent-loop hook points to keep
+durable guidance in context. See [Reminders & Command Hooks](hooks.md).
 
 **Examples:**
 
@@ -544,6 +533,13 @@ rather than reading files directly).
      Scoped to the current project by default; pass `--all-projects` for every project's conversations.
 - `show <session-id>`: Print a single conversation's entries in chronological order.
 
+**`list` flags:**
+
+- `--limit`, `-l`: Maximum number of conversations to display (default 50).
+- `--offset`: Number of conversations to skip, for pagination.
+- `--format`, `-f` `text|json`: `text` (default) is human-readable; `json` is machine-readable.
+- `--all-projects`: List every project's conversations.
+
 **`show` flags:**
 
 - `--include-hidden`: Include entries marked hidden - system reminders, plan-approval prompts,
@@ -686,8 +682,8 @@ structured `app-*.log` and `daemon-*.log` files and their `.gz` archives are rea
 raw subprocess output with no level or timestamp to filter on, and the gateway's own failures are
 logged through zap into `app-*.log` anyway.
 
-The analysis runs on `agent.max_tokens` (default 8192) rather than a fixed budget - a reasoning model
-spends that budget thinking before it answers, and too small a value fails the run outright. The
+The analysis runs on `agent.max_tokens` with a floor of 32000 tokens, because a reasoning model spends that
+budget thinking before it answers and too small a value fails the run outright. A larger `agent.max_tokens` raises it. The
 written analysis is capped at 200 lines / 16000 characters, so a model that ignores the requested
 length cannot flood the report.
 
@@ -725,7 +721,8 @@ These flags are available on every command:
 - `--no-colors`: Disable ANSI colors in command output (colors are also auto-disabled when stdout is not a terminal or `NO_COLOR` is set)
 - `--tools-bash-allow-append <cmds>`: Comma/newline-separated commands added to the bash allow-list in every mode
   (`standard`, `plan`, `auto`); `INFER_TOOLS_BASH_ALLOW_APPEND` takes precedence
-- `--reminders-file <path>`: Path to a reminders YAML file, overriding project `.infer/` and `~/.infer/` reminders
+- `--reminders-file <path>`: Path to a reminders YAML file, overriding project `.infer/` and `~/.infer/` reminders;
+  `INFER_REMINDERS_CONFIG` takes precedence
 
 ---
 
