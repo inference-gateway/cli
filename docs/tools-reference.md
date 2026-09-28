@@ -11,6 +11,7 @@ is enabled in the Inference Gateway CLI.
 
 ## Table of Contents
 
+- [Tool Overview](#tool-overview)
 - [File System Tools](#file-system-tools)
   - [Tree Tool](#tree-tool)
   - [Read Tool](#read-tool)
@@ -96,14 +97,26 @@ always-available set is registered for every session. There is **no built-in Git
 | **CloseSubagent** | Stop a subagent or tidy a finished pane | Yes |
 | **ApproveSubagent** | Relay an approval decision to a waiting subagent | Yes |
 
-**Computer Use** (require `computer_use.enabled`; these bypass the approval prompt and run silently):
+**Computer Use** (require `computer_use.enabled`; approval follows `computer_use.approval`, default `never`,
+and RecordStart follows `computer_use.recording.require_approval`, default on):
 
 | Tool | Purpose | Approval |
 | ------ | --------- | ---------- |
-| **Computer** | Read the accessibility tree, press labelled controls, capture screenshots, and control mouse/keyboard | Configurable |
+| **Computer** | Read the accessibility tree, press labelled controls, capture screenshots, and control mouse/keyboard | No |
 | **GetLatestFrame** | Read the latest frame from a named source (screen, camera directory) | No |
-| **RecordStart** | Record the screen, a window, or a region to MP4 (needs `computer_use.recording.enabled`) | Configurable |
-| **RecordStop** | Stop the recording and return the file path, duration, and size | Configurable |
+| **RecordStart** | Record the screen, a window, or a region to MP4 (needs `computer_use.recording.enabled`) | Yes |
+| **RecordStop** | Stop the recording and return the file path, duration, and size | No |
+
+**Browser** (require `browser_use.enabled`; see [Browser Tools](#browser-tools)):
+
+| Tool | Purpose | Approval |
+| ------ | --------- | ---------- |
+| **BrowserNavigate** | Open a URL | Yes |
+| **BrowserClick** | Click an element by selector | Yes |
+| **BrowserType** | Fill an input element | Yes |
+| **BrowserRead** | Read the page's visible text and browser events | No |
+| **BrowserScreenshot** | Capture the current page as an image | No |
+| **BrowserTabs** | List the open tabs | No |
 
 **Media** (each gated by its own flag; all output is written to disk, never played aloud):
 
@@ -112,7 +125,12 @@ always-available set is registered for every session. There is **no built-in Git
 | **ImageGeneration** | Generate an image from a prompt into `~/.infer/projects/<project-slug>/artifacts/` | No | `tools.image_generation.enabled` |
 | **ImageEdit** | Edit an existing image and save the result | No | `tools.image_edit.enabled` |
 | **ImageVariation** | Produce a variation of an existing image | No | `tools.image_variation.enabled` |
+| **ImageDecode** | Look at a local image or URL, annotated for text-only models | No | always available |
 | **TextToSpeech** | Synthesize speech to a WAV (local llama-tts or gateway Audio API), optionally cloning a voice | No | `text_to_speech.enabled` |
+| **TextToMusic** | Generate music through the gateway | No | `text_to_music.enabled` |
+| **TextToSFX** | Generate a sound effect through the gateway | No | `text_to_sfx.enabled` |
+| **TextToVideo** | Generate a video, optionally from an avatar | No | `text_to_video.enabled` |
+| **CreateAvatar** | Build an avatar portrait folder for TextToVideo | Yes | `text_to_video.create_avatar` |
 
 **Memory, scheduling & A2A** (each gated by its own flag):
 
@@ -125,27 +143,15 @@ always-available set is registered for every session. There is **no built-in Git
 | **A2A_QueryTask** | Check an A2A task's status | No | A2A enabled |
 
 > **Approval** reflects the default policy. The global default is `tools.safety.require_approval: true`,
-> so a tool is **No** only where it is explicitly exempt in code (read-only file/search tools, Memory,
-> the plan/question tools, subagent reads, and computer-use). Bash is governed instead by the per-mode
-> bash allow-list. Override any tool with `tools.<name>.require_approval`.
+> so a tool is **No** only where its manifest exempts it. Bash is governed instead by the per-mode bash
+> allow-list, and `tools.bash.require_approval` has no effect. A tool with its own config section takes
+> `require_approval` there (`tools.write`, `tools.web_fetch`, `text_to_speech`, `a2a.tools.*`, ...);
+> the rest follow the global switch only. See [Tool Approval](tool-approval.md) for how gated calls are resolved.
 >
 > **MCP tools** are not listed here - they are discovered and registered dynamically at runtime from your
 > configured MCP servers and surface as `MCP_<server>_<tool>` (see [MCP Integration](mcp-integration.md)).
 
-**Tool Configuration:**
-
-Tools can be enabled/disabled and configured individually:
-
-```bash
-# Enable/disable specific tools
-infer config set tools.bash.enabled true
-infer config set tools.write.enabled true
-
-# Configure tool settings
-infer config set tools.grep.backend ripgrep
-# List values are comma-separated and replace the whole list
-infer config set tools.web_fetch.allowed_domains "example.com,github.com"
-```
+<img src="../assets/tui-tools.png" width="760" alt="A Grep tool call executed by the agent, with its result and the assistant's summary" />
 
 ---
 
