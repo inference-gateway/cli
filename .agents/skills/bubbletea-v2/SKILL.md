@@ -13,7 +13,7 @@ license: Apache-2.0
 # Bubble Tea v2
 
 The Elm-Architecture TUI runtime. Import `charm.land/bubbletea/v2` (alias `tea`);
-pinned to v2.0.7. State lives in a `Model`; messages drive `Update`, which returns
+pinned to v2.0.9. State lives in a `Model`; messages drive `Update`, which returns
 a new model and optional commands; `View` renders. The biggest risk here is v1
 muscle memory, so start with what changed.
 
@@ -96,7 +96,8 @@ func (m model) View() tea.View {
 `WithAltScreen`, `WithMouseCellMotion`, `WithMouseAllMotion`, `WithReportFocus` no
 longer exist. The real `tea.NewProgram` options are `WithContext`, `WithInput`,
 `WithOutput`, `WithFPS`, `WithFilter`, `WithColorProfile`, `WithWindowSize`,
-`WithEnvironment`, `WithoutSignalHandler`, `WithoutRenderer`, `WithoutCatchPanics`.
+`WithEnvironment`, `WithoutSignalHandler`, `WithoutSignals`, `WithoutRenderer`,
+`WithoutCatchPanics`.
 
 ## Commands & messages
 
@@ -159,5 +160,5 @@ func fetch(url string) tea.Cmd {
 - Reaching for `tea.WithAltScreen()`? Gone - set `v.AltScreen = true` in the View.
 
 Pairs with **lipgloss-v2** (styling the strings in your View) and **bubbles-v2**
-(prebuilt components). Pinned to bubbletea v2.0.7 - verify against the installed
+(prebuilt components). Pinned to bubbletea v2.0.9 - verify against the installed
 module, not v1 memory.

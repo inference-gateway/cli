@@ -2,7 +2,7 @@
 name: bubbles-v2
 description: >
   Use the Bubbles v2 component library for Bubble Tea v2 (charm.land/bubbles/v2):
-  viewport, textinput/textarea, spinner, progress, list, table, key, help. Use when
+  viewport, textinput/textarea, spinner, progress, list, table, tree, key, help. Use when
   adding or reviewing prebuilt TUI components - scrollable viewports, text inputs,
   spinners, progress bars, key bindings and help - with this stack. Each component is
   a sub-model you embed and delegate to; v2 constructors and key handling differ from
@@ -13,7 +13,7 @@ license: Apache-2.0
 # Bubbles v2
 
 Prebuilt components for Bubble Tea v2. Import `charm.land/bubbles/v2/<component>`;
-pinned to v2.1.0. Each component is itself a small Bubble Tea model that you embed in
+pinned to v2.2.1. Each component is itself a small Bubble Tea model that you embed in
 your own model and delegate to.
 
 ## The component contract
@@ -74,11 +74,12 @@ model wraps the composed string in `tea.NewView` (see **bubbletea-v2**).
 | --- | --- | --- |
 | `viewport` | scrollable region | `New(WithWidth(w), WithHeight(h))`; `SetContent`, `SetWidth/SetHeight`, `DefaultKeyMap()` |
 | `textinput` | one-line input | `New()`; `Focus() tea.Cmd`, `Blur()`, `Value()`, `SetValue()` |
-| `textarea` | multi-line input | `New()`; `Focus()`, `Value()`, `SetWidth/SetHeight` |
+| `textarea` | multi-line input | `New()`; `Focus()`, `Value()`, `SetWidth/SetHeight`; `SelectAll`, `SelectedText`, `CopySelection()` |
 | `spinner` | activity indicator | `New(WithSpinner(spinner.Dot))`; start with its `Tick` |
 | `progress` | progress bar | `New(WithDefaultBlend())`; static `ViewAs` vs animated `SetPercent` |
 | `list` | filterable list | `New(items, delegate, width, height)` (positional) |
 | `table` | data grid | `New(WithColumns(...), WithRows(...))` |
+| `tree` | collapsible tree | `New(tree.Root(v).Child(...), width, height)` (positional); `SetNodes`, `SetSize` |
 | `key` | key bindings | `NewBinding(WithKeys("q"), WithHelp("q","quit"))`; `key.Matches(msg, b)` |
 | `help` | keymap help line | `New()`; renders short/full help from your keymap |
 
@@ -118,8 +119,13 @@ own. Animated: `cmd := m.pr.SetPercent(0.4)`, then route `progress.FrameMsg` thr
 - Manage focus: exactly one input `Focus()`ed at a time; `Blur()` the rest. `Focus()`
   returns a `tea.Cmd` - don't drop it.
 - Constructors take options now: `viewport.New(w, h)` won't compile; use `WithWidth`/
-  `WithHeight`. (`list.New` is the exception - still positional.)
+  `WithHeight`. (`list.New` and `tree.New` are the exceptions - still positional.)
 - `DefaultKeyMap` is a call now: `viewport.DefaultKeyMap()`.
+- `list.DefaultKeyMap().Quit` is `v` ("select") since v2.2.0, not `q`/`esc`. Call
+  `l.DisableQuitKeybindings()` or set `KeyMap.Quit` yourself.
+- textarea's default keymap selects text: shift+arrows, `ctrl+g` (select all),
+  `ctrl+shift+c` (copy). `ctrl+left/right` move by word. Typing replaces a selection.
+  Rebind these if they clash with your app's keys. Style it via `Styles.*.Selection`.
 
 Pairs with **bubbletea-v2** (the runtime) and **lipgloss-v2** (styling components).
-Pinned to bubbles v2.1.0.
+Pinned to bubbles v2.2.1.

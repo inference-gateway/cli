@@ -3,11 +3,12 @@ name: go
 description: >
   Idiomatic Go - package and interface design, error wrapping, table-driven
   tests, generics, the modern standard library (slices/maps/cmp/errors.Join),
-  current syntax, and logging discipline. Use when writing, reviewing, or
-  refactoring any Go code, especially code drifting toward Java/Spring shapes
-  (deep layer trees, generic repositories, heavy frameworks) - even if the user
-  never says "idiomatic". Distilled from spf13/go-skills and adapted to this repo.
-license: Apache-2.0
+  current syntax, HTTP servers, and logging discipline. Use whenever Go code is
+  written, reviewed, debugged, or refactored - any .go file or go.mod, or a mention
+  of Go or golang - especially code drifting toward Java/Spring shapes (deep layer
+  trees, generic repositories, heavy frameworks), even if the user never says
+  "idiomatic". Distilled from spf13/go-skills and adapted to this repo.
+license: MIT
 ---
 
 # Idiomatic Go
@@ -25,7 +26,7 @@ follow, rewrite it. Keep the happy path un-indented: handle errors and edge case
 first and `return`.
 
 ```go
-func GetUser(id string) (*User, error) {
+func LookupUser(id string) (*User, error) { // no "Get" prefix - Go omits it
     user, err := db.FindUser(id)
     if err != nil {
         return nil, fmt.Errorf("finding user %s: %w", id, err)
@@ -76,7 +77,7 @@ fields.
 ```go
 // the consumer declares exactly what it needs; the concrete store needn't know
 type UserFetcher interface {
-    GetUser(id string) (*User, error)
+    FetchUser(id string) (*User, error)
 }
 
 type Processor struct{ fetcher UserFetcher }
@@ -133,6 +134,12 @@ BDD framework.
   **golden files**.
 - Compare structs with **`github.com/google/go-cmp/cmp`**, not `reflect.DeepEqual`.
 - Abstract the filesystem with **`afero`** and inject `afero.NewMemMapFs()` in tests.
+- Use **`t.Context()`** (canceled when the test ends) instead of `context.Background()`,
+  and `t.Chdir(dir)` / `t.Setenv` for scoped process state.
+- Benchmarks loop with **`for b.Loop()`**, not `for i := 0; i < b.N; i++`.
+- Test timers and goroutines with **`testing/synctest`** - `synctest.Test(t, ...)`
+  runs a fake clock that advances when every goroutine blocks. Never
+  `time.Sleep` to "wait for a goroutine"; use synctest, channels, or explicit sync.
 
 ```go
 func TestParse(t *testing.T) {
@@ -170,7 +177,9 @@ helper or hand-rolled loop:
 | Instead of | Use |
 | --- | --- |
 | `sort.Slice(s, ...)` | `slices.Sort(s)`, `slices.SortFunc`, `slices.Contains/Index` |
-| manual key/value loops | `maps.Keys/Values/Clone/Copy/Equal` |
+| manual key/value loops | `maps.Keys/Values` (iterators), `maps.Clone/Copy/Equal/DeleteFunc` |
+| collect keys, then `sort` | `slices.Sorted(maps.Keys(m))`; `slices.Collect(it)` |
+| returning a big slice, or a `Next()/HasNext()` type | return `iter.Seq[T]` / `iter.Seq2[K, V]`; callers `range` it |
 | `if x == 0 { x = def }` | `cmp.Or(x, def)`; `min`/`max` built-ins |
 | ad-hoc multi-error joins | `errors.Join(err1, err2)` |
 | `atomic.AddInt64(&n, 1)` | typed `atomic.Int64`/`Bool`/`Pointer[T]` (`n.Add(1)`) |
@@ -178,6 +187,9 @@ helper or hand-rolled loop:
 | `for i := 0; i < n; i++` | `for i := range n` |
 | `interface{}` | `any` |
 | `// +build` tags | `//go:build` |
+| `math/rand` | `math/rand/v2` (`rand.IntN`, generic `rand.N`) |
+| `omitempty` on `time.Time` or struct fields | `omitzero` (Go 1.24) |
+| `tools.go` with blank imports | `tool` directive in go.mod (`go get -tool`, `go tool x`) - as this repo does for counterfeiter |
 
 To keep a request's values but drop its cancellation for work that outlives it,
 use `context.WithoutCancel(ctx)` (Go 1.21).
@@ -220,23 +232,23 @@ logger.Error("request failed", "err", err)   // needs attention
 
 - **Share memory by communicating** - pass data over a channel instead of guarding
   it with a mutex where you can. Channels orchestrate; mutexes serialize.
-- **Bound concurrency** with a buffered-channel semaphore, not a static worker pool
-  (Go's scheduler is cheap):
+- **Bound concurrency** with `errgroup.SetLimit`, not a hand-rolled semaphore channel
+  or a static worker pool (Go's scheduler is cheap):
 
 ```go
 func FetchAll(ctx context.Context, urls []string, max int) error {
-    sem := make(chan struct{}, max)
     g, ctx := errgroup.WithContext(ctx)
+    g.SetLimit(max) // g.Go blocks at the limit
     for _, u := range urls {
-        sem <- struct{}{} // blocks at the limit
-        g.Go(func() error {
-            defer func() { <-sem }()
-            return fetch(ctx, u)
-        })
+        g.Go(func() error { return fetch(ctx, u) })
     }
     return g.Wait()
 }
 ```
+
+- No error to propagate? `wg.Go(func() { process(u) })` (Go 1.25) replaces
+  `Add`/`Done`.
+- Loop variables are per-iteration since Go 1.22 - never write the old `u := u` line.
 
 - **Never start a goroutine without knowing how it stops** - every `go func()`
   needs a `ctx`/closed-channel exit, or it leaks.
@@ -244,6 +256,28 @@ func FetchAll(ctx context.Context, urls []string, max int) error {
 For channel patterns in depth - done-channel, fan-out/fan-in, pipeline, or-done,
 context propagation, worker semaphore - see the **go-concurrency** skill, and
 verify with `go test -race`.
+
+## HTTP servers
+
+`http.ListenAndServe(addr, mux)` has **no timeouts** - one slow client holds a
+connection forever. Always build an `http.Server` with them, and give outbound
+clients a timeout too (`http.DefaultClient` has none):
+
+```go
+srv := &http.Server{
+    Handler:           mux,
+    ReadHeaderTimeout: 5 * time.Second,
+    ReadTimeout:       10 * time.Second,
+    WriteTimeout:      30 * time.Second, // omit for SSE/streaming handlers
+    IdleTimeout:       120 * time.Second,
+}
+```
+
+- **Graceful shutdown**: on `ctx.Done()` (from `signal.NotifyContext`) call
+  `srv.Shutdown` with a *fresh* `context.WithTimeout` - the signal context is
+  already canceled. Long-lived handlers (SSE, websockets) must watch `r.Context()`.
+- **Middleware is just `func(http.Handler) http.Handler`** - compose by wrapping.
+  Reach for chi or gorilla only for named routes or regex, never for middleware.
 
 ## Debugging: the Go toolchain is not the bug
 

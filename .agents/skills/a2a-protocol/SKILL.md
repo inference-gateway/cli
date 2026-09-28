@@ -9,8 +9,8 @@ description: >
   agent server or client, designing an agent card, delegating tasks between
   agents, wiring the CLI's A2A tools, or answering "how does A2A do X". The
   source of truth is the schema in inference-gateway/schemas - reference it,
-  never hand-copy it, and always pin the spec version you target (v0.3.0 vs
-  v1.0 differ in breaking ways).
+  never hand-copy it, and always pin the spec version you target (v0.3.0,
+  the schemas v1.0 draft, and released v1.0.x differ in breaking ways).
 license: Apache-2.0
 ---
 
@@ -29,9 +29,10 @@ moved `google-a2a/A2A` → **`a2aproject/A2A`**, Apache-2.0.
 
 The canonical A2A types for this ecosystem live in
 [`inference-gateway/schemas`](https://github.com/inference-gateway/schemas). The
-`a2a/a2a.proto` file is synced from upstream `a2aproject/A2A` and **generates**
-`a2a/a2a-schema.{json,yaml}`. Never paste schema definitions into code or docs -
-**point at the schema and regenerate**, so you never drift from the source.
+`a2a/a2a.proto` file is hand-copied from upstream `a2aproject/A2A` (nothing syncs
+it automatically) and **generates** `a2a/a2a-schema.{json,yaml}`, from which ADK
+generates its Go types. Never paste schema definitions into code or docs - **point
+at the schema and regenerate**, so you never drift from the source.
 
 | Need | Where to look |
 | --- | --- |
@@ -42,24 +43,37 @@ The canonical A2A types for this ecosystem live in
 
 ## Version map - read this first
 
-A2A's latest released spec is **v1.0.0** (prior lines: 0.3.0, 0.2.x, 0.1.0;
-versions are `Major.Minor`). **v0.3.0 → v1.0 is breaking.** Much online guidance
-still describes v0.x, so *always know which shape you're looking at*:
+A2A's latest released spec is **v1.0.1** (a text-only patch over v1.0.0:
+HTTP+JSON SHOULD use `Content-Type: application/a2a+json`, and error-to-HTTP-status
+mapping follows `google.rpc.Code`; prior lines: 0.3.0, 0.2.x, 0.1.0). **v0.3.0 →
+v1.0 is breaking.** Much online guidance still describes v0.x, and this ecosystem
+sits *between* the two, so *always know which shape you're looking at*:
 
-| Aspect | v0.x shape (e.g. ADK `adk@v0.7.4`, the CLI runtime) | v1.0 shape (e.g. the `schemas` proto) |
+| Aspect | v0.x shape | v1.0 shape (released, `package lf.a2a.v1`) |
 | --- | --- | --- |
-| Task states | lowercase kebab: `submitted`, `working`, `input-required`, `canceled` | ProtoJSON `SCREAMING_SNAKE`: `TASK_STATE_SUBMITTED`, … |
+| Task states | kebab: `submitted`, `input-required`, `canceled` | ProtoJSON `SCREAMING_SNAKE`: `TASK_STATE_SUBMITTED`, `TASK_STATE_CANCELED` |
 | JSON-RPC methods | slash names: `message/send`, `tasks/get` | PascalCase = gRPC: `SendMessage`, `GetTask` |
 | Transport advertising | `url` + `preferredTransport` + `additionalInterfaces` | one `supportedInterfaces[]` array (first entry preferred) |
 | Part content | separate `TextPart` / `FilePart` / `DataPart` | one unified `Part` (a `oneof`) |
 | Error codes | `-32001`…`-32007` | adds `-32008`, `-32009`; `-32007` renamed |
 
+**The `schemas` proto is a pre-release v1.0 draft**, not released v1.0.x: it is
+`package a2a.v1`, spells `TASK_STATE_CANCELLED` (double L), keeps a top-level
+`AgentCard.protocol_version`, and names push-config RPCs `Set…`/`List…Config`.
+**The CLI runtime (ADK v0.28) is a hybrid:** its types are generated from that
+draft (`TASK_STATE_*` states, unified `Part`, `supportedInterfaces` alongside the
+deprecated `url`/`preferredTransport`), but its JSON-RPC methods are still v0.x
+slash names (`message/send`, `tasks/get`). Remote agents may report either state
+casing - the CLI maps both through `NormalizeTaskState`
+(`internal/a2a/domain/tasks.go`).
+
 > **Do not mix shapes.** Pick a target version, read *that* version's schema, and
 > use its field/method names. The well-known path also moved with versions:
 > pre-v0.3.0 used `/.well-known/agent.json`; **v0.3.0+ uses
-> `/.well-known/agent-card.json`** (RFC 8615). `protocolVersion` is a top-level
-> `AgentCard` field in the `schemas` proto - if a doc claims otherwise, trust the
-> schema you're compiling against.
+> `/.well-known/agent-card.json`** (RFC 8615). Where `protocolVersion` lives
+> depends on the shape: a top-level `AgentCard` field in the `schemas` draft and
+> ADK, but `AgentInterface.protocol_version` (required, per interface) in released
+> v1.0.x - trust the schema you're compiling against.
 
 ## Mental model
 
@@ -94,9 +108,10 @@ Card authoring:
   `stateTransitionHistory`. Clients negotiate on these - don't advertise what you
   can't do.
 - **Advertise transports honestly** - v1.0 lists one `supportedInterfaces[]`
-  (each interface carries its own `url` + `protocolBinding` + `protocolVersion`);
-  v0.x uses `preferredTransport` + `additionalInterfaces`. Every advertised
-  interface must be **functionally equivalent**.
+  (each interface carries its own `url` + `protocolBinding` + `tenant`, and in
+  released v1.0.x its `protocolVersion`); v0.x uses `preferredTransport` +
+  `additionalInterfaces`. Every advertised interface must be **functionally
+  equivalent**.
 - **Never put secrets in the card.** Declare *how* to authenticate via
   `securitySchemes` + `security`; credentials come out-of-band. If the card
   itself carries sensitive data, protect the endpoint (auth/mTLS/network) and/or
@@ -118,14 +133,15 @@ the default when a preference is unspecified).
 | List tasks | `tasks/list` | `ListTasks` | `GET /tasks` |
 | Cancel task | `tasks/cancel` | `CancelTask` | `POST /tasks/{id}:cancel` |
 | Resubscribe | `tasks/resubscribe` | `SubscribeToTask` | `GET /tasks/{id}:subscribe` |
-| Push config CRUD | `tasks/pushNotificationConfig/*` | `*TaskPushNotificationConfig` | `/tasks/{id}/pushNotificationConfigs` |
+| Push config | `tasks/pushNotificationConfig/*` | `{Create,Get,List,Delete}TaskPushNotificationConfig(s)` | `/tasks/{id}/pushNotificationConfigs` |
 | Extended card | `agent/getAuthenticatedExtendedCard` | `GetExtendedAgentCard` | `GET /extendedAgentCard` |
 
 > **In this repo:** the ADK client (`client.NewClient(url)`) speaks **JSON-RPC**
-> at the v0.x shape - `GetAgentCard`, `SendTask` (→ `message/send`), `GetTask`
-> (→ `tasks/get`) - while `schemas` stores the v1.0 proto/gRPC form. Same
-> operations, different binding *and* different spec version; that's why names
-> differ between the schema you read and the calls the runtime makes.
+> with v0.x method names - `GetAgentCard`, `SendTask` (→ `message/send`),
+> `GetTask` (→ `tasks/get`) - while `schemas` stores the proto/gRPC form. Same
+> operations, different binding; that's why method names differ between the
+> schema you read and the calls the runtime makes, even though the payload types
+> match the schema.
 
 ## Task lifecycle
 
@@ -137,12 +153,13 @@ A send returns **either** a `Message` (immediate, self-contained reply) **or** a
   `auth-required` (needs out-of-band auth). Continue by sending a new Message with
   the same `taskId` + `contextId`.
 - **Terminal (immutable):** `completed`, `failed`, `canceled`, `rejected`. Plus
-  `unknown` for indeterminate. A terminal task **cannot restart** - do follow-up
-  work as a *new* task in the same `contextId`.
+  `unknown` for indeterminate (v1.0: `TASK_STATE_UNSPECIFIED`). A terminal task
+  **cannot restart** - do follow-up work as a *new* task in the same `contextId`.
 
 Guidance: one Task per unit of work; reuse `contextId` to relate turns; put
 results in `artifacts` and a human-readable summary in `status.message`. (Casing
-is version-dependent - see the version map; normalize `canceled`/`CANCELLED`.)
+is version-dependent - see the version map; normalize `canceled`,
+`TASK_STATE_CANCELED`, and the draft's `TASK_STATE_CANCELLED`.)
 
 ## Messaging & content
 
@@ -236,8 +253,9 @@ failure** (the work ran and failed → a Task in state `failed`, reason in
   **[ADL](https://github.com/inference-gateway/adl)** +
   [`adl-cli`](https://github.com/inference-gateway/adl-cli) and scaffold.
 - **Consume from the CLI:** the `A2A_QueryAgent` / `A2A_SubmitTask` /
-  `A2A_QueryTask` tools (`internal/agent/tools/a2a_*.go`), gated by `a2a.enabled`
-  in `.infer` config; register agents in `.infer/agents.yaml`.
+  `A2A_QueryTask` tools (`internal/a2a/`, manifests in `internal/a2a/tools/`),
+  gated by `a2a.enabled` in `.infer` config; register agents in
+  `.infer/agents.yaml`.
 - **Debug:** [`a2a-debugger`](https://github.com/inference-gateway/a2a-debugger)
   to inspect/replay traffic; `mock-agent` for canned responses in tests.
 - **Proxy to an LLM:** the

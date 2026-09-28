@@ -13,7 +13,7 @@ license: Apache-2.0
 # Lip Gloss v2
 
 Declarative terminal styling and layout. Import `charm.land/lipgloss/v2` (alias
-`lipgloss`); pinned to v2.0.4. Styles are immutable values you build once and reuse.
+`lipgloss`); pinned to v2.0.6. Styles are immutable values you build once and reuse.
 The sharp break from v1 is the color/renderer model, so start there.
 
 ## v2 vs the v1 you remember
@@ -123,4 +123,4 @@ fmt.Println(t) // *table.Table is a Stringer
   `LightDark`, explicit `Complete`, or the `compat` package.
 
 Pairs with **bubbletea-v2** (the View you style) and **bubbles-v2** (components you
-theme). Pinned to lipgloss v2.0.4.
+theme). Pinned to lipgloss v2.0.6.

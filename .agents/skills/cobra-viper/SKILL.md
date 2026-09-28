@@ -2,12 +2,13 @@
 name: cobra-viper
 description: >
   Build and review Go CLI apps with Cobra and Viper (both used heavily here) -
-  command-first architecture, RunE error handling, PersistentPreRunE setup, flag
-  design, typed-struct config, the flag/env/file/default precedence hierarchy, and
-  in-memory command tests. Use when adding commands or flags, wiring Viper config
-  or env binding, or reviewing any cmd/ code. Distilled from spf13/go-skills (by
-  Cobra's and Viper's author) and adapted to this repo's config layering.
-license: Apache-2.0
+  command factories, RunE error handling, Args validation, PersistentPreRunE setup,
+  flag design, typed-struct config, the flag/env/file/default precedence hierarchy,
+  and in-memory command tests. Use when adding or reviewing commands, subcommands,
+  flags, Viper config or env binding, or any cmd/ code - even if Cobra or Viper
+  isn't named. Distilled from spf13/go-skills (by Cobra's and Viper's author) and
+  adapted to this repo's config layering.
+license: MIT
 ---
 
 # Go CLI Architecture: Cobra & Viper
@@ -24,124 +25,192 @@ flags/config, (3) call into a domain package, passing the parsed config and the
 command context. Your core packages must have **zero** imports of `cobra` or
 `viper`.
 
+**Commands are built, not declared.** Construct the tree with factory functions,
+never package-level `var` commands - globals leak flag state between tests and make
+the tree unusable as a library. The root factory owns a `viper.New()` instance and
+injects it:
+
 ```go
-package main
+func NewRootCmd() *cobra.Command {
+    v := viper.New()
+    root := &cobra.Command{
+        Use:           "myapp",
+        SilenceUsage:  true, // no help-dump on a runtime failure
+        SilenceErrors: true, // main prints the error once
+        PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+            return initConfig(v, cmd)
+        },
+    }
+    root.AddCommand(NewServeCmd(v))
+    return root
+}
 
-import "github.com/you/app/cmd"
-
-func main() { cmd.Execute() } // main.go is this small
+func main() {
+    ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+    defer stop()
+    if err := NewRootCmd().ExecuteContext(ctx); err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+}
 ```
 
-> **In this repo:** `cmd/` is the thin Cobra layer; all logic lives under
-> `internal/` behind a DI **service container** - commands fetch services via
-> container accessors, not by importing cobra/viper into business code. The
-> surviving rule is "`cmd/` holds no business logic," **not** "avoid `internal/`."
+`cmd.Context()` is only canceled on Ctrl+C if `main` wires signals like this -
+Cobra doesn't do it for you.
+
+> **In this repo:** `cmd/root/root.go` `NewCommand()` builds the tree; every
+> subcommand is a `<pkg>.NewCommand(state, ...)` factory taking the shared
+> `*runtime.State` (`cmd/runtime/state.go`), which owns the `viper.New()` instance
+> and the loaded `*config.Config`. `root.Execute()` runs it through
+> `fang.Execute`, which sets `SilenceUsage`/`SilenceErrors` and calls
+> `ExecuteContext`; it installs no signal handler (no `fang.WithNotifySignal`), so
+> long-running commands (`daemon`, the web server) handle signals themselves.
+> Business logic lives under `internal/` behind the DI container - `cmd/` holds
+> no business logic.
 
 ## Cobra essentials
 
 **Use `RunE`, not `Run`** - return errors up the chain instead of `log.Fatal`
-(which skips defers). Pass `cmd.Context()` down so `Ctrl+C`/`SIGINT` cancels work.
+(which skips defers). Pass `cmd.Context()` down.
 
 ```go
-var serveCmd = &cobra.Command{
-    Use:   "serve",
-    Short: "Start the server",
-    RunE: func(cmd *cobra.Command, args []string) error {
-        if err := engine.Run(cmd.Context(), args); err != nil {
-            return fmt.Errorf("serve: %w", err)
-        }
-        return nil
-    },
+func NewServeCmd(v *viper.Viper) *cobra.Command {
+    cmd := &cobra.Command{
+        Use:  "serve [addr]",
+        Args: cobra.MaximumNArgs(1),
+        RunE: func(cmd *cobra.Command, args []string) error {
+            var cfg engine.Config
+            if err := v.Unmarshal(&cfg); err != nil {
+                return fmt.Errorf("decoding config: %w", err)
+            }
+            return engine.Serve(cmd.Context(), cfg)
+        },
+    }
+    cmd.Flags().String("log-level", "info", "log level")
+    return cmd
 }
 ```
 
-**Silence noise on runtime errors** so a network timeout doesn't dump usage text:
+**Validate positional args with `Args`**, never by counting inside `RunE`:
+`cobra.NoArgs`, `ExactArgs(n)`, `MinimumNArgs(n)`, `RangeArgs(min, max)`,
+`OnlyValidArgs` (with `ValidArgs`), combined via `cobra.MatchAll(...)`.
 
-```go
-rootCmd := &cobra.Command{
-    Use:           "myapp",
-    SilenceUsage:  true, // no help-dump on a runtime failure
-    SilenceErrors: true, // main.go prints the error itself
-}
-```
-
-**`PersistentPreRunE`** on root runs setup (logging, validation) after flags parse
-but before any subcommand. Cobra runs it for every subcommand; if a child defines
-its own, call the parent's explicitly - Cobra does not chain them.
+**`PersistentPreRunE`** on root runs setup (config, logging) after flags parse but
+before any subcommand. If a child defines its own, it *replaces* the parent's -
+call the parent explicitly, or opt into chaining with
+`cobra.EnableTraverseRunHooks = true` (Cobra 1.8+).
 
 **Flags:** `PersistentFlags()` for cross-cutting options (config, verbosity,
-output); `Flags()` for command-local ones; `MarkFlagRequired` /
-`MarkFlagsMutuallyExclusive` for validation; always offer short flags for common
-options. Cobra generates shell completion (`myapp completion zsh|bash|fish`) for
-free; add `RegisterFlagCompletionFunc` for flag-value completion.
+output); `Flags()` for command-local ones; `BoolP`/`StringP` short flags for common
+options. Declare relationships instead of checking them by hand:
+`MarkFlagRequired`, `MarkFlagsMutuallyExclusive`, `MarkFlagsRequiredTogether`,
+`MarkFlagsOneRequired` (1.8+).
+
+**Help and completion:** group many subcommands with `AddGroup` + `GroupID`
+(1.6+). Completion (`myapp completion zsh|bash|fish`) is free; add
+`RegisterFlagCompletionFunc` for flag values and `ValidArgsFunction` for
+positional args.
+
+**Print through the command** - `cmd.OutOrStdout()` / `cmd.ErrOrStderr()` (or
+`cmd.Println`). `fmt.Printf` bypasses `SetOut`/`SetErr`, so tests can't capture it.
+
+**Version:** set the root's `Version` field (`myapp --version` for free,
+`SetVersionTemplate` to format it); add a `version` subcommand only for structured
+output like `--json`.
 
 ## Viper: merge sources into a typed struct
 
-**Don't** scatter `viper.GetString("db.host")` through business logic - that
-couples your domain to Viper and spreads magic strings. Unmarshal once, at the
-routing layer, into a typed struct and pass it down.
+Prefer an injected `*viper.Viper` from `viper.New()` over the global singleton - it
+isolates tests and lets commands run concurrently. **Don't** scatter
+`v.GetString("db.host")` through business logic; unmarshal once, at the routing
+layer, into a typed struct and pass it down.
+
+**Precedence** (highest to lowest): explicit `Set` -> flags (`BindPFlags`) -> env
+(`AutomaticEnv`) -> config file -> `SetDefault`. Bind the command's whole flag set
+in `PersistentPreRunE` (`v.BindPFlags(cmd.Flags())`), not flag-by-flag in `init()`
+where two commands binding the same key means the last `init()` silently wins.
 
 ```go
-type Config struct {
-    Host string `mapstructure:"host"`
-    Port int    `mapstructure:"port"`
-}
-
-var cfg Config
-if err := viper.Unmarshal(&cfg); err != nil {
-    return fmt.Errorf("decoding config: %w", err)
+func initConfig(v *viper.Viper, cmd *cobra.Command) error {
+    v.SetEnvPrefix("myapp")
+    v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_")) // serve.addr -> MYAPP_SERVE_ADDR
+    v.AutomaticEnv()
+    if err := v.ReadInConfig(); err != nil {
+        var notFound viper.ConfigFileNotFoundError
+        if !errors.As(err, &notFound) {
+            return fmt.Errorf("reading config: %w", err)
+        }
+    }
+    return v.BindPFlags(cmd.Flags())
 }
 ```
 
-**Precedence** (highest to lowest): explicit `Set` -> flags (`BindPFlag`) -> env
-(`AutomaticEnv`) -> config file -> `SetDefault`. Each source is opt-in; bind env
-explicitly for containers, and map nested keys with a replacer:
+**The most common Viper bug:** `Unmarshal` only walks keys Viper already knows
+(defaults, config file, explicit binds). A value set *only* by env var is invisible
+to it unless the key is registered - `SetDefault` or `BindEnv` every key in the
+config struct.
 
-```go
-viper.SetEnvPrefix("myapp")
-viper.AutomaticEnv()
-viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_")) // serve.addr -> MYAPP_SERVE_ADDR
-```
-
-> **In this repo:** config is assembled in `cmd/root.go::initConfig`, layered
-> **defaults -> `~/.infer/config.yaml` -> `./.infer/config.yaml` -> flags ->
-> `INFER_*` env (env wins)**, and **split across files by concern**
+> **In this repo:** config is assembled in `runtime.State.Initialize`
+> (`cmd/runtime/state.go`) and `loadConfigFromViper` (`cmd/runtime/config.go`),
+> layered **defaults -> `~/.infer/config.yaml` -> `./.infer/config.yaml` -> flags
+> -> `INFER_*` env (env wins)**, and **split across files by concern**
 > (`config.yaml`, `prompts.yaml`, `channels.yaml`, `mcp.yaml`, ...). The prefix is
-> `INFER`, the replacer is `strings.NewReplacer(".", "_")`, and two list vars
+> `INFER`, the replacer is `strings.NewReplacer(".", "_")`. The gotcha above is
+> handled twice: `registerConfigDefaults` (`cmd/runtime/defaults.go`) registers
+> every non-zero leaf of `config.DefaultConfig()`, and
+> `resolveViperEnvironmentVariables` (`cmd/runtime/config.go`) walks the struct
+> after `Unmarshal` to apply `INFER_*` overrides to the rest. Two list vars
 > (`INFER_A2A_AGENTS`, `INFER_TOOLS_BASH_ALLOW_APPEND`) are parsed with
 > `parseDelimitedList`. The typed target is the `Config` struct in
-> `config/config.go` - extend that; don't sprinkle `viper.Get*` through services.
+> `config/config.go` - extend that (and `DefaultConfig()`); don't sprinkle
+> `viper.Get*` through services.
 
 ## Test commands in memory
 
-Cobra commands are structs - test them directly; never shell out to a compiled
-binary (`os/exec` is slow, brittle, and hides coverage).
+Cobra commands are structs - test them in process; never shell out to a compiled
+binary (`os/exec` is slow, brittle, and hides coverage). **Always execute through
+a fresh root** with the subcommand name in `SetArgs`: `Execute()` on a subcommand
+runs from the root anyway, and a fresh tree + fresh Viper per case means no shared
+state and no `viper.Reset()`.
 
 ```go
 func TestServe(t *testing.T) {
-    viper.Reset() // Viper is a global singleton - reset between tests
-
-    buf := new(bytes.Buffer)
-    cmd := newServeCmd() // a factory beats a package var for isolation
-    cmd.SetOut(buf)
-    cmd.SetErr(buf)
-    cmd.SetArgs([]string{"--port", "9090"})
-
-    if err := cmd.Execute(); err != nil {
-        t.Fatalf("execute: %v", err)
+    tests := []struct {
+        name    string
+        args    []string
+        wantErr bool
+    }{
+        {"defaults", []string{"serve"}, false},
+        {"bad flag", []string{"serve", "--bogus"}, true},
+    }
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            t.Setenv("MYAPP_LOG_LEVEL", "debug") // restored automatically
+            buf := new(bytes.Buffer)
+            root := NewRootCmd()
+            root.SetOut(buf)
+            root.SetErr(buf)
+            root.SetArgs(tt.args)
+            if err := root.ExecuteContext(t.Context()); (err != nil) != tt.wantErr {
+                t.Fatalf("execute: err = %v, wantErr %v", err, tt.wantErr)
+            }
+        })
     }
 }
 ```
 
 ## Common mistakes
 
-- **Reading Viper too early** - values are empty until `cobra.OnInitialize`
-  callbacks run; don't read it in `init()` or `var` blocks.
-- **Forgetting `BindPFlag`** - flags aren't visible to Viper until bound.
+- **Executing a subcommand variable directly** - build a fresh tree and drive it
+  through `SetArgs`.
+- **Env-only values missing after `Unmarshal`** - register every key with
+  `SetDefault`/`BindEnv`.
+- **Reading Viper too early** - values are empty until setup runs
+  (`PersistentPreRunE`); don't read it in `init()` or `var` blocks.
+- **Forgetting `BindPFlags`** - flags aren't visible to Viper until bound.
 - **Missing `SetEnvKeyReplacer`** - `serve.addr` won't match `MYAPP_SERVE_ADDR`.
 - **Cobra/Viper in business logic** - pass a typed config struct down instead.
-- **Racing on global command/Viper state** in parallel tests - use factories +
-  `viper.Reset()`.
+- **`fmt.Printf` inside commands** - breaks output capture; use `cmd.OutOrStdout()`.
 - **Over-nesting subcommands** - two levels (`app cmd sub`) is usually the limit.
 
 ---
