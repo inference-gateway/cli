@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -60,12 +61,15 @@ func (c *Config) BashAllowedCommands(mode agentdomain.AgentMode) []string {
 //   - Otherwise the clean-command guard runs first and rejects, regardless of the
 //     list: command substitution ($(...), backticks, <()/>()), multi-command
 //     chains/pipelines (top-level &&, ||, |, ;, &, newline), a surviving
-//     file-write redirect (>, >>), dangerous find actions (-exec/-delete/...),
-//     and printing/publishing an expanded $VAR (echo/printf/gh ... $SECRET,
-//     which would leak the value).
+//     file-write redirect (>, >>), a file-writing option (sort -o, tree -o,
+//     git --output, uniq's output operand), dangerous find actions
+//     (-exec/-delete/...), and printing/publishing an expanded $VAR
+//     (echo/printf/gh ... $SECRET, which would leak the value).
 //   - The single clean command is then matched WHOLE against each allow entry
 //     (anchored as \A(?:entry)\z), so a bare "gh" allows only "gh" - an entry
 //     must opt into arguments explicitly (e.g. "gh issue.*").
+//   - Finally every path the command names must pass the sandbox check the file
+//     tools use, so an allow-listed command on a path outside the sandbox asks.
 //
 // It is the single source of truth consulted by the Bash tool, the approval
 // policy, and agent auto-approval, so all three agree on exactly what runs
@@ -82,22 +86,19 @@ func (c *Config) IsBashCommandAllowed(command string, mode agentdomain.AgentMode
 	}
 
 	seg, ok := cleanSingleCommand(command)
-	if !ok {
+	if !ok || !matchesAnyAllow(seg, allow) {
 		return false
 	}
 
-	return matchesAnyAllow(seg, allow)
+	_, outside := c.bashPathOutsideSandbox(seg)
+	return !outside
 }
 
-// BashCommandRejectionHint returns a short, actionable explanation when command
-// is rejected by the clean-command guard (substitution, a compound/piped command,
-// an env-var leak, a file-write redirect, or a dangerous find action), so the
-// model gets precise feedback it can act on rather than a bare "not allowed". It
-// returns "" when the command is simply not in the allow-list with no structural
-// reason - the bare message ("command not allowed: <cmd>") already tells the
-// model to try a different command. Callers surface it only alongside an actual
-// rejection.
-func BashCommandRejectionHint(command string) string {
+// BashCommandRejectionHint explains why the guard rejected command, or a path
+// outside the sandbox, so the model can correct course instead of retrying.
+// It returns "" when the command is simply not in the allow-list. A nil config
+// skips the sandbox reason.
+func (c *Config) BashCommandRejectionHint(command string) string {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return ""
@@ -130,6 +131,17 @@ func BashCommandRejectionHint(command string) string {
 	if isDangerousFind(seg) {
 		return "find actions that execute or mutate (-exec, -delete, ...) are not auto-approved; " +
 			"use find for read-only discovery only"
+	}
+	if writesFileByOption(splitShellWords(seg)) {
+		return "writing a file through an option (sort -o, tree -o, git --output, uniq's output " +
+			"operand) is not auto-approved; print the output instead"
+	}
+	if c == nil {
+		return ""
+	}
+	if path, outside := c.bashPathOutsideSandbox(seg); outside {
+		return fmt.Sprintf("'%s' is outside the sandbox, protected, or depends on the environment, "+
+			"so the command needs approval; use paths inside the sandbox, or tell the user what you need", path)
 	}
 
 	return ""
@@ -164,6 +176,9 @@ func cleanSingleCommand(command string) (seg string, ok bool) {
 		return "", false
 	}
 	if isDangerousFind(seg) {
+		return "", false
+	}
+	if writesFileByOption(splitShellWords(seg)) {
 		return "", false
 	}
 

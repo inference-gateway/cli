@@ -986,10 +986,12 @@ rewriting config or relaxing a mode to `.*`:
 > The matcher is shell-aware and matches each entry against the WHOLE command
 > (so a bare token matches only itself; use `( .*)?` to allow arguments). A
 > clean-command guard rejects command substitution (`$(...)`), pipes/chains
-> (`|`, `&&`, `||`, `;`), file-write redirects (`>`, `>>`), dangerous `find`
-> actions, and printing/publishing an expanded `$VAR` (secret leak); benign
-> redirects (`2>&1`, `>/dev/null`) are permitted. The single sentinel `.*`
-> (default for `auto`) means unrestricted and skips the guard.
+> (`|`, `&&`, `||`, `;`), file-write redirects (`>`, `>>`) and file-writing
+> options (`sort -o`, `tree -o`, `git --output`), dangerous `find` actions, and
+> printing/publishing an expanded `$VAR` (secret leak); benign redirects
+> (`2>&1`, `>/dev/null`) are permitted. An allowed command also runs without
+> approval only when every path it names is inside the sandbox. The single
+> sentinel `.*` (default for `auto`) means unrestricted and skips the guard.
 > See [Bash Tool restricted operators](tools-reference.md#bash-tool) for details.
 
 **Example (`config.yaml`):**
