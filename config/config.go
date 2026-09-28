@@ -426,7 +426,7 @@ type ToolsConfig struct {
 	ImageGeneration ImageGenerationToolConfig `yaml:"image_generation" mapstructure:"image_generation"`
 	ImageEdit       ImageEditToolConfig       `yaml:"image_edit" mapstructure:"image_edit"`
 	ImageVariation  ImageVariationToolConfig  `yaml:"image_variation" mapstructure:"image_variation"`
-	CustomDir       string                    `yaml:"custom_dir" mapstructure:"custom_dir"` // "" => ~/.infer/tools
+	CustomDir       string                    `yaml:"custom_dir" mapstructure:"custom_dir"`
 
 	// MaxResultBytes caps the size of a single tool result fed back to the LLM.
 	// Oversized results are middle-truncated (head + tail kept) so one
