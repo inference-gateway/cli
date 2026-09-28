@@ -1,6 +1,6 @@
 //go:build !unix
 
-package customtools
+package custom
 
 import "os/exec"
 

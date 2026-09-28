@@ -34,7 +34,6 @@ import (
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	customtools "github.com/inference-gateway/cli/internal/customtools"
 	gateway "github.com/inference-gateway/cli/internal/gateway"
 	githubissues "github.com/inference-gateway/cli/internal/github/issues"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
@@ -63,6 +62,7 @@ import (
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 	skills "github.com/inference-gateway/cli/internal/skills"
+	customtools "github.com/inference-gateway/cli/internal/tools/custom"
 )
 
 // RetryNotifier, when set, receives a short human-readable notice for each

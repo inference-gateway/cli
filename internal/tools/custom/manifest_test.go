@@ -1,4 +1,4 @@
-package customtools
+package custom
 
 import (
 	"maps"
