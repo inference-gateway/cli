@@ -46,7 +46,7 @@ func RunCommandHooks(ctx context.Context, cfg *config.Config, provider agentdoma
 	}
 	for _, hc := range due {
 		if cfg == nil || !cfg.IsBashCommandAllowed(hc.Command, mode) {
-			hint := config.BashCommandRejectionHint(hc.Command)
+			hint := cfg.BashCommandRejectionHint(hc.Command)
 			logger.Warn("hook command not allow-listed; skipping",
 				"name", hc.Name, "hook", string(hook), "command", hc.Command, "mode", mode.ModeKey(), "hint", hint)
 			streamevent.EmitDebugEvent("hook_command_skipped", map[string]any{

@@ -256,10 +256,21 @@ func TestIsBashCommandAllowed_MkdirLn(t *testing.T) {
 		"ln -s AGENTS.md CLAUDE.md",
 		"ln -s ../.agents/skills .claude/skills",
 	}
+	denied := []string{
+		"ln ~/.aws/credentials creds",
+		"ln -sf /dev/null main.go",
+		"ln -s /dev/null main.go -f",
+		"ln --force -s /dev/null main.go",
+	}
 	for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModePlan, agentdomain.AgentModeStandard} {
 		for _, cmd := range allowed {
 			if !cfg.IsBashCommandAllowed(cmd, mode) {
 				t.Errorf("expected %q to be allowed in %s mode", cmd, mode)
+			}
+		}
+		for _, cmd := range denied {
+			if cfg.IsBashCommandAllowed(cmd, mode) {
+				t.Errorf("expected %q NOT to be allowed in %s mode", cmd, mode)
 			}
 		}
 	}
@@ -331,11 +342,14 @@ func TestIsBashCommandAllowed_VariableExpansion(t *testing.T) {
 		}
 	}
 
+	if cfg.IsBashCommandAllowed("ls $HOME", agentdomain.AgentModeStandard) {
+		t.Error(`expected "ls $HOME" NOT to be allowed (the variable expands outside the sandbox)`)
+	}
+
 	allowed := []string{
 		"echo '$HOME'",
 		`echo \$HOME`,
 		"echo hi",
-		"ls $HOME",
 		"tail $LOGFILE",
 		"git log --format=$FMT",
 		"find $DIR -name '*.go'",
@@ -385,7 +399,7 @@ func TestIsBashCommandAllowed_VariableExpansion_GhWritesOptedIn(t *testing.T) {
 // TestIsBashCommandAllowed_EnvVarAssignments verifies that SETTING env vars is
 // not auto-approved - assignment prefixes (FOO=bar cmd), export, and bare
 // assignments all fall through to default-deny - while USING an existing variable
-// in a non-printing command stays allowed.
+// in a non-printing command stays allowed as long as it expands inside the sandbox.
 func TestIsBashCommandAllowed_EnvVarAssignments(t *testing.T) {
 	cfg := DefaultConfig()
 
@@ -406,7 +420,6 @@ func TestIsBashCommandAllowed_EnvVarAssignments(t *testing.T) {
 	}
 
 	allowed := []string{
-		"ls $HOME",
 		"git log $REF",
 	}
 	for _, cmd := range allowed {
@@ -758,28 +771,34 @@ func TestContainsFileRedirect(t *testing.T) {
 }
 
 func TestBashCommandRejectionHint(t *testing.T) {
-	if h := BashCommandRejectionHint("echo hi > /tmp/out"); !strings.Contains(h, "redirection") {
+	if h := DefaultConfig().BashCommandRejectionHint("echo hi > /tmp/out"); !strings.Contains(h, "redirection") {
 		t.Errorf("expected a redirection hint, got %q", h)
 	}
-	if h := BashCommandRejectionHint("echo $(whoami)"); !strings.Contains(h, "substitution") {
+	if h := DefaultConfig().BashCommandRejectionHint("echo $(whoami)"); !strings.Contains(h, "substitution") {
 		t.Errorf("expected a command-substitution hint, got %q", h)
 	}
-	if h := BashCommandRejectionHint("echo $HOME"); !strings.Contains(h, "environment variable") {
+	if h := DefaultConfig().BashCommandRejectionHint("echo $HOME"); !strings.Contains(h, "environment variable") {
 		t.Errorf("expected an env-var leak hint, got %q", h)
 	}
-	if h := BashCommandRejectionHint("ls | head"); !strings.Contains(h, "single command") {
+	if h := DefaultConfig().BashCommandRejectionHint("ls | head"); !strings.Contains(h, "single command") {
 		t.Errorf("expected a single-command hint, got %q", h)
 	}
-	if h := BashCommandRejectionHint("find . -delete"); !strings.Contains(h, "find") {
+	if h := DefaultConfig().BashCommandRejectionHint("find . -delete"); !strings.Contains(h, "find") {
 		t.Errorf("expected a find-action hint, got %q", h)
 	}
-	if h := BashCommandRejectionHint("ls -la"); h != "" {
+	if h := DefaultConfig().BashCommandRejectionHint("ls -la"); h != "" {
 		t.Errorf("expected no hint for a plain command, got %q", h)
 	}
-	if h := BashCommandRejectionHint("ls $HOME"); h != "" {
-		t.Errorf("expected no hint for using a var in a non-printing command, got %q", h)
+	if h := DefaultConfig().BashCommandRejectionHint("ls $HOME"); !strings.Contains(h, "sandbox") {
+		t.Errorf("expected a sandbox hint for a path that depends on the environment, got %q", h)
 	}
-	if h := BashCommandRejectionHint("git status 2>&1"); h != "" {
+	if h := DefaultConfig().BashCommandRejectionHint("head ~/.aws/credentials"); !strings.Contains(h, "sandbox") {
+		t.Errorf("expected a sandbox hint for a path outside the sandbox, got %q", h)
+	}
+	if h := DefaultConfig().BashCommandRejectionHint("sort -o notes.txt notes.txt"); !strings.Contains(h, "writing a file") {
+		t.Errorf("expected a file-writing option hint, got %q", h)
+	}
+	if h := DefaultConfig().BashCommandRejectionHint("git status 2>&1"); h != "" {
 		t.Errorf("expected no hint for a benign redirect, got %q", h)
 	}
 }

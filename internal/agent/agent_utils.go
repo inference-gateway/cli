@@ -382,8 +382,9 @@ func (s *Agent) buildBashAllowInfo() string {
 	var b strings.Builder
 	b.WriteString(header)
 	b.WriteString("These command patterns (regular expressions, matched against the WHOLE " +
-		"command) run without approval. Anything else requires approval (chat) or is rejected " +
-		"(agent mode). Run ONE command per call:\n")
+		"command) run without approval, but only on paths inside the sandbox. Anything else, " +
+		"including a path outside the sandbox or a protected file, requires approval (chat) or " +
+		"is rejected (agent mode). Run ONE command per call:\n")
 	for _, e := range allow {
 		fmt.Fprintf(&b, "- %s\n", e)
 	}
