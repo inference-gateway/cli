@@ -721,7 +721,7 @@ These flags are available on every command:
 - `--no-colors`: Disable ANSI colors in command output (colors are also auto-disabled when stdout is not a terminal or `NO_COLOR` is set)
 - `--tools-bash-allow-append <cmds>`: Comma/newline-separated commands added to the bash allow-list in every mode
   (`standard`, `plan`, `auto`); `INFER_TOOLS_BASH_ALLOW_APPEND` takes precedence
-- `--reminders-file <path>`: Path to a reminders YAML file, overriding project `.infer/` and `~/.infer/` reminders;
+- `--reminders-file <path>`: Path to a reminders YAML file, overriding project `.infer/` and `~/.infer/` reminders,
   `INFER_REMINDERS_CONFIG` takes precedence
 
 ---
