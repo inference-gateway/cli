@@ -33,6 +33,7 @@ func TestInstallPrompt(t *testing.T) {
 				"Do not add any comments",
 				"Rust, TypeScript",
 				"v<major>.<minor>.<patch>",
+				"bash-allow-append must start with `task( .*)?`",
 				"the repo deploys with bun",
 				`"title"`,
 			},
@@ -52,6 +53,7 @@ func TestInstallPrompt(t *testing.T) {
 				"NEVER remove or rewrite repo-specific content",
 				"Read .github/workflows/ci.yml and take inspiration",
 				"GitHub App token variant",
+				"bash-allow-append must start with `task( .*)?`",
 			},
 			absentParts: []string{"Create .github/workflows/tasks.yml", "Additional context"},
 		},
@@ -212,7 +214,7 @@ func TestInstallWorkflowAgentNoChanges(t *testing.T) {
 
 func TestInstallChatPrompt(t *testing.T) {
 	p := InstallChatPrompt("octo/repo", "Timeout: 25 minutes")
-	for _, want := range []string{"/opentask", "octo/repo", InstallBranch, "tasks.yml", "Workflow configuration:", "Timeout: 25 minutes"} {
+	for _, want := range []string{"/opentask", "octo/repo", InstallBranch, "tasks.yml", "bash-allow-append must start with `task( .*)?`", "Workflow configuration:", "Timeout: 25 minutes"} {
 		if !strings.Contains(p, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, p)
 		}
