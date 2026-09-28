@@ -13,10 +13,10 @@ import (
 )
 
 // GitBackend syncs the memory directory with a git remote. It shells out to the
-// git CLI via utils.RunGit, inheriting the ambient environment unchanged, so auth
-// uses the user's default git/ssh config (ssh-agent, credential helper, GIT_*
-// env). Every command runs under a per-operation timeout so a misconfigured
-// remote ends the command instead of hanging on a credential prompt.
+// git CLI via utils.RunGit, inheriting the ambient environment, so auth uses the
+// user's default git/ssh config (ssh-agent, credential helper, GIT_* env). Git
+// never prompts on the terminal and every command runs under a per-operation
+// timeout, so a misconfigured remote fails instead of hanging.
 //
 // All operations are best-effort: they return an error for tests/telemetry, but
 // callers log and continue - a sync failure never aborts the agent run.
@@ -388,10 +388,10 @@ func (b *GitBackend) remoteHasBranch(ctx context.Context, repo, branch string) (
 	return len(strings.TrimSpace(string(out))) > 0, nil
 }
 
-// run executes a git command under the per-op timeout. It does NOT set cmd.Env,
-// so the process inherits the ambient environment (the user's default git/ssh
-// config and credential chain). workdir is the working directory ("" = inherit).
-// Returns stdout only; utils.RunGit folds git's stderr into the error.
+// run executes a git command under the per-op timeout. The process inherits the
+// ambient environment (the user's default git/ssh config and credential chain).
+// workdir is the working directory ("" = inherit). Returns stdout only.
+// utils.RunGit folds git's stderr into the error.
 func (b *GitBackend) run(ctx context.Context, workdir string, args ...string) ([]byte, error) {
 	cctx, cancel := context.WithTimeout(ctx, b.git().EffectiveTimeout())
 	defer cancel()

@@ -50,3 +50,13 @@ func TestRunGit(t *testing.T) {
 		t.Errorf("RunGit(cancelled ctx) err = nil, want error")
 	}
 }
+
+func TestRunGitDisablesTerminalPrompt(t *testing.T) {
+	out, err := RunGit(context.Background(), newGitRepo(t), "-c", "alias.prompt=!printenv GIT_TERMINAL_PROMPT", "prompt")
+	if err != nil {
+		t.Fatalf("RunGit: %v", err)
+	}
+	if got := strings.TrimSpace(string(out)); got != "0" {
+		t.Errorf("GIT_TERMINAL_PROMPT = %q, want %q", got, "0")
+	}
+}
