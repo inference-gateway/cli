@@ -3,11 +3,12 @@ name: demo
 description: >
   Record a short demo GIF of a change - a CLI, TUI or desktop GUI app. Use
   when the user types /demo (e.g. "@infer /demo" on a pull request) or asks
-  to demo, show or demonstrate a feature, fix or PR, or wants a GIF or
-  recording of it working - even as the tail of a bigger task ("implement X
-  and demo it"). It plans the demo up front, rehearses it unrecorded,
-  records one take and converts it to exactly one GIF in ~/.infer/artifacts.
-  Recordings never enter the repository. Not for reproducing bugs (use bug).
+  to demo, show or demonstrate a feature, fix or PR, or wants a GIF, video or
+  recording of it working (also for a social media post) - even as the tail
+  of a bigger task ("implement X and demo it"). It plans the demo up front,
+  rehearses it unrecorded, records one take and converts it to exactly one
+  GIF in ~/.infer/artifacts. Recordings never enter the repository. Not for
+  reproducing bugs (use bug).
 license: Apache-2.0
 ---
 
@@ -56,22 +57,31 @@ display holds only what you put on it.
 Empty - a local run. Never `mode: screen` here: it captures everything else
 the user has open.
 
-- Terminal programs: load the tmux skill, split a pane in the user's
-  session, and record with `mode: region` around it (or `mode: window`).
+- Terminal programs: `which vhs`. Found - record with VHS, following
+  [references/vhs.md](references/vhs.md) next to this file. It renders a
+  scripted terminal at an exact size (1080x1080 for a social media post,
+  1280x720 otherwise), so nothing else on the user's screen can leak in, and
+  a bad take re-runs with one command. Not found - load the tmux skill, split
+  a pane in the user's session, and record with `mode: region` around it (or
+  `mode: window`). Mention once that `vhs` gives a cleaner take, but do not
+  install it unasked.
 - GUI apps: Screenshot to find the window, drive it with the Computer tools,
-  and record with `mode: window` (`app:<name>` or `pid:<n>`).
+  and record with `mode: window` (`app:<name>` or `pid:<n>`). VHS cannot
+  record them.
 
 If RecordStart is not in your tools, recording is off for this run (CI: the
-request did not say "demo"; locally: `computer_use.recording.enabled`). Say
-so once, never edit config, and show the steps as commands plus captured
-output or screenshots instead.
+request did not say "demo"; locally: `computer_use.recording.enabled`). That
+switch covers VHS too: do not record with it either. Say so once, never edit
+config, and show the steps as commands plus captured output or screenshots
+instead.
 
 ## 3. Rehearse without recording
 
-Every RecordStart/RecordStop pair makes a video, so all trial and error
-happens in `capture-pane` or Screenshot, which are free. Never record to
-probe geometry or timing: the geometry is fixed above and the rehearsal
-tells you the timing.
+Every RecordStart/RecordStop pair and every `vhs` run makes a video, so all
+trial and error happens in `capture-pane` or Screenshot, which are free.
+Never record to probe geometry or timing: the geometry is fixed above and the
+rehearsal tells you the timing. For a VHS take, rehearse in a detached tmux
+session sized like the tape.
 
 1. Build with the repo's own command. AGENTS.md, the README or
    the Taskfile/Makefile/package.json say how - and often how to run the app
@@ -92,9 +102,14 @@ tells you the timing.
 
 ## 4. Record one take
 
-Send the whole take as ONE response of tool calls: RecordStart, then each
-step (`tmux send-keys`, or a Click/Type/Key) followed by `sleep 2` (3 for a
-busy frame), then RecordStop. Calls in one response run in order with no
+VHS: the tape is the take. Write every step into it, then run
+`vhs <tape> -o <absolute path of the take>` - see
+[references/vhs.md](references/vhs.md).
+It has no 60 s cap, but still aim for 20-45 s. Check it as below.
+
+RecordStart: send the whole take as ONE response of tool calls - RecordStart,
+then each step (`tmux send-keys`, or a Click/Type/Key) followed by `sleep 2`
+(3 for a busy frame), then RecordStop. Calls in one response run in order with no
 model turn between them; spread over turns, each step costs ~10 s and the
 60 s cap hits before the interesting frame. Aim for 20-45 s.
 
@@ -120,6 +135,9 @@ broken step again, then record a new take; unconverted takes stay in
   in front of `split` and drop to `fps=8`.
 - `ffmpeg` not on PATH? It is in `~/.infer/bin/tools/`. Locally,
   `mkdir -p ~/.infer/artifacts` first.
+- For a social media post (LinkedIn, X), also copy the take to
+  `~/.infer/artifacts/demo.mp4`. Those sites play video natively, and the
+  MP4 is a fraction of the GIF's size.
 
 ## Rules
 
