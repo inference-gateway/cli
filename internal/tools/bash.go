@@ -389,12 +389,12 @@ func (t *BashTool) readPipeWithBatching(
 
 // notAllowedError builds the rejection error for a command that is not in the
 // bash allow-list for mode, appending the actionable hint from
-// config.BashCommandRejectionHint (run one command at a time, drop a redirect,
+// Config.BashCommandRejectionHint (run one command at a time, drop a redirect,
 // avoid leaking a $VAR, ...) so the model can correct course rather than retrying
 // blindly. The Bash tool, the approval policy, and agent auto-approval all share
 // config.IsBashCommandAllowed, so they agree on exactly what runs without prompting.
 func (t *BashTool) notAllowedError(command string, mode agentdomain.AgentMode) error {
-	if hint := config.BashCommandRejectionHint(command); hint != "" {
+	if hint := t.config.BashCommandRejectionHint(command); hint != "" {
 		return fmt.Errorf("command not allowed: %s - %s", command, hint)
 	}
 	return fmt.Errorf("command not allowed: %s (%s mode)", command, mode.ModeKey())

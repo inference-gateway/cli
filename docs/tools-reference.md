@@ -370,12 +370,24 @@ A command is rejected before matching, regardless of the allow-list, when it:
   auto-approved, so `ls | head` is rejected even if both `ls` and `head` are allowed. Operators inside
   quotes (a jq `'… | …'` or `--title "a && b"`) do not count.
 - **Writes to a file** (`>`, `>>`, `&>file`, `>&file`) - `echo secret > /etc/passwd` is rejected; this
-  cannot be unlocked by an allow entry.
+  cannot be unlocked by an allow entry. The same goes for options that write a file: `sort -o`,
+  `tree -o`, `git --output`, and `uniq`'s output operand.
 - Uses **command substitution** (`$(...)`, backticks, `<(...)`, `>(...)`).
 - Runs a **dangerous find action** (`find ... -exec`/`-delete`/…).
 - **Leaks a variable**: a printing/publishing command (`echo`, `printf`, `gh issue/pr
   create|comment|edit`) may not expand `$VAR` - `echo $AWS_SECRET_ACCESS_KEY` is rejected, while
-  `ls $DIR` (a non-printing use) is allowed. A single-quoted or backslash-escaped `$` is literal.
+  `ls $DIR` (a non-printing use) is allowed when `$DIR` is inside the sandbox. A single-quoted or
+  backslash-escaped `$` is literal.
+
+**Paths stay inside the sandbox:** an allowed command runs without approval only when every path it
+names passes the same sandbox check as the file tools (`tools.sandbox.directories`, protected paths,
+symlinks resolved). Arguments, `--flag=value` and `-Xvalue` values, input redirections (`< file`),
+`~`, `$VAR` (from the CLI's environment) and globs are all checked, so `head ~/.aws/credentials` or
+`ls links/*` through a link that leaves the project asks first. A path that cannot be known in advance
+(`${VAR:-x}`, `$1`, `{a,b}`, a glob component starting with a dot, `~user`) asks too. `echo` and
+`printf` never open their arguments, so they are not checked. The default baseline does not include
+`make` or `task`, since they run whatever the repository's Makefile or Taskfile says. Add them to a
+mode's list, or append them with `INFER_TOOLS_BASH_ALLOW_APPEND`, where the repository is trusted.
 
 **Benign redirections** that only discard or merge streams (`2>&1`, `>/dev/null`, `2>/dev/null`) are
 stripped before matching and remain allowed. A rejected command returns explanatory feedback naming
