@@ -15,8 +15,8 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 
 	config "github.com/inference-gateway/cli/config"
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 )
 

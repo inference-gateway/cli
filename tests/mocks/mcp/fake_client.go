@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/mcp/domain"
+	"github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 )
 
 type FakeClient struct {

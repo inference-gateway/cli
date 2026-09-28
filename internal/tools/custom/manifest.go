@@ -11,8 +11,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 )
 
 const defaultTimeout = 30 * time.Second

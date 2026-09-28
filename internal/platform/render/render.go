@@ -15,8 +15,6 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	models "github.com/inference-gateway/cli/internal/platform/models"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func emitJSON(w io.Writer, msg any, pretty bool) {
@@ -34,7 +32,8 @@ func emitJSON(w io.Writer, msg any, pretty bool) {
 	_, _ = w.Write(append(data, '\n'))
 }
 
-func truncate(s string, maxLen int) string {
+// Truncate caps s at maxLen characters, marking the cut with an ellipsis.
+func Truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
 	}
@@ -101,16 +100,16 @@ func toolContent(r *agentdomain.ToolExecutionResult) string {
 	return detail
 }
 
-// queuedNote returns the text of a drained queue message worth rendering: a
+// QueuedNote returns the text of a drained queue message worth rendering: a
 // background-job note, not the echo of a user message sent over IPC.
-func queuedNote(e agentdomain.MessageQueuedEvent) (string, bool) {
+func QueuedNote(e agentdomain.MessageQueuedEvent) (string, bool) {
 	content, err := e.Message.Content.AsMessageContent0()
 	return content, err == nil && content != "" && e.RequestID != ipc.UserMessageRequestID
 }
 
-// completionErr maps a terminal event to the error the command should return:
+// CompletionErr maps a terminal event to the error the command should return:
 // ErrMaxTurnsReached for a turn-limit completion (exit code 2), nil otherwise.
-func completionErr(e agentdomain.ChatCompleteEvent) error {
+func CompletionErr(e agentdomain.ChatCompleteEvent) error {
 	if e.Cancelled {
 		return context.Canceled
 	}
@@ -120,12 +119,12 @@ func completionErr(e agentdomain.ChatCompleteEvent) error {
 	return nil
 }
 
-// answerApproval answers the engine's pending approval on the event's
+// AnswerApproval answers the engine's pending approval on the event's
 // response channel from the broker's approvals channel. Responses carrying a
 // different tool_call_id are skipped (a late answer to a request the engine
 // already timed out must not decide the next one). A nil or closed channel
 // rejects the tool so the engine never waits out its timeout on a dead broker.
-func answerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan ipc.ApprovalResponse) {
+func AnswerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan ipc.ApprovalResponse) {
 	if e.ResponseChan == nil {
 		return
 	}
@@ -150,12 +149,12 @@ func answerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan i
 	e.ResponseChan <- agentdomain.ApprovalReject
 }
 
-// answerQuestions answers the AskUserQuestion tool's pending form on the
+// AnswerQuestions answers the AskUserQuestion tool's pending form on the
 // event's response channel from the broker's questions channel, mirroring
-// answerApproval: stale tool_call_ids are skipped, a cancelled response or a
+// AnswerApproval: stale tool_call_ids are skipped, a cancelled response or a
 // nil/closed channel closes ResponseChan (the tool's "dismissed" path), and
 // an unparseable answers payload counts as a dismissal too.
-func answerQuestions(e agentdomain.UserQuestionRequestedEvent, questions <-chan ipc.UserQuestionResponse) {
+func AnswerQuestions(e agentdomain.UserQuestionRequestedEvent, questions <-chan ipc.UserQuestionResponse) {
 	if e.ResponseChan == nil {
 		return
 	}
@@ -176,16 +175,16 @@ func answerQuestions(e agentdomain.UserQuestionRequestedEvent, questions <-chan 
 	}
 }
 
-// userQuestionRequest builds the IPC payload for one question form.
-func userQuestionRequest(e agentdomain.UserQuestionRequestedEvent) ipc.UserQuestionRequest {
+// UserQuestionRequest builds the IPC payload for one question form.
+func UserQuestionRequest(e agentdomain.UserQuestionRequestedEvent) ipc.UserQuestionRequest {
 	questions, _ := json.Marshal(e.Questions)
 	return ipc.UserQuestionRequest{Type: "user_question_request", ToolCallID: e.ToolCallID, Questions: questions}
 }
 
-// judgeStderr echoes a judge rejection to stderr in every headless format: the
+// JudgeStderr echoes a judge rejection to stderr in every headless format: the
 // TUI flash equivalent for unattended runs. CI consumers watching stdout keep
 // the machine-readable judge_verdict line.
-func judgeStderr(e agentdomain.JudgeVerdictChatEvent) {
+func JudgeStderr(e agentdomain.JudgeVerdictChatEvent) {
 	if e.Decision != agentdomain.JudgeDecisionRejected {
 		return
 	}
@@ -239,7 +238,7 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 	for event := range events {
 		switch e := event.(type) {
 		case agentdomain.ChatErrorEvent:
-			emit(ipc.AgentErrorMessage{Type: "agent_error", Message: truncate(e.Error.Error(), 3500)})
+			emit(ipc.AgentErrorMessage{Type: "agent_error", Message: Truncate(e.Error.Error(), 3500)})
 			runErr = fmt.Errorf("agent error: %w", e.Error)
 		case agentdomain.ChatChunkEvent:
 			content.WriteString(e.Content)
@@ -248,11 +247,11 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 				emit(msg)
 			}
 			content.Reset()
-			if err := completionErr(e); err != nil {
+			if err := CompletionErr(e); err != nil {
 				runErr = err
 			}
 		case agentdomain.MessageQueuedEvent:
-			if note, ok := queuedNote(e); ok {
+			if note, ok := QueuedNote(e); ok {
 				if msg := assistantMessage(agentdomain.ChatCompleteEvent{Timestamp: e.Timestamp}, content.String()); msg != nil {
 					emit(msg)
 				}
@@ -270,10 +269,10 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 				"type": "approval_request", "tool_name": e.ToolCall.Function.Name,
 				"tool_args": e.ToolCall.Function.Arguments, "tool_call_id": e.ToolCall.ID,
 			})
-			answerApproval(e, approvals)
+			AnswerApproval(e, approvals)
 		case agentdomain.UserQuestionRequestedEvent:
-			emit(userQuestionRequest(e))
-			answerQuestions(e, questions)
+			emit(UserQuestionRequest(e))
+			AnswerQuestions(e, questions)
 		case agentdomain.ComputerUsePausedEvent:
 			emit(map[string]any{"type": "computer_use_paused", "request_id": e.RequestID})
 		case agentdomain.ComputerUseResumedEvent:
@@ -283,7 +282,7 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 			emit(map[string]any{"type": "notification", "message": "Todos updated", "todos": e.Todos})
 		case agentdomain.JudgeVerdictChatEvent:
 			emit(judgeVerdictMessage(e))
-			judgeStderr(e)
+			JudgeStderr(e)
 		}
 	}
 
@@ -323,7 +322,7 @@ func RenderText(events <-chan agentdomain.ChatEvent, w io.Writer) error {
 				_, _ = fmt.Fprintln(w)
 				printed = false
 			}
-			if err := completionErr(e); err != nil {
+			if err := CompletionErr(e); err != nil {
 				runErr = err
 			}
 		case agentdomain.MessageQueuedEvent:
@@ -334,152 +333,17 @@ func RenderText(events <-chan agentdomain.ChatEvent, w io.Writer) error {
 		case agentdomain.ChatErrorEvent:
 			runErr = fmt.Errorf("agent error: %w", e.Error)
 		case agentdomain.JudgeVerdictChatEvent:
-			judgeStderr(e)
+			JudgeStderr(e)
 		}
 	}
 	return runErr
 }
 
-// RenderAGUI renders events as newline-delimited AG-UI protocol events. The
-// run gets exactly one RUN_STARTED and one terminal event (RUN_FINISHED or
-// RUN_ERROR); per-turn events in between carry deltas, tool calls, and results.
-// When approvals is non-nil it acts as the IPC approval broker, same as
-// RenderJSON. A ComputerUseResumedEvent clears any error carried over from
-// the paused (cancelled) run, same as RenderJSON. After the channel closes the
-// session stats from repo are attached to RUN_FINISHED's result, the AG-UI
-// counterpart of RenderJSON's session_stats line. After each LLM step the same
-// cumulative stats are also published as a token_usage CUSTOM event, so clients
-// track usage mid-run (the desktop status bar) instead of only at the end.
-// RenderAGUI streams the run as AG-UI events. jobs, when non-nil, is the
-// supervisor's snapshot and is published as a background_tasks event after every
-// tool result (a job may have been submitted) and every drained queue note (a
-// job just finished). ponytail: intermediate job state changes are not
-// published; bridge the UI notifier into the chat stream if a client needs them.
-//
-//nolint:gocyclo,cyclop // cohesive event switch; each case renders one ChatEvent variant
-func RenderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob) error {
-	e := &aguiEncoder{w: w, threadID: sessionID}
-	e.emitRunStarted(sessionID)
-	snapshot := func() {
-		if jobs != nil {
-			e.emitBackgroundTasks(jobs())
-		}
-	}
-
-	var runErr error
-	for event := range events {
-		switch ev := event.(type) {
-		case agentdomain.ChatChunkEvent:
-			if ev.ReasoningContent != "" {
-				e.streamReasoning(ev.ReasoningContent)
-			}
-			if ev.Content != "" {
-				e.streamText(ev.Content)
-			}
-		case agentdomain.ChatCompleteEvent:
-			e.closeMessage()
-			for _, tc := range ev.ToolCalls {
-				e.emitToolCallStart(tc.ID, tc.Function.Name)
-				e.emitToolCallArgs(tc.ID, tc.Function.Arguments)
-				e.emitToolCallEnd(tc.ID)
-			}
-			if usage := sessionResult(model, repo); usage != nil {
-				e.emitTokenUsage(usage)
-			}
-			if err := completionErr(ev); err != nil {
-				runErr = err
-			}
-		case agentdomain.ChatErrorEvent:
-			runErr = ev.Error
-		case agentdomain.UserMessageChatEvent:
-			e.emitUserMessage(ev.Content)
-		case agentdomain.ToolExecutionCompletedEvent:
-			for _, r := range ev.Results {
-				if r != nil {
-					e.emitToolResult(r)
-				}
-			}
-			snapshot()
-		case agentdomain.MessageQueuedEvent:
-			if note, ok := queuedNote(ev); ok {
-				e.emitQueuedMessage(note)
-			}
-			snapshot()
-		case agentdomain.TodoUpdateChatEvent:
-			e.emitTodos(ev.Todos)
-		case agentdomain.JudgeVerdictChatEvent:
-			e.emitJudgeVerdict(ev)
-			judgeStderr(ev)
-		case agentdomain.ToolApprovalRequestedEvent:
-			e.emitApprovalRequest(ipc.ApprovalRequest{
-				Type: "approval_request", ToolName: ev.ToolCall.Function.Name,
-				ToolArgs: ev.ToolCall.Function.Arguments, ToolCallID: ev.ToolCall.ID,
-			})
-			answerApproval(ev, approvals)
-		case agentdomain.UserQuestionRequestedEvent:
-			e.emitUserQuestionRequest(userQuestionRequest(ev))
-			answerQuestions(ev, questions)
-		case agentdomain.ComputerUsePausedEvent:
-			e.emitComputerUsePaused(ev.RequestID)
-		case agentdomain.ComputerUseResumedEvent:
-			e.emitComputerUseResumed(ev.RequestID)
-			runErr = nil
-		case agentdomain.ScreenRecordingStatusEvent:
-			e.emitScreenRecording(ev.Active)
-		}
-	}
-
-	e.closeMessage()
-	if runErr != nil {
-		e.emitRunError(runErr.Error())
-		return fmt.Errorf("agent error: %w", runErr)
-	}
-	e.emitRunFinished(sessionResult(model, repo))
-	return nil
-}
-
-// sessionResult builds the per-session totals the desktop consumes from the
-// per-step token_usage CUSTOM events and the terminal RUN_FINISHED event (see
-// docs/ag-ui-output.md), mirroring the session_stats line of RenderJSON. nil
-// when the run made no LLM requests (e.g. a shortcut answer), so no event
-// carries a result.
-func sessionResult(model string, repo convdomain.ConversationRepository) map[string]any {
-	if repo == nil {
-		return nil
-	}
-	tokens := repo.GetSessionTokens()
-	if tokens.RequestCount <= 0 {
-		return nil
-	}
-	result := map[string]any{
-		"inputTokens":     tokens.TotalInputTokens,
-		"outputTokens":    tokens.TotalOutputTokens,
-		"cacheReadTokens": tokens.TotalCachedTokens,
-		"totalToolCalls":  countToolCalls(repo.GetMessages()),
-		"cost":            repo.GetSessionCostStats().TotalCost,
-		"lastInputTokens": tokens.LastInputTokens,
-	}
-	if window, ok := models.LookupContextWindow(model); ok {
-		result["contextWindow"] = window
-	}
-	return result
-}
-
-// countToolCalls sums the tool calls recorded on the session's assistant messages.
-func countToolCalls(entries []convdomain.ConversationEntry) int {
-	count := 0
-	for _, e := range entries {
-		if e.Message.ToolCalls != nil {
-			count += len(*e.Message.ToolCalls)
-		}
-	}
-	return count
-}
-
 // AgentStartupEmitter reports local A2A agent startup (image pull, container
-// start, health check) that happens before the event stream begins, so a
-// client can show progress instead of silence while a multi-GB image pulls.
-// Returns nil for formats that carry no machine-readable output.
+// start, health check) that happens before the event stream begins as JSON
+// agent_status lines, so a client can show progress instead of silence while a
+// multi-GB image pulls. The ag-ui format has its own emitter in the agui
+// context. Returns nil for formats that carry no machine-readable output.
 func AgentStartupEmitter(w io.Writer, format string) func(name, state, message string, done, total int) {
 	var mu sync.Mutex
 	switch format {
@@ -489,13 +353,6 @@ func AgentStartupEmitter(w io.Writer, format string) func(name, state, message s
 			defer mu.Unlock()
 			emitJSON(w, map[string]any{"type": "agent_status", "name": name, "state": state, "message": message, "done": done, "total": total}, format == "json-pretty")
 		}
-	case "ag-ui":
-		e := &aguiEncoder{w: w}
-		return func(name, state, message string, done, total int) {
-			mu.Lock()
-			defer mu.Unlock()
-			e.emitAgentStatus(name, state, message, done, total)
-		}
 	default:
 		return nil
 	}
@@ -504,12 +361,11 @@ func AgentStartupEmitter(w io.Writer, format string) func(name, state, message s
 // EmitPreRunError writes a machine-readable failure line for errors that occur
 // before the event stream starts (gateway down, unknown model, ...), so stdout
 // consumers - the channel manager and agentrunner - see the failure instead of
-// silence. The text format stays quiet; the CLI's stderr prose covers it.
+// silence. The text format stays quiet; the CLI's stderr prose covers it. The
+// ag-ui format has its own RUN_ERROR writer in the agui context.
 func EmitPreRunError(w io.Writer, format string, err error) {
 	switch format {
 	case "json", "json-pretty":
-		emitJSON(w, ipc.AgentErrorMessage{Type: "agent_error", Message: truncate(err.Error(), 3500)}, format == "json-pretty")
-	case "ag-ui":
-		(&aguiEncoder{w: w}).emitRunError(truncate(err.Error(), 3500))
+		emitJSON(w, ipc.AgentErrorMessage{Type: "agent_error", Message: Truncate(err.Error(), 3500)}, format == "json-pretty")
 	}
 }

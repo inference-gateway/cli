@@ -23,7 +23,7 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// MCP tools are not built here. The MCP context (internal/mcp) wraps each
+// MCP tools are not built here. The MCP context (internal/protocols/mcp) wraps each
 // server's tools as agentdomain.Tool values and they arrive through
 // RegisterTools; construction never blocks on MCP I/O.
 

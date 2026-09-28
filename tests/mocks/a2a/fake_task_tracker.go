@@ -4,7 +4,7 @@ package a2a
 import (
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/a2a/domain"
+	"github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
 type FakeTaskTracker struct {

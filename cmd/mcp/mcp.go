@@ -15,8 +15,8 @@ import (
 	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
-	mcp "github.com/inference-gateway/cli/internal/mcp"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
+	mcp "github.com/inference-gateway/cli/internal/protocols/mcp"
 )
 
 type command struct {
