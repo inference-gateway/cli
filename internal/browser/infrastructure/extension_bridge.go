@@ -14,7 +14,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -26,15 +25,57 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
-	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
-// Bridge wire messages. One flat envelope per frame, discriminated by Type;
-// unknown types are ignored for forward compatibility.
+// Frame types on the extension bridge wire. One flat envelope per frame,
+// discriminated by Type, and unknown types are ignored for forward compatibility.
+const (
+	inboundBrowserHello       = "browser_hello"
+	inboundBrowserResult      = "browser_result"
+	inboundUserMessage        = "user_message"
+	inboundNewSession         = "new_session"
+	inboundListHistory        = "list_history"
+	inboundListConversations  = "list_conversations"
+	inboundListSkills         = "list_skills"
+	inboundSelectModel        = "select_model"
+	inboundListModels         = "list_models"
+	inboundSetMode            = "set_mode"
+	inboundResumeConversation = "resume_conversation"
+	inboundInterrupt          = "interrupt"
+	inboundToolRequest        = "tool_request"
+	inboundApprovalResponse   = "approval_response"
+
+	outboundBrowserHelloAck      = "browser_hello_ack"
+	outboundBrowserCommand       = "browser_command"
+	outboundConversationSnapshot = "conversation_snapshot"
+	outboundConversations        = "conversations"
+	outboundSkills               = "skills"
+	outboundHistory              = "history"
+	outboundModels               = "models"
+	outboundMode                 = "mode"
+	outboundChatEvent            = "chat_event"
+	outboundApprovalRequest      = "approval_request"
+	outboundApprovalResolved     = "approval_resolved"
+	outboundToolResult           = "tool_result"
+	outboundInterrupted          = "interrupted"
+)
+
+// Browser actions the extension understands on a browser_command frame.
+const (
+	browserActionNavigate   = "navigate"
+	browserActionClick      = "click"
+	browserActionType       = "type"
+	browserActionRead       = "read"
+	browserActionScreenshot = "screenshot"
+	browserActionTabs       = "tabs"
+)
+
+// approvalActionApprove is the only panel action that grants a tool call.
+const approvalActionApprove = "approve"
+
 type extInbound struct {
 	Type             string                        `json:"type"`
 	Token            string                        `json:"token,omitempty"`
@@ -57,8 +98,8 @@ type extInbound struct {
 	Attachments      []agentdomain.ImageAttachment `json:"attachments,omitempty"`
 }
 
-// maxAttachmentBytes caps one decoded attachment; the panel enforces the same
-// limit, this is the trust-boundary check.
+// maxAttachmentBytes caps one decoded attachment. The panel enforces the same
+// limit, and this is the trust-boundary check.
 const maxAttachmentBytes = 10 * 1024 * 1024
 
 // unsafeFilenameChars matches everything outside the portable filename set.
@@ -75,12 +116,12 @@ func safeFilename(name string) string {
 }
 
 // modelImageMimeTypes are the image formats providers accept as image content
-// parts; anything else is handed to the agent as a file path instead.
+// parts. Anything else is handed to the agent as a file path instead.
 var modelImageMimeTypes = map[string]bool{"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true}
 
 // saveAttachments writes each attachment into the project tmp dir (where
 // clipboard images also land). Images come back as ImageAttachments with
-// SourcePath set so they flow to the model as image parts; other files come
+// SourcePath set so they flow to the model as image parts. Other files come
 // back as text notes naming the saved path so the agent can Read them.
 func saveAttachments(attachments []agentdomain.ImageAttachment) ([]agentdomain.ImageAttachment, []string) {
 	if len(attachments) == 0 {
@@ -133,7 +174,7 @@ type extMode struct {
 
 // extInterrupted tells the panel the current turn ended cancelled (terminal
 // Esc/Ctrl+C or the panel's own Stop), so it can clear its "Working" state
-// even when no TEXT_MESSAGE_END reaches it - e.g. a cancel mid tool call.
+// even when no TEXT_MESSAGE_END reaches it, e.g. a cancel mid tool call.
 type extInterrupted struct {
 	Type string `json:"type"`
 }
@@ -212,92 +253,78 @@ type extChatEvent struct {
 	Event json.RawMessage `json:"event"`
 }
 
-// ExtensionBridge hosts the localhost WebSocket endpoint the opentask browser
-// extension dials into. It implements browserdomain.BrowserDriver by forwarding the
-// browser-use verbs to the connected extension, and it mirrors the chat
-// conversation to the extension (AG-UI event stream out, user messages in).
-type ExtensionBridge struct {
-	cfg                  *config.BrowserUseConfig
-	notifier             agentdomain.UINotifier
-	repo                 convdomain.ConversationRepository
-	events               agentdomain.EventBridge
-	skills               agentdomain.SkillsService
-	sessionID            string
-	artifactsDir         string
-	toolSvc              agentdomain.ToolService
-	approval             agentdomain.ApprovalPolicy
-	models               convdomain.ModelService
-	modes                agentdomain.AgentModeState
-	defaultModel         string
-	agentSvc             agentdomain.AgentService
-	history              storage.ShellHistoryStorage
-	activeRequestID      atomic.Value
-	server               *http.Server
-	addr                 string
-	startErr             error
-	startMu              sync.Mutex
-	mu                   sync.Mutex
-	conn                 *websocket.Conn
-	connStop             chan struct{}
-	pending              map[string]chan extInbound
-	pendingApprovals     map[string]sdk.ChatCompletionMessageToolCall
-	pendingToolApprovals map[string]chan bool
-	writeMu              sync.Mutex
+// Deps are the collaborators the bridge and its panel units use. The container
+// builds every one of them before the bridge, so nothing is wired late and no
+// capability is optional.
+type Deps struct {
+	Config        *config.BrowserUseConfig
+	Notifier      agentdomain.UINotifier
+	Conversations convdomain.ConversationRepository
+	Events        agentdomain.EventBridge
+	Skills        agentdomain.SkillsService
+	Tools         agentdomain.ToolService
+	Approval      agentdomain.ApprovalPolicy
+	Models        convdomain.ModelService
+	Modes         agentdomain.AgentModeState
+	Agent         agentdomain.AgentService
+	History       storage.ShellHistoryStorage
+	DefaultModel  string
+	SessionID     string
+	ArtifactsDir  string
 }
 
-// NewExtensionBridge builds the bridge. notifier, repo, events, and skills may
-// be nil (the matching feature is then skipped); cfg must not be nil.
+// frameWriter writes one panel frame over the active extension connection.
+type frameWriter func(conn *websocket.Conn, frame any)
+
+// ExtensionBridge hosts the localhost WebSocket endpoint the opentask browser
+// extension dials into. It owns the connection, implements
+// browserdomain.BrowserDriver by forwarding the browser-use verbs to the
+// extension, and routes every other frame to the panel unit that owns it.
+type ExtensionBridge struct {
+	cfg          *config.BrowserUseConfig
+	notifier     agentdomain.UINotifier
+	artifactsDir string
+
+	conversations *conversations
+	history       *history
+	skills        *skills
+	models        *models
+	modes         *modes
+	tools         *toolRequests
+	approvals     *approvals
+	mirror        *chatMirror
+
+	server   *http.Server
+	addr     string
+	startErr error
+	startMu  sync.Mutex
+	mu       sync.Mutex
+	conn     *websocket.Conn
+	connStop chan struct{}
+	pending  map[string]chan extInbound
+	writeMu  sync.Mutex
+}
+
+// NewExtensionBridge builds the bridge and its panel units, one unit per frame
+// family, so each unit holds only the dependencies it uses.
 // artifactsDir, when non-empty, is served read-only at /artifacts/ so the panel
 // can display generated images the agent saved locally.
-func NewExtensionBridge(cfg *config.BrowserUseConfig, notifier agentdomain.UINotifier, repo convdomain.ConversationRepository, events agentdomain.EventBridge, skills agentdomain.SkillsService, sessionID, artifactsDir string) *ExtensionBridge {
-	return &ExtensionBridge{
-		cfg:              cfg,
-		notifier:         notifier,
-		repo:             repo,
-		events:           events,
-		skills:           skills,
-		sessionID:        sessionID,
-		artifactsDir:     artifactsDir,
-		pending:          make(map[string]chan extInbound),
-		pendingApprovals: make(map[string]sdk.ChatCompletionMessageToolCall),
-
-		pendingToolApprovals: make(map[string]chan bool),
+func NewExtensionBridge(deps Deps) *ExtensionBridge {
+	b := &ExtensionBridge{
+		cfg:          deps.Config,
+		notifier:     deps.Notifier,
+		artifactsDir: deps.ArtifactsDir,
+		pending:      make(map[string]chan extInbound),
 	}
-}
-
-// SetToolExecution wires the deps answering tool_request and list_models
-// frames - after construction, because the container builds the bridge before
-// the tool and model services exist. Any argument may be nil/empty.
-func (b *ExtensionBridge) SetToolExecution(toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, modes agentdomain.AgentModeState, defaultModel string) {
-	b.toolSvc = toolSvc
-	b.approval = approval
-	b.models = models
-	b.modes = modes
-	b.defaultModel = defaultModel
-}
-
-// SetAgentService wires the agent so an `interrupt` frame can cancel the
-// in-flight turn. Late, like SetToolExecution: the agent is built after the
-// bridge.
-// SetHistoryStorage wires the shared shell-history store so panel-sent messages
-// land in the same input history the TUI's arrow-up navigation uses, and the
-// panel can list it via list_history. nil disables both.
-func (b *ExtensionBridge) SetHistoryStorage(store storage.ShellHistoryStorage) {
-	b.history = store
-}
-
-func (b *ExtensionBridge) SetAgentService(svc agentdomain.AgentService) {
-	b.agentSvc = svc
-}
-
-// interrupt cancels the chat turn currently streaming, if any. Idempotent;
-// a stale or unknown id is a no-op in AgentService.CancelRequest.
-func (b *ExtensionBridge) interrupt() {
-	id, _ := b.activeRequestID.Load().(string)
-	if b.agentSvc == nil || id == "" {
-		return
-	}
-	_ = b.agentSvc.CancelRequest(id)
+	b.modes = &modes{write: b.write, state: deps.Modes}
+	b.approvals = newApprovals(b.write, deps.Notifier)
+	b.conversations = &conversations{write: b.write, repo: deps.Conversations}
+	b.history = newHistory(b.write, deps.History)
+	b.skills = &skills{write: b.write, service: deps.Skills}
+	b.models = &models{write: b.write, service: deps.Models, defaultModel: deps.DefaultModel, notifier: deps.Notifier}
+	b.tools = newToolRequests(b.write, deps)
+	b.mirror = newChatMirror(b.write, deps, b.approvals)
+	return b
 }
 
 // Start listens on 127.0.0.1:<port> and serves the /ws endpoint. Errors are
@@ -366,7 +393,7 @@ func (b *ExtensionBridge) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	var hello extInbound
-	if err := conn.ReadJSON(&hello); err != nil || hello.Type != "browser_hello" ||
+	if err := conn.ReadJSON(&hello); err != nil || hello.Type != inboundBrowserHello ||
 		subtle.ConstantTimeCompare([]byte(hello.Token), []byte(b.cfg.Extension.Token)) != 1 {
 		logger.Warn("extension bridge rejected a connection with a bad or missing hello")
 		_ = conn.Close()
@@ -374,7 +401,7 @@ func (b *ExtensionBridge) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = conn.SetReadDeadline(time.Time{})
 
-	if err := conn.WriteJSON(extHelloAck{Type: "browser_hello_ack"}); err != nil {
+	if err := conn.WriteJSON(extHelloAck{Type: outboundBrowserHelloAck}); err != nil {
 		_ = conn.Close()
 		return
 	}
@@ -394,351 +421,15 @@ func (b *ExtensionBridge) adopt(conn *websocket.Conn) {
 	b.conn = conn
 	stop := make(chan struct{})
 	b.connStop = stop
-
-	b.pendingApprovals = make(map[string]sdk.ChatCompletionMessageToolCall)
-	b.pendingToolApprovals = make(map[string]chan bool)
 	b.mu.Unlock()
+
+	b.approvals.reset()
+	b.tools.reset()
 	b.notifyConnected(true)
 
 	go b.readLoop(conn, stop)
-	go b.chatPump(conn, stop)
+	go b.mirror.run(conn, stop)
 	go b.pingLoop(conn, stop)
-}
-
-// sendSnapshot ships the current conversation's history so the panel shows it,
-// not just events from now on. Sent as the resume_conversation response.
-func (b *ExtensionBridge) sendSnapshot(conn *websocket.Conn) {
-	if b.repo == nil {
-		return
-	}
-	entries := b.repo.GetMessages()
-	messages := make([]sdk.Message, 0, len(entries))
-	results := map[string]bool{}
-	for _, entry := range entries {
-		messages = append(messages, entry.Message)
-		if entry.ToolExecution != nil && entry.Message.ToolCallID != nil {
-			results[*entry.Message.ToolCallID] = entry.ToolExecution.Success
-		}
-	}
-	b.write(conn, extSnapshot{Type: "conversation_snapshot", Messages: messages, ToolResults: results})
-}
-
-// conversationListLimit caps list_conversations, mirroring the TUI selector.
-const conversationListLimit = 50
-
-// conversationLister is the slice of the persistent repo the panel picker needs.
-// Declared here (not in domain) because the in-memory fallback repo has no
-// listing - the type assertion simply fails there and yields an empty list.
-type conversationLister interface {
-	ListSavedConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error)
-}
-
-// sendConversationList answers list_conversations with the stored conversations
-// (newest-first), so the panel can offer the same picker the CLI resumes from.
-func (b *ExtensionBridge) sendConversationList(conn *websocket.Conn) {
-	lister, ok := b.repo.(conversationLister)
-	if !ok {
-		b.write(conn, extConversations{Type: "conversations"})
-		return
-	}
-	summaries, err := lister.ListSavedConversations(context.Background(), conversationListLimit, 0)
-	if err != nil {
-		logger.Debug("extension bridge failed to list conversations", "error", err)
-		b.write(conn, extConversations{Type: "conversations"})
-		return
-	}
-	out := make([]extConversationSummary, 0, len(summaries))
-	for _, s := range summaries {
-		out = append(out, extConversationSummary{
-			ID:           s.ID,
-			Title:        s.Title,
-			UpdatedAt:    s.UpdatedAt,
-			MessageCount: s.MessageCount,
-		})
-	}
-	b.write(conn, extConversations{Type: "conversations", Conversations: out})
-}
-
-// newSession starts a fresh conversation synchronously in the read loop
-// (mirroring the /clear shortcut's repo call) and snapshots the now-empty
-// conversation to the panel. Handling it inline - not via the async notifier -
-// guarantees a user_message frame sent right after lands in the new session
-// instead of racing the clear.
-func (b *ExtensionBridge) newSession(conn *websocket.Conn) {
-	if b.repo == nil {
-		return
-	}
-	if err := b.repo.StartNewConversation("New Conversation"); err != nil {
-		logger.Debug("extension bridge failed to start new conversation", "error", err)
-		return
-	}
-	b.sendSnapshot(conn)
-}
-
-// resumeConversation switches the active conversation to id and snapshots it to
-// the panel; the running chat pump then streams live events into it.
-func (b *ExtensionBridge) resumeConversation(conn *websocket.Conn, id string) {
-	if b.repo == nil || id == "" {
-		return
-	}
-	if err := b.repo.LoadConversation(context.Background(), id); err != nil {
-		logger.Debug("extension bridge failed to resume conversation", "id", id, "error", err)
-		return
-	}
-	b.sendSnapshot(conn)
-}
-
-// sendSkillList answers list_skills with the agent's discovered skills - the
-// same set (project, .agents, user, plugin, catalog) the skills service already
-// merged with precedence, so the panel's "/" menu mirrors what the TUI offers.
-// Sends an empty list when skills are unavailable.
-func (b *ExtensionBridge) sendSkillList(conn *websocket.Conn) {
-	if b.skills == nil {
-		b.write(conn, extSkills{Type: "skills", Skills: []agentdomain.SkillSummary{}})
-		return
-	}
-	loaded := b.skills.List()
-	out := make([]agentdomain.SkillSummary, 0, len(loaded))
-	for _, sk := range loaded {
-		out = append(out, sk.Summary())
-	}
-	b.write(conn, extSkills{Type: "skills", Skills: out})
-}
-
-// historyListLimit caps list_history replies; the panel only needs recent
-// entries for arrow-up recall.
-const historyListLimit = 1000
-
-// sendHistory answers list_history with the shared shell input history - the
-// same entries the TUI's arrow-up navigation walks. Sends an empty list when
-// history storage is unavailable.
-func (b *ExtensionBridge) sendHistory(conn *websocket.Conn) {
-	out := []string{}
-	if b.history != nil {
-		loaded, err := b.history.LoadHistory(context.Background(), historyListLimit)
-		if err != nil {
-			logger.Debug("extension bridge failed to load history", "error", err)
-		} else {
-			out = loaded
-		}
-	}
-	b.write(conn, extHistory{Type: "history", History: out})
-}
-
-// appendHistory records a panel-sent message in the shared shell history,
-// mirroring the TUI submit path (trimmed, consecutive duplicates skipped).
-func (b *ExtensionBridge) appendHistory(content string) {
-	content = strings.TrimSpace(content)
-	if b.history == nil || content == "" {
-		return
-	}
-	if last, err := b.history.LoadHistory(context.Background(), 1); err == nil && len(last) > 0 && last[len(last)-1] == content {
-		return
-	}
-	if err := b.history.AppendHistory(context.Background(), content); err != nil {
-		logger.Warn("extension bridge failed to append history", "error", err)
-	}
-}
-
-// sendModelList answers list_models with the models the gateway serves, the
-// CLI's configured default model first, so the panel's pickers mirror the CLI.
-// Sends an empty list when models are unavailable.
-func (b *ExtensionBridge) sendModelList(conn *websocket.Conn) {
-	out := []string{}
-	if b.models != nil {
-		listed, err := b.models.ListModels(context.Background())
-		if err != nil {
-			logger.Debug("extension bridge failed to list models", "error", err)
-		}
-		if b.defaultModel != "" {
-			out = append(out, b.defaultModel)
-		}
-		for _, m := range listed {
-			if m != b.defaultModel {
-				out = append(out, m)
-			}
-		}
-	}
-	current := ""
-	if b.models != nil {
-		current = b.models.GetCurrentModel()
-	}
-	b.write(conn, extModels{Type: "models", Models: out, Current: current})
-}
-
-// sendMode reports the CLI's current agent mode as its canonical mode key
-// (standard/plan/auto/auto-with-judge), so the panel's auto-mode toggle
-// mirrors the CLI.
-func (b *ExtensionBridge) sendMode(conn *websocket.Conn) {
-	if b.modes == nil {
-		return
-	}
-	b.write(conn, extMode{Type: "mode", Mode: b.modes.GetAgentMode().ModeKey()})
-}
-
-// setMode switches the CLI's agent mode (same shared state as the TUI's
-// shift+tab cycle - it also governs tool_request approvals) and echoes the
-// resulting mode so the panel reflects the outcome either way.
-func (b *ExtensionBridge) setMode(conn *websocket.Conn, mode string) {
-	if b.modes != nil {
-		if m, ok := agentdomain.ParseAgentMode(mode); ok && m != agentdomain.AgentModeReadOnly {
-			b.modes.SetAgentMode(m)
-		}
-	}
-	b.sendMode(conn)
-}
-
-// selectModel switches the CLI's active model (same as the TUI's /model) and
-// re-sends the model list so the panel reflects the outcome, whether or not
-// the switch was accepted.
-func (b *ExtensionBridge) selectModel(conn *websocket.Conn, model string) {
-	if b.models != nil && model != "" {
-		if err := b.models.SelectModel(model); err != nil {
-			logger.Debug("extension bridge failed to select model", "model", model, "error", err)
-		} else if b.notifier != nil {
-			b.notifier.Notify(agentdomain.ModelSelectedEvent{Model: model})
-		}
-	}
-	b.sendModelList(conn)
-	b.sendMode(conn)
-}
-
-// handleToolRequest executes an extension-initiated tool call through the
-// standard pipeline (enabled check, the agent's approval policy, execution)
-// and writes exactly one tool_result per request id. A dead connection drops
-// the write - no queuing or replay. approval_behaviour (prompt/ipc/block) is
-// ignored: the extension itself is the prompt surface.
-func (b *ExtensionBridge) handleToolRequest(conn *websocket.Conn, stop chan struct{}, msg extInbound) {
-	reply := func(success bool, output, errStr string) {
-		b.write(conn, extToolResult{Type: "tool_result", ID: msg.ID, Success: success, Output: output, Error: errStr})
-	}
-
-	if b.toolSvc == nil || !b.toolSvc.IsToolEnabled(msg.ToolName) {
-		reply(false, "", "unknown or disabled tool: "+msg.ToolName)
-		return
-	}
-
-	toolCall := sdk.ChatCompletionMessageToolCall{
-		ID:   msg.ID,
-		Type: sdk.Function,
-		Function: sdk.ChatCompletionMessageToolCallFunction{
-			Name:      msg.ToolName,
-			Arguments: msg.ToolArgs,
-		},
-	}
-
-	ctx := context.Background()
-	if b.approval != nil && b.approval.ShouldRequireApproval(ctx, &toolCall, true) {
-		if !b.awaitToolRequestApproval(conn, stop, toolCall) {
-			reply(false, "", "tool call denied")
-			return
-		}
-	}
-
-	result, err := b.toolSvc.ExecuteToolDirect(agentdomain.WithToolApproved(ctx), toolCall.Function)
-	if err != nil {
-		result = &agentdomain.ToolExecutionResult{ToolName: msg.ToolName, ToolCallID: msg.ID, Success: false, Error: err.Error()}
-		b.recordDirectTool(toolCall, result)
-		reply(false, "", err.Error())
-		return
-	}
-	b.recordDirectTool(toolCall, result)
-	reply(result.Success, b.toolResultOutput(result), result.Error)
-}
-
-// recordDirectTool makes an extension-initiated tool call part of the
-// conversation, mirroring the TUI's direct-exec path: persist the assistant
-// tool_call + tool result entries, refresh the TUI history, and stream the
-// call/result to the panel through the chat pump. Denied/disabled calls never
-// reach here - nothing ran.
-func (b *ExtensionBridge) recordDirectTool(toolCall sdk.ChatCompletionMessageToolCall, result *agentdomain.ToolExecutionResult) {
-	if result.ToolCallID == "" {
-		result.ToolCallID = toolCall.ID
-	}
-	now := time.Now()
-	if b.repo != nil {
-		assistantEntry, toolEntry := convdomain.NewToolCallEntries(toolCall, result, b.repo.FormatToolResultForLLM(result), now)
-		func() {
-			b.mu.Lock()
-			defer b.mu.Unlock()
-			_ = b.repo.AddMessage(assistantEntry)
-			_ = b.repo.AddMessage(toolEntry)
-		}()
-	}
-	completed := agentdomain.ToolExecutionCompletedEvent{
-		SessionID:     b.sessionID,
-		RequestID:     toolCall.ID,
-		Timestamp:     now,
-		TotalExecuted: 1,
-		Results:       []*agentdomain.ToolExecutionResult{result},
-	}
-	if result.Success {
-		completed.SuccessCount = 1
-	} else {
-		completed.FailureCount = 1
-	}
-	if b.notifier != nil {
-		b.notifier.Notify(completed)
-	}
-	if b.events != nil {
-		b.events.Publish(agentdomain.ChatCompleteEvent{
-			RequestID: toolCall.ID,
-			Timestamp: now,
-			ToolCalls: []sdk.ChatCompletionMessageToolCall{toolCall},
-		})
-		b.events.Publish(completed)
-	}
-}
-
-// awaitToolRequestApproval sends an approval_request for an extension-initiated
-// tool call and blocks until the panel answers, the connection dies, or the
-// approval times out. Anything but an explicit approve is a denial.
-func (b *ExtensionBridge) awaitToolRequestApproval(conn *websocket.Conn, stop chan struct{}, toolCall sdk.ChatCompletionMessageToolCall) bool {
-	requestID := uuid.NewString()
-	decision := make(chan bool, 1)
-	b.mu.Lock()
-	b.pendingToolApprovals[requestID] = decision
-	b.mu.Unlock()
-	b.write(conn, extApprovalRequest{
-		Type:      "approval_request",
-		RequestID: requestID,
-		ToolName:  toolCall.Function.Name,
-		ToolArgs:  toolCall.Function.Arguments,
-	})
-	select {
-	case approved := <-decision:
-		return approved
-	case <-stop:
-	case <-time.After(constants.ApprovalTimeout):
-	}
-	b.mu.Lock()
-	delete(b.pendingToolApprovals, requestID)
-	b.mu.Unlock()
-	return false
-}
-
-// answerToolRequestApproval resolves an approval_response that belongs to an
-// extension-initiated tool_request. Returns false when the id is not ours so
-// the caller can fall through to the agent-approval path.
-func (b *ExtensionBridge) answerToolRequestApproval(conn *websocket.Conn, requestID, action string) bool {
-	b.mu.Lock()
-	decision, ok := b.pendingToolApprovals[requestID]
-	delete(b.pendingToolApprovals, requestID)
-	b.mu.Unlock()
-	if !ok {
-		return false
-	}
-	decision <- action == "approve"
-	b.write(conn, extApprovalResolved{Type: "approval_resolved", RequestID: requestID})
-	return true
-}
-
-// toolResultOutput extracts the human-facing output of a tool result.
-func (b *ExtensionBridge) toolResultOutput(result *agentdomain.ToolExecutionResult) string {
-	if b.repo == nil {
-		return convdomain.ToolResultOutput(result, nil)
-	}
-	return convdomain.ToolResultOutput(result, b.repo.FormatToolResultForLLM)
 }
 
 // readLoop handles frames from the extension until the connection dies or is
@@ -750,204 +441,56 @@ func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 			b.dropConn(conn, stop)
 			return
 		}
-		switch msg.Type {
-		case "browser_result":
-			b.mu.Lock()
-			ch, ok := b.pending[msg.ID]
-			delete(b.pending, msg.ID)
-			b.mu.Unlock()
-			if ok {
-				ch <- msg
-			}
-		case "user_message":
-			if b.notifier != nil && msg.Content != "" {
-				images, notes := saveAttachments(msg.Attachments)
-				content := strings.Join(append([]string{msg.Content}, notes...), "\n")
-				b.notifier.Notify(agentdomain.UserInputEvent{Content: content, Images: images, FromExtension: true})
-			}
-			b.appendHistory(msg.Content)
-		case "new_session":
-			b.newSession(conn)
-		case "list_history":
-			b.sendHistory(conn)
-		case "list_conversations":
-			b.sendConversationList(conn)
-		case "list_skills":
-			b.sendSkillList(conn)
-		case "select_model":
-			b.selectModel(conn, msg.Model)
-		case "list_models":
-			b.sendModelList(conn)
-		case "set_mode":
-			b.setMode(conn, msg.Mode)
-		case "resume_conversation":
-			b.resumeConversation(conn, msg.ID)
-		case "interrupt":
-			b.interrupt()
-		case "tool_request":
-			go b.handleToolRequest(conn, stop, msg)
-		case "approval_response":
-			if !b.answerToolRequestApproval(conn, msg.RequestID, msg.Action) {
-				b.answerApproval(conn, msg.RequestID, msg.Action)
-			}
-		default:
+		b.route(conn, stop, msg)
+	}
+}
+
+// route dispatches one inbound frame to the panel unit that owns its frame
+// family. Unknown frame types are ignored for forward compatibility.
+func (b *ExtensionBridge) route(conn *websocket.Conn, stop chan struct{}, msg extInbound) {
+	switch msg.Type {
+	case inboundBrowserResult:
+		b.deliverBrowserResult(msg)
+	case inboundUserMessage:
+		b.submitUserMessage(msg)
+	case inboundNewSession:
+		b.conversations.start(conn)
+	case inboundListHistory:
+		b.history.list(conn)
+	case inboundListConversations:
+		b.conversations.list(conn)
+	case inboundListSkills:
+		b.skills.list(conn)
+	case inboundSelectModel:
+		b.models.selectModel(conn, msg.Model)
+		b.modes.send(conn)
+	case inboundListModels:
+		b.models.list(conn)
+	case inboundSetMode:
+		b.modes.set(conn, msg.Mode)
+	case inboundResumeConversation:
+		b.conversations.resume(conn, msg.ID)
+	case inboundInterrupt:
+		b.mirror.interrupt()
+	case inboundToolRequest:
+		go b.tools.run(conn, stop, msg)
+	case inboundApprovalResponse:
+		if !b.tools.resolveApproval(conn, msg.RequestID, msg.Action) {
+			b.approvals.answer(conn, msg.RequestID, msg.Action)
 		}
 	}
 }
 
-// displayOnlyQuestion strips the question's response channel so the panel can
-// show it but only the TUI, which owns the channel, answers or dismisses it.
-func displayOnlyQuestion(question agentdomain.UserQuestionRequestedEvent) agentdomain.UserQuestionRequestedEvent {
-	question.ResponseChan = nil
-	return question
-}
-
-// chatPump mirrors chat events to the extension as chat_event frames, and turns
-// ToolApprovalRequestedEvent / ToolApprovalResolvedEvent into approval_request /
-// approval_resolved frames so the panel can drive the approval handshake.
-func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
-	if b.events == nil {
-		return
-	}
-	sub := b.events.SubscribeFuture()
-	defer b.events.Unsubscribe(sub)
-
-	filtered := make(chan agentdomain.ChatEvent, 100)
-	go func() {
-		defer close(filtered)
-		for {
-			select {
-			case <-stop:
-				return
-			case ev, ok := <-sub:
-				if !ok {
-					return
-				}
-				switch e := ev.(type) {
-				case agentdomain.ChatStartEvent:
-					b.activeRequestID.Store(e.RequestID)
-				case agentdomain.ChatCompleteEvent:
-					if len(e.ToolCalls) == 0 || e.Cancelled {
-						b.activeRequestID.Store("")
-					}
-					if e.Cancelled {
-						b.write(conn, extInterrupted{Type: "interrupted"})
-					}
-				}
-				if req, isApproval := ev.(agentdomain.ToolApprovalRequestedEvent); isApproval {
-					b.requestApproval(conn, req)
-					continue
-				}
-				if _, isResolved := ev.(agentdomain.ToolApprovalResolvedEvent); isResolved {
-					b.resolvePendingApprovals(conn)
-					continue
-				}
-				if question, isQuestion := ev.(agentdomain.UserQuestionRequestedEvent); isQuestion {
-					ev = displayOnlyQuestion(question)
-				}
-				select {
-				case filtered <- ev:
-				case <-stop:
-					return
-				}
-			}
-		}
-	}()
-
-	writer := &chatEventWriter{bridge: b, conn: conn}
-	if err := agui.Render(filtered, writer, nil, nil, b.sessionID, "", b.repo, nil); err != nil {
-		logger.Debug("extension bridge chat pump ended", "error", err)
-	}
-}
-
-// chatEventWriter adapts the AG-UI line stream to chat_event frames.
-type chatEventWriter struct {
-	bridge *ExtensionBridge
-	conn   *websocket.Conn
-	buf    []byte
-}
-
-func (w *chatEventWriter) Write(p []byte) (int, error) {
-	w.buf = append(w.buf, p...)
-	for {
-		idx := -1
-		for i, c := range w.buf {
-			if c == '\n' {
-				idx = i
-				break
-			}
-		}
-		if idx < 0 {
-			return len(p), nil
-		}
-		line := make([]byte, idx)
-		copy(line, w.buf[:idx])
-		w.buf = w.buf[idx+1:]
-		if len(line) > 0 {
-			w.bridge.write(w.conn, extChatEvent{Type: "chat_event", Event: line})
-		}
-	}
-}
-
-// requestApproval stashes the pending tool call and asks the panel to decide.
-func (b *ExtensionBridge) requestApproval(conn *websocket.Conn, req agentdomain.ToolApprovalRequestedEvent) {
+// deliverBrowserResult hands a browser_result frame to the goroutine waiting
+// for that command id.
+func (b *ExtensionBridge) deliverBrowserResult(msg extInbound) {
 	b.mu.Lock()
-	b.pendingApprovals[req.RequestID] = req.ToolCall
+	ch, ok := b.pending[msg.ID]
+	delete(b.pending, msg.ID)
 	b.mu.Unlock()
-	b.write(conn, extApprovalRequest{
-		Type:      "approval_request",
-		RequestID: req.RequestID,
-		ToolName:  req.ToolCall.Function.Name,
-		ToolArgs:  req.ToolCall.Function.Arguments,
-	})
-}
-
-// resolvePendingApprovals clears any outstanding approval cards on a
-// ToolApprovalResolvedEvent. A duplicate approval_resolved is harmless - the
-// panel ignores unknown ids (the panel path already cleared it in answerApproval).
-func (b *ExtensionBridge) resolvePendingApprovals(conn *websocket.Conn) {
-	b.mu.Lock()
-	if len(b.pendingApprovals) == 0 {
-		b.mu.Unlock()
-		return
+	if ok {
+		ch <- msg
 	}
-	ids := make([]string, 0, len(b.pendingApprovals))
-	for id := range b.pendingApprovals {
-		ids = append(ids, id)
-	}
-	b.pendingApprovals = make(map[string]sdk.ChatCompletionMessageToolCall)
-	b.mu.Unlock()
-	for _, id := range ids {
-		b.write(conn, extApprovalResolved{Type: "approval_resolved", RequestID: id})
-	}
-}
-
-// answerApproval turns a panel approval_response into the same
-// ToolApprovalResponseEvent the terminal emits, then confirms the card cleared.
-func (b *ExtensionBridge) answerApproval(conn *websocket.Conn, requestID, action string) {
-	b.mu.Lock()
-	toolCall, ok := b.pendingApprovals[requestID]
-	delete(b.pendingApprovals, requestID)
-	b.mu.Unlock()
-	if !ok {
-		return
-	}
-	if b.notifier != nil {
-		b.notifier.Notify(agentdomain.ToolApprovalResponseEvent{
-			Action:   approvalAction(action),
-			ToolCall: toolCall,
-		})
-	}
-	b.write(conn, extApprovalResolved{Type: "approval_resolved", RequestID: requestID})
-}
-
-// approvalAction maps the wire action to a decision; anything but "approve"
-// (including unknown values) is treated as a reject, failing safe.
-func approvalAction(action string) agentdomain.ApprovalAction {
-	if action == "approve" {
-		return agentdomain.ApprovalApprove
-	}
-	return agentdomain.ApprovalReject
 }
 
 func (b *ExtensionBridge) pingLoop(conn *websocket.Conn, stop chan struct{}) {
@@ -987,11 +530,21 @@ func (b *ExtensionBridge) dropConn(conn *websocket.Conn, stop chan struct{}) {
 	}
 }
 
+// submitUserMessage turns a panel message into the same user-input event the TUI
+// submits, saving any attachments and recording the message in the shared shell
+// history.
+func (b *ExtensionBridge) submitUserMessage(msg extInbound) {
+	if msg.Content != "" {
+		images, notes := saveAttachments(msg.Attachments)
+		content := strings.Join(append([]string{msg.Content}, notes...), "\n")
+		b.notifier.Notify(agentdomain.UserInputEvent{Content: content, Images: images, FromExtension: true})
+	}
+	b.history.append(msg.Content)
+}
+
 // notifyConnected tells the TUI status bar whether an extension is attached.
 func (b *ExtensionBridge) notifyConnected(connected bool) {
-	if b.notifier != nil {
-		b.notifier.Notify(agentdomain.BrowserExtensionStatusEvent{Connected: connected})
-	}
+	b.notifier.Notify(agentdomain.BrowserExtensionStatusEvent{Connected: connected})
 }
 
 func (b *ExtensionBridge) write(conn *websocket.Conn, v any) {
@@ -1055,39 +608,39 @@ func (b *ExtensionBridge) timeoutSeconds() int {
 
 // Navigate implements browserdomain.BrowserDriver.
 func (b *ExtensionBridge) Navigate(ctx context.Context, url string) (browserdomain.BrowserToolResult, error) {
-	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "navigate", URL: url})
+	result, err := b.send(ctx, extBrowserCommand{Type: outboundBrowserCommand, Action: browserActionNavigate, URL: url})
 	if err != nil {
 		return browserdomain.BrowserToolResult{}, err
 	}
-	return browserdomain.BrowserToolResult{Action: "navigate", URL: result.URL, Title: result.Title}, nil
+	return browserdomain.BrowserToolResult{Action: browserActionNavigate, URL: result.URL, Title: result.Title}, nil
 }
 
 // Click implements browserdomain.BrowserDriver.
 func (b *ExtensionBridge) Click(ctx context.Context, selector string) (browserdomain.BrowserToolResult, error) {
-	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "click", Selector: selector})
+	result, err := b.send(ctx, extBrowserCommand{Type: outboundBrowserCommand, Action: browserActionClick, Selector: selector})
 	if err != nil {
 		return browserdomain.BrowserToolResult{}, err
 	}
-	return browserdomain.BrowserToolResult{Action: "click", Selector: selector, URL: result.URL, Title: result.Title}, nil
+	return browserdomain.BrowserToolResult{Action: browserActionClick, Selector: selector, URL: result.URL, Title: result.Title}, nil
 }
 
 // Type implements browserdomain.BrowserDriver.
 func (b *ExtensionBridge) Type(ctx context.Context, selector, text string, pressEnter bool) (browserdomain.BrowserToolResult, error) {
-	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "type", Selector: selector, Text: text, PressEnter: pressEnter})
+	result, err := b.send(ctx, extBrowserCommand{Type: outboundBrowserCommand, Action: browserActionType, Selector: selector, Text: text, PressEnter: pressEnter})
 	if err != nil {
 		return browserdomain.BrowserToolResult{}, err
 	}
-	return browserdomain.BrowserToolResult{Action: "type", Selector: selector, Text: text, URL: result.URL, Title: result.Title}, nil
+	return browserdomain.BrowserToolResult{Action: browserActionType, Selector: selector, Text: text, URL: result.URL, Title: result.Title}, nil
 }
 
 // Read implements browserdomain.BrowserDriver.
 func (b *ExtensionBridge) Read(ctx context.Context, selector string) (browserdomain.BrowserToolResult, error) {
-	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "read", Selector: selector})
+	result, err := b.send(ctx, extBrowserCommand{Type: outboundBrowserCommand, Action: browserActionRead, Selector: selector})
 	if err != nil {
 		return browserdomain.BrowserToolResult{}, err
 	}
 	return browserdomain.BrowserToolResult{
-		Action:   "read",
+		Action:   browserActionRead,
 		Selector: selector,
 		URL:      result.URL,
 		Title:    result.Title,
@@ -1105,7 +658,7 @@ func (b *ExtensionBridge) ClickAt(_ context.Context, _, _ float64) (browserdomai
 
 // Screenshot implements browserdomain.BrowserDriver via the extension's captureVisibleTab.
 func (b *ExtensionBridge) Screenshot(ctx context.Context) (browserdomain.BrowserScreenshotResult, error) {
-	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "screenshot"})
+	result, err := b.send(ctx, extBrowserCommand{Type: outboundBrowserCommand, Action: browserActionScreenshot})
 	if err != nil {
 		return browserdomain.BrowserScreenshotResult{}, err
 	}
@@ -1126,7 +679,7 @@ func (b *ExtensionBridge) Screenshot(ctx context.Context) (browserdomain.Browser
 
 // Tabs implements browserdomain.BrowserDriver via the extension's chrome.tabs query.
 func (b *ExtensionBridge) Tabs(ctx context.Context) ([]browserdomain.BrowserTab, error) {
-	result, err := b.send(ctx, extBrowserCommand{Type: "browser_command", Action: "tabs"})
+	result, err := b.send(ctx, extBrowserCommand{Type: outboundBrowserCommand, Action: browserActionTabs})
 	if err != nil {
 		return nil, err
 	}

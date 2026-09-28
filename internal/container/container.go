@@ -68,7 +68,7 @@ import (
 // RetryNotifier, when set, receives a short human-readable notice for each
 // SDK-internal HTTP retry (e.g. "⏳ HTTP 502 - retrying in 10s (attempt 2)").
 // The headless agent points it at its stdout notification stream so remote
-// channels (Telegram) see progress during backoff; the chat TUI leaves it nil.
+// channels (Telegram) see progress during backoff. The chat TUI leaves it nil.
 var RetryNotifier func(message string)
 
 // ServiceContainer manages all application dependencies
@@ -145,7 +145,7 @@ type ServiceContainer struct {
 	mcpStartupCancel context.CancelFunc
 
 	// Chat orchestration services - extracted from internal/handlers/chat_handler.go.
-	// Constructed unconditionally; A2A-specific deps inside the
+	// Constructed unconditionally. A2A-specific deps inside the
 	// services are nil-safe when A2A is disabled.
 	chatEventListener        tui.ChatEventListener
 	approvalCoordinator      tui.ApprovalCoordinator
@@ -160,7 +160,7 @@ type ServiceContainer struct {
 
 // uiNotifierHolder is a swap-once, read-many agentdomain.UINotifier. Producers capture
 // the *uiNotifierHolder once at construction (never reassigning it) and call Notify
-// from their own goroutines; SetUINotifier stores the real program-backed notifier
+// from their own goroutines. SetUINotifier stores the real program-backed notifier
 // exactly once at startup (before program.Run). atomic.Pointer keeps the read
 // lock-free and the late swap race-free without a mutex. The stored pointer is
 // never nil (newUINotifierHolder seeds a NoopUINotifier), so Notify is always safe.
@@ -225,20 +225,17 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 // SetUINotifier swaps in the real (program-backed) UI notifier. cmd/chat.go calls
 // it once, after tea.NewProgram and before program.Run, so every background
 // producer that captured the holder at construction begins pushing into the live
-// Bubble Tea loop. Safe to call from any goroutine; before it runs, producers
+// Bubble Tea loop. Safe to call from any goroutine. Before it runs, producers
 // push to the no-op default.
 func (c *ServiceContainer) SetUINotifier(n agentdomain.UINotifier) {
 	c.uiNotifier.set(n)
 }
 
 // initializeBrowserTools constructs the browser-use driver (the opentask
-// extension bridge, or a lazily-launched Playwright session) and registers the
-// browser tools against it. The container owns the driver lifecycle; the
-// extension backend also installs an event bridge on the state manager so chat
-// events are mirrored to the extension.
-// The WS server is NOT started here - every command builds a container and
-// short-lived ones (status, tools, ...) must not grab the bridge port.
-// Conversation-hosting commands call StartExtensionBridge.
+// extension bridge, or a lazily-launched Playwright session), installs the chat
+// event bridge the extension mirror needs, and registers the browser tools
+// against the driver. It runs after the services it needs, so the bridge takes
+// every dependency in its constructor. The WS server starts on StartExtensionBridge.
 func (c *ServiceContainer) initializeBrowserTools() {
 	buCfg := &c.config.BrowserUse
 	if !buCfg.Enabled {
@@ -252,7 +249,22 @@ func (c *ServiceContainer) initializeBrowserTools() {
 			c.stateManager.SetEventBridge(eventBridge)
 		}
 
-		c.extensionBridge = browserinfra.NewExtensionBridge(buCfg, c.uiNotifier, c.conversationRepo, eventBridge, c.skillsService, string(c.sessionID), c.config.ArtifactsDir())
+		c.extensionBridge = browserinfra.NewExtensionBridge(browserinfra.Deps{
+			Config:        buCfg,
+			Notifier:      c.uiNotifier,
+			Conversations: c.conversationRepo,
+			Events:        eventBridge,
+			Skills:        c.skillsService,
+			Tools:         c.toolService,
+			Approval:      agent.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService),
+			Models:        c.modelService,
+			Modes:         c.stateManager,
+			Agent:         c.agent,
+			History:       c.GetShellHistoryStorage(),
+			DefaultModel:  c.config.Agent.Model,
+			SessionID:     string(c.sessionID),
+			ArtifactsDir:  c.config.ArtifactsDir(),
+		})
 		c.browserDriver = c.extensionBridge
 	} else {
 		c.browserDriver = browserinfra.NewSession(buCfg)
@@ -264,7 +276,7 @@ func (c *ServiceContainer) initializeBrowserTools() {
 // StartExtensionBridge starts the WebSocket server the opentask extension
 // dials into. Chat and headless call it eagerly - the extension must be able
 // to connect before the first tool call. No-op when the extension backend is
-// not selected. Errors are logged; tool calls surface them too.
+// not selected. Errors are logged, and tool calls surface them too.
 func (c *ServiceContainer) StartExtensionBridge() {
 	if c.extensionBridge == nil {
 		return
@@ -463,8 +475,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 	c.skillsService = skillsSvc
 
-	c.initializeBrowserTools()
-
 	modelClient := c.createRawSDKClient()
 	c.modelService = conversation.NewHTTPModelService(modelClient)
 
@@ -489,13 +499,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 	if c.telemetryRecorder != nil {
 		c.toolService = telemetry.NewToolService(c.toolService, c.telemetryRecorder)
-	}
-
-	if c.extensionBridge != nil {
-		c.extensionBridge.SetToolExecution(c.toolService,
-			agent.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService),
-			c.modelService, c.stateManager, c.config.Agent.Model)
-		c.extensionBridge.SetHistoryStorage(c.GetShellHistoryStorage())
 	}
 
 	if c.tokenizer == nil {
@@ -550,9 +553,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
 	agentImpl.SetCurrentModelFn(c.modelService.GetCurrentModel)
 	c.agent = agentImpl
-	if c.extensionBridge != nil {
-		c.extensionBridge.SetAgentService(c.agent)
-	}
+
+	c.initializeBrowserTools()
 }
 
 // initializeStorageBackend wires the conversation repository for the configured
