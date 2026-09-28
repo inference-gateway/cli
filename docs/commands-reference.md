@@ -295,6 +295,8 @@ select models and have conversations.
 - Conversational interface
 - Real-time streaming responses
 - **Scrollable chat history** with mouse wheel and keyboard support
+- **Inline history auto-completion** of previous inputs
+- Select text by holding Shift (Option on macOS terminals) while dragging
 
 **Navigation Controls:**
 

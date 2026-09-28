@@ -53,7 +53,8 @@ OPENAI_API_KEY=your_key_here
 DEEPSEEK_API_KEY=your_key_here
 ```
 
-Provider keys resolve first hit wins: the system environment, the project `.env`, then the userspace `~/.infer/auth.yaml` fallback.
+Provider keys resolve in this order, first hit wins: the system environment, the project `.env`, then the userspace
+`~/.infer/auth.yaml` fallback - see [Provider API Keys](docs/configuration-reference.md#provider-api-keys).
 
 3. **Start chatting**:
 
@@ -68,7 +69,7 @@ One line per feature, each linking to its full guide:
 ### Core
 
 - **Automatic gateway management** - downloads and runs the gateway binary, no Docker required
-- **Interactive chat and headless agent** - model selection, streaming, session resumption - [Commands Reference](docs/commands-reference.md)
+- **Interactive chat and headless agent** - model selection, streaming, session resumption, inline history auto-completion - [Commands Reference](docs/commands-reference.md)
 - **Agent modes** - Standard, Plan, Auto-Accept and Auto+Judge, toggled with Shift+Tab - [Plan Mode](docs/plan-mode.md) · [Judge Mode](docs/judge-mode.md)
 - **Tool execution** - every tool the LLM can call, with parameters and approval defaults - [Tools Reference](docs/tools-reference.md)
 - **Tool approval** - the gate in front of sensitive tools - [Tool Approval](docs/tool-approval.md)
@@ -121,17 +122,9 @@ Each directory under [`examples/`](examples/) is a self-contained, runnable setu
 
 ## Contributing
 
-Development is documented in **[CONTRIBUTING.md](CONTRIBUTING.md)**:
-
-```bash
-task build   # Build the binary
-task test    # Run the tests
-task fmt     # Format the code
-task lint    # Run the linters
-```
-
-Coding agents working in this repository should read **[AGENTS.md](AGENTS.md)** first; packages with
-their own agent-specific rules ship an `AGENTS.md` next to the code.
+Development is documented in **[CONTRIBUTING.md](CONTRIBUTING.md)**. Coding agents working in this repository
+should read **[AGENTS.md](AGENTS.md)** first; packages with their own agent-specific rules ship an `AGENTS.md`
+next to the code.
 
 ## License
 

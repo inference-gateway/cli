@@ -93,6 +93,9 @@ infer daemon
 
 You should see a log line like `Scheduler started jobs=0`.
 
+Container deployments must set `TZ` (e.g. `TZ=Europe/Berlin`) so cron expressions are interpreted in
+local time. The binary embeds the IANA zone database, so this works on any base image.
+
 ## Cron syntax
 
 Standard 5-field crontab format: `minute hour day-of-month month day-of-week`.
