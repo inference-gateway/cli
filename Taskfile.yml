@@ -303,11 +303,11 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ApprovalPolicy
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/agent/states AgentStateMachine
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/agent/states StateHandler
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/mcp internal/mcp/domain Client
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/a2a internal/a2a/domain AgentCardService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/a2a internal/a2a/domain TaskTracker
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/a2a internal/a2a/domain TaskRetentionService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/a2a internal/a2a/domain BackgroundTaskService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/mcp internal/protocols/mcp/domain Client
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/a2a internal/protocols/a2a/domain AgentCardService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/a2a internal/protocols/a2a/domain TaskTracker
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/a2a internal/protocols/a2a/domain TaskRetentionService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/a2a internal/protocols/a2a/domain BackgroundTaskService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/container internal/platform/container ContainerRuntime
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/channels Channel
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/channels HistoryCleaner
@@ -342,7 +342,7 @@ tasks:
       - mkdir -p tests/mocks/binaries
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/binaries internal/binaries/domain Store
     sources:
-      - "internal/a2a/domain/*.go"
+      - "internal/protocols/a2a/domain/*.go"
       - "internal/agent/domain/*.go"
       - "internal/agent/states/*.go"
       - "internal/binaries/domain/*.go"

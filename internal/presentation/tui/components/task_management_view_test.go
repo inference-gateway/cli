@@ -9,10 +9,10 @@ import (
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 

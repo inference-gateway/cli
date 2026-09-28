@@ -11,12 +11,12 @@ import (
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
-	a2a "github.com/inference-gateway/cli/internal/a2a"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
+	a2a "github.com/inference-gateway/cli/internal/protocols/a2a"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
 

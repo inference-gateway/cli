@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
@@ -15,6 +14,7 @@ import (
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	eventlistener "github.com/inference-gateway/cli/internal/presentation/tui/eventlistener"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 

@@ -12,8 +12,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
+	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 )
 
 func TestNewSupervisor(t *testing.T) {

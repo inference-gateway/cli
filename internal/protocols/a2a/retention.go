@@ -3,7 +3,7 @@ package a2a
 import (
 	"sync"
 
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
 // TaskRetentionService manages in-memory retention of completed/terminal A2A tasks

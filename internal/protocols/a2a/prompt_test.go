@@ -7,7 +7,7 @@ import (
 
 	a2amocks "github.com/inference-gateway/cli/tests/mocks/a2a"
 
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
 func TestAgentsPromptSection(t *testing.T) {

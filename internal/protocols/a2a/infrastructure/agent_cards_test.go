@@ -7,7 +7,7 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
 func TestAgentCardClient_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {

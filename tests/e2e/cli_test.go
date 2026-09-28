@@ -373,3 +373,43 @@ func TestHeadlessSlashCommands(t *testing.T) {
 		require.Contains(t, answer, "opens a panel in the chat TUI")
 	})
 }
+
+// TestHeadlessAGUIFormat pins the --format ag-ui stdout contract end to end.
+// A run is bracketed by one RUN_STARTED and one terminal event, and a failure
+// before the stream starts is still a RUN_ERROR, not silence.
+func TestHeadlessAGUIFormat(t *testing.T) {
+	t.Run("tool turn streams framed events", func(t *testing.T) {
+		m := startMock(t)
+
+		stdout, _, code := runCLI(t, m.URL, t.TempDir(), "", "headless", "--format", "ag-ui", "run the echo command")
+		require.Zero(t, code)
+
+		events := jsonLines(t, stdout)
+		require.Equal(t, "RUN_STARTED", events[0]["type"], stdout)
+		finished := events[len(events)-1]
+		require.Equal(t, "RUN_FINISHED", finished["type"], stdout)
+		require.NotEmpty(t, finished["result"], "RUN_FINISHED must carry the session stats")
+
+		require.Equal(t, "Bash", statusOfType(events, "TOOL_CALL_START")["toolCallName"])
+		require.Contains(t, statusOfType(events, "TOOL_CALL_RESULT")["content"], "hello-from-bash")
+		var text strings.Builder
+		for _, e := range events {
+			if e["type"] == "TEXT_MESSAGE_CONTENT" {
+				text.WriteString(e["delta"].(string))
+			}
+		}
+		require.Contains(t, text.String(), "The echo command ran.")
+	})
+
+	t.Run("pre-run failure is a single RUN_ERROR", func(t *testing.T) {
+		m := startMock(t)
+
+		stdout, _, code := runCLI(t, m.URL, t.TempDir(), "", "headless", "--format", "ag-ui", "-m", "nope/unknown", "say hello")
+		require.NotZero(t, code)
+
+		events := jsonLines(t, stdout)
+		require.Len(t, events, 1, stdout)
+		require.Equal(t, "RUN_ERROR", events[0]["type"])
+		require.Contains(t, events[0]["message"], "nope/unknown")
+	})
+}

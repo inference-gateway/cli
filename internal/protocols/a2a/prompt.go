@@ -3,7 +3,7 @@ package a2a
 import (
 	"fmt"
 
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
 // AgentsPromptSection lists the configured A2A agents for the system prompt,

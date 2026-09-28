@@ -10,7 +10,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
 

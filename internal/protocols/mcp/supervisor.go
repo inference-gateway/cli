@@ -13,11 +13,11 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
-	mcpinfra "github.com/inference-gateway/cli/internal/mcp/infrastructure"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
+	mcpinfra "github.com/inference-gateway/cli/internal/protocols/mcp/infrastructure"
 )
 
 // Compile-time interface checks

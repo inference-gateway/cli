@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"runtime/debug"
@@ -17,12 +18,10 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	gateway "github.com/inference-gateway/cli/internal/gateway"
-	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
@@ -31,6 +30,9 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
@@ -122,7 +124,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 			rendered = false
 		}
 		if err != nil && !rendered {
-			render.EmitPreRunError(os.Stdout, opts.Format, err)
+			emitPreRunError(os.Stdout, opts.Format, err)
 		}
 	}()
 
@@ -336,10 +338,31 @@ func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals 
 	case "json-pretty":
 		return render.RenderJSONPretty(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "ag-ui":
-		return render.RenderAGUI(events, os.Stdout, approvals, questions, sessionID, model, repo, jobs)
+		return agui.Render(events, os.Stdout, approvals, questions, sessionID, model, repo, jobs)
 	default:
 		return render.RenderText(events, os.Stdout)
 	}
+}
+
+// agentStartupEmitter returns the format's agent-status emitter: the agui
+// context's custom events for ag-ui, render's JSON agent_status lines for the
+// other machine formats.
+func agentStartupEmitter(w io.Writer, format string) func(name, state, message string, done, total int) {
+	if format == "ag-ui" {
+		return agui.AgentStartupEmitter(w)
+	}
+	return render.AgentStartupEmitter(w, format)
+}
+
+// emitPreRunError reports a failure that happened before the event stream
+// started in the format's machine shape: a RUN_ERROR event from the agui
+// context for ag-ui, render's agent_error lines for the JSON formats.
+func emitPreRunError(w io.Writer, format string, err error) {
+	if format == "ag-ui" {
+		agui.EmitRunError(w, err)
+		return
+	}
+	render.EmitPreRunError(w, format, err)
 }
 
 // startLocalAgents starts run:true agents and blocks until they settle, streaming
@@ -348,7 +371,7 @@ func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals 
 // callbacks are removed once the wait ends so later liveness probes never write
 // into the run's event stream.
 func startLocalAgents(agentSupervisor a2adomain.AgentSupervisor, cfg *config.Config, format string) {
-	if emit := render.AgentStartupEmitter(os.Stdout, format); emit != nil {
+	if emit := agentStartupEmitter(os.Stdout, format); emit != nil {
 		agentSupervisor.SetStatusCallback(func(name string, state a2adomain.AgentState, message, _, _ string) {
 			emit(name, state.String(), message, 0, 0)
 		})

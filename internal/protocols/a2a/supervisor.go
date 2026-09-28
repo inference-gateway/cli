@@ -15,12 +15,12 @@ import (
 	gotenv "github.com/subosito/gotenv"
 
 	config "github.com/inference-gateway/cli/config"
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
-	a2ainfra "github.com/inference-gateway/cli/internal/a2a/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
+	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 )
 
 const (

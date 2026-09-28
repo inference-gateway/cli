@@ -17,7 +17,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	render "github.com/inference-gateway/cli/internal/platform/render"
 	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
 )
 
@@ -60,7 +59,7 @@ func runDirect(ctx context.Context, opts Options, toolService agentdomain.ToolSe
 		return false, nil
 	}
 	if err != nil {
-		render.EmitPreRunError(os.Stdout, opts.Format, err)
+		emitPreRunError(os.Stdout, opts.Format, err)
 		return true, err
 	}
 	err = runDirectCall(ctx, opts.Format, toolService, repo, sessionID, model, cfg, fn)

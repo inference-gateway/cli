@@ -28,9 +28,9 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	render "github.com/inference-gateway/cli/internal/platform/render"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
 // Bridge wire messages. One flat envelope per frame, discriminated by Type;
@@ -855,7 +855,7 @@ func (b *ExtensionBridge) chatPump(conn *websocket.Conn, stop chan struct{}) {
 	}()
 
 	writer := &chatEventWriter{bridge: b, conn: conn}
-	if err := render.RenderAGUI(filtered, writer, nil, nil, b.sessionID, "", b.repo, nil); err != nil {
+	if err := agui.Render(filtered, writer, nil, nil, b.sessionID, "", b.repo, nil); err != nil {
 		logger.Debug("extension bridge chat pump ended", "error", err)
 	}
 }

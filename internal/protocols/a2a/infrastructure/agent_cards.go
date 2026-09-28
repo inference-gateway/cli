@@ -10,8 +10,8 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 
 	config "github.com/inference-gateway/cli/config"
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
 type AgentCardClient struct {

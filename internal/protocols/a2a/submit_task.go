@@ -20,11 +20,11 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
-	a2ainfra "github.com/inference-gateway/cli/internal/a2a/infrastructure"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	download "github.com/inference-gateway/cli/internal/platform/download"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
+	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )

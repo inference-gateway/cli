@@ -8,9 +8,9 @@ import (
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
-	a2ainfra "github.com/inference-gateway/cli/internal/a2a/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
+	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 

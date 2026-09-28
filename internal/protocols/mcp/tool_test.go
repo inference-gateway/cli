@@ -11,7 +11,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
+	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 )
 
 func TestNewMCPTool(t *testing.T) {

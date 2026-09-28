@@ -16,11 +16,11 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	a2a "github.com/inference-gateway/cli/internal/a2a"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browser "github.com/inference-gateway/cli/internal/browser"
 	computer "github.com/inference-gateway/cli/internal/computer"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	a2a "github.com/inference-gateway/cli/internal/protocols/a2a"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
 

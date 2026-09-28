@@ -3,7 +3,7 @@ package a2a
 import (
 	"sync"
 
-	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
