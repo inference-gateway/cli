@@ -282,7 +282,7 @@ func TestAgentStartupEmitter(t *testing.T) {
 
 func TestEmitRunError(t *testing.T) {
 	var out strings.Builder
-	EmitRunError(&out, "gateway down")
+	EmitRunError(&out, errors.New("gateway down"))
 	if !strings.Contains(out.String(), `"RUN_ERROR"`) || !strings.Contains(out.String(), "gateway down") {
 		t.Fatalf("EmitRunError output = %q, want RUN_ERROR with the message", out.String())
 	}

@@ -48,7 +48,7 @@ func (e *encoder) emitRunStarted(sessionID string) {
 	e.emit(aguievents.NewRunStartedEvent(e.threadID, e.runID))
 }
 
-// emitRunFinished ends the run; result carries the session stats when the run
+// emitRunFinished ends the run. The result carries the session stats when the run
 // made at least one LLM request (see docs/ag-ui-output.md).
 func (e *encoder) emitRunFinished(result map[string]any) {
 	opts := []aguievents.RunFinishedOption{aguievents.WithSuccessOutcome()}
@@ -180,7 +180,7 @@ func (e *encoder) emitBackgroundTasks(jobs []scheddomain.TrackedJob) {
 
 // emitTokenUsage publishes the session's cumulative stats after each LLM step
 // so a client's usage readout (the desktop status bar) climbs during the run
-// instead of jumping at RUN_FINISHED; value is sessionResult's object.
+// instead of jumping at RUN_FINISHED. The value is sessionResult's object.
 func (e *encoder) emitTokenUsage(value map[string]any) {
 	e.emit(aguievents.NewCustomEvent("token_usage", aguievents.WithValue(value)))
 }
@@ -369,6 +369,6 @@ func AgentStartupEmitter(w io.Writer) func(name, state, message string, done, to
 // EmitRunError writes a RUN_ERROR event for a failure that happens before the
 // run starts (gateway down, unknown model, ...) so stdout consumers see the
 // failure instead of silence.
-func EmitRunError(w io.Writer, message string) {
-	(&encoder{w: w}).emitRunError(message)
+func EmitRunError(w io.Writer, err error) {
+	(&encoder{w: w}).emitRunError(render.Truncate(err.Error(), 3500))
 }

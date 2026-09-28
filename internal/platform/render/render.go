@@ -151,7 +151,7 @@ func AnswerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan i
 
 // AnswerQuestions answers the AskUserQuestion tool's pending form on the
 // event's response channel from the broker's questions channel, mirroring
-// answerApproval: stale tool_call_ids are skipped, a cancelled response or a
+// AnswerApproval: stale tool_call_ids are skipped, a cancelled response or a
 // nil/closed channel closes ResponseChan (the tool's "dismissed" path), and
 // an unparseable answers payload counts as a dismissal too.
 func AnswerQuestions(e agentdomain.UserQuestionRequestedEvent, questions <-chan ipc.UserQuestionResponse) {

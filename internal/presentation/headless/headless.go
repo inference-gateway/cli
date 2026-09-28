@@ -359,7 +359,7 @@ func agentStartupEmitter(w io.Writer, format string) func(name, state, message s
 // context for ag-ui, render's agent_error lines for the JSON formats.
 func emitPreRunError(w io.Writer, format string, err error) {
 	if format == "ag-ui" {
-		agui.EmitRunError(w, render.Truncate(err.Error(), 3500))
+		agui.EmitRunError(w, err)
 		return
 	}
 	render.EmitPreRunError(w, format, err)
