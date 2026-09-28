@@ -38,9 +38,21 @@ func TestMain(m *testing.M) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	unsetInferEnv()
 	code := m.Run()
 	cleanup()
 	os.Exit(code)
+}
+
+// unsetInferEnv drops every INFER_* variable inherited from the caller, so a
+// parent infer run's config (approval overrides, a git memory backend) never
+// leaks into the binary under test. Each test sets the variables it needs.
+func unsetInferEnv() {
+	for _, kv := range os.Environ() {
+		if name, _, _ := strings.Cut(kv, "="); strings.HasPrefix(name, "INFER_") {
+			_ = os.Unsetenv(name)
+		}
+	}
 }
 
 func repoRoot() string {

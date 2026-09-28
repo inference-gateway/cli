@@ -5,13 +5,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 )
 
 // RunGit runs a git command in workdir (process cwd when empty) and returns
-// its stdout. The context bounds the command's lifetime; stderr is folded
-// into the returned error.
+// its stdout. The context bounds the command's lifetime and stderr is folded
+// into the returned error. Git never prompts on the terminal, so a missing
+// credential fails fast instead of taking over the user's TTY.
 func RunGit(ctx context.Context, workdir string, args ...string) ([]byte, error) {
 	return runGit(ctx, workdir, nil, args...)
 }
@@ -25,6 +27,7 @@ func RunGitStdin(ctx context.Context, workdir, stdin string, args ...string) ([]
 func runGit(ctx context.Context, workdir string, stdin io.Reader, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = workdir
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	cmd.Stdin = stdin
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
