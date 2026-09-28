@@ -95,7 +95,7 @@ flox activate -- task release:build  # Build for all platforms
 
 ## Adding New Tools
 
-Each bounded context owns its tools: agent tools live in `internal/agent/tools/`, browser tools in
+Each bounded context owns its tools: agent tools live in `internal/tools/`, browser tools in
 `internal/browser/`, computer-use tools in `internal/computer/`. A tool is two things side by side:
 
 - a **manifest** (`<ToolName>.yaml`) - the name, the description and parameter schema the LLM sees, and
@@ -106,7 +106,7 @@ Each bounded context owns its tools: agent tools live in `internal/agent/tools/`
 
 #### 1. Write the Manifest
 
-Create `internal/agent/tools/YourTool.yaml` (browser and computer tools use their package's `tools/`
+Create `internal/tools/YourTool.yaml` (browser and computer tools use their package's `tools/`
 directory). The file name must match `name`:
 
 ```yaml
@@ -134,7 +134,7 @@ of the YAML; set them in `Definition()` with `agentdomain.PropertySchema`.
 
 #### 2. Implement the Tool Interface
 
-Create `internal/agent/tools/your_tool.go`. `Manifest()` hands the registry the tool's policy, and
+Create `internal/tools/your_tool.go`. `Manifest()` hands the registry the tool's policy, and
 `Definition()` is built from it:
 
 ```go
@@ -168,7 +168,7 @@ approval depends on its arguments implements `agentdomain.CallApprover`, as the 
 
 #### 3. Register Your Tool
 
-Agent tools register in `internal/agent/tools/registry.go`, keyed by their manifest name:
+Agent tools register in `internal/tools/registry.go`, keyed by their manifest name:
 
 ```go
 if cfg.YourService.Enabled {
@@ -202,7 +202,7 @@ type YourServiceConfig struct {
 
 #### 5. Write Tests
 
-Create `internal/agent/tools/your_tool_test.go`:
+Create `internal/tools/your_tool_test.go`:
 
 ```go
 package tools
@@ -270,7 +270,7 @@ Run the test suite to ensure your tool works correctly:
 flox activate -- task test
 
 # Run tests for your specific tool
-flox activate -- go test ./internal/agent/tools -run TestYourTool
+flox activate -- go test ./internal/tools -run TestYourTool
 
 # Run with verbose output
 flox activate -- task test:verbose
