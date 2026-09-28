@@ -103,9 +103,12 @@ func (t *Tool) run(ctx context.Context, args map[string]any) (string, error) {
 	killProcessGroupOnCancel(cmd)
 
 	err = cmd.Run()
+	var exitErr *exec.ExitError
 	switch {
 	case err == nil || (errors.Is(err, exec.ErrWaitDelay) && cmd.ProcessState.ExitCode() == 0):
 		return stdout.String(), nil
+	case errors.As(err, &exitErr) && exitErr.ExitCode() > 0 && ctx.Err() != nil:
+		return "", failure(fmt.Errorf("%s (a child kept the output open)", cmd.ProcessState), stderr.String(), stdout.String())
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
 		return "", fmt.Errorf("timed out after %s", t.timeout)
 	case ctx.Err() != nil:
