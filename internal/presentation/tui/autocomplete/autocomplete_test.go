@@ -855,7 +855,7 @@ func TestAutocomplete_FileMode(t *testing.T) {
 	files := &agentdomainmocks.FakeFileService{}
 	files.ListProjectFilesReturns([]string{
 		"cmd/infer/main.go",
-		"internal/agent/tools/registry.go",
+		"internal/tools/registry.go",
 		"internal/presentation/tui/app/chat.go",
 	}, nil)
 
@@ -873,7 +873,7 @@ func TestAutocomplete_FileMode(t *testing.T) {
 		selected string
 	}{
 		{name: "bare @ mid-sentence lists files", input: "explain @", visible: true, selected: "@cmd/infer/main.go"},
-		{name: "fuzzy query ranks the match", input: "@rgst", visible: true, selected: "@internal/agent/tools/registry.go"},
+		{name: "fuzzy query ranks the match", input: "@rgst", visible: true, selected: "@internal/tools/registry.go"},
 		{name: "@ inside a word does not trigger", input: "mail foo@bar", visible: false},
 		{name: "no match hides the dropdown", input: "@zzzz", visible: false},
 	}
@@ -896,8 +896,8 @@ func TestAutocomplete_FileMode(t *testing.T) {
 		assert.Contains(t, ac.Render(), "\x1b[1;4m", "matched characters are bold+underlined")
 		handled, completion := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 		assert.True(t, handled)
-		assert.Equal(t, "look at @internal/agent/tools/registry.go then x", completion)
-		assert.Equal(t, len("look at @internal/agent/tools/registry.go "), ac.GetCompletionCursorPos())
+		assert.Equal(t, "look at @internal/tools/registry.go then x", completion)
+		assert.Equal(t, len("look at @internal/tools/registry.go "), ac.GetCompletionCursorPos())
 	})
 }
 

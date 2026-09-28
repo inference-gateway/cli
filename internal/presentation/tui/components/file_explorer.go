@@ -33,7 +33,7 @@ const (
 	explorerMaxFindResults  = 200     // cap on displayed fuzzy matches
 )
 
-// gitignoreDefaults are always-ignored entries, matching internal/agent/tools/tree.go.
+// gitignoreDefaults are always-ignored entries, matching internal/tools/tree.go.
 var gitignoreDefaults = []string{".git/", ".DS_Store", ".infer/"}
 
 // Configurable action IDs for the explorer panel (defaults in

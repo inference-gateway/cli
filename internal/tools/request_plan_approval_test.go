@@ -126,7 +126,7 @@ func TestRequestPlanApprovalTool_Validate(t *testing.T) {
 		},
 		{
 			name:    "path-like title is accepted",
-			args:    map[string]any{"title": "Fix bug in internal/agent/tools", "plan": "body"},
+			args:    map[string]any{"title": "Fix bug in internal/tools", "plan": "body"},
 			wantErr: false,
 		},
 		{

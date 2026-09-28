@@ -8,7 +8,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // StandardApprovalPolicy implements the default approval policy with the following rules:

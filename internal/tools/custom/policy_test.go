@@ -13,7 +13,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 type fixedMode agentdomain.AgentMode

@@ -23,7 +23,6 @@ import (
 	agent "github.com/inference-gateway/cli/internal/agent"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browser "github.com/inference-gateway/cli/internal/browser"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
@@ -62,6 +61,7 @@ import (
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 	skills "github.com/inference-gateway/cli/internal/skills"
+	tools "github.com/inference-gateway/cli/internal/tools"
 	customtools "github.com/inference-gateway/cli/internal/tools/custom"
 )
 
