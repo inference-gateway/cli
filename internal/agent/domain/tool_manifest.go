@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
 	"regexp"
 	"slices"
@@ -48,16 +49,84 @@ func (m *AgentMode) UnmarshalYAML(node *yaml.Node) error {
 // so a misspelled policy key fails loudly instead of silently defaulting.
 func ParseToolManifest(data []byte) (ToolManifest, error) {
 	var manifest ToolManifest
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&manifest); err != nil {
-		return ToolManifest{}, fmt.Errorf("decoding tool manifest: %w", err)
-	}
-	manifest.Parameters, _ = normalizeSchema(manifest.Parameters).(map[string]any)
-	if err := manifest.Validate(); err != nil {
+	if err := DecodeToolManifest(data, &manifest, &manifest); err != nil {
 		return ToolManifest{}, err
 	}
 	return manifest, nil
+}
+
+// DecodeToolManifest strictly decodes data into out, then normalizes and
+// validates manifest, which out holds. out may embed the manifest inline and
+// add fields of its own, as a custom tool's manifest does.
+func DecodeToolManifest(data []byte, out any, manifest *ToolManifest) error {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(out); err != nil {
+		return fmt.Errorf("decoding tool manifest: %w", err)
+	}
+	manifest.Parameters, _ = normalizeSchema(manifest.Parameters).(map[string]any)
+	return manifest.Validate()
+}
+
+// ValidateArguments checks a call's arguments against a tool's JSON Schema:
+// every required property is present and each top-level property has its
+// declared type. Nested schemas are not checked.
+func ValidateArguments(schema map[string]any, args map[string]any) error {
+	if args == nil {
+		return fmt.Errorf("arguments cannot be nil")
+	}
+	for _, name := range requiredProperties(schema) {
+		if _, exists := args[name]; !exists {
+			return fmt.Errorf("required field %q is missing", name)
+		}
+	}
+	properties, _ := schema["properties"].(map[string]any)
+	for key, value := range args {
+		property, _ := properties[key].(map[string]any)
+		expected, ok := property["type"].(string)
+		if !ok {
+			continue
+		}
+		if actual := jsonType(value); actual != expected && (expected != "integer" || actual != "number") {
+			return fmt.Errorf("field %q has invalid type: expected %s, got %s", key, expected, actual)
+		}
+	}
+	return nil
+}
+
+func requiredProperties(schema map[string]any) []string {
+	switch required := schema["required"].(type) {
+	case []string:
+		return required
+	case []any:
+		names := make([]string, 0, len(required))
+		for _, item := range required {
+			if name, ok := item.(string); ok {
+				names = append(names, name)
+			}
+		}
+		return names
+	}
+	return nil
+}
+
+func jsonType(value any) string {
+	switch value.(type) {
+	case string:
+		return "string"
+	case bool:
+		return "boolean"
+	case float64, int, int32, int64:
+		return "number"
+	case []any:
+		return "array"
+	case map[string]any:
+		return "object"
+	case nil:
+		return "null"
+	default:
+		return "unknown"
+	}
 }
 
 // Validate checks the name, the description and that the parameters are a
@@ -154,6 +223,11 @@ func (ms ToolManifests) Manifest(name string) ToolManifest {
 		return manifest
 	}
 	return ToolManifest{Name: name}
+}
+
+// Names returns the tool names, in no particular order.
+func (ms ToolManifests) Names() []string {
+	return slices.Collect(maps.Keys(ms))
 }
 
 // LoadToolManifests parses every *.yaml file in dir of fsys. Each file is

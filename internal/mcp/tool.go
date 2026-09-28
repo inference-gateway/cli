@@ -118,92 +118,9 @@ func (t *MCPTool) Execute(ctx context.Context, args map[string]any) (*agentdomai
 	return result, nil
 }
 
-// Validate checks if the tool arguments are valid
+// Validate checks the arguments against the server's input schema.
 func (t *MCPTool) Validate(args map[string]any) error {
-	if args == nil {
-		return fmt.Errorf("arguments cannot be nil")
-	}
-
-	if t.inputSchema == nil {
-		return nil
-	}
-
-	if err := t.validateRequiredFields(t.inputSchema, args); err != nil {
-		return err
-	}
-
-	return t.validatePropertyTypes(t.inputSchema, args)
-}
-
-// validateRequiredFields checks that all required fields are present
-func (t *MCPTool) validateRequiredFields(schema map[string]any, args map[string]any) error {
-	requiredFields, ok := schema["required"].([]any)
-	if !ok {
-		return nil
-	}
-
-	for _, field := range requiredFields {
-		fieldName, ok := field.(string)
-		if !ok {
-			continue
-		}
-		if _, exists := args[fieldName]; !exists {
-			return fmt.Errorf("required field %q is missing", fieldName)
-		}
-	}
-	return nil
-}
-
-// validatePropertyTypes validates the types of provided arguments
-func (t *MCPTool) validatePropertyTypes(schema map[string]any, args map[string]any) error {
-	properties, ok := schema["properties"].(map[string]any)
-	if !ok {
-		return nil
-	}
-
-	for key, value := range args {
-		propSchema, exists := properties[key]
-		if !exists {
-			continue
-		}
-
-		propMap, ok := propSchema.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		expectedType, ok := propMap["type"].(string)
-		if !ok {
-			continue
-		}
-
-		actualType := t.getJSONType(value)
-		isValidType := actualType == expectedType || (expectedType == "integer" && actualType == "number")
-		if !isValidType {
-			return fmt.Errorf("field %q has invalid type: expected %s, got %s", key, expectedType, actualType)
-		}
-	}
-	return nil
-}
-
-// getJSONType returns the JSON type name for a Go value
-func (t *MCPTool) getJSONType(value any) string {
-	switch value.(type) {
-	case string:
-		return "string"
-	case bool:
-		return "boolean"
-	case float64, int, int32, int64:
-		return "number"
-	case []any:
-		return "array"
-	case map[string]any:
-		return "object"
-	case nil:
-		return "null"
-	default:
-		return "unknown"
-	}
+	return agentdomain.ValidateArguments(t.inputSchema, args)
 }
 
 // IsEnabled returns whether this MCP tool is enabled
