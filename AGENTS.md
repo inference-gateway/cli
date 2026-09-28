@@ -1,65 +1,70 @@
 # AGENTS.md
 
-A README for coding agents on the **Inference Gateway CLI** — an agentic CLI (chat TUI, headless agent, A2A agents, tool execution). User-facing docs live in README.md and docs/.
+A README for coding agents on the **Inference Gateway CLI** - an agentic CLI (chat TUI, headless agent, A2A agents, tool execution). User-facing docs live in README.md and docs/. Contributors start at CONTRIBUTING.md.
 
 ## Stack
 
-- Go 1.26, module `github.com/inference-gateway/cli`. Entry: `cmd/infer/main.go` → `root.Execute()` (Cobra). `internal/container/container.go` is the DI composition root.
+- Go 1.26, module `github.com/inference-gateway/cli`. Entry: `cmd/infer/main.go` -> `root.Execute()` (Cobra). `internal/container/container.go` is the DI composition root.
 - Dev env pinned by **flox** (`.flox/env/manifest.toml`); run everything through `flox activate --`.
 
 ## Build / Test / Lint
 
 ```bash
-task build              # → ./infer binary
+task build              # -> ./infer binary
 task run -- <args>      # go run ./cmd/infer <args>
 task test               # go test ./...; variants: test:verbose, test:coverage, test:race, test:e2e
 task fmt                # gofmt + gci
 task vet                # go vet
-task lint               # lint:imports → golangci-lint → markdownlint
-task mocks:generate     # counterfeiter fakes → tests/mocks/
-task precommit:run      # .githooks/pre-commit: mod:tidy → mocks → fmt → lint
+task lint               # lint:imports -> golangci-lint -> markdownlint
+task mocks:generate     # counterfeiter fakes -> tests/mocks/
+task precommit:run      # .githooks/pre-commit: mod:tidy -> mocks -> fmt -> lint
 ```
 
-Single test: `go test ./internal/agent -run TestBashTool`. **Run `task precommit:run` before every push** — it's the CI gate, and it aborts if `task fmt` reformats your staged files (re-`git add` and retry).
+Single test: `go test ./internal/agent -run TestBashTool`. **Run `task precommit:run` before every push** - it is the CI gate, and it aborts if `task fmt` reformats your staged files (re-`git add` and retry).
 
 ## Architecture
 
-- The agent is an **event-driven state machine** (`internal/agent/agent_state_machine.go`); per-state executors live in `internal/agent/states/`. `internal/tools/registry.go` is the source of truth for registered tools.
-- Each context owns its tools' **YAML manifests** (description, parameter schema, the agent `modes` it runs in, `require_approval`), embedded next to the Go code: `internal/tools/*.yaml`, `internal/protocols/a2a/tools/*.yaml`, `internal/{browser,computer}/tools/*.yaml`. Capability contexts build their tools with `NewTools(...)` and the container registers them into the registry. The registry answers tool policy from them; refer to tool names through the context's `Tool*` constants, never string literals. `internal/tools/custom` (alias `customtools`) loads custom tools (the same manifest plus `command`/`timeout`/`enabled`) from `~/.infer/tools/` and the project's `.infer/tools/` and `.agents/tools/`. They never take a built-in name (each context's `ToolNames()`), project tools always need approval outside auto mode, and the file tools never write into these directories (`Config.ValidatePathInSandboxWrite`).
-- **Bounded contexts (DDD)**, each owning its contracts in a `domain/` subpackage that imports nothing internal except `agent/domain`, the shared kernel (tool results, agent mode, chat events): `agent`, `conversation`, `scheduler`, `browser`, `computer`, `tools` (the registry and the built-in tools; their contracts stay in the `agentdomain` shared kernel because the a2a, browser, computer and MCP tools implement them), and the protocol integrations `a2a` and `mcp`. The protocol integrations are grouped under `internal/protocols/` and translate a foreign protocol and its SDK to and from the agent's model: `a2a` and `mcp` are anti-corruption layers, and `agui` (no `domain/`) publishes agent events as AG-UI. Adapters sit next to it in `<context>/infrastructure/`. Capabilities without one (`audio`, `skills`, `github`, `channels`, `plugins`) plug into the agent via `agentdomain` service ports. `platform/` is shared infrastructure; `presentation/` is the only place bubbletea, go-telegram and styling appear.
-- **Import direction is enforced by depguard** (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea; the A2A ADK (`github.com/inference-gateway/adk`) stays in `protocols/a2a/`, the AG-UI SDK (`github.com/ag-ui-protocol/ag-ui`) in `protocols/agui/`, Playwright in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`, and the tools context never imports the agent context back (the `agent/domain` shared kernel excepted). `domain/` packages stay pure, and only `cmd/` may import `internal/container`, the composition root that builds everything.
+The codebase is **bounded contexts (DDD)** under `internal/`. Each context owns its contracts in a `domain/` subpackage that imports nothing internal except `agent/domain`, the shared kernel (tool results, agent mode, chat events). Adapters sit in `<context>/infrastructure/`, the protocol integrations (`a2a`, `mcp`, `agui`) under `internal/protocols/`, and `platform/` is shared infrastructure.
+
+**Before changing a package, read its `internal/<context>/README.md`.** Each bounded context and capability has one, covering what it owns, why it is separate, and how it plugs in.
+
+Repo-wide invariants:
+
+- Import direction is enforced by depguard (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea; the A2A ADK stays in `protocols/a2a/`, the AG-UI SDK in `protocols/agui/`, Playwright in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`, and the tools context never imports the agent context back (the `agent/domain` shared kernel excepted). `domain/` packages stay pure, and only `cmd/` may import `internal/container`.
+- `internal/tools/registry.go` is the source of truth for registered tools. Read `internal/tools/AGENTS.md` before touching a tool manifest or the registry.
+
+## Package AGENTS files
+
+A package that needs its own agent rules ships an `AGENTS.md` next to the code, and that file takes precedence for its directory. Today: `internal/tools/AGENTS.md` and `internal/presentation/AGENTS.md`. `infer` itself injects only the root `./AGENTS.md`, so nested files are for humans and for agents that walk the tree (Claude Code, Codex) - not something `infer` loads automatically yet.
 
 ## Import Style
 
 - Import blocks have **six groups** (stdlib / external test libs / testing mocks / external / inference-gateway libs / project), one blank line apart.
-- **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `convdomain`, `scheddomain`, `a2adomain`, `browserdomain`, `computerdomain`, `mcpdomain`, `agentinfra`, `a2ainfra`, `mcpinfra`, `schedinfra`, `agui`, `containerruntime`, `githubissues`, `githubsetup`, `tools`, `customtools`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` → `<x>mocks`.
+- **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `convdomain`, `scheddomain`, `a2adomain`, `browserdomain`, `computerdomain`, `mcpdomain`, `agentinfra`, `a2ainfra`, `mcpinfra`, `schedinfra`, `agui`, `containerruntime`, `githubissues`, `githubsetup`, `tools`, `customtools`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` -> `<x>mocks`.
 
 ## Testing
 
-- Stdlib `testing`, colocated `_test.go`, prefer table-driven. Mocks are **counterfeiter** output committed to `tests/mocks/` — never hand-edit; a new interface in a `domain/` package needs a line in Taskfile's `mocks:generate`.
-- Manual runs: never hand-start gateway containers — `flox activate -- go run ./cmd/infer chat` (or `headless <prompt>`) auto-starts the local gateway and tears it down. `INFER_GATEWAY_MOCK=true` exercises the TUI/e2e without a real LLM; the mock matches prompts against scenarios (`INFER_GATEWAY_MOCK_SCENARIOS` overrides).
+- Stdlib `testing`, colocated `_test.go`, prefer table-driven. Mocks are **counterfeiter** output committed to `tests/mocks/` - never hand-edit; a new interface in a `domain/` package needs a line in Taskfile's `mocks:generate`.
+- Manual runs: never hand-start gateway containers - `flox activate -- go run ./cmd/infer chat` (or `headless <prompt>`) auto-starts the local gateway and tears it down. `INFER_GATEWAY_MOCK=true` exercises the TUI/e2e without a real LLM; the mock matches prompts against scenarios (`INFER_GATEWAY_MOCK_SCENARIOS` overrides).
 
 ## Style & Commits
 
 - Linter caps: gocyclo/cyclop 25, funlen 150 lines/80 statements, gocognit 45. Prefer `//nolint:funlen,gocyclo` over splitting cohesive functions.
-- Write self-explanatory code: clear names and small, single-purpose functions carry the intent.
-  If a block needs a comment to be understood, extract it into a well-named function or variable.
+- Write self-explanatory code: clear names and small, single-purpose functions carry the intent. If a block needs a comment to be understood, extract it into a well-named function or variable.
 - No inline comments inside function bodies.
-- Doc comments on functions and types are at most 5 lines: what it does and why, not how.
-  Aim for 3; genuinely multi-step docs (ordered lists, state routing) restructure their steps into the code body instead of growing the docblock. Never reference GitHub issues or PRs - ticket context belongs in commit messages, PR bodies, and CHANGELOG.md.
+- Doc comments on functions and types are at most 5 lines: what it does and why, not how. Aim for 3; genuinely multi-step docs (ordered lists, state routing) restructure their steps into the code body instead of growing the docblock. Never reference GitHub issues or PRs - ticket context belongs in commit messages, PR bodies, and CHANGELOG.md.
 - No semicolons in doc comments. Split the clauses into separate sentences.
 - No comments above modules, packages, or files.
-- Tool directives are not comments and stay where the tool needs them (lint suppressions, build
-  tags, compiler pragmas, code generation markers). Here: `//nolint:...`, `//go:...` (incl. `//go:build`, `//go:generate`), `#nosec`.
-- Conventional Commits (`.commitlintrc.json`): `feat:`, `fix:`, `docs:`, `chore:`, … `.editorconfig`: two-space indent (tabs in Go), UTF-8, LF, final newline.
+- Tool directives are not comments and stay where the tool needs them (lint suppressions, build tags, compiler pragmas, code generation markers). Here: `//nolint:...`, `//go:...` (incl. `//go:build`, `//go:generate`), `#nosec`.
+- Conventional Commits (`.commitlintrc.json`): `feat:`, `fix:`, `docs:`, `chore:`. `.editorconfig`: two-space indent (tabs in Go), UTF-8, LF, final newline.
 
 ## Security Gotchas
 
-- **Bash allow-list is default-deny**, per agent mode (`tools.bash.mode.{all,plan,standard,auto}.allow`; effective list = `mode.all.allow` ∪ the mode's own). Only `auto` is unrestricted; standard/plan are read-only. `auto-with-judge` maps to the `standard` bucket — the judge gates calls, it never widens the list.
-- Tool approval is two-layer: `tools.safety.require_approval` (whether) + `approval_behaviour` `prompt|ipc|judge|block` (how). `judge` routes gated calls to an LLM judge (config `judge.yaml`; forced by the `auto-with-judge` agent mode — see docs/judge-mode.md). Headless blocks when no approver is reachable.
+- **Bash allow-list is default-deny**, per agent mode (`tools.bash.mode.{all,plan,standard,auto}.allow`; effective list = `mode.all.allow` UNION the mode's own). Only `auto` is unrestricted; standard/plan are read-only. `auto-with-judge` maps to the `standard` bucket - the judge gates calls, it never widens the list.
+- Tool approval is two-layer: `tools.safety.require_approval` (whether) + `approval_behaviour` `prompt|ipc|judge|block` (how). `judge` routes gated calls to an LLM judge (config `judge.yaml`, forced by the `auto-with-judge` agent mode - see docs/judge-mode.md). Headless blocks when no approver is reachable.
 - Never commit secrets; credentials live in `.env` (never committed).
-- `infer init --overwrite` wipes `.infer/agents.yaml` (and `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`, `judge.yaml`) — restore with `git checkout -- .infer/agents.yaml` afterwards.
+- `infer init --overwrite` wipes `.infer/agents.yaml` (and `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`, `judge.yaml`) - restore with `git checkout -- .infer/agents.yaml` afterwards.
 
 ## Config
 
-- Split YAML under `.infer/` (project) and `~/.infer/` (user): `config.yaml`, `prompts.yaml`, `agents.yaml`, `keybindings.yaml`, `mcp.yaml`, `shortcuts/*.yaml`, … Env overrides use `INFER_<PATH_WITH_UNDERSCORES>` (e.g. `INFER_AGENT_MODEL`).
+- Split YAML under `.infer/` (project) and `~/.infer/` (user): `config.yaml`, `prompts.yaml`, `agents.yaml`, `keybindings.yaml`, `mcp.yaml`, `shortcuts/*.yaml`. Env overrides use `INFER_<PATH_WITH_UNDERSCORES>` (e.g. `INFER_AGENT_MODEL`).
