@@ -109,7 +109,7 @@ linters:
           deny:
             - pkg: github.com/go-vgo/robotgo
               desc: "robotgo is confined to the computer capability"
-    websocket-only-in-browser-and-web:
+        websocket-only-in-browser-and-web:
           list-mode: lax
           files:
             - "**"
