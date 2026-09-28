@@ -746,23 +746,12 @@ func (s *Agent) matchSkillTriggers(messages []sdk.Message) []string {
 	return names
 }
 
-// buildA2AAgentInfo creates dynamic A2A agent information for the system prompt
+// buildA2AAgentInfo is the A2A context's section listing its configured agents
 func (s *Agent) buildA2AAgentInfo() string {
-	if s.a2aAgentService == nil {
+	if s.a2aAgents == nil {
 		return ""
 	}
-
-	urls := s.a2aAgentService.GetConfiguredAgents()
-	if len(urls) == 0 {
-		return ""
-	}
-
-	agentInfo := "\n\nAvailable A2A Agents:\n"
-	for _, url := range urls {
-		agentInfo += fmt.Sprintf("- %s\n", url)
-	}
-	agentInfo += "\nYou can delegate tasks to these agents using the A2A_SubmitTask tool."
-	return agentInfo
+	return s.a2aAgents()
 }
 
 // buildSandboxInfo creates dynamic sandbox information for the system prompt

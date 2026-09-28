@@ -11,6 +11,7 @@ import (
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
+	a2a "github.com/inference-gateway/cli/internal/a2a"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -47,6 +48,7 @@ func runExport(state *runtime.State, sessionID string) error {
 	}
 
 	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	toolRegistry.RegisterTools(a2a.NewTools(cfg, a2a.NewTaskTracker(nil), nil, nil))
 	themeService := styles.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)
 	toolFormatterService := toolformatter.NewToolFormatterService(toolRegistry, styleProvider)

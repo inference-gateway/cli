@@ -48,10 +48,18 @@ func (s *LLMToolService) isToolEnabled(toolName string) bool {
 	if s.allowlist != nil && !s.allowlist[toolName] {
 		return false
 	}
-	if s.isA2ATool(toolName) {
-		return s.config.IsA2AToolsEnabled() && s.registry.IsToolEnabled(toolName)
+	return (s.enabled || s.isSelfGated(toolName)) && s.registry.IsToolEnabled(toolName)
+}
+
+// isSelfGated reports whether the tool's own context, not tools.enabled,
+// switches it on.
+func (s *LLMToolService) isSelfGated(toolName string) bool {
+	tool, err := s.registry.GetTool(toolName)
+	if err != nil {
+		return false
 	}
-	return s.enabled && s.registry.IsToolEnabled(toolName)
+	gated, ok := tool.(agentdomain.SelfGatedTool)
+	return ok && gated.SelfGated()
 }
 
 // isToolAdvertised reports whether a tool should be offered to the LLM.
@@ -111,11 +119,6 @@ func (s *LLMToolService) ListMarkdownSubagents() []agentdomain.SubagentInfo {
 	return s.registry.MarkdownSubagents()
 }
 
-// isA2ATool checks if a tool is an A2A-related tool
-func (s *LLMToolService) isA2ATool(toolName string) bool {
-	return strings.HasPrefix(toolName, "A2A_")
-}
-
 // toolUnavailableError tells the model that a tool it called does not run in
 // the current mode, so it can pick another instead of retrying.
 func toolUnavailableError(name string, mode agentdomain.AgentMode) error {
@@ -133,10 +136,7 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompl
 	}
 
 	if !s.isToolEnabled(toolCall.Name) {
-		if s.isA2ATool(toolCall.Name) {
-			return nil, fmt.Errorf("A2A tools are not enabled")
-		}
-		return nil, fmt.Errorf("local tools are not enabled")
+		return nil, fmt.Errorf("tool %s is not enabled", toolCall.Name)
 	}
 
 	return s.ExecuteToolDirect(ctx, toolCall)
@@ -192,14 +192,7 @@ func (s *LLMToolService) IsToolEnabled(name string) bool {
 // ValidateTool validates tool arguments
 func (s *LLMToolService) ValidateTool(name string, args map[string]any) error {
 	if !s.isToolEnabled(name) {
-		if s.isA2ATool(name) {
-			return fmt.Errorf("A2A tools are not enabled")
-		}
-		return fmt.Errorf("local tools are not enabled")
-	}
-
-	if s.isA2ATool(name) {
-		return nil
+		return fmt.Errorf("tool %s is not enabled", name)
 	}
 
 	tool, err := s.registry.GetTool(name)

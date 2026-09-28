@@ -10,14 +10,12 @@ import (
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
-	agentappmocks "github.com/inference-gateway/cli/tests/mocks/agentapp"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conv "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -1430,71 +1428,6 @@ func TestAgentServiceImpl_ConcurrentToolCallsAccess(t *testing.T) {
 	}
 
 	wg.Wait()
-}
-
-func TestAgentServiceImpl_BuildA2AAgentInfo(t *testing.T) {
-	createFakeA2AAgentService := func(agents []string) *agentappmocks.FakeA2AAgentService {
-		fake := &agentappmocks.FakeA2AAgentService{}
-		fake.GetConfiguredAgentsReturns(agents)
-		fake.GetAgentCardsReturns(nil, nil)
-		return fake
-	}
-
-	tests := []struct {
-		name            string
-		a2aAgentService agentapp.A2AAgentService
-		expectedParts   []string
-		expectedEmpty   bool
-	}{
-		{
-			name:            "nil_a2a_service_returns_empty",
-			a2aAgentService: nil,
-			expectedEmpty:   true,
-		},
-		{
-			name:            "empty_agents_returns_empty",
-			a2aAgentService: createFakeA2AAgentService([]string{}),
-			expectedEmpty:   true,
-		},
-		{
-			name:            "with_configured_agents",
-			a2aAgentService: createFakeA2AAgentService([]string{"http://agent1.local", "http://agent2.local"}),
-			expectedParts: []string{
-				"Available A2A Agents:",
-				"http://agent1.local",
-				"http://agent2.local",
-				"A2A_SubmitTask tool",
-			},
-			expectedEmpty: false,
-		},
-		{
-			name:            "single_agent",
-			a2aAgentService: createFakeA2AAgentService([]string{"http://single-agent.local"}),
-			expectedParts: []string{
-				"Available A2A Agents:",
-				"http://single-agent.local",
-			},
-			expectedEmpty: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			agentService := &Agent{
-				a2aAgentService: tt.a2aAgentService,
-			}
-
-			result := agentService.buildA2AAgentInfo()
-
-			if tt.expectedEmpty {
-				assert.Empty(t, result)
-			} else {
-				for _, part := range tt.expectedParts {
-					assert.Contains(t, result, part)
-				}
-			}
-		})
-	}
 }
 
 // TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls is the

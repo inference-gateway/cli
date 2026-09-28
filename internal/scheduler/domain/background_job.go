@@ -138,22 +138,12 @@ type JobNotifier interface {
 	Notification(result agentdomain.ToolExecutionResult) string
 }
 
-// TaskRetainer is an optional BackgroundJob extension. A job that implements it
-// contributes a TaskInfo to the A2A task-retention view when it reaches a terminal
-// state, so a completed/failed/canceled task stays listed in the task view after its
-// monitor goroutine exits (the supervisor drops it from the live "active" set on
-// finish). ok=false opts out (e.g. a non-terminal-for-retention state such as
-// input-required). Jobs that do not implement it are never retained.
-type TaskRetainer interface {
-	RetainedTask(result agentdomain.ToolExecutionResult) (TaskInfo, bool)
-}
-
-// A2AStateProvider is an optional BackgroundJob extension implemented by A2A task
-// jobs so the supervisor can surface their live polling state (context/agent/task
-// id and last known remote state) as the single source for the task view and
-// status bar, without the generic JobMeta/TrackedJob carrying A2A-specific fields.
-type A2AStateProvider interface {
-	A2APollingState() TaskPollingState
+// JobFinisher is an optional BackgroundJob extension the supervisor calls once
+// with the terminal result of a job it did not discard, before the task view
+// refreshes. An A2A task uses it to keep its outcome listed in the task view
+// after its monitor goroutine exits.
+type JobFinisher interface {
+	Finished(result agentdomain.ToolExecutionResult)
 }
 
 // JobOutputProvider is an optional BackgroundJob extension. A job that implements

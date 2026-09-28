@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,6 +19,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	download "github.com/inference-gateway/cli/internal/platform/download"
 )
 
 // WebFetchTool handles content fetching operations
@@ -84,7 +84,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*agent
 		}, nil
 	}
 
-	download, _ := args["download"].(bool)
+	wantsDownload, _ := args["download"].(bool)
 
 	fetchResult, err := t.fetchContent(ctx, url)
 	success := err == nil
@@ -103,8 +103,8 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*agent
 
 	isBinary := isBinaryContent(fetchResult.ContentType, fetchResult.Content)
 
-	if download || isBinary {
-		filename := extractFilenameFromURL(url, fetchResult.ContentType)
+	if wantsDownload || isBinary {
+		filename := download.FilenameFromURL(url, fetchResult.ContentType)
 		savedPath, saveErr := t.saveToFile(ctx, fetchResult, filename)
 		if saveErr != nil {
 			result.Error = fmt.Sprintf("failed to save file: %v", saveErr)
@@ -265,7 +265,7 @@ func (t *WebFetchTool) validateURL(url string) error {
 // never a substring of the whole URL, so `https://evil.com/?x=github.com` and
 // `https://github.com.evil.com` are both rejected.
 func (t *WebFetchTool) validateURLDomain(rawURL string) error {
-	if isTrustedAgentHost(t.config, rawURL) {
+	if t.config.IsA2AAgentHost(rawURL) {
 		return nil
 	}
 
@@ -290,42 +290,6 @@ func (t *WebFetchTool) validateURLDomain(rawURL string) error {
 
 	return fmt.Errorf("domain not allowed (tools.web_fetch.allowed_domains: %s)",
 		strings.Join(t.config.Tools.WebFetch.AllowedDomains, ", "))
-}
-
-// isTrustedAgentHost reports whether url points at the host of a configured
-// A2A agent (its endpoint or artifacts server). Registering an agent is the
-// trust decision: the A2A tools instruct the model to WebFetch artifact
-// Download URLs, so those hosts must stay fetchable regardless of how
-// tools.web_fetch.allowed_domains is overridden. Ports are ignored because
-// locally-run agents get their host ports reassigned on collision.
-func isTrustedAgentHost(cfg *config.Config, rawURL string) bool {
-	if !cfg.A2A.Enabled {
-		return false
-	}
-
-	target, err := url.Parse(rawURL)
-	if err != nil || target.Hostname() == "" {
-		return false
-	}
-
-	bases := append([]string{}, cfg.A2A.Agents...)
-	if agents, err := config.LoadAgents(config.ResolveAgentsPath()); err == nil {
-		for _, agent := range agents.ListEntries() {
-			bases = append(bases, agent.URL, agent.ArtifactsURL)
-		}
-	}
-
-	for _, base := range bases {
-		if base == "" {
-			continue
-		}
-		if u, err := url.Parse(base); err == nil && u.Hostname() != "" &&
-			strings.EqualFold(u.Hostname(), target.Hostname()) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // FormatResult formats tool execution results for different contexts
@@ -496,53 +460,6 @@ func (t *WebFetchTool) ShouldCollapseArg(key string) bool {
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
 func (t *WebFetchTool) ShouldAlwaysExpand() bool {
 	return false
-}
-
-// extractFilenameFromURL extracts a safe filename from a URL; shared with the
-// A2A artifact auto-download path. When the URL path has no extension, the
-// response Content-Type is used to derive one (e.g. image/png -> .png),
-// falling back to .dat for unknown types.
-func extractFilenameFromURL(url, contentType string) string {
-	parts := strings.Split(url, "/")
-	filename := "download"
-
-	for i := len(parts) - 1; i >= 0; i-- {
-		if parts[i] != "" {
-			if idx := strings.Index(parts[i], "?"); idx != -1 {
-				parts[i] = parts[i][:idx]
-			}
-			if idx := strings.Index(parts[i], "#"); idx != -1 {
-				parts[i] = parts[i][:idx]
-			}
-			if parts[i] != "" {
-				filename = parts[i]
-				break
-			}
-		}
-	}
-
-	filename = filepath.Base(filename)
-
-	if !strings.Contains(filename, ".") {
-		ext := extensionFromContentType(contentType)
-		filename = fmt.Sprintf("%s%s", filename, ext)
-	}
-
-	return filename
-}
-
-// extensionFromContentType derives a file extension from a MIME content type
-// using the standard library, returning ".dat" for unknown types.
-func extensionFromContentType(contentType string) string {
-	ct := strings.ToLower(strings.TrimSpace(contentType))
-	if i := strings.IndexByte(ct, ';'); i >= 0 {
-		ct = strings.TrimSpace(ct[:i])
-	}
-	exts, err := mime.ExtensionsByType(ct)
-	if err != nil || len(exts) == 0 {
-		return ".dat"
-	}
-	return exts[0]
 }
 
 // saveToFile saves the fetched content to disk in the session's artifacts

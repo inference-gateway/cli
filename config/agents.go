@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +40,7 @@ const (
 )
 
 // ResolveAgentsPath returns the path agents.yaml should be loaded from,
-// matching A2AAgentService's lookup order: project-level
+// matching the A2A AgentCardClient's lookup order: project-level
 // `.infer/agents.yaml` wins if present, otherwise the userspace
 // `~/.infer/agents.yaml`, otherwise the project default (which may not
 // exist yet - LoadAgents handles that gracefully).
@@ -158,4 +159,40 @@ func GetAgentURLs(path string) ([]string, error) {
 		urls = append(urls, agent.URL)
 	}
 	return urls, nil
+}
+
+// IsA2AAgentHost reports whether url points at the host of a configured
+// A2A agent (its endpoint or artifacts server). Registering an agent is the
+// trust decision: the A2A tools instruct the model to WebFetch artifact
+// Download URLs, so those hosts must stay fetchable regardless of how
+// tools.web_fetch.allowed_domains is overridden. Ports are ignored because
+// locally-run agents get their host ports reassigned on collision.
+func (c *Config) IsA2AAgentHost(rawURL string) bool {
+	if !c.A2A.Enabled {
+		return false
+	}
+
+	target, err := url.Parse(rawURL)
+	if err != nil || target.Hostname() == "" {
+		return false
+	}
+
+	bases := append([]string{}, c.A2A.Agents...)
+	if agents, err := LoadAgents(ResolveAgentsPath()); err == nil {
+		for _, agent := range agents.ListEntries() {
+			bases = append(bases, agent.URL, agent.ArtifactsURL)
+		}
+	}
+
+	for _, base := range bases {
+		if base == "" {
+			continue
+		}
+		if u, err := url.Parse(base); err == nil && u.Hostname() != "" &&
+			strings.EqualFold(u.Hostname(), target.Hostname()) {
+			return true
+		}
+	}
+
+	return false
 }

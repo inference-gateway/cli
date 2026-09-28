@@ -5,6 +5,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
@@ -216,7 +217,7 @@ type DrainQueueRetryEvent struct{}
 // AgentStatusUpdateEvent indicates an agent's status has changed
 type AgentStatusUpdateEvent struct {
 	AgentName string
-	State     agentdomain.AgentState
+	State     a2adomain.AgentState
 	Message   string
 	URL       string
 	Image     string

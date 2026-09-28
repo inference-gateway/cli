@@ -16,8 +16,10 @@ import (
 	mockgateway "github.com/inference-gateway/tokenless/gateway"
 
 	config "github.com/inference-gateway/cli/config"
+	a2a "github.com/inference-gateway/cli/internal/a2a"
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
+	a2ainfra "github.com/inference-gateway/cli/internal/a2a/infrastructure"
 	agent "github.com/inference-gateway/cli/internal/agent"
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
@@ -94,21 +96,22 @@ type ServiceContainer struct {
 	imageAnnotator         agentdomain.ImageAnnotator
 	pricingService         convdomain.PricingService
 	telemetryRecorder      *telemetry.Recorder
-	a2aAgentService        agentapp.A2AAgentService
+	a2aAgentService        a2adomain.AgentCardService
 	skillsService          agentdomain.SkillsService
 	githubIssueService     agentdomain.GitHubIssueService
 	gitHubSetupService     agentdomain.GitHubSetupService
 	messageQueue           convdomain.MessageQueue
-	// backgroundTaskRegistry is the single unified tracker for both A2A
-	// tasks and background bash shells. The narrower scheddomain.A2ATaskTracker
-	// and scheddomain.ShellTracker views are accessed via the same instance.
+	// backgroundTaskRegistry is the single unified tracker for every
+	// background job: shells, subagents and A2A tasks. The narrower
+	// scheddomain.ShellTracker and SubagentTracker views share the instance.
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	jobSupervisor          *jobs.Supervisor
-	taskRetentionService   scheddomain.TaskRetentionService
-	backgroundTaskService  scheddomain.BackgroundTaskService
+	a2aTaskTracker         *a2a.TaskTracker
+	taskRetentionService   a2adomain.TaskRetentionService
+	backgroundTaskService  a2adomain.BackgroundTaskService
 	gatewayManager         *gateway.Supervisor
 	mockGateway            *http.Server
-	agentManager           agentdomain.AgentSupervisor
+	agentSupervisor        a2adomain.AgentSupervisor
 
 	// Services
 	stateManager *statemanager.Store
@@ -209,7 +212,7 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 	container.initializeGatewayManager()
 	container.initializeStateManager()
 	container.initializeDomainServices()
-	container.initializeAgentManager()
+	container.initializeAgentSupervisor()
 	container.initializeServices()
 	container.initializeUIComponents()
 	container.initializeExtensibility()
@@ -306,8 +309,8 @@ func (c *ServiceContainer) startMockGateway() {
 	logger.Info("mock gateway mode enabled", "url", c.config.Gateway.URL)
 }
 
-// initializeAgentManager creates and starts the agent manager if A2A is enabled
-func (c *ServiceContainer) initializeAgentManager() {
+// initializeAgentSupervisor creates the A2A agent supervisor if A2A is enabled
+func (c *ServiceContainer) initializeAgentSupervisor() {
 	if !c.config.IsA2AToolsEnabled() {
 		return
 	}
@@ -319,7 +322,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 		return
 	}
 
-	agentCount := len(agentapp.ExternalAgents(c.config, agentsConfig))
+	agentCount := len(a2a.ExternalAgents(c.config, agentsConfig))
 	for _, agent := range agentsConfig.Agents {
 		if agent.Run {
 			agentCount++
@@ -330,9 +333,9 @@ func (c *ServiceContainer) initializeAgentManager() {
 		c.stateManager.InitializeAgentReadiness(agentCount)
 	}
 
-	c.agentManager = agentapp.NewAgentSupervisor(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
+	c.agentSupervisor = a2a.NewAgentSupervisor(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
 
-	c.agentManager.SetStatusCallback(func(agentName string, state agentdomain.AgentState, message string, url string, image string) {
+	c.agentSupervisor.SetStatusCallback(func(agentName string, state a2adomain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
 		c.uiNotifier.Notify(tui.AgentStatusUpdateEvent{
 			AgentName: agentName,
@@ -343,11 +346,25 @@ func (c *ServiceContainer) initializeAgentManager() {
 		})
 	})
 
-	c.agentManager.SetPullProgressCallback(func(name string, done, total int) {
+	c.agentSupervisor.SetPullProgressCallback(func(name string, done, total int) {
 		c.stateManager.UpdateAgentPullProgress(name, done, total)
-		c.uiNotifier.Notify(tui.AgentStatusUpdateEvent{AgentName: name, State: agentdomain.AgentStatePullingImage})
+		c.uiNotifier.Notify(tui.AgentStatusUpdateEvent{AgentName: name, State: a2adomain.AgentStatePullingImage})
 	})
 
+}
+
+// initializeA2A builds the A2A context's session services and registers its
+// tools. The agent card service and the task tracker exist even with A2A off:
+// the system prompt lists the configured agents, and conversation clear and
+// switch always reset the tracker.
+func (c *ServiceContainer) initializeA2A() {
+	c.a2aAgentService = a2ainfra.NewAgentCardClient(c.config)
+	c.a2aTaskTracker = a2a.NewTaskTracker(c.jobSupervisor)
+	if c.config.IsA2AToolsEnabled() {
+		c.taskRetentionService = a2a.NewTaskRetentionService(c.config.A2A.Task.CompletedTaskRetention)
+		c.backgroundTaskService = a2a.NewBackgroundTaskService(c.a2aTaskTracker, c.jobSupervisor)
+	}
+	c.toolRegistry.RegisterTools(a2a.NewTools(c.config, c.a2aTaskTracker, c.backgroundTaskRegistry, c.taskRetentionService))
 }
 
 // initializeMCPSupervisor creates the MCP supervisor and starts its servers if enabled
@@ -409,6 +426,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.imageAnnotator = c.createImageAnnotator()
 	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.musicService, c.sfxService, c.videoService, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
+	c.initializeA2A()
+	c.toolRegistry.LoadMarkdownAgents()
 	c.screenRecorder = computer.NewScreenRecorder(c.config, c.uiNotifier, c.backgroundTaskRegistry)
 	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator, c.screenRecorder))
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
@@ -496,8 +515,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 		}
 	}
 
-	c.a2aAgentService = agentapp.NewA2AAgentService(c.config)
-
 	c.githubIssueService = githubissues.New()
 
 	agentClient := adapters.NewAnthropicMessages(c.createRawSDKClient())
@@ -506,7 +523,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.toolService,
 		c.config,
 		c.conversationRepo,
-		c.a2aAgentService,
+		func() string { return a2a.AgentsPromptSection(c.a2aAgentService) },
 		c.skillsService,
 		c.messageQueue,
 		c.stateManager,
@@ -553,7 +570,7 @@ func (c *ServiceContainer) initializeStorageBackend(
 	c.backgroundJobManager = scheduler.NewTitleBackfill(c.titleGenerator, c.config)
 
 	persistentRepo.SetTitleGenerator(c.titleGenerator)
-	persistentRepo.SetA2ATaskTracker(c.backgroundTaskRegistry)
+	persistentRepo.SetA2ATaskTracker(c.a2aTaskTracker)
 
 	if gs, ok := stores.Conversations.(storage.SessionGroupStorage); ok {
 		return gs
@@ -601,17 +618,6 @@ func (c *ServiceContainer) initializeStateManager() {
 
 // initializeServices creates the new improved services
 func (c *ServiceContainer) initializeServices() {
-	if c.config.IsA2AToolsEnabled() {
-		maxTaskRetention := c.config.A2A.Task.CompletedTaskRetention
-		c.taskRetentionService = scheduler.NewTaskRetentionService(maxTaskRetention)
-
-		if c.jobSupervisor != nil {
-			c.jobSupervisor.SetTaskRetention(c.taskRetentionService)
-		}
-
-		c.backgroundTaskService = scheduler.NewBackgroundTaskService(c.backgroundTaskRegistry, c.jobSupervisor)
-	}
-
 	c.initializeChatOrchestrationServices()
 
 	c.initializeGitHubSetupService()
@@ -673,7 +679,7 @@ func (c *ServiceContainer) initializeExtensibility() {
 
 // registerDefaultCommands registers the built-in commands
 func (c *ServiceContainer) registerDefaultCommands() {
-	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, c.backgroundTaskRegistry))
+	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, c.a2aTaskTracker))
 	c.shortcutRegistry.Register(shortcuts.NewCompactShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewCopyShortcut(c.conversationRepo, clipboardtext.NewWriter()))
 	c.shortcutRegistry.Register(shortcuts.NewContextShortcut(c.conversationRepo, c.modelService, c.tokenizer))
@@ -696,7 +702,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 
 	if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(persistentRepo))
-		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(persistentRepo, c.backgroundTaskRegistry))
+		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(persistentRepo, c.a2aTaskTracker))
 	}
 
 	c.shortcutRegistry.Register(shortcuts.NewInstallOpentaskShortcut())
@@ -848,8 +854,8 @@ func (c *ServiceContainer) GetStateStore() *statemanager.Store {
 	return c.stateManager
 }
 
-func (c *ServiceContainer) GetAgentSupervisor() agentdomain.AgentSupervisor {
-	return c.agentManager
+func (c *ServiceContainer) GetAgentSupervisor() a2adomain.AgentSupervisor {
+	return c.agentSupervisor
 }
 
 func (c *ServiceContainer) GetAgentService() agentdomain.AgentService {
@@ -861,20 +867,19 @@ func (c *ServiceContainer) GetMessageQueue() convdomain.MessageQueue {
 }
 
 // GetBackgroundTaskRegistry returns the unified background task registry
-// (the single tracker that owns both A2A tasks and background bash shells).
-// Callers that need only the narrower A2A or shell view can use the
-// returned value as a scheddomain.A2ATaskTracker or scheddomain.ShellTracker.
+// (the single tracker that owns every background job). Callers that need only
+// the narrower shell view can use the returned value as a scheddomain.ShellTracker.
 func (c *ServiceContainer) GetBackgroundTaskRegistry() scheddomain.BackgroundTaskRegistry {
 	return c.backgroundTaskRegistry
 }
 
 // GetTaskRetentionService returns the task retention service (may be nil if A2A is not enabled)
-func (c *ServiceContainer) GetTaskRetentionService() scheddomain.TaskRetentionService {
+func (c *ServiceContainer) GetTaskRetentionService() a2adomain.TaskRetentionService {
 	return c.taskRetentionService
 }
 
 // GetBackgroundTaskService returns the background task service (may be nil if A2A is not enabled)
-func (c *ServiceContainer) GetBackgroundTaskService() scheddomain.BackgroundTaskService {
+func (c *ServiceContainer) GetBackgroundTaskService() a2adomain.BackgroundTaskService {
 	return c.backgroundTaskService
 }
 
@@ -1033,9 +1038,8 @@ func (c *ServiceContainer) BackgroundShellService() *scheduler.BackgroundShellSe
 }
 
 // ensureBackgroundTaskRegistry lazily constructs the unified registry. Called
-// from BackgroundShellService() and from initializeDomainServices() so the
-// shell view and the A2A view are guaranteed to be projections of the same
-// underlying instance regardless of construction order.
+// from BackgroundShellService() and from initializeDomainServices() so every
+// consumer shares the same underlying instance regardless of construction order.
 func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 	if c.backgroundTaskRegistry != nil {
 		return
@@ -1078,9 +1082,9 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 		c.jobSupervisor.Stop()
 	}
 
-	if c.agentManager != nil && c.agentManager.IsRunning() {
+	if c.agentSupervisor != nil && c.agentSupervisor.IsRunning() {
 		logger.Info("shutting down agent containers...")
-		if err := c.agentManager.StopAgents(ctx); err != nil {
+		if err := c.agentSupervisor.StopAgents(ctx); err != nil {
 			logger.Error("failed to stop agent containers", "error", err)
 		}
 	}

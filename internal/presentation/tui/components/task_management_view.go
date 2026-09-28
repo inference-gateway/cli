@@ -11,8 +11,7 @@ import (
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
-	adk "github.com/inference-gateway/adk/types"
-
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -29,10 +28,10 @@ import (
 // Output carries the job's captured output (shell stdout/stderr or subagent
 // result) for the detail panel.
 type TaskInfo struct {
-	scheddomain.TaskPollingState
+	a2adomain.TaskPollingState
 	Status      string
 	ElapsedTime time.Duration
-	TaskRef     *scheddomain.TaskInfo
+	TaskRef     *a2adomain.TaskInfo
 	Kind        scheddomain.JobKind
 	Label       string
 	Detail      string
@@ -51,8 +50,8 @@ type TaskView struct {
 	styleProvider         *styles.Provider
 	done                  bool
 	cancelled             bool
-	taskRetentionService  scheddomain.TaskRetentionService
-	backgroundTaskService scheddomain.BackgroundTaskService
+	taskRetentionService  a2adomain.TaskRetentionService
+	backgroundTaskService a2adomain.BackgroundTaskService
 	backgroundJobRegistry scheddomain.BackgroundTaskRegistry
 	searchQuery           string
 	searchMode            bool
@@ -81,8 +80,8 @@ const (
 func NewTaskView(
 	themeService tui.ThemeService,
 	styleProvider *styles.Provider,
-	taskRetentionService scheddomain.TaskRetentionService,
-	backgroundTaskService scheddomain.BackgroundTaskService,
+	taskRetentionService a2adomain.TaskRetentionService,
+	backgroundTaskService a2adomain.BackgroundTaskService,
 ) *TaskView {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	vp.SetContent("")
@@ -171,9 +170,9 @@ func (t *TaskView) loadTasksCmd() tea.Cmd {
 		for _, task := range backgroundTasks {
 			elapsed := time.Since(task.StartedAt)
 
-			displayStatus := "Running"
+			displayStatus := a2adomain.TaskStatusRunning
 			if task.LastKnownState != "" {
-				displayStatus = t.mapTaskStateToDisplayStatus(task.LastKnownState)
+				displayStatus = a2adomain.TaskStateDisplayName(task.LastKnownState)
 			}
 
 			taskInfo := TaskInfo{
@@ -186,7 +185,7 @@ func (t *TaskView) loadTasksCmd() tea.Cmd {
 			activeTasks = append(activeTasks, taskInfo)
 		}
 
-		var retainedTaskInfos []scheddomain.TaskInfo
+		var retainedTaskInfos []a2adomain.TaskInfo
 		if t.taskRetentionService != nil {
 			retainedTaskInfos = t.taskRetentionService.GetTasks()
 		}
@@ -197,14 +196,14 @@ func (t *TaskView) loadTasksCmd() tea.Cmd {
 			elapsed := retainedTaskInfo.CompletedAt.Sub(retainedTaskInfo.StartedAt)
 
 			taskInfo := TaskInfo{
-				TaskPollingState: scheddomain.TaskPollingState{
+				TaskPollingState: a2adomain.TaskPollingState{
 					TaskID:          retainedTaskInfo.Task.ID,
 					ContextID:       retainedTaskInfo.Task.ContextID,
 					AgentURL:        retainedTaskInfo.AgentURL,
 					TaskDescription: "",
 					StartedAt:       retainedTaskInfo.StartedAt,
 				},
-				Status:      t.mapTaskStatus(retainedTaskInfo.Task.Status.State),
+				Status:      a2adomain.TaskStateDisplayName(string(retainedTaskInfo.Task.Status.State)),
 				ElapsedTime: elapsed,
 				TaskRef:     retainedTaskInfo,
 				Kind:        scheddomain.JobKindA2A,
@@ -257,7 +256,7 @@ func jobToTaskInfo(job scheddomain.TrackedJob) TaskInfo {
 		end = *job.CompletedAt
 	}
 	return TaskInfo{
-		TaskPollingState: scheddomain.TaskPollingState{
+		TaskPollingState: a2adomain.TaskPollingState{
 			TaskID:    job.Meta.ID,
 			StartedAt: job.Meta.StartedAt,
 		},
@@ -275,11 +274,11 @@ func jobToTaskInfo(job scheddomain.TrackedJob) TaskInfo {
 func jobStatusLabel(s scheddomain.JobStatus) string {
 	switch s {
 	case scheddomain.JobRunning:
-		return "Running"
+		return a2adomain.TaskStatusRunning
 	case scheddomain.JobCompleted:
-		return "Completed"
+		return a2adomain.TaskStatusCompleted
 	case scheddomain.JobFailed:
-		return "Failed"
+		return a2adomain.TaskStatusFailed
 	default:
 		return string(s)
 	}
@@ -575,41 +574,6 @@ func (t *TaskView) cancelTask(task TaskInfo) error {
 	return t.backgroundJobRegistry.WindJob(task.TaskID, scheddomain.WindStop)
 }
 
-// mapTaskStatus maps task state to display status. Covers every
-// adk.TaskState constant so non-terminal states (Working, Submitted,
-// AuthRequired, ...) don't fall through to the raw "TASK_STATE_*"
-// label. Unknown states fall back to a title-cased rendering of the
-// raw value with the "TASK_STATE_" prefix stripped.
-func (t *TaskView) mapTaskStatus(state adk.TaskState) string {
-	statusMap := map[adk.TaskState]string{
-		adk.TaskStateSubmitted:     "Submitted",
-		adk.TaskStateWorking:       "Working",
-		adk.TaskStateCompleted:     "Completed",
-		adk.TaskStateFailed:        "Failed",
-		adk.TaskStateCancelled:     "Canceled",
-		adk.TaskStateRejected:      "Rejected",
-		adk.TaskStateInputRequired: "Input Required",
-		adk.TaskStateAuthRequired:  "Auth Required",
-		adk.TaskStateUnspecified:   "Unknown",
-	}
-
-	if displayName, exists := statusMap[state]; exists {
-		return displayName
-	}
-
-	stateStr := strings.TrimPrefix(string(state), "TASK_STATE_")
-	stateStr = strings.ReplaceAll(strings.ToLower(stateStr), "_", " ")
-	if stateStr == "" {
-		return "Unknown"
-	}
-	return strings.ToUpper(stateStr[:1]) + stateStr[1:]
-}
-
-// mapTaskStateToDisplayStatus maps task state string to display status
-func (t *TaskView) mapTaskStateToDisplayStatus(state string) string {
-	return t.mapTaskStatus(adk.TaskState(state))
-}
-
 func (t *TaskView) applyFilters() {
 	var baseTasks []TaskInfo
 
@@ -623,21 +587,21 @@ func (t *TaskView) applyFilters() {
 	case TaskViewInputRequired:
 		baseTasks = make([]TaskInfo, 0)
 		for _, task := range allTasks {
-			if task.Status == "Input Required" {
+			if task.Status == a2adomain.TaskStatusInputRequired {
 				baseTasks = append(baseTasks, task)
 			}
 		}
 	case TaskViewCompleted:
 		baseTasks = make([]TaskInfo, 0)
 		for _, task := range t.completedTasks {
-			if task.Status == "Completed" || task.Status == "Failed" {
+			if task.Status == a2adomain.TaskStatusCompleted || task.Status == a2adomain.TaskStatusFailed {
 				baseTasks = append(baseTasks, task)
 			}
 		}
 	case TaskViewCanceled:
 		baseTasks = make([]TaskInfo, 0)
 		for _, task := range t.completedTasks {
-			if task.Status == "Canceled" {
+			if task.Status == a2adomain.TaskStatusCanceled {
 				baseTasks = append(baseTasks, task)
 			}
 		}

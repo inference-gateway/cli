@@ -21,7 +21,6 @@ type Supervisor struct {
 	messageQueue     convdomain.MessageQueue
 	conversationRepo convdomain.ConversationRepository
 	notifier         agentdomain.UINotifier
-	taskRetention    scheddomain.TaskRetentionService
 
 	mu              sync.RWMutex
 	jobs            map[string]*supervised
@@ -78,17 +77,6 @@ func (s *Supervisor) notify(event any) {
 func (s *Supervisor) SetConversationRepo(repo convdomain.ConversationRepository) {
 	s.mu.Lock()
 	s.conversationRepo = repo
-	s.mu.Unlock()
-}
-
-// SetTaskRetention wires the A2A task-retention service that finished jobs
-// implementing scheddomain.TaskRetainer populate for the task view. Like the
-// conversation repo, it is set after construction because the retention service is
-// built later in the container than the supervisor. A nil service disables
-// retention (finish just skips it).
-func (s *Supervisor) SetTaskRetention(svc scheddomain.TaskRetentionService) {
-	s.mu.Lock()
-	s.taskRetention = svc
 	s.mu.Unlock()
 }
 
@@ -225,7 +213,6 @@ func (s *Supervisor) finish(sj *supervised, result agentdomain.ToolExecutionResu
 	if !discarded {
 		evicted = s.evictOverCapLocked(sj.meta.Kind)
 	}
-	retention := s.taskRetention
 	s.mu.Unlock()
 
 	logger.Debug("background job finished", "id", sj.meta.ID, "kind", sj.meta.Kind, "status", string(status), "discarded", discarded)
@@ -240,12 +227,8 @@ func (s *Supervisor) finish(sj *supervised, result agentdomain.ToolExecutionResu
 		v.job.Close()
 	}
 
-	if retention != nil {
-		if r := asRetainer(sj.job); r != nil {
-			if info, ok := r.RetainedTask(result); ok {
-				retention.AddTask(info)
-			}
-		}
+	if f, ok := sj.job.(scheddomain.JobFinisher); ok {
+		f.Finished(result)
 	}
 
 	s.notify(agentdomain.BackgroundTasksChangedEvent{})
@@ -328,14 +311,6 @@ func (s *Supervisor) formatResult(job scheddomain.BackgroundJob, meta scheddomai
 func asNotifier(job scheddomain.BackgroundJob) scheddomain.JobNotifier {
 	if n, ok := job.(scheddomain.JobNotifier); ok {
 		return n
-	}
-	return nil
-}
-
-// asRetainer returns the job as a TaskRetainer if it implements one.
-func asRetainer(job scheddomain.BackgroundJob) scheddomain.TaskRetainer {
-	if r, ok := job.(scheddomain.TaskRetainer); ok {
-		return r
 	}
 	return nil
 }
@@ -472,21 +447,17 @@ func (s *Supervisor) Snapshot() []scheddomain.TrackedJob {
 	return out
 }
 
-// A2APollingStates returns the live polling state of every running A2A job, so
-// the task view and HasPending source A2A liveness from the supervisor (the
-// single source of truth) instead of the parallel A2ATaskTracker polling set.
-// Only running jobs are returned; terminal A2A tasks live in the retention view.
-func (s *Supervisor) A2APollingStates() []scheddomain.TaskPollingState {
+// RunningJobs returns the running jobs of one kind, so the context that owns
+// the kind can read its own jobs' live state from the supervisor, the single
+// source of truth for what is still running.
+func (s *Supervisor) RunningJobs(kind scheddomain.JobKind) []scheddomain.BackgroundJob {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	out := make([]scheddomain.TaskPollingState, 0)
+	out := make([]scheddomain.BackgroundJob, 0)
 	for _, sj := range s.jobs {
-		if sj.meta.Kind != scheddomain.JobKindA2A || sj.status != scheddomain.JobRunning {
-			continue
-		}
-		if p, ok := sj.job.(scheddomain.A2AStateProvider); ok {
-			out = append(out, p.A2APollingState())
+		if sj.meta.Kind == kind && sj.status == scheddomain.JobRunning {
+			out = append(out, sj.job)
 		}
 	}
 	return out
@@ -514,7 +485,7 @@ func (s *Supervisor) CountRunning(kind scheddomain.JobKind) int {
 // IsRunning reports whether a supervised job with the given id is still running.
 // It is the per-id liveness query - the single source of truth for "is this
 // background job still in flight?", consistent with Snapshot, CountRunning, and
-// A2APollingStates, which read the same jobs map under the same lock.
+// RunningJobs, which read the same jobs map under the same lock.
 func (s *Supervisor) IsRunning(id string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

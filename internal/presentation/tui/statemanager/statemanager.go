@@ -7,6 +7,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -572,7 +573,7 @@ func (sm *Store) InitializeAgentReadiness(totalAgents int) {
 }
 
 // UpdateAgentStatus updates the status of a specific agent
-func (sm *Store) UpdateAgentStatus(name string, state agentdomain.AgentState, message string, url string, image string) {
+func (sm *Store) UpdateAgentStatus(name string, state a2adomain.AgentState, message string, url string, image string) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 

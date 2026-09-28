@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
@@ -41,10 +42,10 @@ type ChatHandler struct {
 	shortcutRegistry       *shortcuts.Registry
 	stateManager           stateStore
 	messageQueue           convdomain.MessageQueue
-	taskRetentionService   scheddomain.TaskRetentionService
-	backgroundTaskService  scheddomain.BackgroundTaskService
+	taskRetentionService   a2adomain.TaskRetentionService
+	backgroundTaskService  a2adomain.BackgroundTaskService
 	backgroundShellService scheddomain.BackgroundShellService
-	agentManager           agentdomain.AgentSupervisor
+	agentSupervisor        a2adomain.AgentSupervisor
 	config                 *config.Config
 	approvalCoordinator    tui.ApprovalCoordinator
 	completionRunner       tui.ChatCompletionRunner
@@ -71,10 +72,10 @@ func NewChatHandler(
 	shortcutRegistry *shortcuts.Registry,
 	stateManager stateStore,
 	messageQueue convdomain.MessageQueue,
-	taskRetentionService scheddomain.TaskRetentionService,
-	backgroundTaskService scheddomain.BackgroundTaskService,
+	taskRetentionService a2adomain.TaskRetentionService,
+	backgroundTaskService a2adomain.BackgroundTaskService,
 	backgroundShellService scheddomain.BackgroundShellService,
-	agentManager agentdomain.AgentSupervisor,
+	agentSupervisor a2adomain.AgentSupervisor,
 	cfg *config.Config,
 	approvalCoordinator tui.ApprovalCoordinator,
 	completionRunner tui.ChatCompletionRunner,
@@ -95,7 +96,7 @@ func NewChatHandler(
 		shortcutRegistry:       shortcutRegistry,
 		stateManager:           stateManager,
 		messageQueue:           messageQueue,
-		agentManager:           agentManager,
+		agentSupervisor:        agentSupervisor,
 		config:                 cfg,
 		taskRetentionService:   taskRetentionService,
 		backgroundTaskService:  backgroundTaskService,

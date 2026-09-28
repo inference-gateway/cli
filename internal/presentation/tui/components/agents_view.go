@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -298,11 +299,11 @@ func (m *AgentsView) a2aItems() []list.Item {
 			kind:   agentKindA2A,
 			name:   cmp.Or(status.Name, name),
 			state:  status.State.DisplayName(),
-			failed: status.State == agentdomain.AgentStateFailed,
+			failed: status.State == a2adomain.AgentStateFailed,
 		}
 		item.detail = cmp.Or(status.Error, status.Message, status.URL)
 		item.detail = strings.Join(strings.Fields(item.detail), " ")
-		if status.State == agentdomain.AgentStatePullingImage && status.LayersTotal > 0 {
+		if status.State == a2adomain.AgentStatePullingImage && status.LayersTotal > 0 {
 			item.detail = fmt.Sprintf("%s (%d/%d layers)", item.detail, status.LayersDone, status.LayersTotal)
 		}
 		items = append(items, item)

@@ -8,9 +8,6 @@ import (
 
 // Names of the agent's built-in tools, as their manifests declare them.
 const (
-	ToolA2AQueryAgent       = "A2A_QueryAgent"
-	ToolA2AQueryTask        = "A2A_QueryTask"
-	ToolA2ASubmitTask       = "A2A_SubmitTask"
 	ToolAgent               = "Agent"
 	ToolApproveSubagent     = "ApproveSubagent"
 	ToolAskUserQuestion     = "AskUserQuestion"
