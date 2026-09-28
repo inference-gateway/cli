@@ -53,3 +53,9 @@ var toolManifestFiles embed.FS
 // the default description and the approval, read-only and plan-mode policy.
 // Change a tool by editing the <Name>.yaml next to its implementation.
 var toolManifests = agentdomain.MustLoadToolManifests(toolManifestFiles, ".")
+
+// ToolNames returns the names of the agent's built-in tools, whether or not config enables them,
+// so a custom tool can never take one.
+func ToolNames() []string {
+	return toolManifests.Names()
+}
