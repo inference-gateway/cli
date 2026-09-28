@@ -1,0 +1,94 @@
+---
+name: CodeQL
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - language: actions
+          build-mode: none
+        - language: go
+          build-mode: autobuild
+        - language: javascript-typescript
+          build-mode: none
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7.0.1
+
+    - name: Setup Go
+      if: matrix.language == 'go'
+      uses: actions/setup-go@v7.0.0
+      with:
+        go-version-file: 'go.mod'
+        cache: true
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4.38.2
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+
+    - name: Analyze
+      uses: github/codeql-action/analyze@v4.38.2
+      with:
+        category: /language:${{ matrix.language }}
+        output: sarif-results
+        upload: failure-only
+
+    # Triaged false positives, matched by file name so moves keep them excluded.
+    # The tools act on LLM-supplied input by design: paths pass ValidatePathInSandbox(Write)
+    # (memory paths are slugified), bash runs behind the per-mode allow-list plus approval,
+    # WebFetch checks the domain allow-list on every redirect, and WebSearch clamps limit to 1..50.
+    - name: Filter excluded alerts
+      if: matrix.language == 'go'
+      uses: advanced-security/filter-sarif@v1.1
+      with:
+        patterns: |
+          -**/tools/bash.go:go/command-injection
+          -**/tools/wait.go:go/command-injection
+          -**/tools/web_fetch.go:go/request-forgery
+          -**/tools/web_search.go:go/uncontrolled-allocation-size
+          -**/tools/delete.go:go/path-injection
+          -**/tools/edit.go:go/path-injection
+          -**/tools/grep.go:go/path-injection
+          -**/tools/memory.go:go/path-injection
+          -**/tools/multiedit.go:go/path-injection
+          -**/tools/read.go:go/path-injection
+          -**/tools/tree.go:go/path-injection
+          -**/tools/wait.go:go/path-injection
+          -**/tools/web_fetch.go:go/path-injection
+          -**/tools/filewriter/*.go:go/path-injection
+        input: sarif-results/go.sarif
+        output: sarif-results/go.sarif
+
+    - name: Upload SARIF
+      uses: github/codeql-action/upload-sarif@v4.38.2
+      with:
+        sarif_file: sarif-results
+        category: /language:${{ matrix.language }}

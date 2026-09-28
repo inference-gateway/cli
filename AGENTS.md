@@ -58,6 +58,7 @@ Single test: `go test ./internal/agent -run TestBashTool`. **Run `task precommit
 - **Bash allow-list is default-deny**, per agent mode (`tools.bash.mode.{all,plan,standard,auto}.allow`; effective list = `mode.all.allow` ∪ the mode's own). Only `auto` is unrestricted; standard/plan are read-only. `auto-with-judge` maps to the `standard` bucket — the judge gates calls, it never widens the list.
 - Tool approval is two-layer: `tools.safety.require_approval` (whether) + `approval_behaviour` `prompt|ipc|judge|block` (how). `judge` routes gated calls to an LLM judge (config `judge.yaml`; forced by the `auto-with-judge` agent mode — see docs/judge-mode.md). Headless blocks when no approver is reachable.
 - Never commit secrets; credentials live in `.env` (never committed).
+- Triaged CodeQL false positives are excluded centrally by the `filter-sarif` patterns in `.github/workflows/codeql.yml` (file glob + rule id, like golangci `exclusions`). Add a pattern there instead of dismissing in the GitHub UI, since UI dismissals reopen when a file moves.
 - `infer init --overwrite` wipes `.infer/agents.yaml` (and `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`, `judge.yaml`) — restore with `git checkout -- .infer/agents.yaml` afterwards.
 
 ## Config
