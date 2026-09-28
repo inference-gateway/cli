@@ -193,7 +193,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	mcpSupervisor := services.GetMCPSupervisor()
 	taskRetentionService := services.GetTaskRetentionService()
 	backgroundTaskService := services.GetBackgroundTaskService()
-	agentManager := services.GetAgentSupervisor()
+	agentSupervisor := services.GetAgentSupervisor()
 	conversationOptimizer := services.GetConversationOptimizer()
 	sessionRolloverManager := services.GetSessionRollover()
 
@@ -220,7 +220,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		models,
 		defaultModel,
 		versionInfo,
-		agentManager,
+		agentSupervisor,
 		agentService,
 		backgroundTaskService,
 		services.GetBackgroundTaskRegistry(),
@@ -355,8 +355,8 @@ func runNonInteractiveChat(cfg *config.Config) error {
 	_ = streamevent.SetWriter(io.Discard)
 
 	services := container.NewServiceContainer(cfg)
-	if am := services.GetAgentSupervisor(); am != nil {
-		if err := am.StartAgents(context.Background()); err != nil {
+	if agentSupervisor := services.GetAgentSupervisor(); agentSupervisor != nil {
+		if err := agentSupervisor.StartAgents(context.Background()); err != nil {
 			logger.Warn("failed to start agents in background", "error", err)
 		}
 	}

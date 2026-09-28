@@ -23,13 +23,6 @@ func TestEnumStrings(t *testing.T) {
 		{PlanApprovalReject, "Reject"},
 		{PlanApprovalAcceptStandard, "Approve Each Step"},
 		{PlanApprovalAction(99), "Unknown"},
-		{AgentStateUnknown, "Unknown"},
-		{AgentStatePullingImage, "PullingImage"},
-		{AgentStateStarting, "Starting"},
-		{AgentStateWaitingReady, "WaitingReady"},
-		{AgentStateReady, "Ready"},
-		{AgentStateFailed, "Failed"},
-		{AgentState(99), "Unknown"},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%T/%s", tt.v, tt.want), func(t *testing.T) {
@@ -55,28 +48,6 @@ func TestAgentModeDisplayName(t *testing.T) {
 		t.Run(tt.want, func(t *testing.T) {
 			if got := tt.m.DisplayName(); got != tt.want {
 				t.Errorf("AgentMode(%d).DisplayName() = %q, want %q", tt.m, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestAgentStateDisplayName(t *testing.T) {
-	tests := []struct {
-		s    AgentState
-		want string
-	}{
-		{AgentStateUnknown, "unknown"},
-		{AgentStatePullingImage, "pulling image"},
-		{AgentStateStarting, "starting"},
-		{AgentStateWaitingReady, "waiting"},
-		{AgentStateReady, "ready"},
-		{AgentStateFailed, "failed"},
-		{AgentState(99), "unknown"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.want, func(t *testing.T) {
-			if got := tt.s.DisplayName(); got != tt.want {
-				t.Errorf("AgentState(%d).DisplayName() = %q, want %q", tt.s, got, tt.want)
 			}
 		})
 	}

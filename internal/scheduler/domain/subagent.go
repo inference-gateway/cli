@@ -150,10 +150,10 @@ type PaneObservation struct {
 	ApprovalSummary string
 }
 
-// SubagentTracker tracks local subagents spawned by the Agent tool. It is the
-// third projection of BackgroundTaskRegistry (alongside A2ATaskTracker and
-// ShellTracker); methods are suffixed with "Subagent" to avoid colliding with
-// the shell tracker's same-named surface when embedded together.
+// SubagentTracker tracks local subagents spawned by the Agent tool. It is a
+// projection of BackgroundTaskRegistry next to ShellTracker. Its methods are
+// suffixed with "Subagent" to avoid colliding with the shell tracker's
+// same-named surface when embedded together.
 type SubagentTracker interface {
 	// AddSubagent registers a running subagent. Returns an error if the ID
 	// is already tracked.

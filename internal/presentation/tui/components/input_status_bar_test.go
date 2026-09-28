@@ -17,6 +17,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
@@ -55,7 +56,7 @@ func readinessStateManager(r *tui.AgentReadinessState) *tui.ApplicationState {
 	if r != nil {
 		st.InitializeAgentReadiness(r.TotalAgents)
 		for i := 0; i < r.ReadyAgents; i++ {
-			st.UpdateAgentStatus(fmt.Sprintf("agent-%d", i), agentdomain.AgentStateReady, "", "", "")
+			st.UpdateAgentStatus(fmt.Sprintf("agent-%d", i), a2adomain.AgentStateReady, "", "", "")
 		}
 	}
 	return st
@@ -1107,7 +1108,7 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 			setup: func() *tui.ApplicationState {
 				st := tui.NewApplicationState()
 				st.InitializeAgentReadiness(1)
-				st.UpdateAgentStatus("agent-a", agentdomain.AgentStatePullingImage, "", "", "")
+				st.UpdateAgentStatus("agent-a", a2adomain.AgentStatePullingImage, "", "", "")
 				return st
 			},
 			want: "",
@@ -1117,7 +1118,7 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 			setup: func() *tui.ApplicationState {
 				st := tui.NewApplicationState()
 				st.InitializeAgentReadiness(1)
-				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", a2adomain.AgentStateReady, "", "", "")
 				return st
 			},
 			want: "#9ece6a",
@@ -1127,8 +1128,8 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 			setup: func() *tui.ApplicationState {
 				st := tui.NewApplicationState()
 				st.InitializeAgentReadiness(2)
-				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
-				st.UpdateAgentStatus("agent-b", agentdomain.AgentStateFailed, "", "", "")
+				st.UpdateAgentStatus("agent-a", a2adomain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-b", a2adomain.AgentStateFailed, "", "", "")
 				return st
 			},
 			want: "#f7768e",
@@ -1138,8 +1139,8 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 			setup: func() *tui.ApplicationState {
 				st := tui.NewApplicationState()
 				st.InitializeAgentReadiness(1)
-				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
-				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateFailed, "", "", "")
+				st.UpdateAgentStatus("agent-a", a2adomain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", a2adomain.AgentStateFailed, "", "", "")
 				return st
 			},
 			want: "#f7768e",
@@ -1149,9 +1150,9 @@ func TestInputStatusBar_A2AIndicatorColor(t *testing.T) {
 			setup: func() *tui.ApplicationState {
 				st := tui.NewApplicationState()
 				st.InitializeAgentReadiness(1)
-				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
-				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateFailed, "", "", "")
-				st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", a2adomain.AgentStateReady, "", "", "")
+				st.UpdateAgentStatus("agent-a", a2adomain.AgentStateFailed, "", "", "")
+				st.UpdateAgentStatus("agent-a", a2adomain.AgentStateReady, "", "", "")
 				return st
 			},
 			want: "#9ece6a",
@@ -1176,17 +1177,17 @@ func TestInputStatusBar_A2AIndicatorCountsDown(t *testing.T) {
 	st.InitializeAgentReadiness(1)
 	statusBar := &InputStatusBar{stateManager: st}
 
-	st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
+	st.UpdateAgentStatus("agent-a", a2adomain.AgentStateReady, "", "", "")
 	if got := statusBar.buildA2AAgentsIndicator(); got != "A2A: 1/1" {
 		t.Fatalf("after ready: got %q, want %q", got, "A2A: 1/1")
 	}
 
-	st.UpdateAgentStatus("agent-a", agentdomain.AgentStateFailed, "", "", "")
+	st.UpdateAgentStatus("agent-a", a2adomain.AgentStateFailed, "", "", "")
 	if got := statusBar.buildA2AAgentsIndicator(); got != "A2A: 0/1" {
 		t.Fatalf("after failure: got %q, want %q", got, "A2A: 0/1")
 	}
 
-	st.UpdateAgentStatus("agent-a", agentdomain.AgentStateReady, "", "", "")
+	st.UpdateAgentStatus("agent-a", a2adomain.AgentStateReady, "", "", "")
 	if got := statusBar.buildA2AAgentsIndicator(); got != "A2A: 1/1" {
 		t.Fatalf("after recovery: got %q, want %q", got, "A2A: 1/1")
 	}

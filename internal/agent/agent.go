@@ -17,7 +17,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
@@ -39,7 +38,7 @@ type Agent struct {
 	toolService        agentdomain.ToolService
 	config             *config.Config
 	conversationRepo   convdomain.ConversationRepository
-	a2aAgentService    agentapp.A2AAgentService
+	a2aAgents          func() string
 	skillsService      agentdomain.SkillsService
 	messageQueue       convdomain.MessageQueue
 	stateManager       stateStore
@@ -381,7 +380,7 @@ func NewAgent(
 	toolService agentdomain.ToolService,
 	cfg *config.Config,
 	conversationRepo convdomain.ConversationRepository,
-	a2aAgentService agentapp.A2AAgentService,
+	a2aAgents func() string,
 	skillsService agentdomain.SkillsService,
 	messageQueue convdomain.MessageQueue,
 	stateManager stateStore,
@@ -400,7 +399,7 @@ func NewAgent(
 		toolService:        toolService,
 		config:             cfg,
 		conversationRepo:   conversationRepo,
-		a2aAgentService:    a2aAgentService,
+		a2aAgents:          a2aAgents,
 		skillsService:      skillsService,
 		messageQueue:       messageQueue,
 		stateManager:       stateManager,

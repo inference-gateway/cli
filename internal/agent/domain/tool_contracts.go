@@ -42,6 +42,13 @@ type CallApprover interface {
 	RequiresApproval(args map[string]any, mode AgentMode) bool
 }
 
+// SelfGatedTool is implemented by tools that a context of their own switches
+// on, such as the A2A tools under a2a.enabled. The tools.enabled switch for
+// local tools does not gate them, their IsEnabled alone decides.
+type SelfGatedTool interface {
+	SelfGated() bool
+}
+
 // SessionTool is implemented by tools that keep state past their own call,
 // such as a running screen recording, and so need a chat or headless session.
 type SessionTool interface {

@@ -21,7 +21,6 @@ import (
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
-	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 // MCP tools are not built here. The MCP context (internal/mcp) wraps each
@@ -29,48 +28,41 @@ import (
 // RegisterTools; construction never blocks on MCP I/O.
 
 type Registry struct {
-	config          *config.Config
-	toolsMu         sync.RWMutex
-	tools           map[string]agentdomain.Tool
-	readToolUsed    atomic.Bool
-	readFiles       map[string]fileReadSnapshot
-	readFilesMu     sync.Mutex
-	taskTracker     scheddomain.A2ATaskTracker
-	subagentTracker scheddomain.SubagentTracker
-	jobSubmitter    scheddomain.JobSubmitter
-	jobStopper      scheddomain.JobStopper
-	jobLiveness     scheddomain.JobLivenessReporter
-	imageService    agentdomain.ImageService
-	speechService   agentdomain.SpeechService
-	musicService    agentdomain.MusicService
-	sfxService      agentdomain.SoundEffectService
-	videoService    agentdomain.VideoService
-	shellService    scheddomain.BackgroundShellService
-	annotator       agentdomain.ImageAnnotator
-	frameSources    map[string]agentdomain.FrameSource
-	frameSourcesMu  sync.RWMutex
-	memoryBackend   memory.MemoryBackend
-	stores          *storage.Stores
-	mdAgents        []markdownAgent
+	config         *config.Config
+	toolsMu        sync.RWMutex
+	tools          map[string]agentdomain.Tool
+	readToolUsed   atomic.Bool
+	readFiles      map[string]fileReadSnapshot
+	readFilesMu    sync.Mutex
+	jobs           scheddomain.BackgroundTaskRegistry
+	imageService   agentdomain.ImageService
+	speechService  agentdomain.SpeechService
+	musicService   agentdomain.MusicService
+	sfxService     agentdomain.SoundEffectService
+	videoService   agentdomain.VideoService
+	shellService   scheddomain.BackgroundShellService
+	annotator      agentdomain.ImageAnnotator
+	frameSources   map[string]agentdomain.FrameSource
+	frameSourcesMu sync.RWMutex
+	memoryBackend  memory.MemoryBackend
+	stores         *storage.Stores
+	mdAgents       []markdownAgent
 }
 
 // NewRegistry creates a new tool registry with self-contained tools.
-// taskTracker must be provided by the caller (typically the container, which
-// constructs the unified BackgroundTaskRegistry and passes its A2A view in
-// here so all tools observe the same tracker the agent's wait loop does).
+// jobs is the unified BackgroundTaskRegistry the container owns, so all tools
+// observe the same tracker the agent's wait loop does. A nil jobs leaves out
+// the subagent tools.
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, videoService agentdomain.VideoService, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, taskTracker scheddomain.A2ATaskTracker, stores *storage.Stores) *Registry {
-	if taskTracker == nil {
-		taskTracker = schedinfra.NewA2ATaskTracker()
-	}
+func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, videoService agentdomain.VideoService, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, jobs scheddomain.BackgroundTaskRegistry, stores *storage.Stores) *Registry {
 	registry := &Registry{
 		config:        cfg,
 		tools:         make(map[string]agentdomain.Tool),
 		shellService:  shellService,
 		readFiles:     make(map[string]fileReadSnapshot),
-		taskTracker:   taskTracker,
+		jobs:          jobs,
 		imageService:  imageService,
 		speechService: speechService,
 		musicService:  musicService,
@@ -80,29 +72,19 @@ func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, spee
 		frameSources:  make(map[string]agentdomain.FrameSource),
 		stores:        stores,
 	}
-	if st, ok := taskTracker.(scheddomain.SubagentTracker); ok {
-		registry.subagentTracker = st
-	}
-	if js, ok := taskTracker.(scheddomain.JobSubmitter); ok {
-		registry.jobSubmitter = js
-	}
-	if jst, ok := taskTracker.(scheddomain.JobStopper); ok {
-		registry.jobStopper = jst
-	}
-	if lr, ok := taskTracker.(scheddomain.JobLivenessReporter); ok {
-		registry.jobLiveness = lr
-	}
 
 	registry.registerTools()
-	registry.loadMarkdownAgents()
 	return registry
 }
 
-// loadMarkdownAgents loads the Markdown subagent definitions (.infer/agents/*.md)
+// LoadMarkdownAgents loads the Markdown subagent definitions (.infer/agents/*.md)
 // once per session and installs them into the Agent tool, so its tool
 // description lists them and tool-name validation runs against the tools this
-// session actually registered. MCP tools register later and are unknown here.
-func (r *Registry) loadMarkdownAgents() {
+// session registered so far. Tools registered after it, such as MCP's, are
+// unknown to the agents.
+func (r *Registry) LoadMarkdownAgents() {
+	r.toolsMu.Lock()
+	defer r.toolsMu.Unlock()
 	agentTool, ok := r.tools[ToolAgent].(*AgentTool)
 	if !ok {
 		return
@@ -206,14 +188,14 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 		r.register(NewWaitTool(cfg, r.shellService))
 	}
 
-	if cfg.IsAgentToolEnabled() && r.subagentTracker != nil {
-		r.register(NewAgentTool(cfg, r.subagentTracker, r.jobSubmitter))
-		r.register(NewListSubagentsTool(cfg, r.subagentTracker))
-		r.register(NewGetSubagentResultTool(cfg, r.subagentTracker))
-		r.register(NewCloseSubagentTool(cfg, r.subagentTracker, r.jobStopper))
-		r.register(NewReadSubagentScreenTool(cfg, r.subagentTracker))
-		r.register(NewSendSubagentInputTool(cfg, r.subagentTracker))
-		r.register(NewApproveSubagentTool(cfg, r.subagentTracker))
+	if cfg.IsAgentToolEnabled() && r.jobs != nil {
+		r.register(NewAgentTool(cfg, r.jobs, r.jobs))
+		r.register(NewListSubagentsTool(cfg, r.jobs))
+		r.register(NewGetSubagentResultTool(cfg, r.jobs))
+		r.register(NewCloseSubagentTool(cfg, r.jobs, r.jobs))
+		r.register(NewReadSubagentScreenTool(cfg, r.jobs))
+		r.register(NewSendSubagentInputTool(cfg, r.jobs))
+		r.register(NewApproveSubagentTool(cfg, r.jobs))
 	}
 
 	if cfg.Tools.WebFetch.Enabled {
@@ -256,12 +238,6 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 		r.register(NewCreateAvatarTool(cfg, r.imageService))
 	}
 
-	if cfg.IsA2AToolsEnabled() {
-		r.register(NewA2AQueryAgentTool(cfg))
-		r.register(NewA2AQueryTaskTool(cfg, r.jobLiveness))
-		r.register(NewA2ASubmitTaskTool(cfg, r.taskTracker, r.jobSubmitter))
-	}
-
 	if r.imageService != nil {
 		r.register(NewImageDecodeTool(cfg, r.imageService, r.annotator))
 	}
@@ -285,7 +261,7 @@ func (r *Registry) registerTextToSpeech(cfg *config.Config) {
 }
 
 // RegisterTools installs capability tools constructed outside this package
-// (browser use, computer use, MCP). The agent core consumes them through the
+// (A2A, browser use, computer use, MCP). The agent core consumes them through the
 // agentdomain.Tool contract only; a tool that brings its own manifest also
 // brings its policy.
 func (r *Registry) RegisterTools(tools map[string]agentdomain.Tool) {

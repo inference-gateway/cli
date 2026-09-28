@@ -8,9 +8,6 @@ import (
 	"time"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
-
-	adk "github.com/inference-gateway/adk/types"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -79,17 +76,24 @@ func (f *fakeJob) closes() int {
 	return f.closeCalls
 }
 
-// fakeRetainerJob is a fakeJob that also implements scheddomain.TaskRetainer, returning a
-// preset TaskInfo/ok so the supervisor's retain-on-finish path can be tested in
-// isolation from any real job's extraction logic.
-type fakeRetainerJob struct {
+// fakeFinisherJob is a fakeJob that also implements scheddomain.JobFinisher,
+// recording the terminal results the supervisor hands it.
+type fakeFinisherJob struct {
 	*fakeJob
-	info scheddomain.TaskInfo
-	ok   bool
+	mu       sync.Mutex
+	finished []agentdomain.ToolExecutionResult
 }
 
-func (j *fakeRetainerJob) RetainedTask(agentdomain.ToolExecutionResult) (scheddomain.TaskInfo, bool) {
-	return j.info, j.ok
+func (j *fakeFinisherJob) Finished(result agentdomain.ToolExecutionResult) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.finished = append(j.finished, result)
+}
+
+func (j *fakeFinisherJob) finishCalls() int {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return len(j.finished)
 }
 
 // TestSupervisor_FinishEnqueue: a finished non-silent job lands exactly one
@@ -286,14 +290,12 @@ func TestSupervisor_HasPending(t *testing.T) {
 
 // TestSupervisor_DiscardKind: discarding a kind stops and forgets its running
 // jobs - dropped from the snapshot immediately, hard-stopped, no queue note, no
-// retention entry - while other kinds keep running untouched.
+// Finished call - while other kinds keep running untouched.
 func TestSupervisor_DiscardKind(t *testing.T) {
 	queue := &convmocks.FakeMessageQueue{}
-	retention := &schedmocks.FakeTaskRetentionService{}
 	sup := NewSupervisor(queue, &convmocks.FakeConversationRepository{}, nil)
-	sup.SetTaskRetention(retention)
 
-	a2a := &fakeRetainerJob{fakeJob: newFakeJob("t1", scheddomain.JobKindA2A), info: scheddomain.TaskInfo{}, ok: true}
+	a2a := &fakeFinisherJob{fakeJob: newFakeJob("t1", scheddomain.JobKindA2A)}
 	sup.Submit(a2a)
 	<-a2a.started
 
@@ -321,8 +323,8 @@ func TestSupervisor_DiscardKind(t *testing.T) {
 	close(shell.finish)
 	sup.Stop()
 
-	if n := retention.AddTaskCallCount(); n != 0 {
-		t.Fatalf("discarded job landed %d retention entries, want 0", n)
+	if n := a2a.finishCalls(); n != 0 {
+		t.Fatalf("discarded job got %d Finished calls, want 0", n)
 	}
 	if n := queue.EnqueueCallCount(); n != 1 {
 		t.Fatalf("Enqueue called %d times, want 1 (shell only - a discarded job must not note)", n)
@@ -563,81 +565,30 @@ func TestSupervisor_RunningJobNeverEvicted(t *testing.T) {
 	sup.Stop()
 }
 
-// TestSupervisor_FinishRetention: a finished job implementing TaskRetainer
-// (opting in) lands exactly one retention entry with its TaskInfo; a
-// non-retainer or an opted-out retainer leaves retention untouched.
-func TestSupervisor_FinishRetention(t *testing.T) {
-	tests := []struct {
-		name       string
-		job        func() (scheddomain.BackgroundJob, *fakeJob)
-		wantAdds   int
-		wantURL    string
-		wantTaskID string
-	}{
-		{
-			name: "retainer retains terminal task",
-			job: func() (scheddomain.BackgroundJob, *fakeJob) {
-				info := scheddomain.TaskInfo{AgentURL: "http://agent", Task: adk.Task{ID: "t1", Status: adk.TaskStatus{State: adk.TaskStateCompleted}}}
-				inner := newFakeJob("t1", scheddomain.JobKindA2A)
-				return &fakeRetainerJob{fakeJob: inner, info: info, ok: true}, inner
-			},
-			wantAdds: 1, wantURL: "http://agent", wantTaskID: "t1",
-		},
-		{
-			name: "not a retainer",
-			job: func() (scheddomain.BackgroundJob, *fakeJob) {
-				inner := newFakeJob("plain", scheddomain.JobKindShell)
-				return inner, inner
-			},
-			wantAdds: 0,
-		},
-		{
-			name: "retainer opts out",
-			job: func() (scheddomain.BackgroundJob, *fakeJob) {
-				inner := newFakeJob("optout", scheddomain.JobKindA2A)
-				return &fakeRetainerJob{fakeJob: inner, ok: false}, inner
-			},
-			wantAdds: 0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			retention := &schedmocks.FakeTaskRetentionService{}
-			sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
-			sup.SetTaskRetention(retention)
-
-			job, inner := tt.job()
-			sup.Submit(job)
-			<-inner.started
-			close(inner.finish)
-			sup.Stop()
-
-			if n := retention.AddTaskCallCount(); n != tt.wantAdds {
-				t.Fatalf("AddTask called %d times, want %d", n, tt.wantAdds)
-			}
-			if tt.wantAdds == 1 {
-				if got := retention.AddTaskArgsForCall(0); got.AgentURL != tt.wantURL || got.Task.ID != tt.wantTaskID {
-					t.Fatalf("AddTask got %+v, want AgentURL=%s Task.ID=%s", got, tt.wantURL, tt.wantTaskID)
-				}
-			}
-		})
-	}
-}
-
-// TestSupervisor_FinishWithoutRetentionService: a retainer job finishing with no
-// retention service wired must not panic, and the job still completes normally.
-func TestSupervisor_FinishWithoutRetentionService(t *testing.T) {
+// TestSupervisor_Finished: a finished job implementing JobFinisher is handed its
+// terminal result exactly once, and a job that does not implement it finishes
+// normally.
+func TestSupervisor_Finished(t *testing.T) {
 	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 
-	job := &fakeRetainerJob{fakeJob: newFakeJob("t1", scheddomain.JobKindA2A), info: scheddomain.TaskInfo{AgentURL: "http://agent"}, ok: true}
-	sup.Submit(job)
-	<-job.started
-	close(job.finish)
+	finisher := &fakeFinisherJob{fakeJob: newFakeJob("t1", scheddomain.JobKindA2A)}
+	plain := newFakeJob("plain", scheddomain.JobKindShell)
+	sup.Submit(finisher)
+	sup.Submit(plain)
+	<-finisher.started
+	<-plain.started
+	close(finisher.finish)
+	close(plain.finish)
 	sup.Stop()
 
-	if j, ok := snapByID(sup, "t1"); !ok || j.Status != scheddomain.JobCompleted {
-		t.Fatalf("job should complete normally, got ok=%v %+v", ok, j)
+	if n := finisher.finishCalls(); n != 1 {
+		t.Fatalf("Finished called %d times, want 1", n)
+	}
+	if !finisher.finished[0].Success {
+		t.Fatalf("Finished got %+v, want the successful terminal result", finisher.finished[0])
+	}
+	if j, ok := snapByID(sup, "plain"); !ok || j.Status != scheddomain.JobCompleted {
+		t.Fatalf("plain job should complete normally, got ok=%v %+v", ok, j)
 	}
 }
 
@@ -724,26 +675,13 @@ func TestSupervisor_SnapshotPopulatesOutputAfterCleanupReap(t *testing.T) {
 	}
 }
 
-// fakeA2AJob is a fakeJob that also implements scheddomain.A2AStateProvider, so it is
-// visible to Supervisor.A2APollingStates while running.
-type fakeA2AJob struct {
-	*fakeJob
-	state scheddomain.TaskPollingState
-}
-
-func (f *fakeA2AJob) A2APollingState() scheddomain.TaskPollingState { return f.state }
-
-// TestSupervisor_A2APollingStates asserts the supervisor is the single source for
-// active A2A rows: only running A2A jobs are returned, with their polling detail
-// intact, and a finished task drops out.
-func TestSupervisor_A2APollingStates(t *testing.T) {
+// TestSupervisor_RunningJobs asserts the supervisor hands a context its own
+// running jobs: only running jobs of the asked kind, and a finished one drops out.
+func TestSupervisor_RunningJobs(t *testing.T) {
 	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	defer sup.Stop()
 
-	a2a := &fakeA2AJob{
-		fakeJob: newFakeJob("a1", scheddomain.JobKindA2A),
-		state:   scheddomain.TaskPollingState{TaskID: "a1", ContextID: "ctx1", AgentURL: "http://agent", LastKnownState: "working"},
-	}
+	a2a := newFakeJob("a1", scheddomain.JobKindA2A)
 	shell := newFakeJob("s1", scheddomain.JobKindShell)
 
 	sup.Submit(a2a)
@@ -751,14 +689,11 @@ func TestSupervisor_A2APollingStates(t *testing.T) {
 	<-a2a.started
 	<-shell.started
 
-	states := sup.A2APollingStates()
-	if len(states) != 1 {
-		t.Fatalf("A2APollingStates len = %d, want 1 (A2A only, excludes shell)", len(states))
-	}
-	if got := states[0]; got.TaskID != "a1" || got.ContextID != "ctx1" || got.AgentURL != "http://agent" || got.LastKnownState != "working" {
-		t.Errorf("A2A detail not preserved: %+v", got)
+	running := sup.RunningJobs(scheddomain.JobKindA2A)
+	if len(running) != 1 || running[0] != scheddomain.BackgroundJob(a2a) {
+		t.Fatalf("RunningJobs = %v, want only the A2A job", running)
 	}
 
 	close(a2a.finish)
-	waitFor(t, func() bool { return len(sup.A2APollingStates()) == 0 })
+	waitFor(t, func() bool { return len(sup.RunningJobs(scheddomain.JobKindA2A)) == 0 })
 }

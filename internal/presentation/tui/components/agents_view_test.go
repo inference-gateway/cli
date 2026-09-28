@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -47,7 +48,7 @@ func reconstructReadiness(readiness *tui.AgentReadinessState) *tui.ApplicationSt
 	}
 	st.InitializeAgentReadiness(readiness.TotalAgents)
 	for _, a := range readiness.Agents {
-		if a.State == agentdomain.AgentStateFailed && a.Error != "" {
+		if a.State == a2adomain.AgentStateFailed && a.Error != "" {
 			st.SetAgentError(a.Name, errors.New(a.Error))
 			continue
 		}
@@ -62,8 +63,8 @@ func TestAgentsView_GroupsA2AOnTopAndLocalsBelow(t *testing.T) {
 			TotalAgents: 2,
 			ReadyAgents: 1,
 			Agents: map[string]*tui.AgentStatus{
-				"writer": {Name: "writer", URL: "http://localhost:8081", State: agentdomain.AgentStateReady},
-				"coder":  {Name: "coder", URL: "http://localhost:8082", State: agentdomain.AgentStateFailed, Error: "connection refused"},
+				"writer": {Name: "writer", URL: "http://localhost:8081", State: a2adomain.AgentStateReady},
+				"coder":  {Name: "coder", URL: "http://localhost:8082", State: a2adomain.AgentStateFailed, Error: "connection refused"},
 			},
 		},
 		[]agentdomain.SubagentInfo{
@@ -145,22 +146,22 @@ func TestAgentsView_LiveUpdatesOnAgentStatusEvent(t *testing.T) {
 		&tui.AgentReadinessState{
 			TotalAgents: 1,
 			ReadyAgents: 0,
-			Agents:      map[string]*tui.AgentStatus{"writer": {Name: "writer", State: agentdomain.AgentStatePullingImage, Message: "Pulling image: img"}},
+			Agents:      map[string]*tui.AgentStatus{"writer": {Name: "writer", State: a2adomain.AgentStatePullingImage, Message: "Pulling image: img"}},
 		},
 		nil,
 	)
 	view.Reset()
 
 	stateManager.UpdateAgentPullProgress("writer", 3, 7)
-	model, _ := view.Update(tui.AgentStatusUpdateEvent{AgentName: "writer", State: agentdomain.AgentStatePullingImage})
+	model, _ := view.Update(tui.AgentStatusUpdateEvent{AgentName: "writer", State: a2adomain.AgentStatePullingImage})
 	view = model.(*AgentsView)
 
 	if got := view.list.Items()[1].(agentItem); got.detail != "Pulling image: img (3/7 layers)" {
 		t.Errorf("event should refresh pull progress in the detail, got %+v", got)
 	}
 
-	stateManager.UpdateAgentStatus("writer", agentdomain.AgentStateReady, "", "", "")
-	model, _ = view.Update(tui.AgentStatusUpdateEvent{AgentName: "writer", State: agentdomain.AgentStateReady})
+	stateManager.UpdateAgentStatus("writer", a2adomain.AgentStateReady, "", "", "")
+	model, _ = view.Update(tui.AgentStatusUpdateEvent{AgentName: "writer", State: a2adomain.AgentStateReady})
 	view = model.(*AgentsView)
 
 	if view.list.Title != "Agents (1)" {

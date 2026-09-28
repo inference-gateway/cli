@@ -12,11 +12,11 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // PersistentConversationRepository wraps the InMemoryConversationRepository
@@ -30,7 +30,7 @@ type PersistentConversationRepository struct {
 	autoSave       bool
 	titleGenerator *ConversationTitleGenerator
 	autoSaveMutex  sync.Mutex
-	taskTracker    scheddomain.A2AClearer
+	taskTracker    a2adomain.Clearer
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
@@ -61,7 +61,7 @@ func (r *PersistentConversationRepository) SetTitleGenerator(titleGenerator *Con
 }
 
 // SetA2ATaskTracker sets the task tracker for context ID persistence
-func (r *PersistentConversationRepository) SetA2ATaskTracker(taskTracker scheddomain.A2AClearer) {
+func (r *PersistentConversationRepository) SetA2ATaskTracker(taskTracker a2adomain.Clearer) {
 	r.taskTracker = taskTracker
 }
 

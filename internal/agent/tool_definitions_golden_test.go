@@ -16,6 +16,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	a2a "github.com/inference-gateway/cli/internal/a2a"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	browser "github.com/inference-gateway/cli/internal/browser"
@@ -138,6 +139,7 @@ func withoutToolApprovalOverrides(cfg *config.Config) *config.Config {
 
 func goldenRegistry(cfg *config.Config) *tools.Registry {
 	annotator := &agentdomainmocks.FakeImageAnnotator{}
+	jobs := &schedmocks.FakeBackgroundTaskRegistry{}
 	registry := tools.NewRegistry(
 		cfg,
 		&agentdomainmocks.FakeImageService{},
@@ -147,9 +149,10 @@ func goldenRegistry(cfg *config.Config) *tools.Registry {
 		&agentdomainmocks.FakeVideoService{},
 		&schedmocks.FakeBackgroundShellService{},
 		annotator,
-		&schedmocks.FakeBackgroundTaskRegistry{},
+		jobs,
 		nil,
 	)
+	registry.RegisterTools(a2a.NewTools(cfg, a2a.NewTaskTracker(nil), jobs, nil))
 	registry.RegisterTools(browser.NewTools(cfg, nil))
 	registry.RegisterFrameSource("screen", &agentdomainmocks.FakeFrameSource{})
 	registry.RegisterTools(computer.NewTools(cfg, registry, annotator, nil))

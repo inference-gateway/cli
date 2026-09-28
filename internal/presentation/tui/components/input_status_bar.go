@@ -10,6 +10,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	mcpdomain "github.com/inference-gateway/cli/internal/mcp/domain"
@@ -24,7 +25,7 @@ import (
 // AgentReadiness handles A2A agent readiness tracking
 type AgentReadiness interface {
 	InitializeAgentReadiness(totalAgents int)
-	UpdateAgentStatus(name string, state agentdomain.AgentState, message string, url string, image string)
+	UpdateAgentStatus(name string, state a2adomain.AgentState, message string, url string, image string)
 	SetAgentError(name string, err error)
 	GetAgentReadiness() *tui.AgentReadinessState
 	AreAllAgentsReady() bool
@@ -43,7 +44,7 @@ type InputStatusBar struct {
 	toolService            agentdomain.ToolService
 	tokenEstimator         convdomain.TokenEstimator
 	backgroundShellService scheddomain.BackgroundShellService
-	backgroundTaskService  scheddomain.BackgroundTaskService
+	backgroundTaskService  a2adomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	messageQueue           convdomain.MessageQueue
 	mcpStatus              *mcpdomain.ServerStatus
@@ -134,7 +135,7 @@ func (isb *InputStatusBar) SetBackgroundShellService(service scheddomain.Backgro
 }
 
 // SetBackgroundTaskService sets the background task service
-func (isb *InputStatusBar) SetBackgroundTaskService(service scheddomain.BackgroundTaskService) {
+func (isb *InputStatusBar) SetBackgroundTaskService(service a2adomain.BackgroundTaskService) {
 	isb.backgroundTaskService = service
 }
 
@@ -802,7 +803,7 @@ func (isb *InputStatusBar) a2aIndicatorColor() string {
 		return isb.styleProvider.GetThemeColor("success")
 	}
 	for _, agent := range readiness.Agents {
-		if agent.State == agentdomain.AgentStateFailed {
+		if agent.State == a2adomain.AgentStateFailed {
 			return isb.styleProvider.GetThemeColor("error")
 		}
 	}

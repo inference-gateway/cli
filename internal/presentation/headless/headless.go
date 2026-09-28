@@ -17,6 +17,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
@@ -45,7 +46,7 @@ type Services interface {
 	Shutdown(ctx context.Context) error
 	StartScreenshotServer(sessionID string) *computerinfra.ScreenshotServer
 	GetGatewaySupervisor() *gateway.Supervisor
-	GetAgentSupervisor() agentdomain.AgentSupervisor
+	GetAgentSupervisor() a2adomain.AgentSupervisor
 	GetAgentService() agentdomain.AgentService
 	GetMCPSupervisor() mcpdomain.Supervisor
 	GetToolRegistry() *tools.Registry
@@ -141,8 +142,8 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		return fmt.Errorf("failed to start inference gateway: %w", err)
 	}
 
-	if agentManager := svc.GetAgentSupervisor(); agentManager != nil && !isBashTask(opts.Task) {
-		startLocalAgents(agentManager, cfg, opts.Format)
+	if agentSupervisor := svc.GetAgentSupervisor(); agentSupervisor != nil && !isBashTask(opts.Task) {
+		startLocalAgents(agentSupervisor, cfg, opts.Format)
 	}
 
 	if mcpSupervisor := svc.GetMCPSupervisor(); mcpSupervisor != nil {
@@ -346,24 +347,24 @@ func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals 
 // stdout as agent_status lines so a client can show what the wait is for. The
 // callbacks are removed once the wait ends so later liveness probes never write
 // into the run's event stream.
-func startLocalAgents(agentManager agentdomain.AgentSupervisor, cfg *config.Config, format string) {
+func startLocalAgents(agentSupervisor a2adomain.AgentSupervisor, cfg *config.Config, format string) {
 	if emit := render.AgentStartupEmitter(os.Stdout, format); emit != nil {
-		agentManager.SetStatusCallback(func(name string, state agentdomain.AgentState, message, _, _ string) {
+		agentSupervisor.SetStatusCallback(func(name string, state a2adomain.AgentState, message, _, _ string) {
 			emit(name, state.String(), message, 0, 0)
 		})
-		agentManager.SetPullProgressCallback(func(name string, done, total int) {
-			emit(name, agentdomain.AgentStatePullingImage.String(), "Pulling image", done, total)
+		agentSupervisor.SetPullProgressCallback(func(name string, done, total int) {
+			emit(name, a2adomain.AgentStatePullingImage.String(), "Pulling image", done, total)
 		})
 	}
-	if err := agentManager.StartAgents(context.Background()); err != nil {
+	if err := agentSupervisor.StartAgents(context.Background()); err != nil {
 		logger.Warn("failed to start agents in background", "error", err)
 	}
 	readyTimeout := time.Duration(cmp.Or(cfg.A2A.AgentsReadyTimeoutSec, 600)) * time.Second
 	waitCtx, waitCancel := context.WithTimeout(context.Background(), readyTimeout)
-	agentManager.WaitForAgentsReady(waitCtx)
+	agentSupervisor.WaitForAgentsReady(waitCtx)
 	waitCancel()
-	agentManager.SetStatusCallback(nil)
-	agentManager.SetPullProgressCallback(nil)
+	agentSupervisor.SetStatusCallback(nil)
+	agentSupervisor.SetPullProgressCallback(nil)
 }
 
 // emitCommandResult reports a slash command that answered by itself - /context,

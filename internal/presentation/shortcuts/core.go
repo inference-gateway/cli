@@ -10,20 +10,20 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // ClearShortcut clears the conversation history
 type ClearShortcut struct {
 	repo        convdomain.ConversationRepository
-	taskTracker scheddomain.A2AClearer
+	taskTracker a2adomain.Clearer
 }
 
-func NewClearShortcut(repo convdomain.ConversationRepository, taskTracker scheddomain.A2AClearer) *ClearShortcut {
+func NewClearShortcut(repo convdomain.ConversationRepository, taskTracker a2adomain.Clearer) *ClearShortcut {
 	return &ClearShortcut{
 		repo:        repo,
 		taskTracker: taskTracker,
@@ -298,10 +298,10 @@ func formatTokenCount(tokens int) string {
 // NewShortcut starts a new conversation
 type NewShortcut struct {
 	repo        convdomain.PersistentConversationRepository
-	taskTracker scheddomain.A2AClearer
+	taskTracker a2adomain.Clearer
 }
 
-func NewNewShortcut(repo convdomain.PersistentConversationRepository, taskTracker scheddomain.A2AClearer) *NewShortcut {
+func NewNewShortcut(repo convdomain.PersistentConversationRepository, taskTracker a2adomain.Clearer) *NewShortcut {
 	return &NewShortcut{
 		repo:        repo,
 		taskTracker: taskTracker,

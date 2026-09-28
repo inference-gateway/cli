@@ -13,6 +13,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	components "github.com/inference-gateway/cli/internal/presentation/tui/components"
@@ -199,7 +200,7 @@ func TestStatusBarEnterOpensAgentsView(t *testing.T) {
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)
 	barStateManager := statemanager.NewStore(false)
 	barStateManager.InitializeAgentReadiness(1)
-	barStateManager.UpdateAgentStatus("agent", agentdomain.AgentStateReady, "", "", "")
+	barStateManager.UpdateAgentStatus("agent", a2adomain.AgentStateReady, "", "", "")
 	statusBar.SetStateManager(barStateManager)
 
 	app.handleChatView(tui.FocusStatusBarEvent{})

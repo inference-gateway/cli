@@ -15,6 +15,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -49,7 +50,7 @@ type ChatApplication struct {
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
 	sessionRolloverManager convdomain.SessionRollover
-	agentManager           agentdomain.AgentSupervisor
+	agentSupervisor        a2adomain.AgentSupervisor
 	modelService           convdomain.ModelService
 	toolService            agentdomain.ToolService
 	fileService            agentdomain.FileService
@@ -62,8 +63,8 @@ type ChatApplication struct {
 	themeService           tui.ThemeService
 	toolRegistry           *tools.Registry
 	mcpSupervisor          mcpdomain.Supervisor
-	taskRetentionService   scheddomain.TaskRetentionService
-	backgroundTaskService  scheddomain.BackgroundTaskService
+	taskRetentionService   a2adomain.TaskRetentionService
+	backgroundTaskService  a2adomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 
 	// Chat orchestration services
@@ -144,9 +145,9 @@ func NewChatApplication(
 	models []string,
 	defaultModel string,
 	versionInfo tui.VersionInfo,
-	agentManager agentdomain.AgentSupervisor,
+	agentSupervisor a2adomain.AgentSupervisor,
 	agentService agentdomain.AgentService,
-	backgroundTaskService scheddomain.BackgroundTaskService,
+	backgroundTaskService a2adomain.BackgroundTaskService,
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry,
 	conversationOptimizer convdomain.ConversationOptimizer,
 	conversationRepo convdomain.ConversationRepository,
@@ -161,7 +162,7 @@ func NewChatApplication(
 	pricingService convdomain.PricingService,
 	sessionRolloverManager convdomain.SessionRollover,
 	stateManager *statemanager.Store,
-	taskRetentionService scheddomain.TaskRetentionService,
+	taskRetentionService a2adomain.TaskRetentionService,
 	themeService tui.ThemeService,
 	toolService agentdomain.ToolService,
 	shortcutRegistry *shortcuts.Registry,
@@ -183,7 +184,7 @@ func NewChatApplication(
 		conversationRepo:         conversationRepo,
 		conversationOptimizer:    conversationOptimizer,
 		sessionRolloverManager:   sessionRolloverManager,
-		agentManager:             agentManager,
+		agentSupervisor:          agentSupervisor,
 		modelService:             modelService,
 		config:                   cfg,
 		toolService:              toolService,
@@ -357,7 +358,7 @@ func NewChatApplication(
 		app.taskRetentionService,
 		app.backgroundTaskService,
 		app.toolRegistry.GetBackgroundShellService(),
-		agentManager,
+		agentSupervisor,
 		app.config,
 		app.approvalCoordinator,
 		app.chatCompletionRunner,
@@ -433,9 +434,9 @@ func (app *ChatApplication) Init() tea.Cmd {
 		app.mcpSupervisor.StartMonitoring(context.Background())
 	}
 
-	if app.agentManager != nil {
+	if app.agentSupervisor != nil {
 		cmds = append(cmds, func() tea.Msg {
-			if err := app.agentManager.StartAgents(context.Background()); err != nil {
+			if err := app.agentSupervisor.StartAgents(context.Background()); err != nil {
 				logger.Warn("failed to start agents in background", "error", err)
 			}
 			return nil

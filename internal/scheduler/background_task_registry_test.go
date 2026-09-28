@@ -62,32 +62,8 @@ func TestHasPending_ExcludesInteractiveSubagents(t *testing.T) {
 	close(interactive.finish)
 }
 
-// TestHasPending_A2AViaSupervisor asserts A2A pending-state is read from the job
-// supervisor (single source of truth), not the parallel tracker polling set: a
-// StartPolling entry with no supervised job is NOT pending, while a submitted
-// (running) A2A job IS.
-func TestHasPending_A2AViaSupervisor(t *testing.T) {
-	sup := jobs.NewSupervisor(nil, nil, nil)
-	defer sup.Stop()
-	reg := NewBackgroundTaskRegistry(4, sup)
-
-	reg.RegisterContext("http://agent", "c1")
-	reg.StartPolling("t1", &scheddomain.TaskPollingState{TaskID: "t1", ContextID: "c1", AgentURL: "http://agent"})
-	if reg.HasPending() {
-		t.Fatalf("StartPolling without a supervised job must not count as pending")
-	}
-
-	job := newFakeA2ABgJob("t1", scheddomain.TaskPollingState{TaskID: "t1"})
-	reg.Submit(job)
-	<-job.started
-	if !reg.HasPending() {
-		t.Fatalf("a running supervised A2A job should count as pending")
-	}
-	close(job.finish)
-}
-
 // TestHasPending_ShellViaSupervisor asserts shell pending-state is read from the
-// supervisor too, mirroring the A2A path.
+// supervisor.
 func TestHasPending_ShellViaSupervisor(t *testing.T) {
 	sup := jobs.NewSupervisor(nil, nil, nil)
 	defer sup.Stop()
@@ -102,38 +78,6 @@ func TestHasPending_ShellViaSupervisor(t *testing.T) {
 	<-shell.started
 	if !reg.HasPending() {
 		t.Fatalf("a running supervised shell job should count as pending")
-	}
-	close(shell.finish)
-}
-
-// TestClearAllAgents_DiscardsInFlightA2AJobs: clearing the A2A graph (as /clear
-// and conversation switch do) also discards the in-flight supervised A2A jobs,
-// while shells keep running - a clear is conversation-scoped, not
-// session-scoped.
-func TestClearAllAgents_DiscardsInFlightA2AJobs(t *testing.T) {
-	sup := jobs.NewSupervisor(nil, nil, nil)
-	defer sup.Stop()
-	reg := NewBackgroundTaskRegistry(4, sup)
-
-	reg.RegisterContext("http://agent", "c1")
-	task := newFakeA2ABgJob("t1", scheddomain.TaskPollingState{TaskID: "t1"})
-	reg.Submit(task)
-	<-task.started
-
-	shell := newFakeMetaJob(scheddomain.JobMeta{ID: "shell-1", Kind: scheddomain.JobKindShell, HoldsSession: true})
-	reg.Submit(shell)
-	<-shell.started
-
-	reg.ClearAllAgents()
-
-	if reg.CountRunningJobs(scheddomain.JobKindA2A) != 0 {
-		t.Fatalf("clear must discard in-flight A2A jobs")
-	}
-	if reg.CountRunningJobs(scheddomain.JobKindShell) != 1 {
-		t.Fatalf("clear must not touch running shells")
-	}
-	if reg.HasContext("c1") {
-		t.Fatalf("clear must wipe the A2A context graph")
 	}
 	close(shell.finish)
 }

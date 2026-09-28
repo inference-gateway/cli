@@ -15,7 +15,7 @@ import (
 	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
-	agentapp "github.com/inference-gateway/cli/internal/agent/application"
+	a2a "github.com/inference-gateway/cli/internal/a2a"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
@@ -336,7 +336,7 @@ func extractExternalAgents(cfg *config.Config) []ExternalAgent {
 
 	externalAgents := make([]ExternalAgent, 0, len(cfg.A2A.Agents))
 	for _, agentURL := range cfg.A2A.Agents {
-		name := agentapp.AgentNameFromURL(agentURL)
+		name := a2a.AgentNameFromURL(agentURL)
 		externalAgents = append(externalAgents, ExternalAgent{
 			Name: name,
 			URL:  agentURL,
@@ -659,7 +659,7 @@ func (c *command) agentsStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	report := agentapp.ProbeAgents(context.Background(), local, external)
+	report := a2a.ProbeAgents(context.Background(), local, external)
 
 	format, _ := cmd.Flags().GetString("format")
 	if format == "json" {
@@ -702,10 +702,10 @@ func (c *command) startAgents(cmd *cobra.Command, args []string) error {
 	if err := rt.EnsureNetwork(ctx); err != nil {
 		return fmt.Errorf("failed to create container network: %w", err)
 	}
-	manager := agentapp.NewAgentSupervisor(containerruntime.SharedSessionID, c.state.Config(), cfg, rt, nil)
+	supervisor := a2a.NewAgentSupervisor(containerruntime.SharedSessionID, c.state.Config(), cfg, rt, nil)
 	var failed error
 	for _, agent := range agents {
-		if err := manager.StartAgent(ctx, agent); err != nil {
+		if err := supervisor.StartAgent(ctx, agent); err != nil {
 			failed = errors.Join(failed, fmt.Errorf("%s: %w", agent.Name, err))
 			fmt.Printf("%s %s\n", c.renderer.StatusIcon(false), agent.Name)
 			continue
@@ -724,9 +724,9 @@ func (c *command) stopAgents(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	manager := agentapp.NewAgentSupervisor(containerruntime.SharedSessionID, c.state.Config(), cfg, rt, nil)
+	supervisor := a2a.NewAgentSupervisor(containerruntime.SharedSessionID, c.state.Config(), cfg, rt, nil)
 	for _, agent := range agents {
-		if err := manager.StopAgentByName(context.Background(), agent.Name); err != nil {
+		if err := supervisor.StopAgentByName(context.Background(), agent.Name); err != nil {
 			return fmt.Errorf("%s: %w", agent.Name, err)
 		}
 		fmt.Printf("%s %s stopped\n", c.renderer.StatusIcon(true), agent.Name)

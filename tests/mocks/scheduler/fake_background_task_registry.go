@@ -30,16 +30,6 @@ type FakeBackgroundTaskRegistry struct {
 	addSubagentReturnsOnCall map[int]struct {
 		result1 error
 	}
-	AddTaskStub        func(string, string)
-	addTaskMutex       sync.RWMutex
-	addTaskArgsForCall []struct {
-		arg1 string
-		arg2 string
-	}
-	ClearAllAgentsStub        func()
-	clearAllAgentsMutex       sync.RWMutex
-	clearAllAgentsArgsForCall []struct {
-	}
 	CountRunningStub        func() int
 	countRunningMutex       sync.RWMutex
 	countRunningArgsForCall []struct {
@@ -102,39 +92,6 @@ type FakeBackgroundTaskRegistry struct {
 	getAllSubagentsReturnsOnCall map[int]struct {
 		result1 []*domain.SubagentState
 	}
-	GetLatestContextForAgentStub        func(string) string
-	getLatestContextForAgentMutex       sync.RWMutex
-	getLatestContextForAgentArgsForCall []struct {
-		arg1 string
-	}
-	getLatestContextForAgentReturns struct {
-		result1 string
-	}
-	getLatestContextForAgentReturnsOnCall map[int]struct {
-		result1 string
-	}
-	GetLatestTaskForContextStub        func(string) string
-	getLatestTaskForContextMutex       sync.RWMutex
-	getLatestTaskForContextArgsForCall []struct {
-		arg1 string
-	}
-	getLatestTaskForContextReturns struct {
-		result1 string
-	}
-	getLatestTaskForContextReturnsOnCall map[int]struct {
-		result1 string
-	}
-	GetPollingStateStub        func(string) *domain.TaskPollingState
-	getPollingStateMutex       sync.RWMutex
-	getPollingStateArgsForCall []struct {
-		arg1 string
-	}
-	getPollingStateReturns struct {
-		result1 *domain.TaskPollingState
-	}
-	getPollingStateReturnsOnCall map[int]struct {
-		result1 *domain.TaskPollingState
-	}
 	GetSubagentStub        func(string) *domain.SubagentState
 	getSubagentMutex       sync.RWMutex
 	getSubagentArgsForCall []struct {
@@ -145,17 +102,6 @@ type FakeBackgroundTaskRegistry struct {
 	}
 	getSubagentReturnsOnCall map[int]struct {
 		result1 *domain.SubagentState
-	}
-	HasContextStub        func(string) bool
-	hasContextMutex       sync.RWMutex
-	hasContextArgsForCall []struct {
-		arg1 string
-	}
-	hasContextReturns struct {
-		result1 bool
-	}
-	hasContextReturnsOnCall map[int]struct {
-		result1 bool
 	}
 	HasPendingStub        func() bool
 	hasPendingMutex       sync.RWMutex
@@ -177,12 +123,6 @@ type FakeBackgroundTaskRegistry struct {
 	}
 	isJobRunningReturnsOnCall map[int]struct {
 		result1 bool
-	}
-	RegisterContextStub        func(string, string)
-	registerContextMutex       sync.RWMutex
-	registerContextArgsForCall []struct {
-		arg1 string
-		arg2 string
 	}
 	RemoveStub        func(string) error
 	removeMutex       sync.RWMutex
@@ -206,11 +146,6 @@ type FakeBackgroundTaskRegistry struct {
 	removeSubagentReturnsOnCall map[int]struct {
 		result1 error
 	}
-	RemoveTaskStub        func(string)
-	removeTaskMutex       sync.RWMutex
-	removeTaskArgsForCall []struct {
-		arg1 string
-	}
 	SetSubagentStatusStub        func(string, domain.SubagentStatus) error
 	setSubagentStatusMutex       sync.RWMutex
 	setSubagentStatusArgsForCall []struct {
@@ -232,17 +167,6 @@ type FakeBackgroundTaskRegistry struct {
 	}
 	snapshotReturnsOnCall map[int]struct {
 		result1 []domain.TrackedJob
-	}
-	StartPollingStub        func(string, *domain.TaskPollingState)
-	startPollingMutex       sync.RWMutex
-	startPollingArgsForCall []struct {
-		arg1 string
-		arg2 *domain.TaskPollingState
-	}
-	StopPollingStub        func(string)
-	stopPollingMutex       sync.RWMutex
-	stopPollingArgsForCall []struct {
-		arg1 string
 	}
 	SubmitStub        func(domain.BackgroundJob)
 	submitMutex       sync.RWMutex
@@ -385,63 +309,6 @@ func (fake *FakeBackgroundTaskRegistry) AddSubagentReturnsOnCall(i int, result1 
 	fake.addSubagentReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
-}
-
-func (fake *FakeBackgroundTaskRegistry) AddTask(arg1 string, arg2 string) {
-	fake.addTaskMutex.Lock()
-	fake.addTaskArgsForCall = append(fake.addTaskArgsForCall, struct {
-		arg1 string
-		arg2 string
-	}{arg1, arg2})
-	stub := fake.AddTaskStub
-	fake.recordInvocation("AddTask", []interface{}{arg1, arg2})
-	fake.addTaskMutex.Unlock()
-	if stub != nil {
-		fake.AddTaskStub(arg1, arg2)
-	}
-}
-
-func (fake *FakeBackgroundTaskRegistry) AddTaskCallCount() int {
-	fake.addTaskMutex.RLock()
-	defer fake.addTaskMutex.RUnlock()
-	return len(fake.addTaskArgsForCall)
-}
-
-func (fake *FakeBackgroundTaskRegistry) AddTaskCalls(stub func(string, string)) {
-	fake.addTaskMutex.Lock()
-	defer fake.addTaskMutex.Unlock()
-	fake.AddTaskStub = stub
-}
-
-func (fake *FakeBackgroundTaskRegistry) AddTaskArgsForCall(i int) (string, string) {
-	fake.addTaskMutex.RLock()
-	defer fake.addTaskMutex.RUnlock()
-	argsForCall := fake.addTaskArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
-}
-
-func (fake *FakeBackgroundTaskRegistry) ClearAllAgents() {
-	fake.clearAllAgentsMutex.Lock()
-	fake.clearAllAgentsArgsForCall = append(fake.clearAllAgentsArgsForCall, struct {
-	}{})
-	stub := fake.ClearAllAgentsStub
-	fake.recordInvocation("ClearAllAgents", []interface{}{})
-	fake.clearAllAgentsMutex.Unlock()
-	if stub != nil {
-		fake.ClearAllAgentsStub()
-	}
-}
-
-func (fake *FakeBackgroundTaskRegistry) ClearAllAgentsCallCount() int {
-	fake.clearAllAgentsMutex.RLock()
-	defer fake.clearAllAgentsMutex.RUnlock()
-	return len(fake.clearAllAgentsArgsForCall)
-}
-
-func (fake *FakeBackgroundTaskRegistry) ClearAllAgentsCalls(stub func()) {
-	fake.clearAllAgentsMutex.Lock()
-	defer fake.clearAllAgentsMutex.Unlock()
-	fake.ClearAllAgentsStub = stub
 }
 
 func (fake *FakeBackgroundTaskRegistry) CountRunning() int {
@@ -778,189 +645,6 @@ func (fake *FakeBackgroundTaskRegistry) GetAllSubagentsReturnsOnCall(i int, resu
 	}{result1}
 }
 
-func (fake *FakeBackgroundTaskRegistry) GetLatestContextForAgent(arg1 string) string {
-	fake.getLatestContextForAgentMutex.Lock()
-	ret, specificReturn := fake.getLatestContextForAgentReturnsOnCall[len(fake.getLatestContextForAgentArgsForCall)]
-	fake.getLatestContextForAgentArgsForCall = append(fake.getLatestContextForAgentArgsForCall, struct {
-		arg1 string
-	}{arg1})
-	stub := fake.GetLatestContextForAgentStub
-	fakeReturns := fake.getLatestContextForAgentReturns
-	fake.recordInvocation("GetLatestContextForAgent", []interface{}{arg1})
-	fake.getLatestContextForAgentMutex.Unlock()
-	if stub != nil {
-		return stub(arg1)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetLatestContextForAgentCallCount() int {
-	fake.getLatestContextForAgentMutex.RLock()
-	defer fake.getLatestContextForAgentMutex.RUnlock()
-	return len(fake.getLatestContextForAgentArgsForCall)
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetLatestContextForAgentCalls(stub func(string) string) {
-	fake.getLatestContextForAgentMutex.Lock()
-	defer fake.getLatestContextForAgentMutex.Unlock()
-	fake.GetLatestContextForAgentStub = stub
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetLatestContextForAgentArgsForCall(i int) string {
-	fake.getLatestContextForAgentMutex.RLock()
-	defer fake.getLatestContextForAgentMutex.RUnlock()
-	argsForCall := fake.getLatestContextForAgentArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetLatestContextForAgentReturns(result1 string) {
-	fake.getLatestContextForAgentMutex.Lock()
-	defer fake.getLatestContextForAgentMutex.Unlock()
-	fake.GetLatestContextForAgentStub = nil
-	fake.getLatestContextForAgentReturns = struct {
-		result1 string
-	}{result1}
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetLatestContextForAgentReturnsOnCall(i int, result1 string) {
-	fake.getLatestContextForAgentMutex.Lock()
-	defer fake.getLatestContextForAgentMutex.Unlock()
-	fake.GetLatestContextForAgentStub = nil
-	if fake.getLatestContextForAgentReturnsOnCall == nil {
-		fake.getLatestContextForAgentReturnsOnCall = make(map[int]struct {
-			result1 string
-		})
-	}
-	fake.getLatestContextForAgentReturnsOnCall[i] = struct {
-		result1 string
-	}{result1}
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetLatestTaskForContext(arg1 string) string {
-	fake.getLatestTaskForContextMutex.Lock()
-	ret, specificReturn := fake.getLatestTaskForContextReturnsOnCall[len(fake.getLatestTaskForContextArgsForCall)]
-	fake.getLatestTaskForContextArgsForCall = append(fake.getLatestTaskForContextArgsForCall, struct {
-		arg1 string
-	}{arg1})
-	stub := fake.GetLatestTaskForContextStub
-	fakeReturns := fake.getLatestTaskForContextReturns
-	fake.recordInvocation("GetLatestTaskForContext", []interface{}{arg1})
-	fake.getLatestTaskForContextMutex.Unlock()
-	if stub != nil {
-		return stub(arg1)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetLatestTaskForContextCallCount() int {
-	fake.getLatestTaskForContextMutex.RLock()
-	defer fake.getLatestTaskForContextMutex.RUnlock()
-	return len(fake.getLatestTaskForContextArgsForCall)
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetLatestTaskForContextCalls(stub func(string) string) {
-	fake.getLatestTaskForContextMutex.Lock()
-	defer fake.getLatestTaskForContextMutex.Unlock()
-	fake.GetLatestTaskForContextStub = stub
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetLatestTaskForContextArgsForCall(i int) string {
-	fake.getLatestTaskForContextMutex.RLock()
-	defer fake.getLatestTaskForContextMutex.RUnlock()
-	argsForCall := fake.getLatestTaskForContextArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetLatestTaskForContextReturns(result1 string) {
-	fake.getLatestTaskForContextMutex.Lock()
-	defer fake.getLatestTaskForContextMutex.Unlock()
-	fake.GetLatestTaskForContextStub = nil
-	fake.getLatestTaskForContextReturns = struct {
-		result1 string
-	}{result1}
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetLatestTaskForContextReturnsOnCall(i int, result1 string) {
-	fake.getLatestTaskForContextMutex.Lock()
-	defer fake.getLatestTaskForContextMutex.Unlock()
-	fake.GetLatestTaskForContextStub = nil
-	if fake.getLatestTaskForContextReturnsOnCall == nil {
-		fake.getLatestTaskForContextReturnsOnCall = make(map[int]struct {
-			result1 string
-		})
-	}
-	fake.getLatestTaskForContextReturnsOnCall[i] = struct {
-		result1 string
-	}{result1}
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetPollingState(arg1 string) *domain.TaskPollingState {
-	fake.getPollingStateMutex.Lock()
-	ret, specificReturn := fake.getPollingStateReturnsOnCall[len(fake.getPollingStateArgsForCall)]
-	fake.getPollingStateArgsForCall = append(fake.getPollingStateArgsForCall, struct {
-		arg1 string
-	}{arg1})
-	stub := fake.GetPollingStateStub
-	fakeReturns := fake.getPollingStateReturns
-	fake.recordInvocation("GetPollingState", []interface{}{arg1})
-	fake.getPollingStateMutex.Unlock()
-	if stub != nil {
-		return stub(arg1)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetPollingStateCallCount() int {
-	fake.getPollingStateMutex.RLock()
-	defer fake.getPollingStateMutex.RUnlock()
-	return len(fake.getPollingStateArgsForCall)
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetPollingStateCalls(stub func(string) *domain.TaskPollingState) {
-	fake.getPollingStateMutex.Lock()
-	defer fake.getPollingStateMutex.Unlock()
-	fake.GetPollingStateStub = stub
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetPollingStateArgsForCall(i int) string {
-	fake.getPollingStateMutex.RLock()
-	defer fake.getPollingStateMutex.RUnlock()
-	argsForCall := fake.getPollingStateArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetPollingStateReturns(result1 *domain.TaskPollingState) {
-	fake.getPollingStateMutex.Lock()
-	defer fake.getPollingStateMutex.Unlock()
-	fake.GetPollingStateStub = nil
-	fake.getPollingStateReturns = struct {
-		result1 *domain.TaskPollingState
-	}{result1}
-}
-
-func (fake *FakeBackgroundTaskRegistry) GetPollingStateReturnsOnCall(i int, result1 *domain.TaskPollingState) {
-	fake.getPollingStateMutex.Lock()
-	defer fake.getPollingStateMutex.Unlock()
-	fake.GetPollingStateStub = nil
-	if fake.getPollingStateReturnsOnCall == nil {
-		fake.getPollingStateReturnsOnCall = make(map[int]struct {
-			result1 *domain.TaskPollingState
-		})
-	}
-	fake.getPollingStateReturnsOnCall[i] = struct {
-		result1 *domain.TaskPollingState
-	}{result1}
-}
-
 func (fake *FakeBackgroundTaskRegistry) GetSubagent(arg1 string) *domain.SubagentState {
 	fake.getSubagentMutex.Lock()
 	ret, specificReturn := fake.getSubagentReturnsOnCall[len(fake.getSubagentArgsForCall)]
@@ -1019,67 +703,6 @@ func (fake *FakeBackgroundTaskRegistry) GetSubagentReturnsOnCall(i int, result1 
 	}
 	fake.getSubagentReturnsOnCall[i] = struct {
 		result1 *domain.SubagentState
-	}{result1}
-}
-
-func (fake *FakeBackgroundTaskRegistry) HasContext(arg1 string) bool {
-	fake.hasContextMutex.Lock()
-	ret, specificReturn := fake.hasContextReturnsOnCall[len(fake.hasContextArgsForCall)]
-	fake.hasContextArgsForCall = append(fake.hasContextArgsForCall, struct {
-		arg1 string
-	}{arg1})
-	stub := fake.HasContextStub
-	fakeReturns := fake.hasContextReturns
-	fake.recordInvocation("HasContext", []interface{}{arg1})
-	fake.hasContextMutex.Unlock()
-	if stub != nil {
-		return stub(arg1)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeBackgroundTaskRegistry) HasContextCallCount() int {
-	fake.hasContextMutex.RLock()
-	defer fake.hasContextMutex.RUnlock()
-	return len(fake.hasContextArgsForCall)
-}
-
-func (fake *FakeBackgroundTaskRegistry) HasContextCalls(stub func(string) bool) {
-	fake.hasContextMutex.Lock()
-	defer fake.hasContextMutex.Unlock()
-	fake.HasContextStub = stub
-}
-
-func (fake *FakeBackgroundTaskRegistry) HasContextArgsForCall(i int) string {
-	fake.hasContextMutex.RLock()
-	defer fake.hasContextMutex.RUnlock()
-	argsForCall := fake.hasContextArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeBackgroundTaskRegistry) HasContextReturns(result1 bool) {
-	fake.hasContextMutex.Lock()
-	defer fake.hasContextMutex.Unlock()
-	fake.HasContextStub = nil
-	fake.hasContextReturns = struct {
-		result1 bool
-	}{result1}
-}
-
-func (fake *FakeBackgroundTaskRegistry) HasContextReturnsOnCall(i int, result1 bool) {
-	fake.hasContextMutex.Lock()
-	defer fake.hasContextMutex.Unlock()
-	fake.HasContextStub = nil
-	if fake.hasContextReturnsOnCall == nil {
-		fake.hasContextReturnsOnCall = make(map[int]struct {
-			result1 bool
-		})
-	}
-	fake.hasContextReturnsOnCall[i] = struct {
-		result1 bool
 	}{result1}
 }
 
@@ -1195,39 +818,6 @@ func (fake *FakeBackgroundTaskRegistry) IsJobRunningReturnsOnCall(i int, result1
 	fake.isJobRunningReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
-}
-
-func (fake *FakeBackgroundTaskRegistry) RegisterContext(arg1 string, arg2 string) {
-	fake.registerContextMutex.Lock()
-	fake.registerContextArgsForCall = append(fake.registerContextArgsForCall, struct {
-		arg1 string
-		arg2 string
-	}{arg1, arg2})
-	stub := fake.RegisterContextStub
-	fake.recordInvocation("RegisterContext", []interface{}{arg1, arg2})
-	fake.registerContextMutex.Unlock()
-	if stub != nil {
-		fake.RegisterContextStub(arg1, arg2)
-	}
-}
-
-func (fake *FakeBackgroundTaskRegistry) RegisterContextCallCount() int {
-	fake.registerContextMutex.RLock()
-	defer fake.registerContextMutex.RUnlock()
-	return len(fake.registerContextArgsForCall)
-}
-
-func (fake *FakeBackgroundTaskRegistry) RegisterContextCalls(stub func(string, string)) {
-	fake.registerContextMutex.Lock()
-	defer fake.registerContextMutex.Unlock()
-	fake.RegisterContextStub = stub
-}
-
-func (fake *FakeBackgroundTaskRegistry) RegisterContextArgsForCall(i int) (string, string) {
-	fake.registerContextMutex.RLock()
-	defer fake.registerContextMutex.RUnlock()
-	argsForCall := fake.registerContextArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeBackgroundTaskRegistry) Remove(arg1 string) error {
@@ -1352,38 +942,6 @@ func (fake *FakeBackgroundTaskRegistry) RemoveSubagentReturnsOnCall(i int, resul
 	}{result1}
 }
 
-func (fake *FakeBackgroundTaskRegistry) RemoveTask(arg1 string) {
-	fake.removeTaskMutex.Lock()
-	fake.removeTaskArgsForCall = append(fake.removeTaskArgsForCall, struct {
-		arg1 string
-	}{arg1})
-	stub := fake.RemoveTaskStub
-	fake.recordInvocation("RemoveTask", []interface{}{arg1})
-	fake.removeTaskMutex.Unlock()
-	if stub != nil {
-		fake.RemoveTaskStub(arg1)
-	}
-}
-
-func (fake *FakeBackgroundTaskRegistry) RemoveTaskCallCount() int {
-	fake.removeTaskMutex.RLock()
-	defer fake.removeTaskMutex.RUnlock()
-	return len(fake.removeTaskArgsForCall)
-}
-
-func (fake *FakeBackgroundTaskRegistry) RemoveTaskCalls(stub func(string)) {
-	fake.removeTaskMutex.Lock()
-	defer fake.removeTaskMutex.Unlock()
-	fake.RemoveTaskStub = stub
-}
-
-func (fake *FakeBackgroundTaskRegistry) RemoveTaskArgsForCall(i int) string {
-	fake.removeTaskMutex.RLock()
-	defer fake.removeTaskMutex.RUnlock()
-	argsForCall := fake.removeTaskArgsForCall[i]
-	return argsForCall.arg1
-}
-
 func (fake *FakeBackgroundTaskRegistry) SetSubagentStatus(arg1 string, arg2 domain.SubagentStatus) error {
 	fake.setSubagentStatusMutex.Lock()
 	ret, specificReturn := fake.setSubagentStatusReturnsOnCall[len(fake.setSubagentStatusArgsForCall)]
@@ -1497,71 +1055,6 @@ func (fake *FakeBackgroundTaskRegistry) SnapshotReturnsOnCall(i int, result1 []d
 	fake.snapshotReturnsOnCall[i] = struct {
 		result1 []domain.TrackedJob
 	}{result1}
-}
-
-func (fake *FakeBackgroundTaskRegistry) StartPolling(arg1 string, arg2 *domain.TaskPollingState) {
-	fake.startPollingMutex.Lock()
-	fake.startPollingArgsForCall = append(fake.startPollingArgsForCall, struct {
-		arg1 string
-		arg2 *domain.TaskPollingState
-	}{arg1, arg2})
-	stub := fake.StartPollingStub
-	fake.recordInvocation("StartPolling", []interface{}{arg1, arg2})
-	fake.startPollingMutex.Unlock()
-	if stub != nil {
-		fake.StartPollingStub(arg1, arg2)
-	}
-}
-
-func (fake *FakeBackgroundTaskRegistry) StartPollingCallCount() int {
-	fake.startPollingMutex.RLock()
-	defer fake.startPollingMutex.RUnlock()
-	return len(fake.startPollingArgsForCall)
-}
-
-func (fake *FakeBackgroundTaskRegistry) StartPollingCalls(stub func(string, *domain.TaskPollingState)) {
-	fake.startPollingMutex.Lock()
-	defer fake.startPollingMutex.Unlock()
-	fake.StartPollingStub = stub
-}
-
-func (fake *FakeBackgroundTaskRegistry) StartPollingArgsForCall(i int) (string, *domain.TaskPollingState) {
-	fake.startPollingMutex.RLock()
-	defer fake.startPollingMutex.RUnlock()
-	argsForCall := fake.startPollingArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
-}
-
-func (fake *FakeBackgroundTaskRegistry) StopPolling(arg1 string) {
-	fake.stopPollingMutex.Lock()
-	fake.stopPollingArgsForCall = append(fake.stopPollingArgsForCall, struct {
-		arg1 string
-	}{arg1})
-	stub := fake.StopPollingStub
-	fake.recordInvocation("StopPolling", []interface{}{arg1})
-	fake.stopPollingMutex.Unlock()
-	if stub != nil {
-		fake.StopPollingStub(arg1)
-	}
-}
-
-func (fake *FakeBackgroundTaskRegistry) StopPollingCallCount() int {
-	fake.stopPollingMutex.RLock()
-	defer fake.stopPollingMutex.RUnlock()
-	return len(fake.stopPollingArgsForCall)
-}
-
-func (fake *FakeBackgroundTaskRegistry) StopPollingCalls(stub func(string)) {
-	fake.stopPollingMutex.Lock()
-	defer fake.stopPollingMutex.Unlock()
-	fake.StopPollingStub = stub
-}
-
-func (fake *FakeBackgroundTaskRegistry) StopPollingArgsForCall(i int) string {
-	fake.stopPollingMutex.RLock()
-	defer fake.stopPollingMutex.RUnlock()
-	argsForCall := fake.stopPollingArgsForCall[i]
-	return argsForCall.arg1
 }
 
 func (fake *FakeBackgroundTaskRegistry) Submit(arg1 domain.BackgroundJob) {

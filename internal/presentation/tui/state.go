@@ -6,6 +6,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	a2adomain "github.com/inference-gateway/cli/internal/a2a/domain"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
@@ -687,15 +688,15 @@ type AgentReadinessState struct {
 
 // AgentStatus represents the status of an individual A2A agent
 type AgentStatus struct {
-	Name        string                 `json:"name"`
-	URL         string                 `json:"url"`
-	Image       string                 `json:"image"`
-	State       agentdomain.AgentState `json:"state"`
-	Message     string                 `json:"message,omitempty"`
-	StartTime   time.Time              `json:"start_time"`
-	Error       string                 `json:"error,omitempty"`
-	LayersDone  int                    `json:"layers_done,omitempty"`
-	LayersTotal int                    `json:"layers_total,omitempty"`
+	Name        string               `json:"name"`
+	URL         string               `json:"url"`
+	Image       string               `json:"image"`
+	State       a2adomain.AgentState `json:"state"`
+	Message     string               `json:"message,omitempty"`
+	StartTime   time.Time            `json:"start_time"`
+	Error       string               `json:"error,omitempty"`
+	LayersDone  int                  `json:"layers_done,omitempty"`
+	LayersTotal int                  `json:"layers_total,omitempty"`
 }
 
 // Agent Readiness State Management
@@ -711,7 +712,7 @@ func (s *ApplicationState) InitializeAgentReadiness(totalAgents int) {
 }
 
 // UpdateAgentStatus updates the status of a specific agent
-func (s *ApplicationState) UpdateAgentStatus(name string, state agentdomain.AgentState, message string, url string, image string) {
+func (s *ApplicationState) UpdateAgentStatus(name string, state a2adomain.AgentState, message string, url string, image string) {
 	if s.agentReadiness == nil {
 		return
 	}
@@ -736,7 +737,7 @@ func (s *ApplicationState) UpdateAgentStatus(name string, state agentdomain.Agen
 func (s *ApplicationState) recountReadyAgents() {
 	ready := 0
 	for _, agent := range s.agentReadiness.Agents {
-		if agent.State == agentdomain.AgentStateReady {
+		if agent.State == a2adomain.AgentStateReady {
 			ready++
 		}
 	}
@@ -768,7 +769,7 @@ func (s *ApplicationState) SetAgentError(name string, err error) {
 		s.agentReadiness.Agents[name] = agent
 	}
 
-	agent.State = agentdomain.AgentStateFailed
+	agent.State = a2adomain.AgentStateFailed
 	agent.Error = err.Error()
 	s.recountReadyAgents()
 }

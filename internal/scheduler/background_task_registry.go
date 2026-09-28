@@ -7,19 +7,11 @@ import (
 )
 
 // backgroundTaskRegistry is the single registry that owns all in-flight
-// background work an agent session can produce: A2A tasks AND background
-// bash shells. It is the unified replacement for the previously-separate
-// A2A task tracker and shell tracker services.
-//
-// Internally it composes the two existing trackers and exposes their union
-// of methods plus an aggregator HasPending() that asks "is *anything*
-// happening in the background right now?". This is the single source of
-// truth the agent engine consults at the completion boundary.
-//
-// Both embedded trackers retain their own internal mutexes; this struct
-// adds no additional locking.
+// background work an agent session can produce. It composes the shell and
+// subagent trackers with the job supervisor. HasPending is the "is *anything*
+// running?" query the agent engine consults at the completion boundary. The
+// embedded trackers keep their own mutexes, so this struct adds no locking.
 type backgroundTaskRegistry struct {
-	*schedinfra.A2ATaskTracker  // promotes the A2ATaskTracker surface
 	scheddomain.ShellTracker    // promotes the ShellTracker surface
 	scheddomain.SubagentTracker // promotes the SubagentTracker surface
 	supervisor                  *jobs.Supervisor
@@ -31,7 +23,6 @@ type backgroundTaskRegistry struct {
 // surface (Submit/Snapshot/Wind).
 func NewBackgroundTaskRegistry(maxConcurrentShells int, supervisor *jobs.Supervisor) scheddomain.BackgroundTaskRegistry {
 	return &backgroundTaskRegistry{
-		A2ATaskTracker:  schedinfra.NewA2ATaskTracker(),
 		ShellTracker:    schedinfra.NewShellTracker(maxConcurrentShells),
 		SubagentTracker: schedinfra.NewSubagentTracker(),
 		supervisor:      supervisor,
@@ -55,19 +46,9 @@ func (r *backgroundTaskRegistry) WindJob(id string, sig scheddomain.WindSignal) 
 }
 
 // IsJobRunning delegates to the supervisor - the single source of truth for
-// whether a supervised job (A2A task, shell, or subagent) is still running.
+// whether a supervised job is still running.
 func (r *backgroundTaskRegistry) IsJobRunning(id string) bool {
 	return r.supervisor.IsRunning(id)
-}
-
-// ClearAllAgents wipes the A2A context/task graph AND discards the in-flight
-// supervised A2A jobs, so a conversation clear/switch cannot leave orphaned
-// pollers running (still counted in the status bar, listed in /tasks, and able
-// to land a late completion note). Shells and subagents are deliberately
-// untouched - they are session-scoped, not conversation-scoped.
-func (r *backgroundTaskRegistry) ClearAllAgents() {
-	r.supervisor.DiscardKind(scheddomain.JobKindA2A)
-	r.A2ATaskTracker.ClearAllAgents()
 }
 
 // HasPending reports whether any session-holding background job is still in
