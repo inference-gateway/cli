@@ -103,6 +103,16 @@ func TestTool_ExecuteTimeoutKillsTheProcessGroup(t *testing.T) {
 	}
 }
 
+func TestTool_ExecuteKeepsARunThatFinishedDuringThePipeGrace(t *testing.T) {
+	tool, _ := scriptTool(t, "( sleep 2 ) & echo done")
+	tool.timeout = 500 * time.Millisecond
+
+	result, _ := tool.Execute(context.Background(), map[string]any{"text": "hi"})
+	if !result.Success || result.Data != "done\n" {
+		t.Errorf("result = %+v, want the completed run kept with its output", result)
+	}
+}
+
 func TestTool_ExecuteCancelled(t *testing.T) {
 	tool, _ := scriptTool(t, "sleep 30")
 	ctx, cancel := context.WithCancel(context.Background())

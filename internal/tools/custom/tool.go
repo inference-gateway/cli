@@ -104,14 +104,17 @@ func (t *Tool) run(ctx context.Context, args map[string]any) (string, error) {
 
 	err = cmd.Run()
 	switch {
+	case err == nil || (errors.Is(err, exec.ErrWaitDelay) && cmd.ProcessState.ExitCode() == 0):
+		return stdout.String(), nil
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
 		return "", fmt.Errorf("timed out after %s", t.timeout)
 	case ctx.Err() != nil:
 		return "", ctx.Err()
-	case err != nil && !errors.Is(err, exec.ErrWaitDelay):
+	case errors.Is(err, exec.ErrWaitDelay):
+		return "", failure(fmt.Errorf("%s (a child kept the output open)", cmd.ProcessState), stderr.String(), stdout.String())
+	default:
 		return "", failure(err, stderr.String(), stdout.String())
 	}
-	return stdout.String(), nil
 }
 
 // failure explains a failed run with stderr, or stdout when stderr is empty.
