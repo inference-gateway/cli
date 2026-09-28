@@ -464,6 +464,18 @@ See [Telemetry](telemetry.md) for the baggage keys and mixed CLI/ADK deployment 
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
 - **agent.max_concurrent_tools**: Maximum number of tools that can execute concurrently (default: 5)
+- **agent.agents_md** (config.yaml): Injects the project's `AGENTS.md` files into the system prompt as a
+  `PROJECT INSTRUCTIONS (AGENTS.md)` section. Sub-keys: `enabled` (default true), `max_lines` (per file,
+  default 399), `max_chars` (combined budget, default 8000). Env: `INFER_AGENT_AGENTS_MD_ENABLED`,
+  `INFER_AGENT_AGENTS_MD_MAX_LINES`, `INFER_AGENT_AGENTS_MD_MAX_CHARS`.
+- Nested AGENTS.md briefs: following the [agents.md](https://agents.md) standard, `infer` also injects an
+  `AGENTS.md` found in subdirectories of the working directory (up to 4 levels deep; hidden trees and
+  `node_modules`/`vendor` are skipped), each labeled with the directory it applies to, e.g.
+  `internal/tools/AGENTS.md (applies to internal/tools/ and below):`. When they conflict, the file closest to
+  the edited code takes precedence over shallower ones. The combined text is capped at `agent.agents_md.max_chars`,
+  budgeted nearest-file-first: deeper files keep their instructions and shallower files are truncated
+  (marker `[truncated at N chars to fit agent.agents_md.max_chars]`) or dropped (note lists the dropped paths)
+  when the budget runs out.
 
 ### System Reminders (reminders.yaml)
 

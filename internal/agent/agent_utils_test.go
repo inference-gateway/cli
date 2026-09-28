@@ -704,6 +704,71 @@ func TestBuildAgentsMDInfo(t *testing.T) {
 		require.NotContains(t, got, strings.Repeat("x", 11))
 		require.Contains(t, got, "[truncated at 10 chars]")
 	})
+
+	t.Run("injects nested AGENTS.md files with labels after root", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.MkdirAll(filepath.Join("internal", "presentation"), 0o755))
+		require.NoError(t, os.MkdirAll(filepath.Join("internal", "tools"), 0o755))
+		require.NoError(t, os.WriteFile("AGENTS.md", []byte("root rules"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join("internal", "presentation", "AGENTS.md"), []byte("presentation rules"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join("internal", "tools", "AGENTS.md"), []byte("tools rules"), 0o644))
+
+		got := newSvc(true, 0).buildAgentsMDInfo()
+		root := strings.Index(got, "root rules")
+		presentation := strings.Index(got, "internal/presentation/AGENTS.md (applies to internal/presentation/ and below):\npresentation rules")
+		tools := strings.Index(got, "internal/tools/AGENTS.md (applies to internal/tools/ and below):\ntools rules")
+		require.GreaterOrEqual(t, root, 0)
+		require.Greater(t, presentation, root)
+		require.Greater(t, tools, presentation)
+		require.Contains(t, got, "the one closest to the edited code takes precedence over shallower ones")
+	})
+
+	t.Run("budget keeps the nearest file and truncates shallower ones", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.MkdirAll(filepath.Join("internal", "tools"), 0o755))
+		require.NoError(t, os.WriteFile("AGENTS.md", []byte(strings.Repeat("r", 50)), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join("internal", "tools", "AGENTS.md"), []byte("tools rules"), 0o644))
+
+		got := newSvc(true, 20).buildAgentsMDInfo()
+		require.Contains(t, got, "tools rules")
+		require.Contains(t, got, strings.Repeat("r", 9))
+		require.NotContains(t, got, strings.Repeat("r", 10))
+		require.Contains(t, got, "[truncated at 20 chars to fit agent.agents_md.max_chars]")
+	})
+
+	t.Run("drops shallower files when the budget is exhausted", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.MkdirAll(filepath.Join("internal", "tools"), 0o755))
+		require.NoError(t, os.WriteFile("AGENTS.md", []byte("root rules"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join("internal", "tools", "AGENTS.md"), []byte("tools rules"), 0o644))
+
+		got := newSvc(true, 11).buildAgentsMDInfo()
+		require.Contains(t, got, "tools rules")
+		require.NotContains(t, got, "root rules")
+		require.Contains(t, got, "[agent.agents_md.max_chars budget exhausted; AGENTS.md dropped]")
+	})
+
+	t.Run("skips hidden, vendored and too-deep directories", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		skipped := map[string]string{
+			filepath.Join("deep", "a", "b", "c", "d"): "too deep",
+			".hidden":      "hidden rules",
+			"node_modules": "node rules",
+			"vendor":       "vendor rules",
+		}
+		for dir, text := range skipped {
+			require.NoError(t, os.MkdirAll(dir, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(text), 0o644))
+		}
+		require.NoError(t, os.MkdirAll(filepath.Join("deep", "a", "b", "c"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join("deep", "a", "b", "c", "AGENTS.md"), []byte("at depth four"), 0o644))
+
+		got := newSvc(true, 0).buildAgentsMDInfo()
+		require.Contains(t, got, "at depth four")
+		for _, text := range skipped {
+			require.NotContains(t, got, text)
+		}
+	})
 }
 
 func TestBuildProjectTreeInfo(t *testing.T) {
