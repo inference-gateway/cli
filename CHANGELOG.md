@@ -5,6 +5,91 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.218.0](https://github.com/inference-gateway/cli/compare/v0.217.0...v0.218.0) (2026-09-28)
+
+### 🚀 Features
+
+* **agent:** point the agent at nested AGENTS.md files ([#1392](https://github.com/inference-gateway/cli/issues/1392)) ([1e8e335](https://github.com/inference-gateway/cli/commit/1e8e335cde593c77b9a91a1e42de94478dd7bdf6)), closes [#1385](https://github.com/inference-gateway/cli/issues/1385), references [inference-gateway/docs#853](https://github.com/inference-gateway/docs/issues/853)
+
+### 🐛 Bug Fixes
+
+* **github:** allow task in every generated OpenTask workflow ([#1391](https://github.com/inference-gateway/cli/issues/1391)) ([c4f5b07](https://github.com/inference-gateway/cli/commit/c4f5b07b2d86308e3e2cfd46f6c64ce5d39a93a4))
+
+### ♻️ Code Refactoring
+
+* **browser:** split the extension bridge into panel units ([#1387](https://github.com/inference-gateway/cli/issues/1387)) ([d9f104f](https://github.com/inference-gateway/cli/commit/d9f104f175352fd7852acc817e68824e42444df2)), closes [#1370](https://github.com/inference-gateway/cli/issues/1370)
+
+### 📚 Documentation
+
+* fix inaccuracies from the README split ([#1393](https://github.com/inference-gateway/cli/issues/1393)) ([a3483c7](https://github.com/inference-gateway/cli/commit/a3483c793b5c78cfa958049bd93cf3d40f5f04de)), references [#1384](https://github.com/inference-gateway/cli/issues/1384) [#1384](https://github.com/inference-gateway/cli/issues/1384)
+* split README and AGENTS.md into topic and package docs ([#1384](https://github.com/inference-gateway/cli/issues/1384)) ([a38cce4](https://github.com/inference-gateway/cli/commit/a38cce4f2eb8cfc991e715db71eb46d65a9f662b)), closes [#1379](https://github.com/inference-gateway/cli/issues/1379), references [#1385](https://github.com/inference-gateway/cli/issues/1385)
+* widen the no-semicolons rule to commit messages and PR bodies ([#1394](https://github.com/inference-gateway/cli/issues/1394)) ([30526cc](https://github.com/inference-gateway/cli/commit/30526ccb64dc553927d0e299e0da6bae9fb9fb1a))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.218.0 --help
+npx @inference-gateway/cli@0.218.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.218.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.218.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.218.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.218.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.218.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.217.0](https://github.com/inference-gateway/cli/compare/v0.216.1...v0.217.0) (2026-09-28)
 
 ### 🚀 Features
