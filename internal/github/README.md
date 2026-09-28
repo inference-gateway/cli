@@ -7,8 +7,9 @@
 ## How it plugs in
 
 - `issues/` resolves the repository's open issues and expands `#N` into the issue's title, body and recent comments.
-- `setup/` backs the `/install-opentask` shortcut: an agent run writes `.github/workflows/tasks.yml` from the
-  `opentask` skill on an install branch, then opens a pull request.
+- `setup/` installs the OpenTask workflow (`.github/workflows/tasks.yml`) on a branch and opens a pull request,
+  behind `infer workflow install` and the TUI setup wizard. The `/install-opentask` shortcut instead hands its
+  install prompt to the chat agent, which does the same steps itself.
 - There is deliberately no built-in GitHub tool. Bash with the `gh` CLI and the `/scm` shortcuts are the supported paths.
 
 ## Related

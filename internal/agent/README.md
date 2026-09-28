@@ -2,7 +2,8 @@
 
 **What** - the agent bounded context: the event-driven state machine that turns a user turn into model calls, tool calls and approvals.
 **Why** - the loop is the core domain of the CLI, and every other context exists to hand it tools, storage or transport.
-**How** - `agent_state_machine.go` routes events, `states/` runs one executor per state, and `domain/` holds the ports the loop calls.
+**How** - `agent_event_driven.go` routes events to `states/`, which runs one executor per state. `agent_state_machine.go`
+defines the allowed transitions, and `domain/` holds the ports the loop calls.
 
 ## How it plugs in
 

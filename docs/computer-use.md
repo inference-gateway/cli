@@ -30,5 +30,5 @@ macOS-only for now, and other platforms fall back to screenshots. Actions are go
 ## Related
 
 - [Tools Reference](tools-reference.md#accessibility-provider) - the computer-use tools and the accessibility provider
-- [Configuration Reference](configuration-reference.md#screen-recording-computer_useyaml) - rate limits, screen recording, and approval settings
+- [Configuration Reference](configuration-reference.md#computer-use-computer_useyaml) - approval and rate limits, then screen recording
 - [Vision](vision.md) - how frames are annotated for text-only models

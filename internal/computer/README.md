@@ -12,8 +12,7 @@ bridges and the screenshot stream.
   `tools/`, and the container registers them into the tools registry.
 - The accessibility provider is macOS-only today. Other platforms return an unsupported error and the tool falls
   back to screenshot guidance, so a native failure never takes down the CLI.
-- A machine-wide lock keeps two computer-use sessions from driving the same desktop at once.
-- Configure it in `computer_use.yaml` (or `INFER_COMPUTER_USE_*`). Actions are governed by `enabled`, `rate_limit` and `approval`.
+- A file lock keeps two computer-use sessions from driving the same desktop at once. It is a no-op on Windows.
 
 ## Related
 

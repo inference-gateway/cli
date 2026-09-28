@@ -30,8 +30,7 @@ The recommended install is npm/npx - the matching native binary is fetched and c
 npx @inference-gateway/cli@latest chat
 ```
 
-For production or CI, use the install script, Nix flake, container image, or a source build.
-See **[Installation](docs/installation.md)** for every method, and **[Binary Verification](docs/binary-verification.md)** to verify a download.
+See **[Installation](docs/installation.md)** for production and CI installs, and **[Binary Verification](docs/binary-verification.md)** to verify a download.
 
 ## Quick Start
 
@@ -68,15 +67,15 @@ One line per feature, each linking to its full guide:
 
 ### Core
 
-- **Automatic gateway management** - downloads and runs the gateway binary, no Docker required
+- **Automatic gateway management** - downloads and runs the gateway binary, no Docker required - [Installation](docs/installation.md)
 - **Interactive chat and headless agent** - model selection, streaming, session resumption, inline history auto-completion - [Commands Reference](docs/commands-reference.md)
 - **Agent modes** - Standard, Plan, Auto-Accept and Auto+Judge, toggled with Shift+Tab - [Plan Mode](docs/plan-mode.md) · [Judge Mode](docs/judge-mode.md)
-- **Tool execution** - every tool the LLM can call, with parameters and approval defaults - [Tools Reference](docs/tools-reference.md)
+- **Tool execution** - every built-in tool the LLM can call, with parameters and approval defaults - [Tools Reference](docs/tools-reference.md)
 - **Tool approval** - the gate in front of sensitive tools - [Tool Approval](docs/tool-approval.md)
 - **Custom tools** - add tools in any language with one YAML manifest - [Custom Tools](docs/custom-tools.md)
 - **MCP servers** - Model Context Protocol integration - [MCP Integration](docs/mcp-integration.md)
 - **Subagents** - fan out parallel `infer headless` runs - [Subagents](docs/subagents.md)
-- **GitHub issue references** - type `#` in chat to expand an issue's title, body and comments inline
+- **GitHub issue references** - type `#` in chat to expand an issue inline (needs `gh` and a GitHub remote) - [Shortcuts Guide](docs/shortcuts-guide.md)
 - **Cost tracking** - real-time per-model cost breakdown - [Cost Tracking](docs/cost-tracking.md)
 - **Conversation history** - multiple storage backends - [Conversation Storage](docs/conversation-storage.md)
 - **Conversation versioning** - navigate back in time to a previous point - [Conversation Versioning](docs/conversation-versioning.md)

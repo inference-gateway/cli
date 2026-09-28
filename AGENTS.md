@@ -26,7 +26,9 @@ Single test: `go test ./internal/agent -run TestBashTool`. **Run `task precommit
 
 The codebase is **bounded contexts (DDD)** under `internal/`. Each context owns its contracts in a `domain/` subpackage that imports nothing internal except `agent/domain`, the shared kernel (tool results, agent mode, chat events). Tool contracts stay in the shared kernel because the a2a, browser, computer and MCP tools implement them. Adapters sit in `<context>/infrastructure/`, the protocol integrations (`a2a`, `mcp`, `agui`) under `internal/protocols/`, and `platform/` is shared infrastructure.
 
-**Before changing a package, read its `internal/<context>/README.md`.** Each bounded context and capability has one, covering what it is, why it exists, and how it plugs in.
+Contexts: `agent`, `binaries`, `browser`, `computer`, `conversation`, `scheduler`, `tools`, `protocols/{a2a,mcp,agui}`. Capabilities, which have no `domain/`: `audio`, `channels`, `github`, `plugins`, `skills`. `avatars`, `gateway`, `insights` and `provisioner` are single-package support code.
+
+**Before changing a context or capability, read its `internal/<name>/README.md`.** It covers what it is, why it exists, and how it plugs in.
 
 Repo-wide invariants:
 
@@ -35,7 +37,7 @@ Repo-wide invariants:
 
 ## Package AGENTS files
 
-A package with its own agent rules ships an `AGENTS.md` next to the code, and that file takes precedence for its directory. `infer` injects only this root file, so read the nested one before editing there.
+`internal/tools/AGENTS.md` and `internal/presentation/AGENTS.md` hold package-only rules and take precedence for their directory. `infer` injects only the `AGENTS.md` in its working directory, so read the nested one before editing there.
 
 ## Import Style
 

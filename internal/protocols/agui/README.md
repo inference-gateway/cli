@@ -7,7 +7,7 @@ answers flow back through the channels it is given.
 
 ## How it plugs in
 
-- `infer headless --output agui` selects it. The browser extension bridge reuses it for its own event stream.
+- `infer headless --format ag-ui` selects it. The browser extension bridge reuses it for its own event stream.
 - A run emits one `RUN_STARTED`, per-turn deltas and tool calls, then one `RUN_FINISHED` carrying the session
   stats (tokens, cost, tool calls) or one `RUN_ERROR`.
 - There is no `domain/` subpackage: the only model it owns is the published event mapping.

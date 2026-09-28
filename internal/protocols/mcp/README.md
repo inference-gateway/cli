@@ -8,7 +8,8 @@ connections, their containers and their liveness.
 
 ## How it plugs in
 
-- `Supervisor.DiscoverTools` registers each discovered tool as `MCP_<server>_<tool>`.
+- The `Supervisor` discovers each server's tools and names them `MCP_<server>_<tool>`. Chat registers them as
+  server status updates arrive; headless registers them once at start-up.
 - Servers are configured in `.infer/mcp.yaml` or `~/.infer/mcp.yaml`. `infer mcp` and the `/mcp` shortcut manage them.
 - Only tools are consumed. Embedded resource blocks in a tool result are flattened into text.
 

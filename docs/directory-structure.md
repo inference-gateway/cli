@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md)
 
-This page is a map of every file and subdirectory the `infer` CLI reads or
+This page is a map of the main files and subdirectories the `infer` CLI reads or
 writes. It complements [Configuration Reference](configuration-reference.md),
 which documents what each *option* does - this page documents where each
 *file* lives and why it exists.
@@ -58,6 +58,8 @@ for the full precedence rules.
 ├── agents.yaml           # A2A agent registry
 ├── agents/               # Markdown subagent definitions (<name>.md), see docs/subagents.md
 ├── mcp.yaml              # MCP server registry
+├── memory.yaml           # persistent memory settings, see docs/memory.md
+├── memory/               # memory fact-files and the MEMORY.md index
 ├── shortcuts/            # /-prefixed chat shortcuts (built-in + custom)
 │   ├── git.yaml
 │   ├── scm.yaml

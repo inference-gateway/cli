@@ -12,8 +12,7 @@ answers tool policy from the manifests.
 - `custom/` (alias `customtools`) loads custom tools from `~/.infer/tools/`, the project's `.infer/tools/` and
   `.agents/tools/`. A custom manifest adds `command`, `timeout` and `enabled`, and the tool gets the call's
   arguments as JSON on stdin and returns its stdout.
-- MCP tools are registered at runtime from `Supervisor.DiscoverTools`.
-- Configure the built-ins under `tools.*` in `config.yaml` (env `INFER_TOOLS_*`).
+- MCP tools are registered at runtime, once the MCP supervisor has discovered them.
 
 ## Related
 

@@ -4,8 +4,9 @@
 
 **What** - the gate that asks you before a sensitive tool (writing files, running commands, scheduling jobs) actually runs.
 **Why** - the agent can change your filesystem and run processes, so side-effecting tools stay behind an explicit decision by default.
-**How** - every tool inherits the global `tools.safety.require_approval: true` default unless its manifest
-exempts it. The per-tool defaults are in the [Tools Reference](tools-reference.md#tool-overview).
+**How** - a tool takes `require_approval` from its config section, then its manifest, then the global
+`tools.safety.require_approval: true` default. Computer-use tools and Bash have their own gates. The per-tool
+defaults and the full resolution order are in the [Tools Reference](tools-reference.md#tool-overview).
 
 ## How It Works
 
@@ -31,9 +32,10 @@ The approval box is an inline select: **left / right** moves between
 
 ## Approval Behaviour
 
-`approval_behaviour` decides how a gated call is resolved (`prompt`, `ipc`, `judge` or `block`), independently
-of whether it is gated. Headless runs block when no approver is reachable. See the
-[configuration reference](configuration-reference.md#tool-settings) for the values and per-tool overrides.
+`tools.safety.approval_behaviour` decides how a gated call is resolved (`prompt`, `ipc`, `judge` or `block`),
+independently of whether it is gated. It is global: there is no per-tool behaviour. Headless runs block when no
+approver is reachable. See the [configuration reference](configuration-reference.md#tool-settings) for the values
+and the per-tool `require_approval` overrides.
 
 ## Related
 
