@@ -66,6 +66,7 @@ for the full precedence rules.
 │   ├── export.yaml
 │   └── a2a.yaml
 ├── skills/               # Agent Skills - SKILL.md folders, see docs/skills.md
+├── tools/                # custom tool manifests (<Name>.yaml), see docs/custom-tools.md
 ├── avatars/              # TextToVideo avatar library: <name>/ folders of portrait images; survives /reset
 ├── schedules/            # cron-driven scheduled jobs (one YAML per job)
 ├── plans/                # plan-mode plans saved by RequestPlanApproval (one .md per plan)

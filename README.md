@@ -92,6 +92,8 @@ An agentic command-line assistant that writes code, understands project context,
 - **MCP Server Support**: Direct integration with Model Context Protocol servers for extended tool capabilities.
   Servers must speak MCP `2026-07-28`; the gateway's `/mcp` works as a single entry for all its servers -
   [Learn more →](docs/mcp-integration.md)
+- **Custom Tools**: Add tools written in any language with one YAML manifest per tool in `~/.infer/tools/` - no SDK or
+  server needed - [Learn more →](docs/custom-tools.md)
 - **Web Terminal Interface**: Browser-based terminal access with tabbed sessions for remote access and multi-session workflows - [Learn more →](docs/web-terminal.md)
 - **Remote Messaging Channels**: Control the agent from Telegram, WhatsApp, and other platforms via a pluggable channel system - [Learn more →](docs/channels.md)
 - **Speech-to-Text (Whisper)**: Dictate into chat with `/voice` and transcribe inbound Telegram voice messages, locally and offline -
@@ -326,6 +328,7 @@ Now that you're up and running, explore these guides:
 
 - **[Commands Reference](docs/commands-reference.md)** - Complete command documentation
 - **[Tools Reference](docs/tools-reference.md)** - Available tools for LLMs
+- **[Custom Tools](docs/custom-tools.md)** - Add your own tools in any language through YAML manifests
 - **[Configuration Guide](docs/configuration-reference.md)** - Full configuration options
 - **[Directory Structure](docs/directory-structure.md)** - Map of every file and subdirectory the CLI creates under `.infer/` and `~/.infer/`
 - **[Web Terminal](docs/web-terminal.md)** - Browser-based terminal interface

@@ -322,6 +322,8 @@ telemetry:
   (baseline applied in every mode), `plan`, `standard`, or `auto`. The effective list is `mode.all.allow` unioned with the active mode's
   list. Anything unmatched is denied (approval in chat, rejection in headless agent mode). The `.*` sentinel (default for `auto`) means
   unrestricted.
+- **tools.custom_dir**: Directory the [custom tool](custom-tools.md) manifests load from (default: `""`, meaning
+  `~/.infer/tools/`). Env: `INFER_TOOLS_CUSTOM_DIR`.
 - **tools.safety.require_approval**: Whether a tool needs approval at all (default: true; a per-tool `require_approval` overrides it)
 - **tools.safety.approval_behaviour**: *How* a needed approval is delivered (default: `prompt`). Env: `INFER_TOOLS_SAFETY_APPROVAL_BEHAVIOUR`.
   - `prompt` - ask an interactive approver via whatever channel is attached: a TUI prompt in chat, IPC under the channel manager
@@ -868,6 +870,7 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 ### Tools Configuration
 
 - `INFER_TOOLS_ENABLED`: Enable/disable all local tools (default: `true`)
+- `INFER_TOOLS_CUSTOM_DIR`: Directory to load [custom tool](custom-tools.md) manifests from (default: `~/.infer/tools/`)
 
 **Individual Tool Enablement:**
 
