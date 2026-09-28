@@ -44,7 +44,7 @@ With Nix (flakes enabled), run directly without installing:
 nix run github:inference-gateway/cli
 
 # Pin a specific release
-nix run github:inference-gateway/cli/v0.135.0
+nix run github:inference-gateway/cli/v0.217.0
 ```
 
 Or install into your profile:
