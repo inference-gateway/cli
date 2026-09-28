@@ -115,6 +115,16 @@ func TestNewTools_MissingDirectory(t *testing.T) {
 	}
 }
 
+func TestNewTools_MetacharacterDirectoryName(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "tools [old]")
+	writeFiles(t, dir, map[string]string{"Echo.yaml": echoManifest})
+	cfg := &config.Config{Tools: config.ToolsConfig{CustomDir: dir}}
+	tools := NewTools(cfg, builtins)
+	if len(tools) != 1 || tools["Echo"] == nil {
+		t.Errorf("loaded %v, want Echo from a directory whose name holds glob metacharacters", slices.Collect(maps.Keys(tools)))
+	}
+}
+
 func TestNewTools_ProjectToolsMergeWithUserTools(t *testing.T) {
 	project := t.TempDir()
 	t.Chdir(project)

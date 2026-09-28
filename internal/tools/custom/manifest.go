@@ -1,6 +1,7 @@
 package custom
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,7 +50,7 @@ func NewTools(cfg *config.Config, builtins []string) map[string]agentdomain.Tool
 // invalid, takes one of the builtins' names or the MCP prefix is skipped with
 // a warning.
 func loadDir(dir string, builtins []string) map[string]*Tool {
-	paths, _ := filepath.Glob(filepath.Join(dir, "*.yaml"))
+	paths := listManifests(dir)
 	tools := make(map[string]*Tool, len(paths))
 	for _, path := range paths {
 		m, err := parseManifest(path, builtins)
@@ -63,6 +64,26 @@ func loadDir(dir string, builtins []string) map[string]*Tool {
 		tools[m.Name] = newTool(m, dir)
 	}
 	return tools
+}
+
+// listManifests returns the paths of the *.yaml manifests in dir. A missing
+// directory yields none, anything else that prevents listing is skipped with
+// a warning.
+func listManifests(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			logger.Warn("skipping custom tool directory", "dir", dir, "error", err)
+		}
+		return nil
+	}
+	var paths []string
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".yaml") {
+			paths = append(paths, filepath.Join(dir, entry.Name()))
+		}
+	}
+	return paths
 }
 
 func absDir(dir string) string {
