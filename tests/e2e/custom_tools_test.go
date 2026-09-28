@@ -14,7 +14,8 @@ import (
 )
 
 // TestCustomToolsExample runs examples/tools against the model its
-// scenarios.yaml scripts, so the example's README stays true.
+// scenarios.yaml scripts, so the example's README stays true. Each run works in
+// a copy of the example's project tools (.agents/tools).
 func TestCustomToolsExample(t *testing.T) {
 	example := filepath.Join(repoRoot(), "examples", "tools")
 	defs, err := mockgateway.LoadFile(filepath.Join(example, "scenarios.yaml"))
@@ -23,8 +24,9 @@ func TestCustomToolsExample(t *testing.T) {
 
 	toolResult := func(t *testing.T, dir string, args ...string) string {
 		t.Helper()
+		require.NoError(t, os.CopyFS(filepath.Join(dir, ".agents"), os.DirFS(filepath.Join(example, ".agents"))))
 		env := inferEnv(m.URL)
-		env["INFER_TOOLS_CUSTOM_DIR"] = filepath.Join(example, "tools")
+		env["INFER_TOOLS_CUSTOM_DIR"] = filepath.Join(example, "user-tools")
 		env["INFER_AGENT_MODEL"] = "mock/openai/gpt-4o"
 		res := tokenless.Orchestrator{Bin: binPath, Dir: dir, Env: env}.Run(t, append([]string{"headless"}, args...)...)
 		require.Zero(t, res.ExitCode, "stderr:\n%s", res.Stderr)
@@ -39,7 +41,7 @@ func TestCustomToolsExample(t *testing.T) {
 		require.Contains(t, toolResult(t, dir, "count the words in README.md"), "README.md: 2 lines, 3 words, 14 characters")
 	})
 
-	t.Run("SaveNote is blocked without an approver", func(t *testing.T) {
+	t.Run("project tool SaveNote is blocked without an approver", func(t *testing.T) {
 		dir := t.TempDir()
 		require.Contains(t, toolResult(t, dir, "save a note to buy milk"), "Blocked: SaveNote requires approval")
 		require.NoFileExists(t, filepath.Join(dir, "notes.jsonl"))

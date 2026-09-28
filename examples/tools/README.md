@@ -1,11 +1,16 @@
 # Custom tools
 
-Add your own tools to `infer` in any language, with one YAML manifest per tool. This example ships two:
+Add your own tools to `infer` in any language, with one YAML manifest per tool. This example ships one of each kind:
 
-| Tool | Language | Policy |
-| --- | --- | --- |
-| `WordCount` | Python | Read-only: offered in every mode, including plan and readonly, and never asks for approval |
-| `SaveNote` | Shell | Writes a file: hidden in plan and readonly, and needs approval |
+| Tool | Kind | Language | Policy |
+| --- | --- | --- | --- |
+| `WordCount` | User tool | Python | Read-only: offered in every mode, including plan and readonly, and never asks for approval |
+| `SaveNote` | Project tool | Shell | Writes a file: hidden in plan and readonly, and always needs approval |
+
+- **User tools** live in `~/.infer/tools/`. You installed them, so infer follows their manifest's `require_approval`.
+  Here `user-tools/` plays that role through `INFER_TOOLS_CUSTOM_DIR`.
+- **Project tools** live in a repository's `.infer/tools/` or `.agents/tools/` and load when you run `infer` in it.
+  The repository supplies them, so every call needs approval except in `auto` mode, whatever the manifest says.
 
 The model is a [tokenless](https://github.com/inference-gateway/tokenless) mock scripted in
 [`scenarios.yaml`](scenarios.yaml), so the example runs offline with no API key and no gateway. You need
@@ -19,9 +24,10 @@ See [Custom Tools](../../docs/custom-tools.md) for the full manifest reference.
 tools/
 ├── Taskfile.yml          # one task per scenario, with the mock model's environment
 ├── scenarios.yaml        # what the mock model says, per prompt
-└── tools/                # INFER_TOOLS_CUSTOM_DIR
-    ├── WordCount.yaml    # manifest: name, description, command, parameters, modes, require_approval
-    ├── word_count.py     # reads {"path": ...} on stdin, prints the counts
+├── user-tools/           # user tools, standing in for ~/.infer/tools via INFER_TOOLS_CUSTOM_DIR
+│   ├── WordCount.yaml    # manifest: name, description, command, parameters, modes, require_approval
+│   └── word_count.py     # reads {"path": ...} on stdin, prints the counts
+└── .agents/tools/        # project tools, loaded because infer runs in this directory
     ├── SaveNote.yaml
     └── save-note.sh      # appends the JSON arguments to notes.jsonl
 ```
@@ -37,7 +43,7 @@ line of its JSON output, which carries the tool's result.
 | Task | What happens |
 | --- | --- |
 | `task word-count` | The model calls `WordCount`, which runs straight away because its manifest sets `require_approval: false` |
-| `task save-note` | The model calls `SaveNote`, which needs approval. Headless mode has no one to ask, so the call is blocked |
+| `task save-note` | The model calls `SaveNote`, a project tool, which needs approval. Headless mode has no one to ask, so the call is blocked |
 | `task save-note:auto` | In `auto` mode calls run without approval, so the note is saved to `notes.jsonl` |
 | `task save-note:plan` | Plan mode offers only tools that list `plan` in their `modes`, so `SaveNote` is refused |
 | `task all` | Runs the four scenarios above |
@@ -83,7 +89,7 @@ The Taskfile only sets four environment variables. Set them yourself to run `inf
 export INFER_GATEWAY_MOCK=true
 export INFER_GATEWAY_MOCK_SCENARIOS="$PWD/scenarios.yaml"
 export INFER_AGENT_MODEL=mock/openai/gpt-4o
-export INFER_TOOLS_CUSTOM_DIR="$PWD/tools"
+export INFER_TOOLS_CUSTOM_DIR="$PWD/user-tools"
 
 infer headless --no-save "count the words in README.md" | grep '"role":"tool"'
 infer tools execute SaveNote '{"text":"Call the plumber"}'
@@ -92,5 +98,6 @@ infer tools execute SaveNote '{"text":"Call the plumber"}'
 ## Use a real model
 
 Drop `INFER_GATEWAY_MOCK`, `INFER_GATEWAY_MOCK_SCENARIOS` and `INFER_AGENT_MODEL` to talk to a real model through the
-gateway. The tools stay the same. To use them in every session, copy the manifests and scripts into `~/.infer/tools/`,
-the default directory, instead of setting `INFER_TOOLS_CUSTOM_DIR`.
+gateway. The tools stay the same. To use `WordCount` in every session, copy `user-tools/` into `~/.infer/tools/`, the
+default directory, instead of setting `INFER_TOOLS_CUSTOM_DIR`. `SaveNote` keeps loading from `.agents/tools/` whenever
+you run `infer` in this directory.

@@ -10,5 +10,4 @@ parameters:
       description: The note to save
   required:
     - text
-require_approval: true
 timeout: 5

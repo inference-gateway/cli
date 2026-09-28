@@ -7,7 +7,7 @@ env:
   INFER_GATEWAY_MOCK: 'true'
   INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
   INFER_AGENT_MODEL: mock/openai/gpt-4o
-  INFER_TOOLS_CUSTOM_DIR: '{{.TASKFILE_DIR}}/tools'
+  INFER_TOOLS_CUSTOM_DIR: '{{.TASKFILE_DIR}}/user-tools'
 
 tasks:
   default:
@@ -24,7 +24,7 @@ tasks:
           PROMPT: count the words in README.md
 
   save-note:
-    desc: The model calls SaveNote, which needs approval, so headless mode blocks it
+    desc: The model calls SaveNote, a project tool that always needs approval, so headless mode blocks it
     cmds:
       - task: headless
         vars:
