@@ -1212,7 +1212,7 @@ func DefaultConfig() *Config { //nolint:funlen
 						`echo( .*)?`, `ls( .*)?`, `pwd( .*)?`, `tree( .*)?`,
 						`wc( .*)?`, `sort( .*)?`, `uniq( .*)?`, `head( .*)?`, `tail( .*)?`,
 						`task( .*)?`, `make( .*)?`, `find( .*)?`, `sleep( .*)?`,
-						`mkdir( .*)?`, `ln( .*)?`,
+						`mkdir( .*)?`, `ln -s( [^ -][^ ]*)+`,
 						`git status( .*)?`,
 						`git branch( --show-current)?( -[alrvd])?`,
 						`git log( .*)?`, `git diff( .*)?`, `git remote( -v)?`, `git show( .*)?`,
