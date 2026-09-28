@@ -12,8 +12,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	models "github.com/inference-gateway/cli/internal/platform/models"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 func toolNamesForMode(svc *LLMToolService, mode agentdomain.AgentMode) []string {

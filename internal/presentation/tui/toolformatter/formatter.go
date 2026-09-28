@@ -9,10 +9,10 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // ToolFormatterService provides formatting for tool results by delegating to individual tools
@@ -342,7 +342,7 @@ func (s *ToolFormatterService) expandedDiffTree(result *agentdomain.ToolExecutio
 	}
 
 	diff := renderer.RenderDiff(*info)
-	return agentinfra.NewCustomFormatter(result.ToolName, tool.ShouldCollapseArg).FormatExpanded(result, diff), true
+	return tools.NewCustomFormatter(result.ToolName, tool.ShouldCollapseArg).FormatExpanded(result, diff), true
 }
 
 // multiEditSummaryDiff builds the summary shown for a successful MultiEdit.
@@ -475,7 +475,7 @@ func capToolResult(content string, maxBytes int) string {
 
 // formatFallback provides fallback formatting when tool is not available
 func (s *ToolFormatterService) formatFallback(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	formatter := agentinfra.NewBaseFormatter(result.ToolName)
+	formatter := tools.NewBaseFormatter(result.ToolName)
 
 	switch formatType {
 	case agentdomain.FormatterUI:
@@ -558,7 +558,7 @@ func (s *ToolFormatterService) isGatewayToolWithEnhancedVisualization(result *ag
 }
 
 // formatEnhancedGatewayTool formats Gateway tools with enhanced user-friendly visualization
-func (s *ToolFormatterService) formatEnhancedGatewayTool(result *agentdomain.ToolExecutionResult, formatter *agentinfra.BaseFormatter) string {
+func (s *ToolFormatterService) formatEnhancedGatewayTool(result *agentdomain.ToolExecutionResult, formatter *tools.BaseFormatter) string {
 	data, ok := result.Data.(map[string]any)
 	if !ok {
 		return fmt.Sprintf("%s Executed on Gateway", formatter.FormatStatusIcon(result.Success))

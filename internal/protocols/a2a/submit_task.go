@@ -21,18 +21,18 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	download "github.com/inference-gateway/cli/internal/platform/download"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // SubmitTaskTool handles A2A task submission and management
 type SubmitTaskTool struct {
 	config      *config.Config
-	formatter   agentinfra.CustomFormatter
+	formatter   tools.CustomFormatter
 	taskTracker a2adomain.TaskTracker
 	submitter   scheddomain.JobSubmitter
 	retention   a2adomain.TaskRetentionService
@@ -59,7 +59,7 @@ func NewSubmitTaskTool(cfg *config.Config, taskTracker a2adomain.TaskTracker, su
 		submitter:   submitter,
 		retention:   retention,
 		client:      nil,
-		formatter: agentinfra.NewCustomFormatter(ToolSubmitTask, func(key string) bool {
+		formatter: tools.NewCustomFormatter(ToolSubmitTask, func(key string) bool {
 			return key == "metadata"
 		}),
 	}
@@ -73,7 +73,7 @@ func NewSubmitTaskToolWithClient(cfg *config.Config, taskTracker a2adomain.TaskT
 		submitter:   submitter,
 		retention:   retention,
 		client:      client,
-		formatter: agentinfra.NewCustomFormatter(ToolSubmitTask, func(key string) bool {
+		formatter: tools.NewCustomFormatter(ToolSubmitTask, func(key string) bool {
 			return key == "metadata"
 		}),
 	}

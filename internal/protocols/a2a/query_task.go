@@ -12,16 +12,16 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 type QueryTaskTool struct {
 	config    *config.Config
-	formatter agentinfra.CustomFormatter
+	formatter tools.CustomFormatter
 	liveness  scheddomain.JobLivenessReporter
 }
 
@@ -38,7 +38,7 @@ type QueryTaskResult struct {
 func NewQueryTaskTool(cfg *config.Config, liveness scheddomain.JobLivenessReporter) *QueryTaskTool {
 	return &QueryTaskTool{
 		config: cfg,
-		formatter: agentinfra.NewCustomFormatter(ToolQueryTask, func(key string) bool {
+		formatter: tools.NewCustomFormatter(ToolQueryTask, func(key string) bool {
 			return key == "metadata"
 		}),
 		liveness: liveness,

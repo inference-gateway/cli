@@ -10,8 +10,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 var _ agentdomain.Tool = (*MCPTool)(nil)
@@ -26,7 +26,7 @@ type MCPTool struct {
 	inputSchema map[string]any
 	client      mcpdomain.Client
 	config      *config.MCPConfig
-	formatter   agentinfra.BaseFormatter
+	formatter   tools.BaseFormatter
 }
 
 // NewMCPTool creates a new MCP tool wrapper
@@ -43,7 +43,7 @@ func NewMCPTool(
 		inputSchema: inputSchema,
 		client:      client,
 		config:      mcpConfig,
-		formatter:   agentinfra.NewBaseFormatter(mcpdomain.ToolName(serverName, toolName)),
+		formatter:   tools.NewBaseFormatter(mcpdomain.ToolName(serverName, toolName)),
 	}
 }
 

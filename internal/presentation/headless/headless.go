@@ -19,7 +19,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	gateway "github.com/inference-gateway/cli/internal/gateway"
@@ -35,6 +34,7 @@ import (
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // fileRefPattern matches @file references in the task description.

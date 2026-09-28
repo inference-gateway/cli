@@ -15,8 +15,8 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/states"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 func makeTools(n int) []*sdk.ChatCompletionMessageToolCall {

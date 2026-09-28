@@ -16,7 +16,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -36,6 +35,7 @@ import (
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // actChatFocusAttachments is the chat-namespace action that moves key focus to

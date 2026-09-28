@@ -17,11 +17,11 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	browser "github.com/inference-gateway/cli/internal/browser"
 	computer "github.com/inference-gateway/cli/internal/computer"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	a2a "github.com/inference-gateway/cli/internal/protocols/a2a"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 var updateGolden = flag.Bool("update", false, "rewrite the golden files in testdata/")

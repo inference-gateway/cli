@@ -17,7 +17,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agent "github.com/inference-gateway/cli/internal/agent"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agenttools "github.com/inference-gateway/cli/internal/agent/tools"
 	container "github.com/inference-gateway/cli/internal/container"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -25,6 +24,7 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
+	agenttools "github.com/inference-gateway/cli/internal/tools"
 )
 
 func NewCommand(state *runtime.State) *cobra.Command {

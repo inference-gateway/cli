@@ -11,13 +11,13 @@ import (
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 	a2a "github.com/inference-gateway/cli/internal/protocols/a2a"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 func NewCommand(state *runtime.State) *cobra.Command {

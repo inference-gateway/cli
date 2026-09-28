@@ -11,7 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tools "github.com/inference-gateway/cli/internal/agent/tools"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // LLMToolService implements ToolService with the new tools package architecture
