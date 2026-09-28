@@ -27,6 +27,7 @@ import (
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
 // readFrameOfType reads frames until one with the given type arrives, failing
@@ -217,9 +218,39 @@ func bridgeConfig() *config.BrowserUseConfig {
 	return cfg
 }
 
-func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier agentdomain.UINotifier, events agentdomain.EventBridge) *ExtensionBridge {
+// testDeps are the bridge dependencies every started test bridge needs. Tests
+// that care about one collaborator override it.
+func testDeps(cfg *config.BrowserUseConfig) Deps {
+	return Deps{
+		Config:        cfg,
+		Notifier:      &recordingNotifier{},
+		Conversations: newBridgeRepo(),
+		Events:        conversation.NewEventBridge(),
+		Skills:        &agentdomainmocks.FakeSkillsService{},
+		Tools:         &agentdomainmocks.FakeToolService{},
+		Approval:      &agentdomainmocks.FakeApprovalPolicy{},
+		Models:        &convmocks.FakeModelService{},
+		Modes:         statemanager.NewStore(false),
+		Agent:         &agentdomainmocks.FakeAgentService{},
+		SessionID:     "test-session",
+	}
+}
+
+func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier agentdomain.UINotifier, events agentdomain.EventBridge) *Bridge {
 	t.Helper()
-	bridge := NewExtensionBridge(cfg, notifier, nil, events, nil, "test-session", "")
+	deps := testDeps(cfg)
+	if notifier != nil {
+		deps.Notifier = notifier
+	}
+	if events != nil {
+		deps.Events = events
+	}
+	return startBridgeDeps(t, deps)
+}
+
+func startBridgeDeps(t *testing.T, deps Deps) *Bridge {
+	t.Helper()
+	bridge := NewBridge(deps)
 	if err := bridge.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -227,24 +258,18 @@ func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier agentdomai
 	return bridge
 }
 
-func startBridgeWithRepo(t *testing.T, cfg *config.BrowserUseConfig, repo convdomain.ConversationRepository) *ExtensionBridge {
+func startBridgeWithRepo(t *testing.T, cfg *config.BrowserUseConfig, repo convdomain.ConversationRepository) *Bridge {
 	t.Helper()
-	bridge := NewExtensionBridge(cfg, nil, repo, nil, nil, "test-session", "")
-	if err := bridge.Start(); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	t.Cleanup(bridge.Close)
-	return bridge
+	deps := testDeps(cfg)
+	deps.Conversations = repo
+	return startBridgeDeps(t, deps)
 }
 
-func startBridgeWithSkills(t *testing.T, cfg *config.BrowserUseConfig, skills agentdomain.SkillsService) *ExtensionBridge {
+func startBridgeWithSkills(t *testing.T, cfg *config.BrowserUseConfig, skills agentdomain.SkillsService) *Bridge {
 	t.Helper()
-	bridge := NewExtensionBridge(cfg, nil, nil, nil, skills, "test-session", "")
-	if err := bridge.Start(); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	t.Cleanup(bridge.Close)
-	return bridge
+	deps := testDeps(cfg)
+	deps.Skills = skills
+	return startBridgeDeps(t, deps)
 }
 
 // newBridgeRepo builds a persistent repo backed by in-memory storage.
@@ -271,7 +296,7 @@ func seedConversation(t *testing.T, repo *conversation.PersistentConversationRep
 	return repo.GetCurrentConversationID()
 }
 
-func dial(t *testing.T, bridge *ExtensionBridge) *websocket.Conn {
+func dial(t *testing.T, bridge *Bridge) *websocket.Conn {
 	t.Helper()
 	conn, _, err := websocket.DefaultDialer.Dial("ws://"+bridge.Addr()+"/ws", nil)
 	if err != nil {
@@ -322,7 +347,7 @@ func TestExtensionBridgeFailsFastWithoutConnection(t *testing.T) {
 func TestExtensionBridgeRefusesToStartWithoutToken(t *testing.T) {
 	cfg := bridgeConfig()
 	cfg.Extension.Token = ""
-	bridge := NewExtensionBridge(cfg, nil, nil, nil, nil, "s", "")
+	bridge := NewBridge(testDeps(cfg))
 	if err := bridge.Start(); err == nil || !strings.Contains(err.Error(), "token is empty") {
 		t.Fatalf("expected token error, got %v", err)
 	}
@@ -603,7 +628,9 @@ func TestExtensionBridgeServesArtifacts(t *testing.T) {
 		t.Fatalf("write artifact: %v", err)
 	}
 
-	bridge := NewExtensionBridge(bridgeConfig(), nil, nil, nil, nil, "s", dir)
+	deps := testDeps(bridgeConfig())
+	deps.ArtifactsDir = dir
+	bridge := NewBridge(deps)
 	if err := bridge.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -724,9 +751,14 @@ func TestExtensionBridgeNoAutoSnapshotOnConnect(t *testing.T) {
 	hello(t, conn, "test-token")
 
 	_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	var frame map[string]any
-	if err := conn.ReadJSON(&frame); err == nil {
-		t.Fatalf("expected no unsolicited frame after connect, got %v", frame)
+	for {
+		var frame map[string]any
+		if err := conn.ReadJSON(&frame); err != nil {
+			return
+		}
+		if frame["type"] == "conversation_snapshot" {
+			t.Fatalf("expected no unsolicited snapshot after connect, got %v", frame)
+		}
 	}
 }
 
@@ -782,11 +814,18 @@ func TestExtensionBridgeListSkillsWithoutServiceIsEmpty(t *testing.T) {
 	}
 }
 
-func startBridgeWithTools(t *testing.T, cfg *config.BrowserUseConfig, toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, defaultModel string) *ExtensionBridge {
+func startBridgeWithTools(t *testing.T, cfg *config.BrowserUseConfig, toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, defaultModel string) *Bridge {
 	t.Helper()
-	bridge := startBridge(t, cfg, nil, nil)
-	bridge.SetToolExecution(toolSvc, approval, models, nil, defaultModel)
-	return bridge
+	deps := testDeps(cfg)
+	deps.Tools = toolSvc
+	if approval != nil {
+		deps.Approval = approval
+	}
+	if models != nil {
+		deps.Models = models
+	}
+	deps.DefaultModel = defaultModel
+	return startBridgeDeps(t, deps)
 }
 
 func TestExtensionBridgeToolRequestUnknownToolKeepsSocketOpen(t *testing.T) {
@@ -858,12 +897,11 @@ func TestExtensionBridgeToolRequestRecordedInConversation(t *testing.T) {
 	}, nil)
 	repo := newBridgeRepo()
 	events := conversation.NewEventBridge()
-	bridge := NewExtensionBridge(bridgeConfig(), nil, repo, events, nil, "test-session", "")
-	if err := bridge.Start(); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	t.Cleanup(bridge.Close)
-	bridge.SetToolExecution(toolSvc, nil, nil, nil, "")
+	deps := testDeps(bridgeConfig())
+	deps.Conversations = repo
+	deps.Events = events
+	deps.Tools = toolSvc
+	bridge := startBridgeDeps(t, deps)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
@@ -913,13 +951,15 @@ func TestExtensionBridgeToolRequestRecordedInConversation(t *testing.T) {
 func TestExtensionBridgeInterruptCancelsActiveTurn(t *testing.T) {
 	agentSvc := &agentdomainmocks.FakeAgentService{}
 	events := conversation.NewEventBridge()
-	bridge := startBridge(t, bridgeConfig(), nil, events)
-	bridge.SetAgentService(agentSvc)
+	deps := testDeps(bridgeConfig())
+	deps.Events = events
+	deps.Agent = agentSvc
+	bridge := startBridgeDeps(t, deps)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
 	deadline := time.Now().Add(2 * time.Second)
-	for id, _ := bridge.activeRequestID.Load().(string); id != "turn-1" && time.Now().Before(deadline); id, _ = bridge.activeRequestID.Load().(string) {
+	for id, _ := bridge.mirror.activeRequestID.Load().(string); id != "turn-1" && time.Now().Before(deadline); id, _ = bridge.mirror.activeRequestID.Load().(string) {
 		events.Publish(agentdomain.ChatStartEvent{RequestID: "turn-1", Timestamp: time.Now()})
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -991,8 +1031,11 @@ func TestExtensionBridgeListModelsDefaultFirst(t *testing.T) {
 	models.GetCurrentModelReturns("b/y")
 	models.SelectModelCalls(func(m string) error { models.GetCurrentModelReturns(m); return nil })
 	notified := make(chan any, 4)
-	bridge := startBridge(t, bridgeConfig(), notifierFunc(func(e any) { notified <- e }), nil)
-	bridge.SetToolExecution(nil, nil, models, nil, "b/y")
+	deps := testDeps(bridgeConfig())
+	deps.Notifier = notifierFunc(func(e any) { notified <- e })
+	deps.Models = models
+	deps.DefaultModel = "b/y"
+	bridge := startBridgeDeps(t, deps)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
@@ -1077,8 +1120,9 @@ func (f *fakeHistoryStore) LoadHistory(_ context.Context, limit int) ([]string, 
 
 func TestExtensionBridgeHistoryRoundTrip(t *testing.T) {
 	store := &fakeHistoryStore{entries: []string{"from the tui"}}
-	bridge := startBridge(t, bridgeConfig(), nil, nil)
-	bridge.SetHistoryStorage(store)
+	deps := testDeps(bridgeConfig())
+	deps.History = store
+	bridge := startBridgeDeps(t, deps)
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
@@ -1156,7 +1200,7 @@ func TestExtensionBridgeTakesOverFreedPort(t *testing.T) {
 	cfg := bridgeConfig()
 	cfg.Extension.Port = holder.Addr().(*net.TCPAddr).Port
 
-	bridge := NewExtensionBridge(cfg, nil, nil, nil, nil, "test-session", "")
+	bridge := NewBridge(testDeps(cfg))
 	t.Cleanup(bridge.Close)
 	if err := bridge.Start(); !errors.Is(err, syscall.EADDRINUSE) {
 		t.Fatalf("Start with the port held: err = %v, want EADDRINUSE", err)

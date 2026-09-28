@@ -153,7 +153,7 @@ type ServiceContainer struct {
 	directExecutionService   tui.DirectExecutionService
 	toolExecutionCoordinator tui.ToolExecutionCoordinator
 	uiNotifier               *uiNotifierHolder
-	extensionBridge          *browserinfra.ExtensionBridge
+	extensionBridge          *browserinfra.Bridge
 	browserDriver            browserdomain.BrowserDriver
 	screenRecorder           *computer.ScreenRecorder
 }
@@ -232,13 +232,10 @@ func (c *ServiceContainer) SetUINotifier(n agentdomain.UINotifier) {
 }
 
 // initializeBrowserTools constructs the browser-use driver (the opentask
-// extension bridge, or a lazily-launched Playwright session) and registers the
-// browser tools against it. The container owns the driver lifecycle; the
-// extension backend also installs an event bridge on the state manager so chat
-// events are mirrored to the extension.
-// The WS server is NOT started here - every command builds a container and
-// short-lived ones (status, tools, ...) must not grab the bridge port.
-// Conversation-hosting commands call StartExtensionBridge.
+// extension bridge, or a lazily-launched Playwright session), installs the chat
+// event bridge the extension mirror needs, and registers the browser tools
+// against the driver. It runs after the services it needs, so the bridge takes
+// every dependency in its constructor. The WS server starts on StartExtensionBridge.
 func (c *ServiceContainer) initializeBrowserTools() {
 	buCfg := &c.config.BrowserUse
 	if !buCfg.Enabled {
@@ -252,7 +249,22 @@ func (c *ServiceContainer) initializeBrowserTools() {
 			c.stateManager.SetEventBridge(eventBridge)
 		}
 
-		c.extensionBridge = browserinfra.NewExtensionBridge(buCfg, c.uiNotifier, c.conversationRepo, eventBridge, c.skillsService, string(c.sessionID), c.config.ArtifactsDir())
+		c.extensionBridge = browserinfra.NewBridge(browserinfra.Deps{
+			Config:        buCfg,
+			Notifier:      c.uiNotifier,
+			Conversations: c.conversationRepo,
+			Events:        eventBridge,
+			Skills:        c.skillsService,
+			Tools:         c.toolService,
+			Approval:      agent.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService),
+			Models:        c.modelService,
+			Modes:         c.stateManager,
+			Agent:         c.agent,
+			History:       c.GetShellHistoryStorage(),
+			DefaultModel:  c.config.Agent.Model,
+			SessionID:     string(c.sessionID),
+			ArtifactsDir:  c.config.ArtifactsDir(),
+		})
 		c.browserDriver = c.extensionBridge
 	} else {
 		c.browserDriver = browserinfra.NewSession(buCfg)
@@ -463,8 +475,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 	c.skillsService = skillsSvc
 
-	c.initializeBrowserTools()
-
 	modelClient := c.createRawSDKClient()
 	c.modelService = conversation.NewHTTPModelService(modelClient)
 
@@ -489,13 +499,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 	if c.telemetryRecorder != nil {
 		c.toolService = telemetry.NewToolService(c.toolService, c.telemetryRecorder)
-	}
-
-	if c.extensionBridge != nil {
-		c.extensionBridge.SetToolExecution(c.toolService,
-			agent.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService),
-			c.modelService, c.stateManager, c.config.Agent.Model)
-		c.extensionBridge.SetHistoryStorage(c.GetShellHistoryStorage())
 	}
 
 	if c.tokenizer == nil {
@@ -550,9 +553,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
 	agentImpl.SetCurrentModelFn(c.modelService.GetCurrentModel)
 	c.agent = agentImpl
-	if c.extensionBridge != nil {
-		c.extensionBridge.SetAgentService(c.agent)
-	}
+
+	c.initializeBrowserTools()
 }
 
 // initializeStorageBackend wires the conversation repository for the configured
