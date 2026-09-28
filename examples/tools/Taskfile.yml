@@ -1,0 +1,78 @@
+version: '3'
+
+vars:
+  INFER: infer
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_TOOLS_CUSTOM_DIR: '{{.TASKFILE_DIR}}/tools'
+
+tasks:
+  default:
+    desc: List the scenarios
+    silent: true
+    cmds:
+      - task --list
+
+  word-count:
+    desc: The model calls WordCount, which runs without approval
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: count the words in README.md
+
+  save-note:
+    desc: The model calls SaveNote, which needs approval, so headless mode blocks it
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: save a note to buy milk
+
+  save-note:auto:
+    desc: In auto mode SaveNote runs without approval and writes notes.jsonl
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: save a note to buy milk
+          MODE: auto
+      - cat notes.jsonl
+
+  save-note:plan:
+    desc: Plan mode refuses SaveNote, which does not list plan in its modes
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: save a note to buy milk
+          MODE: plan
+
+  execute:
+    desc: Run both tools yourself, without the model
+    cmds:
+      - "{{.INFER}} tools execute WordCount '{\"path\":\"README.md\"}'"
+      - "{{.INFER}} tools execute SaveNote '{\"text\":\"Call the plumber\"}'"
+
+  chat:
+    desc: Chat with the mock model, and run the tools with !!WordCount(path="README.md")
+    interactive: true
+    cmds:
+      - '{{.INFER}} chat'
+
+  all:
+    desc: Run every headless scenario
+    cmds:
+      - task: word-count
+      - task: save-note
+      - task: save-note:auto
+      - task: save-note:plan
+
+  clean:
+    desc: Remove the notes SaveNote saved
+    cmds:
+      - rm -f notes.jsonl
+
+  headless:
+    internal: true
+    cmds:
+      - "{{.INFER}} headless --no-save --mode {{.MODE | default \"standard\"}} \"{{.PROMPT}}\" | grep '\"role\":\"tool\"'"

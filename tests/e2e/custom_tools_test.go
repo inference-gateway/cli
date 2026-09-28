@@ -13,10 +13,10 @@ import (
 	mockgateway "github.com/inference-gateway/tokenless/gateway"
 )
 
-// TestCustomToolsExample runs examples/custom-tools against the model its
+// TestCustomToolsExample runs examples/tools against the model its
 // scenarios.yaml scripts, so the example's README stays true.
 func TestCustomToolsExample(t *testing.T) {
-	example := filepath.Join(repoRoot(), "examples", "custom-tools")
+	example := filepath.Join(repoRoot(), "examples", "tools")
 	defs, err := mockgateway.LoadFile(filepath.Join(example, "scenarios.yaml"))
 	require.NoError(t, err)
 	m := tokenless.StartMock(t, defs)

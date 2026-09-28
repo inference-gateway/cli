@@ -11,7 +11,7 @@ A custom tool behaves like a built-in tool. The model sees it under its own name
 yourself with `!!Name(arg="v")` in chat or `infer tools execute Name '{...}'`, and it follows the same
 agent modes and approval flow.
 
-For a runnable version, see [examples/custom-tools](../examples/custom-tools/): two tools, one in Python and one in
+For a runnable version, see [examples/tools](../examples/tools/): two tools, one in Python and one in
 shell, driven by a scripted mock model, so it needs no API key.
 
 ## Table of Contents

@@ -1436,7 +1436,7 @@ most with a Docker Compose file:
 | [basic](examples/basic/) | Minimal gateway + CLI setup to get started |
 | [a2a](examples/a2a/) | Agent-to-Agent: multiple agents, a demo site, and a VNC container |
 | [mcp](examples/mcp/) | MCP server integration with a sample server and config |
-| [custom-tools](examples/custom-tools/) | Custom tools in Python and shell, run offline against a scripted mock model |
+| [tools](examples/tools/) | Custom tools in Python and shell, run offline against a scripted mock model |
 | [computer-use](examples/computer-use/) | Computer Use driving a sandboxed Ubuntu GUI container |
 | [model-switching](examples/model-switching/) | Switching models mid-session, with a small frontend |
 | [shortcuts](examples/shortcuts/) | Custom `/`-shortcuts wired through config |
