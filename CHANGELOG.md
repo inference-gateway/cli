@@ -5,6 +5,92 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.216.0](https://github.com/inference-gateway/cli/compare/v0.215.0...v0.216.0) (2026-09-28)
+
+### 🚀 Features
+
+* **tools:** allow registering custom tools in any language ([#1372](https://github.com/inference-gateway/cli/issues/1372)) ([3982850](https://github.com/inference-gateway/cli/commit/3982850be13ec62438ca434bceed38e0d57090a4)), references [#1369](https://github.com/inference-gateway/cli/issues/1369) [inference-gateway/docs#850](https://github.com/inference-gateway/docs/issues/850)
+
+### 🐛 Bug Fixes
+
+* never prompt for git credentials and keep e2e env hermetic ([#1381](https://github.com/inference-gateway/cli/issues/1381)) ([a20bb95](https://github.com/inference-gateway/cli/commit/a20bb95bf54d6e5bb3ad93938112f7c320f9302c)), closes [#1378](https://github.com/inference-gateway/cli/issues/1378)
+
+### ♻️ Code Refactoring
+
+* **tools:** define built-in tools through embedded manifests ([#1369](https://github.com/inference-gateway/cli/issues/1369)) ([191f389](https://github.com/inference-gateway/cli/commit/191f389ca89cbf898437a33beeaaed5093b1c6fd)), references [#1366](https://github.com/inference-gateway/cli/issues/1366) [#1366](https://github.com/inference-gateway/cli/issues/1366) [#1368](https://github.com/inference-gateway/cli/issues/1368)
+* **a2a:** extract A2A into its own bounded context ([#1371](https://github.com/inference-gateway/cli/issues/1371)) ([ac7dfc3](https://github.com/inference-gateway/cli/commit/ac7dfc3299089ac695a48703f826bdbaa9d8926b))
+* **protocols:** group protocol integrations under internal/protocols ([#1376](https://github.com/inference-gateway/cli/issues/1376)) ([29b29e1](https://github.com/inference-gateway/cli/commit/29b29e19d2db8e56232ed31065dba3367bfa7f11)), closes [#1374](https://github.com/inference-gateway/cli/issues/1374)
+* **tools:** move the tools into their own bounded context ([#1377](https://github.com/inference-gateway/cli/issues/1377)) ([5706c4a](https://github.com/inference-gateway/cli/commit/5706c4a113634da6b0a85e6d102d1639fef2d64a)), closes [#1373](https://github.com/inference-gateway/cli/issues/1373)
+
+### 📚 Documentation
+
+* **skills:** sync vendored skills with upstream ([#1375](https://github.com/inference-gateway/cli/issues/1375)) ([77b2e99](https://github.com/inference-gateway/cli/commit/77b2e997cce26ca8472a7c7104af31683e7cf58f))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.216.0 --help
+npx @inference-gateway/cli@0.216.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.216.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.216.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.216.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.216.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.216.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.215.0](https://github.com/inference-gateway/cli/compare/v0.214.0...v0.215.0) (2026-09-27)
 
 ### 🚀 Features
