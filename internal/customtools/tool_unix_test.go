@@ -24,7 +24,7 @@ func scriptTool(t *testing.T, script string) (*Tool, string) {
 	if err := os.WriteFile(filepath.Join(dir, "tool.sh"), []byte(body), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	manifest := strings.Replace(echoManifest, "[bin/echo-tool, --verbose]", "[./tool.sh]", 1)
+	manifest := strings.Replace(echoManifest, "  - bin/echo-tool\n  - --verbose\n", "  - ./tool.sh\n", 1)
 	if err := os.WriteFile(filepath.Join(dir, "Echo.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}

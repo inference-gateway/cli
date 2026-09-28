@@ -159,7 +159,7 @@ func TestDecodeToolManifest_InlineExtension(t *testing.T) {
 		Command      []string `yaml:"command"`
 	}
 	var manifest extended
-	if err := DecodeToolManifest([]byte(validManifest+"command: [echo]\n"), &manifest, &manifest.ToolManifest); err != nil {
+	if err := DecodeToolManifest([]byte(validManifest+"command:\n  - echo\n"), &manifest, &manifest.ToolManifest); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if manifest.Name != "Echo" || manifest.Command[0] != "echo" {
@@ -174,7 +174,7 @@ func TestDecodeToolManifest_InlineExtension(t *testing.T) {
 		t.Errorf("error = %v, want an unknown field rejected", err)
 	}
 
-	if _, err := ParseToolManifest([]byte(validManifest + "command: [echo]\n")); err == nil {
+	if _, err := ParseToolManifest([]byte(validManifest + "command:\n  - echo\n")); err == nil {
 		t.Error("a built-in manifest must reject the custom-tool command field")
 	}
 }

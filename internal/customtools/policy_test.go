@@ -28,7 +28,7 @@ func newToolService(t *testing.T, requireApproval bool) (*config.Config, *agent.
 	t.Helper()
 	dir := t.TempDir()
 	peek := strings.Replace(echoManifest, "name: Echo", "name: Peek", 1) +
-		"modes: [standard, auto, auto-with-judge, plan, readonly]\nrequire_approval: false\n"
+		"modes:\n  - standard\n  - auto\n  - auto-with-judge\n  - plan\n  - readonly\nrequire_approval: false\n"
 	for name, content := range map[string]string{"Echo.yaml": echoManifest, "Peek.yaml": peek} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
 			t.Fatal(err)

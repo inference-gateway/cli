@@ -13,13 +13,16 @@ import (
 
 const echoManifest = `name: Echo
 description: Echoes its input.
-command: [bin/echo-tool, --verbose]
+command:
+  - bin/echo-tool
+  - --verbose
 parameters:
   type: object
   properties:
     text:
       type: string
-  required: [text]
+  required:
+    - text
 `
 
 var builtins = []string{"Read", "WebSearch"}
@@ -75,13 +78,13 @@ func TestNewTools_SkipsInvalidManifests(t *testing.T) {
 		yaml string
 	}{
 		{name: "unknown field", file: "Echo.yaml", yaml: echoManifest + "read_only: true\n"},
-		{name: "invalid yaml", file: "Echo.yaml", yaml: "name: [Echo"},
+		{name: "invalid yaml", file: "Echo.yaml", yaml: "name: \"Echo"},
 		{name: "file name mismatch", file: "Other.yaml", yaml: echoManifest},
 		{name: "built-in name", file: "Read.yaml", yaml: renamed("Read")},
 		{name: "built-in name in another case", file: "read.yaml", yaml: renamed("read")},
 		{name: "built-in switched off in config", file: "WebSearch.yaml", yaml: renamed("WebSearch")},
 		{name: "MCP prefix", file: "MCP_github_search.yaml", yaml: renamed("MCP_github_search")},
-		{name: "missing command", file: "Echo.yaml", yaml: strings.Replace(echoManifest, "command: [bin/echo-tool, --verbose]\n", "", 1)},
+		{name: "missing command", file: "Echo.yaml", yaml: strings.Replace(echoManifest, "command:\n  - bin/echo-tool\n  - --verbose\n", "", 1)},
 		{name: "negative timeout", file: "Echo.yaml", yaml: echoManifest + "timeout: -1\n"},
 		{name: "disabled", file: "Echo.yaml", yaml: echoManifest + "enabled: false\n"},
 	}

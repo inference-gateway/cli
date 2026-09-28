@@ -33,15 +33,22 @@ A tool that counts the words in a file, written as a shell script.
 ```yaml
 name: WordCount
 description: Count the words in a text file.
-command: [./word-count.sh]
+command:
+  - ./word-count.sh
 parameters:
   type: object
   properties:
     path:
       type: string
       description: Path of the file to count
-  required: [path]
-modes: [standard, auto, auto-with-judge, plan, readonly]
+  required:
+    - path
+modes:
+  - standard
+  - auto
+  - auto-with-judge
+  - plan
+  - readonly
 require_approval: false
 ```
 
@@ -71,7 +78,7 @@ instead of silently falling back to a default.
 | `description` | yes | | What the tool does and when to use it. The model reads this to decide when to call the tool. |
 | `command` | yes | | Program and fixed arguments, as a list. It runs without a shell, see below. |
 | `parameters` | yes | | JSON Schema of type `object` for the call's arguments, sent to the model unchanged. |
-| `modes` | no | `[standard, auto, auto-with-judge]` | Agent modes that offer the tool, see [Modes and Approval](#modes-and-approval). |
+| `modes` | no | `standard`, `auto`, `auto-with-judge` | Agent modes that offer the tool, see [Modes and Approval](#modes-and-approval). |
 | `require_approval` | no | `tools.safety.require_approval` | Whether a call needs approval before it runs. |
 | `timeout` | no | `30` | Seconds before the call is killed. |
 | `enabled` | no | `true` | `false` keeps the manifest on disk without loading the tool. |
@@ -102,9 +109,8 @@ Like every tool result, the output the model sees is capped at `tools.max_result
 Custom tools follow the same policy as built-in tools:
 
 - **`modes`** lists the agent modes that offer the tool. Without it the tool is offered in `standard`, `auto` and
-  `auto-with-judge`, and hidden in `plan` and `readonly`, like an MCP tool. A tool that only reads, like the
-  `WordCount` example, can list every mode:
-  `modes: [standard, auto, auto-with-judge, plan, readonly]`. A call outside the tool's modes is refused.
+  `auto-with-judge`, and hidden in `plan` and `readonly`, like an MCP tool. A tool that only reads can list every
+  mode, as the `WordCount` example in [Quick Start](#quick-start) does. A call outside the tool's modes is refused.
 - **`require_approval`** decides whether a call needs approval. Without it the tool follows the global
   `tools.safety.require_approval` (default `true`). How the approval is asked for follows
   `tools.safety.approval_behaviour` (`prompt`, `ipc`, `judge` or `block`) in both chat and headless mode, see the
@@ -140,14 +146,17 @@ A compiled program can back several tools through subcommands, one manifest per 
 ```yaml
 name: TakeScreenshot
 description: Capture a screenshot of a desktop app window and return the PNG path.
-command: [infer-desktop-tools, screenshot]
+command:
+  - infer-desktop-tools
+  - screenshot
 parameters:
   type: object
   properties:
     window:
       type: string
       description: Title of the window to capture
-  required: [window]
+  required:
+    - window
 timeout: 60
 ```
 
