@@ -30,6 +30,7 @@ is enabled in the Inference Gateway CLI.
   - [A2A_SubmitTask Tool](#a2a_submittask-tool)
   - [A2A_QueryAgent Tool](#a2a_queryagent-tool)
   - [A2A_QueryTask Tool](#a2a_querytask-tool)
+- [Custom Tools](#custom-tools)
 
 ---
 
@@ -1164,6 +1165,13 @@ Files are automatically saved to the per-session artifacts directory
 - **Content Creation**: Generate content with specialized writing or design agents
 
 For detailed A2A documentation and examples, see [A2A Agents Configuration Guide](agents-configuration.md).
+
+## Custom Tools
+
+Add your own tools in any language by placing one YAML manifest per tool in `~/.infer/tools/`, or in a project's
+`.infer/tools/` or `.agents/tools/`. infer runs the manifest's command with the call's arguments as JSON on stdin and
+returns its stdout. Custom tools follow the same agent modes and approval flow as the tools above, and project tools
+always need approval. See the [Custom Tools guide](custom-tools.md).
 
 ---
 

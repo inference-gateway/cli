@@ -1,0 +1,13 @@
+name: SaveNote
+description: Save a short note for later by appending it to notes.jsonl in the working directory.
+command:
+  - ./save-note.sh
+parameters:
+  type: object
+  properties:
+    text:
+      type: string
+      description: The note to save
+  required:
+    - text
+timeout: 5

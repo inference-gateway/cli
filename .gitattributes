@@ -1,4 +1,5 @@
 install.sh linguist-vendored=true
+examples/** linguist-vendored=true
 
-tests/mocks linguist-generated=true
+tests/mocks/** linguist-generated=true
 CHANGELOG.md linguist-generated=true

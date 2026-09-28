@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"maps"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -149,5 +150,74 @@ func TestLoadToolManifests(t *testing.T) {
 	_, err = LoadToolManifests(fstest.MapFS{"tools/Other.yaml": {Data: []byte(validManifest)}}, "tools")
 	if err == nil || !strings.Contains(err.Error(), "must match the file name") {
 		t.Fatalf("error = %v, want a file named after another tool to be rejected", err)
+	}
+}
+
+func TestDecodeToolManifest_InlineExtension(t *testing.T) {
+	type extended struct {
+		ToolManifest `yaml:",inline"`
+		Command      []string `yaml:"command"`
+	}
+	var manifest extended
+	if err := DecodeToolManifest([]byte(validManifest+"command:\n  - echo\n"), &manifest, &manifest.ToolManifest); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if manifest.Name != "Echo" || manifest.Command[0] != "echo" {
+		t.Errorf("decoded %+v, want the embedded manifest and the extra field", manifest)
+	}
+	if _, ok := manifest.Parameters["required"].([]string); !ok {
+		t.Errorf("required = %#v, want the normalized []string", manifest.Parameters["required"])
+	}
+
+	err := DecodeToolManifest([]byte(validManifest+"read_only: true\n"), &manifest, &manifest.ToolManifest)
+	if err == nil || !strings.Contains(err.Error(), "field read_only not found") {
+		t.Errorf("error = %v, want an unknown field rejected", err)
+	}
+
+	if _, err := ParseToolManifest([]byte(validManifest + "command:\n  - echo\n")); err == nil {
+		t.Error("a built-in manifest must reject the custom-tool command field")
+	}
+}
+
+func TestValidateArguments(t *testing.T) {
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"text":  map[string]any{"type": "string"},
+			"count": map[string]any{"type": "integer"},
+		},
+	}
+	withRequired := func(required any) map[string]any {
+		s := maps.Clone(schema)
+		s["required"] = required
+		return s
+	}
+	tests := []struct {
+		name    string
+		schema  map[string]any
+		args    map[string]any
+		wantErr string
+	}{
+		{name: "valid", schema: schema, args: map[string]any{"text": "hi", "count": float64(2)}},
+		{name: "nil arguments", schema: schema, args: nil, wantErr: "cannot be nil"},
+		{name: "no schema", schema: nil, args: map[string]any{"anything": true}},
+		{name: "missing required from a manifest", schema: withRequired([]string{"text"}), args: map[string]any{}, wantErr: `required field "text" is missing`},
+		{name: "missing required from JSON", schema: withRequired([]any{"text"}), args: map[string]any{}, wantErr: `required field "text" is missing`},
+		{name: "wrong type", schema: schema, args: map[string]any{"text": float64(1)}, wantErr: `field "text" has invalid type: expected string, got number`},
+		{name: "undeclared property", schema: schema, args: map[string]any{"other": 1}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateArguments(tt.schema, tt.args)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want it to contain %q", err, tt.wantErr)
+			}
+		})
 	}
 }

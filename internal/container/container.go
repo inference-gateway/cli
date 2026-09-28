@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -61,6 +62,7 @@ import (
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 	skills "github.com/inference-gateway/cli/internal/skills"
+	customtools "github.com/inference-gateway/cli/internal/tools/custom"
 )
 
 // RetryNotifier, when set, receives a short human-readable notice for each
@@ -367,6 +369,14 @@ func (c *ServiceContainer) initializeA2A() {
 	c.toolRegistry.RegisterTools(a2a.NewTools(c.config, c.a2aTaskTracker, c.backgroundTaskRegistry, c.taskRetentionService))
 }
 
+// registerCustomTools registers the user's custom tools from tools.custom_dir.
+// They register before the Markdown subagents load, so a subagent may list
+// them, and never take a built-in tool's name, even one config switches off.
+func (c *ServiceContainer) registerCustomTools() {
+	builtins := slices.Concat(tools.ToolNames(), a2a.ToolNames(), browser.ToolNames(), computer.ToolNames())
+	c.toolRegistry.RegisterTools(customtools.NewTools(c.config, builtins))
+}
+
 // initializeMCPSupervisor creates the MCP supervisor and starts its servers if enabled
 func (c *ServiceContainer) initializeMCPSupervisor() {
 	if !c.config.MCP.Enabled {
@@ -427,6 +437,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.imageAnnotator = c.createImageAnnotator()
 	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.musicService, c.sfxService, c.videoService, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
 	c.initializeA2A()
+	c.registerCustomTools()
 	c.toolRegistry.LoadMarkdownAgents()
 	c.screenRecorder = computer.NewScreenRecorder(c.config, c.uiNotifier, c.backgroundTaskRegistry)
 	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator, c.screenRecorder))

@@ -91,7 +91,10 @@ func ToolName(server, tool string) string {
 	return ToolPrefix(server) + tool
 }
 
+// ToolNamePrefix starts the name of every MCP tool, so no other tool may use it.
+const ToolNamePrefix = "MCP_"
+
 // ToolPrefix namespaces every tool of one server: MCP_<server>_.
 func ToolPrefix(server string) string {
-	return "MCP_" + server + "_"
+	return ToolNamePrefix + server + "_"
 }
