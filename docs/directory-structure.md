@@ -100,11 +100,13 @@ for the full precedence rules.
 ├── keybindings.yaml      # project keybindings (project-then-home lookup)
 ├── shortcuts/            # project shortcuts, overlaid by name onto ~/.infer/shortcuts/
 ├── skills/               # project skills, still discovered when present
+├── tools/                # project custom tools (<Name>.yaml), always need approval, see docs/custom-tools.md
 └── agents/               # project Markdown subagents (override ~/.infer/agents/ by name)
 
-.agents/                  # open-standard project layer (cross-tool skills)
-└── skills/               # Agent Skills - SKILL.md folders (read-only discovery)
-    └── <name>/SKILL.md   # e.g. .agents/skills/pdf/SKILL.md
+.agents/                  # open-standard project layer (cross-tool skills and tools)
+├── skills/               # Agent Skills - SKILL.md folders (read-only discovery)
+│   └── <name>/SKILL.md   # e.g. .agents/skills/pdf/SKILL.md
+└── tools/                # project custom tools, like .infer/tools/ (which wins on a name clash)
 ```
 
 ---

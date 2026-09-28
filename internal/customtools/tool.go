@@ -181,5 +181,27 @@ func (t *Tool) ShouldAlwaysExpand() bool {
 	return false
 }
 
+// projectTool is a custom tool a project ships in .infer/tools or
+// .agents/tools. The repository supplies it, so every call needs approval
+// whatever its manifest says, unless the agent runs in auto mode.
+type projectTool struct {
+	*Tool
+}
+
+func newProjectTool(tool *Tool) projectTool {
+	requireApproval := true
+	tool.manifest.RequireApproval = &requireApproval
+	return projectTool{tool}
+}
+
+// RequiresApproval asks for approval in every mode the tool runs in but auto.
+// The approval policy consults it ahead of the mode, so even readonly mode,
+// which runs its tools unapproved, asks. Outside its modes the call is refused
+// without asking.
+func (t projectTool) RequiresApproval(_ map[string]any, mode agentdomain.AgentMode) bool {
+	return mode != agentdomain.AgentModeAutoAccept && t.manifest.AvailableIn(mode)
+}
+
 var _ agentdomain.Tool = (*Tool)(nil)
 var _ agentdomain.ManifestTool = (*Tool)(nil)
+var _ agentdomain.CallApprover = projectTool{}

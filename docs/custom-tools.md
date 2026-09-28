@@ -3,20 +3,21 @@
 [← Back to README](../README.md)
 
 Custom tools let you add tools written in any language. Drop one YAML manifest per tool into
-`~/.infer/tools/` and infer offers the tool to the model next to the built-in ones. A call runs the
-manifest's command with the arguments as JSON on stdin, and whatever the command prints on stdout is
-the result. No SDK and no server are needed.
+`~/.infer/tools/`, or into a project's `.infer/tools/` or `.agents/tools/`, and infer offers the tool to
+the model next to the built-in ones. A call runs the manifest's command with the arguments as JSON on
+stdin, and whatever the command prints on stdout is the result. No SDK and no server are needed.
 
 A custom tool behaves like a built-in tool. The model sees it under its own name, you can run it
 yourself with `!!Name(arg="v")` in chat or `infer tools execute Name '{...}'`, and it follows the same
 agent modes and approval flow.
 
-For a runnable version, see [examples/tools](../examples/tools/): two tools, one in Python and one in
-shell, driven by a scripted mock model, so it needs no API key.
+For a runnable version, see [examples/tools](../examples/tools/): a user tool in Python and a project
+tool in shell, driven by a scripted mock model, so it needs no API key.
 
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [User Tools and Project Tools](#user-tools-and-project-tools)
 - [Manifest Reference](#manifest-reference)
 - [How a Call Runs](#how-a-call-runs)
 - [Modes and Approval](#modes-and-approval)
@@ -69,6 +70,24 @@ Try it without the model:
 infer tools execute WordCount '{"path":"README.md"}'
 ```
 
+## User Tools and Project Tools
+
+infer loads custom tools from three directories and merges them:
+
+| Directory | Kind | Approval |
+| --- | --- | --- |
+| `~/.infer/tools/` (or `tools.custom_dir`) | User tools, which you installed | As the manifest's `require_approval` says |
+| `.infer/tools/` in the working directory | Project tools, which the repository supplies | Always, except in `auto` mode |
+| `.agents/tools/` in the working directory | Project tools, which the repository supplies | Always, except in `auto` mode |
+
+When two directories define a tool with the same name, the project tool wins over the user tool, and `.infer/tools/`
+wins over `.agents/tools/`.
+
+A project tool comes with whatever repository you cloned, so infer never lets it run silently. Every call needs
+approval, even when its manifest says `require_approval: false` and even in `readonly` mode, which runs every other
+tool it offers without asking. Only `auto` mode, which runs every call unapproved, runs a project tool without asking.
+`!!Name(...)` and `infer tools execute` count as your approval, as for any tool.
+
 ## Manifest Reference
 
 A custom tool manifest uses the same format as the manifests of infer's built-in tools, plus three fields that only
@@ -114,8 +133,9 @@ Custom tools follow the same policy as built-in tools:
 - **`modes`** lists the agent modes that offer the tool. Without it the tool is offered in `standard`, `auto` and
   `auto-with-judge`, and hidden in `plan` and `readonly`, like an MCP tool. A tool that only reads can list every
   mode, as the `WordCount` example in [Quick Start](#quick-start) does. A call outside the tool's modes is refused.
-- **`require_approval`** decides whether a call needs approval. Without it the tool follows the global
-  `tools.safety.require_approval` (default `true`). How the approval is asked for follows
+- **`require_approval`** decides whether a user tool's call needs approval. Without it the tool follows the global
+  `tools.safety.require_approval` (default `true`). A project tool always needs approval, see
+  [User Tools and Project Tools](#user-tools-and-project-tools). How the approval is asked for follows
   `tools.safety.approval_behaviour` (`prompt`, `ipc`, `judge` or `block`) in both chat and headless mode, see the
   [Configuration Reference](configuration-reference.md#tool-settings).
 
@@ -138,7 +158,8 @@ manifest whose name:
   (`read` is rejected because of `Read`), or
 - starts with `MCP_`, which is reserved for MCP tools.
 
-A custom tool never replaces a built-in tool, and nothing replaces a custom tool.
+A custom tool never replaces a built-in or MCP tool, and no built-in or MCP tool replaces a custom tool. Between custom
+tools, a project tool replaces a user tool of the same name.
 
 ## Example: One Binary for Many Tools (Rust)
 
@@ -223,13 +244,19 @@ A custom tool runs with **your** permissions and can do anything you can. infer'
 programs custom tools start. Only install manifests and programs you trust, keep `require_approval` on for tools that
 change things, and list `plan`/`readonly` in `modes` only for tools that do not.
 
-Custom tools load only from your user directory. A project's `.infer/tools/` is not read, so cloning a repository
-cannot register executables.
+- **Project tools always ask.** A cloned repository can offer tools, but none of them runs without your approval
+  outside `auto` mode.
+- **infer never edits the tool directories.** The Write, Edit, MultiEdit and Delete tools refuse any path inside
+  `~/.infer/tools/`, `tools.custom_dir`, `.infer/tools/` or `.agents/tools/`, also through a symlink or another spelling
+  of the path, so the model cannot write itself a tool that skips approval. This cannot be switched off. The Bash tool
+  is not covered: in `auto` mode it runs any command.
+- **A project's `.infer/config.yaml` is trusted like your own.** It can set `tools.custom_dir`, the Bash allow-list and
+  the approval settings, so review it before running infer in a repository you do not trust.
 
 ## Using Another Directory
 
-Set `tools.custom_dir` in `config.yaml`, or the `INFER_TOOLS_CUSTOM_DIR` environment variable, to load manifests from
-another directory instead of `~/.infer/tools/`:
+Set `tools.custom_dir` in `config.yaml`, or the `INFER_TOOLS_CUSTOM_DIR` environment variable, to load your user tools
+from another directory instead of `~/.infer/tools/`. The project directories still load:
 
 ```bash
 INFER_TOOLS_CUSTOM_DIR=/opt/my-app/tools infer headless "Take a screenshot of the editor"

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 const echoManifest = `name: Echo
@@ -27,14 +28,22 @@ parameters:
 
 var builtins = []string{"Read", "WebSearch"}
 
-func loadTools(t *testing.T, files map[string]string) map[string]*Tool {
+func writeFiles(t *testing.T, dir string, files map[string]string) {
 	t.Helper()
-	dir := t.TempDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	for name, content := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
+}
+
+func loadTools(t *testing.T, files map[string]string) map[string]*Tool {
+	t.Helper()
+	dir := t.TempDir()
+	writeFiles(t, dir, files)
 	cfg := &config.Config{Tools: config.ToolsConfig{CustomDir: dir}}
 	loaded := make(map[string]*Tool)
 	for name, tool := range NewTools(cfg, builtins) {
@@ -103,5 +112,44 @@ func TestNewTools_MissingDirectory(t *testing.T) {
 	cfg := &config.Config{Tools: config.ToolsConfig{CustomDir: filepath.Join(t.TempDir(), "absent")}}
 	if tools := NewTools(cfg, builtins); len(tools) != 0 {
 		t.Errorf("loaded %d tools from a missing directory, want none", len(tools))
+	}
+}
+
+func TestNewTools_ProjectToolsMergeWithUserTools(t *testing.T) {
+	project := t.TempDir()
+	t.Chdir(project)
+	userDir := t.TempDir()
+	described := func(name, description string) string {
+		m := strings.Replace(echoManifest, "name: Echo", "name: "+name, 1)
+		return strings.Replace(m, "Echoes its input.", description, 1) + "require_approval: false\n"
+	}
+	writeFiles(t, userDir, map[string]string{"Echo.yaml": described("Echo", "user"), "Only.yaml": described("Only", "user")})
+	writeFiles(t, filepath.Join(project, ".agents", "tools"), map[string]string{"Echo.yaml": described("Echo", "agents"), "Peek.yaml": described("Peek", "agents")})
+	writeFiles(t, filepath.Join(project, ".infer", "tools"), map[string]string{"Echo.yaml": described("Echo", "infer")})
+
+	tools := NewTools(&config.Config{Tools: config.ToolsConfig{CustomDir: userDir}}, builtins)
+
+	wantFrom := map[string]string{"Echo": "infer", "Peek": "agents", "Only": "user"}
+	for name, want := range wantFrom {
+		manifest := tools[name].(agentdomain.ManifestTool).Manifest()
+		if manifest.Description != want {
+			t.Errorf("%s came from %q, want %q", name, manifest.Description, want)
+		}
+		_, isProject := tools[name].(projectTool)
+		if isProject != (want != "user") || manifest.RequiresApproval(false) != isProject {
+			t.Errorf("%s: project tool %v, requires approval %v, want both %v", name, isProject, manifest.RequiresApproval(false), want != "user")
+		}
+	}
+}
+
+func TestNewTools_ProjectDirThatIsTheUserDirStaysTrusted(t *testing.T) {
+	home := t.TempDir()
+	t.Chdir(home)
+	userDir := filepath.Join(home, ".infer", "tools")
+	writeFiles(t, userDir, map[string]string{"Echo.yaml": echoManifest})
+
+	tools := NewTools(&config.Config{Tools: config.ToolsConfig{CustomDir: userDir}}, builtins)
+	if _, ok := tools["Echo"].(*Tool); !ok {
+		t.Errorf("Echo = %T, want the user's own tool when the working directory is home", tools["Echo"])
 	}
 }

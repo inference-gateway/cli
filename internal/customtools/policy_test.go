@@ -90,3 +90,32 @@ func TestCustomTools_RequireApproval(t *testing.T) {
 		})
 	}
 }
+
+func TestCustomTools_ProjectToolsAlwaysNeedApproval(t *testing.T) {
+	project := t.TempDir()
+	t.Chdir(project)
+	peek := strings.Replace(echoManifest, "name: Echo", "name: Peek", 1) +
+		"modes:\n  - standard\n  - auto\n  - auto-with-judge\n  - plan\n  - readonly\nrequire_approval: false\n"
+	writeFiles(t, filepath.Join(project, ".agents", "tools"), map[string]string{"Peek.yaml": peek})
+	cfg := &config.Config{Tools: config.ToolsConfig{
+		Enabled:   true,
+		CustomDir: t.TempDir(),
+		Safety:    config.SafetyConfig{RequireApproval: false},
+	}}
+	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry.RegisterTools(NewTools(cfg, tools.ToolNames()))
+	service := agent.NewLLMToolServiceWithRegistry(cfg, registry)
+
+	for mode, want := range map[agentdomain.AgentMode]bool{
+		agentdomain.AgentModeStandard:   true,
+		agentdomain.AgentModeReadOnly:   true,
+		agentdomain.AgentModePlan:       true,
+		agentdomain.AgentModeAutoAccept: false,
+	} {
+		policy := agent.NewStandardApprovalPolicy(cfg, fixedMode(mode), service)
+		call := &sdk.ChatCompletionMessageToolCall{Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Peek", Arguments: `{"text":"hi"}`}}
+		if got := policy.ShouldRequireApproval(context.Background(), call, true); got != want {
+			t.Errorf("%s mode: ShouldRequireApproval = %v, want %v despite require_approval: false", mode.ModeKey(), got, want)
+		}
+	}
+}

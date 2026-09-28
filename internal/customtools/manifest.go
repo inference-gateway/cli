@@ -1,7 +1,6 @@
 package customtools
 
 import (
-	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,13 +25,32 @@ type manifest struct {
 	Enabled                  *bool    `yaml:"enabled,omitempty"`
 }
 
-// NewTools loads the custom tools from every <Name>.yaml manifest in
-// tools.custom_dir (default ~/.infer/tools). A manifest that is invalid or
-// takes one of the builtins' names, or the MCP prefix, is skipped with a warning.
+// NewTools loads the user's custom tools from tools.custom_dir (default
+// ~/.infer/tools), then the project's from .agents/tools and .infer/tools. A
+// project tool replaces a user tool of the same name, and .infer/tools wins.
 func NewTools(cfg *config.Config, builtins []string) map[string]agentdomain.Tool {
-	dir := cmp.Or(cfg.Tools.CustomDir, filepath.Join(config.UserSpaceConfigDir(), "tools"))
+	userDir := absDir(cfg.CustomToolsDir())
+	tools := make(map[string]agentdomain.Tool)
+	for name, tool := range loadDir(userDir, builtins) {
+		tools[name] = tool
+	}
+	for _, dir := range slices.Backward(config.ProjectToolsDirs()) {
+		if dir = absDir(dir); dir == userDir {
+			continue
+		}
+		for name, tool := range loadDir(dir, builtins) {
+			tools[name] = newProjectTool(tool)
+		}
+	}
+	return tools
+}
+
+// loadDir loads every <Name>.yaml manifest in dir. A manifest that is
+// invalid, takes one of the builtins' names or the MCP prefix is skipped with
+// a warning.
+func loadDir(dir string, builtins []string) map[string]*Tool {
 	paths, _ := filepath.Glob(filepath.Join(dir, "*.yaml"))
-	tools := make(map[string]agentdomain.Tool, len(paths))
+	tools := make(map[string]*Tool, len(paths))
 	for _, path := range paths {
 		m, err := parseManifest(path, builtins)
 		if err != nil {
@@ -42,9 +60,16 @@ func NewTools(cfg *config.Config, builtins []string) map[string]agentdomain.Tool
 		if m.Enabled != nil && !*m.Enabled {
 			continue
 		}
-		tools[m.Name] = newTool(m, filepath.Dir(path))
+		tools[m.Name] = newTool(m, dir)
 	}
 	return tools
+}
+
+func absDir(dir string) string {
+	if abs, err := filepath.Abs(dir); err == nil {
+		return abs
+	}
+	return dir
 }
 
 func parseManifest(path string, builtins []string) (manifest, error) {
