@@ -336,7 +336,7 @@ telemetry:
   The default makes headless runs **secure by default**: an off-allow-list or mutating action is blocked in CI and sent for approval under
   the channel manager, instead of running unattended. For a controlled-autonomy CI profile, set `block` and grant only what the agent needs
   (e.g. `tools.write.require_approval: false` plus a curated bash allow-list / the `mode.all` append override).
-- **Individual tool settings**: Each tool (Bash, Read, Write, Edit, Delete, Grep, Tree, WebFetch, WebSearch, TodoWrite) has:
+- **Individual tool settings**: Each tool (Read, Write, Edit, Delete, Grep, Tree, WebFetch, WebSearch, TodoWrite) has:
   - **enabled**: Enable/disable the specific tool
   - **require_approval**: Override global safety setting for this tool (optional)
 - **tools.edit.strict_whitespace**: `false` (default) enables indentation-tolerant matching for Edit/MultiEdit; `true` requires byte-exact
@@ -986,10 +986,12 @@ rewriting config or relaxing a mode to `.*`:
 > The matcher is shell-aware and matches each entry against the WHOLE command
 > (so a bare token matches only itself; use `( .*)?` to allow arguments). A
 > clean-command guard rejects command substitution (`$(...)`), pipes/chains
-> (`|`, `&&`, `||`, `;`), file-write redirects (`>`, `>>`), dangerous `find`
-> actions, and printing/publishing an expanded `$VAR` (secret leak); benign
-> redirects (`2>&1`, `>/dev/null`) are permitted. The single sentinel `.*`
-> (default for `auto`) means unrestricted and skips the guard.
+> (`|`, `&&`, `||`, `;`), file-write redirects (`>`, `>>`) and file-writing
+> options (`sort -o`, `tree -o`, `git --output`), dangerous `find` actions, and
+> printing/publishing an expanded `$VAR` (secret leak); benign redirects
+> (`2>&1`, `>/dev/null`) are permitted. An allowed command also runs without
+> approval only when every path it names is inside the sandbox. The single
+> sentinel `.*` (default for `auto`) means unrestricted and skips the guard.
 > See [Bash Tool restricted operators](tools-reference.md#bash-tool) for details.
 
 **Example (`config.yaml`):**

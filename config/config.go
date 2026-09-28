@@ -1211,7 +1211,7 @@ func DefaultConfig() *Config { //nolint:funlen
 					All: BashModeAllowConfig{Allow: []string{
 						`echo( .*)?`, `ls( .*)?`, `pwd( .*)?`, `tree( .*)?`,
 						`wc( .*)?`, `sort( .*)?`, `uniq( .*)?`, `head( .*)?`, `tail( .*)?`,
-						`task( .*)?`, `make( .*)?`, `find( .*)?`, `sleep( .*)?`,
+						`find( .*)?`, `sleep( .*)?`,
 						`mkdir( .*)?`, `ln -s( [^ -][^ ]*)+`,
 						`git status( .*)?`,
 						`git branch( --show-current)?( -[alrvd])?`,
