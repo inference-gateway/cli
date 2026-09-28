@@ -28,5 +28,5 @@ hooks:
 ## Related
 
 - [Configuration Reference](configuration-reference.md#system-reminders-remindersyaml) - every reminder trigger and option
-- [Persistent Memory](memory.md) - the memory reminders that ship enabled
+- [Persistent Memory](memory.md) - what the `memory-consult` and `memory-hygiene` reminders do
 - [Commands Reference](commands-reference.md#global-flags) - `--reminders-file` and the other global flags

@@ -9,7 +9,6 @@ implement them where their SDK lives.
 
 - Telegram is the only adapter today, in `internal/presentation/telegram`.
 - `infer daemon` runs the configured channels, and the scheduler's notifier delivers job results through the same contract.
-- Configure channels in `.infer/channels.yaml` (seeded by `infer init`) or with `INFER_CHANNELS_*` variables.
 
 ## Related
 

@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md)
 
-**What** - every tool an LLM can call through the Inference Gateway CLI, with its parameters and approval default.
+**What** - every built-in tool an LLM can call through the Inference Gateway CLI, with its parameters and approval default.
 **Why** - a tool's scope, side effects, and gating differ; picking the wrong one either fails the task or runs something you did not sanction.
 **How** - find the tool by category in the overview below, then read its section for the exact contract.
 
@@ -97,15 +97,15 @@ always-available set is registered for every session. There is **no built-in Git
 | **CloseSubagent** | Stop a subagent or tidy a finished pane | Yes |
 | **ApproveSubagent** | Relay an approval decision to a waiting subagent | Yes |
 
-**Computer Use** (require `computer_use.enabled`; approval follows `computer_use.approval`, default `never`,
-and RecordStart follows `computer_use.recording.require_approval`, default on):
+**Computer Use** (approval follows `computer_use.approval`, default `never`, and RecordStart also follows
+`computer_use.recording.require_approval`, default on):
 
-| Tool | Purpose | Approval |
-| ------ | --------- | ---------- |
-| **Computer** | Read the accessibility tree, press labelled controls, capture screenshots, and control mouse/keyboard | No |
-| **GetLatestFrame** | Read the latest frame from a named source (screen, camera directory) | No |
-| **RecordStart** | Record the screen, a window, or a region to MP4 (needs `computer_use.recording.enabled`) | Yes |
-| **RecordStop** | Stop the recording and return the file path, duration, and size | No |
+| Tool | Purpose | Approval | Enabled by |
+| ------ | --------- | ---------- | ------------ |
+| **Computer** | Read the accessibility tree, press labelled controls, capture screenshots, and control mouse/keyboard | No | `computer_use.enabled` |
+| **GetLatestFrame** | Read the latest frame from a named source (screen, camera directory) | No | any frame source, e.g. `vision.sources` |
+| **RecordStart** | Record the screen, a window, or a region to MP4 | Yes | `computer_use.recording.enabled` |
+| **RecordStop** | Stop the recording and return the file path, duration, and size | No | `computer_use.recording.enabled` |
 
 **Browser** (require `browser_use.enabled`; see [Browser Tools](#browser-tools)):
 
@@ -130,7 +130,7 @@ and RecordStart follows `computer_use.recording.require_approval`, default on):
 | **TextToMusic** | Generate music through the gateway | No | `text_to_music.enabled` |
 | **TextToSFX** | Generate a sound effect through the gateway | No | `text_to_sfx.enabled` |
 | **TextToVideo** | Generate a video, optionally from an avatar | No | `text_to_video.enabled` |
-| **CreateAvatar** | Build an avatar portrait folder for TextToVideo | Yes | `text_to_video.create_avatar` |
+| **CreateAvatar** | Build an avatar portrait folder for TextToVideo | Yes | `text_to_video.enabled` and `text_to_video.create_avatar` |
 
 **Memory, scheduling & A2A** (each gated by its own flag):
 
@@ -142,14 +142,20 @@ and RecordStart follows `computer_use.recording.require_approval`, default on):
 | **A2A_QueryAgent** | Query an A2A agent's capabilities | No | A2A enabled |
 | **A2A_QueryTask** | Check an A2A task's status | No | A2A enabled |
 
-> **Approval** reflects the default policy. The global default is `tools.safety.require_approval: true`,
-> so a tool is **No** only where its manifest exempts it. Bash is governed instead by the per-mode bash
-> allow-list, and `tools.bash.require_approval` has no effect. A tool with its own config section takes
-> `require_approval` there (`tools.write`, `tools.web_fetch`, `text_to_speech`, `a2a.tools.*`, ...);
-> the rest follow the global switch only. See [Tool Approval](tool-approval.md) for how gated calls are resolved.
+> **Approval** reflects the default policy. Each tool call takes the first rule that applies:
 >
-> **MCP tools** are not listed here - they are discovered and registered dynamically at runtime from your
+> 1. The computer-use tools decide per call from `computer_use.approval`.
+> 2. Bash follows the per-mode bash allow-list. `tools.bash.require_approval` has no effect.
+> 3. A `require_approval` set in the tool's config section wins. Config defaults already exempt
+>    `tools.read`, `tools.grep`, `tools.tree` and `tools.web_fetch`.
+> 4. Otherwise the tool's manifest default applies where it sets one. For example, ApproveSubagent always asks.
+> 5. Otherwise the global `tools.safety.require_approval` applies, default `true`.
+>
+> See [Tool Approval](tool-approval.md) for how gated calls are resolved.
+>
+> **MCP tools and custom tools** are not listed here. MCP tools are discovered at runtime from your
 > configured MCP servers and surface as `MCP_<server>_<tool>` (see [MCP Integration](mcp-integration.md)).
+> Custom tools are loaded from their manifests (see [Custom Tools](custom-tools.md)).
 
 <img src="../assets/tui-tools.png" width="760" alt="A Grep tool call executed by the agent, with its result and the assistant's summary" />
 
@@ -922,22 +928,14 @@ directly; vision models can always request `format: regular`.
 
 ### ImageDecode Tool
 
-Describe an arbitrary local image file or http(s) URL through the vision annotator, optionally answering a specific
-question about it. Read-only, no approval required. Enabled when `vision.annotator` is configured.
+Load an arbitrary local image file or http(s) URL, optionally answering a specific question about it.
+Read-only, no approval required, and always available. With a `vision.annotator` configured it also
+returns a text description for text-only models (see [Configuration Reference](configuration-reference.md#vision-settings)).
 
 **Parameters:**
 
 - `image` (required): Local file path or http(s) URL of the image
 - `prompt` (optional): A question to answer about the image
-
-**Configuration** (see [Configuration Reference](configuration-reference.md#vision-settings)):
-
-```yaml
-vision:
-  annotator:
-    enabled: true
-    model: anthropic/claude-haiku-4-5-20251001 # any vision model served by your gateway
-```
 
 ---
 

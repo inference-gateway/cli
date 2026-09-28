@@ -9,7 +9,6 @@ layer instead of leaking into the agent.
 
 - `NewTools(...)` builds the six `Browser*` tools from the manifests in `tools/`, and the container registers them into the tools registry.
 - Swapping Playwright for the extension bridge, or adding another engine, must not change the tool contract the agent calls.
-- Configure it in `browser_use.yaml` (or `INFER_BROWSER_USE_*`).
 
 ## Related
 

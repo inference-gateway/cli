@@ -15,6 +15,6 @@ through the gateway, so any vision model it serves works, including fully local 
 
 ## Related
 
-- [Tools Reference](tools-reference.md#vision-tools) - `GetLatestFrame`, `ImageDecode`, and the image tools
+- [Tools Reference](tools-reference.md#vision-tools) - `GetLatestFrame` and `ImageDecode`. The image tools are under [Media Tools](tools-reference.md#media-tools)
 - [Computer Use](computer-use.md) - the built-in `screen` frame source
 - [Configuration Reference](configuration-reference.md#vision-settings) - sources, retention, and annotator settings
