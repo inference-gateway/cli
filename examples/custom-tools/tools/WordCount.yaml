@@ -1,0 +1,19 @@
+name: WordCount
+description: Count the lines, words and characters of a text file.
+command:
+  - ./word_count.py
+parameters:
+  type: object
+  properties:
+    path:
+      type: string
+      description: Path of the file to count, relative to the working directory
+  required:
+    - path
+modes:
+  - standard
+  - auto
+  - auto-with-judge
+  - plan
+  - readonly
+require_approval: false

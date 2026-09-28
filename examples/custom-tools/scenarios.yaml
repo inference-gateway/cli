@@ -1,0 +1,19 @@
+fallback:
+  content: 'Try "count the words in README.md" or "save a note to buy milk".'
+scenarios:
+  - name: word-count
+    match: '(?i)count the words in README\.md'
+    turns:
+      - tool_calls:
+          - name: WordCount
+            args:
+              path: README.md
+      - content: I counted README.md with the WordCount tool.
+  - name: save-note
+    match: '(?i)save a note'
+    turns:
+      - tool_calls:
+          - name: SaveNote
+            args:
+              text: Buy milk
+      - content: I tried to save the note "Buy milk" with the SaveNote tool.
