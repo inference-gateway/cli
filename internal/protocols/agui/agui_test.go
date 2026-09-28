@@ -28,9 +28,9 @@ func stream(events ...agentdomain.ChatEvent) <-chan agentdomain.ChatEvent {
 	return ch
 }
 
-func TestRenderAGUI_SingleRunLifecycle(t *testing.T) {
+func TestRender_SingleRunLifecycle(t *testing.T) {
 	var out strings.Builder
-	err := RenderAGUI(stream(
+	err := Render(stream(
 		agentdomain.ChatStartEvent{},
 		agentdomain.ChatChunkEvent{RequestID: "r1", Content: "hi"},
 		agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{
@@ -41,7 +41,7 @@ func TestRenderAGUI_SingleRunLifecycle(t *testing.T) {
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "openai/gpt-4o", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("RenderAGUI() err = %v", err)
+		t.Fatalf("Render() err = %v", err)
 	}
 	got := out.String()
 	if n := strings.Count(got, `"RUN_STARTED"`); n != 1 {
@@ -60,16 +60,16 @@ func TestRenderAGUI_SingleRunLifecycle(t *testing.T) {
 	}
 }
 
-func TestRenderAGUI_UserMessageIsFramedWithUserRole(t *testing.T) {
+func TestRender_UserMessageIsFramedWithUserRole(t *testing.T) {
 	var out strings.Builder
-	err := RenderAGUI(stream(
+	err := Render(stream(
 		agentdomain.UserMessageChatEvent{Content: "what's up"},
 		agentdomain.ChatStartEvent{},
 		agentdomain.ChatChunkEvent{RequestID: "r1", Content: "not much"},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("RenderAGUI() err = %v", err)
+		t.Fatalf("Render() err = %v", err)
 	}
 	got := out.String()
 	if !strings.Contains(got, `"role":"user"`) || !strings.Contains(got, `"delta":"what's up"`) {
@@ -80,7 +80,7 @@ func TestRenderAGUI_UserMessageIsFramedWithUserRole(t *testing.T) {
 	}
 }
 
-func TestRenderAGUI_BackgroundJobsAreStreamed(t *testing.T) {
+func TestRender_BackgroundJobsAreStreamed(t *testing.T) {
 	var out strings.Builder
 	jobs := func() []scheddomain.TrackedJob {
 		return []scheddomain.TrackedJob{
@@ -89,13 +89,13 @@ func TestRenderAGUI_BackgroundJobsAreStreamed(t *testing.T) {
 		}
 	}
 	note := "[A2A Task Completed: delay]\n\nslow done"
-	err := RenderAGUI(stream(
+	err := Render(stream(
 		agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolName: "A2A_SubmitTask", ToolCallID: "c1", Success: true}}},
 		agentdomain.MessageQueuedEvent{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(note)}},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "", &convmocks.FakeConversationRepository{}, jobs)
 	if err != nil {
-		t.Fatalf("RenderAGUI() err = %v", err)
+		t.Fatalf("Render() err = %v", err)
 	}
 	got := out.String()
 	if n := strings.Count(got, `"name":"background_tasks"`); n != 2 {
@@ -120,9 +120,9 @@ func TestRenderAGUI_BackgroundJobsAreStreamed(t *testing.T) {
 	}
 }
 
-func TestRenderAGUI_QueuedNoteSplitsAssistantTurns(t *testing.T) {
+func TestRender_QueuedNoteSplitsAssistantTurns(t *testing.T) {
 	var out strings.Builder
-	err := RenderAGUI(stream(
+	err := Render(stream(
 		agentdomain.ChatChunkEvent{Content: "submitted, waiting"},
 		agentdomain.MessageQueuedEvent{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("[A2A Task Completed: x]\n\nok")}},
 		agentdomain.ChatChunkEvent{ReasoningContent: "note arrived"},
@@ -130,7 +130,7 @@ func TestRenderAGUI_QueuedNoteSplitsAssistantTurns(t *testing.T) {
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("RenderAGUI() err = %v", err)
+		t.Fatalf("Render() err = %v", err)
 	}
 	got := out.String()
 	if n := strings.Count(got, `"TEXT_MESSAGE_START"`); n != 2 {
@@ -143,28 +143,28 @@ func TestRenderAGUI_QueuedNoteSplitsAssistantTurns(t *testing.T) {
 	}
 }
 
-func TestRenderAGUI_NilJobsEmitsNoSnapshot(t *testing.T) {
+func TestRender_NilJobsEmitsNoSnapshot(t *testing.T) {
 	var out strings.Builder
-	err := RenderAGUI(stream(
+	err := Render(stream(
 		agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolName: "Read", ToolCallID: "c1", Success: true}}},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("RenderAGUI() err = %v", err)
+		t.Fatalf("Render() err = %v", err)
 	}
 	if strings.Contains(out.String(), "background_tasks") {
 		t.Errorf("nil jobs must not emit background_tasks\n%s", out.String())
 	}
 }
 
-func TestRenderAGUI_ErrorEmitsSingleRunError(t *testing.T) {
+func TestRender_ErrorEmitsSingleRunError(t *testing.T) {
 	var out strings.Builder
-	err := RenderAGUI(stream(
+	err := Render(stream(
 		agentdomain.ChatCompleteEvent{},
 		agentdomain.ChatErrorEvent{Error: errors.New("boom")},
 	), &out, nil, nil, "session-1", "m", &convmocks.FakeConversationRepository{}, nil)
 	if err == nil {
-		t.Fatal("RenderAGUI() err = nil, want error")
+		t.Fatal("Render() err = nil, want error")
 	}
 	got := out.String()
 	if n := strings.Count(got, `"RUN_ERROR"`); n != 1 {
@@ -186,7 +186,7 @@ func approvalsChan(resps ...ipc.ApprovalResponse) <-chan ipc.ApprovalResponse {
 	return ch
 }
 
-func TestRenderAGUI_ApprovalRoundTrip(t *testing.T) {
+func TestRender_ApprovalRoundTrip(t *testing.T) {
 	respChan := make(chan agentdomain.ApprovalAction, 1)
 	ev := agentdomain.ToolApprovalRequestedEvent{
 		ToolCall:     sdk.ChatCompletionMessageToolCall{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"}},
@@ -194,8 +194,8 @@ func TestRenderAGUI_ApprovalRoundTrip(t *testing.T) {
 	}
 	approvals := approvalsChan(ipc.ApprovalResponse{ToolCallID: "tc1", Approved: true})
 	var out strings.Builder
-	if err := RenderAGUI(stream(ev, agentdomain.ChatCompleteEvent{}), &out, approvals, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil); err != nil {
-		t.Fatalf("RenderAGUI() err = %v", err)
+	if err := Render(stream(ev, agentdomain.ChatCompleteEvent{}), &out, approvals, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil); err != nil {
+		t.Fatalf("Render() err = %v", err)
 	}
 	select {
 	case got := <-respChan:
@@ -247,9 +247,9 @@ func TestAnswerQuestions_RoundTrip(t *testing.T) {
 				ResponseChan: respChan,
 			}
 			var out strings.Builder
-			err := RenderAGUI(stream(ev, agentdomain.ChatCompleteEvent{}), &out, nil, tt.questions, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
+			err := Render(stream(ev, agentdomain.ChatCompleteEvent{}), &out, nil, tt.questions, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
 			if err != nil {
-				t.Fatalf("RenderAGUI() err = %v", err)
+				t.Fatalf("Render() err = %v", err)
 			}
 			answers, open := <-respChan
 			if tt.dismissed {
@@ -288,16 +288,16 @@ func TestEmitRunError(t *testing.T) {
 	}
 }
 
-func TestRenderAGUI_ComputerUsePauseResume(t *testing.T) {
+func TestRender_ComputerUsePauseResume(t *testing.T) {
 	var out strings.Builder
-	err := RenderAGUI(stream(
+	err := Render(stream(
 		agentdomain.ComputerUsePausedEvent{RequestID: "s1"},
 		agentdomain.ChatCompleteEvent{Cancelled: true},
 		agentdomain.ComputerUseResumedEvent{RequestID: "s1"},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("RenderAGUI() err = %v, want nil after resumed run completes", err)
+		t.Fatalf("Render() err = %v, want nil after resumed run completes", err)
 	}
 	got := out.String()
 	for _, want := range []string{`computer_use_paused`, `computer_use_resumed`, `"CUSTOM"`} {
@@ -310,7 +310,7 @@ func TestRenderAGUI_ComputerUsePauseResume(t *testing.T) {
 	}
 }
 
-func TestRenderAGUI_RunFinishedCarriesSessionStats(t *testing.T) {
+func TestRender_RunFinishedCarriesSessionStats(t *testing.T) {
 	config.UserContextWindows = map[string]int{"gpt-4o": 200000}
 	t.Cleanup(func() { config.UserContextWindows = nil })
 
@@ -332,12 +332,12 @@ func TestRenderAGUI_RunFinishedCarriesSessionStats(t *testing.T) {
 	}
 
 	var out strings.Builder
-	err := RenderAGUI(stream(
+	err := Render(stream(
 		agentdomain.ChatChunkEvent{Content: "hi"},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "openai/gpt-4o", repo, nil)
 	if err != nil {
-		t.Fatalf("RenderAGUI() err = %v", err)
+		t.Fatalf("Render() err = %v", err)
 	}
 
 	var result map[string]any
@@ -377,16 +377,16 @@ func TestRenderAGUI_RunFinishedCarriesSessionStats(t *testing.T) {
 	}
 
 	var plain strings.Builder
-	err = RenderAGUI(stream(agentdomain.ChatCompleteEvent{}), &plain, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
+	err = Render(stream(agentdomain.ChatCompleteEvent{}), &plain, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("RenderAGUI() err = %v", err)
+		t.Fatalf("Render() err = %v", err)
 	}
 	if strings.Contains(plain.String(), `"result"`) {
 		t.Errorf("zero-request run must emit RUN_FINISHED without result:\n%s", plain.String())
 	}
 }
 
-func TestRenderAGUI_TokenUsageStreamsPerStep(t *testing.T) {
+func TestRender_TokenUsageStreamsPerStep(t *testing.T) {
 	config.UserContextWindows = map[string]int{"gpt-4o": 200000}
 	t.Cleanup(func() { config.UserContextWindows = nil })
 
@@ -408,14 +408,14 @@ func TestRenderAGUI_TokenUsageStreamsPerStep(t *testing.T) {
 	}
 
 	var out strings.Builder
-	err := RenderAGUI(stream(
+	err := Render(stream(
 		agentdomain.ChatChunkEvent{Content: "one"},
 		agentdomain.ChatCompleteEvent{},
 		agentdomain.ChatChunkEvent{Content: "two"},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "openai/gpt-4o", repo, nil)
 	if err != nil {
-		t.Fatalf("RenderAGUI() err = %v", err)
+		t.Fatalf("Render() err = %v", err)
 	}
 
 	got := out.String()
@@ -453,24 +453,24 @@ func TestRenderAGUI_TokenUsageStreamsPerStep(t *testing.T) {
 	}
 
 	var plain strings.Builder
-	err = RenderAGUI(stream(agentdomain.ChatCompleteEvent{}), &plain, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
+	err = Render(stream(agentdomain.ChatCompleteEvent{}), &plain, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("RenderAGUI() err = %v", err)
+		t.Fatalf("Render() err = %v", err)
 	}
 	if strings.Contains(plain.String(), `"name":"token_usage"`) {
 		t.Errorf("zero-request run must not emit token_usage:\n%s", plain.String())
 	}
 }
 
-func TestRenderAGUI_ScreenRecordingStatus(t *testing.T) {
+func TestRender_ScreenRecordingStatus(t *testing.T) {
 	var out strings.Builder
-	err := RenderAGUI(stream(
+	err := Render(stream(
 		agentdomain.ScreenRecordingStatusEvent{Active: true},
 		agentdomain.ScreenRecordingStatusEvent{Active: false},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("RenderAGUI() err = %v", err)
+		t.Fatalf("Render() err = %v", err)
 	}
 	got := out.String()
 	for _, want := range []string{`"name":"screen_recording","value":{"active":true}`, `"name":"screen_recording","value":{"active":false}`} {
