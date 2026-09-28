@@ -85,7 +85,7 @@ docker run -it --rm --network inference-gateway ghcr.io/inference-gateway/cli:la
 curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
 
 # Specific version
-curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.77.0
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.217.0
 
 # Custom installation directory
 curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
