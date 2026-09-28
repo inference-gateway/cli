@@ -158,8 +158,23 @@ func TestNewTools_ProjectDirThatIsTheUserDirStaysTrusted(t *testing.T) {
 	userDir := filepath.Join(home, ".infer", "tools")
 	writeFiles(t, userDir, map[string]string{"Echo.yaml": echoManifest})
 
-	tools := NewTools(&config.Config{Tools: config.ToolsConfig{CustomDir: userDir}}, builtins)
-	if _, ok := tools["Echo"].(*Tool); !ok {
-		t.Errorf("Echo = %T, want the user's own tool when the working directory is home", tools["Echo"])
+	echoStaysUserTool := func(t *testing.T) {
+		t.Helper()
+		tools := NewTools(&config.Config{Tools: config.ToolsConfig{CustomDir: userDir}}, builtins)
+		if _, ok := tools["Echo"].(*Tool); !ok {
+			t.Errorf("Echo = %T, want the user's own tool when the project dir is the user dir", tools["Echo"])
+		}
 	}
+
+	t.Run("the working directory is home", echoStaysUserTool)
+
+	t.Run("a symlinked alias of the user dir", func(t *testing.T) {
+		if err := os.MkdirAll(filepath.Join(home, ".agents"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(userDir, filepath.Join(home, ".agents", "tools")); err != nil {
+			t.Skipf("skipping, symlinks unavailable: %v", err)
+		}
+		echoStaysUserTool(t)
+	})
 }

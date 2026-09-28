@@ -29,14 +29,17 @@ type manifest struct {
 // NewTools loads the user's custom tools from tools.custom_dir (default
 // ~/.infer/tools), then the project's from .agents/tools and .infer/tools. A
 // project tool replaces a user tool of the same name, and .infer/tools wins.
+// A project dir that is the user dir under any alias is skipped, so the
+// user's own tools keep their approval.
 func NewTools(cfg *config.Config, builtins []string) map[string]agentdomain.Tool {
 	userDir := absDir(cfg.CustomToolsDir())
+	userDirID := config.CanonicalPath(userDir)
 	tools := make(map[string]agentdomain.Tool)
 	for name, tool := range loadDir(userDir, builtins) {
 		tools[name] = tool
 	}
 	for _, dir := range slices.Backward(config.ProjectToolsDirs()) {
-		if dir = absDir(dir); dir == userDir {
+		if dir = absDir(dir); config.CanonicalPath(dir) == userDirID {
 			continue
 		}
 		for name, tool := range loadDir(dir, builtins) {

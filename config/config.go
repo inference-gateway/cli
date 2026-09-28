@@ -1895,13 +1895,13 @@ func ProjectToolsDirs() []string {
 // tools load from. It resolves symlinks and ignores case, so neither a link
 // nor another spelling on a case-insensitive filesystem reaches one.
 func (c *Config) isWithinCustomToolsDir(absPath string) bool {
-	path := strings.ToLower(realPath(absPath))
+	path := CanonicalPath(absPath)
 	for _, dir := range append(ProjectToolsDirs(), c.CustomToolsDir()) {
 		absDir, err := filepath.Abs(dir)
 		if err != nil {
 			continue
 		}
-		toolsDir := strings.ToLower(realPath(absDir))
+		toolsDir := CanonicalPath(absDir)
 		if path == toolsDir || strings.HasPrefix(path, toolsDir+string(filepath.Separator)) {
 			return true
 		}
@@ -1924,6 +1924,13 @@ func realPath(absPath string) string {
 		rest = filepath.Join(filepath.Base(existing), rest)
 		existing = parent
 	}
+}
+
+// CanonicalPath is the spelling a path is identified under: symlinks resolved
+// in the longest existing prefix and case folded. Compare two paths through it
+// when they must be recognized under any alias.
+func CanonicalPath(absPath string) string {
+	return strings.ToLower(realPath(absPath))
 }
 
 // isWithinSkillsDir reports whether absPath lives inside one of the skills
