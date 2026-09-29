@@ -11,9 +11,15 @@ import (
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 )
 
-// capturingDriver builds an ExtensionDriver whose injected request records each
-// browser_command frame and replies with the canned result. Config comes with a
-// 2s timeout, so frames must carry timeout_ms 2000.
+// driverConfig sets a 2s action timeout, so frames must carry timeout_ms 2000.
+func driverConfig() *config.BrowserUseConfig {
+	cfg := config.DefaultBrowserUseConfig()
+	cfg.Browser.TimeoutSeconds = 2
+	return cfg
+}
+
+// newCapturingDriver builds an ExtensionDriver whose injected request records
+// each browser_command frame and replies with the canned result.
 func newCapturingDriver(t *testing.T, replay extensionResult) (*ExtensionDriver, func() []extensionCommand) {
 	t.Helper()
 	var calls []extensionCommand
@@ -32,11 +38,7 @@ func newCapturingDriver(t *testing.T, replay extensionResult) (*ExtensionDriver,
 		}
 		return data, err
 	}
-	cfg := config.DefaultBrowserUseConfig()
-	cfg.Enabled = true
-	cfg.Backend = config.BrowserBackendExtension
-	cfg.Browser.TimeoutSeconds = 2
-	return NewExtensionDriver(cfg, request), func() []extensionCommand { return calls }
+	return NewExtensionDriver(driverConfig(), request), func() []extensionCommand { return calls }
 }
 
 // checkResult compares the flat BrowserToolResult fields the verbs produce.
@@ -173,21 +175,14 @@ func TestExtensionDriverTimesOutWithActionError(t *testing.T) {
 	request := func(_ context.Context, _ string, _ json.RawMessage) (json.RawMessage, error) {
 		return nil, context.DeadlineExceeded
 	}
-	cfg := config.DefaultBrowserUseConfig()
-	cfg.Enabled = true
-	cfg.Backend = config.BrowserBackendExtension
-	cfg.Browser.TimeoutSeconds = 2
-	driver := NewExtensionDriver(cfg, request)
+	driver := NewExtensionDriver(driverConfig(), request)
 	if _, err := driver.Tabs(context.Background()); err == nil || !strings.Contains(err.Error(), "timed out waiting for the browser extension to tabs") {
 		t.Fatalf("expected the timeout error, got %v", err)
 	}
 }
 
 func TestExtensionDriverClickAtUnsupported(t *testing.T) {
-	cfg := config.DefaultBrowserUseConfig()
-	cfg.Enabled = true
-	cfg.Backend = config.BrowserBackendExtension
-	driver := NewExtensionDriver(cfg, func(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	driver := NewExtensionDriver(driverConfig(), func(context.Context, string, json.RawMessage) (json.RawMessage, error) {
 		return nil, nil
 	})
 	if _, err := driver.ClickAt(context.Background(), 10, 20); err == nil || !strings.Contains(err.Error(), "coordinate click isn't supported") {

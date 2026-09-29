@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,8 +14,8 @@ import (
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 )
 
-// Frame and action names of the extension wire contract. The socket lives in
-// protocols/agui, which this adapter must not import, so the literals repeat here.
+// Frame and action names of the browser_command wire contract, as documented in
+// docs/browser-extension-protocol.md.
 const (
 	outboundBrowserCommand = "browser_command"
 
@@ -138,13 +139,9 @@ func (d *ExtensionDriver) Screenshot(ctx context.Context) (browserdomain.Browser
 	if result.Image == "" {
 		return browserdomain.BrowserScreenshotResult{}, errors.New("extension returned no screenshot data")
 	}
-	mimeType := result.ImageMimeType
-	if mimeType == "" {
-		mimeType = defaultScreenshotMimeType
-	}
 	return browserdomain.BrowserScreenshotResult{
 		Data:     result.Image,
-		MimeType: mimeType,
+		MimeType: cmp.Or(result.ImageMimeType, defaultScreenshotMimeType),
 		URL:      result.URL,
 		Title:    result.Title,
 	}, nil
@@ -160,7 +157,7 @@ func (d *ExtensionDriver) Tabs(ctx context.Context) ([]browserdomain.BrowserTab,
 }
 
 // Close implements browserdomain.BrowserDriver. The container closes the
-// protocol layer (the bridge); the driver owns nothing to shut down.
+// bridge, and the driver owns nothing to shut down.
 func (d *ExtensionDriver) Close() {}
 
 // send dispatches one browser command and waits for its result. The deadline
@@ -187,7 +184,7 @@ func (d *ExtensionDriver) send(ctx context.Context, cmd extensionCommand) (*exte
 
 	var result extensionResult
 	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decoding the browser_result for %s: %w", cmd.Action, err)
 	}
 	if result.Error != "" {
 		return nil, fmt.Errorf("failed to %s: %s", cmd.Action, result.Error)

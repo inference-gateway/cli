@@ -323,6 +323,20 @@ func hello(t *testing.T, conn *websocket.Conn, token string) {
 	}
 }
 
+// untilConnected retries try while the bridge has not adopted the dialed
+// connection yet, since adopt runs after the client reads browser_hello_ack.
+func untilConnected(t *testing.T, try func() error) error {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		err := try()
+		if err == nil || !strings.Contains(err.Error(), "no browser extension connected") || time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestExtensionBridgeRejectsBadToken(t *testing.T) {
 	bridge := startBridge(t, bridgeConfig(), nil, nil)
 	conn := dial(t, bridge)
@@ -382,15 +396,10 @@ func TestExtensionBridgeNavigateRoundTrip(t *testing.T) {
 	}()
 
 	var result json.RawMessage
-	var err error
-	deadline := time.Now().Add(2 * time.Second)
-	for {
+	err := untilConnected(t, func() (err error) {
 		result, err = bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
-		if err == nil || !strings.Contains(err.Error(), "no browser extension connected") || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+		return err
+	})
 	if err != nil {
 		t.Fatalf("Request: %v", err)
 	}
@@ -610,15 +619,10 @@ func TestExtensionBridgeReplacesConnection(t *testing.T) {
 		}
 	}()
 
-	var err error
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		_, err = bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
-		if err == nil || !strings.Contains(err.Error(), "no browser extension connected") || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	err := untilConnected(t, func() error {
+		_, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
+		return err
+	})
 	if err != nil {
 		t.Fatalf("Request after replacement: %v", err)
 	}
@@ -1200,21 +1204,14 @@ func TestExtensionBridgeDisconnectFailsPendingRequest(t *testing.T) {
 		}
 	}()
 
-	deadline := time.Now().Add(2 * time.Second)
-	var err error
-	started := time.Now()
-	for {
-		_, err = bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
-		if err == nil || !strings.Contains(err.Error(), "no browser extension connected") || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	err := untilConnected(t, func() error {
+		_, err := bridge.Request(ctx, "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
+		return err
+	})
 	if !errors.Is(err, errBrowserExtensionDisconnected) {
 		t.Fatalf("expected disconnect error, got %v", err)
-	}
-	if elapsed := time.Since(started); elapsed > 2*time.Second {
-		t.Fatalf("Request waited %s instead of failing fast", elapsed)
 	}
 }
 
@@ -1244,15 +1241,10 @@ func TestExtensionDriverOverBridgeRoundTrip(t *testing.T) {
 
 	driver := browserinfra.NewExtensionDriver(cfg, bridge.Request)
 	var result browserdomain.BrowserToolResult
-	var err error
-	deadline := time.Now().Add(2 * time.Second)
-	for {
+	err := untilConnected(t, func() (err error) {
 		result, err = driver.Navigate(context.Background(), "https://example.com")
-		if err == nil || !strings.Contains(err.Error(), "no browser extension connected") || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+		return err
+	})
 	if err != nil {
 		t.Fatalf("Navigate: %v", err)
 	}
