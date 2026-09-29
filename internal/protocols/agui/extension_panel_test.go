@@ -157,17 +157,17 @@ func TestPanelSnapshotReplyFlag(t *testing.T) {
 	handle(t, p, map[string]any{"type": "resume_conversation", "project_dir": "/p", "id": "ignored"})
 	readFrame(t, sink, "MESSAGES_SNAPSHOT")
 
-	if !p.SnapshotReplied() {
-		t.Fatal("SnapshotReplied() = false, want true right after the frame reply")
+	if !p.TakeSnapshotReply() {
+		t.Fatal("TakeSnapshotReply() = false, want true right after the frame reply")
 	}
-	if p.SnapshotReplied() {
-		t.Fatal("SnapshotReplied() = true twice, want the mark consumed once")
+	if p.TakeSnapshotReply() {
+		t.Fatal("TakeSnapshotReply() = true twice, want the mark consumed once")
 	}
 
 	handle(t, p, map[string]any{"type": "list_conversations", "project_dir": "/p"})
 	readFrame(t, sink, "conversations")
-	if p.SnapshotReplied() {
-		t.Fatal("SnapshotReplied() = true, want false for non-snapshot frames")
+	if p.TakeSnapshotReply() {
+		t.Fatal("TakeSnapshotReply() = true, want false for non-snapshot frames")
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
@@ -125,7 +126,7 @@ type Panel struct {
 	// snapshotReplied marks a just-answered new_session / resume_conversation
 	// frame whose reply already shipped a MESSAGES_SNAPSHOT, so the run
 	// opening right after it skips its own boot snapshot.
-	snapshotReplied bool
+	snapshotReplied atomic.Bool
 
 	conversations *conversations
 	history       *history
@@ -163,9 +164,7 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 	case inboundApprovalResponse:
 		return p.tools.resolve(msg.ToolCallID, msg.Approved)
 	case inboundNewSession, inboundResumeConversation:
-		p.mu.Lock()
-		p.snapshotReplied = true
-		p.mu.Unlock()
+		p.snapshotReplied.Store(true)
 		p.conversations.snapshot()
 	case inboundListConversations:
 		p.conversations.list()
@@ -188,15 +187,11 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 	return true
 }
 
-// SnapshotReplied reports and clears whether the panel just answered a
+// TakeSnapshotReply reports and clears whether the panel just answered a
 // new_session or resume_conversation frame with a MESSAGES_SNAPSHOT, so the
 // run opening right after it need not repeat the same snapshot.
-func (p *Panel) SnapshotReplied() bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	replied := p.snapshotReplied
-	p.snapshotReplied = false
-	return replied
+func (p *Panel) TakeSnapshotReply() bool {
+	return p.snapshotReplied.Swap(false)
 }
 
 func (p *Panel) write(frame any) {
