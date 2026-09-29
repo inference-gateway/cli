@@ -29,6 +29,8 @@ const (
 // defaultActionTimeoutSeconds applies when browser_use.browser.timeout_seconds is unset.
 const defaultActionTimeoutSeconds = 30
 
+const defaultScreenshotMimeType = "image/png"
+
 // ExtensionRequest sends one browser frame to the extension bridge and waits
 // for the browser_result carrying id. The container injects the bridge's
 // Request method, so this adapter touches no protocol package.
@@ -124,7 +126,7 @@ func (d *ExtensionDriver) Read(ctx context.Context, selector string) (browserdom
 // through chrome.scripting (untrusted synthetic events), which have no reliable
 // viewport-coordinate form - that needs chrome.debugger/CDP. Fail clearly.
 func (d *ExtensionDriver) ClickAt(_ context.Context, _, _ float64) (browserdomain.BrowserToolResult, error) {
-	return browserdomain.BrowserToolResult{}, fmt.Errorf("coordinate click isn't supported on the extension backend; use a CSS or text= selector with BrowserClick")
+	return browserdomain.BrowserToolResult{}, errors.New("coordinate click isn't supported on the extension backend; use a CSS or text= selector with BrowserClick")
 }
 
 // Screenshot implements browserdomain.BrowserDriver via the extension's captureVisibleTab.
@@ -134,14 +136,15 @@ func (d *ExtensionDriver) Screenshot(ctx context.Context) (browserdomain.Browser
 		return browserdomain.BrowserScreenshotResult{}, err
 	}
 	if result.Image == "" {
-		return browserdomain.BrowserScreenshotResult{}, fmt.Errorf("extension returned no screenshot data")
+		return browserdomain.BrowserScreenshotResult{}, errors.New("extension returned no screenshot data")
 	}
-	if result.ImageMimeType == "" {
-		result.ImageMimeType = "image/png"
+	mimeType := result.ImageMimeType
+	if mimeType == "" {
+		mimeType = defaultScreenshotMimeType
 	}
 	return browserdomain.BrowserScreenshotResult{
 		Data:     result.Image,
-		MimeType: result.ImageMimeType,
+		MimeType: mimeType,
 		URL:      result.URL,
 		Title:    result.Title,
 	}, nil
