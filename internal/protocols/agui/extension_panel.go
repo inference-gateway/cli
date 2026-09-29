@@ -2,16 +2,42 @@ package agui
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
-	websocket "github.com/gorilla/websocket"
-
-	sdk "github.com/inference-gateway/sdk"
+	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+)
+
+// Panel frame types a session worker answers on stdin, and the replies it
+// writes on stdout. Unknown types are left to the caller.
+const (
+	inboundUserMessage        = "user_message"
+	inboundNewSession         = "new_session"
+	inboundResumeConversation = "resume_conversation"
+	inboundListHistory        = "list_history"
+	inboundListConversations  = "list_conversations"
+	inboundListSkills         = "list_skills"
+	inboundListModels         = "list_models"
+	inboundSelectModel        = "select_model"
+	inboundSetMode            = "set_mode"
+	inboundToolRequest        = "tool_request"
+	inboundApprovalResponse   = "approval_response"
+
+	outboundConversations = "conversations"
+	outboundSkills        = "skills"
+	outboundHistory       = "history"
+	outboundModels        = "models"
+	outboundMode          = "mode"
+	outboundToolResult    = "tool_result"
 )
 
 // conversationListLimit caps list_conversations, mirroring the TUI selector.
@@ -21,6 +47,172 @@ const conversationListLimit = 50
 // entries for arrow-up recall.
 const historyListLimit = 1000
 
+type panelFrame struct {
+	Type       string `json:"type"`
+	ID         string `json:"id"`
+	Content    string `json:"content"`
+	Model      string `json:"model"`
+	Mode       string `json:"mode"`
+	ToolName   string `json:"tool_name"`
+	ToolArgs   string `json:"tool_args"`
+	ToolCallID string `json:"tool_call_id"`
+	Approved   bool   `json:"approved"`
+}
+
+type extMode struct {
+	Type string `json:"type"`
+	Mode string `json:"mode"`
+}
+
+type extToolResult struct {
+	Type    string `json:"type"`
+	ID      string `json:"id"`
+	Success bool   `json:"success"`
+	Output  string `json:"output"`
+	Error   string `json:"error"`
+}
+
+type extModels struct {
+	Type    string   `json:"type"`
+	Models  []string `json:"models"`
+	Current string   `json:"current,omitempty"`
+}
+
+type extConversationSummary struct {
+	ID           string    `json:"id"`
+	Title        string    `json:"title"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	MessageCount int       `json:"message_count"`
+}
+
+type extConversations struct {
+	Type          string                   `json:"type"`
+	Conversations []extConversationSummary `json:"conversations"`
+}
+
+type extSkills struct {
+	Type   string                     `json:"type"`
+	Skills []agentdomain.SkillSummary `json:"skills"`
+}
+
+type extHistory struct {
+	Type    string   `json:"type"`
+	History []string `json:"history"`
+}
+
+// frameWriter writes one panel frame as one line.
+type frameWriter func(frame any)
+
+// PanelDeps are the collaborators the panel units use, all from the worker's
+// own container, so every answer is scoped to the worker's project dir.
+type PanelDeps struct {
+	Conversations convdomain.ConversationRepository
+	Skills        agentdomain.SkillsService
+	Tools         agentdomain.ToolService
+	Approval      agentdomain.ApprovalPolicy
+	Models        convdomain.ModelService
+	Modes         agentdomain.AgentModeState
+	History       storage.ShellHistoryStorage
+	DefaultModel  string
+}
+
+// Panel answers the panel frames a session worker reads on stdin: listings,
+// model and mode switches, direct tool requests and the conversation snapshot.
+// Each reply is one JSON line on out, one Write per line.
+type Panel struct {
+	out io.Writer
+	mu  sync.Mutex
+
+	// snapshotReplied marks a just-answered new_session / resume_conversation
+	// frame whose reply already shipped a MESSAGES_SNAPSHOT, so the run
+	// opening right after it skips its own boot snapshot.
+	snapshotReplied atomic.Bool
+
+	conversations *conversations
+	history       *history
+	skills        *skills
+	models        *modelPicker
+	modes         *modes
+	tools         *toolRequests
+}
+
+// NewPanel builds the panel units, one per frame family, each holding only the
+// dependencies it uses.
+func NewPanel(deps PanelDeps, out io.Writer) *Panel {
+	p := &Panel{out: out}
+	p.conversations = &conversations{write: p.write, repo: deps.Conversations}
+	p.history = newHistory(p.write, deps.History)
+	p.skills = &skills{write: p.write, service: deps.Skills}
+	p.models = &modelPicker{write: p.write, service: deps.Models, defaultModel: deps.DefaultModel}
+	p.modes = &modes{write: p.write, state: deps.Modes}
+	p.tools = newToolRequests(p.write, deps)
+	return p
+}
+
+// Handle answers one stdin line and reports whether the panel consumed it. A
+// user_message is recorded in the shell history but left for the turn loop,
+// and an approval_response is consumed only when it answers a tool_request.
+func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case per panel frame
+	var msg panelFrame
+	if json.Unmarshal(line, &msg) != nil {
+		return false
+	}
+	switch msg.Type {
+	case inboundUserMessage:
+		p.history.append(msg.Content)
+		return false
+	case inboundApprovalResponse:
+		return p.tools.resolve(msg.ToolCallID, msg.Approved)
+	case inboundNewSession, inboundResumeConversation:
+		p.snapshotReplied.Store(true)
+		p.conversations.snapshot()
+	case inboundListConversations:
+		p.conversations.list()
+	case inboundListHistory:
+		p.history.list()
+	case inboundListSkills:
+		p.skills.list()
+	case inboundListModels:
+		p.models.list()
+	case inboundSelectModel:
+		p.models.selectModel(msg.Model)
+		p.modes.send()
+	case inboundSetMode:
+		p.modes.set(msg.Mode)
+	case inboundToolRequest:
+		go p.tools.run(msg)
+	default:
+		return false
+	}
+	return true
+}
+
+// TakeSnapshotReply reports and clears whether the panel just answered a
+// new_session or resume_conversation frame with a MESSAGES_SNAPSHOT, so the
+// run opening right after it need not repeat the same snapshot.
+func (p *Panel) TakeSnapshotReply() bool {
+	return p.snapshotReplied.Swap(false)
+}
+
+func (p *Panel) write(frame any) {
+	var data []byte
+	var err error
+	if ev, ok := frame.(aguievents.Event); ok {
+		data, err = ev.ToJSON()
+	} else {
+		data, err = json.Marshal(frame)
+	}
+	if err != nil {
+		logger.Error("failed to marshal a panel frame", "error", err)
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, err := p.out.Write(append(data, '\n')); err != nil {
+		logger.Debug("failed to write a panel frame", "error", err)
+	}
+}
+
 // conversationLister is the slice of the persistent repo the panel picker needs.
 // Declared here (not in domain) because the in-memory fallback repo has no
 // listing - the type assertion simply fails there and yields an empty list.
@@ -28,40 +220,32 @@ type conversationLister interface {
 	ListSavedConversations(ctx context.Context, limit, offset int) ([]convdomain.ConversationSummary, error)
 }
 
-// conversations answers the panel's conversation picker from the conversation
-// repository the CLI is running on.
+// conversations answers the panel's conversation picker and snapshot from the
+// worker's conversation repository.
 type conversations struct {
 	write frameWriter
 	repo  convdomain.ConversationRepository
 }
 
-// snapshot ships the active conversation's history so the panel shows it, not
-// just events from now on. Sent as the new_session / resume_conversation reply.
-func (c *conversations) snapshot(conn *websocket.Conn) {
-	entries := c.repo.GetMessages()
-	messages := make([]sdk.Message, 0, len(entries))
-	results := map[string]bool{}
-	for _, entry := range entries {
-		messages = append(messages, entry.Message)
-		if entry.ToolExecution != nil && entry.Message.ToolCallID != nil {
-			results[*entry.Message.ToolCallID] = entry.ToolExecution.Success
-		}
-	}
-	c.write(conn, extSnapshot{Type: outboundConversationSnapshot, Messages: messages, ToolResults: results})
+// snapshot answers new_session and resume_conversation with the worker's
+// conversation as an AG-UI MESSAGES_SNAPSHOT. The worker was launched for that
+// conversation, so the repository is already on it.
+func (c *conversations) snapshot() {
+	c.write(aguievents.NewMessagesSnapshotEvent(snapshotMessages(c.repo.GetMessages())))
 }
 
 // list answers list_conversations with the stored conversations (newest-first),
 // so the panel can offer the same picker the CLI resumes from.
-func (c *conversations) list(conn *websocket.Conn) {
+func (c *conversations) list() {
 	lister, ok := c.repo.(conversationLister)
 	if !ok {
-		c.write(conn, extConversations{Type: outboundConversations})
+		c.write(extConversations{Type: outboundConversations})
 		return
 	}
 	summaries, err := lister.ListSavedConversations(context.Background(), conversationListLimit, 0)
 	if err != nil {
-		logger.Debug("extension bridge failed to list conversations", "error", err)
-		c.write(conn, extConversations{Type: outboundConversations})
+		logger.Debug("panel failed to list conversations", "error", err)
+		c.write(extConversations{Type: outboundConversations})
 		return
 	}
 	out := make([]extConversationSummary, 0, len(summaries))
@@ -73,32 +257,7 @@ func (c *conversations) list(conn *websocket.Conn) {
 			MessageCount: s.MessageCount,
 		})
 	}
-	c.write(conn, extConversations{Type: outboundConversations, Conversations: out})
-}
-
-// start begins a fresh conversation synchronously in the read loop (mirroring
-// the /clear shortcut's repo call) and snapshots the now-empty conversation.
-// Handling it inline, not through the async notifier, guarantees a user_message
-// frame sent right after lands in the new session instead of racing the clear.
-func (c *conversations) start(conn *websocket.Conn) {
-	if err := c.repo.StartNewConversation("New Conversation"); err != nil {
-		logger.Debug("extension bridge failed to start new conversation", "error", err)
-		return
-	}
-	c.snapshot(conn)
-}
-
-// resume switches the active conversation to id and snapshots it to the panel.
-// The running chat mirror then streams live events into it.
-func (c *conversations) resume(conn *websocket.Conn, id string) {
-	if id == "" {
-		return
-	}
-	if err := c.repo.LoadConversation(context.Background(), id); err != nil {
-		logger.Debug("extension bridge failed to resume conversation", "id", id, "error", err)
-		return
-	}
-	c.snapshot(conn)
+	c.write(extConversations{Type: outboundConversations, Conversations: out})
 }
 
 // history holds the shared shell input history: panel messages land in the same
@@ -126,16 +285,16 @@ func (noHistory) LoadHistory(context.Context, int) ([]string, error) { return []
 
 // list answers list_history with the shared shell input history. An empty store
 // still replies with an empty list.
-func (h *history) list(conn *websocket.Conn) {
+func (h *history) list() {
 	loaded, err := h.store.LoadHistory(context.Background(), historyListLimit)
 	if err != nil {
-		logger.Debug("extension bridge failed to load history", "error", err)
+		logger.Debug("panel failed to load history", "error", err)
 		loaded = nil
 	}
 	if loaded == nil {
 		loaded = []string{}
 	}
-	h.write(conn, extHistory{Type: outboundHistory, History: loaded})
+	h.write(extHistory{Type: outboundHistory, History: loaded})
 }
 
 // append records a panel-sent message in the shared shell history, mirroring
@@ -149,7 +308,7 @@ func (h *history) append(content string) {
 		return
 	}
 	if err := h.store.AppendHistory(context.Background(), content); err != nil {
-		logger.Warn("extension bridge failed to append history", "error", err)
+		logger.Warn("panel failed to append history", "error", err)
 	}
 }
 
@@ -161,31 +320,30 @@ type skills struct {
 	service agentdomain.SkillsService
 }
 
-func (s *skills) list(conn *websocket.Conn) {
+func (s *skills) list() {
 	loaded := s.service.List()
 	out := make([]agentdomain.SkillSummary, 0, len(loaded))
 	for _, skill := range loaded {
 		out = append(out, skill.Summary())
 	}
-	s.write(conn, extSkills{Type: outboundSkills, Skills: out})
+	s.write(extSkills{Type: outboundSkills, Skills: out})
 }
 
-// modelPicker answers the panel's model picker from the CLI's model service,
+// modelPicker answers the panel's model picker from the worker's model service,
 // listing the gateway's models with the configured default first.
 type modelPicker struct {
 	write        frameWriter
 	service      convdomain.ModelService
 	defaultModel string
-	notifier     agentdomain.UINotifier
 }
 
-// list answers list_models with the models the gateway serves, the CLI's
-// configured default model first, so the panel's pickers mirror the CLI.
-func (m *modelPicker) list(conn *websocket.Conn) {
+// list answers list_models with the models the gateway serves, the configured
+// default model first, so the panel's pickers mirror the CLI.
+func (m *modelPicker) list() {
 	out := []string{}
 	listed, err := m.service.ListModels(context.Background())
 	if err != nil {
-		logger.Debug("extension bridge failed to list models", "error", err)
+		logger.Debug("panel failed to list models", "error", err)
 	}
 	if m.defaultModel != "" {
 		out = append(out, m.defaultModel)
@@ -195,41 +353,38 @@ func (m *modelPicker) list(conn *websocket.Conn) {
 			out = append(out, name)
 		}
 	}
-	m.write(conn, extModels{Type: outboundModels, Models: out, Current: m.service.GetCurrentModel()})
+	m.write(extModels{Type: outboundModels, Models: out, Current: m.service.GetCurrentModel()})
 }
 
-// selectModel switches the CLI's active model (same as the TUI's /model) and
-// re-sends the model list, so the panel reflects the outcome whether or not the
-// switch was accepted.
-func (m *modelPicker) selectModel(conn *websocket.Conn, name string) {
+// selectModel switches the worker's model for its next turns and re-sends the
+// model list, so the panel reflects the outcome whether or not the switch was
+// accepted.
+func (m *modelPicker) selectModel(name string) {
 	if name != "" {
 		if err := m.service.SelectModel(name); err != nil {
-			logger.Debug("extension bridge failed to select model", "model", name, "error", err)
-		} else {
-			m.notifier.Notify(agentdomain.ModelSelectedEvent{Model: name})
+			logger.Debug("panel failed to select model", "model", name, "error", err)
 		}
 	}
-	m.list(conn)
+	m.list()
 }
 
-// modes mirrors the CLI's current agent mode (standard/plan/auto/auto-with-judge)
-// to the panel's toggle, and applies set_mode to the same shared state the TUI's
-// shift+tab cycle uses.
+// modes reports the worker's agent mode (standard/plan/auto/auto-with-judge)
+// and applies set_mode to the state the agent reads on every call.
 type modes struct {
 	write frameWriter
 	state agentdomain.AgentModeState
 }
 
-// send reports the CLI's current agent mode as its canonical mode key.
-func (m *modes) send(conn *websocket.Conn) {
-	m.write(conn, extMode{Type: outboundMode, Mode: m.state.GetAgentMode().ModeKey()})
+// send reports the current agent mode as its canonical mode key.
+func (m *modes) send() {
+	m.write(extMode{Type: outboundMode, Mode: m.state.GetAgentMode().ModeKey()})
 }
 
-// set switches the CLI's agent mode - it also governs tool_request approvals -
-// and echoes the resulting mode so the panel reflects the outcome either way.
-func (m *modes) set(conn *websocket.Conn, mode string) {
+// set switches the agent mode - it also governs tool_request approvals - and
+// echoes the resulting mode so the panel reflects the outcome either way.
+func (m *modes) set(mode string) {
 	if parsed, ok := agentdomain.ParseAgentMode(mode); ok && parsed != agentdomain.AgentModeReadOnly {
 		m.state.SetAgentMode(parsed)
 	}
-	m.send(conn)
+	m.send()
 }

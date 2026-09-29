@@ -14,6 +14,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
 func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *statemanager.Store) {
@@ -278,4 +279,68 @@ func TestHeadlessControl_AwaitTurn(t *testing.T) {
 			t.Fatal("awaitTurn() = true after stdin EOF with nothing queued")
 		}
 	})
+}
+
+func TestHeadlessControl_PanelFramesStayOffTheTurnChannels(t *testing.T) {
+	ctl, _, sm := newTestControl()
+	tools := &agentdomainmocks.FakeToolService{}
+	tools.IsToolEnabledReturns(true)
+	tools.ExecuteToolDirectReturns(&agentdomain.ToolExecutionResult{Success: true, Data: &agentdomain.BashToolResult{Output: "hi\n"}}, nil)
+	approval := &agentdomainmocks.FakeApprovalPolicy{}
+	approval.ShouldRequireApprovalReturns(true)
+	frames := make(frameSink, 8)
+	ctl.panel = agui.NewPanel(agui.PanelDeps{
+		Conversations: &conversationmocks.FakeConversationRepository{},
+		Skills:        &agentdomainmocks.FakeSkillsService{},
+		Tools:         tools,
+		Approval:      approval,
+		Models:        &conversationmocks.FakeModelService{},
+		Modes:         sm,
+	}, frames)
+
+	ctl.dispatchLine([]byte(`{"type":"tool_request","id":"req-1","tool_name":"Bash","tool_args":"{}"}`))
+	if frame := <-frames; !strings.Contains(frame, `"approval_request"`) || !strings.Contains(frame, `"tool_call_id":"req-1"`) {
+		t.Fatalf("expected the tool_request's approval_request, got %s", frame)
+	}
+	ctl.dispatchLine([]byte(`{"type":"approval_response","tool_call_id":"req-1","approved":true}`))
+	if frame := <-frames; !strings.Contains(frame, `"tool_result"`) || !strings.Contains(frame, `"success":true`) {
+		t.Fatalf("expected a successful tool_result, got %s", frame)
+	}
+	select {
+	case resp := <-ctl.approvals:
+		t.Fatalf("the panel's approval leaked to the turn: %+v", resp)
+	default:
+	}
+
+	ctl.dispatchLine([]byte(`{"type":"approval_response","tool_call_id":"agent-call","approved":true}`))
+	select {
+	case resp := <-ctl.approvals:
+		if resp.ToolCallID != "agent-call" {
+			t.Fatalf("approval = %+v, want agent-call", resp)
+		}
+	default:
+		t.Fatal("an agent approval must still reach the running turn")
+	}
+}
+
+func TestHeadlessControl_UserMessageAttachments(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	ctl, _, _ := newTestControl()
+	queue := ctl.messageQueue.(*conversationmocks.FakeMessageQueue)
+
+	ctl.dispatchLine([]byte(`{"type":"user_message","content":"look at these","attachments":[` +
+		`{"filename":"shot.png","mime_type":"image/png","data":"iVBORw0KGgo="},` +
+		`{"filename":"../../notes.txt","mime_type":"text/plain","data":"aGVsbG8="}]}`))
+	if queue.EnqueueCallCount() != 1 {
+		t.Fatalf("enqueue calls = %d, want 1", queue.EnqueueCallCount())
+	}
+	msg, _, _ := queue.EnqueueArgsForCall(0)
+	parts, err := msg.Content.AsMessageContent1()
+	if err != nil || len(parts) != 2 {
+		t.Fatalf("expected a text part and an image part, got %d parts (%v)", len(parts), err)
+	}
+	text, err := parts[0].AsTextContentPart()
+	if err != nil || !strings.Contains(text.Text, "look at these") || !strings.Contains(text.Text, "[notes.txt saved at ") {
+		t.Fatalf("text part = %q (%v), want the content plus a note naming the saved file", text.Text, err)
+	}
 }

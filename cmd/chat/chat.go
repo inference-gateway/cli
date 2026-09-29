@@ -253,10 +253,6 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 	notifier := programNotifier{program: program}
 	services.SetUINotifier(notifier)
 
-	if eventBridge := stateManager.GetEventBridge(); eventBridge != nil {
-		go forwardControlEventsToBubbleTea(notifier, eventBridge)
-	}
-
 	heartbeatCtx, stopHeartbeat := context.WithCancel(context.Background())
 	defer stopHeartbeat()
 	go runUIHeartbeat(heartbeatCtx, notifier, constants.UIHeartbeatInterval)
@@ -475,28 +471,4 @@ func runUIHeartbeat(ctx context.Context, notifier agentdomain.UINotifier, interv
 			notifier.Notify(tui.HeartbeatEvent{At: t})
 		}
 	}
-}
-
-// forwardControlEventsToBubbleTea forwards control events from EventBridge to the
-// Bubble Tea loop through the single UI notifier. This ensures control events
-// (pause/resume) reach ChatHandler even when the chat session is closed.
-func forwardControlEventsToBubbleTea(notifier agentdomain.UINotifier, eventBridge agentdomain.EventBridge) {
-	logger.Debug("starting control event forwarder")
-	subscription := eventBridge.Subscribe()
-
-	for event := range subscription {
-		switch e := event.(type) {
-		case agentdomain.ComputerUsePausedEvent:
-			logger.Debug("forwarding ComputerUsePausedEvent to BubbleTea", "request_id", e.RequestID)
-			notifier.Notify(e)
-
-		case agentdomain.ComputerUseResumedEvent:
-			logger.Debug("forwarding ComputerUseResumedEvent to BubbleTea", "request_id", e.RequestID)
-			notifier.Notify(e)
-
-		default:
-		}
-	}
-
-	logger.Debug("control event forwarder stopped")
 }

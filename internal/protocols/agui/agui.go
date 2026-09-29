@@ -257,14 +257,6 @@ func (r *RunEncoder) emitRunError(message string) {
 	r.emit(aguievents.NewRunErrorEvent(message, opts...))
 }
 
-// EmitApprovalResolved reports a settled approval round as the CUSTOM event
-// keyed by tool_call_id, so a client can clear its approval card. Transports
-// that broker the decision call it once the decision reached the engine.
-func (r *RunEncoder) EmitApprovalResolved(toolCallID string) {
-	r.emit(aguievents.NewCustomEvent("approval_resolved",
-		aguievents.WithValue(map[string]string{"tool_call_id": toolCallID})))
-}
-
 // Handle renders one agent ChatEvent into the run's AG-UI stream.
 //
 //nolint:gocyclo,cyclop // cohesive event switch; each case renders one ChatEvent variant

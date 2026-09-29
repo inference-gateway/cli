@@ -488,6 +488,23 @@ The headless command supports multimodal content for vision-capable models:
 - Text files are embedded in code blocks
 - Requires gateway configuration: `VISION_ENABLED=true`
 
+### `infer daemon`
+
+Run the long-lived daemon. It hosts whichever subsystems are enabled and refuses to start when none is:
+
+- **channels** (`channels.enabled`), see [Channels](channels.md)
+- **scheduler** (`tools.schedule.enabled`), see [Scheduling](scheduling.md)
+- **heartbeat** (`heartbeat.enabled`), see [Heartbeat](heartbeat.md)
+- **AG-UI binding** (`browser_use.enabled` with `backend: extension`): the WebSocket the opentask extension and
+  the desktop app connect to, on `browser_use.extension.port` with its token. Each thread (a project dir plus a
+  conversation id) runs in its own `infer headless --serve` worker started in that project dir. Workers nobody
+  follows stop after 10 idle minutes, and the daemon stops them all on shutdown. See
+  [Browser Extension Bridge Protocol](browser-extension-protocol.md)
+
+```bash
+INFER_BROWSER_USE_ENABLED=true INFER_BROWSER_USE_BACKEND=extension infer daemon
+```
+
 ---
 
 ## Utility Commands

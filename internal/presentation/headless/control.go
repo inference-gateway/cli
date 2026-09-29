@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"strings"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -14,6 +15,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
 const resumeContinuePrompt = "Please continue from where you left off."
@@ -44,6 +46,8 @@ type headlessControl struct {
 	wake chan struct{}
 	// browser, set by the serve worker, receives the browser_result lines.
 	browser *stdioBrowser
+	// panel, set by the serve worker, answers the panel frames first.
+	panel *agui.Panel
 }
 
 func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentdomain.ComputerUsePause, messageQueue convdomain.MessageQueue, sessionID string) *headlessControl {
@@ -90,6 +94,9 @@ func (c *headlessControl) dispatchLine(line []byte) {
 	if json.Unmarshal(line, &msg) != nil {
 		return
 	}
+	if c.panel != nil && c.panel.Handle(line) {
+		return
+	}
 	switch msg.Type {
 	case "approval_response":
 		var resp ipc.ApprovalResponse
@@ -102,15 +109,11 @@ func (c *headlessControl) dispatchLine(line []byte) {
 			c.questions <- resp
 		}
 	case "user_message":
-		var msg ipc.UserMessage
+		var msg userMessageFrame
 		if json.Unmarshal(line, &msg) != nil || msg.Content == "" || c.messageQueue == nil {
 			return
 		}
-		c.messageQueue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(msg.Content)}, convdomain.QueueSourceStdin, ipc.UserMessageRequestID)
-		select {
-		case c.wake <- struct{}{}:
-		default:
-		}
+		c.enqueueUserMessage(msg)
 	case "interrupt":
 		_ = c.agentService.CancelRequest(c.sessionID)
 	case "browser_result":
@@ -132,6 +135,29 @@ func (c *headlessControl) dispatchLine(line []byte) {
 		default:
 			logger.Warn("ignoring unknown computer_use_control action", "action", ctrl.Action)
 		}
+	}
+}
+
+// userMessageFrame is a user_message with the attachments the panel sends.
+type userMessageFrame struct {
+	ipc.UserMessage
+	Attachments []agentdomain.ImageAttachment `json:"attachments,omitempty"`
+}
+
+// enqueueUserMessage queues a user_message for the next turn and wakes the
+// serve loop. Attachments are saved to the project tmp dir: model-readable
+// images become image parts, other files become notes naming the saved path.
+func (c *headlessControl) enqueueUserMessage(msg userMessageFrame) {
+	images, notes := saveAttachments(msg.Attachments)
+	message, err := userMessage(strings.Join(append([]string{msg.Content}, notes...), "\n"), images)
+	if err != nil {
+		logger.Warn("dropping a user_message with an unusable attachment", "error", err)
+		return
+	}
+	c.messageQueue.Enqueue(message, convdomain.QueueSourceStdin, ipc.UserMessageRequestID)
+	select {
+	case c.wake <- struct{}{}:
+	default:
 	}
 }
 

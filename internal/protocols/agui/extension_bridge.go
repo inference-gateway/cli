@@ -3,299 +3,179 @@ package agui
 import (
 	"context"
 	"crypto/subtle"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
-	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	websocket "github.com/gorilla/websocket"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
 var errBrowserExtensionDisconnected = errors.New("the browser extension disconnected before it answered")
 
-// Frame types on the extension bridge wire. One flat envelope per frame,
-// discriminated by Type, and unknown types are ignored for forward compatibility.
 const (
-	inboundBrowserHello       = "browser_hello"
-	inboundBrowserResult      = "browser_result"
-	inboundUserMessage        = "user_message"
-	inboundNewSession         = "new_session"
-	inboundListHistory        = "list_history"
-	inboundListConversations  = "list_conversations"
-	inboundListSkills         = "list_skills"
-	inboundSelectModel        = "select_model"
-	inboundListModels         = "list_models"
-	inboundSetMode            = "set_mode"
-	inboundResumeConversation = "resume_conversation"
-	inboundInterrupt          = "interrupt"
-	inboundToolRequest        = "tool_request"
-	inboundApprovalResponse   = "approval_response"
-
-	outboundBrowserHelloAck      = "browser_hello_ack"
-	outboundConversationSnapshot = "conversation_snapshot"
-	outboundConversations        = "conversations"
-	outboundSkills               = "skills"
-	outboundHistory              = "history"
-	outboundModels               = "models"
-	outboundMode                 = "mode"
-	outboundChatEvent            = "chat_event"
-	outboundApprovalRequest      = "approval_request"
-	outboundApprovalResolved     = "approval_resolved"
-	outboundToolResult           = "tool_result"
-	outboundInterrupted          = "interrupted"
+	inboundBrowserHello     = "browser_hello"
+	inboundBrowserResult    = "browser_result"
+	outboundBrowserHelloAck = "browser_hello_ack"
 )
 
-// approvalActionApprove is the only panel action that grants a tool call.
-const approvalActionApprove = "approve"
+const (
+	clientExtension = "extension"
+	clientDesktop   = "desktop"
+)
 
-type extInbound struct {
-	Type             string                        `json:"type"`
-	Token            string                        `json:"token,omitempty"`
-	ExtensionVersion string                        `json:"extension_version,omitempty"`
-	ID               string                        `json:"id,omitempty"`
-	Content          string                        `json:"content,omitempty"`
-	RequestID        string                        `json:"request_id,omitempty"`
-	Action           string                        `json:"action,omitempty"`
-	Model            string                        `json:"model,omitempty"`
-	ToolName         string                        `json:"tool_name,omitempty"`
-	ToolArgs         string                        `json:"tool_args,omitempty"`
-	Mode             string                        `json:"mode,omitempty"`
-	Attachments      []agentdomain.ImageAttachment `json:"attachments,omitempty"`
-}
+// protocolVersion is the wire contract version the hello ack reports. The
+// handshake is lenient: clients show an update state on a mismatch, and the
+// bridge never rejects a hello over its version.
+const protocolVersion = 1
 
-// maxAttachmentBytes caps one decoded attachment. The panel enforces the same
-// limit, and this is the trust-boundary check.
-const maxAttachmentBytes = 10 * 1024 * 1024
+// connWriteTimeout bounds one frame write, so a stalled client is dropped
+// instead of stalling the thread that feeds it.
+const connWriteTimeout = 10 * time.Second
 
-// unsafeFilenameChars matches everything outside the portable filename set.
-var unsafeFilenameChars = regexp.MustCompile(`[^A-Za-z0-9._-]`)
+// outboundQueue caps the frames a connection owes its client. A client must
+// read its socket at least that fast, or it is closed for a reconnect.
+const outboundQueue = 64
 
-// safeFilename reduces a panel-supplied filename to a single path segment made
-// of portable characters, so it can never escape the tmp dir.
-func safeFilename(name string) string {
-	name = unsafeFilenameChars.ReplaceAllString(filepath.Base(name), "_")
-	if name == "" || name == "." || strings.Contains(name, "..") {
-		return "file"
-	}
-	return name
-}
-
-// modelImageMimeTypes are the image formats providers accept as image content
-// parts. Anything else is handed to the agent as a file path instead.
-var modelImageMimeTypes = map[string]bool{"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true}
-
-// saveAttachments writes each attachment into the project tmp dir (where
-// clipboard images also land). Images come back as ImageAttachments with
-// SourcePath set so they flow to the model as image parts. Other files come
-// back as text notes naming the saved path so the agent can Read them.
-func saveAttachments(attachments []agentdomain.ImageAttachment) ([]agentdomain.ImageAttachment, []string) {
-	if len(attachments) == 0 {
-		return nil, nil
-	}
-	tmpDir := config.ProjectTmpDir()
-	if err := os.MkdirAll(tmpDir, 0755); err != nil {
-		logger.Warn("failed to create tmp directory", "path", tmpDir, "error", err)
-		return nil, nil
-	}
-	var images []agentdomain.ImageAttachment
-	var notes []string
-	stamp := time.Now().Format("20060102-150405")
-	for i, a := range attachments {
-		if a.Data == "" || a.Filename == "" {
-			continue
-		}
-		data, err := base64.StdEncoding.DecodeString(a.Data)
-		if err != nil || len(data) > maxAttachmentBytes {
-			logger.Warn("skipping extension attachment", "filename", a.Filename, "error", err, "bytes", len(data))
-			continue
-		}
-		name := safeFilename(a.Filename)
-		path := filepath.Join(tmpDir, fmt.Sprintf("attachment-%s-%d-%s", stamp, i, name))
-		if err := os.WriteFile(path, data, 0644); err != nil {
-			logger.Warn("failed to save extension attachment", "path", path, "error", err)
-			continue
-		}
-		switch {
-		case modelImageMimeTypes[a.MimeType]:
-			a.DisplayName = a.Filename
-			a.SourcePath = path
-			images = append(images, a)
-		case strings.HasPrefix(a.MimeType, "image/"):
-			notes = append(notes, fmt.Sprintf("[%s saved at %s; %s is not a model-readable image format, convert it to PNG first (e.g. sips -s format png on macOS, or magick) and then view the PNG]", name, path, a.MimeType))
-		default:
-			notes = append(notes, fmt.Sprintf("[%s saved at %s]", name, path))
-		}
-	}
-	utils.PruneFilesByModTime(tmpDir, 20, 24*time.Hour, func(e os.DirEntry) bool {
-		return strings.HasPrefix(e.Name(), "attachment-")
-	})
-	return images, notes
-}
-
-type extMode struct {
-	Type string `json:"type"`
-	Mode string `json:"mode"`
-}
-
-// extInterrupted tells the panel the current turn ended cancelled (terminal
-// Esc/Ctrl+C or the panel's own Stop), so it can clear its "Working" state
-// even when no TEXT_MESSAGE_END reaches it, e.g. a cancel mid tool call.
-type extInterrupted struct {
-	Type string `json:"type"`
-}
-
-type extApprovalRequest struct {
-	Type      string `json:"type"`
-	RequestID string `json:"request_id"`
-	ToolName  string `json:"tool_name"`
-	ToolArgs  string `json:"tool_args"`
-}
-
-type extApprovalResolved struct {
-	Type      string `json:"type"`
-	RequestID string `json:"request_id"`
-}
-
-type extToolResult struct {
-	Type    string `json:"type"`
-	ID      string `json:"id"`
-	Success bool   `json:"success"`
-	Output  string `json:"output"`
-	Error   string `json:"error"`
-}
-
-type extModels struct {
-	Type    string   `json:"type"`
-	Models  []string `json:"models"`
-	Current string   `json:"current,omitempty"`
+type extHello struct {
+	Type             string          `json:"type"`
+	Token            string          `json:"token"`
+	Client           string          `json:"client"`
+	ProtocolVersion  json.RawMessage `json:"protocol_version"`
+	ExtensionVersion string          `json:"extension_version"`
 }
 
 type extHelloAck struct {
-	Type string `json:"type"`
+	Type            string `json:"type"`
+	ProtocolVersion int    `json:"protocol_version"`
 }
 
-type extSnapshot struct {
-	Type        string          `json:"type"`
-	Messages    []sdk.Message   `json:"messages"`
-	ToolResults map[string]bool `json:"tool_results,omitempty"`
-}
-
-type extConversationSummary struct {
-	ID           string    `json:"id"`
-	Title        string    `json:"title"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	MessageCount int       `json:"message_count"`
-}
-
-type extConversations struct {
-	Type          string                   `json:"type"`
-	Conversations []extConversationSummary `json:"conversations"`
-}
-
-type extSkills struct {
-	Type   string                     `json:"type"`
-	Skills []agentdomain.SkillSummary `json:"skills"`
-}
-
-type extHistory struct {
-	Type    string   `json:"type"`
-	History []string `json:"history"`
-}
-
-type extChatEvent struct {
-	Type  string          `json:"type"`
-	Event json.RawMessage `json:"event"`
-}
-
-// Deps are the collaborators the bridge and its panel units use. The container
-// builds every one of them before the bridge, so nothing is wired late and no
-// capability is optional.
+// Deps are the bridge's collaborators. Threads is set by infer daemon, which
+// relays every client frame to the sessions context. It is nil in infer chat,
+// where the bridge only carries browser commands.
 type Deps struct {
-	Extension     config.ExtensionConfig
-	Notifier      agentdomain.UINotifier
-	Conversations convdomain.ConversationRepository
-	Events        agentdomain.EventBridge
-	Skills        agentdomain.SkillsService
-	Tools         agentdomain.ToolService
-	Approval      agentdomain.ApprovalPolicy
-	Models        convdomain.ModelService
-	Modes         agentdomain.AgentModeState
-	Agent         agentdomain.AgentService
-	History       storage.ShellHistoryStorage
-	DefaultModel  string
-	SessionID     string
-	ArtifactsDir  string
+	Extension    config.ExtensionConfig
+	Notifier     agentdomain.UINotifier
+	ArtifactsDir string
+	Threads      sessionsdomain.Threads
 }
 
-// frameWriter writes one panel frame over the active extension connection.
-type frameWriter func(conn *websocket.Conn, frame any)
+// extConn is one authenticated client connection. It is the sessions Client its
+// thread delivers worker lines to, one frame each.
+type extConn struct {
+	ws        *websocket.Conn
+	client    string
+	out       chan []byte
+	mu        sync.Mutex
+	done      chan struct{}
+	closeOnce sync.Once
+}
 
-// ExtensionBridge hosts the localhost WebSocket endpoint the opentask browser
-// extension dials into. It owns the connection and the token handshake,
-// exposes Request as the browser driver's command/result RPC, and routes every
-// other frame to the panel unit that owns it.
+// newExtConn wraps one upgraded socket and starts its writer goroutine, so
+// Deliver only queues frames and never waits on the socket.
+func newExtConn(ws *websocket.Conn, client string) *extConn {
+	c := &extConn{ws: ws, client: client, out: make(chan []byte, outboundQueue), done: make(chan struct{})}
+	go c.writeLoop()
+	return c
+}
+
+func (c *extConn) send(frame []byte) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_ = c.ws.SetWriteDeadline(time.Now().Add(connWriteTimeout))
+	return c.ws.WriteMessage(websocket.TextMessage, frame)
+}
+
+// Deliver queues one frame for the connection's writer, so a stalled client
+// never holds back the thread's other clients. An overflow closes the
+// connection, since it means the client stopped reading its socket, and it
+// may reconnect for a fresh snapshot. A closed connection drops the frame.
+func (c *extConn) Deliver(frame []byte) {
+	select {
+	case <-c.done:
+		return
+	default:
+	}
+	select {
+	case c.out <- frame:
+	default:
+		logger.Warn("extension bridge closed a client whose outbound queue overflowed", "client", c.client)
+		c.close()
+	}
+}
+
+// writeLoop is the connection's dedicated writer: it drains the Deliver
+// queue, each frame bounded by connWriteTimeout, and closes the connection
+// when a write fails.
+func (c *extConn) writeLoop() {
+	for {
+		select {
+		case frame := <-c.out:
+			if err := c.send(frame); err != nil {
+				logger.Debug("extension bridge dropped a client after a failed write", "client", c.client, "error", err)
+				c.close()
+				return
+			}
+		case <-c.done:
+			return
+		}
+	}
+}
+
+func (c *extConn) close() {
+	c.closeOnce.Do(func() {
+		close(c.done)
+		_ = c.ws.Close()
+	})
+}
+
+// ExtensionBridge hosts the localhost AG-UI WebSocket binding. It owns the
+// listener, the Origin check and the token handshake. It keeps one extension
+// connection, which Request drives as the browser driver's command/result RPC,
+// and any number of desktop connections. Other frames go to Threads.
 type ExtensionBridge struct {
 	extension    config.ExtensionConfig
 	notifier     agentdomain.UINotifier
 	artifactsDir string
-
-	conversations *conversations
-	history       *history
-	skills        *skills
-	models        *modelPicker
-	modes         *modes
-	tools         *toolRequests
-	approvals     *approvals
-	mirror        *chatMirror
+	threads      sessionsdomain.Threads
 
 	server   *http.Server
 	addr     string
 	startErr error
 	startMu  sync.Mutex
 	mu       sync.Mutex
-	conn     *websocket.Conn
-	connStop chan struct{}
+	ext      *extConn
+	conns    map[*extConn]struct{}
 	pending  map[string]chan json.RawMessage
-	writeMu  sync.Mutex
 }
 
-// NewExtensionBridge builds the bridge and its panel units, one unit per frame
-// family, so each unit holds only the dependencies it uses.
-// artifactsDir, when non-empty, is served read-only at /artifacts/ so the panel
-// can display generated images the agent saved locally.
+// NewExtensionBridge builds the bridge. artifactsDir, when non-empty, is served
+// read-only at /artifacts/ so the panel can display generated images the agent
+// saved locally.
 func NewExtensionBridge(deps Deps) *ExtensionBridge {
-	b := &ExtensionBridge{
+	notifier := deps.Notifier
+	if notifier == nil {
+		notifier = agentdomain.NoopUINotifier{}
+	}
+	return &ExtensionBridge{
 		extension:    deps.Extension,
-		notifier:     deps.Notifier,
+		notifier:     notifier,
 		artifactsDir: deps.ArtifactsDir,
+		threads:      deps.Threads,
+		conns:        make(map[*extConn]struct{}),
 		pending:      make(map[string]chan json.RawMessage),
 	}
-	b.modes = &modes{write: b.write, state: deps.Modes}
-	b.approvals = newApprovals(b.write, deps.Notifier)
-	b.conversations = &conversations{write: b.write, repo: deps.Conversations}
-	b.history = newHistory(b.write, deps.History)
-	b.skills = &skills{write: b.write, service: deps.Skills}
-	b.models = &modelPicker{write: b.write, service: deps.Models, defaultModel: deps.DefaultModel, notifier: deps.Notifier}
-	b.tools = newToolRequests(b.write, deps)
-	b.mirror = newChatMirror(b.write, deps, b.approvals)
-	return b
 }
 
 // Start listens on 127.0.0.1:<port> and serves the /ws endpoint. Errors are
@@ -325,7 +205,7 @@ func (b *ExtensionBridge) Start() error {
 			logger.Warn("extension bridge server stopped", "error", err)
 		}
 	}()
-	logger.Info("extension bridge listening for the opentask extension", "addr", addr)
+	logger.Info("extension bridge listening", "addr", addr)
 	return nil
 }
 
@@ -357,105 +237,95 @@ var extUpgrader = websocket.Upgrader{
 }
 
 func (b *ExtensionBridge) handleWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := extUpgrader.Upgrade(w, r, nil)
+	ws, err := extUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
 
-	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	var hello extInbound
-	if err := conn.ReadJSON(&hello); err != nil || hello.Type != inboundBrowserHello ||
+	_ = ws.SetReadDeadline(time.Now().Add(5 * time.Second))
+	var hello extHello
+	if err := ws.ReadJSON(&hello); err != nil || hello.Type != inboundBrowserHello ||
 		subtle.ConstantTimeCompare([]byte(hello.Token), []byte(b.extension.Token)) != 1 {
 		logger.Warn("extension bridge rejected a connection with a bad or missing hello")
-		_ = conn.Close()
+		_ = ws.Close()
 		return
 	}
-	_ = conn.SetReadDeadline(time.Time{})
+	_ = ws.SetReadDeadline(time.Time{})
 
-	if err := conn.WriteJSON(extHelloAck{Type: outboundBrowserHelloAck}); err != nil {
-		_ = conn.Close()
+	client := clientKind(hello.Client)
+	if len(hello.ProtocolVersion) == 0 {
+		logger.Warn("extension bridge accepted a hello without protocol_version", "client", client, "version", hello.ExtensionVersion)
+	}
+	if err := ws.WriteJSON(extHelloAck{Type: outboundBrowserHelloAck, ProtocolVersion: protocolVersion}); err != nil {
+		_ = ws.Close()
 		return
 	}
-	logger.Info("opentask extension connected", "version", hello.ExtensionVersion)
-	b.adopt(conn)
+	logger.Info("extension bridge client connected", "client", client, "version", hello.ExtensionVersion, "protocol_version", string(hello.ProtocolVersion))
+	b.adopt(newExtConn(ws, client))
 }
 
-// adopt makes conn the active extension connection, replacing any previous
-// one (MV3 service workers restart at will - replacement is the correct
-// semantic), and starts its pump goroutines.
-func (b *ExtensionBridge) adopt(conn *websocket.Conn) {
-	b.mu.Lock()
-	if b.conn != nil {
-		close(b.connStop)
-		_ = b.conn.Close()
+// clientKind maps the hello's client field to a known kind. Anything but a
+// desktop is the extension, which is what hellos without the field come from.
+func clientKind(client string) string {
+	if client == clientDesktop {
+		return clientDesktop
 	}
-	b.conn = conn
-	stop := make(chan struct{})
-	b.connStop = stop
-	b.failPendingLocked()
+	return clientExtension
+}
+
+// adopt registers c and starts its pump goroutines. A new extension replaces
+// the previous one (MV3 service workers restart at will), while desktop
+// connections accumulate.
+func (b *ExtensionBridge) adopt(c *extConn) {
+	isExtension := c.client == clientExtension
+	b.mu.Lock()
+	b.conns[c] = struct{}{}
+	replaced := b.ext
+	if isExtension {
+		b.ext = c
+		b.failPendingLocked()
+	}
 	b.mu.Unlock()
 
-	b.approvals.reset()
-	b.tools.reset()
-	b.notifyConnected(true)
-
-	go b.readLoop(conn, stop)
-	go b.mirror.run(conn, stop)
-	go b.pingLoop(conn, stop)
+	if isExtension {
+		if replaced != nil {
+			replaced.close()
+		}
+		b.notifyConnected(true)
+	}
+	go b.readLoop(c)
+	go b.pingLoop(c)
 }
 
-// readLoop handles frames from the extension until the connection dies or is
-// replaced. browser_result frames are forwarded to Request with their raw
-// bytes intact, so callers own the result payload.
-func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
+// readLoop handles frames from c until the connection dies or is replaced.
+func (b *ExtensionBridge) readLoop(c *extConn) {
+	defer b.dropConn(c)
 	for {
-		_, raw, err := conn.ReadMessage()
+		_, raw, err := c.ws.ReadMessage()
 		if err != nil {
-			b.dropConn(conn, stop)
 			return
 		}
-		var msg extInbound
-		if err := json.Unmarshal(raw, &msg); err != nil {
-			logger.Debug("extension bridge dropped an undecodable frame", "error", err)
-			continue
-		}
-		b.route(conn, stop, raw, msg)
+		b.route(c, raw)
 	}
 }
 
-// route dispatches one inbound frame to the panel unit that owns its frame
-// family. Unknown frame types are ignored for forward compatibility.
-func (b *ExtensionBridge) route(conn *websocket.Conn, stop chan struct{}, raw []byte, msg extInbound) {
-	switch msg.Type {
-	case inboundBrowserResult:
+// route hands browser_result frames to the Request waiting on them, with their
+// raw bytes intact, and every other frame to Threads when the bridge relays.
+func (b *ExtensionBridge) route(c *extConn, raw []byte) {
+	var msg struct {
+		Type string `json:"type"`
+		ID   string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &msg); err != nil {
+		logger.Debug("extension bridge dropped an undecodable frame", "error", err)
+		return
+	}
+	if msg.Type == inboundBrowserResult {
 		b.deliverBrowserResult(msg.ID, raw)
-	case inboundUserMessage:
-		b.submitUserMessage(msg)
-	case inboundNewSession:
-		b.conversations.start(conn)
-	case inboundListHistory:
-		b.history.list(conn)
-	case inboundListConversations:
-		b.conversations.list(conn)
-	case inboundListSkills:
-		b.skills.list(conn)
-	case inboundSelectModel:
-		b.models.selectModel(conn, msg.Model)
-		b.modes.send(conn)
-	case inboundListModels:
-		b.models.list(conn)
-	case inboundSetMode:
-		b.modes.set(conn, msg.Mode)
-	case inboundResumeConversation:
-		b.conversations.resume(conn, msg.ID)
-	case inboundInterrupt:
-		b.mirror.interrupt()
-	case inboundToolRequest:
-		go b.tools.run(conn, stop, msg)
-	case inboundApprovalResponse:
-		if !b.tools.resolveApproval(conn, msg.RequestID, msg.Action) {
-			b.approvals.answer(conn, msg.RequestID, msg.Action)
-		}
+		return
+	}
+	if b.threads != nil {
+		b.threads.Handle(c, raw)
 	}
 }
 
@@ -471,71 +341,45 @@ func (b *ExtensionBridge) deliverBrowserResult(id string, raw []byte) {
 	}
 }
 
-func (b *ExtensionBridge) pingLoop(conn *websocket.Conn, stop chan struct{}) {
+func (b *ExtensionBridge) pingLoop(c *extConn) {
 	ticker := time.NewTicker(20 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-stop:
+		case <-c.done:
 			return
 		case <-ticker.C:
-			b.writeMu.Lock()
-			err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
-			b.writeMu.Unlock()
-			if err != nil {
+			if err := c.ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
 				return
 			}
 		}
 	}
 }
 
-// dropConn clears conn if it is still the active connection.
-func (b *ExtensionBridge) dropConn(conn *websocket.Conn, stop chan struct{}) {
+// dropConn forgets c, closes it and detaches it from its thread. Pending
+// browser requests fail when c was the extension.
+func (b *ExtensionBridge) dropConn(c *extConn) {
 	b.mu.Lock()
-	dropped := b.conn == conn
-	if dropped {
-		b.conn = nil
+	delete(b.conns, c)
+	wasExtension := b.ext == c
+	if wasExtension {
+		b.ext = nil
 		b.failPendingLocked()
-		select {
-		case <-stop:
-		default:
-			close(stop)
-		}
 	}
 	b.mu.Unlock()
-	_ = conn.Close()
-	if dropped {
+
+	c.close()
+	if b.threads != nil {
+		b.threads.Detach(c)
+	}
+	if wasExtension {
 		b.notifyConnected(false)
 	}
-}
-
-// submitUserMessage turns a panel message into the same user-input event the TUI
-// submits, saving any attachments and recording the message in the shared shell
-// history.
-func (b *ExtensionBridge) submitUserMessage(msg extInbound) {
-	if msg.Content != "" {
-		images, notes := saveAttachments(msg.Attachments)
-		content := strings.Join(append([]string{msg.Content}, notes...), "\n")
-		b.notifier.Notify(agentdomain.UserInputEvent{Content: content, Images: images, FromExtension: true})
-	}
-	b.history.append(msg.Content)
 }
 
 // notifyConnected tells the TUI status bar whether an extension is attached.
 func (b *ExtensionBridge) notifyConnected(connected bool) {
 	b.notifier.Notify(agentdomain.BrowserExtensionStatusEvent{Connected: connected})
-}
-
-func (b *ExtensionBridge) write(conn *websocket.Conn, v any) {
-	if err := b.writeFrame(conn, v); err != nil {
-		logger.Debug("extension bridge write failed", "error", err)
-	}
-}
-
-func (b *ExtensionBridge) writeFrame(conn *websocket.Conn, v any) error {
-	b.writeMu.Lock()
-	defer b.writeMu.Unlock()
-	return conn.WriteJSON(v)
 }
 
 // failPendingLocked releases every Request still waiting on a connection that
@@ -559,8 +403,8 @@ func (b *ExtensionBridge) Request(ctx context.Context, id string, frame json.Raw
 	}
 
 	b.mu.Lock()
-	conn := b.conn
-	if conn == nil {
+	ext := b.ext
+	if ext == nil {
 		b.mu.Unlock()
 		return nil, fmt.Errorf("no browser extension connected on port %d - install the opentask extension and set its bridge port/token to match browser_use.yaml", b.extension.Port)
 	}
@@ -574,7 +418,7 @@ func (b *ExtensionBridge) Request(ctx context.Context, id string, frame json.Raw
 		b.mu.Unlock()
 	}()
 
-	if err := b.writeFrame(conn, frame); err != nil {
+	if err := ext.send(frame); err != nil {
 		return nil, fmt.Errorf("failed to send the command to the browser extension: %w", err)
 	}
 
@@ -589,21 +433,18 @@ func (b *ExtensionBridge) Request(ctx context.Context, id string, frame json.Raw
 	}
 }
 
-// Close shuts the server and any connection down.
+// Close shuts the server and every connection down. Each read loop then ends
+// and detaches its connection.
 func (b *ExtensionBridge) Close() {
 	if b.server != nil {
 		_ = b.server.Close()
 	}
 	b.mu.Lock()
-	if b.conn != nil {
-		select {
-		case <-b.connStop:
-		default:
-			close(b.connStop)
-		}
-		_ = b.conn.Close()
-		b.conn = nil
-	}
+	conns := slices.Collect(maps.Keys(b.conns))
+	b.ext = nil
 	b.failPendingLocked()
 	b.mu.Unlock()
+	for _, c := range conns {
+		c.close()
+	}
 }

@@ -1,6 +1,7 @@
 package headless
 
 import (
+	"cmp"
 	"context"
 	"os"
 	"time"
@@ -15,11 +16,12 @@ import (
 
 // serve runs the headless --serve worker: one agent turn per user_message read on
 // stdin, each rendered as its own AG-UI run on stdout, until stdin closes and the
-// queue is empty. Messages that arrive mid-turn stay queued for the running turn
-// to drain. Only the first run of a resumed session opens with its snapshot.
+// queue is empty. Mid-turn messages stay queued for the running turn to drain,
+// and panel frames are answered on stdout whenever they arrive.
 func serve(ctx context.Context, svc Services, notifications uiBridge, turn agentdomain.AgentRequest, history []convdomain.ConversationEntry) {
 	ctl := newHeadlessControl(svc.GetAgentService(), svc.GetStateStore(), svc.GetMessageQueue(), turn.RequestID)
 	ctl.browser = newStdioBrowser(os.Stdout)
+	ctl.panel = svc.NewPanel(os.Stdout)
 	svc.RouteBrowserRequests(ctl.browser.Request)
 	go ctl.readLines(os.Stdin)
 
@@ -32,17 +34,22 @@ func serve(ctx context.Context, svc Services, notifications uiBridge, turn agent
 
 // runServeTurn moves the queued messages into the conversation and renders one
 // agent run over it as one AG-UI run. A run that fails to start still renders as
-// RUN_STARTED then RUN_ERROR, so every turn keeps the one-run contract.
+// RUN_STARTED then RUN_ERROR, so every turn keeps the one-run contract. The boot
+// snapshot is skipped when the panel just answered a snapshot frame with it.
 func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, req agentdomain.AgentRequest, history []convdomain.ConversationEntry) {
 	repo := svc.GetConversationRepository()
 	agentService := svc.GetAgentService()
 	moveQueuedMessages(svc.GetMessageQueue(), repo)
 	req.Messages = convdomain.BuildAgentMessagesFromEntries(repo.GetMessages())
+	req.Model = cmp.Or(svc.GetModelService().GetCurrentModel(), req.Model)
 
 	rec := svc.GetTelemetryRecorder()
 	started := time.Now()
 	endSpan := rec.StartSession("headless")
 
+	if ctl.panel.TakeSnapshotReply() {
+		history = nil
+	}
 	encoder := agui.NewRunEncoder(os.Stdout, req.Model, repo, history, svc.GetBackgroundTaskRegistry().Snapshot, ctl.approvals, ctl.questions)
 	encoder.Start(req.RequestID, uuid.New().String())
 	events, err := agentService.RunWithStream(ctx, &req)

@@ -140,18 +140,6 @@ func TestRunEncoder_StartSnapshotsRestoredHistory(t *testing.T) {
 	}
 }
 
-func TestRunEncoder_EmitApprovalResolved(t *testing.T) {
-	var out strings.Builder
-	r := &RunEncoder{w: &out}
-	r.EmitApprovalResolved("tc1")
-	got := out.String()
-	for _, want := range []string{`"type":"CUSTOM"`, `"name":"approval_resolved"`, `"tool_call_id":"tc1"`} {
-		if !strings.Contains(got, want) {
-			t.Errorf("missing %s in %s", want, got)
-		}
-	}
-}
-
 func TestRunEncoder_EmitsOneWritePerEvent(t *testing.T) {
 	w := &writeRecordingWriter{}
 	r := &RunEncoder{w: w}
