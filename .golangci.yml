@@ -118,12 +118,16 @@ linters:
           deny:
             - pkg: github.com/gorilla/websocket
               desc: "the binding's socket lives in protocols/agui and the web terminal in presentation; open sockets nowhere else"
-        agui-names-no-context:
-          list-mode: lax
+        agui-imports-are-closed:
+          list-mode: strict
           files:
             - "**/internal/protocols/agui/**"
-            - "!$test"
           allow:
+            - $gostd
+            - github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events
+            - github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types
+            - github.com/google/uuid
+            - github.com/gorilla/websocket
             - github.com/inference-gateway/cli/internal/platform/logger
           deny:
             - pkg: github.com/inference-gateway/cli/internal

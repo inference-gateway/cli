@@ -11,8 +11,8 @@ the frames it receives to a `Handler` too.
 
 ## What it does not know
 
-This package names no client kind, no context and no host. Its only internal import is the logger, and
-depguard (`agui-names-no-context`) keeps it that way. Everything else imports it:
+This package names no client kind, no context and no host. Its only internal import is the logger.
+Everything else imports it:
 
 - `Run` takes text, tool calls, snapshots and CUSTOM events as plain values. Which agent event becomes which
   AG-UI event is decided by the caller.
@@ -22,6 +22,21 @@ depguard (`agui-names-no-context`) keeps it that way. Everything else imports it
   `DialConfig`.
 - The AG-UI SDK stays confined here. `Message`, `Role`, `ToolCall` and `FunctionCall` are the types a caller
   builds a `MESSAGES_SNAPSHOT` from.
+
+## Dependencies
+
+The import list is closed. depguard (`agui-imports-are-closed` in `.golangci.yml`, strict mode) rejects any
+import that is not recorded here, in the package and in its tests alike. Adding one means changing the rule
+and this table in the same change.
+
+| Import | Used for |
+| --- | --- |
+| Go standard library | everything else |
+| `github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events` | the AG-UI events `Run` writes |
+| `github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types` | the `MESSAGES_SNAPSHOT` message types |
+| `github.com/google/uuid` | message and tool result ids |
+| `github.com/gorilla/websocket` | the socket of `Binding` and `Dial` |
+| `github.com/inference-gateway/cli/internal/platform/logger` | logging |
 
 ## How it plugs in
 
