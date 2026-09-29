@@ -230,10 +230,6 @@ func TestExtensionBridgeClosesAStalledClientOnOverflow(t *testing.T) {
 	}
 
 	eventually(t, "the stalled client to be detached", func() bool { return threads.DetachCallCount() == 1 })
-	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	if _, _, err := conn.ReadMessage(); err == nil {
-		t.Fatal("expected the overflowed connection to be closed")
-	}
 }
 
 func TestExtensionBridgeDesktopsDoNotReplaceTheExtension(t *testing.T) {

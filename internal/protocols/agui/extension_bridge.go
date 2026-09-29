@@ -100,8 +100,13 @@ func (c *extConn) send(frame []byte) error {
 // Deliver queues one frame for the connection's writer, so a stalled client
 // never holds back the thread's other clients. An overflow closes the
 // connection, since it means the client stopped reading its socket, and it
-// may reconnect for a fresh snapshot.
+// may reconnect for a fresh snapshot. A closed connection drops the frame.
 func (c *extConn) Deliver(frame []byte) {
+	select {
+	case <-c.done:
+		return
+	default:
+	}
 	select {
 	case c.out <- frame:
 	default:
