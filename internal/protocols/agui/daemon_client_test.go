@@ -26,7 +26,7 @@ func startFakeBridge(t *testing.T) (*DaemonClient, chan string) {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		var hello daemonHello
 		if err := conn.ReadJSON(&hello); err != nil || hello.Type != inboundBrowserHello {
 			return

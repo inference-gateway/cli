@@ -10,13 +10,13 @@ layer instead of leaking into the agent.
 
 - `NewTools(...)` builds the six `Browser*` tools from the manifests in `tools/`, and the container registers them into the tools registry.
 - Swapping Playwright for the extension adapter, or adding another engine, must not change the tool contract the agent calls.
-- `ExtensionDriver` builds `browser_command` frames, owns the per-action timeout and maps `browser_result`                                 
-  payloads to `BrowserToolResult`. The container injects the daemon bridge client's `Request` function (declared here             
-  as `ExtensionRequest`), so this context holds no socket: the WebSocket, handshake, the binding and the panel units live in                
-  `internal/protocols/agui/`. Only `infer daemon` hosts the binding; the client starts the daemon on demand.                                
-- A headless `--serve` worker reroutes the seam through `RouteBrowserRequests` to a stdio relay: `browser_command`                         
-  lines go out on stdout and `browser_result` lines come back on stdin, so the worker reaches the extension through its host                
-  (the daemon, which routes and serializes) and binds no port.                                                              
+- `ExtensionDriver` builds `browser_command` frames, owns the per-action timeout and maps `browser_result`
+  payloads to `BrowserToolResult`. The container injects the daemon bridge client's `Request` function (declared here
+  as `ExtensionRequest`), so this context holds no socket: the WebSocket, handshake, the binding and the panel units live in
+  `internal/protocols/agui/`. Only `infer daemon` hosts the binding; the client starts the daemon on demand.
+- A headless `--serve` worker reroutes the seam through `RouteBrowserRequests` to a stdio relay: `browser_command`
+  lines go out on stdout and `browser_result` lines come back on stdin, so the worker reaches the extension through its host
+  (the daemon, which routes and serializes) and binds no port.
 
 ## Related
 

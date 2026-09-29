@@ -15,12 +15,12 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   thread at a time, because bare AG-UI events carry no thread id. The thread options on these frames
   (`model`, `mode`, `system_prompt`, `custom_instructions`, `sandbox_directories`, `max_turns`) apply when
   the worker launches.
-- **Forwarded frames** - `user_message`, `interrupt`, `user_question_response` and `computer_use_control` go 
-  to the client's thread unchanged. A `user_message` relaunches a thread whose worker exited.            
-- **Browser commands** - a `browser_command` line on a worker's stdout routes through the `BrowserRelay`      
-  (`RouteBrowser`, the binding's extension connection) and the `browser_result` carrying the command's `id` goes             
-  back to that worker's stdin, so the worker's Browser tools resolve without binding a port. Commands serialize             
-  across threads, because one browser serves them, and the thread's clients never see the frames.        
+- **Forwarded frames** - `user_message`, `interrupt`, `user_question_response` and `computer_use_control` go
+  to the client's thread unchanged. A `user_message` relaunches a thread whose worker exited.
+- **Browser commands** - a `browser_command` line on a worker's stdout routes through the `BrowserRelay`
+  (`RouteBrowser`, the binding's extension connection) and the `browser_result` carrying the command's `id` goes
+  back to that worker's stdin, so the worker's Browser tools resolve without binding a port. Commands serialize
+  across threads, because one browser serves them, and the thread's clients never see the frames.
 - **Panel requests** - `list_*`, `select_model`, `set_mode` and `tool_request` run on the client's thread
   when it is in the frame's `project_dir`, else on any live worker there, else on a fresh idle one. The reply
   (`conversations`, `models`, `tool_result`, ...) goes back to the requester only.

@@ -32,9 +32,9 @@ const defaultActionTimeoutSeconds = 30
 
 const defaultScreenshotMimeType = "image/png"
 
-// ExtensionRequest sends one browser frame to the extension bridge and waits
-// for the browser_result carrying id. The container injects the bridge's
-// Request method, so this adapter touches no protocol package.
+// ExtensionRequest sends one browser_command frame and waits for the
+// browser_result carrying id. The container injects the request, so this
+// adapter touches no protocol package.
 type ExtensionRequest func(ctx context.Context, id string, frame json.RawMessage) (json.RawMessage, error)
 
 // extensionCommand is the browser_command frame the extension understands.
