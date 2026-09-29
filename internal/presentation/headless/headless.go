@@ -209,13 +209,15 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 
 	ctx := context.Background()
 
-	history := prepareConversation(ctx, conversationRepo, sessionID, opts.SessionID != "", opts.NoSave)
+	resumedEntries := prepareConversation(ctx, conversationRepo, sessionID, opts.SessionID != "", opts.NoSave)
+	history := convdomain.BuildAgentMessagesFromEntries(resumedEntries)
 
 	if newID, fired := rolloverMgr.MaybeRollover(ctx, selectedModel, groupKey); fired {
 		logger.Info("rolled over to new session (summary preserved)",
 			"previous_session_id", sessionID, "new_session_id", newID)
 		sessionID = newID
-		history = convdomain.BuildAgentMessagesFromEntries(conversationRepo.GetMessages())
+		resumedEntries = conversationRepo.GetMessages()
+		history = convdomain.BuildAgentMessagesFromEntries(resumedEntries)
 	}
 
 	deps := shortcuts.Deps{SessionID: sessionID}
@@ -297,7 +299,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		})
 	}
 	rendered = true
-	err = renderStream(opts.Format, notifications.merge(renderEvents), approvals, questions, sessionID, selectedModel, cfg, conversationRepo, svc.GetBackgroundTaskRegistry().Snapshot)
+	err = renderStream(opts.Format, notifications.merge(renderEvents), approvals, questions, sessionID, selectedModel, cfg, conversationRepo, resumedEntries, svc.GetBackgroundTaskRegistry().Snapshot)
 
 	endSessionSpan(sessionOutcome(err))
 	rec.RecordSession("headless", sessionOutcome(err), time.Since(sessionStart))
@@ -331,14 +333,19 @@ func selectModel(models []string, modelFlag, defaultModel string) (string, error
 // renderStream writes an event stream in the requested --format. Both an agent
 // run and a slash command's output go through it, so every format keeps the
 // same contract whichever produced the events.
-func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob) error {
+func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository, history []convdomain.ConversationEntry, jobs func() []scheddomain.TrackedJob) error {
 	switch format {
 	case "json":
 		return render.RenderJSON(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "json-pretty":
 		return render.RenderJSONPretty(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "ag-ui":
-		return agui.Render(events, os.Stdout, approvals, questions, sessionID, model, repo, jobs)
+		r := agui.NewRunEncoder(os.Stdout, model, repo, history, jobs, approvals, questions)
+		r.Start(sessionID, uuid.New().String())
+		for event := range events {
+			r.Handle(event)
+		}
+		return r.Finish()
 	default:
 		return render.RenderText(events, os.Stdout)
 	}
@@ -406,7 +413,7 @@ func emitCommandResult(format string, repo convdomain.ConversationRepository, se
 	events <- agentdomain.ChatCompleteEvent{RequestID: sessionID, Timestamp: time.Now(), Message: text}
 	close(events)
 
-	return renderStream(format, events, nil, nil, sessionID, model, cfg, repo, nil)
+	return renderStream(format, events, nil, nil, sessionID, model, cfg, repo, nil, nil)
 }
 
 // compactSession is /compact outside the TUI: the rollover manager already runs
@@ -498,9 +505,9 @@ func userMessage(content string, images []agentdomain.ImageAttachment) (sdk.Mess
 }
 
 // prepareConversation points the persistent repository at the session,
-// honours --no-save, and returns prior history when resuming an existing
-// --session-id (empty when starting fresh or storage is not persistent).
-func prepareConversation(ctx context.Context, repo convdomain.ConversationRepository, sessionID string, resume, noSave bool) []sdk.Message {
+// honours --no-save, and returns the entries of an existing --session-id
+// (nil when starting fresh: no --session-id, an unknown ID, or no storage).
+func prepareConversation(ctx context.Context, repo convdomain.ConversationRepository, sessionID string, resume, noSave bool) []convdomain.ConversationEntry {
 	persistentRepo, ok := repo.(convdomain.PersistentConversationRepository)
 	if !ok {
 		return nil
@@ -520,7 +527,7 @@ func prepareConversation(ctx context.Context, repo convdomain.ConversationReposi
 		}
 		return nil
 	}
-	return convdomain.BuildAgentMessagesFromEntries(repo.GetMessages())
+	return repo.GetMessages()
 }
 
 func sessionOutcome(err error) string {

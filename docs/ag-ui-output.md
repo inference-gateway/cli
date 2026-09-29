@@ -31,9 +31,13 @@ a subprocess host reading stdout is a fully valid transport.
 | LLM step completes | `CUSTOM` event `token_usage`; `value` carries the same cumulative stats as `RUN_FINISHED`'s `result` |
 | Screen recording starts or ends (`RecordStart`, `RecordStop`, `max_duration` cap) | `CUSTOM` event `screen_recording` with `active` (bool) |
 | Successful exit | `RUN_FINISHED` with a success outcome; `result` carries the session stats (keys below) |
+| Stop (cancelled turn, e.g. a computer-use pause) | `RUN_FINISHED` with outcome `cancelled` instead of `RUN_ERROR` |
 | Failure or panic | `RUN_ERROR` with the error message and the run id |
 
 Every run is bracketed by `RUN_STARTED` and exactly one terminal `RUN_FINISHED` or `RUN_ERROR`.
+A cancelled turn ends as AG-UI 1.0 describes cancelled runs: `RUN_FINISHED` with outcome
+`cancelled` and no `result`. A later `computer_use_resumed` event clears it, so a computer-use
+pause and resume stays one successful run.
 
 ## `RUN_FINISHED` result
 

@@ -209,24 +209,16 @@ func displayOnlyQuestion(question agentdomain.UserQuestionRequestedEvent) agentd
 	return question
 }
 
-// chatEventWriter adapts the AG-UI line stream to chat_event frames.
+// chatEventWriter maps each Write the RunEncoder emits to one chat_event
+// frame, since the encoder writes one event per Write.
 type chatEventWriter struct {
 	write frameWriter
 	conn  *websocket.Conn
-	buf   []byte
 }
 
 func (w *chatEventWriter) Write(p []byte) (int, error) {
-	w.buf = append(w.buf, p...)
-	for {
-		idx := bytes.IndexByte(w.buf, '\n')
-		if idx < 0 {
-			return len(p), nil
-		}
-		line := bytes.Clone(w.buf[:idx])
-		w.buf = w.buf[idx+1:]
-		if len(line) > 0 {
-			w.write(w.conn, extChatEvent{Type: outboundChatEvent, Event: line})
-		}
+	if line := bytes.TrimSuffix(p, []byte{'\n'}); len(line) > 0 {
+		w.write(w.conn, extChatEvent{Type: outboundChatEvent, Event: line})
 	}
+	return len(p), nil
 }

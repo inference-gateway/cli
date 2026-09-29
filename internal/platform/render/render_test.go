@@ -200,6 +200,26 @@ func TestAnswerApproval_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestApprovalAction(t *testing.T) {
+	tests := []struct {
+		name string
+		resp ipc.ApprovalResponse
+		want agentdomain.ApprovalAction
+	}{
+		{"approved once", ipc.ApprovalResponse{Approved: true}, agentdomain.ApprovalApprove},
+		{"approved always", ipc.ApprovalResponse{Approved: true, Scope: "always"}, agentdomain.ApprovalAutoAccept},
+		{"rejected", ipc.ApprovalResponse{}, agentdomain.ApprovalReject},
+		{"always without approval rejects", ipc.ApprovalResponse{Scope: "always"}, agentdomain.ApprovalReject},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ApprovalAction(tt.resp); got != tt.want {
+				t.Errorf("ApprovalAction(%+v) = %v, want %v", tt.resp, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRenderJSON_StreamsPerTurn(t *testing.T) {
 	var out strings.Builder
 	err := RenderJSON(stream(
