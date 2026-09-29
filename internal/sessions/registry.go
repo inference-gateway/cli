@@ -25,6 +25,9 @@ const (
 	frameToolRequest        = "tool_request"
 	frameToolResult         = "tool_result"
 	frameMessagesSnapshot   = "MESSAGES_SNAPSHOT"
+
+	outboundBrowserCommand = "browser_command"
+	inboundBrowserResult   = "browser_result"
 )
 
 // forwarded are the frames that go to the client's own thread unchanged.
@@ -68,10 +71,14 @@ type workerLine struct {
 // Registry is the daemon's thread registry. It launches one worker per thread,
 // relays client frames to worker stdin and worker lines to the thread's
 // clients, lets the first answer to an approval win, ends a run a crashed
-// worker left open with RUN_ERROR, and stops idle workers.
+// worker left open with RUN_ERROR, routes worker browser_command frames to the
+// connected browser extension, and stops idle workers.
 type Registry struct {
 	launch sessionsdomain.LaunchWorker
 	idle   time.Duration
+	// browser, wired by the daemon, relays worker browser_command frames to the
+	// extension connection on the AG-UI binding. It is nil until wired.
+	browser sessionsdomain.BrowserRelay
 
 	// ponytail: one lock for the whole registry, per-thread locks if contention shows
 	mu        sync.Mutex
@@ -104,6 +111,14 @@ func NewRegistry(launch sessionsdomain.LaunchWorker, idle time.Duration) *Regist
 		subs:      make(map[sessionsdomain.Client]*thread),
 		approvals: make(map[string]*thread),
 	}
+}
+
+// RouteBrowser wires the relay worker browser_command frames take to the
+// extension connection. Call it once before any worker launches.
+func (r *Registry) RouteBrowser(relay sessionsdomain.BrowserRelay) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.browser = relay
 }
 
 // Handle routes one client frame. new_session and resume_conversation make
@@ -305,13 +320,75 @@ func (r *Registry) answer(c sessionsdomain.Client, toolCallID string, frame []by
 }
 
 // pump delivers each worker line to its targets until the worker exits.
+// browser_command lines do not reach clients: they route through the browser
+// relay to the extension connection, which answers with a browser_result the
+// worker's Browser tools resolve.
 func (r *Registry) pump(t *thread, w sessionsdomain.Worker) {
 	for line := range w.Lines() {
+		relay := r.browserRelay()
+		if relay != nil && isBrowserCommand(line) {
+			go r.relayBrowserCommand(relay, t, w, line)
+			continue
+		}
 		for _, c := range r.targets(t, line) {
 			c.Deliver(line)
 		}
 	}
 	r.exited(t, w)
+}
+
+// browserRelay returns the browser relay the daemon wired, nil-safe under the
+// registry lock.
+func (r *Registry) browserRelay() sessionsdomain.BrowserRelay {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.browser
+}
+
+// relayBrowserCommand sends one worker browser_command to the extension and
+// writes the browser_result carrying the same id back to the worker's stdin, so
+// the worker's Browser tools resolve without binding a port. A failed relay is
+// reported as the result's error, never dropped, because the worker waits.
+func (r *Registry) relayBrowserCommand(relay sessionsdomain.BrowserRelay, t *thread, w sessionsdomain.Worker, command []byte) {
+	result, err := relay(context.Background(), command)
+	if err != nil {
+		result = browserResultError(command, err)
+	}
+	if err := w.Send(result); err != nil {
+		logger.Debug("sessions could not answer a browser_command", "error", err)
+	}
+	r.mu.Lock()
+	if r.threads[t.key] == t {
+		t.active = time.Now()
+	}
+	r.mu.Unlock()
+}
+
+// isBrowserCommand reports whether a worker line is a browser_command frame,
+// which routes to the extension instead of the thread's clients.
+func isBrowserCommand(line []byte) bool {
+	var msg struct {
+		Type string `json:"type"`
+	}
+	if json.Unmarshal(line, &msg) != nil {
+		return false
+	}
+	return msg.Type == outboundBrowserCommand
+}
+
+// browserResultError builds the browser_result a failed relay reports, keeping
+// the command's id so the worker's pending request resolves with the error.
+func browserResultError(command []byte, relayErr error) []byte {
+	var cmd struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(command, &cmd)
+	data, _ := json.Marshal(map[string]string{
+		"type":  inboundBrowserResult,
+		"id":    cmd.ID,
+		"error": relayErr.Error(),
+	})
+	return data
 }
 
 // targets tracks the run and the pending approvals a worker line reveals and

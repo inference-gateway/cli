@@ -1,5 +1,10 @@
 package domain
 
+import (
+	"context"
+	"encoding/json"
+)
+
 // ThreadKey identifies a thread: the project dir its worker runs in and the
 // conversation the worker carries.
 type ThreadKey struct {
@@ -41,3 +46,9 @@ type Threads interface {
 	Handle(client Client, frame []byte)
 	Detach(client Client)
 }
+
+// BrowserRelay forwards one browser_command frame from a session worker to the
+// connected browser extension and returns the browser_result carrying the
+// frame's id. The daemon injects the extension bridge's Relay here. It
+// serializes commands, because one browser serves every thread.
+type BrowserRelay func(ctx context.Context, frame []byte) (json.RawMessage, error)

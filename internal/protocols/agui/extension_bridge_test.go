@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -86,6 +84,14 @@ func helloAs(t *testing.T, conn *websocket.Conn, token, client string) map[strin
 	return ack
 }
 
+// extensionReq adapts the bridge's Relay to the ExtensionRequest seam the
+// driver calls, where the id travels separately from the frame.
+func extensionReq(bridge *ExtensionBridge) browserinfra.ExtensionRequest {
+	return func(ctx context.Context, _ string, frame json.RawMessage) (json.RawMessage, error) {
+		return bridge.Relay(ctx, frame)
+	}
+}
+
 func hello(t *testing.T, conn *websocket.Conn, token string) {
 	t.Helper()
 	helloAs(t, conn, token, "")
@@ -132,7 +138,7 @@ func answerNavigate(conn *websocket.Conn) {
 
 func TestExtensionBridgeAckCarriesProtocolVersion(t *testing.T) {
 	bridge := startBridge(t, testDeps(bridgeConfig()))
-	for _, client := range []string{"", "extension", "desktop"} {
+	for _, client := range []string{"", "extension", "desktop", "browser"} {
 		ack := helloAs(t, dial(t, bridge), "test-token", client)
 		if ack["protocol_version"] != float64(protocolVersion) {
 			t.Fatalf("client %q: ack protocol_version = %v, want %d", client, ack["protocol_version"], protocolVersion)
@@ -253,11 +259,11 @@ func TestExtensionBridgeDesktopsDoNotReplaceTheExtension(t *testing.T) {
 
 	go answerNavigate(extension)
 	err := untilConnected(t, func() error {
-		_, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
+		_, err := bridge.Relay(context.Background(), json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
 		return err
 	})
 	if err != nil {
-		t.Fatalf("Request with desktops attached: %v", err)
+		t.Fatalf("Relay with desktops attached: %v", err)
 	}
 }
 
@@ -299,11 +305,11 @@ func TestExtensionBridgeNavigateRoundTrip(t *testing.T) {
 
 	var result json.RawMessage
 	err := untilConnected(t, func() (err error) {
-		result, err = bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
+		result, err = bridge.Relay(context.Background(), json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
 		return err
 	})
 	if err != nil {
-		t.Fatalf("Request: %v", err)
+		t.Fatalf("Relay: %v", err)
 	}
 	if !strings.Contains(string(result), `"url":"https://example.com"`) || !strings.Contains(string(result), `"title":"Example Domain"`) {
 		t.Fatalf("unexpected result: %s", result)
@@ -340,11 +346,11 @@ func TestExtensionBridgeReplacesConnection(t *testing.T) {
 	}()
 
 	err := untilConnected(t, func() error {
-		_, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
+		_, err := bridge.Relay(context.Background(), json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
 		return err
 	})
 	if err != nil {
-		t.Fatalf("Request after replacement: %v", err)
+		t.Fatalf("Relay after replacement: %v", err)
 	}
 }
 
@@ -394,32 +400,6 @@ func httpGet(t *testing.T, url string) (string, int) {
 	return string(body), resp.StatusCode
 }
 
-// TestExtensionBridgeTakesOverFreedPort verifies a bridge that lost the port to
-// another process binds it on the next browser call once the port is free.
-func TestExtensionBridgeTakesOverFreedPort(t *testing.T) {
-	holder, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg := bridgeConfig()
-	cfg.Extension.Port = holder.Addr().(*net.TCPAddr).Port
-
-	bridge := NewExtensionBridge(testDeps(cfg))
-	t.Cleanup(bridge.Close)
-	if err := bridge.Start(); !errors.Is(err, syscall.EADDRINUSE) {
-		t.Fatalf("Start with the port held: err = %v, want EADDRINUSE", err)
-	}
-
-	_ = holder.Close()
-	_, err = bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
-	if err == nil || errors.Is(err, syscall.EADDRINUSE) {
-		t.Fatalf("Request after the port freed: err = %v, want a no-extension-connected error", err)
-	}
-	if bridge.Addr() == "" {
-		t.Fatal("bridge did not bind the freed port")
-	}
-}
-
 func TestExtensionBridgeDisconnectFailsPendingRequest(t *testing.T) {
 	bridge := startBridge(t, testDeps(bridgeConfig()))
 	conn := dial(t, bridge)
@@ -435,7 +415,7 @@ func TestExtensionBridgeDisconnectFailsPendingRequest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	err := untilConnected(t, func() error {
-		_, err := bridge.Request(ctx, "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
+		_, err := bridge.Relay(ctx, json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
 		return err
 	})
 	if !errors.Is(err, errBrowserExtensionDisconnected) {
@@ -467,7 +447,7 @@ func TestExtensionDriverOverBridgeRoundTrip(t *testing.T) {
 		}
 	}()
 
-	driver := browserinfra.NewExtensionDriver(cfg, bridge.Request)
+	driver := browserinfra.NewExtensionDriver(cfg, extensionReq(bridge))
 	var result browserdomain.BrowserToolResult
 	err := untilConnected(t, func() (err error) {
 		result, err = driver.Navigate(context.Background(), "https://example.com")
@@ -498,7 +478,7 @@ func TestExtensionBridgeRejectsBadToken(t *testing.T) {
 func TestExtensionBridgeFailsFastWithoutConnection(t *testing.T) {
 	bridge := startBridge(t, testDeps(bridgeConfig()))
 
-	_, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
+	_, err := bridge.Relay(context.Background(), json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
 	if err == nil || !strings.Contains(err.Error(), "no browser extension connected") {
 		t.Fatalf("expected no-extension error, got %v", err)
 	}
@@ -511,7 +491,150 @@ func TestExtensionBridgeRefusesToStartWithoutToken(t *testing.T) {
 	if err := bridge.Start(); err == nil || !strings.Contains(err.Error(), "token is empty") {
 		t.Fatalf("expected token error, got %v", err)
 	}
-	if _, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command"}`)); err == nil || !strings.Contains(err.Error(), "token is empty") {
-		t.Fatalf("expected stored start error from Request, got %v", err)
+	if _, err := bridge.Relay(context.Background(), json.RawMessage(`{"type":"browser_command"}`)); err == nil || !strings.Contains(err.Error(), "token is empty") {
+		t.Fatalf("expected stored start error from Relay, got %v", err)
+	}
+}
+
+// adoptedExtension waits until the bridge has taken the extension connection
+// over, the gap the ack read leaves before adopt runs.
+func adoptedExtension(t *testing.T, bridge *ExtensionBridge) {
+	t.Helper()
+	eventually(t, "the extension connection", func() bool {
+		bridge.mu.Lock()
+		defer bridge.mu.Unlock()
+		return bridge.ext != nil
+	})
+}
+
+// TestExtensionBridgeRoutesClientCommandsToTheExtension hands a browser
+// command a browser client posts on the socket to the extension connection,
+// and answers the posting client with the browser_result carrying the
+// command's id. Nobody else receives it.
+func TestExtensionBridgeRoutesClientCommandsToTheExtension(t *testing.T) {
+	bridge := startBridge(t, testDeps(bridgeConfig()))
+	extension := dial(t, bridge)
+	helloAs(t, extension, "test-token", "extension")
+	adoptedExtension(t, bridge)
+	first := dial(t, bridge)
+	helloAs(t, first, "test-token", "browser")
+	second := dial(t, bridge)
+	helloAs(t, second, "test-token", "browser")
+
+	go answerNavigate(extension)
+
+	if err := first.WriteJSON(map[string]any{"type": "browser_command", "id": "cmd-1", "action": "navigate", "url": "https://example.com", "timeout_ms": 2000}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	_ = first.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var result map[string]any
+	if err := first.ReadJSON(&result); err != nil {
+		t.Fatalf("read result: %v", err)
+	}
+	if result["type"] != "browser_result" || result["id"] != "cmd-1" || result["url"] != "https://example.com" {
+		t.Fatalf("first client got %v, want cmd-1's browser_result", result)
+	}
+
+	_ = first.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+	if err := first.ReadJSON(&result); err == nil {
+		t.Fatalf("the answered frame was replayed: %v", result)
+	}
+	_ = second.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+	if err := second.ReadJSON(&result); err == nil {
+		t.Fatalf("another client received cmd-1's result: %v", result)
+	}
+}
+
+// TestExtensionBridgeSerializesClientCommands holds the first command's answer
+// back: the second client's command waits through the one-browser gate and
+// reaches the extension only after the first resolved.
+func TestExtensionBridgeSerializesClientCommands(t *testing.T) {
+	bridge := startBridge(t, testDeps(bridgeConfig()))
+	extension := dial(t, bridge)
+	helloAs(t, extension, "test-token", "extension")
+	adoptedExtension(t, bridge)
+	first := dial(t, bridge)
+	helloAs(t, first, "test-token", "browser")
+	second := dial(t, bridge)
+	helloAs(t, second, "test-token", "browser")
+
+	saw := make(chan map[string]any, 8)
+	proceed := make(chan struct{}, 4)
+	go func() {
+		for {
+			var cmd map[string]any
+			if err := extension.ReadJSON(&cmd); err != nil || cmd["type"] != "browser_command" {
+				return
+			}
+			saw <- cmd
+			<-proceed
+			_ = extension.WriteJSON(map[string]any{"type": "browser_result", "id": cmd["id"], "url": "ok"})
+		}
+	}()
+
+	if err := first.WriteJSON(map[string]any{"type": "browser_command", "id": "cmd-1", "action": "tabs"}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	select {
+	case cmd := <-saw:
+		if cmd["id"] != "cmd-1" {
+			t.Fatalf("the extension saw %v first", cmd)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the extension never saw cmd-1")
+	}
+
+	if err := second.WriteJSON(map[string]any{"type": "browser_command", "id": "cmd-2", "action": "tabs"}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	select {
+	case cmd := <-saw:
+		t.Fatalf("%v reached the extension while cmd-1 was still open", cmd)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	proceed <- struct{}{}
+	_ = first.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var result map[string]any
+	if err := first.ReadJSON(&result); err != nil || result["id"] != "cmd-1" {
+		t.Fatalf("first client answered with %v (%v)", result, err)
+	}
+
+	select {
+	case cmd := <-saw:
+		if cmd["id"] != "cmd-2" {
+			t.Fatalf("next in line was %v, want cmd-2", cmd)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("cmd-2 never reached the extension after cmd-1 resolved")
+	}
+	proceed <- struct{}{}
+	_ = second.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if err := second.ReadJSON(&result); err != nil || result["id"] != "cmd-2" {
+		t.Fatalf("second client answered with %v (%v)", result, err)
+	}
+}
+
+// TestExtensionBridgeAnswersNoExtensionToAClient answers a browser client whose
+// command arrives while no extension is connected with a browser_result that
+// carries the no-extension wording the Browser tools report.
+func TestExtensionBridgeAnswersNoExtensionToAClient(t *testing.T) {
+	bridge := startBridge(t, testDeps(bridgeConfig()))
+	conn := dial(t, bridge)
+	helloAs(t, conn, "test-token", "browser")
+
+	if err := conn.WriteJSON(map[string]any{"type": "browser_command", "id": "cmd-1", "action": "tabs"}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var result map[string]any
+	if err := conn.ReadJSON(&result); err != nil {
+		t.Fatalf("read result: %v", err)
+	}
+	if result["type"] != "browser_result" || result["id"] != "cmd-1" {
+		t.Fatalf("got %v, want a browser_result for cmd-1", result)
+	}
+	if message, _ := result["error"].(string); !strings.Contains(message, "no browser extension connected") {
+		t.Fatalf("result error = %q, want the no-extension wording", message)
 	}
 }

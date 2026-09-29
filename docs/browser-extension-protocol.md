@@ -13,9 +13,12 @@ one. This document is the wire contract the clients implement.
 - `infer daemon` listens on `ws://127.0.0.1:<port>/ws` (default port `52789`,
   `browser_use.yaml` → `extension.port`) when `browser_use` is enabled with
   `backend: extension`. Clients dial in — MV3 service workers cannot listen.
-- `infer chat` binds the same port for browser commands only. Whichever process
-  binds first holds it, and the daemon retries every few seconds until the port
-  frees. Browser commands from daemon threads are not routed to the extension yet.
+- Only the daemon binds the port. `infer chat` and a standalone `infer headless`
+  reach the browser as browser clients through the daemon (`client: "browser"` in
+  the hello) and start `infer daemon` when nothing is listening. A session
+  worker's `browser_command` stdout lines are routed to the extension connection
+  by the daemon, and each `browser_result` goes back to that worker by `id`;
+  commands serialize across threads because one browser serves them.
 - Every frame is a single JSON text message with a `type` discriminator.
   AG-UI events use an uppercase `type` and app frames a lowercase one. Unknown
   `type` values MUST be ignored (forward compatibility).

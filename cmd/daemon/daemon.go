@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -208,10 +207,6 @@ func RunDaemonCommand(cfg *config.Config) error {
 // ponytail: a constant, a config key when someone needs to tune it.
 const workerIdleTimeout = 10 * time.Minute
 
-// bindingRetryInterval is how often the daemon retries the binding's port
-// while another infer process, such as a running infer chat, holds it.
-const bindingRetryInterval = 5 * time.Second
-
 // bindingEnabled reports whether the AG-UI WebSocket binding runs. It shares
 // the extension backend's switch, port and token.
 func bindingEnabled(cfg *config.Config) bool {
@@ -219,17 +214,19 @@ func bindingEnabled(cfg *config.Config) bool {
 }
 
 // startBinding serves the AG-UI WebSocket binding with the thread registry
-// behind it. stop, called after ctx ends, closes the binding and waits for
-// every session worker to exit.
+// behind it, and routes worker browser_command frames through the bridge's
+// extension connection. stop, called after ctx ends, closes the binding and
+// waits for every session worker to exit. The daemon is the only infer process
+// that binds the binding port, so a port that is already held fails the boot.
 func startBinding(ctx context.Context, cfg *config.Config) (stop func(), err error) {
 	if !bindingEnabled(cfg) {
 		return func() {}, nil
 	}
 	registry := sessions.NewRegistry(sessionsinfra.LaunchWorker, workerIdleTimeout)
 	bridge := agui.NewExtensionBridge(agui.Deps{Extension: cfg.BrowserUse.Extension, Threads: registry})
-	listening, err := listenBinding(ctx, bridge)
-	if err != nil {
-		return nil, err
+	registry.RouteBrowser(bridge.Relay)
+	if err := bridge.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start the AG-UI binding: %w", err)
 	}
 	stopped := make(chan struct{})
 	go func() {
@@ -237,42 +234,9 @@ func startBinding(ctx context.Context, cfg *config.Config) (stop func(), err err
 		registry.Run(ctx)
 	}()
 	return func() {
-		<-listening
 		bridge.Close()
 		<-stopped
 	}, nil
-}
-
-// listenBinding starts the binding. A port held by another infer process is
-// retried in the background until it frees or ctx ends, and any other listen
-// error fails the boot. The returned channel closes once no retry runs.
-func listenBinding(ctx context.Context, bridge *agui.ExtensionBridge) (<-chan struct{}, error) {
-	done := make(chan struct{})
-	err := bridge.Start()
-	if err == nil {
-		close(done)
-		return done, nil
-	}
-	if !errors.Is(err, syscall.EADDRINUSE) {
-		return nil, fmt.Errorf("failed to start the AG-UI binding: %w", err)
-	}
-	logger.Warn("the AG-UI binding port is held by another infer process - retrying until it frees", "error", err)
-	go func() {
-		defer close(done)
-		ticker := time.NewTicker(bindingRetryInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if bridge.Start() == nil {
-					return
-				}
-			}
-		}
-	}()
-	return done, nil
 }
 
 // acquireDaemonLock enforces one daemon per machine via a PID file in

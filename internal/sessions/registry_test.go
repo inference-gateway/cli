@@ -2,6 +2,7 @@ package sessions
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -274,5 +275,61 @@ func TestRegistryReapsIdleWorkers(t *testing.T) {
 	handle(r, followed, `{"type":"user_message","content":"after shutdown"}`)
 	if l.count() != 2 {
 		t.Fatal("no worker may launch after shutdown")
+	}
+}
+
+// TestRegistryRoutesWorkerBrowserCommands sends browser_command lines from two
+// workers: each routes through the relay and the browser_result carrying the
+// command's id goes back to the worker that asked, while the thread's clients
+// never see the browser frames. A failed relay is reported as the result's
+// error, never dropped, because the worker waits for the answer by id.
+func TestRegistryRoutesWorkerBrowserCommands(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	var mu sync.Mutex
+	var relayed []string
+	noExtension := errors.New("no browser extension connected on port 52789 - install the opentask extension and set its bridge port/token to match browser_use.yaml")
+	r.RouteBrowser(func(ctx context.Context, frame []byte) (json.RawMessage, error) {
+		mu.Lock()
+		relayed = append(relayed, string(frame))
+		mu.Unlock()
+		var cmd struct {
+			ID     string `json:"id"`
+			Action string `json:"action"`
+		}
+		if err := json.Unmarshal(frame, &cmd); err != nil {
+			return nil, err
+		}
+		if cmd.Action == "fail" {
+			return nil, noExtension
+		}
+		return json.RawMessage(`{"type":"browser_result","id":"` + cmd.ID + `","title":"Example Domain"}`), nil
+	})
+
+	a, b := &sessionsmocks.FakeClient{}, &sessionsmocks.FakeClient{}
+	handle(r, a, `{"type":"resume_conversation","project_dir":"/a","id":"conv-a"}`)
+	handle(r, b, `{"type":"resume_conversation","project_dir":"/b","id":"conv-b"}`)
+	workerA, linesA := l.worker(0)
+	workerB, linesB := l.worker(1)
+
+	linesA <- []byte(`{"type":"browser_command","id":"cmd-a","action":"navigate","url":"https://a.example","timeout_ms":123}`)
+	linesB <- []byte(`{"type":"browser_command","id":"cmd-b","action":"fail","timeout_ms":123}`)
+
+	eventually(t, "both commands relayed", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(relayed) == 2
+	})
+	eventually(t, "both workers answered", func() bool {
+		return workerA.SendCallCount() == 2 && workerB.SendCallCount() == 2
+	})
+	if got := string(workerA.SendArgsForCall(1)); got != `{"type":"browser_result","id":"cmd-a","title":"Example Domain"}` {
+		t.Fatalf("worker A answered with %q, want its own browser_result by id", got)
+	}
+	if got := string(workerB.SendArgsForCall(1)); !strings.Contains(got, `"id":"cmd-b"`) || !strings.Contains(got, "no browser extension connected") {
+		t.Fatalf("worker B answered with %q, want the command's id and the no-extension wording", got)
+	}
+	if got := delivered(a); strings.Contains(strings.Join(got, "\n"), "browser_command") {
+		t.Fatalf("worker A's clients received the browser frames: %q", got)
 	}
 }

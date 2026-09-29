@@ -44,7 +44,6 @@ var fileRefPattern = regexp.MustCompile(`@([^\s]+)`)
 // Services is the slice of the composition root a headless run uses.
 // cmd/headless supplies the *container.ServiceContainer.
 type Services interface {
-	StartExtensionBridge()
 	RouteBrowserRequests(request func(ctx context.Context, id string, frame json.RawMessage) (json.RawMessage, error))
 	SetUINotifier(n agentdomain.UINotifier)
 	Shutdown(ctx context.Context) error
@@ -133,9 +132,6 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 	svc := newServices()
 	notifications := make(uiBridge, 8)
 	svc.SetUINotifier(notifications)
-	if !opts.Serve {
-		svc.StartExtensionBridge()
-	}
 	shutdown := sync.OnceFunc(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
