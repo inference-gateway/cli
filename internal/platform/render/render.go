@@ -119,6 +119,20 @@ func CompletionErr(e agentdomain.ChatCompleteEvent) error {
 	return nil
 }
 
+// ApprovalAction maps an IPC approval response to the engine's decision: an
+// approved response with scope "always" auto-accepts, a plain approved response
+// approves the call once, anything else rejects.
+func ApprovalAction(resp ipc.ApprovalResponse) agentdomain.ApprovalAction {
+	switch {
+	case resp.Approved && resp.Scope == "always":
+		return agentdomain.ApprovalAutoAccept
+	case resp.Approved:
+		return agentdomain.ApprovalApprove
+	default:
+		return agentdomain.ApprovalReject
+	}
+}
+
 // AnswerApproval answers the engine's pending approval on the event's
 // response channel from the broker's approvals channel. Responses carrying a
 // different tool_call_id are skipped (a late answer to a request the engine
@@ -136,14 +150,7 @@ func AnswerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan i
 		if resp.ToolCallID != "" && resp.ToolCallID != e.ToolCall.ID {
 			continue
 		}
-		switch {
-		case resp.Approved && resp.Scope == "always":
-			e.ResponseChan <- agentdomain.ApprovalAutoAccept
-		case resp.Approved:
-			e.ResponseChan <- agentdomain.ApprovalApprove
-		default:
-			e.ResponseChan <- agentdomain.ApprovalReject
-		}
+		e.ResponseChan <- ApprovalAction(resp)
 		return
 	}
 	e.ResponseChan <- agentdomain.ApprovalReject
