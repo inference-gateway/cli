@@ -43,7 +43,7 @@ func newToolRequests(write frameWriter, deps PanelDeps) *toolRequests {
 // prompt surface.
 func (t *toolRequests) run(msg panelFrame) {
 	reply := func(success bool, output, errStr string) {
-		t.write(extToolResult{Type: outboundToolResult, ID: msg.ID, Success: success, Output: output, Error: errStr})
+		t.write(toolResultFrame{Type: outboundToolResult, ID: msg.ID, Success: success, Output: output, Error: errStr})
 	}
 
 	if !t.service.IsToolEnabled(msg.ToolName) {

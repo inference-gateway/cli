@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
@@ -19,6 +20,24 @@ import (
 
 // stream feeds the given events into a closed channel, mimicking the engine
 // closing the channel when the run ends.
+// noticeEvent is a chat event the encoder does not map itself.
+type noticeEvent struct {
+	Name    string
+	Resumes bool
+}
+
+func (noticeEvent) GetRequestID() string    { return "" }
+func (noticeEvent) GetTimestamp() time.Time { return time.Time{} }
+
+// publishNotice publishes every noticeEvent under its own name.
+func publishNotice(event agentdomain.ChatEvent) (CustomEvent, bool) {
+	notice, ok := event.(noticeEvent)
+	if !ok {
+		return CustomEvent{}, false
+	}
+	return CustomEvent{Name: notice.Name, Value: map[string]bool{"active": true}, Resumes: notice.Resumes}, true
+}
+
 func stream(events ...agentdomain.ChatEvent) <-chan agentdomain.ChatEvent {
 	ch := make(chan agentdomain.ChatEvent, len(events))
 	for _, e := range events {
@@ -271,9 +290,9 @@ func TestAnswerQuestions_RoundTrip(t *testing.T) {
 func TestAgentStartupEmitter(t *testing.T) {
 	var out strings.Builder
 	emit := AgentStartupEmitter(&out)
-	emit("browser-agent", "PullingImage", "Pulling image", 3, 10)
+	emit("research-agent", "PullingImage", "Pulling image", 3, 10)
 	got := out.String()
-	for _, want := range []string{`"type":"CUSTOM"`, `"name":"agent_status"`, `"browser-agent"`, `"state":"PullingImage"`, `"done":3`, `"total":10`} {
+	for _, want := range []string{`"type":"CUSTOM"`, `"name":"agent_status"`, `"research-agent"`, `"state":"PullingImage"`, `"done":3`, `"total":10`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %s in %s", want, got)
 		}
@@ -288,25 +307,36 @@ func TestEmitRunError(t *testing.T) {
 	}
 }
 
-func TestRender_ComputerUsePauseResume(t *testing.T) {
+func TestRender_PublishesTheEventsItDoesNotMap(t *testing.T) {
 	var out strings.Builder
 	err := Render(stream(
-		agentdomain.ComputerUsePausedEvent{RequestID: "s1"},
+		noticeEvent{Name: "paused"},
 		agentdomain.ChatCompleteEvent{Cancelled: true},
-		agentdomain.ComputerUseResumedEvent{RequestID: "s1"},
+		noticeEvent{Name: "resumed", Resumes: true},
 		agentdomain.ChatCompleteEvent{},
-	), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
+	), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil, publishNotice)
 	if err != nil {
 		t.Fatalf("Render() err = %v, want nil after resumed run completes", err)
 	}
 	got := out.String()
-	for _, want := range []string{`computer_use_paused`, `computer_use_resumed`, `"CUSTOM"`} {
+	for _, want := range []string{`"name":"paused","value":{"active":true}`, `"name":"resumed","value":{"active":true}`, `"CUSTOM"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %s in output:\n%s", want, got)
 		}
 	}
 	if strings.Contains(got, `"RUN_ERROR"`) {
 		t.Errorf("resumed run must not emit RUN_ERROR\n%s", got)
+	}
+}
+
+func TestRender_SkipsAnEventNobodyPublishes(t *testing.T) {
+	var out strings.Builder
+	err := Render(stream(noticeEvent{Name: "paused"}, agentdomain.ChatCompleteEvent{}), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
+	if err != nil {
+		t.Fatalf("Render() err = %v", err)
+	}
+	if strings.Contains(out.String(), `"CUSTOM"`) {
+		t.Errorf("an unpublished event reached the stream:\n%s", out.String())
 	}
 }
 
@@ -459,23 +489,5 @@ func TestRender_TokenUsageStreamsPerStep(t *testing.T) {
 	}
 	if strings.Contains(plain.String(), `"name":"token_usage"`) {
 		t.Errorf("zero-request run must not emit token_usage:\n%s", plain.String())
-	}
-}
-
-func TestRender_ScreenRecordingStatus(t *testing.T) {
-	var out strings.Builder
-	err := Render(stream(
-		agentdomain.ScreenRecordingStatusEvent{Active: true},
-		agentdomain.ScreenRecordingStatusEvent{Active: false},
-		agentdomain.ChatCompleteEvent{},
-	), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
-	if err != nil {
-		t.Fatalf("Render() err = %v", err)
-	}
-	got := out.String()
-	for _, want := range []string{`"name":"screen_recording","value":{"active":true}`, `"name":"screen_recording","value":{"active":false}`} {
-		if !strings.Contains(got, want) {
-			t.Errorf("missing %s in output:\n%s", want, got)
-		}
 	}
 }

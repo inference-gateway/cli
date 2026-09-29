@@ -59,12 +59,12 @@ type panelFrame struct {
 	Approved   bool   `json:"approved"`
 }
 
-type extMode struct {
+type modeFrame struct {
 	Type string `json:"type"`
 	Mode string `json:"mode"`
 }
 
-type extToolResult struct {
+type toolResultFrame struct {
 	Type    string `json:"type"`
 	ID      string `json:"id"`
 	Success bool   `json:"success"`
@@ -72,30 +72,30 @@ type extToolResult struct {
 	Error   string `json:"error"`
 }
 
-type extModels struct {
+type modelsFrame struct {
 	Type    string   `json:"type"`
 	Models  []string `json:"models"`
 	Current string   `json:"current,omitempty"`
 }
 
-type extConversationSummary struct {
+type conversationSummary struct {
 	ID           string    `json:"id"`
 	Title        string    `json:"title"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	MessageCount int       `json:"message_count"`
 }
 
-type extConversations struct {
-	Type          string                   `json:"type"`
-	Conversations []extConversationSummary `json:"conversations"`
+type conversationsFrame struct {
+	Type          string                `json:"type"`
+	Conversations []conversationSummary `json:"conversations"`
 }
 
-type extSkills struct {
+type skillsFrame struct {
 	Type   string                     `json:"type"`
 	Skills []agentdomain.SkillSummary `json:"skills"`
 }
 
-type extHistory struct {
+type historyFrame struct {
 	Type    string   `json:"type"`
 	History []string `json:"history"`
 }
@@ -239,25 +239,25 @@ func (c *conversations) snapshot() {
 func (c *conversations) list() {
 	lister, ok := c.repo.(conversationLister)
 	if !ok {
-		c.write(extConversations{Type: outboundConversations})
+		c.write(conversationsFrame{Type: outboundConversations})
 		return
 	}
 	summaries, err := lister.ListSavedConversations(context.Background(), conversationListLimit, 0)
 	if err != nil {
 		logger.Debug("panel failed to list conversations", "error", err)
-		c.write(extConversations{Type: outboundConversations})
+		c.write(conversationsFrame{Type: outboundConversations})
 		return
 	}
-	out := make([]extConversationSummary, 0, len(summaries))
+	out := make([]conversationSummary, 0, len(summaries))
 	for _, s := range summaries {
-		out = append(out, extConversationSummary{
+		out = append(out, conversationSummary{
 			ID:           s.ID,
 			Title:        s.Title,
 			UpdatedAt:    s.UpdatedAt,
 			MessageCount: s.MessageCount,
 		})
 	}
-	c.write(extConversations{Type: outboundConversations, Conversations: out})
+	c.write(conversationsFrame{Type: outboundConversations, Conversations: out})
 }
 
 // history holds the shared shell input history: panel messages land in the same
@@ -294,7 +294,7 @@ func (h *history) list() {
 	if loaded == nil {
 		loaded = []string{}
 	}
-	h.write(extHistory{Type: outboundHistory, History: loaded})
+	h.write(historyFrame{Type: outboundHistory, History: loaded})
 }
 
 // append records a panel-sent message in the shared shell history, mirroring
@@ -326,7 +326,7 @@ func (s *skills) list() {
 	for _, skill := range loaded {
 		out = append(out, skill.Summary())
 	}
-	s.write(extSkills{Type: outboundSkills, Skills: out})
+	s.write(skillsFrame{Type: outboundSkills, Skills: out})
 }
 
 // modelPicker answers the panel's model picker from the worker's model service,
@@ -353,7 +353,7 @@ func (m *modelPicker) list() {
 			out = append(out, name)
 		}
 	}
-	m.write(extModels{Type: outboundModels, Models: out, Current: m.service.GetCurrentModel()})
+	m.write(modelsFrame{Type: outboundModels, Models: out, Current: m.service.GetCurrentModel()})
 }
 
 // selectModel switches the worker's model for its next turns and re-sends the
@@ -377,7 +377,7 @@ type modes struct {
 
 // send reports the current agent mode as its canonical mode key.
 func (m *modes) send() {
-	m.write(extMode{Type: outboundMode, Mode: m.state.GetAgentMode().ModeKey()})
+	m.write(modeFrame{Type: outboundMode, Mode: m.state.GetAgentMode().ModeKey()})
 }
 
 // set switches the agent mode - it also governs tool_request approvals - and

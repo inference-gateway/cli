@@ -1,4 +1,4 @@
-package infrastructure
+package daemon
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestEnsureDaemon(t *testing.T) {
+func TestEnsureRunning(t *testing.T) {
 	tests := []struct {
 		name      string
 		listening bool
@@ -29,19 +29,19 @@ func TestEnsureDaemon(t *testing.T) {
 				_ = l.Close()
 			}
 			started := false
-			previous := startDaemon
-			startDaemon = func() error { started = true; return errors.New("permission denied") }
-			t.Cleanup(func() { startDaemon = previous })
+			previous := start
+			start = func() error { started = true; return errors.New("permission denied") }
+			t.Cleanup(func() { start = previous })
 
-			err = EnsureDaemon(t.Context(), port)
+			err = EnsureRunning(t.Context(), port)
 			if tt.wantErr == "" {
 				if err != nil || started {
-					t.Fatalf("EnsureDaemon = %v, started = %v, want nil without a start", err, started)
+					t.Fatalf("EnsureRunning = %v, started = %v, want nil without a start", err, started)
 				}
 				return
 			}
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-				t.Fatalf("EnsureDaemon = %v, want %q", err, tt.wantErr)
+				t.Fatalf("EnsureRunning = %v, want %q", err, tt.wantErr)
 			}
 		})
 	}

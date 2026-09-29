@@ -57,7 +57,7 @@ Client → CLI, first frame, within 5 seconds of connecting:
 {"type": "browser_hello", "token": "<shared secret>", "client": "extension", "protocol_version": 1, "extension_version": "1.9.2"}
 ```
 
-- `client` is `extension` or `desktop`. An absent or unknown value counts as
+- `client` is `extension`, `desktop` or `browser`. An absent or unknown value counts as
   `extension`.
 - The handshake is lenient: any hello with a valid token is accepted. A hello
   without `protocol_version` is logged as a warning.
@@ -318,7 +318,7 @@ with a fresh `mode` frame either way:
 Chat text can reference files the agent saved under the artifacts dir
 (`~/.infer/projects/<project-slug>/artifacts/<...>`, e.g. `ImageGeneration`
 output). An MV3 extension
-cannot load a local file path in `<img>`, so the binding can serve that
+cannot load a local file path in `<img>`, so the binding is meant to serve that
 directory read-only over HTTP alongside `/ws`. The daemon's binding does not
 serve it yet, because one daemon serves many projects and the route maps to a
 single artifacts dir. Until it does, the route below answers 404:

@@ -30,6 +30,7 @@ import (
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	daemon "github.com/inference-gateway/cli/internal/daemon"
 	gateway "github.com/inference-gateway/cli/internal/gateway"
 	githubissues "github.com/inference-gateway/cli/internal/github/issues"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
@@ -61,7 +62,6 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
-	sessionsinfra "github.com/inference-gateway/cli/internal/sessions/infrastructure"
 	skills "github.com/inference-gateway/cli/internal/skills"
 	tools "github.com/inference-gateway/cli/internal/tools"
 	customtools "github.com/inference-gateway/cli/internal/tools/custom"
@@ -235,8 +235,7 @@ func (c *ServiceContainer) SetUINotifier(n agentdomain.UINotifier) {
 // initializeBrowserTools constructs the browser-use driver (a thin extension
 // adapter, or a lazily-launched Playwright session) and registers the browser
 // tools against it. The extension adapter reaches the opentask extension
-// through the infer daemon's extension bridge. The daemon hosts the binding
-// and is started on demand.
+// through the infer daemon, which hosts the binding and is started on demand.
 func (c *ServiceContainer) initializeBrowserTools() {
 	buCfg := &c.config.BrowserUse
 	if !buCfg.Enabled {
@@ -244,7 +243,7 @@ func (c *ServiceContainer) initializeBrowserTools() {
 	}
 
 	if buCfg.Backend == config.BrowserBackendExtension {
-		c.browserDriver = browserinfra.NewExtensionDriver(buCfg, agui.NewDaemonClient(buCfg.Extension, c.uiNotifier, sessionsinfra.EnsureDaemon).Request)
+		c.browserDriver = browserinfra.NewExtensionDriver(buCfg, browserinfra.NewExtensionClient(buCfg.Extension, c.uiNotifier, daemon.EnsureRunning).Request)
 	} else {
 		c.browserDriver = browserinfra.NewSession(buCfg)
 	}
@@ -253,7 +252,7 @@ func (c *ServiceContainer) initializeBrowserTools() {
 }
 
 // RouteBrowserRequests rebuilds the extension browser tools over request instead
-// of the daemon-client socket, so a headless serve worker relays browser frames
+// of the extension client's socket, so a headless serve worker relays browser frames
 // through its host and binds no port. Call it before the first run. No-op unless
 // the extension backend is selected.
 func (c *ServiceContainer) RouteBrowserRequests(request func(ctx context.Context, id string, frame json.RawMessage) (json.RawMessage, error)) {

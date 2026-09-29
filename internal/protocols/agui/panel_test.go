@@ -382,7 +382,7 @@ func TestPanelToolRequestRecordedInConversation(t *testing.T) {
 
 func TestPanelIgnoresUnknownFrames(t *testing.T) {
 	p, _ := startPanel(panelDeps())
-	for _, typ := range []string{"interrupt", "user_question_response", "computer_use_control", "browser_result"} {
+	for _, typ := range []string{"interrupt", "user_question_response", "unknown_frame"} {
 		if handle(t, p, map[string]any{"type": typ}) {
 			t.Fatalf("%s must not be consumed by the panel", typ)
 		}

@@ -117,15 +117,20 @@ linters:
             - "!**/internal/presentation/**"
           deny:
             - pkg: github.com/gorilla/websocket
-              desc: "the extension socket lives in protocols/agui and the web terminal in presentation; open sockets nowhere else"
-        browser-does-not-import-agui:
+              desc: "the binding's socket lives in protocols/agui and the web terminal in presentation; open sockets nowhere else"
+        agui-names-no-context:
           list-mode: lax
           files:
-            - "**/internal/browser/**"
+            - "**/internal/protocols/agui/**"
             - "!$test"
+          allow:
+            - github.com/inference-gateway/cli/internal/agent/domain
+            - github.com/inference-gateway/cli/internal/conversation/domain
+            - github.com/inference-gateway/cli/internal/scheduler/domain
+            - github.com/inference-gateway/cli/internal/platform
           deny:
-            - pkg: github.com/inference-gateway/cli/internal/protocols/agui
-              desc: "the browser capability reaches the extension bridge through the injected ExtensionRequest; the container wires them"
+            - pkg: github.com/inference-gateway/cli/internal
+              desc: "agui is a general-purpose protocol package; the contexts import it and it imports none of them"
     gocyclo:
       min-complexity: 25
     cyclop:

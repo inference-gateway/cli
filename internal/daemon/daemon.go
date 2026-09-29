@@ -1,4 +1,4 @@
-package infrastructure
+package daemon
 
 import (
 	"context"
@@ -12,23 +12,24 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// daemonBootWait bounds how long EnsureDaemon waits for a daemon it just
-// started to bind its port.
-const daemonBootWait = 15 * time.Second
+// bootWait bounds how long EnsureRunning waits for a daemon it just started to
+// bind its port.
+const bootWait = 15 * time.Second
 
-// EnsureDaemon makes an infer daemon listen on port, starting one in the
-// background when nothing does. The daemon's own pid lock makes a redundant start exit, so
-// callers never coordinate, and the wait covers a daemon already on its way.
-func EnsureDaemon(ctx context.Context, port int) error {
-	if daemonReachable(port) {
+// EnsureRunning makes an infer daemon listen on port, starting one in the
+// background when nothing does. The daemon's own pid lock makes a redundant
+// start exit, so callers never coordinate, and the wait covers a daemon already
+// on its way.
+func EnsureRunning(ctx context.Context, port int) error {
+	if reachable(port) {
 		return nil
 	}
-	if err := startDaemon(); err != nil {
+	if err := start(); err != nil {
 		return fmt.Errorf("starting the infer daemon failed: %w", err)
 	}
-	deadline := time.Now().Add(daemonBootWait)
+	deadline := time.Now().Add(bootWait)
 	for {
-		if daemonReachable(port) {
+		if reachable(port) {
 			return nil
 		}
 		if !time.Now().Before(deadline) {
@@ -42,12 +43,12 @@ func EnsureDaemon(ctx context.Context, port int) error {
 	}
 }
 
-// startDaemon runs this binary as a background daemon that outlives the caller.
+// start runs this binary as a background daemon that outlives the caller.
 // A package var, so tests stub the boot instead of spawning the test binary.
 // ponytail: no new session, so closing the caller's terminal stops the daemon
 // too and the next Browser call starts another. Run it as a service if it must
 // survive that. It inherits the caller's env and working directory, so its config.
-var startDaemon = func() error {
+var start = func() error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -60,8 +61,8 @@ var startDaemon = func() error {
 	return cmd.Process.Release()
 }
 
-// daemonReachable reports whether something accepts TCP on port.
-func daemonReachable(port int) bool {
+// reachable reports whether something accepts TCP on port.
+func reachable(port int) bool {
 	conn, err := (&net.Dialer{Timeout: 500 * time.Millisecond}).
 		Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {

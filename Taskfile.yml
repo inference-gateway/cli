@@ -325,7 +325,6 @@ tasks:
       - mkdir -p tests/mocks/sessions
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/sessions internal/sessions/domain Worker
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/sessions internal/sessions/domain Client
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/sessions internal/sessions/domain Threads
       - mkdir -p tests/mocks/conversation tests/mocks/agentdomain tests/mocks/states
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain TitleGenerator
       - mkdir -p tests/mocks/shortcuts

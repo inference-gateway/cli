@@ -20,6 +20,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	computer "github.com/inference-gateway/cli/internal/computer"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	gateway "github.com/inference-gateway/cli/internal/gateway"
@@ -380,7 +381,7 @@ func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals 
 	case "json-pretty":
 		return render.RenderJSONPretty(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "ag-ui":
-		r := agui.NewRunEncoder(os.Stdout, model, repo, history, jobs, approvals, questions)
+		r := agui.NewRunEncoder(os.Stdout, model, repo, history, jobs, approvals, questions, computer.PublishedEvent)
 		r.Start(sessionID, uuid.New().String())
 		for event := range events {
 			r.Handle(event)

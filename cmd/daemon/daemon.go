@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -17,6 +18,7 @@ import (
 	version "github.com/inference-gateway/cli/cmd/version"
 	config "github.com/inference-gateway/cli/config"
 	audio "github.com/inference-gateway/cli/internal/audio"
+	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	channels "github.com/inference-gateway/cli/internal/channels"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
@@ -213,19 +215,53 @@ func bindingEnabled(cfg *config.Config) bool {
 	return cfg.BrowserUse.Enabled && cfg.BrowserUse.Backend == config.BrowserBackendExtension
 }
 
-// startBinding serves the AG-UI WebSocket binding with the thread registry
-// behind it, and routes worker browser_command frames through the bridge's
-// extension connection. stop, called after ctx ends, closes the binding and
-// waits for every session worker to exit. The daemon is the only infer process
-// that binds the binding port, so a port that is already held fails the boot.
+// bindingHandler puts the binding's two consumers behind its one handler. The
+// extension relay claims the browser frames, and the thread registry gets the
+// rest.
+type bindingHandler struct {
+	relay    *browserinfra.ExtensionRelay
+	registry *sessions.Registry
+}
+
+func (h bindingHandler) Attach(conn *agui.Conn) {
+	h.relay.Attach(conn)
+}
+
+func (h bindingHandler) Handle(conn *agui.Conn, frame []byte) {
+	if h.relay.Handle(conn, frame) {
+		return
+	}
+	h.registry.Handle(conn, frame)
+}
+
+func (h bindingHandler) Detach(conn *agui.Conn) {
+	h.relay.Detach(conn)
+	h.registry.Detach(conn)
+}
+
+// startBinding serves the AG-UI WebSocket binding with the extension relay and
+// the thread registry behind it, and routes worker browser_command frames
+// through the relay. stop, called after ctx ends, closes the binding and waits
+// for every session worker to exit. The daemon is the only infer process that
+// binds the binding port, so a port that is already held fails the boot.
 func startBinding(ctx context.Context, cfg *config.Config) (stop func(), err error) {
 	if !bindingEnabled(cfg) {
 		return func() {}, nil
 	}
+	extension := cfg.BrowserUse.Extension
+	if extension.Token == "" {
+		return nil, errors.New("browser_use.extension.token is empty - set a shared secret in browser_use.yaml and in the opentask extension options")
+	}
+	relay := browserinfra.NewExtensionRelay(extension, nil)
 	registry := sessions.NewRegistry(sessionsinfra.LaunchWorker, workerIdleTimeout)
-	bridge := agui.NewExtensionBridge(agui.Deps{Extension: cfg.BrowserUse.Extension, Threads: registry})
-	registry.RouteBrowser(bridge.Relay)
-	if err := bridge.Start(); err != nil {
+	registry.RouteBrowser(relay.Relay)
+	binding := agui.NewBinding(agui.BindingConfig{
+		Port:        extension.Port,
+		Token:       extension.Token,
+		Handshake:   browserinfra.BindingHandshake,
+		AllowOrigin: browserinfra.AllowExtensionOrigin,
+	}, bindingHandler{relay: relay, registry: registry})
+	if err := binding.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start the AG-UI binding: %w", err)
 	}
 	stopped := make(chan struct{})
@@ -234,7 +270,7 @@ func startBinding(ctx context.Context, cfg *config.Config) (stop func(), err err
 		registry.Run(ctx)
 	}()
 	return func() {
-		bridge.Close()
+		binding.Close()
 		<-stopped
 	}, nil
 }

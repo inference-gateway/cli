@@ -33,26 +33,14 @@ type Worker interface {
 // LaunchWorker starts the worker for a thread.
 type LaunchWorker func(key ThreadKey, opts ThreadOptions) (Worker, error)
 
-// EnsureDaemon makes an infer daemon, the host of every thread, listen on the
-// binding port, starting one when none does. A browser client calls it before
-// dialing the binding.
-type EnsureDaemon func(ctx context.Context, port int) error
-
 // Client is one connected client of a thread, such as a WebSocket connection.
 // Deliver hands it one frame.
 type Client interface {
 	Deliver(frame []byte)
 }
 
-// Threads is the port the driving adapters use. Handle routes one client frame
-// to the thread it belongs to, and Detach drops a client that disconnected.
-type Threads interface {
-	Handle(client Client, frame []byte)
-	Detach(client Client)
-}
-
 // BrowserRelay forwards one browser_command frame from a session worker to the
 // connected browser extension and always answers with the browser_result
-// carrying the frame's id, a failure included. The daemon injects the
-// extension bridge's Relay, which serializes commands for the one browser.
+// carrying the frame's id, a failure included. The host wires the relay, which
+// serializes commands for the one browser.
 type BrowserRelay func(ctx context.Context, frame []byte) []byte

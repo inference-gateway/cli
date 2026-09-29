@@ -21,6 +21,18 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
+// CustomEvent is one AG-UI CUSTOM event. Resumes marks a run that carries on
+// after an interruption, which discards the error the interruption left.
+type CustomEvent struct {
+	Name    string
+	Value   any
+	Resumes bool
+}
+
+// Publish maps a chat event to the CUSTOM event its owner publishes for it. It
+// reports false for an event it does not own.
+type Publish func(event agentdomain.ChatEvent) (CustomEvent, bool)
+
 // RunEncoder renders one AG-UI run: RUN_STARTED at Start, AG-UI events per
 // ChatEvent, and exactly one terminal RUN_FINISHED or RUN_ERROR at Finish.
 // Every event is written with exactly one Write, so a transport can map one
@@ -38,6 +50,7 @@ type RunEncoder struct {
 
 	approvals <-chan ipc.ApprovalResponse
 	questions <-chan ipc.UserQuestionResponse
+	publish   []Publish
 
 	threadID string
 	runID    string
@@ -53,8 +66,9 @@ type RunEncoder struct {
 // is emitted as MESSAGES_SNAPSHOT right after RUN_STARTED, so the run continues
 // an existing conversation. approvals and questions broker IPC decisions for
 // gated tool calls and questions (nil channels reject or dismiss immediately).
-func NewRunEncoder(w io.Writer, model string, repo convdomain.ConversationRepository, history []convdomain.ConversationEntry, jobs func() []scheddomain.TrackedJob, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse) *RunEncoder {
-	return &RunEncoder{w: w, model: model, repo: repo, history: history, jobs: jobs, approvals: approvals, questions: questions}
+// publish renders the events the encoder does not map itself.
+func NewRunEncoder(w io.Writer, model string, repo convdomain.ConversationRepository, history []convdomain.ConversationEntry, jobs func() []scheddomain.TrackedJob, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, publish ...Publish) *RunEncoder {
+	return &RunEncoder{w: w, model: model, repo: repo, history: history, jobs: jobs, approvals: approvals, questions: questions, publish: publish}
 }
 
 func (r *RunEncoder) emit(ev aguievents.Event) {
@@ -200,7 +214,7 @@ func (r *RunEncoder) snapshotJobs() {
 }
 
 // emitTokenUsage publishes the session's cumulative stats after each LLM step
-// so a client's usage readout (the desktop status bar) climbs during the run
+// so a client's usage readout climbs during the run
 // instead of jumping at RUN_FINISHED. The value is sessionResult's object.
 func (r *RunEncoder) emitTokenUsage(value map[string]any) {
 	r.emit(aguievents.NewCustomEvent("token_usage", aguievents.WithValue(value)))
@@ -230,21 +244,20 @@ func (r *RunEncoder) emitJudgeVerdict(ev agentdomain.JudgeVerdictChatEvent) {
 	})))
 }
 
-func (r *RunEncoder) emitComputerUsePaused(reqID string) {
-	r.emit(aguievents.NewCustomEvent("computer_use_paused",
-		aguievents.WithValue(map[string]string{"request_id": reqID})))
-}
-
-func (r *RunEncoder) emitComputerUseResumed(reqID string) {
-	r.emit(aguievents.NewCustomEvent("computer_use_resumed",
-		aguievents.WithValue(map[string]string{"request_id": reqID})))
-}
-
-// emitScreenRecording reports a RecordStart recording starting or its ffmpeg
-// process ending, so a client can show a recording indicator.
-func (r *RunEncoder) emitScreenRecording(active bool) {
-	r.emit(aguievents.NewCustomEvent("screen_recording",
-		aguievents.WithValue(map[string]bool{"active": active})))
+// emitPublished renders an event the encoder does not map itself as the CUSTOM
+// event its owner publishes for it.
+func (r *RunEncoder) emitPublished(event agentdomain.ChatEvent) {
+	for _, publish := range r.publish {
+		custom, ok := publish(event)
+		if !ok {
+			continue
+		}
+		r.emit(aguievents.NewCustomEvent(custom.Name, aguievents.WithValue(custom.Value)))
+		if custom.Resumes {
+			r.runErr = nil
+		}
+		return
+	}
 }
 
 // emitRunError ends a failed run. runID stays empty for a failure before the
@@ -312,13 +325,8 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 	case agentdomain.UserQuestionRequestedEvent:
 		r.emitUserQuestionRequest(render.UserQuestionRequest(ev))
 		render.AnswerQuestions(ev, r.questions)
-	case agentdomain.ComputerUsePausedEvent:
-		r.emitComputerUsePaused(ev.RequestID)
-	case agentdomain.ComputerUseResumedEvent:
-		r.emitComputerUseResumed(ev.RequestID)
-		r.runErr = nil
-	case agentdomain.ScreenRecordingStatusEvent:
-		r.emitScreenRecording(ev.Active)
+	default:
+		r.emitPublished(event)
 	}
 }
 
@@ -346,7 +354,7 @@ func (r *RunEncoder) Finish() error {
 	return nil
 }
 
-// sessionResult builds the per-session totals the desktop consumes from the
+// sessionResult builds the per-session totals a client consumes from the
 // per-step token_usage CUSTOM events and the terminal RUN_FINISHED event (see
 // docs/ag-ui-output.md), mirroring the session_stats line of RenderJSON. nil
 // when the run made no LLM requests (e.g. a shortcut answer), so no event
@@ -445,8 +453,8 @@ func EmitRunError(w io.Writer, err error) {
 // event. approvals and questions broker IPC answers and jobs publishes
 // background_tasks snapshots. ponytail: intermediate job state changes are not
 // published, bridge the UI notifier in if a client needs them.
-func Render(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob) error {
-	r := NewRunEncoder(w, model, repo, nil, jobs, approvals, questions)
+func Render(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob, publish ...Publish) error {
+	r := NewRunEncoder(w, model, repo, nil, jobs, approvals, questions, publish...)
 	r.Start(sessionID, uuid.New().String())
 	for event := range events {
 		r.Handle(event)
