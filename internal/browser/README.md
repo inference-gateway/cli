@@ -14,6 +14,8 @@ layer instead of leaking into the agent.
   payloads to `BrowserToolResult`. The container injects the bridge's `Request` function (declared here as
   `ExtensionRequest`), so this context holds no socket: the WebSocket, handshake and panel units live in
   `internal/protocols/agui/`.
+- A headless `--serve` worker reroutes the seam through `RouteBrowserRequests` to a stdio relay: `browser_command`
+  lines go out on stdout and `browser_result` lines come back on stdin, so the worker binds no port.
 
 ## Related
 

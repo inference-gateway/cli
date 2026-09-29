@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -271,6 +272,18 @@ func (c *ServiceContainer) initializeBrowserTools() {
 		c.browserDriver = browserinfra.NewSession(buCfg)
 	}
 
+	c.toolRegistry.RegisterTools(browser.NewTools(c.config, c.browserDriver))
+}
+
+// RouteBrowserRequests rebuilds the extension browser tools over request instead
+// of the extension bridge's socket, so a headless serve worker relays browser
+// frames through its host and binds no port. Call it before the first run. No-op
+// unless the extension backend is selected.
+func (c *ServiceContainer) RouteBrowserRequests(request func(ctx context.Context, id string, frame json.RawMessage) (json.RawMessage, error)) {
+	if c.extensionBridge == nil {
+		return
+	}
+	c.browserDriver = browserinfra.NewExtensionDriver(&c.config.BrowserUse, request)
 	c.toolRegistry.RegisterTools(browser.NewTools(c.config, c.browserDriver))
 }
 
