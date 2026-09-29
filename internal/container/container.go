@@ -251,7 +251,7 @@ func (c *ServiceContainer) initializeBrowserTools() {
 		}
 
 		c.extensionBridge = agui.NewExtensionBridge(agui.Deps{
-			Config:        buCfg,
+			Extension:     buCfg.Extension,
 			Notifier:      c.uiNotifier,
 			Conversations: c.conversationRepo,
 			Events:        eventBridge,

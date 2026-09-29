@@ -28,6 +28,8 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
+var errBrowserExtensionDisconnected = errors.New("the browser extension disconnected before it answered")
+
 // Frame types on the extension bridge wire. One flat envelope per frame,
 // discriminated by Type, and unknown types are ignored for forward compatibility.
 const (
@@ -226,7 +228,7 @@ type extChatEvent struct {
 // builds every one of them before the bridge, so nothing is wired late and no
 // capability is optional.
 type Deps struct {
-	Config        *config.BrowserUseConfig
+	Extension     config.ExtensionConfig
 	Notifier      agentdomain.UINotifier
 	Conversations convdomain.ConversationRepository
 	Events        agentdomain.EventBridge
@@ -250,7 +252,7 @@ type frameWriter func(conn *websocket.Conn, frame any)
 // exposes Request as the browser driver's command/result RPC, and routes every
 // other frame to the panel unit that owns it.
 type ExtensionBridge struct {
-	cfg          *config.BrowserUseConfig
+	extension    config.ExtensionConfig
 	notifier     agentdomain.UINotifier
 	artifactsDir string
 
@@ -280,7 +282,7 @@ type ExtensionBridge struct {
 // can display generated images the agent saved locally.
 func NewExtensionBridge(deps Deps) *ExtensionBridge {
 	b := &ExtensionBridge{
-		cfg:          deps.Config,
+		extension:    deps.Extension,
 		notifier:     deps.Notifier,
 		artifactsDir: deps.ArtifactsDir,
 		pending:      make(map[string]chan json.RawMessage),
@@ -299,12 +301,12 @@ func NewExtensionBridge(deps Deps) *ExtensionBridge {
 // Start listens on 127.0.0.1:<port> and serves the /ws endpoint. Errors are
 // also stored so Request surfaces them instead of a silent no-op.
 func (b *ExtensionBridge) Start() error {
-	if b.cfg.Extension.Token == "" {
+	if b.extension.Token == "" {
 		b.startErr = errors.New("browser_use.extension.token is empty - set a shared secret in browser_use.yaml and in the opentask extension options")
 		return b.startErr
 	}
 
-	addr := fmt.Sprintf("127.0.0.1:%d", b.cfg.Extension.Port)
+	addr := fmt.Sprintf("127.0.0.1:%d", b.extension.Port)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		b.startErr = fmt.Errorf("extension bridge failed to listen on %s: %w", addr, err)
@@ -363,7 +365,7 @@ func (b *ExtensionBridge) handleWS(w http.ResponseWriter, r *http.Request) {
 	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	var hello extInbound
 	if err := conn.ReadJSON(&hello); err != nil || hello.Type != inboundBrowserHello ||
-		subtle.ConstantTimeCompare([]byte(hello.Token), []byte(b.cfg.Extension.Token)) != 1 {
+		subtle.ConstantTimeCompare([]byte(hello.Token), []byte(b.extension.Token)) != 1 {
 		logger.Warn("extension bridge rejected a connection with a bad or missing hello")
 		_ = conn.Close()
 		return
@@ -390,6 +392,7 @@ func (b *ExtensionBridge) adopt(conn *websocket.Conn) {
 	b.conn = conn
 	stop := make(chan struct{})
 	b.connStop = stop
+	b.failPendingLocked()
 	b.mu.Unlock()
 
 	b.approvals.reset()
@@ -492,6 +495,7 @@ func (b *ExtensionBridge) dropConn(conn *websocket.Conn, stop chan struct{}) {
 	dropped := b.conn == conn
 	if dropped {
 		b.conn = nil
+		b.failPendingLocked()
 		select {
 		case <-stop:
 		default:
@@ -523,10 +527,24 @@ func (b *ExtensionBridge) notifyConnected(connected bool) {
 }
 
 func (b *ExtensionBridge) write(conn *websocket.Conn, v any) {
+	if err := b.writeFrame(conn, v); err != nil {
+		logger.Debug("extension bridge write failed", "error", err)
+	}
+}
+
+func (b *ExtensionBridge) writeFrame(conn *websocket.Conn, v any) error {
 	b.writeMu.Lock()
 	defer b.writeMu.Unlock()
-	if err := conn.WriteJSON(v); err != nil {
-		logger.Debug("extension bridge write failed", "error", err)
+	return conn.WriteJSON(v)
+}
+
+// failPendingLocked releases every Request still waiting on a connection that
+// is gone, so callers get an immediate error instead of waiting out their
+// deadline. The caller holds b.mu, which keeps it atomic with the conn swap.
+func (b *ExtensionBridge) failPendingLocked() {
+	for id, ch := range b.pending {
+		close(ch)
+		delete(b.pending, id)
 	}
 }
 
@@ -544,7 +562,7 @@ func (b *ExtensionBridge) Request(ctx context.Context, id string, frame json.Raw
 	conn := b.conn
 	if conn == nil {
 		b.mu.Unlock()
-		return nil, fmt.Errorf("no browser extension connected on port %d - install the opentask extension and set its bridge port/token to match browser_use.yaml", b.cfg.Extension.Port)
+		return nil, fmt.Errorf("no browser extension connected on port %d - install the opentask extension and set its bridge port/token to match browser_use.yaml", b.extension.Port)
 	}
 	ch := make(chan json.RawMessage, 1)
 	b.pending[id] = ch
@@ -556,10 +574,15 @@ func (b *ExtensionBridge) Request(ctx context.Context, id string, frame json.Raw
 		b.mu.Unlock()
 	}()
 
-	b.write(conn, frame)
+	if err := b.writeFrame(conn, frame); err != nil {
+		return nil, fmt.Errorf("failed to send the command to the browser extension: %w", err)
+	}
 
 	select {
-	case result := <-ch:
+	case result, ok := <-ch:
+		if !ok {
+			return nil, errBrowserExtensionDisconnected
+		}
 		return result, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -581,5 +604,6 @@ func (b *ExtensionBridge) Close() {
 		_ = b.conn.Close()
 		b.conn = nil
 	}
+	b.failPendingLocked()
 	b.mu.Unlock()
 }
