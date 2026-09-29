@@ -39,8 +39,8 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   frames.
 - `infrastructure.LaunchWorker` is the worker adapter. It runs this binary as
   `headless --serve --require-approval` in the project dir, with the thread options as flags and `INFER_`
-  env overrides, and it stops the worker with SIGTERM so the worker's gateway, MCP servers and containers
-  shut down.
+  env overrides. It stops the worker with an `interrupt` frame and stdin EOF, which works on every platform, so
+  the worker's gateway, MCP servers and containers shut down.
 - `infrastructure.EnsureDaemon` implements the `EnsureDaemon` port: when nothing listens on the binding port it
   starts this binary as `infer daemon` in the background and waits for the port. The container hands it to the
   agui `DaemonClient`, so `infer chat` and a standalone headless boot the daemon on their first Browser call.
