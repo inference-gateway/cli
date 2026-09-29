@@ -1,4 +1,4 @@
-package infrastructure
+package agui
 
 import (
 	"context"
@@ -16,14 +16,12 @@ import (
 	"sync"
 	"time"
 
-	uuid "github.com/google/uuid"
 	websocket "github.com/gorilla/websocket"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -49,7 +47,6 @@ const (
 	inboundApprovalResponse   = "approval_response"
 
 	outboundBrowserHelloAck      = "browser_hello_ack"
-	outboundBrowserCommand       = "browser_command"
 	outboundConversationSnapshot = "conversation_snapshot"
 	outboundConversations        = "conversations"
 	outboundSkills               = "skills"
@@ -63,16 +60,6 @@ const (
 	outboundInterrupted          = "interrupted"
 )
 
-// Browser actions the extension understands on a browser_command frame.
-const (
-	browserActionNavigate   = "navigate"
-	browserActionClick      = "click"
-	browserActionType       = "type"
-	browserActionRead       = "read"
-	browserActionScreenshot = "screenshot"
-	browserActionTabs       = "tabs"
-)
-
 // approvalActionApprove is the only panel action that grants a tool call.
 const approvalActionApprove = "approve"
 
@@ -81,17 +68,10 @@ type extInbound struct {
 	Token            string                        `json:"token,omitempty"`
 	ExtensionVersion string                        `json:"extension_version,omitempty"`
 	ID               string                        `json:"id,omitempty"`
-	URL              string                        `json:"url,omitempty"`
-	Title            string                        `json:"title,omitempty"`
 	Content          string                        `json:"content,omitempty"`
-	Events           []string                      `json:"events,omitempty"`
-	Error            string                        `json:"error,omitempty"`
 	RequestID        string                        `json:"request_id,omitempty"`
 	Action           string                        `json:"action,omitempty"`
 	Model            string                        `json:"model,omitempty"`
-	Image            string                        `json:"image,omitempty"`
-	ImageMimeType    string                        `json:"image_mime_type,omitempty"`
-	Tabs             []browserdomain.BrowserTab    `json:"tabs,omitempty"`
 	ToolName         string                        `json:"tool_name,omitempty"`
 	ToolArgs         string                        `json:"tool_args,omitempty"`
 	Mode             string                        `json:"mode,omitempty"`
@@ -209,17 +189,6 @@ type extHelloAck struct {
 	Type string `json:"type"`
 }
 
-type extBrowserCommand struct {
-	Type       string `json:"type"`
-	ID         string `json:"id"`
-	Action     string `json:"action"`
-	URL        string `json:"url,omitempty"`
-	Selector   string `json:"selector,omitempty"`
-	Text       string `json:"text,omitempty"`
-	PressEnter bool   `json:"press_enter,omitempty"`
-	TimeoutMs  int    `json:"timeout_ms"`
-}
-
 type extSnapshot struct {
 	Type        string          `json:"type"`
 	Messages    []sdk.Message   `json:"messages"`
@@ -277,9 +246,9 @@ type Deps struct {
 type frameWriter func(conn *websocket.Conn, frame any)
 
 // ExtensionBridge hosts the localhost WebSocket endpoint the opentask browser
-// extension dials into. It owns the connection, implements
-// browserdomain.BrowserDriver by forwarding the browser-use verbs to the
-// extension, and routes every other frame to the panel unit that owns it.
+// extension dials into. It owns the connection and the token handshake,
+// exposes Request as the browser driver's command/result RPC, and routes every
+// other frame to the panel unit that owns it.
 type ExtensionBridge struct {
 	cfg          *config.BrowserUseConfig
 	notifier     agentdomain.UINotifier
@@ -288,7 +257,7 @@ type ExtensionBridge struct {
 	conversations *conversations
 	history       *history
 	skills        *skills
-	models        *models
+	models        *modelPicker
 	modes         *modes
 	tools         *toolRequests
 	approvals     *approvals
@@ -301,7 +270,7 @@ type ExtensionBridge struct {
 	mu       sync.Mutex
 	conn     *websocket.Conn
 	connStop chan struct{}
-	pending  map[string]chan extInbound
+	pending  map[string]chan json.RawMessage
 	writeMu  sync.Mutex
 }
 
@@ -314,21 +283,21 @@ func NewExtensionBridge(deps Deps) *ExtensionBridge {
 		cfg:          deps.Config,
 		notifier:     deps.Notifier,
 		artifactsDir: deps.ArtifactsDir,
-		pending:      make(map[string]chan extInbound),
+		pending:      make(map[string]chan json.RawMessage),
 	}
 	b.modes = &modes{write: b.write, state: deps.Modes}
 	b.approvals = newApprovals(b.write, deps.Notifier)
 	b.conversations = &conversations{write: b.write, repo: deps.Conversations}
 	b.history = newHistory(b.write, deps.History)
 	b.skills = &skills{write: b.write, service: deps.Skills}
-	b.models = &models{write: b.write, service: deps.Models, defaultModel: deps.DefaultModel, notifier: deps.Notifier}
+	b.models = &modelPicker{write: b.write, service: deps.Models, defaultModel: deps.DefaultModel, notifier: deps.Notifier}
 	b.tools = newToolRequests(b.write, deps)
 	b.mirror = newChatMirror(b.write, deps, b.approvals)
 	return b
 }
 
 // Start listens on 127.0.0.1:<port> and serves the /ws endpoint. Errors are
-// also stored so later tool calls surface them instead of a silent no-op.
+// also stored so Request surfaces them instead of a silent no-op.
 func (b *ExtensionBridge) Start() error {
 	if b.cfg.Extension.Token == "" {
 		b.startErr = errors.New("browser_use.extension.token is empty - set a shared secret in browser_use.yaml and in the opentask extension options")
@@ -433,24 +402,30 @@ func (b *ExtensionBridge) adopt(conn *websocket.Conn) {
 }
 
 // readLoop handles frames from the extension until the connection dies or is
-// replaced.
+// replaced. browser_result frames are forwarded to Request with their raw
+// bytes intact, so callers own the result payload.
 func (b *ExtensionBridge) readLoop(conn *websocket.Conn, stop chan struct{}) {
 	for {
-		var msg extInbound
-		if err := conn.ReadJSON(&msg); err != nil {
+		_, raw, err := conn.ReadMessage()
+		if err != nil {
 			b.dropConn(conn, stop)
 			return
 		}
-		b.route(conn, stop, msg)
+		var msg extInbound
+		if err := json.Unmarshal(raw, &msg); err != nil {
+			logger.Debug("extension bridge dropped an undecodable frame", "error", err)
+			continue
+		}
+		b.route(conn, stop, raw, msg)
 	}
 }
 
 // route dispatches one inbound frame to the panel unit that owns its frame
 // family. Unknown frame types are ignored for forward compatibility.
-func (b *ExtensionBridge) route(conn *websocket.Conn, stop chan struct{}, msg extInbound) {
+func (b *ExtensionBridge) route(conn *websocket.Conn, stop chan struct{}, raw []byte, msg extInbound) {
 	switch msg.Type {
 	case inboundBrowserResult:
-		b.deliverBrowserResult(msg)
+		b.deliverBrowserResult(msg.ID, raw)
 	case inboundUserMessage:
 		b.submitUserMessage(msg)
 	case inboundNewSession:
@@ -483,13 +458,13 @@ func (b *ExtensionBridge) route(conn *websocket.Conn, stop chan struct{}, msg ex
 
 // deliverBrowserResult hands a browser_result frame to the goroutine waiting
 // for that command id.
-func (b *ExtensionBridge) deliverBrowserResult(msg extInbound) {
+func (b *ExtensionBridge) deliverBrowserResult(id string, raw []byte) {
 	b.mu.Lock()
-	ch, ok := b.pending[msg.ID]
-	delete(b.pending, msg.ID)
+	ch, ok := b.pending[id]
+	delete(b.pending, id)
 	b.mu.Unlock()
 	if ok {
-		ch <- msg
+		ch <- raw
 	}
 }
 
@@ -555,138 +530,43 @@ func (b *ExtensionBridge) write(conn *websocket.Conn, v any) {
 	}
 }
 
-// send dispatches one browser command and waits for its result. A failed
-// Start is retried first, so a process that lost the port to another infer
-// process takes it over once that process exits.
-func (b *ExtensionBridge) send(ctx context.Context, cmd extBrowserCommand) (extInbound, error) {
+// Request writes one extension frame and waits for the browser_result carrying
+// id, returning that frame's raw JSON. A failed listen is retried first, so a
+// process that lost the port to another infer takes it over once that one
+// exits. The caller owns the id, the frame (including its timeout_ms), and the
+// deadline via ctx.
+func (b *ExtensionBridge) Request(ctx context.Context, id string, frame json.RawMessage) (json.RawMessage, error) {
 	if err := b.retryStart(); err != nil {
-		return extInbound{}, err
+		return nil, err
 	}
 
 	b.mu.Lock()
 	conn := b.conn
 	if conn == nil {
 		b.mu.Unlock()
-		return extInbound{}, fmt.Errorf("no browser extension connected on port %d - install the opentask extension and set its bridge port/token to match browser_use.yaml", b.cfg.Extension.Port)
+		return nil, fmt.Errorf("no browser extension connected on port %d - install the opentask extension and set its bridge port/token to match browser_use.yaml", b.cfg.Extension.Port)
 	}
-	cmd.ID = uuid.NewString()
-	cmd.TimeoutMs = b.timeoutSeconds() * 1000
-	ch := make(chan extInbound, 1)
-	b.pending[cmd.ID] = ch
+	ch := make(chan json.RawMessage, 1)
+	b.pending[id] = ch
 	b.mu.Unlock()
 
 	defer func() {
 		b.mu.Lock()
-		delete(b.pending, cmd.ID)
+		delete(b.pending, id)
 		b.mu.Unlock()
 	}()
 
-	b.write(conn, cmd)
-
-	timer := time.NewTimer(time.Duration(b.timeoutSeconds()+5) * time.Second)
-	defer timer.Stop()
+	b.write(conn, frame)
 
 	select {
 	case result := <-ch:
-		if result.Error != "" {
-			return extInbound{}, fmt.Errorf("failed to %s: %s", cmd.Action, result.Error)
-		}
 		return result, nil
 	case <-ctx.Done():
-		return extInbound{}, ctx.Err()
-	case <-timer.C:
-		return extInbound{}, fmt.Errorf("timed out waiting for the browser extension to %s - is the opentask extension still running?", cmd.Action)
+		return nil, ctx.Err()
 	}
 }
 
-func (b *ExtensionBridge) timeoutSeconds() int {
-	if b.cfg.Browser.TimeoutSeconds > 0 {
-		return b.cfg.Browser.TimeoutSeconds
-	}
-	return 30
-}
-
-// Navigate implements browserdomain.BrowserDriver.
-func (b *ExtensionBridge) Navigate(ctx context.Context, url string) (browserdomain.BrowserToolResult, error) {
-	result, err := b.send(ctx, extBrowserCommand{Type: outboundBrowserCommand, Action: browserActionNavigate, URL: url})
-	if err != nil {
-		return browserdomain.BrowserToolResult{}, err
-	}
-	return browserdomain.BrowserToolResult{Action: browserActionNavigate, URL: result.URL, Title: result.Title}, nil
-}
-
-// Click implements browserdomain.BrowserDriver.
-func (b *ExtensionBridge) Click(ctx context.Context, selector string) (browserdomain.BrowserToolResult, error) {
-	result, err := b.send(ctx, extBrowserCommand{Type: outboundBrowserCommand, Action: browserActionClick, Selector: selector})
-	if err != nil {
-		return browserdomain.BrowserToolResult{}, err
-	}
-	return browserdomain.BrowserToolResult{Action: browserActionClick, Selector: selector, URL: result.URL, Title: result.Title}, nil
-}
-
-// Type implements browserdomain.BrowserDriver.
-func (b *ExtensionBridge) Type(ctx context.Context, selector, text string, pressEnter bool) (browserdomain.BrowserToolResult, error) {
-	result, err := b.send(ctx, extBrowserCommand{Type: outboundBrowserCommand, Action: browserActionType, Selector: selector, Text: text, PressEnter: pressEnter})
-	if err != nil {
-		return browserdomain.BrowserToolResult{}, err
-	}
-	return browserdomain.BrowserToolResult{Action: browserActionType, Selector: selector, Text: text, URL: result.URL, Title: result.Title}, nil
-}
-
-// Read implements browserdomain.BrowserDriver.
-func (b *ExtensionBridge) Read(ctx context.Context, selector string) (browserdomain.BrowserToolResult, error) {
-	result, err := b.send(ctx, extBrowserCommand{Type: outboundBrowserCommand, Action: browserActionRead, Selector: selector})
-	if err != nil {
-		return browserdomain.BrowserToolResult{}, err
-	}
-	return browserdomain.BrowserToolResult{
-		Action:   browserActionRead,
-		Selector: selector,
-		URL:      result.URL,
-		Title:    result.Title,
-		Content:  result.Content,
-		Events:   result.Events,
-	}, nil
-}
-
-// ClickAt implements browserdomain.BrowserDriver. The extension bridge drives clicks
-// through chrome.scripting (untrusted synthetic events), which have no reliable
-// viewport-coordinate form - that needs chrome.debugger/CDP. Fail clearly.
-func (b *ExtensionBridge) ClickAt(_ context.Context, _, _ float64) (browserdomain.BrowserToolResult, error) {
-	return browserdomain.BrowserToolResult{}, fmt.Errorf("coordinate click isn't supported on the extension backend; use a CSS or text= selector with BrowserClick")
-}
-
-// Screenshot implements browserdomain.BrowserDriver via the extension's captureVisibleTab.
-func (b *ExtensionBridge) Screenshot(ctx context.Context) (browserdomain.BrowserScreenshotResult, error) {
-	result, err := b.send(ctx, extBrowserCommand{Type: outboundBrowserCommand, Action: browserActionScreenshot})
-	if err != nil {
-		return browserdomain.BrowserScreenshotResult{}, err
-	}
-	if result.Image == "" {
-		return browserdomain.BrowserScreenshotResult{}, fmt.Errorf("extension returned no screenshot data")
-	}
-	mime := result.ImageMimeType
-	if mime == "" {
-		mime = "image/png"
-	}
-	return browserdomain.BrowserScreenshotResult{
-		Data:     result.Image,
-		MimeType: mime,
-		URL:      result.URL,
-		Title:    result.Title,
-	}, nil
-}
-
-// Tabs implements browserdomain.BrowserDriver via the extension's chrome.tabs query.
-func (b *ExtensionBridge) Tabs(ctx context.Context) ([]browserdomain.BrowserTab, error) {
-	result, err := b.send(ctx, extBrowserCommand{Type: outboundBrowserCommand, Action: browserActionTabs})
-	if err != nil {
-		return nil, err
-	}
-	return result.Tabs, nil
-}
-
-// Close implements browserdomain.BrowserDriver: shuts the server and any connection.
+// Close shuts the server and any connection down.
 func (b *ExtensionBridge) Close() {
 	if b.server != nil {
 		_ = b.server.Close()

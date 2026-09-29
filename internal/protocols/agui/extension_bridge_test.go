@@ -1,7 +1,8 @@
-package infrastructure
+package agui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -23,7 +24,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -338,7 +338,7 @@ func TestExtensionBridgeRejectsBadToken(t *testing.T) {
 func TestExtensionBridgeFailsFastWithoutConnection(t *testing.T) {
 	bridge := startBridge(t, bridgeConfig(), nil, nil)
 
-	_, err := bridge.Navigate(context.Background(), "https://example.com")
+	_, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
 	if err == nil || !strings.Contains(err.Error(), "no browser extension connected") {
 		t.Fatalf("expected no-extension error, got %v", err)
 	}
@@ -351,8 +351,8 @@ func TestExtensionBridgeRefusesToStartWithoutToken(t *testing.T) {
 	if err := bridge.Start(); err == nil || !strings.Contains(err.Error(), "token is empty") {
 		t.Fatalf("expected token error, got %v", err)
 	}
-	if _, err := bridge.Navigate(context.Background(), "https://example.com"); err == nil || !strings.Contains(err.Error(), "token is empty") {
-		t.Fatalf("expected stored start error from verb, got %v", err)
+	if _, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command"}`)); err == nil || !strings.Contains(err.Error(), "token is empty") {
+		t.Fatalf("expected stored start error from Request, got %v", err)
 	}
 }
 
@@ -379,21 +379,21 @@ func TestExtensionBridgeNavigateRoundTrip(t *testing.T) {
 		}
 	}()
 
-	var result browserdomain.BrowserToolResult
+	var result json.RawMessage
 	var err error
 	deadline := time.Now().Add(2 * time.Second)
 	for {
-		result, err = bridge.Navigate(context.Background(), "https://example.com")
+		result, err = bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
 		if err == nil || !strings.Contains(err.Error(), "no browser extension connected") || time.Now().After(deadline) {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	if err != nil {
-		t.Fatalf("Navigate: %v", err)
+		t.Fatalf("Request: %v", err)
 	}
-	if result.URL != "https://example.com" || result.Title != "Example Domain" {
-		t.Fatalf("unexpected result: %+v", result)
+	if !strings.Contains(string(result), `"url":"https://example.com"`) || !strings.Contains(string(result), `"title":"Example Domain"`) {
+		t.Fatalf("unexpected result: %s", result)
 	}
 }
 
@@ -611,14 +611,14 @@ func TestExtensionBridgeReplacesConnection(t *testing.T) {
 	var err error
 	deadline := time.Now().Add(2 * time.Second)
 	for {
-		_, err = bridge.Read(context.Background(), "")
+		_, err = bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
 		if err == nil || !strings.Contains(err.Error(), "no browser extension connected") || time.Now().After(deadline) {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	if err != nil {
-		t.Fatalf("Read after replacement: %v", err)
+		t.Fatalf("Request after replacement: %v", err)
 	}
 }
 
@@ -1177,9 +1177,9 @@ func TestExtensionBridgeTakesOverFreedPort(t *testing.T) {
 	}
 
 	_ = holder.Close()
-	_, err = bridge.send(context.Background(), extBrowserCommand{})
+	_, err = bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
 	if err == nil || errors.Is(err, syscall.EADDRINUSE) {
-		t.Fatalf("send after the port freed: err = %v, want a no-extension-connected error", err)
+		t.Fatalf("Request after the port freed: err = %v, want a no-extension-connected error", err)
 	}
 	if bridge.Addr() == "" {
 		t.Fatal("bridge did not bind the freed port")
