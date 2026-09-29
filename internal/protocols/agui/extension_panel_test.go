@@ -149,6 +149,28 @@ func TestPanelSnapshotsTheWorkersConversation(t *testing.T) {
 	}
 }
 
+func TestPanelSnapshotReplyFlag(t *testing.T) {
+	repo := newPanelRepo()
+	seedConversation(t, repo, "Current", "resume me please")
+	p, sink := startPanel(panelDeps())
+
+	handle(t, p, map[string]any{"type": "resume_conversation", "project_dir": "/p", "id": "ignored"})
+	readFrame(t, sink, "MESSAGES_SNAPSHOT")
+
+	if !p.SnapshotReplied() {
+		t.Fatal("SnapshotReplied() = false, want true right after the frame reply")
+	}
+	if p.SnapshotReplied() {
+		t.Fatal("SnapshotReplied() = true twice, want the mark consumed once")
+	}
+
+	handle(t, p, map[string]any{"type": "list_conversations", "project_dir": "/p"})
+	readFrame(t, sink, "conversations")
+	if p.SnapshotReplied() {
+		t.Fatal("SnapshotReplied() = true, want false for non-snapshot frames")
+	}
+}
+
 func TestPanelListSkills(t *testing.T) {
 	skills := &agentdomainmocks.FakeSkillsService{}
 	skills.ListReturns([]agentdomain.Skill{

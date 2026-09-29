@@ -122,6 +122,11 @@ type Panel struct {
 	out io.Writer
 	mu  sync.Mutex
 
+	// snapshotReplied marks a just-answered new_session / resume_conversation
+	// frame whose reply already shipped a MESSAGES_SNAPSHOT, so the run
+	// opening right after it skips its own boot snapshot.
+	snapshotReplied bool
+
 	conversations *conversations
 	history       *history
 	skills        *skills
@@ -158,6 +163,9 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 	case inboundApprovalResponse:
 		return p.tools.resolve(msg.ToolCallID, msg.Approved)
 	case inboundNewSession, inboundResumeConversation:
+		p.mu.Lock()
+		p.snapshotReplied = true
+		p.mu.Unlock()
 		p.conversations.snapshot()
 	case inboundListConversations:
 		p.conversations.list()
@@ -178,6 +186,17 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		return false
 	}
 	return true
+}
+
+// SnapshotReplied reports and clears whether the panel just answered a
+// new_session or resume_conversation frame with a MESSAGES_SNAPSHOT, so the
+// run opening right after it need not repeat the same snapshot.
+func (p *Panel) SnapshotReplied() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	replied := p.snapshotReplied
+	p.snapshotReplied = false
+	return replied
 }
 
 func (p *Panel) write(frame any) {
