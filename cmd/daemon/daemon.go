@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -26,16 +27,19 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	telegram "github.com/inference-gateway/cli/internal/presentation/telegram"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	heartbeat "github.com/inference-gateway/cli/internal/scheduler/heartbeat"
+	sessions "github.com/inference-gateway/cli/internal/sessions"
+	sessionsinfra "github.com/inference-gateway/cli/internal/sessions/infrastructure"
 )
 
 func NewCommand(state *runtime.State) *cobra.Command {
 	return &cobra.Command{
 		Use:   "daemon",
-		Short: "Start the background daemon: scheduler, channels, and heartbeat",
-		Long: `Start a long-running daemon hosting up to three subsystems, whichever are
+		Short: "Start the background daemon: scheduler, channels, heartbeat, and the AG-UI binding",
+		Long: `Start a long-running daemon hosting up to four subsystems, whichever are
 enabled in config:
 
   - scheduler:  fires scheduled jobs (tools.schedule.enabled); each fire runs an
@@ -45,6 +49,9 @@ enabled in config:
     and triggers the agent for each incoming message; also delivers scheduled
     job output to the job's channel
   - heartbeat:  periodic agent wake-ups (heartbeat.enabled)
+  - binding:    the AG-UI WebSocket binding the opentask extension and the
+    desktop app connect to (browser_use.enabled with backend: extension, on
+    browser_use.extension.port). Each thread runs in its own session worker
 
 Each channel message spawns a new agent invocation with a deterministic session
 ID per sender, so conversations persist across messages. Channel configuration
@@ -68,13 +75,13 @@ Examples:
 	}
 }
 
-// RunDaemonCommand starts the daemon. It hosts up to three subsystems -
-// channels, scheduler, and heartbeat - and starts whichever are enabled. At
-// least one must be enabled or the daemon refuses to boot (otherwise it would
-// just sleep forever).
+// RunDaemonCommand starts the daemon. It hosts up to four subsystems -
+// channels, scheduler, heartbeat, and the AG-UI binding - and starts whichever
+// are enabled. At least one must be enabled or the daemon refuses to boot
+// (otherwise it would just sleep forever).
 func RunDaemonCommand(cfg *config.Config) error {
-	if !cfg.Channels.Enabled && !cfg.Tools.Schedule.Enabled && !cfg.Heartbeat.Enabled {
-		return fmt.Errorf("nothing to run: enable at least one of channels, scheduler, or heartbeat in .infer/")
+	if !cfg.Channels.Enabled && !cfg.Tools.Schedule.Enabled && !cfg.Heartbeat.Enabled && !bindingEnabled(cfg) {
+		return fmt.Errorf("nothing to run: enable at least one of channels, scheduler, heartbeat, or the AG-UI binding (browser_use with backend: extension) in .infer/")
 	}
 
 	release, err := acquireDaemonLock()
@@ -117,6 +124,11 @@ func RunDaemonCommand(cfg *config.Config) error {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+	stopBinding, err := startBinding(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
 	if cfg.Channels.Enabled {
 		logger.Info("starting channel listener...")
 		if err := cm.Start(ctx); err != nil {
@@ -151,6 +163,7 @@ func RunDaemonCommand(cfg *config.Config) error {
 	<-sigChan
 	logger.Info("shutting down...")
 	cancel()
+	stopBinding()
 
 	if poller != nil {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -188,6 +201,78 @@ func RunDaemonCommand(cfg *config.Config) error {
 
 	logger.Info("daemon stopped.")
 	return nil
+}
+
+// workerIdleTimeout is how long a session worker nobody follows may sit idle
+// before the daemon stops it.
+// ponytail: a constant, a config key when someone needs to tune it.
+const workerIdleTimeout = 10 * time.Minute
+
+// bindingRetryInterval is how often the daemon retries the binding's port
+// while another infer process, such as a running infer chat, holds it.
+const bindingRetryInterval = 5 * time.Second
+
+// bindingEnabled reports whether the AG-UI WebSocket binding runs. It shares
+// the extension backend's switch, port and token.
+func bindingEnabled(cfg *config.Config) bool {
+	return cfg.BrowserUse.Enabled && cfg.BrowserUse.Backend == config.BrowserBackendExtension
+}
+
+// startBinding serves the AG-UI WebSocket binding with the thread registry
+// behind it. stop, called after ctx ends, closes the binding and waits for
+// every session worker to exit.
+func startBinding(ctx context.Context, cfg *config.Config) (stop func(), err error) {
+	if !bindingEnabled(cfg) {
+		return func() {}, nil
+	}
+	registry := sessions.NewRegistry(sessionsinfra.LaunchWorker, workerIdleTimeout)
+	bridge := agui.NewExtensionBridge(agui.Deps{Extension: cfg.BrowserUse.Extension, Threads: registry})
+	listening, err := listenBinding(ctx, bridge)
+	if err != nil {
+		return nil, err
+	}
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		registry.Run(ctx)
+	}()
+	return func() {
+		<-listening
+		bridge.Close()
+		<-stopped
+	}, nil
+}
+
+// listenBinding starts the binding. A port held by another infer process is
+// retried in the background until it frees or ctx ends, and any other listen
+// error fails the boot. The returned channel closes once no retry runs.
+func listenBinding(ctx context.Context, bridge *agui.ExtensionBridge) (<-chan struct{}, error) {
+	done := make(chan struct{})
+	err := bridge.Start()
+	if err == nil {
+		close(done)
+		return done, nil
+	}
+	if !errors.Is(err, syscall.EADDRINUSE) {
+		return nil, fmt.Errorf("failed to start the AG-UI binding: %w", err)
+	}
+	logger.Warn("the AG-UI binding port is held by another infer process - retrying until it frees", "error", err)
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(bindingRetryInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if bridge.Start() == nil {
+					return
+				}
+			}
+		}
+	}()
+	return done, nil
 }
 
 // acquireDaemonLock enforces one daemon per machine via a PID file in

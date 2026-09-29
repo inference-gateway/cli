@@ -113,13 +113,18 @@ lines without translating them.
 
 | Stdin frame | Effect |
 | --- | --- |
-| `{"type":"user_message","content":"..."}` | Starts a turn when idle. Mid-turn it is queued and the running turn drains it, as in one-shot mode |
+| `{"type":"user_message","content":"..."}` | Starts a turn when idle. Mid-turn it is queued and the running turn drains it. Optional `attachments` |
 | `{"type":"interrupt"}` | Cancels the running turn, which ends with `RUN_FINISHED` outcome `cancelled` |
 | `{"type":"browser_result","id":"...",...}` | Answers the `browser_command` carrying the same `id` |
+| `new_session`, `resume_conversation` | Answered with a `MESSAGES_SNAPSHOT` of the worker's conversation |
+| `list_*`, `select_model`, `set_mode`, `tool_request` | Answered with the [panel frames](browser-extension-protocol.md) for the worker's dir |
 | `approval_response`, `user_question_response`, `computer_use_control` | Same shapes and behaviour as one-shot mode |
 
 Each turn is one AG-UI run: `RUN_STARTED` with `threadId` set to the conversation id, then exactly one
-`RUN_FINISHED` or `RUN_ERROR`. Only the first run of a resumed session opens with `MESSAGES_SNAPSHOT`.
+`RUN_FINISHED` or `RUN_ERROR`. Only the first run of a resumed session opens with `MESSAGES_SNAPSHOT`. `select_model`
+switches the model the next turns use. Without `--model` and `agent.model`, the worker falls back to the gateway's
+first model, so it can answer panel frames in an unconfigured project. An `approval_response` whose `tool_call_id` is a
+pending `tool_request` answers that request instead of the running turn.
 
 With `browser_use.backend: extension` the worker binds no port. A browser tool writes a
 [`browser_command`](browser-extension-protocol.md) line on stdout and waits for the `browser_result` line with

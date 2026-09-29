@@ -65,6 +65,7 @@ type Services interface {
 	GetShortcutRegistry() *shortcuts.Registry
 	GetBackgroundTaskRegistry() scheddomain.BackgroundTaskRegistry
 	GetTelemetryRecorder() *telemetry.Recorder
+	NewPanel(out io.Writer) *agui.Panel
 }
 
 // Options carries the headless command's flag values.
@@ -165,7 +166,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		return fmt.Errorf("no models available from inference gateway")
 	}
 
-	selectedModel, err := selectModel(availModels, opts.Model, cfg.Agent.Model)
+	selectedModel, err := selectModel(availModels, opts.Model, defaultModel(cfg, opts, availModels))
 	if err != nil {
 		return err
 	}
@@ -341,6 +342,16 @@ func validateOptions(opts Options) error {
 		return errors.New("a task is required unless --serve is set")
 	}
 	return nil
+}
+
+// defaultModel is the model a run falls back to without --model. A serve
+// worker also answers panel requests before any thread picks a model, so it
+// takes the gateway's first model rather than failing to boot.
+func defaultModel(cfg *config.Config, opts Options, available []string) string {
+	if opts.Serve {
+		return cmp.Or(cfg.Agent.Model, available[0])
+	}
+	return cfg.Agent.Model
 }
 
 func selectModel(models []string, modelFlag, defaultModel string) (string, error) {

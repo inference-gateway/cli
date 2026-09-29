@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -236,8 +237,8 @@ func (c *ServiceContainer) SetUINotifier(n agentdomain.UINotifier) {
 // initializeBrowserTools constructs the browser-use driver (a thin extension
 // adapter, or a lazily-launched Playwright session) and registers the browser
 // tools against it. The adapter talks to the opentask extension through the
-// bridge built in protocols/agui, which receives every dep in its constructor
-// and starts its WS server on StartExtensionBridge.
+// bridge built in protocols/agui, which starts its WS server on
+// StartExtensionBridge.
 func (c *ServiceContainer) initializeBrowserTools() {
 	buCfg := &c.config.BrowserUse
 	if !buCfg.Enabled {
@@ -245,27 +246,10 @@ func (c *ServiceContainer) initializeBrowserTools() {
 	}
 
 	if buCfg.Backend == config.BrowserBackendExtension {
-		eventBridge := c.stateManager.GetEventBridge()
-		if eventBridge == nil {
-			eventBridge = conversation.NewEventBridge()
-			c.stateManager.SetEventBridge(eventBridge)
-		}
-
 		c.extensionBridge = agui.NewExtensionBridge(agui.Deps{
-			Extension:     buCfg.Extension,
-			Notifier:      c.uiNotifier,
-			Conversations: c.conversationRepo,
-			Events:        eventBridge,
-			Skills:        c.skillsService,
-			Tools:         c.toolService,
-			Approval:      agent.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService),
-			Models:        c.modelService,
-			Modes:         c.stateManager,
-			Agent:         c.agent,
-			History:       c.GetShellHistoryStorage(),
-			DefaultModel:  c.config.Agent.Model,
-			SessionID:     string(c.sessionID),
-			ArtifactsDir:  c.config.ArtifactsDir(),
+			Extension:    buCfg.Extension,
+			Notifier:     c.uiNotifier,
+			ArtifactsDir: c.config.ArtifactsDir(),
 		})
 		c.browserDriver = browserinfra.NewExtensionDriver(buCfg, c.extensionBridge.Request)
 	} else {
@@ -285,6 +269,21 @@ func (c *ServiceContainer) RouteBrowserRequests(request func(ctx context.Context
 	}
 	c.browserDriver = browserinfra.NewExtensionDriver(&c.config.BrowserUse, request)
 	c.toolRegistry.RegisterTools(browser.NewTools(c.config, c.browserDriver))
+}
+
+// NewPanel builds the panel a headless serve worker answers its panel frames
+// with, over the worker's own conversation, skills, tools, models and modes.
+func (c *ServiceContainer) NewPanel(out io.Writer) *agui.Panel {
+	return agui.NewPanel(agui.PanelDeps{
+		Conversations: c.conversationRepo,
+		Skills:        c.skillsService,
+		Tools:         c.toolService,
+		Approval:      agent.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService),
+		Models:        c.modelService,
+		Modes:         c.stateManager,
+		History:       c.GetShellHistoryStorage(),
+		DefaultModel:  c.config.Agent.Model,
+	}, out)
 }
 
 // StartExtensionBridge starts the WebSocket server the opentask extension

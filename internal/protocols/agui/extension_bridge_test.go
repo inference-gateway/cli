@@ -10,205 +10,21 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
 
-	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	sessionsmocks "github.com/inference-gateway/cli/tests/mocks/sessions"
 
 	websocket "github.com/gorilla/websocket"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	config "github.com/inference-gateway/cli/config"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
-	conversation "github.com/inference-gateway/cli/internal/conversation"
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	storage "github.com/inference-gateway/cli/internal/platform/storage"
-	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// readFrameOfType reads frames until one with the given type arrives, failing
-// on timeout. Returns the decoded frame.
-func readFrameOfType(t *testing.T, conn *websocket.Conn, typ string) map[string]any {
-	t.Helper()
-	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	for {
-		var frame map[string]any
-		if err := conn.ReadJSON(&frame); err != nil {
-			t.Fatalf("read %q: %v", typ, err)
-		}
-		if frame["type"] == typ {
-			return frame
-		}
-	}
-}
-
-func toolApprovalEvent(id, name, args string) agentdomain.ToolApprovalRequestedEvent {
-	return agentdomain.ToolApprovalRequestedEvent{
-		RequestID:    id,
-		ResponseChan: make(chan agentdomain.ApprovalAction, 1),
-		ToolCall: sdk.ChatCompletionMessageToolCall{
-			ID:       "call-" + id,
-			Function: sdk.ChatCompletionMessageToolCallFunction{Name: name, Arguments: args},
-		},
-	}
-}
-
-func TestExtensionBridgeApprovalRoundTrip(t *testing.T) {
-	notifier := &recordingNotifier{}
-	events := conversation.NewEventBridge()
-	bridge := startBridge(t, bridgeConfig(), notifier, events)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	time.Sleep(50 * time.Millisecond)
-	events.Publish(toolApprovalEvent("req-1", "Bash", `{"command":"ls"}`))
-
-	req := readFrameOfType(t, conn, "approval_request")
-	if req["request_id"] != "req-1" || req["tool_name"] != "Bash" || req["tool_args"] != `{"command":"ls"}` {
-		t.Fatalf("unexpected approval_request: %v", req)
-	}
-
-	if err := conn.WriteJSON(map[string]string{"type": "approval_response", "request_id": "req-1", "action": "approve"}); err != nil {
-		t.Fatalf("write response: %v", err)
-	}
-
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		found := false
-		for _, ev := range notifier.all() {
-			resp, ok := ev.(agentdomain.ToolApprovalResponseEvent)
-			if !ok {
-				continue
-			}
-			if resp.Action != agentdomain.ApprovalApprove {
-				t.Fatalf("expected approve, got %v", resp.Action)
-			}
-			if resp.ToolCall.Function.Name != "Bash" {
-				t.Fatalf("wrong tool call echoed back: %+v", resp.ToolCall)
-			}
-			found = true
-		}
-		if found {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("notifier never received the approval response")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	if resolved := readFrameOfType(t, conn, "approval_resolved"); resolved["request_id"] != "req-1" {
-		t.Fatalf("unexpected approval_resolved: %v", resolved)
-	}
-}
-
-// A tool-call chat event streaming after the approval_request must NOT clear the
-// card - only an explicit ToolApprovalResolvedEvent does. Regression test for the
-// card vanishing before the user could answer.
-func TestExtensionBridgeApprovalSurvivesTrailingEvents(t *testing.T) {
-	events := conversation.NewEventBridge()
-	bridge := startBridge(t, bridgeConfig(), nil, events)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	time.Sleep(50 * time.Millisecond)
-	events.Publish(toolApprovalEvent("req-9", "Write", `{"file_path":"x"}`))
-	readFrameOfType(t, conn, "approval_request")
-
-	events.Publish(agentdomain.ChatChunkEvent{Content: "streamed"})
-	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	var frame map[string]any
-	if err := conn.ReadJSON(&frame); err != nil {
-		t.Fatalf("read after trailing chunk: %v", err)
-	}
-	if frame["type"] == "approval_resolved" {
-		t.Fatal("a trailing chat event resolved the approval before the user answered")
-	}
-
-	events.Publish(agentdomain.ToolApprovalResolvedEvent{})
-	if resolved := readFrameOfType(t, conn, "approval_resolved"); resolved["request_id"] != "req-9" {
-		t.Fatalf("unexpected approval_resolved: %v", resolved)
-	}
-}
-
-func TestExtensionBridgeApprovalUnknownActionRejects(t *testing.T) {
-	notifier := &recordingNotifier{}
-	events := conversation.NewEventBridge()
-	bridge := startBridge(t, bridgeConfig(), notifier, events)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	time.Sleep(50 * time.Millisecond)
-	events.Publish(toolApprovalEvent("req-2", "Bash", "{}"))
-	readFrameOfType(t, conn, "approval_request")
-
-	if err := conn.WriteJSON(map[string]string{"type": "approval_response", "request_id": "req-2", "action": "wat"}); err != nil {
-		t.Fatalf("write response: %v", err)
-	}
-
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		for _, ev := range notifier.all() {
-			if resp, ok := ev.(agentdomain.ToolApprovalResponseEvent); ok {
-				if resp.Action != agentdomain.ApprovalReject {
-					t.Fatalf("unknown action should reject, got %v", resp.Action)
-				}
-				return
-			}
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("notifier never received the approval response")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-}
-
-// A stale approval_response for an already-answered id must be a no-op, not a
-// second decision.
-func TestExtensionBridgeApprovalIgnoresUnknownID(t *testing.T) {
-	notifier := &recordingNotifier{}
-	events := conversation.NewEventBridge()
-	bridge := startBridge(t, bridgeConfig(), notifier, events)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "approval_response", "request_id": "ghost", "action": "approve"}); err != nil {
-		t.Fatalf("write response: %v", err)
-	}
-
-	time.Sleep(200 * time.Millisecond)
-	for _, ev := range notifier.all() {
-		if _, ok := ev.(agentdomain.ToolApprovalResponseEvent); ok {
-			t.Fatal("unknown request id must not produce an approval response")
-		}
-	}
-}
-
-// recordingNotifier is a thread-safe agentdomain.UINotifier that collects every
-// notified event.
-type recordingNotifier struct {
-	mu     sync.Mutex
-	events []any
-}
-
-func (r *recordingNotifier) Notify(event any) {
-	r.mu.Lock()
-	r.events = append(r.events, event)
-	r.mu.Unlock()
-}
-
-// all returns a snapshot of the collected events.
-func (n *recordingNotifier) all() []any {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	return append([]any(nil), n.events...)
-}
+var _ sessionsdomain.Client = (*extConn)(nil)
 
 func bridgeConfig() *config.BrowserUseConfig {
 	cfg := config.DefaultBrowserUseConfig()
@@ -220,37 +36,11 @@ func bridgeConfig() *config.BrowserUseConfig {
 	return cfg
 }
 
-// testDeps are the bridge dependencies every started test bridge needs. Tests
-// that care about one collaborator override it.
 func testDeps(cfg *config.BrowserUseConfig) Deps {
-	return Deps{
-		Extension:     cfg.Extension,
-		Notifier:      &recordingNotifier{},
-		Conversations: newBridgeRepo(),
-		Events:        conversation.NewEventBridge(),
-		Skills:        &agentdomainmocks.FakeSkillsService{},
-		Tools:         &agentdomainmocks.FakeToolService{},
-		Approval:      &agentdomainmocks.FakeApprovalPolicy{},
-		Models:        &convmocks.FakeModelService{},
-		Modes:         statemanager.NewStore(false),
-		Agent:         &agentdomainmocks.FakeAgentService{},
-		SessionID:     "test-session",
-	}
+	return Deps{Extension: cfg.Extension}
 }
 
-func startBridge(t *testing.T, cfg *config.BrowserUseConfig, notifier agentdomain.UINotifier, events agentdomain.EventBridge) *ExtensionBridge {
-	t.Helper()
-	deps := testDeps(cfg)
-	if notifier != nil {
-		deps.Notifier = notifier
-	}
-	if events != nil {
-		deps.Events = events
-	}
-	return startBridgeDeps(t, deps)
-}
-
-func startBridgeDeps(t *testing.T, deps Deps) *ExtensionBridge {
+func startBridge(t *testing.T, deps Deps) *ExtensionBridge {
 	t.Helper()
 	bridge := NewExtensionBridge(deps)
 	if err := bridge.Start(); err != nil {
@@ -260,42 +50,12 @@ func startBridgeDeps(t *testing.T, deps Deps) *ExtensionBridge {
 	return bridge
 }
 
-func startBridgeWithRepo(t *testing.T, cfg *config.BrowserUseConfig, repo convdomain.ConversationRepository) *ExtensionBridge {
+func startRelay(t *testing.T) (*ExtensionBridge, *sessionsmocks.FakeThreads) {
 	t.Helper()
-	deps := testDeps(cfg)
-	deps.Conversations = repo
-	return startBridgeDeps(t, deps)
-}
-
-func startBridgeWithSkills(t *testing.T, cfg *config.BrowserUseConfig, skills agentdomain.SkillsService) *ExtensionBridge {
-	t.Helper()
-	deps := testDeps(cfg)
-	deps.Skills = skills
-	return startBridgeDeps(t, deps)
-}
-
-// newBridgeRepo builds a persistent repo backed by in-memory storage.
-func newBridgeRepo() *conversation.PersistentConversationRepository {
-	return conversation.NewPersistentConversationRepository(nil, nil, storage.NewMemoryStorage())
-}
-
-// seedConversation starts, fills, and saves a conversation, returning its id.
-func seedConversation(t *testing.T, repo *conversation.PersistentConversationRepository, title, content string) string {
-	t.Helper()
-	if err := repo.StartNewConversation(title); err != nil {
-		t.Fatalf("StartNewConversation: %v", err)
-	}
-	entry := convdomain.ConversationEntry{
-		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(content)},
-		Time:    time.Now(),
-	}
-	if err := repo.AddMessage(entry); err != nil {
-		t.Fatalf("AddMessage: %v", err)
-	}
-	if err := repo.SaveConversation(context.Background()); err != nil {
-		t.Fatalf("SaveConversation: %v", err)
-	}
-	return repo.GetCurrentConversationID()
+	threads := &sessionsmocks.FakeThreads{}
+	deps := testDeps(bridgeConfig())
+	deps.Threads = threads
+	return startBridge(t, deps), threads
 }
 
 func dial(t *testing.T, bridge *ExtensionBridge) *websocket.Conn {
@@ -308,19 +68,27 @@ func dial(t *testing.T, bridge *ExtensionBridge) *websocket.Conn {
 	return conn
 }
 
-// hello authenticates and consumes the ack and conversation snapshot frames.
-func hello(t *testing.T, conn *websocket.Conn, token string) {
+// helloAs authenticates as the given client kind and returns the ack.
+func helloAs(t *testing.T, conn *websocket.Conn, token, client string) map[string]any {
 	t.Helper()
-	if err := conn.WriteJSON(map[string]string{"type": "browser_hello", "token": token}); err != nil {
+	if err := conn.WriteJSON(map[string]any{"type": "browser_hello", "token": token, "client": client, "protocol_version": 1}); err != nil {
 		t.Fatalf("hello: %v", err)
 	}
 	var ack map[string]any
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	if err := conn.ReadJSON(&ack); err != nil {
 		t.Fatalf("read ack: %v", err)
 	}
+	_ = conn.SetReadDeadline(time.Time{})
 	if ack["type"] != "browser_hello_ack" {
 		t.Fatalf("expected browser_hello_ack, got %v", ack)
 	}
+	return ack
+}
+
+func hello(t *testing.T, conn *websocket.Conn, token string) {
+	t.Helper()
+	helloAs(t, conn, token, "")
 }
 
 // untilConnected retries try while the bridge has not adopted the dialed
@@ -337,43 +105,155 @@ func untilConnected(t *testing.T, try func() error) error {
 	}
 }
 
-func TestExtensionBridgeRejectsBadToken(t *testing.T) {
-	bridge := startBridge(t, bridgeConfig(), nil, nil)
-	conn := dial(t, bridge)
+func eventually(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
 
-	if err := conn.WriteJSON(map[string]string{"type": "browser_hello", "token": "wrong"}); err != nil {
+// answerNavigate plays the extension: it answers the first browser_command.
+func answerNavigate(conn *websocket.Conn) {
+	for {
+		var cmd map[string]any
+		if err := conn.ReadJSON(&cmd); err != nil {
+			return
+		}
+		if cmd["type"] == "browser_command" {
+			_ = conn.WriteJSON(map[string]any{"type": "browser_result", "id": cmd["id"], "url": cmd["url"], "title": "Example Domain"})
+			return
+		}
+	}
+}
+
+func TestExtensionBridgeAckCarriesProtocolVersion(t *testing.T) {
+	bridge := startBridge(t, testDeps(bridgeConfig()))
+	for _, client := range []string{"", "extension", "desktop"} {
+		ack := helloAs(t, dial(t, bridge), "test-token", client)
+		if ack["protocol_version"] != float64(protocolVersion) {
+			t.Fatalf("client %q: ack protocol_version = %v, want %d", client, ack["protocol_version"], protocolVersion)
+		}
+	}
+}
+
+func TestExtensionBridgeAcceptsHelloWithoutProtocolVersion(t *testing.T) {
+	bridge := startBridge(t, testDeps(bridgeConfig()))
+	conn := dial(t, bridge)
+	if err := conn.WriteJSON(map[string]string{"type": "browser_hello", "token": "test-token"}); err != nil {
+		t.Fatalf("hello: %v", err)
+	}
+	var ack map[string]any
+	if err := conn.ReadJSON(&ack); err != nil || ack["type"] != "browser_hello_ack" {
+		t.Fatalf("expected an ack for a versionless hello, got %v (%v)", ack, err)
+	}
+}
+
+func TestExtensionBridgeRelaysFramesToThreads(t *testing.T) {
+	bridge, threads := startRelay(t)
+	conn := dial(t, bridge)
+	helloAs(t, conn, "test-token", "desktop")
+
+	frame := `{"type":"user_message","content":"hi"}`
+	if err := conn.WriteMessage(websocket.TextMessage, []byte(frame)); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	var frame map[string]any
-	if err := conn.ReadJSON(&frame); err == nil {
-		t.Fatalf("expected connection close, got frame %v", frame)
+	eventually(t, "Threads.Handle", func() bool { return threads.HandleCallCount() == 1 })
+	client, got := threads.HandleArgsForCall(0)
+	if string(got) != frame {
+		t.Fatalf("Handle frame = %s, want %s", got, frame)
+	}
+
+	event := `{"type":"RUN_STARTED","threadId":"c1","runId":"r1"}`
+	client.Deliver([]byte(event))
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_, delivered, err := conn.ReadMessage()
+	if err != nil || string(delivered) != event {
+		t.Fatalf("expected the bare delivered frame, got %s (%v)", delivered, err)
 	}
 }
 
-func TestExtensionBridgeFailsFastWithoutConnection(t *testing.T) {
-	bridge := startBridge(t, bridgeConfig(), nil, nil)
+func TestExtensionBridgeKeepsBrowserResultsFromThreads(t *testing.T) {
+	bridge, threads := startRelay(t)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
 
-	_, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
-	if err == nil || !strings.Contains(err.Error(), "no browser extension connected") {
-		t.Fatalf("expected no-extension error, got %v", err)
+	if err := conn.WriteJSON(map[string]string{"type": "browser_result", "id": "orphan"}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := conn.WriteJSON(map[string]string{"type": "list_skills"}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	eventually(t, "the list_skills frame", func() bool { return threads.HandleCallCount() == 1 })
+	if _, got := threads.HandleArgsForCall(0); !strings.Contains(string(got), "list_skills") {
+		t.Fatalf("browser_result leaked to Threads: %s", got)
 	}
 }
 
-func TestExtensionBridgeRefusesToStartWithoutToken(t *testing.T) {
-	cfg := bridgeConfig()
-	cfg.Extension.Token = ""
-	bridge := NewExtensionBridge(testDeps(cfg))
-	if err := bridge.Start(); err == nil || !strings.Contains(err.Error(), "token is empty") {
-		t.Fatalf("expected token error, got %v", err)
+func TestExtensionBridgeDetachesClosedClient(t *testing.T) {
+	bridge, threads := startRelay(t)
+	conn := dial(t, bridge)
+	helloAs(t, conn, "test-token", "desktop")
+	if err := conn.WriteJSON(map[string]string{"type": "list_skills"}); err != nil {
+		t.Fatalf("write: %v", err)
 	}
-	if _, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command"}`)); err == nil || !strings.Contains(err.Error(), "token is empty") {
-		t.Fatalf("expected stored start error from Request, got %v", err)
+	eventually(t, "Threads.Handle", func() bool { return threads.HandleCallCount() == 1 })
+
+	_ = conn.Close()
+	eventually(t, "Threads.Detach", func() bool { return threads.DetachCallCount() == 1 })
+	handled, _ := threads.HandleArgsForCall(0)
+	if detached := threads.DetachArgsForCall(0); detached != handled {
+		t.Fatal("Detach got a different client than Handle")
+	}
+}
+
+func TestExtensionBridgeDesktopsDoNotReplaceTheExtension(t *testing.T) {
+	bridge, threads := startRelay(t)
+	extension := dial(t, bridge)
+	helloAs(t, extension, "test-token", "extension")
+
+	for range 2 {
+		desktop := dial(t, bridge)
+		helloAs(t, desktop, "test-token", "desktop")
+		if err := desktop.WriteJSON(map[string]string{"type": "list_skills"}); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	eventually(t, "both desktops relaying", func() bool { return threads.HandleCallCount() == 2 })
+	first, _ := threads.HandleArgsForCall(0)
+	second, _ := threads.HandleArgsForCall(1)
+	if first == second {
+		t.Fatal("two desktop connections share one client")
+	}
+
+	go answerNavigate(extension)
+	err := untilConnected(t, func() error {
+		_, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
+		return err
+	})
+	if err != nil {
+		t.Fatalf("Request with desktops attached: %v", err)
+	}
+}
+
+func TestExtensionBridgeWithoutThreadsIgnoresPanelFrames(t *testing.T) {
+	bridge := startBridge(t, testDeps(bridgeConfig()))
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+	if err := conn.WriteJSON(map[string]string{"type": "list_skills"}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+	if _, frame, err := conn.ReadMessage(); err == nil {
+		t.Fatalf("expected no reply without Threads, got %s", frame)
 	}
 }
 
 func TestExtensionBridgeNavigateRoundTrip(t *testing.T) {
-	bridge := startBridge(t, bridgeConfig(), nil, nil)
+	bridge := startBridge(t, testDeps(bridgeConfig()))
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
@@ -408,190 +288,8 @@ func TestExtensionBridgeNavigateRoundTrip(t *testing.T) {
 	}
 }
 
-func TestExtensionBridgeUserMessageReachesNotifier(t *testing.T) {
-	notifier := &recordingNotifier{}
-	bridge := startBridge(t, bridgeConfig(), notifier, nil)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "user_message", "content": "hello from the browser"}); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		for _, ev := range notifier.all() {
-			if input, ok := ev.(agentdomain.UserInputEvent); ok {
-				if input.Content != "hello from the browser" {
-					t.Fatalf("unexpected content: %q", input.Content)
-				}
-				return
-			}
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("notifier never received the user message")
-}
-
-func TestExtensionBridgeUserMessageSavesAttachments(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	notifier := &recordingNotifier{}
-	bridge := startBridge(t, bridgeConfig(), notifier, nil)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	frame := map[string]any{
-		"type":    "user_message",
-		"content": "look at these",
-		"attachments": []map[string]string{
-			{"filename": "shot.png", "mime_type": "image/png", "data": "iVBORw0KGgo="},
-			{"filename": "../../notes.txt", "mime_type": "text/plain", "data": "aGVsbG8="},
-			{"filename": "photo.heic", "mime_type": "image/heic", "data": "aGVsbG8="},
-		},
-	}
-	if err := conn.WriteJSON(frame); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		for _, ev := range notifier.all() {
-			input, ok := ev.(agentdomain.UserInputEvent)
-			if !ok {
-				continue
-			}
-			if len(input.Images) != 1 || input.Images[0].SourcePath == "" {
-				t.Fatalf("expected one image with a source path, got %+v", input.Images)
-			}
-			if _, err := os.Stat(input.Images[0].SourcePath); err != nil {
-				t.Fatalf("image not on disk: %v", err)
-			}
-			if !strings.HasPrefix(input.Images[0].SourcePath, config.ProjectTmpDir()) {
-				t.Fatalf("image saved outside project tmp dir: %s", input.Images[0].SourcePath)
-			}
-			_, after, found := strings.Cut(input.Content, "[notes.txt saved at ")
-			if !found {
-				t.Fatalf("content lacks document note: %q", input.Content)
-			}
-			docPath, _, _ := strings.Cut(after, "]")
-			if !strings.Contains(input.Content, "[photo.heic saved at ") || !strings.Contains(input.Content, "convert it to PNG") {
-				t.Fatalf("heic should be a path note with a conversion hint, got %q", input.Content)
-			}
-			if data, err := os.ReadFile(docPath); err != nil || string(data) != "hello" {
-				t.Fatalf("document not on disk at %s: %v %q", docPath, err, data)
-			}
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("notifier never received the user message")
-}
-
-func TestExtensionBridgeMirrorsChatEvents(t *testing.T) {
-	events := conversation.NewEventBridge()
-	bridge := startBridge(t, bridgeConfig(), nil, events)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	time.Sleep(50 * time.Millisecond)
-	events.Publish(agentdomain.ChatChunkEvent{Content: "streamed text"})
-
-	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	for {
-		var frame map[string]any
-		if err := conn.ReadJSON(&frame); err != nil {
-			t.Fatalf("read: %v", err)
-		}
-		if frame["type"] == "chat_event" {
-			return
-		}
-	}
-}
-
-// readFrameContaining reads raw frames until one contains needle, failing on timeout.
-func readFrameContaining(t *testing.T, conn *websocket.Conn, needle string) {
-	t.Helper()
-	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	for {
-		_, msg, err := conn.ReadMessage()
-		if err != nil {
-			t.Fatalf("read frame containing %q: %v", needle, err)
-		}
-		if strings.Contains(string(msg), needle) {
-			return
-		}
-	}
-}
-
-func TestExtensionBridgeLeavesQuestionAnswerableByTUI(t *testing.T) {
-	events := conversation.NewEventBridge()
-	bridge := startBridge(t, bridgeConfig(), nil, events)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	time.Sleep(50 * time.Millisecond)
-	responseChan := make(chan []agentdomain.UserQuestionAnswer, 1)
-	events.Publish(agentdomain.UserQuestionRequestedEvent{
-		RequestID:    "req-1",
-		ToolCallID:   "call-q1",
-		Questions:    []agentdomain.UserQuestion{{Header: "Path", Question: "Which path?"}},
-		ResponseChan: responseChan,
-	})
-	readFrameContaining(t, conn, "user_question_request")
-
-	events.Publish(agentdomain.ChatChunkEvent{Content: "after-question"})
-	readFrameContaining(t, conn, "after-question")
-
-	select {
-	case _, open := <-responseChan:
-		if !open {
-			t.Fatal("bridge closed the question's response channel; only the TUI may answer or dismiss it")
-		}
-		t.Fatal("bridge answered the question; only the TUI may answer it")
-	default:
-	}
-}
-
-func TestExtensionBridgeCancelledTurnSendsInterrupted(t *testing.T) {
-	events := conversation.NewEventBridge()
-	bridge := startBridge(t, bridgeConfig(), nil, events)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	time.Sleep(50 * time.Millisecond)
-	events.Publish(agentdomain.ChatStartEvent{RequestID: "req-1"})
-	events.Publish(agentdomain.ChatCompleteEvent{RequestID: "req-1", Cancelled: true})
-
-	readFrameOfType(t, conn, "interrupted")
-}
-
-func TestExtensionBridgeNormalCompletionDoesNotSendInterrupted(t *testing.T) {
-	events := conversation.NewEventBridge()
-	bridge := startBridge(t, bridgeConfig(), nil, events)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	time.Sleep(50 * time.Millisecond)
-	events.Publish(agentdomain.ChatCompleteEvent{RequestID: "req-1"})
-	events.Publish(agentdomain.ChatChunkEvent{Content: "after"})
-
-	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	for {
-		var frame map[string]any
-		if err := conn.ReadJSON(&frame); err != nil {
-			t.Fatalf("read: %v", err)
-		}
-		if frame["type"] == "interrupted" {
-			t.Fatal("unexpected interrupted frame for a normal completion")
-		}
-		if frame["type"] == "chat_event" {
-			return
-		}
-	}
-}
-
 func TestExtensionBridgeReplacesConnection(t *testing.T) {
-	bridge := startBridge(t, bridgeConfig(), nil, nil)
+	bridge := startBridge(t, testDeps(bridgeConfig()))
 
 	first := dial(t, bridge)
 	hello(t, first, "test-token")
@@ -654,7 +352,7 @@ func TestExtensionBridgeServesArtifacts(t *testing.T) {
 }
 
 func TestExtensionBridgeWithoutArtifactsDirHasNoRoute(t *testing.T) {
-	bridge := startBridge(t, bridgeConfig(), nil, nil)
+	bridge := startBridge(t, testDeps(bridgeConfig()))
 	if _, status := httpGet(t, "http://"+bridge.Addr()+"/artifacts/cat.png"); status == http.StatusOK {
 		t.Fatalf("expected no /artifacts/ route, got status %d", status)
 	}
@@ -672,498 +370,6 @@ func httpGet(t *testing.T, url string) (string, int) {
 		t.Fatalf("read body: %v", err)
 	}
 	return string(body), resp.StatusCode
-}
-
-func TestExtensionBridgeListConversations(t *testing.T) {
-	repo := newBridgeRepo()
-	firstID := seedConversation(t, repo, "First convo", "hello one")
-	secondID := seedConversation(t, repo, "Second convo", "hello two")
-
-	bridge := startBridgeWithRepo(t, bridgeConfig(), repo)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "list_conversations"}); err != nil {
-		t.Fatalf("write list_conversations: %v", err)
-	}
-
-	frame := readFrameOfType(t, conn, "conversations")
-	raw, ok := frame["conversations"].([]any)
-	if !ok || len(raw) != 2 {
-		t.Fatalf("expected 2 conversations, got %v", frame["conversations"])
-	}
-
-	byID := map[string]map[string]any{}
-	for _, c := range raw {
-		entry := c.(map[string]any)
-		byID[entry["id"].(string)] = entry
-	}
-
-	first, ok := byID[firstID]
-	if !ok {
-		t.Fatalf("first conversation %s missing from %v", firstID, byID)
-	}
-	if first["title"] != "First convo" {
-		t.Fatalf("first title = %v, want %q", first["title"], "First convo")
-	}
-	if count, _ := first["message_count"].(float64); count != 1 {
-		t.Fatalf("first message_count = %v, want 1", first["message_count"])
-	}
-	if at, _ := first["updated_at"].(string); at == "" {
-		t.Fatalf("first updated_at missing: %v", first["updated_at"])
-	}
-
-	second, ok := byID[secondID]
-	if !ok {
-		t.Fatalf("second conversation %s missing from %v", secondID, byID)
-	}
-	if second["title"] != "Second convo" {
-		t.Fatalf("second title = %v, want %q", second["title"], "Second convo")
-	}
-}
-
-func TestExtensionBridgeResumeConversation(t *testing.T) {
-	repo := newBridgeRepo()
-	targetID := seedConversation(t, repo, "Older convo", "resume me please")
-	seedConversation(t, repo, "Current convo", "current message")
-
-	bridge := startBridgeWithRepo(t, bridgeConfig(), repo)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "resume_conversation", "id": targetID}); err != nil {
-		t.Fatalf("write resume_conversation: %v", err)
-	}
-
-	frame := readFrameOfType(t, conn, "conversation_snapshot")
-	msgs, ok := frame["messages"].([]any)
-	if !ok || len(msgs) != 1 {
-		t.Fatalf("expected 1 message in snapshot, got %v", frame["messages"])
-	}
-	if content := msgs[0].(map[string]any)["content"]; content != "resume me please" {
-		t.Fatalf("snapshot content = %v, want %q", content, "resume me please")
-	}
-	if got := repo.GetCurrentConversationID(); got != targetID {
-		t.Fatalf("active conversation = %s, want %s", got, targetID)
-	}
-}
-
-func TestExtensionBridgeNoAutoSnapshotOnConnect(t *testing.T) {
-	repo := newBridgeRepo()
-	seedConversation(t, repo, "Some convo", "hello")
-
-	bridge := startBridgeWithRepo(t, bridgeConfig(), repo)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	for {
-		var frame map[string]any
-		if err := conn.ReadJSON(&frame); err != nil {
-			return
-		}
-		if frame["type"] == "conversation_snapshot" {
-			t.Fatalf("expected no unsolicited snapshot after connect, got %v", frame)
-		}
-	}
-}
-
-func TestExtensionBridgeListSkills(t *testing.T) {
-	skills := &agentdomainmocks.FakeSkillsService{}
-	skills.ListReturns([]agentdomain.Skill{
-		{Name: "tmux", Description: "drive tmux", Scope: agentdomain.SkillScopeUser},
-		{Name: "deploy", Description: "ship it", Scope: agentdomain.SkillScopeAgents},
-		{Name: "notion", Scope: agentdomain.SkillScopePlugin, PluginName: "notion"},
-	})
-	bridge := startBridgeWithSkills(t, bridgeConfig(), skills)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "list_skills"}); err != nil {
-		t.Fatalf("write list_skills: %v", err)
-	}
-
-	frame := readFrameOfType(t, conn, "skills")
-	raw, ok := frame["skills"].([]any)
-	if !ok || len(raw) != 3 {
-		t.Fatalf("expected 3 skills, got %v", frame["skills"])
-	}
-
-	byName := map[string]map[string]any{}
-	for _, s := range raw {
-		e := s.(map[string]any)
-		byName[e["name"].(string)] = e
-	}
-	if byName["tmux"]["scope"] != "user" {
-		t.Fatalf("tmux scope = %v, want user", byName["tmux"]["scope"])
-	}
-	if byName["deploy"]["scope"] != "agents" {
-		t.Fatalf("deploy scope = %v, want agents", byName["deploy"]["scope"])
-	}
-	if _, ok := byName["notion:notion"]; !ok {
-		t.Fatalf("plugin skill missing qualified name, got keys %v", byName)
-	}
-}
-
-func startBridgeWithTools(t *testing.T, cfg *config.BrowserUseConfig, toolSvc agentdomain.ToolService, approval agentdomain.ApprovalPolicy, models convdomain.ModelService, defaultModel string) *ExtensionBridge {
-	t.Helper()
-	deps := testDeps(cfg)
-	deps.Tools = toolSvc
-	if approval != nil {
-		deps.Approval = approval
-	}
-	if models != nil {
-		deps.Models = models
-	}
-	deps.DefaultModel = defaultModel
-	return startBridgeDeps(t, deps)
-}
-
-func TestExtensionBridgeToolRequestUnknownToolKeepsSocketOpen(t *testing.T) {
-	toolSvc := &agentdomainmocks.FakeToolService{}
-	toolSvc.IsToolEnabledReturns(false)
-	bridge := startBridgeWithTools(t, bridgeConfig(), toolSvc, nil, nil, "")
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "tool_request", "id": "req-1", "tool_name": "Nope", "tool_args": "{}"}); err != nil {
-		t.Fatalf("write tool_request: %v", err)
-	}
-
-	frame := readFrameOfType(t, conn, "tool_result")
-	if frame["id"] != "req-1" || frame["success"] != false || frame["error"] == "" {
-		t.Fatalf("unexpected tool_result: %v", frame)
-	}
-
-	if err := conn.WriteJSON(map[string]string{"type": "list_skills"}); err != nil {
-		t.Fatalf("write list_skills: %v", err)
-	}
-	readFrameOfType(t, conn, "skills")
-}
-
-func TestExtensionBridgeToolRequestApproved(t *testing.T) {
-	toolSvc := &agentdomainmocks.FakeToolService{}
-	toolSvc.IsToolEnabledReturns(true)
-	toolSvc.ExecuteToolDirectReturns(&agentdomain.ToolExecutionResult{
-		Success: true,
-		Data:    &agentdomain.BashToolResult{Output: "hi\n"},
-	}, nil)
-	approval := &agentdomainmocks.FakeApprovalPolicy{}
-	approval.ShouldRequireApprovalReturns(true)
-	bridge := startBridgeWithTools(t, bridgeConfig(), toolSvc, approval, nil, "")
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "tool_request", "id": "req-2", "tool_name": "Bash", "tool_args": `{"command":"echo hi"}`}); err != nil {
-		t.Fatalf("write tool_request: %v", err)
-	}
-
-	req := readFrameOfType(t, conn, "approval_request")
-	if req["tool_name"] != "Bash" {
-		t.Fatalf("unexpected approval_request: %v", req)
-	}
-	if err := conn.WriteJSON(map[string]string{"type": "approval_response", "request_id": req["request_id"].(string), "action": "approve"}); err != nil {
-		t.Fatalf("write approval_response: %v", err)
-	}
-	readFrameOfType(t, conn, "approval_resolved")
-
-	frame := readFrameOfType(t, conn, "tool_result")
-	if frame["id"] != "req-2" || frame["success"] != true || frame["output"] != "hi\n" {
-		t.Fatalf("unexpected tool_result: %v", frame)
-	}
-
-	ctx, fn := toolSvc.ExecuteToolDirectArgsForCall(0)
-	if fn.Name != "Bash" || !agentdomain.IsToolApproved(ctx) {
-		t.Fatalf("expected approved Bash execution, got %v approved=%v", fn.Name, agentdomain.IsToolApproved(ctx))
-	}
-}
-
-func TestExtensionBridgeToolRequestRecordedInConversation(t *testing.T) {
-	toolSvc := &agentdomainmocks.FakeToolService{}
-	toolSvc.IsToolEnabledReturns(true)
-	toolSvc.ExecuteToolDirectReturns(&agentdomain.ToolExecutionResult{
-		ToolName: "Bash",
-		Success:  true,
-		Data:     &agentdomain.BashToolResult{Output: "hi\n"},
-	}, nil)
-	repo := newBridgeRepo()
-	events := conversation.NewEventBridge()
-	deps := testDeps(bridgeConfig())
-	deps.Conversations = repo
-	deps.Events = events
-	deps.Tools = toolSvc
-	bridge := startBridgeDeps(t, deps)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "tool_request", "id": "req-4", "tool_name": "Bash", "tool_args": `{"command":"echo hi"}`}); err != nil {
-		t.Fatalf("write tool_request: %v", err)
-	}
-	seen := map[string]bool{}
-	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	for !seen["tool_result"] || !seen["TOOL_CALL_RESULT"] {
-		var frame map[string]any
-		if err := conn.ReadJSON(&frame); err != nil {
-			t.Fatalf("read frames: %v (seen %v)", err, seen)
-		}
-		seen[frame["type"].(string)] = true
-		if ev, ok := frame["event"].(map[string]any); ok {
-			seen[ev["type"].(string)] = true
-		}
-	}
-	if !seen["TOOL_CALL_START"] {
-		t.Fatalf("expected TOOL_CALL_START, saw %v", seen)
-	}
-
-	msgs := repo.GetMessages()
-	if len(msgs) != 2 || msgs[0].Message.Role != sdk.Assistant || msgs[1].Message.Role != sdk.Tool {
-		t.Fatalf("expected assistant tool_call + tool result entries, got %d: %+v", len(msgs), msgs)
-	}
-	if msgs[1].ToolExecution == nil || !msgs[1].ToolExecution.Success || msgs[1].ToolExecution.ToolCallID != "req-4" {
-		t.Fatalf("unexpected tool entry: %+v", msgs[1].ToolExecution)
-	}
-	if text, err := msgs[1].Message.Content.AsMessageContent0(); err != nil || text == "" {
-		t.Fatalf("tool entry content should carry the formatted result for the LLM, got %q (%v)", text, err)
-	}
-
-	if err := conn.WriteJSON(map[string]string{"type": "resume_conversation", "id": repo.GetCurrentConversationID()}); err != nil {
-		t.Fatalf("write resume_conversation: %v", err)
-	}
-	snap := readFrameOfType(t, conn, "conversation_snapshot")
-	first := snap["messages"].([]any)[0].(map[string]any)
-	if calls, _ := first["tool_calls"].([]any); len(calls) != 1 {
-		t.Fatalf("expected tool_calls on the assistant snapshot entry, got %v", first)
-	}
-	if res, _ := snap["tool_results"].(map[string]any); res["req-4"] != true {
-		t.Fatalf("expected tool_results[req-4]=true, got %v", snap["tool_results"])
-	}
-}
-
-func TestExtensionBridgeInterruptCancelsActiveTurn(t *testing.T) {
-	agentSvc := &agentdomainmocks.FakeAgentService{}
-	events := conversation.NewEventBridge()
-	deps := testDeps(bridgeConfig())
-	deps.Events = events
-	deps.Agent = agentSvc
-	bridge := startBridgeDeps(t, deps)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	deadline := time.Now().Add(2 * time.Second)
-	for id, _ := bridge.mirror.activeRequestID.Load().(string); id != "turn-1" && time.Now().Before(deadline); id, _ = bridge.mirror.activeRequestID.Load().(string) {
-		events.Publish(agentdomain.ChatStartEvent{RequestID: "turn-1", Timestamp: time.Now()})
-		time.Sleep(10 * time.Millisecond)
-	}
-	if err := conn.WriteJSON(map[string]string{"type": "interrupt"}); err != nil {
-		t.Fatalf("write interrupt: %v", err)
-	}
-	deadline = time.Now().Add(2 * time.Second)
-	for agentSvc.CancelRequestCallCount() == 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if agentSvc.CancelRequestCallCount() != 1 || agentSvc.CancelRequestArgsForCall(0) != "turn-1" {
-		t.Fatalf("expected one CancelRequest(turn-1), got %d calls", agentSvc.CancelRequestCallCount())
-	}
-}
-
-func TestExtensionBridgeToolRequestDenied(t *testing.T) {
-	toolSvc := &agentdomainmocks.FakeToolService{}
-	toolSvc.IsToolEnabledReturns(true)
-	approval := &agentdomainmocks.FakeApprovalPolicy{}
-	approval.ShouldRequireApprovalReturns(true)
-	bridge := startBridgeWithTools(t, bridgeConfig(), toolSvc, approval, nil, "")
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "tool_request", "id": "req-3", "tool_name": "Bash", "tool_args": "{}"}); err != nil {
-		t.Fatalf("write tool_request: %v", err)
-	}
-
-	req := readFrameOfType(t, conn, "approval_request")
-	if err := conn.WriteJSON(map[string]string{"type": "approval_response", "request_id": req["request_id"].(string), "action": "reject"}); err != nil {
-		t.Fatalf("write approval_response: %v", err)
-	}
-
-	frame := readFrameOfType(t, conn, "tool_result")
-	if frame["id"] != "req-3" || frame["success"] != false {
-		t.Fatalf("unexpected tool_result: %v", frame)
-	}
-	if toolSvc.ExecuteToolDirectCallCount() != 0 {
-		t.Fatalf("denied tool call was executed")
-	}
-}
-
-func TestExtensionBridgeToolRequestWithoutApprovalNeeded(t *testing.T) {
-	toolSvc := &agentdomainmocks.FakeToolService{}
-	toolSvc.IsToolEnabledReturns(true)
-	toolSvc.ExecuteToolDirectReturns(&agentdomain.ToolExecutionResult{
-		Success: false,
-		Error:   "exit status 1",
-		Data:    &agentdomain.BashToolResult{Output: "boom\n", ExitCode: 1},
-	}, nil)
-	approval := &agentdomainmocks.FakeApprovalPolicy{}
-	bridge := startBridgeWithTools(t, bridgeConfig(), toolSvc, approval, nil, "")
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "tool_request", "id": "req-4", "tool_name": "Bash", "tool_args": "{}"}); err != nil {
-		t.Fatalf("write tool_request: %v", err)
-	}
-
-	frame := readFrameOfType(t, conn, "tool_result")
-	if frame["id"] != "req-4" || frame["success"] != false || frame["output"] != "boom\n" || frame["error"] != "exit status 1" {
-		t.Fatalf("unexpected tool_result: %v", frame)
-	}
-}
-
-func TestExtensionBridgeListModelsDefaultFirst(t *testing.T) {
-	models := &convmocks.FakeModelService{}
-	models.ListModelsReturns([]string{"a/x", "b/y"}, nil)
-	models.GetCurrentModelReturns("b/y")
-	models.SelectModelCalls(func(m string) error { models.GetCurrentModelReturns(m); return nil })
-	notified := make(chan any, 4)
-	deps := testDeps(bridgeConfig())
-	deps.Notifier = notifierFunc(func(e any) { notified <- e })
-	deps.Models = models
-	deps.DefaultModel = "b/y"
-	bridge := startBridgeDeps(t, deps)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "list_models"}); err != nil {
-		t.Fatalf("write list_models: %v", err)
-	}
-
-	frame := readFrameOfType(t, conn, "models")
-	raw, ok := frame["models"].([]any)
-	if !ok || len(raw) != 2 || raw[0] != "b/y" || raw[1] != "a/x" {
-		t.Fatalf("unexpected models: %v", frame["models"])
-	}
-	if frame["current"] != "b/y" {
-		t.Fatalf("expected current b/y, got %v", frame["current"])
-	}
-
-	if err := conn.WriteJSON(map[string]string{"type": "select_model", "model": "a/x"}); err != nil {
-		t.Fatalf("write select_model: %v", err)
-	}
-	frame = readFrameOfType(t, conn, "models")
-	if models.SelectModelCallCount() != 1 || models.SelectModelArgsForCall(0) != "a/x" || frame["current"] != "a/x" {
-		t.Fatalf("expected SelectModel(a/x) and current a/x, got calls=%d current=%v", models.SelectModelCallCount(), frame["current"])
-	}
-	deadline := time.After(2 * time.Second)
-	for {
-		select {
-		case e := <-notified:
-			if ev, ok := e.(agentdomain.ModelSelectedEvent); ok {
-				if ev.Model != "a/x" {
-					t.Fatalf("expected ModelSelectedEvent{a/x}, got %#v", ev)
-				}
-				return
-			}
-		case <-deadline:
-			t.Fatal("expected the TUI to be notified of the model switch")
-		}
-	}
-}
-
-// notifierFunc adapts a func to agentdomain.UINotifier for tests.
-type notifierFunc func(any)
-
-func (f notifierFunc) Notify(e any) { f(e) }
-
-// fakeHistoryStore is an in-memory storage.ShellHistoryStorage.
-type fakeHistoryStore struct {
-	mu      sync.Mutex
-	entries []string
-}
-
-func (f *fakeHistoryStore) AppendHistory(_ context.Context, command string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.entries = append(f.entries, command)
-	return nil
-}
-
-func (f *fakeHistoryStore) LoadHistory(_ context.Context, limit int) ([]string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	out := f.entries
-	if limit > 0 && len(out) > limit {
-		out = out[len(out)-limit:]
-	}
-	return append([]string{}, out...), nil
-}
-
-func TestExtensionBridgeHistoryRoundTrip(t *testing.T) {
-	store := &fakeHistoryStore{entries: []string{"from the tui"}}
-	deps := testDeps(bridgeConfig())
-	deps.History = store
-	bridge := startBridgeDeps(t, deps)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	for _, msg := range []string{"first", "first", "  ", "second"} {
-		if err := conn.WriteJSON(map[string]string{"type": "user_message", "content": msg}); err != nil {
-			t.Fatalf("write: %v", err)
-		}
-	}
-	if err := conn.WriteJSON(map[string]string{"type": "list_history"}); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-
-	frame := readFrameOfType(t, conn, "history")
-	raw, ok := frame["history"].([]any)
-	if !ok {
-		t.Fatalf("missing history: %v", frame)
-	}
-	got := make([]string, 0, len(raw))
-	for _, v := range raw {
-		got = append(got, v.(string))
-	}
-	want := []string{"from the tui", "first", "second"}
-	if len(got) != len(want) {
-		t.Fatalf("expected %v, got %v", want, got)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("expected %v, got %v", want, got)
-		}
-	}
-}
-
-func TestExtensionBridgeHistoryWithoutStoreSendsEmpty(t *testing.T) {
-	bridge := startBridge(t, bridgeConfig(), nil, nil)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "list_history"}); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	frame := readFrameOfType(t, conn, "history")
-	if raw, ok := frame["history"].([]any); ok && len(raw) != 0 {
-		t.Fatalf("expected no history, got %v", frame["history"])
-	}
-}
-
-func TestExtensionBridgeNewSessionStartsFreshConversation(t *testing.T) {
-	repo := newBridgeRepo()
-	oldID := seedConversation(t, repo, "Current convo", "old message")
-
-	bridge := startBridgeWithRepo(t, bridgeConfig(), repo)
-	conn := dial(t, bridge)
-	hello(t, conn, "test-token")
-
-	if err := conn.WriteJSON(map[string]string{"type": "new_session"}); err != nil {
-		t.Fatalf("write new_session: %v", err)
-	}
-
-	frame := readFrameOfType(t, conn, "conversation_snapshot")
-	if msgs, ok := frame["messages"].([]any); ok && len(msgs) != 0 {
-		t.Fatalf("expected empty snapshot, got %v", frame["messages"])
-	}
-	if got := repo.GetCurrentConversationID(); got == oldID {
-		t.Fatalf("active conversation still %s, want a fresh one", oldID)
-	}
 }
 
 // TestExtensionBridgeTakesOverFreedPort verifies a bridge that lost the port to
@@ -1193,7 +399,7 @@ func TestExtensionBridgeTakesOverFreedPort(t *testing.T) {
 }
 
 func TestExtensionBridgeDisconnectFailsPendingRequest(t *testing.T) {
-	bridge := startBridge(t, bridgeConfig(), nil, nil)
+	bridge := startBridge(t, testDeps(bridgeConfig()))
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
@@ -1217,7 +423,7 @@ func TestExtensionBridgeDisconnectFailsPendingRequest(t *testing.T) {
 
 func TestExtensionDriverOverBridgeRoundTrip(t *testing.T) {
 	cfg := bridgeConfig()
-	bridge := startBridge(t, cfg, nil, nil)
+	bridge := startBridge(t, testDeps(cfg))
 	conn := dial(t, bridge)
 	hello(t, conn, "test-token")
 
@@ -1250,5 +456,40 @@ func TestExtensionDriverOverBridgeRoundTrip(t *testing.T) {
 	}
 	if result.URL != "https://example.com" || result.Title != "Example Domain" {
 		t.Fatalf("driver did not understand the bridge frames: %+v", result)
+	}
+}
+
+func TestExtensionBridgeRejectsBadToken(t *testing.T) {
+	bridge := startBridge(t, testDeps(bridgeConfig()))
+	conn := dial(t, bridge)
+
+	if err := conn.WriteJSON(map[string]string{"type": "browser_hello", "token": "wrong"}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	var frame map[string]any
+	if err := conn.ReadJSON(&frame); err == nil {
+		t.Fatalf("expected connection close, got frame %v", frame)
+	}
+}
+
+func TestExtensionBridgeFailsFastWithoutConnection(t *testing.T) {
+	bridge := startBridge(t, testDeps(bridgeConfig()))
+
+	_, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
+	if err == nil || !strings.Contains(err.Error(), "no browser extension connected") {
+		t.Fatalf("expected no-extension error, got %v", err)
+	}
+}
+
+func TestExtensionBridgeRefusesToStartWithoutToken(t *testing.T) {
+	cfg := bridgeConfig()
+	cfg.Extension.Token = ""
+	bridge := NewExtensionBridge(testDeps(cfg))
+	if err := bridge.Start(); err == nil || !strings.Contains(err.Error(), "token is empty") {
+		t.Fatalf("expected token error, got %v", err)
+	}
+	if _, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command"}`)); err == nil || !strings.Contains(err.Error(), "token is empty") {
+		t.Fatalf("expected stored start error from Request, got %v", err)
 	}
 }

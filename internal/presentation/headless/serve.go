@@ -1,6 +1,7 @@
 package headless
 
 import (
+	"cmp"
 	"context"
 	"os"
 	"time"
@@ -16,10 +17,12 @@ import (
 // serve runs the headless --serve worker: one agent turn per user_message read on
 // stdin, each rendered as its own AG-UI run on stdout, until stdin closes and the
 // queue is empty. Messages that arrive mid-turn stay queued for the running turn
-// to drain. Only the first run of a resumed session opens with its snapshot.
+// to drain. Only the first run of a resumed session opens with its snapshot, and
+// panel frames are answered on stdout whenever they arrive.
 func serve(ctx context.Context, svc Services, notifications uiBridge, turn agentdomain.AgentRequest, history []convdomain.ConversationEntry) {
 	ctl := newHeadlessControl(svc.GetAgentService(), svc.GetStateStore(), svc.GetMessageQueue(), turn.RequestID)
 	ctl.browser = newStdioBrowser(os.Stdout)
+	ctl.panel = svc.NewPanel(os.Stdout)
 	svc.RouteBrowserRequests(ctl.browser.Request)
 	go ctl.readLines(os.Stdin)
 
@@ -38,6 +41,7 @@ func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notif
 	agentService := svc.GetAgentService()
 	moveQueuedMessages(svc.GetMessageQueue(), repo)
 	req.Messages = convdomain.BuildAgentMessagesFromEntries(repo.GetMessages())
+	req.Model = cmp.Or(svc.GetModelService().GetCurrentModel(), req.Model)
 
 	rec := svc.GetTelemetryRecorder()
 	started := time.Now()

@@ -82,6 +82,13 @@ scenarios:
         chunk_size: 1
         delay_ms: 200
 
+  - name: daemon-worker-crash
+    match: '(?i)^crash the worker'
+    turns:
+      - tool_calls:
+          - { name: Bash, args: { command: "kill -9 $PPID" } }
+      - content: "The worker survived."
+
   - name: parallel-reads
     match: '(?i)execute (the )?Read tool 4 times in parallel'
     turns:
