@@ -117,15 +117,25 @@ linters:
             - "!**/internal/presentation/**"
           deny:
             - pkg: github.com/gorilla/websocket
-              desc: "the extension socket lives in protocols/agui and the web terminal in presentation; open sockets nowhere else"
-        browser-does-not-import-agui:
-          list-mode: lax
+              desc: "the binding's socket lives in protocols/agui and the web terminal in presentation; open sockets nowhere else"
+        agui-imports-are-closed:
+          list-mode: strict
           files:
-            - "**/internal/browser/**"
-            - "!$test"
+            - "**/internal/protocols/agui/**"
+          allow:
+            - $gostd
+            - github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events
+            - github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types
+            - github.com/google/uuid
+            - github.com/gorilla/websocket
+            - github.com/inference-gateway/cli/internal/platform/logger
+            - github.com/inference-gateway/cli/internal/protocols/agui
+            - github.com/inference-gateway/cli/tests/mocks/agui
           deny:
-            - pkg: github.com/inference-gateway/cli/internal/protocols/agui
-              desc: "the browser capability reaches the extension bridge through the injected ExtensionRequest; the container wires them"
+            - pkg: github.com/inference-gateway/cli/internal
+              desc: "agui is a general-purpose protocol package; the contexts import it and it imports none of them"
+            - pkg: github.com/inference-gateway/cli/config
+              desc: "agui takes its settings as plain values; the caller reads the config"
     gocyclo:
       min-complexity: 25
     cyclop:

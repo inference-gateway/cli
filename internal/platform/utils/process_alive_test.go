@@ -10,6 +10,11 @@ func TestProcessAlive(t *testing.T) {
 	if !ProcessAlive(os.Getpid()) {
 		t.Fatal("ProcessAlive(self) = false, want true")
 	}
+	for _, pid := range []int{0, -1} {
+		if ProcessAlive(pid) {
+			t.Fatalf("ProcessAlive(%d) = true, want false", pid)
+		}
+	}
 
 	cmd := exec.Command("sleep", "30")
 	if err := cmd.Start(); err != nil {

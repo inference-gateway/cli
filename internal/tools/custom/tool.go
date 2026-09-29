@@ -100,7 +100,7 @@ func (t *Tool) run(ctx context.Context, args map[string]any) (string, error) {
 	stderr := utils.NewOutputRingBuffer(maxCapturedBytes)
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	cmd.WaitDelay = pipeGrace
-	killProcessGroupOnCancel(cmd)
+	killProcessTreeOnCancel(cmd)
 
 	err = cmd.Run()
 	var exitErr *exec.ExitError

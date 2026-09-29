@@ -1,11 +1,9 @@
-package agui
+package headless
 
 import (
 	"context"
 	"sync"
 	"time"
-
-	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -13,6 +11,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
 // toolRequests runs panel-initiated tool calls through the standard pipeline:
@@ -20,6 +19,7 @@ import (
 // conversation recording the TUI's direct-exec path does.
 type toolRequests struct {
 	write    frameWriter
+	events   *agui.Run
 	service  agentdomain.ToolService
 	approval agentdomain.ApprovalPolicy
 	repo     convdomain.ConversationRepository
@@ -28,9 +28,10 @@ type toolRequests struct {
 	pending map[string]chan bool
 }
 
-func newToolRequests(write frameWriter, deps PanelDeps) *toolRequests {
+func newToolRequests(write frameWriter, events *agui.Run, deps PanelDeps) *toolRequests {
 	return &toolRequests{
 		write:    write,
+		events:   events,
 		service:  deps.Tools,
 		approval: deps.Approval,
 		repo:     deps.Conversations,
@@ -43,7 +44,7 @@ func newToolRequests(write frameWriter, deps PanelDeps) *toolRequests {
 // prompt surface.
 func (t *toolRequests) run(msg panelFrame) {
 	reply := func(success bool, output, errStr string) {
-		t.write(extToolResult{Type: outboundToolResult, ID: msg.ID, Success: success, Output: output, Error: errStr})
+		t.write(toolResultFrame{Type: outboundToolResult, ID: msg.ID, Success: success, Output: output, Error: errStr})
 	}
 
 	if !t.service.IsToolEnabled(msg.ToolName) {
@@ -85,12 +86,12 @@ func (t *toolRequests) awaitApproval(toolCall sdk.ChatCompletionMessageToolCall)
 	t.mu.Lock()
 	t.pending[toolCall.ID] = decision
 	t.mu.Unlock()
-	t.write(aguievents.NewCustomEvent("approval_request", aguievents.WithValue(ipc.ApprovalRequest{
+	t.events.Custom("approval_request", ipc.ApprovalRequest{
 		Type:       "approval_request",
 		ToolName:   toolCall.Function.Name,
 		ToolArgs:   toolCall.Function.Arguments,
 		ToolCallID: toolCall.ID,
-	})))
+	})
 	select {
 	case approved := <-decision:
 		return approved

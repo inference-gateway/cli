@@ -3,7 +3,6 @@ package container
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,7 +11,6 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -32,6 +30,7 @@ import (
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	daemon "github.com/inference-gateway/cli/internal/daemon"
 	gateway "github.com/inference-gateway/cli/internal/gateway"
 	githubissues "github.com/inference-gateway/cli/internal/github/issues"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
@@ -43,6 +42,7 @@ import (
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	plugins "github.com/inference-gateway/cli/internal/plugins"
+	headless "github.com/inference-gateway/cli/internal/presentation/headless"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	approvalcoord "github.com/inference-gateway/cli/internal/presentation/tui/approvalcoord"
@@ -56,7 +56,6 @@ import (
 	a2a "github.com/inference-gateway/cli/internal/protocols/a2a"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
-	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	mcp "github.com/inference-gateway/cli/internal/protocols/mcp"
 	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
@@ -156,7 +155,6 @@ type ServiceContainer struct {
 	directExecutionService   tui.DirectExecutionService
 	toolExecutionCoordinator tui.ToolExecutionCoordinator
 	uiNotifier               *uiNotifierHolder
-	extensionBridge          *agui.ExtensionBridge
 	browserDriver            browserdomain.BrowserDriver
 	screenRecorder           *computer.ScreenRecorder
 }
@@ -236,9 +234,8 @@ func (c *ServiceContainer) SetUINotifier(n agentdomain.UINotifier) {
 
 // initializeBrowserTools constructs the browser-use driver (a thin extension
 // adapter, or a lazily-launched Playwright session) and registers the browser
-// tools against it. The adapter talks to the opentask extension through the
-// bridge built in protocols/agui, which starts its WS server on
-// StartExtensionBridge.
+// tools against it. The extension adapter reaches the opentask extension
+// through the infer daemon, which hosts the binding and is started on demand.
 func (c *ServiceContainer) initializeBrowserTools() {
 	buCfg := &c.config.BrowserUse
 	if !buCfg.Enabled {
@@ -246,12 +243,7 @@ func (c *ServiceContainer) initializeBrowserTools() {
 	}
 
 	if buCfg.Backend == config.BrowserBackendExtension {
-		c.extensionBridge = agui.NewExtensionBridge(agui.Deps{
-			Extension:    buCfg.Extension,
-			Notifier:     c.uiNotifier,
-			ArtifactsDir: c.config.ArtifactsDir(),
-		})
-		c.browserDriver = browserinfra.NewExtensionDriver(buCfg, c.extensionBridge.Request)
+		c.browserDriver = browserinfra.NewExtensionDriver(buCfg, browserinfra.NewExtensionClient(buCfg.Extension, c.uiNotifier, daemon.EnsureRunning).Request)
 	} else {
 		c.browserDriver = browserinfra.NewSession(buCfg)
 	}
@@ -260,11 +252,11 @@ func (c *ServiceContainer) initializeBrowserTools() {
 }
 
 // RouteBrowserRequests rebuilds the extension browser tools over request instead
-// of the extension bridge's socket, so a headless serve worker relays browser
-// frames through its host and binds no port. Call it before the first run. No-op
-// unless the extension backend is selected.
+// of the extension client's socket, so a headless serve worker relays browser frames
+// through its host and binds no port. Call it before the first run. No-op unless
+// the extension backend is selected.
 func (c *ServiceContainer) RouteBrowserRequests(request func(ctx context.Context, id string, frame json.RawMessage) (json.RawMessage, error)) {
-	if c.extensionBridge == nil {
+	if c.browserDriver == nil || c.config.BrowserUse.Backend != config.BrowserBackendExtension {
 		return
 	}
 	c.browserDriver = browserinfra.NewExtensionDriver(&c.config.BrowserUse, request)
@@ -273,8 +265,8 @@ func (c *ServiceContainer) RouteBrowserRequests(request func(ctx context.Context
 
 // NewPanel builds the panel a headless serve worker answers its panel frames
 // with, over the worker's own conversation, skills, tools, models and modes.
-func (c *ServiceContainer) NewPanel(out io.Writer) *agui.Panel {
-	return agui.NewPanel(agui.PanelDeps{
+func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
+	return headless.NewPanel(headless.PanelDeps{
 		Conversations: c.conversationRepo,
 		Skills:        c.skillsService,
 		Tools:         c.toolService,
@@ -284,23 +276,6 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *agui.Panel {
 		History:       c.GetShellHistoryStorage(),
 		DefaultModel:  c.config.Agent.Model,
 	}, out)
-}
-
-// StartExtensionBridge starts the WebSocket server the opentask extension
-// dials into. Chat and headless call it eagerly - the extension must be able
-// to connect before the first tool call. No-op when the extension backend is
-// not selected. Errors are logged, and tool calls surface them too.
-func (c *ServiceContainer) StartExtensionBridge() {
-	if c.extensionBridge == nil {
-		return
-	}
-	if err := c.extensionBridge.Start(); err != nil {
-		if errors.Is(err, syscall.EADDRINUSE) {
-			logger.Info("extension bridge port is held by another infer process - browser tools will retry on use", "error", err)
-			return
-		}
-		logger.Warn("extension bridge failed to start - browser tools will report the error", "error", err)
-	}
 }
 
 // initializeGatewayManager creates the gateway manager (but does not start it)
@@ -1087,10 +1062,6 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	}
 
 	c.telemetryRecorder.Shutdown(ctx)
-
-	if c.extensionBridge != nil {
-		c.extensionBridge.Close()
-	}
 
 	if c.browserDriver != nil {
 		c.browserDriver.Close()

@@ -28,7 +28,7 @@ func newCapturingDriver(t *testing.T, replay extensionResult) (*ExtensionDriver,
 		if err := json.Unmarshal(frame, &cmd); err != nil {
 			t.Errorf("bad browser_command frame: %v", err)
 		}
-		if cmd.ID != id || cmd.Type != outboundBrowserCommand || cmd.TimeoutMs != 2000 {
+		if cmd.ID != id || cmd.Type != frameBrowserCommand || cmd.TimeoutMs != 2000 {
 			t.Errorf("frame id/type/timeout_ms mismatch: %s", frame)
 		}
 		calls = append(calls, cmd)

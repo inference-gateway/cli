@@ -15,7 +15,6 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
 const resumeContinuePrompt = "Please continue from where you left off."
@@ -47,7 +46,7 @@ type headlessControl struct {
 	// browser, set by the serve worker, receives the browser_result lines.
 	browser *stdioBrowser
 	// panel, set by the serve worker, answers the panel frames first.
-	panel *agui.Panel
+	panel *Panel
 }
 
 func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentdomain.ComputerUsePause, messageQueue convdomain.MessageQueue, sessionID string) *headlessControl {

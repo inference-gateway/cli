@@ -14,11 +14,9 @@ import (
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 )
 
-// Frame and action names of the browser_command wire contract, as documented in
+// Action names of the browser_command wire contract, as documented in
 // docs/browser-extension-protocol.md.
 const (
-	outboundBrowserCommand = "browser_command"
-
 	browserActionNavigate   = "navigate"
 	browserActionClick      = "click"
 	browserActionType       = "type"
@@ -32,9 +30,9 @@ const defaultActionTimeoutSeconds = 30
 
 const defaultScreenshotMimeType = "image/png"
 
-// ExtensionRequest sends one browser frame to the extension bridge and waits
-// for the browser_result carrying id. The container injects the bridge's
-// Request method, so this adapter touches no protocol package.
+// ExtensionRequest sends one browser_command frame and waits for the
+// browser_result carrying id. The container injects the transport: the
+// ExtensionClient's socket, or a serve worker's stdio relay.
 type ExtensionRequest func(ctx context.Context, id string, frame json.RawMessage) (json.RawMessage, error)
 
 // extensionCommand is the browser_command frame the extension understands.
@@ -63,8 +61,8 @@ type extensionResult struct {
 
 // ExtensionDriver implements browserdomain.BrowserDriver against the opentask
 // extension. It builds browser_command frames, owns the per-action timeout and
-// maps results to BrowserToolResult, leaving the socket itself behind the
-// injected ExtensionRequest.
+// maps results to BrowserToolResult, leaving the transport behind the injected
+// ExtensionRequest.
 type ExtensionDriver struct {
 	request    ExtensionRequest
 	actionWait time.Duration
@@ -156,17 +154,17 @@ func (d *ExtensionDriver) Tabs(ctx context.Context) ([]browserdomain.BrowserTab,
 	return result.Tabs, nil
 }
 
-// Close implements browserdomain.BrowserDriver. The container closes the
-// bridge, and the driver owns nothing to shut down.
+// Close implements browserdomain.BrowserDriver. The driver owns nothing to
+// shut down.
 func (d *ExtensionDriver) Close() {}
 
 // send dispatches one browser command and waits for its result. The deadline
 // gives the extension its own in-frame timeout plus a reply margin.
 func (d *ExtensionDriver) send(ctx context.Context, cmd extensionCommand) (*extensionResult, error) {
-	ctx, cancel := context.WithTimeout(ctx, d.actionWait+5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, d.actionWait+commandReplyMargin)
 	defer cancel()
 
-	cmd.Type = outboundBrowserCommand
+	cmd.Type = frameBrowserCommand
 	cmd.ID = uuid.NewString()
 	cmd.TimeoutMs = int(d.actionWait / time.Millisecond)
 	frame, err := json.Marshal(cmd)

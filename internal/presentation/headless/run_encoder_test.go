@@ -1,4 +1,4 @@
-package agui
+package headless
 
 import (
 	"context"
@@ -71,10 +71,10 @@ func TestRunEncoder_FinishEmitsOneTerminalEvent(t *testing.T) {
 			wantErr:     context.Canceled,
 		},
 		{
-			name: "computer-use resume clears the cancellation",
+			name: "a published resume clears the cancellation",
 			events: []agentdomain.ChatEvent{
 				agentdomain.ChatCompleteEvent{Cancelled: true},
-				agentdomain.ComputerUseResumedEvent{RequestID: "s1"},
+				noticeEvent{Name: "resumed", Resumes: true},
 				agentdomain.ChatCompleteEvent{},
 			},
 			wantType:    "RUN_FINISHED",
@@ -90,7 +90,7 @@ func TestRunEncoder_FinishEmitsOneTerminalEvent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out strings.Builder
-			r := NewRunEncoder(&out, "m", &convmocks.FakeConversationRepository{}, nil, nil, nil, nil)
+			r := NewRunEncoder(&out, "m", &convmocks.FakeConversationRepository{}, nil, nil, nil, nil, publishNotice)
 			r.Start("s1", "run-1")
 			for _, ev := range tt.events {
 				r.Handle(ev)
@@ -142,7 +142,7 @@ func TestRunEncoder_StartSnapshotsRestoredHistory(t *testing.T) {
 
 func TestRunEncoder_EmitsOneWritePerEvent(t *testing.T) {
 	w := &writeRecordingWriter{}
-	r := &RunEncoder{w: w}
+	r := NewRunEncoder(w, "m", nil, nil, nil, nil, nil)
 	r.Start("s1", "run-1")
 	r.Handle(agentdomain.ChatChunkEvent{Content: "hello"})
 	r.Handle(agentdomain.ChatCompleteEvent{})

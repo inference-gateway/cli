@@ -1,5 +1,9 @@
 package domain
 
+import (
+	"context"
+)
+
 // ThreadKey identifies a thread: the project dir its worker runs in and the
 // conversation the worker carries.
 type ThreadKey struct {
@@ -35,9 +39,8 @@ type Client interface {
 	Deliver(frame []byte)
 }
 
-// Threads is the port the driving adapters use. Handle routes one client frame
-// to the thread it belongs to, and Detach drops a client that disconnected.
-type Threads interface {
-	Handle(client Client, frame []byte)
-	Detach(client Client)
-}
+// BrowserRelay forwards one browser_command frame from a session worker to the
+// connected browser extension and always answers with the browser_result
+// carrying the frame's id, a failure included. The host wires the relay, which
+// serializes commands for the one browser.
+type BrowserRelay func(ctx context.Context, frame []byte) []byte

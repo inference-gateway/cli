@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"io"
 	"slices"
 	"testing"
 
@@ -49,5 +50,21 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 				t.Errorf("workerEnv = %q, want %q", got, tt.wantEnv)
 			}
 		})
+	}
+}
+
+// TestWorkerHangUpInterruptsAndClosesStdin checks the stop signal a worker gets
+// on every platform: an interrupt frame for the running turn, then stdin EOF.
+func TestWorkerHangUpInterruptsAndClosesStdin(t *testing.T) {
+	reader, writer := io.Pipe()
+	w := &processWorker{stdin: writer}
+	go func() { _ = w.hangUp() }()
+
+	got, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("reading the worker's stdin: %v", err)
+	}
+	if string(got) != "{\"type\":\"interrupt\"}\n" {
+		t.Fatalf("the worker read %q, want one interrupt line then EOF", got)
 	}
 }

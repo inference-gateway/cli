@@ -17,6 +17,10 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   the worker launches.
 - **Forwarded frames** - `user_message`, `interrupt`, `user_question_response` and `computer_use_control` go
   to the client's thread unchanged. A `user_message` relaunches a thread whose worker exited.
+- **Browser commands** - a `browser_command` line on a worker's stdout routes through the `BrowserRelay`
+  (`RouteBrowser`, which the daemon wires to the browser context's extension relay) and the `browser_result` carrying the command's `id` goes
+  back to that worker's stdin, so the worker's Browser tools resolve without binding a port. Commands serialize
+  across threads, because one browser serves them, and the thread's clients never see the frames.
 - **Panel requests** - `list_*`, `select_model`, `set_mode` and `tool_request` run on the client's thread
   when it is in the frame's `project_dir`, else on any live worker there, else on a fresh idle one. The reply
   (`conversations`, `models`, `tool_result`, ...) goes back to the requester only.
@@ -27,16 +31,17 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
 
 ## How it plugs in
 
-- `domain/` holds the ports: `Threads` (what driving adapters call), `Client` (a connection frames are
-  delivered to), `Worker` and `LaunchWorker`.
-- The AG-UI binding in `internal/protocols/agui` is a driving adapter: each WebSocket connection is a
-  `Client`, and it calls `Handle` per frame and `Detach` on disconnect.
+- `domain/` holds the ports: `Client` (a connection frames are delivered to), `Worker`, `LaunchWorker` and
+  `BrowserRelay`.
+- `Registry.Handle` and `Registry.Detach` are what a driving adapter calls, per frame and on disconnect. This
+  context imports no protocol: `cmd/daemon` puts the registry behind the AG-UI binding's handler, and each
+  connection is a `Client`.
 - The Telegram channel becomes a driving adapter too, with one `Client` per chat speaking the same ipc
   frames.
 - `infrastructure.LaunchWorker` is the worker adapter. It runs this binary as
   `headless --serve --require-approval` in the project dir, with the thread options as flags and `INFER_`
-  env overrides, and it stops the worker with SIGTERM so the worker's gateway, MCP servers and containers
-  shut down.
+  env overrides. It stops the worker with an `interrupt` frame and stdin EOF, which works on every platform, so
+  the worker's gateway, MCP servers and containers shut down.
 - `cmd/daemon` wires the registry behind the binding when `browser_use` is enabled with the extension
   backend.
 

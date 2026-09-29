@@ -20,6 +20,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	computer "github.com/inference-gateway/cli/internal/computer"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	gateway "github.com/inference-gateway/cli/internal/gateway"
@@ -32,7 +33,6 @@ import (
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
-	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	tools "github.com/inference-gateway/cli/internal/tools"
@@ -44,7 +44,6 @@ var fileRefPattern = regexp.MustCompile(`@([^\s]+)`)
 // Services is the slice of the composition root a headless run uses.
 // cmd/headless supplies the *container.ServiceContainer.
 type Services interface {
-	StartExtensionBridge()
 	RouteBrowserRequests(request func(ctx context.Context, id string, frame json.RawMessage) (json.RawMessage, error))
 	SetUINotifier(n agentdomain.UINotifier)
 	Shutdown(ctx context.Context) error
@@ -65,7 +64,7 @@ type Services interface {
 	GetShortcutRegistry() *shortcuts.Registry
 	GetBackgroundTaskRegistry() scheddomain.BackgroundTaskRegistry
 	GetTelemetryRecorder() *telemetry.Recorder
-	NewPanel(out io.Writer) *agui.Panel
+	NewPanel(out io.Writer) *Panel
 }
 
 // Options carries the headless command's flag values.
@@ -133,9 +132,6 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 	svc := newServices()
 	notifications := make(uiBridge, 8)
 	svc.SetUINotifier(notifications)
-	if !opts.Serve {
-		svc.StartExtensionBridge()
-	}
 	shutdown := sync.OnceFunc(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
@@ -384,33 +380,28 @@ func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals 
 	case "json-pretty":
 		return render.RenderJSONPretty(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "ag-ui":
-		r := agui.NewRunEncoder(os.Stdout, model, repo, history, jobs, approvals, questions)
-		r.Start(sessionID, uuid.New().String())
-		for event := range events {
-			r.Handle(event)
-		}
-		return r.Finish()
+		return renderAGUI(events, os.Stdout, approvals, questions, sessionID, model, repo, history, jobs, computer.PublishedEvent)
 	default:
 		return render.RenderText(events, os.Stdout)
 	}
 }
 
-// agentStartupEmitter returns the format's agent-status emitter: the agui
-// context's custom events for ag-ui, render's JSON agent_status lines for the
-// other machine formats.
+// agentStartupEmitter returns the format's agent-status emitter: AG-UI custom
+// events for ag-ui, render's JSON agent_status lines for the other machine
+// formats.
 func agentStartupEmitter(w io.Writer, format string) func(name, state, message string, done, total int) {
 	if format == "ag-ui" {
-		return agui.AgentStartupEmitter(w)
+		return aguiStartupEmitter(w)
 	}
 	return render.AgentStartupEmitter(w, format)
 }
 
 // emitPreRunError reports a failure that happened before the event stream
-// started in the format's machine shape: a RUN_ERROR event from the agui
-// context for ag-ui, render's agent_error lines for the JSON formats.
+// started in the format's machine shape: an AG-UI RUN_ERROR event for ag-ui,
+// render's agent_error lines for the JSON formats.
 func emitPreRunError(w io.Writer, format string, err error) {
 	if format == "ag-ui" {
-		agui.EmitRunError(w, err)
+		emitAGUIRunError(w, err)
 		return
 	}
 	render.EmitPreRunError(w, format, err)

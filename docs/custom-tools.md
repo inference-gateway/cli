@@ -121,8 +121,8 @@ instead of silently falling back to a default.
 4. **Exit code 0**: stdout is the tool result, as text.
    **Non-zero exit code**: the call fails, and stderr (or stdout when stderr is empty) goes back to the model as the
    error.
-5. The process is killed when `timeout` expires or the turn is cancelled. On Linux and macOS the whole process group
-   is killed, so the children a script started die too. On Windows only the direct child is killed.
+5. The process is killed when `timeout` expires or the turn is cancelled, together with every process it started, so
+   the children a script started die too. This holds on Linux, macOS and Windows.
 
 Like every tool result, the output the model sees is capped at `tools.max_result_bytes`.
 

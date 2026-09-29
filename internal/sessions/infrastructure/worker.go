@@ -12,15 +12,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// workerStopGrace is how long a worker gets after SIGTERM to shut its gateway,
-// MCP servers and containers down before it is killed.
+// workerStopGrace is how long a worker gets after its hang-up to shut its
+// gateway, MCP servers and containers down before it is killed.
 // ponytail: no process group, so a kill after the grace orphans the worker's
 // own children. Setpgid plus a group kill if that ever shows up.
 const workerStopGrace = 25 * time.Second
@@ -49,7 +48,6 @@ func LaunchWorker(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOption
 	cmd.Dir = key.ProjectDir
 	cmd.Env = append(os.Environ(), workerEnv(key, opts)...)
 	cmd.Stderr = os.Stderr
-	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 	cmd.WaitDelay = workerStopGrace
 
 	stdin, err := cmd.StdinPipe()
@@ -62,12 +60,13 @@ func LaunchWorker(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOption
 		cancel()
 		return nil, err
 	}
+	w := &processWorker{ctx: ctx, cancel: cancel, stdin: stdin, lines: make(chan []byte, 64), done: make(chan struct{})}
+	cmd.Cancel = w.hangUp
 	if err := cmd.Start(); err != nil {
 		cancel()
 		return nil, fmt.Errorf("starting the session worker: %w", err)
 	}
 
-	w := &processWorker{ctx: ctx, cancel: cancel, stdin: stdin, lines: make(chan []byte, 64), done: make(chan struct{})}
 	go w.read(cmd, stdout, key)
 	return w, nil
 }
@@ -144,7 +143,17 @@ func (w *processWorker) Lines() <-chan []byte {
 	return w.lines
 }
 
-// Stop sends SIGTERM, which runs the worker's own cleanup, and waits for it to
+// hangUp asks the worker to stop the same way on every platform: an interrupt
+// frame ends the running turn, and stdin EOF makes the worker run its own
+// cleanup and exit. The grace period's kill covers a worker that does not.
+func (w *processWorker) hangUp() error {
+	_ = w.Send([]byte(`{"type":"interrupt"}`))
+	w.sendMu.Lock()
+	defer w.sendMu.Unlock()
+	return w.stdin.Close()
+}
+
+// Stop hangs the worker up, which runs its own cleanup, and waits for it to
 // exit, killing it after the grace period.
 func (w *processWorker) Stop() {
 	w.cancel()

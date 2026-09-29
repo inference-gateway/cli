@@ -13,9 +13,18 @@ one. This document is the wire contract the clients implement.
 - `infer daemon` listens on `ws://127.0.0.1:<port>/ws` (default port `52789`,
   `browser_use.yaml` → `extension.port`) when `browser_use` is enabled with
   `backend: extension`. Clients dial in — MV3 service workers cannot listen.
-- `infer chat` binds the same port for browser commands only. Whichever process
-  binds first holds it, and the daemon retries every few seconds until the port
-  frees. Browser commands from daemon threads are not routed to the extension yet.
+- Only the daemon binds the port. `infer chat` and a standalone `infer headless`
+  reach the browser as browser clients through the daemon (`client: "browser"` in
+  the hello) and start `infer daemon` when nothing is listening. A session
+  worker's `browser_command` stdout lines are routed to the extension connection
+  by the daemon, and each `browser_result` goes back to that worker by `id`.
+  Commands serialize across threads because one browser serves them.
+- The daemon started this way runs in the background and outlives the `infer`
+  process that started it. It shares that process's terminal, so closing the
+  terminal stops it too, and the next browser call starts another. It loads the
+  config of the directory it was started from and runs everything that config
+  enables, including channels, the scheduler and the heartbeat. Stop it by
+  signalling the pid in `~/.infer/run/daemon.pid`.
 - Every frame is a single JSON text message with a `type` discriminator.
   AG-UI events use an uppercase `type` and app frames a lowercase one. Unknown
   `type` values MUST be ignored (forward compatibility).
@@ -48,7 +57,7 @@ Client → CLI, first frame, within 5 seconds of connecting:
 {"type": "browser_hello", "token": "<shared secret>", "client": "extension", "protocol_version": 1, "extension_version": "1.9.2"}
 ```
 
-- `client` is `extension` or `desktop`. An absent or unknown value counts as
+- `client` is `extension`, `desktop` or `browser`. An absent or unknown value counts as
   `extension`.
 - The handshake is lenient: any hello with a valid token is accepted. A hello
   without `protocol_version` is logged as a warning.
@@ -308,19 +317,19 @@ with a fresh `mode` frame either way:
 
 Chat text can reference files the agent saved under the artifacts dir
 (`~/.infer/projects/<project-slug>/artifacts/<...>`, e.g. `ImageGeneration`
-output). An MV3 extension
-cannot load a local file path in `<img>`, so alongside `/ws` the CLI serves that
-directory read-only over HTTP. Only `infer chat`'s binding serves it, because
-the artifacts dir is per project:
+output). An MV3 extension cannot load a local file path in `<img>`, so it
+rewrites a markdown image whose URL contains `/artifacts/` to this route
+(stripping the prefix through and including `artifacts/`) and renders it
+inline:
 
 ```text
 GET http://127.0.0.1:<port>/artifacts/<relative-path>
 ```
 
-The extension rewrites a markdown image whose URL contains `/artifacts/`
-to this route (stripping the prefix through and including `artifacts/`) and
-renders it inline. The route is loopback-only and unauthenticated (the artifacts
-are the user's own generated files); path traversal is blocked by `http.Dir`.
+**The daemon's binding does not serve this route, and it answers 404.** One
+daemon serves many projects, while the route names no project and so cannot
+map to one artifacts dir. Images the agent generated do not render in the
+panel until the route is served per project.
 
 ## Tool approvals
 

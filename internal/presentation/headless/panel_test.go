@@ -1,4 +1,4 @@
-package agui
+package headless
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -230,32 +231,31 @@ func TestPanelSetMode(t *testing.T) {
 	}
 }
 
-// fakeHistoryStore is an in-memory storage.ShellHistoryStorage.
-type fakeHistoryStore struct {
-	mu      sync.Mutex
-	entries []string
-}
-
-func (f *fakeHistoryStore) AppendHistory(_ context.Context, command string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.entries = append(f.entries, command)
-	return nil
-}
-
-func (f *fakeHistoryStore) LoadHistory(_ context.Context, limit int) ([]string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	out := f.entries
-	if limit > 0 && len(out) > limit {
-		out = out[len(out)-limit:]
-	}
-	return append([]string{}, out...), nil
+// historyStore is a shell history store that keeps entries in memory.
+func historyStore(entries ...string) *storagemocks.FakeShellHistoryStorage {
+	var mu sync.Mutex
+	store := &storagemocks.FakeShellHistoryStorage{}
+	store.AppendHistoryCalls(func(_ context.Context, command string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		entries = append(entries, command)
+		return nil
+	})
+	store.LoadHistoryCalls(func(_ context.Context, limit int) ([]string, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		out := entries
+		if limit > 0 && len(out) > limit {
+			out = out[len(out)-limit:]
+		}
+		return append([]string{}, out...), nil
+	})
+	return store
 }
 
 func TestPanelHistoryRoundTrip(t *testing.T) {
 	deps := panelDeps()
-	deps.History = &fakeHistoryStore{entries: []string{"from the tui"}}
+	deps.History = historyStore("from the tui")
 	p, sink := startPanel(deps)
 
 	for _, msg := range []string{"first", "first", "  ", "second"} {
@@ -382,7 +382,7 @@ func TestPanelToolRequestRecordedInConversation(t *testing.T) {
 
 func TestPanelIgnoresUnknownFrames(t *testing.T) {
 	p, _ := startPanel(panelDeps())
-	for _, typ := range []string{"interrupt", "user_question_response", "computer_use_control", "browser_result"} {
+	for _, typ := range []string{"interrupt", "user_question_response", "unknown_frame"} {
 		if handle(t, p, map[string]any{"type": typ}) {
 			t.Fatalf("%s must not be consumed by the panel", typ)
 		}
