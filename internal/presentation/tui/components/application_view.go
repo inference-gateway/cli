@@ -46,15 +46,16 @@ func (r *ApplicationViewRenderer) Layout(
 	approvalBoxView *ApprovalBoxView,
 	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
+	historySearch *HistorySearchView,
 ) {
 	if data.Width == 0 || data.Height == 0 {
 		return
 	}
 
-	r.heights = r.calculateComponentHeights(data, data.Height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments)
+	r.heights = r.calculateComponentHeights(data, data.Height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch)
 
 	r.setComponentDimensions(data.Width, conversationView, inputView, autocomplete, inputStatusBar, statusView,
-		queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, r.heights)
+		queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch, r.heights)
 }
 
 // RenderChatInterface renders the main chat interface using the sizes set by
@@ -73,6 +74,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	approvalBoxView *ApprovalBoxView,
 	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
+	historySearch *HistorySearchView,
 ) string {
 	width := data.Width
 
@@ -81,23 +83,24 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	inputArea := inputView.Render()
 
 	components := r.assembleComponents(data, header, conversationArea, inputArea, conversationView, statusView, modeIndicator,
-		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, width, r.heights.statusHeight)
+		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch, width, r.heights.statusHeight)
 
 	return strings.Join(components, "\n")
 }
 
 // componentHeights holds calculated heights for various components
 type componentHeights struct {
-	headerHeight       int
-	helpBarHeight      int
-	queueBoxHeight     int
-	todoBoxHeight      int
-	approvalBoxHeight  int
-	questionBoxHeight  int
-	attachmentsHeight  int
-	conversationHeight int
-	inputHeight        int
-	statusHeight       int
+	headerHeight        int
+	helpBarHeight       int
+	queueBoxHeight      int
+	todoBoxHeight       int
+	approvalBoxHeight   int
+	questionBoxHeight   int
+	attachmentsHeight   int
+	historySearchHeight int
+	conversationHeight  int
+	inputHeight         int
+	statusHeight        int
 }
 
 // calculateComponentHeights calculates the heights for all components
@@ -111,6 +114,7 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 	approvalBoxView *ApprovalBoxView,
 	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
+	historySearch *HistorySearchView,
 ) componentHeights {
 	if approvalBoxView != nil {
 		approvalBoxView.SetHeight(totalHeight)
@@ -140,6 +144,10 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 		heights.attachmentsHeight = snippetAttachments.GetHeight()
 	}
 
+	if historySearch != nil {
+		heights.historySearchHeight = historySearch.GetHeight()
+	}
+
 	if approvalBoxView != nil {
 		approvalContent := approvalBoxView.Render()
 		if approvalContent != "" {
@@ -158,7 +166,7 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 
 	adjustedHeight := totalHeight - heights.headerHeight - heights.helpBarHeight -
 		heights.queueBoxHeight - heights.todoBoxHeight - heights.approvalBoxHeight -
-		heights.questionBoxHeight - heights.attachmentsHeight
+		heights.questionBoxHeight - heights.attachmentsHeight - heights.historySearchHeight
 	heights.conversationHeight = tui.CalculateConversationHeight(adjustedHeight)
 	heights.inputHeight = tui.CalculateInputHeight(adjustedHeight)
 	heights.statusHeight = tui.CalculateStatusHeight(adjustedHeight)
@@ -183,6 +191,7 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	approvalBoxView *ApprovalBoxView,
 	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
+	historySearch *HistorySearchView,
 	heights componentHeights,
 ) {
 	conversationWidth := formatting.GetResponsiveWidth(width)
@@ -218,6 +227,10 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	if questionFormView != nil {
 		questionFormView.SetWidth(width)
 	}
+
+	if historySearch != nil {
+		historySearch.SetWidth(width)
+	}
 }
 
 // renderHeader renders the header section
@@ -243,6 +256,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 	approvalBoxView *ApprovalBoxView,
 	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
+	historySearch *HistorySearchView,
 	width, statusHeight int,
 ) []string {
 	components := []string{header, "", conversationArea}
@@ -252,6 +266,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 	components = r.appendStatusRow(components, statusView, modeIndicator, width, statusHeight)
 	components = r.appendApprovalBox(components, approvalBoxView)
 	components = r.appendQuestionForm(components, questionFormView)
+	components = r.appendHistorySearch(components, historySearch)
 	components = append(components, inputArea)
 	components = r.appendSnippetAttachments(components, snippetAttachments)
 	components = r.appendAutocomplete(components, autocomplete)
@@ -361,6 +376,20 @@ func (r *ApplicationViewRenderer) appendQuestionForm(
 	if questionFormView != nil {
 		if questionContent := questionFormView.Render(); questionContent != "" {
 			components = append(components, "", questionContent)
+		}
+	}
+	return components
+}
+
+// appendHistorySearch renders the Ctrl+R prompt-history search overlay above
+// the input while it is open
+func (r *ApplicationViewRenderer) appendHistorySearch(
+	components []string,
+	historySearch *HistorySearchView,
+) []string {
+	if historySearch != nil {
+		if content := historySearch.Render(); content != "" {
+			components = append(components, "", content)
 		}
 	}
 	return components

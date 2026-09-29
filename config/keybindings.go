@@ -130,7 +130,7 @@ func addChatBindings(bindings map[string]KeyBindingEntry) {
 func addDisplayBindings(bindings map[string]KeyBindingEntry) {
 	enabled := true
 	bindings[ActionID(NamespaceDisplay, "toggle_raw_format")] = KeyBindingEntry{
-		Keys:        []string{"ctrl+r"},
+		Keys:        []string{"ctrl+m", "alt+m"},
 		Description: "toggle raw/rendered markdown",
 		Category:    "display",
 		Enabled:     &enabled,
@@ -278,6 +278,12 @@ func addTextEditingBindings(bindings map[string]KeyBindingEntry) {
 	bindings[ActionID(NamespaceTextEditing, "history_down")] = KeyBindingEntry{
 		Keys:        []string{"down"},
 		Description: "navigate to next message in history / select status indicator",
+		Category:    "text_editing",
+		Enabled:     &enabled,
+	}
+	bindings[ActionID(NamespaceTextEditing, "history_search")] = KeyBindingEntry{
+		Keys:        []string{"ctrl+r"},
+		Description: "fuzzy search prompt history",
 		Category:    "text_editing",
 		Enabled:     &enabled,
 	}

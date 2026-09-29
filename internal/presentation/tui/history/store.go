@@ -2,6 +2,7 @@ package history
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
@@ -164,6 +165,11 @@ func (hm *Store) ResetNavigation() {
 // GetHistoryCount returns the total number of commands in history
 func (hm *Store) GetHistoryCount() int {
 	return len(hm.allHistory)
+}
+
+// GetAllHistory returns a copy of the combined prompt history, oldest to newest.
+func (hm *Store) GetAllHistory() []string {
+	return slices.Clone(hm.allHistory)
 }
 
 // IsNavigating returns true if currently navigating through history

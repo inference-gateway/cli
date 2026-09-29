@@ -122,6 +122,11 @@ type ChatApplication struct {
 	// with arrow-down when input-history navigation is idle.
 	statusBarFocused bool
 
+	// Ctrl+R fuzzy prompt-history search overlay: holds key focus while open
+	// and renders above the input.
+	historySearchView    *components.HistorySearchView
+	historySearchFocused bool
+
 	// Key binding system
 	keyBindingManager *keybinding.Dispatcher
 
@@ -284,6 +289,7 @@ func NewChatApplication(
 	app.queueBoxView.SetToolFormatter(toolFormatterService)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
 	app.snippetAttachmentsView = components.NewSnippetAttachmentsView(styleProvider)
+	app.historySearchView = components.NewHistorySearchView(styleProvider)
 	app.focusAttachments = focusAttachmentsBinding(app.config.Chat.Keybindings)
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
 	app.questionFormView = components.NewQuestionFormView(styleProvider, app.stateManager)
@@ -754,6 +760,10 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	if _, ok := msg.(tui.HistorySearchOpenEvent); ok {
+		return app.handleHistorySearchOpen()
+	}
+
 	if pasteMsg, ok := msg.(tea.PasteMsg); ok {
 		if cmd := keybinding.HandlePasteEvent(app, pasteMsg.Content); cmd != nil {
 			return []tea.Cmd{cmd}
@@ -795,6 +805,11 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 
 	if cv, ok := app.conversationView.(*components.ConversationView); ok && cv.IsInMessageHistoryMode() {
 		return app.handleMessageHistoryKeys(keyMsg)
+	}
+
+	if app.historySearchFocused && !key.Matches(keyMsg, guardKeys.interrupt) {
+		app.lastHandledKey = keyMsg.String()
+		return app.handleHistorySearchKey(keyMsg)
 	}
 
 	if app.attachmentsFocused && !key.Matches(keyMsg, guardKeys.interrupt) {
@@ -2003,6 +2018,7 @@ func (app *ChatApplication) layoutChatInterface() {
 		app.approvalBoxView,
 		app.questionFormView,
 		app.snippetAttachmentsView,
+		app.historySearchView,
 	)
 }
 
@@ -2023,6 +2039,7 @@ func (app *ChatApplication) renderChatInterface() string {
 		app.approvalBoxView,
 		app.questionFormView,
 		app.snippetAttachmentsView,
+		app.historySearchView,
 	)
 
 	return chatInterface
@@ -2488,6 +2505,53 @@ func (app *ChatApplication) ToggleToolResultExpansion() {
 // ToggleThinkingExpansion toggles thinking block expansion
 func (app *ChatApplication) ToggleThinkingExpansion() {
 	app.conversationView.ToggleAllThinkingExpansion()
+}
+
+// handleHistorySearchOpen opens the Ctrl+R fuzzy prompt-history search overlay
+// over the current project's prompt history
+func (app *ChatApplication) handleHistorySearchOpen() []tea.Cmd {
+	if app.historySearchView == nil {
+		return nil
+	}
+	iv, ok := app.inputView.(*components.InputView)
+	if !ok || iv.GetHistoryManager() == nil {
+		return nil
+	}
+	app.historySearchView.Open(iv.GetHistoryManager().GetAllHistory())
+	app.historySearchFocused = true
+	if app.autocomplete != nil {
+		app.autocomplete.Hide()
+	}
+	return nil
+}
+
+// handleHistorySearchKey drives the history search overlay. Enter loads the
+// selected prompt into the input for editing without sending it, and Esc
+// closes the overlay leaving the input untouched.
+func (app *ChatApplication) handleHistorySearchKey(keyMsg tea.KeyPressMsg) []tea.Cmd {
+	outcome, entry := app.historySearchView.HandleKey(keyMsg)
+	if !app.historySearchView.IsVisible() {
+		app.historySearchFocused = false
+	}
+
+	if outcome != components.HistorySearchAccepted || entry == "" {
+		return nil
+	}
+
+	input := app.GetInputView()
+	if input != nil {
+		input.SetText(entry)
+		input.SetCursor(len(entry))
+	}
+	return []tea.Cmd{
+		func() tea.Msg {
+			return tui.ScrollRequestEvent{
+				ComponentID: "conversation",
+				Direction:   tui.ScrollToBottom,
+				Amount:      0,
+			}
+		},
+	}
 }
 
 // ToggleRawFormat toggles between raw and rendered markdown display

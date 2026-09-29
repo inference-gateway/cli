@@ -143,7 +143,7 @@ func newInputTextarea(placeholder string) textarea.Model {
 	ta.ShowLineNumbers = false
 	ta.EndOfBufferCharacter = 0
 	ta.Prompt = ""
-	ta.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("enter", "ctrl+m", "ctrl+j", "alt+enter", "shift+enter", "super+enter"))
+	ta.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("enter", "ctrl+j", "alt+enter", "shift+enter", "super+enter"))
 	ta.KeyMap.WordBackward = key.NewBinding(key.WithKeys("alt+left", "ctrl+left", "alt+b"))
 	ta.KeyMap.WordForward = key.NewBinding(key.WithKeys("alt+right", "ctrl+right", "alt+f"))
 	ta.KeyMap.DeleteCharacterBackward = key.NewBinding(key.WithKeys("backspace", "shift+backspace"))
