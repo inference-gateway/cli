@@ -73,7 +73,7 @@ func TestTool_ExecuteRejectsInvalidArgumentsBeforeStarting(t *testing.T) {
 	}
 }
 
-func TestTool_ExecuteTimeoutKillsTheProcessGroup(t *testing.T) {
+func TestTool_ExecuteTimeoutKillsTheProcessTree(t *testing.T) {
 	tool, dir := scriptTool(t, "sleep 30 &\necho $! > \"$DIR/child.pid\"\nwait\n")
 	tool.timeout = 500 * time.Millisecond
 
