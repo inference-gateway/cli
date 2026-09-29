@@ -33,6 +33,11 @@ type Worker interface {
 // LaunchWorker starts the worker for a thread.
 type LaunchWorker func(key ThreadKey, opts ThreadOptions) (Worker, error)
 
+// EnsureDaemon makes an infer daemon, the host of every thread, listen on the
+// binding port, starting one when none does. A browser client calls it before
+// dialing the binding.
+type EnsureDaemon func(ctx context.Context, port int) error
+
 // Client is one connected client of a thread, such as a WebSocket connection.
 // Deliver hands it one frame.
 type Client interface {

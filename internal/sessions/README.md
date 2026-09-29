@@ -41,6 +41,9 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   `headless --serve --require-approval` in the project dir, with the thread options as flags and `INFER_`
   env overrides, and it stops the worker with SIGTERM so the worker's gateway, MCP servers and containers
   shut down.
+- `infrastructure.EnsureDaemon` implements the `EnsureDaemon` port: when nothing listens on the binding port it
+  starts this binary as `infer daemon` in the background and waits for the port. The container hands it to the
+  agui `DaemonClient`, so `infer chat` and a standalone headless boot the daemon on their first Browser call.
 - `cmd/daemon` wires the registry behind the binding when `browser_use` is enabled with the extension
   backend.
 

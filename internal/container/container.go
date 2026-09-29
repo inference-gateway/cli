@@ -61,6 +61,7 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
+	sessionsinfra "github.com/inference-gateway/cli/internal/sessions/infrastructure"
 	skills "github.com/inference-gateway/cli/internal/skills"
 	tools "github.com/inference-gateway/cli/internal/tools"
 	customtools "github.com/inference-gateway/cli/internal/tools/custom"
@@ -243,7 +244,7 @@ func (c *ServiceContainer) initializeBrowserTools() {
 	}
 
 	if buCfg.Backend == config.BrowserBackendExtension {
-		c.browserDriver = browserinfra.NewExtensionDriver(buCfg, agui.NewDaemonClient(buCfg.Extension, c.uiNotifier).Request)
+		c.browserDriver = browserinfra.NewExtensionDriver(buCfg, agui.NewDaemonClient(buCfg.Extension, c.uiNotifier, sessionsinfra.EnsureDaemon).Request)
 	} else {
 		c.browserDriver = browserinfra.NewSession(buCfg)
 	}

@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -16,12 +13,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
-
-// daemonBootWait bounds how long a Request waits for a daemon this process
-// just started to bind the binding port.
-const daemonBootWait = 15 * time.Second
 
 // daemonHello is the first frame the client sends. A browser client only
 // speaks browser frames, so it never claims the extension's connection slot.
@@ -35,12 +28,12 @@ type daemonHello struct {
 // DaemonClient reaches the browser through the infer daemon, which hosts the
 // binding and owns the extension connection. It dials the binding as a browser
 // client and resolves each browser_command with the browser_result carrying
-// the same id. When nothing listens it starts the daemon, so infer chat and a
-// standalone headless boot one on their first Browser call.
+// the same id.
 type DaemonClient struct {
-	port     int
-	token    string
-	notifier agentdomain.UINotifier
+	port         int
+	token        string
+	notifier     agentdomain.UINotifier
+	ensureDaemon sessionsdomain.EnsureDaemon
 
 	sendMu  sync.Mutex
 	mu      sync.Mutex
@@ -49,10 +42,17 @@ type DaemonClient struct {
 }
 
 // NewDaemonClient builds the client the container injects into the extension
-// driver for infer chat and a standalone headless run, over the binding's
-// port and token. notifier drives the status bar's browser indicator.
-func NewDaemonClient(ext config.ExtensionConfig, notifier agentdomain.UINotifier) *DaemonClient {
-	return &DaemonClient{port: ext.Port, token: ext.Token, notifier: notifier, pending: make(map[string]chan json.RawMessage)}
+// driver for infer chat and a standalone headless run, over the binding's port
+// and token. notifier drives the status bar's browser indicator, and
+// ensureDaemon runs before each dial so the first Browser call boots a daemon.
+func NewDaemonClient(ext config.ExtensionConfig, notifier agentdomain.UINotifier, ensureDaemon sessionsdomain.EnsureDaemon) *DaemonClient {
+	return &DaemonClient{
+		port:         ext.Port,
+		token:        ext.Token,
+		notifier:     notifier,
+		ensureDaemon: ensureDaemon,
+		pending:      make(map[string]chan json.RawMessage),
+	}
 }
 
 // Request sends one browser_command frame and waits for the browser_result
@@ -124,11 +124,10 @@ func (c *DaemonClient) forget(id string) {
 	c.mu.Unlock()
 }
 
-// dial connects and authenticates, starting the daemon first when nothing
-// listens on the binding port.
+// dial connects and authenticates, making sure a daemon listens first.
 func (c *DaemonClient) dial(ctx context.Context) (*websocket.Conn, error) {
-	if err := c.ensureDaemon(ctx); err != nil {
-		return nil, err
+	if err := c.ensureDaemon(ctx, c.port); err != nil {
+		return nil, fmt.Errorf("no browser extension connected on port %d - %w", c.port, err)
 	}
 	conn, _, err := (&websocket.Dialer{HandshakeTimeout: 5 * time.Second}).
 		DialContext(ctx, fmt.Sprintf("ws://127.0.0.1:%d/ws", c.port), nil)
@@ -228,60 +227,4 @@ func extensionAnswered(raw json.RawMessage) bool {
 	}
 	_ = json.Unmarshal(raw, &result)
 	return !strings.HasPrefix(result.Error, noExtensionConnected) && result.Error != errBrowserExtensionDisconnected.Error()
-}
-
-// ensureDaemon makes some daemon listen on the port. Nothing there starts
-// one, whose own pid lock makes a redundant start exit right away, and the
-// caller waits for the port once it may already be on its way.
-func (c *DaemonClient) ensureDaemon(ctx context.Context) error {
-	if daemonReachable(c.port) {
-		return nil
-	}
-	if err := startDaemonProcess(); err != nil {
-		return fmt.Errorf("no browser extension connected on port %d - starting the infer daemon failed: %w", c.port, err)
-	}
-	deadline := time.Now().Add(daemonBootWait)
-	for {
-		if daemonReachable(c.port) {
-			return nil
-		}
-		if !time.Now().Before(deadline) {
-			return fmt.Errorf("no browser extension connected on port %d - the infer daemon did not bind its binding port in time", c.port)
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-}
-
-// startDaemonProcess runs the infer binary as a detached daemon that outlives
-// this process. A package var, so tests stub the boot instead of spawning the
-// runner binary.
-// ponytail: the daemon inherits this process's env and working directory, so
-// it loads the same config. Route overrides as flags if it ever needs its own.
-var startDaemonProcess = func() error {
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command(exe, "daemon")
-	detachDaemon(cmd)
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	logger.Info("started the infer daemon for browser-use", "pid", cmd.Process.Pid)
-	return cmd.Process.Release()
-}
-
-// daemonReachable reports whether something accepts TCP on the binding port.
-func daemonReachable(port int) bool {
-	conn, err := (&net.Dialer{Timeout: 500 * time.Millisecond}).
-		Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	if err != nil {
-		return false
-	}
-	_ = conn.Close()
-	return true
 }

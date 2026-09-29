@@ -66,7 +66,7 @@ func startFakeBridge(t *testing.T) (*DaemonClient, chan string, *atomic.Int32) {
 	}))
 	t.Cleanup(srv.Close)
 	port := srv.Listener.Addr().(*net.TCPAddr).Port
-	return NewDaemonClient(config.ExtensionConfig{Port: port, Token: "x"}, agentdomain.NoopUINotifier{}), commands, &sockets
+	return NewDaemonClient(config.ExtensionConfig{Port: port, Token: "x"}, agentdomain.NoopUINotifier{}, daemonRunning), commands, &sockets
 }
 
 func TestDaemonClientRoutesCommandsByIdOverTheSocket(t *testing.T) {
@@ -91,15 +91,13 @@ func TestDaemonClientRoutesCommandsByIdOverTheSocket(t *testing.T) {
 // TestDaemonClientReportsWhyNoDaemonStarted names the port and the boot failure
 // in the error the Browser tools surface.
 func TestDaemonClientReportsWhyNoDaemonStarted(t *testing.T) {
-	previous := startDaemonProcess
-	startDaemonProcess = func() error { return errors.New("permission denied") }
-	t.Cleanup(func() { startDaemonProcess = previous })
-
-	port := freePort(t)
-	client := NewDaemonClient(config.ExtensionConfig{Port: port}, agentdomain.NoopUINotifier{})
+	noDaemon := func(context.Context, int) error {
+		return errors.New("starting the infer daemon failed: permission denied")
+	}
+	client := NewDaemonClient(config.ExtensionConfig{Port: 52789}, agentdomain.NoopUINotifier{}, noDaemon)
 	_, err := client.Request(t.Context(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
-	if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("no browser extension connected on port %d", port)) {
-		t.Fatalf("Request err = %v, want the no-extension wording naming the port", err)
+	if err == nil || err.Error() != "no browser extension connected on port 52789 - starting the infer daemon failed: permission denied" {
+		t.Fatalf("Request err = %v, want the no-extension wording naming the port and the cause", err)
 	}
 }
 
@@ -146,15 +144,5 @@ func TestExtensionAnswered(t *testing.T) {
 	}
 }
 
-// freePort returns a loopback port nothing listens on, so a daemon running on
-// the machine cannot answer the test.
-func freePort(t *testing.T) int {
-	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-	port := l.Addr().(*net.TCPAddr).Port
-	_ = l.Close()
-	return port
-}
+// daemonRunning stands in for EnsureDaemon when the fake bridge already listens.
+func daemonRunning(context.Context, int) error { return nil }

@@ -19,10 +19,12 @@ one. This document is the wire contract the clients implement.
   worker's `browser_command` stdout lines are routed to the extension connection
   by the daemon, and each `browser_result` goes back to that worker by `id`.
   Commands serialize across threads because one browser serves them.
-- The daemon started this way runs detached and outlives the `infer` process
-  that started it. It loads the config of the directory it was started from and
-  runs everything that config enables, including channels, the scheduler and
-  the heartbeat. Stop it by signalling the pid in `~/.infer/run/daemon.pid`.
+- The daemon started this way runs in the background and outlives the `infer`
+  process that started it. It shares that process's terminal, so closing the
+  terminal stops it too, and the next browser call starts another. It loads the
+  config of the directory it was started from and runs everything that config
+  enables, including channels, the scheduler and the heartbeat. Stop it by
+  signalling the pid in `~/.infer/run/daemon.pid`.
 - Every frame is a single JSON text message with a `type` discriminator.
   AG-UI events use an uppercase `type` and app frames a lowercase one. Unknown
   `type` values MUST be ignored (forward compatibility).

@@ -9,9 +9,8 @@ internal chat-event type, and the socket is a protocol endpoint, not a browser a
 owns the listener, the `Origin` check, the `browser_hello` token handshake, one extension connection with
 replacement plus any number of desktop and browser connections, pings, the `/artifacts/` route (unset under
 the daemon, which serves many projects), and `Relay`, the serialized command/result RPC every browser source
-passes through. `DaemonClient` is the client twin: it
-dials the binding as a `browser` client and starts the daemon when none listens. `Panel` answers the panel
-frames on a worker's stdout.
+passes through. `DaemonClient` is the client twin: it dials the binding as a `browser` client once the
+sessions `EnsureDaemon` port has a daemon listening. `Panel` answers the panel frames on a worker's stdout.
 
 ## How it plugs in
 
