@@ -103,3 +103,27 @@ await cmd.spawn();
 
 To resume a thread, pass the `threadId` from `RUN_STARTED` back as `--session-id` on the next
 invocation; the new run starts with a `MESSAGES_SNAPSHOT` so the client can render prior history.
+
+## Serve worker
+
+`infer headless --serve --session-id <id>` keeps one long-lived worker per thread instead of one process per
+prompt. It takes no task and implies `--format ag-ui`. Stdin carries app frames (lowercase `type`) and stdout
+carries AG-UI events (uppercase `type`), the vocabulary the daemon's WebSocket binding speaks, so a host relays
+lines without translating them.
+
+| Stdin frame | Effect |
+| --- | --- |
+| `{"type":"user_message","content":"..."}` | Starts a turn when idle. Mid-turn it is queued and the running turn drains it, as in one-shot mode |
+| `{"type":"interrupt"}` | Cancels the running turn, which ends with `RUN_FINISHED` outcome `cancelled` |
+| `{"type":"browser_result","id":"...",...}` | Answers the `browser_command` carrying the same `id` |
+| `approval_response`, `user_question_response`, `computer_use_control` | Same shapes and behaviour as one-shot mode |
+
+Each turn is one AG-UI run: `RUN_STARTED` with `threadId` set to the conversation id, then exactly one
+`RUN_FINISHED` or `RUN_ERROR`. Only the first run of a resumed session opens with `MESSAGES_SNAPSHOT`.
+
+With `browser_use.backend: extension` the worker binds no port. A browser tool writes a
+[`browser_command`](browser-extension-protocol.md) line on stdout and waits for the `browser_result` line with
+the same `id` on stdin, so the host relays both to the extension.
+
+Stdin EOF lets the running turn and any queued messages finish, then shuts the worker down together with the
+gateway, MCP servers and containers it started. Send `interrupt` first for a faster stop.

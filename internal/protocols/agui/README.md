@@ -10,8 +10,8 @@ the `/artifacts/` route, and `Request`, the command/result RPC the browser drive
 
 ## How it plugs in
 
-- `infer headless --format ag-ui` selects `Render`. The extension bridge's chat mirror reuses it for the
-  panel's event stream.
+- `infer headless --format ag-ui` drives one `RunEncoder` for its run, and `infer headless --serve` drives one per
+  turn. The extension bridge's chat mirror reuses `Render` for the panel's event stream.
 - The container builds `ExtensionBridge` (see `Deps`) and injects its `Request` method into the browser
   capability's `ExtensionDriver`, so the browser context never imports this package.
 - Panel frames route to small units, one per frame family: `extension_chat.go` (chat mirror, approvals),

@@ -416,6 +416,8 @@ infer headless "/cost"      # prints the session cost breakdown, no model call
 - `--format json|json-pretty|ag-ui|text`: Output format (default json)
 - `--mode`: Agent mode: standard, plan, auto, auto-with-judge (env: `INFER_AGENT_MODE`); a value that fails
      validation, or `auto-with-judge` with no resolvable judge model, fails before the gateway or agent starts
+- `--serve`: Run as a long-lived worker that takes no task, runs one turn per `user_message` read on stdin and writes
+  each turn as one AG-UI run (implies `--format ag-ui`, see [Serve worker](ag-ui-output.md#serve-worker))
 
 **Examples:**
 
@@ -446,6 +448,9 @@ infer headless "Analyze @error.log and this screenshot" --files debug-screen.png
 
 # Output as AG-UI protocol events
 infer headless --format ag-ui "fix the failing test"
+
+# Long-lived worker: one AG-UI run per user_message frame on stdin
+infer headless --serve --session-id abc-123-def
 
 # Session resumption - list conversations to find session IDs
 infer conversations list

@@ -3,6 +3,7 @@ package headless
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -44,6 +45,7 @@ var fileRefPattern = regexp.MustCompile(`@([^\s]+)`)
 // cmd/headless supplies the *container.ServiceContainer.
 type Services interface {
 	StartExtensionBridge()
+	RouteBrowserRequests(request func(ctx context.Context, id string, frame json.RawMessage) (json.RawMessage, error))
 	SetUINotifier(n agentdomain.UINotifier)
 	Shutdown(ctx context.Context) error
 	StartScreenshotServer(sessionID string) *computerinfra.ScreenshotServer
@@ -78,6 +80,7 @@ type Options struct {
 	ResultFile      string
 	Format          string
 	Mode            string
+	Serve           bool
 }
 
 // resolveAgentMode picks the coding mode for a headless run: the --mode flag
@@ -101,11 +104,9 @@ func resolveAgentMode(flag string) (agentdomain.AgentMode, error) {
 // Run executes one headless task. newServices builds the composition root; it
 // is called only after the flags validate, so a bad --format or --mode never
 // starts any service.
-func Run(cfg *config.Config, opts Options, newServices func() Services) (err error) { //nolint:gocyclo,cyclop,funlen
-	switch opts.Format {
-	case "json", "json-pretty", "ag-ui", "text":
-	default:
-		return fmt.Errorf("invalid --format %q (supported: json, json-pretty, ag-ui, text)", opts.Format)
+func Run(cfg *config.Config, opts Options, newServices func() Services) (err error) { //nolint:gocyclo,cyclop,funlen,gocognit
+	if err := validateOptions(opts); err != nil {
+		return err
 	}
 
 	mode, err := resolveAgentMode(opts.Mode)
@@ -131,7 +132,9 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 	svc := newServices()
 	notifications := make(uiBridge, 8)
 	svc.SetUINotifier(notifications)
-	svc.StartExtensionBridge()
+	if !opts.Serve {
+		svc.StartExtensionBridge()
+	}
 	shutdown := sync.OnceFunc(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
@@ -218,6 +221,18 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		sessionID = newID
 		resumedEntries = conversationRepo.GetMessages()
 		history = convdomain.BuildAgentMessagesFromEntries(resumedEntries)
+	}
+
+	if opts.Serve {
+		rendered = true
+		serve(ctx, svc, notifications, agentdomain.AgentRequest{
+			RequestID:                  sessionID,
+			Model:                      selectedModel,
+			ApprovalBrokerAttached:     opts.RequireApproval,
+			UserQuestionBrokerAttached: true,
+			GroupKey:                   groupKey,
+		}, resumedEntries)
+		return nil
 	}
 
 	deps := shortcuts.Deps{SessionID: sessionID}
@@ -308,6 +323,24 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		writeResultFile(opts.ResultFile, conversationRepo, sessionID, err)
 	}
 	return err
+}
+
+// validateOptions rejects flag combinations before any service starts.
+func validateOptions(opts Options) error {
+	switch opts.Format {
+	case "json", "json-pretty", "ag-ui", "text":
+	default:
+		return fmt.Errorf("invalid --format %q (supported: json, json-pretty, ag-ui, text)", opts.Format)
+	}
+	switch {
+	case opts.Serve && opts.Task != "":
+		return errors.New("--serve takes no task, send user_message frames on stdin instead")
+	case opts.Serve && opts.Format != "ag-ui":
+		return fmt.Errorf("--serve streams AG-UI runs, so it needs --format ag-ui (got %q)", opts.Format)
+	case !opts.Serve && opts.Task == "":
+		return errors.New("a task is required unless --serve is set")
+	}
+	return nil
 }
 
 func selectModel(models []string, modelFlag, defaultModel string) (string, error) {

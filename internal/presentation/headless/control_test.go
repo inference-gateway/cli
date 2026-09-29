@@ -211,3 +211,71 @@ func TestUIBridge_ForwardsRecordingStatusIntoStream(t *testing.T) {
 		t.Fatal("merged stream did not close after events closed")
 	}
 }
+
+func TestHeadlessControl_ServeFrames(t *testing.T) {
+	ctl, agent, _ := newTestControl()
+	frames := make(frameSink, 1)
+	ctl.browser = newStdioBrowser(frames)
+
+	ctl.dispatchLine([]byte(`{"type":"user_message","content":"next turn"}`))
+	select {
+	case <-ctl.wake:
+	default:
+		t.Fatal("user_message must wake the serve loop")
+	}
+
+	ctl.dispatchLine([]byte(`{"type":"interrupt"}`))
+	if agent.CancelRequestCallCount() != 1 || agent.CancelRequestArgsForCall(0) != "sess-1" {
+		t.Fatalf("interrupt must cancel the session request, got %d calls", agent.CancelRequestCallCount())
+	}
+
+	result := make(chan string, 1)
+	go func() {
+		raw, _ := ctl.browser.Request(t.Context(), "cmd-1", []byte(`{"type":"browser_command","id":"cmd-1"}`))
+		result <- string(raw)
+	}()
+	<-frames
+	line := []byte(`{"type":"browser_result","id":"cmd-1","title":"Example"}`)
+	want := string(line)
+	ctl.dispatchLine(line)
+	copy(line, "reused by the next scan")
+	if got := <-result; got != want {
+		t.Fatalf("browser_result = %s, want %s untouched by the reader reusing its buffer", got, want)
+	}
+}
+
+func TestHeadlessControl_AwaitTurn(t *testing.T) {
+	t.Run("queued message starts a turn", func(t *testing.T) {
+		ctl, _, _ := newTestControl()
+		if !ctl.awaitTurn() {
+			t.Fatal("awaitTurn() = false with a message already queued")
+		}
+	})
+
+	t.Run("idle frames are dropped until a message lands", func(t *testing.T) {
+		ctl, _, _ := newTestControl()
+		queue := ctl.messageQueue.(*conversationmocks.FakeMessageQueue)
+		queue.IsEmptyReturnsOnCall(0, true)
+		queue.IsEmptyReturnsOnCall(1, true)
+		queue.IsEmptyReturnsOnCall(2, true)
+		queue.IsEmptyReturnsOnCall(3, false)
+		ctl.approvals <- ipc.ApprovalResponse{ToolCallID: "stale"}
+		ctl.ctrlEvents <- agentdomain.ComputerUsePausedEvent{RequestID: "sess-1"}
+		ctl.wake <- struct{}{}
+		if !ctl.awaitTurn() {
+			t.Fatal("awaitTurn() = false, want a turn once the message landed")
+		}
+		if len(ctl.approvals) != 0 || len(ctl.ctrlEvents) != 0 {
+			t.Fatal("frames that arrived between turns must be drained, not left for the next run")
+		}
+	})
+
+	t.Run("stdin EOF with an empty queue ends the worker", func(t *testing.T) {
+		ctl, _, _ := newTestControl()
+		ctl.messageQueue.(*conversationmocks.FakeMessageQueue).IsEmptyReturns(true)
+		go ctl.readLines(strings.NewReader(""))
+		if ctl.awaitTurn() {
+			t.Fatal("awaitTurn() = true after stdin EOF with nothing queued")
+		}
+	})
+}

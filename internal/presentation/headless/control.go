@@ -2,6 +2,7 @@ package headless
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -38,6 +39,11 @@ type headlessControl struct {
 	approvals    chan ipc.ApprovalResponse
 	questions    chan ipc.UserQuestionResponse
 	ctrlEvents   chan agentdomain.ChatEvent
+
+	// wake signals the serve loop that a user_message landed on the queue.
+	wake chan struct{}
+	// browser, set by the serve worker, receives the browser_result lines.
+	browser *stdioBrowser
 }
 
 func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentdomain.ComputerUsePause, messageQueue convdomain.MessageQueue, sessionID string) *headlessControl {
@@ -49,6 +55,7 @@ func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentd
 		approvals:    make(chan ipc.ApprovalResponse, 4),
 		questions:    make(chan ipc.UserQuestionResponse, 4),
 		ctrlEvents:   make(chan agentdomain.ChatEvent, 4),
+		wake:         make(chan struct{}, 1),
 	}
 }
 
@@ -69,11 +76,16 @@ func (c *headlessControl) readLines(in io.Reader) {
 	close(c.approvals)
 	close(c.questions)
 	close(c.ctrlEvents)
+	close(c.wake)
+	if c.browser != nil {
+		c.browser.close()
+	}
 }
 
 func (c *headlessControl) dispatchLine(line []byte) {
 	var msg struct {
 		Type string `json:"type"`
+		ID   string `json:"id"`
 	}
 	if json.Unmarshal(line, &msg) != nil {
 		return
@@ -95,6 +107,16 @@ func (c *headlessControl) dispatchLine(line []byte) {
 			return
 		}
 		c.messageQueue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(msg.Content)}, convdomain.QueueSourceStdin, ipc.UserMessageRequestID)
+		select {
+		case c.wake <- struct{}{}:
+		default:
+		}
+	case "interrupt":
+		_ = c.agentService.CancelRequest(c.sessionID)
+	case "browser_result":
+		if c.browser != nil {
+			c.browser.deliver(msg.ID, bytes.Clone(line))
+		}
 	case "computer_use_control":
 		var ctrl ipc.ComputerUseControlMessage
 		if json.Unmarshal(line, &ctrl) != nil {
@@ -111,6 +133,30 @@ func (c *headlessControl) dispatchLine(line []byte) {
 			logger.Warn("ignoring unknown computer_use_control action", "action", ctrl.Action)
 		}
 	}
+}
+
+// awaitTurn blocks until the message queue holds the next turn's input, and
+// reports false once stdin closed with nothing left to run. Frames that arrive
+// between turns have no open run to answer, so they are dropped and the stdin
+// reader never blocks on a channel nobody drains.
+func (c *headlessControl) awaitTurn() bool {
+	for c.messageQueue.IsEmpty() {
+		var open bool
+		select {
+		case _, open = <-c.wake:
+		case _, open = <-c.approvals:
+		case _, open = <-c.questions:
+		case ev, ok := <-c.ctrlEvents:
+			open = ok
+			if ok {
+				c.noteControlEvent(ev, false)
+			}
+		}
+		if !open {
+			return !c.messageQueue.IsEmpty()
+		}
+	}
+	return true
 }
 
 // pumpEvents merges agent stream events and control events into one channel

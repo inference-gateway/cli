@@ -21,14 +21,23 @@ Examples:
   infer headless --mode auto-with-judge "fix issue #42"
   infer headless --files screenshot.png "analyze this"
   infer headless --session-id abc-123 "continue working"
+  infer headless --serve --session-id abc-123
+
+With --serve the command runs as a long-lived worker: it takes no task, runs one
+agent turn per user_message frame read on stdin and writes each turn to stdout
+as one AG-UI run. An interrupt frame cancels the running turn, and stdin EOF
+shuts the worker down once the queued turns finish.
 
 Exit Codes:
   0  task completed
   1  task failed
   2  max turns exhausted`,
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts := presentation.Options{Task: args[0]}
+			var opts presentation.Options
+			if len(args) == 1 {
+				opts.Task = args[0]
+			}
 			opts.Model, _ = cmd.Flags().GetString("model")
 			opts.Files, _ = cmd.Flags().GetStringSlice("files")
 			opts.NoSave, _ = cmd.Flags().GetBool("no-save")
@@ -39,6 +48,10 @@ Exit Codes:
 			opts.ResultFile, _ = cmd.Flags().GetString("result-file")
 			opts.Format, _ = cmd.Flags().GetString("format")
 			opts.Mode, _ = cmd.Flags().GetString("mode")
+			opts.Serve, _ = cmd.Flags().GetBool("serve")
+			if opts.Serve && !cmd.Flags().Changed("format") {
+				opts.Format = "ag-ui"
+			}
 			return presentation.Run(state.Config(), opts, func() presentation.Services {
 				return container.NewServiceContainer(state.Config())
 			})
@@ -55,5 +68,6 @@ Exit Codes:
 	command.Flags().String("result-file", "", "Write final result JSON to this path")
 	command.Flags().String("format", "json", "Output format: json, json-pretty, ag-ui, text")
 	command.Flags().String("mode", "", "Agent mode: standard, plan, auto, auto-with-judge (env: INFER_AGENT_MODE)")
+	command.Flags().Bool("serve", false, "Run as a long-lived worker: one AG-UI run per user_message on stdin")
 	return command
 }

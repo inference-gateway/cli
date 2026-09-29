@@ -68,6 +68,20 @@ scenarios:
     turns:
       - content: "Hello! How can I help?"
 
+  - name: serve-browser-navigate
+    match: '(?i)^open the example page'
+    turns:
+      - tool_calls:
+          - { name: BrowserNavigate, args: { url: "https://example.com" } }
+      - content: "The example page is open."
+
+  - name: serve-slow-reply
+    match: '(?i)^tell me a long story'
+    turns:
+      - content: "Once upon a time a worker streamed its reply one rune at a time, slowly enough for anyone to interrupt it."
+        chunk_size: 1
+        delay_ms: 200
+
   - name: parallel-reads
     match: '(?i)execute (the )?Read tool 4 times in parallel'
     turns:
