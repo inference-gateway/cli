@@ -1,58 +1,24 @@
-package agui
+package agui_test
 
 import (
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
+	aguimocks "github.com/inference-gateway/cli/tests/mocks/agui"
+
 	websocket "github.com/gorilla/websocket"
+
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
-var testHandshake = Handshake{Hello: "hello", Ack: "hello_ack"}
+var testHandshake = agui.Handshake{Hello: "hello", Ack: "hello_ack"}
 
-type handled struct {
-	conn  *Conn
-	frame string
-}
-
-// recorder is the Handler the tests read back.
-type recorder struct {
-	mu       sync.Mutex
-	attached []*Conn
-	handled  []handled
-	detached []*Conn
-}
-
-func (r *recorder) Attach(conn *Conn) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.attached = append(r.attached, conn)
-}
-
-func (r *recorder) Handle(conn *Conn, frame []byte) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.handled = append(r.handled, handled{conn: conn, frame: string(frame)})
-}
-
-func (r *recorder) Detach(conn *Conn) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.detached = append(r.detached, conn)
-}
-
-func (r *recorder) snapshot() (attached []*Conn, frames []handled, detached []*Conn) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]*Conn(nil), r.attached...), append([]handled(nil), r.handled...), append([]*Conn(nil), r.detached...)
-}
-
-func startBinding(t *testing.T, cfg BindingConfig) (*Binding, *recorder) {
+func startBinding(t *testing.T, cfg agui.BindingConfig) (*agui.Binding, *aguimocks.FakeHandler) {
 	t.Helper()
-	handler := &recorder{}
-	binding := NewBinding(cfg, handler)
+	handler := &aguimocks.FakeHandler{}
+	binding := agui.NewBinding(cfg, handler)
 	if err := binding.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -60,12 +26,12 @@ func startBinding(t *testing.T, cfg BindingConfig) (*Binding, *recorder) {
 	return binding, handler
 }
 
-func testBinding(t *testing.T) (*Binding, *recorder) {
+func testBinding(t *testing.T) (*agui.Binding, *aguimocks.FakeHandler) {
 	t.Helper()
-	return startBinding(t, BindingConfig{Token: "test-token", Handshake: testHandshake})
+	return startBinding(t, agui.BindingConfig{Token: "test-token", Handshake: testHandshake})
 }
 
-func dial(t *testing.T, binding *Binding) *websocket.Conn {
+func dial(t *testing.T, binding *agui.Binding) *websocket.Conn {
 	t.Helper()
 	conn, _, err := websocket.DefaultDialer.Dial("ws://"+binding.Addr()+"/ws", nil)
 	if err != nil {
@@ -108,8 +74,8 @@ func TestBindingAckCarriesProtocolVersion(t *testing.T) {
 	binding, _ := testBinding(t)
 	for _, client := range []string{"", "panel", "viewer"} {
 		ack := helloAs(t, dial(t, binding), "test-token", client)
-		if ack["protocol_version"] != float64(protocolVersion) {
-			t.Fatalf("client %q: ack protocol_version = %v, want %d", client, ack["protocol_version"], protocolVersion)
+		if ack["protocol_version"] != float64(agui.ProtocolVersion) {
+			t.Fatalf("client %q: ack protocol_version = %v, want %d", client, ack["protocol_version"], agui.ProtocolVersion)
 		}
 	}
 }
@@ -151,7 +117,7 @@ func TestBindingRejectsBadHello(t *testing.T) {
 }
 
 func TestBindingRefusesToStartWithoutToken(t *testing.T) {
-	binding := NewBinding(BindingConfig{Handshake: testHandshake}, &recorder{})
+	binding := agui.NewBinding(agui.BindingConfig{Handshake: testHandshake}, &aguimocks.FakeHandler{})
 	if err := binding.Start(); err == nil || !strings.Contains(err.Error(), "token is empty") {
 		t.Fatalf("expected token error, got %v", err)
 	}
@@ -171,7 +137,7 @@ func TestBindingChecksTheOrigin(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			binding, _ := startBinding(t, BindingConfig{Token: "test-token", Handshake: testHandshake, AllowOrigin: tt.allow})
+			binding, _ := startBinding(t, agui.BindingConfig{Token: "test-token", Handshake: testHandshake, AllowOrigin: tt.allow})
 			header := http.Header{}
 			if tt.origin != "" {
 				header.Set("Origin", tt.origin)
@@ -196,17 +162,17 @@ func TestBindingHandsFramesToTheHandler(t *testing.T) {
 	if err := conn.WriteMessage(websocket.TextMessage, []byte(frame)); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	eventually(t, "Handle", func() bool { _, frames, _ := handler.snapshot(); return len(frames) == 1 })
-	attached, frames, _ := handler.snapshot()
-	if frames[0].frame != frame {
-		t.Fatalf("Handle frame = %s, want %s", frames[0].frame, frame)
+	eventually(t, "Handle", func() bool { return handler.HandleCallCount() == 1 })
+	client, got := handler.HandleArgsForCall(0)
+	if string(got) != frame {
+		t.Fatalf("Handle frame = %s, want %s", got, frame)
 	}
-	if len(attached) != 1 || attached[0] != frames[0].conn || attached[0].Kind() != "panel" {
-		t.Fatalf("Attach got %v, want the one panel connection Handle saw", attached)
+	if handler.AttachCallCount() != 1 || handler.AttachArgsForCall(0) != client || client.Kind() != "panel" {
+		t.Fatal("Attach did not get the one panel connection Handle saw")
 	}
 
 	event := `{"type":"RUN_STARTED","threadId":"c1","runId":"r1"}`
-	frames[0].conn.Deliver([]byte(event))
+	client.Deliver([]byte(event))
 	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	_, delivered, err := conn.ReadMessage()
 	if err != nil || string(delivered) != event {
@@ -218,12 +184,11 @@ func TestBindingDetachesClosedClient(t *testing.T) {
 	binding, handler := testBinding(t)
 	conn := dial(t, binding)
 	helloAs(t, conn, "test-token", "panel")
-	eventually(t, "Attach", func() bool { attached, _, _ := handler.snapshot(); return len(attached) == 1 })
+	eventually(t, "Attach", func() bool { return handler.AttachCallCount() == 1 })
 
 	_ = conn.Close()
-	eventually(t, "Detach", func() bool { _, _, detached := handler.snapshot(); return len(detached) == 1 })
-	attached, _, detached := handler.snapshot()
-	if detached[0] != attached[0] {
+	eventually(t, "Detach", func() bool { return handler.DetachCallCount() == 1 })
+	if handler.DetachArgsForCall(0) != handler.AttachArgsForCall(0) {
 		t.Fatal("Detach got a different connection than Attach")
 	}
 }
@@ -235,21 +200,21 @@ func TestBindingClosesAStalledClientOnOverflow(t *testing.T) {
 	binding, handler := testBinding(t)
 	conn := dial(t, binding)
 	helloAs(t, conn, "test-token", "panel")
-	eventually(t, "Attach", func() bool { attached, _, _ := handler.snapshot(); return len(attached) == 1 })
-	attached, _, _ := handler.snapshot()
+	eventually(t, "Attach", func() bool { return handler.AttachCallCount() == 1 })
+	client := handler.AttachArgsForCall(0)
 
 	frame := []byte(`{"type":"TEXT_MESSAGE_CONTENT","delta":"` + strings.Repeat("x", 512*1024) + `"}`)
-	for range 3*outboundQueue + 16 {
-		attached[0].Deliver(frame)
+	for range 3*agui.OutboundQueue + 16 {
+		client.Deliver(frame)
 	}
 
-	eventually(t, "the stalled client to be detached", func() bool { _, _, detached := handler.snapshot(); return len(detached) == 1 })
+	eventually(t, "the stalled client to be detached", func() bool { return handler.DetachCallCount() == 1 })
 }
 
 func TestDialSpeaksToABinding(t *testing.T) {
 	binding, host := testBinding(t)
-	client := &recorder{}
-	conn, err := Dial(t.Context(), DialConfig{Addr: binding.Addr(), Token: "test-token", Kind: "viewer", Handshake: testHandshake}, client)
+	client := &aguimocks.FakeHandler{}
+	conn, err := agui.Dial(t.Context(), agui.DialConfig{Addr: binding.Addr(), Token: "test-token", Kind: "viewer", Handshake: testHandshake}, client)
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -258,22 +223,22 @@ func TestDialSpeaksToABinding(t *testing.T) {
 	if err := conn.Send([]byte(`{"type":"ping"}`)); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
-	eventually(t, "the host to handle the frame", func() bool { _, frames, _ := host.snapshot(); return len(frames) == 1 })
-	_, frames, _ := host.snapshot()
-	if frames[0].conn.Kind() != "viewer" || frames[0].frame != `{"type":"ping"}` {
-		t.Fatalf("host handled %+v, want the viewer's ping", frames[0])
+	eventually(t, "the host to handle the frame", func() bool { return host.HandleCallCount() == 1 })
+	viewer, frame := host.HandleArgsForCall(0)
+	if viewer.Kind() != "viewer" || string(frame) != `{"type":"ping"}` {
+		t.Fatalf("host handled %s from %q, want the viewer's ping", frame, viewer.Kind())
 	}
 
-	frames[0].conn.Deliver([]byte(`{"type":"pong"}`))
-	eventually(t, "the client to handle the answer", func() bool { _, frames, _ := client.snapshot(); return len(frames) == 1 })
+	viewer.Deliver([]byte(`{"type":"pong"}`))
+	eventually(t, "the client to handle the answer", func() bool { return client.HandleCallCount() == 1 })
 
 	binding.Close()
-	eventually(t, "the client to detach", func() bool { _, _, detached := client.snapshot(); return len(detached) == 1 })
+	eventually(t, "the client to detach", func() bool { return client.DetachCallCount() == 1 })
 }
 
 func TestDialReportsARejectedHello(t *testing.T) {
 	binding, _ := testBinding(t)
-	_, err := Dial(t.Context(), DialConfig{Addr: binding.Addr(), Token: "wrong", Handshake: testHandshake}, &recorder{})
+	_, err := agui.Dial(t.Context(), agui.DialConfig{Addr: binding.Addr(), Token: "wrong", Handshake: testHandshake}, &aguimocks.FakeHandler{})
 	if err == nil || !strings.Contains(err.Error(), "did not ack the hello") {
 		t.Fatalf("Dial err = %v, want the missing ack", err)
 	}

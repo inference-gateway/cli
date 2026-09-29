@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
-	"sync"
 	"testing"
 	"time"
+
+	aguimocks "github.com/inference-gateway/cli/tests/mocks/agui"
 
 	config "github.com/inference-gateway/cli/config"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
@@ -26,39 +27,22 @@ func relayConfig() *config.BrowserUseConfig {
 	return cfg
 }
 
-// relayHost hosts the relay behind a binding the way the daemon does: the
-// relay claims the browser frames, and the rest is recorded.
-type relayHost struct {
-	relay *ExtensionRelay
-
-	mu        sync.Mutex
-	unclaimed []string
-}
-
-func (h *relayHost) Attach(conn *agui.Conn) { h.relay.Attach(conn) }
-
-func (h *relayHost) Handle(conn *agui.Conn, frame []byte) {
-	if h.relay.Handle(conn, frame) {
-		return
-	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.unclaimed = append(h.unclaimed, string(frame))
-}
-
-func (h *relayHost) Detach(conn *agui.Conn) { h.relay.Detach(conn) }
-
-func (h *relayHost) passedOn() []string {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return append([]string(nil), h.unclaimed...)
-}
-
-func startRelay(t *testing.T) (*ExtensionRelay, *relayHost, *agui.Binding) {
+// startRelay hosts the relay behind a binding the way the daemon does: the
+// relay claims the browser frames, and rest gets every other frame.
+func startRelay(t *testing.T) (relay *ExtensionRelay, rest *aguimocks.FakeHandler, binding *agui.Binding) {
 	t.Helper()
 	cfg := relayConfig()
-	host := &relayHost{relay: NewExtensionRelay(cfg.Extension, nil)}
-	binding := agui.NewBinding(agui.BindingConfig{
+	relay = NewExtensionRelay(cfg.Extension, nil)
+	rest = &aguimocks.FakeHandler{}
+	host := &aguimocks.FakeHandler{}
+	host.AttachCalls(relay.Attach)
+	host.DetachCalls(relay.Detach)
+	host.HandleCalls(func(conn *agui.Conn, frame []byte) {
+		if !relay.Handle(conn, frame) {
+			rest.Handle(conn, frame)
+		}
+	})
+	binding = agui.NewBinding(agui.BindingConfig{
 		Port:        cfg.Extension.Port,
 		Token:       cfg.Extension.Token,
 		Handshake:   BindingHandshake,
@@ -68,27 +52,16 @@ func startRelay(t *testing.T) (*ExtensionRelay, *relayHost, *agui.Binding) {
 		t.Fatalf("Start: %v", err)
 	}
 	t.Cleanup(binding.Close)
-	return host.relay, host, binding
+	return relay, rest, binding
 }
 
-// peer is one client of the binding under test. It collects the frames the
-// binding sends it.
+// peer is one client of the binding under test, with the frames the binding
+// sent it.
 type peer struct {
 	conn   *agui.Conn
 	frames chan map[string]any
 	closed chan struct{}
 }
-
-func (p *peer) Attach(conn *agui.Conn) { p.conn = conn }
-
-func (p *peer) Handle(_ *agui.Conn, frame []byte) {
-	var decoded map[string]any
-	if json.Unmarshal(frame, &decoded) == nil {
-		p.frames <- decoded
-	}
-}
-
-func (p *peer) Detach(*agui.Conn) { close(p.closed) }
 
 func (p *peer) send(t *testing.T, frame any) {
 	t.Helper()
@@ -141,11 +114,20 @@ func (p *peer) answer() {
 func connect(t *testing.T, binding *agui.Binding, kind string) *peer {
 	t.Helper()
 	p := &peer{frames: make(chan map[string]any, 8), closed: make(chan struct{})}
-	conn, err := agui.Dial(t.Context(), agui.DialConfig{Addr: binding.Addr(), Token: "test-token", Kind: kind, Handshake: BindingHandshake}, p)
+	handler := &aguimocks.FakeHandler{}
+	handler.HandleCalls(func(_ *agui.Conn, frame []byte) {
+		var decoded map[string]any
+		if json.Unmarshal(frame, &decoded) == nil {
+			p.frames <- decoded
+		}
+	})
+	handler.DetachCalls(func(*agui.Conn) { close(p.closed) })
+	conn, err := agui.Dial(t.Context(), agui.DialConfig{Addr: binding.Addr(), Token: "test-token", Kind: kind, Handshake: BindingHandshake}, handler)
 	if err != nil {
 		t.Fatalf("Dial as %q: %v", kind, err)
 	}
 	t.Cleanup(conn.Close)
+	p.conn = conn
 	return p
 }
 
@@ -260,26 +242,26 @@ func TestExtensionDriverOverRelayRoundTrip(t *testing.T) {
 }
 
 func TestExtensionRelayLeavesOtherFramesToTheHost(t *testing.T) {
-	relay, host, binding := startRelay(t)
+	relay, rest, binding := startRelay(t)
 	extension := connectExtension(t, relay, binding)
 
 	extension.send(t, map[string]string{"type": frameBrowserResult, "id": "orphan"})
 	extension.send(t, map[string]string{"type": "list_skills"})
 
-	eventually(t, "the list_skills frame", func() bool { return len(host.passedOn()) == 1 })
-	if got := host.passedOn()[0]; !strings.Contains(got, "list_skills") {
+	eventually(t, "the list_skills frame", func() bool { return rest.HandleCallCount() == 1 })
+	if _, got := rest.HandleArgsForCall(0); !strings.Contains(string(got), "list_skills") {
 		t.Fatalf("browser_result leaked to the host: %s", got)
 	}
 }
 
 func TestExtensionRelayDesktopsDoNotReplaceTheExtension(t *testing.T) {
-	relay, host, binding := startRelay(t)
+	relay, rest, binding := startRelay(t)
 	extension := connectExtension(t, relay, binding)
 
 	for range 2 {
 		connect(t, binding, "desktop").send(t, map[string]string{"type": "list_skills"})
 	}
-	eventually(t, "both desktops relaying", func() bool { return len(host.passedOn()) == 2 })
+	eventually(t, "both desktops relaying", func() bool { return rest.HandleCallCount() == 2 })
 
 	go extension.answer()
 	if _, err := relay.relay(context.Background(), json.RawMessage(navigateCommand)); err != nil {

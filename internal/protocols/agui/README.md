@@ -37,6 +37,8 @@ and this table in the same change.
 | `github.com/google/uuid` | message and tool result ids |
 | `github.com/gorilla/websocket` | the socket of `Binding` and `Dial` |
 | `github.com/inference-gateway/cli/internal/platform/logger` | logging |
+| `github.com/inference-gateway/cli/internal/protocols/agui` | tests only, the package under test |
+| `github.com/inference-gateway/cli/tests/mocks/agui` | tests only, the generated `Handler` fake |
 
 ## How it plugs in
 
