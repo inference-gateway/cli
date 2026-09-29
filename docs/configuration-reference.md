@@ -738,6 +738,11 @@ Environment variables override whichever file was loaded.
 > `ctrl+m`, with `alt+m` as a fallback. In terminals without the Kitty keyboard protocol
 > (Kitty, Ghostty, WezTerm, foot and iTerm2 with CSI u report `ctrl+m` distinctly) `ctrl+m`
 > sends the same byte as Enter, so use `alt+m` there to toggle markdown.
+>
+> **Upgrading:** `infer init` writes every default into `keybindings.yaml`, so a file created
+> before this change still binds `display_toggle_raw_format` to `ctrl+r` and keeps the history
+> search from opening. Run `infer keybindings set display_toggle_raw_format ctrl+m alt+m`, or
+> `infer keybindings reset` to take all current defaults.
 
 **Available Commands:**
 
