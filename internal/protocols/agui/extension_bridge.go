@@ -44,6 +44,10 @@ const protocolVersion = 1
 // instead of stalling the thread that feeds it.
 const connWriteTimeout = 10 * time.Second
 
+// outboundQueue caps the frames a connection owes its client. A client must
+// read its socket at least that fast, or it is closed for a reconnect.
+const outboundQueue = 64
+
 type extHello struct {
 	Type             string          `json:"type"`
 	Token            string          `json:"token"`
@@ -72,9 +76,18 @@ type Deps struct {
 type extConn struct {
 	ws        *websocket.Conn
 	client    string
+	out       chan []byte
 	mu        sync.Mutex
 	done      chan struct{}
 	closeOnce sync.Once
+}
+
+// newExtConn wraps one upgraded socket and starts its writer goroutine, so
+// Deliver only queues frames and never waits on the socket.
+func newExtConn(ws *websocket.Conn, client string) *extConn {
+	c := &extConn{ws: ws, client: client, out: make(chan []byte, outboundQueue), done: make(chan struct{})}
+	go c.writeLoop()
+	return c
 }
 
 func (c *extConn) send(frame []byte) error {
@@ -84,12 +97,34 @@ func (c *extConn) send(frame []byte) error {
 	return c.ws.WriteMessage(websocket.TextMessage, frame)
 }
 
-// Deliver writes one frame and closes the connection when the write fails, so
-// its read loop ends and the client is detached.
+// Deliver queues one frame for the connection's writer, so a stalled client
+// never holds back the thread's other clients. An overflow closes the
+// connection, since it means the client stopped reading its socket, and it
+// may reconnect for a fresh snapshot.
 func (c *extConn) Deliver(frame []byte) {
-	if err := c.send(frame); err != nil {
-		logger.Debug("extension bridge dropped a client after a failed write", "client", c.client, "error", err)
+	select {
+	case c.out <- frame:
+	default:
+		logger.Warn("extension bridge closed a client whose outbound queue overflowed", "client", c.client)
 		c.close()
+	}
+}
+
+// writeLoop is the connection's dedicated writer: it drains the Deliver
+// queue, each frame bounded by connWriteTimeout, and closes the connection
+// when a write fails.
+func (c *extConn) writeLoop() {
+	for {
+		select {
+		case frame := <-c.out:
+			if err := c.send(frame); err != nil {
+				logger.Debug("extension bridge dropped a client after a failed write", "client", c.client, "error", err)
+				c.close()
+				return
+			}
+		case <-c.done:
+			return
+		}
 	}
 }
 
@@ -221,7 +256,7 @@ func (b *ExtensionBridge) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info("extension bridge client connected", "client", client, "version", hello.ExtensionVersion, "protocol_version", string(hello.ProtocolVersion))
-	b.adopt(&extConn{ws: ws, client: client, done: make(chan struct{})})
+	b.adopt(newExtConn(ws, client))
 }
 
 // clientKind maps the hello's client field to a known kind. Anything but a

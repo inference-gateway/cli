@@ -210,6 +210,32 @@ func TestExtensionBridgeDetachesClosedClient(t *testing.T) {
 	}
 }
 
+// TestExtensionBridgeClosesAStalledClientOnOverflow delivers frames past the
+// outbound queue of a client that stopped reading its socket: it is detached
+// fast, instead of parking the relaying goroutine in a write deadline.
+func TestExtensionBridgeClosesAStalledClientOnOverflow(t *testing.T) {
+	bridge, threads := startRelay(t)
+	conn := dial(t, bridge)
+	helloAs(t, conn, "test-token", "desktop")
+
+	if err := conn.WriteJSON(map[string]string{"type": "list_skills"}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	eventually(t, "Threads.Handle", func() bool { return threads.HandleCallCount() == 1 })
+	client, _ := threads.HandleArgsForCall(0)
+
+	frame := []byte(`{"type":"TEXT_MESSAGE_CONTENT","delta":"` + strings.Repeat("x", 512*1024) + `"}`)
+	for range 3*outboundQueue + 16 {
+		client.Deliver(frame)
+	}
+
+	eventually(t, "the stalled client to be detached", func() bool { return threads.DetachCallCount() == 1 })
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, _, err := conn.ReadMessage(); err == nil {
+		t.Fatal("expected the overflowed connection to be closed")
+	}
+}
+
 func TestExtensionBridgeDesktopsDoNotReplaceTheExtension(t *testing.T) {
 	bridge, threads := startRelay(t)
 	extension := dial(t, bridge)
