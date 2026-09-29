@@ -54,6 +54,7 @@ import (
 	a2a "github.com/inference-gateway/cli/internal/protocols/a2a"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	mcp "github.com/inference-gateway/cli/internal/protocols/mcp"
 	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
@@ -153,7 +154,7 @@ type ServiceContainer struct {
 	directExecutionService   tui.DirectExecutionService
 	toolExecutionCoordinator tui.ToolExecutionCoordinator
 	uiNotifier               *uiNotifierHolder
-	extensionBridge          *browserinfra.ExtensionBridge
+	extensionBridge          *agui.ExtensionBridge
 	browserDriver            browserdomain.BrowserDriver
 	screenRecorder           *computer.ScreenRecorder
 }
@@ -231,11 +232,11 @@ func (c *ServiceContainer) SetUINotifier(n agentdomain.UINotifier) {
 	c.uiNotifier.set(n)
 }
 
-// initializeBrowserTools constructs the browser-use driver (the opentask
-// extension bridge, or a lazily-launched Playwright session), installs the chat
-// event bridge the extension mirror needs, and registers the browser tools
-// against the driver. It runs after the services it needs, so the bridge takes
-// every dependency in its constructor. The WS server starts on StartExtensionBridge.
+// initializeBrowserTools constructs the browser-use driver (a thin extension
+// adapter, or a lazily-launched Playwright session) and registers the browser
+// tools against it. The adapter talks to the opentask extension through the
+// bridge built in protocols/agui, which receives every dep in its constructor
+// and starts its WS server on StartExtensionBridge.
 func (c *ServiceContainer) initializeBrowserTools() {
 	buCfg := &c.config.BrowserUse
 	if !buCfg.Enabled {
@@ -249,8 +250,8 @@ func (c *ServiceContainer) initializeBrowserTools() {
 			c.stateManager.SetEventBridge(eventBridge)
 		}
 
-		c.extensionBridge = browserinfra.NewExtensionBridge(browserinfra.Deps{
-			Config:        buCfg,
+		c.extensionBridge = agui.NewExtensionBridge(agui.Deps{
+			Extension:     buCfg.Extension,
 			Notifier:      c.uiNotifier,
 			Conversations: c.conversationRepo,
 			Events:        eventBridge,
@@ -265,7 +266,7 @@ func (c *ServiceContainer) initializeBrowserTools() {
 			SessionID:     string(c.sessionID),
 			ArtifactsDir:  c.config.ArtifactsDir(),
 		})
-		c.browserDriver = c.extensionBridge
+		c.browserDriver = browserinfra.NewExtensionDriver(buCfg, c.extensionBridge.Request)
 	} else {
 		c.browserDriver = browserinfra.NewSession(buCfg)
 	}
@@ -1074,6 +1075,10 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	}
 
 	c.telemetryRecorder.Shutdown(ctx)
+
+	if c.extensionBridge != nil {
+		c.extensionBridge.Close()
+	}
 
 	if c.browserDriver != nil {
 		c.browserDriver.Close()

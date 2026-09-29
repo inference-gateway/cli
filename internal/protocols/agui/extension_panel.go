@@ -1,4 +1,4 @@
-package infrastructure
+package agui
 
 import (
 	"context"
@@ -170,9 +170,9 @@ func (s *skills) list(conn *websocket.Conn) {
 	s.write(conn, extSkills{Type: outboundSkills, Skills: out})
 }
 
-// models answers the panel's model picker from the CLI's model service, listing
-// the gateway's models with the configured default first.
-type models struct {
+// modelPicker answers the panel's model picker from the CLI's model service,
+// listing the gateway's models with the configured default first.
+type modelPicker struct {
 	write        frameWriter
 	service      convdomain.ModelService
 	defaultModel string
@@ -181,7 +181,7 @@ type models struct {
 
 // list answers list_models with the models the gateway serves, the CLI's
 // configured default model first, so the panel's pickers mirror the CLI.
-func (m *models) list(conn *websocket.Conn) {
+func (m *modelPicker) list(conn *websocket.Conn) {
 	out := []string{}
 	listed, err := m.service.ListModels(context.Background())
 	if err != nil {
@@ -201,7 +201,7 @@ func (m *models) list(conn *websocket.Conn) {
 // selectModel switches the CLI's active model (same as the TUI's /model) and
 // re-sends the model list, so the panel reflects the outcome whether or not the
 // switch was accepted.
-func (m *models) selectModel(conn *websocket.Conn, name string) {
+func (m *modelPicker) selectModel(conn *websocket.Conn, name string) {
 	if name != "" {
 		if err := m.service.SelectModel(name); err != nil {
 			logger.Debug("extension bridge failed to select model", "model", name, "error", err)

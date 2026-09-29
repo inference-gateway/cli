@@ -24,7 +24,7 @@ Single test: `go test ./internal/agent -run TestBashTool`. **Run `task precommit
 
 ## Architecture
 
-The codebase is **bounded contexts (DDD)** under `internal/`. Each context owns its contracts in a `domain/` subpackage that imports nothing internal except `agent/domain`, the shared kernel (tool results, agent mode, chat events). Tool contracts stay in the shared kernel because the a2a, browser, computer and MCP tools implement them. Adapters sit in `<context>/infrastructure/`, the protocol integrations (`a2a`, `mcp`, `agui`) under `internal/protocols/`, and `platform/` is shared infrastructure.
+The codebase is **bounded contexts (DDD)** under `internal/`. Each context owns its contracts in a `domain/` subpackage that imports nothing internal except `agent/domain`, the shared kernel (tool results, agent mode, chat events). Tool contracts stay in the shared kernel because the a2a, browser, computer and MCP tools implement them. Adapters sit in `<context>/infrastructure/`, the protocol integrations (`a2a`, `mcp`, `agui`) under `internal/protocols/`, and `platform/` is shared infrastructure. `protocols/agui` also hosts the opentask extension socket and panel units, which the browser adapter consumes through an injected `ExtensionRequest` function, not through an import.
 
 Contexts: `agent`, `binaries`, `browser`, `computer`, `conversation`, `scheduler`, `tools`, `protocols/{a2a,mcp,agui}`. Capabilities, which have no `domain/`: `audio`, `channels`, `github`, `plugins`, `skills`. `avatars`, `gateway`, `insights` and `provisioner` are single-package support code.
 
@@ -32,7 +32,7 @@ Contexts: `agent`, `binaries`, `browser`, `computer`, `conversation`, `scheduler
 
 Repo-wide invariants:
 
-- Import direction is enforced by depguard (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea; the A2A ADK stays in `protocols/a2a/`, the AG-UI SDK in `protocols/agui/`, Playwright in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`, and the tools context never imports the agent context back (the `agent/domain` shared kernel excepted). `domain/` packages stay pure, and only `cmd/` may import `internal/container`.
+- Import direction is enforced by depguard (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea; the A2A ADK stays in `protocols/a2a/`, the AG-UI SDK and the extension socket in `protocols/agui/`, Playwright in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`, and the tools context never imports the agent context back (the `agent/domain` shared kernel excepted). `domain/` packages stay pure, and only `cmd/` may import `internal/container`.
 - `internal/tools/registry.go` is the source of truth for registered tools. Read `internal/tools/AGENTS.md` before touching a tool manifest, a tool name or the registry.
 
 ## Package AGENTS files

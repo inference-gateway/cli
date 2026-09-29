@@ -109,15 +109,23 @@ linters:
           deny:
             - pkg: github.com/go-vgo/robotgo
               desc: "robotgo is confined to the computer capability"
-        websocket-only-in-browser-and-web:
+        websocket-only-in-agui-and-web:
           list-mode: lax
           files:
             - "**"
-            - "!**/internal/browser/**"
+            - "!**/internal/protocols/agui/**"
             - "!**/internal/presentation/**"
           deny:
             - pkg: github.com/gorilla/websocket
-              desc: "the extension socket lives in the browser capability and the web terminal in presentation; open sockets nowhere else"
+              desc: "the extension socket lives in protocols/agui and the web terminal in presentation; open sockets nowhere else"
+        browser-does-not-import-agui:
+          list-mode: lax
+          files:
+            - "**/internal/browser/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/inference-gateway/cli/internal/protocols/agui
+              desc: "the browser capability reaches the extension bridge through the injected ExtensionRequest; the container wires them"
     gocyclo:
       min-complexity: 25
     cyclop:

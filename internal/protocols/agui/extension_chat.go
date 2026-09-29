@@ -1,4 +1,4 @@
-package infrastructure
+package agui
 
 import (
 	"bytes"
@@ -12,7 +12,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
 // approvals holds the agent-approval cards the panel has not answered yet, so a
@@ -155,7 +154,7 @@ func (m *chatMirror) run(conn *websocket.Conn, stop chan struct{}) {
 	}()
 
 	writer := &chatEventWriter{write: m.write, conn: conn}
-	if err := agui.Render(filtered, writer, nil, nil, m.sessionID, "", m.repo, nil); err != nil {
+	if err := Render(filtered, writer, nil, nil, m.sessionID, "", m.repo, nil); err != nil {
 		logger.Debug("extension bridge chat pump ended", "error", err)
 	}
 }

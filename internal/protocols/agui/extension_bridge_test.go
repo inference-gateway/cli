@@ -1,7 +1,8 @@
-package infrastructure
+package agui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -24,6 +25,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
+	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -222,7 +224,7 @@ func bridgeConfig() *config.BrowserUseConfig {
 // that care about one collaborator override it.
 func testDeps(cfg *config.BrowserUseConfig) Deps {
 	return Deps{
-		Config:        cfg,
+		Extension:     cfg.Extension,
 		Notifier:      &recordingNotifier{},
 		Conversations: newBridgeRepo(),
 		Events:        conversation.NewEventBridge(),
@@ -321,6 +323,20 @@ func hello(t *testing.T, conn *websocket.Conn, token string) {
 	}
 }
 
+// untilConnected retries try while the bridge has not adopted the dialed
+// connection yet, since adopt runs after the client reads browser_hello_ack.
+func untilConnected(t *testing.T, try func() error) error {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		err := try()
+		if err == nil || !strings.Contains(err.Error(), "no browser extension connected") || time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestExtensionBridgeRejectsBadToken(t *testing.T) {
 	bridge := startBridge(t, bridgeConfig(), nil, nil)
 	conn := dial(t, bridge)
@@ -338,7 +354,7 @@ func TestExtensionBridgeRejectsBadToken(t *testing.T) {
 func TestExtensionBridgeFailsFastWithoutConnection(t *testing.T) {
 	bridge := startBridge(t, bridgeConfig(), nil, nil)
 
-	_, err := bridge.Navigate(context.Background(), "https://example.com")
+	_, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
 	if err == nil || !strings.Contains(err.Error(), "no browser extension connected") {
 		t.Fatalf("expected no-extension error, got %v", err)
 	}
@@ -351,8 +367,8 @@ func TestExtensionBridgeRefusesToStartWithoutToken(t *testing.T) {
 	if err := bridge.Start(); err == nil || !strings.Contains(err.Error(), "token is empty") {
 		t.Fatalf("expected token error, got %v", err)
 	}
-	if _, err := bridge.Navigate(context.Background(), "https://example.com"); err == nil || !strings.Contains(err.Error(), "token is empty") {
-		t.Fatalf("expected stored start error from verb, got %v", err)
+	if _, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command"}`)); err == nil || !strings.Contains(err.Error(), "token is empty") {
+		t.Fatalf("expected stored start error from Request, got %v", err)
 	}
 }
 
@@ -379,21 +395,16 @@ func TestExtensionBridgeNavigateRoundTrip(t *testing.T) {
 		}
 	}()
 
-	var result browserdomain.BrowserToolResult
-	var err error
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		result, err = bridge.Navigate(context.Background(), "https://example.com")
-		if err == nil || !strings.Contains(err.Error(), "no browser extension connected") || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	var result json.RawMessage
+	err := untilConnected(t, func() (err error) {
+		result, err = bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
+		return err
+	})
 	if err != nil {
-		t.Fatalf("Navigate: %v", err)
+		t.Fatalf("Request: %v", err)
 	}
-	if result.URL != "https://example.com" || result.Title != "Example Domain" {
-		t.Fatalf("unexpected result: %+v", result)
+	if !strings.Contains(string(result), `"url":"https://example.com"`) || !strings.Contains(string(result), `"title":"Example Domain"`) {
+		t.Fatalf("unexpected result: %s", result)
 	}
 }
 
@@ -608,17 +619,12 @@ func TestExtensionBridgeReplacesConnection(t *testing.T) {
 		}
 	}()
 
-	var err error
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		_, err = bridge.Read(context.Background(), "")
-		if err == nil || !strings.Contains(err.Error(), "no browser extension connected") || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	err := untilConnected(t, func() error {
+		_, err := bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
+		return err
+	})
 	if err != nil {
-		t.Fatalf("Read after replacement: %v", err)
+		t.Fatalf("Request after replacement: %v", err)
 	}
 }
 
@@ -1177,11 +1183,72 @@ func TestExtensionBridgeTakesOverFreedPort(t *testing.T) {
 	}
 
 	_ = holder.Close()
-	_, err = bridge.send(context.Background(), extBrowserCommand{})
+	_, err = bridge.Request(context.Background(), "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
 	if err == nil || errors.Is(err, syscall.EADDRINUSE) {
-		t.Fatalf("send after the port freed: err = %v, want a no-extension-connected error", err)
+		t.Fatalf("Request after the port freed: err = %v, want a no-extension-connected error", err)
 	}
 	if bridge.Addr() == "" {
 		t.Fatal("bridge did not bind the freed port")
+	}
+}
+
+func TestExtensionBridgeDisconnectFailsPendingRequest(t *testing.T) {
+	bridge := startBridge(t, bridgeConfig(), nil, nil)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	go func() {
+		var cmd map[string]any
+		if err := conn.ReadJSON(&cmd); err == nil {
+			_ = conn.Close()
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	err := untilConnected(t, func() error {
+		_, err := bridge.Request(ctx, "cmd-1", json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
+		return err
+	})
+	if !errors.Is(err, errBrowserExtensionDisconnected) {
+		t.Fatalf("expected disconnect error, got %v", err)
+	}
+}
+
+func TestExtensionDriverOverBridgeRoundTrip(t *testing.T) {
+	cfg := bridgeConfig()
+	bridge := startBridge(t, cfg, nil, nil)
+	conn := dial(t, bridge)
+	hello(t, conn, "test-token")
+
+	go func() {
+		for {
+			var cmd map[string]any
+			if err := conn.ReadJSON(&cmd); err != nil {
+				return
+			}
+			if cmd["type"] == "browser_command" && cmd["action"] == "navigate" {
+				_ = conn.WriteJSON(map[string]any{
+					"type":  "browser_result",
+					"id":    cmd["id"],
+					"url":   cmd["url"],
+					"title": "Example Domain",
+				})
+				return
+			}
+		}
+	}()
+
+	driver := browserinfra.NewExtensionDriver(cfg, bridge.Request)
+	var result browserdomain.BrowserToolResult
+	err := untilConnected(t, func() (err error) {
+		result, err = driver.Navigate(context.Background(), "https://example.com")
+		return err
+	})
+	if err != nil {
+		t.Fatalf("Navigate: %v", err)
+	}
+	if result.URL != "https://example.com" || result.Title != "Example Domain" {
+		t.Fatalf("driver did not understand the bridge frames: %+v", result)
 	}
 }
