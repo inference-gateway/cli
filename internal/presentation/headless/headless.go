@@ -209,8 +209,6 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 
 	ctx := context.Background()
 
-	// prepareConversation returns non-nil entries only when the run continues
-	// an existing conversation, so the ag-ui renderer can snapshot history.
 	resumedEntries := prepareConversation(ctx, conversationRepo, sessionID, opts.SessionID != "", opts.NoSave)
 	history := convdomain.BuildAgentMessagesFromEntries(resumedEntries)
 

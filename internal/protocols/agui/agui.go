@@ -1,7 +1,9 @@
 package agui
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -44,8 +46,7 @@ type RunEncoder struct {
 	textOpen      bool
 	reasoningOpen bool
 
-	runErr    error
-	cancelled bool
+	runErr error
 }
 
 // NewRunEncoder builds the encoder for one run over w. history, when non-empty,
@@ -62,8 +63,7 @@ func (r *RunEncoder) emit(ev aguievents.Event) {
 		logger.Error("failed to marshal AG-UI event", "error", err, "type", ev.Type())
 		return
 	}
-	_, err = r.w.Write(append(data, '\n'))
-	if err != nil {
+	if _, err := r.w.Write(append(data, '\n')); err != nil {
 		logger.Error("failed to write AG-UI event", "error", err)
 	}
 }
@@ -290,9 +290,6 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 		if err := render.CompletionErr(ev); err != nil {
 			r.runErr = err
 		}
-		if ev.Cancelled {
-			r.cancelled = true
-		}
 	case agentdomain.ChatErrorEvent:
 		r.runErr = ev.Error
 	case agentdomain.UserMessageChatEvent:
@@ -328,7 +325,6 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 	case agentdomain.ComputerUseResumedEvent:
 		r.emitComputerUseResumed(ev.RequestID)
 		r.runErr = nil
-		r.cancelled = false
 	case agentdomain.ScreenRecordingStatusEvent:
 		r.emitScreenRecording(ev.Active)
 	}
@@ -339,20 +335,19 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 // the run failed. It returns the run error for the caller's exit code and telemetry.
 func (r *RunEncoder) Finish() error {
 	r.closeMessage()
-	if err := r.runErr; err != nil && !r.cancelled {
-		r.emitRunError(err.Error())
-		return fmt.Errorf("agent error: %w", err)
-	}
-	var opts []aguievents.RunFinishedOption
-	if r.cancelled {
-		opts = append(opts, aguievents.WithOutcome(aguievents.RunFinishedOutcome{Type: "cancelled"}))
-	} else {
-		opts = append(opts, aguievents.WithSuccessOutcome())
+	switch {
+	case errors.Is(r.runErr, context.Canceled):
+		r.emit(aguievents.NewRunFinishedEventWithOptions(r.threadID, r.runID,
+			aguievents.WithOutcome(aguievents.RunFinishedOutcome{Type: "cancelled"})))
+	case r.runErr != nil:
+		r.emitRunError(r.runErr.Error())
+	default:
+		opts := []aguievents.RunFinishedOption{aguievents.WithSuccessOutcome()}
 		if result := sessionResult(r.model, r.repo); len(result) > 0 {
 			opts = append(opts, aguievents.WithResult(result))
 		}
+		r.emit(aguievents.NewRunFinishedEventWithOptions(r.threadID, r.runID, opts...))
 	}
-	r.emit(aguievents.NewRunFinishedEventWithOptions(r.threadID, r.runID, opts...))
 	if err := r.runErr; err != nil {
 		return fmt.Errorf("agent error: %w", err)
 	}
@@ -403,6 +398,9 @@ func countToolCalls(entries []convdomain.ConversationEntry) int {
 func snapshotMessages(entries []convdomain.ConversationEntry) []aguitypes.Message {
 	messages := make([]aguitypes.Message, 0, len(entries))
 	for _, entry := range entries {
+		if entry.Hidden {
+			continue
+		}
 		msg := aguitypes.Message{ID: uuid.New().String(), Role: aguitypes.Role(entry.Message.Role)}
 		if text, err := entry.Message.Content.AsMessageContent0(); err == nil && text != "" {
 			msg.Content = text
@@ -450,13 +448,11 @@ func EmitRunError(w io.Writer, err error) {
 	(&RunEncoder{w: w}).emitRunError(render.Truncate(err.Error(), 3500))
 }
 
-// Render renders the stream as newline-delimited AG-UI protocol events: one
-// RUN_STARTED, per-turn deltas, tool calls and stats, then one terminal
-// RUN_FINISHED (outcome success, or outcome cancelled for a stopped turn) or
-// RUN_ERROR. approvals and questions broker IPC answers and jobs publishes
+// Render renders the whole stream as one run of newline-delimited AG-UI events:
+// RUN_STARTED, per-turn deltas, tool calls and stats, then Finish's one terminal
+// event. approvals and questions broker IPC answers and jobs publishes
 // background_tasks snapshots. ponytail: intermediate job state changes are not
-// published, bridge the UI notifier in if a client needs them. Transports that
-// need the restored-history MESSAGES_SNAPSHOT build a RunEncoder per run.
+// published, bridge the UI notifier in if a client needs them.
 func Render(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob) error {
 	r := NewRunEncoder(w, model, repo, nil, jobs, approvals, questions)
 	r.Start(sessionID, uuid.New().String())
