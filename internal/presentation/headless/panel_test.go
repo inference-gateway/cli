@@ -1,4 +1,4 @@
-package agui
+package headless
 
 import (
 	"context"

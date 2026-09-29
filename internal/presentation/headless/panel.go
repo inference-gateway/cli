@@ -1,4 +1,4 @@
-package agui
+package headless
 
 import (
 	"context"
@@ -9,12 +9,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
-
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
 // Panel frame types a session worker answers on stdin, and the replies it
@@ -103,6 +102,19 @@ type historyFrame struct {
 // frameWriter writes one panel frame as one line.
 type frameWriter func(frame any)
 
+// lineWriter serializes the panel's lines, its own frames and the AG-UI events
+// alike, since tool requests answer from their own goroutines.
+type lineWriter struct {
+	mu  sync.Mutex
+	out io.Writer
+}
+
+func (w *lineWriter) Write(line []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.out.Write(line)
+}
+
 // PanelDeps are the collaborators the panel units use, all from the worker's
 // own container, so every answer is scoped to the worker's project dir.
 type PanelDeps struct {
@@ -120,8 +132,7 @@ type PanelDeps struct {
 // model and mode switches, direct tool requests and the conversation snapshot.
 // Each reply is one JSON line on out, one Write per line.
 type Panel struct {
-	out io.Writer
-	mu  sync.Mutex
+	out *lineWriter
 
 	// snapshotReplied marks a just-answered new_session / resume_conversation
 	// frame whose reply already shipped a MESSAGES_SNAPSHOT, so the run
@@ -139,13 +150,14 @@ type Panel struct {
 // NewPanel builds the panel units, one per frame family, each holding only the
 // dependencies it uses.
 func NewPanel(deps PanelDeps, out io.Writer) *Panel {
-	p := &Panel{out: out}
-	p.conversations = &conversations{write: p.write, repo: deps.Conversations}
+	p := &Panel{out: &lineWriter{out: out}}
+	events := agui.NewRun(p.out)
+	p.conversations = &conversations{write: p.write, events: events, repo: deps.Conversations}
 	p.history = newHistory(p.write, deps.History)
 	p.skills = &skills{write: p.write, service: deps.Skills}
 	p.models = &modelPicker{write: p.write, service: deps.Models, defaultModel: deps.DefaultModel}
 	p.modes = &modes{write: p.write, state: deps.Modes}
-	p.tools = newToolRequests(p.write, deps)
+	p.tools = newToolRequests(p.write, events, deps)
 	return p
 }
 
@@ -195,19 +207,11 @@ func (p *Panel) TakeSnapshotReply() bool {
 }
 
 func (p *Panel) write(frame any) {
-	var data []byte
-	var err error
-	if ev, ok := frame.(aguievents.Event); ok {
-		data, err = ev.ToJSON()
-	} else {
-		data, err = json.Marshal(frame)
-	}
+	data, err := json.Marshal(frame)
 	if err != nil {
 		logger.Error("failed to marshal a panel frame", "error", err)
 		return
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	if _, err := p.out.Write(append(data, '\n')); err != nil {
 		logger.Debug("failed to write a panel frame", "error", err)
 	}
@@ -223,15 +227,16 @@ type conversationLister interface {
 // conversations answers the panel's conversation picker and snapshot from the
 // worker's conversation repository.
 type conversations struct {
-	write frameWriter
-	repo  convdomain.ConversationRepository
+	write  frameWriter
+	events *agui.Run
+	repo   convdomain.ConversationRepository
 }
 
 // snapshot answers new_session and resume_conversation with the worker's
 // conversation as an AG-UI MESSAGES_SNAPSHOT. The worker was launched for that
 // conversation, so the repository is already on it.
 func (c *conversations) snapshot() {
-	c.write(aguievents.NewMessagesSnapshotEvent(snapshotMessages(c.repo.GetMessages())))
+	c.events.Snapshot(snapshotMessages(c.repo.GetMessages()))
 }
 
 // list answers list_conversations with the stored conversations (newest-first),

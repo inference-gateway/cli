@@ -14,7 +14,6 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
-	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
 func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *statemanager.Store) {
@@ -289,7 +288,7 @@ func TestHeadlessControl_PanelFramesStayOffTheTurnChannels(t *testing.T) {
 	approval := &agentdomainmocks.FakeApprovalPolicy{}
 	approval.ShouldRequireApprovalReturns(true)
 	frames := make(frameSink, 8)
-	ctl.panel = agui.NewPanel(agui.PanelDeps{
+	ctl.panel = NewPanel(PanelDeps{
 		Conversations: &conversationmocks.FakeConversationRepository{},
 		Skills:        &agentdomainmocks.FakeSkillsService{},
 		Tools:         tools,

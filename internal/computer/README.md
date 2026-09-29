@@ -13,7 +13,7 @@ bridges and the screenshot stream.
 - The accessibility provider is macOS-only today. Other platforms return an unsupported error and the tool falls
   back to screenshot guidance, so a native failure never takes down the CLI.
 - `PublishedEvent` maps this context's chat events to the AG-UI CUSTOM events it publishes
-  (`computer_use_paused`, `computer_use_resumed`, `screen_recording`). Headless passes it to the agui run encoder.
+  (`computer_use_paused`, `computer_use_resumed`, `screen_recording`). Headless passes it to its run encoder.
 - A file lock keeps two computer-use sessions from driving the same desktop at once. It is a no-op on Windows.
 
 ## Related

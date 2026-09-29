@@ -1,8 +1,9 @@
-package agui
+package headless
 
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -15,11 +16,10 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// stream feeds the given events into a closed channel, mimicking the engine
-// closing the channel when the run ends.
 // noticeEvent is a chat event the encoder does not map itself.
 type noticeEvent struct {
 	Name    string
@@ -30,14 +30,21 @@ func (noticeEvent) GetRequestID() string    { return "" }
 func (noticeEvent) GetTimestamp() time.Time { return time.Time{} }
 
 // publishNotice publishes every noticeEvent under its own name.
-func publishNotice(event agentdomain.ChatEvent) (CustomEvent, bool) {
+func publishNotice(event agentdomain.ChatEvent) (agui.CustomEvent, bool) {
 	notice, ok := event.(noticeEvent)
 	if !ok {
-		return CustomEvent{}, false
+		return agui.CustomEvent{}, false
 	}
-	return CustomEvent{Name: notice.Name, Value: map[string]bool{"active": true}, Resumes: notice.Resumes}, true
+	return agui.CustomEvent{Name: notice.Name, Value: map[string]bool{"active": true}, Resumes: notice.Resumes}, true
 }
 
+// renderRun renders a fresh run, one without a restored history.
+func renderRun(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob, publish ...Publish) error {
+	return renderAGUI(events, w, approvals, questions, sessionID, model, repo, nil, jobs, publish...)
+}
+
+// stream feeds the given events into a closed channel, mimicking the engine
+// closing the channel when the run ends.
 func stream(events ...agentdomain.ChatEvent) <-chan agentdomain.ChatEvent {
 	ch := make(chan agentdomain.ChatEvent, len(events))
 	for _, e := range events {
@@ -49,7 +56,7 @@ func stream(events ...agentdomain.ChatEvent) <-chan agentdomain.ChatEvent {
 
 func TestRender_SingleRunLifecycle(t *testing.T) {
 	var out strings.Builder
-	err := Render(stream(
+	err := renderRun(stream(
 		agentdomain.ChatStartEvent{},
 		agentdomain.ChatChunkEvent{RequestID: "r1", Content: "hi"},
 		agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{
@@ -60,7 +67,7 @@ func TestRender_SingleRunLifecycle(t *testing.T) {
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "openai/gpt-4o", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("Render() err = %v", err)
+		t.Fatalf("renderRun() err = %v", err)
 	}
 	got := out.String()
 	if n := strings.Count(got, `"RUN_STARTED"`); n != 1 {
@@ -81,14 +88,14 @@ func TestRender_SingleRunLifecycle(t *testing.T) {
 
 func TestRender_UserMessageIsFramedWithUserRole(t *testing.T) {
 	var out strings.Builder
-	err := Render(stream(
+	err := renderRun(stream(
 		agentdomain.UserMessageChatEvent{Content: "what's up"},
 		agentdomain.ChatStartEvent{},
 		agentdomain.ChatChunkEvent{RequestID: "r1", Content: "not much"},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("Render() err = %v", err)
+		t.Fatalf("renderRun() err = %v", err)
 	}
 	got := out.String()
 	if !strings.Contains(got, `"role":"user"`) || !strings.Contains(got, `"delta":"what's up"`) {
@@ -108,13 +115,13 @@ func TestRender_BackgroundJobsAreStreamed(t *testing.T) {
 		}
 	}
 	note := "[A2A Task Completed: delay]\n\nslow done"
-	err := Render(stream(
+	err := renderRun(stream(
 		agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolName: "A2A_SubmitTask", ToolCallID: "c1", Success: true}}},
 		agentdomain.MessageQueuedEvent{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(note)}},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "", &convmocks.FakeConversationRepository{}, jobs)
 	if err != nil {
-		t.Fatalf("Render() err = %v", err)
+		t.Fatalf("renderRun() err = %v", err)
 	}
 	got := out.String()
 	if n := strings.Count(got, `"name":"background_tasks"`); n != 2 {
@@ -141,7 +148,7 @@ func TestRender_BackgroundJobsAreStreamed(t *testing.T) {
 
 func TestRender_QueuedNoteSplitsAssistantTurns(t *testing.T) {
 	var out strings.Builder
-	err := Render(stream(
+	err := renderRun(stream(
 		agentdomain.ChatChunkEvent{Content: "submitted, waiting"},
 		agentdomain.MessageQueuedEvent{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("[A2A Task Completed: x]\n\nok")}},
 		agentdomain.ChatChunkEvent{ReasoningContent: "note arrived"},
@@ -149,7 +156,7 @@ func TestRender_QueuedNoteSplitsAssistantTurns(t *testing.T) {
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("Render() err = %v", err)
+		t.Fatalf("renderRun() err = %v", err)
 	}
 	got := out.String()
 	if n := strings.Count(got, `"TEXT_MESSAGE_START"`); n != 2 {
@@ -164,12 +171,12 @@ func TestRender_QueuedNoteSplitsAssistantTurns(t *testing.T) {
 
 func TestRender_NilJobsEmitsNoSnapshot(t *testing.T) {
 	var out strings.Builder
-	err := Render(stream(
+	err := renderRun(stream(
 		agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolName: "Read", ToolCallID: "c1", Success: true}}},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("Render() err = %v", err)
+		t.Fatalf("renderRun() err = %v", err)
 	}
 	if strings.Contains(out.String(), "background_tasks") {
 		t.Errorf("nil jobs must not emit background_tasks\n%s", out.String())
@@ -178,12 +185,12 @@ func TestRender_NilJobsEmitsNoSnapshot(t *testing.T) {
 
 func TestRender_ErrorEmitsSingleRunError(t *testing.T) {
 	var out strings.Builder
-	err := Render(stream(
+	err := renderRun(stream(
 		agentdomain.ChatCompleteEvent{},
 		agentdomain.ChatErrorEvent{Error: errors.New("boom")},
 	), &out, nil, nil, "session-1", "m", &convmocks.FakeConversationRepository{}, nil)
 	if err == nil {
-		t.Fatal("Render() err = nil, want error")
+		t.Fatal("renderRun() err = nil, want error")
 	}
 	got := out.String()
 	if n := strings.Count(got, `"RUN_ERROR"`); n != 1 {
@@ -213,8 +220,8 @@ func TestRender_ApprovalRoundTrip(t *testing.T) {
 	}
 	approvals := approvalsChan(ipc.ApprovalResponse{ToolCallID: "tc1", Approved: true})
 	var out strings.Builder
-	if err := Render(stream(ev, agentdomain.ChatCompleteEvent{}), &out, approvals, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil); err != nil {
-		t.Fatalf("Render() err = %v", err)
+	if err := renderRun(stream(ev, agentdomain.ChatCompleteEvent{}), &out, approvals, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil); err != nil {
+		t.Fatalf("renderRun() err = %v", err)
 	}
 	select {
 	case got := <-respChan:
@@ -266,9 +273,9 @@ func TestAnswerQuestions_RoundTrip(t *testing.T) {
 				ResponseChan: respChan,
 			}
 			var out strings.Builder
-			err := Render(stream(ev, agentdomain.ChatCompleteEvent{}), &out, nil, tt.questions, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
+			err := renderRun(stream(ev, agentdomain.ChatCompleteEvent{}), &out, nil, tt.questions, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
 			if err != nil {
-				t.Fatalf("Render() err = %v", err)
+				t.Fatalf("renderRun() err = %v", err)
 			}
 			answers, open := <-respChan
 			if tt.dismissed {
@@ -289,7 +296,7 @@ func TestAnswerQuestions_RoundTrip(t *testing.T) {
 
 func TestAgentStartupEmitter(t *testing.T) {
 	var out strings.Builder
-	emit := AgentStartupEmitter(&out)
+	emit := aguiStartupEmitter(&out)
 	emit("research-agent", "PullingImage", "Pulling image", 3, 10)
 	got := out.String()
 	for _, want := range []string{`"type":"CUSTOM"`, `"name":"agent_status"`, `"research-agent"`, `"state":"PullingImage"`, `"done":3`, `"total":10`} {
@@ -301,7 +308,7 @@ func TestAgentStartupEmitter(t *testing.T) {
 
 func TestEmitRunError(t *testing.T) {
 	var out strings.Builder
-	EmitRunError(&out, errors.New("gateway down"))
+	emitAGUIRunError(&out, errors.New("gateway down"))
 	if !strings.Contains(out.String(), `"RUN_ERROR"`) || !strings.Contains(out.String(), "gateway down") {
 		t.Fatalf("EmitRunError output = %q, want RUN_ERROR with the message", out.String())
 	}
@@ -309,14 +316,14 @@ func TestEmitRunError(t *testing.T) {
 
 func TestRender_PublishesTheEventsItDoesNotMap(t *testing.T) {
 	var out strings.Builder
-	err := Render(stream(
+	err := renderRun(stream(
 		noticeEvent{Name: "paused"},
 		agentdomain.ChatCompleteEvent{Cancelled: true},
 		noticeEvent{Name: "resumed", Resumes: true},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil, publishNotice)
 	if err != nil {
-		t.Fatalf("Render() err = %v, want nil after resumed run completes", err)
+		t.Fatalf("renderRun() err = %v, want nil after resumed run completes", err)
 	}
 	got := out.String()
 	for _, want := range []string{`"name":"paused","value":{"active":true}`, `"name":"resumed","value":{"active":true}`, `"CUSTOM"`} {
@@ -331,9 +338,9 @@ func TestRender_PublishesTheEventsItDoesNotMap(t *testing.T) {
 
 func TestRender_SkipsAnEventNobodyPublishes(t *testing.T) {
 	var out strings.Builder
-	err := Render(stream(noticeEvent{Name: "paused"}, agentdomain.ChatCompleteEvent{}), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
+	err := renderRun(stream(noticeEvent{Name: "paused"}, agentdomain.ChatCompleteEvent{}), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("Render() err = %v", err)
+		t.Fatalf("renderRun() err = %v", err)
 	}
 	if strings.Contains(out.String(), `"CUSTOM"`) {
 		t.Errorf("an unpublished event reached the stream:\n%s", out.String())
@@ -362,12 +369,12 @@ func TestRender_RunFinishedCarriesSessionStats(t *testing.T) {
 	}
 
 	var out strings.Builder
-	err := Render(stream(
+	err := renderRun(stream(
 		agentdomain.ChatChunkEvent{Content: "hi"},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "openai/gpt-4o", repo, nil)
 	if err != nil {
-		t.Fatalf("Render() err = %v", err)
+		t.Fatalf("renderRun() err = %v", err)
 	}
 
 	var result map[string]any
@@ -407,9 +414,9 @@ func TestRender_RunFinishedCarriesSessionStats(t *testing.T) {
 	}
 
 	var plain strings.Builder
-	err = Render(stream(agentdomain.ChatCompleteEvent{}), &plain, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
+	err = renderRun(stream(agentdomain.ChatCompleteEvent{}), &plain, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("Render() err = %v", err)
+		t.Fatalf("renderRun() err = %v", err)
 	}
 	if strings.Contains(plain.String(), `"result"`) {
 		t.Errorf("zero-request run must emit RUN_FINISHED without result:\n%s", plain.String())
@@ -438,14 +445,14 @@ func TestRender_TokenUsageStreamsPerStep(t *testing.T) {
 	}
 
 	var out strings.Builder
-	err := Render(stream(
+	err := renderRun(stream(
 		agentdomain.ChatChunkEvent{Content: "one"},
 		agentdomain.ChatCompleteEvent{},
 		agentdomain.ChatChunkEvent{Content: "two"},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "session-1", "openai/gpt-4o", repo, nil)
 	if err != nil {
-		t.Fatalf("Render() err = %v", err)
+		t.Fatalf("renderRun() err = %v", err)
 	}
 
 	got := out.String()
@@ -483,9 +490,9 @@ func TestRender_TokenUsageStreamsPerStep(t *testing.T) {
 	}
 
 	var plain strings.Builder
-	err = Render(stream(agentdomain.ChatCompleteEvent{}), &plain, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
+	err = renderRun(stream(agentdomain.ChatCompleteEvent{}), &plain, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
 	if err != nil {
-		t.Fatalf("Render() err = %v", err)
+		t.Fatalf("renderRun() err = %v", err)
 	}
 	if strings.Contains(plain.String(), `"name":"token_usage"`) {
 		t.Errorf("zero-request run must not emit token_usage:\n%s", plain.String())

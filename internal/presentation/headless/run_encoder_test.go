@@ -1,4 +1,4 @@
-package agui
+package headless
 
 import (
 	"context"
@@ -142,7 +142,7 @@ func TestRunEncoder_StartSnapshotsRestoredHistory(t *testing.T) {
 
 func TestRunEncoder_EmitsOneWritePerEvent(t *testing.T) {
 	w := &writeRecordingWriter{}
-	r := &RunEncoder{w: w}
+	r := NewRunEncoder(w, "m", nil, nil, nil, nil, nil)
 	r.Start("s1", "run-1")
 	r.Handle(agentdomain.ChatChunkEvent{Content: "hello"})
 	r.Handle(agentdomain.ChatCompleteEvent{})

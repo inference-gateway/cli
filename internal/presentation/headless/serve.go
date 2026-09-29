@@ -12,7 +12,6 @@ import (
 	computer "github.com/inference-gateway/cli/internal/computer"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
 // serve runs the headless --serve worker: one agent turn per user_message read on
@@ -51,7 +50,7 @@ func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notif
 	if ctl.panel.TakeSnapshotReply() {
 		history = nil
 	}
-	encoder := agui.NewRunEncoder(os.Stdout, req.Model, repo, history, svc.GetBackgroundTaskRegistry().Snapshot, ctl.approvals, ctl.questions, computer.PublishedEvent)
+	encoder := NewRunEncoder(os.Stdout, req.Model, repo, history, svc.GetBackgroundTaskRegistry().Snapshot, ctl.approvals, ctl.questions, computer.PublishedEvent)
 	encoder.Start(req.RequestID, uuid.New().String())
 	events, err := agentService.RunWithStream(ctx, &req)
 	if err != nil {

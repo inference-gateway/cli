@@ -124,13 +124,12 @@ linters:
             - "**/internal/protocols/agui/**"
             - "!$test"
           allow:
-            - github.com/inference-gateway/cli/internal/agent/domain
-            - github.com/inference-gateway/cli/internal/conversation/domain
-            - github.com/inference-gateway/cli/internal/scheduler/domain
-            - github.com/inference-gateway/cli/internal/platform
+            - github.com/inference-gateway/cli/internal/platform/logger
           deny:
             - pkg: github.com/inference-gateway/cli/internal
               desc: "agui is a general-purpose protocol package; the contexts import it and it imports none of them"
+            - pkg: github.com/inference-gateway/cli/config
+              desc: "agui takes its settings as plain values; the caller reads the config"
     gocyclo:
       min-complexity: 25
     cyclop:

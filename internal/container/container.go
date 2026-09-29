@@ -42,6 +42,7 @@ import (
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	plugins "github.com/inference-gateway/cli/internal/plugins"
+	headless "github.com/inference-gateway/cli/internal/presentation/headless"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	approvalcoord "github.com/inference-gateway/cli/internal/presentation/tui/approvalcoord"
@@ -55,7 +56,6 @@ import (
 	a2a "github.com/inference-gateway/cli/internal/protocols/a2a"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
-	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	mcp "github.com/inference-gateway/cli/internal/protocols/mcp"
 	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
@@ -265,8 +265,8 @@ func (c *ServiceContainer) RouteBrowserRequests(request func(ctx context.Context
 
 // NewPanel builds the panel a headless serve worker answers its panel frames
 // with, over the worker's own conversation, skills, tools, models and modes.
-func (c *ServiceContainer) NewPanel(out io.Writer) *agui.Panel {
-	return agui.NewPanel(agui.PanelDeps{
+func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
+	return headless.NewPanel(headless.PanelDeps{
 		Conversations: c.conversationRepo,
 		Skills:        c.skillsService,
 		Tools:         c.toolService,
