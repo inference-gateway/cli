@@ -84,11 +84,11 @@ func helloAs(t *testing.T, conn *websocket.Conn, token, client string) map[strin
 	return ack
 }
 
-// extensionReq adapts the bridge's Relay to the ExtensionRequest seam the
+// extensionReq adapts the bridge's relay to the ExtensionRequest seam the
 // driver calls, where the id travels separately from the frame.
 func extensionReq(bridge *ExtensionBridge) browserinfra.ExtensionRequest {
 	return func(ctx context.Context, _ string, frame json.RawMessage) (json.RawMessage, error) {
-		return bridge.Relay(ctx, frame)
+		return bridge.relay(ctx, frame)
 	}
 }
 
@@ -259,7 +259,7 @@ func TestExtensionBridgeDesktopsDoNotReplaceTheExtension(t *testing.T) {
 
 	go answerNavigate(extension)
 	err := untilConnected(t, func() error {
-		_, err := bridge.Relay(context.Background(), json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
+		_, err := bridge.relay(context.Background(), json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
 		return err
 	})
 	if err != nil {
@@ -305,7 +305,7 @@ func TestExtensionBridgeNavigateRoundTrip(t *testing.T) {
 
 	var result json.RawMessage
 	err := untilConnected(t, func() (err error) {
-		result, err = bridge.Relay(context.Background(), json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
+		result, err = bridge.relay(context.Background(), json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
 		return err
 	})
 	if err != nil {
@@ -346,7 +346,7 @@ func TestExtensionBridgeReplacesConnection(t *testing.T) {
 	}()
 
 	err := untilConnected(t, func() error {
-		_, err := bridge.Relay(context.Background(), json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
+		_, err := bridge.relay(context.Background(), json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`))
 		return err
 	})
 	if err != nil {
@@ -415,7 +415,7 @@ func TestExtensionBridgeDisconnectFailsPendingRequest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	err := untilConnected(t, func() error {
-		_, err := bridge.Relay(ctx, json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
+		_, err := bridge.relay(ctx, json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
 		return err
 	})
 	if !errors.Is(err, errBrowserExtensionDisconnected) {
@@ -478,7 +478,7 @@ func TestExtensionBridgeRejectsBadToken(t *testing.T) {
 func TestExtensionBridgeFailsFastWithoutConnection(t *testing.T) {
 	bridge := startBridge(t, testDeps(bridgeConfig()))
 
-	_, err := bridge.Relay(context.Background(), json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
+	_, err := bridge.relay(context.Background(), json.RawMessage(`{"type":"browser_command","id":"cmd-1","action":"tabs"}`))
 	if err == nil || !strings.Contains(err.Error(), "no browser extension connected") {
 		t.Fatalf("expected no-extension error, got %v", err)
 	}
@@ -491,8 +491,8 @@ func TestExtensionBridgeRefusesToStartWithoutToken(t *testing.T) {
 	if err := bridge.Start(); err == nil || !strings.Contains(err.Error(), "token is empty") {
 		t.Fatalf("expected token error, got %v", err)
 	}
-	if _, err := bridge.Relay(context.Background(), json.RawMessage(`{"type":"browser_command"}`)); err == nil || !strings.Contains(err.Error(), "token is empty") {
-		t.Fatalf("expected stored start error from Relay, got %v", err)
+	if _, err := bridge.relay(context.Background(), json.RawMessage(`{"type":"browser_command"}`)); err == nil || !strings.Contains(err.Error(), "token is empty") {
+		t.Fatalf("expected stored start error from relay, got %v", err)
 	}
 }
 

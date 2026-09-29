@@ -17,8 +17,12 @@ one. This document is the wire contract the clients implement.
   reach the browser as browser clients through the daemon (`client: "browser"` in
   the hello) and start `infer daemon` when nothing is listening. A session
   worker's `browser_command` stdout lines are routed to the extension connection
-  by the daemon, and each `browser_result` goes back to that worker by `id`;
-  commands serialize across threads because one browser serves them.
+  by the daemon, and each `browser_result` goes back to that worker by `id`.
+  Commands serialize across threads because one browser serves them.
+- The daemon started this way runs detached and outlives the `infer` process
+  that started it. It loads the config of the directory it was started from and
+  runs everything that config enables, including channels, the scheduler and
+  the heartbeat. Stop it by signalling the pid in `~/.infer/run/daemon.pid`.
 - Every frame is a single JSON text message with a `type` discriminator.
   AG-UI events use an uppercase `type` and app frames a lowercase one. Unknown
   `type` values MUST be ignored (forward compatibility).
@@ -312,9 +316,10 @@ with a fresh `mode` frame either way:
 Chat text can reference files the agent saved under the artifacts dir
 (`~/.infer/projects/<project-slug>/artifacts/<...>`, e.g. `ImageGeneration`
 output). An MV3 extension
-cannot load a local file path in `<img>`, so alongside `/ws` the CLI serves that
-directory read-only over HTTP. Only `infer chat`'s binding serves it, because
-the artifacts dir is per project:
+cannot load a local file path in `<img>`, so the binding can serve that
+directory read-only over HTTP alongside `/ws`. The daemon's binding does not
+serve it yet, because one daemon serves many projects and the route maps to a
+single artifacts dir. Until it does, the route below answers 404:
 
 ```text
 GET http://127.0.0.1:<port>/artifacts/<relative-path>

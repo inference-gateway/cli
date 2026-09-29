@@ -234,7 +234,7 @@ func (c *ServiceContainer) SetUINotifier(n agentdomain.UINotifier) {
 // initializeBrowserTools constructs the browser-use driver (a thin extension
 // adapter, or a lazily-launched Playwright session) and registers the browser
 // tools against it. The extension adapter reaches the opentask extension
-// through the infer daemon's extension bridge; the daemon hosts the binding
+// through the infer daemon's extension bridge. The daemon hosts the binding
 // and is started on demand.
 func (c *ServiceContainer) initializeBrowserTools() {
 	buCfg := &c.config.BrowserUse
@@ -243,7 +243,7 @@ func (c *ServiceContainer) initializeBrowserTools() {
 	}
 
 	if buCfg.Backend == config.BrowserBackendExtension {
-		c.browserDriver = browserinfra.NewExtensionDriver(buCfg, agui.NewDaemonClient(buCfg.Extension).Request)
+		c.browserDriver = browserinfra.NewExtensionDriver(buCfg, agui.NewDaemonClient(buCfg.Extension, c.uiNotifier).Request)
 	} else {
 		c.browserDriver = browserinfra.NewSession(buCfg)
 	}

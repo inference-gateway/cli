@@ -1,6 +1,7 @@
 package sessions
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -27,7 +28,6 @@ const (
 	frameMessagesSnapshot   = "MESSAGES_SNAPSHOT"
 
 	outboundBrowserCommand = "browser_command"
-	inboundBrowserResult   = "browser_result"
 )
 
 // forwarded are the frames that go to the client's own thread unchanged.
@@ -114,10 +114,9 @@ func NewRegistry(launch sessionsdomain.LaunchWorker, idle time.Duration) *Regist
 }
 
 // RouteBrowser wires the relay worker browser_command frames take to the
-// extension connection. Call it once before any worker launches.
+// extension connection. Call it once before any worker launches, which is what
+// lets pump read the field without the registry lock.
 func (r *Registry) RouteBrowser(relay sessionsdomain.BrowserRelay) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.browser = relay
 }
 
@@ -325,9 +324,8 @@ func (r *Registry) answer(c sessionsdomain.Client, toolCallID string, frame []by
 // worker's Browser tools resolve.
 func (r *Registry) pump(t *thread, w sessionsdomain.Worker) {
 	for line := range w.Lines() {
-		relay := r.browserRelay()
-		if relay != nil && isBrowserCommand(line) {
-			go r.relayBrowserCommand(relay, t, w, line)
+		if r.browser != nil && isBrowserCommand(line) {
+			go r.relayBrowserCommand(t, w, line)
 			continue
 		}
 		for _, c := range r.targets(t, line) {
@@ -337,24 +335,11 @@ func (r *Registry) pump(t *thread, w sessionsdomain.Worker) {
 	r.exited(t, w)
 }
 
-// browserRelay returns the browser relay the daemon wired, nil-safe under the
-// registry lock.
-func (r *Registry) browserRelay() sessionsdomain.BrowserRelay {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.browser
-}
-
 // relayBrowserCommand sends one worker browser_command to the extension and
 // writes the browser_result carrying the same id back to the worker's stdin, so
-// the worker's Browser tools resolve without binding a port. A failed relay is
-// reported as the result's error, never dropped, because the worker waits.
-func (r *Registry) relayBrowserCommand(relay sessionsdomain.BrowserRelay, t *thread, w sessionsdomain.Worker, command []byte) {
-	result, err := relay(context.Background(), command)
-	if err != nil {
-		result = browserResultError(command, err)
-	}
-	if err := w.Send(result); err != nil {
+// the worker's Browser tools resolve without binding a port.
+func (r *Registry) relayBrowserCommand(t *thread, w sessionsdomain.Worker, command []byte) {
+	if err := w.Send(r.browser(context.Background(), command)); err != nil {
 		logger.Debug("sessions could not answer a browser_command", "error", err)
 	}
 	r.mu.Lock()
@@ -365,8 +350,12 @@ func (r *Registry) relayBrowserCommand(relay sessionsdomain.BrowserRelay, t *thr
 }
 
 // isBrowserCommand reports whether a worker line is a browser_command frame,
-// which routes to the extension instead of the thread's clients.
+// which routes to the extension instead of the thread's clients. The substring
+// check spares the decode on every streamed line that cannot be one.
 func isBrowserCommand(line []byte) bool {
+	if !bytes.Contains(line, []byte(outboundBrowserCommand)) {
+		return false
+	}
 	var msg struct {
 		Type string `json:"type"`
 	}
@@ -374,21 +363,6 @@ func isBrowserCommand(line []byte) bool {
 		return false
 	}
 	return msg.Type == outboundBrowserCommand
-}
-
-// browserResultError builds the browser_result a failed relay reports, keeping
-// the command's id so the worker's pending request resolves with the error.
-func browserResultError(command []byte, relayErr error) []byte {
-	var cmd struct {
-		ID string `json:"id"`
-	}
-	_ = json.Unmarshal(command, &cmd)
-	data, _ := json.Marshal(map[string]string{
-		"type":  inboundBrowserResult,
-		"id":    cmd.ID,
-		"error": relayErr.Error(),
-	})
-	return data
 }
 
 // targets tracks the run and the pending approvals a worker line reveals and

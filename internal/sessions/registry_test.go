@@ -281,15 +281,13 @@ func TestRegistryReapsIdleWorkers(t *testing.T) {
 // TestRegistryRoutesWorkerBrowserCommands sends browser_command lines from two
 // workers: each routes through the relay and the browser_result carrying the
 // command's id goes back to the worker that asked, while the thread's clients
-// never see the browser frames. A failed relay is reported as the result's
-// error, never dropped, because the worker waits for the answer by id.
+// never see the browser frames.
 func TestRegistryRoutesWorkerBrowserCommands(t *testing.T) {
 	l := &launcher{}
 	r := NewRegistry(l.launch, time.Hour)
 	var mu sync.Mutex
 	var relayed []string
-	noExtension := errors.New("no browser extension connected on port 52789 - install the opentask extension and set its bridge port/token to match browser_use.yaml")
-	r.RouteBrowser(func(ctx context.Context, frame []byte) (json.RawMessage, error) {
+	r.RouteBrowser(func(ctx context.Context, frame []byte) []byte {
 		mu.Lock()
 		relayed = append(relayed, string(frame))
 		mu.Unlock()
@@ -297,13 +295,11 @@ func TestRegistryRoutesWorkerBrowserCommands(t *testing.T) {
 			ID     string `json:"id"`
 			Action string `json:"action"`
 		}
-		if err := json.Unmarshal(frame, &cmd); err != nil {
-			return nil, err
-		}
+		_ = json.Unmarshal(frame, &cmd)
 		if cmd.Action == "fail" {
-			return nil, noExtension
+			return []byte(`{"type":"browser_result","id":"` + cmd.ID + `","error":"no browser extension connected on port 52789"}`)
 		}
-		return json.RawMessage(`{"type":"browser_result","id":"` + cmd.ID + `","title":"Example Domain"}`), nil
+		return []byte(`{"type":"browser_result","id":"` + cmd.ID + `","title":"Example Domain"}`)
 	})
 
 	a, b := &sessionsmocks.FakeClient{}, &sessionsmocks.FakeClient{}

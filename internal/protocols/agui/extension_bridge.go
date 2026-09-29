@@ -24,6 +24,10 @@ import (
 
 var errBrowserExtensionDisconnected = errors.New("the browser extension disconnected before it answered")
 
+// noExtensionConnected opens the error a command gets when no extension is
+// attached. A browser client reads it back to move its status indicator.
+const noExtensionConnected = "no browser extension connected"
+
 const (
 	inboundBrowserHello     = "browser_hello"
 	inboundBrowserResult    = "browser_result"
@@ -152,8 +156,8 @@ func (c *extConn) close() {
 
 // ExtensionBridge hosts the localhost AG-UI WebSocket binding. It owns the
 // listener, the Origin check and the token handshake. It keeps one extension
-// connection, which Request drives as the browser driver's command/result RPC,
-// and any number of desktop connections. Other frames go to Threads.
+// connection, which Relay drives as the browser command/result RPC, and any
+// number of desktop and browser connections. Other frames go to Threads.
 type ExtensionBridge struct {
 	extension    config.ExtensionConfig
 	notifier     agentdomain.UINotifier
@@ -169,6 +173,9 @@ type ExtensionBridge struct {
 	pending  map[string]chan json.RawMessage
 	// busy gates browser commands at one: every source the daemon routes, a
 	// session worker, a desktop or a browser client, drives the one browser.
+	// ponytail: a command runs to its own deadline even when its sender gave
+	// up, holding the gate up to timeout_ms plus the margin. Add a cancel frame
+	// if abandoned commands stall other threads.
 	busy chan struct{}
 }
 
@@ -331,21 +338,10 @@ func (b *ExtensionBridge) route(c *extConn, raw []byte) {
 	case msg.Type == inboundBrowserResult:
 		b.deliverBrowserResult(msg.ID, raw)
 	case msg.Type == inboundBrowserCommand && c.client != clientExtension:
-		go b.answerClientCommand(c, raw)
+		go func() { c.Deliver(b.Relay(context.Background(), raw)) }()
 	case b.threads != nil:
 		b.threads.Handle(c, raw)
 	}
-}
-
-// answerClientCommand drives one browser_command a client posted on the socket.
-// A relay failure is reported as the result's error, never dropped, because the
-// client's pending request waits for the answer by id.
-func (b *ExtensionBridge) answerClientCommand(c *extConn, command []byte) {
-	result, err := b.Relay(context.Background(), command)
-	if err != nil {
-		result = browserResultError(parseBrowserCommand(command).ID, err)
-	}
-	c.Deliver(result)
 }
 
 // deliverBrowserResult hands a browser_result frame to the goroutine waiting
@@ -435,13 +431,23 @@ func commandDeadline(meta browserCommandMeta) time.Duration {
 	return time.Duration(meta.TimeoutMs)*time.Millisecond + commandReplyMargin
 }
 
-// Relay forwards one browser_command frame to the connected extension and
-// returns the browser_result carrying the frame's id. Every source the daemon
-// routes - session workers, desktop and browser clients - passes through here,
-// and Relay serializes them, because there is one browser. A context without a
-// deadline gets the frame's timeout_ms plus the reply margin. Errors keep the
-// wording the ExtensionDriver surfaces on a direct connection.
-func (b *ExtensionBridge) Relay(ctx context.Context, frame []byte) (json.RawMessage, error) {
+// Relay drives one browser_command through the extension and always answers
+// with the browser_result carrying its id. A failure becomes the result's
+// error, because the sender waits for the answer by id. Session workers,
+// desktop and browser clients all pass through here, one at a time.
+func (b *ExtensionBridge) Relay(ctx context.Context, frame []byte) []byte {
+	result, err := b.relay(ctx, frame)
+	if err != nil {
+		return browserResultError(parseBrowserCommand(frame).ID, err)
+	}
+	return result
+}
+
+// relay forwards the frame to the connected extension behind the one-browser
+// gate. A context without a deadline gets the frame's timeout_ms plus the reply
+// margin. Errors keep the wording the ExtensionDriver surfaces on a direct
+// connection.
+func (b *ExtensionBridge) relay(ctx context.Context, frame []byte) (json.RawMessage, error) {
 	if b.startErr != nil {
 		return nil, b.startErr
 	}
@@ -466,7 +472,7 @@ func (b *ExtensionBridge) Relay(ctx context.Context, frame []byte) (json.RawMess
 	ext := b.ext
 	if ext == nil {
 		b.mu.Unlock()
-		return nil, fmt.Errorf("no browser extension connected on port %d - install the opentask extension and set its bridge port/token to match browser_use.yaml", b.extension.Port)
+		return nil, fmt.Errorf("%s on port %d - install the opentask extension and set its bridge port/token to match browser_use.yaml", noExtensionConnected, b.extension.Port)
 	}
 	ch := make(chan json.RawMessage, 1)
 	b.pending[meta.ID] = ch
