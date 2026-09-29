@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -260,6 +261,7 @@ func startBinding(ctx context.Context, cfg *config.Config) (stop func(), err err
 		Token:       extension.Token,
 		Handshake:   browserinfra.BindingHandshake,
 		AllowOrigin: browserinfra.AllowExtensionOrigin,
+		Routes:      map[string]http.Handler{"/artifacts/": newArtifactsHandler()},
 	}, bindingHandler{relay: relay, registry: registry})
 	if err := binding.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start the AG-UI binding: %w", err)

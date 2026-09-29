@@ -148,11 +148,14 @@ func (c *Conn) serve(handler Handler) {
 
 // BindingConfig configures the listening end. AllowOrigin decides over requests
 // that carry an Origin header, and without it only requests without one pass.
+// Routes registers optional non-WebSocket HTTP handlers, e.g. static files,
+// which serve under the same loopback listener as /ws.
 type BindingConfig struct {
 	Port        int
 	Token       string
 	Handshake   Handshake
 	AllowOrigin func(origin string) bool
+	Routes      map[string]http.Handler
 }
 
 // Binding hosts the localhost AG-UI WebSocket binding. It owns the listener,
@@ -196,6 +199,11 @@ func (b *Binding) Start() error {
 
 	b.addr = listener.Addr().String()
 	mux := http.NewServeMux()
+	for pattern, route := range b.cfg.Routes {
+		if pattern != "" && route != nil {
+			mux.Handle(pattern, route)
+		}
+	}
 	mux.HandleFunc("/ws", b.handleWS)
 	b.server = &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
