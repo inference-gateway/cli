@@ -1,6 +1,7 @@
 package agui_test
 
 import (
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -150,6 +151,39 @@ func TestBindingChecksTheOrigin(t *testing.T) {
 				t.Fatalf("dial err = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestBindingServesRegisteredRoutes(t *testing.T) {
+	route := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("route-bytes"))
+	})
+	binding, _ := startBinding(t, agui.BindingConfig{
+		Token:     "test-token",
+		Handshake: testHandshake,
+		Routes:    map[string]http.Handler{"/artifacts/": route},
+	})
+
+	resp, err := http.Get("http://" + binding.Addr() + "/artifacts/proj/artifact.png")
+	if err != nil {
+		t.Fatalf("get the route: %v", err)
+	}
+	body, readErr := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if readErr != nil {
+		t.Fatalf("read the route body: %v", readErr)
+	}
+	if resp.StatusCode != http.StatusOK || string(body) != "route-bytes" {
+		t.Fatalf("route status = %d body = %q, want 200 with route-bytes", resp.StatusCode, body)
+	}
+
+	missing, err := http.Get("http://" + binding.Addr() + "/somewhere-else")
+	if err != nil {
+		t.Fatalf("get an unregistered path: %v", err)
+	}
+	_ = missing.Body.Close()
+	if missing.StatusCode != http.StatusNotFound {
+		t.Fatalf("unregistered path status = %d, want 404", missing.StatusCode)
 	}
 }
 

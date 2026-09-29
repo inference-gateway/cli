@@ -19,7 +19,8 @@ Everything else imports it:
 - A `Conn` carries the client kind its hello declared as an opaque string. What a kind means is the
   handler's business.
 - The handshake frame names, the token, the port and the accepted origins come in through `BindingConfig` and
-  `DialConfig`.
+  `DialConfig`. `BindingConfig.Routes` registers optional non-WebSocket HTTP handlers, e.g. static files, under
+  the same loopback listener as `/ws`. They may serve files and know about clients, the binding does not.
 - The AG-UI SDK stays confined here. `Message`, `Role`, `ToolCall` and `FunctionCall` are the types a caller
   builds a `MESSAGES_SNAPSHOT` from.
 

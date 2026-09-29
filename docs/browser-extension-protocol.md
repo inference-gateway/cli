@@ -318,18 +318,20 @@ with a fresh `mode` frame either way:
 Chat text can reference files the agent saved under the artifacts dir
 (`~/.infer/projects/<project-slug>/artifacts/<...>`, e.g. `ImageGeneration`
 output). An MV3 extension cannot load a local file path in `<img>`, so it
-rewrites a markdown image whose URL contains `/artifacts/` to this route
-(stripping the prefix through and including `artifacts/`) and renders it
-inline:
+rewrites a markdown image whose URL contains
+`/.infer/projects/<project-slug>/artifacts/<relative-path>` onto this route and
+renders it inline:
 
 ```text
-GET http://127.0.0.1:<port>/artifacts/<relative-path>
+GET http://127.0.0.1:<port>/artifacts/<project-slug>/<relative-path>
 ```
 
-**The daemon's binding does not serve this route, and it answers 404.** One
-daemon serves many projects, while the route names no project and so cannot
-map to one artifacts dir. Images the agent generated do not render in the
-panel until the route is served per project.
+The daemon serves the file read-only from that project's artifacts dir. The
+route is unauthenticated, because a browser `<img>` tag cannot send the token,
+but it rides the binding's loopback listener and answers only from inside
+`~/.infer/projects/<project-slug>/artifacts/`: a slug that is not a single
+local path segment, or a relative path that does not stay under the artifacts
+dir (`filepath.IsLocal`), answers 404, as do missing files and directories.
 
 ## Tool approvals
 
