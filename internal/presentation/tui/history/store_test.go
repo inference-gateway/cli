@@ -3,11 +3,33 @@ package history_test //nolint:cyclop // Integration tests with temp dir setup
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
 	history "github.com/inference-gateway/cli/internal/presentation/tui/history"
 )
+
+func TestGetAllHistoryReturnsOrderedDefensiveCopy(t *testing.T) {
+	hm := history.NewMemoryOnlyStore(5)
+
+	for _, entry := range []string{"first prompt", "second prompt"} {
+		if err := hm.AddToHistory(entry); err != nil {
+			t.Fatalf("AddToHistory(%q): %v", entry, err)
+		}
+	}
+
+	want := []string{"first prompt", "second prompt"}
+	if got := hm.GetAllHistory(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("GetAllHistory = %v, want %v", got, want)
+	}
+
+	got := hm.GetAllHistory()
+	got[0] = "mutated"
+	if hm.GetAllHistory()[0] != "first prompt" {
+		t.Error("GetAllHistory should return a defensive copy")
+	}
+}
 
 func TestHistoryManager_PublicAPI(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "history_test")

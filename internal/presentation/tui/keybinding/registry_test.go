@@ -124,10 +124,10 @@ func TestKeyResolution(t *testing.T) {
 			wantID:    "tools_toggle_tool_expansion",
 		},
 		{
-			name:      "ctrl+r resolves to raw format toggle",
+			name:      "ctrl+r resolves to prompt history search",
 			inputText: "test message",
 			key:       "ctrl+r",
-			wantID:    "display_toggle_raw_format",
+			wantID:    "text_editing_history_search",
 		},
 		{
 			name:      "ctrl+z resolves to no action",
@@ -213,7 +213,8 @@ func TestHelpShortcutGeneration(t *testing.T) {
 	}{
 		{key: "ctrl+c", description: "exit application"},
 		{key: "ctrl+o", description: "expand/collapse tool results"},
-		{key: "ctrl+r", description: "toggle raw/rendered markdown"},
+		{key: "ctrl+r", description: "fuzzy search prompt history"},
+		{key: "alt+m", description: "toggle raw/rendered markdown"},
 	}
 
 	for _, want := range expected {

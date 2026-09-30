@@ -91,6 +91,7 @@ func defaultActions() []*KeyAction {
 		{ID: config.ActionID(config.NamespaceTextEditing, "move_to_end"), Handler: handleMoveToEnd, Context: chatView()},
 		{ID: config.ActionID(config.NamespaceTextEditing, "history_up"), Handler: handleHistoryUp, Context: chatView(noApprovalPending)},
 		{ID: config.ActionID(config.NamespaceTextEditing, "history_down"), Handler: handleHistoryDown, Context: chatView(noApprovalPending)},
+		{ID: config.ActionID(config.NamespaceTextEditing, "history_search"), Handler: handleHistorySearchOpen, Context: chatView(noApprovalPending)},
 
 		{ID: config.ActionID(config.NamespaceNavigation, "go_back_in_time"), Handler: handleGoBackInTime, Context: chatView(chatIdleOrCompleted)},
 		{ID: config.ActionID(config.NamespaceNavigation, "scroll_to_top"), Handler: handleScrollToTop, Context: chatView()},
@@ -656,6 +657,14 @@ func handleHistoryDown(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 		inputView.NavigateHistoryDown()
 	}
 	return nil
+}
+
+// handleHistorySearchOpen opens the fuzzy prompt-history search overlay above
+// the chat input
+func handleHistorySearchOpen(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
+	return func() tea.Msg {
+		return tui.HistorySearchOpenEvent{}
+	}
 }
 
 func handleDeleteToBeginning(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {

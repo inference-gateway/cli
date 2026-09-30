@@ -730,6 +730,14 @@ Environment variables override whichever file was loaded.
 > (`alt+backspace`), and `ctrl+backspace`. Some terminals only send `opt+backspace` as
 > `alt+backspace` when "Use Option as Meta key" is enabled (iTerm2: Profiles → Keys; Terminal.app:
 > Settings → Profiles → Keyboard → "Use Option as Meta key"). `ctrl+w` always works.
+>
+> **Note (Ctrl+R / Ctrl+M):** In the chat view `ctrl+r` opens a fuzzy search over your
+> prompt history (the `text_editing_history_search` action): type to filter, ↑/↓ to select,
+> Enter loads the highlighted prompt into the input for editing, Esc closes. The
+> raw/rendered markdown toggle (`display_toggle_raw_format`) previously bound there moved to
+> `ctrl+m`, with `alt+m` as a fallback. In terminals without the Kitty keyboard protocol
+> (Kitty, Ghostty, WezTerm, foot and iTerm2 with CSI u report `ctrl+m` distinctly) `ctrl+m`
+> sends the same byte as Enter, so use `alt+m` there to toggle markdown.
 
 **Available Commands:**
 
@@ -761,7 +769,8 @@ in different namespaces without conflict.
 - **mode**: Agent mode controls (e.g., `mode_cycle_agent_mode`)
 - **tools**: Tool-related actions (e.g., `tools_toggle_tool_expansion`)
 - **display**: Display toggles (e.g., `display_toggle_raw_format`, `display_toggle_todo_box`, `display_toggle_thinking`)
-- **text_editing**: Text manipulation (e.g., `text_editing_move_cursor_left`, `text_editing_history_up`)
+- **text_editing**: Text manipulation (e.g., `text_editing_move_cursor_left`,
+  `text_editing_history_up`, `text_editing_history_search`)
 - **navigation**: Viewport navigation (e.g., `navigation_scroll_to_top`, `navigation_page_down`)
 - **clipboard**: Copy/paste operations (e.g., `clipboard_copy_text`, `clipboard_paste_text`)
 - **plan_approval**: Plan approval navigation (e.g.,

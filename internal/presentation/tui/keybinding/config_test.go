@@ -144,6 +144,34 @@ func TestConfigOverrides(t *testing.T) {
 	}
 }
 
+// TestHistorySearchAndRawFormatDefaultKeys verifies the defaults that changed
+// with the Ctrl+R history search: fuzzy search takes Ctrl+R and the raw markdown
+// toggle moves to Ctrl+M with an Alt+M fallback that works in plain terminals.
+func TestHistorySearchAndRawFormatDefaultKeys(t *testing.T) {
+	defaults := config.GetDefaultKeybindings()
+
+	raw := defaults["display_toggle_raw_format"]
+	if raw.Category != "display" {
+		t.Fatalf("display_toggle_raw_format category = %q, want display", raw.Category)
+	}
+	if !slices.Equal(raw.Keys, []string{"ctrl+m", "alt+m"}) {
+		t.Errorf("display_toggle_raw_format keys = %v, want [ctrl+m alt+m]", raw.Keys)
+	}
+
+	search := defaults["text_editing_history_search"]
+	if search.Category != "text_editing" {
+		t.Fatalf("text_editing_history_search category = %q, want text_editing", search.Category)
+	}
+	if !slices.Equal(search.Keys, []string{"ctrl+r"}) {
+		t.Errorf("text_editing_history_search keys = %v, want [ctrl+r]", search.Keys)
+	}
+
+	registry := keybinding.NewRegistry(config.DefaultConfig())
+	if action := registry.GetAction("text_editing_history_search"); action == nil {
+		t.Fatal("text_editing_history_search should be registered in the runtime registry")
+	}
+}
+
 // TestListAllActions tests that ListAllActions returns all registered actions
 func TestListAllActions(t *testing.T) {
 	cfg := config.DefaultConfig()

@@ -1073,7 +1073,7 @@ func (a *Autocomplete) renderItems(b *strings.Builder, start, end, maxShortcutWi
 
 		displayText := a.getShortcutDisplayText(cmd)
 		displayText = strings.TrimPrefix(displayText, "!!")
-		paddedShortcut := highlightMatches(displayText, formatting.PadText(displayText, maxShortcutWidth), cmd.Matches)
+		paddedShortcut := HighlightMatches(displayText, formatting.PadText(displayText, maxShortcutWidth), cmd.Matches)
 		paddedDescription := ""
 		if cmd.Description != "" {
 			paddedDescription = " │ " + formatting.PadText(cmd.Description, descWidth)
@@ -1131,9 +1131,9 @@ var (
 	matchOff = ansi.NewStyle().Normal().Underline(false).String()
 )
 
-// highlightMatches bolds and underlines the fuzzy-matched bytes of text in
+// HighlightMatches bolds and underlines the fuzzy-matched bytes of text in
 // padded, keeping the row's foreground color.
-func highlightMatches(text, padded string, matches []int) string {
+func HighlightMatches(text, padded string, matches []int) string {
 	if len(matches) == 0 || !strings.HasPrefix(padded, text) {
 		return padded
 	}

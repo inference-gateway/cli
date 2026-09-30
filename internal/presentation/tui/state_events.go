@@ -73,6 +73,10 @@ type SetInputEvent struct {
 // the input, fired when arrow-down would otherwise be a no-op
 type FocusStatusBarEvent struct{}
 
+// HistorySearchOpenEvent opens the fuzzy prompt-history search overlay above
+// the chat input
+type HistorySearchOpenEvent struct{}
+
 // AutocompleteUpdateEvent is fired when input text changes and autocomplete should update
 type AutocompleteUpdateEvent struct {
 	Text      string
