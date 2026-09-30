@@ -162,9 +162,12 @@ func TestRunFramesEvents(t *testing.T) {
 			},
 		},
 		{
-			name:  "a state change patches one key in a delta",
-			write: func(r *Run) { r.PatchState(StateTodos, []string{"a"}); r.PatchState(StateUsage, map[string]any{"input": 1}) },
-			want:  []string{"RUN_STARTED", "STATE_SNAPSHOT", "STATE_DELTA", "STATE_DELTA", "RUN_FINISHED"},
+			name: "a state change patches one key in a delta",
+			write: func(r *Run) {
+				r.PatchState(StateTodos, []string{"a"})
+				r.PatchState(StateUsage, map[string]any{"input": 1})
+			},
+			want: []string{"RUN_STARTED", "STATE_SNAPSHOT", "STATE_DELTA", "STATE_DELTA", "RUN_FINISHED"},
 		},
 		{
 			name:  "an activity is its own snapshot",

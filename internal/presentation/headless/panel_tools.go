@@ -2,6 +2,7 @@ package headless
 
 import (
 	"context"
+	"io"
 	"sync"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 // conversation recording the TUI's direct-exec path does.
 type toolRequests struct {
 	write    frameWriter
-	events   *agui.Run
+	out      io.Writer
 	service  agentdomain.ToolService
 	approval agentdomain.ApprovalPolicy
 	repo     convdomain.ConversationRepository
@@ -28,10 +29,10 @@ type toolRequests struct {
 	pending map[string]chan bool
 }
 
-func newToolRequests(write frameWriter, events *agui.Run, deps PanelDeps) *toolRequests {
+func newToolRequests(write frameWriter, out io.Writer, deps PanelDeps) *toolRequests {
 	return &toolRequests{
 		write:    write,
-		events:   events,
+		out:      out,
 		service:  deps.Tools,
 		approval: deps.Approval,
 		repo:     deps.Conversations,
@@ -86,7 +87,7 @@ func (t *toolRequests) awaitApproval(toolCall sdk.ChatCompletionMessageToolCall)
 	t.mu.Lock()
 	t.pending[toolCall.ID] = decision
 	t.mu.Unlock()
-	t.events.Custom("approval_request", ipc.ApprovalRequest{
+	agui.WriteCustom(t.out, "approval_request", ipc.ApprovalRequest{
 		Type:       "approval_request",
 		ToolName:   toolCall.Function.Name,
 		ToolArgs:   toolCall.Function.Arguments,

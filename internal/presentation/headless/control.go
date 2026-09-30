@@ -3,10 +3,10 @@ package headless
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -15,49 +15,49 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
-const resumeContinuePrompt = "Please continue from where you left off."
+// runInputFrameType is the frame a client starts and continues runs with: it
+// carries a RunAgentInput whose messages hold the new messages only and whose
+// resume entries answer the interrupts an interrupted run ended on.
+const runInputFrameType = "run_agent_input"
+
+// continuePrompt is the message a run input without new messages asks the agent
+// to continue with, the run after one the client interrupted or paused.
+const continuePrompt = "Please continue from where you left off."
 
 // headlessControl is the single reader of the headless process's stdin. It
-// splits the IPC line stream into approval and user-question responses for the
-// renderer, user_message follow-ups for the shared message queue, and
-// computer_use_control actions, mirroring what the chat approval coordinator
-// does: pause cancels the in-flight request and sets the paused state; resume
-// restarts the run with a hidden continue message. Control actions surface on
-// ctrlEvents as the same domain events the renderers already handle. Both
-// channels close on stdin EOF.
-//
-// The reader goroutine applies pause immediately (cancellation must not wait
-// on the event pump), but only the pump clears the paused state — it is the
-// goroutine that decides whether an ended stream restarts, and clearing the
-// flag anywhere else races that decision.
+// routes the run inputs a client sends into the message queue and, through
+// their resume entries, into the approval and question brokers the renderer
+// blocks on, and browser results into the stdio browser. It mirrors what the
+// chat approval coordinator does in the TUI. The channels close on stdin EOF.
 type headlessControl struct {
 	agentService agentdomain.AgentService
-	pauseState   agentdomain.ComputerUsePause
 	messageQueue convdomain.MessageQueue
 	sessionID    string
 	approvals    chan ipc.ApprovalResponse
 	questions    chan ipc.UserQuestionResponse
-	ctrlEvents   chan agentdomain.ChatEvent
 
-	// wake signals the serve loop that a user_message landed on the queue.
-	wake chan struct{}
-	// browser, set by the serve worker, receives the browser_result lines.
+	// pending holds the interrupts the runs raised, keyed by interrupt id and
+	// carrying the reason, so a resume entry routes to its own broker.
+	pendingMu sync.Mutex
+	pending   map[string]string
+
+	// wake signals the serve loop that a run input landed on the queue.
+	wake    chan struct{}
 	browser *stdioBrowser
-	// panel, set by the serve worker, answers the panel frames first.
-	panel *Panel
+	panel   *Panel
 }
 
-func newHeadlessControl(agentService agentdomain.AgentService, pauseState agentdomain.ComputerUsePause, messageQueue convdomain.MessageQueue, sessionID string) *headlessControl {
+func newHeadlessControl(agentService agentdomain.AgentService, messageQueue convdomain.MessageQueue, sessionID string) *headlessControl {
 	return &headlessControl{
 		agentService: agentService,
-		pauseState:   pauseState,
 		messageQueue: messageQueue,
 		sessionID:    sessionID,
 		approvals:    make(chan ipc.ApprovalResponse, 4),
 		questions:    make(chan ipc.UserQuestionResponse, 4),
-		ctrlEvents:   make(chan agentdomain.ChatEvent, 4),
+		pending:      make(map[string]string),
 		wake:         make(chan struct{}, 1),
 	}
 }
@@ -78,7 +78,6 @@ func (c *headlessControl) readLines(in io.Reader) {
 	}
 	close(c.approvals)
 	close(c.questions)
-	close(c.ctrlEvents)
 	close(c.wake)
 	if c.browser != nil {
 		c.browser.close()
@@ -107,63 +106,132 @@ func (c *headlessControl) dispatchLine(line []byte) {
 		if json.Unmarshal(line, &resp) == nil {
 			c.questions <- resp
 		}
-	case "user_message":
-		var msg userMessageFrame
-		if json.Unmarshal(line, &msg) != nil || msg.Content == "" || c.messageQueue == nil {
+	case runInputFrameType:
+		var frame runInputFrame
+		if json.Unmarshal(line, &frame) != nil {
 			return
 		}
-		c.enqueueUserMessage(msg)
+		c.enqueueRunInput(frame.Input)
 	case "interrupt":
 		_ = c.agentService.CancelRequest(c.sessionID)
 	case "browser_result":
 		if c.browser != nil {
 			c.browser.deliver(msg.ID, bytes.Clone(line))
 		}
-	case "computer_use_control":
-		var ctrl ipc.ComputerUseControlMessage
-		if json.Unmarshal(line, &ctrl) != nil {
-			return
-		}
-		switch ctrl.Action {
-		case "pause":
-			_ = c.agentService.CancelRequest(c.sessionID)
-			c.pauseState.SetComputerUsePaused(true, c.sessionID)
-			c.ctrlEvents <- agentdomain.ComputerUsePausedEvent{RequestID: c.sessionID, Timestamp: time.Now()}
-		case "resume":
-			c.ctrlEvents <- agentdomain.ComputerUseResumedEvent{RequestID: c.sessionID, Timestamp: time.Now()}
-		default:
-			logger.Warn("ignoring unknown computer_use_control action", "action", ctrl.Action)
-		}
 	}
 }
 
-// userMessageFrame is a user_message with the attachments the panel sends.
-type userMessageFrame struct {
-	ipc.UserMessage
-	Attachments []agentdomain.ImageAttachment `json:"attachments,omitempty"`
+// runInputFrame is the frame that starts and continues runs.
+type runInputFrame struct {
+	Type  string             `json:"type"`
+	Input agui.RunAgentInput `json:"input"`
 }
 
-// enqueueUserMessage queues a user_message for the next turn and wakes the
-// serve loop. Attachments are saved to the project tmp dir: model-readable
+// enqueueRunInput queues the input's new messages for the next turn and routes
+// its resume entries to the brokers the open interrupts wait on. Attachments
+// arrive as content parts and are saved to the project tmp dir: model-readable
 // images become image parts, other files become notes naming the saved path.
-func (c *headlessControl) enqueueUserMessage(msg userMessageFrame) {
-	images, notes := saveAttachments(msg.Attachments)
-	message, err := userMessage(strings.Join(append([]string{msg.Content}, notes...), "\n"), images)
-	if err != nil {
-		logger.Warn("dropping a user_message with an unusable attachment", "error", err)
-		return
+// A run input with no messages is the continue run the client asks for after
+// stopping one, which the agent continues from the conversation it kept.
+func (c *headlessControl) enqueueRunInput(input agui.RunAgentInput) {
+	for _, msg := range input.Messages {
+		text, attachments := messageParts(msg)
+		images, notes := saveAttachments(attachments)
+		message, err := userMessage(strings.Join(append([]string{text}, notes...), "\n"), images)
+		if err != nil {
+			logger.Warn("dropping a run input message with an unusable attachment", "error", err)
+			continue
+		}
+		c.messageQueue.Enqueue(message, convdomain.QueueSourceStdin, ipc.UserMessageRequestID)
 	}
-	c.messageQueue.Enqueue(message, convdomain.QueueSourceStdin, ipc.UserMessageRequestID)
+	if len(input.Messages) == 0 && len(input.Resume) == 0 {
+		c.messageQueue.Enqueue(userMessageText(continuePrompt), convdomain.QueueSourceStdin, ipc.UserMessageRequestID)
+	}
+	for _, entry := range input.Resume {
+		c.answerResume(entry)
+	}
 	select {
 	case c.wake <- struct{}{}:
 	default:
 	}
 }
 
+// userMessageText builds the plain user message a run input carries.
+func userMessageText(content string) sdk.Message {
+	return sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(content)}
+}
+
+// messageParts splits one run input message into its text and its attachments,
+// the content parts of the user message: text parts join into the text, image
+// parts become model-readable attachments.
+func messageParts(msg agui.Message) (string, []agentdomain.ImageAttachment) {
+	var texts []string
+	var attachments []agentdomain.ImageAttachment
+	switch content := msg.Content.(type) {
+	case string:
+		texts = append(texts, content)
+	case []agui.InputContent:
+		for _, part := range content {
+			switch part.Type {
+			case "text":
+				texts = append(texts, part.Text)
+			case "image":
+				data := part.Data
+				if data == "" && part.Source != nil {
+					data = part.Source.Value
+				}
+				attachments = append(attachments, agentdomain.ImageAttachment{
+					Data: data, MimeType: part.MimeType, Filename: part.Filename,
+				})
+			}
+		}
+	}
+	return strings.Join(texts, "\n"), attachments
+}
+
+// answerResume routes one resume entry to the broker of the interrupt it
+// answers, skipping one that answers nothing open: a late resume for an
+// interrupt the run already let go of must not decide the next one.
+func (c *headlessControl) answerResume(entry agui.ResumeEntry) {
+	c.pendingMu.Lock()
+	reason, open := c.pending[entry.InterruptID]
+	c.pendingMu.Unlock()
+	if !open {
+		return
+	}
+	payload, _ := json.Marshal(entry.Payload)
+	if reason == agui.InterruptInputRequired {
+		c.questions <- ipc.UserQuestionResponse{
+			Type: "user_question_response", ToolCallID: entry.InterruptID,
+			Answers: payload, Cancelled: string(entry.Status) != "resolved",
+		}
+		return
+	}
+	c.approvals <- ipc.ApprovalResponse{
+		Type: "approval_response", ToolCallID: entry.InterruptID,
+		Approved: string(entry.Status) == "resolved",
+	}
+}
+
+// Note records the interrupt a run just raised, so the resume entry that
+// answers it routes to its broker.
+func (c *headlessControl) Note(id, reason string) {
+	c.pendingMu.Lock()
+	defer c.pendingMu.Unlock()
+	c.pending[id] = reason
+}
+
+// Forget drops the interrupt whose answer the run just handled.
+func (c *headlessControl) Forget(id string) {
+	c.pendingMu.Lock()
+	defer c.pendingMu.Unlock()
+	delete(c.pending, id)
+}
+
 // awaitTurn blocks until the message queue holds the next turn's input, and
-// reports false once stdin closed with nothing left to run. Frames that arrive
-// between turns have no open run to answer, so they are dropped and the stdin
-// reader never blocks on a channel nobody drains.
+// reports false once stdin closed with nothing left to run. A frame that
+// arrives between turns has no open run to answer, so the reader drops it and
+// never blocks on a channel nobody drains.
 func (c *headlessControl) awaitTurn() bool {
 	for c.messageQueue.IsEmpty() {
 		var open bool
@@ -171,141 +239,12 @@ func (c *headlessControl) awaitTurn() bool {
 		case _, open = <-c.wake:
 		case _, open = <-c.approvals:
 		case _, open = <-c.questions:
-		case ev, ok := <-c.ctrlEvents:
-			open = ok
-			if ok {
-				c.noteControlEvent(ev, false)
-			}
 		}
 		if !open {
 			return !c.messageQueue.IsEmpty()
 		}
 	}
 	return true
-}
-
-// pumpEvents merges agent stream events and control events into one channel
-// for the renderer, which is called exactly once. When a run's stream closes
-// while paused, the pump waits for the resume control event and continues
-// with the stream that resume() returns — the headless mirror of chat mode's
-// restart-on-resume. The pump goroutine owns closing the returned channel.
-func (c *headlessControl) pumpEvents(stream <-chan agentdomain.ChatEvent, resume func() (<-chan agentdomain.ChatEvent, error)) <-chan agentdomain.ChatEvent {
-	merged := make(chan agentdomain.ChatEvent)
-	go func() {
-		defer close(merged)
-		ctrlEvents := (<-chan agentdomain.ChatEvent)(c.ctrlEvents)
-		pendingResume := false
-		for {
-			select {
-			case ev, ok := <-stream:
-				if !ok {
-					pendingResume = c.drainControlEvents(merged, ctrlEvents, pendingResume)
-					if pendingResume {
-						pendingResume = false
-						stream = c.startResume(merged, resume)
-					} else {
-						stream = c.awaitResume(merged, ctrlEvents, resume)
-					}
-					if stream == nil {
-						return
-					}
-					continue
-				}
-				merged <- ev
-			case ev, ok := <-ctrlEvents:
-				if !ok {
-					ctrlEvents = nil
-					continue
-				}
-				merged <- ev
-				pendingResume = c.noteControlEvent(ev, pendingResume)
-			}
-		}
-	}()
-	return merged
-}
-
-// noteControlEvent updates the pump's resume bookkeeping for one forwarded
-// control event. A resume only counts while paused, so a stray resume with no
-// preceding pause cannot restart a normally-completed run; counting it also
-// clears the paused state, un-blocking RunWithStream's paused fail-fast for
-// the restart.
-func (c *headlessControl) noteControlEvent(ev agentdomain.ChatEvent, pendingResume bool) bool {
-	switch ev.(type) {
-	case agentdomain.ComputerUsePausedEvent:
-		return false
-	case agentdomain.ComputerUseResumedEvent:
-		if c.pauseState.IsComputerUsePaused() {
-			c.pauseState.ClearComputerUsePauseState()
-			return true
-		}
-	}
-	return pendingResume
-}
-
-// drainControlEvents forwards every already-queued control event before the
-// pump decides whether the ended stream should resume, so a resume that
-// raced the cancelled stream's close is not lost. Returns the updated
-// pending-resume flag.
-func (c *headlessControl) drainControlEvents(merged chan<- agentdomain.ChatEvent, ctrlEvents <-chan agentdomain.ChatEvent, pendingResume bool) bool {
-	for {
-		select {
-		case ev, ok := <-ctrlEvents:
-			if !ok {
-				return pendingResume
-			}
-			merged <- ev
-			pendingResume = c.noteControlEvent(ev, pendingResume)
-		default:
-			return pendingResume
-		}
-	}
-}
-
-// awaitResume forwards control events while the session is paused and returns
-// the resumed run's stream, or nil when rendering should end: not paused,
-// stdin EOF, or the resumed run failing to start.
-func (c *headlessControl) awaitResume(merged chan<- agentdomain.ChatEvent, ctrlEvents <-chan agentdomain.ChatEvent, resume func() (<-chan agentdomain.ChatEvent, error)) <-chan agentdomain.ChatEvent {
-	if ctrlEvents == nil || !c.pauseState.IsComputerUsePaused() {
-		return nil
-	}
-	for ev := range ctrlEvents {
-		merged <- ev
-		if c.noteControlEvent(ev, false) {
-			return c.startResume(merged, resume)
-		}
-	}
-	return nil
-}
-
-// startResume starts the resumed run, surfacing a failure to start as an
-// error event so hosts see it instead of a silent end of stream.
-func (c *headlessControl) startResume(merged chan<- agentdomain.ChatEvent, resume func() (<-chan agentdomain.ChatEvent, error)) <-chan agentdomain.ChatEvent {
-	next, err := resume()
-	if err != nil {
-		merged <- agentdomain.ChatErrorEvent{RequestID: c.sessionID, Timestamp: time.Now(), Error: err}
-		return nil
-	}
-	return next
-}
-
-// resumeRun appends the hidden continue message the chat coordinator
-// uses on resume and starts a new agent run over the full conversation.
-func resumeRun(ctx context.Context, agentService agentdomain.AgentService, repo convdomain.ConversationRepository, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) {
-	entry := convdomain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.User,
-			Content: sdk.NewMessageContent(resumeContinuePrompt),
-		},
-		Time:   time.Now(),
-		Hidden: true,
-	}
-	if err := repo.AddMessage(entry); err != nil {
-		return nil, err
-	}
-	next := *req
-	next.Messages = convdomain.BuildAgentMessagesFromEntries(repo.GetMessages())
-	return agentService.RunWithStream(ctx, &next)
 }
 
 // uiBridge is the headless UINotifier: it forwards the UI notifications a

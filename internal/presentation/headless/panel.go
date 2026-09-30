@@ -151,13 +151,7 @@ type Panel struct {
 // dependencies it uses.
 func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p := &Panel{out: &lineWriter{out: out}}
-	events := agui.NewRun(p.out)
-	p.conversations = &conversations{write: p.write, events: events, repo: deps.Conversations}
-	p.history = newHistory(p.write, deps.History)
-	p.skills = &skills{write: p.write, service: deps.Skills}
-	p.models = &modelPicker{write: p.write, service: deps.Models, defaultModel: deps.DefaultModel}
-	p.modes = &modes{write: p.write, state: deps.Modes}
-	p.tools = newToolRequests(p.write, events, deps)
+	p.tools = newToolRequests(p.write, p.out, deps)
 	return p
 }
 

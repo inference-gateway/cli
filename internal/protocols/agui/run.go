@@ -20,6 +20,7 @@ type (
 	Role          = aguitypes.Role
 	ToolCall      = aguitypes.ToolCall
 	FunctionCall  = aguitypes.FunctionCall
+	InputContent  = aguitypes.InputContent
 	Interrupt     = aguitypes.Interrupt
 	ResumeEntry   = aguitypes.ResumeEntry
 	RunAgentInput = aguitypes.RunAgentInput
