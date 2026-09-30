@@ -43,6 +43,15 @@ func subagentJob(label string, status scheddomain.JobStatus, started time.Time, 
 	}
 }
 
+// a2aJob builds one A2A task entry, labelled by task ID like the real job.
+func a2aJob(taskID, agentURL string, status scheddomain.JobStatus, started time.Time, completed *time.Time) scheddomain.TrackedJob {
+	return scheddomain.TrackedJob{
+		Meta:        scheddomain.JobMeta{ID: taskID, Kind: scheddomain.JobKindA2A, Label: taskID, Detail: agentURL, StartedAt: started},
+		Status:      status,
+		CompletedAt: completed,
+	}
+}
+
 // newList assembles a SubagentList wired to the given snapshot rows.
 func newList(opts listOpts) *SubagentList {
 	list := NewSubagentList(createMockStyleProviderForStatus())
@@ -58,6 +67,37 @@ type listOpts struct {
 	jobs      []scheddomain.TrackedJob
 	linger    int
 	indicator bool
+}
+
+func TestSubagentListRendersA2AJobs(t *testing.T) {
+	now := time.Now()
+	recentlyDone := now.Add(-2 * time.Second)
+	list := newList(listOpts{linger: 5, indicator: true, jobs: []scheddomain.TrackedJob{
+		subagentJob("reviewer", scheddomain.JobRunning, now.Add(-3*time.Second), nil),
+		a2aJob("task-running", "http://calendar-agent:8080", scheddomain.JobRunning, now.Add(-2*time.Second), nil),
+		a2aJob("task-done", "https://weather.example.com/a2a", scheddomain.JobCompleted, now.Add(-42*time.Second), &recentlyDone),
+		a2aJob("task-without-url", "", scheddomain.JobRunning, now.Add(-time.Second), nil),
+	}})
+
+	got := plain(list.Render())
+	if lines := strings.Split(got, "\n"); len(lines) != 4 {
+		t.Fatalf("expected one row per sub-agent and A2A job, got %q", got)
+	}
+	for _, want := range []string{"reviewer", "calendar-agent:8080", "weather.example.com", "done", "40.0s", "task-without-url"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected the render to contain %q, got %q", want, got)
+		}
+	}
+	for _, hidden := range []string{"task-running", "task-done"} {
+		if strings.Contains(got, hidden) {
+			t.Errorf("an A2A row must show its agent host, not the task ID %q, got %q", hidden, got)
+		}
+	}
+
+	list.config.Chat.StatusBar.SubagentLingerSeconds = 1
+	if got := plain(list.Render()); strings.Contains(got, "weather.example.com") {
+		t.Errorf("a finished A2A row must drop once the linger window passed, got %q", got)
+	}
 }
 
 func TestSubagentListRenderLifecycle(t *testing.T) {
@@ -101,7 +141,7 @@ func TestSubagentListRenderLifecycle(t *testing.T) {
 			wantStrings: []string{"tester", "failed", "8.0s"},
 		},
 		{
-			name:      "shell and a2a jobs never render in the list",
+			name:      "shell jobs never render in the list",
 			opts:      listOpts{jobs: []scheddomain.TrackedJob{shellJob}, linger: 5, indicator: true},
 			wantEmpty: true,
 		},
