@@ -40,6 +40,9 @@ type SubagentList struct {
 	styleProvider *styles.Provider
 	width         int
 	tickEpoch     int
+	focused       bool
+	selectedID    string
+	viewingID     string
 }
 
 // NewSubagentList creates the sub-agent indicator list.
@@ -102,6 +105,7 @@ func (l *SubagentList) maybeRefreshTick() tea.Cmd {
 
 // subagentRow carries one row's render inputs derived from the registry.
 type subagentRow struct {
+	id      string
 	label   string
 	kind    string
 	running bool
@@ -159,6 +163,7 @@ func (l *SubagentList) snapshotRows() []subagentRow {
 			end = *job.CompletedAt
 		}
 		row := subagentRow{
+			id:      job.Meta.ID,
 			label:   jobRowLabel(job),
 			kind:    jobRowKind(job),
 			elapsed: end.Sub(job.Meta.StartedAt),
@@ -189,16 +194,104 @@ func jobRowLabel(job scheddomain.TrackedJob) string {
 	return job.Meta.Label
 }
 
+// selectedRowMarker replaces a row's tree connector while the list holds the
+// keyboard selection.
+const selectedRowMarker = "❯ "
+
+// selectedRow is the index of the selected job among the rows on screen. A
+// selection that dropped off the list falls back to the newest row.
+func selectedRow(shown []subagentRow, selectedID string) int {
+	return max(0, slices.IndexFunc(shown, func(row subagentRow) bool { return row.id == selectedID }))
+}
+
+// shownRows are the rows on screen, which are the ones the selection moves over.
+func (l *SubagentList) shownRows() []subagentRow {
+	rows := l.snapshotRows()
+	return rows[:min(len(rows), maxSubagentRows)]
+}
+
+// Focus gives the list the keyboard selection on its newest row. It reports
+// false when there is no row to select.
+func (l *SubagentList) Focus() bool {
+	shown := l.shownRows()
+	if !l.enabled() || len(shown) == 0 {
+		return false
+	}
+	l.focused = true
+	l.selectedID = shown[0].id
+	return true
+}
+
+// Blur returns the list to display only and stops pinning a viewed row.
+func (l *SubagentList) Blur() {
+	l.focused = false
+	l.viewingID = ""
+}
+
+// IsFocused reports whether the list holds the keyboard selection.
+func (l *SubagentList) IsFocused() bool { return l.focused }
+
+// SelectNext moves the selection one row down. It reports false on the last row.
+func (l *SubagentList) SelectNext() bool { return l.moveSelection(1) }
+
+// SelectPrev moves the selection one row up. It reports false on the first row.
+func (l *SubagentList) SelectPrev() bool { return l.moveSelection(-1) }
+
+func (l *SubagentList) moveSelection(delta int) bool {
+	shown := l.shownRows()
+	next := selectedRow(shown, l.selectedID) + delta
+	if next < 0 || next >= len(shown) {
+		return false
+	}
+	l.selectedID = shown[next].id
+	return true
+}
+
+// SelectedJob returns the job under the selection, false when it is gone.
+func (l *SubagentList) SelectedJob() (scheddomain.TrackedJob, bool) {
+	shown := l.shownRows()
+	if !l.focused || len(shown) == 0 {
+		return scheddomain.TrackedJob{}, false
+	}
+	return l.Job(shown[selectedRow(shown, l.selectedID)].id)
+}
+
+// Job returns the tracked job with the given ID, false when it was reaped.
+func (l *SubagentList) Job(id string) (scheddomain.TrackedJob, bool) {
+	if l.registry == nil {
+		return scheddomain.TrackedJob{}, false
+	}
+	jobs := l.registry.Snapshot()
+	i := slices.IndexFunc(jobs, func(job scheddomain.TrackedJob) bool { return job.Meta.ID == id })
+	if i < 0 {
+		return scheddomain.TrackedJob{}, false
+	}
+	return jobs[i], true
+}
+
+// SetViewing marks the job whose transcript is on screen, which pins its row
+// past the linger window. An empty ID clears it.
+func (l *SubagentList) SetViewing(id string) { l.viewingID = id }
+
+// focusHint is the key legend shown under the rows while the list has focus.
+func (l *SubagentList) focusHint() string {
+	if l.viewingID != "" {
+		return "↑/↓ switch · esc back to chat"
+	}
+	return "↑/↓ select · enter view · esc back"
+}
+
 // jobRowKind is the row's metadata tag: the job kind, followed by where the work
 // runs when the job says so (an A2A task is "a2a local" or "a2a external").
 func jobRowKind(job scheddomain.TrackedJob) string {
 	return strings.TrimSpace(string(job.Meta.Kind) + " " + job.Meta.Origin)
 }
 
-// shouldShowRow reports whether a tracked job earns a row: running jobs
-// always do, finished ones linger then drop (a zero delay drops at once).
+// shouldShowRow reports whether a tracked job earns a row: running jobs and
+// the one being viewed always do, finished ones linger then drop (a zero delay
+// drops at once).
 func (l *SubagentList) shouldShowRow(job scheddomain.TrackedJob) bool {
-	if job.Status == scheddomain.JobRunning {
+	if job.Status == scheddomain.JobRunning || job.Meta.ID == l.viewingID {
 		return true
 	}
 	if l.lingerDelay() == 0 {
@@ -235,6 +328,10 @@ func (l *SubagentList) Render() string {
 	}
 	shown := rows[:min(len(rows), maxSubagentRows)]
 	more := len(rows) - len(shown)
+	selected := -1
+	if l.focused {
+		selected = selectedRow(shown, l.selectedID)
+	}
 
 	widths := l.measureRows(shown)
 
@@ -242,7 +339,7 @@ func (l *SubagentList) Render() string {
 	lines := make([]string, 0, len(shown)+1)
 	rowWidth := 0
 	for i, row := range shown {
-		line := l.rowView(row, i, len(shown), widths)
+		line := l.rowView(row, i, len(shown), widths, i == selected)
 		rowWidth = l.styleProvider.GetWidth(line)
 		rowLines := []string{line}
 		if !row.running && row.stats != nil {
@@ -264,6 +361,13 @@ func (l *SubagentList) Render() string {
 			overflow = l.styleProvider.PlaceHorizontal(blockWidth, "", overflow)
 		}
 		lines = append(lines, overflow)
+	}
+	if l.focused {
+		hint := l.styleProvider.RenderWithColor(l.focusHint(), l.styleProvider.GetThemeColor("dim"))
+		if blockWidth > 0 {
+			hint = l.styleProvider.PlaceHorizontal(blockWidth, "", hint)
+		}
+		lines = append(lines, hint)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -302,7 +406,7 @@ func compactCount(n int) string {
 // either the running elapsed counter or the outcome icon and total duration.
 // Running rows leave the outcome cell blank so finished rows cannot shift the
 // shared duration column.
-func (l *SubagentList) rowView(row subagentRow, index, count int, widths rowWidths) string {
+func (l *SubagentList) rowView(row subagentRow, index, count int, widths rowWidths, selected bool) string {
 	connector := ""
 	if count > 1 {
 		switch index {
@@ -313,6 +417,11 @@ func (l *SubagentList) rowView(row subagentRow, index, count int, widths rowWidt
 		default:
 			connector = "│ "
 		}
+	}
+	if selected {
+		connector = l.styleProvider.RenderWithColor(selectedRowMarker, l.styleProvider.GetThemeColor("accent"))
+	} else if l.focused && count == 1 {
+		connector = "  "
 	}
 	label := formatting.PadText(rowLabel(row), widths.label) + " " +
 		l.styleProvider.RenderWithColor(formatting.PadText(row.kind, widths.kind), l.styleProvider.GetThemeColor("accent"))

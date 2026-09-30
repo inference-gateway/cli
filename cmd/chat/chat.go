@@ -248,6 +248,7 @@ func StartChatSession(cfg *config.Config, sessionID string) error {
 		services.GetShellHistoryStorage(),
 		services.GetTokenEstimator(),
 	)
+	application.SetTranscriptStore(services.GetStorage())
 	program := tea.NewProgram(application)
 	notifier := programNotifier{program: program}
 	services.SetUINotifier(notifier)

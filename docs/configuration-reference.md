@@ -230,7 +230,6 @@ chat:
       max_output: false
       a2a_agents: true
       tools: true
-      background_shells: true
       queue: true
       mcp: true
       context_usage: true
@@ -657,7 +656,6 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
     - **max_output**: Maximum output tokens (default: `false`)
     - **a2a_agents**: A2A agent readiness (ready/total) (default: `true`)
     - **tools**: Tool count and token usage (default: `true`)
-    - **background_shells**: Running background shell count (default: `true`)
     - **queue**: Messages waiting in the queue while the agent is busy (default: `true`)
       - Shows a `☰ N queued` segment in the accent color while the shared message queue has entries; hidden once it drains
     - **mcp**: MCP server status and tool count (default: `true`)
@@ -684,7 +682,6 @@ chat:
       max_output: false
       a2a_agents: true
       tools: true
-      background_shells: false # Hide background shells indicator
       queue: true            # Show queued-message indicator while the agent is busy
       mcp: true
       context_usage: true

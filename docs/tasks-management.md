@@ -18,14 +18,17 @@ system with better visibility into task status and history.
   lingers with a green `✓` or a red `✗` and its total duration, then drops
   (`chat.status_bar.subagent_linger_seconds`). `chat.status_bar.indicators.subagents` hides the list. A finished subagent also shows its
   [run stats](subagents.md#run-stats) on a child line under its row
+- The list is selectable. Press `↓` on the status indicators to move into it, `↑`/`↓` to pick a row and
+  `enter` to swap the transcript for that job's: a headless subagent's conversation so far, refreshed every
+  second, or the captured output of any other job. `esc` returns to the chat's own transcript, a second `esc` to
+  the input. Scroll keys keep working while a job is viewed, and typing returns to the input
 
 ### Task Management Interface (`/tasks`)
 
-- **Access**: Type `/tasks` in the chat, or press `↓` in the chat input, select the `⚙`
-  background-jobs indicator with `←`/`→`, and press `enter`
-- **Requirements**: The `/tasks` shortcut requires A2A to be enabled in configuration; the
-  status-indicator route works whenever the `⚙` indicator shows running jobs (shells,
-  subagents, or A2A tasks)
+- **Access**: Type `/tasks` in the chat. It works with or without A2A, since it also lists shells,
+  subagents and recordings
+- **Purpose**: The list under the composer is the live view of what is running. `/tasks` is where
+  finished jobs stay for review
 - **Default View**: Opens in "All" view showing both active and completed tasks
 - **Views**: Switch between Active, Completed, and All tasks using number keys 1, 2, 3
 
@@ -64,9 +67,6 @@ When viewing task details (`i` key), you can see:
 /tasks
 ```
 
-Or, without typing a command: press `↓` in the chat input (while not navigating input
-history), move to the `⚙` background-jobs indicator with `←`/`→`, and press `enter`.
-
 ### Canceling a Task
 
 1. Open task management with `/tasks`
@@ -104,7 +104,7 @@ Configuration options:
 
 - `completed_task_retention`: Maximum number of completed/canceled tasks to retain in memory for viewing (default: 5)
 
-If A2A is disabled, the `/tasks` command will show an error message.
+A2A rows appear only when A2A is enabled. The view itself always opens.
 
 ## Implementation Details
 

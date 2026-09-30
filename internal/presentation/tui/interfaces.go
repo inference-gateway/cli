@@ -126,7 +126,6 @@ type StatusIndicatorAction int
 const (
 	StatusIndicatorActionNone StatusIndicatorAction = iota
 	StatusIndicatorActionModelSelection
-	StatusIndicatorActionTaskManagement
 	StatusIndicatorActionThemeSelection
 	StatusIndicatorActionToolsList
 	StatusIndicatorActionA2AAgents

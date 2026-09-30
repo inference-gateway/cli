@@ -797,9 +797,6 @@ func TestDefaultStatusBarConfig(t *testing.T) {
 	if !indicators.Tools {
 		t.Error("Expected tools indicator to be enabled by default")
 	}
-	if !indicators.BackgroundShells {
-		t.Error("Expected background_shells indicator to be enabled by default")
-	}
 	if !indicators.Queue {
 		t.Error("Expected queue indicator to be enabled by default")
 	}
@@ -832,9 +829,6 @@ func TestGetDefaultStatusBarConfig(t *testing.T) {
 	}
 	if !cfg.Indicators.Tools {
 		t.Error("Expected tools indicator to be enabled by default")
-	}
-	if !cfg.Indicators.BackgroundShells {
-		t.Error("Expected background_shells indicator to be enabled by default")
 	}
 	if !cfg.Indicators.Queue {
 		t.Error("Expected queue indicator to be enabled by default")

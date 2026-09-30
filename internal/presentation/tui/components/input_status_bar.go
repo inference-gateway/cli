@@ -45,7 +45,6 @@ type InputStatusBar struct {
 	tokenEstimator         convdomain.TokenEstimator
 	backgroundShellService scheddomain.BackgroundShellService
 	backgroundTaskService  a2adomain.BackgroundTaskService
-	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	messageQueue           convdomain.MessageQueue
 	mcpStatus              *mcpdomain.ServerStatus
 	browserConnected       bool
@@ -137,12 +136,6 @@ func (isb *InputStatusBar) SetBackgroundShellService(service scheddomain.Backgro
 // SetBackgroundTaskService sets the background task service
 func (isb *InputStatusBar) SetBackgroundTaskService(service a2adomain.BackgroundTaskService) {
 	isb.backgroundTaskService = service
-}
-
-// SetBackgroundTaskRegistry sets the unified background task registry, the single
-// source for the live A2A/shell/subagent counts shown in the status line.
-func (isb *InputStatusBar) SetBackgroundTaskRegistry(registry scheddomain.BackgroundTaskRegistry) {
-	isb.backgroundTaskRegistry = registry
 }
 
 // SetMessageQueue sets the shared message queue so the bar can show what is
@@ -511,12 +504,6 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 		}
 	}
 
-	if isb.shouldShowIndicator("background_shells") || isb.shouldShowIndicator("a2a_tasks") {
-		if jobsInfo := isb.getBackgroundJobsInfo(); jobsInfo != "" {
-			parts = append(parts, indicatorPart{text: jobsInfo, action: tui.StatusIndicatorActionTaskManagement})
-		}
-	}
-
 	if isb.shouldShowIndicator("queue") {
 		if queuePart := isb.buildQueueIndicator(); queuePart != "" {
 			var color string
@@ -674,12 +661,6 @@ func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 		}
 	}
 
-	if isb.shouldShowIndicator("background_shells") || isb.shouldShowIndicator("a2a_tasks") {
-		if jobsInfo := isb.getBackgroundJobsInfo(); jobsInfo != "" {
-			parts = append(parts, jobsInfo)
-		}
-	}
-
 	if isb.shouldShowIndicator("mcp") {
 		if mcpPart := isb.buildMCPIndicator(); mcpPart != "" {
 			parts = append(parts, mcpPart)
@@ -721,10 +702,6 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return indicators.A2AAgents
 	case "tools":
 		return indicators.Tools
-	case "background_shells":
-		return indicators.BackgroundShells
-	case "a2a_tasks":
-		return indicators.A2ATasks
 	case "queue":
 		return indicators.Queue
 	case "mcp":
@@ -960,32 +937,6 @@ func (isb *InputStatusBar) getToolInfo() string {
 	}
 
 	return fmt.Sprintf("Tools: %d (%d)", count, tokens)
-}
-
-// getBackgroundInfo returns background process count information
-func (isb *InputStatusBar) getBackgroundJobsInfo() string {
-	if isb.backgroundTaskRegistry == nil {
-		return ""
-	}
-
-	a2a := isb.backgroundTaskRegistry.CountRunningJobs(scheddomain.JobKindA2A)
-	shells := isb.backgroundTaskRegistry.CountRunningJobs(scheddomain.JobKindShell)
-	subagents := isb.backgroundTaskRegistry.CountRunningJobs(scheddomain.JobKindSubagent)
-
-	var segments []string
-	if a2a > 0 {
-		segments = append(segments, fmt.Sprintf("%d A2A", a2a))
-	}
-	if shells > 0 {
-		segments = append(segments, fmt.Sprintf("%d shells", shells))
-	}
-	if subagents > 0 {
-		segments = append(segments, fmt.Sprintf("%d subagents", subagents))
-	}
-	if len(segments) == 0 {
-		return ""
-	}
-	return "⚙ " + strings.Join(segments, " · ")
 }
 
 // buildQueueIndicator counts the messages waiting in the shared queue while

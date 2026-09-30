@@ -70,7 +70,7 @@ These shortcuts are available out of the box:
 - `/explorer` - Open the file explorer (tree + fuzzy finder)
 - `/tools` - Show the tools available to the agent (read-only, filterable list)
 - `/agents` - Show every configured agent: local presets and remote A2A agents (A2A rows require A2A)
-- `/tasks` - Show the A2A task-management interface (requires A2A)
+- `/tasks` - Show background tasks and their history: shells, subagents, recordings and A2A tasks
 - `/release-notes [version]` - Show GitHub release notes for a version or the latest (requires the `gh` CLI installed and authenticated)
 
 **Project setup:**
