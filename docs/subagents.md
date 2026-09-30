@@ -153,8 +153,10 @@ A failed tool call does not fail the subagent. A subagent fails only when its ru
 counts are how the parent tells a clean run from one that struggled. A subagent that crashes before it writes
 its result file reports no stats.
 
-The chat shows the same numbers. Once a subagent finishes, its row in the list under the composer grows a child
-line with the tool counts and the total tokens, for as long as the row lingers:
+The chat shows the same numbers. A subagent's row in the list under the composer carries a child line with the
+tool counts and the total tokens. For a headless subagent the line is live: it counts up as the subagent works,
+then settles on the reported totals for as long as the row lingers. An interactive subagent shows its line once
+it finishes. An A2A task shows the usage its agent attaches to the task, which ADK agents do when the task ends:
 
 ```text
 ┌ npm run build shell       2.0s

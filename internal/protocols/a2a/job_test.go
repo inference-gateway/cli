@@ -17,6 +17,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 )
 
@@ -277,4 +278,30 @@ func TestA2AJob_PollingStateConcurrent(t *testing.T) {
 		}
 	}()
 	wg.Wait()
+}
+
+// TestA2AJobStatsFollowTaskMetadata: the job's stats are the usage the agent
+// last attached to the task, and a poll without metadata keeps the last ones.
+func TestA2AJobStatsFollowTaskMetadata(t *testing.T) {
+	j := &a2aJob{taskID: "t1", agentURL: "http://a"}
+	if got := j.Stats(); got != nil {
+		t.Fatalf("stats before any poll = %+v, want nil", got)
+	}
+
+	j.recordStats(adk.Task{ID: "t1"})
+	if got := j.Stats(); got != nil {
+		t.Fatalf("stats without metadata = %+v, want nil", got)
+	}
+
+	metadata := map[string]any{
+		"usage":           map[string]any{"prompt_tokens": float64(1200), "completion_tokens": float64(80)},
+		"execution_stats": map[string]any{"tool_calls": float64(4), "failed_tools": float64(1)},
+	}
+	j.recordStats(adk.Task{ID: "t1", Metadata: &metadata})
+	j.recordStats(adk.Task{ID: "t1"})
+
+	want := scheddomain.SubagentRunStats{ToolsSucceeded: 3, ToolsFailed: 1, InputTokens: 1200, OutputTokens: 80}
+	if got := j.Stats(); got == nil || *got != want {
+		t.Fatalf("stats = %+v, want %+v", got, want)
+	}
 }

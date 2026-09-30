@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -456,6 +457,40 @@ func TestAgentTool_ReportsRunStats(t *testing.T) {
 	want := "Tools: 3 succeeded, 1 failed | Tokens: 1200 in, 80 out"
 	if got := tool.FormatForLLM(res); !strings.Contains(got, want) {
 		t.Fatalf("expected the model-facing result to contain %q, got %q", want, got)
+	}
+}
+
+// TestHeadlessSubagentJob_TalliesLiveStats: a running headless subagent's stats
+// follow the lines it prints, then give way to the totals it reports.
+func TestHeadlessSubagentJob_TalliesLiveStats(t *testing.T) {
+	tool := newTestAgentTool(t)
+	reported := scheddomain.SubagentRunStats{ToolsSucceeded: 9, InputTokens: 5000, OutputTokens: 300}
+	var live scheddomain.SubagentRunStats
+	job := &headlessSubagentJob{tool: tool, state: &scheddomain.SubagentState{ID: "sub-1", SessionID: "session-1", StartedAt: time.Now()}}
+	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+		for _, line := range []string{
+			`{"type":"info","message":"Starting new agent session"}`,
+			`{"role":"assistant","content":"","token_usage":{"prompt_tokens":100,"completion_tokens":20}}`,
+			`{"role":"tool","content":"ok","failed":false}`,
+			`{"role":"tool","content":"boom","failed":true}`,
+			`{"role":"assistant","content":"done","token_usage":{"prompt_tokens":150,"completion_tokens":5}}`,
+			`not json`,
+		} {
+			opts.OnLine([]byte(line))
+		}
+		live = *job.Stats()
+		rf := scheddomain.SubagentResultFile{FinalAssistant: "done", Success: true, Stats: &reported}
+		return agentrunner.Result{}, scheddomain.WriteSubagentResultFile(opts.ResultFile, rf)
+	}
+
+	job.Run(t.Context(), func(scheddomain.JobSignal) {})
+
+	want := scheddomain.SubagentRunStats{ToolsSucceeded: 1, ToolsFailed: 1, InputTokens: 250, OutputTokens: 25}
+	if live != want {
+		t.Fatalf("live stats = %+v, want %+v", live, want)
+	}
+	if got := job.Stats(); got == nil || *got != reported {
+		t.Fatalf("stats after the run = %+v, want the reported %+v", got, reported)
 	}
 }
 

@@ -158,8 +158,9 @@ type JobOutputProvider interface {
 	Output() string
 }
 
-// JobStatsProvider is an optional BackgroundJob extension. A subagent job
-// implements it to offer its run stats once it has them, nil until then.
+// JobStatsProvider is an optional BackgroundJob extension. A subagent or A2A
+// job implements it to offer its run stats, live while it runs when it can
+// tally them and nil until it has any.
 type JobStatsProvider interface {
 	Stats() *SubagentRunStats
 }
