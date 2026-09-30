@@ -154,23 +154,30 @@ func toolLine(name, args string) string {
 func quotedToolResult(content string) string {
 	var result struct {
 		Success bool   `json:"success"`
+		Result  string `json:"result"`
 		Error   string `json:"error"`
 	}
 	failed := json.Unmarshal([]byte(content), &result) == nil && !result.Success
-
-	trimmed := strings.TrimSpace(content)
 	if failed {
-		trimmed = strings.TrimSpace(result.Error)
-		trimmed = strings.TrimSpace(fmt.Sprintf("Tool failed - retrying may follow:\n\"\"\"\n%s\n\"\"\"", trimmed))
-		return quoteBlock(trimmed)
+		fenced := fmt.Sprintf("Tool failed - retrying may follow:\n\"\"\n%s\n\"\"", capRunes(strings.TrimSpace(result.Error)))
+		return quoteBlock(fenced)
 	}
-	if trimmed == "" {
+	body := strings.TrimSpace(result.Result)
+	if body == "" {
+		body = strings.TrimSpace(content)
+	}
+	if body == "" {
 		return ""
 	}
-	if r := []rune(trimmed); len(r) > maxToolResultLen {
-		trimmed = string(r[:maxToolResultLen]) + "…"
+	return quoteBlock("\"\"\n" + capRunes(body) + "\n\"\"")
+}
+
+// capRunes caps a value at maxToolResultLen runes with an ellipsis.
+func capRunes(s string) string {
+	if r := []rune(s); len(r) > maxToolResultLen {
+		return string(r[:maxToolResultLen]) + "…"
 	}
-	return quoteBlock("\"\"\"\n" + trimmed + "\n\"\"\"")
+	return s
 }
 
 // quoteBlock prefixes every line with "> " so tool traffic arrives as a
