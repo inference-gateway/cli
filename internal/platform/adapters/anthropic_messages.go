@@ -97,10 +97,6 @@ func (a *AnthropicMessages) ListProviderModels(ctx context.Context, provider sdk
 	return a.inner.ListProviderModels(ctx, provider, include...)
 }
 
-func (a *AnthropicMessages) ListTools(ctx context.Context) (*sdk.ListToolsResponse, error) {
-	return a.inner.ListTools(ctx)
-}
-
 func (a *AnthropicMessages) MCPJSONRPC(ctx context.Context, request sdk.MCPJSONRPCRequest) (*sdk.MCPJSONRPCResponse, error) {
 	return a.inner.MCPJSONRPC(ctx, request)
 }

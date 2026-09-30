@@ -6,7 +6,7 @@ tool github.com/maxbrunsfeld/counterfeiter/v6
 
 require (
 	charm.land/bubbles/v2 v2.2.1
-	charm.land/bubbletea/v2 v2.0.9
+	charm.land/bubbletea/v2 v2.0.10
 	charm.land/fang/v2 v2.0.1
 	charm.land/glamour/v2 v2.0.1
 	charm.land/huh/v2 v2.0.3
@@ -16,17 +16,17 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/ultraviolet v0.0.0-20260811164956-006e29f97886
 	github.com/charmbracelet/x/ansi v0.11.8
-	github.com/charmbracelet/x/exp/charmtone v0.0.0-20260602025833-85a30b5e440a
+	github.com/charmbracelet/x/exp/charmtone v0.1.0
 	github.com/charmbracelet/x/vt v0.0.0-20260602025833-85a30b5e440a
 	github.com/creack/pty v1.1.24
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-telegram/bot v1.27.0
-	github.com/go-vgo/robotgo v1.0.3-0.20260708194349-766c6abccc40
+	github.com/go-vgo/robotgo v1.1.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/inference-gateway/adk v0.28.0
-	github.com/inference-gateway/sdk v1.40.0
+	github.com/inference-gateway/adk v0.29.0
+	github.com/inference-gateway/sdk v1.40.2
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.12.3
 	github.com/muesli/reflow v0.3.0
@@ -35,7 +35,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/sahilm/fuzzy v0.1.3
-	github.com/shirou/gopsutil/v4 v4.26.6
+	github.com/shirou/gopsutil/v4 v4.26.8
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1

@@ -229,19 +229,6 @@ type FakeClient struct {
 		result1 *sdk.ListModelsResponse
 		result2 error
 	}
-	ListToolsStub        func(context.Context) (*sdk.ListToolsResponse, error)
-	listToolsMutex       sync.RWMutex
-	listToolsArgsForCall []struct {
-		arg1 context.Context
-	}
-	listToolsReturns struct {
-		result1 *sdk.ListToolsResponse
-		result2 error
-	}
-	listToolsReturnsOnCall map[int]struct {
-		result1 *sdk.ListToolsResponse
-		result2 error
-	}
 	MCPJSONRPCStub        func(context.Context, sdk.MCPJSONRPCRequest) (*sdk.MCPJSONRPCResponse, error)
 	mCPJSONRPCMutex       sync.RWMutex
 	mCPJSONRPCArgsForCall []struct {
@@ -1332,70 +1319,6 @@ func (fake *FakeClient) ListProviderModelsReturnsOnCall(i int, result1 *sdk.List
 	}
 	fake.listProviderModelsReturnsOnCall[i] = struct {
 		result1 *sdk.ListModelsResponse
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeClient) ListTools(arg1 context.Context) (*sdk.ListToolsResponse, error) {
-	fake.listToolsMutex.Lock()
-	ret, specificReturn := fake.listToolsReturnsOnCall[len(fake.listToolsArgsForCall)]
-	fake.listToolsArgsForCall = append(fake.listToolsArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
-	stub := fake.ListToolsStub
-	fakeReturns := fake.listToolsReturns
-	fake.recordInvocation("ListTools", []interface{}{arg1})
-	fake.listToolsMutex.Unlock()
-	if stub != nil {
-		return stub(arg1)
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fakeReturns.result1, fakeReturns.result2
-}
-
-func (fake *FakeClient) ListToolsCallCount() int {
-	fake.listToolsMutex.RLock()
-	defer fake.listToolsMutex.RUnlock()
-	return len(fake.listToolsArgsForCall)
-}
-
-func (fake *FakeClient) ListToolsCalls(stub func(context.Context) (*sdk.ListToolsResponse, error)) {
-	fake.listToolsMutex.Lock()
-	defer fake.listToolsMutex.Unlock()
-	fake.ListToolsStub = stub
-}
-
-func (fake *FakeClient) ListToolsArgsForCall(i int) context.Context {
-	fake.listToolsMutex.RLock()
-	defer fake.listToolsMutex.RUnlock()
-	argsForCall := fake.listToolsArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeClient) ListToolsReturns(result1 *sdk.ListToolsResponse, result2 error) {
-	fake.listToolsMutex.Lock()
-	defer fake.listToolsMutex.Unlock()
-	fake.ListToolsStub = nil
-	fake.listToolsReturns = struct {
-		result1 *sdk.ListToolsResponse
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeClient) ListToolsReturnsOnCall(i int, result1 *sdk.ListToolsResponse, result2 error) {
-	fake.listToolsMutex.Lock()
-	defer fake.listToolsMutex.Unlock()
-	fake.ListToolsStub = nil
-	if fake.listToolsReturnsOnCall == nil {
-		fake.listToolsReturnsOnCall = make(map[int]struct {
-			result1 *sdk.ListToolsResponse
-			result2 error
-		})
-	}
-	fake.listToolsReturnsOnCall[i] = struct {
-		result1 *sdk.ListToolsResponse
 		result2 error
 	}{result1, result2}
 }
