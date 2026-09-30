@@ -29,7 +29,7 @@ func renderFrames(t *testing.T, frames ...string) []channels.OutboundMessage {
 	}
 	chat := cm.threadChatFor(context.Background(), "telegram-123", ch, "123", "/proj")
 	for _, frame := range frames {
-		chat.render([]byte(frame))
+		chat.handle([]byte(frame))
 	}
 	close(sent)
 	var out []channels.OutboundMessage

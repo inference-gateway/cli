@@ -17,6 +17,7 @@ import (
 
 	require "github.com/stretchr/testify/require"
 
+	uuid "github.com/google/uuid"
 	websocket "github.com/gorilla/websocket"
 )
 
@@ -114,11 +115,11 @@ func dialDaemon(t *testing.T, d *daemonProc, client string) *daemonClient {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
 
-	require.NoError(t, conn.WriteJSON(map[string]any{"type": "browser_hello", "token": daemonToken, "client": client, "protocol_version": 1}))
+	require.NoError(t, conn.WriteJSON(map[string]any{"type": "browser_hello", "token": daemonToken, "client": client, "protocol_version": 2}))
 	var ack map[string]any
 	require.NoError(t, conn.ReadJSON(&ack))
 	require.Equal(t, "browser_hello_ack", ack["type"])
-	require.Equal(t, float64(1), ack["protocol_version"])
+	require.Equal(t, float64(2), ack["protocol_version"])
 
 	c := &daemonClient{t: t, d: d, conn: conn, frames: make(chan map[string]any, 256)}
 	go func() {
@@ -137,6 +138,22 @@ func dialDaemon(t *testing.T, d *daemonProc, client string) *daemonClient {
 func (c *daemonClient) send(frame map[string]any) {
 	c.t.Helper()
 	require.NoError(c.t, c.conn.WriteJSON(frame))
+}
+
+// say sends the run_agent_input that starts a run with one user message.
+func (c *daemonClient) say(content string) {
+	c.t.Helper()
+	c.send(map[string]any{"type": "run_agent_input", "input": map[string]any{
+		"messages": []map[string]any{{"id": uuid.NewString(), "role": "user", "content": content}},
+	}})
+}
+
+// resume sends the run_agent_input that answers one interrupt.
+func (c *daemonClient) resume(interruptID, status string) {
+	c.t.Helper()
+	c.send(map[string]any{"type": "run_agent_input", "input": map[string]any{
+		"resume": []map[string]any{{"interruptId": interruptID, "status": status}},
+	}})
 }
 
 // next reads frames until one of the given type (or CUSTOM name) arrives.
@@ -187,7 +204,7 @@ func openThread(c *daemonClient, project, mode string) string {
 	c.t.Helper()
 	c.send(map[string]any{"type": "new_session", "project_dir": project, "mode": mode, "model": testModel})
 	require.Empty(c.t, c.next("MESSAGES_SNAPSHOT")["messages"])
-	c.send(map[string]any{"type": "user_message", "content": "say hello"})
+	c.say("say hello")
 	events := c.run()
 	require.Equal(c.t, "RUN_FINISHED", events[len(events)-1]["type"], "events: %v", events)
 	threadID, _ := events[0]["threadId"].(string)
@@ -217,7 +234,7 @@ func TestDaemonTwoClientsShareAThread(t *testing.T) {
 	require.True(t, snapshotContains(extension.next("MESSAGES_SNAPSHOT"), "Hello! How can I help?"),
 		"the resume snapshot must carry the first run's reply")
 
-	desktop.send(map[string]any{"type": "user_message", "content": "say hello again"})
+	desktop.say("say hello again")
 	seenByDesktop := desktop.run()
 	seenByExtension := extension.run()
 	require.Equal(t, threadID, seenByDesktop[0]["threadId"])
@@ -234,19 +251,37 @@ func TestDaemonApprovalFirstAnswerWins(t *testing.T) {
 	second.send(map[string]any{"type": "resume_conversation", "project_dir": project, "id": threadID})
 	second.next("MESSAGES_SNAPSHOT")
 
-	first.send(map[string]any{"type": "user_message", "content": "create a file named blocked.txt"})
-	request := first.next("approval_request")["value"].(map[string]any)
-	require.Equal(t, request, second.next("approval_request")["value"])
-	toolCallID := request["tool_call_id"]
+	first.say("create a file named blocked.txt")
+	suspended := first.run()
+	require.Equal(t, suspended[len(suspended)-1], second.run()[len(suspended)-1], "both clients must see the same interrupt")
+	interruptID := openInterrupt(t, suspended[len(suspended)-1])
 
-	first.send(map[string]any{"type": "approval_response", "tool_call_id": toolCallID, "approved": true})
-	resolved := second.next("approval_resolved")["value"].(map[string]any)
-	require.Equal(t, toolCallID, resolved["tool_call_id"])
-	second.send(map[string]any{"type": "approval_response", "tool_call_id": toolCallID, "approved": false})
+	first.resume(interruptID, "resolved")
+	second.next("RUN_STARTED")
+	second.resume(interruptID, "cancelled")
 
 	events := first.finish()
 	require.Equal(t, "RUN_FINISHED", events[len(events)-1]["type"], "events: %v", events)
+	require.Equal(t, map[string]any{"type": "success"}, events[len(events)-1]["outcome"])
 	require.FileExists(t, filepath.Join(project, "blocked.txt"), "the first answer (approve) must win")
+	select {
+	case frame := <-second.frames:
+		require.NotEqual(t, "RUN_ERROR", frame["type"], "a late resume is dropped, not refused: %v", frame)
+	case <-time.After(time.Second):
+	}
+}
+
+// openInterrupt reads the one interrupt a suspended run's RUN_FINISHED waits on.
+func openInterrupt(t *testing.T, terminal map[string]any) string {
+	t.Helper()
+	outcome, _ := terminal["outcome"].(map[string]any)
+	require.Equal(t, "interrupt", outcome["type"], "terminal: %v", terminal)
+	interrupts, _ := outcome["interrupts"].([]any)
+	require.Len(t, interrupts, 1)
+	interrupt := interrupts[0].(map[string]any)
+	require.Equal(t, "tool_call", interrupt["reason"])
+	require.Equal(t, interrupt["toolCallId"], interrupt["id"])
+	return interrupt["id"].(string)
 }
 
 func TestDaemonResumesAfterRestart(t *testing.T) {
@@ -268,13 +303,13 @@ func TestDaemonWorkerCrashEndsRunWithRunError(t *testing.T) {
 	client := dialDaemon(t, d, "desktop")
 	openThread(client, project, "auto")
 
-	client.send(map[string]any{"type": "user_message", "content": "crash the worker"})
+	client.say("crash the worker")
 	events := client.run()
 	terminal := events[len(events)-1]
 	require.Equal(t, "RUN_ERROR", terminal["type"], "events: %v", events)
 	require.Equal(t, events[0]["runId"], terminal["runId"], "the RUN_ERROR must end the run the worker left open")
 
-	client.send(map[string]any{"type": "user_message", "content": "say hello"})
+	client.say("say hello")
 	events = client.run()
 	require.Equal(t, "RUN_FINISHED", events[len(events)-1]["type"], "a relaunched worker must serve the thread: %v", events)
 }

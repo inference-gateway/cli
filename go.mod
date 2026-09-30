@@ -35,6 +35,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/sahilm/fuzzy v0.1.3
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/shirou/gopsutil/v4 v4.26.8
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
@@ -66,7 +67,7 @@ require (
 )
 
 require (
-	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260805190036-2a57151d9e7b
+	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260930095821-4c972f82b519
 	github.com/sirupsen/logrus v1.9.3 // indirect
 )
 

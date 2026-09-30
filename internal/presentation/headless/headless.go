@@ -144,8 +144,11 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		return fmt.Errorf("failed to start inference gateway: %w", err)
 	}
 
+	// The notes buffer the local agents' boot progress; the first run the
+	// process opens drains them as its activity entries.
+	notes := newStartupNotes()
 	if agentSupervisor := svc.GetAgentSupervisor(); agentSupervisor != nil && !isBashTask(opts.Task) {
-		startLocalAgents(agentSupervisor, cfg, opts.Format)
+		startLocalAgents(agentSupervisor, cfg, opts.Format, notes)
 	}
 
 	if mcpSupervisor := svc.GetMCPSupervisor(); mcpSupervisor != nil {
@@ -228,7 +231,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 			ApprovalBrokerAttached:     opts.RequireApproval,
 			UserQuestionBrokerAttached: true,
 			GroupKey:                   groupKey,
-		}, resumedEntries)
+		}, resumedEntries, notes)
 		return nil
 	}
 
@@ -298,20 +301,13 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		return fmt.Errorf("failed to run agent: %w", err)
 	}
 
-	renderEvents := events
-	var approvals <-chan ipc.ApprovalResponse
-	var questions <-chan ipc.UserQuestionResponse
+	var ctl *headlessControl
 	if opts.Format != "text" {
-		ctl := newHeadlessControl(agentService, svc.GetStateStore(), svc.GetMessageQueue(), sessionID)
+		ctl = newHeadlessControl(agentService, svc.GetMessageQueue(), sessionID)
 		go ctl.readLines(os.Stdin)
-		approvals = ctl.approvals
-		questions = ctl.questions
-		renderEvents = ctl.pumpEvents(events, func() (<-chan agentdomain.ChatEvent, error) {
-			return resumeRun(ctx, agentService, conversationRepo, req)
-		})
 	}
 	rendered = true
-	err = renderStream(opts.Format, notifications.merge(renderEvents), approvals, questions, sessionID, selectedModel, cfg, conversationRepo, resumedEntries, svc.GetBackgroundTaskRegistry().Snapshot)
+	err = renderStream(opts.Format, notifications.merge(events), ctl, sessionID, selectedModel, cfg, conversationRepo, resumedEntries, svc.GetBackgroundTaskRegistry().Snapshot, notes)
 
 	endSessionSpan(sessionOutcome(err))
 	rec.RecordSession("headless", sessionOutcome(err), time.Since(sessionStart))
@@ -331,7 +327,7 @@ func validateOptions(opts Options) error {
 	}
 	switch {
 	case opts.Serve && opts.Task != "":
-		return errors.New("--serve takes no task, send user_message frames on stdin instead")
+		return errors.New("--serve takes no task, send run_agent_input frames on stdin instead")
 	case opts.Serve && opts.Format != "ag-ui":
 		return fmt.Errorf("--serve streams AG-UI runs, so it needs --format ag-ui (got %q)", opts.Format)
 	case !opts.Serve && opts.Task == "":
@@ -372,26 +368,33 @@ func selectModel(models []string, modelFlag, defaultModel string) (string, error
 
 // renderStream writes an event stream in the requested --format. Both an agent
 // run and a slash command's output go through it, so every format keeps the
-// same contract whichever produced the events.
-func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository, history []convdomain.ConversationEntry, jobs func() []scheddomain.TrackedJob) error {
+// same contract whichever produced the events. A nil control is an unattended
+// stream: gated calls are rejected and questions dismissed at once.
+func renderStream(format string, events <-chan agentdomain.ChatEvent, ctl *headlessControl, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository, history []convdomain.ConversationEntry, jobs func() []scheddomain.TrackedJob, notes *startupNotes) error {
+	var approvals <-chan ipc.ApprovalResponse
+	var questions <-chan ipc.UserQuestionResponse
+	var interrupts Interrupts
+	if ctl != nil {
+		approvals, questions, interrupts = ctl.approvals, ctl.questions, ctl
+	}
 	switch format {
 	case "json":
 		return render.RenderJSON(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "json-pretty":
 		return render.RenderJSONPretty(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "ag-ui":
-		return renderAGUI(events, os.Stdout, approvals, questions, sessionID, model, repo, history, jobs, computer.PublishedEvent)
+		return renderAGUI(events, os.Stdout, approvals, questions, interrupts, sessionID, model, repo, history, jobs, notes, computer.PublishedEvent)
 	default:
 		return render.RenderText(events, os.Stdout)
 	}
 }
 
-// agentStartupEmitter returns the format's agent-status emitter: AG-UI custom
-// events for ag-ui, render's JSON agent_status lines for the other machine
-// formats.
-func agentStartupEmitter(w io.Writer, format string) func(name, state, message string, done, total int) {
+// agentStartupEmitter returns the format's agent-status emitter: AG-UI buffers
+// the notes for the first run's activity entries, render's agent_status lines
+// write for the other machine formats.
+func agentStartupEmitter(w io.Writer, notes *startupNotes, format string) func(name, state, message string, done, total int) {
 	if format == "ag-ui" {
-		return aguiStartupEmitter(w)
+		return startupEmitter(notes)
 	}
 	return render.AgentStartupEmitter(w, format)
 }
@@ -412,8 +415,8 @@ func emitPreRunError(w io.Writer, format string, err error) {
 // stdout as agent_status lines so a client can show what the wait is for. The
 // callbacks are removed once the wait ends so later liveness probes never write
 // into the run's event stream.
-func startLocalAgents(agentSupervisor a2adomain.AgentSupervisor, cfg *config.Config, format string) {
-	if emit := agentStartupEmitter(os.Stdout, format); emit != nil {
+func startLocalAgents(agentSupervisor a2adomain.AgentSupervisor, cfg *config.Config, format string, notes *startupNotes) {
+	if emit := agentStartupEmitter(os.Stdout, notes, format); emit != nil {
 		agentSupervisor.SetStatusCallback(func(name string, state a2adomain.AgentState, message, _, _ string) {
 			emit(name, state.String(), message, 0, 0)
 		})
@@ -448,7 +451,7 @@ func emitCommandResult(format string, repo convdomain.ConversationRepository, se
 	events <- agentdomain.ChatCompleteEvent{RequestID: sessionID, Timestamp: time.Now(), Message: text}
 	close(events)
 
-	return renderStream(format, events, nil, nil, sessionID, model, cfg, repo, nil, nil)
+	return renderStream(format, events, nil, sessionID, model, cfg, repo, nil, nil, nil)
 }
 
 // compactSession is /compact outside the TUI: the rollover manager already runs

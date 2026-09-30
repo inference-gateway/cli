@@ -3,6 +3,8 @@ package telegram
 import (
 	"context"
 	"encoding/json"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	channels "github.com/inference-gateway/cli/internal/channels"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
@@ -31,8 +34,8 @@ func newRenderChat(t *testing.T, cm *ChannelManagerService, ch *channelmocks.Fak
 
 // Deliver routes one inbound message to the chat's thread: the resume
 // frame that keeps it following the deterministic session id per sender
-// on the daemon's working dir, then the user_message that starts the
-// next turn with the images as attachments.
+// on the daemon's working dir, then the run_agent_input that starts the
+// next run with the message.
 func TestThreadChat_DeliverUserMessage(t *testing.T) {
 	cm := NewChannelManagerService(config.ChannelsConfig{Enabled: true}, nil)
 	router := &sessionmocks.FakeThreadRouter{}
@@ -72,12 +75,58 @@ func TestThreadChat_DeliverUserMessage(t *testing.T) {
 	}
 
 	_, frame = router.HandleArgsForCall(1)
-	var userMsg map[string]any
-	if err := json.Unmarshal(frame, &userMsg); err != nil {
+	var input runInputFrame
+	if err := json.Unmarshal(frame, &input); err != nil {
 		t.Fatalf("undecodable frame %s: %v", frame, err)
 	}
-	if userMsg["type"] != "user_message" || userMsg["content"] != "look at this" {
-		t.Errorf("expected the message on its thread, got %s", frame)
+	if input.Type != "run_agent_input" || input.Input.ThreadID != "channel-telegram-123" || len(input.Input.Messages) != 1 {
+		t.Fatalf("expected one run input on the chat's thread, got %s", frame)
+	}
+	if msg := input.Input.Messages[0]; msg.Role != "user" || msg.Content != "look at this" {
+		t.Errorf("expected the message as the run's one user message, got %s", frame)
+	}
+}
+
+// A suspended run's interrupts are answered with one run input of resume
+// entries: the tool approval the user gave, keyed by the call the run
+// streamed, and a question dismissed.
+func TestThreadChat_AnswersInterrupts(t *testing.T) {
+	cm := NewChannelManagerService(config.ChannelsConfig{Enabled: true, RequireApproval: true}, nil)
+	router := &sessionmocks.FakeThreadRouter{}
+	cm.SetThreadDriver(router, t.TempDir(), sessionsdomain.ThreadOptions{})
+	ch := &channelmocks.FakeChannel{}
+	sent := make(chan channels.OutboundMessage, 4)
+	chat := newRenderChat(t, cm, ch, sent)
+
+	chat.handle([]byte(`{"type":"TOOL_CALL_START","toolCallId":"call-1","toolCallName":"Bash"}`))
+	chat.handle([]byte(`{"type":"TOOL_CALL_ARGS","toolCallId":"call-1","delta":"{\"command\":\"ls\"}"}`))
+	chat.handle([]byte(`{"type":"TOOL_CALL_END","toolCallId":"call-1"}`))
+	go func() {
+		prompt := <-sent
+		if !strings.Contains(prompt.Content, "ls") {
+			t.Errorf("expected the approval prompt to name the command, got %q", prompt.Content)
+		}
+		respChan, ok := cm.pendingApprovals.Load("telegram-123")
+		if !ok {
+			t.Error("expected the approval pending under the sender's key while the prompt is out")
+			return
+		}
+		deliverApprovalReply(respChan, true)
+	}()
+	chat.handle([]byte(`{"type":"RUN_FINISHED","threadId":"t","runId":"r","outcome":{"type":"interrupt","interrupts":[` +
+		`{"id":"call-1","reason":"tool_call","toolCallId":"call-1"},{"id":"q-1","reason":"input_required"}]}}`))
+
+	if router.HandleCallCount() != 1 {
+		t.Fatalf("expected one resume frame, got %d", router.HandleCallCount())
+	}
+	_, frame := router.HandleArgsForCall(0)
+	var input runInputFrame
+	if err := json.Unmarshal(frame, &input); err != nil {
+		t.Fatalf("undecodable frame %s: %v", frame, err)
+	}
+	want := []agui.ResumeEntry{{InterruptID: "call-1", Status: agui.ResumeStatusResolved}, {InterruptID: "q-1", Status: agui.ResumeStatusCancelled}}
+	if len(input.Input.Messages) != 0 || !reflect.DeepEqual(input.Input.Resume, want) {
+		t.Errorf("expected the resume entries %+v and no messages, got %s", want, frame)
 	}
 }
 

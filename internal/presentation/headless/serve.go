@@ -14,12 +14,12 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// serve runs the headless --serve worker: one agent turn per user_message read on
-// stdin, each rendered as its own AG-UI run on stdout, until stdin closes and the
-// queue is empty. Mid-turn messages stay queued for the running turn to drain,
-// and panel frames are answered on stdout whenever they arrive.
-func serve(ctx context.Context, svc Services, notifications uiBridge, turn agentdomain.AgentRequest, history []convdomain.ConversationEntry) {
-	ctl := newHeadlessControl(svc.GetAgentService(), svc.GetStateStore(), svc.GetMessageQueue(), turn.RequestID)
+// serve runs the headless --serve worker: one agent run per run input read on
+// stdin, each rendered as its own AG-UI run on stdout, until stdin closes and
+// the queue is empty. Mid-turn messages stay queued for the running turn to
+// drain, and panel frames are answered on stdout whenever they arrive.
+func serve(ctx context.Context, svc Services, notifications uiBridge, turn agentdomain.AgentRequest, history []convdomain.ConversationEntry, notes *startupNotes) {
+	ctl := newHeadlessControl(svc.GetAgentService(), svc.GetMessageQueue(), turn.RequestID)
 	ctl.browser = newStdioBrowser(os.Stdout)
 	ctl.panel = svc.NewPanel(os.Stdout)
 	svc.RouteBrowserRequests(ctl.browser.Request)
@@ -27,16 +27,15 @@ func serve(ctx context.Context, svc Services, notifications uiBridge, turn agent
 
 	svc.GetTelemetryRecorder().SetConversationID(turn.RequestID)
 	for ctl.awaitTurn() {
-		runServeTurn(ctx, svc, ctl, notifications, turn, history)
+		runServeTurn(ctx, svc, ctl, notifications, turn, history, notes)
 		history = nil
 	}
 }
 
 // runServeTurn moves the queued messages into the conversation and renders one
-// agent run over it as one AG-UI run. A run that fails to start still renders as
-// RUN_STARTED then RUN_ERROR, so every turn keeps the one-run contract. The boot
-// snapshot is skipped when the panel just answered a snapshot frame with it.
-func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, req agentdomain.AgentRequest, history []convdomain.ConversationEntry) {
+// agent run over it as one AG-UI run. A run that fails to start still renders
+// as RUN_STARTED then RUN_ERROR, so every turn keeps the one-run contract.
+func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, req agentdomain.AgentRequest, history []convdomain.ConversationEntry, notes *startupNotes) {
 	repo := svc.GetConversationRepository()
 	agentService := svc.GetAgentService()
 	moveQueuedMessages(svc.GetMessageQueue(), repo)
@@ -47,19 +46,17 @@ func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notif
 	started := time.Now()
 	endSpan := rec.StartSession("headless")
 
-	if ctl.panel.TakeSnapshotReply() {
-		history = nil
-	}
-	encoder := NewRunEncoder(os.Stdout, req.Model, repo, history, svc.GetBackgroundTaskRegistry().Snapshot, ctl.approvals, ctl.questions, computer.PublishedEvent)
+	encoder := NewRunEncoder(os.Stdout, RunEncoderDeps{
+		Model: req.Model, Repo: repo, History: history, Jobs: svc.GetBackgroundTaskRegistry().Snapshot,
+		Approvals: ctl.approvals, Questions: ctl.questions,
+		Interrupt: ctl, Startup: notes, Publish: []Publish{computer.PublishedEvent},
+	})
 	encoder.Start(req.RequestID, uuid.New().String())
 	events, err := agentService.RunWithStream(ctx, &req)
 	if err != nil {
 		encoder.Handle(agentdomain.ChatErrorEvent{RequestID: req.RequestID, Timestamp: time.Now(), Error: err})
 	} else {
-		resume := func() (<-chan agentdomain.ChatEvent, error) {
-			return resumeRun(ctx, agentService, repo, &req)
-		}
-		for event := range notifications.merge(ctl.pumpEvents(events, resume)) {
+		for event := range notifications.merge(events) {
 			encoder.Handle(event)
 		}
 	}

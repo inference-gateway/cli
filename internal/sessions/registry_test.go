@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -167,9 +168,69 @@ func TestRegistryWorkerCrashEndsOpenRun(t *testing.T) {
 	if l.count() != 1 {
 		t.Fatal("an interrupt must not relaunch a crashed worker")
 	}
-	handle(r, a, `{"type":"user_message","content":"again"}`)
+	handle(r, a, runInput(`{"messages":[{"id":"m","role":"user","content":"again"}]}`))
 	if l.count() != 2 || l.keys[1].ConversationID != "conv-1" {
-		t.Fatalf("the next user_message must relaunch the thread's worker, launched %d", l.count())
+		t.Fatalf("the next run input must relaunch the thread's worker, launched %d", l.count())
+	}
+}
+
+// runInput wraps one RunAgentInput body in the frame that carries it.
+func runInput(input string) string {
+	return `{"type":"run_agent_input","input":` + input + `}`
+}
+
+// TestRegistryResumeContract suspends a run on one interrupt and sends the
+// thread's run inputs through the registry's resume policy: the first complete
+// resume reaches the worker, a resume that misses an open interrupt is refused
+// with RUN_ERROR, a later resume for the same interrupt is dropped, and new
+// messages always forward.
+func TestRegistryResumeContract(t *testing.T) {
+	resolved := runInput(`{"resume":[{"interruptId":"call-1","status":"resolved"}]}`)
+	cancelled := runInput(`{"resume":[{"interruptId":"call-1","status":"cancelled"}]}`)
+	partial := runInput(`{"resume":[{"interruptId":"call-2","status":"resolved"}]}`)
+	message := runInput(`{"messages":[{"id":"m","role":"user","content":"more"}]}`)
+	tests := []struct {
+		name        string
+		frames      []string
+		wantWorker  []string
+		wantRefused int
+	}{
+		{"first resume wins", []string{resolved, cancelled}, []string{resolved}, 0},
+		{"incomplete resume refused", []string{partial, resolved}, []string{resolved}, 1},
+		{"messages forward regardless", []string{message, resolved, message}, []string{message, resolved, message}, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := &launcher{}
+			r := NewRegistry(l.launch, time.Hour)
+			a := &sessionsmocks.FakeClient{}
+			handle(r, a, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+			worker, lines := l.worker(0)
+			lines <- []byte(`{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-1"}`)
+			lines <- []byte(`{"type":"RUN_FINISHED","threadId":"conv-1","runId":"run-1","outcome":{"type":"interrupt","interrupts":[{"id":"call-1","reason":"tool_call"}]}}`)
+			eventually(t, "the suspended run", func() bool { return a.DeliverCallCount() == 2 })
+
+			for _, frame := range tt.frames {
+				handle(r, a, frame)
+			}
+
+			got := make([]string, 0, worker.SendCallCount())
+			for i := 1; i < worker.SendCallCount(); i++ {
+				got = append(got, string(worker.SendArgsForCall(i)))
+			}
+			if !slices.Equal(got, tt.wantWorker) {
+				t.Fatalf("worker got %q, want %q", got, tt.wantWorker)
+			}
+			refused := 0
+			for _, frame := range delivered(a)[2:] {
+				if strings.Contains(frame, "RUN_ERROR") && strings.Contains(frame, "missing call-1") {
+					refused++
+				}
+			}
+			if refused != tt.wantRefused {
+				t.Fatalf("client got %d refusals, want %d: %q", refused, tt.wantRefused, delivered(a))
+			}
+		})
 	}
 }
 
@@ -220,7 +281,7 @@ func TestRegistryRejectsBadFrames(t *testing.T) {
 	a := &sessionsmocks.FakeClient{}
 
 	handle(r, a, `{"type":"new_session","project_dir":"relative/dir"}`)
-	handle(r, a, `{"type":"user_message","content":"no thread yet"}`)
+	handle(r, a, runInput(`{"messages":[{"id":"m","role":"user","content":"no thread yet"}]}`))
 	handle(r, a, `{"type":"resume_conversation","project_dir":"/proj"}`)
 	if l.count() != 0 {
 		t.Fatalf("bad frames launched %d workers", l.count())
@@ -272,7 +333,7 @@ func TestRegistryReapsIdleWorkers(t *testing.T) {
 	if kept.StopCallCount() != 1 {
 		t.Fatal("shutdown must stop every worker")
 	}
-	handle(r, followed, `{"type":"user_message","content":"after shutdown"}`)
+	handle(r, followed, runInput(`{"messages":[{"id":"m","role":"user","content":"after shutdown"}]}`))
 	if l.count() != 2 {
 		t.Fatal("no worker may launch after shutdown")
 	}

@@ -64,6 +64,13 @@ func startPanel(deps PanelDeps) (*Panel, lineSink) {
 	return NewPanel(deps, sink), sink
 }
 
+// runInput is the run_agent_input frame carrying one user message.
+func runInput(content string) map[string]any {
+	return map[string]any{"type": "run_agent_input", "input": map[string]any{
+		"messages": []map[string]any{{"id": "m1", "role": "user", "content": content}},
+	}}
+}
+
 func handle(t *testing.T, p *Panel, frame map[string]any) bool {
 	t.Helper()
 	line, err := json.Marshal(frame)
@@ -147,28 +154,6 @@ func TestPanelSnapshotsTheWorkersConversation(t *testing.T) {
 				t.Fatalf("snapshot content = %v, want %q", content, "resume me please")
 			}
 		})
-	}
-}
-
-func TestPanelSnapshotReplyFlag(t *testing.T) {
-	repo := newPanelRepo()
-	seedConversation(t, repo, "Current", "resume me please")
-	p, sink := startPanel(panelDeps())
-
-	handle(t, p, map[string]any{"type": "resume_conversation", "project_dir": "/p", "id": "ignored"})
-	readFrame(t, sink, "MESSAGES_SNAPSHOT")
-
-	if !p.TakeSnapshotReply() {
-		t.Fatal("TakeSnapshotReply() = false, want true right after the frame reply")
-	}
-	if p.TakeSnapshotReply() {
-		t.Fatal("TakeSnapshotReply() = true twice, want the mark consumed once")
-	}
-
-	handle(t, p, map[string]any{"type": "list_conversations", "project_dir": "/p"})
-	readFrame(t, sink, "conversations")
-	if p.TakeSnapshotReply() {
-		t.Fatal("TakeSnapshotReply() = true, want false for non-snapshot frames")
 	}
 }
 
@@ -259,8 +244,8 @@ func TestPanelHistoryRoundTrip(t *testing.T) {
 	p, sink := startPanel(deps)
 
 	for _, msg := range []string{"first", "first", "  ", "second"} {
-		if handle(t, p, map[string]any{"type": "user_message", "content": msg}) {
-			t.Fatal("user_message must be left for the turn loop")
+		if handle(t, p, runInput(msg)) {
+			t.Fatal("run_agent_input must be left for the turn loop")
 		}
 	}
 	handle(t, p, map[string]any{"type": "list_history"})

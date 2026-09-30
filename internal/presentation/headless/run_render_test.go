@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -22,25 +23,24 @@ import (
 
 // noticeEvent is a chat event the encoder does not map itself.
 type noticeEvent struct {
-	Name    string
-	Resumes bool
+	Name string
 }
 
 func (noticeEvent) GetRequestID() string    { return "" }
 func (noticeEvent) GetTimestamp() time.Time { return time.Time{} }
 
-// publishNotice publishes every noticeEvent under its own name.
-func publishNotice(event agentdomain.ChatEvent) (agui.CustomEvent, bool) {
+// publishNotice publishes every notice's name as its own activity entry.
+func publishNotice(event agentdomain.ChatEvent) (agui.Published, bool) {
 	notice, ok := event.(noticeEvent)
 	if !ok {
-		return agui.CustomEvent{}, false
+		return agui.Published{}, false
 	}
-	return agui.CustomEvent{Name: notice.Name, Value: map[string]bool{"active": true}, Resumes: notice.Resumes}, true
+	return agui.Published{ActivityType: notice.Name, MessageID: notice.Name, Content: map[string]bool{"active": true}}, true
 }
 
-// renderRun renders a fresh run, one without a restored history.
+// renderRun renders a fresh run, one without a restored history or boot notes.
 func renderRun(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob, publish ...Publish) error {
-	return renderAGUI(events, w, approvals, questions, sessionID, model, repo, nil, jobs, publish...)
+	return renderAGUI(events, w, approvals, questions, nil, sessionID, model, repo, nil, jobs, nil, publish...)
 }
 
 // stream feeds the given events into a closed channel, mimicking the engine
@@ -52,6 +52,33 @@ func stream(events ...agentdomain.ChatEvent) <-chan agentdomain.ChatEvent {
 	}
 	close(ch)
 	return ch
+}
+
+// statePatch is one JSON Patch operation of a STATE_DELTA.
+type statePatch struct {
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value any    `json:"value"`
+}
+
+// patches decodes the patch list a STATE_DELTA applies.
+func patches(t *testing.T, ev wireEvent) []statePatch {
+	t.Helper()
+	var list []statePatch
+	if err := json.Unmarshal(ev.Delta, &list); err != nil {
+		t.Fatalf("STATE_DELTA delta is not a JSON Patch list: %v\n%s", err, ev.Delta)
+	}
+	return list
+}
+
+// textOf unwraps the string delta of a text or reasoning content event.
+func textOf(t *testing.T, ev wireEvent) string {
+	t.Helper()
+	var text string
+	if err := json.Unmarshal(ev.Delta, &text); err != nil {
+		t.Fatalf("%s delta is not a string: %v\n%s", ev.Type, err, ev.Delta)
+	}
+	return text
 }
 
 func TestRender_SingleRunLifecycle(t *testing.T) {
@@ -107,7 +134,6 @@ func TestRender_UserMessageIsFramedWithUserRole(t *testing.T) {
 }
 
 func TestRender_BackgroundJobsAreStreamed(t *testing.T) {
-	var out strings.Builder
 	jobs := func() []scheddomain.TrackedJob {
 		return []scheddomain.TrackedJob{
 			{Meta: scheddomain.JobMeta{ID: "task-1", Kind: scheddomain.JobKindA2A, Label: "delay", Description: "call delay", Detail: "http://localhost:8081"}, Status: scheddomain.JobRunning},
@@ -115,6 +141,7 @@ func TestRender_BackgroundJobsAreStreamed(t *testing.T) {
 		}
 	}
 	note := "[A2A Task Completed: delay]\n\nslow done"
+	var out strings.Builder
 	err := renderRun(stream(
 		agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolName: "A2A_SubmitTask", ToolCallID: "c1", Success: true}}},
 		agentdomain.MessageQueuedEvent{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(note)}},
@@ -124,25 +151,27 @@ func TestRender_BackgroundJobsAreStreamed(t *testing.T) {
 		t.Fatalf("renderRun() err = %v", err)
 	}
 	got := out.String()
-	if n := strings.Count(got, `"name":"background_tasks"`); n != 2 {
-		t.Errorf("background_tasks count = %d, want 2 (after tool result and after queued note)\n%s", n, got)
+	if n := strings.Count(got, `"path":"/backgroundTasks"`); n != 2 {
+		t.Errorf("backgroundTasks patch count = %d, want 2 (after the tool result and the queued note)\n%s", n, got)
 	}
-	if !strings.Contains(got, `"running":1`) || !strings.Contains(got, `"id":"task-1"`) || !strings.Contains(got, `"kind":"a2a"`) || !strings.Contains(got, `"description":"call delay"`) {
-		t.Errorf("background_tasks snapshot missing running count or job fields\n%s", got)
-	}
-	var queued map[string]any
-	for _, line := range strings.Split(got, "\n") {
-		if strings.Contains(line, `"name":"queued_message"`) {
-			if err := json.Unmarshal([]byte(line), &queued); err != nil {
-				t.Fatalf("queued_message line is not JSON: %v", err)
-			}
+	for _, want := range []string{`"running":1`, `"id":"task-1"`, `"kind":"a2a"`, `"description":"call delay"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("backgroundTasks snapshot missing %s\n%s", want, got)
 		}
 	}
-	if queued == nil {
-		t.Fatalf("queued_message event missing\n%s", got)
+	events := decodeEvents(t, got)
+	var landed string
+	for i, ev := range events {
+		if ev.Type != "TEXT_MESSAGE_START" || ev.Role != string(sdk.User) {
+			continue
+		}
+		if i+1 >= len(events) || events[i+1].Type != "TEXT_MESSAGE_CONTENT" {
+			t.Fatalf("the landed note's message carries no content right after its start\n%s", got)
+		}
+		landed = textOf(t, events[i+1])
 	}
-	if v, _ := queued["value"].(map[string]any); v["content"] != note {
-		t.Errorf("queued_message content = %v, want the landed note", v["content"])
+	if landed != note {
+		t.Errorf("the landed note streamed %q, want %q", landed, note)
 	}
 }
 
@@ -158,14 +187,20 @@ func TestRender_QueuedNoteSplitsAssistantTurns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderRun() err = %v", err)
 	}
-	got := out.String()
-	if n := strings.Count(got, `"TEXT_MESSAGE_START"`); n != 2 {
-		t.Errorf("TEXT_MESSAGE_START count = %d, want 2 (one assistant message per turn)\n%s", n, got)
+	var starts []wireEvent
+	for _, ev := range decodeEvents(t, out.String()) {
+		if ev.Type == "TEXT_MESSAGE_START" {
+			starts = append(starts, ev)
+		}
 	}
-	first := strings.Index(got, `"TEXT_MESSAGE_END"`)
-	note := strings.Index(got, `"name":"queued_message"`)
-	if first < 0 || note < 0 || first > note {
-		t.Errorf("first assistant message must end before the queued note\n%s", got)
+	if len(starts) != 3 {
+		t.Fatalf("TEXT_MESSAGE_START count = %d, want 3 (assistant turn, note, assistant turn)\n%s", len(starts), out.String())
+	}
+	if starts[1].Role != string(sdk.User) {
+		t.Errorf("the queued note's message role = %q, want user\n%s", starts[1].Role, out.String())
+	}
+	if starts[2].Role != string(sdk.Assistant) {
+		t.Errorf("the note split the turn, the next message role = %q, want assistant\n%s", starts[2].Role, out.String())
 	}
 }
 
@@ -178,8 +213,15 @@ func TestRender_NilJobsEmitsNoSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderRun() err = %v", err)
 	}
-	if strings.Contains(out.String(), "background_tasks") {
-		t.Errorf("nil jobs must not emit background_tasks\n%s", out.String())
+	for _, ev := range decodeEvents(t, out.String()) {
+		if ev.Type != "STATE_DELTA" {
+			continue
+		}
+		for _, p := range patches(t, ev) {
+			if p.Path == "/backgroundTasks" {
+				t.Errorf("nil jobs patched the backgroundTasks state\n%s", out.String())
+			}
+		}
 	}
 }
 
@@ -212,7 +254,7 @@ func approvalsChan(resps ...ipc.ApprovalResponse) <-chan ipc.ApprovalResponse {
 	return ch
 }
 
-func TestRender_ApprovalRoundTrip(t *testing.T) {
+func TestRender_ApprovalSuspendsTheRunAsAnInterrupt(t *testing.T) {
 	respChan := make(chan agentdomain.ApprovalAction, 1)
 	ev := agentdomain.ToolApprovalRequestedEvent{
 		ToolCall:     sdk.ChatCompletionMessageToolCall{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"}},
@@ -231,8 +273,20 @@ func TestRender_ApprovalRoundTrip(t *testing.T) {
 	default:
 		t.Fatal("no approval action sent on ResponseChan")
 	}
-	if !strings.Contains(out.String(), `approval_request`) {
-		t.Fatalf("approval_request event not emitted:\n%s", out.String())
+	events := decodeEvents(t, out.String())
+	suspended := interruptAt(events)
+	if suspended < 0 {
+		t.Fatalf("the approval did not suspend the run as an interrupt:\n%s", out.String())
+	}
+	interrupts := events[suspended].Outcome.Interrupts
+	if len(interrupts) != 1 || interrupts[0].ToolCallID != "tc1" || interrupts[0].Reason != agui.InterruptToolCall {
+		t.Errorf("interrupts = %+v, want one tool_call interrupt for tc1", interrupts)
+	}
+	if strings.Contains(out.String(), `"name":"approval_request"`) {
+		t.Errorf("a run-scoped approval wrote an approvals CUSTOM event, the contract resolves one by interrupts:\n%s", out.String())
+	}
+	if continuation := continuationAt(events, suspended+1); continuation < 0 {
+		t.Fatalf("the answered interrupt did not continue the run:\n%s", out.String())
 	}
 }
 
@@ -287,21 +341,30 @@ func TestAnswerQuestions_RoundTrip(t *testing.T) {
 					t.Fatalf("answers = %+v (open=%v), want labels %v", answers, open, tt.want)
 				}
 			}
-			if !strings.Contains(out.String(), `"user_question_request"`) || !strings.Contains(out.String(), `"tool_call_id":"tc1"`) || !strings.Contains(out.String(), `"label":"Rust"`) {
-				t.Fatalf("user_question_request line not emitted with payload:\n%s", out.String())
+			if !strings.Contains(out.String(), `"reason":"input_required"`) || !strings.Contains(out.String(), `"responseSchema"`) {
+				t.Fatalf("the question did not suspend the run as an input_required interrupt:\n%s", out.String())
 			}
 		})
 	}
 }
 
 func TestAgentStartupEmitter(t *testing.T) {
+	notes := newStartupNotes()
+	startupEmitter(notes)("research-agent", "PullingImage", "Pulling image", 3, 10)
 	var out strings.Builder
-	emit := aguiStartupEmitter(&out)
-	emit("research-agent", "PullingImage", "Pulling image", 3, 10)
-	got := out.String()
-	for _, want := range []string{`"type":"CUSTOM"`, `"name":"agent_status"`, `"research-agent"`, `"state":"PullingImage"`, `"done":3`, `"total":10`} {
-		if !strings.Contains(got, want) {
-			t.Errorf("missing %s in %s", want, got)
+	err := renderAGUI(stream(agentdomain.ChatCompleteEvent{}), &out, nil, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil, nil, notes)
+	if err != nil {
+		t.Fatalf("renderAGUI() err = %v", err)
+	}
+	events := decodeEvents(t, out.String())
+	start := slices.IndexFunc(events, func(ev wireEvent) bool { return ev.Type == "RUN_STARTED" })
+	activity := slices.IndexFunc(events, func(ev wireEvent) bool { return ev.Type == "ACTIVITY_SNAPSHOT" })
+	if start < 0 || activity < 0 || start > activity {
+		t.Fatalf("the boot note must surface as ACTIVITY_SNAPSHOT after RUN_STARTED:\n%s", out.String())
+	}
+	for _, want := range []string{`"agent_status"`, `"research-agent"`, `"state":"PullingImage"`, `"done":3`, `"total":10`} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("missing %s in %s", want, out.String())
 		}
 	}
 }
@@ -318,21 +381,21 @@ func TestRender_PublishesTheEventsItDoesNotMap(t *testing.T) {
 	var out strings.Builder
 	err := renderRun(stream(
 		noticeEvent{Name: "paused"},
-		agentdomain.ChatCompleteEvent{Cancelled: true},
-		noticeEvent{Name: "resumed", Resumes: true},
+		noticeEvent{Name: "resumed"},
 		agentdomain.ChatCompleteEvent{},
 	), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil, publishNotice)
 	if err != nil {
-		t.Fatalf("renderRun() err = %v, want nil after resumed run completes", err)
+		t.Fatalf("renderRun() err = %v", err)
 	}
 	got := out.String()
-	for _, want := range []string{`"name":"paused","value":{"active":true}`, `"name":"resumed","value":{"active":true}`, `"CUSTOM"`} {
-		if !strings.Contains(got, want) {
-			t.Errorf("missing %s in output:\n%s", want, got)
-		}
+	if n := strings.Count(got, `"ACTIVITY_SNAPSHOT"`); n != 2 {
+		t.Errorf("ACTIVITY_SNAPSHOT count = %d, want one per published notice\n%s", n, got)
+	}
+	if !strings.Contains(got, `"activityType":"paused"`) || !strings.Contains(got, `"activityType":"resumed"`) {
+		t.Errorf("the notices did not surface as activities\n%s", got)
 	}
 	if strings.Contains(got, `"RUN_ERROR"`) {
-		t.Errorf("resumed run must not emit RUN_ERROR\n%s", got)
+		t.Errorf("published notices must not fail the run\n%s", got)
 	}
 }
 
@@ -342,7 +405,7 @@ func TestRender_SkipsAnEventNobodyPublishes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderRun() err = %v", err)
 	}
-	if strings.Contains(out.String(), `"CUSTOM"`) {
+	if strings.Contains(out.String(), `"ACTIVITY_SNAPSHOT"`) {
 		t.Errorf("an unpublished event reached the stream:\n%s", out.String())
 	}
 }
@@ -377,40 +440,39 @@ func TestRender_RunFinishedCarriesSessionStats(t *testing.T) {
 		t.Fatalf("renderRun() err = %v", err)
 	}
 
-	var result map[string]any
-	for line := range strings.SplitSeq(out.String(), "\n") {
-		if !strings.Contains(line, `"RUN_FINISHED"`) {
-			continue
+	var finished wireEvent
+	for _, ev := range decodeEvents(t, out.String()) {
+		if ev.Type == "RUN_FINISHED" {
+			finished = ev
 		}
-		var finished struct {
-			Type   string         `json:"type"`
-			Result map[string]any `json:"result"`
-		}
-		if err := json.Unmarshal([]byte(line), &finished); err != nil {
-			t.Fatalf("RUN_FINISHED line is not valid JSON: %v\n%s", err, line)
-		}
-		if finished.Type != "RUN_FINISHED" {
-			t.Fatalf("parsed type = %q, want RUN_FINISHED", finished.Type)
-		}
-		result = finished.Result
-		break
 	}
-	if result == nil {
-		t.Fatalf("RUN_FINISHED carries no result:\n%s", out.String())
+	if finished.Type != "RUN_FINISHED" {
+		t.Fatalf("no RUN_FINISHED on the wire:\n%s", out.String())
 	}
-	for key, want := range map[string]float64{
-		"inputTokens":     4821,
-		"outputTokens":    310,
-		"cacheReadTokens": 3100,
-		"totalToolCalls":  1,
-		"cost":            0.042,
-		"lastInputTokens": 4821,
-		"contextWindow":   200000,
+	if len(finished.Usage) != 1 {
+		t.Fatalf("RUN_FINISHED usage = %+v, want one entry\n%s", finished.Usage, out.String())
+	}
+	for key, want := range map[string]any{
+		"model":             "openai/gpt-4o",
+		"inputTokens":       float64(4821),
+		"outputTokens":      float64(310),
+		"cachedInputTokens": float64(3100),
 	} {
-		got, ok := result[key].(float64)
-		if !ok || got != want {
-			t.Errorf("result[%q] = %v, want %v", key, result[key], want)
+		if got := finished.Usage[0][key]; got != want {
+			t.Errorf("usage[%q] = %v, want %v", key, got, want)
 		}
+	}
+	for key, want := range map[string]any{
+		"totalToolCalls": float64(1),
+		"cost":           float64(0.042),
+		"contextWindow":  float64(200000),
+	} {
+		if got := finished.Result[key]; got != want {
+			t.Errorf("result[%q] = %v, want %v", key, got, want)
+		}
+	}
+	if _, ok := finished.Result["inputTokens"]; ok {
+		t.Errorf("result must not carry the token counts, usage does\n%s", out.String())
 	}
 
 	var plain strings.Builder
@@ -418,15 +480,14 @@ func TestRender_RunFinishedCarriesSessionStats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderRun() err = %v", err)
 	}
-	if strings.Contains(plain.String(), `"result"`) {
-		t.Errorf("zero-request run must emit RUN_FINISHED without result:\n%s", plain.String())
+	for _, ev := range decodeEvents(t, plain.String()) {
+		if ev.Type == "RUN_FINISHED" && (ev.Usage != nil || ev.Result != nil) {
+			t.Errorf("zero-request run's RUN_FINISHED carries usage %v or result %v, want neither", ev.Usage, ev.Result)
+		}
 	}
 }
 
 func TestRender_TokenUsageStreamsPerStep(t *testing.T) {
-	config.UserContextWindows = map[string]int{"gpt-4o": 200000}
-	t.Cleanup(func() { config.UserContextWindows = nil })
-
 	repo := &convmocks.FakeConversationRepository{}
 	repo.GetSessionTokensStub = func() convdomain.SessionTokenStats {
 		return convdomain.SessionTokenStats{
@@ -434,19 +495,10 @@ func TestRender_TokenUsageStreamsPerStep(t *testing.T) {
 			TotalTokens: 8231, RequestCount: 2, LastInputTokens: 4821,
 		}
 	}
-	repo.GetSessionCostStatsStub = func() convdomain.SessionCostStats {
-		return convdomain.SessionCostStats{TotalCost: 0.042}
-	}
-	repo.GetMessagesStub = func() []convdomain.ConversationEntry {
-		toolCalls := []sdk.ChatCompletionMessageToolCall{
-			{ID: "tc1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"}},
-		}
-		return []convdomain.ConversationEntry{{Message: sdk.Message{Role: sdk.Assistant, ToolCalls: &toolCalls}}}
-	}
 
 	var out strings.Builder
 	err := renderRun(stream(
-		agentdomain.ChatChunkEvent{Content: "one"},
+		agentdomain.ChatChunkEvent{Content: "two"},
 		agentdomain.ChatCompleteEvent{},
 		agentdomain.ChatChunkEvent{Content: "two"},
 		agentdomain.ChatCompleteEvent{},
@@ -454,38 +506,35 @@ func TestRender_TokenUsageStreamsPerStep(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderRun() err = %v", err)
 	}
-
 	got := out.String()
-	if n := strings.Count(got, `"name":"token_usage"`); n != 2 {
-		t.Errorf("token_usage event count = %d, want one per LLM step\n%s", n, got)
-	}
-	for line := range strings.SplitSeq(got, "\n") {
-		if !strings.Contains(line, `"name":"token_usage"`) {
+	var usage []statePatch
+	for _, ev := range decodeEvents(t, got) {
+		if ev.Type != "STATE_DELTA" {
 			continue
 		}
-		var ev struct {
-			Type  string         `json:"type"`
-			Name  string         `json:"name"`
-			Value map[string]any `json:"value"`
-		}
-		if err := json.Unmarshal([]byte(line), &ev); err != nil {
-			t.Fatalf("token_usage line is not valid JSON: %v\n%s", err, line)
-		}
-		if ev.Type != "CUSTOM" || ev.Name != "token_usage" {
-			t.Errorf("event type/name = %q/%q, want CUSTOM/token_usage", ev.Type, ev.Name)
-		}
-		for key, want := range map[string]float64{
-			"inputTokens":     4821,
-			"outputTokens":    310,
-			"cacheReadTokens": 3100,
-			"totalToolCalls":  1,
-			"cost":            0.042,
-			"lastInputTokens": 4821,
-			"contextWindow":   200000,
-		} {
-			if v, ok := ev.Value[key].(float64); !ok || v != want {
-				t.Errorf("token_usage value[%q] = %v, want %v", key, ev.Value[key], want)
+		for _, p := range patches(t, ev) {
+			if p.Path == "/usage" {
+				usage = append(usage, p)
 			}
+		}
+	}
+	if len(usage) != 2 {
+		t.Fatalf("usage patch count = %d, want one per LLM step\n%s", len(usage), got)
+	}
+	step := usageEntry(t, usage[0].Value, got)
+	for key, want := range map[string]any{
+		"model":             "openai/gpt-4o",
+		"inputTokens":       float64(4821),
+		"outputTokens":      float64(310),
+		"cachedInputTokens": float64(3100),
+	} {
+		if v := step[key]; v != want {
+			t.Errorf("usage patch entry[%q] = %v, want %v\n%s", key, v, want, got)
+		}
+	}
+	for _, name := range []string{"cost", "contextWindow", "totalToolCalls"} {
+		if _, ok := step[name]; ok {
+			t.Errorf("the usage patch must not carry %q, the terminal result does\n%s", name, got)
 		}
 	}
 
@@ -494,7 +543,21 @@ func TestRender_TokenUsageStreamsPerStep(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderRun() err = %v", err)
 	}
-	if strings.Contains(plain.String(), `"name":"token_usage"`) {
-		t.Errorf("zero-request run must not emit token_usage:\n%s", plain.String())
+	if strings.Contains(plain.String(), `"path":"/usage"`) {
+		t.Errorf("zero-request run must not patch the usage state:\n%s", plain.String())
 	}
+}
+
+// usageEntry unwraps the per-model entry inside a usage patch value.
+func usageEntry(t *testing.T, value any, got string) map[string]any {
+	t.Helper()
+	entries, ok := value.([]any)
+	if !ok || len(entries) != 1 {
+		t.Fatalf("usage patch value = %+v, want one per-model entry\n%s", value, got)
+	}
+	entry, ok := entries[0].(map[string]any)
+	if !ok {
+		t.Fatalf("usage entry = %+v, want an object\n%s", entries[0], got)
+	}
+	return entry
 }

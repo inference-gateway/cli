@@ -145,8 +145,8 @@ func TestChannelManagerService_IsAllowedUser_EmptyList(t *testing.T) {
 
 // InboundRouting drives one inbound message to its sender's thread: the chat
 // hands the registry a resume_conversation with the deterministic session id
-// per sender on the daemon's working dir, then the user_message with the
-// text and the images as attachments. No process is spawned per message.
+// per sender on the daemon's working dir, then the run_agent_input with the
+// text and the images as content parts. No process is spawned per message.
 func TestChannelManagerService_InboundRouting(t *testing.T) {
 	cm := NewChannelManagerService(config.ChannelsConfig{Enabled: true}, nil)
 	router := &sessionmocks.FakeThreadRouter{}
@@ -169,7 +169,7 @@ func TestChannelManagerService_InboundRouting(t *testing.T) {
 	if router.HandleCallCount() != 2 {
 		t.Fatalf("expected the resume and the message on the registry, got %d frames", router.HandleCallCount())
 	}
-	var resume, userMsg map[string]any
+	var resume, input map[string]any
 	for i := range 2 {
 		_, frame := router.HandleArgsForCall(i)
 		var f map[string]any
@@ -179,12 +179,12 @@ func TestChannelManagerService_InboundRouting(t *testing.T) {
 		switch f["type"] {
 		case "resume_conversation":
 			resume = f
-		case "user_message":
-			userMsg = f
+		case "run_agent_input":
+			input = f
 		}
 	}
-	if resume == nil || userMsg == nil {
-		t.Fatalf("expected a resume_conversation and a user_message frame, got %v and %v", resume, userMsg)
+	if resume == nil || input == nil {
+		t.Fatalf("expected a resume_conversation and a run_agent_input frame, got %v and %v", resume, input)
 	}
 	if resume["id"] != "channel-telegram-123" {
 		t.Errorf("expected the deterministic session id per sender, got %v", resume["id"])
@@ -195,16 +195,20 @@ func TestChannelManagerService_InboundRouting(t *testing.T) {
 	if resume["system_prompt"] != "You are remote controlled." {
 		t.Errorf("expected the thread options applied when the worker launches, got %v", resume["system_prompt"])
 	}
-	if userMsg["content"] != "hello agent" {
-		t.Errorf("expected the message content on the user_message, got %v", userMsg["content"])
+	messages, _ := input["input"].(map[string]any)["messages"].([]any)
+	if len(messages) != 1 {
+		t.Fatalf("expected the one new user message on the run input, got %v", input)
 	}
-	atts, ok := userMsg["attachments"].([]any)
-	if !ok || len(atts) != 1 {
-		t.Fatalf("expected the images as attachments in place of --files, got %v", userMsg["attachments"])
+	parts, ok := messages[0].(map[string]any)["content"].([]any)
+	if !ok || len(parts) != 2 {
+		t.Fatalf("expected the text and the image as content parts, got %v", messages[0])
 	}
-	att := atts[0].(map[string]any)
-	if att["data"] != "aGVsbG8=" || att["mime_type"] != "image/png" || att["filename"] != "shot.png" {
-		t.Errorf("expected the image carried in the frame, got %v", att)
+	text, image := parts[0].(map[string]any), parts[1].(map[string]any)
+	if text["type"] != "text" || text["text"] != "hello agent" {
+		t.Errorf("expected the message text as the first part, got %v", text)
+	}
+	if image["type"] != "image" || image["data"] != "aGVsbG8=" || image["mimeType"] != "image/png" || image["filename"] != "shot.png" {
+		t.Errorf("expected the image carried as a content part, got %v", image)
 	}
 }
 

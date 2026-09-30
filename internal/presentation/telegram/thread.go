@@ -13,11 +13,13 @@ import (
 	"sync"
 	"time"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	uuid "github.com/google/uuid"
+
 	chn "github.com/inference-gateway/cli/internal/channels"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
@@ -35,8 +37,8 @@ type threadChat struct {
 	projectDir string
 
 	// frames carries the frames the registry delivers until the daemon
-	// stops. The render loop drains it; a full buffer drops the frame
-	// rather than freezing the registry's pump for every follower.
+	// stops. handleFrames drains it; a full buffer drops the frame rather
+	// than freezing the registry's pump for every follower.
 	frames chan []byte
 
 	// mu guards the idle bookkeeping: active is the time of the last
@@ -46,14 +48,16 @@ type threadChat struct {
 	active time.Time
 	detach *time.Timer
 
-	// render state, owned by the render loop: the open assistant
+	// render state, owned by handleFrames: the open assistant
 	// message's deltas and its role, the tool calls rendered for the
-	// next flush, and the tool call being streamed.
+	// next flush, the tool call being streamed, and the calls of the run
+	// by id, which the interrupt that suspends the run names.
 	message  strings.Builder
 	role     string
 	tools    []string
 	toolName string
 	toolArgs string
+	calls    map[string]ipc.ApprovalRequest
 }
 
 // threadChatFor returns the sender's render adapter, building and starting
@@ -71,31 +75,39 @@ func (cm *ChannelManagerService) threadChatFor(ctx context.Context, senderKey st
 		projectDir: projectDir,
 		frames:     make(chan []byte, frameBuffer),
 		active:     time.Now(),
+		calls:      make(map[string]ipc.ApprovalRequest),
 	}
 	t.markActive()
 	cm.threadChats.Store(senderKey, t)
-	go t.renderLoop()
+	go t.handleFrames()
 	return t
 }
 
-// threadFrame is one chat-built client frame for the registry: the
-// resume_conversation that makes the chat follow its sender's thread, the
-// user_message that starts its next turn with the images as attachments,
-// and the interrupt answers. The thread options apply when the worker
-// launches.
+// threadFrame is the resume_conversation frame that makes the chat follow
+// its sender's thread. The thread options apply when the worker launches.
 type threadFrame struct {
-	Type        string                        `json:"type"`
-	ID          string                        `json:"id,omitempty"`
-	ProjectDir  string                        `json:"project_dir,omitempty"`
-	Content     string                        `json:"content,omitempty"`
-	Attachments []agentdomain.ImageAttachment `json:"attachments,omitempty"`
+	Type       string `json:"type"`
+	ID         string `json:"id,omitempty"`
+	ProjectDir string `json:"project_dir,omitempty"`
 	sessionsdomain.ThreadOptions
 }
 
-const frameResume = "resume_conversation"
+// runInputFrame starts the chat's next run with its new message, or answers
+// the interrupts a suspended run waits on with resume entries.
+type runInputFrame struct {
+	Type  string             `json:"type"`
+	Input agui.RunAgentInput `json:"input"`
+}
+
+const (
+	frameResume   = "resume_conversation"
+	frameRunInput = "run_agent_input"
+)
 
 // frameBuffer is how many undelivered worker frames a busy chat's render
-// loop may owe before further frames drop.
+// loop may owe before further frames drop. ponytail: resolveApproval blocks
+// the render loop while the user decides and the continuation run's frames
+// queue here, answer approvals off the loop if chats start dropping frames.
 const frameBuffer = 64
 
 // Deliver accepts one frame from the thread registry. A full buffer drops
@@ -112,13 +124,13 @@ func (t *threadChat) Deliver(frame []byte) {
 
 // deliverUserMessage routes one inbound message to the chat's thread: the
 // resume_conversation frame keeps it following the deterministic session id
-// per sender (idempotent on the registry), and the user_message frame
-// carries the text with the images as attachments for the worker to turn
-// into content parts. No subprocess is spawned per message.
+// per sender (idempotent on the registry), and the run input carries the new
+// user message with the images as content parts. No subprocess is spawned
+// per message.
 func (t *threadChat) deliverUserMessage(ctx context.Context, msg chn.InboundMessage, projectDir string, opts sessionsdomain.ThreadOptions) error {
 	frames := [][]byte{
 		encodeThreadFrame(t, threadFrame{Type: frameResume, ID: t.sessionID, ProjectDir: projectDir, ThreadOptions: opts}),
-		encodeThreadFrame(t, threadFrame{Type: "user_message", Content: msg.Content, Attachments: msg.Images}),
+		encodeThreadFrame(t, t.runInput([]agui.Message{userMessage(msg)}, nil)),
 	}
 	for _, frame := range frames {
 		if err := t.sendFrame(ctx, frame); err != nil {
@@ -128,10 +140,32 @@ func (t *threadChat) deliverUserMessage(ctx context.Context, msg chn.InboundMess
 	return nil
 }
 
-// encodeThreadFrame marshals one frame; a thread frame carries flat scalar
-// fields only, so a failure is a programming error logged and sent as the
-// registry's rejection answer.
-func encodeThreadFrame(t *threadChat, frame threadFrame) []byte {
+// runInput builds the run_agent_input frame of one run on the chat's thread.
+func (t *threadChat) runInput(messages []agui.Message, resume []agui.ResumeEntry) runInputFrame {
+	return runInputFrame{Type: frameRunInput, Input: agui.RunAgentInput{
+		ThreadID: t.sessionID, RunID: uuid.NewString(), Messages: messages, Resume: resume,
+	}}
+}
+
+// userMessage renders one inbound chat message as the run input's user
+// message: plain text, or text and image parts when it carries images.
+func userMessage(msg chn.InboundMessage) agui.Message {
+	message := agui.Message{ID: uuid.NewString(), Role: "user", Content: msg.Content}
+	if len(msg.Images) == 0 {
+		return message
+	}
+	parts := []agui.InputContent{{Type: agui.InputContentTypeText, Text: msg.Content}}
+	for _, image := range msg.Images {
+		parts = append(parts, agui.InputContent{Type: agui.InputContentTypeImage, MimeType: image.MimeType, Data: image.Data, Filename: image.Filename})
+	}
+	message.Content = parts
+	return message
+}
+
+// encodeThreadFrame marshals one frame. A frame carries plain data, so a
+// failure is a programming error logged and sent as the registry's
+// rejection answer.
+func encodeThreadFrame(t *threadChat, frame any) []byte {
 	data, err := json.Marshal(frame)
 	if err != nil {
 		logger.Error("failed to marshal a chat frame", append(t.tags(), "recipient", t.recipient, "error", err)...)
@@ -205,9 +239,8 @@ func (cm *ChannelManagerService) DetachThreads() {
 	})
 }
 
-// renderLoop renders the worker frames into channel messages until the
-// daemon's context ends.
-func (t *threadChat) renderLoop() {
+// handleFrames handles the worker frames until the daemon's context ends.
+func (t *threadChat) handleFrames() {
 	for {
 		select {
 		case <-t.ctx.Done():
@@ -216,20 +249,19 @@ func (t *threadChat) renderLoop() {
 			if !open {
 				return
 			}
-			t.render(frame)
+			t.handle(frame)
 		}
 	}
 }
 
-// render decodes one worker frame and answers the interrupts the way the
-// other clients answer them: approvals with an approval_response, questions
+// handle decodes one worker frame: it renders the conversation frames as
+// channel messages and answers the interrupts a suspended run ends on the
+// way the other clients do, approvals with the user's decision and questions
 // with a dismissal. Unknown frames are dropped, the way the desktop client
 // skips what it cannot render.
-func (t *threadChat) render(frame []byte) {
+func (t *threadChat) handle(frame []byte) {
 	var envelope struct {
-		Type  string          `json:"type"`
-		Name  string          `json:"name"`
-		Value json.RawMessage `json:"value"`
+		Type string `json:"type"`
 	}
 	if json.Unmarshal(frame, &envelope) != nil {
 		logger.Debug("dropping an undecodable worker frame", append(t.tags(), "recipient", t.recipient)...)
@@ -253,13 +285,8 @@ func (t *threadChat) render(frame []byte) {
 		t.onToolResult(frame)
 	case "RUN_ERROR":
 		t.onRunError(frame)
-	case "CUSTOM":
-		switch envelope.Name {
-		case "approval_request":
-			t.renderApproval(envelope.Value)
-		case "user_question_request":
-			t.answerQuestion(envelope.Value)
-		}
+	case "RUN_FINISHED":
+		t.onRunFinished(frame)
 	}
 }
 
@@ -290,53 +317,39 @@ func (t *threadChat) tags() []any {
 	return []any{"project_dir", t.projectDir, "conversation_id", t.sessionID}
 }
 
-// renderApproval surfaces one approval interrupt to the chat's user the
-// way the subprocess run did - the rich buttons when the channel has them,
-// a text prompt otherwise, and the reply the user taps or types. With
-// channels.require_approval off the chat answers cancelled without
-// prompting, so gated tools stay blocked.
-func (t *threadChat) renderApproval(value json.RawMessage) {
-	var req ipc.ApprovalRequest
-	if json.Unmarshal(value, &req) != nil || req.ToolCallID == "" {
+// onRunFinished answers the interrupts a suspended run ends on with one run
+// input of resume entries, so the continuation run carries the decisions.
+func (t *threadChat) onRunFinished(frame []byte) {
+	var ev struct {
+		Outcome struct {
+			Type       string           `json:"type"`
+			Interrupts []agui.Interrupt `json:"interrupts"`
+		} `json:"outcome"`
+	}
+	if json.Unmarshal(frame, &ev) != nil || ev.Outcome.Type != "interrupt" {
 		return
 	}
-	if !t.manager.cfg.RequireApproval {
-		t.sendInterrupt(ipc.ApprovalResponse{
-			Type:       "approval_response",
-			ToolCallID: req.ToolCallID,
-			Approved:   false,
-		})
-		return
+	resume := make([]agui.ResumeEntry, 0, len(ev.Outcome.Interrupts))
+	for _, interrupt := range ev.Outcome.Interrupts {
+		resume = append(resume, agui.ResumeEntry{InterruptID: interrupt.ID, Status: t.answer(interrupt)})
 	}
-	resp := t.manager.resolveApproval(t.ctx, t.senderKey(), req, t.deliverText, t.channel)
-	t.sendInterrupt(resp)
-}
-
-// answerQuestion dismisses one AskUserQuestion interrupt: a chat has no
-// form to fill, so the tool takes its dismissed path, the answer the other
-// clients use to close the form without running it.
-func (t *threadChat) answerQuestion(value json.RawMessage) {
-	var req struct {
-		ToolCallID string `json:"tool_call_id"`
-	}
-	if json.Unmarshal(value, &req) != nil || req.ToolCallID == "" {
-		return
-	}
-	t.sendInterrupt(ipc.UserQuestionResponse{
-		Type:       "user_question_response",
-		ToolCallID: req.ToolCallID,
-		Cancelled:  true,
-	})
-}
-
-// sendInterrupt routes one interrupt answer frame to the chat's thread.
-func (t *threadChat) sendInterrupt(resp any) {
-	frame, err := json.Marshal(resp)
-	if err != nil {
-		logger.Error("failed to marshal an interrupt answer", append(t.tags(), "recipient", t.recipient, "error", err)...)
-		return
-	}
-	if err := t.sendFrame(t.ctx, frame); err != nil {
+	if err := t.sendFrame(t.ctx, encodeThreadFrame(t, t.runInput(nil, resume))); err != nil {
 		logger.Error("failed to answer an interrupt", append(t.tags(), "recipient", t.recipient, "error", err)...)
 	}
+}
+
+// answer decides one interrupt. A tool approval goes to the chat's user the
+// way the subprocess run did - the rich buttons when the channel has them, a
+// text prompt otherwise - unless channels.require_approval is off, which
+// cancels without prompting so gated tools stay blocked. A question is
+// cancelled: a chat has no form to fill, so the tool takes its dismissed path.
+func (t *threadChat) answer(interrupt agui.Interrupt) agui.ResumeStatus {
+	req, known := t.calls[interrupt.ToolCallID]
+	if interrupt.Reason != agui.InterruptToolCall || !known || !t.manager.cfg.RequireApproval {
+		return agui.ResumeStatusCancelled
+	}
+	if t.manager.resolveApproval(t.ctx, t.senderKey(), req, t.deliverText, t.channel).Approved {
+		return agui.ResumeStatusResolved
+	}
+	return agui.ResumeStatusCancelled
 }

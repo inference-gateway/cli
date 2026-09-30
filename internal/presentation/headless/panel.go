@@ -6,7 +6,6 @@ import (
 	"io"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -19,7 +18,7 @@ import (
 // Panel frame types a session worker answers on stdin, and the replies it
 // writes on stdout. Unknown types are left to the caller.
 const (
-	inboundUserMessage        = "user_message"
+	inboundRunAgentInput      = "run_agent_input"
 	inboundNewSession         = "new_session"
 	inboundResumeConversation = "resume_conversation"
 	inboundListHistory        = "list_history"
@@ -47,9 +46,11 @@ const conversationListLimit = 50
 const historyListLimit = 1000
 
 type panelFrame struct {
-	Type       string `json:"type"`
-	ID         string `json:"id"`
-	Content    string `json:"content"`
+	Type  string `json:"type"`
+	ID    string `json:"id"`
+	Input struct {
+		Messages []agui.Message `json:"messages"`
+	} `json:"input"`
 	Model      string `json:"model"`
 	Mode       string `json:"mode"`
 	ToolName   string `json:"tool_name"`
@@ -134,11 +135,6 @@ type PanelDeps struct {
 type Panel struct {
 	out *lineWriter
 
-	// snapshotReplied marks a just-answered new_session / resume_conversation
-	// frame whose reply already shipped a MESSAGES_SNAPSHOT, so the run
-	// opening right after it skips its own boot snapshot.
-	snapshotReplied atomic.Bool
-
 	conversations *conversations
 	history       *history
 	skills        *skills
@@ -151,32 +147,34 @@ type Panel struct {
 // dependencies it uses.
 func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p := &Panel{out: &lineWriter{out: out}}
-	events := agui.NewRun(p.out)
-	p.conversations = &conversations{write: p.write, events: events, repo: deps.Conversations}
+	p.conversations = &conversations{write: p.write, out: p.out, repo: deps.Conversations}
 	p.history = newHistory(p.write, deps.History)
 	p.skills = &skills{write: p.write, service: deps.Skills}
 	p.models = &modelPicker{write: p.write, service: deps.Models, defaultModel: deps.DefaultModel}
 	p.modes = &modes{write: p.write, state: deps.Modes}
-	p.tools = newToolRequests(p.write, events, deps)
+	p.tools = newToolRequests(p.write, p.out, deps)
 	return p
 }
 
 // Handle answers one stdin line and reports whether the panel consumed it. A
-// user_message is recorded in the shell history but left for the turn loop,
-// and an approval_response is consumed only when it answers a tool_request.
+// run input's messages are recorded in the shell history but left for the
+// turn loop, and an approval_response is consumed only when it answers a
+// tool_request.
 func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case per panel frame
 	var msg panelFrame
 	if json.Unmarshal(line, &msg) != nil {
 		return false
 	}
 	switch msg.Type {
-	case inboundUserMessage:
-		p.history.append(msg.Content)
+	case inboundRunAgentInput:
+		for _, message := range msg.Input.Messages {
+			text, _ := messageParts(message)
+			p.history.append(text)
+		}
 		return false
 	case inboundApprovalResponse:
 		return p.tools.resolve(msg.ToolCallID, msg.Approved)
 	case inboundNewSession, inboundResumeConversation:
-		p.snapshotReplied.Store(true)
 		p.conversations.snapshot()
 	case inboundListConversations:
 		p.conversations.list()
@@ -197,13 +195,6 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		return false
 	}
 	return true
-}
-
-// TakeSnapshotReply reports and clears whether the panel just answered a
-// new_session or resume_conversation frame with a MESSAGES_SNAPSHOT, so the
-// run opening right after it need not repeat the same snapshot.
-func (p *Panel) TakeSnapshotReply() bool {
-	return p.snapshotReplied.Swap(false)
 }
 
 func (p *Panel) write(frame any) {
@@ -227,16 +218,16 @@ type conversationLister interface {
 // conversations answers the panel's conversation picker and snapshot from the
 // worker's conversation repository.
 type conversations struct {
-	write  frameWriter
-	events *agui.Run
-	repo   convdomain.ConversationRepository
+	write frameWriter
+	out   io.Writer
+	repo  convdomain.ConversationRepository
 }
 
 // snapshot answers new_session and resume_conversation with the worker's
 // conversation as an AG-UI MESSAGES_SNAPSHOT. The worker was launched for that
 // conversation, so the repository is already on it.
 func (c *conversations) snapshot() {
-	c.events.Snapshot(snapshotMessages(c.repo.GetMessages()))
+	agui.WriteMessagesSnapshot(c.out, snapshotMessages(c.repo.GetMessages()))
 }
 
 // list answers list_conversations with the stored conversations (newest-first),

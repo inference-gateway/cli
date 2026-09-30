@@ -15,8 +15,13 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   thread at a time, because bare AG-UI events carry no thread id. The thread options on these frames
   (`model`, `mode`, `system_prompt`, `custom_instructions`, `sandbox_directories`, `max_turns`) apply when
   the worker launches.
-- **Forwarded frames** - `user_message`, `interrupt`, `user_question_response` and `computer_use_control` go
-  to the client's thread unchanged. A `user_message` relaunches a thread whose worker exited.
+- **Forwarded frames** - `run_agent_input`, `interrupt` and `user_question_response` go to the client's
+  thread unchanged. A `run_agent_input` relaunches a thread whose worker exited.
+- **Resumes** - a run that ends with the `interrupt` outcome leaves its interrupts open on the thread. The
+  first `run_agent_input` whose `resume` answers all of them goes to the worker, and the other clients learn
+  the decision from the continuation run's `RUN_STARTED`. A resume that misses an open interrupt is refused
+  with `RUN_ERROR`, and a later resume for interrupts no longer open is dropped together with any messages it
+  carries, so new messages travel in their own `run_agent_input`.
 - **Browser commands** - a `browser_command` line on a worker's stdout routes through the `BrowserRelay`
   (`RouteBrowser`, which the daemon wires to the browser context's extension relay) and the `browser_result` carrying the command's `id` goes
   back to that worker's stdin, so the worker's Browser tools resolve without binding a port. Commands serialize
@@ -24,8 +29,9 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
 - **Panel requests** - `list_*`, `select_model`, `set_mode` and `tool_request` run on the client's thread
   when it is in the frame's `project_dir`, else on any live worker there, else on a fresh idle one. The reply
   (`conversations`, `models`, `tool_result`, ...) goes back to the requester only.
-- **Approvals** - every CUSTOM `approval_request` reaches the thread's clients. The first `approval_response`
-  for a `tool_call_id` goes to the worker, and the other clients get CUSTOM `approval_resolved`.
+- **Panel approvals** - a `tool_request`'s CUSTOM `approval_request` reaches its requester. The first
+  `approval_response` for a `tool_call_id` goes to the worker, and any other client of the thread that saw it
+  gets CUSTOM `approval_resolved`.
 - **Crashes and idling** - a worker that exits mid-turn ends its open run with a synthesized `RUN_ERROR`. A
   worker nobody follows is stopped after the idle timeout, and daemon shutdown stops every worker.
 
