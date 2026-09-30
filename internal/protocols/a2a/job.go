@@ -34,12 +34,22 @@ func (j *a2aJob) Meta() scheddomain.JobMeta {
 	return scheddomain.JobMeta{
 		ID:           j.taskID,
 		Kind:         scheddomain.JobKindA2A,
+		Origin:       j.agentOrigin(),
 		Label:        j.taskID,
 		Description:  j.state.TaskDescription,
 		Detail:       j.agentURL,
 		StartedAt:    j.state.StartedAt,
 		HoldsSession: true,
 	}
+}
+
+// agentOrigin says whether the task's agent is a container this CLI runs
+// ("local") or an endpoint it only talks to ("external").
+func (j *a2aJob) agentOrigin() string {
+	if j.tool != nil && j.tool.config != nil && j.tool.config.IsLocalA2AAgent(j.agentURL) {
+		return "local"
+	}
+	return "external"
 }
 
 // Run polls the remote agent until the task terminates. It records each remote

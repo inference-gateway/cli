@@ -1,6 +1,7 @@
 package components
 
 import (
+	"cmp"
 	"fmt"
 	"net/url"
 	"slices"
@@ -25,13 +26,20 @@ const maxSubagentRows = 5
 // shape.
 const subagentLabelMinWidth = 13
 
+// rowOutcomeDone and rowOutcomeFailed are the one-cell icons a finished row
+// shows in place of a spelled-out state.
+const (
+	rowOutcomeDone   = "✓"
+	rowOutcomeFailed = "✗"
+)
+
 // subagentLabelCap bounds the fitted label column so one long name cannot push
 // the duration column off the row.
 const subagentLabelCap = 40
 
-// SubagentList renders the right-aligned stacked list below the composer:
-// one row per tracked sub-agent or A2A task with its label and a live elapsed
-// counter, finished jobs lingering with their final state before they drop off.
+// SubagentList renders the right-aligned stacked list below the composer: one
+// row per background job (sub-agent, A2A task, shell, recording) with its label,
+// its kind and a live elapsed counter. Finished jobs linger with their outcome.
 type SubagentList struct {
 	registry      scheddomain.BackgroundTaskRegistry
 	config        *config.Config
@@ -101,9 +109,10 @@ func (l *SubagentList) maybeRefreshTick() tea.Cmd {
 // subagentRow carries one row's render inputs derived from the registry.
 type subagentRow struct {
 	label   string
+	kind    string
 	running bool
 	elapsed time.Duration
-	state   string // "done" / "failed" on lingered rows
+	failed  bool
 	started time.Time
 }
 
@@ -111,47 +120,42 @@ type subagentRow struct {
 // state cell and the duration column never drift between rows.
 type rowWidths struct {
 	label    int
+	kind     int
 	state    int
 	duration int
 }
 
 // measureRows fits the columns to the rows on screen: the label column grows to
-// the widest visible name (capped), the duration column to the widest time.
+// the widest visible name (capped), the kind and duration columns to their
+// widest value.
 func (l *SubagentList) measureRows(rows []subagentRow) rowWidths {
 	widths := rowWidths{label: subagentLabelMinWidth}
 	for _, row := range rows {
 		widths.label = min(max(widths.label, l.styleProvider.GetWidth(rowLabel(row))), subagentLabelCap)
+		widths.kind = max(widths.kind, l.styleProvider.GetWidth(row.kind))
 		if w := l.styleProvider.GetWidth(formatDuration(row.elapsed)); w > widths.duration {
 			widths.duration = w
 		}
 		if !row.running {
-			if w := l.styleProvider.GetWidth(row.state); w > widths.state {
-				widths.state = w
-			}
+			widths.state = l.styleProvider.GetWidth(rowOutcomeDone)
 		}
 	}
 	return widths
 }
 
-// rowLabel is a row's label, or the generic fallback when it has none.
+// rowLabel is a row's label on one line, or its kind when it has none.
 func rowLabel(row subagentRow) string {
-	if trimmed := strings.TrimSpace(row.label); trimmed != "" {
-		return trimmed
-	}
-	return "subagent"
+	return cmp.Or(strings.Join(strings.Fields(row.label), " "), row.kind)
 }
 
-// snapshotRows adapts every tracked sub-agent and A2A job to a row, sorted
-// newest first, dropping finished jobs whose linger window has passed.
+// snapshotRows adapts every tracked job to a row, sorted newest first,
+// dropping finished jobs whose linger window has passed.
 func (l *SubagentList) snapshotRows() []subagentRow {
 	if l.registry == nil {
 		return nil
 	}
 	var rows []subagentRow
 	for _, job := range l.registry.Snapshot() {
-		if job.Meta.Kind != scheddomain.JobKindSubagent && job.Meta.Kind != scheddomain.JobKindA2A {
-			continue
-		}
 		if !l.shouldShowRow(job) {
 			continue
 		}
@@ -161,15 +165,11 @@ func (l *SubagentList) snapshotRows() []subagentRow {
 		}
 		row := subagentRow{
 			label:   jobRowLabel(job),
+			kind:    jobRowKind(job),
 			elapsed: end.Sub(job.Meta.StartedAt),
 			running: job.Status == scheddomain.JobRunning,
+			failed:  job.Status == scheddomain.JobFailed,
 			started: job.Meta.StartedAt,
-		}
-		if !row.running {
-			row.state = "done"
-			if job.Status == scheddomain.JobFailed {
-				row.state = "failed"
-			}
 		}
 		rows = append(rows, row)
 	}
@@ -179,16 +179,24 @@ func (l *SubagentList) snapshotRows() []subagentRow {
 	return rows
 }
 
-// jobRowLabel names a row. An A2A task shows its agent's host because its own
-// label is a raw task ID, and every other job shows its label.
+// jobRowLabel names a row. A2A tasks and shells are labelled by a raw ID, so an
+// A2A task shows its agent's host and a shell shows its command instead.
 func jobRowLabel(job scheddomain.TrackedJob) string {
-	if job.Meta.Kind != scheddomain.JobKindA2A {
-		return job.Meta.Label
-	}
-	if agent, err := url.Parse(job.Meta.Detail); err == nil && agent.Host != "" {
-		return agent.Host
+	switch job.Meta.Kind {
+	case scheddomain.JobKindShell:
+		return cmp.Or(job.Meta.Detail, job.Meta.Label)
+	case scheddomain.JobKindA2A:
+		if agent, err := url.Parse(job.Meta.Detail); err == nil && agent.Host != "" {
+			return agent.Host
+		}
 	}
 	return job.Meta.Label
+}
+
+// jobRowKind is the row's metadata tag: the job kind, followed by where the work
+// runs when the job says so (an A2A task is "a2a local" or "a2a external").
+func jobRowKind(job scheddomain.TrackedJob) string {
+	return strings.TrimSpace(string(job.Meta.Kind) + " " + job.Meta.Origin)
 }
 
 // shouldShowRow reports whether a tracked job earns a row: running jobs
@@ -258,10 +266,10 @@ func (l *SubagentList) Render() string {
 	return strings.Join(lines, "\n")
 }
 
-// rowView draws one entry: box-drawing connector, padded label, then either
-// the running elapsed counter or the final state and total duration. Running
-// rows leave the state cell blank so finished rows cannot shift the shared
-// duration column.
+// rowView draws one entry: box-drawing connector, padded label, kind tag, then
+// either the running elapsed counter or the outcome icon and total duration.
+// Running rows leave the outcome cell blank so finished rows cannot shift the
+// shared duration column.
 func (l *SubagentList) rowView(row subagentRow, index, count int, widths rowWidths) string {
 	connector := ""
 	if count > 1 {
@@ -274,7 +282,8 @@ func (l *SubagentList) rowView(row subagentRow, index, count int, widths rowWidt
 			connector = "│ "
 		}
 	}
-	label := formatting.PadText(rowLabel(row), widths.label)
+	label := formatting.PadText(rowLabel(row), widths.label) + " " +
+		l.styleProvider.RenderWithColor(formatting.PadText(row.kind, widths.kind), l.styleProvider.GetThemeColor("accent"))
 	dim := l.styleProvider.GetThemeColor("dim")
 	elapsed := formatDuration(row.elapsed)
 	elapsedCol := strings.Repeat(" ", widths.duration-l.styleProvider.GetWidth(elapsed)) +
@@ -282,11 +291,9 @@ func (l *SubagentList) rowView(row subagentRow, index, count int, widths rowWidt
 	if row.running {
 		return fmt.Sprintf("%s%s %s", connector, label, strings.Repeat(" ", widths.state+1)+elapsedCol)
 	}
-	style := "dim"
-	if row.state == "failed" {
-		style = "error"
+	outcome := l.styleProvider.RenderWithColor(rowOutcomeDone, l.styleProvider.GetThemeColor("success"))
+	if row.failed {
+		outcome = l.styleProvider.RenderWithColor(rowOutcomeFailed, l.styleProvider.GetThemeColor("error"))
 	}
-	stateCol := l.styleProvider.RenderWithColor(row.state, l.styleProvider.GetThemeColor(style)) +
-		strings.Repeat(" ", widths.state-l.styleProvider.GetWidth(row.state)) + " "
-	return fmt.Sprintf("%s%s %s", connector, label, stateCol+elapsedCol)
+	return fmt.Sprintf("%s%s %s %s", connector, label, outcome, elapsedCol)
 }

@@ -390,3 +390,36 @@ func TestLoadAgents_EnvironmentVariableExpansion(t *testing.T) {
 		})
 	}
 }
+
+func TestIsLocalA2AAgent(t *testing.T) {
+	t.Chdir(t.TempDir())
+	agents, err := config.LoadAgents(config.DefaultAgentsPath)
+	require.NoError(t, err)
+	for _, agent := range []config.AgentEntry{
+		{Name: "calendar", URL: "http://calendar-agent:8080", Run: true},
+		{Name: "weather", URL: "https://weather.example.com", Run: false},
+	} {
+		require.NoError(t, agents.CreateEntry(agent))
+	}
+
+	tests := []struct {
+		name     string
+		override []string
+		url      string
+		want     bool
+	}{
+		{name: "run: true agent is local", url: "http://calendar-agent:8080", want: true},
+		{name: "a reassigned port still reads local", url: "http://calendar-agent:9090/a2a", want: true},
+		{name: "run: false agent is external", url: "https://weather.example.com"},
+		{name: "unknown agent is external", url: "https://elsewhere.example.com"},
+		{name: "unparsable url is external", url: "://"},
+		{name: "INFER_A2A_AGENTS makes every agent external", override: []string{"http://calendar-agent:8080"}, url: "http://calendar-agent:8080"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.DefaultConfig()
+			cfg.A2A.Agents = tt.override
+			require.Equal(t, tt.want, cfg.IsLocalA2AAgent(tt.url))
+		})
+	}
+}

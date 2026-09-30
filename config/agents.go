@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
@@ -195,4 +196,26 @@ func (c *Config) IsA2AAgentHost(rawURL string) bool {
 	}
 
 	return false
+}
+
+// IsLocalA2AAgent reports whether url points at an agent this CLI runs itself,
+// a run: true entry of agents.yaml. INFER_A2A_AGENTS overrides agents.yaml, so
+// every agent is external then. Only the host is compared, as in
+// IsA2AAgentHost, so an external agent sharing a local agent's host reads local.
+func (c *Config) IsLocalA2AAgent(rawURL string) bool {
+	if len(c.A2A.Agents) > 0 {
+		return false
+	}
+	target, err := url.Parse(rawURL)
+	if err != nil || target.Hostname() == "" {
+		return false
+	}
+	agents, err := LoadAgents(ResolveAgentsPath())
+	if err != nil {
+		return false
+	}
+	return slices.ContainsFunc(agents.ListEntries(), func(agent AgentEntry) bool {
+		local, err := url.Parse(agent.URL)
+		return agent.Run && err == nil && strings.EqualFold(local.Hostname(), target.Hostname())
+	})
 }

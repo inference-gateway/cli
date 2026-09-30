@@ -33,10 +33,12 @@ func (s JobStatus) IsTerminal() bool { return s == JobCompleted || s == JobFaile
 
 // JobMeta is the identity/display snapshot a background job exposes. The
 // supervisor reads it once at submit (and surfaces it in the task view); it is
-// not on any hot path.
+// not on any hot path. Origin says where the work runs for a kind that has more
+// than one place, and is empty otherwise.
 type JobMeta struct {
 	ID           string
 	Kind         JobKind
+	Origin       string
 	Label        string
 	Description  string
 	Detail       string

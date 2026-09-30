@@ -13,7 +13,10 @@ system with better visibility into task status and history.
 ### Main Chat Interface
 
 - Shows a simple task count badge `(N)` in the header when there are active background tasks
-- Removes the detailed task display from the main interface for a cleaner look
+- Lists every background job right-aligned under the composer, newest first. Each row carries its label, a kind
+  tag (`subagent`, `a2a local`, `a2a external`, `shell`, `recording`) and a live elapsed counter. A finished job
+  lingers with a green `✓` or a red `✗` and its total duration, then drops
+  (`chat.status_bar.subagent_linger_seconds`). `chat.status_bar.indicators.subagents` hides the list
 
 ### Task Management Interface (`/tasks`)
 
