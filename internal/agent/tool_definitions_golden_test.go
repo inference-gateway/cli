@@ -155,7 +155,7 @@ func goldenRegistry(cfg *config.Config) *tools.Registry {
 	registry.RegisterTools(a2a.NewTools(cfg, a2a.NewTaskTracker(nil), jobs, nil))
 	registry.RegisterTools(browser.NewTools(cfg, nil))
 	registry.RegisterFrameSource("screen", &agentdomainmocks.FakeFrameSource{})
-	registry.RegisterTools(computer.NewTools(cfg, registry, annotator, nil))
+	registry.RegisterTools(computer.NewTools(cfg, registry, annotator, nil, nil))
 	return registry
 }
 

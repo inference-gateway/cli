@@ -35,9 +35,10 @@ type ComputerTool struct {
 	rateLimiter rateLimiter
 }
 
-// NewComputerTool creates the Computer tool.
-func NewComputerTool(cfg *config.Config, limiter rateLimiter) *ComputerTool {
-	return &ComputerTool{config: cfg, executor: NewExecutor(cfg), rateLimiter: limiter}
+// NewComputerTool creates the Computer tool. The notifier receives the
+// computer-use activity each pointer or keyboard action publishes before it runs.
+func NewComputerTool(cfg *config.Config, limiter rateLimiter, notifier agentdomain.UINotifier) *ComputerTool {
+	return &ComputerTool{config: cfg, executor: NewExecutor(cfg, notifier), rateLimiter: limiter}
 }
 
 // Manifest returns the tool's manifest so the tool registry knows its policy.

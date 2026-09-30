@@ -76,7 +76,12 @@ func newFakeRecorder(t *testing.T) (*ScreenRecorder, chanNotifier) {
 }
 
 func launchFake(r *ScreenRecorder, out, seconds string) error {
-	return r.launch(os.Args[0], []string{"-t", seconds, out}, &recording{status: RecordingStatus{Path: out}})
+	return r.launch(os.Args[0], []string{"-t", seconds, out}, &recording{status: RecordingStatus{
+		Path:        out,
+		Region:      computerdomain.Region{X: 128, Y: 96, Width: 512, Height: 384},
+		FrameWidth:  1024,
+		FrameHeight: 768,
+	}})
 }
 
 func TestScreenRecorderStartStop(t *testing.T) {
@@ -101,10 +106,16 @@ func TestScreenRecorderStartStop(t *testing.T) {
 	if status.Path != out || status.SizeBytes == 0 || status.Capped {
 		t.Fatalf("Stop() = %+v, want path %s, non-zero size, not capped", status, out)
 	}
-	for _, want := range []bool{true, false} {
-		if got := (<-events).(agentdomain.ScreenRecordingStatusEvent); got.Active != want {
-			t.Fatalf("event Active = %v, want %v", got.Active, want)
-		}
+	started := (<-events).(agentdomain.ScreenRecordingStatusEvent)
+	if !started.Active || started.Path != out || started.FrameWidth != 1024 || started.FrameHeight != 768 {
+		t.Fatalf("start event = %+v, want active with the file and frame space", started)
+	}
+	if started.RegionX != 128 || started.RegionY != 96 || started.RegionWidth != 512 || started.RegionHeight != 384 {
+		t.Fatalf("start event region = (%d,%d %dx%d), want (128,96 512x384)", started.RegionX, started.RegionY, started.RegionWidth, started.RegionHeight)
+	}
+	stopped := (<-events).(agentdomain.ScreenRecordingStatusEvent)
+	if stopped.Active || stopped.Path != "" {
+		t.Fatalf("stop event = %+v, want a bare active:false", stopped)
 	}
 	if _, err := r.Stop(); err == nil {
 		t.Fatal("second Stop() should fail")

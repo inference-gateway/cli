@@ -217,7 +217,16 @@ func (r *ScreenRecorder) launch(ffmpeg string, args []string, rec *recording) er
 		return err
 	}
 
-	r.notifier.Notify(agentdomain.ScreenRecordingStatusEvent{Active: true})
+	r.notifier.Notify(agentdomain.ScreenRecordingStatusEvent{
+		Active:       true,
+		Path:         rec.status.Path,
+		RegionX:      rec.status.Region.X,
+		RegionY:      rec.status.Region.Y,
+		RegionWidth:  rec.status.Region.Width,
+		RegionHeight: rec.status.Region.Height,
+		FrameWidth:   rec.status.FrameWidth,
+		FrameHeight:  rec.status.FrameHeight,
+	})
 	if err := cmd.Start(); err != nil {
 		_ = rec.lock.Close()
 		r.notifier.Notify(agentdomain.ScreenRecordingStatusEvent{Active: false})

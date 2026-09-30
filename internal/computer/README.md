@@ -12,9 +12,10 @@ bridges and the screenshot stream.
   `tools/`, and the container registers them into the tools registry.
 - The accessibility provider is macOS-only today. Other platforms return an unsupported error and the tool falls
   back to screenshot guidance, so a native failure never takes down the CLI.
-- `PublishedEvent` maps this context's chat events to the run state they patch (the `screenRecording` key).
-  Headless passes it to its run encoder. A pause or resume publishes nothing: pausing stops the run and
-  resuming starts a new one, which clients see through the run frames.
+- `PublishedEvent` maps this context's chat events onto the run stream: the `screenRecording` state key, and
+  the `computer_use` activity each Computer pointer or keyboard action publishes before it runs. Headless
+  passes it to its run encoder. A pause or resume publishes nothing: pausing stops the run and resuming
+  starts a new one, which clients see through the run frames.
 - A file lock keeps two computer-use sessions from driving the same desktop at once. It is a no-op on Windows.
 
 ## Related

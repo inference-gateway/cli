@@ -31,7 +31,7 @@ func TestExecutorAccessibilityObservationUsesFrameCoordinates(t *testing.T) {
 	provider := &fakeAccessibilityProvider{elements: []computerdomain.UIElement{{
 		Role: "button", Label: "Save", State: "enabled actions=press", BBox: [4]int{200, 100, 400, 200},
 	}}}
-	executor := newExecutor(config.DefaultConfig(), provider)
+	executor := newExecutor(config.DefaultConfig(), provider, nil)
 	observation := &computerdomain.Observation{Width: 1000, Height: 500}
 
 	executor.observeAccessibility(context.Background(), "", observation, 2000, 1000)
@@ -49,7 +49,7 @@ func TestExecutorAccessibilityObservationUsesFrameCoordinates(t *testing.T) {
 
 func TestExecutorAccessibilityDegradesToScreenshotGuidance(t *testing.T) {
 	provider := &fakeAccessibilityProvider{elementsErr: accessibility.ErrPermission}
-	executor := newExecutor(config.DefaultConfig(), provider)
+	executor := newExecutor(config.DefaultConfig(), provider, nil)
 	observation := &computerdomain.Observation{Width: 1000, Height: 500}
 
 	executor.observeAccessibility(context.Background(), "frontmost", observation, 2000, 1000)
@@ -64,7 +64,7 @@ func TestExecutorAccessibilityDegradesToScreenshotGuidance(t *testing.T) {
 
 func TestExecutorPressAccessibilityWithoutScreenshot(t *testing.T) {
 	provider := &fakeAccessibilityProvider{}
-	executor := newExecutor(config.DefaultConfig(), provider)
+	executor := newExecutor(config.DefaultConfig(), provider, nil)
 	observation := &computerdomain.Observation{}
 
 	executor.pressAccessibility(context.Background(), "frontmost", "Save", observation)
@@ -87,7 +87,7 @@ func TestExecutorPressMissSuggestsPressableLabels(t *testing.T) {
 			{Role: "button", Label: "Record workflow", State: "enabled actions=press"},
 		},
 	}
-	executor := newExecutor(config.DefaultConfig(), provider)
+	executor := newExecutor(config.DefaultConfig(), provider, nil)
 
 	tests := []struct {
 		label string
