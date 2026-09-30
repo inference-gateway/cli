@@ -97,11 +97,7 @@ type SubagentResultFile struct {
 	Success        bool   `json:"success"`
 	Error          string `json:"error,omitempty"`
 	SessionID      string `json:"session_id,omitempty"`
-	// Done marks the write as the task's terminal turn. The interactive-subagent
-	// chat sets it on every completed turn (the task turn is the terminal one) so
-	// the parent monitor delivers one completion note and closes the pane instead
-	// of waiting at the prompt. Headless runs omit it and terminate by exiting.
-	Done bool `json:"done,omitempty"`
+	Done           bool   `json:"done,omitempty"`
 }
 
 // WriteSubagentResultFile writes rf to path through a temp file and rename, so
