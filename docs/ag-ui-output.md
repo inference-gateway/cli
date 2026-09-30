@@ -34,7 +34,8 @@ Today that is one: the approval prompt of a panel-initiated `tool_request` (see
 | Todo-list change | `STATE_DELTA` patching `todos` |
 | Background job submitted or finished | `STATE_DELTA` patching `backgroundTasks` (`running`, `jobs`) |
 | Background job finished | The landed note as a text message with its conversation role, first line `[<Kind> Completed\|Failed: <label>]` |
-| Screen recording starts or ends (`RecordStart`, `RecordStop`, `max_duration` cap) | `STATE_DELTA` patching `screenRecording` with `active` (bool) |
+| Screen recording starts or ends | `STATE_DELTA` patching `screenRecording` with `active`, and the frame while it runs |
+| Computer tool pointer or keyboard action | `ACTIVITY_SNAPSHOT` `computer_use` keyed `computer_use:<toolCallId>`, the action and its screen coordinates. See [Activity](#activity) |
 | LLM judge verdict (`auto-with-judge`) | `ACTIVITY_SNAPSHOT` `judge_verdict` keyed `judge:<tool>:<turn>`. See [Activity](#activity) |
 | Approval request (`--require-approval`) | `RUN_FINISHED` with outcome `interrupt`, the interrupt's `reason` `tool_call` and its `toolCallId`. See [Interrupts](#interrupts) |
 | AskUserQuestion form | `RUN_FINISHED` with outcome `interrupt`, the interrupt's `reason` `input_required` and a `responseSchema` |
@@ -55,6 +56,14 @@ with the same `messageId`:
 | --- | --- | --- |
 | `agent_status` | `agent:<name>` | `name`, `state`, `message`, pull progress `done`/`total` |
 | `judge_verdict` | `judge:<tool>:<turn>` | `tool`, `model`, `decision`, `reason`, `turn` |
+| `computer_use` | `computer_use:<toolCallId>` | `toolCallId`, `action`, pointer `x`/`y` in screen coordinates, `screenWidth`, `screenHeight` |
+
+A computer-use action is written just before the Computer tool performs a
+pointer (`move`, `click`, `double_click`, `triple_click`) or keyboard (`type`,
+`key`) action. Keyboard actions carry no `x` and `y`; the pointer coordinates
+are already scaled to the screen, and `screenWidth`/`screenHeight` give the
+space they are relative to. The entry is replaced on every snapshot, so a
+client keeps one action entry per tool call.
 
 Agent boot progress observed before the first run opens is held and written right after that run's
 `RUN_STARTED`, so no event precedes a run.
@@ -73,7 +82,12 @@ replaces the others:
 | `todos` | The todo list, `[]` until the agent writes one |
 | `usage` | The cumulative token usage, the same list the terminal event carries, `[]` until the first model request |
 | `backgroundTasks` | `{"running": <count>, "jobs": [...]}` |
-| `screenRecording` | `{"active": <bool>}` |
+| `screenRecording` | `active` (bool); while a recording runs also `path`, `region` `{x, y, width, height}`, `frameWidth`, `frameHeight` |
+
+While a recording runs, its `region` and `frameWidth`/`frameHeight` are in the
+frame space the recorder captures - the same space screenshots and their
+annotations use - so a client can overlay it without rescaling. When it is off,
+only `active` remains.
 
 A continuation run (see below) opens with a `STATE_SNAPSHOT` seeded from the state the interrupted
 run left, so a client keeps one state object across the pair.

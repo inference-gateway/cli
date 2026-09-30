@@ -440,7 +440,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.registerCustomTools()
 	c.toolRegistry.LoadMarkdownAgents()
 	c.screenRecorder = computer.NewScreenRecorder(c.config, c.uiNotifier, c.backgroundTaskRegistry)
-	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator, c.screenRecorder))
+	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator, c.screenRecorder, c.uiNotifier))
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 
 	for name, srcCfg := range c.config.Vision.Sources {

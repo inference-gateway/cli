@@ -198,6 +198,24 @@ func TestUIBridge_ForwardsRecordingStatusIntoStream(t *testing.T) {
 	}
 }
 
+// TestUIBridge_ForwardsComputerUseActionIntoStream: the Computer tool's
+// activity notifications join the rendered stream like the recorder's do, and
+// unrelated notifications stay unbridged.
+func TestUIBridge_ForwardsComputerUseActionIntoStream(t *testing.T) {
+	bridge := make(uiBridge, 1)
+	bridge.Notify(agentdomain.ModelSelectedEvent{Model: "m"})
+	bridge.Notify(agentdomain.ComputerUseActionEvent{ToolCallID: "tc1", Action: "click", X: 640, Y: 512, ScreenWidth: 1920, ScreenHeight: 1080})
+
+	events := make(chan agentdomain.ChatEvent)
+	merged := bridge.merge(events)
+
+	ev, ok := recvEvent(t, merged).(agentdomain.ComputerUseActionEvent)
+	if !ok || ev.Action != "click" || ev.X != 640 || ev.Timestamp.IsZero() {
+		t.Fatalf("first merged event = %#v, want the stamped computer-use action", ev)
+	}
+	close(events)
+}
+
 func TestHeadlessControl_ServeFrames(t *testing.T) {
 	ctl, agent, _ := newTestControl()
 	frames := make(frameSink, 1)

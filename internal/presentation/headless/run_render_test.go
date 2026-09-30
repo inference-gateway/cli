@@ -15,6 +15,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	computer "github.com/inference-gateway/cli/internal/computer"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
@@ -560,4 +561,114 @@ func usageEntry(t *testing.T, value any, got string) map[string]any {
 		t.Fatalf("usage entry = %+v, want an object\n%s", entries[0], got)
 	}
 	return entry
+}
+
+// wireActivity is the slice of an ACTIVITY_SNAPSHOT event the render tests
+// assert on.
+type wireActivity struct {
+	MessageID    string         `json:"messageId"`
+	ActivityType string         `json:"activityType"`
+	Content      map[string]any `json:"content"`
+}
+
+// activitySnapshots decodes every ACTIVITY_SNAPSHOT of a rendered run.
+func activitySnapshots(t *testing.T, out string) []wireActivity {
+	t.Helper()
+	var list []wireActivity
+	for line := range strings.Lines(out) {
+		var ev struct {
+			Type string `json:"type"`
+			wireActivity
+		}
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
+			t.Fatalf("line is not one JSON event: %v\n%s", err, line)
+		}
+		if ev.Type == "ACTIVITY_SNAPSHOT" {
+			list = append(list, ev.wireActivity)
+		}
+	}
+	return list
+}
+
+func TestRender_ComputerUseActionsSurfaceAsActivity(t *testing.T) {
+	var out strings.Builder
+	err := renderRun(stream(
+		agentdomain.ComputerUseActionEvent{ToolCallID: "tc-pointer", Action: "click", X: 640, Y: 512, ScreenWidth: 1920, ScreenHeight: 1080},
+		agentdomain.ComputerUseActionEvent{ToolCallID: "tc-keyboard", Action: "key", ScreenWidth: 1920, ScreenHeight: 1080},
+		agentdomain.ChatCompleteEvent{},
+	), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil, computer.PublishedEvent)
+	if err != nil {
+		t.Fatalf("renderRun() err = %v", err)
+	}
+	activities := activitySnapshots(t, out.String())
+	if len(activities) != 2 {
+		t.Fatalf("ACTIVITY_SNAPSHOT count = %d, want one per computer-use action:\n%s", len(activities), out.String())
+	}
+	pointer := activities[0]
+	if pointer.MessageID != "computer_use:tc-pointer" || pointer.ActivityType != "computer_use" {
+		t.Fatalf("pointer activity = %+v, want computer_use keyed computer_use:tc-pointer", pointer)
+	}
+	for key, want := range map[string]any{
+		"toolCallId": "tc-pointer", "action": "click", "x": float64(640), "y": float64(512), "screenWidth": float64(1920), "screenHeight": float64(1080),
+	} {
+		if got := pointer.Content[key]; got != want {
+			t.Errorf("pointer content[%q] = %v, want %v\n%s", key, got, want, out.String())
+		}
+	}
+	keyboard := activities[1]
+	if keyboard.MessageID != "computer_use:tc-keyboard" || keyboard.ActivityType != "computer_use" {
+		t.Fatalf("keyboard activity = %+v, want computer_use keyed computer_use:tc-keyboard", keyboard)
+	}
+	for key, want := range map[string]any{
+		"toolCallId": "tc-keyboard", "action": "key", "screenWidth": float64(1920), "screenHeight": float64(1080),
+	} {
+		if got := keyboard.Content[key]; got != want {
+			t.Errorf("keyboard content[%q] = %v, want %v\n%s", key, got, want, out.String())
+		}
+	}
+	for _, absent := range []string{"x", "y"} {
+		if _, ok := keyboard.Content[absent]; ok {
+			t.Errorf("the keyboard action carries %q on the wire, want it absent:\n%s", absent, out.String())
+		}
+	}
+}
+
+func TestRender_ScreenRecordingStateCarriesTheFrame(t *testing.T) {
+	var out strings.Builder
+	err := renderRun(stream(
+		agentdomain.ScreenRecordingStatusEvent{Active: true, Path: "/recordings/a.mp4", RegionX: 128, RegionY: 96, RegionWidth: 512, RegionHeight: 384, FrameWidth: 1024, FrameHeight: 768},
+		agentdomain.ScreenRecordingStatusEvent{Active: false},
+		agentdomain.ChatCompleteEvent{},
+	), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil, computer.PublishedEvent)
+	if err != nil {
+		t.Fatalf("renderRun() err = %v", err)
+	}
+	var screen []statePatch
+	for _, ev := range decodeEvents(t, out.String()) {
+		if ev.Type != "STATE_DELTA" {
+			continue
+		}
+		for _, p := range patches(t, ev) {
+			if p.Path == "/screenRecording" {
+				screen = append(screen, p)
+			}
+		}
+	}
+	if len(screen) != 2 {
+		t.Fatalf("screenRecording patch count = %d, want start and stop:\n%s", len(screen), out.String())
+	}
+	started, err := json.Marshal(screen[0].Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"active":true,"frameHeight":768,"frameWidth":1024,"path":"/recordings/a.mp4","region":{"height":384,"width":512,"x":128,"y":96}}`; string(started) != want {
+		t.Errorf("the recording start patch carried %s, want %s", started, want)
+	}
+	stopped, err := json.Marshal(screen[1].Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"active":false}`; string(stopped) != want {
+		t.Errorf("the recording stop patch carried %s, want %s", stopped, want)
+	}
 }

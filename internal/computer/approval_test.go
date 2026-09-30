@@ -48,7 +48,7 @@ func TestCallApproval(t *testing.T) {
 			cfg.ComputerUse.Recording.Enabled = true
 			cfg.ComputerUse.Approval = tt.approval
 			cfg.ComputerUse.Recording.RequireApproval = tt.record
-			approver, ok := NewTools(cfg, nil, nil, nil)[tt.tool].(agentdomain.CallApprover)
+			approver, ok := NewTools(cfg, nil, nil, nil, nil)[tt.tool].(agentdomain.CallApprover)
 			if !ok {
 				t.Fatalf("%s does not approve per call", tt.tool)
 			}
@@ -63,7 +63,7 @@ func TestRecordToolsNeedSession(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.ComputerUse.Recording.Enabled = true
 	for _, name := range []string{ToolRecordStart, ToolRecordStop} {
-		if tool, ok := NewTools(cfg, nil, nil, nil)[name].(agentdomain.SessionTool); !ok || !tool.NeedsSession() {
+		if tool, ok := NewTools(cfg, nil, nil, nil, nil)[name].(agentdomain.SessionTool); !ok || !tool.NeedsSession() {
 			t.Errorf("%s must be finalized by the session that started it", name)
 		}
 	}

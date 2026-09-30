@@ -20,13 +20,14 @@ type rateLimiter interface {
 // NewTools builds the computer-use tool set. GetLatestFrame is always included
 // (it also serves non-screen frame sources such as cameras); the Computer tool
 // is gated on computer_use.enabled and RecordStart/RecordStop, which share
-// recorder, on computer_use.recording.enabled.
-func NewTools(cfg *config.Config, frames FrameSourceLookup, annotator agentdomain.ImageAnnotator, recorder *ScreenRecorder) map[string]agentdomain.Tool {
+// recorder, on computer_use.recording.enabled. notifier may be nil, in which
+// case the tools publish nothing.
+func NewTools(cfg *config.Config, frames FrameSourceLookup, annotator agentdomain.ImageAnnotator, recorder *ScreenRecorder, notifier agentdomain.UINotifier) map[string]agentdomain.Tool {
 	tools := map[string]agentdomain.Tool{
 		ToolGetLatestFrame: NewGetLatestFrameTool(cfg, frames, annotator),
 	}
 	if cfg.ComputerUse.Enabled {
-		tools[ToolComputer] = NewComputerTool(cfg, utils.NewRateLimiter(cfg.ComputerUse.RateLimit))
+		tools[ToolComputer] = NewComputerTool(cfg, utils.NewRateLimiter(cfg.ComputerUse.RateLimit), notifier)
 	}
 	if cfg.ComputerUse.Recording.Enabled {
 		tools[ToolRecordStart] = &recordTool{config: cfg, recorder: recorder}
