@@ -301,17 +301,13 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		return fmt.Errorf("failed to run agent: %w", err)
 	}
 
-	renderEvents := events
-	var approvals <-chan ipc.ApprovalResponse
-	var questions <-chan ipc.UserQuestionResponse
+	var ctl *headlessControl
 	if opts.Format != "text" {
-		ctl := newHeadlessControl(agentService, svc.GetMessageQueue(), sessionID)
+		ctl = newHeadlessControl(agentService, svc.GetMessageQueue(), sessionID)
 		go ctl.readLines(os.Stdin)
-		approvals = ctl.approvals
-		questions = ctl.questions
 	}
 	rendered = true
-	err = renderStream(opts.Format, notifications.merge(renderEvents), approvals, questions, sessionID, selectedModel, cfg, conversationRepo, resumedEntries, svc.GetBackgroundTaskRegistry().Snapshot, notes)
+	err = renderStream(opts.Format, notifications.merge(events), ctl, sessionID, selectedModel, cfg, conversationRepo, resumedEntries, svc.GetBackgroundTaskRegistry().Snapshot, notes)
 
 	endSessionSpan(sessionOutcome(err))
 	rec.RecordSession("headless", sessionOutcome(err), time.Since(sessionStart))
@@ -372,15 +368,22 @@ func selectModel(models []string, modelFlag, defaultModel string) (string, error
 
 // renderStream writes an event stream in the requested --format. Both an agent
 // run and a slash command's output go through it, so every format keeps the
-// same contract whichever produced the events.
-func renderStream(format string, events <-chan agentdomain.ChatEvent, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository, history []convdomain.ConversationEntry, jobs func() []scheddomain.TrackedJob, notes *startupNotes) error {
+// same contract whichever produced the events. A nil control is an unattended
+// stream: gated calls are rejected and questions dismissed at once.
+func renderStream(format string, events <-chan agentdomain.ChatEvent, ctl *headlessControl, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository, history []convdomain.ConversationEntry, jobs func() []scheddomain.TrackedJob, notes *startupNotes) error {
+	var approvals <-chan ipc.ApprovalResponse
+	var questions <-chan ipc.UserQuestionResponse
+	var interrupts Interrupts
+	if ctl != nil {
+		approvals, questions, interrupts = ctl.approvals, ctl.questions, ctl
+	}
 	switch format {
 	case "json":
 		return render.RenderJSON(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "json-pretty":
 		return render.RenderJSONPretty(events, os.Stdout, approvals, questions, sessionID, model, cfg, repo)
 	case "ag-ui":
-		return renderAGUI(events, os.Stdout, approvals, questions, sessionID, model, repo, history, jobs, notes, computer.PublishedEvent)
+		return renderAGUI(events, os.Stdout, approvals, questions, interrupts, sessionID, model, repo, history, jobs, notes, computer.PublishedEvent)
 	default:
 		return render.RenderText(events, os.Stdout)
 	}
@@ -448,7 +451,7 @@ func emitCommandResult(format string, repo convdomain.ConversationRepository, se
 	events <- agentdomain.ChatCompleteEvent{RequestID: sessionID, Timestamp: time.Now(), Message: text}
 	close(events)
 
-	return renderStream(format, events, nil, nil, sessionID, model, cfg, repo, nil, nil, nil)
+	return renderStream(format, events, nil, sessionID, model, cfg, repo, nil, nil, nil)
 }
 
 // compactSession is /compact outside the TUI: the rollover manager already runs

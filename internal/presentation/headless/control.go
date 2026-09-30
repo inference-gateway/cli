@@ -227,13 +227,13 @@ func (c *headlessControl) answerResume(entry agui.ResumeEntry) {
 	if reason == agui.InterruptInputRequired {
 		c.questions <- ipc.UserQuestionResponse{
 			Type: "user_question_response", ToolCallID: entry.InterruptID,
-			Answers: payload, Cancelled: string(entry.Status) != "resolved",
+			Answers: payload, Cancelled: entry.Status != agui.ResumeStatusResolved,
 		}
 		return
 	}
 	c.approvals <- ipc.ApprovalResponse{
 		Type: "approval_response", ToolCallID: entry.InterruptID,
-		Approved: string(entry.Status) == "resolved",
+		Approved: entry.Status == agui.ResumeStatusResolved,
 	}
 }
 

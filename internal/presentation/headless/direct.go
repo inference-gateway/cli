@@ -108,5 +108,5 @@ func runDirectCall(ctx context.Context, format string, toolService agentdomain.T
 	events <- agentdomain.ChatCompleteEvent{RequestID: sessionID, Timestamp: now, ToolCalls: []sdk.ChatCompletionMessageToolCall{call}}
 	events <- completed
 	close(events)
-	return renderStream(format, events, nil, nil, sessionID, model, cfg, repo, nil, nil, nil)
+	return renderStream(format, events, nil, sessionID, model, cfg, repo, nil, nil, nil)
 }

@@ -435,10 +435,10 @@ func emitAGUIRunError(w io.Writer, err error) {
 // events: RUN_STARTED, per-turn deltas, tool calls and stats, then Finish's one
 // terminal event. ponytail: intermediate job state changes are not published,
 // bridge the UI notifier in if a client needs them.
-func renderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository, history []convdomain.ConversationEntry, jobs func() []scheddomain.TrackedJob, startup *startupNotes, publish ...Publish) error {
+func renderAGUI(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, interrupts Interrupts, sessionID, model string, repo convdomain.ConversationRepository, history []convdomain.ConversationEntry, jobs func() []scheddomain.TrackedJob, startup *startupNotes, publish ...Publish) error {
 	r := NewRunEncoder(w, RunEncoderDeps{
 		Model: model, Repo: repo, History: history, Jobs: jobs,
-		Approvals: approvals, Questions: questions, Startup: startup, Publish: publish,
+		Approvals: approvals, Questions: questions, Interrupt: interrupts, Startup: startup, Publish: publish,
 	})
 	r.Start(sessionID, uuid.New().String())
 	for event := range events {

@@ -54,7 +54,7 @@ extension:
 Client → CLI, first frame, within 5 seconds of connecting:
 
 ```json
-{"type": "browser_hello", "token": "<shared secret>", "client": "extension", "protocol_version": 1, "extension_version": "1.9.2"}
+{"type": "browser_hello", "token": "<shared secret>", "client": "extension", "protocol_version": 2, "extension_version": "1.9.2"}
 ```
 
 - `client` is `extension`, `desktop` or `browser`. An absent or unknown value counts as
@@ -65,11 +65,13 @@ Client → CLI, first frame, within 5 seconds of connecting:
 CLI → client on success (on failure the socket is closed):
 
 ```json
-{"type": "browser_hello_ack", "protocol_version": 1}
+{"type": "browser_hello_ack", "protocol_version": 2}
 ```
 
 A client that expects another `protocol_version` should show an "update" state
-instead of refusing to work.
+instead of refusing to work. Version 2 replaced the CLI's CUSTOM events and app
+frames with the standard AG-UI 1.0 ones: interrupts, run `usage`, the one state
+object, `ACTIVITY_SNAPSHOT` and `run_agent_input` frames.
 
 ## Browser commands (CLI → extension)
 
@@ -160,20 +162,30 @@ following the thread receives the same frames. Each agent turn is one run:
 `RUN_FINISHED` or `RUN_ERROR`. A stopped turn ends with `RUN_FINISHED` and
 outcome `{"type": "cancelled"}`.
 
-Client → CLI, send a user message into the thread (queued if the agent is busy,
-exactly like typing in the TUI):
+Client → CLI, start the thread's next run with a message (queued if the agent
+is busy, exactly like typing in the TUI). `input` is an AG-UI `RunAgentInput`
+whose `messages` holds the new messages only, since the worker owns the history:
 
 ```json
 {
-  "type": "user_message",
-  "content": "please also check the docs page",
-  "attachments": [{"filename": "shot.png", "mime_type": "image/png", "data": "<base64>"}]
+  "type": "run_agent_input",
+  "input": {
+    "threadId": "<conversation id>",
+    "runId": "<uuid>",
+    "messages": [{"id": "<uuid>", "role": "user", "content": [
+      {"type": "text", "text": "please also check the docs page"},
+      {"type": "image", "mimeType": "image/png", "data": "<base64>", "filename": "shot.png"}
+    ]}]
+  }
 }
 ```
 
-- `attachments` is optional. Each file is saved to the project's tmp dir. PNG,
-  JPEG, GIF and WebP images reach the model as image parts, and other files as
-  a note naming the saved path. Files over 10 MiB are skipped.
+- `content` is a string or content parts. Each file part is saved to the
+  project's tmp dir. PNG, JPEG, GIF and WebP images reach the model as image
+  parts, and other files as a note naming the saved path. Files over 10 MiB are
+  skipped.
+- An input with no messages and no `resume` continues the thread after a
+  stopped run, which is how a paused computer-use session resumes.
 
 Client → CLI, stop the turn currently streaming (a no-op when nothing runs):
 
@@ -181,14 +193,45 @@ Client → CLI, stop the turn currently streaming (a no-op when nothing runs):
 {"type": "interrupt"}
 ```
 
-`user_question_response` and `computer_use_control` frames are forwarded to the
-worker unchanged, with the shapes documented in `docs/ag-ui-output.md`.
-
-When the CLI cannot route a frame (a relative `project_dir`, a `user_message`
+When the CLI cannot route a frame (a relative `project_dir`, a `run_agent_input`
 before any `new_session`, a worker that fails to start), it answers the sender
 with a `RUN_ERROR` that has no `runId`. When a thread's worker exits mid-turn,
 every client of the thread gets a `RUN_ERROR` carrying the open run's `runId`.
-The next `user_message` starts a new worker for the thread.
+The next `run_agent_input` starts a new worker for the thread.
+
+## Interrupts
+
+A tool call that needs approval or an `AskUserQuestion` form suspends the run:
+it ends with `RUN_FINISHED` whose `outcome` is `interrupt`. Every client of the
+thread receives it:
+
+```json
+{"type": "RUN_FINISHED", "threadId": "<conversation id>", "runId": "<run>", "outcome": {"type": "interrupt", "interrupts": [
+  {"id": "call_1", "reason": "tool_call", "toolCallId": "call_1"}
+]}}
+```
+
+- `reason` is `tool_call` for an approval, with the `toolCallId` of the call the
+  run streamed before it suspended (`TOOL_CALL_START` carries its name and
+  `TOOL_CALL_ARGS` its arguments), or `input_required` for a question, with a
+  `responseSchema` describing the answer's `payload`.
+
+Client → CLI, the user's decision, as a `run_agent_input` carrying resume
+entries and no messages:
+
+```json
+{"type": "run_agent_input", "input": {"resume": [{"interruptId": "call_1", "status": "resolved"}]}}
+```
+
+- `resolved` approves the call, `cancelled` declines it or dismisses the form.
+  A question's answer travels in the entry's `payload`.
+- A resume answers every open interrupt of the run. The daemon refuses one that
+  misses an interrupt with a `RUN_ERROR` naming the missing ids.
+- The first resume wins. The daemon drops the later ones for the same
+  interrupts, and the thread's other clients learn the decision from the
+  `RUN_STARTED` of the continuation run that follows, whose `STATE_SNAPSHOT`
+  carries the interrupted run's state. That run writes the `TOOL_CALL_RESULT`
+  for the same `toolCallId`.
 
 ## Conversations
 
@@ -223,9 +266,9 @@ requesting connection only.
 ## Input history
 
 The panel's arrow-up recall shares the CLI's shell-style input history: the CLI
-appends panel-sent `user_message` frames to the same store the TUI's arrow-up
-navigation uses (trimmed, consecutive duplicates skipped), and serves the
-combined history back on request.
+appends the text of panel-sent `run_agent_input` messages to the same store the
+TUI's arrow-up navigation uses (trimmed, consecutive duplicates skipped), and
+serves the combined history back on request.
 
 Client → CLI, list recent input history:
 
@@ -335,17 +378,18 @@ dir (`filepath.IsLocal`), answers 404, as do missing files and directories.
 
 ## Tool approvals
 
-Every approval uses one contract keyed by the tool call id, for agent tool calls
-and panel `tool_request`s alike.
+An agent tool call that needs approval suspends the run as an interrupt (see
+[Interrupts](#interrupts)). A panel `tool_request` runs outside any run, so its
+approval is the one CUSTOM event left, the extension point AG-UI keeps for what
+the protocol has no event for.
 
-CLI → client, a CUSTOM AG-UI event, one per pending tool call. Every client of
-the thread receives it:
+CLI → client, only the requesting client receives it:
 
 ```json
 {
   "type": "CUSTOM",
   "name": "approval_request",
-  "value": {"type": "approval_request", "tool_name": "Bash", "tool_args": "{\"command\":\"rm -rf ...\"}", "tool_call_id": "call_1"}
+  "value": {"type": "approval_request", "tool_name": "Bash", "tool_args": "{\"command\":\"rm -rf ...\"}", "tool_call_id": "<request id>"}
 }
 ```
 
@@ -354,20 +398,13 @@ the thread receives it:
 Client → CLI, the user's decision:
 
 ```json
-{"type": "approval_response", "tool_call_id": "call_1", "approved": true, "scope": "always"}
+{"type": "approval_response", "tool_call_id": "<request id>", "approved": true, "scope": "always"}
 ```
 
 - `approved: false` rejects. `scope: "always"` also auto-accepts later calls of
   the same kind, and an absent `scope` approves this call only.
-- The first answer wins. The CLI sends the other clients of the thread a CUSTOM
-  event so they can clear their prompt:
-
-```json
-{"type": "CUSTOM", "name": "approval_resolved", "value": {"tool_call_id": "call_1"}}
-```
-
-- Later answers for the same `tool_call_id` are ignored, and so is an
-  `approval_resolved` the client does not recognize.
+- The first answer wins. Later answers for the same `tool_call_id` are
+  ignored.
 
 ## Tool calls (client → CLI)
 
@@ -392,9 +429,8 @@ CLI → client, exactly one result per request id:
 - `tool_name`/`tool_args` use the same vocabulary as `approval_request`:
   `tool_args` is the raw tool-arguments JSON string.
 - The approval flow applies: a CUSTOM `approval_request` whose `tool_call_id`
-  is the request `id` may precede the result, and only the requesting client
-  receives it. A denial produces `{"success": false, "error": ...}` — never a
-  dropped id.
+  is the request `id` may precede the result (see [Tool approvals](#tool-approvals)).
+  A denial produces `{"success": false, "error": ...}` — never a dropped id.
 - `success: false` / `error != ""` means failure. For `Bash`, `output` is the
   combined stdout/stderr; a non-zero exit sets `success: false` with `output`
   still populated.

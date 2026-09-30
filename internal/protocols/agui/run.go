@@ -23,6 +23,7 @@ type (
 	InputContent  = aguitypes.InputContent
 	Interrupt     = aguitypes.Interrupt
 	ResumeEntry   = aguitypes.ResumeEntry
+	ResumeStatus  = aguitypes.ResumeStatus
 	RunAgentInput = aguitypes.RunAgentInput
 	TokenUsage    = aguievents.TokenUsage
 )
@@ -39,6 +40,12 @@ const OutcomeCancelled = aguievents.RunFinishedOutcomeType("cancelled")
 const (
 	InputContentTypeText  = aguitypes.InputContentTypeText
 	InputContentTypeImage = aguitypes.InputContentTypeImage
+)
+
+// The statuses a resume entry answers an interrupt with.
+const (
+	ResumeStatusResolved  = aguitypes.ResumeStatusResolved
+	ResumeStatusCancelled = aguitypes.ResumeStatusCancelled
 )
 
 // The interrupt reasons this CLI raises. AG-UI leaves reason open ended.

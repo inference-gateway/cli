@@ -40,7 +40,7 @@ func publishNotice(event agentdomain.ChatEvent) (agui.Published, bool) {
 
 // renderRun renders a fresh run, one without a restored history or boot notes.
 func renderRun(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob, publish ...Publish) error {
-	return renderAGUI(events, w, approvals, questions, sessionID, model, repo, nil, jobs, nil, publish...)
+	return renderAGUI(events, w, approvals, questions, nil, sessionID, model, repo, nil, jobs, nil, publish...)
 }
 
 // stream feeds the given events into a closed channel, mimicking the engine
@@ -352,7 +352,7 @@ func TestAgentStartupEmitter(t *testing.T) {
 	notes := newStartupNotes()
 	startupEmitter(notes)("research-agent", "PullingImage", "Pulling image", 3, 10)
 	var out strings.Builder
-	err := renderAGUI(stream(agentdomain.ChatCompleteEvent{}), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil, nil, notes)
+	err := renderAGUI(stream(agentdomain.ChatCompleteEvent{}), &out, nil, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil, nil, notes)
 	if err != nil {
 		t.Fatalf("renderAGUI() err = %v", err)
 	}

@@ -18,6 +18,8 @@ import (
 	"time"
 
 	require "github.com/stretchr/testify/require"
+
+	uuid "github.com/google/uuid"
 )
 
 // serveWorker drives an `infer headless --serve` process line by line: frames go
@@ -75,12 +77,14 @@ func (w *serveWorker) send(frame map[string]any) {
 	require.NoError(w.t, err)
 }
 
-// run sends one user_message and collects the run it produces, from RUN_STARTED
+// run sends one run input and collects the run it produces, from RUN_STARTED
 // through its terminal event. react sees every line on the way, so a test can
 // answer a browser command or interrupt the turn mid-stream.
 func (w *serveWorker) run(message string, react func(line map[string]any)) []map[string]any {
 	w.t.Helper()
-	w.send(map[string]any{"type": "user_message", "content": message})
+	w.send(map[string]any{"type": "run_agent_input", "input": map[string]any{
+		"messages": []map[string]any{{"id": uuid.NewString(), "role": "user", "content": message}},
+	}})
 	var events []map[string]any
 	timeout := time.After(45 * time.Second)
 	for {

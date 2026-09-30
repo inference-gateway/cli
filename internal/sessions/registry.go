@@ -23,7 +23,6 @@ const (
 	frameNewSession         = "new_session"
 	frameResumeConversation = "resume_conversation"
 	frameApprovalResponse   = "approval_response"
-	frameUserMessage        = "user_message"
 	frameRunAgentInput      = "run_agent_input"
 	frameToolRequest        = "tool_request"
 	frameToolResult         = "tool_result"
@@ -34,10 +33,9 @@ const (
 
 // forwarded are the frames that go to the client's own thread unchanged: the
 // run input that starts and continues its runs, the frame that stops one, and
-// the channels' direct prompt and question answers.
+// the question answers.
 var forwarded = map[string]bool{
 	frameRunAgentInput:       true,
-	frameUserMessage:         true,
 	"interrupt":              true,
 	"user_question_response": true,
 }
@@ -83,11 +81,11 @@ type workerInterrupt struct {
 
 // Registry is the daemon's thread registry. It launches one worker per thread,
 // relays client frames to worker stdin and worker lines to the thread's
-// clients, tracks the interrupts a suspended run waits on so the first resume
-// wins and an incomplete one is refused with RUN_ERROR, lets the first answer
-// to an approval win, ends a run a crashed worker left open with RUN_ERROR,
-// routes worker browser_command frames to the connected browser extension, and
-// stops idle workers.
+// clients, and stops idle workers. Two answers race per thread and the first
+// wins each: the resume of a suspended run's interrupts (an incomplete resume
+// is refused with RUN_ERROR) and the approval_response of a panel tool_request.
+// A run a crashed worker left open ends with RUN_ERROR, and worker
+// browser_command frames route to the connected browser extension.
 type Registry struct {
 	launch sessionsdomain.LaunchWorker
 	idle   time.Duration
@@ -229,15 +227,12 @@ func (r *Registry) route(c sessionsdomain.Client, f clientFrame, frame []byte) (
 			return nil, nil, errNoThread
 		}
 		if f.Type == frameRunAgentInput {
-			verdict, err := resumePolicyLocked(t, frame)
-			if err != nil {
-				return nil, nil, err
-			}
-			if verdict == resumeDrop {
-				return t, nil, nil
+			forward, err := resumePolicyLocked(t, frame)
+			if err != nil || !forward {
+				return t, nil, err
 			}
 		}
-		if t.worker == nil && f.Type != frameUserMessage && f.Type != frameRunAgentInput {
+		if t.worker == nil && f.Type != frameRunAgentInput {
 			return t, nil, nil
 		}
 		w, err := r.workerLocked(t)
@@ -365,27 +360,19 @@ func (r *Registry) answer(c sessionsdomain.Client, toolCallID string, frame []by
 	}
 }
 
-// resumeVerdict is what a thread's open interrupts decide for one run input.
-type resumeVerdict int
-
-const (
-	resumeForward resumeVerdict = iota
-	resumeDrop
-)
-
 // resumePolicyLocked checks one run input's resume entries against the open
 // interrupts the thread's last suspended run waits on. The first resume wins:
 // it forwards, and the RUN_STARTED of the continuation run tells the thread's
 // other clients the answer. A resume that answers nothing open, one a client
 // sent after that wait, is dropped. A resume that misses one of the open
 // interrupts is refused, the resume contract's every-interrupt rule.
-func resumePolicyLocked(t *thread, frame []byte) (resumeVerdict, error) {
+func resumePolicyLocked(t *thread, frame []byte) (bool, error) {
 	answered := resumeIDs(frame)
 	if len(answered) == 0 {
-		return resumeForward, nil
+		return true, nil
 	}
 	if len(t.interrupts) == 0 {
-		return resumeDrop, nil
+		return false, nil
 	}
 	var missing []string
 	for id := range t.interrupts {
@@ -395,10 +382,10 @@ func resumePolicyLocked(t *thread, frame []byte) (resumeVerdict, error) {
 	}
 	if len(missing) > 0 {
 		slices.Sort(missing)
-		return resumeForward, fmt.Errorf("the resume must answer every open interrupt of the run: missing %s", strings.Join(missing, ", "))
+		return false, fmt.Errorf("the resume must answer every open interrupt of the run: missing %s", strings.Join(missing, ", "))
 	}
-	clear(t.interrupts)
-	return resumeForward, nil
+	t.interrupts = nil
+	return true, nil
 }
 
 // resumeIDs reads the interrupt ids one run_agent_input frame's resume answers.
@@ -621,13 +608,11 @@ func (r *Registry) stopAll() {
 
 func newThread(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) *thread {
 	return &thread{
-		key:        key,
-		opts:       opts,
-		clients:    make(map[sessionsdomain.Client]struct{}),
-		waiting:    make(map[string][]sessionsdomain.Client),
-		active:     time.Now(),
-		runID:      "",
-		interrupts: make(map[string]struct{}),
+		key:     key,
+		opts:    opts,
+		clients: make(map[sessionsdomain.Client]struct{}),
+		waiting: make(map[string][]sessionsdomain.Client),
+		active:  time.Now(),
 	}
 }
 

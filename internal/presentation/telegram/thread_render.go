@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 )
 
 // maxToolResultLen caps how much of one tool result the chat render
@@ -52,9 +54,11 @@ func (t *threadChat) onTextEnd(frame []byte) {
 	t.role = ""
 }
 
-// onToolStart opens the streamed tool call the args deltas build.
+// onToolStart opens the streamed tool call the args deltas build and
+// remembers it by id, for the interrupt that may suspend the run on it.
 func (t *threadChat) onToolStart(frame []byte) {
 	var ev struct {
+		ToolCallID   string `json:"toolCallId"`
 		ToolCallName string `json:"toolCallName"`
 	}
 	if json.Unmarshal(frame, &ev) != nil {
@@ -62,15 +66,22 @@ func (t *threadChat) onToolStart(frame []byte) {
 	}
 	t.toolName = ev.ToolCallName
 	t.toolArgs = ""
+	t.calls[ev.ToolCallID] = ipc.ApprovalRequest{Type: "approval_request", ToolName: ev.ToolCallName, ToolCallID: ev.ToolCallID}
 }
 
 // onToolArgs appends one streamed arguments delta.
 func (t *threadChat) onToolArgs(frame []byte) {
 	var ev struct {
-		Delta string `json:"delta"`
+		ToolCallID string `json:"toolCallId"`
+		Delta      string `json:"delta"`
 	}
-	if json.Unmarshal(frame, &ev) == nil {
-		t.toolArgs += ev.Delta
+	if json.Unmarshal(frame, &ev) != nil {
+		return
+	}
+	t.toolArgs += ev.Delta
+	if call, ok := t.calls[ev.ToolCallID]; ok {
+		call.ToolArgs += ev.Delta
+		t.calls[ev.ToolCallID] = call
 	}
 }
 
@@ -87,11 +98,13 @@ func (t *threadChat) onToolEnd() {
 // result itself as its own quoted block.
 func (t *threadChat) onToolResult(frame []byte) {
 	var ev struct {
-		Content string `json:"content"`
+		ToolCallID string `json:"toolCallId"`
+		Content    string `json:"content"`
 	}
 	if json.Unmarshal(frame, &ev) != nil {
 		return
 	}
+	delete(t.calls, ev.ToolCallID)
 	if quote := t.flushTools(); quote != "" {
 		t.deliverText(quote)
 	}
