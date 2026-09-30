@@ -205,6 +205,44 @@ func TestAgentTool_DefaultIsAsync(t *testing.T) {
 	}
 }
 
+func TestAgentTool_MaxParallelCap(t *testing.T) {
+	tests := []struct {
+		name     string
+		tasks    int
+		wantNote string
+	}{
+		{name: "at the default cap", tasks: 10},
+		{name: "one past the default cap", tasks: 11, wantNote: "1 task(s) dropped (max_parallel=10)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := newTestAgentTool(t)
+			tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+				return agentrunner.Result{FinalAssistant: "ok"}, nil
+			}
+
+			tasks := make([]any, tt.tasks)
+			for i := range tasks {
+				tasks[i] = map[string]any{"description": "task"}
+			}
+			res, err := tool.Execute(t.Context(), map[string]any{"tasks": tasks})
+			if err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			data, ok := res.Data.(AgentToolResult)
+			if !ok {
+				t.Fatalf("unexpected data type %T", res.Data)
+			}
+			if data.Dispatched != 10 {
+				t.Fatalf("dispatched = %d, want 10", data.Dispatched)
+			}
+			if data.Message != tt.wantNote {
+				t.Fatalf("message = %q, want %q", data.Message, tt.wantNote)
+			}
+		})
+	}
+}
+
 func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()

@@ -1318,7 +1318,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:            true,
 				RequireApproval:    &[]bool{true}[0],
 				Mode:               scheddomain.SubagentModeHeadless,
-				MaxParallel:        4,
+				MaxParallel:        10,
 				MaxDepth:           1,
 				InheritMock:        true,
 				IdleTimeout:        300,
