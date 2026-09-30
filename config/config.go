@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 const (
@@ -586,24 +588,16 @@ type WaitToolConfig struct {
 // server. Subagents run either headless (background) or interactive (in a tmux
 // pane the user can watch).
 type AgentToolConfig struct {
-	Enabled            bool                   `yaml:"enabled" mapstructure:"enabled"`
-	RequireApproval    *bool                  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
-	Mode               string                 `yaml:"mode" mapstructure:"mode"`                 // headless | interactive
-	Wait               bool                   `yaml:"wait" mapstructure:"wait"`                 // false => async (fire-and-forget + notify)
-	MaxParallel        int                    `yaml:"max_parallel" mapstructure:"max_parallel"` // cap on concurrent subagents per call
-	MaxDepth           int                    `yaml:"max_depth" mapstructure:"max_depth"`       // recursion guard (a subagent is itself an `infer headless`)
-	Model              string                 `yaml:"model,omitempty" mapstructure:"model,omitempty"`
-	InheritMock        bool                   `yaml:"inherit_mock" mapstructure:"inherit_mock"` // propagate gateway.mock to spawned subagents
-	Interactive        AgentInteractiveConfig `yaml:"interactive" mapstructure:"interactive"`
-	CompletedRetention int                    `yaml:"completed_retention" mapstructure:"completed_retention"`
-}
-
-// AgentInteractiveConfig configures the tmux-backed interactive surface for
-// subagents (used when mode is "interactive").
-type AgentInteractiveConfig struct {
-	Layout      string `yaml:"layout" mapstructure:"layout"`     // vertical | horizontal | window
-	Fallback    string `yaml:"fallback" mapstructure:"fallback"` // headless | error (when not inside tmux)
-	IdleTimeout int    `yaml:"idle_timeout" mapstructure:"idle_timeout"`
+	Enabled            bool                     `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval    *bool                    `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Mode               scheddomain.SubagentMode `yaml:"mode" mapstructure:"mode"`
+	Wait               bool                     `yaml:"wait" mapstructure:"wait"`
+	MaxParallel        int                      `yaml:"max_parallel" mapstructure:"max_parallel"`
+	MaxDepth           int                      `yaml:"max_depth" mapstructure:"max_depth"`
+	Model              string                   `yaml:"model,omitempty" mapstructure:"model,omitempty"`
+	InheritMock        bool                     `yaml:"inherit_mock" mapstructure:"inherit_mock"`
+	IdleTimeout        int                      `yaml:"idle_timeout" mapstructure:"idle_timeout"`
+	CompletedRetention int                      `yaml:"completed_retention" mapstructure:"completed_retention"`
 }
 
 // QueryAgentToolConfig contains Query-specific tool settings
@@ -1323,17 +1317,13 @@ func DefaultConfig() *Config { //nolint:funlen
 			Agent: AgentToolConfig{
 				Enabled:            true,
 				RequireApproval:    &[]bool{true}[0],
-				Mode:               "headless",
+				Mode:               scheddomain.SubagentModeHeadless,
 				Wait:               true,
 				MaxParallel:        4,
 				MaxDepth:           1,
 				InheritMock:        true,
+				IdleTimeout:        300,
 				CompletedRetention: 5,
-				Interactive: AgentInteractiveConfig{
-					Layout:      "vertical",
-					Fallback:    "headless",
-					IdleTimeout: 300,
-				},
 			},
 			Safety: SafetyConfig{
 				RequireApproval:   true,

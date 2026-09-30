@@ -193,24 +193,6 @@ func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 	}
 }
 
-func TestAgentTool_InteractiveErrorFallback(t *testing.T) {
-	t.Setenv("INFER_SUBAGENT_DEPTH", "")
-	cfg := config.DefaultConfig()
-	cfg.Tools.Agent.Mode = "interactive"
-	cfg.Tools.Agent.Interactive.Fallback = "error"
-	tool := NewAgentTool(cfg, schedinfra.NewSubagentTracker(), nil)
-	tool.interactiveAvailable = func() bool { return false }
-
-	args := map[string]any{"description": "do x"}
-	res, err := tool.Execute(context.Background(), args)
-	if err != nil {
-		t.Fatalf("Execute: %v", err)
-	}
-	if res.Success {
-		t.Fatalf("expected failure when interactive requested outside tmux with fallback=error")
-	}
-}
-
 func TestParseAgentTasks(t *testing.T) {
 	specs, err := parseAgentTasks(map[string]any{"description": "only one"})
 	if err != nil || len(specs) != 1 || specs[0].Description != "only one" {

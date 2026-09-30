@@ -19,9 +19,11 @@ const (
 )
 
 // SubagentMode selects how a subagent is surfaced while it runs.
+type SubagentMode string
+
 const (
-	SubagentModeHeadless    = "headless"
-	SubagentModeInteractive = "interactive"
+	SubagentModeHeadless    SubagentMode = "headless"
+	SubagentModeInteractive SubagentMode = "interactive"
 )
 
 // EnvSubagentAgentMode names the environment variable the Agent tool sets to
@@ -78,7 +80,7 @@ type SubagentState struct {
 	Label       string
 	Description string
 	Model       string
-	Mode        string // SubagentModeHeadless | SubagentModeInteractive
+	Mode        SubagentMode
 	SessionID   string
 	PaneID      string
 	Status      SubagentStatus

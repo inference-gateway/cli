@@ -16,15 +16,15 @@ import (
 )
 
 // fastInteractiveJob builds an interactive subagent job with a fake pane inspector,
-// a real tracker-backed tool and fast heuristic tunables for deterministic, quick
-// tests. The idle timeout defaults to well past every test's lifetime so ordinary
-// tests never trip it; the timeout tests shorten it and set grace to zero fast.
+// a real tracker-backed tool and fast heuristic tunables. The pane id is blank so
+// teardown never reaches the host's tmux. The idle timeout defaults to well past
+// every test's lifetime and the timeout tests shorten it.
 func fastInteractiveJob(inspect func() scheddomain.PaneObservation) *interactiveSubagentJob {
 	return fastInteractiveJobWithTimeout(inspect, 2*time.Second)
 }
 
 func fastInteractiveJobWithTimeout(inspect func() scheddomain.PaneObservation, idleTimeout time.Duration) *interactiveSubagentJob {
-	state := &scheddomain.SubagentState{ID: "s1", Label: "sub", SessionID: "sess", PaneID: "pane", Status: scheddomain.SubagentRunning, StartedAt: time.Now()}
+	state := &scheddomain.SubagentState{ID: "s1", Label: "sub", SessionID: "sess", Status: scheddomain.SubagentRunning, StartedAt: time.Now()}
 	tool := &AgentTool{tracker: schedinfra.NewSubagentTracker()}
 	_ = tool.tracker.AddSubagent(state)
 	return &interactiveSubagentJob{
@@ -211,13 +211,61 @@ func TestInteractiveSubagentJob_FailedTurnClosesWith(t *testing.T) {
 	}
 }
 
+// TestInteractiveSubagentJob_FailedTurnWithoutAnswerCloses covers the commonest
+// failure: the first request errors, so the done write carries no assistant text.
+func TestInteractiveSubagentJob_FailedTurnWithoutAnswerCloses(t *testing.T) {
+	j := fastInteractiveJob(func() scheddomain.PaneObservation {
+		return scheddomain.PaneObservation{Done: true, HarvestFailed: true, HarvestError: "boom"}
+	})
+	result, notes := runJobCollecting(j, context.Background())
+
+	select {
+	case res := <-result:
+		if res.Success {
+			t.Fatalf("a failed terminal turn must be reported failed, got %+v", res)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("a failed turn without an answer must still close the subagent")
+	}
+
+	if all := notes(); len(all) != 1 || !strings.Contains(all[0], "Error: boom") {
+		t.Fatalf("want exactly one note carrying the error, got %v", all)
+	}
+	if entry := j.tool.tracker.GetSubagent("s1"); entry == nil || entry.Status != scheddomain.SubagentFailed {
+		t.Fatalf("failed teardown must record the failed status, got %+v", entry)
+	}
+}
+
+// TestInteractiveSubagentJob_CancelTearsDown guards the WindStop path: a cancelled
+// monitor removes the temp files itself because reap's Close no longer does.
+func TestInteractiveSubagentJob_CancelTearsDown(t *testing.T) {
+	t.Cleanup(func() { _ = os.Remove(subagentResultFilePath("sess")) })
+	writeTestResultFile(t, "sess", "seeded so teardown's removal is observable")
+
+	j := fastInteractiveJob(func() scheddomain.PaneObservation {
+		return scheddomain.PaneObservation{AwaitingApproval: true}
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	result, _ := runJobCollecting(j, ctx)
+	cancel()
+
+	select {
+	case <-result:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("a cancelled monitor must return")
+	}
+	if _, err := os.Stat(subagentResultFilePath("sess")); !os.IsNotExist(err) {
+		t.Fatalf("a cancelled monitor must remove the result file")
+	}
+}
+
 // TestInteractiveSubagentJob_IdleTimeoutCloses pins the safety net: a pane that
 // never reports done is closed after the configured inactivity timeout, emitting
 // one close note instead of sitting open forever.
 func TestInteractiveSubagentJob_IdleTimeoutCloses(t *testing.T) {
 	j := fastInteractiveJobWithTimeout(func() scheddomain.PaneObservation {
 		return scheddomain.PaneObservation{Screen: "frozen idle prompt"}
-	}, 30*time.Millisecond)
+	}, 200*time.Millisecond)
 	result, notes := runJobCollecting(j, context.Background())
 
 	select {
@@ -349,25 +397,23 @@ func TestInteractiveSubagentJob_PaneGoneReturns(t *testing.T) {
 }
 
 // TestInteractiveSubagentJob_IdleTimeoutFromConfig checks the config wiring: the
-// constructor folds tools.agent.interactive.idle_timeout into the monitor's clock,
-// seconds to duration, and an explicit 0 disables the auto-close.
+// constructor folds tools.agent.idle_timeout into the monitor's clock, seconds to
+// duration, and an explicit 0 disables the auto-close.
 func TestInteractiveSubagentJob_IdleTimeoutFromConfig(t *testing.T) {
 	state := &scheddomain.SubagentState{ID: "s1", SessionID: "sess", StartedAt: time.Now()}
 	tool := &AgentTool{tracker: schedinfra.NewSubagentTracker()}
 
-	cfg := config.DefaultConfig()
-	tool.config = cfg
-	tool.config.Tools.Agent.Interactive.IdleTimeout = 300
+	tool.config = config.DefaultConfig()
 	if j := newInteractiveSubagentJob(tool, state); j.idleTimeout != 300*time.Second {
 		t.Fatalf("default idle timeout = %v, want 300s", j.idleTimeout)
 	}
 
-	tool.config.Tools.Agent.Interactive.IdleTimeout = 0
+	tool.config.Tools.Agent.IdleTimeout = 0
 	if j := newInteractiveSubagentJob(tool, state); j.idleTimeout != 0 {
 		t.Fatalf("idle_timeout 0 must disable the auto-close, got %v", j.idleTimeout)
 	}
 
-	tool.config.Tools.Agent.Interactive.IdleTimeout = 7
+	tool.config.Tools.Agent.IdleTimeout = 7
 	if j := newInteractiveSubagentJob(tool, state); j.idleTimeout != 7*time.Second {
 		t.Fatalf("idle timeout = %v, want 7s", j.idleTimeout)
 	}
