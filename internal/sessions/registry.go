@@ -143,9 +143,7 @@ func (r *Registry) Handle(c sessionsdomain.Client, frame []byte) {
 		return
 	}
 	if err := w.Send(frame); err != nil {
-		if t != nil {
-			logger.Warn("sessions could not deliver a frame to the thread's worker", append(t.tags(), "frame", f.Type, "error", err)...)
-		}
+		logger.Warn("sessions could not deliver a frame to the thread's worker", append(t.tags(), "frame", f.Type, "error", err)...)
 		c.Deliver(runError("", fmt.Sprintf("the session worker did not take the frame: %v", err)))
 	}
 }
@@ -359,12 +357,12 @@ func (r *Registry) pump(t *thread, w sessionsdomain.Worker) {
 
 // relayBrowserCommand sends one worker browser_command to the extension and
 // writes the browser_result carrying the same id back to the worker's stdin, so
-// the worker's Browser tools resolve without binding a port. A failed routing
+// the worker's Browser tools resolve without binding a port. A failed command
 // is the thread's log record, since the relay itself never knows the thread.
 func (r *Registry) relayBrowserCommand(t *thread, w sessionsdomain.Worker, command []byte) {
 	result := r.browser(context.Background(), command)
 	if failure := browserResultFailure(result); failure != "" {
-		logger.Warn("sessions could not route a browser command for the thread", append(t.tags(), "error", failure)...)
+		logger.Warn("a browser command failed for the thread", append(t.tags(), "error", failure)...)
 	}
 	if err := w.Send(result); err != nil {
 		logger.Debug("sessions could not answer a browser_command", "error", err)

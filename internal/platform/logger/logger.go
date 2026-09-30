@@ -48,7 +48,7 @@ func Init(cfg Config) {
 
 // NewLogger creates a new configured logger instance
 func NewLogger(cfg Config) (*zap.Logger, error) {
-	if StderrJSONMode() {
+	if stderrJSONMode() {
 		return stderrJSONLogger(cfg)
 	}
 

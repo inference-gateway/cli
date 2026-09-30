@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -195,7 +193,7 @@ func (s *Service) fire(job scheddomain.ScheduledJob) {
 		Status:    scheddomain.RunStatusRunning,
 		StartedAt: now,
 	}
-	logger.Info("firing scheduled job", "id", job.ID, "session_id", run.SessionID)
+	logger.Info("firing scheduled job", "id", job.ID, "conversation_id", run.SessionID)
 	s.saveRun(run)
 
 	err := s.runAgent(ctx, job, run.SessionID)
@@ -232,7 +230,7 @@ func (s *Service) fire(job scheddomain.ScheduledJob) {
 // write must not abort the run itself.
 func (s *Service) saveRun(run *scheddomain.RunRecord) {
 	if err := s.runs.SaveRun(context.Background(), run); err != nil {
-		logger.Warn("failed to persist run record", "job_id", run.JobID, "session_id", run.SessionID, "error", err)
+		logger.Warn("failed to persist run record", "job_id", run.JobID, "conversation_id", run.SessionID, "error", err)
 	}
 }
 
@@ -252,25 +250,20 @@ func (s *Service) persistRun(job *scheddomain.ScheduledJob) {
 
 // runAgent spawns `infer headless --session-id <sessionID> <prompt>` (via the
 // shared agentrunner) and forwards each stdout line through the run-event hook.
-// The job's subprocess logs JSON to stderr, which the daemon collects into its
-// log with the run's tags.
 func (s *Service) runAgent(ctx context.Context, job scheddomain.ScheduledJob, sessionID string) error {
-	cwd, _ := os.Getwd()
 	res, err := agentrunner.Run(ctx, agentrunner.Options{
 		BinaryPath: s.binaryPath,
 		Exec:       s.execCmd,
 		SessionID:  sessionID,
 		Prompt:     job.Prompt,
 		Model:      job.Model,
-		ExtraEnv:   []string{logger.ChildStderrJSONEnv + "=true"},
 		OnLine: func(line []byte) {
 			s.emit(job, scheddomain.RunEvent{Line: line})
 		},
 	})
-	logger.CollectChildStderr(strings.NewReader(res.Stderr), "project_dir", cwd, "conversation_id", sessionID, "worker_pid", res.Pid)
 	if err != nil {
 		if res.Stderr != "" {
-			return fmt.Errorf("%w: %s", err, strings.TrimSpace(res.Stderr))
+			return fmt.Errorf("%w: %s", err, res.Stderr)
 		}
 		return err
 	}

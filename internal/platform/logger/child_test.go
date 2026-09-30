@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -20,13 +21,23 @@ func TestCollectChildStderr(t *testing.T) {
 		"panic: not json at all",
 		"",
 		`{"level":"info","msg":"worker ready"}`,
+		`{"level":"fatal","msg":"worker gave up"}`,
+		`{"level":"panic","msg":"worker panicked"}`,
 	}, "\n") + "\n"
 	tags := []any{"project_dir", "/proj", "conversation_id", "conv-1", "worker_pid", 4242}
 
-	CollectChildStderr(strings.NewReader(stderr), tags...)
+	lastPlainLine := CollectChildStderr(strings.NewReader(stderr), tags...)
 
-	if got := len(entries.All()); got != 3 {
-		t.Fatalf("got %d entries, want 3: %v", got, entries.All())
+	if lastPlainLine != "panic: not json at all" {
+		t.Fatalf("last plain line = %q", lastPlainLine)
+	}
+	if got := len(entries.All()); got != 5 {
+		t.Fatalf("got %d entries, want 5: %v", got, entries.All())
+	}
+	for _, terminal := range entries.All()[3:] {
+		if terminal.Level != zapcore.ErrorLevel {
+			t.Fatalf("%q kept the terminal level %s", terminal.Message, terminal.Level)
+		}
 	}
 	merged := entries.All()[0]
 	if merged.Message != "worker degraded" || merged.Level != zapcore.WarnLevel {
@@ -54,13 +65,15 @@ func TestCollectChildStderr(t *testing.T) {
 	}
 }
 
-func TestStderrJSONMode(t *testing.T) {
+func TestConsumeStderrJSONFlag(t *testing.T) {
 	t.Setenv(ChildStderrJSONEnv, "true")
-	if !StderrJSONMode() {
-		t.Fatal("StderrJSONMode is false while the env flag is set")
+	if !consumeStderrJSONFlag() {
+		t.Fatal("the flag is set but was not read")
 	}
-	t.Setenv(ChildStderrJSONEnv, "false")
-	if StderrJSONMode() {
-		t.Fatal("StderrJSONMode is true while the env flag is unset")
+	if _, inherited := os.LookupEnv(ChildStderrJSONEnv); inherited {
+		t.Fatal("the flag is still set for the processes this one starts")
+	}
+	if consumeStderrJSONFlag() {
+		t.Fatal("the flag was read while unset")
 	}
 }

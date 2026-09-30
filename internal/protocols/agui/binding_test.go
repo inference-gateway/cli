@@ -93,6 +93,20 @@ func TestBindingAcceptsHelloWithoutProtocolVersion(t *testing.T) {
 	}
 }
 
+func TestConnAnswersTheHelloAttrsWithoutTheToken(t *testing.T) {
+	binding, handler := testBinding(t)
+	helloAs(t, dial(t, binding), "test-token", "panel")
+	eventually(t, "the connection to attach", func() bool { return handler.AttachCallCount() == 1 })
+
+	conn := handler.AttachArgsForCall(0)
+	if got := conn.HelloAttr("protocol_version"); got != "1" {
+		t.Fatalf("protocol_version attr = %q, want 1", got)
+	}
+	if got := conn.HelloAttr("token"); got != "" {
+		t.Fatalf("the token is readable as a hello attr: %q", got)
+	}
+}
+
 func TestBindingRejectsBadHello(t *testing.T) {
 	tests := []struct {
 		name  string

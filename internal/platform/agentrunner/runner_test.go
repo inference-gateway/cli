@@ -115,6 +115,25 @@ func TestRunHarvestsFinalAssistantAndStreamsLines(t *testing.T) {
 	}
 }
 
+func TestRunReturnsOnlyTheLastPlainStderrLine(t *testing.T) {
+	script := `printf '%s\n' '{"level":"info","msg":"working"}' 'first plain line' 'the run failed' 1>&2
+exit 3`
+
+	res, err := Run(context.Background(), Options{
+		Exec: func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			return exec.CommandContext(ctx, "sh", "-c", script)
+		},
+		SessionID: "s1",
+		Prompt:    "do",
+	})
+	if err == nil {
+		t.Fatal("Run succeeded for a failing subprocess")
+	}
+	if res.Stderr != "the run failed" {
+		t.Fatalf("Stderr = %q, want the last plain line", res.Stderr)
+	}
+}
+
 func TestRunBrokersApprovalOverStdin(t *testing.T) {
 	script := `printf '%s\n' '{"type":"approval_request","tool_name":"Bash","tool_args":"{}","tool_call_id":"c1"}'
 read line

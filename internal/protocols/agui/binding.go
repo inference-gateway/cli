@@ -241,13 +241,8 @@ func (b *Binding) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	_ = ws.SetReadDeadline(time.Now().Add(handshakeTimeout))
 	var helloRaw json.RawMessage
-	if err := ws.ReadJSON(&helloRaw); err != nil {
-		logger.Warn("binding rejected a connection with a bad or missing hello")
-		_ = ws.Close()
-		return
-	}
 	var hello helloFrame
-	if err := json.Unmarshal(helloRaw, &hello); err != nil || hello.Type != b.cfg.Handshake.Hello ||
+	if ws.ReadJSON(&helloRaw) != nil || json.Unmarshal(helloRaw, &hello) != nil || hello.Type != b.cfg.Handshake.Hello ||
 		subtle.ConstantTimeCompare([]byte(hello.Token), []byte(b.cfg.Token)) != 1 {
 		logger.Warn("binding rejected a connection with a bad or missing hello")
 		_ = ws.Close()
@@ -262,8 +257,9 @@ func (b *Binding) handleWS(w http.ResponseWriter, r *http.Request) {
 		_ = ws.Close()
 		return
 	}
-	logger.Info("binding client connected", "client", hello.Client, "protocol_version", string(hello.ProtocolVersion))
-	b.adopt(newConn(ws, hello.Client, declaredHelloAttrs(helloRaw)))
+	c := newConn(ws, hello.Client, declaredHelloAttrs(helloRaw))
+	logger.Info("binding client connected", "client", c.kind, "protocol_version", c.HelloAttr(protocolVersionField))
+	b.adopt(c)
 }
 
 func (b *Binding) adopt(c *Conn) {

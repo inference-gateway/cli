@@ -13,7 +13,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	chn "github.com/inference-gateway/cli/internal/channels"
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -284,13 +283,14 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg chn.Inbo
 	senderMutex.Lock()
 	defer senderMutex.Unlock()
 
-	logger.Info("routing message to the thread", "channel", msg.ChannelName, "sender_id", msg.SenderID, "project_dir", projectDir, "conversation_id", convdomain.FormatChannelSessionID(msg.ChannelName, msg.SenderID))
+	chat := cm.threadChatFor(ctx, senderKey, ch, msg.SenderID, projectDir)
+	logger.Info("routing message to the thread", append(chat.tags(), "channel", msg.ChannelName, "sender_id", msg.SenderID)...)
 
 	start := time.Now()
-	err := cm.threadChatFor(ctx, senderKey, ch, msg.SenderID).deliverUserMessage(ctx, msg, projectDir, threadOpts)
+	err := chat.deliverUserMessage(ctx, msg, projectDir, threadOpts)
 	cm.recordMessageProcessed(ctx, msg.ChannelName, time.Since(start), err)
 	if err != nil {
-		logger.Error("the thread did not take the message", "channel", msg.ChannelName, "sender_id", msg.SenderID, "project_dir", projectDir, "conversation_id", convdomain.FormatChannelSessionID(msg.ChannelName, msg.SenderID), "error", err)
+		logger.Error("the thread did not take the message", append(chat.tags(), "channel", msg.ChannelName, "sender_id", msg.SenderID, "error", err)...)
 	}
 }
 

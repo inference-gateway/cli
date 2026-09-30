@@ -76,7 +76,10 @@ func LaunchWorker(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOption
 	}
 
 	_ = stderrW.Close()
-	go logger.CollectChildStderr(stderrR, "project_dir", key.ProjectDir, "conversation_id", key.ConversationID, "worker_pid", cmd.Process.Pid)
+	go func() {
+		defer func() { _ = stderrR.Close() }()
+		logger.CollectChildStderr(stderrR, "project_dir", key.ProjectDir, "conversation_id", key.ConversationID, "worker_pid", cmd.Process.Pid)
+	}()
 	go w.read(cmd, stdout, key)
 	return w, nil
 }
