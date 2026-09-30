@@ -1321,7 +1321,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Agent: AgentToolConfig{
 				Enabled:            true,
 				RequireApproval:    &[]bool{true}[0],
-				Mode:               "interactive",
+				Mode:               "headless",
 				Wait:               true,
 				MaxParallel:        4,
 				MaxDepth:           1,

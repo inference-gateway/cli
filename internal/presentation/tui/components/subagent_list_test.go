@@ -161,6 +161,10 @@ func TestSubagentListCapsRowsAndShowsOverflow(t *testing.T) {
 			t.Errorf("expected the oldest row %q to be cut by the cap, got %q", hidden, got)
 		}
 	}
+	last := lines[len(lines)-1]
+	if rowWidth := visibleWidth(lines[0]); visibleWidth(last) != rowWidth {
+		t.Errorf("expected the overflow row to match the row width %d, got %d: %q", rowWidth, visibleWidth(last), last)
+	}
 }
 
 func TestSubagentListRightAlignsWithinWidth(t *testing.T) {
@@ -174,12 +178,74 @@ func TestSubagentListRightAlignsWithinWidth(t *testing.T) {
 		t.Error("expected no command from a plain resize")
 	}
 	for i, line := range strings.Split(plain(list.Render()), "\n") {
-		if visibleWidth(line) != 40 {
-			t.Errorf("row %d width = %d, want exactly 40: %q", i, visibleWidth(line), line)
+		wantWidth := 40 - versionRightInset
+		if visibleWidth(line) != wantWidth {
+			t.Errorf("row %d width = %d, want exactly %d (version column edge): %q", i, visibleWidth(line), wantWidth, line)
 		}
 		if !strings.HasPrefix(line, " ") {
 			t.Errorf("row %d should be right-aligned across the width: %q", i, line)
 		}
+	}
+}
+
+func TestSubagentListRowsAlignInColumns(t *testing.T) {
+	now := time.Now()
+	auditorDone := now.Add(-time.Second)
+	jobs := []scheddomain.TrackedJob{
+		subagentJob("reviewer", scheddomain.JobRunning, now.Add(-2*time.Second), nil),
+		subagentJob("tester", scheddomain.JobRunning, now.Add(-time.Minute-time.Second), nil),
+		subagentJob("auditor", scheddomain.JobCompleted, now.Add(-2*time.Minute), &auditorDone),
+	}
+
+	list := newList(listOpts{jobs: jobs, linger: 5, indicator: true})
+	if _, cmd := list.Update(tea.WindowSizeMsg{Width: 40, Height: 10}); cmd != nil {
+		t.Error("expected no command from a plain resize")
+	}
+
+	lines := strings.Split(plain(list.Render()), "\n")
+	if len(lines) != len(jobs) {
+		t.Fatalf("expected %d rows, got %q", len(jobs), lines)
+	}
+	branch := strings.Index(lines[0], "┌")
+	if branch < 0 || branch != strings.Index(lines[1], "│") || branch != strings.Index(lines[2], "└") {
+		t.Errorf("expected tree connectors in one column, got %q", lines)
+	}
+	for i, line := range lines {
+		if w := visibleWidth(line); w != visibleWidth(lines[0]) {
+			t.Errorf("row %d width %d must equal row 0 width %d: %q", i, w, visibleWidth(lines[0]), line)
+		}
+		if strings.HasSuffix(line, " ") {
+			t.Errorf("row %d should end flush on the version column edge: %q", i, line)
+		}
+	}
+}
+
+// TestSubagentListFitsLabelColumnToWidestName: long names used to be cut at 12
+// columns, so an agent could not be told apart from its neighbours.
+func TestSubagentListFitsLabelColumnToWidestName(t *testing.T) {
+	now := time.Now()
+	name := "frontend-refactor-and-docs"
+
+	got := plain(newList(listOpts{
+		jobs:      []scheddomain.TrackedJob{subagentJob(name, scheddomain.JobRunning, now.Add(-2*time.Second), nil)},
+		linger:    5,
+		indicator: true,
+	}).Render())
+	if !strings.Contains(got, name) {
+		t.Errorf("expected the whole label %q to fit the column, got %q", name, got)
+	}
+
+	capped := strings.Repeat("x", subagentLabelCap+10)
+	got = plain(newList(listOpts{
+		jobs:      []scheddomain.TrackedJob{subagentJob(capped, scheddomain.JobRunning, now.Add(-2*time.Second), nil)},
+		linger:    5,
+		indicator: true,
+	}).Render())
+	if strings.Contains(got, capped) {
+		t.Errorf("expected the label column to stay capped at %d columns, got %q", subagentLabelCap, got)
+	}
+	if !strings.Contains(got, "...") {
+		t.Errorf("expected an over-long label to be truncated with an ellipsis, got %q", got)
 	}
 }
 

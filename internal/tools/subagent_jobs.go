@@ -24,8 +24,13 @@ type headlessSubagentJob struct {
 	runCtx    context.Context
 	cancelRun context.CancelFunc
 
-	mu     sync.Mutex
-	output string
+	// done is closed once Run returns, waking the blocking fan-in that awaits
+	// this job. nil for a fire-and-forget dispatch, which nobody awaits.
+	done chan struct{}
+
+	mu      sync.Mutex
+	output  string
+	outcome AgentSubResult
 }
 
 // Meta describes the subagent for the task view.
@@ -56,11 +61,14 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(scheddomain.JobSig
 		defer context.AfterFunc(ctx, j.cancelRun)()
 	}
 
+	defer j.signalDone()
+
 	answer, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID)
+	sub := toSubResult(j.spec, j.state.SessionID, answer, err)
 	j.mu.Lock()
 	j.output = answer
+	j.outcome = sub
 	j.mu.Unlock()
-	sub := toSubResult(j.spec, j.state.SessionID, answer, err)
 
 	status := scheddomain.SubagentCompleted
 	if !sub.Success {
@@ -86,6 +94,22 @@ func (j *headlessSubagentJob) Output() string {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.output
+}
+
+// result returns the subagent's outcome for the blocking fan-in that awaited
+// the job. Zero-valued until Run returns.
+func (j *headlessSubagentJob) result() AgentSubResult {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.outcome
+}
+
+// signalDone wakes a blocking fan-in waiter once Run has returned. It is a
+// no-op for a fire-and-forget job, which no one awaits.
+func (j *headlessSubagentJob) signalDone() {
+	if j.done != nil {
+		close(j.done)
+	}
 }
 
 // Wind is a no-op: the supervisor cancels Run's context, which kills the

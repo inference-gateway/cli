@@ -267,6 +267,11 @@ func (isb *InputStatusBar) Render() string {
 	return strings.Join(lines, "\n")
 }
 
+// versionRightInset is the trailing gap the right-aligned version segment
+// keeps from the window edge. Shared with SubagentList, whose duration
+// column ends on the same edge instead of passing it.
+const versionRightInset = 5
+
 // renderRightSegment right-aligns "● REC • cli vX • gw vY • ● Browser" after
 // the given line width, dropping pieces until the rest fits: gateway version
 // first, then CLI version, then the Browser label (bare dot last); the REC
@@ -311,7 +316,7 @@ func (isb *InputStatusBar) renderRightSegment(lineWidth int) string {
 		if candidate == "" {
 			continue
 		}
-		if pad := isb.width - 5 - lineWidth - lipgloss.Width(candidate); pad >= 2 {
+		if pad := isb.width - versionRightInset - lineWidth - lipgloss.Width(candidate); pad >= 2 {
 			return strings.Repeat(" ", pad) + candidate
 		}
 	}

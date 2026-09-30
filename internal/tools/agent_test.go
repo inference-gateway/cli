@@ -9,16 +9,28 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
+	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
+	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 )
 
 func newTestAgentTool(t *testing.T) *AgentTool {
 	t.Helper()
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
-	cfg.Tools.Agent.Mode = "headless"
-	return NewAgentTool(cfg, schedinfra.NewSubagentTracker(), nil)
+	cfg.Tools.Agent.Mode = scheddomain.SubagentModeHeadless
+	tool, _ := newSupervisedAgentTool(t, cfg)
+	return tool
+}
+
+// newSupervisedAgentTool wires the real background task registry, so a blocking
+// headless fan-out runs through the job supervisor every subagent surface reads.
+// It returns the registry for assertions.
+func newSupervisedAgentTool(t *testing.T, cfg *config.Config) (*AgentTool, scheddomain.BackgroundTaskRegistry) {
+	t.Helper()
+	registry := scheduler.NewBackgroundTaskRegistry(4, jobs.NewSupervisor(nil, nil, nil))
+	return NewAgentTool(cfg, registry, registry), registry
 }
 
 func TestAgentTool_Definition(t *testing.T) {
@@ -93,11 +105,74 @@ func TestAgentTool_SyncFanOut(t *testing.T) {
 	}
 }
 
+// TestAgentTool_BlockingFanOutIsSupervised pins the reason a blocking headless
+// fan-out is visible in the chat at all: its subagents must reach the job
+// supervisor, which is what the sub-agent list below the composer reads.
+func TestAgentTool_BlockingFanOutIsSupervised(t *testing.T) {
+	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	cfg := config.DefaultConfig()
+	cfg.Tools.Agent.Mode = scheddomain.SubagentModeHeadless
+	cfg.Tools.Agent.Wait = true
+	tool, registry := newSupervisedAgentTool(t, cfg)
+
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+		started <- struct{}{}
+		select {
+		case <-release:
+			return agentrunner.Result{FinalAssistant: "answer:" + opts.Prompt}, nil
+		case <-ctx.Done():
+			return agentrunner.Result{}, ctx.Err()
+		}
+	}
+
+	done := make(chan *agentdomain.ToolExecutionResult, 1)
+	go func() {
+		res, _ := tool.Execute(t.Context(), map[string]any{
+			"tasks": []any{
+				map[string]any{"description": "task A", "label": "reviewer"},
+				map[string]any{"description": "task B", "label": "tester"},
+			},
+		})
+		done <- res
+	}()
+
+	for range 2 {
+		<-started
+	}
+
+	supervised := 0
+	for _, job := range registry.Snapshot() {
+		if job.Meta.Kind == scheddomain.JobKindSubagent {
+			supervised++
+		}
+	}
+	if supervised != 2 {
+		t.Fatalf("supervisor must expose both blocking subagents while they run, got %d", supervised)
+	}
+
+	close(release)
+	res := <-done
+	if res == nil || !res.Success {
+		t.Fatalf("blocking fan-out failed: %+v", res)
+	}
+	data, ok := res.Data.(AgentToolResult)
+	if !ok || data.Dispatched != 2 || len(data.Subagents) != 2 {
+		t.Fatalf("expected 2 aggregated subagent results, got %+v", res.Data)
+	}
+	for _, sub := range data.Subagents {
+		if !sub.Success || sub.Result == "" {
+			t.Fatalf("subagent result not harvested: %+v", sub)
+		}
+	}
+}
+
 func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive"
-	tool := NewAgentTool(cfg, schedinfra.NewSubagentTracker(), nil)
+	tool, _ := newSupervisedAgentTool(t, cfg)
 	tool.interactiveAvailable = func() bool { return false }
 	tool.launchPane = func(ctx context.Context, title, command string) (string, error) {
 		t.Fatalf("tmux pane must not be launched when falling back to headless")

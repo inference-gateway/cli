@@ -270,10 +270,10 @@ func (r *ApplicationViewRenderer) assembleComponents(
 	components = r.appendQuestionForm(components, questionFormView)
 	components = r.appendHistorySearch(components, historySearch)
 	components = append(components, inputArea)
-	components = r.appendSubagentList(components, subagentList)
 	components = r.appendSnippetAttachments(components, snippetAttachments)
 	components = r.appendAutocomplete(components, autocomplete)
 	components = r.appendInputStatusBar(components, inputView, inputStatusBar)
+	components = r.appendSubagentList(components, subagentList)
 	components = r.appendHelpBar(components, helpBar, width)
 
 	return components
@@ -321,7 +321,7 @@ func (r *ApplicationViewRenderer) appendSnippetAttachments(
 }
 
 // appendSubagentList appends the live sub-agent elapsed rows right-aligned
-// directly below the composer while sub-agents run or linger.
+// below the status-indicator row while sub-agents run or linger.
 func (r *ApplicationViewRenderer) appendSubagentList(components []string, subagentList *SubagentList) []string {
 	if subagentList == nil {
 		return components

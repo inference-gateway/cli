@@ -19,6 +19,15 @@ import (
 // status bar off screen; the overflow shows as a "+N more" row.
 const maxSubagentRows = 5
 
+// subagentLabelMinWidth keeps the label column at least as wide as the fixed
+// column this list used before names were fitted, so short names keep their
+// shape.
+const subagentLabelMinWidth = 13
+
+// subagentLabelCap bounds the fitted label column so one long name cannot push
+// the duration column off the row.
+const subagentLabelCap = 40
+
 // SubagentList renders the right-aligned stacked list below the composer:
 // one row per tracked sub-agent with its label and a live elapsed counter,
 // finished jobs lingering with their final state before they drop off.
@@ -97,6 +106,40 @@ type subagentRow struct {
 	started time.Time
 }
 
+// rowWidths are the column widths every row shares, so the connectors, the
+// state cell and the duration column never drift between rows.
+type rowWidths struct {
+	label    int
+	state    int
+	duration int
+}
+
+// measureRows fits the columns to the rows on screen: the label column grows to
+// the widest visible name (capped), the duration column to the widest time.
+func (l *SubagentList) measureRows(rows []subagentRow) rowWidths {
+	widths := rowWidths{label: subagentLabelMinWidth}
+	for _, row := range rows {
+		widths.label = min(max(widths.label, l.styleProvider.GetWidth(rowLabel(row))), subagentLabelCap)
+		if w := l.styleProvider.GetWidth(formatDuration(row.elapsed)); w > widths.duration {
+			widths.duration = w
+		}
+		if !row.running {
+			if w := l.styleProvider.GetWidth(row.state); w > widths.state {
+				widths.state = w
+			}
+		}
+	}
+	return widths
+}
+
+// rowLabel is a row's label, or the generic fallback when it has none.
+func rowLabel(row subagentRow) string {
+	if trimmed := strings.TrimSpace(row.label); trimmed != "" {
+		return trimmed
+	}
+	return "subagent"
+}
+
 // snapshotRows adapts every tracked sub-agent job to a row, sorted newest
 // first, dropping finished jobs whose linger window has passed.
 func (l *SubagentList) snapshotRows() []subagentRow {
@@ -161,8 +204,10 @@ func (l *SubagentList) enabled() bool {
 	return l.config == nil || l.config.Chat.StatusBar.Indicators.Subagents
 }
 
-// Render draws the rows right-aligned below the composer; empty string when
-// nothing runs or lingers so no lines are reserved.
+// Render draws the rows right-aligned below the composer, flush with the
+// version column edge. Every row spans the same columns so the tree connector
+// never drifts when durations gain digits. Empty output when nothing runs or
+// lingers reserves no lines.
 func (l *SubagentList) Render() string {
 	if l.registry == nil || !l.enabled() {
 		return ""
@@ -174,28 +219,37 @@ func (l *SubagentList) Render() string {
 	shown := rows[:min(len(rows), maxSubagentRows)]
 	more := len(rows) - len(shown)
 
+	widths := l.measureRows(shown)
+
+	blockWidth := l.width - versionRightInset
 	lines := make([]string, 0, len(shown)+1)
+	rowWidth := 0
 	for i, row := range shown {
-		line := l.rowView(row, i, len(shown))
-		if l.width > 0 {
-			line = l.styleProvider.PlaceHorizontal(l.width, "", line)
+		line := l.rowView(row, i, len(shown), widths)
+		rowWidth = l.styleProvider.GetWidth(line)
+		if blockWidth > 0 {
+			line = l.styleProvider.PlaceHorizontal(blockWidth, "", line)
 		}
 		lines = append(lines, line)
 	}
 	if more > 0 {
-		overflow := fmt.Sprintf("+%d more", more)
-		line := l.styleProvider.RenderWithColor(overflow, l.styleProvider.GetThemeColor("dim"))
-		if l.width > 0 {
-			line = l.styleProvider.PlaceHorizontal(l.width, "", line)
+		overflow := l.styleProvider.RenderWithColor(fmt.Sprintf("+%d more", more), l.styleProvider.GetThemeColor("dim"))
+		if pad := rowWidth - l.styleProvider.GetWidth(overflow); pad > 0 {
+			overflow = strings.Repeat(" ", pad) + overflow
 		}
-		lines = append(lines, line)
+		if blockWidth > 0 {
+			overflow = l.styleProvider.PlaceHorizontal(blockWidth, "", overflow)
+		}
+		lines = append(lines, overflow)
 	}
 	return strings.Join(lines, "\n")
 }
 
-// rowView draws one entry: box-drawing connector, label, and either the
-// running elapsed counter or the final state and total duration.
-func (l *SubagentList) rowView(row subagentRow, index, count int) string {
+// rowView draws one entry: box-drawing connector, padded label, then either
+// the running elapsed counter or the final state and total duration. Running
+// rows leave the state cell blank so finished rows cannot shift the shared
+// duration column.
+func (l *SubagentList) rowView(row subagentRow, index, count int, widths rowWidths) string {
 	connector := ""
 	if count > 1 {
 		switch index {
@@ -207,19 +261,19 @@ func (l *SubagentList) rowView(row subagentRow, index, count int) string {
 			connector = "│ "
 		}
 	}
-	label := "subagent"
-	if trimmed := strings.TrimSpace(row.label); trimmed != "" {
-		label = formatting.TruncateText(trimmed, 12)
-	}
+	label := formatting.PadText(rowLabel(row), widths.label)
 	dim := l.styleProvider.GetThemeColor("dim")
-	elapsed := l.styleProvider.RenderWithColor(formatDuration(row.elapsed), dim)
+	elapsed := formatDuration(row.elapsed)
+	elapsedCol := strings.Repeat(" ", widths.duration-l.styleProvider.GetWidth(elapsed)) +
+		l.styleProvider.RenderWithColor(elapsed, dim)
 	if row.running {
-		return fmt.Sprintf("%s%-13s %s", connector, label, elapsed)
+		return fmt.Sprintf("%s%s %s", connector, label, strings.Repeat(" ", widths.state+1)+elapsedCol)
 	}
 	style := "dim"
 	if row.state == "failed" {
 		style = "error"
 	}
-	state := l.styleProvider.RenderWithColor(row.state, l.styleProvider.GetThemeColor(style))
-	return fmt.Sprintf("%s%-13s %s %s", connector, label, state, elapsed)
+	stateCol := l.styleProvider.RenderWithColor(row.state, l.styleProvider.GetThemeColor(style)) +
+		strings.Repeat(" ", widths.state-l.styleProvider.GetWidth(row.state)) + " "
+	return fmt.Sprintf("%s%s %s", connector, label, stateCol+elapsedCol)
 }
