@@ -151,6 +151,11 @@ type Panel struct {
 // dependencies it uses.
 func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p := &Panel{out: &lineWriter{out: out}}
+	p.conversations = &conversations{write: p.write, out: p.out, repo: deps.Conversations}
+	p.history = newHistory(p.write, deps.History)
+	p.skills = &skills{write: p.write, service: deps.Skills}
+	p.models = &modelPicker{write: p.write, service: deps.Models, defaultModel: deps.DefaultModel}
+	p.modes = &modes{write: p.write, state: deps.Modes}
 	p.tools = newToolRequests(p.write, p.out, deps)
 	return p
 }
@@ -221,16 +226,16 @@ type conversationLister interface {
 // conversations answers the panel's conversation picker and snapshot from the
 // worker's conversation repository.
 type conversations struct {
-	write  frameWriter
-	events *agui.Run
-	repo   convdomain.ConversationRepository
+	write frameWriter
+	out   io.Writer
+	repo  convdomain.ConversationRepository
 }
 
 // snapshot answers new_session and resume_conversation with the worker's
 // conversation as an AG-UI MESSAGES_SNAPSHOT. The worker was launched for that
 // conversation, so the repository is already on it.
 func (c *conversations) snapshot() {
-	c.events.Snapshot(snapshotMessages(c.repo.GetMessages()))
+	agui.WriteMessagesSnapshot(c.out, snapshotMessages(c.repo.GetMessages()))
 }
 
 // list answers list_conversations with the stored conversations (newest-first),

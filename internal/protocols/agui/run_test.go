@@ -37,7 +37,9 @@ type wireEvent struct {
 	Result   map[string]any   `json:"result"`
 	Usage    []map[string]any `json:"usage"`
 	Snapshot map[string]any   `json:"snapshot"`
-	Delta    []map[string]any `json:"delta"`
+	// delta is the string fragment of a text or reasoning content event and,
+	// on STATE_DELTA, the JSON Patch the event applies.
+	Delta    json.RawMessage `json:"delta"`
 	Activity struct {
 		Type string `json:"activityType"`
 	} `json:"activity,omitempty"`
@@ -73,7 +75,10 @@ func loadWireSchema() (*jsonschema.Schema, error) {
 			return
 		}
 		compiler := jsonschema.NewCompiler()
-		compiler.AddResource(wireSchemaID, doc)
+		if addErr := compiler.AddResource(wireSchemaID, doc); addErr != nil {
+			schemaErr = addErr
+			return
+		}
 		wireSchema, schemaErr = compiler.Compile(wireSchemaID)
 	})
 	return wireSchema, schemaErr
@@ -91,15 +96,15 @@ func decode(t *testing.T, w *writes) []wireEvent {
 			t.Fatalf("write %q must carry exactly one newline-terminated event", line)
 		}
 		var raw any
-		if json.Unmarshal([]byte(line), &raw) != nil {
-			t.Fatalf("write is not one JSON event: %v\n%s", err, line)
+		if uerr := json.Unmarshal([]byte(line), &raw); uerr != nil {
+			t.Fatalf("write is not one JSON event: %v\n%s", uerr, line)
 		}
 		if err := schema.Validate(raw); err != nil {
 			t.Errorf("event violates the upstream 1.0 schema: %v\n%s", err, line)
 		}
 		var ev wireEvent
-		if json.Unmarshal([]byte(line), &ev) != nil {
-			t.Fatalf("write is not one JSON event: %s", line)
+		if uerr := json.Unmarshal([]byte(line), &ev); uerr != nil {
+			t.Fatalf("write is not one JSON event: %v\n%s", uerr, line)
 		}
 		events = append(events, ev)
 	}
@@ -324,7 +329,7 @@ func TestRunContinuationCarriesTheState(t *testing.T) {
 	w := &writes{}
 	r := NewRun(w)
 	r.Start("t1", "run-1")
-	r.PatchState(StateTodos, map[string]any{"one": "a"})
+	r.PatchState(StateTodos, []any{map[string]any{"id": "1"}})
 	r.PatchState(StateUsage, []TokenUsage{{Model: "m", InputTokens: TokenCount(1)}})
 
 	next := NewContinuationRun(w, r.State())

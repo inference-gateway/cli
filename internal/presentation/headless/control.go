@@ -137,7 +137,12 @@ func (c *headlessControl) enqueueRunInput(input agui.RunAgentInput) {
 	for _, msg := range input.Messages {
 		text, attachments := messageParts(msg)
 		images, notes := saveAttachments(attachments)
-		message, err := userMessage(strings.Join(append([]string{text}, notes...), "\n"), images)
+		content := strings.Join(append([]string{text}, notes...), "\n")
+		if content == "" && len(images) == 0 {
+			logger.Debug("dropping a run input message with neither text nor a usable attachment")
+			continue
+		}
+		message, err := userMessage(content, images)
 		if err != nil {
 			logger.Warn("dropping a run input message with an unusable attachment", "error", err)
 			continue
@@ -165,17 +170,17 @@ func userMessageText(content string) sdk.Message {
 // the content parts of the user message: text parts join into the text, image
 // parts become model-readable attachments.
 func messageParts(msg agui.Message) (string, []agentdomain.ImageAttachment) {
-	var texts []string
-	var attachments []agentdomain.ImageAttachment
 	switch content := msg.Content.(type) {
 	case string:
-		texts = append(texts, content)
-	case []agui.InputContent:
-		for _, part := range content {
+		return content, nil
+	case []any:
+		var texts []string
+		var attachments []agentdomain.ImageAttachment
+		for _, part := range inputParts(content) {
 			switch part.Type {
-			case "text":
+			case agui.InputContentTypeText:
 				texts = append(texts, part.Text)
-			case "image":
+			case agui.InputContentTypeImage:
 				data := part.Data
 				if data == "" && part.Source != nil {
 					data = part.Source.Value
@@ -185,8 +190,27 @@ func messageParts(msg agui.Message) (string, []agentdomain.ImageAttachment) {
 				})
 			}
 		}
+		return strings.Join(texts, "\n"), attachments
 	}
-	return strings.Join(texts, "\n"), attachments
+	return "", nil
+}
+
+// inputParts re-reads the message's decoded content array as input parts, so a
+// part and its shape survive the round trip the frame's JSON makes it take.
+func inputParts(content []any) []agui.InputContent {
+	parts := make([]agui.InputContent, 0, len(content))
+	for _, raw := range content {
+		data, err := json.Marshal(raw)
+		if err != nil {
+			continue
+		}
+		var part agui.InputContent
+		if json.Unmarshal(data, &part) != nil {
+			continue
+		}
+		parts = append(parts, part)
+	}
+	return parts
 }
 
 // answerResume routes one resume entry to the broker of the interrupt it

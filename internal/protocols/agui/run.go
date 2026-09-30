@@ -35,6 +35,12 @@ func TokenCount(count int64) *int64 { return aguievents.TokenCount(count) }
 // names success and interrupt; this names the third variant the spec defines.
 const OutcomeCancelled = aguievents.RunFinishedOutcomeType("cancelled")
 
+// The content part types of a run input message.
+const (
+	InputContentTypeText  = aguitypes.InputContentTypeText
+	InputContentTypeImage = aguitypes.InputContentTypeImage
+)
+
 // The interrupt reasons this CLI raises. AG-UI leaves reason open ended.
 const (
 	InterruptToolCall      = "tool_call"
@@ -85,6 +91,13 @@ func WriteCustom(w io.Writer, name string, value any) {
 // run id, so the event carries none.
 func WriteRunError(w io.Writer, message string) {
 	write(w, aguievents.NewRunErrorEvent(message))
+}
+
+// WriteMessagesSnapshot writes one MESSAGES_SNAPSHOT outside any run: the
+// conversation-wide answer to a panel's new_session or resume_conversation,
+// which arrives between runs. A run's own restore goes through Run.Snapshot.
+func WriteMessagesSnapshot(w io.Writer, messages []Message) {
+	write(w, aguievents.NewMessagesSnapshotEvent(messages))
 }
 
 func write(w io.Writer, ev aguievents.Event) {
@@ -175,6 +188,9 @@ func (r *Run) Snapshot(messages []Message) {
 // Text writes a text delta, opening the turn's assistant message on the first
 // one. It closes an open reasoning block, which precedes text.
 func (r *Run) Text(delta string) {
+	if r.state == nil {
+		return
+	}
 	if r.msgID == "" {
 		r.msgID = uuid.New().String()
 	}
@@ -193,6 +209,9 @@ func (r *Run) Text(delta string) {
 // the first one. Reasoning precedes text within one assistant message, so
 // reasoning arriving while text is open closes the previous message first.
 func (r *Run) Reasoning(delta string) {
+	if r.state == nil {
+		return
+	}
 	if r.textOpen {
 		r.CloseMessage()
 	}
@@ -200,7 +219,7 @@ func (r *Run) Reasoning(delta string) {
 		r.msgID = uuid.New().String()
 	}
 	if !r.reasoningOpen {
-		r.emit(aguievents.NewReasoningMessageStartEvent(r.msgID, "assistant"))
+		r.emit(aguievents.NewReasoningMessageStartEvent(r.msgID, "reasoning"))
 		r.reasoningOpen = true
 	}
 	r.emit(aguievents.NewReasoningMessageContentEvent(r.msgID, delta))
@@ -209,6 +228,9 @@ func (r *Run) Reasoning(delta string) {
 // Message writes a complete message with the role it has in the conversation:
 // a note the agent queued or a user message rendered over the run.
 func (r *Run) Message(role Role, content string) {
+	if r.state == nil {
+		return
+	}
 	r.CloseMessage()
 	id := uuid.New().String()
 	r.emit(aguievents.NewTextMessageStartEvent(id, aguievents.WithRole(string(role))))
@@ -285,8 +307,7 @@ func (r *Run) Fail(err error) {
 // cancelled run ends with outcome cancelled, a failed one with RUN_ERROR,
 // both carrying usage, and a clean run with outcome success carrying the
 // result. Suspend already wrote the terminal, so an interrupted run writes
-// nothing here. A run that failed before it started writes only a RUN_ERROR
-// without a run id, the one event a run may carry before RUN_STARTED.
+// nothing here. A run that failed before it started writes only a RUN_ERROR.
 func (r *Run) Finish(result map[string]any, usage []TokenUsage) error {
 	if r.ended {
 		return r.err
@@ -322,12 +343,12 @@ func (r *Run) Finish(result map[string]any, usage []TokenUsage) error {
 	return r.err
 }
 
-// emitRunError carries no run id for a run that fails before it started.
+// emitRunError carries the failure and the usage accrued before it. RUN_ERROR
+// describes the run itself, so like RUN_STARTED and RUN_FINISHED it carries no
+// subagent attribution and no message id; unlike them the 1.0 schema keeps it
+// anonymous, identified by whoever reports it.
 func (r *Run) emitRunError(message string, usage []TokenUsage) {
-	opts := []aguievents.RunErrorOption{}
-	if r.runID != "" {
-		opts = append(opts, aguievents.WithRunID(r.runID))
-	}
+	var opts []aguievents.RunErrorOption
 	if len(usage) > 0 {
 		opts = append(opts, aguievents.WithErrorUsage(usage))
 	}

@@ -14,12 +14,13 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
-func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *statemanager.Store) {
+func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *conversationmocks.FakeMessageQueue) {
 	agent := &agentdomainmocks.FakeAgentService{}
-	sm := statemanager.NewStore(false)
-	return newHeadlessControl(agent, sm, &conversationmocks.FakeMessageQueue{}, "sess-1"), agent, sm
+	queue := &conversationmocks.FakeMessageQueue{}
+	return newHeadlessControl(agent, queue, "sess-1"), agent, queue
 }
 
 func recvEvent(t *testing.T, ch <-chan agentdomain.ChatEvent) agentdomain.ChatEvent {
@@ -33,8 +34,8 @@ func recvEvent(t *testing.T, ch <-chan agentdomain.ChatEvent) agentdomain.ChatEv
 	}
 }
 
-func TestHeadlessControl_DispatchLine(t *testing.T) {
-	ctl, agent, sm := newTestControl()
+func TestHeadlessControl_BrokerFrames(t *testing.T) {
+	ctl, agent, _ := newTestControl()
 
 	ctl.dispatchLine([]byte(`{"type":"approval_response","tool_call_id":"tc1","approved":true}`))
 	select {
@@ -56,91 +57,94 @@ func TestHeadlessControl_DispatchLine(t *testing.T) {
 		t.Fatal("user_question_response line not forwarded to questions channel")
 	}
 
-	for _, noise := range []string{"not json", `{"type":"other"}`, `{"type":"computer_use_control","action":"nonsense"}`} {
+	for _, noise := range []string{"not json", `{"type":"other"}`, `{"type":"browser_result","id":"unknown"}`} {
 		ctl.dispatchLine([]byte(noise))
 	}
 	select {
-	case ev := <-ctl.ctrlEvents:
-		t.Fatalf("noise line produced control event %+v", ev)
+	case resp := <-ctl.approvals:
+		t.Fatalf("noise produced an approval response %+v", resp)
 	default:
 	}
 	if agent.CancelRequestCallCount() != 0 {
-		t.Fatal("noise line cancelled the request")
-	}
-
-	ctl.dispatchLine([]byte(`{"type":"computer_use_control","action":"pause"}`))
-	if agent.CancelRequestCallCount() != 1 || agent.CancelRequestArgsForCall(0) != "sess-1" {
-		t.Fatalf("pause must cancel the session request, got %d calls", agent.CancelRequestCallCount())
-	}
-	if !sm.IsComputerUsePaused() {
-		t.Fatal("pause must set the paused state")
-	}
-	if ev, ok := recvEvent(t, ctl.ctrlEvents).(agentdomain.ComputerUsePausedEvent); !ok || ev.RequestID != "sess-1" {
-		t.Fatalf("pause event = %+v, want ComputerUsePausedEvent for sess-1", ev)
-	}
-
-	ctl.dispatchLine([]byte(`{"type":"computer_use_control","action":"resume"}`))
-	ev := recvEvent(t, ctl.ctrlEvents)
-	if resumed, ok := ev.(agentdomain.ComputerUseResumedEvent); !ok || resumed.RequestID != "sess-1" {
-		t.Fatalf("resume event = %+v, want ComputerUseResumedEvent for sess-1", ev)
-	}
-	if !ctl.noteControlEvent(ev, false) {
-		t.Fatal("resume while paused must mark a pending resume")
-	}
-	if sm.IsComputerUsePaused() {
-		t.Fatal("handling the resume event must clear the paused state")
-	}
-	if ctl.noteControlEvent(agentdomain.ComputerUseResumedEvent{RequestID: "sess-1"}, false) {
-		t.Fatal("resume without a preceding pause must not mark a pending resume")
+		t.Fatal("noise cancelled the session request")
 	}
 }
 
-func TestHeadlessControl_PumpPauseResume(t *testing.T) {
+func TestHeadlessControl_RunInputMessages(t *testing.T) {
+	ctl, _, queue := newTestControl()
+
+	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"threadId":"t1","messages":[{"role":"user","content":"finally open it"}]}}`))
+	if queue.EnqueueCallCount() != 1 {
+		t.Fatalf("run input enqueue calls = %d, want 1", queue.EnqueueCallCount())
+	}
+	msg, source, reqID := queue.EnqueueArgsForCall(0)
+	if source != convdomain.QueueSourceStdin || reqID != ipc.UserMessageRequestID || msg.Role != sdk.User {
+		t.Fatalf("enqueued (%+v, %q, %q), want user role tagged %q", msg, source, reqID, ipc.UserMessageRequestID)
+	}
+	select {
+	case <-ctl.wake:
+	case <-time.After(2 * time.Second):
+		t.Fatal("a run input did not wake the serve loop")
+	}
+
+	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"threadId":"t1"}}`))
+	if queue.EnqueueCallCount() != 2 {
+		t.Fatalf("the continue run enqueue calls = %d, want 2", queue.EnqueueCallCount())
+	}
+	continueMsg, _, _ := queue.EnqueueArgsForCall(1)
+	text, _ := continueMsg.Content.AsMessageContent0()
+	if text != continuePrompt {
+		t.Fatalf("continue run enqueue = %q, want the continue prompt", text)
+	}
+
+	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"messages":[{"role":"user","content":""}]}}`))
+	if queue.EnqueueCallCount() != 2 {
+		t.Fatal("an empty run input message landed on the message queue")
+	}
+}
+
+func TestHeadlessControl_RunInputResumeRoutesToTheBrokers(t *testing.T) {
 	ctl, _, _ := newTestControl()
+	ctl.Note("tc1", agui.InterruptToolCall)
+	ctl.Note("q1", agui.InterruptInputRequired)
+	ctl.Note("gone", agui.InterruptToolCall)
+	ctl.Forget("gone")
 
-	first := make(chan agentdomain.ChatEvent, 1)
-	first <- agentdomain.ChatChunkEvent{Content: "before pause"}
-
-	resumedRun := make(chan agentdomain.ChatEvent, 1)
-	resumedRun <- agentdomain.ChatCompleteEvent{}
-	close(resumedRun)
-
-	resumeCalls := 0
-	merged := ctl.pumpEvents(first, func() (<-chan agentdomain.ChatEvent, error) {
-		resumeCalls++
-		return resumedRun, nil
-	})
-
-	ctl.dispatchLine([]byte(`{"type":"computer_use_control","action":"pause"}`))
-	close(first)
-	ctl.dispatchLine([]byte(`{"type":"computer_use_control","action":"resume"}`))
-
-	var paused, resumed, completed bool
-	deadline := time.After(5 * time.Second)
-	for done := false; !done; {
-		select {
-		case ev, ok := <-merged:
-			if !ok {
-				done = true
-				continue
-			}
-			switch ev.(type) {
-			case agentdomain.ComputerUsePausedEvent:
-				paused = true
-			case agentdomain.ComputerUseResumedEvent:
-				resumed = true
-			case agentdomain.ChatCompleteEvent:
-				completed = true
-			}
-		case <-deadline:
-			t.Fatal("timed out waiting for merged channel to close")
+	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"threadId":"t1","resume":[{"interruptId":"tc1","status":"resolved"}]}}`))
+	select {
+	case resp := <-ctl.approvals:
+		if resp.ToolCallID != "tc1" || !resp.Approved {
+			t.Fatalf("resume approval = %+v, want tc1 approved", resp)
 		}
+	default:
+		t.Fatal("the resume entry did not reach the approval broker")
 	}
-	if !paused || !resumed || !completed {
-		t.Fatalf("merged events missing: paused=%v resumed=%v completed=%v", paused, resumed, completed)
+
+	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"resume":[{"interruptId":"q1","status":"resolved","payload":{"answers":[{"header":"Lang","selectedLabels":["Go"]}]}}]}}`))
+	select {
+	case resp := <-ctl.questions:
+		if resp.ToolCallID != "q1" || resp.Cancelled || !strings.Contains(string(resp.Answers), `"Go"`) {
+			t.Fatalf("resume question = %+v, want q1 with the payload answers", resp)
+		}
+	default:
+		t.Fatal("the resume entry did not reach the question broker")
 	}
-	if resumeCalls != 1 {
-		t.Fatalf("resume() called %d times, want 1", resumeCalls)
+
+	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"resume":[{"interruptId":"gone","status":"resolved"}]}}`))
+	select {
+	case resp := <-ctl.approvals:
+		t.Fatalf("a resume for a forgotten interrupt decided the broker: %+v", resp)
+	default:
+	}
+
+	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"resume":[{"interruptId":"tc1","status":"cancelled"}]}}`))
+	select {
+	case resp := <-ctl.approvals:
+		if resp.Approved {
+			t.Fatalf("a cancelled resume entry approved the call: %+v", resp)
+		}
+	default:
+		t.Fatal("a cancelled resume entry did not reject the approval")
 	}
 }
 
@@ -161,24 +165,6 @@ func TestHeadlessControl_ReadLinesSurvivesLargeLine(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("timed out waiting for the approval after a large line")
 		}
-	}
-}
-
-func TestHeadlessControl_UserMessage(t *testing.T) {
-	ctl, _, _ := newTestControl()
-	queue := ctl.messageQueue.(*conversationmocks.FakeMessageQueue)
-
-	ctl.dispatchLine([]byte(`{"type":"user_message","content":"finally open it"}`))
-	if queue.EnqueueCallCount() != 1 {
-		t.Fatalf("user_message enqueue calls = %d, want 1", queue.EnqueueCallCount())
-	}
-	if msg, source, reqID := queue.EnqueueArgsForCall(0); source != convdomain.QueueSourceStdin || reqID != ipc.UserMessageRequestID || msg.Role != sdk.User {
-		t.Fatalf("enqueued (%+v, %q, %q), want user role tagged %q", msg, source, reqID, ipc.UserMessageRequestID)
-	}
-
-	ctl.dispatchLine([]byte(`{"type":"user_message","content":""}`))
-	if queue.EnqueueCallCount() != 1 {
-		t.Fatal("empty user_message landed on the message queue")
 	}
 }
 
@@ -217,11 +203,11 @@ func TestHeadlessControl_ServeFrames(t *testing.T) {
 	frames := make(frameSink, 1)
 	ctl.browser = newStdioBrowser(frames)
 
-	ctl.dispatchLine([]byte(`{"type":"user_message","content":"next turn"}`))
+	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"threadId":"t1","messages":[{"role":"user","content":"next turn"}]}}`))
 	select {
 	case <-ctl.wake:
 	default:
-		t.Fatal("user_message must wake the serve loop")
+		t.Fatal("run_agent_input must wake the serve loop")
 	}
 
 	ctl.dispatchLine([]byte(`{"type":"interrupt"}`))
@@ -260,12 +246,12 @@ func TestHeadlessControl_AwaitTurn(t *testing.T) {
 		queue.IsEmptyReturnsOnCall(2, true)
 		queue.IsEmptyReturnsOnCall(3, false)
 		ctl.approvals <- ipc.ApprovalResponse{ToolCallID: "stale"}
-		ctl.ctrlEvents <- agentdomain.ComputerUsePausedEvent{RequestID: "sess-1"}
+		ctl.questions <- ipc.UserQuestionResponse{ToolCallID: "stale"}
 		ctl.wake <- struct{}{}
 		if !ctl.awaitTurn() {
 			t.Fatal("awaitTurn() = false, want a turn once the message landed")
 		}
-		if len(ctl.approvals) != 0 || len(ctl.ctrlEvents) != 0 {
+		if len(ctl.approvals) != 0 || len(ctl.questions) != 0 {
 			t.Fatal("frames that arrived between turns must be drained, not left for the next run")
 		}
 	})
@@ -281,7 +267,7 @@ func TestHeadlessControl_AwaitTurn(t *testing.T) {
 }
 
 func TestHeadlessControl_PanelFramesStayOffTheTurnChannels(t *testing.T) {
-	ctl, _, sm := newTestControl()
+	ctl, _, _ := newTestControl()
 	tools := &agentdomainmocks.FakeToolService{}
 	tools.IsToolEnabledReturns(true)
 	tools.ExecuteToolDirectReturns(&agentdomain.ToolExecutionResult{Success: true, Data: &agentdomain.BashToolResult{Output: "hi\n"}}, nil)
@@ -294,7 +280,7 @@ func TestHeadlessControl_PanelFramesStayOffTheTurnChannels(t *testing.T) {
 		Tools:         tools,
 		Approval:      approval,
 		Models:        &conversationmocks.FakeModelService{},
-		Modes:         sm,
+		Modes:         statemanager.NewStore(false),
 	}, frames)
 
 	ctl.dispatchLine([]byte(`{"type":"tool_request","id":"req-1","tool_name":"Bash","tool_args":"{}"}`))
@@ -322,14 +308,14 @@ func TestHeadlessControl_PanelFramesStayOffTheTurnChannels(t *testing.T) {
 	}
 }
 
-func TestHeadlessControl_UserMessageAttachments(t *testing.T) {
+func TestHeadlessControl_RunInputAttachments(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	ctl, _, _ := newTestControl()
-	queue := ctl.messageQueue.(*conversationmocks.FakeMessageQueue)
+	ctl, _, queue := newTestControl()
 
-	ctl.dispatchLine([]byte(`{"type":"user_message","content":"look at these","attachments":[` +
-		`{"filename":"shot.png","mime_type":"image/png","data":"iVBORw0KGgo="},` +
-		`{"filename":"../../notes.txt","mime_type":"text/plain","data":"aGVsbG8="}]}`))
+	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"messages":[{"role":"user","content":[` +
+		`{"type":"text","text":"look at these"},` +
+		`{"type":"image","filename":"shot.png","mimeType":"image/png","data":"iVBORw0KGgo="},` +
+		`{"type":"image","filename":"../../notes.txt","mimeType":"text/plain","data":"aGVsbG8="}]}]}}`))
 	if queue.EnqueueCallCount() != 1 {
 		t.Fatalf("enqueue calls = %d, want 1", queue.EnqueueCallCount())
 	}

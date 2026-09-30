@@ -131,6 +131,7 @@ linters:
             - github.com/inference-gateway/cli/internal/platform/logger
             - github.com/inference-gateway/cli/internal/protocols/agui
             - github.com/inference-gateway/cli/tests/mocks/agui
+            - github.com/santhosh-tekuri/jsonschema/v6
           deny:
             - pkg: github.com/inference-gateway/cli/internal
               desc: "agui is a general-purpose protocol package; the contexts import it and it imports none of them"
