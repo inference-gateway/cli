@@ -10,6 +10,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -152,7 +153,7 @@ func TestSubagentListRenderLifecycle(t *testing.T) {
 		{
 			name:        "finished row lingers with a checkmark and total duration",
 			opts:        listOpts{jobs: []scheddomain.TrackedJob{subagentJob("reviewer", scheddomain.JobCompleted, longAgoStarted, &recentlyDone)}, linger: 5, indicator: true},
-			wantStrings: []string{"reviewer", "✓", "40.0s"},
+			wantStrings: []string{"reviewer", icons.CheckMark, "40.0s"},
 		},
 		{
 			name:      "finished row drops once the linger window passed",
@@ -167,7 +168,7 @@ func TestSubagentListRenderLifecycle(t *testing.T) {
 		{
 			name:        "failed row shows a cross",
 			opts:        listOpts{jobs: []scheddomain.TrackedJob{subagentJob("tester", scheddomain.JobFailed, failedStarted, &failedDone)}, linger: 5, indicator: true},
-			wantStrings: []string{"tester", "✗", "8.0s"},
+			wantStrings: []string{"tester", icons.CrossMark, "8.0s"},
 		},
 		{
 			name:      "renders nothing when no sub-agents run or linger",

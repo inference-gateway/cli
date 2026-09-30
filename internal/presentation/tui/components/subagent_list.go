@@ -14,6 +14,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -25,13 +26,6 @@ const maxSubagentRows = 5
 // column this list used before names were fitted, so short names keep their
 // shape.
 const subagentLabelMinWidth = 13
-
-// rowOutcomeDone and rowOutcomeFailed are the one-cell icons a finished row
-// shows in place of a spelled-out state.
-const (
-	rowOutcomeDone   = "✓"
-	rowOutcomeFailed = "✗"
-)
 
 // subagentLabelCap bounds the fitted label column so one long name cannot push
 // the duration column off the row.
@@ -137,7 +131,7 @@ func (l *SubagentList) measureRows(rows []subagentRow) rowWidths {
 			widths.duration = w
 		}
 		if !row.running {
-			widths.state = l.styleProvider.GetWidth(rowOutcomeDone)
+			widths.state = l.styleProvider.GetWidth(icons.CheckMark)
 		}
 	}
 	return widths
@@ -291,9 +285,9 @@ func (l *SubagentList) rowView(row subagentRow, index, count int, widths rowWidt
 	if row.running {
 		return fmt.Sprintf("%s%s %s", connector, label, strings.Repeat(" ", widths.state+1)+elapsedCol)
 	}
-	outcome := l.styleProvider.RenderWithColor(rowOutcomeDone, l.styleProvider.GetThemeColor("success"))
+	outcome := l.styleProvider.RenderWithColor(icons.CheckMark, l.styleProvider.GetThemeColor("success"))
 	if row.failed {
-		outcome = l.styleProvider.RenderWithColor(rowOutcomeFailed, l.styleProvider.GetThemeColor("error"))
+		outcome = l.styleProvider.RenderWithColor(icons.CrossMark, l.styleProvider.GetThemeColor("error"))
 	}
 	return fmt.Sprintf("%s%s %s %s", connector, label, outcome, elapsedCol)
 }
