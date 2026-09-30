@@ -221,7 +221,7 @@ func (r *Runner) writeSubagentResultFile(msg agentdomain.ChatCompleteEvent) {
 	if answer == "" {
 		return
 	}
-	r.writeSubagentResult(path, scheddomain.SubagentResultFile{FinalAssistant: answer, Success: true, Done: true})
+	r.writeSubagentResult(path, scheddomain.SubagentResultFile{FinalAssistant: answer, Success: true, Done: true, Stats: r.subagentRunStats()})
 }
 
 // writeSubagentResultFileError records a failed terminal turn for an interactive
@@ -235,11 +235,25 @@ func (r *Runner) writeSubagentResultFileError(runErr error) {
 		FinalAssistant: convdomain.LastAssistantText(r.conversationRepo.GetMessages()),
 		Success:        false,
 		Done:           true,
+		Stats:          r.subagentRunStats(),
 	}
 	if runErr != nil {
 		rf.Error = runErr.Error()
 	}
 	r.writeSubagentResult(path, rf)
+}
+
+// subagentRunStats tallies the session's tool outcomes and token usage for the
+// result file.
+func (r *Runner) subagentRunStats() *scheddomain.SubagentRunStats {
+	succeeded, failed := convdomain.ToolOutcomes(r.conversationRepo.GetMessages())
+	tokens := r.conversationRepo.GetSessionTokens()
+	return &scheddomain.SubagentRunStats{
+		ToolsSucceeded: succeeded,
+		ToolsFailed:    failed,
+		InputTokens:    tokens.TotalInputTokens,
+		OutputTokens:   tokens.TotalOutputTokens,
+	}
 }
 
 func (r *Runner) writeSubagentResult(path string, rf scheddomain.SubagentResultFile) {

@@ -24,6 +24,7 @@ does the same in one view.
 - [Tools Allowlist](#tools-allowlist)
 - [Model](#model)
 - [Interactive Subagents](#interactive-subagents)
+- [Run Stats](#run-stats)
 - [Compatibility Notes](#compatibility-notes)
 - [Limitations](#limitations)
 
@@ -135,6 +136,33 @@ question is a completed turn too, so write self-contained task descriptions.
 - `CloseSubagent` is only for stopping a subagent early. In the normal case
   the parent never needs to close anything: one completion note per task,
   and no pile-up of idle panes.
+
+## Run Stats
+
+Every subagent reports what its run cost alongside its answer. The parent reads one line in the subagent's
+result, in the blocking tool result and in the `[Subagent Completed: <label>]` note alike:
+
+```text
+Tools: 12 succeeded, 1 failed | Tokens: 60448 in, 745 out
+```
+
+- **Tools** counts the tool calls the subagent executed. A rejected call counts as failed.
+- **Tokens** are the input and output tokens of the whole subagent session.
+
+A failed tool call does not fail the subagent. A subagent fails only when its run ends with an error, so the
+counts are how the parent tells a clean run from one that struggled. A subagent that crashes before it writes
+its result file reports no stats.
+
+The chat shows the same numbers. Once a subagent finishes, its row in the list under the composer grows a child
+line with the tool counts and the total tokens, for as long as the row lingers:
+
+```text
+┌ npm run build shell       2.0s
+│ reviewer      subagent ✓ 40.0s
+│ └ 12 ✓ 1 ✗ · 61.2k tokens
+└ tester        subagent ✗ 48.0s
+  └ 3 ✓ 4 ✗ · 890 tokens
+```
 
 ## Compatibility Notes
 

@@ -428,6 +428,7 @@ func (s *Supervisor) wind(sj *supervised, sig scheddomain.WindSignal) error {
 // Snapshot returns a copy of all tracked jobs (running and recently finished)
 // for the task view. For jobs that implement JobOutputProvider, the Output field
 // is populated from the job's output (shell stdout/stderr or subagent result).
+// Stats comes from jobs that implement JobStatsProvider.
 func (s *Supervisor) Snapshot() []scheddomain.TrackedJob {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -441,6 +442,9 @@ func (s *Supervisor) Snapshot() []scheddomain.TrackedJob {
 		}
 		if p, ok := sj.job.(scheddomain.JobOutputProvider); ok {
 			tj.Output = p.Output()
+		}
+		if p, ok := sj.job.(scheddomain.JobStatsProvider); ok {
+			tj.Stats = p.Stats()
 		}
 		out = append(out, tj)
 	}

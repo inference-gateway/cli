@@ -334,3 +334,42 @@ func TestSubagentListRefreshTick(t *testing.T) {
 		t.Error("expected no ticker to be armed without visible rows")
 	}
 }
+
+// TestSubagentListShowsRunStatsUnderFinishedRows: a finished sub-agent that
+// reported stats grows a child line, a running one does not.
+func TestSubagentListShowsRunStatsUnderFinishedRows(t *testing.T) {
+	now := time.Now()
+	done := now.Add(-time.Second)
+	stats := &scheddomain.SubagentRunStats{ToolsSucceeded: 12, ToolsFailed: 1, InputTokens: 60448, OutputTokens: 745}
+	finished := subagentJob("reviewer", scheddomain.JobCompleted, now.Add(-41*time.Second), &done)
+	finished.Stats = stats
+	running := subagentJob("tester", scheddomain.JobRunning, now.Add(-2*time.Second), nil)
+	running.Stats = stats
+
+	list := newList(listOpts{jobs: []scheddomain.TrackedJob{running, finished}, linger: 5, indicator: true})
+	list.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	lines := strings.Split(plain(list.Render()), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected two rows and one stats line, got %q", lines)
+	}
+	if !strings.Contains(lines[1], "reviewer") {
+		t.Fatalf("expected the finished row second, got %q", lines)
+	}
+	want := "└ 12 " + icons.CheckMark + " 1 " + icons.CrossMark + " · 61.2k tokens"
+	if !strings.Contains(lines[2], want) {
+		t.Errorf("expected the stats line %q under the finished row, got %q", want, lines[2])
+	}
+	for i, line := range lines {
+		if visibleWidth(line) != visibleWidth(lines[0]) {
+			t.Errorf("line %d width %d must equal line 0 width %d: %q", i, visibleWidth(line), visibleWidth(lines[0]), line)
+		}
+	}
+}
+
+func TestCompactCount(t *testing.T) {
+	for n, want := range map[int]string{0: "0", 950: "950", 1200: "1.2k", 61193: "61.2k", 1_500_000: "1.5M"} {
+		if got := compactCount(n); got != want {
+			t.Errorf("compactCount(%d) = %q, want %q", n, got, want)
+		}
+	}
+}

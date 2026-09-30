@@ -63,8 +63,9 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(scheddomain.JobSig
 
 	defer j.signalDone()
 
-	answer, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID)
+	answer, stats, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID)
 	sub := toSubResult(j.spec, j.state.SessionID, answer, err)
+	sub.Stats = stats
 	j.mu.Lock()
 	j.output = answer
 	j.outcome = sub
@@ -94,6 +95,13 @@ func (j *headlessSubagentJob) Output() string {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.output
+}
+
+// Stats returns the run stats the subagent reported, nil until Run returns.
+func (j *headlessSubagentJob) Stats() *scheddomain.SubagentRunStats {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.outcome.Stats
 }
 
 // result returns the subagent's outcome for the blocking fan-in that awaited
@@ -140,6 +148,7 @@ type interactiveSubagentJob struct {
 
 	mu     sync.Mutex
 	output string
+	stats  *scheddomain.SubagentRunStats
 }
 
 func newInteractiveSubagentJob(tool *AgentTool, state *scheddomain.SubagentState) *interactiveSubagentJob {
@@ -277,20 +286,31 @@ func (j *interactiveSubagentJob) Output() string {
 	return j.output
 }
 
+// Stats returns the run stats of the terminal turn, nil until one is harvested.
+func (j *interactiveSubagentJob) Stats() *scheddomain.SubagentRunStats {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.stats
+}
+
 // recordDoneTurn records a terminal turn's output and emits its single
 // completion note. The monitor tears the subagent down right after.
 func (j *interactiveSubagentJob) recordDoneTurn(obs scheddomain.PaneObservation, emit func(scheddomain.JobSignal)) {
 	j.mu.Lock()
 	j.output = strings.TrimSpace(obs.Harvested)
+	j.stats = obs.HarvestStats
 	j.mu.Unlock()
 	logger.Debug("interactive subagent terminal turn harvested", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "failed", obs.HarvestFailed)
 	emit(scheddomain.JobSignal{Note: j.completedMessage(turnResultBody(obs)), Enqueue: true})
 }
 
-// turnResultBody renders the terminal turn's note body: the harvested answer
-// plus the recorded error when the turn failed.
+// turnResultBody renders the terminal turn's note body: the run stats, the
+// harvested answer and the recorded error when the turn failed.
 func turnResultBody(obs scheddomain.PaneObservation) string {
-	parts := make([]string, 0, 2)
+	parts := make([]string, 0, 3)
+	if obs.HarvestStats != nil {
+		parts = append(parts, obs.HarvestStats.String())
+	}
 	if body := strings.TrimSpace(obs.Harvested); body != "" {
 		parts = append(parts, body)
 	}

@@ -26,6 +26,21 @@ func LastAssistantText(entries []ConversationEntry) string {
 	return ""
 }
 
+// ToolOutcomes counts the executed tool calls in entries by outcome. A rejected
+// call counts as failed.
+func ToolOutcomes(entries []ConversationEntry) (succeeded, failed int) {
+	for _, e := range entries {
+		switch {
+		case e.ToolExecution == nil:
+		case e.ToolExecution.Success:
+			succeeded++
+		default:
+			failed++
+		}
+	}
+	return succeeded, failed
+}
+
 // CreateTitleFromMessage creates a short title from message content (fallback title)
 func CreateTitleFromMessage(content string) string {
 	content = strings.TrimSpace(content)
