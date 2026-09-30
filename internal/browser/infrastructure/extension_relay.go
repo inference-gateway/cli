@@ -33,6 +33,9 @@ type ExtensionRelay struct {
 	mu      sync.Mutex
 	ext     *agui.Conn
 	pending map[string]chan json.RawMessage
+	// clients are the other connections on the binding, which the frame about
+	// the extension's state goes to.
+	clients map[*agui.Conn]struct{}
 	// busy gates browser commands at one: every source the host routes drives
 	// the one browser.
 	// ponytail: a command runs to its own deadline even when its sender gave
@@ -51,14 +54,17 @@ func NewExtensionRelay(ext config.ExtensionConfig, notifier agentdomain.UINotifi
 		port:     ext.Port,
 		notifier: notifier,
 		pending:  make(map[string]chan json.RawMessage),
+		clients:  make(map[*agui.Conn]struct{}),
 		busy:     make(chan struct{}, 1),
 	}
 }
 
-// Attach takes an extension connection over. A new extension replaces the
-// previous one, since MV3 service workers restart at will.
+// Attach takes a connection over. A new extension replaces the previous one,
+// since MV3 service workers restart at will, and every other client joins the
+// ones the state frames go to, which learn the current state at once.
 func (r *ExtensionRelay) Attach(conn *agui.Conn) {
 	if !isExtension(conn.Kind()) {
+		r.attachClient(conn)
 		return
 	}
 	logger.Info("browser extension attached", "extension_version", conn.HelloAttr(extensionVersionAttr))
@@ -66,6 +72,7 @@ func (r *ExtensionRelay) Attach(conn *agui.Conn) {
 	replaced := r.ext
 	r.ext = conn
 	r.failPendingLocked()
+	r.broadcastLocked(browserExtensionStatusFrame(true, conn.HelloAttr(extensionVersionAttr)))
 	r.mu.Unlock()
 
 	if replaced != nil {
@@ -74,14 +81,43 @@ func (r *ExtensionRelay) Attach(conn *agui.Conn) {
 	r.notifyConnected(true)
 }
 
-// Detach fails the commands still waiting on an extension connection that died.
+// attachClient welcomes one non-extension client with the frame naming the
+// extension's current state.
+func (r *ExtensionRelay) attachClient(conn *agui.Conn) {
+	r.mu.Lock()
+	r.clients[conn] = struct{}{}
+	conn.Deliver(r.statusLocked())
+	r.mu.Unlock()
+}
+
+// statusLocked builds the frame naming the relay's current extension state.
+func (r *ExtensionRelay) statusLocked() []byte {
+	if r.ext == nil {
+		return browserExtensionStatusFrame(false, "")
+	}
+	return browserExtensionStatusFrame(true, r.ext.HelloAttr(extensionVersionAttr))
+}
+
+// broadcastLocked delivers one frame to every client, the extension's state
+// being the thing they follow. Deliver only queues, so it stays under r.mu and
+// every client's frames leave in the order the state changed.
+func (r *ExtensionRelay) broadcastLocked(frame []byte) {
+	for client := range r.clients {
+		client.Deliver(frame)
+	}
+}
+
+// Detach fails the commands still waiting on an extension connection that
+// died, and stops framing the state to the connection when it was a client.
 func (r *ExtensionRelay) Detach(conn *agui.Conn) {
 	r.mu.Lock()
 	wasExtension := r.ext == conn
 	if wasExtension {
 		r.ext = nil
 		r.failPendingLocked()
+		r.broadcastLocked(browserExtensionStatusFrame(false, ""))
 	}
+	delete(r.clients, conn)
 	r.mu.Unlock()
 
 	if wasExtension {

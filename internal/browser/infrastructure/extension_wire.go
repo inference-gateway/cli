@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -10,11 +11,16 @@ import (
 // Frame names of the browser wire contract, as documented in
 // docs/browser-extension-protocol.md.
 const (
-	frameBrowserHello    = "browser_hello"
-	frameBrowserHelloAck = "browser_hello_ack"
-	frameBrowserCommand  = "browser_command"
-	frameBrowserResult   = "browser_result"
+	frameBrowserHello           = "browser_hello"
+	frameBrowserHelloAck        = "browser_hello_ack"
+	frameBrowserCommand         = "browser_command"
+	frameBrowserResult          = "browser_result"
+	frameBrowserExtensionStatus = "browser_extension_status"
 )
+
+// statusProtocolVersion is the browser_extension_status frame's own schema
+// version, independent of the handshake's, bumped when its fields change.
+const statusProtocolVersion = 1
 
 // Client kinds a hello declares. A browser client only speaks browser frames:
 // it reaches the extension through the host of the binding.
@@ -42,4 +48,22 @@ func AllowExtensionOrigin(origin string) bool {
 // hellos without a known kind come from.
 func isExtension(kind string) bool {
 	return kind != clientDesktop && kind != clientBrowser
+}
+
+// browserExtensionStatusFrame builds the status frame a host reports to every
+// other client when the extension attaches or detaches, and once right after a
+// client joins. The version travels only while an extension is attached.
+func browserExtensionStatusFrame(connected bool, version string) []byte {
+	data, _ := json.Marshal(struct {
+		Type             string `json:"type"`
+		Connected        bool   `json:"connected"`
+		ExtensionVersion string `json:"extension_version,omitempty"`
+		ProtocolVersion  int    `json:"protocol_version"`
+	}{
+		Type:             frameBrowserExtensionStatus,
+		Connected:        connected,
+		ExtensionVersion: version,
+		ProtocolVersion:  statusProtocolVersion,
+	})
+	return data
 }

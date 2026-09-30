@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,10 @@ import (
 )
 
 const navigateCommand = `{"type":"browser_command","id":"cmd-1","action":"navigate","url":"https://example.com","timeout_ms":2000}`
+
+// extensionVersion is what the test extension declares in its hello, the way
+// the opentask extension does.
+const extensionVersion = "1.9.2"
 
 func relayConfig() *config.BrowserUseConfig {
 	cfg := config.DefaultBrowserUseConfig()
@@ -85,6 +90,18 @@ func (p *peer) next(t *testing.T) map[string]any {
 	}
 }
 
+// nextReply waits for the next browser_result, skipping the status frames a
+// client receives whenever the extension's state changes.
+func (p *peer) nextReply(t *testing.T) map[string]any {
+	t.Helper()
+	for {
+		frame := p.next(t)
+		if frame["type"] == frameBrowserResult {
+			return frame
+		}
+	}
+}
+
 func (p *peer) quiet(t *testing.T, what string) {
 	t.Helper()
 	select {
@@ -111,7 +128,7 @@ func (p *peer) answer() {
 	}
 }
 
-func connect(t *testing.T, binding *agui.Binding, kind string) *peer {
+func connect(t *testing.T, binding *agui.Binding, kind string, helloAttrs ...map[string]string) *peer {
 	t.Helper()
 	p := &peer{frames: make(chan map[string]any, 8), closed: make(chan struct{})}
 	handler := &aguimocks.FakeHandler{}
@@ -122,7 +139,11 @@ func connect(t *testing.T, binding *agui.Binding, kind string) *peer {
 		}
 	})
 	handler.DetachCalls(func(*agui.Conn) { close(p.closed) })
-	conn, err := agui.Dial(t.Context(), agui.DialConfig{Addr: binding.Addr(), Token: "test-token", Kind: kind, Handshake: BindingHandshake}, handler)
+	attrs := make(map[string]string, len(helloAttrs))
+	for _, helloAttr := range helloAttrs {
+		maps.Copy(attrs, helloAttr)
+	}
+	conn, err := agui.Dial(t.Context(), agui.DialConfig{Addr: binding.Addr(), Token: "test-token", Kind: kind, HelloAttrs: attrs, Handshake: BindingHandshake}, handler)
 	if err != nil {
 		t.Fatalf("Dial as %q: %v", kind, err)
 	}
@@ -131,15 +152,16 @@ func connect(t *testing.T, binding *agui.Binding, kind string) *peer {
 	return p
 }
 
-// connectExtension connects an extension and waits until the relay has taken
-// it over, the gap the ack read leaves before the binding attaches it.
+// connectExtension connects an extension declaring its version, and waits
+// until the relay has taken it over, the gap the ack read leaves before the
+// binding attaches it.
 func connectExtension(t *testing.T, relay *ExtensionRelay, binding *agui.Binding) *peer {
 	t.Helper()
 	relay.mu.Lock()
 	previous := relay.ext
 	relay.mu.Unlock()
 
-	extension := connect(t, binding, "extension")
+	extension := connect(t, binding, "extension", map[string]string{extensionVersionAttr: extensionVersion})
 	eventually(t, "the extension connection", func() bool {
 		relay.mu.Lock()
 		defer relay.mu.Unlock()
@@ -247,10 +269,21 @@ func TestExtensionRelayLeavesOtherFramesToTheHost(t *testing.T) {
 
 	extension.send(t, map[string]string{"type": frameBrowserResult, "id": "orphan"})
 	extension.send(t, map[string]string{"type": "list_skills"})
+	connect(t, binding, "desktop").send(t, map[string]any{"type": frameBrowserExtensionStatus, "connected": true})
 
-	eventually(t, "the list_skills frame", func() bool { return rest.HandleCallCount() == 1 })
-	if _, got := rest.HandleArgsForCall(0); !strings.Contains(string(got), "list_skills") {
-		t.Fatalf("browser_result leaked to the host: %s", got)
+	eventually(t, "both frames relayed", func() bool { return rest.HandleCallCount() == 2 })
+	var sawSkills, sawStatus bool
+	for i := range rest.HandleCallCount() {
+		_, frame := rest.HandleArgsForCall(i)
+		switch {
+		case strings.Contains(string(frame), "list_skills"):
+			sawSkills = true
+		case strings.Contains(string(frame), frameBrowserExtensionStatus):
+			sawStatus = true
+		}
+	}
+	if !sawSkills || !sawStatus {
+		t.Fatalf("the host relayed neither the list_skills nor a claimed status frame: skills=%t status=%t", sawSkills, sawStatus)
 	}
 }
 
@@ -280,12 +313,15 @@ func TestExtensionRelayRoutesClientCommandsToTheExtension(t *testing.T) {
 	second := connect(t, binding, "browser")
 
 	first.send(t, json.RawMessage(navigateCommand))
-	result := first.next(t)
+	result := first.nextReply(t)
 	if result["type"] != "browser_result" || result["id"] != "cmd-1" || result["url"] != "https://example.com" {
 		t.Fatalf("first client got %v, want cmd-1's browser_result", result)
 	}
 
 	first.quiet(t, "the answered frame was replayed")
+	if status := second.next(t); !isExtensionStatusFrame(status, true, extensionVersion) {
+		t.Fatalf("second client's join frame was %v, want its status frame", status)
+	}
 	second.quiet(t, "another client received cmd-1's result")
 }
 
@@ -312,7 +348,7 @@ func TestExtensionRelaySerializesClientCommands(t *testing.T) {
 	extension.quiet(t, "a command reached the extension while cmd-1 was still open")
 
 	resolve(opened)
-	if result := first.next(t); result["id"] != "cmd-1" {
+	if result := first.nextReply(t); result["id"] != "cmd-1" {
 		t.Fatalf("first client answered with %v", result)
 	}
 
@@ -321,7 +357,7 @@ func TestExtensionRelaySerializesClientCommands(t *testing.T) {
 		t.Fatalf("next in line was %v, want cmd-2", queued)
 	}
 	resolve(queued)
-	if result := second.next(t); result["id"] != "cmd-2" {
+	if result := second.nextReply(t); result["id"] != "cmd-2" {
 		t.Fatalf("second client answered with %v", result)
 	}
 }
@@ -334,13 +370,65 @@ func TestExtensionRelayAnswersNoExtensionToAClient(t *testing.T) {
 	client := connect(t, binding, "browser")
 
 	client.send(t, map[string]any{"type": "browser_command", "id": "cmd-1", "action": "tabs"})
-	result := client.next(t)
+	result := client.nextReply(t)
 	if result["type"] != "browser_result" || result["id"] != "cmd-1" {
 		t.Fatalf("got %v, want a browser_result for cmd-1", result)
 	}
 	if message, _ := result["error"].(string); !strings.Contains(message, "no browser extension connected") {
 		t.Fatalf("result error = %q, want the no-extension wording", message)
 	}
+}
+
+// isExtensionStatusFrame reports whether the decoded frame is the status frame
+// naming that extension state.
+func isExtensionStatusFrame(frame map[string]any, wantConnected bool, wantVersion string) bool {
+	version, _ := frame["extension_version"].(string)
+	protocol, _ := frame["protocol_version"].(float64)
+	connected, _ := frame["connected"].(bool)
+	return frame["type"] == frameBrowserExtensionStatus &&
+		connected == wantConnected && version == wantVersion &&
+		protocol == statusProtocolVersion
+}
+
+// TestExtensionRelayStatusesAClientThatConnectsFirst covers the frames a client
+// that joins ahead of any extension receives: its state at once, then the
+// frame on attach and on detach as they happen.
+func TestExtensionRelayStatusesAClientThatConnectsFirst(t *testing.T) {
+	relay, _, binding := startRelay(t)
+	desktop := connect(t, binding, "desktop")
+	eventually(t, "the relay to track the desktop", func() bool {
+		relay.mu.Lock()
+		defer relay.mu.Unlock()
+		return len(relay.clients) == 1
+	})
+
+	if status := desktop.next(t); !isExtensionStatusFrame(status, false, "") {
+		t.Fatalf("a client ahead of any extension saw %v, want a disconnected status frame", status)
+	}
+
+	extension := connectExtension(t, relay, binding)
+	if status := desktop.next(t); !isExtensionStatusFrame(status, true, extensionVersion) {
+		t.Fatalf("after the extension attached the desktop saw %v, want a connected status frame", status)
+	}
+
+	extension.conn.Close()
+	if status := desktop.next(t); !isExtensionStatusFrame(status, false, "") {
+		t.Fatalf("after the extension detached the desktop saw %v, want a disconnected status frame", status)
+	}
+}
+
+// TestExtensionRelayStatusesAClientThatConnectsAfterTheExtension covers a
+// client that joins behind an attached extension: it learns the current state
+// at once, and the extension itself is never framed.
+func TestExtensionRelayStatusesAClientThatConnectsAfterTheExtension(t *testing.T) {
+	relay, _, binding := startRelay(t)
+	extension := connectExtension(t, relay, binding)
+	browser := connect(t, binding, "browser")
+
+	if status := browser.next(t); !isExtensionStatusFrame(status, true, extensionVersion) {
+		t.Fatalf("a client behind an attached extension saw %v, want a connected status frame", status)
+	}
+	extension.quiet(t, "the extension received a status frame of its own")
 }
 
 func TestAllowExtensionOrigin(t *testing.T) {
