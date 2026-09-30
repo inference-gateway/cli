@@ -16,7 +16,8 @@ system with better visibility into task status and history.
 - Lists every background job right-aligned under the composer, newest first. Each row carries its label, a kind
   tag (`subagent`, `a2a local`, `a2a external`, `shell`, `recording`) and a live elapsed counter. A finished job
   lingers with a green `✓` or a red `✗` and its total duration, then drops
-  (`chat.status_bar.subagent_linger_seconds`). `chat.status_bar.indicators.subagents` hides the list
+  (`chat.status_bar.subagent_linger_seconds`). `chat.status_bar.indicators.subagents` hides the list. A finished subagent also shows its
+  [run stats](subagents.md#run-stats) on a child line under its row
 
 ### Task Management Interface (`/tasks`)
 

@@ -156,6 +156,12 @@ type JobOutputProvider interface {
 	Output() string
 }
 
+// JobStatsProvider is an optional BackgroundJob extension. A subagent job
+// implements it to offer its run stats once it has them, nil until then.
+type JobStatsProvider interface {
+	Stats() *SubagentRunStats
+}
+
 // TrackedJob is a point-in-time snapshot of one supervised job for the task view
 // and status line.
 type TrackedJob struct {
@@ -163,4 +169,5 @@ type TrackedJob struct {
 	Status      JobStatus
 	CompletedAt *time.Time
 	Output      string
+	Stats       *SubagentRunStats
 }

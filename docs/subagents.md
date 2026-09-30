@@ -153,6 +153,17 @@ A failed tool call does not fail the subagent. A subagent fails only when its ru
 counts are how the parent tells a clean run from one that struggled. A subagent that crashes before it writes
 its result file reports no stats.
 
+The chat shows the same numbers. Once a subagent finishes, its row in the list under the composer grows a child
+line with the tool counts and the total tokens, for as long as the row lingers:
+
+```text
+┌ npm run build shell       2.0s
+│ reviewer      subagent ✓ 40.0s
+│ └ 12 ✓ 1 ✗ · 61.2k tokens
+└ tester        subagent ✗ 48.0s
+  └ 3 ✓ 4 ✗ · 890 tokens
+```
+
 ## Compatibility Notes
 
 Claude Code agent files load as-is:

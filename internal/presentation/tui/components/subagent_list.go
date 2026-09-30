@@ -107,6 +107,7 @@ type subagentRow struct {
 	running bool
 	elapsed time.Duration
 	failed  bool
+	stats   *scheddomain.SubagentRunStats
 	started time.Time
 }
 
@@ -163,6 +164,7 @@ func (l *SubagentList) snapshotRows() []subagentRow {
 			elapsed: end.Sub(job.Meta.StartedAt),
 			running: job.Status == scheddomain.JobRunning,
 			failed:  job.Status == scheddomain.JobFailed,
+			stats:   job.Stats,
 			started: job.Meta.StartedAt,
 		}
 		rows = append(rows, row)
@@ -242,10 +244,16 @@ func (l *SubagentList) Render() string {
 	for i, row := range shown {
 		line := l.rowView(row, i, len(shown), widths)
 		rowWidth = l.styleProvider.GetWidth(line)
-		if blockWidth > 0 {
-			line = l.styleProvider.PlaceHorizontal(blockWidth, "", line)
+		rowLines := []string{line}
+		if !row.running && row.stats != nil {
+			rowLines = append(rowLines, l.statsView(*row.stats, i, len(shown), rowWidth))
 		}
-		lines = append(lines, line)
+		for _, line := range rowLines {
+			if blockWidth > 0 {
+				line = l.styleProvider.PlaceHorizontal(blockWidth, "", line)
+			}
+			lines = append(lines, line)
+		}
 	}
 	if more > 0 {
 		overflow := l.styleProvider.RenderWithColor(fmt.Sprintf("+%d more", more), l.styleProvider.GetThemeColor("dim"))
@@ -258,6 +266,36 @@ func (l *SubagentList) Render() string {
 		lines = append(lines, overflow)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// statsView draws a finished sub-agent's run stats as a child line under its
+// row: tool calls succeeded and failed, then the tokens the run used. It is
+// padded to the row width so the block stays aligned.
+func (l *SubagentList) statsView(stats scheddomain.SubagentRunStats, index, count, rowWidth int) string {
+	trunk := ""
+	if count > 1 {
+		trunk = "  "
+		if index < count-1 {
+			trunk = "│ "
+		}
+	}
+	dim := l.styleProvider.GetThemeColor("dim")
+	line := fmt.Sprintf("%s└ %d %s %d %s %s", trunk,
+		stats.ToolsSucceeded, l.styleProvider.RenderWithColor(icons.CheckMark, l.styleProvider.GetThemeColor("success")),
+		stats.ToolsFailed, l.styleProvider.RenderWithColor(icons.CrossMark, l.styleProvider.GetThemeColor("error")),
+		l.styleProvider.RenderWithColor("· "+compactCount(stats.InputTokens+stats.OutputTokens)+" tokens", dim))
+	return line + strings.Repeat(" ", max(0, rowWidth-l.styleProvider.GetWidth(line)))
+}
+
+// compactCount shortens a count for the narrow list: 950, 1.2k, 61.2k, 1.5M.
+func compactCount(n int) string {
+	switch {
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
+	case n >= 1_000:
+		return fmt.Sprintf("%.1fk", float64(n)/1_000)
+	}
+	return fmt.Sprintf("%d", n)
 }
 
 // rowView draws one entry: box-drawing connector, padded label, kind tag, then
