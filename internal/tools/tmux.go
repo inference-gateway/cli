@@ -26,6 +26,7 @@ func NewPaneInspector() func(ctx context.Context, paneID, sessionID string) sche
 			obs.Done = rf.Done
 			obs.HarvestFailed = !rf.Success
 			obs.HarvestError = rf.Error
+			obs.HarvestStats = rf.Stats
 		}
 		if summary, awaiting := readSubagentApproval(sessionID); awaiting {
 			obs.AwaitingApproval = true

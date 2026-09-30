@@ -93,3 +93,29 @@ func TestRunner_writeSubagentResultFile_EnvUnset(t *testing.T) {
 	t.Setenv(scheddomain.EnvSubagentResultFile, "")
 	runnerWithMessages(assistantEntries("x")).writeSubagentResultFile(agentdomain.ChatCompleteEvent{})
 }
+
+// The result file carries the run's tool tally and token usage, so the parent
+// can report what a subagent's answer cost.
+func TestRunner_writeSubagentResultFileStats(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "result.json")
+	t.Setenv(scheddomain.EnvSubagentResultFile, path)
+
+	entries := assistantEntries("the answer")
+	for _, success := range []bool{true, true, false} {
+		entries = append(entries, convdomain.ConversationEntry{ToolExecution: &agentdomain.ToolExecutionResult{Success: success}})
+	}
+	repo := &convmocks.FakeConversationRepository{}
+	repo.GetMessagesReturns(entries)
+	repo.GetSessionTokensReturns(convdomain.SessionTokenStats{TotalInputTokens: 1200, TotalOutputTokens: 80})
+	r := &Runner{conversationRepo: repo}
+
+	want := scheddomain.SubagentRunStats{ToolsSucceeded: 2, ToolsFailed: 1, InputTokens: 1200, OutputTokens: 80}
+	r.writeSubagentResultFile(agentdomain.ChatCompleteEvent{})
+	if rf := readResultFile(t, path); rf.Stats == nil || *rf.Stats != want {
+		t.Fatalf("completed turn stats = %+v, want %+v", rf.Stats, want)
+	}
+	r.writeSubagentResultFileError(errors.New("boom"))
+	if rf := readResultFile(t, path); rf.Stats == nil || *rf.Stats != want {
+		t.Fatalf("failed turn stats = %+v, want %+v", rf.Stats, want)
+	}
+}

@@ -578,6 +578,19 @@ func sessionOutcome(err error) string {
 	}
 }
 
+// subagentRunStats tallies the run's tool outcomes and token usage for the
+// result file.
+func subagentRunStats(repo convdomain.ConversationRepository) *scheddomain.SubagentRunStats {
+	succeeded, failed := convdomain.ToolOutcomes(repo.GetMessages())
+	tokens := repo.GetSessionTokens()
+	return &scheddomain.SubagentRunStats{
+		ToolsSucceeded: succeeded,
+		ToolsFailed:    failed,
+		InputTokens:    tokens.TotalInputTokens,
+		OutputTokens:   tokens.TotalOutputTokens,
+	}
+}
+
 // writeResultFile records the run's outcome and final assistant message at
 // path for a parent Agent tool to harvest - on failure too, so the parent gets
 // the partial answer and error detail instead of silence.
@@ -586,6 +599,7 @@ func writeResultFile(path string, repo convdomain.ConversationRepository, sessio
 		FinalAssistant: convdomain.LastAssistantText(repo.GetMessages()),
 		Success:        runErr == nil,
 		SessionID:      sessionID,
+		Stats:          subagentRunStats(repo),
 	}
 	if runErr != nil {
 		rf.Error = runErr.Error()

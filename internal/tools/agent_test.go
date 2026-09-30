@@ -421,3 +421,41 @@ func TestAgentTool_InteractiveDefaultsToReadOnly(t *testing.T) {
 		t.Fatalf("ReadWrite subagent must run as Standard (no mode var); cmd = %q", captured)
 	}
 }
+
+// TestAgentTool_ReportsRunStats: the stats a subagent records in its result
+// file reach the parent's tool result and the text the model reads.
+func TestAgentTool_ReportsRunStats(t *testing.T) {
+	tool := newTestAgentTool(t)
+	stats := scheddomain.SubagentRunStats{ToolsSucceeded: 3, ToolsFailed: 1, InputTokens: 1200, OutputTokens: 80}
+	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+		rf := scheddomain.SubagentResultFile{FinalAssistant: "answer", Success: true, Stats: &stats}
+		return agentrunner.Result{}, scheddomain.WriteSubagentResultFile(opts.ResultFile, rf)
+	}
+
+	res, err := tool.Execute(t.Context(), map[string]any{"description": "task", "label": "A"})
+	if err != nil || res == nil || !res.Success {
+		t.Fatalf("Execute: res=%+v err=%v", res, err)
+	}
+	data, ok := res.Data.(AgentToolResult)
+	if !ok || len(data.Subagents) != 1 {
+		t.Fatalf("unexpected data %+v", res.Data)
+	}
+	if got := data.Subagents[0].Stats; got == nil || *got != stats {
+		t.Fatalf("stats = %+v, want %+v", got, stats)
+	}
+	want := "Tools: 3 succeeded, 1 failed | Tokens: 1200 in, 80 out"
+	if got := tool.FormatForLLM(res); !strings.Contains(got, want) {
+		t.Fatalf("expected the model-facing result to contain %q, got %q", want, got)
+	}
+}
+
+func TestTurnResultBodyCarriesRunStats(t *testing.T) {
+	obs := scheddomain.PaneObservation{
+		Harvested:    "answer",
+		HarvestStats: &scheddomain.SubagentRunStats{ToolsSucceeded: 2, InputTokens: 10, OutputTokens: 5},
+	}
+	want := "Tools: 2 succeeded, 0 failed | Tokens: 10 in, 5 out\n\nanswer"
+	if got := turnResultBody(obs); got != want {
+		t.Fatalf("turnResultBody = %q, want %q", got, want)
+	}
+}

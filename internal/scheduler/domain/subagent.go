@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 
@@ -93,11 +94,27 @@ type SubagentState struct {
 // and read back by the Agent tool to harvest a subagent's outcome from a
 // detached (tmux) run whose stdout the parent does not own.
 type SubagentResultFile struct {
-	FinalAssistant string `json:"final_assistant"`
-	Success        bool   `json:"success"`
-	Error          string `json:"error,omitempty"`
-	SessionID      string `json:"session_id,omitempty"`
-	Done           bool   `json:"done,omitempty"`
+	FinalAssistant string            `json:"final_assistant"`
+	Success        bool              `json:"success"`
+	Error          string            `json:"error,omitempty"`
+	SessionID      string            `json:"session_id,omitempty"`
+	Done           bool              `json:"done,omitempty"`
+	Stats          *SubagentRunStats `json:"stats,omitempty"`
+}
+
+// SubagentRunStats is what a subagent run cost and how its tool calls went, so
+// the parent can weigh an answer by the work behind it.
+type SubagentRunStats struct {
+	ToolsSucceeded int `json:"tools_succeeded"`
+	ToolsFailed    int `json:"tools_failed"`
+	InputTokens    int `json:"input_tokens"`
+	OutputTokens   int `json:"output_tokens"`
+}
+
+// String renders the stats as the one line the parent agent reads.
+func (s SubagentRunStats) String() string {
+	return fmt.Sprintf("Tools: %d succeeded, %d failed | Tokens: %d in, %d out",
+		s.ToolsSucceeded, s.ToolsFailed, s.InputTokens, s.OutputTokens)
 }
 
 // WriteSubagentResultFile writes rf to path through a temp file and rename, so
@@ -159,6 +176,8 @@ type PaneObservation struct {
 	HarvestFailed bool
 	// HarvestError is the error the subagent recorded for the harvested turn.
 	HarvestError string
+	// HarvestStats is the run's tool and token tally, nil when none was recorded.
+	HarvestStats *SubagentRunStats
 }
 
 // SubagentTracker tracks local subagents spawned by the Agent tool. It is a

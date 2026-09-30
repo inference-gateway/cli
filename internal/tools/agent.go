@@ -65,6 +65,8 @@ type AgentSubResult struct {
 	Success   bool   `json:"success"`
 	Result    string `json:"result,omitempty"`
 	Error     string `json:"error,omitempty"`
+
+	Stats *scheddomain.SubagentRunStats `json:"stats,omitempty"`
 }
 
 // AgentToolResult is the structured payload of an Agent tool call.
@@ -328,8 +330,9 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 }
 
 // executeOne runs a single headless subagent and returns its final assistant
-// message. Interactive subagents are handled separately by runInteractive.
-func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionID string) (string, error) {
+// message and run stats. Interactive subagents are handled separately by
+// runInteractive.
+func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionID string) (string, *scheddomain.SubagentRunStats, error) {
 	resultFile := subagentResultFilePath(sessionID)
 	_ = os.Remove(resultFile)
 	defer func() { _ = os.Remove(resultFile) }()
@@ -345,7 +348,9 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 	})
 
 	answer := res.FinalAssistant
+	var stats *scheddomain.SubagentRunStats
 	if rf, ok := scheddomain.ReadSubagentResultFile(resultFile); ok {
+		stats = rf.Stats
 		if rf.FinalAssistant != "" {
 			answer = rf.FinalAssistant
 		}
@@ -356,7 +361,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 	if err != nil && strings.TrimSpace(res.Stderr) != "" {
 		err = fmt.Errorf("%w: %s", err, stderrTail(res.Stderr, 500))
 	}
-	return answer, err
+	return answer, stats, err
 }
 
 // runInteractive launches each subagent in its own live `infer chat` tmux pane,
@@ -840,6 +845,9 @@ func formatSubResult(sub AgentSubResult) string {
 		status = "failed"
 	}
 	fmt.Fprintf(&out, "[%s] (%s)\n", label, status)
+	if sub.Stats != nil {
+		fmt.Fprintf(&out, "%s\n", sub.Stats)
+	}
 	if sub.Error != "" {
 		fmt.Fprintf(&out, "Error: %s\n", sub.Error)
 	}

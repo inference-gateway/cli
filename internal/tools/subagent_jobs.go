@@ -63,8 +63,9 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(scheddomain.JobSig
 
 	defer j.signalDone()
 
-	answer, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID)
+	answer, stats, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID)
 	sub := toSubResult(j.spec, j.state.SessionID, answer, err)
+	sub.Stats = stats
 	j.mu.Lock()
 	j.output = answer
 	j.outcome = sub
@@ -287,10 +288,13 @@ func (j *interactiveSubagentJob) recordDoneTurn(obs scheddomain.PaneObservation,
 	emit(scheddomain.JobSignal{Note: j.completedMessage(turnResultBody(obs)), Enqueue: true})
 }
 
-// turnResultBody renders the terminal turn's note body: the harvested answer
-// plus the recorded error when the turn failed.
+// turnResultBody renders the terminal turn's note body: the run stats, the
+// harvested answer and the recorded error when the turn failed.
 func turnResultBody(obs scheddomain.PaneObservation) string {
-	parts := make([]string, 0, 2)
+	parts := make([]string, 0, 3)
+	if obs.HarvestStats != nil {
+		parts = append(parts, obs.HarvestStats.String())
+	}
 	if body := strings.TrimSpace(obs.Harvested); body != "" {
 		parts = append(parts, body)
 	}
