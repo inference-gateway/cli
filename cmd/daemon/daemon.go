@@ -34,6 +34,7 @@ import (
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	heartbeat "github.com/inference-gateway/cli/internal/scheduler/heartbeat"
 	sessions "github.com/inference-gateway/cli/internal/sessions"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 	sessionsinfra "github.com/inference-gateway/cli/internal/sessions/infrastructure"
 )
 
@@ -126,7 +127,7 @@ func RunDaemonCommand(cfg *config.Config) error {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	stopBinding, err := startBinding(ctx, cfg)
+	stopThreads, err := startThreads(ctx, cfg, cm)
 	if err != nil {
 		return err
 	}
@@ -165,7 +166,7 @@ func RunDaemonCommand(cfg *config.Config) error {
 	<-sigChan
 	logger.Info("shutting down...")
 	cancel()
-	stopBinding()
+	stopThreads()
 
 	if poller != nil {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -205,15 +206,40 @@ func RunDaemonCommand(cfg *config.Config) error {
 	return nil
 }
 
-// workerIdleTimeout is how long a session worker nobody follows may sit idle
-// before the daemon stops it.
-// ponytail: a constant, a config key when someone needs to tune it.
-const workerIdleTimeout = 10 * time.Minute
+// workerIdleTimeout is how long a session worker nobody follows may sit
+// idle before the daemon stops it. One value with the sessions context,
+// which also owns the chat-side idle grace.
+const workerIdleTimeout = sessionsdomain.IdleTimeout
 
-// bindingEnabled reports whether the AG-UI WebSocket binding runs. It shares
-// the extension backend's switch, port and token.
+// bindingEnabled reports whether the AG-UI WebSocket binding listens. Its
+// own switch, falling back to the legacy browser_use extension backend.
 func bindingEnabled(cfg *config.Config) bool {
+	if cfg.Daemon.Binding.Enabled {
+		return true
+	}
 	return cfg.BrowserUse.Enabled && cfg.BrowserUse.Backend == config.BrowserBackendExtension
+}
+
+// threadsEnabled reports whether the daemon hosts session threads: the AG-UI
+// binding, whose clients follow threads, or the channels, whose chats drive
+// their senders' threads.
+func threadsEnabled(cfg *config.Config) bool {
+	return bindingEnabled(cfg) || cfg.Channels.Enabled
+}
+
+// bindingAddress returns the port and token the binding serves on. The
+// daemon.yaml values win, and browser_use.extension's port and token stay
+// the fallback.
+func bindingAddress(cfg *config.Config) (port int, token string) {
+	port = cfg.Daemon.Binding.Port
+	if port <= 0 {
+		port = cfg.BrowserUse.Extension.EffectivePort()
+	}
+	token = cfg.Daemon.Binding.Token
+	if token == "" {
+		token = cfg.BrowserUse.Extension.Token
+	}
+	return port, token
 }
 
 // bindingHandler puts the binding's two consumers behind its one handler. The
@@ -225,54 +251,83 @@ type bindingHandler struct {
 }
 
 func (h bindingHandler) Attach(conn *agui.Conn) {
-	h.relay.Attach(conn)
+	if h.relay != nil {
+		h.relay.Attach(conn)
+	}
 }
 
 func (h bindingHandler) Handle(conn *agui.Conn, frame []byte) {
-	if h.relay.Handle(conn, frame) {
+	if h.relay != nil && h.relay.Handle(conn, frame) {
 		return
 	}
 	h.registry.Handle(conn, frame)
 }
 
 func (h bindingHandler) Detach(conn *agui.Conn) {
-	h.relay.Detach(conn)
+	if h.relay != nil {
+		h.relay.Detach(conn)
+	}
 	h.registry.Detach(conn)
 }
 
-// startBinding serves the AG-UI WebSocket binding with the extension relay and
-// the thread registry behind it, and routes worker browser_command frames
-// through the relay. stop, called after ctx ends, closes the binding and waits
-// for every session worker to exit. The daemon is the only infer process that
-// binds the binding port, so a port that is already held fails the boot.
-func startBinding(ctx context.Context, cfg *config.Config) (stop func(), err error) {
-	if !bindingEnabled(cfg) {
+// startThreads starts the daemon's thread registry for every session worker
+// it hosts, and serves the AG-UI WebSocket binding on its own switch, port
+// and token. The browser extension relay attaches only with the extension
+// backend, and the channels drive their chats as clients of the registry.
+// stop, called after ctx ends, closes the binding and waits for every
+// session worker to exit. The daemon is the only infer process that binds
+// the binding port, so a port that is already held fails the boot.
+func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelManagerService) (stop func(), err error) {
+	if !threadsEnabled(cfg) {
 		return func() {}, nil
 	}
-	extension := cfg.BrowserUse.Extension
-	if extension.Token == "" {
-		return nil, errors.New("browser_use.extension.token is empty - set a shared secret in browser_use.yaml and in the opentask extension options")
+
+	var relay *browserinfra.ExtensionRelay
+	if cfg.BrowserUse.Enabled && cfg.BrowserUse.Backend == config.BrowserBackendExtension {
+		relay = browserinfra.NewExtensionRelay(cfg.BrowserUse.Extension, nil)
 	}
-	relay := browserinfra.NewExtensionRelay(extension, nil)
+
 	registry := sessions.NewRegistry(sessionsinfra.LaunchWorker, workerIdleTimeout)
-	registry.RouteBrowser(relay.Relay)
-	binding := agui.NewBinding(agui.BindingConfig{
-		Port:        extension.Port,
-		Token:       extension.Token,
-		Handshake:   browserinfra.BindingHandshake,
-		AllowOrigin: browserinfra.AllowExtensionOrigin,
-		Routes:      map[string]http.Handler{"/artifacts/": newArtifactsHandler()},
-	}, bindingHandler{relay: relay, registry: registry})
-	if err := binding.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start the AG-UI binding: %w", err)
+	if relay != nil {
+		registry.RouteBrowser(relay.Relay)
 	}
+	if cfg.Channels.Enabled {
+		projectDir, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("resolving the working directory: %w", err)
+		}
+		cm.SetThreadDriver(registry, projectDir, sessionsdomain.ThreadOptions{
+			SystemPrompt: cfg.Prompts.Agent.SystemPromptRemote,
+		})
+	}
+
+	var binding *agui.Binding
+	if bindingEnabled(cfg) {
+		port, token := bindingAddress(cfg)
+		if token == "" {
+			return nil, errors.New("the AG-UI binding token is empty - set daemon.binding.token, or browser_use.extension.token as the fallback in browser_use.yaml")
+		}
+		binding = agui.NewBinding(agui.BindingConfig{
+			Port:        port,
+			Token:       token,
+			Handshake:   browserinfra.BindingHandshake,
+			AllowOrigin: browserinfra.AllowExtensionOrigin,
+			Routes:      map[string]http.Handler{"/artifacts/": newArtifactsHandler()},
+		}, bindingHandler{relay: relay, registry: registry})
+		if err := binding.Start(); err != nil {
+			return nil, fmt.Errorf("failed to start the AG-UI binding: %w", err)
+		}
+	}
+
 	stopped := make(chan struct{})
 	go func() {
 		defer close(stopped)
 		registry.Run(ctx)
 	}()
 	return func() {
-		binding.Close()
+		if binding != nil {
+			binding.Close()
+		}
 		<-stopped
 	}, nil
 }
