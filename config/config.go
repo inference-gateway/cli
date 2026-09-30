@@ -64,6 +64,7 @@ type Config struct {
 	BrowserUse       BrowserUseConfig       `yaml:"-" mapstructure:"-"`
 	Channels         ChannelsConfig         `yaml:"-" mapstructure:"-"`
 	Heartbeat        HeartbeatConfig        `yaml:"-" mapstructure:"-"`
+	Daemon           DaemonConfig           `yaml:"-" mapstructure:"-"`
 	Prompts          PromptsConfig          `yaml:"-" mapstructure:"-"`
 	Reminders        RemindersConfig        `yaml:"-" mapstructure:"-"`
 	Memory           MemoryConfig           `yaml:"-" mapstructure:"-"`

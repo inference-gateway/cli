@@ -2,12 +2,8 @@ package telegram
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -16,35 +12,45 @@ import (
 	metric "go.opentelemetry.io/otel/metric"
 
 	config "github.com/inference-gateway/cli/config"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	chn "github.com/inference-gateway/cli/internal/channels"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// ChannelManagerService manages pluggable messaging channels and triggers
-// the agent as a subprocess for each inbound message.
+// ChannelManagerService manages pluggable messaging channels and drives
+// each sender's thread on the daemon's session registry. No process is
+// spawned per message.
 type ChannelManagerService struct {
 	mu       sync.RWMutex
 	channels map[string]chn.Channel
 	inbox    chan chn.InboundMessage
 	cfg      config.ChannelsConfig
 
-	// Per-sender mutex to serialize agent invocations for the same session
+	// Per-sender mutex to serialize the frames one chat writes to its
+	// thread, so two messages of a sender cannot swap on the worker's
+	// stdin.
 	senderMutexes sync.Map
 
-	// semaphore limits the number of concurrent agent subprocesses
-	semaphore chan struct{}
+	// router routes one chat's frames to its thread's worker. Nil when
+	// the daemon hosts no session workers (its AG-UI binding and the
+	// channels are both off).
+	router sessionsdomain.ThreadRouter
 
-	// execCommandFunc allows overriding exec.CommandContext for testing
-	execCommandFunc func(ctx context.Context, name string, args ...string) *exec.Cmd
+	// projectDir is the working dir the channel threads run in.
+	projectDir string
+
+	// threadOpts apply to a channel thread's worker when it launches:
+	// the remote-control system prompt the `--remote` flag selected.
+	threadOpts sessionsdomain.ThreadOptions
+
+	// threadChats holds one render adapter per chat, keyed by sender.
+	threadChats sync.Map
 
 	// pendingApprovals tracks senders waiting for tool approval replies.
 	// Key: senderKey ("channel-senderID"), Value: chan ipc.ApprovalResponse
@@ -69,17 +75,10 @@ type ChannelManagerService struct {
 
 // NewChannelManagerService creates a new channel manager
 func NewChannelManagerService(cfg config.ChannelsConfig, tel *telemetry.Recorder) *ChannelManagerService {
-	maxWorkers := cfg.MaxWorkers
-	if maxWorkers <= 0 {
-		maxWorkers = 5
-	}
-
 	cm := &ChannelManagerService{
 		channels:          make(map[string]chn.Channel),
 		inbox:             make(chan chn.InboundMessage, 100),
 		cfg:               cfg,
-		semaphore:         make(chan struct{}, maxWorkers),
-		execCommandFunc:   exec.CommandContext,
 		telemetryRecorder: tel,
 	}
 
@@ -168,11 +167,13 @@ func (cm *ChannelManagerService) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop gracefully shuts down all channels
+// Stop gracefully shuts down all channels and detaches the chats from
+// their threads.
 func (cm *ChannelManagerService) Stop() error {
 	if cm.cancel != nil {
 		cm.cancel()
 	}
+	cm.DetachThreads()
 
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
@@ -235,23 +236,39 @@ func deliverApprovalReply(respChan any, approved bool) {
 	}
 }
 
-// handleMessage triggers the agent as a subprocess and streams responses back through the channel
+// threadDriver returns the registry surface, the working dir and the
+// thread options the channel chats drive their threads with, and reports
+// whether the registry is missing.
+func (cm *ChannelManagerService) threadDriver() (sessionsdomain.ThreadRouter, string, sessionsdomain.ThreadOptions, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.router, cm.projectDir, cm.threadOpts, cm.router == nil
+}
+
+// SetThreadDriver wires the session registry the channel chats drive
+// their threads through. Called by the daemon after it started the
+// registry, with the working dir the workers run in and the thread
+// options applied when a worker launches - the remote-control prompt the
+// `--remote` flag selected before.
+func (cm *ChannelManagerService) SetThreadDriver(router sessionsdomain.ThreadRouter, projectDir string, opts sessionsdomain.ThreadOptions) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.router = router
+	cm.projectDir = projectDir
+	cm.threadOpts = opts
+}
+
+// handleMessage delivers one inbound message to its sender's thread: a
+// resume_conversation frame keeps the chat following the deterministic
+// session id per sender on the daemon's working dir, and the user_message
+// frame carries the text with the images as attachments for the worker to
+// turn into content parts. No subprocess is spawned per message.
 func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg chn.InboundMessage) {
-	select {
-	case cm.semaphore <- struct{}{}:
-		defer func() { <-cm.semaphore }()
-	case <-ctx.Done():
+	_, projectDir, threadOpts, missing := cm.threadDriver()
+	if missing {
+		logger.Error("no thread registry: enable the AG-UI binding (daemon.binding) for the channels to drive threads", "channel", msg.ChannelName)
 		return
 	}
-
-	senderKey := fmt.Sprintf("%s-%s", msg.ChannelName, msg.SenderID)
-	mu := cm.getSenderMutex(senderKey)
-	mu.Lock()
-	defer mu.Unlock()
-
-	sessionID := convdomain.FormatChannelSessionID(msg.ChannelName, msg.SenderID)
-
-	logger.Info("processing message", "channel", msg.ChannelName, "sender_id", msg.SenderID, "session", sessionID)
 
 	cm.mu.RLock()
 	ch, exists := cm.channels[msg.ChannelName]
@@ -262,23 +279,18 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg chn.Inbo
 		return
 	}
 
-	sendFn := func(content string) {
-		outMsg := chn.OutboundMessage{
-			ChannelName: msg.ChannelName,
-			RecipientID: msg.SenderID,
-			Content:     content,
-			Timestamp:   time.Now(),
-		}
-		if err := ch.Send(ctx, outMsg); err != nil {
-			logger.Error("failed to send response", "channel", msg.ChannelName, "error", err)
-		}
-	}
+	senderKey := fmt.Sprintf("%s-%s", msg.ChannelName, msg.SenderID)
+	senderMutex := cm.getSenderMutex(senderKey)
+	senderMutex.Lock()
+	defer senderMutex.Unlock()
+
+	logger.Info("routing message to the thread", "channel", msg.ChannelName, "sender_id", msg.SenderID, "session", convdomain.FormatChannelSessionID(msg.ChannelName, msg.SenderID))
 
 	start := time.Now()
-	err := cm.runAgent(ctx, senderKey, sessionID, msg.Content, msg.Images, sendFn, ch)
+	err := cm.threadChatFor(ctx, senderKey, ch, msg.SenderID).deliverUserMessage(ctx, msg, projectDir, threadOpts)
 	cm.recordMessageProcessed(ctx, msg.ChannelName, time.Since(start), err)
 	if err != nil {
-		logger.Error("agent failed", "channel", msg.ChannelName, "sender_id", msg.SenderID, "error", err)
+		logger.Error("the thread did not take the message", "channel", msg.ChannelName, "sender_id", msg.SenderID, "error", err)
 	}
 }
 
@@ -301,66 +313,9 @@ func (cm *ChannelManagerService) recordMessageProcessed(ctx context.Context, cha
 	}
 }
 
-// runAgent executes `infer headless --session-id <id> "<message>"` as a subprocess
-// (via the shared agentrunner), streaming each assistant message back through the
-// sendFn callback in real-time. If images are present, they are written to
-// session-scoped files and passed via --files flags. When require_approval is
-// enabled, tool approvals are brokered over the agent's stdin/stdout.
-func (cm *ChannelManagerService) runAgent(ctx context.Context, senderKey, sessionID, message string, images []agentdomain.ImageAttachment, sendFn func(string), ch chn.Channel) error {
-	var files []string
-	for _, img := range images {
-		imgPath, err := writeSessionImage(sessionID, img)
-		if err != nil {
-			logger.Error("failed to write session image", "error", err)
-			continue
-		}
-		logger.Info("wrote session image", "path", imgPath, "base64_bytes", len(img.Data))
-		files = append(files, imgPath)
-	}
-
-	pruneSessionImages(sessionID, cm.cfg.ImageRetention)
-
-	logger.Info("running agent subprocess", "session", sessionID, "require_approval", cm.cfg.RequireApproval)
-
-	errorForwarded := false
-	res, err := agentrunner.Run(ctx, agentrunner.Options{
-		BinaryPath:      os.Args[0],
-		Exec:            cm.execCommandFunc,
-		SessionID:       sessionID,
-		Prompt:          message,
-		Files:           files,
-		Remote:          true,
-		RequireApproval: cm.cfg.RequireApproval,
-		OnLine: func(line []byte) {
-			isErr := parseAgentError(line)
-			content := agentrunner.FormatAgentMessage(line)
-			if content != "" {
-				sendFn(content)
-				if isErr {
-					errorForwarded = true
-				}
-			}
-		},
-		Approval: func(req ipc.ApprovalRequest) ipc.ApprovalResponse {
-			return cm.resolveApproval(ctx, senderKey, req, sendFn, ch)
-		},
-	})
-	if err != nil {
-		if res.Stderr != "" {
-			logger.Error("agent stderr output", "stderr", res.Stderr)
-		}
-		if !errorForwarded {
-			sendFn("Agent failed: " + tailStderr(res.Stderr, 500))
-		}
-		return fmt.Errorf("agent process failed: %w", err)
-	}
-
-	return nil
-}
-
-// resolveApproval sends an approval prompt to the channel, waits for the user's
-// reply (with a 5-minute auto-reject), and returns the decision. The shared
-// agentrunner writes the response back to the agent's stdin.
+// resolveApproval sends an approval prompt to the chat's user and waits
+// for the reply (with a 5-minute auto-reject), and returns the decision.
+// The caller routes the returned decision back to the thread.
 func (cm *ChannelManagerService) resolveApproval(ctx context.Context, senderKey string, req ipc.ApprovalRequest, sendFn func(string), ch chn.Channel) ipc.ApprovalResponse {
 	respChan := make(chan ipc.ApprovalResponse, 1)
 	cm.pendingApprovals.Store(senderKey, respChan)
@@ -388,38 +343,6 @@ func (cm *ChannelManagerService) resolveApproval(ctx context.Context, senderKey 
 		resp.Approved = false
 	}
 	return resp
-}
-
-// parseAgentError reports whether the line is a structured agent_error IPC message.
-// Used to track whether a fatal error has already been forwarded to the user
-// so the channel manager doesn't double-send a generic safety-net message.
-func parseAgentError(line []byte) bool {
-	var m map[string]any
-	if err := json.Unmarshal(line, &m); err != nil {
-		return false
-	}
-	t, _ := m["type"].(string)
-	return t == "agent_error"
-}
-
-// tailStderr returns the last n bytes of stderr. If the cut lands mid-line,
-// it advances forward to the next newline so we don't start with a partial
-// line. Falls back to "unknown error" when input is empty.
-func tailStderr(s string, n int) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return "unknown error"
-	}
-	if len(s) <= n {
-		return s
-	}
-	cut := len(s) - n
-	if cut > 0 && s[cut-1] != '\n' {
-		if i := strings.IndexByte(s[cut:], '\n'); i >= 0 {
-			cut += i + 1
-		}
-	}
-	return s[cut:]
 }
 
 // formatApprovalPrompt creates a human-readable approval prompt for the channel user.
@@ -454,72 +377,6 @@ func isApprovalReply(content string) bool {
 func (cm *ChannelManagerService) getSenderMutex(key string) *sync.Mutex {
 	val, _ := cm.senderMutexes.LoadOrStore(key, &sync.Mutex{})
 	return val.(*sync.Mutex)
-}
-
-// imageBaseDir is the root directory for session images. Tests may override this
-// to use t.TempDir() so no files leak into the working tree.
-var imageBaseDir = filepath.Join(config.ProjectTmpDir(), "channel-images")
-
-// sessionImageDir returns the directory for storing session images under <imageBaseDir>/<sessionID>/.
-func sessionImageDir(sessionID string) string {
-	return filepath.Join(imageBaseDir, sessionID)
-}
-
-// writeSessionImage decodes a base64 ImageAttachment to a file in the session image directory.
-func writeSessionImage(sessionID string, img agentdomain.ImageAttachment) (string, error) {
-	data, err := base64.StdEncoding.DecodeString(img.Data)
-	if err != nil {
-		return "", fmt.Errorf("decoding base64: %w", err)
-	}
-
-	ext := ".jpg"
-	switch img.MimeType {
-	case "image/png":
-		ext = ".png"
-	case "image/gif":
-		ext = ".gif"
-	case "image/webp":
-		ext = ".webp"
-	}
-
-	dir := sessionImageDir(sessionID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("creating session image dir: %w", err)
-	}
-
-	name := img.Filename
-	if name == "" {
-		name = "channel-image"
-	}
-	name = strings.TrimSuffix(name, filepath.Ext(name))
-
-	f, err := os.CreateTemp(dir, "infer-"+name+"-*"+ext)
-	if err != nil {
-		return "", fmt.Errorf("creating image file: %w", err)
-	}
-
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		_ = os.Remove(f.Name())
-		return "", fmt.Errorf("writing image file: %w", err)
-	}
-
-	if err := f.Close(); err != nil {
-		return "", fmt.Errorf("closing image file: %w", err)
-	}
-
-	return f.Name(), nil
-}
-
-// pruneSessionImages removes the oldest images in the session directory when
-// the count exceeds the retention limit. A retention of 0 means keep all.
-func pruneSessionImages(sessionID string, retention int) {
-	if retention <= 0 {
-		return
-	}
-	utils.PruneFilesByModTime(sessionImageDir(sessionID), retention, 0, func(e os.DirEntry) bool {
-		return strings.HasPrefix(e.Name(), "infer-")
-	})
 }
 
 // isAllowedUser checks if a sender is in the allowed users list for the given channel

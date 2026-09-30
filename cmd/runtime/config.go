@@ -346,6 +346,15 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 	applySidecarEnv(&cfg.BrowserUse, "browser_use")
 	cfg.BrowserUse.Extension.Port = cfg.BrowserUse.Extension.EffectivePort()
 
+	daemonPath := sidecarPath(config.DaemonFileName)
+	daemonCfg, err := config.LoadDaemon(daemonPath)
+	if err != nil {
+			logger.Warn("failed to load daemon config, using defaults", "error", err, "path", daemonPath)
+			daemonCfg = config.DefaultDaemonConfig()
+	}
+	cfg.Daemon = *daemonCfg
+	applySidecarEnv(&cfg.Daemon, "daemon")
+
 	memoryPath := sidecarPath(config.MemoryConfigFileName)
 	memoryCfg, err := config.LoadMemory(memoryPath)
 	if err != nil {

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"time"
 )
 
 // ThreadKey identifies a thread: the project dir its worker runs in and the
@@ -37,6 +38,22 @@ type LaunchWorker func(key ThreadKey, opts ThreadOptions) (Worker, error)
 // Deliver hands it one frame.
 type Client interface {
 	Deliver(frame []byte)
+}
+
+// IdleTimeout is how long a thread nobody follows may sit idle before
+// the registry stops its worker, and how long a channel chat keeps
+// following its thread after its last frame before it detaches so the
+// reap can fire.
+// ponytail: a const, a config key when someone needs to tune it.
+const IdleTimeout = 10 * time.Minute
+
+// ThreadRouter is the surface a driving adapter calls per client frame
+// and on disconnect. The daemon's thread registry implements it.
+type ThreadRouter interface {
+	// Handle routes one client frame to its thread's worker.
+	Handle(c Client, frame []byte)
+	// Detach drops a client that stopped following its thread.
+	Detach(c Client)
 }
 
 // BrowserRelay forwards one browser_command frame from a session worker to the
