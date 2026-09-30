@@ -48,11 +48,11 @@ type threadChat struct {
 	// render state, owned by the render loop: the open assistant
 	// message's deltas and its role, the tool calls rendered for the
 	// next flush, and the tool call being streamed.
-	message   strings.Builder
-	role      string
-	tools     []string
-	toolName  string
-	toolArgs  string
+	message  strings.Builder
+	role     string
+	tools    []string
+	toolName string
+	toolArgs string
 }
 
 // threadChatFor returns the sender's render adapter, building and starting
