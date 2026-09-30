@@ -601,12 +601,9 @@ type AgentToolConfig struct {
 // AgentInteractiveConfig configures the tmux-backed interactive surface for
 // subagents (used when mode is "interactive").
 type AgentInteractiveConfig struct {
-	Layout   string `yaml:"layout" mapstructure:"layout"`     // vertical | horizontal | window
-	Fallback string `yaml:"fallback" mapstructure:"fallback"` // headless | error (when not inside tmux)
-	// IdleTimeout closes an interactive subagent's pane automatically after this
-	// many seconds of inactivity (no harvested turn, frozen screen, no pending
-	// approval) when it has not reported done. 0 disables the auto-close.
-	IdleTimeout int `yaml:"idle_timeout" mapstructure:"idle_timeout"`
+	Layout      string `yaml:"layout" mapstructure:"layout"`     // vertical | horizontal | window
+	Fallback    string `yaml:"fallback" mapstructure:"fallback"` // headless | error (when not inside tmux)
+	IdleTimeout int    `yaml:"idle_timeout" mapstructure:"idle_timeout"`
 }
 
 // QueryAgentToolConfig contains Query-specific tool settings
