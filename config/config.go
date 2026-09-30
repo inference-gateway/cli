@@ -874,22 +874,20 @@ type StatusBarConfig struct {
 // StatusBarIndicators contains individual enable/disable toggles for each indicator
 // All indicators are enabled by default to maintain current behavior
 type StatusBarIndicators struct {
-	Model            bool `yaml:"model" mapstructure:"model"`
-	Effort           bool `yaml:"effort" mapstructure:"effort"`
-	Theme            bool `yaml:"theme" mapstructure:"theme"`
-	MaxOutput        bool `yaml:"max_output" mapstructure:"max_output"`
-	A2AAgents        bool `yaml:"a2a_agents" mapstructure:"a2a_agents"`
-	Tools            bool `yaml:"tools" mapstructure:"tools"`
-	BackgroundShells bool `yaml:"background_shells" mapstructure:"background_shells"`
-	A2ATasks         bool `yaml:"a2a_tasks" mapstructure:"a2a_tasks"`
-	Queue            bool `yaml:"queue" mapstructure:"queue"`
-	MCP              bool `yaml:"mcp" mapstructure:"mcp"`
-	ContextUsage     bool `yaml:"context_usage" mapstructure:"context_usage"`
-	SessionTokens    bool `yaml:"session_tokens" mapstructure:"session_tokens"`
-	Cost             bool `yaml:"cost" mapstructure:"cost"`
-	GitBranch        bool `yaml:"git_branch" mapstructure:"git_branch"`
-	GitPR            bool `yaml:"git_pr" mapstructure:"git_pr"`
-	Subagents        bool `yaml:"subagents" mapstructure:"subagents"`
+	Model         bool `yaml:"model" mapstructure:"model"`
+	Effort        bool `yaml:"effort" mapstructure:"effort"`
+	Theme         bool `yaml:"theme" mapstructure:"theme"`
+	MaxOutput     bool `yaml:"max_output" mapstructure:"max_output"`
+	A2AAgents     bool `yaml:"a2a_agents" mapstructure:"a2a_agents"`
+	Tools         bool `yaml:"tools" mapstructure:"tools"`
+	Queue         bool `yaml:"queue" mapstructure:"queue"`
+	MCP           bool `yaml:"mcp" mapstructure:"mcp"`
+	ContextUsage  bool `yaml:"context_usage" mapstructure:"context_usage"`
+	SessionTokens bool `yaml:"session_tokens" mapstructure:"session_tokens"`
+	Cost          bool `yaml:"cost" mapstructure:"cost"`
+	GitBranch     bool `yaml:"git_branch" mapstructure:"git_branch"`
+	GitPR         bool `yaml:"git_pr" mapstructure:"git_pr"`
+	Subagents     bool `yaml:"subagents" mapstructure:"subagents"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -1089,22 +1087,20 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 		Enabled:               true,
 		SubagentLingerSeconds: 5,
 		Indicators: StatusBarIndicators{
-			Model:            true,
-			Effort:           true,
-			Theme:            true,
-			MaxOutput:        false,
-			A2AAgents:        true,
-			Tools:            true,
-			BackgroundShells: true,
-			A2ATasks:         true,
-			Queue:            true,
-			MCP:              true,
-			ContextUsage:     true,
-			SessionTokens:    true,
-			Cost:             true,
-			GitBranch:        true,
-			GitPR:            true,
-			Subagents:        true,
+			Model:         true,
+			Effort:        true,
+			Theme:         true,
+			MaxOutput:     false,
+			A2AAgents:     true,
+			Tools:         true,
+			Queue:         true,
+			MCP:           true,
+			ContextUsage:  true,
+			SessionTokens: true,
+			Cost:          true,
+			GitBranch:     true,
+			GitPR:         true,
+			Subagents:     true,
 		},
 	}
 }

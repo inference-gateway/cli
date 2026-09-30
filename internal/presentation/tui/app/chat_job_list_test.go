@@ -46,7 +46,7 @@ func entryText(t *testing.T, entries []convdomain.ConversationEntry) string {
 // running headless sub-agent with a stored conversation and a running shell.
 func newJobListTestApp(t *testing.T) (*ChatApplication, *tuimocks.FakeConversationRenderer) {
 	t.Helper()
-	app, _ := newStatusBarTestApp(t, false, false)
+	app, _ := newStatusBarTestApp(t, false)
 
 	now := time.Now()
 	registry := &schedmocks.FakeBackgroundTaskRegistry{}

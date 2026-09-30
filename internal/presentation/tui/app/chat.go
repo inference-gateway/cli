@@ -280,9 +280,6 @@ func NewChatApplication(
 		isb.SetTokenEstimator(tokenEstimator)
 		isb.SetBackgroundShellService(app.toolRegistry.GetBackgroundShellService())
 		isb.SetBackgroundTaskService(app.backgroundTaskService)
-		if app.backgroundTaskRegistry != nil {
-			isb.SetBackgroundTaskRegistry(app.backgroundTaskRegistry)
-		}
 		isb.SetMessageQueue(app.messageQueue)
 	}
 
@@ -938,8 +935,7 @@ func (app *ChatApplication) blurStatusBar() {
 }
 
 // activateSelectedIndicator opens the view behind the selected indicator,
-// mirroring the /model and /tasks shortcut side effects. The task view is
-// not gated on A2A - it shows shells and subagents too.
+// mirroring the matching shortcut's side effect.
 func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 	action := app.inputStatusBar.SelectedAction()
 	app.blurStatusBar()
@@ -978,26 +974,6 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 			return tui.SetStatusEvent{
 				Message:    "",
 				Spinner:    false,
-				StatusType: tui.StatusDefault,
-			}
-		}}
-	case tui.StatusIndicatorActionTaskManagement:
-		if err := app.stateManager.TransitionToView(tui.ViewStateA2ATaskManagement); err != nil {
-			return []tea.Cmd{func() tea.Msg {
-				return tui.ShowErrorEvent{
-					Error:  fmt.Sprintf("Failed to show task management: %v", err),
-					Sticky: false,
-				}
-			}}
-		}
-		hasBackgroundTasks := false
-		if app.backgroundTaskService != nil {
-			hasBackgroundTasks = len(app.backgroundTaskService.GetBackgroundTasks()) > 0
-		}
-		return []tea.Cmd{func() tea.Msg {
-			return tui.SetStatusEvent{
-				Message:    "Task management interface",
-				Spinner:    hasBackgroundTasks,
 				StatusType: tui.StatusDefault,
 			}
 		}}

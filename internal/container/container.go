@@ -709,9 +709,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewInstallOpentaskShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewInitShortcut(c.config))
 
-	if c.config.IsA2AToolsEnabled() {
-		c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut(c.config))
-	}
+	c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut())
 
 	if c.config.IsAgentToolEnabled() {
 		c.shortcutRegistry.Register(shortcuts.NewAgentsShortcut())

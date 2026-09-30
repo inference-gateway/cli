@@ -8,7 +8,6 @@ import (
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	lipgloss "charm.land/lipgloss/v2"
@@ -25,7 +24,6 @@ import (
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 type stubTokenEstimator struct {
@@ -169,8 +167,6 @@ func TestInputStatusBar_ShouldShowIndicator(t *testing.T) {
 				cfg.Chat.StatusBar.Indicators.A2AAgents = tt.configEnabled
 			case "tools":
 				cfg.Chat.StatusBar.Indicators.Tools = tt.configEnabled
-			case "background_shells":
-				cfg.Chat.StatusBar.Indicators.BackgroundShells = tt.configEnabled
 			case "mcp":
 				cfg.Chat.StatusBar.Indicators.MCP = tt.configEnabled
 			case "context_usage":
@@ -199,46 +195,6 @@ func TestInputStatusBar_ShouldShowIndicator_NilConfig(t *testing.T) {
 	if !result {
 		t.Error("Expected true when config is nil, but got false")
 	}
-}
-
-func TestInputStatusBar_GetBackgroundJobsInfo(t *testing.T) {
-	t.Run("nil registry yields nothing", func(t *testing.T) {
-		sb := &InputStatusBar{}
-		if got := sb.getBackgroundJobsInfo(); got != "" {
-			t.Fatalf("expected empty, got %q", got)
-		}
-	})
-
-	t.Run("only non-zero kinds are shown", func(t *testing.T) {
-		reg := &schedmocks.FakeBackgroundTaskRegistry{}
-		reg.CountRunningJobsStub = func(kind scheddomain.JobKind) int {
-			switch kind {
-			case scheddomain.JobKindA2A:
-				return 2
-			case scheddomain.JobKindSubagent:
-				return 3
-			default:
-				return 0
-			}
-		}
-		sb := &InputStatusBar{backgroundTaskRegistry: reg}
-		got := sb.getBackgroundJobsInfo()
-		if !strings.Contains(got, "2 A2A") || !strings.Contains(got, "3 subagents") {
-			t.Fatalf("missing counts: %q", got)
-		}
-		if strings.Contains(got, "shells") {
-			t.Fatalf("zero-count kind should be omitted: %q", got)
-		}
-	})
-
-	t.Run("all zero yields nothing", func(t *testing.T) {
-		reg := &schedmocks.FakeBackgroundTaskRegistry{}
-		reg.CountRunningJobsReturns(0)
-		sb := &InputStatusBar{backgroundTaskRegistry: reg}
-		if got := sb.getBackgroundJobsInfo(); got != "" {
-			t.Fatalf("expected empty, got %q", got)
-		}
-	})
 }
 
 func TestInputStatusBar_BuildThemeIndicator(t *testing.T) {
@@ -771,7 +727,6 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 				cfg.Chat.StatusBar.Indicators.MaxOutput = false
 				cfg.Chat.StatusBar.Indicators.A2AAgents = false
 				cfg.Chat.StatusBar.Indicators.Tools = false
-				cfg.Chat.StatusBar.Indicators.BackgroundShells = false
 				cfg.Chat.StatusBar.Indicators.MCP = false
 				cfg.Chat.StatusBar.Indicators.ContextUsage = false
 				cfg.Chat.StatusBar.Indicators.SessionTokens = false
@@ -858,7 +813,7 @@ func TestInputStatusBar_NilStyleProviderFallback(t *testing.T) {
 // newSelectableStatusBar builds a status bar with visible model and theme
 // indicators and, optionally, a background-jobs indicator (two running jobs
 // per kind).
-func newSelectableStatusBar(withJobs bool) *InputStatusBar {
+func newSelectableStatusBar() *InputStatusBar {
 	modelService := &convmocks.FakeModelService{}
 	modelService.GetCurrentModelReturns("test-model")
 
@@ -872,12 +827,6 @@ func newSelectableStatusBar(withJobs bool) *InputStatusBar {
 		config:       config.DefaultConfig(),
 	}
 
-	if withJobs {
-		registry := &schedmocks.FakeBackgroundTaskRegistry{}
-		registry.CountRunningJobsReturns(2)
-		statusBar.backgroundTaskRegistry = registry
-	}
-
 	return statusBar
 }
 
@@ -887,7 +836,7 @@ func TestInputStatusBar_FocusRequiresActionableIndicator(t *testing.T) {
 		t.Error("Focus should fail without a model service (no indicators at all)")
 	}
 
-	statusBar = newSelectableStatusBar(false)
+	statusBar = newSelectableStatusBar()
 	statusBar.config.Chat.StatusBar.Indicators.Model = false
 	statusBar.config.Chat.StatusBar.Indicators.Theme = false
 	if statusBar.Focus() {
@@ -897,7 +846,7 @@ func TestInputStatusBar_FocusRequiresActionableIndicator(t *testing.T) {
 		t.Error("a failed Focus must not leave the bar focused")
 	}
 
-	statusBar = newSelectableStatusBar(false)
+	statusBar = newSelectableStatusBar()
 	if !statusBar.Focus() {
 		t.Fatal("Focus should succeed with the model indicator visible")
 	}
@@ -915,7 +864,7 @@ func TestInputStatusBar_FocusRequiresActionableIndicator(t *testing.T) {
 }
 
 func TestInputStatusBar_SelectionCyclesActionableIndicators(t *testing.T) {
-	statusBar := newSelectableStatusBar(true)
+	statusBar := newSelectableStatusBar()
 	statusBar.toolService = &agentdomainmocks.FakeToolService{}
 	statusBar.tokenEstimator = &stubTokenEstimator{toolTokens: 8017, toolCount: 25}
 	statusBar.stateManager = readinessStateManager(&tui.AgentReadinessState{TotalAgents: 1, ReadyAgents: 1})
@@ -943,42 +892,35 @@ func TestInputStatusBar_SelectionCyclesActionableIndicators(t *testing.T) {
 	}
 
 	statusBar.SelectNext()
-	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionTaskManagement {
-		t.Errorf("after fourth SelectNext: %v, want task management", got)
-	}
-
-	statusBar.SelectNext()
 	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionModelSelection {
 		t.Errorf("SelectNext should wrap back to model selection, got %v", got)
 	}
 
 	statusBar.SelectPrev()
-	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionTaskManagement {
-		t.Errorf("SelectPrev should wrap to task management, got %v", got)
+	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionToolsList {
+		t.Errorf("SelectPrev should wrap to the tools list, got %v", got)
 	}
 }
 
 func TestInputStatusBar_SelectionClampsWhenIndicatorsDisappear(t *testing.T) {
-	statusBar := newSelectableStatusBar(true)
+	statusBar := newSelectableStatusBar()
 	if !statusBar.Focus() {
 		t.Fatal("Focus should succeed")
 	}
 	statusBar.SelectNext()
-	statusBar.SelectNext()
-	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionTaskManagement {
-		t.Fatalf("precondition failed: expected task management selected, got %v", got)
+	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionThemeSelection {
+		t.Fatalf("precondition failed: expected theme selection selected, got %v", got)
 	}
 
-	registry := statusBar.backgroundTaskRegistry.(*schedmocks.FakeBackgroundTaskRegistry)
-	registry.CountRunningJobsReturns(0)
+	statusBar.themeService = nil
 
-	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionThemeSelection {
+	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionModelSelection {
 		t.Errorf("selection should clamp to the last remaining indicator, got %v", got)
 	}
 }
 
 func TestInputStatusBar_MarkSelectedFlagsSelectedIndicator(t *testing.T) {
-	statusBar := newSelectableStatusBar(true)
+	statusBar := newSelectableStatusBar()
 	if !statusBar.Focus() {
 		t.Fatal("Focus should succeed")
 	}
@@ -1010,7 +952,7 @@ func TestInputStatusBar_FocusedRenderHighlightsSelection(t *testing.T) {
 	themeService := &tuimocks.FakeThemeService{}
 	themeService.GetCurrentThemeReturns(fakeTheme)
 
-	statusBar := newSelectableStatusBar(false)
+	statusBar := newSelectableStatusBar()
 	statusBar.styleProvider = styles.NewProvider(themeService)
 
 	unfocused := statusBar.Render()
@@ -1264,7 +1206,7 @@ func TestInputStatusBar_QueueIndicator(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statusBar := newSelectableStatusBar(false)
+			statusBar := newSelectableStatusBar()
 			statusBar.styleProvider = agentStartupProvider()
 			if tt.queueDisabled {
 				statusBar.config.Chat.StatusBar.Indicators.Queue = false
@@ -1289,7 +1231,7 @@ func TestInputStatusBar_QueueIndicator(t *testing.T) {
 }
 
 func TestInputStatusBar_QueueIndicatorAccentColor(t *testing.T) {
-	statusBar := newSelectableStatusBar(false)
+	statusBar := newSelectableStatusBar()
 	statusBar.styleProvider = agentStartupProvider()
 	queue := &convmocks.FakeMessageQueue{}
 	queue.IsEmptyReturns(false)
@@ -1312,7 +1254,7 @@ func TestInputStatusBar_QueueIndicatorAccentColor(t *testing.T) {
 // behavior: the segment appears as soon as an entry lands and is gone once the
 // queue drains, without any extra event plumbing.
 func TestInputStatusBar_QueueIndicatorRenderLifecycle(t *testing.T) {
-	statusBar := newSelectableStatusBar(false)
+	statusBar := newSelectableStatusBar()
 	statusBar.styleProvider = agentStartupProvider()
 	queue := &convmocks.FakeMessageQueue{}
 	queue.IsEmptyReturns(false)

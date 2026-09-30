@@ -5,7 +5,6 @@ import (
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
@@ -23,9 +22,9 @@ import (
 
 // newStatusBarTestApp wires the minimal ChatApplication surface used by the
 // status-indicator focus flow: a real InputStatusBar with a visible model
-// indicator (plus, optionally, theme and jobs indicators) and a fake state
-// manager capturing view transitions.
-func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplication, *statemanager.Store) {
+// indicator (plus, optionally, a theme indicator) and a fake state manager
+// capturing view transitions.
+func newStatusBarTestApp(t *testing.T, withTheme bool) (*ChatApplication, *statemanager.Store) {
 	t.Helper()
 
 	modelService := &convmocks.FakeModelService{}
@@ -34,12 +33,6 @@ func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplicati
 	statusBar := components.NewInputStatusBar(nil)
 	statusBar.SetModelService(modelService)
 	statusBar.SetConfig(config.DefaultConfig())
-
-	if withJobs {
-		registry := &schedmocks.FakeBackgroundTaskRegistry{}
-		registry.CountRunningJobsReturns(1)
-		statusBar.SetBackgroundTaskRegistry(registry)
-	}
 
 	if withTheme {
 		themeService := &tuimocks.FakeThemeService{}
@@ -58,7 +51,7 @@ func newStatusBarTestApp(t *testing.T, withJobs, withTheme bool) (*ChatApplicati
 }
 
 func TestFocusStatusBarEventFocusesRow(t *testing.T) {
-	app, _ := newStatusBarTestApp(t, false, false)
+	app, _ := newStatusBarTestApp(t, false)
 
 	app.handleChatView(tui.FocusStatusBarEvent{})
 	if !app.statusBarFocused {
@@ -70,7 +63,7 @@ func TestFocusStatusBarEventFocusesRow(t *testing.T) {
 }
 
 func TestFocusStatusBarEventNoopsWithoutActionableIndicator(t *testing.T) {
-	app, _ := newStatusBarTestApp(t, false, false)
+	app, _ := newStatusBarTestApp(t, false)
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)
 	cfg := config.DefaultConfig()
 	cfg.Chat.StatusBar.Indicators.Model = false
@@ -117,7 +110,7 @@ func TestDuplicateKeyGuardConsumesMarkedKeysOnce(t *testing.T) {
 // enter on the focused row transitions to model selection with the same
 // status message the /model shortcut emits.
 func TestStatusBarEnterOpensModelSelection(t *testing.T) {
-	app, stateManager := newStatusBarTestApp(t, false, false)
+	app, stateManager := newStatusBarTestApp(t, false)
 	app.handleChatView(tui.FocusStatusBarEvent{})
 
 	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -142,7 +135,7 @@ func TestStatusBarEnterOpensModelSelection(t *testing.T) {
 }
 
 func TestStatusBarEnterOpensThemeSelection(t *testing.T) {
-	app, stateManager := newStatusBarTestApp(t, false, true)
+	app, stateManager := newStatusBarTestApp(t, true)
 	app.handleChatView(tui.FocusStatusBarEvent{})
 
 	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
@@ -174,7 +167,7 @@ func (toolStatsEstimator) EffectiveContextTokens(lastInputTokens int, _ []sdk.Me
 }
 
 func TestStatusBarEnterOpensToolsList(t *testing.T) {
-	app, stateManager := newStatusBarTestApp(t, false, false)
+	app, stateManager := newStatusBarTestApp(t, false)
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)
 	statusBar.SetToolService(&agentdomainmocks.FakeToolService{})
 	statusBar.SetTokenEstimator(toolStatsEstimator{})
@@ -196,7 +189,7 @@ func TestStatusBarEnterOpensToolsList(t *testing.T) {
 }
 
 func TestStatusBarEnterOpensAgentsView(t *testing.T) {
-	app, stateManager := newStatusBarTestApp(t, false, false)
+	app, stateManager := newStatusBarTestApp(t, false)
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)
 	barStateManager := statemanager.NewStore(false)
 	barStateManager.InitializeAgentReadiness(1)
@@ -219,31 +212,8 @@ func TestStatusBarEnterOpensAgentsView(t *testing.T) {
 	}
 }
 
-func TestStatusBarEnterOpensTaskManagement(t *testing.T) {
-	app, stateManager := newStatusBarTestApp(t, true, false)
-	app.handleChatView(tui.FocusStatusBarEvent{})
-
-	_ = app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyRight})
-	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyEnter})
-
-	if got := stateManager.GetCurrentView(); got != tui.ViewStateA2ATaskManagement {
-		t.Errorf("transitioned to %v, want task management", got)
-	}
-
-	if len(cmds) != 1 {
-		t.Fatalf("expected one status command, got %d", len(cmds))
-	}
-	ev, ok := cmds[0]().(tui.SetStatusEvent)
-	if !ok {
-		t.Fatalf("expected a SetStatusEvent, got %T", cmds[0]())
-	}
-	if ev.Message != "Task management interface" {
-		t.Errorf("unexpected status message %q", ev.Message)
-	}
-}
-
 func TestStatusBarNavigationAndExitKeys(t *testing.T) {
-	app, stateManager := newStatusBarTestApp(t, true, false)
+	app, stateManager := newStatusBarTestApp(t, false)
 
 	tests := []struct {
 		name      string
