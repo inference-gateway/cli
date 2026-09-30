@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -29,8 +30,8 @@ const subagentLabelMinWidth = 13
 const subagentLabelCap = 40
 
 // SubagentList renders the right-aligned stacked list below the composer:
-// one row per tracked sub-agent with its label and a live elapsed counter,
-// finished jobs lingering with their final state before they drop off.
+// one row per tracked sub-agent or A2A task with its label and a live elapsed
+// counter, finished jobs lingering with their final state before they drop off.
 type SubagentList struct {
 	registry      scheddomain.BackgroundTaskRegistry
 	config        *config.Config
@@ -140,15 +141,15 @@ func rowLabel(row subagentRow) string {
 	return "subagent"
 }
 
-// snapshotRows adapts every tracked sub-agent job to a row, sorted newest
-// first, dropping finished jobs whose linger window has passed.
+// snapshotRows adapts every tracked sub-agent and A2A job to a row, sorted
+// newest first, dropping finished jobs whose linger window has passed.
 func (l *SubagentList) snapshotRows() []subagentRow {
 	if l.registry == nil {
 		return nil
 	}
 	var rows []subagentRow
 	for _, job := range l.registry.Snapshot() {
-		if job.Meta.Kind != scheddomain.JobKindSubagent {
+		if job.Meta.Kind != scheddomain.JobKindSubagent && job.Meta.Kind != scheddomain.JobKindA2A {
 			continue
 		}
 		if !l.shouldShowRow(job) {
@@ -159,7 +160,7 @@ func (l *SubagentList) snapshotRows() []subagentRow {
 			end = *job.CompletedAt
 		}
 		row := subagentRow{
-			label:   job.Meta.Label,
+			label:   jobRowLabel(job),
 			elapsed: end.Sub(job.Meta.StartedAt),
 			running: job.Status == scheddomain.JobRunning,
 			started: job.Meta.StartedAt,
@@ -176,6 +177,18 @@ func (l *SubagentList) snapshotRows() []subagentRow {
 		return b.started.Compare(a.started)
 	})
 	return rows
+}
+
+// jobRowLabel names a row. An A2A task shows its agent's host because its own
+// label is a raw task ID, and every other job shows its label.
+func jobRowLabel(job scheddomain.TrackedJob) string {
+	if job.Meta.Kind != scheddomain.JobKindA2A {
+		return job.Meta.Label
+	}
+	if agent, err := url.Parse(job.Meta.Detail); err == nil && agent.Host != "" {
+		return agent.Host
+	}
+	return job.Meta.Label
 }
 
 // shouldShowRow reports whether a tracked job earns a row: running jobs
