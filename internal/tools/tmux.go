@@ -20,7 +20,13 @@ import (
 // check, never delivered.
 func NewPaneInspector() func(ctx context.Context, paneID, sessionID string) scheddomain.PaneObservation {
 	return func(ctx context.Context, paneID, sessionID string) scheddomain.PaneObservation {
-		obs := scheddomain.PaneObservation{Harvested: readSubagentResultMessage(sessionID)}
+		obs := scheddomain.PaneObservation{}
+		if rf, ok := scheddomain.ReadSubagentResultFile(subagentResultFilePath(sessionID)); ok {
+			obs.Harvested = strings.TrimSpace(rf.FinalAssistant)
+			obs.Done = rf.Done
+			obs.HarvestFailed = !rf.Success
+			obs.HarvestError = rf.Error
+		}
 		if summary, awaiting := readSubagentApproval(sessionID); awaiting {
 			obs.AwaitingApproval = true
 			obs.ApprovalSummary = summary

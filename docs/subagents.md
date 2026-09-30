@@ -23,6 +23,7 @@ does the same in one view.
 - [Locations and Precedence](#locations-and-precedence)
 - [Tools Allowlist](#tools-allowlist)
 - [Model](#model)
+- [Interactive Subagents](#interactive-subagents)
 - [Compatibility Notes](#compatibility-notes)
 - [Limitations](#limitations)
 
@@ -105,6 +106,35 @@ model IDs - logs a warning and falls back to `inherit`, so Claude Code files
 still load. The file's model wins over a per-task `model` argument; when the
 file sets none, the normal resolution order applies (per-task model,
 `tools.agent.model`, then the parent turn's model).
+
+## Interactive Subagents
+
+With `tools.agent.mode: interactive` a delegated subagent runs as a live
+`infer chat` inside a tmux pane you can watch, opened as a vertical split.
+Outside tmux the subagent falls back to headless. The pane is not a forever
+REPL when the `Agent` tool drives it: the delegated task is one turn, and
+when that turn completes, the subagent's chat writes the final assistant
+message to its result file with `done: true`. A turn that ends with a
+question is a completed turn too, so write self-contained task descriptions.
+
+- The parent monitor delivers exactly one `[Subagent Completed: <label>]`
+  note carrying that message, then closes the pane and records the subagent
+  completed. A failed terminal turn (a result file with `success: false`)
+  counts as done too and is closed the same way, with the error in the note.
+- A pane that never reports done - its turn ended without any text, its
+  TUI hung, or it runs an older binary without the done field - is closed
+  after `tools.agent.idle_timeout` seconds of inactivity: no new
+  result, no pane change and no pending approval. The close arrives as one
+  `[Subagent Closed: <label>]` note carrying anything already harvested.
+  The default is `300` seconds; `0` disables the auto-close and
+  `INFER_TOOLS_AGENT_IDLE_TIMEOUT` overrides it.
+- `[Subagent Idle: <label>]` warns early in the idle window - instead of the
+  old `[Subagent Completed]` masquerade it names the pending auto-close, so
+  the parent can re-prompt with `SendSubagentInput` (which resets the clock)
+  or answer the prompt via `ApproveSubagent`.
+- `CloseSubagent` is only for stopping a subagent early. In the normal case
+  the parent never needs to close anything: one completion note per task,
+  and no pile-up of idle panes.
 
 ## Compatibility Notes
 

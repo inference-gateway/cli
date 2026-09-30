@@ -19,9 +19,11 @@ const (
 )
 
 // SubagentMode selects how a subagent is surfaced while it runs.
+type SubagentMode string
+
 const (
-	SubagentModeHeadless    = "headless"
-	SubagentModeInteractive = "interactive"
+	SubagentModeHeadless    SubagentMode = "headless"
+	SubagentModeInteractive SubagentMode = "interactive"
 )
 
 // EnvSubagentAgentMode names the environment variable the Agent tool sets to
@@ -78,7 +80,7 @@ type SubagentState struct {
 	Label       string
 	Description string
 	Model       string
-	Mode        string // SubagentModeHeadless | SubagentModeInteractive
+	Mode        SubagentMode
 	SessionID   string
 	PaneID      string
 	Status      SubagentStatus
@@ -95,6 +97,7 @@ type SubagentResultFile struct {
 	Success        bool   `json:"success"`
 	Error          string `json:"error,omitempty"`
 	SessionID      string `json:"session_id,omitempty"`
+	Done           bool   `json:"done,omitempty"`
 }
 
 // WriteSubagentResultFile writes rf to path through a temp file and rename, so
@@ -148,6 +151,14 @@ type PaneObservation struct {
 	AwaitingApproval bool
 	// ApprovalSummary describes the pending tool call (name + args) when awaiting.
 	ApprovalSummary string
+	// Done is the result file's done flag: the subagent explicitly marked this
+	// write as its task's terminal turn.
+	Done bool
+	// HarvestFailed means the harvested turn was a failed terminal turn
+	// (the result file recorded Success=false).
+	HarvestFailed bool
+	// HarvestError is the error the subagent recorded for the harvested turn.
+	HarvestError string
 }
 
 // SubagentTracker tracks local subagents spawned by the Agent tool. It is a

@@ -43,7 +43,8 @@ func readResultFile(t *testing.T, path string) scheddomain.SubagentResultFile {
 }
 
 // A completed turn writes the last assistant message taken from the CONVERSATION
-// (ChatCompleteEvent.Message is never populated, which was the bug).
+// (ChatCompleteEvent.Message is never populated, which was the bug) and flags the
+// turn done, the subagent's terminal signal the parent monitor closes on.
 func TestRunner_writeSubagentResultFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "result.json")
@@ -51,7 +52,7 @@ func TestRunner_writeSubagentResultFile(t *testing.T) {
 
 	r := runnerWithMessages(assistantEntries("the answer"))
 	r.writeSubagentResultFile(agentdomain.ChatCompleteEvent{})
-	if rf := readResultFile(t, path); rf.FinalAssistant != "the answer" || !rf.Success {
+	if rf := readResultFile(t, path); rf.FinalAssistant != "the answer" || !rf.Success || !rf.Done {
 		t.Fatalf("unexpected result file: %+v", rf)
 	}
 
@@ -81,6 +82,9 @@ func TestRunner_writeSubagentResultFileError(t *testing.T) {
 	}
 	if rf.Error != "boom" {
 		t.Fatalf("error not recorded: %+v", rf)
+	}
+	if !rf.Done {
+		t.Fatalf("a failed terminal turn counts as done for the parent monitor: %+v", rf)
 	}
 }
 

@@ -69,11 +69,11 @@ type AgentSubResult struct {
 
 // AgentToolResult is the structured payload of an Agent tool call.
 type AgentToolResult struct {
-	Mode       string           `json:"mode"`
-	Wait       bool             `json:"wait"`
-	Dispatched int              `json:"dispatched"`
-	Subagents  []AgentSubResult `json:"subagents,omitempty"`
-	Message    string           `json:"message,omitempty"`
+	Mode       scheddomain.SubagentMode `json:"mode"`
+	Wait       bool                     `json:"wait"`
+	Dispatched int                      `json:"dispatched"`
+	Subagents  []AgentSubResult         `json:"subagents,omitempty"`
+	Message    string                   `json:"message,omitempty"`
 }
 
 // AgentTool spawns local subagents (each an `infer headless` subprocess) in
@@ -160,15 +160,9 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 	}
 
 	if mode == scheddomain.SubagentModeInteractive && !t.interactiveAvailable() {
-		switch t.config.Tools.Agent.Interactive.Fallback {
-		case "error":
-			logger.Error("interactive subagent unavailable", "reason", "not inside tmux ($TMUX unset)", "fallback", "error")
-			return t.errorResult(args, start, "interactive mode requires running inside tmux (no $TMUX session detected)"), nil
-		default:
-			logger.Debug("interactive subagent unavailable, falling back to headless", "reason", "not inside tmux ($TMUX unset)")
-			notes = append(notes, "not inside tmux - falling back to headless mode")
-			mode = scheddomain.SubagentModeHeadless
-		}
+		logger.Debug("interactive subagent unavailable, falling back to headless", "reason", "not inside tmux ($TMUX unset)")
+		notes = append(notes, "not inside tmux - falling back to headless mode")
+		mode = scheddomain.SubagentModeHeadless
 	}
 
 	parentSession := agentdomain.GetSessionID(ctx)
@@ -196,7 +190,7 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 // Supervising the run - rather than monitoring it on private goroutines - keeps
 // a blocking fan-out visible to every registry-backed surface: the sub-agent
 // list under the composer, the status-bar counter and the task view.
-func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
+func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode scheddomain.SubagentMode, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("running subagents synchronously", "tasks", len(specs), "mode", mode)
 	jobs := t.dispatchWaitJobs(ctx, specs, mode, parentSession)
 	if len(jobs) == 0 {
@@ -236,7 +230,7 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 // returning the jobs the blocking fan-in awaits. Each job's context derives
 // from ctx, so cancelling the turn kills its subprocess - and a wind-down from
 // the task view kills it too.
-func (t *AgentTool) dispatchWaitJobs(ctx context.Context, specs []AgentTaskSpec, mode, parentSession string) []*headlessSubagentJob {
+func (t *AgentTool) dispatchWaitJobs(ctx context.Context, specs []AgentTaskSpec, mode scheddomain.SubagentMode, parentSession string) []*headlessSubagentJob {
 	jobs := make([]*headlessSubagentJob, 0, len(specs))
 	for _, spec := range specs {
 		runCtx, cancel := context.WithCancel(ctx)
@@ -287,7 +281,7 @@ func (t *AgentTool) dispatchHeadless(job *headlessSubagentJob) bool {
 
 // runAsync dispatches subagents and returns immediately. Each subagent's
 // outcome is delivered later by the supervisor monitoring its headlessSubagentJob.
-func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
+func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode scheddomain.SubagentMode, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("dispatching subagents", "tasks", len(specs), "mode", mode)
 	dispatched := make([]AgentSubResult, 0, len(specs))
 	for _, spec := range specs {
@@ -366,11 +360,10 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 }
 
 // runInteractive launches each subagent in its own live `infer chat` tmux pane,
-// types in the task, and tracks it as a running interactive subagent. There is
-// no completion signal (the pane is a user-driven REPL), so this is
-// fire-and-track: it returns once the panes are launched. The main agent then
-// uses ListSubagents / GetSubagentResult / CloseSubagent to inspect and close
-// them.
+// types in the task, and tracks it as a running interactive subagent. This is
+// fire-and-track: it returns once the panes are launched. The supervisor then
+// monitors them; a done or failed result turn and the idle timeout each close
+// the pane, and SendSubagentInput re-prompts a live one.
 func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("launching interactive subagents", "tasks", len(specs), "parent_session", parentSession)
 	launched := make([]AgentSubResult, 0, len(specs))
@@ -552,15 +545,7 @@ func (t *AgentTool) waitForPaneReady(ctx context.Context, paneID string) {
 // the pane is created; the pane keeps running the subagent and, via
 // remain-on-exit, stays open after it finishes so its output remains readable.
 func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) (string, error) {
-	args := []string{"split-window", "-v"}
-	switch strings.TrimSpace(t.config.Tools.Agent.Interactive.Layout) {
-	case "horizontal":
-		args = []string{"split-window", "-h"}
-	case "window":
-		args = []string{"new-window"}
-	}
-
-	args = append(args, "-P", "-F", "#{pane_id}", command)
+	args := []string{"split-window", "-v", "-P", "-F", "#{pane_id}", command}
 	out, err := exec.CommandContext(ctx, "tmux", args...).Output()
 	if err != nil {
 		var stderr string
@@ -648,8 +633,8 @@ func (t *AgentTool) maxParallel() int {
 // Mode is an environment decision (interactive needs a tmux session), not a
 // per-task LLM choice, so it is config-driven and intentionally NOT an LLM
 // parameter - otherwise the model overrides the operator's config.
-func (t *AgentTool) resolveMode() string {
-	mode := strings.TrimSpace(t.config.Tools.Agent.Mode)
+func (t *AgentTool) resolveMode() scheddomain.SubagentMode {
+	mode := scheddomain.SubagentMode(strings.TrimSpace(string(t.config.Tools.Agent.Mode)))
 	if mode == scheddomain.SubagentModeInteractive {
 		return scheddomain.SubagentModeInteractive
 	}

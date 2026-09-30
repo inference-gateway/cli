@@ -79,7 +79,7 @@ func TestGetSubagentResultTool_CompletedInteractiveNoFileIsEmpty(t *testing.T) {
 
 // A running subagent (either mode) must refuse the poll - it notifies automatically.
 func TestGetSubagentResultTool_RunningRefuses(t *testing.T) {
-	for _, mode := range []string{scheddomain.SubagentModeInteractive, scheddomain.SubagentModeHeadless} {
+	for _, mode := range []scheddomain.SubagentMode{scheddomain.SubagentModeInteractive, scheddomain.SubagentModeHeadless} {
 		tracker := schedinfra.NewSubagentTracker()
 		_ = tracker.AddSubagent(&scheddomain.SubagentState{
 			ID: "r1", Label: "w", Mode: mode, PaneID: "%5", Status: scheddomain.SubagentRunning,
