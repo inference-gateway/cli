@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
 	channelmocks "github.com/inference-gateway/cli/tests/mocks/channels"
 	sessionmocks "github.com/inference-gateway/cli/tests/mocks/sessions"
 
@@ -26,15 +27,6 @@ func newRenderChat(t *testing.T, cm *ChannelManagerService, ch *channelmocks.Fak
 		}
 	}
 	return cm.threadChatFor(context.Background(), "telegram-123", ch, "123")
-}
-
-// newRouterChatwiring builds a chat whose frames land on a fake router
-// outside the manager, for tests driving the render functions directly.
-func newRouterChat(t *testing.T, cm *ChannelManagerService) (*threadChat, *sessionmocks.FakeThreadRouter) {
-	t.Helper()
-	router := &sessionmocks.FakeThreadRouter{}
-	cm.SetThreadDriver(router, t.TempDir(), sessionsdomain.ThreadOptions{})
-	return newRenderChat(t, cm, &channelmocks.FakeChannel{}, nil), router
 }
 
 // Deliver routes one inbound message to the chat's thread: the resume
