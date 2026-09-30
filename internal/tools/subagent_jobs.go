@@ -37,6 +37,7 @@ type headlessSubagentJob struct {
 func (j *headlessSubagentJob) Meta() scheddomain.JobMeta {
 	return scheddomain.JobMeta{
 		ID:           j.state.ID,
+		SessionID:    j.state.SessionID,
 		Kind:         scheddomain.JobKindSubagent,
 		Label:        labelOrSession(j.state.Label, j.state.SessionID),
 		Description:  j.state.Description,
@@ -175,6 +176,7 @@ func newInteractiveSubagentJob(tool *AgentTool, state *scheddomain.SubagentState
 func (j *interactiveSubagentJob) Meta() scheddomain.JobMeta {
 	return scheddomain.JobMeta{
 		ID:           j.state.ID,
+		SessionID:    j.state.SessionID,
 		Kind:         scheddomain.JobKindSubagent,
 		Label:        labelOrSession(j.state.Label, j.state.SessionID),
 		Description:  j.state.Description,

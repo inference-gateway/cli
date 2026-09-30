@@ -156,10 +156,10 @@ func (app *ChatApplication) loadJobTranscript(jobID string) tea.Cmd {
 	}
 }
 
-// jobTranscript is what a job has to show: a headless sub-agent's stored
-// conversation, otherwise the job's own output as a single message.
+// jobTranscript is what a job has to show: a sub-agent's stored conversation,
+// otherwise the job's own output as a single message.
 func (app *ChatApplication) jobTranscript(job scheddomain.TrackedJob) []convdomain.ConversationEntry {
-	if entries := app.subagentConversation(job); len(entries) > 0 {
+	if entries := app.storedTranscript(job.Meta.SessionID); len(entries) > 0 {
 		return entries
 	}
 	text := job.Output
@@ -172,17 +172,13 @@ func (app *ChatApplication) jobTranscript(job scheddomain.TrackedJob) []convdoma
 	}}
 }
 
-// subagentConversation loads a headless sub-agent's conversation by its session.
-// An interactive sub-agent keeps its conversation under an ID of its own pane.
-func (app *ChatApplication) subagentConversation(job scheddomain.TrackedJob) []convdomain.ConversationEntry {
-	if job.Meta.Kind != scheddomain.JobKindSubagent || app.transcriptStore == nil || app.backgroundTaskRegistry == nil {
+// storedTranscript loads the conversation a job keeps under its session. It is
+// nil for a job without one, with storage disabled or when the load fails.
+func (app *ChatApplication) storedTranscript(sessionID string) []convdomain.ConversationEntry {
+	if sessionID == "" || app.transcriptStore == nil {
 		return nil
 	}
-	state := app.backgroundTaskRegistry.GetSubagent(job.Meta.ID)
-	if state == nil || state.Mode != scheddomain.SubagentModeHeadless {
-		return nil
-	}
-	entries, _, err := app.transcriptStore.LoadConversation(context.Background(), state.SessionID)
+	entries, _, err := app.transcriptStore.LoadConversation(context.Background(), sessionID)
 	if err != nil {
 		return nil
 	}

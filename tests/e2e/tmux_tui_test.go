@@ -93,18 +93,33 @@ func TestChatTUIBackgroundShellOutput(t *testing.T) {
 		"the background shell output never appeared in /tasks; last frame:\n%s", capturePane(session))
 }
 
-// TestChatTUIBackgroundSubagentOutput launches a headless background subagent
-// and verifies its final result appears in the /tasks "Output" detail section.
+// TestChatTUIBackgroundSubagentOutput verifies that, with storage disabled, a
+// finished headless subagent's final result appears in the /tasks "Output"
+// detail section.
 func TestChatTUIBackgroundSubagentOutput(t *testing.T) {
+	openFinishedSubagentDetail(t, "infer-e2e-subagent-output", "false",
+		"Output", "hello-from-subagent-probe")
+}
+
+// TestChatTUIBackgroundSubagentTranscript verifies that a finished headless
+// subagent's stored conversation and run stats appear in the /tasks detail panel.
+func TestChatTUIBackgroundSubagentTranscript(t *testing.T) {
+	openFinishedSubagentDetail(t, "infer-e2e-subagent-transcript", "true",
+		"Transcript", "subagent-e2e-probe task", "hello-from-subagent-probe", "Tokens:")
+}
+
+// openFinishedSubagentDetail launches a headless background subagent, opens its
+// /tasks detail panel once it completed and waits for every wanted string.
+func openFinishedSubagentDetail(t *testing.T, session, storageEnabled string, want ...string) {
+	t.Helper()
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not installed; skipping TUI drive test")
 	}
 
-	const session = "infer-e2e-subagent-output"
 	home := startTmuxHome(t, session)
 
 	launch := "env HOME=" + home +
-		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
+		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=" + storageEnabled +
 		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
 		" INFER_TOOLS_AGENT_MODE=headless INFER_TOOLS_AGENT_WAIT=false" +
 		" INFER_TOOLS_AGENT_REQUIRE_APPROVAL=false " + binPath + " chat"
@@ -132,8 +147,10 @@ func TestChatTUIBackgroundSubagentOutput(t *testing.T) {
 
 	tmuxSendKeys(t, session, "Enter")
 
-	require.True(t, waitForPane(t, session, "hello-from-subagent-probe", 15*time.Second),
-		"the subagent output never appeared in the detail panel; last frame:\n%s", capturePane(session))
+	for _, text := range want {
+		require.True(t, waitForPane(t, session, text, 15*time.Second),
+			"%q never appeared in the detail panel; last frame:\n%s", text, capturePane(session))
+	}
 }
 
 // TestChatTUIApprovalBoxFollowsTail pins the follow-tail contract: opening the

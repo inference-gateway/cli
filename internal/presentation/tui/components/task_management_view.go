@@ -11,7 +11,10 @@ import (
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
@@ -26,7 +29,8 @@ import (
 // single flat, selectable list. A2A rows keep using the embedded
 // TaskPollingState/TaskRef; shell and subagent rows populate Kind/Label/Detail.
 // Output carries the job's captured output (shell stdout/stderr or subagent
-// result) for the detail panel.
+// result) for the detail panel. SessionID and Stats are a subagent's stored
+// conversation and run stats.
 type TaskInfo struct {
 	a2adomain.TaskPollingState
 	Status      string
@@ -36,6 +40,8 @@ type TaskInfo struct {
 	Label       string
 	Detail      string
 	Output      string
+	SessionID   string
+	Stats       *scheddomain.SubagentRunStats
 }
 
 // TaskView implements task management UI similar to conversation selection
@@ -64,6 +70,9 @@ type TaskView struct {
 	spinner               spinner.Model
 	tickLive              bool
 	tickEpoch             int
+	loadTranscript        func(sessionID string) []convdomain.ConversationEntry
+	transcript            []convdomain.ConversationEntry
+	transcriptTaskID      string
 }
 
 type TaskViewMode int
@@ -266,6 +275,8 @@ func jobToTaskInfo(job scheddomain.TrackedJob) TaskInfo {
 		Label:       label,
 		Detail:      job.Meta.Detail,
 		Output:      job.Output,
+		SessionID:   job.Meta.SessionID,
+		Stats:       job.Stats,
 	}
 }
 
@@ -293,9 +304,12 @@ func (t *TaskView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return t, nil
 		}
 		if !t.tickLive {
-			return t, tea.Batch(t.loadTasksCmd(), t.armRefreshTick())
+			return t, tea.Batch(t.loadTasksCmd(), t.armRefreshTick(), t.transcriptCmd())
 		}
-		return t, t.loadTasksCmd()
+		return t, tea.Batch(t.loadTasksCmd(), t.transcriptCmd())
+	case taskTranscriptLoadedMsg:
+		t.transcriptTaskID, t.transcript = msg.taskID, msg.entries
+		return t, nil
 	case tui.TaskCancelledEvent:
 		return t.handleTaskCancelled(msg)
 	case taskRefreshTickMsg:
@@ -306,7 +320,7 @@ func (t *TaskView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			t.tickLive = false
 			return t, nil
 		}
-		return t, tea.Batch(t.loadTasksCmd(), t.refreshTickCmd())
+		return t, tea.Batch(t.loadTasksCmd(), t.refreshTickCmd(), t.transcriptCmd())
 	case tea.WindowSizeMsg:
 		return t.handleWindowResize(msg)
 	case tea.KeyPressMsg:
@@ -392,7 +406,7 @@ func (t *TaskView) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, taskManagerKeys.enter):
 		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
 			t.showInfo = true
-			return t, nil
+			return t, t.transcriptCmd()
 		}
 
 	case key.Matches(msg, taskManagerKeys.navUp):
@@ -408,7 +422,7 @@ func (t *TaskView) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, taskManagerKeys.info):
 		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
 			t.showInfo = true
-			return t, nil
+			return t, t.transcriptCmd()
 		}
 
 	case key.Matches(msg, taskManagerKeys.cancel):
@@ -459,6 +473,35 @@ func (t *TaskView) handleViewSwitch(key string) {
 		t.currentView = TaskViewCanceled
 	}
 	t.applyFilters()
+}
+
+// taskTranscriptLoadedMsg carries the stored conversation of the task shown in
+// the detail panel.
+type taskTranscriptLoadedMsg struct {
+	taskID  string
+	entries []convdomain.ConversationEntry
+}
+
+// SetTranscriptLoader wires how a subagent's stored conversation is read. The
+// loader returns nil when there is none, and the panel shows the final answer.
+func (t *TaskView) SetTranscriptLoader(load func(sessionID string) []convdomain.ConversationEntry) {
+	t.loadTranscript = load
+}
+
+// transcriptCmd reads the conversation of the task in the detail panel off the
+// update loop. It is nil when the panel is closed or the task stores none.
+func (t *TaskView) transcriptCmd() tea.Cmd {
+	if !t.showInfo || t.loadTranscript == nil || t.selected >= len(t.filteredTasks) {
+		return nil
+	}
+	task := t.filteredTasks[t.selected]
+	if task.SessionID == "" {
+		return nil
+	}
+	load := t.loadTranscript
+	return func() tea.Msg {
+		return taskTranscriptLoadedMsg{taskID: task.TaskID, entries: load(task.SessionID)}
+	}
 }
 
 func (t *TaskView) handleCancelConfirmation(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -697,11 +740,19 @@ func (t *TaskView) renderTaskInfo() string {
 		fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Context:"), task.ContextID)
 	}
 
+	if task.Stats != nil {
+		fmt.Fprintf(&content, "%-12s %d succeeded, %d failed\n", t.styleProvider.RenderDimText("Tools:"), task.Stats.ToolsSucceeded, task.Stats.ToolsFailed)
+		fmt.Fprintf(&content, "%-12s %d in, %d out\n", t.styleProvider.RenderDimText("Tokens:"), task.Stats.InputTokens, task.Stats.OutputTokens)
+	}
+
 	if task.TaskRef != nil {
 		t.renderTaskHistory(&content, task)
 	}
 
-	if task.Output != "" {
+	switch {
+	case t.transcriptTaskID == task.TaskID && len(t.transcript) > 0:
+		t.renderTranscript(&content, t.transcript)
+	case task.Output != "":
 		t.renderJobOutput(&content, task)
 	}
 
@@ -723,22 +774,7 @@ func (t *TaskView) renderTaskInfo() string {
 
 // renderTaskHistory renders the task history section
 func (t *TaskView) renderTaskHistory(content *strings.Builder, task TaskInfo) {
-	content.WriteString("\n")
-
-	accentColor := t.styleProvider.GetThemeColor("accent")
-	dimColor := t.styleProvider.GetThemeColor("dim")
-
-	separatorWidth := t.getSeparatorWidth()
-	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", separatorWidth), dimColor)
-	content.WriteString(separator)
-	content.WriteString("\n")
-
-	historyHeader := t.styleProvider.RenderWithColorAndBold("Task History", accentColor)
-	content.WriteString(historyHeader)
-	content.WriteString("\n")
-
-	content.WriteString(separator)
-	content.WriteString("\n\n")
+	t.writeDetailSection(content, "Task History")
 
 	textWidth := max(t.infoViewport.Width()-4, 40)
 
@@ -815,14 +851,75 @@ func (t *TaskView) renderTaskArtifacts(content *strings.Builder, task TaskInfo) 
 // Handles both ADK enum-style values (ROLE_USER / ROLE_AGENT) and the
 // historical lowercase ones (user / assistant).
 func (t *TaskView) renderHistoryItemRole(content *strings.Builder, role string) {
-	accentColor := t.styleProvider.GetThemeColor("accent")
-	dimColor := t.styleProvider.GetThemeColor("dim")
+	t.writeSpeaker(content, friendlyRoleLabel(role))
+}
 
-	marker := t.styleProvider.RenderWithColor("◆", accentColor)
-
-	label := friendlyRoleLabel(role)
-	roleText := t.styleProvider.RenderWithColor(label+":", dimColor)
+// writeSpeaker writes the marker line that opens one turn of a history.
+func (t *TaskView) writeSpeaker(content *strings.Builder, label string) {
+	marker := t.styleProvider.RenderWithColor("◆", t.styleProvider.GetThemeColor("accent"))
+	roleText := t.styleProvider.RenderWithColor(label+":", t.styleProvider.GetThemeColor("dim"))
 	fmt.Fprintf(content, "%s %s\n", marker, roleText)
+}
+
+// writeDetailSection opens a titled section of the detail panel.
+func (t *TaskView) writeDetailSection(content *strings.Builder, title string) {
+	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", t.getSeparatorWidth()), t.styleProvider.GetThemeColor("dim"))
+	header := t.styleProvider.RenderWithColorAndBold(title, t.styleProvider.GetThemeColor("accent"))
+	fmt.Fprintf(content, "\n%s\n%s\n%s\n\n", separator, header, separator)
+}
+
+// writeIndented writes text wrapped to width under a speaker line.
+func writeIndented(content *strings.Builder, text string, width int) {
+	for line := range strings.SplitSeq(formatting.FormatResponsiveMessage(text, width), "\n") {
+		fmt.Fprintf(content, "  %s\n", line)
+	}
+}
+
+// maxToolResultBytes bounds one tool result in the transcript, so a large file
+// read does not bury the turns around it.
+const maxToolResultBytes = 2 * 1024
+
+// renderTranscript renders a subagent's stored conversation: its task, each
+// assistant turn with the tools it called, and every tool result.
+func (t *TaskView) renderTranscript(content *strings.Builder, entries []convdomain.ConversationEntry) {
+	t.writeDetailSection(content, "Transcript")
+	textWidth := max(t.infoViewport.Width()-4, 40)
+
+	for _, entry := range entries {
+		if entry.Hidden || entry.Message.Role == sdk.System {
+			continue
+		}
+		text := strings.TrimSpace(formatting.ExtractTextFromContent(entry.Message.Content, entry.Images))
+		if entry.Message.Role == sdk.Tool {
+			t.writeSpeaker(content, toolResultLabel(entry))
+			if len(text) > maxToolResultBytes {
+				text = strings.ToValidUTF8(text[:maxToolResultBytes], "") + "\n(truncated)"
+			}
+		} else {
+			t.writeSpeaker(content, friendlyRoleLabel(string(entry.Message.Role)))
+		}
+		if text != "" {
+			writeIndented(content, text, textWidth)
+		}
+		if entry.Message.ToolCalls != nil {
+			for _, call := range *entry.Message.ToolCalls {
+				fmt.Fprintf(content, "  → %s\n", formatting.TruncateText(call.Function.Name+" "+call.Function.Arguments, textWidth))
+			}
+		}
+		content.WriteString("\n")
+	}
+}
+
+// toolResultLabel names a tool result turn by its tool and how the call went.
+func toolResultLabel(entry convdomain.ConversationEntry) string {
+	if entry.ToolExecution == nil {
+		return "Tool"
+	}
+	outcome := "✓"
+	if !entry.ToolExecution.Success {
+		outcome = "✗"
+	}
+	return fmt.Sprintf("Tool %s %s", entry.ToolExecution.ToolName, outcome)
 }
 
 // friendlyRoleLabel maps an ADK Role string to a tidy display label.
@@ -874,22 +971,7 @@ func (t *TaskView) renderFinalResult(content *strings.Builder, task TaskInfo) {
 // the detail panel. The output is bounded (truncated) so a chatty shell does
 // not blow up the viewport.
 func (t *TaskView) renderJobOutput(content *strings.Builder, task TaskInfo) {
-	accentColor := t.styleProvider.GetThemeColor("accent")
-	dimColor := t.styleProvider.GetThemeColor("dim")
-
-	content.WriteString("\n")
-
-	separatorWidth := t.getSeparatorWidth()
-	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", separatorWidth), dimColor)
-	content.WriteString(separator)
-	content.WriteString("\n")
-
-	outputHeader := t.styleProvider.RenderWithColorAndBold("Output", accentColor)
-	content.WriteString(outputHeader)
-	content.WriteString("\n")
-
-	content.WriteString(separator)
-	content.WriteString("\n\n")
+	t.writeDetailSection(content, "Output")
 
 	textWidth := max(t.infoViewport.Width()-4, 40)
 
