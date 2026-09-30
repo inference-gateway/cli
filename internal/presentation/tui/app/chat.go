@@ -123,6 +123,14 @@ type ChatApplication struct {
 	// with arrow-down when input-history navigation is idle.
 	statusBarFocused bool
 
+	// Keyboard focus on the job list below the status row, entered with
+	// arrow-down from that row. Enter swaps the transcript for the selected
+	// job's, which viewedJobID and viewedTranscript track.
+	jobListFocused   bool
+	viewedJobID      string
+	viewedTranscript []convdomain.ConversationEntry
+	transcriptStore  TranscriptStore
+
 	// Ctrl+R fuzzy prompt-history search overlay: holds key focus while open
 	// and renders above the input.
 	historySearchView    *components.HistorySearchView
@@ -639,6 +647,9 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 	if app.statusBarFocused && (inputBlocked || currentView != tui.ViewStateChat) {
 		app.blurStatusBar()
 	}
+	if app.jobListFocused && (inputBlocked || currentView != tui.ViewStateChat) {
+		app.blurJobList()
+	}
 
 	cmds := app.dispatchViewMessage(currentView, msg)
 
@@ -763,8 +774,14 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 	if _, ok := msg.(tui.FocusStatusBarEvent); ok {
 		if app.inputStatusBar.Focus() {
 			app.statusBarFocused = true
+			return cmds
 		}
+		app.focusJobList()
 		return cmds
+	}
+
+	if transcriptCmds, ok := app.handleJobTranscriptMsg(msg); ok {
+		return append(cmds, transcriptCmds...)
 	}
 
 	if _, ok := msg.(tui.HistorySearchOpenEvent); ok {
@@ -823,11 +840,9 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 		app.lastHandledKey = keyMsg.String()
 		return app.handleAttachmentsKeys(keyMsg)
 	}
-	if app.statusBarFocused && !key.Matches(keyMsg, guardKeys.interrupt) {
-		if cmds, handled := app.handleStatusBarKeys(keyMsg); handled {
-			app.lastHandledKey = keyMsg.String()
-			return cmds
-		}
+	if cmds, handled := app.handleFocusedRowKeys(keyMsg); handled {
+		app.lastHandledKey = keyMsg.String()
+		return cmds
 	}
 	if !app.attachmentsFocused && len(app.pendingSnippets) > 0 && app.matchesFocusAttachments(keyMsg) {
 		app.attachmentsFocused = true
@@ -903,6 +918,7 @@ func (app *ChatApplication) handleStatusBarKeys(keyMsg tea.KeyPressMsg) ([]tea.C
 		app.inputStatusBar.SelectNext()
 		return nil, true
 	case key.Matches(keyMsg, gk.statusHold):
+		app.focusJobList()
 		return nil, true
 	case key.Matches(keyMsg, gk.statusBlur):
 		app.blurStatusBar()
@@ -2165,7 +2181,7 @@ func (app *ChatApplication) toggleToolResultExpansion() {
 
 // updateMainUIComponents updates the main UI components (conversation, status, input, help bar)
 func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, activeView tui.ViewState, cmds *[]tea.Cmd) {
-	if model, cmd := app.conversationView.(tea.Model).Update(msg); cmd != nil {
+	if model, cmd := app.conversationView.(tea.Model).Update(app.keepViewedTranscript(msg)); cmd != nil {
 		*cmds = append(*cmds, cmd)
 		if convModel, ok := model.(tui.ConversationRenderer); ok {
 			app.conversationView = convModel

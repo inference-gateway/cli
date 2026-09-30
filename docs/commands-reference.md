@@ -314,6 +314,9 @@ select models and have conversations.
   `A2A:` indicator → agents view, `Tools:` indicator → available tools,
   background-jobs `⚙` indicator → task management), **↑**/**esc** return to the input, and
   typing any other key lands back in the input seamlessly
+- **↓** (on the status indicators, while background jobs are listed below them): Select the job list.
+  **↑**/**↓** pick a job, **enter** shows that job's transcript in place of the chat's, **esc** goes back to
+  the chat's transcript and then to the input
 
 **Agent Modes:**
 

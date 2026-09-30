@@ -18,6 +18,10 @@ system with better visibility into task status and history.
   lingers with a green `✓` or a red `✗` and its total duration, then drops
   (`chat.status_bar.subagent_linger_seconds`). `chat.status_bar.indicators.subagents` hides the list. A finished subagent also shows its
   [run stats](subagents.md#run-stats) on a child line under its row
+- The list is selectable. Press `↓` on the status indicators to move into it, `↑`/`↓` to pick a row and
+  `enter` to swap the transcript for that job's: a headless subagent's conversation so far, refreshed every
+  second, or the captured output of any other job. `esc` returns to the chat's own transcript, a second `esc` to
+  the input. Scroll keys keep working while a job is viewed, and typing returns to the input
 
 ### Task Management Interface (`/tasks`)
 

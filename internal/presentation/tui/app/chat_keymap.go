@@ -29,6 +29,9 @@ var guardKeys = struct {
 	statusHold key.Binding
 	statusBlur key.Binding
 
+	jobPrev key.Binding
+	jobNext key.Binding
+
 	questionToggle    key.Binding
 	questionBackspace key.Binding
 }{
@@ -47,6 +50,9 @@ var guardKeys = struct {
 	statusNext: key.NewBinding(key.WithKeys("right", "tab")),
 	statusHold: key.NewBinding(key.WithKeys("down")),
 	statusBlur: key.NewBinding(key.WithKeys("up", "esc")),
+
+	jobPrev: key.NewBinding(key.WithKeys("up")),
+	jobNext: key.NewBinding(key.WithKeys("down")),
 
 	questionToggle:    key.NewBinding(key.WithKeys(" ", "space")),
 	questionBackspace: key.NewBinding(key.WithKeys("backspace")),

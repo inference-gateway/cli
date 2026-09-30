@@ -373,3 +373,42 @@ func TestCompactCount(t *testing.T) {
 		}
 	}
 }
+
+func TestSubagentListSelection(t *testing.T) {
+	now := time.Now()
+	done := now.Add(-time.Minute)
+	list := newList(listOpts{linger: 5, indicator: true, jobs: []scheddomain.TrackedJob{
+		subagentJob("newest", scheddomain.JobRunning, now.Add(-time.Second), nil),
+		subagentJob("older", scheddomain.JobRunning, now.Add(-2*time.Second), nil),
+		subagentJob("finished", scheddomain.JobCompleted, now.Add(-2*time.Minute), &done),
+	}})
+
+	if _, ok := list.SelectedJob(); ok {
+		t.Fatal("an unfocused list has no selection")
+	}
+	if !list.Focus() {
+		t.Fatal("expected the list to take focus while rows are visible")
+	}
+	if job, _ := list.SelectedJob(); job.Meta.Label != "newest" {
+		t.Fatalf("focus should select the newest row, got %q", job.Meta.Label)
+	}
+	if list.SelectPrev() {
+		t.Error("the first row has no previous row")
+	}
+	if !list.SelectNext() || list.SelectNext() {
+		t.Error("expected one step down to the last running row and no further")
+	}
+	lines := strings.Split(plain(list.Render()), "\n")
+	if len(lines) != 3 || !strings.Contains(lines[1], "❯ older") || !strings.Contains(lines[2], "enter view") {
+		t.Fatalf("expected the marker on the selected row and a key hint below, got %q", lines)
+	}
+
+	list.SetViewing("job-finished")
+	if got := plain(list.Render()); !strings.Contains(got, "finished") || !strings.Contains(got, "esc back to chat") {
+		t.Errorf("a viewed row must stay past its linger window, got %q", got)
+	}
+	list.Blur()
+	if got := plain(list.Render()); strings.Contains(got, "finished") || strings.Contains(got, "❯") {
+		t.Errorf("blur should drop the marker and unpin the viewed row, got %q", got)
+	}
+}
