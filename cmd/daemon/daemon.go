@@ -245,9 +245,6 @@ func bindingAddress(cfg *config.Config) (port int, token string) {
 // bindingHandler puts the binding's two consumers behind its one handler. The
 // extension relay claims the browser frames, and the thread registry gets the
 // rest.
-// bindingHandler puts the binding's consumers behind its one handler. The
-// extension relay, attached only with the browser_use extension backend,
-// claims the browser frames; the thread registry gets the rest.
 type bindingHandler struct {
 	relay    *browserinfra.ExtensionRelay
 	registry *sessions.Registry
