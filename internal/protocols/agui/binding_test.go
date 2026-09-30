@@ -284,6 +284,22 @@ func TestDialSpeaksToABinding(t *testing.T) {
 	eventually(t, "the client to detach", func() bool { return client.DetachCallCount() == 1 })
 }
 
+func TestDialKeepsTheReservedHelloFieldsAheadOfHelloAttrs(t *testing.T) {
+	binding, host := testBinding(t)
+	attrs := map[string]string{"client": "impostor", "token": "wrong", "extension_version": "1.9.2"}
+	conn, err := agui.Dial(t.Context(), agui.DialConfig{Addr: binding.Addr(), Token: "test-token", Kind: "viewer", HelloAttrs: attrs, Handshake: testHandshake}, &aguimocks.FakeHandler{})
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	t.Cleanup(conn.Close)
+
+	eventually(t, "the host to attach the viewer", func() bool { return host.AttachCallCount() == 1 })
+	viewer := host.AttachArgsForCall(0)
+	if viewer.Kind() != "viewer" || viewer.HelloAttr("extension_version") != "1.9.2" {
+		t.Fatalf("host attached kind %q with extension_version %q, want the viewer declaring 1.9.2", viewer.Kind(), viewer.HelloAttr("extension_version"))
+	}
+}
+
 func TestDialReportsARejectedHello(t *testing.T) {
 	binding, _ := testBinding(t)
 	_, err := agui.Dial(t.Context(), agui.DialConfig{Addr: binding.Addr(), Token: "wrong", Handshake: testHandshake}, &aguimocks.FakeHandler{})

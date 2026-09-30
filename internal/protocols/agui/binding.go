@@ -338,12 +338,14 @@ func (b *Binding) Close() {
 }
 
 // DialConfig configures the dialing end. Kind is the client kind the hello
-// declares.
+// declares, and HelloAttrs the other fields it declares, e.g. a version the
+// host reports on.
 type DialConfig struct {
-	Addr      string
-	Token     string
-	Kind      string
-	Handshake Handshake
+	Addr       string
+	Token      string
+	Kind       string
+	HelloAttrs map[string]string
+	Handshake  Handshake
 }
 
 // Dial connects to a binding, performs the handshake and hands every frame the
@@ -359,7 +361,7 @@ func Dial(ctx context.Context, cfg DialConfig, handler Handler) (*Conn, error) {
 		return nil, err
 	}
 
-	c := newConn(ws, cfg.Kind, nil)
+	c := newConn(ws, cfg.Kind, cfg.HelloAttrs)
 	handler.Attach(c)
 	go func() {
 		c.serve(handler)
@@ -370,8 +372,16 @@ func Dial(ctx context.Context, cfg DialConfig, handler Handler) (*Conn, error) {
 }
 
 func sayHello(ws *websocket.Conn, cfg DialConfig) error {
-	version, _ := json.Marshal(protocolVersion)
-	if err := ws.WriteJSON(helloFrame{Type: cfg.Handshake.Hello, Token: cfg.Token, Client: cfg.Kind, ProtocolVersion: version}); err != nil {
+	hello := make(map[string]any, len(cfg.HelloAttrs)+4)
+	for key, value := range cfg.HelloAttrs {
+		hello[key] = value
+	}
+	hello["type"] = cfg.Handshake.Hello
+	hello["token"] = cfg.Token
+	hello["client"] = cfg.Kind
+	hello[protocolVersionField] = protocolVersion
+	raw, _ := json.Marshal(hello)
+	if err := ws.WriteMessage(websocket.TextMessage, raw); err != nil {
 		return fmt.Errorf("the binding on %s did not take the hello: %w", cfg.Addr, err)
 	}
 	_ = ws.SetReadDeadline(time.Now().Add(handshakeTimeout))

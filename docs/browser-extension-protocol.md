@@ -73,6 +73,27 @@ instead of refusing to work. Version 2 replaced the CLI's CUSTOM events and app
 frames with the standard AG-UI 1.0 ones: interrupts, run `usage`, the one state
 object, `ACTIVITY_SNAPSHOT` and `run_agent_input` frames.
 
+## Browser extension status
+
+CLI → client, the state of the extension connection, sent to every client that
+is not the extension: once when the client connects, and again whenever the
+extension attaches or detaches. The frame for a client that just connected names
+the state at that moment, so its first frame is always a status one:
+
+```json
+{"type": "browser_extension_status", "connected": true, "extension_version": "1.9.2", "protocol_version": 1}
+```
+
+- `connected` is whether an extension is attached right now.
+  `extension_version` is the version the attached extension declared in its
+  hello, and travels only while one is attached.
+- `protocol_version` is this frame's own schema version, independent of the
+  handshake's, for clients to gate what they render or how they parse the frame.
+
+There is deliberately no frame and no CUSTOM event for pausing or resuming
+browser use: a client stops the run, which ends with outcome `cancelled`, and
+continues with a new run on the thread.
+
 ## Browser commands (CLI → extension)
 
 One shape, six actions; only the fields relevant to the action are set.

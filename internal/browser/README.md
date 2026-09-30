@@ -17,7 +17,8 @@ layer instead of leaking into the agent.
   live in `infrastructure/extension_wire.go`.
 - `ExtensionRelay` is the host end. Behind the binding `infer daemon` hosts, it keeps the one extension
   connection, replaces it when the extension reconnects, and drives every `browser_command` through it one at a
-  time, because one browser serves every source.
+  time, because one browser serves every source. It also reports the extension's state to every other connection
+  as `browser_extension_status` frames, once when a connection joins and again on attach and detach.
 - `ExtensionClient` is the client end and the `ExtensionRequest` of `infer chat` and a standalone
   `infer headless`. It dials the binding as a `browser` client after its `EnsureHost` hook made a host listen. The
   container passes `daemon.EnsureRunning`, which starts the daemon on demand.

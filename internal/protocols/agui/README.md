@@ -21,8 +21,10 @@ Everything else imports it:
   token, which the binding never interprets either - the browser relay logs the extension's
   `extension_version` from there.
 - The handshake frame names, the token, the port and the accepted origins come in through `BindingConfig` and
-  `DialConfig`. `BindingConfig.Routes` registers optional non-WebSocket HTTP handlers, e.g. static files, under
-  the same loopback listener as `/ws`. They may serve files and know about clients, the binding does not.
+  `DialConfig`, whose `HelloAttrs` are the other hello fields a dialing client declares and the host can read
+  back with `HelloAttr`. `BindingConfig.Routes` registers optional non-WebSocket HTTP handlers, e.g. static
+  files, under the same loopback listener as `/ws`. They may serve files and know about clients, the binding
+  does not.
 - The AG-UI SDK stays confined here. `Message`, `Role`, `ToolCall` and `FunctionCall` are the types a caller
   builds a `MESSAGES_SNAPSHOT` from.
 

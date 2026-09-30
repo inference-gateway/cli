@@ -173,8 +173,9 @@ func (c *ExtensionClient) Detach(conn *agui.Conn) {
 }
 
 // notifyConnected moves the status bar's browser indicator.
-// ponytail: it only moves when a Browser tool runs. Have the host push
-// extension status frames to browser clients if it must be live.
+// ponytail: it only moves when a Browser tool runs. The host pushes
+// browser_extension_status frames to browser clients; taking them here is the
+// upgrade path when the indicator must be live.
 func (c *ExtensionClient) notifyConnected(connected bool) {
 	c.notifier.Notify(agentdomain.BrowserExtensionStatusEvent{Connected: connected})
 }
