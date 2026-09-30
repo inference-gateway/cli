@@ -301,7 +301,7 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 			statusText = "waiting for your input"
 		case tool.EndTime == nil:
 			elapsed := time.Since(tool.StartTime)
-			statusText = fmt.Sprintf("running %s", r.formatDuration(elapsed))
+			statusText = fmt.Sprintf("running %s", formatDuration(elapsed))
 		default:
 			statusText = "executing"
 		}
@@ -311,7 +311,7 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		statusIcon = icons.CheckMark
 		if tool.EndTime != nil {
 			duration := tool.EndTime.Sub(tool.StartTime)
-			statusText = fmt.Sprintf("completed in %s", r.formatDuration(duration))
+			statusText = fmt.Sprintf("completed in %s", formatDuration(duration))
 		} else {
 			statusText = "completed"
 		}
@@ -321,7 +321,7 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		statusIcon = icons.CrossMark
 		if tool.EndTime != nil {
 			duration := tool.EndTime.Sub(tool.StartTime)
-			statusText = fmt.Sprintf("failed after %s", r.formatDuration(duration))
+			statusText = fmt.Sprintf("failed after %s", formatDuration(duration))
 		} else {
 			statusText = "failed"
 		}
@@ -364,7 +364,7 @@ func (r *ToolCallRenderer) HasActivePreviews() bool {
 }
 
 // formatDuration formats a duration in a human-readable way (always in seconds with 1 decimal)
-func (r *ToolCallRenderer) formatDuration(d time.Duration) string {
+func formatDuration(d time.Duration) string {
 	seconds := d.Seconds()
 	if seconds < 60 {
 		return fmt.Sprintf("%.1fs", seconds)

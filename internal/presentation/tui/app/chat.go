@@ -82,6 +82,7 @@ type ChatApplication struct {
 	inputView            tui.InputComponent
 	autocomplete         tui.AutocompleteComponent
 	inputStatusBar       tui.InputStatusBarComponent
+	subagentList         *components.SubagentList
 	statusView           tui.StatusComponent
 	modeIndicator        *components.ModeIndicator
 	helpBar              tui.HelpBarComponent
@@ -275,6 +276,12 @@ func NewChatApplication(
 			isb.SetBackgroundTaskRegistry(app.backgroundTaskRegistry)
 		}
 		isb.SetMessageQueue(app.messageQueue)
+	}
+
+	app.subagentList = components.NewSubagentList(styleProvider)
+	app.subagentList.SetConfig(app.config)
+	if app.backgroundTaskRegistry != nil {
+		app.subagentList.SetRegistry(app.backgroundTaskRegistry)
 	}
 
 	app.statusView = factory.CreateStatusView(app.themeService)
@@ -2031,6 +2038,7 @@ func (app *ChatApplication) renderChatInterface() string {
 		app.inputView,
 		app.autocomplete,
 		app.inputStatusBar,
+		app.subagentList,
 		app.statusView,
 		app.modeIndicator,
 		app.helpBar,
@@ -2198,6 +2206,9 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, activeView tui.V
 		}
 	}
 
+	if _, cmd := app.subagentList.Update(msg); cmd != nil {
+		*cmds = append(*cmds, cmd)
+	}
 }
 
 func (app *ChatApplication) shouldSkipInputKeyUpdate(keyMsg tea.KeyPressMsg, activeView tui.ViewState) bool {
