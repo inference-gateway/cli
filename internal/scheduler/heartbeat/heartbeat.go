@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -160,8 +161,9 @@ func (s *Service) fireGuarded() {
 }
 
 // fire spawns a single `infer headless --heartbeat` subprocess (via the shared
-// agentrunner) and streams its stdout to the logger. Each fire gets a fresh
-// UUID session ID so no context carries between ticks.
+// agentrunner) and streams its stdout to the logger. The subprocess logs JSON
+// to stderr, which the daemon collects into its log with the run's tags. Each
+// fire gets a fresh UUID session ID so no context carries between ticks.
 func (s *Service) fire(ctx context.Context) error {
 	sessionID := uuid.New().String()
 	logger.Info("heartbeat tick - spawning agent",
@@ -176,12 +178,15 @@ func (s *Service) fire(ctx context.Context) error {
 		Prompt:     s.cfg.Prompt,
 		Model:      s.cfg.Model,
 		Heartbeat:  true,
+		ExtraEnv:   []string{logger.ChildStderrJSONEnv + "=true"},
 		OnLine: func(line []byte) {
 			if msg := strings.TrimSpace(string(line)); msg != "" {
 				logger.Info("heartbeat agent output", "session_id", sessionID, "line", msg)
 			}
 		},
 	})
+	cwd, _ := os.Getwd()
+	logger.CollectChildStderr(strings.NewReader(res.Stderr), "project_dir", cwd, "conversation_id", sessionID, "worker_pid", res.Pid)
 	if err != nil {
 		if res.Stderr != "" {
 			return fmt.Errorf("%w: %s", err, strings.TrimSpace(res.Stderr))

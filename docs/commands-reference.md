@@ -505,6 +505,12 @@ Run the long-lived daemon. It hosts whichever subsystems are enabled and refuses
 INFER_BROWSER_USE_ENABLED=true INFER_BROWSER_USE_BACKEND=extension infer daemon
 ```
 
+The daemon logs JSON to `~/.infer/logs/daemon-<date>.log` (`logging.dir` moves the directory). The session
+workers and one-shot job runs it starts log JSON to stderr and keep no log file of their own: the daemon
+collects their stderr into the same log, each line tagged with its `project_dir`, `conversation_id` and
+`worker_pid`. Client connects and disconnects and the browser extension's attach and detach are logged
+there too.
+
 ---
 
 ## Utility Commands

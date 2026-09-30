@@ -133,8 +133,9 @@ func (r *Registry) Handle(c sessionsdomain.Client, frame []byte) {
 		r.answer(c, f.ToolCallID, frame)
 		return
 	}
-	w, err := r.route(c, f)
+	t, w, err := r.route(c, f)
 	if err != nil {
+		logRoutingFailure(f, t, err)
 		c.Deliver(runError("", err.Error()))
 		return
 	}
@@ -142,8 +143,26 @@ func (r *Registry) Handle(c sessionsdomain.Client, frame []byte) {
 		return
 	}
 	if err := w.Send(frame); err != nil {
+		if t != nil {
+			logger.Warn("sessions could not deliver a frame to the thread's worker", append(t.tags(), "frame", f.Type, "error", err)...)
+		}
 		c.Deliver(runError("", fmt.Sprintf("the session worker did not take the frame: %v", err)))
 	}
+}
+
+// logRoutingFailure logs a frame the registry could not route, with the
+// thread's tags when the frame reached one and the frame's own project dir
+// and conversation id otherwise, as far as the frame declared them.
+func logRoutingFailure(f clientFrame, t *thread, err error) {
+	if t != nil {
+		logger.Warn("sessions could not route a client frame to its thread", append(t.tags(), "frame", f.Type, "error", err)...)
+		return
+	}
+	args := []any{"frame", f.Type, "project_dir", f.ProjectDir, "error", err}
+	if f.Type == frameResumeConversation {
+		args = append(args, "conversation_id", f.ID)
+	}
+	logger.Warn("sessions has no thread for a client frame", args...)
 }
 
 // Detach drops a disconnected client. Its thread keeps running an open turn
@@ -174,39 +193,42 @@ func (r *Registry) Run(ctx context.Context) {
 	}
 }
 
-// route picks the frame's thread and returns the worker to send it to, nil
-// when the frame has nowhere to go.
-func (r *Registry) route(c sessionsdomain.Client, f clientFrame) (sessionsdomain.Worker, error) {
+// route picks the frame's thread and returns it along with the worker to
+// send to, nil worker when the frame has nowhere to go.
+func (r *Registry) route(c sessionsdomain.Client, f clientFrame) (*thread, sessionsdomain.Worker, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	switch {
 	case f.Type == frameNewSession || f.Type == frameResumeConversation:
 		t, err := r.openLocked(c, f)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		t.wait(frameMessagesSnapshot, c)
-		return r.workerLocked(t)
+		w, err := r.workerLocked(t)
+		return t, w, err
 	case forwarded[f.Type]:
 		t := r.subs[c]
 		if t == nil {
-			return nil, errNoThread
+			return nil, nil, errNoThread
 		}
 		if t.worker == nil && f.Type != frameUserMessage {
-			return nil, nil
+			return t, nil, nil
 		}
-		return r.workerLocked(t)
+		w, err := r.workerLocked(t)
+		return t, w, err
 	case replyTypes[f.Type] != nil:
 		t, err := r.pickLocked(c, f.ProjectDir)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, reply := range replyTypes[f.Type] {
 			t.wait(replyKey(reply, f.ID), c)
 		}
-		return r.workerLocked(t)
+		w, err := r.workerLocked(t)
+		return t, w, err
 	}
-	return nil, nil
+	return nil, nil, nil
 }
 
 // openLocked gets or creates the thread a new_session or resume_conversation
@@ -337,9 +359,14 @@ func (r *Registry) pump(t *thread, w sessionsdomain.Worker) {
 
 // relayBrowserCommand sends one worker browser_command to the extension and
 // writes the browser_result carrying the same id back to the worker's stdin, so
-// the worker's Browser tools resolve without binding a port.
+// the worker's Browser tools resolve without binding a port. A failed routing
+// is the thread's log record, since the relay itself never knows the thread.
 func (r *Registry) relayBrowserCommand(t *thread, w sessionsdomain.Worker, command []byte) {
-	if err := w.Send(r.browser(context.Background(), command)); err != nil {
+	result := r.browser(context.Background(), command)
+	if failure := browserResultFailure(result); failure != "" {
+		logger.Warn("sessions could not route a browser command for the thread", append(t.tags(), "error", failure)...)
+	}
+	if err := w.Send(result); err != nil {
 		logger.Debug("sessions could not answer a browser_command", "error", err)
 	}
 	r.mu.Lock()
@@ -347,6 +374,16 @@ func (r *Registry) relayBrowserCommand(t *thread, w sessionsdomain.Worker, comma
 		t.active = time.Now()
 	}
 	r.mu.Unlock()
+}
+
+// browserResultFailure extracts the error a failed browser_result carries,
+// empty when the relay answered a result.
+func browserResultFailure(result []byte) string {
+	var res struct {
+		Error string `json:"error"`
+	}
+	_ = json.Unmarshal(result, &res)
+	return res.Error
 }
 
 // isBrowserCommand reports whether a worker line is a browser_command frame,
@@ -491,6 +528,11 @@ func newThread(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) 
 		waiting: make(map[string][]sessionsdomain.Client),
 		active:  time.Now(),
 	}
+}
+
+// tags are the log tags carrying the thread's identity.
+func (t *thread) tags() []any {
+	return []any{"project_dir", t.key.ProjectDir, "conversation_id", t.key.ConversationID}
 }
 
 func (t *thread) wait(key string, c sessionsdomain.Client) {

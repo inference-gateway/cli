@@ -284,13 +284,13 @@ func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg chn.Inbo
 	senderMutex.Lock()
 	defer senderMutex.Unlock()
 
-	logger.Info("routing message to the thread", "channel", msg.ChannelName, "sender_id", msg.SenderID, "session", convdomain.FormatChannelSessionID(msg.ChannelName, msg.SenderID))
+	logger.Info("routing message to the thread", "channel", msg.ChannelName, "sender_id", msg.SenderID, "project_dir", projectDir, "conversation_id", convdomain.FormatChannelSessionID(msg.ChannelName, msg.SenderID))
 
 	start := time.Now()
 	err := cm.threadChatFor(ctx, senderKey, ch, msg.SenderID).deliverUserMessage(ctx, msg, projectDir, threadOpts)
 	cm.recordMessageProcessed(ctx, msg.ChannelName, time.Since(start), err)
 	if err != nil {
-		logger.Error("the thread did not take the message", "channel", msg.ChannelName, "sender_id", msg.SenderID, "error", err)
+		logger.Error("the thread did not take the message", "channel", msg.ChannelName, "sender_id", msg.SenderID, "project_dir", projectDir, "conversation_id", convdomain.FormatChannelSessionID(msg.ChannelName, msg.SenderID), "error", err)
 	}
 }
 

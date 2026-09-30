@@ -27,11 +27,12 @@ import (
 // worker's AG-UI renders as channel messages, and answers the interrupts
 // (tool approvals, user questions) the way the other clients do.
 type threadChat struct {
-	ctx       context.Context
-	manager   *ChannelManagerService
-	channel   chn.Channel
-	recipient string
-	sessionID string
+	ctx        context.Context
+	manager    *ChannelManagerService
+	channel    chn.Channel
+	recipient  string
+	sessionID  string
+	projectDir string
 
 	// frames carries the frames the registry delivers until the daemon
 	// stops. The render loop drains it; a full buffer drops the frame
@@ -61,14 +62,16 @@ func (cm *ChannelManagerService) threadChatFor(ctx context.Context, senderKey st
 	if cached, ok := cm.threadChats.Load(senderKey); ok {
 		return cached.(*threadChat)
 	}
+	_, projectDir, _, _ := cm.threadDriver()
 	t := &threadChat{
-		ctx:       ctx,
-		manager:   cm,
-		channel:   ch,
-		recipient: senderID,
-		sessionID: convdomain.FormatChannelSessionID(ch.Name(), senderID),
-		frames:    make(chan []byte, frameBuffer),
-		active:    time.Now(),
+		ctx:        ctx,
+		manager:    cm,
+		channel:    ch,
+		recipient:  senderID,
+		sessionID:  convdomain.FormatChannelSessionID(ch.Name(), senderID),
+		projectDir: projectDir,
+		frames:     make(chan []byte, frameBuffer),
+		active:     time.Now(),
 	}
 	t.markActive()
 	cm.threadChats.Store(senderKey, t)
@@ -273,7 +276,7 @@ func (t *threadChat) deliverText(content string) {
 		Timestamp:   time.Now(),
 	}
 	if err := t.channel.Send(t.ctx, out); err != nil {
-		logger.Error("failed to send the chat render", "channel", t.channel.Name(), "error", err)
+		logger.Error("failed to send the chat render", append(t.tags(), "channel", t.channel.Name(), "error", err)...)
 	}
 }
 
@@ -281,6 +284,11 @@ func (t *threadChat) deliverText(content string) {
 // under: the channel name and the recipient.
 func (t *threadChat) senderKey() string {
 	return fmt.Sprintf("%s-%s", t.channel.Name(), t.recipient)
+}
+
+// tags are the log tags carrying the chat thread's identity.
+func (t *threadChat) tags() []any {
+	return []any{"project_dir", t.projectDir, "conversation_id", t.sessionID}
 }
 
 // renderApproval surfaces one approval interrupt to the chat's user the
@@ -330,6 +338,6 @@ func (t *threadChat) sendInterrupt(resp any) {
 		return
 	}
 	if err := t.sendFrame(t.ctx, frame); err != nil {
-		logger.Error("failed to answer an interrupt", "recipient", t.recipient, "error", err)
+		logger.Error("failed to answer an interrupt", append(t.tags(), "recipient", t.recipient, "error", err)...)
 	}
 }

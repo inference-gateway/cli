@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -251,17 +252,22 @@ func (s *Service) persistRun(job *scheddomain.ScheduledJob) {
 
 // runAgent spawns `infer headless --session-id <sessionID> <prompt>` (via the
 // shared agentrunner) and forwards each stdout line through the run-event hook.
+// The job's subprocess logs JSON to stderr, which the daemon collects into its
+// log with the run's tags.
 func (s *Service) runAgent(ctx context.Context, job scheddomain.ScheduledJob, sessionID string) error {
+	cwd, _ := os.Getwd()
 	res, err := agentrunner.Run(ctx, agentrunner.Options{
 		BinaryPath: s.binaryPath,
 		Exec:       s.execCmd,
 		SessionID:  sessionID,
 		Prompt:     job.Prompt,
 		Model:      job.Model,
+		ExtraEnv:   []string{logger.ChildStderrJSONEnv + "=true"},
 		OnLine: func(line []byte) {
 			s.emit(job, scheddomain.RunEvent{Line: line})
 		},
 	})
+	logger.CollectChildStderr(strings.NewReader(res.Stderr), "project_dir", cwd, "conversation_id", sessionID, "worker_pid", res.Pid)
 	if err != nil {
 		if res.Stderr != "" {
 			return fmt.Errorf("%w: %s", err, strings.TrimSpace(res.Stderr))

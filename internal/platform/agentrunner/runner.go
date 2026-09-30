@@ -52,6 +52,9 @@ type Result struct {
 	// FinalAssistant is the last non-empty assistant message content seen on
 	// stdout - the harvested "answer" of the run.
 	FinalAssistant string
+	// Pid is the started process's id for the caller's log tags, zero when the
+	// process never started.
+	Pid int
 	// Stderr is the full captured standard error. It is never mirrored to the
 	// parent's terminal, which may be a live TUI.
 	Stderr string
@@ -96,6 +99,7 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 	if err := cmd.Start(); err != nil {
 		return result, fmt.Errorf("start agent: %w", err)
 	}
+	result.Pid = cmd.Process.Pid
 
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
