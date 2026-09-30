@@ -95,6 +95,11 @@ type SubagentResultFile struct {
 	Success        bool   `json:"success"`
 	Error          string `json:"error,omitempty"`
 	SessionID      string `json:"session_id,omitempty"`
+	// Done marks the write as the task's terminal turn. The interactive-subagent
+	// chat sets it on every completed turn (the task turn is the terminal one) so
+	// the parent monitor delivers one completion note and closes the pane instead
+	// of waiting at the prompt. Headless runs omit it and terminate by exiting.
+	Done bool `json:"done,omitempty"`
 }
 
 // WriteSubagentResultFile writes rf to path through a temp file and rename, so
@@ -148,6 +153,14 @@ type PaneObservation struct {
 	AwaitingApproval bool
 	// ApprovalSummary describes the pending tool call (name + args) when awaiting.
 	ApprovalSummary string
+	// Done is the result file's done flag: the subagent explicitly marked this
+	// write as its task's terminal turn.
+	Done bool
+	// HarvestFailed means the harvested turn was a failed terminal turn
+	// (the result file recorded Success=false).
+	HarvestFailed bool
+	// HarvestError is the error the subagent recorded for the harvested turn.
+	HarvestError string
 }
 
 // SubagentTracker tracks local subagents spawned by the Agent tool. It is a

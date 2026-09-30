@@ -1,5 +1,5 @@
 name: CloseSubagent
-description: Stop a subagent early or tidy a finished interactive pane. You do NOT need to close a subagent to receive its result - results arrive automatically when it finishes. Never CloseSubagent just to fetch a result or because its output looks empty; wait for the automatic notification. For an interactive subagent this folds in its last assistant message and kills the pane; for a headless one it cancels the subprocess. Pass the subagent_id from ListSubagents.
+description: Stop a subagent early. You do NOT need to close a subagent to receive its result - results arrive automatically when it finishes, and interactive subagent panes close themselves once they report done, fail, or idle out. Never CloseSubagent just to fetch a result or because its output looks empty; wait for the automatic notification or use SendSubagentInput to keep a pane alive. For an interactive subagent this folds in its last assistant message and kills the pane; for a headless one it cancels the subprocess. Pass the subagent_id from ListSubagents.
 parameters:
   type: object
   additionalProperties: false

@@ -123,13 +123,12 @@ func (j *headlessSubagentJob) Close() {
 }
 
 // interactiveSubagentJob monitors a live interactive subagent (a tmux pane
-// running `infer chat`) for its whole life. Run polls the pane and emits a
-// notification for each completed turn (and for pending approvals); it returns
-// only when the pane closes. This is the supervisor's replacement for the
-// SubagentPoller's interactive path - one persistent monitor instead of a
-// discovery ticker plus per-turn re-arming. The completion heuristic prefers the
-// authoritative result file (Harvested); screen stability is only an idle
-// fallback for a turn that produced no result file.
+// running `infer chat`) for its whole life. Run polls the pane, emitting a
+// notification for each harvested turn and for pending approvals, and returns
+// once the subagent reports done, fails, hits the idle timeout, or its pane
+// closes - each terminal outcome tears the subagent down inline. The completion
+// signal is the authoritative result file (done set); screen stability is only
+// an idle hint for a turn that produced no result file.
 type interactiveSubagentJob struct {
 	tool    *AgentTool
 	state   *scheddomain.SubagentState
@@ -139,13 +138,14 @@ type interactiveSubagentJob struct {
 	pollInterval time.Duration
 	grace        time.Duration
 	stableNeeded int
+	idleTimeout  time.Duration // 0 disables the idle auto-close
 
 	mu     sync.Mutex
 	output string
 }
 
 func newInteractiveSubagentJob(tool *AgentTool, state *scheddomain.SubagentState) *interactiveSubagentJob {
-	return &interactiveSubagentJob{
+	j := &interactiveSubagentJob{
 		tool:         tool,
 		state:        state,
 		inspect:      NewPaneInspector(),
@@ -153,6 +153,12 @@ func newInteractiveSubagentJob(tool *AgentTool, state *scheddomain.SubagentState
 		grace:        4 * time.Second,
 		stableNeeded: 3,
 	}
+	if tool != nil && tool.config != nil {
+		if secs := tool.config.Tools.Agent.Interactive.IdleTimeout; secs > 0 {
+			j.idleTimeout = time.Duration(secs) * time.Second
+		}
+	}
+	return j
 }
 
 // Meta describes the interactive subagent. It is Silent because each completed
@@ -172,8 +178,8 @@ func (j *interactiveSubagentJob) Meta() scheddomain.JobMeta {
 	}
 }
 
-// Run watches the pane until it closes, emitting each completed turn's output and
-// any pending-approval prompts.
+// Run watches the pane until it reports done, fails, hits the idle timeout, or
+// closes, emitting each completed turn's output and any pending-approval prompts.
 func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
 	logger.Debug("monitoring interactive subagent pane", "subagent_id", j.state.ID, "pane_id", j.state.PaneID, "session_id", j.state.SessionID)
 	ticker := time.NewTicker(j.pollInterval)
@@ -185,6 +191,7 @@ func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(scheddomain.
 	idleNotified := false
 	prevScreen := ""
 	stableTicks := 0
+	lastActivity := time.Now()
 
 	for {
 		select {
@@ -197,6 +204,7 @@ func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(scheddomain.
 			if obs.Gone || obs.Dead {
 				logger.Debug("interactive subagent pane closed", "subagent_id", j.state.ID, "pane_id", j.state.PaneID, "gone", obs.Gone, "dead", obs.Dead)
 				j.harvestTurn(obs.Harvested, &lastHarvest, emit)
+				j.teardown(scheddomain.SubagentCompleted)
 				return agentdomain.ToolExecutionResult{ToolName: ToolAgent, Success: true}
 			}
 
@@ -205,14 +213,20 @@ func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(scheddomain.
 					notifiedApproval = obs.ApprovalSummary
 					emit(scheddomain.JobSignal{Note: j.approvalMessage(obs.ApprovalSummary), Enqueue: true})
 				}
-				stableTicks, prevScreen = 0, obs.Screen
+				lastActivity, stableTicks, prevScreen = time.Now(), 0, obs.Screen
 				continue
 			}
 			notifiedApproval = ""
 
-			if obs.Harvested != "" && obs.Harvested != lastHarvest {
+			if body := strings.TrimSpace(obs.Harvested); body != "" && body != lastHarvest {
+				if obs.Done {
+					j.recordDoneTurn(obs, &lastHarvest, emit)
+					j.teardown(turnStatus(obs))
+					return agentdomain.ToolExecutionResult{ToolName: ToolAgent, Success: !obs.HarvestFailed}
+				}
 				j.harvestTurn(obs.Harvested, &lastHarvest, emit)
-				idleNotified, stableTicks, prevScreen = true, 0, obs.Screen
+				idleNotified = true
+				lastActivity, stableTicks, prevScreen = time.Now(), 0, obs.Screen
 				continue
 			}
 
@@ -224,11 +238,17 @@ func (j *interactiveSubagentJob) Run(ctx context.Context, emit func(scheddomain.
 				stableTicks++
 			} else {
 				stableTicks, idleNotified = 0, false
+				lastActivity = time.Now()
 			}
 			prevScreen = obs.Screen
 			if stableTicks >= j.stableNeeded && !idleNotified {
 				idleNotified = true
-				emit(scheddomain.JobSignal{Note: j.idleMessage(), Enqueue: true})
+				emit(scheddomain.JobSignal{Note: j.idleMessage(time.Since(lastActivity)), Enqueue: true})
+			}
+			if j.idleTimedOut(lastActivity) {
+				emit(scheddomain.JobSignal{Note: j.closedMessage(j.Output()), Enqueue: true})
+				j.teardown(scheddomain.SubagentCompleted)
+				return agentdomain.ToolExecutionResult{ToolName: ToolAgent, Success: true}
 			}
 		}
 	}
@@ -257,6 +277,41 @@ func (j *interactiveSubagentJob) Output() string {
 	return j.output
 }
 
+// recordDoneTurn records a terminal turn's output and emits its single
+// completion note; the monitor tears the subagent down right after. It keeps the
+// result file in place because teardown removes it.
+func (j *interactiveSubagentJob) recordDoneTurn(obs scheddomain.PaneObservation, last *string, emit func(scheddomain.JobSignal)) {
+	body := strings.TrimSpace(obs.Harvested)
+	*last = body
+	j.mu.Lock()
+	j.output = body
+	j.mu.Unlock()
+	logger.Debug("interactive subagent terminal turn harvested", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "failed", obs.HarvestFailed)
+	emit(scheddomain.JobSignal{Note: j.completedMessage(turnResultBody(obs)), Enqueue: true})
+}
+
+// turnResultBody renders the terminal turn's note body: the harvested answer
+// plus the recorded error when the turn failed.
+func turnResultBody(obs scheddomain.PaneObservation) string {
+	parts := make([]string, 0, 2)
+	if body := strings.TrimSpace(obs.Harvested); body != "" {
+		parts = append(parts, body)
+	}
+	if errText := strings.TrimSpace(obs.HarvestError); errText != "" {
+		parts = append(parts, "Error: "+errText)
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+// turnStatus maps a terminal turn to the tracker status it records: a failed
+// turn marks the subagent failed, a done one completed.
+func turnStatus(obs scheddomain.PaneObservation) scheddomain.SubagentStatus {
+	if obs.HarvestFailed {
+		return scheddomain.SubagentFailed
+	}
+	return scheddomain.SubagentCompleted
+}
+
 // Wind kills the pane on WindStop (which makes Run observe Gone and return);
 // WindWrapUp is a no-op (no graceful wind-down for a user-driven pane).
 func (j *interactiveSubagentJob) Wind(ctx context.Context, sig scheddomain.WindSignal) error {
@@ -266,23 +321,76 @@ func (j *interactiveSubagentJob) Wind(ctx context.Context, sig scheddomain.WindS
 	return nil
 }
 
-// Close tears the subagent down on reap: kill the (remain-on-exit) pane, remove
-// temp files, and drop it from the tracker.
+// Close drops the subagent from the tracker on reap. The monitor's teardown
+// has already killed the pane and removed the temp files, so this is idempotent.
 func (j *interactiveSubagentJob) Close() {
-	logger.Debug("closing interactive subagent, killing pane", "subagent_id", j.state.ID, "pane_id", j.state.PaneID, "session_id", j.state.SessionID)
+	logger.Debug("closing interactive subagent, dropping tracker entry", "subagent_id", j.state.ID, "pane_id", j.state.PaneID, "session_id", j.state.SessionID)
+	_ = j.tool.tracker.RemoveSubagent(j.state.ID)
+}
+
+// teardown closes an interactive subagent inline once the monitor decides the
+// pane is no longer needed: the subagent reported done or failed, the idle
+// timeout expired, or the pane itself disappeared. It kills the
+// (remain-on-exit) pane, removes the temp files and records the terminal status;
+// reap's Close later drops the tracker entry, and both paths are idempotent.
+func (j *interactiveSubagentJob) teardown(status scheddomain.SubagentStatus) {
+	logger.Debug("tearing down interactive subagent", "subagent_id", j.state.ID, "pane_id", j.state.PaneID, "session_id", j.state.SessionID, "status", string(status))
 	_ = tmuxKillPane(context.Background(), j.state.PaneID)
 	_ = os.Remove(subagentResultFilePath(j.state.SessionID))
 	_ = os.Remove(subagentApprovalFilePath(j.state.SessionID))
-	_ = j.tool.tracker.RemoveSubagent(j.state.ID)
+	if j.tool == nil {
+		return
+	}
+	if err := j.tool.tracker.SetSubagentStatus(j.state.ID, status); err != nil {
+		logger.Debug("interactive subagent status update skipped", "subagent_id", j.state.ID, "error", err)
+	}
 }
 
 func (j *interactiveSubagentJob) completedMessage(body string) string {
 	return fmt.Sprintf("[Subagent Completed: %s]\n\n%s", labelOrSession(j.state.Label, j.state.SessionID), body)
 }
 
-func (j *interactiveSubagentJob) idleMessage() string {
-	return fmt.Sprintf("[Subagent Completed: %s]\n\n(No final message was captured - the subagent ended its turn without output or is waiting for input. Use ReadSubagentScreen to inspect it, SendSubagentInput to re-prompt it, or CloseSubagent to stop it. Do not assume it failed or produced nothing.)",
+// idleTimedOut reports whether the pane has sat inactive - no harvested turn,
+// unchanged screen, no pending approval - past the configured idle timeout.
+// A zero timeout disables the auto-close.
+func (j *interactiveSubagentJob) idleTimedOut(lastActivity time.Time) bool {
+	return j.idleTimeout > 0 && time.Since(lastActivity) >= j.idleTimeout
+}
+
+// idleMessage is the no-output fallback for a frozen, never-harvested pane. It
+// warns instead of masquerading as a completion, and names the pending auto-close
+// so the parent can intercede with SendSubagentInput first.
+func (j *interactiveSubagentJob) idleMessage(idleFor time.Duration) string {
+	content := fmt.Sprintf("[Subagent Idle: %s]\n\nThe subagent ended its turn without output or is waiting for input. Do not assume it failed or produced nothing: use ReadSubagentScreen to inspect it or SendSubagentInput to re-prompt it.",
 		labelOrSession(j.state.Label, j.state.SessionID))
+	if j.idleTimeout > 0 {
+		remaining := j.idleTimeout - idleFor
+		if remaining < 0 {
+			remaining = 0
+		}
+		content += fmt.Sprintf(" It will be closed in %s unless it reports done or receives input.", secondsPhrase(remaining))
+	}
+	return content
+}
+
+// secondsPhrase renders a duration as a rounded-up second count, singular included.
+func secondsPhrase(d time.Duration) string {
+	secs := int((d + time.Second - 1) / time.Second)
+	if secs <= 1 {
+		return "1 second"
+	}
+	return fmt.Sprintf("%d seconds", secs)
+}
+
+// closedMessage announces the idle-timeout close as one self-contained note,
+// carrying the last harvested message when there is one.
+func (j *interactiveSubagentJob) closedMessage(body string) string {
+	content := fmt.Sprintf("[Subagent Closed: %s]\n\nclosed after %s of inactivity without a done signal",
+		labelOrSession(j.state.Label, j.state.SessionID), secondsPhrase(j.idleTimeout))
+	if trimmed := strings.TrimSpace(body); trimmed != "" {
+		content += "\n\n" + trimmed
+	}
+	return content
 }
 
 func (j *interactiveSubagentJob) approvalMessage(summary string) string {

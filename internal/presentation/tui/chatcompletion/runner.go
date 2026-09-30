@@ -205,8 +205,9 @@ func (r *Runner) HandleChatComplete(msg agentdomain.ChatCompleteEvent) tea.Cmd {
 // last assistant message back to the parent Agent tool. When launched as an
 // interactive subagent the parent sets INFER_SUBAGENT_RESULT_FILE; on each fully
 // completed turn (a final answer, no pending tool calls) we write the last
-// assistant message as a SubagentResultFile so the parent delivers the real
-// answer instead of scraping the tmux pane's chrome. A no-op for a normal chat.
+// assistant message as a SubagentResultFile with done set, because the task turn
+// - the only turn the parent dispatched - is terminal. The parent monitor then
+// delivers the answer and closes the pane. A no-op for a normal chat.
 //
 // The message comes from the conversation, not the event: ChatCompleteEvent.Message
 // is not populated (see publishChatComplete), but the assistant turn is already in
@@ -220,7 +221,7 @@ func (r *Runner) writeSubagentResultFile(msg agentdomain.ChatCompleteEvent) {
 	if answer == "" {
 		return
 	}
-	r.writeSubagentResult(path, scheddomain.SubagentResultFile{FinalAssistant: answer, Success: true})
+	r.writeSubagentResult(path, scheddomain.SubagentResultFile{FinalAssistant: answer, Success: true, Done: true})
 }
 
 // writeSubagentResultFileError records a failed terminal turn for an interactive
@@ -233,6 +234,7 @@ func (r *Runner) writeSubagentResultFileError(runErr error) {
 	rf := scheddomain.SubagentResultFile{
 		FinalAssistant: convdomain.LastAssistantText(r.conversationRepo.GetMessages()),
 		Success:        false,
+		Done:           true,
 	}
 	if runErr != nil {
 		rf.Error = runErr.Error()

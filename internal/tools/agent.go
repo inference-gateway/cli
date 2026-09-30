@@ -366,11 +366,10 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 }
 
 // runInteractive launches each subagent in its own live `infer chat` tmux pane,
-// types in the task, and tracks it as a running interactive subagent. There is
-// no completion signal (the pane is a user-driven REPL), so this is
-// fire-and-track: it returns once the panes are launched. The main agent then
-// uses ListSubagents / GetSubagentResult / CloseSubagent to inspect and close
-// them.
+// types in the task, and tracks it as a running interactive subagent. This is
+// fire-and-track: it returns once the panes are launched. The supervisor then
+// monitors them; a done or failed result turn and the idle timeout each close
+// the pane, and SendSubagentInput re-prompts a live one.
 func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("launching interactive subagents", "tasks", len(specs), "parent_session", parentSession)
 	launched := make([]AgentSubResult, 0, len(specs))

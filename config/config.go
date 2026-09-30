@@ -603,6 +603,10 @@ type AgentToolConfig struct {
 type AgentInteractiveConfig struct {
 	Layout   string `yaml:"layout" mapstructure:"layout"`     // vertical | horizontal | window
 	Fallback string `yaml:"fallback" mapstructure:"fallback"` // headless | error (when not inside tmux)
+	// IdleTimeout closes an interactive subagent's pane automatically after this
+	// many seconds of inactivity (no harvested turn, frozen screen, no pending
+	// approval) when it has not reported done. 0 disables the auto-close.
+	IdleTimeout int `yaml:"idle_timeout" mapstructure:"idle_timeout"`
 }
 
 // QueryAgentToolConfig contains Query-specific tool settings
@@ -1329,8 +1333,9 @@ func DefaultConfig() *Config { //nolint:funlen
 				InheritMock:        true,
 				CompletedRetention: 5,
 				Interactive: AgentInteractiveConfig{
-					Layout:   "vertical",
-					Fallback: "headless",
+					Layout:      "vertical",
+					Fallback:    "headless",
+					IdleTimeout: 300,
 				},
 			},
 			Safety: SafetyConfig{
