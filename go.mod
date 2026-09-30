@@ -62,11 +62,12 @@ require (
 require (
 	github.com/deckarep/golang-set/v2 v2.8.0 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/vcaesar/go-wayland v0.40.0 // indirect
 )
 
 require (
-	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260805190036-2a57151d9e7b
+	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260930095821-4c972f82b519
 	github.com/sirupsen/logrus v1.9.3 // indirect
 )
 

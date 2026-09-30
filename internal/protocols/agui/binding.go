@@ -19,9 +19,11 @@ import (
 )
 
 // protocolVersion is the wire contract version the hello and its ack report.
-// The handshake is lenient: clients show an update state on a mismatch, and the
-// binding never rejects a hello over its version.
-const protocolVersion = 1
+// Version 2 replaces the CLI's CUSTOM events and app frames with the standard
+// AG-UI ones: interrupts, run usage, the one state object, ACTIVITY_SNAPSHOT
+// and RunAgentInput frames. The handshake is lenient: clients show an update
+// state on a mismatch, and the binding never rejects a hello over its version.
+const protocolVersion = 2
 
 // handshakeTimeout bounds the hello and its ack on a fresh socket.
 const handshakeTimeout = 5 * time.Second
