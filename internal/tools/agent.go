@@ -359,6 +359,9 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 			err = fmt.Errorf("%s", rf.Error)
 		}
 	}
+	if err != nil && strings.TrimSpace(res.Stderr) != "" {
+		err = fmt.Errorf("%w: %s", err, stderrTail(res.Stderr, 500))
+	}
 	return answer, err
 }
 
@@ -441,6 +444,14 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 
 // labelOrSession returns label, or a short session id when the label is blank,
 // for use in user-facing notes.
+func stderrTail(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	return "..." + s[len(s)-n:]
+}
+
 func labelOrSession(label, sessionID string) string {
 	if label != "" {
 		return label
