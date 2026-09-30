@@ -563,31 +563,20 @@ func usageEntry(t *testing.T, value any, got string) map[string]any {
 	return entry
 }
 
-// wireActivity is the slice of an ACTIVITY_SNAPSHOT event the render tests
-// assert on.
-type wireActivity struct {
-	MessageID    string         `json:"messageId"`
-	ActivityType string         `json:"activityType"`
-	Content      map[string]any `json:"content"`
+// activitySnapshots keeps the ACTIVITY_SNAPSHOT events of a rendered run.
+func activitySnapshots(t *testing.T, out string) []wireEvent {
+	t.Helper()
+	return slices.DeleteFunc(decodeEvents(t, out), func(ev wireEvent) bool { return ev.Type != "ACTIVITY_SNAPSHOT" })
 }
 
-// activitySnapshots decodes every ACTIVITY_SNAPSHOT of a rendered run.
-func activitySnapshots(t *testing.T, out string) []wireActivity {
+// activityContent decodes the object content of an ACTIVITY_SNAPSHOT.
+func activityContent(t *testing.T, ev wireEvent) map[string]any {
 	t.Helper()
-	var list []wireActivity
-	for line := range strings.Lines(out) {
-		var ev struct {
-			Type string `json:"type"`
-			wireActivity
-		}
-		if err := json.Unmarshal([]byte(line), &ev); err != nil {
-			t.Fatalf("line is not one JSON event: %v\n%s", err, line)
-		}
-		if ev.Type == "ACTIVITY_SNAPSHOT" {
-			list = append(list, ev.wireActivity)
-		}
+	var content map[string]any
+	if err := json.Unmarshal(ev.Content, &content); err != nil {
+		t.Fatalf("ACTIVITY_SNAPSHOT content is not an object: %v\n%s", err, ev.Content)
 	}
-	return list
+	return content
 }
 
 func TestRender_ComputerUseActionsSurfaceAsActivity(t *testing.T) {
@@ -604,30 +593,30 @@ func TestRender_ComputerUseActionsSurfaceAsActivity(t *testing.T) {
 	if len(activities) != 2 {
 		t.Fatalf("ACTIVITY_SNAPSHOT count = %d, want one per computer-use action:\n%s", len(activities), out.String())
 	}
-	pointer := activities[0]
+	pointer, pointerContent := activities[0], activityContent(t, activities[0])
 	if pointer.MessageID != "computer_use:tc-pointer" || pointer.ActivityType != "computer_use" {
 		t.Fatalf("pointer activity = %+v, want computer_use keyed computer_use:tc-pointer", pointer)
 	}
 	for key, want := range map[string]any{
 		"toolCallId": "tc-pointer", "action": "click", "x": float64(640), "y": float64(512), "screenWidth": float64(1920), "screenHeight": float64(1080),
 	} {
-		if got := pointer.Content[key]; got != want {
+		if got := pointerContent[key]; got != want {
 			t.Errorf("pointer content[%q] = %v, want %v\n%s", key, got, want, out.String())
 		}
 	}
-	keyboard := activities[1]
+	keyboard, keyboardContent := activities[1], activityContent(t, activities[1])
 	if keyboard.MessageID != "computer_use:tc-keyboard" || keyboard.ActivityType != "computer_use" {
 		t.Fatalf("keyboard activity = %+v, want computer_use keyed computer_use:tc-keyboard", keyboard)
 	}
 	for key, want := range map[string]any{
 		"toolCallId": "tc-keyboard", "action": "key", "screenWidth": float64(1920), "screenHeight": float64(1080),
 	} {
-		if got := keyboard.Content[key]; got != want {
+		if got := keyboardContent[key]; got != want {
 			t.Errorf("keyboard content[%q] = %v, want %v\n%s", key, got, want, out.String())
 		}
 	}
 	for _, absent := range []string{"x", "y"} {
-		if _, ok := keyboard.Content[absent]; ok {
+		if _, ok := keyboardContent[absent]; ok {
 			t.Errorf("the keyboard action carries %q on the wire, want it absent:\n%s", absent, out.String())
 		}
 	}

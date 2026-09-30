@@ -105,7 +105,7 @@ func (e *Executor) Do(ctx context.Context, a computerdomain.Action) (*computerdo
 		if len(a.Text) > maxTypeTextLength {
 			return nil, fmt.Errorf("text exceeds the %d character limit", maxTypeTextLength)
 		}
-		e.activity(ctx, a.Kind, 0, 0, screenW, screenH)
+		e.publishActivity(ctx, a.Kind, 0, 0, screenW, screenH)
 		if err = controller.TypeText(ctx, a.Text, 0); err == nil {
 			obs.Message = fmt.Sprintf("typed %d characters", len(a.Text))
 		}
@@ -113,7 +113,7 @@ func (e *Executor) Do(ctx context.Context, a computerdomain.Action) (*computerdo
 		if a.Combo == "" {
 			return nil, fmt.Errorf("key action requires combo")
 		}
-		e.activity(ctx, a.Kind, 0, 0, screenW, screenH)
+		e.publishActivity(ctx, a.Kind, 0, 0, screenW, screenH)
 		if err = controller.SendKeyCombo(ctx, a.Combo); err == nil {
 			obs.Message = "pressed " + a.Combo
 		}
@@ -226,10 +226,10 @@ func scaleAccessibilityElements(elements []computerdomain.UIElement, frameW, fra
 	}
 }
 
-// activity reports the action the executor is about to perform as the
+// publishActivity reports the action the executor is about to perform as the
 // computer-use activity, with its target in screen coordinates, so a client
 // renders it live instead of parsing tool payloads.
-func (e *Executor) activity(ctx context.Context, action computerdomain.ActionKind, x, y, screenW, screenH int) {
+func (e *Executor) publishActivity(ctx context.Context, action computerdomain.ActionKind, x, y, screenW, screenH int) {
 	e.notifier.Notify(agentdomain.ComputerUseActionEvent{
 		ToolCallID:   agentdomain.GetToolCallID(ctx),
 		Action:       string(action),
@@ -250,7 +250,7 @@ func (e *Executor) pointer(ctx context.Context, controller display.DisplayContro
 	if err != nil {
 		return err
 	}
-	e.activity(ctx, a.Kind, x, y, screenW, screenH)
+	e.publishActivity(ctx, a.Kind, x, y, screenW, screenH)
 	if err := controller.MoveMouse(ctx, x, y); err != nil {
 		return err
 	}

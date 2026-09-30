@@ -39,8 +39,11 @@ type wireEvent struct {
 		Type       string          `json:"type"`
 		Interrupts []wireInterrupt `json:"interrupts"`
 	} `json:"outcome"`
-	Usage  []map[string]any `json:"usage"`
-	Result map[string]any   `json:"result"`
+	Usage        []map[string]any `json:"usage"`
+	Result       map[string]any   `json:"result"`
+	MessageID    string           `json:"messageId"`
+	ActivityType string           `json:"activityType"`
+	Content      json.RawMessage  `json:"content"`
 }
 
 // wireInterrupt is the slice of an interrupt the tests assert on.
