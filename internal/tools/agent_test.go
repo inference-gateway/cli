@@ -20,6 +20,7 @@ func newTestAgentTool(t *testing.T) *AgentTool {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = scheddomain.SubagentModeHeadless
+	cfg.Tools.Agent.Wait = true
 	tool, _ := newSupervisedAgentTool(t, cfg)
 	return tool
 }
@@ -168,10 +169,85 @@ func TestAgentTool_BlockingFanOutIsSupervised(t *testing.T) {
 	}
 }
 
+// TestAgentTool_DefaultIsAsync pins the default that keeps a turn moving: the
+// call returns at dispatch, while its subagents are still running.
+func TestAgentTool_DefaultIsAsync(t *testing.T) {
+	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	tool, _ := newSupervisedAgentTool(t, config.DefaultConfig())
+
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+		started <- struct{}{}
+		<-release
+		return agentrunner.Result{FinalAssistant: "answer:" + opts.Prompt}, nil
+	}
+
+	res, err := tool.Execute(t.Context(), map[string]any{
+		"tasks": []any{
+			map[string]any{"description": "task A", "label": "A"},
+			map[string]any{"description": "task B", "label": "B"},
+		},
+	})
+	if err != nil || res == nil || !res.Success {
+		t.Fatalf("Execute: res=%+v err=%v", res, err)
+	}
+	data, ok := res.Data.(AgentToolResult)
+	if !ok {
+		t.Fatalf("unexpected data type %T", res.Data)
+	}
+	if data.Wait || data.Dispatched != 2 {
+		t.Fatalf("wait=%v dispatched=%d, want an async dispatch of 2", data.Wait, data.Dispatched)
+	}
+	for range 2 {
+		<-started
+	}
+}
+
+func TestAgentTool_MaxParallelCap(t *testing.T) {
+	tests := []struct {
+		name     string
+		tasks    int
+		wantNote string
+	}{
+		{name: "at the default cap", tasks: 10},
+		{name: "one past the default cap", tasks: 11, wantNote: "1 task(s) dropped (max_parallel=10)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := newTestAgentTool(t)
+			tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+				return agentrunner.Result{FinalAssistant: "ok"}, nil
+			}
+
+			tasks := make([]any, tt.tasks)
+			for i := range tasks {
+				tasks[i] = map[string]any{"description": "task"}
+			}
+			res, err := tool.Execute(t.Context(), map[string]any{"tasks": tasks})
+			if err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			data, ok := res.Data.(AgentToolResult)
+			if !ok {
+				t.Fatalf("unexpected data type %T", res.Data)
+			}
+			if data.Dispatched != 10 {
+				t.Fatalf("dispatched = %d, want 10", data.Dispatched)
+			}
+			if data.Message != tt.wantNote {
+				t.Fatalf("message = %q, want %q", data.Message, tt.wantNote)
+			}
+		})
+	}
+}
+
 func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	cfg := config.DefaultConfig()
 	cfg.Tools.Agent.Mode = "interactive"
+	cfg.Tools.Agent.Wait = true
 	tool, _ := newSupervisedAgentTool(t, cfg)
 	tool.interactiveAvailable = func() bool { return false }
 	tool.launchPane = func(ctx context.Context, title, command string) (string, error) {
