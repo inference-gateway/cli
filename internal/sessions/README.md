@@ -41,7 +41,9 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
 - `infrastructure.LaunchWorker` is the worker adapter. It runs this binary as
   `headless --serve --require-approval` in the project dir, with the thread options as flags and `INFER_`
   env overrides. It stops the worker with an `interrupt` frame and stdin EOF, which works on every platform, so
-  the worker's gateway, MCP servers and containers shut down.
+  the worker's gateway, MCP servers and containers shut down. The worker logs JSON to stderr instead of keeping
+  a log file of its own, and the daemon collects its stderr into the daemon log with the thread's
+  `project_dir`, `conversation_id` and `worker_pid`.
 - `cmd/daemon` wires the registry behind the binding when `browser_use` is enabled with the extension
   backend.
 

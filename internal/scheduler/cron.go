@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -194,7 +193,7 @@ func (s *Service) fire(job scheddomain.ScheduledJob) {
 		Status:    scheddomain.RunStatusRunning,
 		StartedAt: now,
 	}
-	logger.Info("firing scheduled job", "id", job.ID, "session_id", run.SessionID)
+	logger.Info("firing scheduled job", "id", job.ID, "conversation_id", run.SessionID)
 	s.saveRun(run)
 
 	err := s.runAgent(ctx, job, run.SessionID)
@@ -231,7 +230,7 @@ func (s *Service) fire(job scheddomain.ScheduledJob) {
 // write must not abort the run itself.
 func (s *Service) saveRun(run *scheddomain.RunRecord) {
 	if err := s.runs.SaveRun(context.Background(), run); err != nil {
-		logger.Warn("failed to persist run record", "job_id", run.JobID, "session_id", run.SessionID, "error", err)
+		logger.Warn("failed to persist run record", "job_id", run.JobID, "conversation_id", run.SessionID, "error", err)
 	}
 }
 
@@ -264,7 +263,7 @@ func (s *Service) runAgent(ctx context.Context, job scheddomain.ScheduledJob, se
 	})
 	if err != nil {
 		if res.Stderr != "" {
-			return fmt.Errorf("%w: %s", err, strings.TrimSpace(res.Stderr))
+			return fmt.Errorf("%w: %s", err, res.Stderr)
 		}
 		return err
 	}

@@ -165,7 +165,7 @@ func (s *Service) fireGuarded() {
 func (s *Service) fire(ctx context.Context) error {
 	sessionID := uuid.New().String()
 	logger.Info("heartbeat tick - spawning agent",
-		"session_id", sessionID,
+		"conversation_id", sessionID,
 		"model", s.cfg.Model,
 	)
 
@@ -178,16 +178,16 @@ func (s *Service) fire(ctx context.Context) error {
 		Heartbeat:  true,
 		OnLine: func(line []byte) {
 			if msg := strings.TrimSpace(string(line)); msg != "" {
-				logger.Info("heartbeat agent output", "session_id", sessionID, "line", msg)
+				logger.Info("heartbeat agent output", "conversation_id", sessionID, "line", msg)
 			}
 		},
 	})
 	if err != nil {
 		if res.Stderr != "" {
-			return fmt.Errorf("%w: %s", err, strings.TrimSpace(res.Stderr))
+			return fmt.Errorf("%w: %s", err, res.Stderr)
 		}
 		return err
 	}
-	logger.Info("heartbeat tick complete", "session_id", sessionID)
+	logger.Info("heartbeat tick complete", "conversation_id", sessionID)
 	return nil
 }

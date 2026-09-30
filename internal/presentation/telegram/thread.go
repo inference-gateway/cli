@@ -27,11 +27,12 @@ import (
 // worker's AG-UI renders as channel messages, and answers the interrupts
 // (tool approvals, user questions) the way the other clients do.
 type threadChat struct {
-	ctx       context.Context
-	manager   *ChannelManagerService
-	channel   chn.Channel
-	recipient string
-	sessionID string
+	ctx        context.Context
+	manager    *ChannelManagerService
+	channel    chn.Channel
+	recipient  string
+	sessionID  string
+	projectDir string
 
 	// frames carries the frames the registry delivers until the daemon
 	// stops. The render loop drains it; a full buffer drops the frame
@@ -57,18 +58,19 @@ type threadChat struct {
 
 // threadChatFor returns the sender's render adapter, building and starting
 // its render loop on first use.
-func (cm *ChannelManagerService) threadChatFor(ctx context.Context, senderKey string, ch chn.Channel, senderID string) *threadChat {
+func (cm *ChannelManagerService) threadChatFor(ctx context.Context, senderKey string, ch chn.Channel, senderID, projectDir string) *threadChat {
 	if cached, ok := cm.threadChats.Load(senderKey); ok {
 		return cached.(*threadChat)
 	}
 	t := &threadChat{
-		ctx:       ctx,
-		manager:   cm,
-		channel:   ch,
-		recipient: senderID,
-		sessionID: convdomain.FormatChannelSessionID(ch.Name(), senderID),
-		frames:    make(chan []byte, frameBuffer),
-		active:    time.Now(),
+		ctx:        ctx,
+		manager:    cm,
+		channel:    ch,
+		recipient:  senderID,
+		sessionID:  convdomain.FormatChannelSessionID(ch.Name(), senderID),
+		projectDir: projectDir,
+		frames:     make(chan []byte, frameBuffer),
+		active:     time.Now(),
 	}
 	t.markActive()
 	cm.threadChats.Store(senderKey, t)
@@ -104,7 +106,7 @@ func (t *threadChat) Deliver(frame []byte) {
 	select {
 	case t.frames <- frame:
 	default:
-		logger.Debug("dropping a worker frame the chat is too busy to render", "recipient", t.recipient)
+		logger.Debug("dropping a worker frame the chat is too busy to render", append(t.tags(), "recipient", t.recipient)...)
 	}
 }
 
@@ -132,7 +134,7 @@ func (t *threadChat) deliverUserMessage(ctx context.Context, msg chn.InboundMess
 func encodeThreadFrame(t *threadChat, frame threadFrame) []byte {
 	data, err := json.Marshal(frame)
 	if err != nil {
-		logger.Error("failed to marshal a chat frame", "recipient", t.recipient, "error", err)
+		logger.Error("failed to marshal a chat frame", append(t.tags(), "recipient", t.recipient, "error", err)...)
 	}
 	return data
 }
@@ -182,7 +184,7 @@ func (t *threadChat) detachIdle() {
 	if t.manager.router != nil {
 		t.manager.router.Detach(t)
 	}
-	logger.Debug("detached an idle chat thread", "recipient", t.recipient)
+	logger.Debug("detached an idle chat thread", append(t.tags(), "recipient", t.recipient)...)
 }
 
 // DetachAll detaches every chat from its thread and stops the idle timers
@@ -230,7 +232,7 @@ func (t *threadChat) render(frame []byte) {
 		Value json.RawMessage `json:"value"`
 	}
 	if json.Unmarshal(frame, &envelope) != nil {
-		logger.Debug("dropping an undecodable worker frame", "recipient", t.recipient)
+		logger.Debug("dropping an undecodable worker frame", append(t.tags(), "recipient", t.recipient)...)
 		return
 	}
 
@@ -273,7 +275,7 @@ func (t *threadChat) deliverText(content string) {
 		Timestamp:   time.Now(),
 	}
 	if err := t.channel.Send(t.ctx, out); err != nil {
-		logger.Error("failed to send the chat render", "channel", t.channel.Name(), "error", err)
+		logger.Error("failed to send the chat render", append(t.tags(), "channel", t.channel.Name(), "error", err)...)
 	}
 }
 
@@ -281,6 +283,11 @@ func (t *threadChat) deliverText(content string) {
 // under: the channel name and the recipient.
 func (t *threadChat) senderKey() string {
 	return fmt.Sprintf("%s-%s", t.channel.Name(), t.recipient)
+}
+
+// tags are the log tags carrying the chat thread's identity.
+func (t *threadChat) tags() []any {
+	return []any{"project_dir", t.projectDir, "conversation_id", t.sessionID}
 }
 
 // renderApproval surfaces one approval interrupt to the chat's user the
@@ -326,10 +333,10 @@ func (t *threadChat) answerQuestion(value json.RawMessage) {
 func (t *threadChat) sendInterrupt(resp any) {
 	frame, err := json.Marshal(resp)
 	if err != nil {
-		logger.Error("failed to marshal an interrupt answer", "recipient", t.recipient, "error", err)
+		logger.Error("failed to marshal an interrupt answer", append(t.tags(), "recipient", t.recipient, "error", err)...)
 		return
 	}
 	if err := t.sendFrame(t.ctx, frame); err != nil {
-		logger.Error("failed to answer an interrupt", "recipient", t.recipient, "error", err)
+		logger.Error("failed to answer an interrupt", append(t.tags(), "recipient", t.recipient, "error", err)...)
 	}
 }

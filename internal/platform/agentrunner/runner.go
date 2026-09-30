@@ -2,7 +2,6 @@ package agentrunner
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"os/exec"
 
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // ExecFunc matches exec.CommandContext. It is a type alias (not a defined type)
@@ -52,15 +52,16 @@ type Result struct {
 	// FinalAssistant is the last non-empty assistant message content seen on
 	// stdout - the harvested "answer" of the run.
 	FinalAssistant string
-	// Stderr is the full captured standard error. It is never mirrored to the
-	// parent's terminal, which may be a live TUI.
+	// Stderr is the last plain line of standard error, the run's own error when
+	// it failed. The JSON log lines before it went to this process's log.
 	Stderr string
 }
 
 // Run spawns `infer headless ...`, streams stdout line-by-line, optionally brokers
-// tool approval over stdin, and returns the harvested final assistant message
-// plus captured stderr. The returned error is the subprocess setup/exit error;
-// callers format their own user-facing messages from it.
+// tool approval over stdin, and returns the harvested final assistant message.
+// The run logs JSON to stderr, collected into this process's log as it runs.
+// The returned error is the subprocess setup/exit error.
+// Callers format their own user-facing messages from it.
 func Run(ctx context.Context, opts Options) (Result, error) {
 	bin := opts.BinaryPath
 	if bin == "" {
@@ -72,7 +73,7 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 	}
 
 	cmd := execFn(ctx, bin, buildArgs(opts)...)
-	cmd.Env = append(os.Environ(), opts.ExtraEnv...)
+	cmd.Env = append(append(os.Environ(), opts.ExtraEnv...), logger.ChildStderrJSONEnv+"=true")
 
 	var result Result
 
@@ -90,12 +91,17 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 		}
 	}
 
-	var stderrBuf bytes.Buffer
-	cmd.Stderr = &stderrBuf
+	stderrReader, stderrWriter := io.Pipe()
+	cmd.Stderr = stderrWriter
 
 	if err := cmd.Start(); err != nil {
 		return result, fmt.Errorf("start agent: %w", err)
 	}
+	projectDir, _ := os.Getwd()
+	lastStderrLine := make(chan string, 1)
+	go func() {
+		lastStderrLine <- logger.CollectChildStderr(stderrReader, "project_dir", projectDir, "conversation_id", opts.SessionID, "worker_pid", cmd.Process.Pid)
+	}()
 
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
@@ -123,7 +129,8 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 
 	scanErr := scanner.Err()
 	waitErr := cmd.Wait()
-	result.Stderr = stderrBuf.String()
+	_ = stderrWriter.Close()
+	result.Stderr = <-lastStderrLine
 	if waitErr != nil {
 		return result, waitErr
 	}

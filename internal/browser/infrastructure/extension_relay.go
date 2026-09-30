@@ -10,6 +10,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
@@ -18,6 +19,9 @@ var errBrowserExtensionDisconnected = errors.New("the browser extension disconne
 // noExtensionConnected opens the error a command gets when no extension is
 // attached. A browser client reads it back to move its status indicator.
 const noExtensionConnected = "no browser extension connected"
+
+// extensionVersionAttr is the hello field naming the extension's version.
+const extensionVersionAttr = "extension_version"
 
 // ExtensionRelay is the host end of the browser RPC on a binding. It keeps the
 // one extension connection and drives every browser_command through it, one at
@@ -57,6 +61,7 @@ func (r *ExtensionRelay) Attach(conn *agui.Conn) {
 	if !isExtension(conn.Kind()) {
 		return
 	}
+	logger.Info("browser extension attached", "extension_version", conn.HelloAttr(extensionVersionAttr))
 	r.mu.Lock()
 	replaced := r.ext
 	r.ext = conn
@@ -80,6 +85,7 @@ func (r *ExtensionRelay) Detach(conn *agui.Conn) {
 	r.mu.Unlock()
 
 	if wasExtension {
+		logger.Info("browser extension detached", "extension_version", conn.HelloAttr(extensionVersionAttr))
 		r.notifyConnected(false)
 	}
 }
@@ -193,6 +199,7 @@ func (r *ExtensionRelay) relay(ctx context.Context, frame []byte) (json.RawMessa
 	ext := r.ext
 	if ext == nil {
 		r.mu.Unlock()
+		logger.Warn("browser command has no extension to route through", "port", r.port, "action", meta.Action)
 		return nil, fmt.Errorf("%s on port %d - install the opentask extension and set its bridge port/token to match browser_use.yaml", noExtensionConnected, r.port)
 	}
 	ch := make(chan json.RawMessage, 1)

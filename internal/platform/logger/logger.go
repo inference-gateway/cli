@@ -48,6 +48,10 @@ func Init(cfg Config) {
 
 // NewLogger creates a new configured logger instance
 func NewLogger(cfg Config) (*zap.Logger, error) {
+	if stderrJSONMode() {
+		return stderrJSONLogger(cfg)
+	}
+
 	logDir := cfg.LogDir
 	if logDir == "" {
 		logDir = config.DefaultLogsDir()

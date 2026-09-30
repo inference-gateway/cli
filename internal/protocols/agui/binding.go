@@ -37,6 +37,9 @@ const pingInterval = 20 * time.Second
 // its socket at least that fast, or it is closed for a reconnect.
 const outboundQueue = 64
 
+// protocolVersionField is the hello field naming the wire contract version.
+const protocolVersionField = "protocol_version"
+
 // Handshake names the first frame a client sends and the frame that acks it.
 type Handshake struct {
 	Hello string
@@ -66,18 +69,22 @@ type Handler interface {
 
 // Conn is one authenticated connection, on either end of the binding.
 type Conn struct {
-	ws        *websocket.Conn
-	kind      string
-	out       chan []byte
-	mu        sync.Mutex
-	done      chan struct{}
-	closeOnce sync.Once
+	ws   *websocket.Conn
+	kind string
+	// helloAttrs are the other fields the hello declared, client facts like a
+	// version the binding itself never interprets. The token is never among
+	// them.
+	helloAttrs map[string]string
+	out        chan []byte
+	mu         sync.Mutex
+	done       chan struct{}
+	closeOnce  sync.Once
 }
 
 // newConn wraps one authenticated socket and starts its writer goroutine, so
 // Deliver only queues frames and never waits on the socket.
-func newConn(ws *websocket.Conn, kind string) *Conn {
-	c := &Conn{ws: ws, kind: kind, out: make(chan []byte, outboundQueue), done: make(chan struct{})}
+func newConn(ws *websocket.Conn, kind string, helloAttrs map[string]string) *Conn {
+	c := &Conn{ws: ws, kind: kind, helloAttrs: helloAttrs, out: make(chan []byte, outboundQueue), done: make(chan struct{})}
 	go c.writeLoop()
 	return c
 }
@@ -85,6 +92,12 @@ func newConn(ws *websocket.Conn, kind string) *Conn {
 // Kind is the client kind the hello declared. The binding never interprets it.
 func (c *Conn) Kind() string {
 	return c.kind
+}
+
+// HelloAttr is one other field the hello declared, empty when the hello
+// omitted it.
+func (c *Conn) HelloAttr(key string) string {
+	return c.helloAttrs[key]
 }
 
 // Send writes one frame and reports the write's failure.
@@ -227,8 +240,9 @@ func (b *Binding) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = ws.SetReadDeadline(time.Now().Add(handshakeTimeout))
+	var helloRaw json.RawMessage
 	var hello helloFrame
-	if err := ws.ReadJSON(&hello); err != nil || hello.Type != b.cfg.Handshake.Hello ||
+	if ws.ReadJSON(&helloRaw) != nil || json.Unmarshal(helloRaw, &hello) != nil || hello.Type != b.cfg.Handshake.Hello ||
 		subtle.ConstantTimeCompare([]byte(hello.Token), []byte(b.cfg.Token)) != 1 {
 		logger.Warn("binding rejected a connection with a bad or missing hello")
 		_ = ws.Close()
@@ -243,8 +257,9 @@ func (b *Binding) handleWS(w http.ResponseWriter, r *http.Request) {
 		_ = ws.Close()
 		return
 	}
-	logger.Info("binding client connected", "client", hello.Client, "protocol_version", string(hello.ProtocolVersion))
-	b.adopt(newConn(ws, hello.Client))
+	c := newConn(ws, hello.Client, declaredHelloAttrs(helloRaw))
+	logger.Info("binding client connected", "client", c.kind, "protocol_version", c.HelloAttr(protocolVersionField))
+	b.adopt(c)
 }
 
 func (b *Binding) adopt(c *Conn) {
@@ -281,7 +296,29 @@ func (b *Binding) drop(c *Conn) {
 	b.mu.Unlock()
 
 	c.Close()
+	logger.Info("binding client disconnected", "client", c.kind, "protocol_version", c.HelloAttr(protocolVersionField))
 	b.handler.Detach(c)
+}
+
+// declaredHelloAttrs flattens the fields a hello declared that the binding
+// itself never interprets, so handlers can answer what the client declared.
+func declaredHelloAttrs(hello json.RawMessage) map[string]string {
+	var declared map[string]json.RawMessage
+	if json.Unmarshal(hello, &declared) != nil {
+		return nil
+	}
+	attrs := make(map[string]string, len(declared))
+	for key, value := range declared {
+		if key == "type" || key == "token" {
+			continue
+		}
+		var text string
+		if json.Unmarshal(value, &text) != nil {
+			text = string(value)
+		}
+		attrs[key] = text
+	}
+	return attrs
 }
 
 // Close shuts the server and every connection down. Each read loop then ends
@@ -320,7 +357,7 @@ func Dial(ctx context.Context, cfg DialConfig, handler Handler) (*Conn, error) {
 		return nil, err
 	}
 
-	c := newConn(ws, cfg.Kind)
+	c := newConn(ws, cfg.Kind, nil)
 	handler.Attach(c)
 	go func() {
 		c.serve(handler)

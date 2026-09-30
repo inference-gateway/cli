@@ -26,7 +26,7 @@ func newRenderChat(t *testing.T, cm *ChannelManagerService, ch *channelmocks.Fak
 			return nil
 		}
 	}
-	return cm.threadChatFor(context.Background(), "telegram-123", ch, "123")
+	return cm.threadChatFor(context.Background(), "telegram-123", ch, "123", "/proj")
 }
 
 // Deliver routes one inbound message to the chat's thread: the resume

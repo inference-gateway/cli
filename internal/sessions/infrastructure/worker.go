@@ -38,6 +38,7 @@ type processWorker struct {
 // LaunchWorker starts the session worker for a thread: this binary in serve
 // mode, in the thread's project dir so the project's config, storage, skills
 // and sandbox apply, with the thread's options as flags and env overrides.
+// The worker logs JSON to stderr, which the daemon collects into its log.
 func LaunchWorker(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) (sessionsdomain.Worker, error) {
 	bin, err := os.Executable()
 	if err != nil {
@@ -47,7 +48,6 @@ func LaunchWorker(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOption
 	cmd := exec.CommandContext(ctx, bin, workerArgs(key, opts)...)
 	cmd.Dir = key.ProjectDir
 	cmd.Env = append(os.Environ(), workerEnv(key, opts)...)
-	cmd.Stderr = os.Stderr
 	cmd.WaitDelay = workerStopGrace
 
 	stdin, err := cmd.StdinPipe()
@@ -60,13 +60,26 @@ func LaunchWorker(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOption
 		cancel()
 		return nil, err
 	}
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("piping the session worker's stderr: %w", err)
+	}
+	cmd.Stderr = stderrW
 	w := &processWorker{ctx: ctx, cancel: cancel, stdin: stdin, lines: make(chan []byte, 64), done: make(chan struct{})}
 	cmd.Cancel = w.hangUp
 	if err := cmd.Start(); err != nil {
 		cancel()
+		_ = stderrR.Close()
+		_ = stderrW.Close()
 		return nil, fmt.Errorf("starting the session worker: %w", err)
 	}
 
+	_ = stderrW.Close()
+	go func() {
+		defer func() { _ = stderrR.Close() }()
+		logger.CollectChildStderr(stderrR, "project_dir", key.ProjectDir, "conversation_id", key.ConversationID, "worker_pid", cmd.Process.Pid)
+	}()
 	go w.read(cmd, stdout, key)
 	return w, nil
 }
@@ -88,7 +101,7 @@ func workerArgs(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions)
 // PWD follows the project dir, since exec with an explicit Env leaves the
 // daemon's PWD in place and the project slug is derived from the working dir.
 func workerEnv(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) []string {
-	env := []string{"PWD=" + key.ProjectDir}
+	env := []string{"PWD=" + key.ProjectDir, logger.ChildStderrJSONEnv + "=true"}
 	if opts.SystemPrompt != "" {
 		env = append(env, "INFER_PROMPTS_AGENT_SYSTEM_PROMPT="+opts.SystemPrompt)
 	}
@@ -121,7 +134,7 @@ func (w *processWorker) read(cmd *exec.Cmd, stdout io.Reader, key sessionsdomain
 	}
 	close(w.lines)
 	if err := cmd.Wait(); err != nil && w.ctx.Err() == nil {
-		logger.Warn("session worker exited", "project_dir", key.ProjectDir, "conversation_id", key.ConversationID, "error", err)
+		logger.Warn("session worker exited", "project_dir", key.ProjectDir, "conversation_id", key.ConversationID, "worker_pid", cmd.Process.Pid, "error", err)
 	}
 }
 

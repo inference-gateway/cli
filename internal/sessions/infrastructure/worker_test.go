@@ -19,7 +19,7 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 		{
 			name:     "no options keep the project's config",
 			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1"},
-			wantEnv:  []string{"PWD=/work/proj"},
+			wantEnv:  []string{"PWD=/work/proj", "INFER_LOG_STDERR_JSON=true"},
 		},
 		{
 			name: "every option",
@@ -34,6 +34,7 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1", "--model", "openai/gpt-4o", "--mode", "plan"},
 			wantEnv: []string{
 				"PWD=/work/proj",
+				"INFER_LOG_STDERR_JSON=true",
 				"INFER_PROMPTS_AGENT_SYSTEM_PROMPT=be brief",
 				"INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS=use tabs",
 				"INFER_TOOLS_SANDBOX_DIRECTORIES=/work/proj\n/tmp/with space",
