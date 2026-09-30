@@ -340,6 +340,10 @@ telemetry:
   - **enabled**: Enable/disable the specific tool
   - **require_approval**: Override global safety setting for this tool (optional)
 - **tools.edit.strict_whitespace**: `false` (default) enables indentation-tolerant matching for Edit/MultiEdit; `true` requires byte-exact
+- **tools.agent.wait**: `false` (default) makes the Agent tool return as soon as its headless subagents are
+  dispatched, so later tool calls in the same turn run right away and each subagent reports back with its own
+  `[Subagent Completed: ...]` notification. `true` blocks the call until every subagent finishes and returns their
+  aggregated results (fan-out / fan-in). Interactive subagents never block. Env: `INFER_TOOLS_AGENT_WAIT`.
 - **tools.agent.idle_timeout**: Seconds an interactive (tmux-pane) subagent may sit idle - no harvested
   result turn, no pane change and no pending approval - before the parent monitor closes its pane automatically
   (default: `300`; `0` disables the auto-close). A subagent reports done on its task turn, which closes the pane
@@ -927,6 +931,8 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 - `INFER_TOOLS_WEB_FETCH_ENABLED`: Enable/disable WebFetch tool (default: `true`)
 - `INFER_TOOLS_WEB_SEARCH_ENABLED`: Enable/disable WebSearch tool (default: `true`)
 - `INFER_TOOLS_TODO_WRITE_ENABLED`: Enable/disable TodoWrite tool (default: `true`)
+- `INFER_TOOLS_AGENT_WAIT`: Block the Agent tool call until every headless subagent finishes instead of
+  returning at dispatch (default: `false`)
 - `INFER_TOOLS_AGENT_IDLE_TIMEOUT`: Close an interactive subagent's tmux pane after N seconds of
   inactivity without a done signal (default: `300`; `0` disables the auto-close)
 

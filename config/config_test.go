@@ -96,6 +96,9 @@ func testToolsDefaults(t *testing.T, cfg *Config) {
 	if got := cfg.Tools.Agent.CompletedRetention; got != 5 {
 		t.Errorf("Expected agent completed_retention default 5, got %d", got)
 	}
+	if cfg.Tools.Agent.Wait {
+		t.Error("Expected agent wait to default to false so the Agent tool does not block the turn")
+	}
 }
 
 func testWebSearchDefaults(t *testing.T, cfg *Config) {
