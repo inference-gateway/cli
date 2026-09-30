@@ -51,15 +51,9 @@ func newJobListTestApp(t *testing.T) (*ChatApplication, *tuimocks.FakeConversati
 	now := time.Now()
 	registry := &schedmocks.FakeBackgroundTaskRegistry{}
 	registry.SnapshotReturns([]scheddomain.TrackedJob{
-		{Meta: scheddomain.JobMeta{ID: "sub-1", Kind: scheddomain.JobKindSubagent, Label: "reviewer", StartedAt: now.Add(-time.Second)}, Status: scheddomain.JobRunning},
+		{Meta: scheddomain.JobMeta{ID: "sub-1", SessionID: "subagent-session", Kind: scheddomain.JobKindSubagent, Label: "reviewer", StartedAt: now.Add(-time.Second)}, Status: scheddomain.JobRunning},
 		{Meta: scheddomain.JobMeta{ID: "shell-1", Kind: scheddomain.JobKindShell, Detail: "npm run build", StartedAt: now.Add(-time.Minute)}, Status: scheddomain.JobRunning, Output: "building"},
 	})
-	registry.GetSubagentStub = func(id string) *scheddomain.SubagentState {
-		if id != "sub-1" {
-			return nil
-		}
-		return &scheddomain.SubagentState{ID: id, SessionID: "subagent-session", Mode: scheddomain.SubagentModeHeadless}
-	}
 
 	list := components.NewSubagentList(styles.NewProvider(styles.NewThemeProvider()))
 	list.SetRegistry(registry)

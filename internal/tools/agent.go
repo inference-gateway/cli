@@ -459,7 +459,8 @@ func labelOrSession(label, sessionID string) string {
 
 // buildChatPaneCommand assembles the shell command run inside the tmux pane: a
 // live `infer chat` using the parent model (via INFER_AGENT_MODEL so no model
-// dropdown appears) plus the depth guard and invocation metadata.
+// dropdown appears) plus the depth guard and invocation metadata. The chat runs
+// under the subagent's session ID, so the parent can read its conversation.
 func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, parentSession, sessionID string) string {
 	parts := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
 	if parentSession != "" {
@@ -490,7 +491,7 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, parentSession, sess
 
 	parts = append(parts, scheddomain.EnvSubagentResultFile+"="+shellQuote(subagentResultFilePath(sessionID)))
 	parts = append(parts, scheddomain.EnvSubagentApprovalFile+"="+shellQuote(subagentApprovalFilePath(sessionID)))
-	parts = append(parts, shellQuote(t.binary), "chat")
+	parts = append(parts, shellQuote(t.binary), "chat", "--session-id", shellQuote(sessionID))
 	return strings.Join(parts, " ")
 }
 

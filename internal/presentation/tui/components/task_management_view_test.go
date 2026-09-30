@@ -9,7 +9,12 @@ import (
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
+	tea "charm.land/bubbletea/v2"
+
+	sdk "github.com/inference-gateway/sdk"
+
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
@@ -320,5 +325,81 @@ func TestCancelTask_DispatchesByKind(t *testing.T) {
 	}
 	if reg.WindJobCallCount() != 2 {
 		t.Fatalf("subagent cancel must wind the supervised job")
+	}
+}
+
+// TestSubagentDetailPanel: a finished subagent's detail panel shows its stored
+// conversation and run stats, and falls back to the final answer without one.
+func TestSubagentDetailPanel(t *testing.T) {
+	calls := []sdk.ChatCompletionMessageToolCall{{Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: `{"file_path":"main.go"}`}}}
+	stored := []convdomain.ConversationEntry{
+		{Message: sdk.Message{Role: sdk.System, Content: sdk.NewMessageContent("system prompt")}},
+		{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("review the diff")}},
+		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent(""), ToolCalls: &calls}},
+		{Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("package main")}, ToolExecution: &agentdomain.ToolExecutionResult{ToolName: "Read", Success: true}},
+		{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("looks good")}},
+	}
+
+	tests := []struct {
+		name      string
+		sessionID string
+		stats     *scheddomain.SubagentRunStats
+		want      []string
+		notWant   []string
+	}{
+		{
+			name:      "stored conversation",
+			sessionID: "subagent-stored",
+			want:      []string{"Transcript", "User:", "review the diff", `→ Read {"file_path":"main.go"}`, "Tool Read ✓:", "package main", "looks good"},
+			notWant:   []string{"Output", "system prompt", "Tools:"},
+		},
+		{
+			name:      "no stored conversation",
+			sessionID: "subagent-missing",
+			want:      []string{"Output", "the final answer"},
+			notWant:   []string{"Transcript"},
+		},
+		{
+			name:    "run stats",
+			stats:   &scheddomain.SubagentRunStats{ToolsSucceeded: 3, ToolsFailed: 1, InputTokens: 1200, OutputTokens: 340},
+			want:    []string{"3 succeeded, 1 failed", "1200 in, 340 out", "the final answer"},
+			notWant: []string{"Transcript"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tm := NewTaskView(nil, createMockStyleProviderForTasks(), nil, nil)
+			tm.SetTranscriptLoader(func(sessionID string) []convdomain.ConversationEntry {
+				if sessionID == "subagent-stored" {
+					return stored
+				}
+				return nil
+			})
+			tm.Update(tea.WindowSizeMsg{Width: 100, Height: 60})
+			tm.Update(tui.TasksLoadedEvent{CompletedTasks: []any{jobToTaskInfo(scheddomain.TrackedJob{
+				Meta:   scheddomain.JobMeta{ID: "sub-1", SessionID: tt.sessionID, Kind: scheddomain.JobKindSubagent, Detail: "headless"},
+				Status: scheddomain.JobCompleted,
+				Output: "the final answer",
+				Stats:  tt.stats,
+			})}})
+
+			if _, cmd := tm.Update(tea.KeyPressMsg{Code: tea.KeyEnter}); cmd != nil {
+				tm.Update(cmd())
+			} else if tt.sessionID != "" {
+				t.Fatal("opening a subagent with a session must load its transcript")
+			}
+
+			got := tm.viewContent()
+			for _, want := range tt.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("detail panel is missing %q:\n%s", want, got)
+				}
+			}
+			for _, notWant := range tt.notWant {
+				if strings.Contains(got, notWant) {
+					t.Errorf("detail panel must not show %q:\n%s", notWant, got)
+				}
+			}
+		})
 	}
 }

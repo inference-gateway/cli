@@ -19,7 +19,7 @@ system with better visibility into task status and history.
   (`chat.status_bar.subagent_linger_seconds`). `chat.status_bar.indicators.subagents` hides the list. A finished subagent also shows its
   [run stats](subagents.md#run-stats) on a child line under its row
 - The list is selectable. Press `↓` on the status indicators to move into it, `↑`/`↓` to pick a row and
-  `enter` to swap the transcript for that job's: a headless subagent's conversation so far, refreshed every
+  `enter` to swap the transcript for that job's: a subagent's conversation so far, refreshed every
   second, or the captured output of any other job. `esc` returns to the chat's own transcript, a second `esc` to
   the input. Scroll keys keep working while a job is viewed, and typing returns to the input
 
@@ -50,6 +50,13 @@ When viewing task details (`i` key), you can see:
 - Current status
 - Start time and elapsed duration
 - Context ID (if available)
+- For a subagent, its [run stats](subagents.md#run-stats): tool calls succeeded and failed, input and output tokens
+- For a subagent, its transcript: the task, each assistant turn with the tools it called, and every tool result
+  (a long result is cut at 2 KB). It stays available for as long as the job is listed, and refreshes every second
+  while anything is running. An interactive subagent's pane runs under the subagent's session ID, so its
+  conversation is found the same way
+- For a shell, or a subagent whose conversation cannot be loaded (`storage.enabled: false`), the captured output
+  or final answer
 
 ### Task Retention
 

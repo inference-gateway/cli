@@ -1457,6 +1457,7 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 		if app.backgroundTaskRegistry != nil {
 			app.taskManager.SetBackgroundTaskRegistry(app.backgroundTaskRegistry)
 		}
+		app.taskManager.SetTranscriptLoader(app.storedTranscript)
 		if cmd := app.taskManager.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}

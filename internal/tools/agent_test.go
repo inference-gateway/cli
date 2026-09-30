@@ -312,6 +312,16 @@ func TestBuildChatPaneCommand_PassesResultFile(t *testing.T) {
 	}
 }
 
+// The pane's chat must run under the subagent's session ID, so its conversation
+// is stored where the parent can read it back.
+func TestBuildChatPaneCommand_PassesSessionID(t *testing.T) {
+	tool := newTestAgentTool(t)
+	got := tool.buildChatPaneCommand(AgentTaskSpec{}, "", "sess-xyz")
+	if !strings.HasSuffix(got, "chat --session-id 'sess-xyz'") {
+		t.Fatalf("expected the chat to run under the subagent's session; cmd = %q", got)
+	}
+}
+
 // buildChatPaneCommand must slugify the LLM-supplied label into a safe, dashcase
 // history name (no spaces, path separators, or traversal) and fall back to the
 // memory-only sentinel when there is no usable label - never the per-spawn session id.
