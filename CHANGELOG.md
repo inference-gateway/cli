@@ -5,6 +5,102 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.219.0](https://github.com/inference-gateway/cli/compare/v0.218.0...v0.219.0) (2026-09-30)
+
+### 🚀 Features
+
+* **headless:** add a --serve worker that runs one AG-UI run per user_message ([#1410](https://github.com/inference-gateway/cli/issues/1410)) ([fda79d0](https://github.com/inference-gateway/cli/commit/fda79d0e034cb01568299e7116680a6bd3a058c0)), closes [#1398](https://github.com/inference-gateway/cli/issues/1398), references [#1396](https://github.com/inference-gateway/cli/issues/1396) [#1397](https://github.com/inference-gateway/cli/issues/1397) [#1395](https://github.com/inference-gateway/cli/issues/1395)
+* **daemon:** centralize daemon, worker, channel and connection logs ([#1424](https://github.com/inference-gateway/cli/issues/1424)) ([36659ce](https://github.com/inference-gateway/cli/commit/36659cee204b642677f827c24c38a1ff7a18a299)), closes [#1402](https://github.com/inference-gateway/cli/issues/1402)
+* **daemon:** host the AG-UI WebSocket binding and supervise session workers ([#1411](https://github.com/inference-gateway/cli/issues/1411)) ([e884a25](https://github.com/inference-gateway/cli/commit/e884a2520f127ceafe2e2aebf96539035dde3c82)), closes [#1399](https://github.com/inference-gateway/cli/issues/1399), references [#1400](https://github.com/inference-gateway/cli/issues/1400) [#1401](https://github.com/inference-gateway/cli/issues/1401)
+* **tui:** open fuzzy prompt history search on ctrl+r and move markdown toggle to ctrl+m ([#1417](https://github.com/inference-gateway/cli/issues/1417)) ([7c16337](https://github.com/inference-gateway/cli/commit/7c16337e00352b715ca0e13e3c7afc5d4100c22b)), closes [#1412](https://github.com/inference-gateway/cli/issues/1412)
+* **telegram:** run Telegram sessions through daemon workers ([#1421](https://github.com/inference-gateway/cli/issues/1421)) ([11704eb](https://github.com/inference-gateway/cli/commit/11704ebdbf252f117d01be5696d94e2229486240)), closes [#1401](https://github.com/inference-gateway/cli/issues/1401), references [inference-gateway/docs#870](https://github.com/inference-gateway/docs/issues/870) [inference-gateway/desktop#367](https://github.com/inference-gateway/desktop/issues/367)
+* **daemon:** serve per-project artifacts over the AG-UI binding ([#1416](https://github.com/inference-gateway/cli/issues/1416)) ([7f48116](https://github.com/inference-gateway/cli/commit/7f48116339b0d214666de1511884c3dc6f607997)), closes [#1414](https://github.com/inference-gateway/cli/issues/1414), references [#1415](https://github.com/inference-gateway/cli/issues/1415) [inference-gateway/docs#866](https://github.com/inference-gateway/docs/issues/866)
+* **tui:** show turn duration and sub-agent timer below the composer ([#1420](https://github.com/inference-gateway/cli/issues/1420)) ([6361f6a](https://github.com/inference-gateway/cli/commit/6361f6a4a7ddf337e7cdd4631e5c04d82946273e)), closes [#1418](https://github.com/inference-gateway/cli/issues/1418)
+* **agui:** split the AG-UI encoder into a per-run type shared by stdout and the WebSocket binding ([#1407](https://github.com/inference-gateway/cli/issues/1407)) ([d0ec300](https://github.com/inference-gateway/cli/commit/d0ec300eb8ced3007ca573f0abeb71190a3bdfa9)), closes [#1397](https://github.com/inference-gateway/cli/issues/1397), references [#1396](https://github.com/inference-gateway/cli/issues/1396)
+
+### 🐛 Bug Fixes
+
+* route browser-use through the infer daemon and make agui a general-purpose protocol ([#1413](https://github.com/inference-gateway/cli/issues/1413)) ([e5a6570](https://github.com/inference-gateway/cli/commit/e5a65703717752dc7c9091fa6b854cf51bbd5e50)), closes [#1400](https://github.com/inference-gateway/cli/issues/1400), references [#1414](https://github.com/inference-gateway/cli/issues/1414)
+
+### ♻️ Code Refactoring
+
+* **agui:** host the extension socket behind a Request seam and fail pending requests fast ([#1406](https://github.com/inference-gateway/cli/issues/1406)) ([ff438f0](https://github.com/inference-gateway/cli/commit/ff438f0641fda29344bcea1fe1eae0012f987d99)), closes [#1395](https://github.com/inference-gateway/cli/issues/1395)
+
+### 🔧 Build System
+
+* **deps:** bump the gomod group with 6 updates ([#1423](https://github.com/inference-gateway/cli/issues/1423)) ([b27c380](https://github.com/inference-gateway/cli/commit/b27c3807975b31be672b49690ac0d5e4d965c805))
+
+### 🧹 Maintenance
+
+* **deps:** bump claude-code 2.1.280 -> 2.1.283 ([#1408](https://github.com/inference-gateway/cli/issues/1408)) ([15188b2](https://github.com/inference-gateway/cli/commit/15188b2485cb65f9d844c9952ca774737b5f87f7))
+* **deps:** bump infer CLI v0.208.0 -> v0.218.0 ([#1409](https://github.com/inference-gateway/cli/issues/1409)) ([0af417d](https://github.com/inference-gateway/cli/commit/0af417d2c82b84fb893b7af88d982213590dc949))
+* **flox:** update manifest lock ([e29d5c9](https://github.com/inference-gateway/cli/commit/e29d5c99e1cb9154f583a29be3b455e543d15069))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.219.0 --help
+npx @inference-gateway/cli@0.219.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.219.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.219.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.219.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.219.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.219.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.218.0](https://github.com/inference-gateway/cli/compare/v0.217.0...v0.218.0) (2026-09-28)
 
 ### 🚀 Features
