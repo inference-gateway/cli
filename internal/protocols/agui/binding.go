@@ -372,22 +372,15 @@ func Dial(ctx context.Context, cfg DialConfig, handler Handler) (*Conn, error) {
 }
 
 func sayHello(ws *websocket.Conn, cfg DialConfig) error {
-	hello := map[string]any{
-		"type":               cfg.Handshake.Hello,
-		"token":              cfg.Token,
-		"client":             cfg.Kind,
-		protocolVersionField: protocolVersion,
-	}
+	hello := make(map[string]any, len(cfg.HelloAttrs)+4)
 	for key, value := range cfg.HelloAttrs {
-		if key == "type" || key == "token" {
-			continue
-		}
 		hello[key] = value
 	}
-	raw, err := json.Marshal(hello)
-	if err != nil {
-		return fmt.Errorf("the hello of the binding on %s did not encode: %w", cfg.Addr, err)
-	}
+	hello["type"] = cfg.Handshake.Hello
+	hello["token"] = cfg.Token
+	hello["client"] = cfg.Kind
+	hello[protocolVersionField] = protocolVersion
+	raw, _ := json.Marshal(hello)
 	if err := ws.WriteMessage(websocket.TextMessage, raw); err != nil {
 		return fmt.Errorf("the binding on %s did not take the hello: %w", cfg.Addr, err)
 	}
