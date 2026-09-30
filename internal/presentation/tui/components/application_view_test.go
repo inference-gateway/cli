@@ -4,10 +4,14 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // stubModeState is the three-method agent-mode surface the indicator reads.
@@ -25,6 +29,17 @@ type stubStatusView struct {
 }
 
 func (s stubStatusView) Render() string { return s.rendered }
+
+// stubInputView is the single-method input surface the component assembler reads.
+type stubInputView struct{ tui.InputComponent }
+
+func (stubInputView) GetInput() string { return "" }
+
+// stubHelpBar keeps the help-bar slot empty without wiring the real bar.
+type stubHelpBar struct{ tui.HelpBarComponent }
+
+func (stubHelpBar) SetWidth(int)   {}
+func (stubHelpBar) Render() string { return "" }
 
 var ansiEscape = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
@@ -137,5 +152,45 @@ func TestStatusRowSharesOneLineWithMode(t *testing.T) {
 				t.Errorf("status %q must share the mode's line, got %q", tt.status, plain(lines[0]))
 			}
 		})
+	}
+}
+
+// TestSubagentRowsRenderBelowTheStatusBar pins the layout contract: the live
+// sub-agent elapsed rows sit below the indicator row that carries the versions,
+// never between the composer and it.
+func TestSubagentRowsRenderBelowTheStatusBar(t *testing.T) {
+	const width = 120
+	styleProvider := styles.NewProvider(styles.NewThemeProvider())
+	renderer := NewApplicationViewRenderer(styleProvider)
+
+	statusBar := NewInputStatusBar(styleProvider)
+	statusBar.SetWidth(width)
+	statusBar.SetVersionInfo(tui.VersionInfo{Version: "0.1.0", GatewayVersion: "0.2.0"})
+
+	list := newList(listOpts{
+		jobs:      []scheddomain.TrackedJob{subagentJob("reviewer", scheddomain.JobRunning, time.Now().Add(-3*time.Second), nil)},
+		linger:    5,
+		indicator: true,
+	})
+	if _, cmd := list.Update(tea.WindowSizeMsg{Width: width, Height: 24}); cmd != nil {
+		t.Fatal("expected no command from a plain resize")
+	}
+
+	rows := renderer.assembleComponents(
+		ChatInterfaceData{Width: width, Height: 24},
+		"", "", "> ",
+		nil, stubStatusView{}, nil, stubInputView{}, statusBar, list,
+		nil, stubHelpBar{}, nil, nil, nil, nil, nil, nil,
+		width, 0,
+	)
+
+	frame := plain(strings.Join(rows, "\n"))
+	versionRow := strings.Index(frame, "cli v0.1.0")
+	subagentRow := strings.Index(frame, "reviewer")
+	if versionRow < 0 || subagentRow < 0 {
+		t.Fatalf("expected both the version row and the sub-agent row, got %q", frame)
+	}
+	if subagentRow < versionRow {
+		t.Errorf("the sub-agent elapsed row must render below the version row, got %q", frame)
 	}
 }

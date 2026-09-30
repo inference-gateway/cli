@@ -66,6 +66,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	inputView tui.InputComponent,
 	autocomplete tui.AutocompleteComponent,
 	inputStatusBar tui.InputStatusBarComponent,
+	subagentList *SubagentList,
 	statusView tui.StatusComponent,
 	modeIndicator *ModeIndicator,
 	helpBar tui.HelpBarComponent,
@@ -83,7 +84,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	inputArea := inputView.Render()
 
 	components := r.assembleComponents(data, header, conversationArea, inputArea, conversationView, statusView, modeIndicator,
-		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch, width, r.heights.statusHeight)
+		inputView, inputStatusBar, subagentList, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch, width, r.heights.statusHeight)
 
 	return strings.Join(components, "\n")
 }
@@ -249,6 +250,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 	modeIndicator *ModeIndicator,
 	inputView tui.InputComponent,
 	inputStatusBar tui.InputStatusBarComponent,
+	subagentList *SubagentList,
 	autocomplete tui.AutocompleteComponent,
 	helpBar tui.HelpBarComponent,
 	queueBoxView *QueueBoxView,
@@ -271,6 +273,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 	components = r.appendSnippetAttachments(components, snippetAttachments)
 	components = r.appendAutocomplete(components, autocomplete)
 	components = r.appendInputStatusBar(components, inputView, inputStatusBar)
+	components = r.appendSubagentList(components, subagentList)
 	components = r.appendHelpBar(components, helpBar, width)
 
 	return components
@@ -313,6 +316,18 @@ func (r *ApplicationViewRenderer) appendSnippetAttachments(
 		if content := snippetAttachments.Render(); content != "" {
 			components = append(components, content)
 		}
+	}
+	return components
+}
+
+// appendSubagentList appends the live sub-agent elapsed rows right-aligned
+// below the status-indicator row while sub-agents run or linger.
+func (r *ApplicationViewRenderer) appendSubagentList(components []string, subagentList *SubagentList) []string {
+	if subagentList == nil {
+		return components
+	}
+	if subagentRows := subagentList.Render(); subagentRows != "" {
+		components = append(components, subagentRows)
 	}
 	return components
 }

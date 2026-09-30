@@ -870,8 +870,9 @@ type ChatConfig struct {
 // StatusBarConfig contains settings for the chat status bar
 // The status bar displays model information and system status indicators
 type StatusBarConfig struct {
-	Enabled    bool                `yaml:"enabled" mapstructure:"enabled"`
-	Indicators StatusBarIndicators `yaml:"indicators" mapstructure:"indicators"`
+	Enabled               bool                `yaml:"enabled" mapstructure:"enabled"`
+	SubagentLingerSeconds int                 `yaml:"subagent_linger_seconds" mapstructure:"subagent_linger_seconds"`
+	Indicators            StatusBarIndicators `yaml:"indicators" mapstructure:"indicators"`
 }
 
 // StatusBarIndicators contains individual enable/disable toggles for each indicator
@@ -892,6 +893,7 @@ type StatusBarIndicators struct {
 	Cost             bool `yaml:"cost" mapstructure:"cost"`
 	GitBranch        bool `yaml:"git_branch" mapstructure:"git_branch"`
 	GitPR            bool `yaml:"git_pr" mapstructure:"git_pr"`
+	Subagents        bool `yaml:"subagents" mapstructure:"subagents"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -1088,7 +1090,8 @@ type A2ACacheConfig struct {
 // All indicators are enabled by default except MaxOutput to maintain current behavior
 func GetDefaultStatusBarConfig() StatusBarConfig {
 	return StatusBarConfig{
-		Enabled: true,
+		Enabled:               true,
+		SubagentLingerSeconds: 5,
 		Indicators: StatusBarIndicators{
 			Model:            true,
 			Effort:           true,
@@ -1105,6 +1108,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			Cost:             true,
 			GitBranch:        true,
 			GitPR:            true,
+			Subagents:        true,
 		},
 	}
 }
@@ -1317,7 +1321,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Agent: AgentToolConfig{
 				Enabled:            true,
 				RequireApproval:    &[]bool{true}[0],
-				Mode:               "interactive",
+				Mode:               "headless",
 				Wait:               true,
 				MaxParallel:        4,
 				MaxDepth:           1,
@@ -1574,6 +1578,13 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 		return fmt.Errorf(
 			"invalid speech_to_text.retain_recordings %d: must be >= 0",
 			c.SpeechToText.RetainRecordings,
+		)
+	}
+
+	if c.Chat.StatusBar.SubagentLingerSeconds < 0 {
+		return fmt.Errorf(
+			"invalid chat.status_bar.subagent_linger_seconds %d: must be >= 0",
+			c.Chat.StatusBar.SubagentLingerSeconds,
 		)
 	}
 

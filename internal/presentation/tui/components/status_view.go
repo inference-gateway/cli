@@ -138,6 +138,33 @@ func (sv *StatusView) ClearStatus() {
 	sv.progress = nil
 }
 
+// endTurn freezes the live spinner counter into a durable summary line that
+// stays on screen until the next turn replaces it. It reuses the counter's
+// clock - approval pauses shift startTime on resume, and a pause still held
+// at completion is discounted here - so the figure matches what the user
+// just watched.
+func (sv *StatusView) endTurn(cancelled bool) {
+	if sv.startTime.IsZero() {
+		sv.ClearStatus()
+		return
+	}
+	label := "Done in"
+	if cancelled {
+		label = "Cancelled after"
+	}
+	sv.ShowStatus(fmt.Sprintf("%s %s", label, formatDuration(sv.elapsedExcludingApprovals())))
+}
+
+// elapsedExcludingApprovals returns the spinner wall time minus any pause
+// currently held on a user decision, matching the live counter.
+func (sv *StatusView) elapsedExcludingApprovals() time.Duration {
+	elapsed := time.Since(sv.startTime)
+	if !sv.pausedAt.IsZero() {
+		elapsed -= time.Since(sv.pausedAt)
+	}
+	return elapsed
+}
+
 // SaveCurrentState saves the current status state for later restoration
 func (sv *StatusView) SaveCurrentState() {
 	sv.savedState = &StatusState{
@@ -388,10 +415,14 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case agentdomain.ChatCompleteEvent:
-		sv.ClearStatus()
+		sv.endTurn(msg.Cancelled)
 
 	case agentdomain.ChatErrorEvent:
-		sv.ShowError(fmt.Sprintf("Error: %v", msg.Error))
+		failed := fmt.Sprintf("Error: %v", msg.Error)
+		if !sv.startTime.IsZero() {
+			failed = fmt.Sprintf("Failed after %s: %v", formatDuration(sv.elapsedExcludingApprovals()), msg.Error)
+		}
+		sv.ShowError(failed)
 
 	case tui.SetStatusEvent:
 		sv.toolName = msg.ToolName

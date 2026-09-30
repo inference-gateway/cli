@@ -52,7 +52,8 @@ type Result struct {
 	// FinalAssistant is the last non-empty assistant message content seen on
 	// stdout - the harvested "answer" of the run.
 	FinalAssistant string
-	// Stderr is the full captured standard error (also mirrored live to os.Stderr).
+	// Stderr is the full captured standard error. It is never mirrored to the
+	// parent's terminal, which may be a live TUI.
 	Stderr string
 }
 
@@ -90,7 +91,7 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 	}
 
 	var stderrBuf bytes.Buffer
-	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
+	cmd.Stderr = &stderrBuf
 
 	if err := cmd.Start(); err != nil {
 		return result, fmt.Errorf("start agent: %w", err)

@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -192,14 +191,55 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 	return t.runAsync(ctx, args, start, specs, mode, parentSession, notes), nil
 }
 
-// runWait spawns all subagents concurrently and blocks until they finish,
-// returning one aggregated result (fan-out / fan-in).
+// runWait fans every subagent out through the job supervisor and blocks until
+// all of them finish, returning one aggregated result (fan-out / fan-in).
+// Supervising the run - rather than monitoring it on private goroutines - keeps
+// a blocking fan-out visible to every registry-backed surface: the sub-agent
+// list under the composer, the status-bar counter and the task view.
 func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("running subagents synchronously", "tasks", len(specs), "mode", mode)
-	results := make([]AgentSubResult, len(specs))
-	states := make([]*scheddomain.SubagentState, len(specs))
-	var wg sync.WaitGroup
-	for i, spec := range specs {
+	jobs := t.dispatchWaitJobs(ctx, specs, mode, parentSession)
+	if len(jobs) == 0 {
+		return t.errorResult(args, start, "no subagent could be dispatched: the Agent tool has no job supervisor wired")
+	}
+
+	results := make([]AgentSubResult, len(jobs))
+	success := len(jobs) == len(specs)
+	for i, job := range jobs {
+		select {
+		case <-job.done:
+		case <-ctx.Done():
+			return t.errorResult(args, start, "subagent fan-out cancelled before every subagent reported back")
+		}
+		results[i] = job.result()
+		if !results[i].Success {
+			success = false
+		}
+	}
+
+	return &agentdomain.ToolExecutionResult{
+		ToolName:  ToolAgent,
+		Arguments: args,
+		Success:   success,
+		Duration:  time.Since(start),
+		Data: AgentToolResult{
+			Mode:       mode,
+			Wait:       true,
+			Dispatched: len(jobs),
+			Subagents:  results,
+			Message:    strings.Join(notes, "; "),
+		},
+	}
+}
+
+// dispatchWaitJobs tracks each subagent and submits it to the supervisor,
+// returning the jobs the blocking fan-in awaits. Each job's context derives
+// from ctx, so cancelling the turn kills its subprocess - and a wind-down from
+// the task view kills it too.
+func (t *AgentTool) dispatchWaitJobs(ctx context.Context, specs []AgentTaskSpec, mode, parentSession string) []*headlessSubagentJob {
+	jobs := make([]*headlessSubagentJob, 0, len(specs))
+	for _, spec := range specs {
+		runCtx, cancel := context.WithCancel(ctx)
 		state := &scheddomain.SubagentState{
 			ID:          uuid.New().String(),
 			Label:       spec.Label,
@@ -209,49 +249,40 @@ func (t *AgentTool) runWait(ctx context.Context, args map[string]any, start time
 			SessionID:   newSubagentSessionID(parentSession),
 			Status:      scheddomain.SubagentRunning,
 			StartedAt:   time.Now(),
+			CancelFunc:  cancel,
 			Silent:      true,
 		}
-		states[i] = state
-		_ = t.tracker.AddSubagent(state)
-
-		wg.Add(1)
-		go func(i int, spec AgentTaskSpec, state *scheddomain.SubagentState) {
-			defer wg.Done()
-			answer, err := t.executeOne(ctx, spec, state.SessionID)
-			sub := toSubResult(spec, state.SessionID, answer, err)
-			results[i] = sub
-			status := scheddomain.SubagentCompleted
-			if !sub.Success {
-				status = scheddomain.SubagentFailed
-			}
-			_ = t.tracker.SetSubagentStatus(state.ID, status)
-		}(i, spec, state)
-	}
-	wg.Wait()
-
-	for _, state := range states {
-		_ = t.tracker.RemoveSubagent(state.ID)
-	}
-
-	success := true
-	for _, r := range results {
-		if !r.Success {
-			success = false
+		job := &headlessSubagentJob{
+			tool:      t,
+			spec:      spec,
+			state:     state,
+			runCtx:    runCtx,
+			cancelRun: cancel,
+			done:      make(chan struct{}),
 		}
+		if !t.dispatchHeadless(job) {
+			cancel()
+			continue
+		}
+		jobs = append(jobs, job)
 	}
-	return &agentdomain.ToolExecutionResult{
-		ToolName:  ToolAgent,
-		Arguments: args,
-		Success:   success,
-		Duration:  time.Since(start),
-		Data: AgentToolResult{
-			Mode:       mode,
-			Wait:       true,
-			Dispatched: len(specs),
-			Subagents:  results,
-			Message:    strings.Join(notes, "; "),
-		},
+	return jobs
+}
+
+// dispatchHeadless tracks a headless subagent and hands it to the supervisor -
+// the single monitor behind the status bar, the sub-agent list and the task
+// view. It reports whether the job was handed over.
+func (t *AgentTool) dispatchHeadless(job *headlessSubagentJob) bool {
+	if err := t.tracker.AddSubagent(job.state); err != nil {
+		logger.Warn("failed to track subagent", "error", err)
+		return false
 	}
+	if t.submitter == nil {
+		logger.Warn("headless subagent not supervised: no job submitter", "subagent_id", job.state.ID, "session_id", job.state.SessionID)
+		return false
+	}
+	t.submitter.Submit(job)
+	return true
 }
 
 // runAsync dispatches subagents and returns immediately. Each subagent's
@@ -274,17 +305,10 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 			StartedAt:   time.Now(),
 			CancelFunc:  cancel,
 		}
-		if err := t.tracker.AddSubagent(state); err != nil {
+		job := &headlessSubagentJob{tool: t, spec: spec, state: state, runCtx: runCtx, cancelRun: cancel}
+		if !t.dispatchHeadless(job) {
 			cancel()
-			logger.Warn("failed to track subagent", "error", err)
 			continue
-		}
-
-		if t.submitter != nil {
-			t.submitter.Submit(&headlessSubagentJob{tool: t, spec: spec, state: state, runCtx: runCtx, cancelRun: cancel})
-		} else {
-			cancel()
-			logger.Warn("headless subagent not supervised: no job submitter", "subagent_id", state.ID, "session_id", sessionID)
 		}
 
 		dispatched = append(dispatched, AgentSubResult{Label: spec.Label, SessionID: sessionID, Success: true})
@@ -334,6 +358,9 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 		if err == nil && !rf.Success && rf.Error != "" {
 			err = fmt.Errorf("%s", rf.Error)
 		}
+	}
+	if err != nil && strings.TrimSpace(res.Stderr) != "" {
+		err = fmt.Errorf("%w: %s", err, stderrTail(res.Stderr, 500))
 	}
 	return answer, err
 }
@@ -417,6 +444,14 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 
 // labelOrSession returns label, or a short session id when the label is blank,
 // for use in user-facing notes.
+func stderrTail(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	return "..." + s[len(s)-n:]
+}
+
 func labelOrSession(label, sessionID string) string {
 	if label != "" {
 		return label
