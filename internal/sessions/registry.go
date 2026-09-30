@@ -9,6 +9,7 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ const (
 	frameResumeConversation = "resume_conversation"
 	frameApprovalResponse   = "approval_response"
 	frameUserMessage        = "user_message"
+	frameRunAgentInput      = "run_agent_input"
 	frameToolRequest        = "tool_request"
 	frameToolResult         = "tool_result"
 	frameMessagesSnapshot   = "MESSAGES_SNAPSHOT"
@@ -30,12 +32,14 @@ const (
 	outboundBrowserCommand = "browser_command"
 )
 
-// forwarded are the frames that go to the client's own thread unchanged.
+// forwarded are the frames that go to the client's own thread unchanged: the
+// run input that starts and continues its runs, the frame that stops one, and
+// the channels' direct prompt and question answers.
 var forwarded = map[string]bool{
+	frameRunAgentInput:       true,
 	frameUserMessage:         true,
 	"interrupt":              true,
 	"user_question_response": true,
-	"computer_use_control":   true,
 }
 
 // replyTypes maps each panel request to the reply frames its worker answers
@@ -61,18 +65,29 @@ type clientFrame struct {
 }
 
 type workerLine struct {
-	Type  string          `json:"type"`
-	ID    string          `json:"id"`
-	RunID string          `json:"runId"`
-	Name  string          `json:"name"`
-	Value json.RawMessage `json:"value"`
+	Type    string          `json:"type"`
+	ID      string          `json:"id"`
+	RunID   string          `json:"runId"`
+	Name    string          `json:"name"`
+	Value   json.RawMessage `json:"value"`
+	Outcome struct {
+		Type       string            `json:"type"`
+		Interrupts []workerInterrupt `json:"interrupts"`
+	} `json:"outcome"`
+}
+
+// workerInterrupt is one interrupt a suspended run's terminal line waits on.
+type workerInterrupt struct {
+	ID string `json:"id"`
 }
 
 // Registry is the daemon's thread registry. It launches one worker per thread,
 // relays client frames to worker stdin and worker lines to the thread's
-// clients, lets the first answer to an approval win, ends a run a crashed
-// worker left open with RUN_ERROR, routes worker browser_command frames to the
-// connected browser extension, and stops idle workers.
+// clients, tracks the interrupts a suspended run waits on so the first resume
+// wins and an incomplete one is refused with RUN_ERROR, lets the first answer
+// to an approval win, ends a run a crashed worker left open with RUN_ERROR,
+// routes worker browser_command frames to the connected browser extension, and
+// stops idle workers.
 type Registry struct {
 	launch sessionsdomain.LaunchWorker
 	idle   time.Duration
@@ -97,8 +112,11 @@ type thread struct {
 	worker  sessionsdomain.Worker
 	clients map[sessionsdomain.Client]struct{}
 	waiting map[string][]sessionsdomain.Client
-	runID   string
-	active  time.Time
+	// runID is the thread's open run, empty once it ended, and interrupts are
+	// the ones a suspended run waits on.
+	runID      string
+	interrupts map[string]struct{}
+	active     time.Time
 }
 
 // NewRegistry builds a registry that launches workers with launch and stops
@@ -133,7 +151,7 @@ func (r *Registry) Handle(c sessionsdomain.Client, frame []byte) {
 		r.answer(c, f.ToolCallID, frame)
 		return
 	}
-	t, w, err := r.route(c, f)
+	t, w, err := r.route(c, f, frame)
 	if err != nil {
 		logRoutingFailure(f, t, err)
 		c.Deliver(runError("", err.Error()))
@@ -193,7 +211,7 @@ func (r *Registry) Run(ctx context.Context) {
 
 // route picks the frame's thread and returns it along with the worker to
 // send to, nil worker when the frame has nowhere to go.
-func (r *Registry) route(c sessionsdomain.Client, f clientFrame) (*thread, sessionsdomain.Worker, error) {
+func (r *Registry) route(c sessionsdomain.Client, f clientFrame, frame []byte) (*thread, sessionsdomain.Worker, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	switch {
@@ -210,7 +228,16 @@ func (r *Registry) route(c sessionsdomain.Client, f clientFrame) (*thread, sessi
 		if t == nil {
 			return nil, nil, errNoThread
 		}
-		if t.worker == nil && f.Type != frameUserMessage {
+		if f.Type == frameRunAgentInput {
+			verdict, err := resumePolicyLocked(t, frame)
+			if err != nil {
+				return nil, nil, err
+			}
+			if verdict == resumeDrop {
+				return t, nil, nil
+			}
+		}
+		if t.worker == nil && f.Type != frameUserMessage && f.Type != frameRunAgentInput {
 			return t, nil, nil
 		}
 		w, err := r.workerLocked(t)
@@ -338,6 +365,76 @@ func (r *Registry) answer(c sessionsdomain.Client, toolCallID string, frame []by
 	}
 }
 
+// resumeVerdict is what a thread's open interrupts decide for one run input.
+type resumeVerdict int
+
+const (
+	resumeForward resumeVerdict = iota
+	resumeDrop
+)
+
+// resumePolicyLocked checks one run input's resume entries against the open
+// interrupts the thread's last suspended run waits on. The first resume wins:
+// it forwards, and the RUN_STARTED of the continuation run tells the thread's
+// other clients the answer. A resume that answers nothing open, one a client
+// sent after that wait, is dropped. A resume that misses one of the open
+// interrupts is refused, the resume contract's every-interrupt rule.
+func resumePolicyLocked(t *thread, frame []byte) (resumeVerdict, error) {
+	answered := resumeIDs(frame)
+	if len(answered) == 0 {
+		return resumeForward, nil
+	}
+	if len(t.interrupts) == 0 {
+		return resumeDrop, nil
+	}
+	var missing []string
+	for id := range t.interrupts {
+		if !slices.Contains(answered, id) {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) > 0 {
+		slices.Sort(missing)
+		return resumeForward, fmt.Errorf("the resume must answer every open interrupt of the run: missing %s", strings.Join(missing, ", "))
+	}
+	clear(t.interrupts)
+	return resumeForward, nil
+}
+
+// resumeIDs reads the interrupt ids one run_agent_input frame's resume answers.
+func resumeIDs(frame []byte) []string {
+	var f struct {
+		Input struct {
+			Resume []struct {
+				InterruptID string `json:"interruptId"`
+			} `json:"resume"`
+		} `json:"input"`
+	}
+	if json.Unmarshal(frame, &f) != nil {
+		return nil
+	}
+	ids := make([]string, 0, len(f.Input.Resume))
+	for _, entry := range f.Input.Resume {
+		if entry.InterruptID != "" && !slices.Contains(ids, entry.InterruptID) {
+			ids = append(ids, entry.InterruptID)
+		}
+	}
+	return ids
+}
+
+// openInterrupts names the interrupts a suspended run waits on, nil when the
+// run ended without them.
+func openInterrupts(l workerLine) map[string]struct{} {
+	if l.Outcome.Type != "interrupt" {
+		return nil
+	}
+	ids := make(map[string]struct{}, len(l.Outcome.Interrupts))
+	for _, interrupt := range l.Outcome.Interrupts {
+		ids[interrupt.ID] = struct{}{}
+	}
+	return ids
+}
+
 // pump delivers each worker line to its targets until the worker exits.
 // browser_command lines do not reach clients: they route through the browser
 // relay to the extension connection, which answers with a browser_result the
@@ -416,9 +513,12 @@ func (r *Registry) targets(t *thread, line []byte) []sessionsdomain.Client {
 	switch l.Type {
 	case "RUN_STARTED":
 		t.runID = l.RunID
+		t.interrupts = nil
 	case "RUN_FINISHED":
 		t.runID = ""
+		t.interrupts = openInterrupts(l)
 	case "RUN_ERROR":
+		t.interrupts = nil
 		if t.runID == "" {
 			concerned := t.takeWaiters()
 			maps.Copy(concerned, t.clients)
@@ -452,6 +552,7 @@ func (r *Registry) exited(t *thread, w sessionsdomain.Worker) {
 		return
 	}
 	t.worker = nil
+	t.interrupts = nil
 	for id, owner := range r.approvals {
 		if owner == t {
 			delete(r.approvals, id)
@@ -520,11 +621,13 @@ func (r *Registry) stopAll() {
 
 func newThread(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) *thread {
 	return &thread{
-		key:     key,
-		opts:    opts,
-		clients: make(map[sessionsdomain.Client]struct{}),
-		waiting: make(map[string][]sessionsdomain.Client),
-		active:  time.Now(),
+		key:        key,
+		opts:       opts,
+		clients:    make(map[sessionsdomain.Client]struct{}),
+		waiting:    make(map[string][]sessionsdomain.Client),
+		active:     time.Now(),
+		runID:      "",
+		interrupts: make(map[string]struct{}),
 	}
 }
 
