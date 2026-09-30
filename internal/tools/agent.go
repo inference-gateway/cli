@@ -330,9 +330,9 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 }
 
 // executeOne runs a single headless subagent and returns its final assistant
-// message and run stats. Interactive subagents are handled separately by
-// runInteractive.
-func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionID string) (string, *scheddomain.SubagentRunStats, error) {
+// message and run stats. onLine sees each line the run prints as it arrives.
+// Interactive subagents are handled separately by runInteractive.
+func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionID string, onLine func(line []byte)) (string, *scheddomain.SubagentRunStats, error) {
 	resultFile := subagentResultFilePath(sessionID)
 	_ = os.Remove(resultFile)
 	defer func() { _ = os.Remove(resultFile) }()
@@ -345,6 +345,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 		Files:      spec.Files,
 		ResultFile: resultFile,
 		ExtraEnv:   t.subagentExtraEnv(ctx, spec),
+		OnLine:     onLine,
 	})
 
 	answer := res.FinalAssistant

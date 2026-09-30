@@ -108,6 +108,11 @@ func TestChatTUIBackgroundSubagentTranscript(t *testing.T) {
 		"Transcript", "subagent-e2e-probe task", "hello-from-subagent-probe", "Tokens:")
 }
 
+// completedTaskRow is the status cell of a finished row in the loaded /tasks
+// list. A bare "Completed" also matches the completion note in the chat, which
+// is on screen before /tasks opens.
+const completedTaskRow = "│ Completed"
+
 // openFinishedSubagentDetail launches a headless background subagent, opens its
 // /tasks detail panel once it completed and waits for every wanted string.
 func openFinishedSubagentDetail(t *testing.T, session, storageEnabled string, want ...string) {
@@ -142,7 +147,7 @@ func openFinishedSubagentDetail(t *testing.T, session, storageEnabled string, wa
 	tmuxSendKeys(t, session, "-l", "/tasks")
 	tmuxSendKeys(t, session, "Enter")
 
-	require.True(t, waitForPane(t, session, "Completed", 45*time.Second),
+	require.True(t, waitForPane(t, session, completedTaskRow, 45*time.Second),
 		"the subagent never completed in /tasks; last frame:\n%s", capturePane(session))
 
 	tmuxSendKeys(t, session, "Enter")

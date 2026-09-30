@@ -27,6 +27,7 @@ type a2aJob struct {
 	bag            baggage.Baggage
 	mu             sync.RWMutex
 	lastKnownState string
+	stats          *scheddomain.SubagentRunStats
 }
 
 // Meta describes the A2A task for the task view.
@@ -68,7 +69,59 @@ func (j *a2aJob) Run(ctx context.Context, emit func(scheddomain.JobSignal)) agen
 		if emit != nil {
 			emit(sig)
 		}
-	})
+	}, j.recordStats)
+}
+
+// recordStats keeps the run stats of a polled task, so the row shows them as
+// soon as the agent attaches them.
+func (j *a2aJob) recordStats(task adk.Task) {
+	stats := taskRunStats(task)
+	if stats == nil {
+		return
+	}
+	j.mu.Lock()
+	j.stats = stats
+	j.mu.Unlock()
+}
+
+// Stats implements scheddomain.JobStatsProvider with the stats the agent last
+// attached to the task, nil until it attaches any.
+func (j *a2aJob) Stats() *scheddomain.SubagentRunStats {
+	j.mu.RLock()
+	defer j.mu.RUnlock()
+	return j.stats
+}
+
+// taskRunStats reads the token usage and tool counts an agent attaches to its
+// task metadata, nil when it attached neither.
+func taskRunStats(task adk.Task) *scheddomain.SubagentRunStats {
+	if task.Metadata == nil {
+		return nil
+	}
+	usage, hasUsage := (*task.Metadata)["usage"].(map[string]any)
+	execution, hasExecution := (*task.Metadata)["execution_stats"].(map[string]any)
+	if !hasUsage && !hasExecution {
+		return nil
+	}
+	failed := metadataCount(execution, "failed_tools")
+	return &scheddomain.SubagentRunStats{
+		ToolsSucceeded: max(0, metadataCount(execution, "tool_calls")-failed),
+		ToolsFailed:    failed,
+		InputTokens:    metadataCount(usage, "prompt_tokens"),
+		OutputTokens:   metadataCount(usage, "completion_tokens"),
+	}
+}
+
+// metadataCount reads a count from task metadata, which holds a float64 once
+// it crossed the wire and an int when the task never left this process.
+func metadataCount(metadata map[string]any, key string) int {
+	switch n := metadata[key].(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	}
+	return 0
 }
 
 // recordState stores the latest non-empty remote state under mu so PollingState

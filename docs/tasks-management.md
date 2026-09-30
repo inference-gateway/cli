@@ -16,8 +16,9 @@ system with better visibility into task status and history.
 - Lists every background job right-aligned under the composer, newest first. Each row carries its label, a kind
   tag (`subagent`, `a2a local`, `a2a external`, `shell`, `recording`) and a live elapsed counter. A finished job
   lingers with a green `✓` or a red `✗` and its total duration, then drops
-  (`chat.status_bar.subagent_linger_seconds`). `chat.status_bar.indicators.subagents` hides the list. A finished subagent also shows its
-  [run stats](subagents.md#run-stats) on a child line under its row
+  (`chat.status_bar.subagent_linger_seconds`). `chat.status_bar.indicators.subagents` hides the list. A subagent also shows its
+  [run stats](subagents.md#run-stats) on a child line under its row, live while a headless one runs. An A2A task
+  shows the same line once its agent reports usage on the task
 - The list is selectable. Press `↓` on the status indicators to move into it, `↑`/`↓` to pick a row and
   `enter` to swap the transcript for that job's: a subagent's conversation so far, refreshed every
   second, or the captured output of any other job. `esc` returns to the chat's own transcript, a second `esc` to
@@ -50,7 +51,8 @@ When viewing task details (`i` key), you can see:
 - Current status
 - Start time and elapsed duration
 - Context ID (if available)
-- For a subagent, its [run stats](subagents.md#run-stats): tool calls succeeded and failed, input and output tokens
+- For a subagent, its [run stats](subagents.md#run-stats): tool calls succeeded and failed, input and output tokens.
+  They count up while a headless subagent runs
 - For a subagent, its transcript: the task, each assistant turn with the tools it called, and every tool result
   (a long result is cut at 2 KB). It stays available for as long as the job is listed, and refreshes every second
   while anything is running. An interactive subagent's pane runs under the subagent's session ID, so its

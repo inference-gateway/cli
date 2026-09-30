@@ -335,29 +335,33 @@ func TestSubagentListRefreshTick(t *testing.T) {
 	}
 }
 
-// TestSubagentListShowsRunStatsUnderFinishedRows: a finished sub-agent that
-// reported stats grows a child line, a running one does not.
-func TestSubagentListShowsRunStatsUnderFinishedRows(t *testing.T) {
+// TestSubagentListShowsRunStatsUnderRows: a sub-agent with stats grows a child
+// line, while it runs and once it finished. One without stats does not.
+func TestSubagentListShowsRunStatsUnderRows(t *testing.T) {
 	now := time.Now()
 	done := now.Add(-time.Second)
-	stats := &scheddomain.SubagentRunStats{ToolsSucceeded: 12, ToolsFailed: 1, InputTokens: 60448, OutputTokens: 745}
 	finished := subagentJob("reviewer", scheddomain.JobCompleted, now.Add(-41*time.Second), &done)
-	finished.Stats = stats
+	finished.Stats = &scheddomain.SubagentRunStats{ToolsSucceeded: 12, ToolsFailed: 1, InputTokens: 60448, OutputTokens: 745}
 	running := subagentJob("tester", scheddomain.JobRunning, now.Add(-2*time.Second), nil)
-	running.Stats = stats
+	running.Stats = &scheddomain.SubagentRunStats{ToolsSucceeded: 2, InputTokens: 900, OutputTokens: 50}
+	silent := subagentJob("pane", scheddomain.JobRunning, now.Add(-time.Second), nil)
 
-	list := newList(listOpts{jobs: []scheddomain.TrackedJob{running, finished}, linger: 5, indicator: true})
+	list := newList(listOpts{jobs: []scheddomain.TrackedJob{silent, running, finished}, linger: 5, indicator: true})
 	list.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
 	lines := strings.Split(plain(list.Render()), "\n")
-	if len(lines) != 3 {
-		t.Fatalf("expected two rows and one stats line, got %q", lines)
+	if len(lines) != 5 {
+		t.Fatalf("expected three rows and two stats lines, got %q", lines)
 	}
-	if !strings.Contains(lines[1], "reviewer") {
-		t.Fatalf("expected the finished row second, got %q", lines)
+	if !strings.Contains(lines[1], "tester") || !strings.Contains(lines[3], "reviewer") {
+		t.Fatalf("expected the running row second and the finished row fourth, got %q", lines)
+	}
+	wantLive := "└ 2 " + icons.CheckMark + " 0 " + icons.CrossMark + " · 950 tokens"
+	if !strings.Contains(lines[2], wantLive) {
+		t.Errorf("expected the live stats line %q under the running row, got %q", wantLive, lines[2])
 	}
 	want := "└ 12 " + icons.CheckMark + " 1 " + icons.CrossMark + " · 61.2k tokens"
-	if !strings.Contains(lines[2], want) {
-		t.Errorf("expected the stats line %q under the finished row, got %q", want, lines[2])
+	if !strings.Contains(lines[4], want) {
+		t.Errorf("expected the stats line %q under the finished row, got %q", want, lines[4])
 	}
 	for i, line := range lines {
 		if visibleWidth(line) != visibleWidth(lines[0]) {

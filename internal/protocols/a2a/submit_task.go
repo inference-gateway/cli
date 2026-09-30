@@ -287,6 +287,7 @@ func (t *SubmitTaskTool) runA2APolling(
 	taskID string,
 	state *a2adomain.TaskPollingState,
 	emit func(scheddomain.JobSignal),
+	observe func(adk.Task),
 ) agentdomain.ToolExecutionResult {
 	if t.taskTracker != nil {
 		defer t.taskTracker.StopPolling(taskID)
@@ -331,6 +332,7 @@ func (t *SubmitTaskTool) runA2APolling(
 				continue
 			}
 
+			observe(*currentTask)
 			t.emitStatusUpdate(state, taskID, agentURL, *currentTask, emit)
 
 			shouldReturn, taskResult := t.handleTaskState(ctx, agentURL, taskID, pollAttempt, state, *currentTask, pollingDetails.String())

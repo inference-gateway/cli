@@ -342,7 +342,7 @@ func (l *SubagentList) Render() string {
 		line := l.rowView(row, i, len(shown), widths, i == selected)
 		rowWidth = l.styleProvider.GetWidth(line)
 		rowLines := []string{line}
-		if !row.running && row.stats != nil {
+		if row.stats != nil {
 			rowLines = append(rowLines, l.statsView(*row.stats, i, len(shown), rowWidth))
 		}
 		for _, line := range rowLines {
@@ -372,8 +372,8 @@ func (l *SubagentList) Render() string {
 	return strings.Join(lines, "\n")
 }
 
-// statsView draws a finished sub-agent's run stats as a child line under its
-// row: tool calls succeeded and failed, then the tokens the run used. It is
+// statsView draws a sub-agent's run stats as a child line under its row: tool
+// calls succeeded and failed, then the tokens used, live while it runs. It is
 // padded to the row width so the block stays aligned.
 func (l *SubagentList) statsView(stats scheddomain.SubagentRunStats, index, count, rowWidth int) string {
 	trunk := ""

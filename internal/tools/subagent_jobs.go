@@ -2,11 +2,14 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -31,6 +34,7 @@ type headlessSubagentJob struct {
 	mu      sync.Mutex
 	output  string
 	outcome AgentSubResult
+	live    scheddomain.SubagentRunStats
 }
 
 // Meta describes the subagent for the task view.
@@ -64,7 +68,7 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(scheddomain.JobSig
 
 	defer j.signalDone()
 
-	answer, stats, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID)
+	answer, stats, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID, j.tally)
 	sub := toSubResult(j.spec, j.state.SessionID, answer, err)
 	sub.Stats = stats
 	j.mu.Lock()
@@ -98,11 +102,47 @@ func (j *headlessSubagentJob) Output() string {
 	return j.output
 }
 
-// Stats returns the run stats the subagent reported, nil until Run returns.
+// Stats returns the run stats the subagent reported. Until it reports them,
+// they are the live tally of the output it has printed so far.
 func (j *headlessSubagentJob) Stats() *scheddomain.SubagentRunStats {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	return j.outcome.Stats
+	if j.outcome.Stats != nil {
+		return j.outcome.Stats
+	}
+	live := j.live
+	return &live
+}
+
+// subagentOutputLine is what the live tally reads from one line a headless run
+// prints: a tool result's outcome or an assistant step's token usage.
+type subagentOutputLine struct {
+	Type       string          `json:"type"`
+	Role       sdk.MessageRole `json:"role"`
+	Failed     bool            `json:"failed"`
+	TokenUsage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+	} `json:"token_usage"`
+}
+
+// tally adds one line the running subagent printed to its live stats.
+func (j *headlessSubagentJob) tally(line []byte) {
+	var msg subagentOutputLine
+	if err := json.Unmarshal(line, &msg); err != nil || msg.Type != "" {
+		return
+	}
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	switch {
+	case msg.Role == sdk.Tool && msg.Failed:
+		j.live.ToolsFailed++
+	case msg.Role == sdk.Tool:
+		j.live.ToolsSucceeded++
+	case msg.Role == sdk.Assistant:
+		j.live.InputTokens += msg.TokenUsage.PromptTokens
+		j.live.OutputTokens += msg.TokenUsage.CompletionTokens
+	}
 }
 
 // result returns the subagent's outcome for the blocking fan-in that awaited
