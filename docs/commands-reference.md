@@ -493,26 +493,23 @@ The headless command supports multimodal content for vision-capable models:
 
 ### `infer daemon`
 
-Run the long-lived daemon. It hosts whichever subsystems are enabled and refuses to start when none is:
+Run the long-lived hub. It hosts whichever subsystems are enabled and refuses to start when none is:
 
 - **channels** (`channels.enabled`), see [Channels](channels.md)
 - **scheduler** (`tools.schedule.enabled`), see [Scheduling](scheduling.md)
 - **heartbeat** (`heartbeat.enabled`), see [Heartbeat](heartbeat.md)
-- **AG-UI binding** (`browser_use.enabled` with `backend: extension`): the WebSocket the opentask extension and
-  the desktop app connect to, on `browser_use.extension.port` with its token. Each thread (a project dir plus a
-  conversation id) runs in its own `infer headless --serve` worker started in that project dir. Workers nobody
-  follows stop after 10 idle minutes, and the daemon stops them all on shutdown. See
-  [Browser Extension Bridge Protocol](browser-extension-protocol.md)
+- **AG-UI binding** (`daemon.binding.enabled`, or `browser_use.enabled` with `backend: extension`): the WebSocket
+  the opentask extension and the desktop app connect to. Each thread (a project dir plus a conversation id) runs
+  in its own `infer headless --serve` worker started in that project dir. See
+  [Daemon Binding Protocol](browser-extension-protocol.md)
 
 ```bash
-INFER_BROWSER_USE_ENABLED=true INFER_BROWSER_USE_BACKEND=extension infer daemon
+INFER_DAEMON_BINDING_ENABLED=true INFER_DAEMON_BINDING_TOKEN=<secret> infer daemon
 ```
 
-The daemon logs JSON to `~/.infer/logs/daemon-<date>.log` (`logging.dir` moves the directory). The session
-workers and one-shot job runs it starts log JSON to stderr and keep no log file of their own: the daemon
-collects their stderr into the same log, each line tagged with its `project_dir`, `conversation_id` and
-`worker_pid`. Client connects and disconnects and the browser extension's attach and detach are logged
-there too.
+The pid file is `~/.infer/run/daemon.pid` and the log is `~/.infer/logs/daemon-<date>.log`, where the session
+workers' and job runs' stderr lands too. [infer daemon](daemon.md) covers the workers, the on-demand start, the
+pid file and the logs.
 
 ---
 

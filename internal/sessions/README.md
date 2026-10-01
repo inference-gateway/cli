@@ -50,11 +50,11 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   the worker's gateway, MCP servers and containers shut down. The worker logs JSON to stderr instead of keeping
   a log file of its own, and the daemon collects its stderr into the daemon log with the thread's
   `project_dir`, `conversation_id` and `worker_pid`.
-- `cmd/daemon` wires the registry behind the binding when `browser_use` is enabled with the extension
-  backend.
+- `cmd/daemon` wires the registry whenever the binding (`daemon.binding.enabled`, or `browser_use` with the
+  extension backend) or channels are enabled.
 
 ## Related
 
 - [agui](../protocols/agui/README.md)
-- [Browser Extension Bridge Protocol](../../docs/browser-extension-protocol.md)
+- [Daemon Binding Protocol](../../docs/browser-extension-protocol.md)
 - [AG-UI Output Format](../../docs/ag-ui-output.md)

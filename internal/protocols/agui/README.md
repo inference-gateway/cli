@@ -57,4 +57,4 @@ and this table in the same change.
 ## Related
 
 - [AG-UI Output Format](../../../docs/ag-ui-output.md)
-- [Browser Extension Bridge Protocol](../../../docs/browser-extension-protocol.md)
+- [Daemon Binding Protocol](../../../docs/browser-extension-protocol.md)

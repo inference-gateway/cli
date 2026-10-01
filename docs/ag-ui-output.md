@@ -13,11 +13,24 @@ newline-delimited AG-UI events, serialized with the official AG-UI Go SDK
 decode them with `events.EventFromJSON` without a custom adapter. AG-UI is transport agnostic, so
 a subprocess host reading stdout is a fully valid transport.
 
-Every event the CLI writes conforms to the frozen AG-UI 1.0 specification (`spec/1.0/schema.json`
-upstream), which the test suite validates against. The wire contract is `protocol_version` 2 on the
-daemon binding. CUSTOM events remain the extension point for what the protocol has no event for.
-Today that is one: the approval prompt of a panel-initiated `tool_request` (see
-[browser-extension-protocol.md](browser-extension-protocol.md)).
+Every event the CLI writes is a standard AG-UI 1.0 event. The frozen upstream specification,
+[`spec/1.0/schema.json`](https://github.com/ag-ui-protocol/ag-ui/tree/main/spec/1.0) with the
+[AG-UI docs](https://docs.ag-ui.com/), is their definition, and the test suite validates every
+event against it. This page lists which events the CLI writes and when, and spells out what is
+ours: the state keys, the activity types, the interrupt reasons and the one CUSTOM event.
+
+## Transports
+
+The same frames travel on every transport. A frame with an uppercase `type` is an AG-UI event and
+belongs to a run. A frame with a lowercase `type` is an app frame, in either direction.
+
+| Transport | Carries |
+| --- | --- |
+| `infer headless --format ag-ui` stdout | The events of one run, for a subprocess host |
+| `infer headless --serve` stdio | Events on stdout, app frames on stdin, one run per turn. See [Serve worker](#serve-worker) |
+| The `infer daemon` WebSocket binding | Both, relayed unchanged between the thread's worker and its clients. See [Daemon Binding Protocol](browser-extension-protocol.md) |
+
+The binding's handshake carries `protocol_version` 2, the version of this contract.
 
 ## Event mapping
 
@@ -143,26 +156,32 @@ follows it: clear the indicator on `RUN_FINISHED` or `RUN_ERROR`.
 Whole messages are emitted as single-delta triads (the synchronous headless loop produces complete
 messages); live token streaming is a planned follow-up.
 
-## Desktop sidecar wiring
+## What stays custom and why
 
-A Tauri (or any subprocess-hosting) app consumes the stream by spawning the CLI as a sidecar and
-feeding each stdout line to its AG-UI client:
+AG-UI covers the run. What it has nothing for stays ours, as app frames with a lowercase `type`
+on the serve worker's stdin and the daemon binding, with their shapes in the
+[Daemon Binding Protocol](browser-extension-protocol.md):
 
-```ts
-import { Command } from "@tauri-apps/plugin-shell";
+- The handshake (`browser_hello`, `browser_hello_ack`), which carries the token and the version
+- Opening a thread (`new_session`, `resume_conversation`) and stopping a run (`interrupt`)
+- The panel requests and their replies (`list_*`, `select_model`, `set_mode`, `tool_request`)
+- The browser commands (`browser_command`, `browser_result`), which a worker exchanges with the
+  user's browser through the daemon
+- The state of the extension connection (`browser_extension_status`), which belongs to a
+  connection and not to a run
 
-const cmd = Command.sidecar("binaries/infer", [
-  "headless", "--format", "ag-ui", task,
-]);
-cmd.stdout.on("data", (line) => {
-  const event = JSON.parse(line); // an AG-UI BaseEvent, e.g. { type: "RUN_STARTED", ... }
-  dispatchAgUiEvent(event);      // feed your AG-UI client / transformer
-});
-await cmd.spawn();
-```
+One CUSTOM event remains: `approval_request` (and `approval_resolved` for the thread's other
+clients) for a panel `tool_request`, which runs outside any run and so cannot suspend one with an
+interrupt. It is answered with the `approval_response` frame. Everything else that used to be
+CUSTOM is now an interrupt, a state key, an activity or `usage`.
 
-To resume a thread, pass the `threadId` from `RUN_STARTED` back as `--session-id` on the next
-invocation; the new run starts with a `MESSAGES_SNAPSHOT` so the client can render prior history.
+## Subprocess hosts
+
+A host that runs the agent itself, such as CI, a script or infer-action, spawns
+`infer headless --format ag-ui <task>` and feeds each stdout line to its AG-UI client. To resume a
+thread, it passes the `threadId` from `RUN_STARTED` back as `--session-id` on the next invocation,
+and the new run opens with a `MESSAGES_SNAPSHOT` of the history. The desktop app and the opentask
+extension do not spawn the CLI: they are clients of the daemon binding.
 
 ## Serve worker
 

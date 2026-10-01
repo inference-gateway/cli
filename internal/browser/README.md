@@ -28,5 +28,5 @@ layer instead of leaking into the agent.
 
 ## Related
 
-- [Browser Extension Bridge Protocol](../../docs/browser-extension-protocol.md)
+- [Daemon Binding Protocol](../../docs/browser-extension-protocol.md)
 - [Tools Reference](../../docs/tools-reference.md#browser-tools)
