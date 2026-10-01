@@ -76,9 +76,6 @@ seeded or overwritten by `infer init`).
   capped at `max_instructions_lines` (default 399, per the AGENTS.md standard)
   with a `max_instructions_chars` backstop (default 8000); truncation is
   always explicitly marked.
-- In Claude Code mode, plugin rulesets ride `--append-system-prompt`; your
-  project `AGENTS.md` is not appended there because the `claude` CLI reads it
-  natively.
 
 ## Configuration
 

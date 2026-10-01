@@ -59,6 +59,10 @@ for the full precedence rules.
 ├── agents/               # Markdown subagent definitions (<name>.md), see docs/subagents.md
 ├── mcp.yaml              # MCP server registry
 ├── memory.yaml           # persistent memory settings, see docs/memory.md
+├── heartbeat.yaml        # heartbeat prompt and interval, see docs/heartbeat.md
+├── judge.yaml            # LLM judge settings, see docs/judge-mode.md
+├── hooks.yaml            # agent-loop command hooks (disabled by default)
+├── reminders.yaml        # system reminders (enabled by default)
 ├── memory/               # memory fact-files and the MEMORY.md index
 ├── shortcuts/            # /-prefixed chat shortcuts (built-in + custom)
 │   ├── git.yaml
@@ -66,7 +70,10 @@ for the full precedence rules.
 │   ├── mcp.yaml
 │   ├── shells.yaml
 │   ├── export.yaml
-│   └── a2a.yaml
+│   ├── env.yaml
+│   ├── skills.yaml
+│   ├── reset.yaml
+│   └── insights.yaml
 ├── skills/               # Agent Skills - SKILL.md folders, see docs/skills.md
 ├── tools/                # custom tool manifests (<Name>.yaml), see docs/custom-tools.md
 ├── avatars/              # TextToVideo avatar library: <name>/ folders of portrait images; survives /reset
@@ -141,8 +148,17 @@ project wants to override a config file it commits its own sparse
   [A2A Agents](agents-configuration.md).
 - **`mcp.yaml`** - MCP server registry and liveness probe settings. Manage
   via `infer mcp ...` or by hand. See [MCP Integration](mcp-integration.md).
+- **`hooks.yaml`** - command hooks the agent runs at hook points, disabled by
+  default. See [Reminders & Command Hooks](hooks.md).
+- **`reminders.yaml`** - system reminders injected at hook points, enabled by
+  default. See [Reminders & Command Hooks](hooks.md).
+- **`heartbeat.yaml`** - the heartbeat prompt and interval. See [Heartbeat](heartbeat.md).
+- **`judge.yaml`** - the LLM judge model, prompt and on-error policy. See
+  [Judge Mode](judge-mode.md).
+- **`memory.yaml`** - persistent memory settings (directory, index cap, backend).
+  See [Persistent Memory](memory.md).
 - **`shortcuts/*.yaml`** - `/git`, `/scm`, `/mcp`, `/shells`, `/export`, `/env`,
-  `/skills` shortcuts plus any you add. Drop new YAML files into
+  `/skills`, `/reset`, `/insights` shortcuts plus any you add. Drop new YAML files into
   `shortcuts/`. A project `./.infer/shortcuts/` is overlaid on top by shortcut
   name, so it adds to (or replaces individual entries of) the userspace set
   rather than hiding it. See [Shortcuts Guide](shortcuts-guide.md).

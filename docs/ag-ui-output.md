@@ -41,7 +41,7 @@ The binding's handshake carries `protocol_version` 2, the version of this contra
 | Local A2A agent starting | `ACTIVITY_SNAPSHOT` `agent_status` keyed `agent:<name>`, content `name`, `state`, `message`, `done`/`total`. See [Activity](#activity) |
 | User / assistant message | `TEXT_MESSAGE_START` / `TEXT_MESSAGE_CONTENT` / `TEXT_MESSAGE_END`, role on START |
 | Reasoning | `REASONING_MESSAGE_START` / `_CONTENT` / `_END`, role `reasoning`, before the same message's text |
-| Assistant tool call | `TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END` (parented to the assistant message when it has text) |
+| Assistant tool call | `TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END`, none carrying a `parentMessageId` |
 | Tool result | `TOOL_CALL_RESULT` whose `content` is the raw JSON execution result (no `"Result of tool call:"` prefix) |
 | LLM step completes | `STATE_DELTA` patching `usage` |
 | Todo-list change | `STATE_DELTA` patching `todos` |
@@ -57,8 +57,10 @@ The binding's handshake carries `protocol_version` 2, the version of this contra
 | Failure or panic | `RUN_ERROR` with the error message and the `usage` accrued so far |
 
 Every run is bracketed by `RUN_STARTED` and exactly one terminal `RUN_FINISHED` or `RUN_ERROR`, and
-no event is written outside a run. A failure before any run starts (gateway down, unknown model)
-is one bare `RUN_ERROR`.
+no run-scoped event is written outside a run. Three writers intentionally emit between runs, none
+scoped to a run: `WriteCustom` for a panel-initiated `tool_request`'s approval prompt,
+`WriteMessagesSnapshot` for a panel's `new_session` or `resume_conversation` answer, and
+`WriteRunError` for a refused frame or a failure before any run starts (gateway down, unknown model).
 
 ## Activity
 
@@ -79,7 +81,7 @@ space they are relative to. The entry is replaced on every snapshot, so a
 client keeps one action entry per tool call.
 
 Agent boot progress observed before the first run opens is held and written right after that run's
-`RUN_STARTED`, so no event precedes a run.
+`RUN_STARTED`, so no run-scoped event precedes a run.
 
 `backgroundTasks.jobs` entries carry `id`, `kind`, `label`, `description`, `detail`, `status` and
 `started_at`.
@@ -141,8 +143,9 @@ continuation run writes the `TOOL_CALL_RESULT` for the same `toolCallId`:
   dismissed path.
 - A resume must answer every open interrupt of the run. The daemon refuses one that misses an
   interrupt with `RUN_ERROR`, keeps the first resume for a thread and drops the later ones.
-- `RecordStart` always requires approval outside auto-accept mode, so run with
-  `--require-approval` to receive it as an interrupt; without an approver it is blocked.
+- `RecordStart` requires approval outside auto-accept mode by default, gated by
+  `computer_use.recording.require_approval`, so run with `--require-approval` to receive it as an
+  interrupt. Without an approver it is blocked.
 
 The legacy `approval_response` and `user_question_response` stdin lines of `json` mode are still
 accepted by the worker, but the resume entry is the contract.

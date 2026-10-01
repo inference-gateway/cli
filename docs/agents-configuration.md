@@ -116,6 +116,45 @@ infer agents show code-reviewer
 infer agents show code-reviewer --format json
 ```
 
+### Update an Agent
+
+Change an existing agent's configuration. At least one flag must be given:
+
+```bash
+# Point an agent at a different URL
+infer agents update code-reviewer --url https://new-agent.example.com
+
+# Change its model
+infer agents update code-reviewer --model "openai/gpt-4"
+
+# Switch the tag of a known agent's default image
+infer agents update browser-agent --tag lightpanda
+
+# Combine several changes, and replace the environment variables
+infer agents update test-runner --oci ghcr.io/org/test-runner:v2 --model "anthropic/claude-4-5-sonnet"
+
+# Update the project override instead of the userspace baseline
+infer agents update project-helper --url http://helper:9090 --project
+```
+
+**Flags:** `--url`, `--model`, `--oci`, `--tag` (known agents only, mutually exclusive with `--oci`),
+`--artifacts-url`, `--environment KEY=VALUE` (replaces the existing set), `--run`.
+
+### Probe Agent Readiness
+
+Fetch each configured agent's card once (or only the named agent) and report which agents are
+reachable:
+
+```bash
+# Probe every configured agent
+infer agents status
+
+# Probe one agent, as JSON for scripts
+infer agents status code-reviewer --format json
+```
+
+**Flags:** `-f, --format text|json` (default `text`), `--project`.
+
 ### Remove an Agent
 
 Remove an agent from the configuration:

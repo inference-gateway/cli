@@ -20,9 +20,11 @@ remote-control the agent from external platforms like Telegram or WhatsApp.
 
 Channels provide a bridge between external messaging platforms and the CLI
 agent. The `infer daemon` command runs as a standalone long-running daemon
-that listens for messages from platforms like Telegram. When a message arrives,
-it triggers `infer headless --session-id <id>` as a subprocess. The agent
-processes the message and the response is sent back through the channel.
+that listens for messages from platforms like Telegram. Each sender's chat
+becomes a thread on the daemon's session registry, which supervises one
+long-lived `infer headless --serve` worker per thread. There is no subprocess
+per message: the message is relayed to that worker and its response is sent
+back through the channel.
 
 Key features:
 
@@ -48,10 +50,10 @@ Key features:
                    │    │  Per message:                       │         │
                    │    │  1. Check allowlist                 │         │
                    │    │  2. Derive session ID               │         │
-                   │    │  3. exec: infer headless               │         │
-                   │    │     --session-id channel-telegram-X │         │
-                   │    │     "user message"                  │         │
-                   │    │  4. Parse JSON stdout               │         │
+                   │    │  3. Relay to the sender's thread    │         │
+                   │    │     channel-telegram-X as a         │         │
+                   │    │     run_agent_input frame           │         │
+                   │    │  4. Render the worker's AG-UI events│         │
                    │    │  5. Send response via channel       │         │
                    │    └─────────────────────────────────────┘         │
                    └────────────────────────────────────────────────────┘
@@ -64,8 +66,9 @@ Key features:
 3. Channel Manager checks the sender against the allowlist
 4. If authorized, derives a deterministic session ID (e.g.,
    `channel-telegram-123456789`)
-5. Triggers `infer headless --session-id <id> "<message>"` as a subprocess
-6. Parses the agent's JSON stdout for the assistant response
+5. Routes the message to the sender's thread as a `run_agent_input` frame,
+   which the session registry relays to the thread's `headless --serve` worker
+6. Renders the worker's AG-UI events as the assistant response
 7. Sends the response back through the originating channel
 
 ## Quick Start (Telegram)
@@ -136,9 +139,9 @@ export INFER_PROMPTS_AGENT_SYSTEM_PROMPT="You are a helpful assistant"
 infer daemon
 ```
 
-This starts a long-running daemon that listens for Telegram messages. Each
-incoming message triggers a new `infer headless` invocation with a persistent
-session per sender.
+This starts a long-running daemon that listens for Telegram messages. The first
+message from a sender starts a `headless --serve` worker for that sender's thread,
+and later messages are relayed to the same worker.
 
 ### 5. Send a Message
 
@@ -170,16 +173,19 @@ first, then userspace (`~/.infer/channels.yaml`).
 # Master switch for all channels
 enabled: false
 
-# Worker pool size for processing inbound messages
+# Worker pool size. Not read at runtime: inbound messages are processed by
+# per-sender goroutines, so concurrency is bounded by the senders themselves.
 max_workers: 5
 
-# Image retention (number of recent images cached per session)
+# Image retention. Not read at runtime: inbound media is governed by
+# telegram.media.retain below.
 image_retention: 5
 
-# Require user approval for sensitive tools (default: true)
-# When true, tools like Write, Edit, Delete, and Bash will prompt the user
-# for approval before executing. Read-only tools (Read, Grep, Tree) are
-# not affected. Reuses existing tools.*.require_approval configuration.
+# Answer tool-approval requests from the channel user (default: true)
+# When true, gated tools (Write, Edit, Delete, Bash) prompt the channel user and
+# wait for a yes/no reply. When false, a gated call is cancelled instead of
+# prompted, so the agent cannot run it. The thread's serve worker always runs with
+# --require-approval regardless of this key.
 require_approval: true
 
 # Telegram Bot API channel
@@ -287,21 +293,23 @@ Channels enforce a **secure-by-default** policy:
 
 ## Tool Approval
 
-By default (`channels.require_approval: true`), the channel manager enables
-interactive tool approval for sensitive operations. When the agent needs to
-execute a tool that requires approval (e.g., Write, Edit, Delete, Bash), it
-prompts the channel user and waits for confirmation.
+Tool approval is always on for a channel thread: the session registry starts each
+`headless --serve` worker with `--require-approval`. When the agent reaches a tool
+that needs approval (Write, Edit, Delete, Bash), the run is interrupted and the
+channel user is asked to approve or decline before the call runs.
 
 ### How It Works
 
-1. The channel manager spawns `infer headless --require-approval`
-2. When the agent encounters a tool that requires approval, it outputs a JSON
-   approval request on stdout and blocks
-3. The channel manager detects the request and sends a human-readable prompt
-   to the user (e.g., "Tool approval required: Bash / Command: `rm -rf tmp/`")
+1. The session registry starts the thread's worker with `infer headless --serve
+   --require-approval`
+2. When the agent reaches a gated tool, the run ends with an interrupt and the
+   channel manager notices the interrupted run
+3. It sends a human-readable prompt to the user (e.g., "Tool approval required:
+   Bash / Command: `rm -rf tmp/`")
 4. The user replies **yes** (or y, approve, ok) to approve, or **no** (or n,
    reject) to reject
-5. The channel manager writes the approval response to the agent's stdin
+5. The channel manager resumes the run with the answer, which lets the tool run
+   or cancels it
 6. If no reply is received within **5 minutes**, the tool is automatically
    rejected
 
@@ -310,10 +318,11 @@ prompts the channel user and waits for confirmation.
 Channels use the same approval policy as the TUI. See the
 [Tool Overview](tools-reference.md#tool-overview) for each tool's default and how to override it.
 
-### Disabling Tool Approval
+### Turning Tool Approval Off
 
-To disable approval and auto-execute all tools (original behavior), set the
-top-level `require_approval` flag in `.infer/channels.yaml`:
+With approval off, a gated call is cancelled rather than prompted for, so the
+channel user never sees it and the agent cannot run it. Set the top-level
+`require_approval` flag in `.infer/channels.yaml`:
 
 ```yaml
 # .infer/channels.yaml
@@ -321,6 +330,9 @@ require_approval: false
 ```
 
 Or: `INFER_CHANNELS_REQUIRE_APPROVAL=false`
+
+This never relaxes the worker itself, which always runs with `--require-approval`.
+It only decides whether the channel answers the prompt.
 
 ## Conversation Memory
 
@@ -340,11 +352,11 @@ conversations, which means:
 
 ## Remote-Control Prompt and System Reminders
 
-Messages routed through the daemon invoke `infer headless --remote`,
-which swaps the default agent system prompt for
-`prompts.agent.system_prompt_remote`. That prompt is tuned for short,
-chat-style replies so that a casual "Hi" does not trigger a paragraph-long
-response or unnecessary tool calls.
+The daemon starts each thread's worker with the remote-control system prompt
+(`prompts.agent.system_prompt_remote`) as a thread option, which swaps the
+default agent system prompt. That prompt is tuned for short, chat-style replies
+so that a casual "Hi" does not trigger a paragraph-long response or unnecessary
+tool calls.
 
 Customise it in `~/.infer/prompts.yaml`:
 
@@ -395,7 +407,7 @@ switch.
 
 ## Adding a Custom Channel
 
-To add support for a new messaging platform, implement the `domain.Channel`
+To add support for a new messaging platform, implement the `channels.Channel`
 interface:
 
 ```go
@@ -454,7 +466,7 @@ func (c *MyChannel) Send(
 func (c *MyChannel) Stop() error { return nil }
 ```
 
-2. **Add config types** to `config/config.go`
+2. **Add config types** to `config/channels.go`
 
 3. **Register in the daemon command** in `cmd/daemon/daemon.go`:
 
@@ -503,7 +515,7 @@ case "mychannel":
 ### Rate limiting
 
 Telegram has rate limits (approximately 30 messages per second). For long
-responses, the channel automatically splits messages into 4096-character
+responses, the channel automatically splits messages into 3500-character
 chunks.
 
 ### Unauthorized user warnings
