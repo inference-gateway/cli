@@ -18,11 +18,6 @@ import (
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
-// runInputFrameType is the frame a client starts and continues runs with: it
-// carries a RunAgentInput whose messages hold the new messages only and whose
-// resume entries answer the interrupts an interrupted run ended on.
-const runInputFrameType = "run_agent_input"
-
 // continuePrompt is the message a run input without new messages asks the agent
 // to continue with, the run after one the client interrupted or paused.
 const continuePrompt = "Please continue from where you left off."
@@ -106,7 +101,7 @@ func (c *headlessControl) dispatchLine(line []byte) {
 		if json.Unmarshal(line, &resp) == nil {
 			c.questions <- resp
 		}
-	case runInputFrameType:
+	case ipc.RunAgentInputFrameType:
 		var frame runInputFrame
 		if json.Unmarshal(line, &frame) != nil {
 			return
@@ -121,7 +116,9 @@ func (c *headlessControl) dispatchLine(line []byte) {
 	}
 }
 
-// runInputFrame is the frame that starts and continues runs.
+// runInputFrame is the frame that starts and continues runs: its messages are
+// the new messages only and its resume entries answer the interrupts an
+// interrupted run ended on.
 type runInputFrame struct {
 	Type  string             `json:"type"`
 	Input agui.RunAgentInput `json:"input"`

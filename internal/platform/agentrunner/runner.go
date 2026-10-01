@@ -19,43 +19,27 @@ type ExecFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd
 
 // Options configures a single `infer headless` subprocess run.
 type Options struct {
-	// BinaryPath is the infer binary to spawn; defaults to os.Args[0] when empty.
-	BinaryPath string
-	// Exec overrides command construction (tests); defaults to exec.CommandContext.
-	Exec ExecFunc
-
-	SessionID string
-	Prompt    string
-	Model     string
-	Files     []string
-
+	BinaryPath      string
+	Exec            ExecFunc
+	SessionID       string
+	Prompt          string
+	Model           string
+	Files           []string
 	RequireApproval bool
 	Remote          bool
 	Heartbeat       bool
-	// ResultFile, when set, passes --result-file so the agent writes its final
-	// assistant message to a JSON file on exit (used by detached/tmux runs).
-	ResultFile string
-	// ExtraEnv is appended to os.Environ() for the subprocess (e.g. depth guard).
-	ExtraEnv []string
-
-	// OnLine is called for each non-empty raw stdout line. Approval-request
-	// lines handled internally (see Approval) are not passed to OnLine.
-	OnLine func(line []byte)
-	// Approval, when set and RequireApproval is true, resolves a tool approval
-	// request into a response that is written back to the agent's stdin. It
-	// blocks until the decision is made.
-	Approval func(ipc.ApprovalRequest) ipc.ApprovalResponse
+	ResultFile      string
+	ExtraEnv        []string
+	Stdin           *os.File
+	KeepAlive       bool
+	OnLine          func(line []byte)
+	Approval        func(ipc.ApprovalRequest) ipc.ApprovalResponse
 }
 
 // Result is the outcome of a subprocess run.
 type Result struct {
-	// FinalAssistant is the last non-empty assistant message content seen on
-	// stdout - the harvested "answer" of the run.
 	FinalAssistant string
-	// Stderr is the run's own error when it failed: the error it reported as
-	// JSON, or else its plain standard error. Its JSON log lines went to this
-	// process's log.
-	Stderr string
+	Stderr         string
 }
 
 // Run spawns `infer headless ...`, streams stdout line-by-line, optionally brokers
@@ -83,6 +67,9 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 		return result, fmt.Errorf("stdout pipe: %w", err)
 	}
 
+	if opts.Stdin != nil {
+		cmd.Stdin = opts.Stdin
+	}
 	brokerApproval := opts.RequireApproval && opts.Approval != nil
 	var stdinWriter io.WriteCloser
 	if brokerApproval {
@@ -162,6 +149,9 @@ func buildArgs(opts Options) []string {
 	}
 	if opts.ResultFile != "" {
 		args = append(args, "--result-file", opts.ResultFile)
+	}
+	if opts.KeepAlive {
+		args = append(args, "--keep-alive")
 	}
 	return append(args, opts.Prompt)
 }

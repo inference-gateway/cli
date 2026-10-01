@@ -440,6 +440,9 @@ func (s *Supervisor) Snapshot() []scheddomain.TrackedJob {
 			Status:      sj.status,
 			CompletedAt: sj.completedAt,
 		}
+		if tj.Status == scheddomain.JobRunning && isIdle(sj.job) {
+			tj.Status = scheddomain.JobCompleted
+		}
 		if p, ok := sj.job.(scheddomain.JobOutputProvider); ok {
 			tj.Output = p.Output()
 		}
@@ -508,11 +511,17 @@ func (s *Supervisor) HasPending() bool {
 	defer s.mu.RUnlock()
 
 	for _, sj := range s.jobs {
-		if sj.status == scheddomain.JobRunning && sj.meta.HoldsSession {
+		if sj.status == scheddomain.JobRunning && sj.meta.HoldsSession && !isIdle(sj.job) {
 			return true
 		}
 	}
 	return false
+}
+
+// isIdle reports whether a running job is between turns and so holds nothing.
+func isIdle(job scheddomain.BackgroundJob) bool {
+	idler, ok := job.(scheddomain.JobIdleReporter)
+	return ok && idler.Idle()
 }
 
 // Cleanup reaps finished jobs whose terminal timestamp is older than olderThan,

@@ -302,9 +302,10 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 			StartedAt:   time.Now(),
 			CancelFunc:  cancel,
 		}
-		job := &headlessSubagentJob{tool: t, spec: spec, state: state, runCtx: runCtx, cancelRun: cancel}
+		job := newKeepAliveSubagentJob(t, spec, state, runCtx, cancel)
 		if !t.dispatchHeadless(job) {
 			cancel()
+			job.release()
 			continue
 		}
 
@@ -331,9 +332,10 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 }
 
 // executeOne runs a single headless subagent and returns its final assistant
-// message and run stats. onLine sees each line the run prints as it arrives.
-// Interactive subagents are handled separately by runInteractive.
-func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionID string, onLine func(line []byte)) (string, *scheddomain.SubagentRunStats, error) {
+// message and run stats. onLine sees each line the run prints as it arrives,
+// and a stdin keeps the child alive for follow-up turns. Interactive subagents
+// are handled separately by runInteractive.
+func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionID string, onLine func(line []byte), stdin *os.File) (string, *scheddomain.SubagentRunStats, error) {
 	resultFile := subagentResultFilePath(sessionID)
 	_ = os.Remove(resultFile)
 	defer func() { _ = os.Remove(resultFile) }()
@@ -347,6 +349,8 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 		ResultFile: resultFile,
 		ExtraEnv:   t.subagentExtraEnv(ctx, spec),
 		OnLine:     onLine,
+		Stdin:      stdin,
+		KeepAlive:  stdin != nil,
 	})
 
 	answer := res.FinalAssistant

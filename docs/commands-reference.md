@@ -547,8 +547,11 @@ infer headless "/cost"      # prints the session cost breakdown, no model call
 - `--format json|json-pretty|ag-ui|text`: Output format (default json)
 - `--mode`: Agent mode: standard, plan, auto, auto-with-judge (env: `INFER_AGENT_MODE`); a value that fails
      validation, or `auto-with-judge` with no resolvable judge model, fails before the gateway or agent starts
-- `--serve`: Run as a long-lived worker that takes no task, runs one turn per `user_message` read on stdin and writes
-  each turn as one AG-UI run (implies `--format ag-ui`, see [Serve worker](ag-ui-output.md#serve-worker))
+- `--serve`: Run as a long-lived worker that takes no task, runs one turn per `run_agent_input` frame read on stdin
+  and writes each turn as one AG-UI run (implies `--format ag-ui`, see [Serve worker](ag-ui-output.md#serve-worker))
+- `--keep-alive`: After the task, keep running: each `run_agent_input` frame read on stdin runs as a further turn in
+  the same session, every finished turn is reported as one `subagent_turn` line on stdout, and stdin EOF ends the
+  run. The `Agent` tool spawns its headless subagents this way (see [Headless Subagents](subagents.md#headless-subagents))
 
 **Examples:**
 

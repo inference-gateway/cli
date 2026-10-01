@@ -2,8 +2,10 @@ package agentrunner
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"testing"
+	"time"
 
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 )
@@ -161,5 +163,42 @@ printf '%s\n' '{"role":"assistant","content":"approved"}'`
 	}
 	if res.FinalAssistant != "approved" {
 		t.Fatalf("FinalAssistant = %q, want approved (stdin response not delivered?)", res.FinalAssistant)
+	}
+}
+
+func TestRunPassesStdin(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = r.Close() }()
+
+	var lines []string
+	done := make(chan error, 1)
+	go func() {
+		_, err := Run(context.Background(), Options{
+			Exec: func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				return exec.CommandContext(ctx, "sh", "-c", "cat")
+			},
+			SessionID: "s1", Prompt: "do", Stdin: r, KeepAlive: true,
+			OnLine: func(b []byte) { lines = append(lines, string(b)) },
+		})
+		done <- err
+	}()
+
+	if _, err := w.Write([]byte(`{"type":"run_agent_input"}` + "\n")); err != nil {
+		t.Fatal(err)
+	}
+	_ = w.Close()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return after stdin closed")
+	}
+	if len(lines) != 1 || lines[0] != `{"type":"run_agent_input"}` {
+		t.Fatalf("child echoed %q", lines)
 	}
 }

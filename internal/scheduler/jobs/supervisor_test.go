@@ -8,6 +8,7 @@ import (
 	"time"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -286,6 +287,40 @@ func TestSupervisor_HasPending(t *testing.T) {
 	if sup.HasPending() {
 		t.Fatalf("finished jobs must not count as pending")
 	}
+}
+
+// TestSupervisor_HasPendingSkipsIdleJobs: a running session-holding job that
+// reports itself idle between turns does not hold the session, and the task
+// views read it as completed until it is busy again.
+func TestSupervisor_HasPendingSkipsIdleJobs(t *testing.T) {
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
+	started := make(chan struct{})
+	finish := make(chan struct{})
+	keeper := &schedmocks.FakeJobIdleReporter{}
+	keeper.MetaReturns(scheddomain.JobMeta{ID: "keeper", Kind: scheddomain.JobKindSubagent, Label: "keeper", StartedAt: time.Now(), HoldsSession: true})
+	keeper.RunStub = func(context.Context, func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
+		close(started)
+		<-finish
+		return agentdomain.ToolExecutionResult{Success: true}
+	}
+	sup.Submit(keeper)
+	<-started
+	if !sup.HasPending() {
+		t.Fatalf("a busy session-holding job should count as pending")
+	}
+	keeper.IdleReturns(true)
+	if sup.HasPending() {
+		t.Fatalf("an idle job must not hold the session")
+	}
+	if got := statusOf(sup, "keeper"); got != scheddomain.JobCompleted {
+		t.Fatalf("an idle job reads as completed in the snapshot, got %s", got)
+	}
+	keeper.IdleReturns(false)
+	if got := statusOf(sup, "keeper"); got != scheddomain.JobRunning {
+		t.Fatalf("a job busy again reads as running, got %s", got)
+	}
+	close(finish)
+	sup.Stop()
 }
 
 // TestSupervisor_DiscardKind: discarding a kind stops and forgets its running

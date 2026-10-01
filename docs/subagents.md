@@ -23,6 +23,7 @@ does the same in one view.
 - [Locations and Precedence](#locations-and-precedence)
 - [Tools Allowlist](#tools-allowlist)
 - [Model](#model)
+- [Headless Subagents](#headless-subagents)
 - [Interactive Subagents](#interactive-subagents)
 - [Run Stats](#run-stats)
 - [Compatibility Notes](#compatibility-notes)
@@ -113,6 +114,34 @@ still load. The file's model wins over a per-task `model` argument; when the
 file sets none, the normal resolution order applies (per-task model,
 `tools.agent.model`, then the parent turn's model).
 
+## Headless Subagents
+
+With `tools.agent.mode: headless` (the default) a delegated subagent runs as an
+`infer headless --keep-alive` subprocess whose stdin the parent holds open. The
+task is its first turn, and the subagent stays alive idle after it so the parent
+can talk to it without respawning and losing its context:
+
+- The parent receives one `[Subagent Completed: <label>]` note per finished turn,
+  carrying that turn's final message and the run stats. A turn that ended in an
+  error arrives as `[Subagent Failed: <label>]` with the error.
+- `SendSubagentInput` with `text` sends the subagent a follow-up message - new
+  information, a correction, a question about its result - which it runs as its
+  next turn in the same session, and the parent is notified again when that turn
+  ends. A message sent while the subagent is mid-turn is queued and runs next,
+  nothing is lost and no note is duplicated. `keys` and `submit=false` drive an
+  interactive pane's TUI and fail for a headless subagent.
+- A subagent that sits idle for `tools.agent.idle_timeout` seconds after a
+  completed turn is closed with one `[Subagent Closed: <label>]` note carrying
+  its last message. The default is `300` seconds, `0` disables the auto-close and
+  `INFER_TOOLS_AGENT_IDLE_TIMEOUT` overrides it. There is no `[Subagent Idle]`
+  warning for a headless subagent: every turn reports done, so the completion
+  note is the cue that it awaits a follow-up.
+- `CloseSubagent` stops an idle or running headless subagent at once.
+- An idle subagent does not keep a headless parent alive: a one-shot
+  `infer headless` run that delegated work exits once its own turn is done.
+- `tools.agent.wait: true` (blocking fan-in) is unchanged: a blocking subagent
+  returns its first turn and is not kept alive.
+
 ## Interactive Subagents
 
 With `tools.agent.mode: interactive` a delegated subagent runs as a live
@@ -152,7 +181,8 @@ Tools: 12 succeeded, 1 failed | Tokens: 60448 in, 745 out
 ```
 
 - **Tools** counts the tool calls the subagent executed. A rejected call counts as failed.
-- **Tokens** are the input and output tokens of the whole subagent session.
+- **Tokens** are the input and output tokens of the whole subagent session, every turn of a headless
+  subagent included.
 
 A failed tool call does not fail the subagent. A subagent fails only when its run ends with an error, so the
 counts are how the parent tells a clean run from one that struggled. A subagent that crashes before it writes

@@ -45,6 +45,9 @@ func TestValidateOptions(t *testing.T) {
 		{"serve with a task", Options{Serve: true, Task: "fix it", Format: "ag-ui"}, "--serve takes no task"},
 		{"serve without ag-ui", Options{Serve: true, Format: "json"}, "needs --format ag-ui"},
 		{"no task without serve", Options{Format: "json"}, "a task is required"},
+		{"keep-alive task", Options{Task: "fix it", Format: "json", KeepAlive: true}, ""},
+		{"keep-alive with serve", Options{Serve: true, Format: "ag-ui", KeepAlive: true}, "pick one"},
+		{"keep-alive in text", Options{Task: "fix it", Format: "text", KeepAlive: true}, "--format text does not"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

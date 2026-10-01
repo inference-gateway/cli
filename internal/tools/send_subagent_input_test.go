@@ -2,7 +2,9 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
@@ -99,16 +101,57 @@ func TestSendSubagentInputTool_KeysNoSubmitDoesNotRearm(t *testing.T) {
 	}
 }
 
-func TestSendSubagentInputTool_HeadlessFails(t *testing.T) {
+func TestSendSubagentInputTool_HeadlessSendsText(t *testing.T) {
 	tracker := schedinfra.NewSubagentTracker()
+	var sent string
 	_ = tracker.AddSubagent(&scheddomain.SubagentState{
-		ID: "h1", Mode: scheddomain.SubagentModeHeadless, Status: scheddomain.SubagentRunning,
+		ID: "h1", Mode: scheddomain.SubagentModeHeadless, Status: scheddomain.SubagentCompleted,
+		Input: func(text string) error { sent = text; return nil },
 	})
 	tool := NewSendSubagentInputTool(config.DefaultConfig(), tracker)
 
-	res, _ := tool.Execute(context.Background(), map[string]any{"subagent_id": "h1", "text": "hi"})
-	if res.Success {
-		t.Fatalf("headless subagent has no TUI and should fail")
+	res, err := tool.Execute(context.Background(), map[string]any{"subagent_id": "h1", "text": "also cover X"})
+	if err != nil || !res.Success {
+		t.Fatalf("Execute: res=%+v err=%v", res, err)
+	}
+	if sent != "also cover X" {
+		t.Fatalf("sent %q, want the text", sent)
+	}
+	if msg := tool.FormatForLLM(res); !strings.Contains(msg, "notified automatically") {
+		t.Fatalf("the model must be told to wait, got %q", msg)
+	}
+}
+
+func TestSendSubagentInputTool_HeadlessRejectsTUIInput(t *testing.T) {
+	tests := []struct {
+		name string
+		args map[string]any
+		want string
+	}{
+		{"keys", map[string]any{"subagent_id": "h1", "keys": []any{"Enter"}}, "interactive-only"},
+		{"submit=false", map[string]any{"subagent_id": "h1", "text": "x", "submit": false}, "interactive-only"},
+		{"no input func", map[string]any{"subagent_id": "h2", "text": "x"}, "accepts no message"},
+		{"send error", map[string]any{"subagent_id": "h3", "text": "x"}, "has exited"},
+	}
+	tracker := schedinfra.NewSubagentTracker()
+	calls := 0
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{ID: "h1", Mode: scheddomain.SubagentModeHeadless, Input: func(string) error { calls++; return nil }})
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{ID: "h2", Mode: scheddomain.SubagentModeHeadless})
+	_ = tracker.AddSubagent(&scheddomain.SubagentState{ID: "h3", Mode: scheddomain.SubagentModeHeadless, Input: func(string) error { return errors.New("subagent has exited") }})
+	tool := NewSendSubagentInputTool(config.DefaultConfig(), tracker)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := tool.Execute(context.Background(), tt.args)
+			if err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			if res.Success || !strings.Contains(res.Error, tt.want) {
+				t.Fatalf("res = %+v, want a failure mentioning %q", res, tt.want)
+			}
+		})
+	}
+	if calls != 0 {
+		t.Fatalf("rejected input must not reach the subagent, got %d calls", calls)
 	}
 }
 

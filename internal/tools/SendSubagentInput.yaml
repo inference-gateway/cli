@@ -1,23 +1,27 @@
 name: SendSubagentInput
-description: 'Type into an interactive subagent''s TUI - to re-prompt it or drive its interface. Provide ''text'' (typed literally) and/or ''keys'' (named keys: Enter, Escape, Up, Down, Left, Right, Tab, BSpace, Space, Home, End, PageUp, PageDown). With submit=true (default) it presses Enter to send a new prompt and you are AUTOMATICALLY NOTIFIED when the subagent finishes the resulting turn - do not poll. With submit=false it only sends the keys (for TUI navigation/testing); observe the effect with ReadSubagentScreen. Interactive subagents only. Pass the subagent_id from ListSubagents. To drive an interactive terminal program that is NOT a subagent, use the `tmux` skill (raw tmux via Bash) instead of this tool.'
+description: 'Send a follow-up message to a subagent you spawned, headless or interactive - to hand it new information, correct its course or ask a follow-up on its result without respawning it. ''text'' is the message. The subagent runs it as its next turn (queued if it is mid-turn) and you are AUTOMATICALLY NOTIFIED with a [Subagent Completed: ...] note when that turn finishes - do not poll. A headless subagent stays alive idle between turns until tools.agent.idle_timeout or CloseSubagent. ''keys'' (named keys: Enter, Escape, Up, Down, Left, Right, Tab, BSpace, Space, Home, End, PageUp, PageDown) and submit=false drive an interactive pane''s TUI and fail for a headless subagent. With submit=true (default) an interactive pane presses Enter to send the prompt. With submit=false it only sends the keys (TUI navigation/testing); observe the effect with ReadSubagentScreen. Pass the subagent_id from ListSubagents or the Agent result. To drive an interactive terminal program that is NOT a subagent, use the `tmux` skill (raw tmux via Bash) instead of this tool.'
 parameters:
   type: object
   additionalProperties: false
   properties:
     keys:
       type: array
-      description: 'Named keys to send after the text. Allowed: Enter, Escape, Tab, Space, BSpace, Up, Down, Left, Right, Home, End, PageUp, PageDown'
+      description: 'Interactive subagents only. Named keys to send after the text. Allowed: Enter, Escape, Tab, Space, BSpace, Up, Down, Left, Right, Home, End, PageUp, PageDown'
       items:
         type: string
     subagent_id:
       type: string
-      description: The interactive subagent id from ListSubagents
+      description: The subagent id from ListSubagents or the Agent result
     submit:
       type: boolean
-      description: Press Enter to submit a prompt and wait for the subagent to finish (default true). Set false to only send keys for TUI navigation - then inspect with ReadSubagentScreen.
+      description: Interactive subagents only. Press Enter to submit a prompt and wait for the subagent to finish (default true). Set false to only send keys for TUI navigation - then inspect with ReadSubagentScreen.
     text:
       type: string
-      description: Literal text to type into the subagent (e.g. a follow-up prompt)
+      description: The message to send (a follow-up prompt, new information, a correction). Typed literally into an interactive pane.
   required:
     - subagent_id
-modes: [standard, auto, auto-with-judge, plan]
+modes:
+  - standard
+  - auto
+  - auto-with-judge
+  - plan

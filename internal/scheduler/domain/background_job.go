@@ -142,6 +142,14 @@ type JobNotifier interface {
 	Notification(result agentdomain.ToolExecutionResult) string
 }
 
+// JobIdleReporter is a BackgroundJob that stays running between turns, like a
+// headless subagent awaiting a follow-up. While Idle reports true the job does
+// not hold the session.
+type JobIdleReporter interface {
+	BackgroundJob
+	Idle() bool
+}
+
 // JobFinisher is an optional BackgroundJob extension the supervisor calls once
 // with the terminal result of a job it did not discard, before the task view
 // refreshes. An A2A task uses it to keep its outcome listed in the task view

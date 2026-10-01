@@ -320,6 +320,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/memory internal/platform/memory MemoryBackend
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain JobStopper
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain JobLivenessReporter
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain JobIdleReporter
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain BackgroundShellService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/storage internal/platform/storage ConversationStorage
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/storage internal/platform/storage ShellHistoryStorage

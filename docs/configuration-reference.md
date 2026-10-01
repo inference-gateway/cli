@@ -392,8 +392,10 @@ telemetry:
 - **tools.edit.strict_whitespace**: `false` (default) enables indentation-tolerant matching for Edit/MultiEdit; `true` requires byte-exact
 - **tools.agent.wait**: `false` (default) makes the Agent tool return as soon as its headless subagents are
   dispatched, so later tool calls in the same turn run right away and each subagent reports back with its own
-  `[Subagent Completed: ...]` notification. `true` blocks the call until every subagent finishes and returns their
-  aggregated results (fan-out / fan-in). Interactive subagents never block. Env: `INFER_TOOLS_AGENT_WAIT`.
+  `[Subagent Completed: ...]` notification, then stays alive for `SendSubagentInput` follow-ups (see
+  [Headless Subagents](subagents.md#headless-subagents)). `true` blocks the call until every subagent finishes and
+  returns their aggregated results (fan-out / fan-in), keeping none alive. Interactive subagents never block.
+  Env: `INFER_TOOLS_AGENT_WAIT`.
 - **tools.agent.max_parallel**: Most subagents one Agent call may dispatch (default: `10`). Tasks past the cap
   are dropped, not queued, and the tool result names how many. Env: `INFER_TOOLS_AGENT_MAX_PARALLEL`.
 - **tools.agent.idle_timeout**: Seconds an interactive (tmux-pane) subagent may sit idle - no harvested

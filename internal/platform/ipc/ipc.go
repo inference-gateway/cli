@@ -40,6 +40,10 @@ type UserQuestionResponse struct {
 	Cancelled  bool            `json:"cancelled,omitempty"`
 }
 
+// RunAgentInputFrameType is the stdin frame that starts or continues a run
+// with new user messages. Its body is an AG-UI RunAgentInput.
+const RunAgentInputFrameType = "run_agent_input"
+
 // UserMessageRequestID tags queue entries that came from a run input on stdin
 // so the renderer can tell them apart from background-job result notes.
 const UserMessageRequestID = "stdin"

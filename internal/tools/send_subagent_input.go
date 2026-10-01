@@ -24,10 +24,10 @@ var allowedSubagentKeys = map[string]bool{
 
 const allowedSubagentKeyList = "Enter, Escape, Tab, Space, BSpace, Up, Down, Left, Right, Home, End, PageUp, PageDown"
 
-// SendSubagentInputTool types text and/or named keys into an interactive
-// subagent's tmux pane - to re-prompt it or drive its TUI. When it submits a
-// prompt (submit=true) it re-arms the completion watcher so the main agent is
-// notified when the subagent finishes the resulting turn (no polling).
+// SendSubagentInputTool sends a subagent its next turn: a message written to a
+// headless subagent's stdin, or text and named keys typed into an interactive
+// subagent's tmux pane. A submitted prompt re-arms the completion watcher so
+// the main agent is notified when the resulting turn finishes (no polling).
 type SendSubagentInputTool struct {
 	config    *config.Config
 	tracker   scheddomain.SubagentTracker
@@ -67,18 +67,19 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 	if s == nil {
 		return t.fail(args, fmt.Sprintf("Subagent not found: %s (it may have been closed).", subagentID)), nil
 	}
-	if s.Mode != scheddomain.SubagentModeInteractive || s.PaneID == "" {
-		return t.fail(args, fmt.Sprintf("Subagent %s is headless and has no TUI to send input to. Only interactive (tmux-pane) subagents accept input.", labelOrSession(s.Label, s.SessionID))), nil
-	}
-	if t.paneState(ctx, s.PaneID) == paneGone {
-		return t.fail(args, fmt.Sprintf("Subagent %s's pane no longer exists; it cannot receive input.", labelOrSession(s.Label, s.SessionID))), nil
-	}
 
 	text, _ := args["text"].(string)
 	keys := optionalStringSlice(args, "keys")
 	submit := true
 	if v, ok := args["submit"].(bool); ok {
 		submit = v
+	}
+
+	if s.Mode != scheddomain.SubagentModeInteractive || s.PaneID == "" {
+		return t.sendHeadless(args, s, text, keys, submit), nil
+	}
+	if t.paneState(ctx, s.PaneID) == paneGone {
+		return t.fail(args, fmt.Sprintf("Subagent %s's pane no longer exists; it cannot receive input.", labelOrSession(s.Label, s.SessionID))), nil
 	}
 
 	send := keys
@@ -114,6 +115,35 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 			"message":     msg,
 		},
 	}, nil
+}
+
+// sendHeadless hands a headless subagent its next turn's message. Keys and
+// submit=false drive a TUI, which a headless subagent has none of.
+func (t *SendSubagentInputTool) sendHeadless(args map[string]any, s *scheddomain.SubagentState, text string, keys []string, submit bool) *agentdomain.ToolExecutionResult {
+	label := labelOrSession(s.Label, s.SessionID)
+	if len(keys) > 0 || !submit {
+		return t.fail(args, fmt.Sprintf("Subagent %s is headless: 'keys' and submit=false drive an interactive pane's TUI and are interactive-only. Send it a 'text' message instead.", label))
+	}
+	if strings.TrimSpace(text) == "" {
+		return t.fail(args, fmt.Sprintf("Subagent %s is headless and takes a 'text' message.", label))
+	}
+	if s.Input == nil {
+		return t.fail(args, fmt.Sprintf("Subagent %s is a blocking or finished headless subagent and accepts no message.", label))
+	}
+	if err := s.Input(text); err != nil {
+		return t.fail(args, fmt.Sprintf("Failed to send the message to subagent %s: %v", label, err))
+	}
+	return &agentdomain.ToolExecutionResult{
+		ToolName:  ToolSendSubagentInput,
+		Arguments: args,
+		Success:   true,
+		Data: map[string]any{
+			"subagent_id": s.ID,
+			"label":       s.Label,
+			"submitted":   true,
+			"message":     fmt.Sprintf("Sent the message to headless subagent %s. It runs it as its next turn - you will be notified automatically when that turn finishes; do not poll.", label),
+		},
+	}
 }
 
 func (t *SendSubagentInputTool) fail(args map[string]any, msg string) *agentdomain.ToolExecutionResult {

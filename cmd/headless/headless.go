@@ -24,9 +24,14 @@ Examples:
   infer headless --serve --session-id abc-123
 
 With --serve the command runs as a long-lived worker: it takes no task, runs one
-agent turn per user_message frame read on stdin and writes each turn to stdout
-as one AG-UI run. An interrupt frame cancels the running turn, and stdin EOF
-shuts the worker down once the queued turns finish.
+agent turn per run_agent_input frame read on stdin and writes each turn to
+stdout as one AG-UI run. An interrupt frame cancels the running turn, and stdin
+EOF shuts the worker down once the queued turns finish.
+
+With --keep-alive the command runs the task, then stays alive: each
+run_agent_input frame read on stdin runs as a further turn in the same session
+and every finished turn is reported as one subagent_turn line on stdout, until
+stdin closes. The Agent tool spawns its headless subagents this way.
 
 Exit Codes:
   0  task completed
@@ -49,6 +54,7 @@ Exit Codes:
 			opts.Format, _ = cmd.Flags().GetString("format")
 			opts.Mode, _ = cmd.Flags().GetString("mode")
 			opts.Serve, _ = cmd.Flags().GetBool("serve")
+			opts.KeepAlive, _ = cmd.Flags().GetBool("keep-alive")
 			if opts.Serve && !cmd.Flags().Changed("format") {
 				opts.Format = "ag-ui"
 			}
@@ -68,6 +74,7 @@ Exit Codes:
 	command.Flags().String("result-file", "", "Write final result JSON to this path")
 	command.Flags().String("format", "json", "Output format: json, json-pretty, ag-ui, text")
 	command.Flags().String("mode", "", "Agent mode: standard, plan, auto, auto-with-judge (env: INFER_AGENT_MODE)")
-	command.Flags().Bool("serve", false, "Run as a long-lived worker: one AG-UI run per user_message on stdin")
+	command.Flags().Bool("serve", false, "Run as a long-lived worker: one AG-UI run per run_agent_input frame on stdin")
+	command.Flags().Bool("keep-alive", false, "After the task, run each run_agent_input frame on stdin as a further turn until stdin closes")
 	return command
 }

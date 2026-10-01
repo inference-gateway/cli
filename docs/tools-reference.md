@@ -93,8 +93,8 @@ always-available set is registered for every session. There is **no built-in Git
 | **ListSubagents** | List spawned subagents and their status | No |
 | **GetSubagentResult** | Re-read a finished subagent's last message | No |
 | **ReadSubagentScreen** | Capture an interactive subagent's terminal screen | No |
-| **SendSubagentInput** | Type into an interactive subagent's TUI | Yes |
-| **CloseSubagent** | Stop a subagent or tidy a finished pane | Yes |
+| **SendSubagentInput** | Send a subagent a follow-up message as its next turn (text for both modes, keys for interactive) | Yes |
+| **CloseSubagent** | Stop a subagent, idle or running | Yes |
 | **ApproveSubagent** | Relay an approval decision to a waiting subagent | Yes |
 
 `Agent` is also offered in plan mode, where every subagent runs read-only
