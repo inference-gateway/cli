@@ -298,7 +298,7 @@ func TestSubagentListCapsRowsAndShowsOverflow(t *testing.T) {
 	}
 }
 
-func TestSubagentListRightAlignsWithinWidth(t *testing.T) {
+func TestSubagentListStretchesWithinWidth(t *testing.T) {
 	jobs := []scheddomain.TrackedJob{
 		subagentJob("reviewer", scheddomain.JobRunning, time.Now().Add(-12*time.Second), nil),
 		subagentJob("tester", scheddomain.JobRunning, time.Now().Add(-9*time.Second), nil),
@@ -308,13 +308,16 @@ func TestSubagentListRightAlignsWithinWidth(t *testing.T) {
 	if _, cmd := list.Update(tea.WindowSizeMsg{Width: 40, Height: 10}); cmd != nil {
 		t.Error("expected no command from a plain resize")
 	}
+	wantWidth := 40 - versionRightInset
 	for i, line := range strings.Split(plain(list.Render()), "\n") {
-		wantWidth := 40 - versionRightInset
 		if visibleWidth(line) != wantWidth {
 			t.Errorf("row %d width = %d, want exactly %d (version column edge): %q", i, visibleWidth(line), wantWidth, line)
 		}
-		if !strings.HasPrefix(line, " ") {
-			t.Errorf("row %d should be right-aligned across the width: %q", i, line)
+		if strings.HasPrefix(line, " ") {
+			t.Errorf("row %d should start on the left edge like the composer: %q", i, line)
+		}
+		if strings.HasSuffix(line, " ") {
+			t.Errorf("row %d should end flush on the version column edge: %q", i, line)
 		}
 	}
 }
@@ -351,8 +354,9 @@ func TestSubagentListRowsAlignInColumns(t *testing.T) {
 	}
 }
 
-// TestSubagentListFitsLabelColumnToWidestName: long names used to be cut at 12
-// columns, so an agent could not be told apart from its neighbours.
+// TestSubagentListFitsLabelColumnToWidestName: short names keep their natural
+// column, and a name too long for the block is cut with an ellipsis while the
+// row still spans the full width.
 func TestSubagentListFitsLabelColumnToWidestName(t *testing.T) {
 	now := time.Now()
 	name := "frontend-refactor-and-docs"
@@ -366,17 +370,22 @@ func TestSubagentListFitsLabelColumnToWidestName(t *testing.T) {
 		t.Errorf("expected the whole label %q to fit the column, got %q", name, got)
 	}
 
-	capped := strings.Repeat("x", subagentLabelCap+10)
-	got = plain(newList(listOpts{
-		jobs:      []scheddomain.TrackedJob{subagentJob(capped, scheddomain.JobRunning, now.Add(-2*time.Second), nil)},
+	long := strings.Repeat("x", 80)
+	list := newList(listOpts{
+		jobs:      []scheddomain.TrackedJob{subagentJob(long, scheddomain.JobRunning, now.Add(-2*time.Second), nil)},
 		linger:    5,
 		indicator: true,
-	}).Render())
-	if strings.Contains(got, capped) {
-		t.Errorf("expected the label column to stay capped at %d columns, got %q", subagentLabelCap, got)
+	})
+	list.Update(tea.WindowSizeMsg{Width: 40, Height: 10})
+	got = plain(list.Render())
+	if strings.Contains(got, long) {
+		t.Errorf("expected the label to stay within the block width, got %q", got)
 	}
 	if !strings.Contains(got, "...") {
 		t.Errorf("expected an over-long label to be truncated with an ellipsis, got %q", got)
+	}
+	if want := 40 - versionRightInset; visibleWidth(got) != want {
+		t.Errorf("expected the row to span %d columns, got %d: %q", want, visibleWidth(got), got)
 	}
 }
 
@@ -409,7 +418,7 @@ func TestSubagentListShowsRunStatsUnderRows(t *testing.T) {
 	finished := subagentJob("reviewer", scheddomain.JobCompleted, now.Add(-41*time.Second), &done)
 	finished.Stats = &scheddomain.SubagentRunStats{ToolsSucceeded: 12, ToolsFailed: 1, InputTokens: 60448, OutputTokens: 745}
 	running := subagentJob("tester", scheddomain.JobRunning, now.Add(-2*time.Second), nil)
-	running.Stats = &scheddomain.SubagentRunStats{ToolsSucceeded: 2, InputTokens: 900, OutputTokens: 50}
+	running.Stats = &scheddomain.SubagentRunStats{ToolsSucceeded: 2, InputTokens: 900, OutputTokens: 50, CachedTokens: 800}
 	silent := subagentJob("pane", scheddomain.JobRunning, now.Add(-time.Second), nil)
 
 	list := newList(listOpts{jobs: []scheddomain.TrackedJob{silent, running, finished}, linger: 5, indicator: true})
@@ -421,13 +430,16 @@ func TestSubagentListShowsRunStatsUnderRows(t *testing.T) {
 	if !strings.Contains(lines[1], "tester") || !strings.Contains(lines[3], "reviewer") {
 		t.Fatalf("expected the running row second and the finished row fourth, got %q", lines)
 	}
-	wantLive := "└ 2 " + icons.CheckMark + " 0 " + icons.CrossMark + " · 950 tokens"
+	wantLive := "└ 2 " + icons.CheckMark + " 0 " + icons.CrossMark + " · 950 tokens T.900 C.800"
 	if !strings.Contains(lines[2], wantLive) {
 		t.Errorf("expected the live stats line %q under the running row, got %q", wantLive, lines[2])
 	}
-	want := "└ 12 " + icons.CheckMark + " 1 " + icons.CrossMark + " · 61.2k tokens"
+	want := "└ 12 " + icons.CheckMark + " 1 " + icons.CrossMark + " · 61.2k tokens T.60.4k"
 	if !strings.Contains(lines[4], want) {
 		t.Errorf("expected the stats line %q under the finished row, got %q", want, lines[4])
+	}
+	if strings.Contains(lines[4], "C.") {
+		t.Errorf("expected no cached figure on a run that reported none, got %q", lines[4])
 	}
 	for i, line := range lines {
 		if visibleWidth(line) != visibleWidth(lines[0]) {
@@ -437,7 +449,15 @@ func TestSubagentListShowsRunStatsUnderRows(t *testing.T) {
 }
 
 func TestCompactCount(t *testing.T) {
-	for n, want := range map[int]string{0: "0", 950: "950", 1200: "1.2k", 61193: "61.2k", 1_500_000: "1.5M"} {
+	for n, want := range map[int]string{
+		0:         "0",
+		950:       "950",
+		1200:      "1.2k",
+		20000:     "20k",
+		61193:     "61.2k",
+		312_000:   "312k",
+		1_500_000: "1.5M",
+	} {
 		if got := compactCount(n); got != want {
 			t.Errorf("compactCount(%d) = %q, want %q", n, got, want)
 		}

@@ -4,6 +4,11 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func TestEmitPreRunError(t *testing.T) {
@@ -56,5 +61,20 @@ func TestValidateOptions(t *testing.T) {
 				t.Fatalf("validateOptions(%+v) = %v, want %q", tt.opts, err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// TestSubagentRunStatsCarriesCachedTokens: a headless child's run stats keep the
+// prompt-cache slice of its input, so the list under the parent's composer can
+// report it beside the totals.
+func TestSubagentRunStatsCarriesCachedTokens(t *testing.T) {
+	repo := &convmocks.FakeConversationRepository{}
+	repo.GetSessionTokensReturns(convdomain.SessionTokenStats{
+		TotalInputTokens: 1200, TotalOutputTokens: 80, TotalCachedTokens: 1000,
+	})
+
+	want := &scheddomain.SubagentRunStats{InputTokens: 1200, OutputTokens: 80, CachedTokens: 1000}
+	if got := subagentRunStats(repo); got == nil || *got != *want {
+		t.Fatalf("subagentRunStats = %+v, want %+v", got, want)
 	}
 }

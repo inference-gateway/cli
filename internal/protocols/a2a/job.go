@@ -109,6 +109,7 @@ func taskRunStats(task adk.Task) *scheddomain.SubagentRunStats {
 		ToolsFailed:    failed,
 		InputTokens:    metadataCount(usage, "prompt_tokens"),
 		OutputTokens:   metadataCount(usage, "completion_tokens"),
+		CachedTokens:   metadataCount(usage, "cached_tokens"),
 	}
 }
 

@@ -410,7 +410,7 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 		nilRepo      bool
 	}{
 		{
-			name: "renders cumulative total input tokens when present",
+			name: "renders the next-request size and the cumulative total",
 			stats: convdomain.SessionTokenStats{
 				TotalInputTokens:  20_000,
 				TotalOutputTokens: 314,
@@ -418,7 +418,7 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 				RequestCount:      3,
 				LastInputTokens:   7_250,
 			},
-			expectedText: "T.20000",
+			expectedText: "7.2k T.20k",
 			expectEmpty:  false,
 			nilRepo:      false,
 		},
@@ -474,7 +474,7 @@ func TestInputStatusBar_BuildCachedTokensIndicator(t *testing.T) {
 		{
 			name:         "renders cumulative cached tokens when present",
 			stats:        convdomain.SessionTokenStats{TotalInputTokens: 20_000, TotalCachedTokens: 17_500},
-			expectedText: "C.17500",
+			expectedText: "C.17.5k",
 		},
 		{
 			name:  "hidden while zero",
@@ -610,7 +610,7 @@ func TestInputStatusBar_FallsBackToEstimator(t *testing.T) {
 		{
 			name: "session tokens indicator uses estimate",
 			call: func(sb *InputStatusBar) string { return sb.buildSessionTokensIndicator() },
-			want: "T.6643",
+			want: "6.6k T.6.6k",
 		},
 		{
 			name: "context usage indicator uses estimate",
@@ -766,7 +766,7 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 
 				return &InputStatusBar{config: cfg, themeService: themeService, conversationRepo: mockRepo}
 			},
-			wantContains: "T.1234",
+			wantContains: "T.1.2k",
 		},
 	}
 

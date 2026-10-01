@@ -803,23 +803,23 @@ func (isb *InputStatusBar) buildMCPIndicator() string {
 	return fmt.Sprintf("MCP %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers)
 }
 
-// buildSessionTokensIndicator builds the cumulative input-tokens indicator.
-// Shows the total input tokens billed across the entire session (the same
-// number that drives the cost calculation). This is a cumulative running
-// total, not the size of the current context window - the Context indicator
-// uses LastInputTokens for that. Falls back to a tokenizer estimate of the
-// current message buffer when the provider has not returned usage yet.
+// buildSessionTokensIndicator builds the session token indicator. The leading
+// figure is the size of the next request - the same context figure the Context
+// indicator divides by the model's window - and T. is the cumulative input
+// tokens billed across the whole session (the number that drives the cost).
+// Both fall back to a tokenizer estimate when the provider returned no usage.
 func (isb *InputStatusBar) buildSessionTokensIndicator() string {
 	if isb.conversationRepo == nil {
 		return ""
 	}
 
-	totalTokens := isb.totalInputTokensOrEstimate()
-	if totalTokens == 0 {
+	current := isb.currentContextTokensOrEstimate()
+	total := isb.totalInputTokensOrEstimate()
+	if current == 0 && total == 0 {
 		return ""
 	}
 
-	return fmt.Sprintf("T.%d", totalTokens)
+	return fmt.Sprintf("%s T.%s", compactCount(current), compactCount(total))
 }
 
 // buildCachedTokensIndicator builds the cumulative cached-prompt-tokens
@@ -836,7 +836,7 @@ func (isb *InputStatusBar) buildCachedTokensIndicator() string {
 		return ""
 	}
 
-	return fmt.Sprintf("C.%d", cached)
+	return fmt.Sprintf("C.%s", compactCount(cached))
 }
 
 // totalInputTokensOrEstimate returns the cumulative TotalInputTokens reported

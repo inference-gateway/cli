@@ -744,7 +744,10 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
       - Shows a `☰ N queued` segment in the accent color while the shared message queue has entries; hidden once it drains
     - **mcp**: MCP server status and tool count (default: `true`)
     - **context_usage**: Token consumption percentage (default: `true`)
-    - **session_tokens**: Session token usage statistics, plus the `C.` cached-tokens segment when the provider reports cache hits (default: `true`)
+    - **session_tokens**: Session token usage statistics (default: `true`)
+      - The leading figure is the size of the next request's context and the `T.` figure is the cumulative input
+        tokens billed across the session. The `C.` segment appears only when the provider reports cache hits
+        (e.g. `48.2k T.312k • C.290k`)
     - **git_branch**: Current Git branch name (default: `true`)
       - Only displays when in a Git repository
       - Uses 5-second cache for performance
