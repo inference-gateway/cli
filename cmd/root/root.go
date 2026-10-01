@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	fang "charm.land/fang/v2"
@@ -120,11 +121,19 @@ deployment, monitoring, and management of inference services.`,
 
 func Execute() {
 	defer logger.Close()
-	if err := fang.Execute(context.Background(), NewCommand(), fang.WithVersion(version.Value())); err != nil {
+	if err := fang.Execute(context.Background(), NewCommand(), fang.WithVersion(version.Value()), fang.WithErrorHandler(printError)); err != nil {
 		if errors.Is(err, agentdomain.ErrMaxTurnsReached) {
 			os.Exit(ExitCodeMaxTurns)
 		}
 		os.Exit(1)
+	}
+}
+
+// printError logs a failed command's error as JSON for a collecting parent,
+// and otherwise prints it styled for a person.
+func printError(w io.Writer, styles fang.Styles, err error) {
+	if !logger.ReportExitError(os.Stderr, err) {
+		fang.DefaultErrorHandler(w, styles, err)
 	}
 }
 
