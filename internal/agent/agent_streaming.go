@@ -20,10 +20,6 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
-// errConnectStalled marks a stream request that produced no response within
-// the stall threshold, so the reconnect loop retries it instead of failing.
-var errConnectStalled = errors.New("stream connect stalled")
-
 // startStreaming implements the LLM streaming logic for the EventDrivenAgent
 func (a *EventDrivenAgent) startStreaming() {
 	defer a.recoverPanic()
@@ -103,9 +99,10 @@ func (a *EventDrivenAgent) startStreaming() {
 }
 
 // streamOnce runs a single streaming request end to end. It returns true when
-// the stream broke mid-flight (stalled or transport error) and the caller
-// should reconnect, false when the turn finished - successfully, cancelled, or
-// with a non-recoverable error that has already been published.
+// the open stream broke mid-flight (no chunk within the stall threshold or a
+// transport error) so the caller reconnects. Opening the stream is not
+// retried here: the SDK client retries connection errors itself and reports
+// the real cause, which ends the turn.
 func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time.Time) bool {
 	a.finishReason = ""
 	requestCtx, requestCancel := context.WithTimeout(a.agentCtx.Ctx, time.Duration(a.service.timeoutSeconds)*time.Second)
@@ -114,14 +111,8 @@ func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time
 	requestCtx, turnSpan := a.service.recorder.StartLLMTurnSpan(requestCtx, a.req.Model)
 	defer turnSpan.End()
 
-	events, err := a.openStream(requestCtx, requestCancel, client)
+	events, err := client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, a.outboundConversation())
 	if err != nil {
-		if errors.Is(err, errConnectStalled) {
-			logger.Warn("stream connect stalled, reconnecting",
-				"request_id", a.req.RequestID,
-				"turn", a.agentCtx.Turns)
-			return true
-		}
 		var rateLimit *sdk.RateLimitError
 		if errors.As(err, &rateLimit) {
 			logger.Warn("provider quota reached", "provider", a.provider, "retry_after", rateLimit.RetryAfter)
@@ -140,40 +131,6 @@ func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time
 
 	broken := a.processStreamEvents(requestCtx, events, iterationStartTime)
 	return broken
-}
-
-// openStream issues the streaming request bounded by the stall threshold: a
-// request that produces no response within it (e.g. a TCP connect hanging on
-// a dead network for the ~75s OS timeout) is cancelled and reported as
-// errConnectStalled so the reconnect loop counts it like any other stall.
-func (a *EventDrivenAgent) openStream(requestCtx context.Context, cancel context.CancelFunc, client sdk.Client) (<-chan sdk.SSEvent, error) {
-	conversation := a.outboundConversation()
-
-	stallAfter := time.Duration(a.service.config.Client.StallThresholdSec) * time.Second
-	if stallAfter <= 0 {
-		return client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, conversation)
-	}
-
-	type opened struct {
-		events <-chan sdk.SSEvent
-		err    error
-	}
-	done := make(chan opened, 1)
-	go func() {
-		events, err := client.GenerateContentStream(requestCtx, sdk.Provider(a.provider), a.model, conversation)
-		done <- opened{events, err}
-	}()
-
-	timer := time.NewTimer(stallAfter)
-	defer timer.Stop()
-	select {
-	case o := <-done:
-		return o.events, o.err
-	case <-timer.C:
-		cancel()
-		<-done
-		return nil, errConnectStalled
-	}
 }
 
 // outboundConversation returns the request payload: the shared conversation

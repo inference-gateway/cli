@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -120,19 +121,32 @@ func (s *LLMToolService) ListMarkdownSubagents() []agentdomain.SubagentInfo {
 }
 
 // toolUnavailableError tells the model that a tool it called does not run in
-// the current mode, so it can pick another instead of retrying.
-func toolUnavailableError(name string, mode agentdomain.AgentMode) error {
+// the current mode, naming the tools that do so it picks one instead of retrying.
+func toolUnavailableError(name string, mode agentdomain.AgentMode, available []string) error {
 	if mode == agentdomain.AgentModePlan {
-		return fmt.Errorf("tool not allowed: %s is disabled in plan mode (read-only) - use %s/%s/%s/%s to research, %s to clarify, and %s to submit the plan; do not retry this tool until the plan is approved",
-			name, tools.ToolRead, tools.ToolGrep, tools.ToolTree, tools.ToolAgent, tools.ToolAskUserQuestion, tools.ToolRequestPlanApproval)
+		return fmt.Errorf("tool not allowed: %s is disabled in plan mode (read-only) - use one of %s instead; do not retry this tool until the plan is approved",
+			name, strings.Join(available, ", "))
 	}
 	return fmt.Errorf("tool not allowed: %s is not available in %s mode", name, mode.ModeKey())
+}
+
+// toolsAvailableIn lists the registered tools whose manifest allows mode, so
+// mode guidance is derived from the manifests instead of a hand-kept list.
+func (s *LLMToolService) toolsAvailableIn(mode agentdomain.AgentMode) []string {
+	var names []string
+	for _, name := range s.registry.ListAvailableTools() {
+		if s.registry.Manifest(name).AvailableIn(mode) {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // ExecuteTool executes a tool with the given arguments
 func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	if mode, ok := agentdomain.AgentModeFromContext(ctx); ok && !s.registry.Manifest(toolCall.Name).AvailableIn(mode) {
-		return nil, toolUnavailableError(toolCall.Name, mode)
+		return nil, toolUnavailableError(toolCall.Name, mode, s.toolsAvailableIn(mode))
 	}
 
 	if !s.isToolEnabled(toolCall.Name) {

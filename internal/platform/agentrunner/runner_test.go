@@ -115,7 +115,7 @@ func TestRunHarvestsFinalAssistantAndStreamsLines(t *testing.T) {
 	}
 }
 
-func TestRunReturnsOnlyTheLastPlainStderrLine(t *testing.T) {
+func TestRunReturnsThePlainStderrOutput(t *testing.T) {
 	script := `printf '%s\n' '{"level":"info","msg":"working"}' 'first plain line' 'the run failed' 1>&2
 exit 3`
 
@@ -129,8 +129,8 @@ exit 3`
 	if err == nil {
 		t.Fatal("Run succeeded for a failing subprocess")
 	}
-	if res.Stderr != "the run failed" {
-		t.Fatalf("Stderr = %q, want the last plain line", res.Stderr)
+	if res.Stderr != "first plain line\nthe run failed" {
+		t.Fatalf("Stderr = %q, want the plain lines", res.Stderr)
 	}
 }
 

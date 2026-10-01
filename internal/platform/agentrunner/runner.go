@@ -52,8 +52,9 @@ type Result struct {
 	// FinalAssistant is the last non-empty assistant message content seen on
 	// stdout - the harvested "answer" of the run.
 	FinalAssistant string
-	// Stderr is the last plain line of standard error, the run's own error when
-	// it failed. The JSON log lines before it went to this process's log.
+	// Stderr is the run's own error when it failed: the error it reported as
+	// JSON, or else its plain standard error. Its JSON log lines went to this
+	// process's log.
 	Stderr string
 }
 
