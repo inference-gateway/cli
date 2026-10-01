@@ -295,11 +295,7 @@ func (p *eventPublisher) publishTodoUpdate(todos []agentdomain.TodoItem) {
 		Todos: todos,
 	}
 
-	select {
-	case p.chatEvents <- event:
-	default:
-		logger.Warn("todo update event dropped - channel full")
-	}
+	p.chatEvents <- event
 }
 
 // publishPlanApprovalRequest publishes a PlanApprovalRequestedEvent when RequestPlanApproval tool executes
@@ -312,11 +308,7 @@ func (p *eventPublisher) publishPlanApprovalRequest(planContent, planID string) 
 		ResponseChan: nil,
 	}
 
-	select {
-	case p.chatEvents <- event:
-	default:
-		logger.Warn("plan approval request event dropped - channel full")
-	}
+	p.chatEvents <- event
 }
 
 // publishToolExecutionCompleted publishes a ToolExecutionCompletedEvent after all tools finish
@@ -349,11 +341,7 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []convdomain.Conv
 		Results:       toolResults,
 	}
 
-	select {
-	case p.chatEvents <- event:
-	default:
-		logger.Warn("tool execution completed event dropped - channel full")
-	}
+	p.chatEvents <- event
 }
 
 // NewAgentService creates a new agent service with pre-configured client

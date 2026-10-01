@@ -1094,3 +1094,53 @@ func contains(s, substr string) bool {
 					s[len(s)-len(substr):] == substr ||
 					strings.Contains(s, substr))))
 }
+
+func TestGrepTool_RipgrepErrors(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
+			Grep: config.GrepToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+	tool := NewGrepTool(cfg)
+	if !tool.useRipgrep {
+		t.Skip("ripgrep not detected")
+	}
+
+	tests := []struct {
+		name        string
+		args        map[string]any
+		wantSuccess bool
+		wantError   string
+	}{
+		{
+			name:        "leading dash pattern is literal",
+			args:        map[string]any{"pattern": "-foo"},
+			wantSuccess: true,
+		},
+		{
+			name:      "unknown type surfaces ripgrep stderr",
+			args:      map[string]any{"pattern": "package", "type": "nosuchtype"},
+			wantError: "unrecognized file type",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := tool.Execute(t.Context(), tt.args)
+			if err != nil {
+				t.Fatalf("Execute returned error: %v", err)
+			}
+			if result.Success != tt.wantSuccess {
+				t.Fatalf("Success = %v, want %v (error: %q)", result.Success, tt.wantSuccess, result.Error)
+			}
+			if !contains(result.Error, tt.wantError) {
+				t.Errorf("Error = %q, want it to contain %q", result.Error, tt.wantError)
+			}
+		})
+	}
+}
