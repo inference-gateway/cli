@@ -254,12 +254,15 @@ chat:
       mcp: true
       context_usage: true
       session_tokens: true
+      cost: true
       git_branch: true
+      git_pr: true
+      subagents: true
 compact:
   enabled: true # Enable automatic conversation compaction
   auto_at: 80 # Compact when context reaches this percentage (20-100)
 telemetry:
-  enabled: true # Record OTel metrics locally; written as OTLP/semconv JSON under <config-dir>/telemetry
+  enabled: true # Record OTel metrics locally; written as OTLP/semconv JSON under ~/.infer/telemetry
   retention_days: 7 # Archive telemetry files older than this many days (0 disables archiving)
   otlp:
     endpoint: "" # OTLP/HTTP collector base URL; empty (and OTEL_EXPORTER_OTLP_ENDPOINT unset) disables export
@@ -284,6 +287,12 @@ telemetry:
   - `true` (default): Downloads and runs the gateway as a binary (no Docker required)
   - `false`: Uses Docker to run the gateway container (requires Docker installed; the image comes from `gateway.oci`)
 - **gateway.oci**: OCI image to use for Docker mode (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
+- **gateway.mock**: Run against the bundled mock gateway instead of a real one (default: `false`). Set via `INFER_GATEWAY_MOCK`.
+- **gateway.debug**: Start the supervised gateway in development mode with detailed logging (default: `false`).
+  Set via `INFER_GATEWAY_DEBUG`.
+- **gateway.vision_enabled**: Pass `VISION_ENABLED=true` to the gateway process, whether it runs as a standalone binary
+  or a container (default: `true`). Unrelated to the CLI-side `vision.*` annotator settings below.
+  Set via `INFER_GATEWAY_VISION_ENABLED`.
 - **gateway.include_models**: Only allow specific models (allowlist approach, default: `[]`, allows all models)
   - When set, only the specified models will be allowed by the gateway
   - Example: `["deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-flash"]`
@@ -334,6 +343,8 @@ telemetry:
 ### Tool Settings
 
 - **tools.enabled**: Enable/disable tool execution for LLMs (default: true)
+- **tools.max_result_bytes**: Byte cap on a single tool result before it is truncated for the model (default: `250000`).
+  Set via `INFER_TOOLS_MAX_RESULT_BYTES`.
 - **tools.sandbox.directories**: Allowed directories for tool operations (default: [".", "/tmp"])
 - **tools.sandbox.protected_paths**: Paths excluded from tool access for security. Default:
   [".infer/", ".git/", "*.env", ".environment", "auth.yaml", "*.key", "*.pem", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"]
@@ -341,6 +352,11 @@ telemetry:
   (baseline applied in every mode), `plan`, `standard`, or `auto`. The effective list is `mode.all.allow` unioned with the active mode's
   list. Anything unmatched is denied (approval in chat, rejection in headless agent mode). The `.*` sentinel (default for `auto`) means
   unrestricted.
+- **tools.bash.timeout**: Timeout in seconds applied to a foreground Bash command (default: `120`).
+  Set via `INFER_TOOLS_BASH_TIMEOUT`.
+- **tools.bash.background_shells**: Background shell manager settings: `enabled` (default: `true`), `max_concurrent`
+  (default: `5`, further shells queue), `retention_minutes` (default: `60`) and `completed_retention`
+  (default: `5`) finished shells kept for inspection. Set via `INFER_TOOLS_BASH_BACKGROUND_SHELLS_*`.
 - **tools.custom_dir**: Directory your user [custom tools](custom-tools.md) load from (default: `""`, meaning
   `~/.infer/tools/`). Project tools in `.infer/tools/` and `.agents/tools/` load as well. Env: `INFER_TOOLS_CUSTOM_DIR`.
 - **tools.safety.require_approval**: Whether a tool needs approval at all (default: true; a per-tool `require_approval` overrides it)
@@ -355,9 +371,22 @@ telemetry:
   The default makes headless runs **secure by default**: an off-allow-list or mutating action is blocked in CI and sent for approval under
   the channel manager, instead of running unattended. For a controlled-autonomy CI profile, set `block` and grant only what the agent needs
   (e.g. `tools.write.require_approval: false` plus a curated bash allow-list / the `mode.all` append override).
-- **Individual tool settings**: Each tool (Read, Write, Edit, Delete, Grep, Tree, WebFetch, WebSearch, TodoWrite) has:
+- **Individual tool settings**: Each tool (Read, Write, Edit, Delete, Grep, Tree, WebFetch, WebSearch, TodoWrite)
+  has:
   - **enabled**: Enable/disable the specific tool
   - **require_approval**: Override global safety setting for this tool (optional)
+- **tools.multiedit.require_approval**: Approval override for MultiEdit, which shares Edit's matcher
+  (default: `true`). MultiEdit carries no `enabled` key. Env: `INFER_TOOLS_MULTIEDIT_REQUIRE_APPROVAL`.
+- **tools.ask_user_question.enabled**: Enable/disable AskUserQuestion (default: `true`). The tool is read-only,
+  so it carries no `require_approval` key. Env: `INFER_TOOLS_ASK_USER_QUESTION_ENABLED`.
+- **tools.schedule**: Enable/disable the Schedule tool (default: `false`), plus `require_approval` (default: `true`)
+  and `max_jobs` (default: `100`), the cap on persisted recurring jobs. Env: `INFER_TOOLS_SCHEDULE_ENABLED`,
+  `INFER_TOOLS_SCHEDULE_REQUIRE_APPROVAL`, `INFER_TOOLS_SCHEDULE_MAX_JOBS`.
+- **tools.wait**: Enable/disable the Wait tool (default: `true`), plus `max_timeout_seconds` (default: `600`)
+  and `command_poll_interval_ms` (default: `2000`). Env: `INFER_TOOLS_WAIT_ENABLED`,
+  `INFER_TOOLS_WAIT_MAX_TIMEOUT_SECONDS`, `INFER_TOOLS_WAIT_COMMAND_POLL_INTERVAL_MS`.
+- **tools.image_edit** and **tools.image_variation**: `enabled`, `model` (both default to `openai/gpt-image-2`)
+  and `require_approval`. Env: `INFER_TOOLS_IMAGE_EDIT_*`, `INFER_TOOLS_IMAGE_VARIATION_*`.
 - **tools.edit.strict_whitespace**: `false` (default) enables indentation-tolerant matching for Edit/MultiEdit; `true` requires byte-exact
 - **tools.agent.wait**: `false` (default) makes the Agent tool return as soon as its headless subagents are
   dispatched, so later tool calls in the same turn run right away and each subagent reports back with its own
@@ -369,6 +398,15 @@ telemetry:
   result turn, no pane change and no pending approval - before the parent monitor closes its pane automatically
   (default: `300`; `0` disables the auto-close). A subagent reports done on its task turn, which closes the pane
   right away, so the timeout only catches one that never reports done. Env: `INFER_TOOLS_AGENT_IDLE_TIMEOUT`.
+- **tools.agent.mode**: Whether spawned subagents run `headless` (background, the default) or `interactive`
+  (a tmux pane you can watch). Env: `INFER_TOOLS_AGENT_MODE`.
+- **tools.agent.max_depth**: How deep the Agent tool may nest. A listed Agent tool is disabled inside a subagent
+  until this is raised above its default of `1`. Env: `INFER_TOOLS_AGENT_MAX_DEPTH`.
+- **tools.agent.model**: Model override for subagents; empty inherits the session model. Env: `INFER_TOOLS_AGENT_MODEL`.
+- **tools.agent.inherit_mock**: Pass the mock-gateway setting down to headless subagents (default: `true`).
+  Env: `INFER_TOOLS_AGENT_INHERIT_MOCK`.
+- **tools.agent.completed_retention**: Number of finished subagent results kept for later retrieval
+  (default: `5`). Env: `INFER_TOOLS_AGENT_COMPLETED_RETENTION`.
 
 ### Vision Settings
 
@@ -464,11 +502,18 @@ Environment overrides: `INFER_COMPUTER_USE_RECORDING_ENABLED`,
   summarizes the exploration-heavy planning conversation and continues execution in a
   fresh, smaller session, regardless of this setting.
 - **compact.auto_at**: Percentage of context window (20-100) at which to automatically trigger compaction (default: 80)
+- **compact.keep_first_messages**: Number of leading messages the compactor always preserves (default: `2`).
+  A value at or below zero falls back to `2`. Env: `INFER_COMPACT_KEEP_FIRST_MESSAGES`.
+- **compact.rollover_on_idle_minutes**: Minutes a session may sit idle before a rollover starts a fresh one
+  (default: `30`). Env: `INFER_COMPACT_ROLLOVER_ON_IDLE_MINUTES`.
+- **compact.summary_max_tokens**: Token budget for the compaction summary (default: `1024`).
+  Env: `INFER_COMPACT_SUMMARY_MAX_TOKENS`.
 
 ### Telemetry Settings
 
 - **telemetry.enabled**: Record OpenTelemetry metrics locally (default: true). The recorded data is written as OTLP/semconv JSON
-  under `<config-dir>/telemetry` (always, private - no prompt/response content)
+  under `~/.infer/telemetry` (always, private - no prompt/response content). Telemetry is user-global: the store never moves
+  with the working directory or a project-local `.infer/`
 - **telemetry.retention_days**: How long a session's telemetry file stays active before `infer stats`
   archives it (default: 7; `0` disables archiving)
 - **telemetry.otlp.endpoint**: OTLP/HTTP collector base URL (e.g. `http://localhost:4318`). Empty - and
@@ -476,6 +521,10 @@ Environment overrides: `INFER_COMPUTER_USE_RECORDING_ENABLED`,
 - **telemetry.otlp.headers**: Headers sent on every export request (e.g. auth tokens)
 - **telemetry.otlp.interval**: Periodic export interval in seconds (default: 60)
 - **telemetry.receiver_address**: Address for the CLI's in-process OTLP receiver to listen on (e.g. `0.0.0.0:0`); empty disables the receiver
+- **telemetry.attr_session_id_key**: Baggage member name carrying the session id into subprocess `BAGGAGE` env and
+  outgoing HTTP requests (default: `session.id`). Env: `INFER_TELEMETRY_ATTR_SESSION_ID_KEY`.
+- **telemetry.attr_tool_call_id_key**: Baggage member name carrying the tool-call id (default: `gen_ai.tool.call.id`).
+  Both names must match what the consumer (e.g. the ADK) reads. Env: `INFER_TELEMETRY_ATTR_TOOL_CALL_ID_KEY`.
 
 See [Telemetry](telemetry.md) for the baggage keys and mixed CLI/ADK deployment guidance.
 
@@ -493,6 +542,15 @@ See [Telemetry](telemetry.md) for the baggage keys and mixed CLI/ADK deployment 
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
 - **agent.max_concurrent_tools**: Maximum number of tools that can execute concurrently (default: 5)
+- **agent.system_prompt_with_defaults**: Prepend the built-in system prompt to the `prompts.agent.system_prompt`
+  value instead of replacing it (default: `true`). Env: `INFER_AGENT_SYSTEM_PROMPT_WITH_DEFAULTS`.
+- **agent.context**: Which context sources feed the prompt - `git_context_enabled` (default: `true`),
+  `working_dir_enabled` (default: `true`), `git_context_refresh_turns` (default: `10`) and `tree_enabled`
+  (default: `true`). Env: `INFER_AGENT_CONTEXT_*`.
+- **agent.skills**: Skill catalog settings - `enabled` (default: `true`), `disabled_skills`, `max_chars`
+  (default: `4000`) and `repository` (default: `inference-gateway/skills`). Env: `INFER_AGENT_SKILLS_*`.
+- **agent.reasoning_effort**: Reasoning effort for models that expose one (`minimal`, `low`, `medium`, `high`,
+  `xhigh`, `max`). Unset leaves the provider default in place. Env: `INFER_AGENT_REASONING_EFFORT`.
 - **agent.agents_md** (config.yaml): Injects the working directory's `AGENTS.md` into the system prompt as a
   `PROJECT INSTRUCTIONS (AGENTS.md)` section. Sub-keys: `enabled` (default true), `max_lines` (default 399)
   and `max_chars` (default 8000) cap that file. Env: `INFER_AGENT_AGENTS_MD_ENABLED`,
@@ -815,6 +873,8 @@ in different namespaces without conflict.
 - **plan_approval**: Plan approval navigation (e.g.,
   `plan_approval_plan_approval_accept`)
 - **help**: Help system (e.g., `help_toggle_help`)
+- **diff_viewer**: Keys for the `/diff` changes panel, resolved directly by the component (e.g., `diff_viewer_nav_down`)
+- **explorer**: Keys for the `/explorer` file panel, resolved directly by the component (e.g., `explorer_open`)
 
 ### Web Search API Setup (Optional)
 
@@ -973,12 +1033,19 @@ ignored with a logged warning. Keep the file private (`chmod 600 ~/.infer/auth.y
 ### Agent Configuration
 
 - `INFER_AGENT_MODEL`: Default model for agent operations (e.g., `deepseek/deepseek-v4-pro`)
+- `INFER_AGENT_MODE`: Default agent mode for `infer headless` - `standard`, `plan`, `auto` or
+  `auto-with-judge`. Same as `--mode`
 - `INFER_PROMPTS_AGENT_SYSTEM_PROMPT`: Custom system prompt for agent
 - `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_HEARTBEAT`: Custom system prompt for heartbeat
 - `INFER_PROMPTS_AGENT_SYSTEM_PROMPT_REMOTE`: Custom system prompt for remote agent
 - `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_PLAN`: Custom plan-mode adjustment instructions (delivered by the mode-change reminder, not the system prompt)
 - `INFER_PROMPTS_AGENT_MODE_ADJUSTMENT_AUTO`: Custom auto-accept adjustment instructions (delivered by the mode-change reminder, not the system prompt)
 - `INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS`: Custom instructions for agent
+- `INFER_PROMPTS_GIT_COMMIT_MESSAGE_SYSTEM_PROMPT`: System prompt for generated commit messages
+- `INFER_PROMPTS_CONVERSATION_TITLE_GENERATION_SYSTEM_PROMPT`: System prompt for conversation title generation
+- `INFER_PROMPTS_VISION_ANNOTATOR_SCREEN_SYSTEM_PROMPT`: Annotation prompt for `screen` frames
+- `INFER_PROMPTS_VISION_ANNOTATOR_SCENE_SYSTEM_PROMPT`: Annotation prompt for the other frame sources
+- `INFER_PROMPTS_INIT_PROMPT`: Prompt `infer init` uses to explore the repository and write config
 
 > **Migration note (v0.105.0+):** The old `INFER_AGENT_SYSTEM_PROMPT` and
 > `INFER_AGENT_SYSTEM_PROMPT_PLAN` env vars were renamed to
@@ -1001,11 +1068,14 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 
 ### Chat Configuration
 
-- `INFER_CHAT_THEME`: Chat UI theme (`tokyo-night`, `github-light`, `dracula` or `charm`, default: `tokyo-night`)
+- `INFER_CHAT_THEME`: Chat UI theme (`tokyo-night`, `github-light`, `dracula` or `charm`). The config default is
+  `""`, and the TUI applies `tokyo-night` when it is unset
+- `INFER_CHAT_INPUT_MAX_LINES`: Number of lines the chat input grows to before it starts scrolling (default: `20`)
 
 ### Tools Configuration
 
 - `INFER_TOOLS_ENABLED`: Enable/disable all local tools (default: `true`)
+- `INFER_TOOLS_MAX_RESULT_BYTES`: Byte cap on a single tool result before it is truncated (default: `250000`)
 - `INFER_TOOLS_CUSTOM_DIR`: Directory to load your user [custom tools](custom-tools.md) from (default: `~/.infer/tools/`)
 
 **Individual Tool Enablement:**
@@ -1026,6 +1096,14 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
   dropped (default: `10`)
 - `INFER_TOOLS_AGENT_IDLE_TIMEOUT`: Close an interactive subagent's tmux pane after N seconds of
   inactivity without a done signal (default: `300`; `0` disables the auto-close)
+- `INFER_TOOLS_BASH_TIMEOUT`: Timeout in seconds for a foreground Bash command (default: `120`)
+- `INFER_TOOLS_BASH_BACKGROUND_SHELLS_ENABLED`: Enable/disable the background shell manager (default: `true`)
+- `INFER_TOOLS_BASH_BACKGROUND_SHELLS_MAX_CONCURRENT`: Most background shells running at once (default: `5`)
+- `INFER_TOOLS_BASH_BACKGROUND_SHELLS_RETENTION_MINUTES`: Minutes a live shell is retained (default: `60`)
+- `INFER_TOOLS_BASH_BACKGROUND_SHELLS_COMPLETED_RETENTION`: Finished shells kept for inspection (default: `5`)
+- `INFER_TOOLS_WAIT_ENABLED`: Enable/disable the Wait tool (default: `true`)
+- `INFER_TOOLS_WAIT_MAX_TIMEOUT_SECONDS`: Longest a single Wait call may block (default: `600`)
+- `INFER_TOOLS_WAIT_COMMAND_POLL_INTERVAL_MS`: Poll interval for a `command` check, in milliseconds (default: `2000`)
 
 **Tool Approval Configuration:**
 
@@ -1183,6 +1261,11 @@ tools:
 - `INFER_STORAGE_ENABLED`: Enable conversation storage (default: `true`)
 - `INFER_STORAGE_TYPE`: Storage backend type (`memory`, `jsonl`, `sqlite`, `postgres`, `redis` or `d1`, default: `jsonl`)
 
+**JSONL Storage:**
+
+- `INFER_STORAGE_JSONL_PATH`: Where JSONL conversations are written. Empty keeps the per-project default,
+  `~/.infer/projects/<project-slug>/conversations`
+
 **SQLite Storage:**
 
 - `INFER_STORAGE_SQLITE_PATH`: SQLite database path (default: `~/.infer/conversations.db`)
@@ -1203,10 +1286,23 @@ tools:
 - `INFER_STORAGE_REDIS_PASSWORD`: Redis password
 - `INFER_STORAGE_REDIS_DB`: Redis database number (default: `0`)
 
+**Cloudflare D1 Storage:**
+
+- `INFER_STORAGE_D1_ACCOUNT_ID`: Cloudflare account id owning the database
+- `INFER_STORAGE_D1_DATABASE_ID`: D1 database id
+- `INFER_STORAGE_D1_API_TOKEN`: Cloudflare API token - normally injected here rather than written to `config.yaml`
+- `INFER_STORAGE_D1_BASE_URL`: Override the Cloudflare API base URL
+
 ### Scheduler Configuration
 
 - `INFER_SCHEDULER_BACKEND`: Scheduling backend, `local` or `github` (default: `local`). See the [Scheduling Guide](scheduling.md#github-backend)
 - `INFER_SCHEDULER_GITHUB_REPOSITORY`: Repository for GitHub-backed schedules (default: `<login>/.routines`)
+- `INFER_SCHEDULER_GITHUB_APP_CLIENT_ID_SECRET`: Name of the Actions secret holding the GitHub App client id,
+  passed to `actions/create-github-app-token` (default: the built-in name)
+- `INFER_SCHEDULER_GITHUB_APP_PRIVATE_KEY_SECRET`: Name of the Actions secret holding the GitHub App private key
+- `INFER_SCHEDULER_GITHUB_BOT_NAME`: Git author/committer name on deploy commits; use `<app-slug>[bot]` to attribute
+  them to the app
+- `INFER_SCHEDULER_GITHUB_BOT_EMAIL`: Git author/committer email (`<user-id>+<app-slug>[bot]@users.noreply.github.com` for a bot)
 - `INFER_SCHEDULER_GITHUB_PULL_REQUESTS`: Deploy schedule changes via pull request instead of pushing to the default branch (default: `false`)
 - `INFER_SCHEDULER_GITHUB_ARTIFACTS_ENABLED`: Pull conversation artifacts from GitHub-backed runs into local storage (default: `true`)
 - `INFER_SCHEDULER_GITHUB_ARTIFACTS_POLL_INTERVAL`: Artifact poll interval (default: `10m`)
@@ -1224,6 +1320,8 @@ tools:
 ### A2A (Agent-to-Agent) Configuration
 
 - `INFER_A2A_ENABLED`: Enable/disable A2A tools (default: `true`)
+- `INFER_A2A_AGENTS_READY_TIMEOUT_SEC`: Seconds to wait for configured A2A agents to become ready
+  (default: `600`)
 - `INFER_A2A_AGENTS`: Configure A2A agent endpoints (supports comma-separated or newline-separated format)
 
 **A2A Agents Configuration Examples:**
@@ -1254,6 +1352,10 @@ http://browser-agent:8080
 - `INFER_A2A_TASK_MAX_POLL_INTERVAL_SEC`: Maximum polling interval for exponential strategy (default: `60`)
 - `INFER_A2A_TASK_BACKOFF_MULTIPLIER`: Backoff multiplier for exponential strategy (default: `2.0`)
 - `INFER_A2A_TASK_COMPLETED_TASK_RETENTION`: Number of completed tasks kept in the tracker (default: `5`)
+- `INFER_A2A_TASK_AGENT_MODE_MAX_WAIT_SECONDS`: Longest a task may wait for an agent-mode change mid-run
+  (default: `300`)
+- `INFER_A2A_TASK_ARTIFACTS_AUTO_DOWNLOAD`: Download a task's artifacts as soon as it completes
+  (default: `false`)
 
 **A2A Individual Tool Configuration:**
 
