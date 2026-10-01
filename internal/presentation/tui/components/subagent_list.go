@@ -401,7 +401,7 @@ func (l *SubagentList) Render() string {
 // statsView draws a sub-agent's run stats as a child line under its row: tool
 // calls succeeded and failed, then the tokens used, live while it runs. It is
 // padded to the shared row width so the block stays aligned.
-func (l *SubagentList) statsView(stats scheddomain.SubagentRunStats, index, count, blockWidth int) string {
+func (l *SubagentList) statsView(stats scheddomain.SubagentRunStats, index, count, width int) string {
 	trunk := ""
 	if count > 1 {
 		trunk = "  "
@@ -414,14 +414,14 @@ func (l *SubagentList) statsView(stats scheddomain.SubagentRunStats, index, coun
 		stats.ToolsSucceeded, l.styleProvider.RenderWithColor(icons.CheckMark, l.styleProvider.GetThemeColor("success")),
 		stats.ToolsFailed, l.styleProvider.RenderWithColor(icons.CrossMark, l.styleProvider.GetThemeColor("error")),
 		l.styleProvider.RenderWithColor(statsTokens(stats), dim))
-	return l.padToWidth(line, blockWidth)
+	return l.padToWidth(line, width)
 }
 
-// statsTokens is a run's token figures: the input and output it burned, then the
-// accumulated input (T.) and the cached slice (C.) in the status bar's own
-// notation. Cached is dropped while the run reported no cache hits.
+// statsTokens is a run's token figures: the input and output it burned, then
+// the cached slice (C.) in the status bar's notation, dropped while the run
+// reported no cache hits.
 func statsTokens(stats scheddomain.SubagentRunStats) string {
-	text := fmt.Sprintf("· %s tokens T.%s", compactCount(stats.InputTokens+stats.OutputTokens), compactCount(stats.InputTokens))
+	text := "· " + compactCount(stats.InputTokens+stats.OutputTokens) + " tokens"
 	if stats.CachedTokens > 0 {
 		text += " C." + compactCount(stats.CachedTokens)
 	}

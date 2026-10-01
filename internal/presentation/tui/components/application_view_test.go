@@ -1,10 +1,13 @@
 package components
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -192,5 +195,34 @@ func TestSubagentRowsRenderBelowTheStatusBar(t *testing.T) {
 	}
 	if subagentRow < versionRow {
 		t.Errorf("the sub-agent elapsed row must render below the version row, got %q", frame)
+	}
+}
+
+// TestLayoutBudgetsTheSubagentList pins that the rows under the composer take
+// their lines from the conversation, so a scrolled list never pushes the frame
+// past the terminal.
+func TestLayoutBudgetsTheSubagentList(t *testing.T) {
+	renderer := NewApplicationViewRenderer(styles.NewProvider(styles.NewThemeProvider()))
+	data := ChatInterfaceData{Width: 120, Height: 40}
+
+	jobs := make([]scheddomain.TrackedJob, 0, 7)
+	for i := range 7 {
+		jobs = append(jobs, subagentJob(fmt.Sprintf("w%d", i), scheddomain.JobRunning, time.Now().Add(-time.Duration(7-i)*time.Second), nil))
+	}
+	list := newList(listOpts{jobs: jobs, linger: 5, indicator: true})
+	list.Focus()
+	for range maxSubagentRows {
+		list.SelectNext()
+	}
+	listLines := strings.Count(list.Render(), "\n") + 1
+
+	helpBar := &tuimocks.FakeHelpBarComponent{}
+	without := renderer.calculateComponentHeights(data, data.Height, nil, helpBar, nil, nil, nil, nil, nil, nil, nil)
+	with := renderer.calculateComponentHeights(data, data.Height, nil, helpBar, nil, nil, nil, nil, nil, nil, list)
+	if with.subagentListHeight != listLines {
+		t.Fatalf("list height = %d, want the %d rendered lines", with.subagentListHeight, listLines)
+	}
+	if got, want := without.conversationHeight-with.conversationHeight, listLines; got != want {
+		t.Errorf("conversation shrank by %d lines, want %d", got, want)
 	}
 }

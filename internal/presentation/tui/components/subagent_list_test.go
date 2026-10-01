@@ -430,11 +430,11 @@ func TestSubagentListShowsRunStatsUnderRows(t *testing.T) {
 	if !strings.Contains(lines[1], "tester") || !strings.Contains(lines[3], "reviewer") {
 		t.Fatalf("expected the running row second and the finished row fourth, got %q", lines)
 	}
-	wantLive := "└ 2 " + icons.CheckMark + " 0 " + icons.CrossMark + " · 950 tokens T.900 C.800"
+	wantLive := "└ 2 " + icons.CheckMark + " 0 " + icons.CrossMark + " · 950 tokens C.800"
 	if !strings.Contains(lines[2], wantLive) {
 		t.Errorf("expected the live stats line %q under the running row, got %q", wantLive, lines[2])
 	}
-	want := "└ 12 " + icons.CheckMark + " 1 " + icons.CrossMark + " · 61.2k tokens T.60.4k"
+	want := "└ 12 " + icons.CheckMark + " 1 " + icons.CrossMark + " · 61.2k tokens"
 	if !strings.Contains(lines[4], want) {
 		t.Errorf("expected the stats line %q under the finished row, got %q", want, lines[4])
 	}

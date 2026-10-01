@@ -2019,6 +2019,7 @@ func (app *ChatApplication) layoutChatInterface() {
 		app.questionFormView,
 		app.snippetAttachmentsView,
 		app.historySearchView,
+		app.subagentList,
 	)
 }
 
