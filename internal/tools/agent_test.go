@@ -433,6 +433,45 @@ func TestAgentTool_InteractiveDefaultsToReadOnly(t *testing.T) {
 	}
 }
 
+// TestAgentTool_PlanModeForcesReadOnly pins plan mode's read-only promise: a
+// subagent asked for ReadWrite - or deriving it from a named agent's allowlist -
+// still runs read-only, while the same call outside plan mode does not.
+func TestAgentTool_PlanModeForcesReadOnly(t *testing.T) {
+	tool := namedAgentTool(t)
+	tool.setMarkdownAgents([]markdownAgent{{
+		name:        "bash-runner",
+		description: "Reads files and runs shell commands.",
+		tools:       []string{ToolRead, ToolBash},
+	}}, toolManifests)
+
+	var env []string
+	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+		env = opts.ExtraEnv
+		return agentrunner.Result{FinalAssistant: "ok"}, nil
+	}
+
+	planCtx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModePlan)
+	for _, args := range []map[string]any{
+		{"description": "do x", "type": "ReadWrite"},
+		{"description": "do x", "agent": "bash-runner"},
+	} {
+		if _, err := tool.Execute(planCtx, args); err != nil {
+			t.Fatalf("Execute(%v): %v", args, err)
+		}
+		if got := strings.Join(env, "; "); !strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE=readonly") {
+			t.Fatalf("plan mode must coerce %v to readonly; env = %q", args, got)
+		}
+	}
+
+	standardCtx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeStandard)
+	if _, err := tool.Execute(standardCtx, map[string]any{"description": "do x", "type": "ReadWrite"}); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if got := strings.Join(env, "; "); strings.Contains(got, "INFER_SUBAGENT_AGENT_MODE") {
+		t.Fatalf("ReadWrite outside plan mode must stay Standard; env = %q", got)
+	}
+}
+
 // TestAgentTool_ReportsRunStats: the stats a subagent records in its result
 // file reach the parent's tool result and the text the model reads.
 func TestAgentTool_ReportsRunStats(t *testing.T) {

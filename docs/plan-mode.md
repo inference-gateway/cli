@@ -3,7 +3,8 @@
 [← Back to README](../README.md)
 
 Plan Mode is a read-only operating mode for the agent. The model can use
-`Read`, `Grep`, `Tree`, `A2A_QueryAgent`, `TodoWrite`, `AskUserQuestion`, `Wait`, and
+`Read`, `Grep`, `Tree`, `A2A_QueryAgent`, `Agent` (read-only exploration
+subagents only), `TodoWrite`, `AskUserQuestion`, `Wait`, and
 `RequestPlanApproval` to investigate the codebase, but it
 cannot write, edit, delete, or run shell commands - those tools stay
 advertised in the tool-use API (so the request's tool definitions, and with
@@ -51,7 +52,8 @@ is injected when the agent switches into Plan Mode - the system prompt itself
 stays byte-stable across mode switches so the prompt/KV cache keeps its prefix
 hits. They instruct the model to:
 
-1. Use `Read`, `Grep`, `Tree` to investigate.
+1. Use `Read`, `Grep`, `Tree` to investigate - `Agent` subagents (always
+   read-only here) fan out when the investigation spans several areas.
 2. Ask clarifying questions in regular assistant turns first - **not**
    call `RequestPlanApproval` while gaps remain.
 3. Only call `RequestPlanApproval` when the plan is complete.
