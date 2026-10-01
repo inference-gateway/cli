@@ -203,6 +203,7 @@ func TestSubagentListRenderLifecycle(t *testing.T) {
 	}
 }
 
+//nolint:gocyclo,cyclop
 func TestSubagentListCapsRowsAndShowsOverflow(t *testing.T) {
 	now := time.Now()
 	jobs := make([]scheddomain.TrackedJob, 0, 7)
@@ -210,7 +211,8 @@ func TestSubagentListCapsRowsAndShowsOverflow(t *testing.T) {
 		jobs = append(jobs, subagentJob(fmt.Sprintf("w%d", i), scheddomain.JobRunning, now.Add(-time.Duration(7-i)*time.Second), nil))
 	}
 
-	got := plain(newList(listOpts{jobs: jobs, linger: 5, indicator: true}).Render())
+	list := newList(listOpts{jobs: jobs, linger: 5, indicator: true})
+	got := plain(list.Render())
 	lines := strings.Split(got, "\n")
 	if len(lines) != maxSubagentRows+1 {
 		t.Fatalf("expected %d rows (cap + overflow), got %d: %q", maxSubagentRows+1, len(lines), got)
@@ -229,6 +231,70 @@ func TestSubagentListCapsRowsAndShowsOverflow(t *testing.T) {
 	last := lines[len(lines)-1]
 	if rowWidth := visibleWidth(lines[0]); visibleWidth(last) != rowWidth {
 		t.Errorf("expected the overflow row to match the row width %d, got %d: %q", rowWidth, visibleWidth(last), last)
+	}
+
+	if !list.Focus() {
+		t.Fatal("expected the list to take focus while rows are visible")
+	}
+	for range maxSubagentRows {
+		if !list.SelectNext() {
+			t.Fatal("expected the selection to keep moving onto the rows behind the overflow marker")
+		}
+	}
+	got = plain(list.Render())
+	lines = strings.Split(got, "\n")
+	if len(lines) != maxSubagentRows+3 {
+		t.Fatalf("expected %d lines (window, both markers, hint), got %d: %q", maxSubagentRows+3, len(lines), got)
+	}
+	if !strings.Contains(got, "1 above") {
+		t.Errorf("expected the scrolled window to mark the row hidden above it, got %q", got)
+	}
+	if !strings.Contains(got, "+1 more") {
+		t.Errorf("expected the last hidden row behind the scrolled window, got %q", got)
+	}
+	if !strings.Contains(got, "\u276f w1") {
+		t.Errorf("expected the selection on the previously hidden row w1, got %q", got)
+	}
+	if strings.Contains(got, "w6") {
+		t.Errorf("expected the newest row w6 scrolled out of the window, got %q", got)
+	}
+	if w := visibleWidth(lines[1]); visibleWidth(lines[0]) != w {
+		t.Errorf("expected the above marker to match the row width %d, got %d: %q", w, visibleWidth(lines[0]), lines[0])
+	}
+	if job, ok := list.SelectedJob(); !ok || job.Meta.Label != "w1" {
+		t.Errorf("expected the selection to open the previously hidden w1, got %q ok=%v", job.Meta.Label, ok)
+	}
+
+	if !list.SelectNext() {
+		t.Fatal("expected one more step down onto the oldest row")
+	}
+	got = plain(list.Render())
+	if !strings.Contains(got, "2 above") || strings.Contains(got, "more") {
+		t.Errorf("expected the window resting on the bottom of the stack, got %q", got)
+	}
+	if !strings.Contains(got, "\u276f w0") {
+		t.Errorf("expected the selection on the oldest row w0, got %q", got)
+	}
+	if list.SelectNext() {
+		t.Error("the last row has no next row")
+	}
+
+	for range maxSubagentRows + 1 {
+		if !list.SelectPrev() {
+			t.Fatal("expected the selection to walk back up over every row")
+		}
+	}
+	got = plain(list.Render())
+	if !strings.Contains(got, "w6") || strings.Contains(got, "above") || !strings.Contains(got, "+2 more") {
+		t.Errorf("expected the window scrolled back onto the newest row, got %q", got)
+	}
+	if list.SelectPrev() {
+		t.Error("the first row has no previous row")
+	}
+	list.Blur()
+	got = plain(list.Render())
+	if strings.Contains(got, "above") || strings.Contains(got, "\u276f") || !strings.Contains(got, "w6") {
+		t.Errorf("expected blur to return the window to the newest rows, got %q", got)
 	}
 }
 
