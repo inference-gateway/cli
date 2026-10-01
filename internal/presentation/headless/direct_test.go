@@ -30,6 +30,33 @@ func TestIsBashTask(t *testing.T) {
 	}
 }
 
+func TestQueuedDirectCall(t *testing.T) {
+	queue := conversation.NewMessageQueueService()
+	if _, direct, _ := queuedDirectCall(queue); direct {
+		t.Fatal("an empty queue is no direct task")
+	}
+
+	queue.Enqueue(userMessageText("!echo hi"), "", "")
+	fn, direct, err := queuedDirectCall(queue)
+	if !direct || err != nil || fn.Name != "Bash" || fn.Arguments != `{"command":"echo hi"}` {
+		t.Fatalf("one !cmd message: direct=%v err=%v fn=%+v", direct, err, fn)
+	}
+	if queue.Size() != 0 {
+		t.Fatal("the direct task stays queued")
+	}
+
+	queue.Enqueue(userMessageText("!!Read"), "", "")
+	if _, direct, err := queuedDirectCall(queue); !direct || err == nil {
+		t.Fatalf("a malformed tool call is a direct task with an error: direct=%v err=%v", direct, err)
+	}
+
+	queue.Enqueue(userMessageText("!ls"), "", "")
+	queue.Enqueue(userMessageText("and explain"), "", "")
+	if _, direct, _ := queuedDirectCall(queue); direct || queue.Size() != 2 {
+		t.Fatal("a turn of several messages goes to the agent untouched")
+	}
+}
+
 func TestDirectCall(t *testing.T) {
 	cases := map[string]struct {
 		task   string
