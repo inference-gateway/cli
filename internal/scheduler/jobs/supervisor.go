@@ -440,6 +440,9 @@ func (s *Supervisor) Snapshot() []scheddomain.TrackedJob {
 			Status:      sj.status,
 			CompletedAt: sj.completedAt,
 		}
+		if tj.Status == scheddomain.JobRunning && isIdle(sj.job) {
+			tj.Status = scheddomain.JobCompleted
+		}
 		if p, ok := sj.job.(scheddomain.JobOutputProvider); ok {
 			tj.Output = p.Output()
 		}

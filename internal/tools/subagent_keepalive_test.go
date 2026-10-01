@@ -98,11 +98,17 @@ func waitTurn(t *testing.T, turns <-chan string, want string) {
 
 // A keep-alive subagent reports each turn, runs the message the parent sends
 // as the next one, idles out with one Closed note and then refuses messages.
+// The emit callback reads the job back the way the UI's render does, so a
+// note emitted under the job's lock would deadlock here.
 func TestHeadlessSubagentJob_KeepAliveTurns(t *testing.T) {
 	job, tool := newKeepAliveTestJob(t, 150*time.Millisecond)
 	turns := make(chan string, 4)
 	tool.runHeadless = fakeKeepAliveChild(t, turns)
-	emit, notesSeen := collectNotes()
+	collect, notesSeen := collectNotes()
+	emit := func(sig scheddomain.JobSignal) {
+		_, _ = job.Idle(), job.Stats()
+		collect(sig)
+	}
 
 	done := make(chan agentdomain.ToolExecutionResult, 1)
 	go func() { done <- job.Run(t.Context(), emit) }()

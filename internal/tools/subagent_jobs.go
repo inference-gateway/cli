@@ -169,21 +169,32 @@ func (j *headlessSubagentJob) onLine(line []byte) {
 
 // completeTurn records a finished turn and emits its note. A done turn leaves
 // the subagent idle until the parent writes again or the idle timer closes it.
+// The note is emitted outside the lock: the supervisor hands it to the UI,
+// whose render reads this job back through Idle and Stats.
 func (j *headlessSubagentJob) completeTurn(turn scheddomain.SubagentResultFile) {
+	if note := j.recordTurn(turn); note != "" {
+		j.emit(scheddomain.JobSignal{Note: note, Enqueue: true})
+	}
+}
+
+func (j *headlessSubagentJob) recordTurn(turn scheddomain.SubagentResultFile) string {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if j.closing {
-		return
+		return ""
 	}
 	j.output = turn.FinalAssistant
 	j.outcome = toSubResult(j.spec, j.state.SessionID, turn.FinalAssistant, nil)
 	j.outcome.Success, j.outcome.Error, j.outcome.Stats = turn.Success, turn.Error, turn.Stats
 	logger.Debug("keep-alive headless subagent turn finished", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "success", turn.Success, "done", turn.Done)
-	j.emit(scheddomain.JobSignal{Note: subagentNote(turnVerb(turn.Success), j.label(), turnNoteBody(turn.Stats, turn.FinalAssistant, turn.Error)), Enqueue: true})
-	if !turn.Done {
-		return
+	if turn.Done {
+		j.setStatus(turnStatusOf(turn.Success))
+		j.armIdleLocked()
 	}
-	j.setStatus(turnStatusOf(turn.Success))
+	return subagentNote(turnVerb(turn.Success), j.label(), turnNoteBody(turn.Stats, turn.FinalAssistant, turn.Error))
+}
+
+func (j *headlessSubagentJob) armIdleLocked() {
 	if j.idle != nil {
 		j.idle.Stop()
 	}
@@ -195,16 +206,24 @@ func (j *headlessSubagentJob) completeTurn(turn scheddomain.SubagentResultFile) 
 // closeIdle hangs up on a subagent that sat idle past the timeout and
 // announces it, then kills the child if it ignores the hang-up.
 func (j *headlessSubagentJob) closeIdle() {
+	note := j.hangUpIdleLocked()
+	if note == "" {
+		return
+	}
+	j.emit(scheddomain.JobSignal{Note: note, Enqueue: true})
+	time.AfterFunc(idleKillGrace, j.cancelRun)
+}
+
+func (j *headlessSubagentJob) hangUpIdleLocked() string {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if j.closing || j.stdinWrite == nil {
-		return
+		return ""
 	}
 	j.closing = true
 	logger.Debug("keep-alive headless subagent idle, hanging up", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "idle_timeout", j.idleTimeout)
-	j.emit(scheddomain.JobSignal{Note: closedMessage(j.label(), fmt.Sprintf("closed after %s of inactivity", j.idleTimeout), j.output), Enqueue: true})
 	j.hangUpLocked()
-	time.AfterFunc(idleKillGrace, j.cancelRun)
+	return closedMessage(j.label(), fmt.Sprintf("closed after %s of inactivity", j.idleTimeout), j.output)
 }
 
 // send writes one follow-up user message to the child as its next turn.
@@ -242,15 +261,22 @@ type runInputFrame struct {
 // requested stop was announced already or needs no note. Any other exit while
 // a turn was still running is a failure the parent must hear about.
 func (j *headlessSubagentJob) exitResult(answer string, stats *scheddomain.SubagentRunStats, err error) agentdomain.ToolExecutionResult {
+	result, note := j.recordExit(answer, stats, err)
+	if note != "" {
+		j.emit(scheddomain.JobSignal{Note: note, Enqueue: true})
+	}
+	return result
+}
+
+func (j *headlessSubagentJob) recordExit(answer string, stats *scheddomain.SubagentRunStats, err error) (agentdomain.ToolExecutionResult, string) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if j.idle != nil {
 		j.idle.Stop()
 	}
+	note := ""
 	switch {
-	case j.closing:
-		j.setStatus(scheddomain.SubagentCompleted)
-	case j.runCtx.Err() != nil:
+	case j.closing, j.runCtx.Err() != nil:
 		j.setStatus(scheddomain.SubagentCompleted)
 	case err != nil || j.state.Status == scheddomain.SubagentRunning:
 		if err == nil {
@@ -259,7 +285,7 @@ func (j *headlessSubagentJob) exitResult(answer string, stats *scheddomain.Subag
 		j.outcome = toSubResult(j.spec, j.state.SessionID, answer, err)
 		j.outcome.Stats = stats
 		j.setStatus(scheddomain.SubagentFailed)
-		j.emit(scheddomain.JobSignal{Note: subagentNote("Failed", j.label(), turnNoteBody(stats, answer, err.Error())), Enqueue: true})
+		note = subagentNote("Failed", j.label(), turnNoteBody(stats, answer, err.Error()))
 	}
 	logger.Debug("keep-alive headless subagent exited", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "error", err)
 	return agentdomain.ToolExecutionResult{
@@ -269,7 +295,7 @@ func (j *headlessSubagentJob) exitResult(answer string, stats *scheddomain.Subag
 		Error:     j.outcome.Error,
 		Duration:  time.Since(j.state.StartedAt),
 		Data:      j.outcome,
-	}
+	}, note
 }
 
 // Idle reports whether the keep-alive child sits between turns, so the

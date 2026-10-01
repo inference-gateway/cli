@@ -290,7 +290,8 @@ func TestSupervisor_HasPending(t *testing.T) {
 }
 
 // TestSupervisor_HasPendingSkipsIdleJobs: a running session-holding job that
-// reports itself idle between turns does not hold the session.
+// reports itself idle between turns does not hold the session, and the task
+// views read it as completed until it is busy again.
 func TestSupervisor_HasPendingSkipsIdleJobs(t *testing.T) {
 	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	started := make(chan struct{})
@@ -310,6 +311,13 @@ func TestSupervisor_HasPendingSkipsIdleJobs(t *testing.T) {
 	keeper.IdleReturns(true)
 	if sup.HasPending() {
 		t.Fatalf("an idle job must not hold the session")
+	}
+	if got := statusOf(sup, "keeper"); got != scheddomain.JobCompleted {
+		t.Fatalf("an idle job reads as completed in the snapshot, got %s", got)
+	}
+	keeper.IdleReturns(false)
+	if got := statusOf(sup, "keeper"); got != scheddomain.JobRunning {
+		t.Fatalf("a job busy again reads as running, got %s", got)
 	}
 	close(finish)
 	sup.Stop()
