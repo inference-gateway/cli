@@ -70,7 +70,8 @@ import (
 // RetryNotifier, when set, receives a short human-readable notice for each
 // SDK-internal HTTP retry (e.g. "⏳ HTTP 502 - retrying in 10s (attempt 2)").
 // The headless agent points it at its stdout notification stream so remote
-// channels (Telegram) see progress during backoff. The chat TUI leaves it nil.
+// channels (Telegram) see progress during backoff. The chat TUI shows the
+// same retries through the state manager's reconnecting indicator instead.
 var RetryNotifier func(message string)
 
 // ServiceContainer manages all application dependencies
@@ -947,6 +948,9 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 				"delay", delay.String())
 			if notify := RetryNotifier; notify != nil {
 				notify(fmt.Sprintf("⏳ %s - retrying in %s (attempt %d)", err.Error(), delay, attempt))
+			}
+			if c.stateManager != nil {
+				c.stateManager.SetRetryStatus(&agentdomain.RetryStatus{Attempt: attempt, MaxAttempts: retryConfig.MaxAttempts - 1})
 			}
 			if originalOnRetry != nil {
 				originalOnRetry(attempt, err, delay)
