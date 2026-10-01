@@ -19,7 +19,9 @@ import (
 )
 
 // maxSubagentRows caps the stacked list so a large fan-out cannot push the
-// status bar off screen; the overflow shows as a "+N more" row.
+// status bar off screen. The cap is a scroll window: rows outside it show as
+// "N above" and "+N more" boundary markers and the selection can still reach
+// them.
 const maxSubagentRows = 5
 
 // subagentLabelMinWidth keeps the label column at least as wide as the fixed
@@ -43,6 +45,7 @@ type SubagentList struct {
 	focused       bool
 	selectedID    string
 	viewingID     string
+	offset        int
 }
 
 // NewSubagentList creates the sub-agent indicator list.
@@ -198,27 +201,48 @@ func jobRowLabel(job scheddomain.TrackedJob) string {
 // keyboard selection.
 const selectedRowMarker = "❯ "
 
-// selectedRow is the index of the selected job among the rows on screen. A
+// selectedRow is the index of the selected job among the given rows. A
 // selection that dropped off the list falls back to the newest row.
-func selectedRow(shown []subagentRow, selectedID string) int {
-	return max(0, slices.IndexFunc(shown, func(row subagentRow) bool { return row.id == selectedID }))
+func selectedRow(rows []subagentRow, selectedID string) int {
+	return max(0, slices.IndexFunc(rows, func(row subagentRow) bool { return row.id == selectedID }))
 }
 
-// shownRows are the rows on screen, which are the ones the selection moves over.
-func (l *SubagentList) shownRows() []subagentRow {
-	rows := l.snapshotRows()
-	return rows[:min(len(rows), maxSubagentRows)]
+// visibleRows are the rows on screen: at most maxSubagentRows of the tracked
+// rows, from the window offset. While the list holds focus the window follows
+// the selection so rows past the cap stay reachable.
+func (l *SubagentList) visibleRows() (all, shown []subagentRow) {
+	all = l.snapshotRows()
+	l.shiftWindow(all)
+	return all, all[l.offset:min(len(all), l.offset+maxSubagentRows)]
+}
+
+// shiftWindow keeps the window offset on the selection while the list is
+// focused, clamping it to the row range. An unfocused list draws from the
+// newest rows.
+func (l *SubagentList) shiftWindow(all []subagentRow) {
+	offset := 0
+	if l.focused {
+		sel := selectedRow(all, l.selectedID)
+		offset = l.offset
+		switch {
+		case sel < l.offset:
+			offset = sel
+		case sel >= l.offset+maxSubagentRows:
+			offset = sel - maxSubagentRows + 1
+		}
+	}
+	l.offset = min(max(offset, 0), max(0, len(all)-maxSubagentRows))
 }
 
 // Focus gives the list the keyboard selection on its newest row. It reports
 // false when there is no row to select.
 func (l *SubagentList) Focus() bool {
-	shown := l.shownRows()
-	if !l.enabled() || len(shown) == 0 {
+	rows, _ := l.visibleRows()
+	if !l.enabled() || len(rows) == 0 {
 		return false
 	}
 	l.focused = true
-	l.selectedID = shown[0].id
+	l.selectedID = rows[0].id
 	return true
 }
 
@@ -234,22 +258,35 @@ func (l *SubagentList) IsFocused() bool { return l.focused }
 // SelectNext moves the selection one row down. It reports false on the last row.
 func (l *SubagentList) SelectNext() bool { return l.moveSelection(1) }
 
+// overflowRow renders a dim list boundary label (like "+2 more") on the same
+// width as the rows. It is only produced when rows are scrolled out of view.
+func (l *SubagentList) overflowRow(text string, rowWidth, blockWidth int) string {
+	line := l.styleProvider.RenderWithColor(text, l.styleProvider.GetThemeColor("dim"))
+	if pad := rowWidth - l.styleProvider.GetWidth(line); pad > 0 {
+		line = strings.Repeat(" ", pad) + line
+	}
+	if blockWidth > 0 {
+		line = l.styleProvider.PlaceHorizontal(blockWidth, "", line)
+	}
+	return line
+}
+
 // SelectPrev moves the selection one row up. It reports false on the first row.
 func (l *SubagentList) SelectPrev() bool { return l.moveSelection(-1) }
 
 func (l *SubagentList) moveSelection(delta int) bool {
-	shown := l.shownRows()
-	next := selectedRow(shown, l.selectedID) + delta
-	if next < 0 || next >= len(shown) {
+	rows, _ := l.visibleRows()
+	next := selectedRow(rows, l.selectedID) + delta
+	if next < 0 || next >= len(rows) {
 		return false
 	}
-	l.selectedID = shown[next].id
+	l.selectedID = rows[next].id
 	return true
 }
 
 // SelectedJob returns the job under the selection, false when it is gone.
 func (l *SubagentList) SelectedJob() (scheddomain.TrackedJob, bool) {
-	shown := l.shownRows()
+	_, shown := l.visibleRows()
 	if !l.focused || len(shown) == 0 {
 		return scheddomain.TrackedJob{}, false
 	}
@@ -322,12 +359,11 @@ func (l *SubagentList) Render() string {
 	if l.registry == nil || !l.enabled() {
 		return ""
 	}
-	rows := l.snapshotRows()
-	if len(rows) == 0 {
+	rows, shown := l.visibleRows()
+	if len(shown) == 0 {
 		return ""
 	}
-	shown := rows[:min(len(rows), maxSubagentRows)]
-	more := len(rows) - len(shown)
+	more := len(rows) - l.offset - len(shown)
 	selected := -1
 	if l.focused {
 		selected = selectedRow(shown, l.selectedID)
@@ -353,14 +389,10 @@ func (l *SubagentList) Render() string {
 		}
 	}
 	if more > 0 {
-		overflow := l.styleProvider.RenderWithColor(fmt.Sprintf("+%d more", more), l.styleProvider.GetThemeColor("dim"))
-		if pad := rowWidth - l.styleProvider.GetWidth(overflow); pad > 0 {
-			overflow = strings.Repeat(" ", pad) + overflow
-		}
-		if blockWidth > 0 {
-			overflow = l.styleProvider.PlaceHorizontal(blockWidth, "", overflow)
-		}
-		lines = append(lines, overflow)
+		lines = append(lines, l.overflowRow(fmt.Sprintf("+%d more", more), rowWidth, blockWidth))
+	}
+	if l.offset > 0 {
+		lines = append([]string{l.overflowRow(fmt.Sprintf("%d above", l.offset), rowWidth, blockWidth)}, lines...)
 	}
 	if l.focused {
 		hint := l.styleProvider.RenderWithColor(l.focusHint(), l.styleProvider.GetThemeColor("dim"))
