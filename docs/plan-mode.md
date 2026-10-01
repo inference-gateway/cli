@@ -4,8 +4,10 @@
 
 Plan Mode is a read-only operating mode for the agent. The model can use
 `Read`, `Grep`, `Tree`, `A2A_QueryAgent`, `Agent` (read-only exploration
-subagents only), `TodoWrite`, `AskUserQuestion`, `Wait`, and
-`RequestPlanApproval` to investigate the codebase, but it
+subagents only) with its companion subagent tools (`ListSubagents`,
+`GetSubagentResult`, `ReadSubagentScreen`, `SendSubagentInput`,
+`CloseSubagent`, `ApproveSubagent`), `TodoWrite`, `AskUserQuestion`, `Wait`,
+and `RequestPlanApproval` to investigate the codebase, but it
 cannot write, edit, delete, or run shell commands - those tools stay
 advertised in the tool-use API (so the request's tool definitions, and with
 them the provider's prompt cache, survive a mode switch) but are disabled at

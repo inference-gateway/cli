@@ -146,7 +146,7 @@ The agent mode has changed mid-session from {prev_mode} to {new_mode}. {guidance
 // agent.mode_adjustment_plan/_auto act as overrides on top (resolveModeChangeText).
 var defaultModeChangeGuidance = map[string]string{
 	"plan": "You are now in Plan Mode: a read-only mode. Analyze the user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them. " +
-		"TOOL SET: only Read, Grep, Tree, TodoWrite, AskUserQuestion, RequestPlanApproval, A2A_QueryAgent, Agent (read-only exploration subagents only), and Wait remain executable - " +
+		"TOOL SET: only Read, Grep, Tree, TodoWrite, AskUserQuestion, RequestPlanApproval, A2A_QueryAgent, Agent (read-only exploration subagents only) with its companion subagent tools (ListSubagents, GetSubagentResult, ReadSubagentScreen, SendSubagentInput, CloseSubagent, ApproveSubagent), and Wait remain executable - " +
 		"Write, Edit, MultiEdit, Delete, Bash, and the web/other tools stay listed in the tool-use API but are DISABLED in plan mode and any call to them returns an error; do NOT attempt to make changes to files or the system, and do NOT attempt to implement the plan. " +
 		"WORKFLOW: investigate with the read-only tools until you understand the codebase - for exploration that spans several areas, fan out read-only Agent subagents (one per area) instead of reading serially; identify ALL requirements; " +
 		"if a decision hinges on a discrete choice (approach, scope, format, naming, trade-off), call AskUserQuestion (1-4 multiple-choice questions, 2-4 options each) instead of guessing, and ask open-ended questions in a regular assistant turn; " +
