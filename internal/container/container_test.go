@@ -29,3 +29,21 @@ func TestCreateRetryConfigNotifiesRetries(t *testing.T) {
 		}
 	}
 }
+
+// SDK-internal HTTP retries drive the chat TUI's reconnecting indicator, so a
+// down gateway is visible during the client's own backoff.
+func TestCreateRetryConfigSetsRetryStatus(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Client.Retry.Enabled = true
+	cfg.Client.Retry.MaxAttempts = 5
+	c := &ServiceContainer{config: cfg}
+	c.initializeStateManager()
+	c.stateManager.SetChatPending()
+
+	c.createRetryConfig().OnRetry(2, fmt.Errorf("HTTP 502"), 10*time.Second)
+
+	got := c.stateManager.GetRetryStatus()
+	if got == nil || got.Attempt != 2 || got.MaxAttempts != 4 {
+		t.Fatalf("retry status = %+v, want attempt 2 of 4", got)
+	}
+}

@@ -285,10 +285,12 @@ telemetry:
 ### Client Settings
 
 - **client.timeout**: HTTP client timeout in seconds
-- **client.stall_threshold_sec**: Seconds without progress - no response while connecting, no chunk while streaming - before
-  the request counts as stalled (default: `30`, `0` disables). The chat UI shows a reconnecting indicator and the agent drops
-  the connection and retries, up to `client.retry.max_attempts` times with exponential backoff. Keep it above your provider's
-  worst first-token latency - a stall retry restarts the response from scratch
+- **client.stall_threshold_sec**: Seconds without a chunk on an open stream before the request counts as stalled (default:
+  `30`, `0` disables). The chat UI shows a reconnecting indicator and the agent drops the connection and retries, up to
+  `client.retry.max_attempts` times with exponential backoff. Keep it above the longest silence between chunks your provider
+  produces - a stall retry restarts the response from scratch. Connecting is not covered: connection errors are retried by
+  the HTTP client under `client.retry.*` and then reported as they are, and the wait for the first token is bounded only by
+  `client.timeout` and `gateway.timeout`
 - **client.retry.enabled**: Enable automatic retries for failed requests
 - **client.retry.max_attempts**: Maximum number of retry attempts (default: `5`)
 - **client.retry.initial_backoff_sec**: Initial delay between retries in seconds
