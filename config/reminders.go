@@ -78,7 +78,7 @@ Focus on the user's initial explicit instructions - their own words are your pri
 </system-reminder>`
 
 const defaultRepeatedFailureReminderText = `<system-reminder>
-{tool_name} failed {count} times with identical arguments. Stop retrying - verify your assumptions (list or search first) and take a different approach.
+{tool_name} failed {count} times with the same arguments. Stop retrying - verify your assumptions (list or search first) and take a different approach.
 </system-reminder>`
 
 const defaultTodoContinuationReminderText = `<system-reminder>
