@@ -17,3 +17,4 @@ parameters:
     - subagent_id
     - decision
 require_approval: true
+modes: [standard, auto, auto-with-judge, plan]

@@ -9,3 +9,4 @@ parameters:
       description: The subagent id from ListSubagents
   required:
     - subagent_id
+modes: [standard, auto, auto-with-judge, plan]

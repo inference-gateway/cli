@@ -20,3 +20,4 @@ parameters:
       description: Literal text to type into the subagent (e.g. a follow-up prompt)
   required:
     - subagent_id
+modes: [standard, auto, auto-with-judge, plan]

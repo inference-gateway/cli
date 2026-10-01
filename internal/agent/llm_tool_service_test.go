@@ -96,6 +96,10 @@ func TestExecuteTool_ModeGuard(t *testing.T) {
 	}{
 		{"plan rejects Write", agentdomain.AgentModePlan, true, tools.ToolWrite, "disabled in plan mode"},
 		{"plan rejects Bash", agentdomain.AgentModePlan, true, tools.ToolBash, "disabled in plan mode"},
+		{"plan error lists the plan tools", agentdomain.AgentModePlan, true, tools.ToolWrite, "use one of " + tools.ToolAskUserQuestion + ", " + tools.ToolGrep + ", " + tools.ToolRead},
+		{"plan allows ListSubagents", agentdomain.AgentModePlan, true, tools.ToolListSubagents, ""},
+		{"plan allows CloseSubagent", agentdomain.AgentModePlan, true, tools.ToolCloseSubagent, ""},
+		{"readonly rejects ListSubagents", agentdomain.AgentModeReadOnly, true, tools.ToolListSubagents, "not available in readonly mode"},
 		{"standard rejects RequestPlanApproval", agentdomain.AgentModeStandard, true, tools.ToolRequestPlanApproval, "not available in standard mode"},
 		{"readonly rejects Write", agentdomain.AgentModeReadOnly, true, tools.ToolWrite, "not available in readonly mode"},
 		{"readonly allows Read", agentdomain.AgentModeReadOnly, true, tools.ToolRead, ""},
