@@ -859,6 +859,64 @@ using official APIs provides better reliability and performance for production u
 
 ---
 
+### Blocks Not Itemised Above
+
+These top-level blocks are read from `config.yaml` and are not spelled out key by key above. Each
+entry lists its keys and points at the guide that owns the behaviour.
+
+- **`container_runtime`**: `type` - `docker`, `podman`, or `""` to auto-detect.
+- **`image`**: `max_size` (bytes), `timeout` (seconds), `allow_local`, and `clipboard_optimize` for
+  images pasted straight from the clipboard.
+- **`client`**: `timeout` (seconds), `stall_threshold_sec`, and `retry` for gateway calls.
+- **`export`**: `output_dir` - where exported conversations are written.
+- **`web`**: `enabled`, `port`, `host`, `session_inactivity_mins`, `tmux`, `ssh`, `servers`. See
+  [Web Terminal](web-terminal.md).
+- **`pricing`**: `enabled`, `currency`, and `custom_prices.<model>` overrides. See
+  [Cost Tracking](cost-tracking.md).
+- **`context_windows`**: a map of model id to context window in tokens, for models the CLI does not
+  know about.
+- **`provisioner`**: `provider`, `gpu_type`, `model`, `image`, `cloud_type`, `disk_gb`, `max_hourly`,
+  and `runpod` for the management-plane credential. See the [GPU command](commands-reference.md#infer-gpu).
+- **`speech_to_text`**: `enabled`, `engine`, `binary_path`, `model`, `models_dir`, `language`,
+  `auto_download`, `timeout`, `max_recording_seconds`, `silence_timeout`, `ffmpeg_path`,
+  `input_device`, `retain_recordings`, `recordings_dir`. See [Speech-to-Text](speech-to-text.md).
+- **`text_to_speech`**: `enabled`, `engine`, `binary_path`, `model`, `voice`, `models_dir`,
+  `output_dir`, `auto_download`, `timeout`, `ffmpeg_path`, `require_approval`. See
+  [Text-to-Speech](text-to-speech.md).
+- **`text_to_music`**, **`text_to_sfx`**: `enabled`, `model`, `output_dir`, `require_approval`. See
+  [Text-to-Music](text-to-music.md).
+- **`text_to_video`**: `enabled`, `model`, `avatar_model`, `size`, `output_dir`, `timeout`,
+  `poll_interval`, `create_avatar`, `require_approval`. See [Text-to-Video](text-to-video.md).
+
+### Blocks in Their Own File
+
+The blocks below live in a file of their own rather than in `config.yaml`. Naming each key here would
+duplicate the guide that owns it, so the keys are listed once and the guide carries the detail.
+
+- **`channels.yaml`** - `enabled`, `max_workers`, `image_retention`, `require_approval`, `telegram`,
+  `whatsapp`. See [Channels](channels.md).
+- **`heartbeat.yaml`** - `enabled`, `interval`, `initial_delay`, `model`, `prompt`. See
+  [Heartbeat](heartbeat.md).
+- **`reminders.yaml`** - `enabled`, `merge`, `reminders`. See
+  [Reminders & Command Hooks](hooks.md).
+- **`hooks.yaml`** - `enabled`, `hooks`. See [Reminders & Command Hooks](hooks.md).
+- **`judge.yaml`** - `model`, `gateway_url`, `timeout`, `max_tokens`, `on_error`, `system_prompt`,
+  `prompt`. See [Judge Mode](judge-mode.md).
+- **`memory.yaml`** - `enabled`, `dir`, `max_chars`, `max_entry_chars`, `backend`. See
+  [Persistent Memory](memory.md).
+- **`plugins.yaml`** - `enabled`, `dir`, `max_instructions_chars`, `max_instructions_lines`,
+  `plugins`. See [Plugins](plugins.md).
+- **`computer_use.yaml`** - `enabled`, `screenshot`, `rate_limit`, `approval`, `recording`. See
+  [Computer Use](computer-use.md).
+- **`browser_use.yaml`** - `enabled`, `backend`, `browser`, `extension`, `rate_limit`, `tools`. See
+  [Daemon Binding Protocol](browser-extension-protocol.md).
+- **`mcp.yaml`** - `enabled`, `connection_timeout`, `discovery_timeout`, `liveness_probe_enabled`,
+  `liveness_probe_interval`, `max_retries`, `servers`. See [MCP Integration](mcp-integration.md).
+- **`daemon.yaml`** - `binding.enabled`, `binding.port` (falling back to `browser_use.extension.port`)
+  and `binding.token` (falling back to `browser_use.extension.token`). See [infer daemon](daemon.md).
+- **`prompts.yaml`** - `agent`, `git`, `conversation`, `init`, `vision`. Prompts are edited directly
+  rather than through `config set`. See the [Commands Reference](commands-reference.md).
+
 ## Environment Variables
 
 The CLI supports environment variable configuration with the `INFER_` prefix. Environment variables
