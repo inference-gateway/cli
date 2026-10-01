@@ -123,8 +123,8 @@ func (s *LLMToolService) ListMarkdownSubagents() []agentdomain.SubagentInfo {
 // the current mode, so it can pick another instead of retrying.
 func toolUnavailableError(name string, mode agentdomain.AgentMode) error {
 	if mode == agentdomain.AgentModePlan {
-		return fmt.Errorf("tool not allowed: %s is disabled in plan mode (read-only) - use %s/%s/%s to research, %s to clarify, and %s to submit the plan; do not retry this tool until the plan is approved",
-			name, tools.ToolRead, tools.ToolGrep, tools.ToolTree, tools.ToolAskUserQuestion, tools.ToolRequestPlanApproval)
+		return fmt.Errorf("tool not allowed: %s is disabled in plan mode (read-only) - use %s/%s/%s/%s to research, %s to clarify, and %s to submit the plan; do not retry this tool until the plan is approved",
+			name, tools.ToolRead, tools.ToolGrep, tools.ToolTree, tools.ToolAgent, tools.ToolAskUserQuestion, tools.ToolRequestPlanApproval)
 	}
 	return fmt.Errorf("tool not allowed: %s is not available in %s mode", name, mode.ModeKey())
 }

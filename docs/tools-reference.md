@@ -97,6 +97,12 @@ always-available set is registered for every session. There is **no built-in Git
 | **CloseSubagent** | Stop a subagent or tidy a finished pane | Yes |
 | **ApproveSubagent** | Relay an approval decision to a waiting subagent | Yes |
 
+`Agent` is also offered in plan mode, where every subagent runs read-only
+whatever `type` the call asks for (see [Markdown Subagents](subagents.md)).
+The companion tools stay out of plan mode: the default async surface notifies
+you on completion, and `tools.agent.wait: true` blocks for the aggregated
+result.
+
 **Computer Use** (approval follows `computer_use.approval`, default `never`, and RecordStart also follows
 `computer_use.recording.require_approval`, default on):
 

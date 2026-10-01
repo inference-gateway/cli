@@ -63,6 +63,22 @@ func TestListToolsForMode_AskUserQuestionModes(t *testing.T) {
 	}
 }
 
+// TestListToolsForMode_PlanOffersAgent: plan mode's read-only exploration
+// subagents are the research path for a large area, so the Agent tool must be
+// advertised there - and only there, not in read-only subagent mode.
+func TestListToolsForMode_PlanOffersAgent(t *testing.T) {
+	cfg := config.DefaultConfig()
+	registry := goldenRegistry(cfg)
+	svc := NewLLMToolServiceWithRegistry(cfg, registry)
+
+	if !slices.Contains(toolNamesForMode(svc, agentdomain.AgentModePlan), tools.ToolAgent) {
+		t.Error("plan mode must advertise the Agent tool")
+	}
+	if slices.Contains(toolNamesForMode(svc, agentdomain.AgentModeReadOnly), tools.ToolAgent) {
+		t.Error("read-only mode must not advertise the Agent tool (subagents cannot spawn subagents)")
+	}
+}
+
 // TestExecuteTool_ModeGuard verifies execution-time mode enforcement: a mode
 // rejects the tools it does not make available, and a context without a mode
 // fails open.

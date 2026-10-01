@@ -176,6 +176,7 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 		}
 		specs[i].Model = t.resolveModel(specs[i].Model, parentModel)
 	}
+	forceReadOnlyInPlanMode(ctx, specs)
 
 	if mode == scheddomain.SubagentModeInteractive {
 		return t.runInteractive(ctx, args, start, specs, parentSession, notes), nil
@@ -925,6 +926,19 @@ func resolveSubagentType(t string) agentdomain.AgentMode {
 		return agentdomain.AgentModeStandard
 	}
 	return agentdomain.AgentModeReadOnly
+}
+
+// forceReadOnlyInPlanMode coerces every spec to ReadOnly while the parent run is
+// in plan mode, so a subagent can only explore whatever capability the call
+// asked for or a named agent derived. It runs after applyNamedAgent, the last
+// place a spec's mode is set.
+func forceReadOnlyInPlanMode(ctx context.Context, specs []AgentTaskSpec) {
+	if mode, ok := agentdomain.AgentModeFromContext(ctx); !ok || mode != agentdomain.AgentModePlan {
+		return
+	}
+	for i := range specs {
+		specs[i].Mode = agentdomain.AgentModeReadOnly
+	}
 }
 
 func optionalStringSlice(m map[string]any, key string) []string {

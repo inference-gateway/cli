@@ -97,6 +97,11 @@ ReadOnly when every allowed tool is read-only, otherwise ReadWrite (mutations
 still go through approval). With no allowlist the subagent keeps the parent's
 tools and runs as ReadWrite.
 
+While the parent run is in plan mode a subagent is always read-only, whatever
+its `type` or its derived allowlist says: planning is a read-only mode, so a
+delegated subagent may explore but never mutate the repo (see
+[Plan Mode](plan-mode.md)).
+
 ## Model
 
 `model` takes a `provider/model` reference (for example
