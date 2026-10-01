@@ -60,4 +60,8 @@ parameters:
       enum:
         - ReadOnly
         - ReadWrite
-modes: [standard, auto, auto-with-judge, plan]
+modes:
+  - standard
+  - auto
+  - auto-with-judge
+  - plan

@@ -88,10 +88,7 @@ type SubagentState struct {
 	StartedAt   time.Time
 	CancelFunc  context.CancelFunc
 	Silent      bool
-
-	// Input delivers a follow-up user message to a headless subagent that keeps
-	// its stdin open between turns. nil when the subagent accepts none.
-	Input func(text string) error
+	Input       func(text string) error
 }
 
 // SubagentResultFile is the JSON written by `infer headless --result-file` on exit

@@ -20,4 +20,8 @@ parameters:
       description: The message to send (a follow-up prompt, new information, a correction). Typed literally into an interactive pane.
   required:
     - subagent_id
-modes: [standard, auto, auto-with-judge, plan]
+modes:
+  - standard
+  - auto
+  - auto-with-judge
+  - plan
