@@ -88,6 +88,10 @@ type SubagentState struct {
 	StartedAt   time.Time
 	CancelFunc  context.CancelFunc
 	Silent      bool
+
+	// Input delivers a follow-up user message to a headless subagent that keeps
+	// its stdin open between turns. nil when the subagent accepts none.
+	Input func(text string) error
 }
 
 // SubagentResultFile is the JSON written by `infer headless --result-file` on exit
@@ -100,6 +104,18 @@ type SubagentResultFile struct {
 	SessionID      string            `json:"session_id,omitempty"`
 	Done           bool              `json:"done,omitempty"`
 	Stats          *SubagentRunStats `json:"stats,omitempty"`
+}
+
+// SubagentTurnLineType is the type of the line a keep-alive headless subagent
+// prints on stdout after each of its turns.
+const SubagentTurnLineType = "subagent_turn"
+
+// SubagentTurnLine reports one finished turn of a keep-alive headless subagent
+// to the parent that owns its stdout. Done is false when the subagent already
+// has the next turn queued.
+type SubagentTurnLine struct {
+	Type string `json:"type"`
+	SubagentResultFile
 }
 
 // SubagentRunStats is what a subagent run cost and how its tool calls went, so

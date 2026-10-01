@@ -343,14 +343,17 @@ telemetry:
 - **tools.edit.strict_whitespace**: `false` (default) enables indentation-tolerant matching for Edit/MultiEdit; `true` requires byte-exact
 - **tools.agent.wait**: `false` (default) makes the Agent tool return as soon as its headless subagents are
   dispatched, so later tool calls in the same turn run right away and each subagent reports back with its own
-  `[Subagent Completed: ...]` notification. `true` blocks the call until every subagent finishes and returns their
-  aggregated results (fan-out / fan-in). Interactive subagents never block. Env: `INFER_TOOLS_AGENT_WAIT`.
+  `[Subagent Completed: ...]` notification, then stays alive for `SendSubagentInput` follow-ups (see
+  [Headless Subagents](subagents.md#headless-subagents)). `true` blocks the call until every subagent finishes and
+  returns their aggregated results (fan-out / fan-in), keeping none alive. Interactive subagents never block.
+  Env: `INFER_TOOLS_AGENT_WAIT`.
 - **tools.agent.max_parallel**: Most subagents one Agent call may dispatch (default: `10`). Tasks past the cap
   are dropped, not queued, and the tool result names how many. Env: `INFER_TOOLS_AGENT_MAX_PARALLEL`.
-- **tools.agent.idle_timeout**: Seconds an interactive (tmux-pane) subagent may sit idle - no harvested
-  result turn, no pane change and no pending approval - before the parent monitor closes its pane automatically
-  (default: `300`; `0` disables the auto-close). A subagent reports done on its task turn, which closes the pane
-  right away, so the timeout only catches one that never reports done. Env: `INFER_TOOLS_AGENT_IDLE_TIMEOUT`.
+- **tools.agent.idle_timeout**: Seconds a subagent may sit idle before the parent closes it with one
+  `[Subagent Closed: ...]` note (default: `300`; `0` disables the auto-close). A headless subagent is idle
+  from a completed turn until the next `SendSubagentInput`. An interactive (tmux-pane) subagent is idle when it
+  shows no harvested result turn, no pane change and no pending approval, which only catches a pane that never
+  reports done. Env: `INFER_TOOLS_AGENT_IDLE_TIMEOUT`.
 
 ### Vision Settings
 
@@ -936,8 +939,8 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
   returning at dispatch (default: `false`)
 - `INFER_TOOLS_AGENT_MAX_PARALLEL`: Most subagents one Agent call may dispatch, tasks past the cap are
   dropped (default: `10`)
-- `INFER_TOOLS_AGENT_IDLE_TIMEOUT`: Close an interactive subagent's tmux pane after N seconds of
-  inactivity without a done signal (default: `300`; `0` disables the auto-close)
+- `INFER_TOOLS_AGENT_IDLE_TIMEOUT`: Close a subagent after N seconds idle - a headless one awaiting a
+  follow-up, an interactive pane without a done signal (default: `300`; `0` disables the auto-close)
 
 **Tool Approval Configuration:**
 

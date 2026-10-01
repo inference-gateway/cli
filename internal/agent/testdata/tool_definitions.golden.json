@@ -78,7 +78,7 @@
     },
     {
       "function": {
-        "description": "Spawn local subagents - each an autonomous \"infer headless\" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.\n\nProvide either 'tasks' (an array of {description, label?, model?, system_prompt?, type?} objects) to run several subagents at once, or 'description' for a single subagent. Give a subagent a specialized role/persona by setting its system_prompt (each subagent can have its own).\n\nChoose each subagent's capability with 'type': ReadOnly (DEFAULT) is Explore-like - read/search tools only, never needs approval - use it for investigation, research, and reading code. ReadWrite can modify files and run commands; its mutations require approval. Prefer ReadOnly unless the task must change something.\n\nThe subagent surface (headless background vs. an interactive tmux pane you can watch) is set by the operator via config (tools.agent.mode) - you do NOT choose it and there is no mode parameter; just describe the task.\n\nIn EVERY mode you are AUTOMATICALLY NOTIFIED when each subagent finishes (its result is folded into this conversation). After dispatching, END YOUR TURN and wait: do NOT poll with ListSubagents/GetSubagentResult and do NOT CloseSubagent to fetch a result (closing only stops one early). The '[Subagent Completed: ...]' message arrives on its own - act on it then.\n- Headless subagents honor tools.agent.wait: async (default) returns immediately and notifies you as each completes; blocking (tools.agent.wait: true) waits until all finish and returns their aggregated results (fan-out / fan-in).\n- Interactive subagents are fire-and-watch: the call returns once their tmux panes launch; you watch them live. There is no mode parameter. Each pane closes itself automatically once the subagent finishes its turn, fails, or sits idle past the configured timeout (tools.agent.idle_timeout, pauses while awaiting approval). A finished turn closes the pane even when it ends with a question, so make each task self-contained - SendSubagentInput only reaches a pane that is still working or stuck, and restarts the timeout. Use CloseSubagent only to stop one early.\n\nEach subagent is independent and cannot itself spawn further subagents. Prefer narrow, self-contained task descriptions.",
+        "description": "Spawn local subagents - each an autonomous \"infer headless\" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.\n\nProvide either 'tasks' (an array of {description, label?, model?, system_prompt?, type?} objects) to run several subagents at once, or 'description' for a single subagent. Give a subagent a specialized role/persona by setting its system_prompt (each subagent can have its own).\n\nChoose each subagent's capability with 'type': ReadOnly (DEFAULT) is Explore-like - read/search tools only, never needs approval - use it for investigation, research, and reading code. ReadWrite can modify files and run commands; its mutations require approval. Prefer ReadOnly unless the task must change something.\n\nThe subagent surface (headless background vs. an interactive tmux pane you can watch) is set by the operator via config (tools.agent.mode) - you do NOT choose it and there is no mode parameter; just describe the task.\n\nIn EVERY mode you are AUTOMATICALLY NOTIFIED when each subagent finishes (its result is folded into this conversation). After dispatching, END YOUR TURN and wait: do NOT poll with ListSubagents/GetSubagentResult and do NOT CloseSubagent to fetch a result (closing only stops one early). The '[Subagent Completed: ...]' message arrives on its own - act on it then.\n- Headless subagents honor tools.agent.wait: async (default) returns immediately and notifies you as each completes; blocking (tools.agent.wait: true) waits until all finish and returns their aggregated results (fan-out / fan-in). An async headless subagent stays alive idle after its '[Subagent Completed: ...]' note until tools.agent.idle_timeout closes it with a '[Subagent Closed: ...]' note: use SendSubagentInput to hand it new information, a correction or a follow-up as its next turn in the same session, and you are notified again when that turn finishes.\n- Interactive subagents are fire-and-watch: the call returns once their tmux panes launch; you watch them live. There is no mode parameter. Each pane closes itself automatically once the subagent finishes its turn, fails, or sits idle past the configured timeout (tools.agent.idle_timeout, pauses while awaiting approval). A finished turn closes the pane even when it ends with a question, so make each task self-contained - SendSubagentInput only reaches a pane that is still working or stuck, and restarts the timeout. Use CloseSubagent only to stop one early.\n\nEach subagent is independent and cannot itself spawn further subagents. Prefer narrow, self-contained task descriptions.",
         "name": "Agent",
         "parameters": {
           "properties": {
@@ -422,7 +422,7 @@
     },
     {
       "function": {
-        "description": "Stop a subagent early. You do NOT need to close a subagent to receive its result - results arrive automatically when it finishes, and interactive subagent panes close themselves once they report done, fail, or idle out. Never CloseSubagent just to fetch a result or because its output looks empty; wait for the automatic notification or use SendSubagentInput to keep a pane alive. For an interactive subagent this folds in its last assistant message and kills the pane; for a headless one it cancels the subprocess. Pass the subagent_id from ListSubagents.",
+        "description": "Stop a subagent early. You do NOT need to close a subagent to receive its result - results arrive automatically when it finishes, and interactive subagent panes close themselves once they report done, fail, or idle out. Never CloseSubagent just to fetch a result or because its output looks empty; wait for the automatic notification or use SendSubagentInput to keep a pane alive. For an interactive subagent this folds in its last assistant message and kills the pane; for a headless one it stops the subprocess, idle or running. Pass the subagent_id from ListSubagents.",
         "name": "CloseSubagent",
         "parameters": {
           "additionalProperties": false,
@@ -1327,28 +1327,28 @@
     },
     {
       "function": {
-        "description": "Type into an interactive subagent's TUI - to re-prompt it or drive its interface. Provide 'text' (typed literally) and/or 'keys' (named keys: Enter, Escape, Up, Down, Left, Right, Tab, BSpace, Space, Home, End, PageUp, PageDown). With submit=true (default) it presses Enter to send a new prompt and you are AUTOMATICALLY NOTIFIED when the subagent finishes the resulting turn - do not poll. With submit=false it only sends the keys (for TUI navigation/testing); observe the effect with ReadSubagentScreen. Interactive subagents only. Pass the subagent_id from ListSubagents. To drive an interactive terminal program that is NOT a subagent, use the `tmux` skill (raw tmux via Bash) instead of this tool.",
+        "description": "Send a follow-up message to a subagent you spawned, headless or interactive - to hand it new information, correct its course or ask a follow-up on its result without respawning it. 'text' is the message. The subagent runs it as its next turn (queued if it is mid-turn) and you are AUTOMATICALLY NOTIFIED with a [Subagent Completed: ...] note when that turn finishes - do not poll. A headless subagent stays alive idle between turns until tools.agent.idle_timeout or CloseSubagent. 'keys' (named keys: Enter, Escape, Up, Down, Left, Right, Tab, BSpace, Space, Home, End, PageUp, PageDown) and submit=false drive an interactive pane's TUI and fail for a headless subagent. With submit=true (default) an interactive pane presses Enter to send the prompt. With submit=false it only sends the keys (TUI navigation/testing); observe the effect with ReadSubagentScreen. Pass the subagent_id from ListSubagents or the Agent result. To drive an interactive terminal program that is NOT a subagent, use the `tmux` skill (raw tmux via Bash) instead of this tool.",
         "name": "SendSubagentInput",
         "parameters": {
           "additionalProperties": false,
           "properties": {
             "keys": {
-              "description": "Named keys to send after the text. Allowed: Enter, Escape, Tab, Space, BSpace, Up, Down, Left, Right, Home, End, PageUp, PageDown",
+              "description": "Interactive subagents only. Named keys to send after the text. Allowed: Enter, Escape, Tab, Space, BSpace, Up, Down, Left, Right, Home, End, PageUp, PageDown",
               "items": {
                 "type": "string"
               },
               "type": "array"
             },
             "subagent_id": {
-              "description": "The interactive subagent id from ListSubagents",
+              "description": "The subagent id from ListSubagents or the Agent result",
               "type": "string"
             },
             "submit": {
-              "description": "Press Enter to submit a prompt and wait for the subagent to finish (default true). Set false to only send keys for TUI navigation - then inspect with ReadSubagentScreen.",
+              "description": "Interactive subagents only. Press Enter to submit a prompt and wait for the subagent to finish (default true). Set false to only send keys for TUI navigation - then inspect with ReadSubagentScreen.",
               "type": "boolean"
             },
             "text": {
-              "description": "Literal text to type into the subagent (e.g. a follow-up prompt)",
+              "description": "The message to send (a follow-up prompt, new information, a correction). Typed literally into an interactive pane.",
               "type": "string"
             }
           },

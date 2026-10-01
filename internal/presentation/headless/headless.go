@@ -81,6 +81,7 @@ type Options struct {
 	Format          string
 	Mode            string
 	Serve           bool
+	KeepAlive       bool
 }
 
 // resolveAgentMode picks the coding mode for a headless run: the --mode flag
@@ -286,7 +287,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		Model:                      selectedModel,
 		Messages:                   append(history, userMsg),
 		ApprovalBrokerAttached:     opts.RequireApproval,
-		UserQuestionBrokerAttached: opts.Format != "text",
+		UserQuestionBrokerAttached: questionsAnswerable(opts),
 		GroupKey:                   groupKey,
 	}
 
@@ -312,9 +313,61 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 	endSessionSpan(sessionOutcome(err))
 	rec.RecordSession("headless", sessionOutcome(err), time.Since(sessionStart))
 
+	if opts.KeepAlive {
+		err = keepAlive(ctx, svc, ctl, notifications, opts, sessionID, selectedModel, cfg, groupKey, err)
+	}
 	if opts.ResultFile != "" {
 		writeResultFile(opts.ResultFile, conversationRepo, sessionID, err)
 	}
+	return err
+}
+
+// questionsAnswerable reports whether a stdin broker can answer the
+// AskUserQuestion tool. A keep-alive run's stdin is held open by a parent that
+// only sends messages, so a question there would wait until the parent hangs up.
+func questionsAnswerable(opts Options) bool {
+	return opts.Format != "text" && !opts.KeepAlive
+}
+
+// keepAlive reports the task turn and then runs every run_agent_input frame
+// the parent sends as a further turn, reporting each, until stdin closes. It
+// returns the last turn's error.
+func keepAlive(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, opts Options, sessionID, model string, cfg *config.Config, groupKey string, err error) error {
+	repo := svc.GetConversationRepository()
+	emitTurnLine(os.Stdout, repo, svc.GetMessageQueue(), sessionID, err)
+	for ctl.awaitTurn() {
+		err = runFollowUpTurn(ctx, svc, ctl, notifications, opts, sessionID, model, cfg, groupKey)
+		emitTurnLine(os.Stdout, repo, svc.GetMessageQueue(), sessionID, err)
+	}
+	return err
+}
+
+// runFollowUpTurn moves the queued messages into the conversation and runs one
+// agent turn over it in the run's format, the way runServeTurn does in AG-UI.
+func runFollowUpTurn(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, opts Options, sessionID, model string, cfg *config.Config, groupKey string) error {
+	repo := svc.GetConversationRepository()
+	moveQueuedMessages(svc.GetMessageQueue(), repo)
+	req := &agentdomain.AgentRequest{
+		RequestID:                  sessionID,
+		Model:                      model,
+		Messages:                   convdomain.BuildAgentMessagesFromEntries(repo.GetMessages()),
+		ApprovalBrokerAttached:     opts.RequireApproval,
+		UserQuestionBrokerAttached: questionsAnswerable(opts),
+		GroupKey:                   groupKey,
+	}
+
+	rec := svc.GetTelemetryRecorder()
+	started := time.Now()
+	endSpan := rec.StartSession("headless")
+	events, err := svc.GetAgentService().RunWithStream(ctx, req)
+	if err != nil {
+		err = fmt.Errorf("failed to run agent: %w", err)
+		emitPreRunError(os.Stdout, opts.Format, err)
+	} else {
+		err = renderStream(opts.Format, notifications.merge(events), ctl, sessionID, model, cfg, repo, nil, svc.GetBackgroundTaskRegistry().Snapshot, nil)
+	}
+	endSpan(sessionOutcome(err))
+	rec.RecordSession("headless", sessionOutcome(err), time.Since(started))
 	return err
 }
 
@@ -332,6 +385,10 @@ func validateOptions(opts Options) error {
 		return fmt.Errorf("--serve streams AG-UI runs, so it needs --format ag-ui (got %q)", opts.Format)
 	case !opts.Serve && opts.Task == "":
 		return errors.New("a task is required unless --serve is set")
+	case opts.KeepAlive && opts.Serve:
+		return errors.New("--keep-alive runs a task then reads further turns, --serve reads every turn: pick one")
+	case opts.KeepAlive && opts.Format == "text":
+		return errors.New("--keep-alive reads run_agent_input frames on stdin, which --format text does not")
 	}
 	return nil
 }
@@ -594,10 +651,9 @@ func subagentRunStats(repo convdomain.ConversationRepository) *scheddomain.Subag
 	}
 }
 
-// writeResultFile records the run's outcome and final assistant message at
-// path for a parent Agent tool to harvest - on failure too, so the parent gets
-// the partial answer and error detail instead of silence.
-func writeResultFile(path string, repo convdomain.ConversationRepository, sessionID string, runErr error) {
+// turnResult records a turn's outcome and final assistant message - on failure
+// too, so the parent gets the partial answer and error detail instead of silence.
+func turnResult(repo convdomain.ConversationRepository, sessionID string, runErr error) scheddomain.SubagentResultFile {
 	rf := scheddomain.SubagentResultFile{
 		FinalAssistant: convdomain.LastAssistantText(repo.GetMessages()),
 		Success:        runErr == nil,
@@ -607,7 +663,26 @@ func writeResultFile(path string, repo convdomain.ConversationRepository, sessio
 	if runErr != nil {
 		rf.Error = runErr.Error()
 	}
-	if err := scheddomain.WriteSubagentResultFile(path, rf); err != nil {
+	return rf
+}
+
+// writeResultFile writes the run's outcome at path for a parent Agent tool to
+// harvest from a detached run whose stdout it does not own.
+func writeResultFile(path string, repo convdomain.ConversationRepository, sessionID string, runErr error) {
+	if err := scheddomain.WriteSubagentResultFile(path, turnResult(repo, sessionID, runErr)); err != nil {
 		logger.Warn("failed to write result file", "path", path, "error", err)
 	}
+}
+
+// emitTurnLine reports one finished keep-alive turn on stdout. Done is false
+// when a message queued meanwhile means the next turn starts right away.
+func emitTurnLine(w io.Writer, repo convdomain.ConversationRepository, queue convdomain.MessageQueue, sessionID string, runErr error) {
+	line := scheddomain.SubagentTurnLine{Type: scheddomain.SubagentTurnLineType, SubagentResultFile: turnResult(repo, sessionID, runErr)}
+	line.Done = queue.IsEmpty()
+	data, err := json.Marshal(line)
+	if err != nil {
+		logger.Warn("failed to encode the turn line", "error", err)
+		return
+	}
+	_, _ = fmt.Fprintln(w, string(data))
 }

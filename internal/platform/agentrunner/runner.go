@@ -37,6 +37,13 @@ type Options struct {
 	ResultFile string
 	// ExtraEnv is appended to os.Environ() for the subprocess (e.g. depth guard).
 	ExtraEnv []string
+	// Stdin is the child's stdin when set, an *os.File so exec hands the
+	// descriptor over and Wait never blocks on a copier goroutine. The caller
+	// keeps the write end and closes it to hang up. Exclusive with Approval.
+	Stdin *os.File
+	// KeepAlive passes --keep-alive so the child runs the frames written to
+	// Stdin as further turns until it closes.
+	KeepAlive bool
 
 	// OnLine is called for each non-empty raw stdout line. Approval-request
 	// lines handled internally (see Approval) are not passed to OnLine.
@@ -83,6 +90,9 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 		return result, fmt.Errorf("stdout pipe: %w", err)
 	}
 
+	if opts.Stdin != nil {
+		cmd.Stdin = opts.Stdin
+	}
 	brokerApproval := opts.RequireApproval && opts.Approval != nil
 	var stdinWriter io.WriteCloser
 	if brokerApproval {
@@ -162,6 +172,9 @@ func buildArgs(opts Options) []string {
 	}
 	if opts.ResultFile != "" {
 		args = append(args, "--result-file", opts.ResultFile)
+	}
+	if opts.KeepAlive {
+		args = append(args, "--keep-alive")
 	}
 	return append(args, opts.Prompt)
 }

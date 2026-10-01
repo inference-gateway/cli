@@ -9,10 +9,14 @@ import (
 	"sync"
 	"time"
 
+	uuid "github.com/google/uuid"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -31,10 +35,51 @@ type headlessSubagentJob struct {
 	// this job. nil for a fire-and-forget dispatch, which nobody awaits.
 	done chan struct{}
 
-	mu      sync.Mutex
-	output  string
-	outcome AgentSubResult
-	live    scheddomain.SubagentRunStats
+	// A keep-alive job holds the child's stdin open between turns, reports
+	// each turn itself and closes the child after idleTimeout without input.
+	keepAlive   bool
+	idleTimeout time.Duration
+	stdinRead   *os.File
+	emit        func(scheddomain.JobSignal)
+
+	mu         sync.Mutex
+	output     string
+	outcome    AgentSubResult
+	live       scheddomain.SubagentRunStats
+	stdinWrite *os.File
+	idle       *time.Timer
+	closing    bool
+}
+
+// idleKillGrace is how long a hung-up keep-alive child gets to exit on its own
+// before it is killed.
+const idleKillGrace = 10 * time.Second
+
+// newKeepAliveSubagentJob builds an async headless job whose child keeps
+// reading follow-up messages on a pipe. The job reports its own turns, so the
+// subagent is Silent to the supervisor. Without a pipe it is a one-shot job.
+func newKeepAliveSubagentJob(tool *AgentTool, spec AgentTaskSpec, state *scheddomain.SubagentState, runCtx context.Context, cancel context.CancelFunc) *headlessSubagentJob {
+	job := &headlessSubagentJob{tool: tool, spec: spec, state: state, runCtx: runCtx, cancelRun: cancel}
+	r, w, err := os.Pipe()
+	if err != nil {
+		logger.Warn("subagent stdin pipe failed, running one turn only", "subagent_id", state.ID, "error", err)
+		return job
+	}
+	job.keepAlive, job.stdinRead, job.stdinWrite = true, r, w
+	if secs := tool.config.Tools.Agent.IdleTimeout; secs > 0 {
+		job.idleTimeout = time.Duration(secs) * time.Second
+	}
+	state.Silent = true
+	state.Input = job.send
+	return job
+}
+
+// release closes the pipe of a keep-alive job that was never dispatched.
+func (j *headlessSubagentJob) release() {
+	if j.stdinRead != nil {
+		_ = j.stdinRead.Close()
+	}
+	j.hangUp()
 }
 
 // Meta describes the subagent for the task view.
@@ -56,7 +101,10 @@ func (j *headlessSubagentJob) Meta() scheddomain.JobMeta {
 // detached runCtx (so it survives the spawning turn); AfterFunc ties the
 // supervisor's context to it, so Wind/Stop/shutdown also cancel the subprocess
 // (via exec.CommandContext). Run returns promptly on either cancellation.
-func (j *headlessSubagentJob) Run(ctx context.Context, _ func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
+func (j *headlessSubagentJob) Run(ctx context.Context, emit func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
+	if j.keepAlive {
+		return j.runKeepAlive(ctx, emit)
+	}
 	logger.Debug("headless subagent starting", "subagent_id", j.state.ID, "session_id", j.state.SessionID)
 	runCtx := j.runCtx
 	if runCtx == nil {
@@ -68,7 +116,7 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(scheddomain.JobSig
 
 	defer j.signalDone()
 
-	answer, stats, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID, j.tally)
+	answer, stats, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID, j.tally, nil)
 	sub := toSubResult(j.spec, j.state.SessionID, answer, err)
 	sub.Stats = stats
 	j.mu.Lock()
@@ -93,6 +141,167 @@ func (j *headlessSubagentJob) Run(ctx context.Context, _ func(scheddomain.JobSig
 		Duration:  time.Since(j.state.StartedAt),
 		Data:      sub,
 	}
+}
+
+// runKeepAlive runs the child with its stdin held open. Each turn line the
+// child prints is reported as it arrives, the idle timer hangs up a quiet
+// child, and a stop from the supervisor kills it.
+func (j *headlessSubagentJob) runKeepAlive(ctx context.Context, emit func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
+	logger.Debug("keep-alive headless subagent starting", "subagent_id", j.state.ID, "session_id", j.state.SessionID)
+	j.emit = emit
+	defer context.AfterFunc(ctx, func() { j.cancelRun(); j.hangUp() })()
+
+	answer, stats, err := j.tool.executeOne(j.runCtx, j.spec, j.state.SessionID, j.onLine, j.stdinRead)
+	_ = j.stdinRead.Close()
+	j.hangUp()
+	return j.exitResult(answer, stats, err)
+}
+
+// onLine tallies one line the child printed and reports the turn it ends.
+func (j *headlessSubagentJob) onLine(line []byte) {
+	j.tally(line)
+	var turn scheddomain.SubagentTurnLine
+	if json.Unmarshal(line, &turn) != nil || turn.Type != scheddomain.SubagentTurnLineType {
+		return
+	}
+	j.completeTurn(turn.SubagentResultFile)
+}
+
+// completeTurn records a finished turn and emits its note. A done turn leaves
+// the subagent idle until the parent writes again or the idle timer closes it.
+func (j *headlessSubagentJob) completeTurn(turn scheddomain.SubagentResultFile) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.closing {
+		return
+	}
+	j.output = turn.FinalAssistant
+	j.outcome = toSubResult(j.spec, j.state.SessionID, turn.FinalAssistant, nil)
+	j.outcome.Success, j.outcome.Error, j.outcome.Stats = turn.Success, turn.Error, turn.Stats
+	logger.Debug("keep-alive headless subagent turn finished", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "success", turn.Success, "done", turn.Done)
+	j.emit(scheddomain.JobSignal{Note: subagentNote(turnVerb(turn.Success), j.label(), turnNoteBody(turn.Stats, turn.FinalAssistant, turn.Error)), Enqueue: true})
+	if !turn.Done {
+		return
+	}
+	j.setStatus(turnStatusOf(turn.Success))
+	if j.idle != nil {
+		j.idle.Stop()
+	}
+	if j.idleTimeout > 0 {
+		j.idle = time.AfterFunc(j.idleTimeout, j.closeIdle)
+	}
+}
+
+// closeIdle hangs up on a subagent that sat idle past the timeout and
+// announces it, then kills the child if it ignores the hang-up.
+func (j *headlessSubagentJob) closeIdle() {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.closing || j.stdinWrite == nil {
+		return
+	}
+	j.closing = true
+	logger.Debug("keep-alive headless subagent idle, hanging up", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "idle_timeout", j.idleTimeout)
+	j.emit(scheddomain.JobSignal{Note: closedMessage(j.label(), fmt.Sprintf("closed after %s of inactivity", j.idleTimeout), j.output), Enqueue: true})
+	j.hangUpLocked()
+	time.AfterFunc(idleKillGrace, j.cancelRun)
+}
+
+// send writes one follow-up user message to the child as its next turn.
+func (j *headlessSubagentJob) send(text string) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.closing || j.stdinWrite == nil {
+		return fmt.Errorf("subagent %s has exited and accepts no more messages", j.label())
+	}
+	frame := runInputFrame{Type: ipc.RunAgentInputFrameType, Input: agui.RunAgentInput{
+		ThreadID: j.state.SessionID, RunID: uuid.NewString(),
+		Messages: []agui.Message{{ID: uuid.NewString(), Role: "user", Content: text}},
+	}}
+	data, err := json.Marshal(frame)
+	if err != nil {
+		return err
+	}
+	if _, err := j.stdinWrite.Write(append(data, '\n')); err != nil {
+		return fmt.Errorf("write to subagent %s: %w", j.label(), err)
+	}
+	if j.idle != nil {
+		j.idle.Stop()
+	}
+	j.setStatus(scheddomain.SubagentRunning)
+	return nil
+}
+
+// runInputFrame is the stdin frame that runs a message as the child's next turn.
+type runInputFrame struct {
+	Type  string             `json:"type"`
+	Input agui.RunAgentInput `json:"input"`
+}
+
+// exitResult turns the child's exit into the job's outcome. An idle close or a
+// requested stop was announced already or needs no note. Any other exit while
+// a turn was still running is a failure the parent must hear about.
+func (j *headlessSubagentJob) exitResult(answer string, stats *scheddomain.SubagentRunStats, err error) agentdomain.ToolExecutionResult {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.idle != nil {
+		j.idle.Stop()
+	}
+	switch {
+	case j.closing:
+		j.setStatus(scheddomain.SubagentCompleted)
+	case j.runCtx.Err() != nil:
+		j.setStatus(scheddomain.SubagentCompleted)
+	case err != nil || j.state.Status == scheddomain.SubagentRunning:
+		if err == nil {
+			err = fmt.Errorf("exited before finishing its turn")
+		}
+		j.outcome = toSubResult(j.spec, j.state.SessionID, answer, err)
+		j.outcome.Stats = stats
+		j.setStatus(scheddomain.SubagentFailed)
+		j.emit(scheddomain.JobSignal{Note: subagentNote("Failed", j.label(), turnNoteBody(stats, answer, err.Error())), Enqueue: true})
+	}
+	logger.Debug("keep-alive headless subagent exited", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "error", err)
+	return agentdomain.ToolExecutionResult{
+		ToolName:  ToolAgent,
+		Arguments: map[string]any{"label": j.outcome.Label, "session_id": j.state.SessionID},
+		Success:   j.outcome.Success && err == nil,
+		Error:     j.outcome.Error,
+		Duration:  time.Since(j.state.StartedAt),
+		Data:      j.outcome,
+	}
+}
+
+// Idle reports whether the keep-alive child sits between turns, so the
+// supervisor does not hold the parent's session for it.
+func (j *headlessSubagentJob) Idle() bool {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.keepAlive && j.state.Status != scheddomain.SubagentRunning
+}
+
+// hangUp closes the child's stdin once so it exits after its current turn.
+func (j *headlessSubagentJob) hangUp() {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.hangUpLocked()
+}
+
+func (j *headlessSubagentJob) hangUpLocked() {
+	if j.stdinWrite != nil {
+		_ = j.stdinWrite.Close()
+		j.stdinWrite = nil
+	}
+}
+
+func (j *headlessSubagentJob) setStatus(status scheddomain.SubagentStatus) {
+	if err := j.tool.tracker.SetSubagentStatus(j.state.ID, status); err != nil {
+		logger.Debug("subagent status update skipped", "subagent_id", j.state.ID, "error", err)
+	}
+}
+
+func (j *headlessSubagentJob) label() string {
+	return labelOrSession(j.state.Label, j.state.SessionID)
 }
 
 // Output returns the subagent's final result message for the /tasks detail panel.
@@ -349,14 +558,20 @@ func (j *interactiveSubagentJob) recordDoneTurn(obs scheddomain.PaneObservation,
 // turnResultBody renders the terminal turn's note body: the run stats, the
 // harvested answer and the recorded error when the turn failed.
 func turnResultBody(obs scheddomain.PaneObservation) string {
+	return turnNoteBody(obs.HarvestStats, obs.Harvested, obs.HarvestError)
+}
+
+// turnNoteBody renders a finished turn's note body: the run stats, the answer
+// and the error when the turn failed.
+func turnNoteBody(stats *scheddomain.SubagentRunStats, answer, errText string) string {
 	parts := make([]string, 0, 3)
-	if obs.HarvestStats != nil {
-		parts = append(parts, obs.HarvestStats.String())
+	if stats != nil {
+		parts = append(parts, stats.String())
 	}
-	if body := strings.TrimSpace(obs.Harvested); body != "" {
+	if body := strings.TrimSpace(answer); body != "" {
 		parts = append(parts, body)
 	}
-	if errText := strings.TrimSpace(obs.HarvestError); errText != "" {
+	if errText = strings.TrimSpace(errText); errText != "" {
 		parts = append(parts, "Error: "+errText)
 	}
 	return strings.Join(parts, "\n\n")
@@ -365,10 +580,36 @@ func turnResultBody(obs scheddomain.PaneObservation) string {
 // turnStatus maps a terminal turn to the tracker status it records: a failed
 // turn marks the subagent failed, a done one completed.
 func turnStatus(obs scheddomain.PaneObservation) scheddomain.SubagentStatus {
-	if obs.HarvestFailed {
-		return scheddomain.SubagentFailed
+	return turnStatusOf(!obs.HarvestFailed)
+}
+
+func turnStatusOf(success bool) scheddomain.SubagentStatus {
+	if success {
+		return scheddomain.SubagentCompleted
 	}
-	return scheddomain.SubagentCompleted
+	return scheddomain.SubagentFailed
+}
+
+func turnVerb(success bool) string {
+	if success {
+		return "Completed"
+	}
+	return "Failed"
+}
+
+// subagentNote is the one note shape every subagent event lands on the queue.
+func subagentNote(verb, label, body string) string {
+	return fmt.Sprintf("[Subagent %s: %s]\n\n%s", verb, label, body)
+}
+
+// closedMessage announces an idle-timeout close as one self-contained note,
+// carrying the last message when there is one.
+func closedMessage(label, reason, body string) string {
+	content := subagentNote("Closed", label, reason)
+	if trimmed := strings.TrimSpace(body); trimmed != "" {
+		content += "\n\n" + trimmed
+	}
+	return content
 }
 
 // Wind kills the pane on WindStop, which makes Run tear down and return.
@@ -401,7 +642,7 @@ func (j *interactiveSubagentJob) teardown(status scheddomain.SubagentStatus) {
 }
 
 func (j *interactiveSubagentJob) completedMessage(body string) string {
-	return fmt.Sprintf("[Subagent Completed: %s]\n\n%s", labelOrSession(j.state.Label, j.state.SessionID), body)
+	return subagentNote("Completed", labelOrSession(j.state.Label, j.state.SessionID), body)
 }
 
 // idleTimedOut reports whether the pane has sat inactive - no harvested turn,
@@ -424,15 +665,11 @@ func (j *interactiveSubagentJob) idleMessage(idleFor time.Duration) string {
 	return content
 }
 
-// closedMessage announces the idle-timeout close as one self-contained note,
-// carrying the last harvested message when there is one.
+// closedMessage announces the idle-timeout close of a pane that never
+// reported done.
 func (j *interactiveSubagentJob) closedMessage(body string) string {
-	content := fmt.Sprintf("[Subagent Closed: %s]\n\nclosed after %s of inactivity without a done signal",
-		labelOrSession(j.state.Label, j.state.SessionID), j.idleTimeout)
-	if trimmed := strings.TrimSpace(body); trimmed != "" {
-		content += "\n\n" + trimmed
-	}
-	return content
+	reason := fmt.Sprintf("closed after %s of inactivity without a done signal", j.idleTimeout)
+	return closedMessage(labelOrSession(j.state.Label, j.state.SessionID), reason, body)
 }
 
 func (j *interactiveSubagentJob) approvalMessage(summary string) string {

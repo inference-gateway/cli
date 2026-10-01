@@ -37,7 +37,7 @@ func TestToolManifestsMatchValidation(t *testing.T) {
 		{ToolAskUserQuestion, "questions.items.properties.header.maxLength", maxQuestionHeader},
 		{ToolAskUserQuestion, "questions.items.properties.options.minItems", minOptions},
 		{ToolAskUserQuestion, "questions.items.properties.options.maxItems", maxOptions},
-		{ToolSendSubagentInput, "keys.description", "Named keys to send after the text. Allowed: " + allowedSubagentKeyList},
+		{ToolSendSubagentInput, "keys.description", "Interactive subagents only. Named keys to send after the text. Allowed: " + allowedSubagentKeyList},
 	}
 	for _, tt := range tests {
 		t.Run(tt.tool+"."+tt.path, func(t *testing.T) {
