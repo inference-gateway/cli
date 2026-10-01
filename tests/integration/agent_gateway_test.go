@@ -361,14 +361,38 @@ func TestStreamStallReconnectsAndRecovers(t *testing.T) {
 	require.Len(t, e.gateway.Requests(), 2, "stalled first attempt then one reconnect")
 }
 
-func TestStreamConnectHangReconnectsAndRecovers(t *testing.T) {
-	e := newEnv(t)
+func TestStreamConnectHangFailsAtTimeoutWithoutResend(t *testing.T) {
+	e := newEnv(t, func(c *config.Config) {
+		c.Gateway.Timeout = 1
+		c.Client.Timeout = 1
+	})
 
 	res := e.runStream(context.Background(), t, "please hang the connection")
 
-	require.Empty(t, res.errs)
-	require.Equal(t, "Connected after the hang.", res.content())
-	require.Len(t, e.gateway.Requests(), 2, "hung connect then one reconnect")
+	require.NotEmpty(t, res.errs, "a connect that never answers ends the turn at the request timeout")
+	require.Len(t, e.gateway.Requests(), 1, "the prompt is not resent while waiting for the first token")
+}
+
+func TestStreamConnectErrorSurfacesCause(t *testing.T) {
+	defs, err := mockgateway.LoadFile(filepath.Join(repoRoot(), "tests", "integration", "scenarios.yaml"))
+	require.NoError(t, err)
+	gw := mockgateway.New(defs)
+	dropChat := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/chat/completions") {
+			gw.ServeHTTP(w, r)
+			return
+		}
+		conn, _, err := w.(http.Hijacker).Hijack()
+		require.NoError(t, err)
+		_ = conn.Close()
+	})
+	e := newEnvWithHandler(t, dropChat)
+
+	res := e.runStream(context.Background(), t, "hello")
+
+	require.NotEmpty(t, res.errs)
+	require.Contains(t, res.errs[0].Error.Error(), "/chat/completions", "the transport error is reported as the cause")
+	require.NotContains(t, res.errs[0].Error.Error(), "stalled")
 }
 
 func TestStreamMalformedFrameIsSkipped(t *testing.T) {
