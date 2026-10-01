@@ -146,10 +146,29 @@ tools:
           - echo( .*)?
           - ls( .*)?
           - pwd( .*)?
+          - tree( .*)?
+          - wc( .*)?
+          - sort( .*)?
+          - uniq( .*)?
+          - head( .*)?
+          - tail( .*)?
+          - find( .*)?
+          - sleep( .*)?
+          - mkdir( .*)?
+          - ln -s( [^ -][^ ]*)+
           - git status( .*)?
+          - git branch( --show-current)?( -[alrvd])?
           - git log( .*)?
           - git diff( .*)?
+          - git remote( -v)?
+          - git show( .*)?
           - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
+          - gh auth status( .*)?
+          - gh search (issues|code|prs|repos|commits)( .*)?
+          - gh project (list|view|item-list|field-list)( .*)?
+          - gh api repos/[^ ]+/contents/[^ ]+
+          - gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?
+          - infer binaries status( .*)?
       plan: # read-only planning mode adds nothing
         allow: []
       standard: # interactive default: baseline only (same as plan)
@@ -221,11 +240,12 @@ agent:
   max_tokens: 8192 # The maximum number of tokens that can be generated per request
   max_concurrent_tools: 5 # Maximum concurrent tool executions
 chat:
-  theme: tokyo-night
+  theme: "" # "" applies the built-in default, tokyo-night
   status_bar:
     enabled: true
     indicators:
       model: true
+      effort: true
       theme: true
       max_output: false
       a2a_agents: true
@@ -639,7 +659,8 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
 
 ### Chat Interface Settings
 
-- **chat.theme**: Chat interface theme name (default: "tokyo-night")
+- **chat.theme**: Chat interface theme name. The config default is the empty string, and the TUI
+  applies `tokyo-night` when it is unset.
   - Available themes: `tokyo-night`, `github-light`, `dracula`, `charm`
   - Can be changed during chat using `/theme [theme-name]` shortcut
   - Affects colors and styling of the chat interface
@@ -652,6 +673,7 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
   - All indicators are enabled by default except `max_output` to maintain current behavior
   - Available indicators:
     - **model**: Current AI model name (default: `true`)
+    - **effort**: The active model's reasoning effort, when it exposes one (default: `true`)
     - **theme**: Current theme name (default: `true`)
     - **max_output**: Maximum output tokens (default: `false`)
     - **a2a_agents**: A2A agent readiness (ready/total) (default: `true`)
@@ -668,6 +690,11 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
       - The `⎇` icon turns the theme warning color when there are uncommitted changes, and the accent color
         when local commits are unpushed (or the branch has no upstream); uncommitted wins when both apply
       - Long branch names are truncated with "..." indicator
+    - **cost**: Running cost of the session (default: `true`)
+    - **git_pr**: The pull request attached to the current branch, when there is one (default: `true`)
+    - **subagents**: The stacked list of background jobs, one row per subagent, A2A task, shell or
+      recording (default: `true`). `chat.status_bar.subagent_linger_seconds` (default 5) controls
+      how long a finished row lingers before it drops off
 
 **Example Configuration:**
 
@@ -678,6 +705,7 @@ chat:
     enabled: true
     indicators:
       model: true
+      effort: true
       theme: false           # Hide theme indicator
       max_output: false
       a2a_agents: true
@@ -686,7 +714,10 @@ chat:
       mcp: true
       context_usage: true
       session_tokens: true
+      cost: true
       git_branch: true       # Show current Git branch
+      git_pr: true           # Show the branch's pull request when there is one
+      subagents: true        # Show the stacked background-job rows
 ```
 
 ### Keybinding Configuration
@@ -702,7 +733,8 @@ Keybindings live in their own file at `<configDir>/keybindings.yaml` (userspace:
 
 **Features:**
 
-- **Namespace-Based Organization**: Action IDs use format `namespace_action` (e.g., `global_quit`, `mode_cycle_agent_mode`)
+- **Namespace-Based Organization**: Action IDs use format `namespace_action` (e.g., `global_quit`,
+  `mode_cycle_agent_mode`). `explorer` holds the file explorer keys and `diff_viewer` the diff viewer keys
 - **Context-Aware Conflict Detection**: Validates conflicts only within the same namespace
 - **Self-Documenting**: All keybindings are visible in config with descriptions
 - **No Runtime Validation**: Config loaded once at startup for performance
@@ -1016,11 +1048,13 @@ reason in headless agent mode).
 
 The defaults are deliberately **explicit, non-destructive commands** - the
 read-only `gh` subcommands (`gh issue/pr/... list|view`, `gh project
-list|view|item-list|field-list`, `gh search`), not a raw `gh api <path>`
-wildcard. `gh api` is **not** auto-approved by default; prefer the structured
-subcommands, or add a narrowly-scoped `gh api` regex to a mode's `allow` if you
-genuinely need the raw API. One notable consumer: the opentask browser
-extension performs its GitHub access as `gh api` tool requests over the bridge
+list|view|item-list|field-list`, `gh search`) plus exactly two narrow `gh api`
+reads: `gh api repos/<owner>/<repo>/contents/<path>` and `gh api user/repos`
+(with an optional `--paginate` and `--jq`). Every other `gh api` path is not
+auto-approved, so prefer the structured subcommands or add a narrowly-scoped
+`gh api` regex to a mode's `allow` if you genuinely need the raw API. One
+notable consumer: the opentask browser extension performs its GitHub access as
+`gh api` tool requests over the bridge
 (see [browser-extension-protocol.md](browser-extension-protocol.md)), so
 allowlist `gh api( .*)?` in the modes you use it with to avoid a per-call
 approval prompt.

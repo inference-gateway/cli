@@ -31,7 +31,8 @@ system with better visibility into task status and history.
 - **Purpose**: The list under the composer is the live view of what is running. `/tasks` is where
   finished jobs stay for review
 - **Default View**: Opens in "All" view showing both active and completed tasks
-- **Views**: Switch between Active, Completed, and All tasks using number keys 1, 2, 3
+- **Views**: Five tabs switched with number keys 1-5 - All (`1`), Active (`2`), Input Required (`3`),
+  Completed (`4`), Canceled (`5`)
 
 ### Keyboard Shortcuts
 
@@ -39,7 +40,9 @@ system with better visibility into task status and history.
 - `i` or `Enter`: View detailed task information
 - `c`: Cancel the selected active task
 - `/`: Search tasks by agent name, task ID, or status
-- `r`: Refresh task list
+- `1`-`5`: Switch view tabs
+- `pgup`/`b` and `pgdown`/`f`: Page through the list
+- `g`/`G`: Jump to the first or last task
 - `q` or `Esc`: Exit task management interface
 
 ### Task Information
@@ -121,19 +124,20 @@ A2A rows appear only when A2A is enabled. The view itself always opens.
 
 - **Task Manager**: `TaskView` (`internal/presentation/tui/components/task_management_view.go`) - Main UI component for task management
 - **Task Shortcut**: `A2ATaskManagementShortcut` (`internal/presentation/shortcuts/task_management.go`) - Handles the `/tasks` command
-- **State Manager**: Manages in-memory task retention using `RetainedTaskInfo` structs
+- **Retention**: `TaskRetentionService` (`internal/protocols/a2a/retention.go`) retains terminal tasks as `TaskInfo` (`internal/protocols/a2a/domain/tasks.go`)
 - **Events**: Uses `TasksLoadedEvent` and `TaskCancelledEvent` for state management
 
 ### State Management
 
-- Active tasks are loaded from background task polling state in `statemanager.Store`
-- Completed tasks are stored in-memory using `RetainedTaskInfo` with automatic retention limits
-- Task retention is managed by `statemanager.Store` methods: `AddTaskToInMemoryRetention()`, `GetRetainedTasks()`, etc.
-- UI state includes current view (Active/Completed/All), search query, selection, and info display modes
+- Active tasks are loaded from the background task registry
+- Completed tasks are retained in memory by the `TaskRetentionService` with automatic retention limits
+- Retention is managed by the `TaskRetentionService` methods `AddTask()` and `GetTasks()`
+- UI state includes current view, search query, selection, and info display modes
 
 ### View States
 
 - `ViewStateA2ATaskManagement`: Dedicated view state for task management
+- Five view modes: `TaskViewAll`, `TaskViewActive`, `TaskViewInputRequired`, `TaskViewCompleted` and `TaskViewCanceled`
 - Proper transitions back to chat view when exiting
 - Integration with existing view management system
 
@@ -149,6 +153,6 @@ The feature includes comprehensive tests for:
 Run tests with:
 
 ```bash
-go test ./internal/presentation/tui/components/ -v -run TestTaskRetention
-go test ./internal/presentation/shortcuts/ -v -run TestTaskManagement
+go test ./internal/presentation/tui/components/ -v -run TestLoadTasksCmd_SkipsA2AFromSnapshotAndSplitsByStatus
+go test ./internal/presentation/shortcuts/ -v -run TestA2ATaskManagementShortcut
 ```

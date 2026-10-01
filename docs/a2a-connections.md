@@ -8,7 +8,7 @@ connect to A2A server agents using the ADK (Agent Development Kit) client.
 The A2A connection feature enables:
 
 - Communication between the CLI client and A2A server agents via URL
-- Task submission with streaming responses
+- Task submission that returns immediately and polls the remote task in the background
 - Agent querying for server information
 - Simple agent-to-agent communication patterns
 
@@ -51,6 +51,7 @@ Options:
 - `--run`: Run the agent locally
 - `--model MODEL`: Model to use for the agent
 - `--environment KEY=VALUE`: Environment variables
+- `--tag TAG`: Replace the tag of the agent's default image (known agents only, mutually exclusive with `--oci`)
 
 #### Remove an Agent
 
@@ -132,63 +133,56 @@ background. Only use `A2A_QueryTask` to:
 #### Background Task Visualisation
 
 While a remote A2A task is running in the background, the CLI shows a live,
-sticky status bar pinned **just above the input box** (below the scrollable
-conversation viewport). It is always visible regardless of where you've
-scrolled the conversation, so you never lose sight of in-flight delegations.
+sticky list of rows pinned **right below the input box**. It is always visible
+regardless of where you've scrolled the conversation, so you never lose sight of
+in-flight delegations.
 
-A typical bar looks like:
+A typical list looks like:
 
 ```text
 … conversation viewport (scrollable) …
-─────────────────────────────────────────────
-◓ Agent(weather-agent=working...)
 > _   (input)
+─────────────────────────────────────────────
+┌ weather.example.com a2a external     12s
+└ calendar-agent:8080 a2a local ✓  1.2s
 ```
 
-The line updates in place as the task progresses through its lifecycle:
-`submitted` → `working` → `completed` / `failed` / `cancelled`.
+The rows update in place as the task progresses through its lifecycle:
+`submitted` → `working` → `completed` / `failed` / `cancelled`. A task in
+`input-required` is paused rather than finished, so it keeps its row and resumes
+when the agent is sent input.
 
-On successful completion, the indicator expands to a tree-style block
-showing the `usage` and `execution_stats` JSON taken from the remote
-task's `metadata` (populated by ADK ≥ 0.19.0 agents that have
-`EnableUsageMetadata` enabled - the default). `usage` reports token
-consumption; `execution_stats` reports iterations, messages, tool calls,
-and failed tool calls:
+When the remote task reports its `metadata` (ADK ≥ 0.19.0 agents with
+`EnableUsageMetadata` enabled, the default), the finished row gains one child
+line with the tool calls that succeeded and failed and the tokens consumed:
 
 ```text
-✓ Agent(weather-agent=completed)
-  ├── usage={"prompt_tokens":156,"completion_tokens":89,"total_tokens":245}
-  └── execution_stats={"iterations":2,"messages":4,"tool_calls":1,"failed_tools":0}
+└ 2 ✓ 0 ✗ · 950 tokens
 ```
 
-Either or both branches are omitted if the remote agent doesn't emit
-the corresponding metadata (older ADK versions, or
-`EnableUsageMetadata=false`). Failures follow the same layout with an
-additional `error: …` branch.
+The child line is omitted when the remote agent emits no such metadata, for
+older ADK versions for example. A failed task shows the cross icon in place of
+the check mark and no further detail, with the error available through
+`A2A_QueryTask`.
 
-On failure:
+A row lingers for `chat.status_bar.subagent_linger_seconds` (default 5) after the
+task reaches a terminal state (`completed`, `failed`, or `cancelled`), keeping the
+list tidy while still giving you time to glance at the outcome.
 
-```text
-✗ Agent(weather-agent=failed: connection refused)
-```
-
-The indicator auto-removes itself **5 seconds** after the task reaches a
-terminal state (`completed`, `failed`, or `cancelled`), keeping the bar
-tidy while still giving you time to glance at the usage / error.
-
-Multiple concurrent tasks each get their own line in the bar (one line per
-task, lexicographically ordered by task ID for stability), so a single
-assistant turn that submits several A2A tasks shows independent progress
-lines side-by-side without any reordering between renders.
+Multiple concurrent tasks each get their own row, sorted newest first by start
+time, so a single assistant turn that submits several A2A tasks shows independent
+progress rows side-by-side. At most five rows are drawn and the overflow
+collapses into a `+N more` row.
 
 Notes:
 
-- The indicator is purely a UI element - it is not persisted with the
-  conversation. Reloading a session will not bring back indicators for
+- The rows are purely a UI element - they are not persisted with the
+  conversation. Reloading a session will not bring back rows for
   tasks that have already completed.
-- If the remote agent does not attach `metadata.usage` (older ADK versions,
-  or `EnableUsageMetadata=false`), the completed line omits the `usage=...`
-  suffix.
+- The list follows `chat.status_bar.indicators.subagents`, so it can be switched
+  off like every other status-bar element.
+- The error text of a failed task is not shown in the row. Use
+  `A2A_QueryTask` or the logs for the reason.
 - For a full historical record of past tasks, use `A2A_QueryTask` or the
   in-session task management view.
 
@@ -202,7 +196,8 @@ Notes:
   - `task_description` (required): Description of the task to perform
   - `context_id` (optional): Context ID from an earlier task to continue that conversation with the agent; omitting it starts an independent task
 - **Returns**: Task result with ID, status, and response content
-- **Behavior**: Submits task and waits for streaming completion
+- **Behavior**: Sends the message with a blocking send, returns the task ID immediately, and polls the
+  remote task in the background
 
 #### A2A_QueryAgent Tool
 
@@ -220,8 +215,8 @@ Notes:
   - `context_id` (required): Context ID for the task
   - `task_id` (required): ID of the task to query
 - **Returns**: Complete task object including status, artifacts, and message data
-- **Behavior**: Queries task status and returns detailed information. Cannot be used while background
-  polling is active for the same agent.
+- **Behavior**: Queries task status and returns detailed information. Refused while the named task is
+  already being polled in the background.
 
 ## A2A Integration
 
@@ -245,6 +240,8 @@ a2a:
     max_poll_interval_sec: 60        # Maximum poll interval
     backoff_multiplier: 2.0          # Backoff multiplier
     completed_task_retention: 5      # Number of completed tasks to retain
+    agent_mode_max_wait_seconds: 300 # Longest an agent-mode turn waits for a task
+    artifacts_auto_download: false   # Download finished tasks' artifacts automatically
   tools:
     query_agent:
       enabled: true         # Enable A2A_QueryAgent tool
@@ -301,7 +298,7 @@ The CLI logs:
 
 1. **Invalid Parameters**: Missing or invalid `agent_url` or `task_description`
 2. **Connection Failures**: Network timeouts or unreachable agents
-3. **Streaming Errors**: Issues with ADK client streaming
+3. **Submission Errors**: Issues while sending a task or polling its result
 
 ### Error Messages
 
@@ -309,7 +306,7 @@ Tools provide descriptive error messages:
 
 - "A2A connections are disabled in configuration"
 - "agent_url parameter is required and must be a string"
-- "Streaming failed: [specific error]"
+- "A2A task submission failed: [specific error]"
 
 ## Troubleshooting
 
@@ -371,22 +368,15 @@ Query the documentation agent at http://localhost:8083 for its available feature
 
 ### Artifact Download
 
-When a delegated A2A task completes with artifacts:
+With `a2a.task.artifacts_auto_download: true` (the default is `false`), the CLI
+downloads a finished task's artifacts for you into the session artifacts
+directory `~/.infer/projects/<project-slug>/artifacts/<session-id>/` and the
+completion notification names each saved path.
 
-```text
-Download the artifact from task task-456
-```
-
-This will:
-
-1. Wait for the automatic completion notification with artifact details
-2. Use WebFetch with `download=true` to automatically save artifacts to disk
-3. The file will be saved to `<configDir>/tmp` with filename extracted from URL
-
-**Important:** The artifact download URLs are provided in the completion notification. Use WebFetch to download artifacts:
+With the option off, the model fetches the artifact URLs itself:
 
 ```text
 Use WebFetch to download http://localhost:8081/artifacts/task-456/report.pdf
 ```
 
-This automatically saves the file to the configured download directory and returns the local file path.
+WebFetch saves the file and returns the local file path it chose.

@@ -41,12 +41,13 @@ failures even though the CLI ignores them.
 
 ## Locations
 
-The CLI scans three directories, in precedence order (first match wins on a
+The CLI scans four directories, in precedence order (first match wins on a
 `name` collision):
 
 1. Project-local: `.infer/skills/<name>/SKILL.md`
 2. Open standard: `.agents/skills/<name>/SKILL.md`
 3. User-global: `~/.infer/skills/<name>/SKILL.md`
+4. Plugin skills, one directory per enabled plugin: `~/.infer/plugins/<plugin>/skills/<name>/SKILL.md`
 
 `.agents/skills/` is the emerging cross-tool convention (Claude Code, Gemini
 CLI, Codex CLI), so a repo that ships skills there works without moving them

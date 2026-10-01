@@ -177,10 +177,11 @@ implementation when the native `tree` command is unavailable.
 **Parameters:**
 
 - `path` (optional): Directory path to display tree structure for (default: current directory)
-- `max_depth` (optional): Maximum depth to traverse (unlimited by default)
+- `max_depth` (optional): Maximum depth to traverse (default: 3, min: 1, max: 10)
+- `max_files` (optional): Maximum number of files to display (default: 100, max: 1000)
 - `show_hidden` (optional): Whether to show hidden files and directories (default: false)
 - `respect_gitignore` (optional): Whether to exclude patterns from .gitignore (default: true)
-- `format` (optional): Output format - "text" or "json" (default: "text")
+- `format` (optional): Output format - "text", "json" or "compact" (default: "text")
 
 **Examples:**
 
@@ -189,6 +190,7 @@ implementation when the native `tree` command is unavailable.
 - Tree with hidden files: `show_hidden: true`
 - Tree ignoring gitignore: `respect_gitignore: false` - Shows all files including those in .gitignore
 - JSON output: `format: "json"` - Returns structured data
+- Compact output: `format: "compact"` - One directory per line, root-first, git-tracked files only
 
 **Features:**
 
@@ -197,7 +199,7 @@ implementation when the native `tree` command is unavailable.
 - **Pattern Exclusion**: Supports glob patterns to exclude specific files and directories
 - **Depth Control**: Limit traversal depth to prevent overwhelming output
 - **Hidden File Control**: Toggle visibility of hidden files and directories
-- **Multiple Formats**: Text output for readability, JSON for structured data
+- **Multiple Formats**: Text output for readability, JSON for structured data, compact for a token-efficient listing
 
 **Security:**
 
@@ -362,6 +364,7 @@ Delete files or directories from the filesystem with security controls. Supports
 - `path` (required): The path to the file or directory to delete
 - `recursive` (optional): Whether to delete directories recursively (default: false)
 - `force` (optional): Whether to force deletion (ignore non-existent files, default: false)
+- `format` (optional): Output format - "text" or "json" (default: "text")
 
 **Features:**
 
@@ -639,6 +642,9 @@ independent of the model selected for the chat session.
 **Parameters:**
 
 - `image` (required): Local file path of the image to edit
+- `mask` (optional): Local file path to a PNG mask whose fully transparent areas (alpha = 0) mark the
+  editable region. All other pixels are preserved exactly, and the mask must have the same dimensions as the
+  input image.
 - `prompt` (required): Text description of the desired edit
 - `quality` (optional): `auto` (default), `low`, `medium`, `high`, or `standard`
 - `size` (optional): `1024x1024` (default), `1536x1024`, or `1024x1536`
@@ -927,6 +933,10 @@ written to disk). Enabled whenever at least one frame source is registered.
 - `format` (optional): `regular` (raw image attached) or `annotated` (scene summary + numbered
   elements with bounding boxes, produced by the configured `vision.annotator`, replacing the image).
   When omitted: `annotated` if an annotator is configured, otherwise `regular`.
+- `region` (optional): Zoom into a sub-region (screen source only), as `{x, y, width, height}` with all four
+  required. The region is re-captured at native resolution, so small UI (Dock icons, dense toolbars) becomes
+  readable. Coordinates are in the same frame space as `Computer` pointer actions and prior annotations, and
+  returned element coordinates are translated back into that space.
 
 For the `screen` source, annotated output includes element centers usable with the `Computer` tool's `click` action.
 Annotated frames carry no base64 - the text replaces the image, so text-only models can use the tool
@@ -968,7 +978,7 @@ Create and manage structured task lists for LLM-assisted development workflows.
 **Parameters:**
 
 - `todos` (required): Array of todo items with status tracking
-  - `id` (required): Unique identifier for the task
+  - `id` (optional): Unique identifier for the task (auto-generated when omitted)
   - `content` (required): Task description
   - `status` (required): Task status - "pending", "in_progress", or "completed"
 

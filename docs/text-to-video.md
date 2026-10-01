@@ -84,7 +84,7 @@ With `text_to_video.enabled` set, the agent gains a `TextToVideo` tool:
 - **Lip-synced avatar** - give it a portrait (`avatar`: the name of an avatar in the [library](#avatar-library), or a bare
   `.png`/`.jpg`/`.jpeg`/`.webp` file name in the working directory) and a driving clip (`audio`, a bare `.wav` or `.mp3` name: working
   directory first, then the `TextToSpeech` output directory - so a just-generated `TextToSpeech` clip can be lip-synced in the next
-  tool call). `prompt` then describes framing only; the dialogue comes from the audio. `seconds` is ignored for avatar renders.
+  tool call). `prompt` then describes framing only; the dialogue comes from the audio.
 - **Same person, new shot** - a library `avatar` without `audio` sends every image in the avatar's folder as `reference_images`, so
   `model` keeps that person consistent in a prompt-driven shot (e.g. "the presenter walks into frame and says ..."). The gateway
   checks the count per model: `veo-3.1-*` takes at most 3 (the default `create` builds exactly 3) and needs its default 8-second

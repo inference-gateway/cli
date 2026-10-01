@@ -57,6 +57,9 @@ These shortcuts are available out of the box:
 - `/conversations` - Open the conversation selection dropdown
 - `/context` - Show context-window usage
 - `/cost` - Show session cost breakdown with per-model details
+- `/effort [level]` - Show or set the reasoning effort level applied to Anthropic models
+- `/stats [window]` - Summarize the local telemetry: tool calls, tokens and cost by model, sessions by mode. Wraps `infer stats`
+- `/traces [session-id]` - Render the span tree of a session, or the most recent one. Wraps `infer traces`
 - `/copy [format]` - Copy the current conversation to the system clipboard (formats: `text`, `markdown`, `json`; default `text`)
 - `/model [model-name] [prompt]` - Switch model, or run a single prompt against a specific model then restore
 - `/theme` - Switch chat interface theme or list available themes

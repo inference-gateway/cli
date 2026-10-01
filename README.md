@@ -81,6 +81,7 @@ One line per feature, each linking to its full guide:
 - **Conversation versioning** - navigate back in time to a previous point - [Conversation Versioning](docs/conversation-versioning.md)
 - **Conversation titles** - AI-generated session titles - [Conversation Title Generation](docs/conversation-title-generation.md)
 - **Configuration** - two-layer YAML plus `INFER_*` environment overrides - [Configuration Reference](docs/configuration-reference.md)
+- **Directory structure** - what the CLI writes where, userspace and project side by side - [Directory Structure](docs/directory-structure.md)
 - **Configurable keybindings and themes** - [Configuration Reference](docs/configuration-reference.md#keybinding-configuration)
 - **Persistent memory** - cross-session Markdown facts with an injected index - [Persistent Memory](docs/memory.md)
 - **Reminders and command hooks** - extension points at agent-loop hook points - [Reminders & Command Hooks](docs/hooks.md)

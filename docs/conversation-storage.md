@@ -63,7 +63,7 @@ metadata line, so each save publishes the latest token and cost stats. A file th
 many lines:
 
 - One **entry line** per message - `{"type": "entry", "index": N, "entry": {...}}`
-- A trailing **metadata line** - `{"v": 2, "type": "metadata", "metadata": {...}}` - re-appended on each save
+- A trailing **metadata line** - `{"type": "meta", "metadata": {...}}` - re-appended on each save. This trailing line carries no version field.
 
 Legacy v1 files (a single metadata line followed by a single entries array) are still read for
 backward compatibility.
@@ -529,6 +529,7 @@ type ConversationStorage interface {
     LoadConversation(ctx context.Context, conversationID string) (
         []domain.ConversationEntry, ConversationMetadata, error)
     ListConversations(ctx context.Context, project string, limit, offset int) ([]ConversationSummary, error)
+    ListConversationsNeedingTitles(ctx context.Context, limit int) ([]ConversationSummary, error)
     DeleteConversation(ctx context.Context, conversationID string) error
     UpdateConversationMetadata(ctx context.Context, conversationID string,
         metadata ConversationMetadata) error

@@ -27,8 +27,8 @@ directory. This creates:
 - `.infer/` under `~/.infer/` with:
   - `config.yaml` - Main configuration file (the shared baseline)
   - `prompts.yaml`, `keybindings.yaml`, `channels.yaml`, `heartbeat.yaml`, `judge.yaml`,
-    `computer_use.yaml`, `browser_use.yaml`, `agents.yaml`, `mcp.yaml`,
-    `shortcuts/`, `skills/` - the split config files and directories
+    `hooks.yaml`, `reminders.yaml`, `memory.yaml`, `computer_use.yaml`, `browser_use.yaml`,
+    `agents.yaml`, `mcp.yaml`, `shortcuts/`, `skills/` - the split config files and directories
 - `.env.example` template for provider API keys is written by `infer env`,
   not by init.
 
@@ -181,6 +181,13 @@ validation path as the agent.
 - `execute <tool> [json-args] [--format text|json]`: Execute any enabled tool directly
 - `validate <command>`: Check whether a bash command would be allowed, without running it
 
+**`execute` flags:**
+
+- `-f, --format text|json`: Output format (default `text`)
+- `--approved`: Treat the call as user-approved, which skips the approval check and the bash allow-list
+- `--session-id <id>`: Record the call and its result in this conversation, so later turns
+  (for example `infer headless --session-id`) see it
+
 **Examples:**
 
 ```bash
@@ -189,9 +196,111 @@ infer tools execute Bash '{"command":"ls -la"}'
 infer tools execute Read '{"file_path":"README.md"}'
 infer tools execute Tree '{"path":".", "max_depth":2}'
 
+# Machine-readable result for callers that handle approval themselves
+infer tools execute Bash '{"command":"gh api user"}' --format json
+infer tools execute Bash '{"command":"gh api user"}' --format json --approved
+
 # Validate a bash command against the allowed list
 infer tools validate "git status"
 ```
+
+### `infer mcp`
+
+Manage MCP (Model Context Protocol) servers that extend the agent with external tools. Writes land in the
+userspace baseline `~/.infer/mcp.yaml` unless `--project` is given, which writes to `./.infer/mcp.yaml`
+instead.
+
+**Subcommands:**
+
+- `add <name> [url]`: Add a new MCP server
+- `update <name>`: Update an existing MCP server
+- `list`: List all configured MCP servers
+- `enable <name>` / `disable <name>`: Enable or disable a single server
+- `enable-global` / `disable-global`: Enable or disable MCP globally
+- `remove <name>`: Remove an MCP server
+- `start [server]`: Start `run: true` MCP servers as detached containers
+- `stop [server]`: Stop detached MCP server containers
+- `status [server]`: Probe configured MCP servers and report connection state and tool counts
+
+**Options:**
+
+- `--project`: Apply to the project configuration (`./.infer/`) instead of the userspace baseline (`~/.infer/`)
+
+**`add` flags:**
+
+- `--description <text>`, `--enabled`, `--run`: Metadata, enable the server immediately, and auto-start it in a container
+- `--oci <image>` (required with `--run`), `--port <port>`: The container image and the port it exposes
+- `--startup-timeout <seconds>` (default 60), `--timeout <seconds>`: Container startup budget and connection timeout
+- `--include <tools>` / `--exclude <tools>`: Comma-separated tool filters
+
+**`update` flags:**
+
+- `--url`, `--description`, `--enabled`: Replace the URL, description or enabled state
+- `--timeout <seconds>`: `-1` leaves it unchanged, `0` falls back to the global timeout
+- `--include <tools>` / `--exclude <tools>`: Replace the tool filters, an empty value leaves them unchanged
+
+**`status` flags:**
+
+- `-f, --format <text|json>`: Output format (default `text`)
+
+**Examples:**
+
+```bash
+# Add an external server, then an auto-starting container
+infer mcp add filesystem http://localhost:3000/sse
+infer mcp add demo --run --oci=mcp-demo-server:latest --port=3000
+
+# Point an existing server at a new URL and probe it
+infer mcp update filesystem --url=http://localhost:3002/sse
+infer mcp status filesystem --format json
+```
+
+See [MCP Integration](mcp-integration.md) for the container lifecycle and the full config reference.
+
+### `infer keybindings`
+
+Manage the chat keybindings: assign keys to an action, enable or disable an action, reset to the defaults
+and validate the configuration.
+
+**Subcommands:**
+
+- `list`: List all available keybindings with their current keys and enabled state
+- `set <action-id> <key1> [key2...]`: Set custom keys for an action
+- `enable <action-id>` / `disable <action-id>`: Enable or disable an action
+- `reset`: Reset keybindings to defaults
+- `validate`: Validate the keybinding configuration
+
+**Options:**
+
+- `--project`: Apply to the project configuration (`./.infer/`) instead of the userspace baseline (`~/.infer/`)
+
+**Examples:**
+
+```bash
+infer keybindings set cycle_agent_mode ctrl+m
+infer keybindings set send_message ctrl+enter enter
+infer keybindings list --project
+```
+
+### `infer migrate`
+
+Run database migrations to update the schema to the latest version. Applied migrations are tracked in the
+`schema_migrations` table, so each one runs once. The backend is detected automatically: SQLite, PostgreSQL
+and Cloudflare D1 have a relational schema (D1 creates its own on connect), while JSONL, Redis and the
+in-memory backend need no migrations at all.
+
+**Options:**
+
+- `--status`: Show migration status without applying migrations
+
+**Examples:**
+
+```bash
+infer migrate
+infer migrate --status
+```
+
+See [Database Migrations](database-migrations.md) for the migration history and how to add one.
 
 ---
 
@@ -213,6 +322,10 @@ connections to specialized A2A agents for task delegation and distributed proces
 - `start [name]`: Start `run: true` agents as detached containers that chat and headless sessions reuse
 - `stop [name]`: Stop those detached containers
 - `remove <name>`: Remove an agent from configuration
+
+**Options:**
+
+- `--project`: Apply to the project configuration (`./.infer/`) instead of the userspace baseline (`~/.infer/`)
 
 **Update Flags:**
 
@@ -319,6 +432,20 @@ select models and have conversations.
   the chat's transcript and then to the input
 
 **Agent Modes:**
+
+**Options:**
+
+- `--web`: Start the web terminal interface instead of the in-terminal TUI
+- `--port <port>`: Web server port (default 3000)
+- `--host <host>`: Web server host (default localhost)
+- `--ssh-host <host>`: Remote SSH server hostname, which runs the TUI on the remote host
+- `--ssh-user <user>`: Remote SSH username
+- `--ssh-port <port>`: Remote SSH port (default 22)
+- `--ssh-no-install`: Disable auto-installation of infer on the remote host
+- `--ssh-command <path>`: Path to the infer binary on the remote host (default infer)
+- `--session-id <id>`: Resume an existing chat session by conversation ID
+
+The web terminal flags are covered in [Web Terminal](web-terminal.md).
 
 The chat interface supports four operational modes that can be toggled with **shift+tab**:
 
@@ -459,8 +586,6 @@ infer headless --serve --session-id abc-123-def
 # Session resumption - list conversations to find session IDs
 infer conversations list
 
-conversations list
-
 # Resume an existing session with new instructions
 infer headless "continue fixing the authentication bug" --session-id abc-123-def
 
@@ -544,6 +669,10 @@ infer binaries install --version v0.5.0
 
 Check the status of the inference gateway including health checks and resource usage.
 
+**Options:**
+
+- `-f, --format <text|json|yaml>`: Output format (default `text`)
+
 **Examples:**
 
 ```bash
@@ -561,6 +690,7 @@ rather than reading files directly).
 - `list`: List saved conversations with metadata (id, title, message/request counts, tokens, cost).
      Scoped to the current project by default; pass `--all-projects` for every project's conversations.
 - `show <session-id>`: Print a single conversation's entries in chronological order.
+- `delete <session-id>`: Delete a saved conversation.
 
 **`list` flags:**
 
@@ -574,8 +704,8 @@ rather than reading files directly).
 - `--include-hidden`: Include entries marked hidden - system reminders, plan-approval prompts,
   drained background-task results, and the synthetic verify message injected by `infer headless`.
   Off by default.
-- `--format text|json`: `text` (default) is human-readable; `json` emits one JSON object per
-  line (NDJSON), matching the `infer headless` stdout shape for piping into `jq` or log scrapers.
+- `--format text|json`: `text` (default) is human-readable; `json` emits one pretty-printed
+  object with `metadata` and `entries`, so a whole conversation parses in one `jq` call.
 
 The `<session-id>` is resolved the same way as `infer headless --session-id`: a literal UUID is
 used as-is, while any other value is treated as a session group key and resolved to that
@@ -741,6 +871,177 @@ are skipped, and a git-backed memory directory syncs back from its remote on the
 
 The `/reset` and `/insights` chat shortcuts are thin YAML wrappers over these commands, written to
 `~/.infer/shortcuts/` by `infer init` - edit them like any other shortcut.
+
+### `infer debug`
+
+Diagnostic commands that surface internal agent state.
+
+**Subcommands:**
+
+- `agent system_prompt`: Print the prompt context a chat session would send to the LLM
+
+**Examples:**
+
+```bash
+# Print the assembled system prompt and context for the current project
+infer debug agent system_prompt
+```
+
+### `infer stats`
+
+Aggregate the local telemetry recorded under `<config-dir>/telemetry` into a summary: tool calls by name
+(count, failure rate, average duration), token usage and cost by model, and sessions by execution and agent
+mode. Telemetry is recorded locally when `telemetry.enabled` is true, and optionally pushed to an OTLP
+collector as well.
+
+**Options:**
+
+- `-f, --format <text|json>`: Output format (default `text`)
+- `--since <window>`: Only include telemetry newer than this window (for example `7d`, `24h`, `30m`). All time by default
+
+**Examples:**
+
+```bash
+infer stats
+infer stats --since 7d
+infer stats --since 24h --format json
+```
+
+### `infer traces`
+
+Render the span tree of a session (root session span, then LLM turns, then tool calls) with per-span
+durations, read from the local per-session trace file under `<config-dir>/telemetry`. With no argument the
+most recent session is shown. Traces need `telemetry.enabled: true` but no OTLP collector to be viewed.
+
+**Options:**
+
+- `-f, --format <text|json>`: Output format (default `text`)
+- `--list`: List the sessions that have trace files instead of rendering a tree
+
+**Examples:**
+
+```bash
+infer traces
+infer traces 1783977086-aac06edf
+infer traces --list
+infer traces --format json
+```
+
+### `infer plans`
+
+View and manage the plans saved by plan-mode sessions. Each plan is persisted to the configured storage
+backend when the agent uses the `RequestPlanApproval` tool, and gets an `infer://plans/<id>` URI.
+
+**Subcommands:**
+
+- `list`: List all saved plans with their title and creation time
+- `show <plan-id>`: Print the full content of a plan, by ID or by its `infer://plans/<id>` URI
+
+**`list` flags:**
+
+- `-f, --format <text|json>`: Output format (default `text`)
+
+**Examples:**
+
+```bash
+infer plans list
+infer plans list --format json
+infer plans show 2026-07-17-153000-add-user-auth
+infer plans show infer://plans/2026-07-17-153000-add-user-auth
+```
+
+Output is rendered as styled markdown on a terminal and printed as raw markdown when piped, redirected or
+run with `--no-colors`. See [Plan Mode](plan-mode.md) for the workflow that produces the plans.
+
+### `infer shortcuts`
+
+Inspect the slash commands the chat accepts: the built-ins plus custom shortcuts from
+`.infer/shortcuts/*.yaml` and `~/.infer/shortcuts/*.yaml`.
+
+**Subcommands:**
+
+- `list`: List the available slash commands
+
+**`list` flags:**
+
+- `-f, --format <text|json>`: Output format (default `text`)
+
+**Examples:**
+
+```bash
+infer shortcuts list
+infer shortcuts list --format json
+```
+
+See [Shortcuts Guide](shortcuts-guide.md) for the built-ins and how to write your own.
+
+### `infer workflow`
+
+Manage the OpenTask Agent GitHub workflow.
+
+**Subcommands:**
+
+- `install [owner/repo]`: Install or update `.github/workflows/tasks.yml` in a GitHub repository via an LLM agent
+
+**`install` flags:**
+
+- `-m, --model <model>`: Model for the install agent and the workflow default
+- `--github-app`: Use the GitHub App token variant of the workflow
+- `--context <text>` / `--context-file <path>`: Extra instructions for the install agent
+
+**Examples:**
+
+```bash
+infer workflow install                       # current repository
+infer workflow install owner/repo
+infer workflow install owner/repo --model anthropic/claude-fable-5
+infer workflow install owner/repo --context "the repo deploys with bun"
+```
+
+The agent clones the repository, reads the existing workflow when there is one and applies only
+infer-action-related changes, preserving repo-specific customizations. The change lands as a pull request,
+and re-running pushes onto the same branch and updates the open install PR instead of creating a new one.
+
+### `infer gpu`
+
+Provision, inspect and destroy on-demand GPU instances running a llama.cpp server, so you pay only for the
+hours used. The instance is exposed through the standard llamacpp provider environment variables
+(`LLAMACPP_API_URL` / `LLAMACPP_API_KEY`), which makes connecting to it indistinguishable from any other
+llamacpp backend.
+
+The RunPod API key is management-plane only, used for the create, list and destroy calls. It is asked for on
+first provision and stored as `provisioner.runpod.api_key` in `config.yaml`, or supplied through
+`INFER_PROVISIONER_RUNPOD_API_KEY`.
+
+**Subcommands:**
+
+- `provision`: Provision a GPU pod running llama.cpp (interactive)
+- `list`: List the instances provisioned by infer
+- `status <pod-id>`: Show state, uptime and cost of a pod
+- `destroy <pod-id>`: Destroy a pod, which stops billing
+
+**`provision` flags:**
+
+- `--gpu-type <id>`: GPU type id, which skips the interactive picker
+- `--model <repo>:<quant>`: Hugging Face GGUF to serve
+- `-y, --yes`: Skip the confirmation prompt
+
+**`status` flags:**
+
+- `--wait`: Block until llama.cpp answers, with a progress heartbeat
+
+**`destroy` flags:**
+
+- `-y, --yes`: Skip the confirmation prompt
+
+**Examples:**
+
+```bash
+infer gpu provision --model "bartowski/Qwen2.5-7B-Instruct-GGUF:Q4_K_M" -y
+infer gpu status <pod-id> --wait
+infer gpu list
+infer gpu destroy <pod-id> -y
+```
 
 ## Global Flags
 

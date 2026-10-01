@@ -20,7 +20,8 @@ each tick using a tailored system prompt.
 │                                                               │
 │   ├─ ChannelManagerService    (channels - optional)           │
 │   ├─ SchedulerService         (cron jobs - optional)          │
-│   └─ HeartbeatService                                         │
+│   ├─ HeartbeatService                                         │
+│   └─ AG-UI binding            (daemon.binding - optional)      │
 │        ├─ time.Ticker(interval)                               │
 │        └─ on tick: spawn `infer headless --heartbeat             │
 │                                  --session-id <uuid> <prompt>`│
@@ -101,22 +102,22 @@ concrete step per tick, and exit. Override it to fit your workflow.
 infer daemon
 ```
 
-The daemon hosts up to three subsystems - channels, scheduler, and
-heartbeat - and starts whichever are enabled. You can run with
-heartbeat alone (no channels, no scheduler) if that is all you need.
+The daemon hosts up to four subsystems - channels, scheduler,
+heartbeat, and the AG-UI binding - and starts whichever are enabled. You can run
+with heartbeat alone (no channels, no scheduler) if that is all you need.
 
 ```text
-INFO Starting daemon
-INFO Heartbeat service started  interval=1h0m0s  initial_delay=1m0s
-INFO Daemon ready. Press Ctrl+C to stop.
+INFO starting daemon  version=...
+INFO heartbeat service started  interval=1h0m0s  initial_delay=1m0s
+INFO daemon ready. Press Ctrl+C to stop.
 ```
 
 When a tick fires:
 
 ```text
-INFO Heartbeat tick - spawning agent  session_id=…  model=
-INFO Heartbeat agent output  session_id=…  line={"role":"assistant","content":"…"}
-INFO Heartbeat tick complete  session_id=…
+INFO heartbeat tick - spawning agent  conversation_id=…  model=
+INFO heartbeat agent output  conversation_id=…  line={"role":"assistant","content":"…"}
+INFO heartbeat tick complete  conversation_id=…
 ```
 
 ## Configuration reference
@@ -172,7 +173,7 @@ against opening issues or pushing changes automatically.
 ## Troubleshooting
 
 **Heartbeat never fires** - confirm `enabled: true` and that
-`infer daemon` is running. The daemon logs `Heartbeat
+`infer daemon` is running. The daemon logs `heartbeat
 service started` on boot when it picks up the config.
 
 **Heartbeat fires too often / not enough** - check `interval`

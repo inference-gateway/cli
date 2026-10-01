@@ -48,7 +48,7 @@ Breaking changes should be indicated by:
 
 1. Ensure you have flox installed and activated: `flox activate`
 2. Install the git pre-commit hook: `flox activate -- task precommit:install`
-3. Make your changes following the code style guidelines in CLAUDE.md
+3. Make your changes following the code style guidelines in AGENTS.md
 4. Run tests: `flox activate -- task test`
 5. Run quality checks: `flox activate -- task precommit:run`
 6. Commit with conventional commit messages (the pre-commit hook runs automatically)
@@ -66,7 +66,7 @@ This project uses a plain git hook (`.githooks/pre-commit`, wired via `git confi
 The hook automatically:
 
 - Rejects trailing whitespace and merge-conflict markers (`git diff --cached --check`)
-- Runs `go mod tidy` when `go.mod`/`go.sum` are staged
+- Runs `go mod tidy`
 - Regenerates mocks when a `*/domain` package (or another counterfeiter source) is staged
 - Formats code and runs golangci-lint + markdownlint
 
@@ -89,8 +89,9 @@ flox activate -- task test:verbose   # Run tests with verbose output
 flox activate -- task test:coverage  # Run tests with coverage
 
 # Building
-flox activate -- task build          # Build binary
-flox activate -- task release:build  # Build for all platforms
+flox activate -- task build          # Build binary for the current platform
+flox activate -- task release:build  # Build a release binary for the current platform only
+flox activate -- task release:build:linux  # Cross-build for Linux (darwin and windows too)
 ```
 
 ## Adding New Tools
@@ -301,12 +302,13 @@ Study the existing tools for implementation patterns:
 
 ## Release Process
 
-Releases are automated using semantic-release:
+Releases are cut by dispatching the release workflow by hand. semantic-release runs inside that
+workflow:
 
-- Commits to `main` branch trigger automatic releases
+- Commits to `main` branch do not release on their own - dispatch the workflow to cut one
 - Version numbers are determined by commit types:
   - `fix:` → patch version (1.0.1)
   - `feat:` → minor version (1.1.0)
   - `feat!:` or `BREAKING CHANGE:` → major version (2.0.0)
-- Binaries are built for macOS (Intel/ARM64) and Linux (AMD64/ARM64)
+- Binaries are built for macOS (Intel/ARM64), Linux (AMD64/ARM64) and Windows (AMD64/ARM64)
 - GitHub releases are created automatically with changelogs
