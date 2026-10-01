@@ -1,18 +1,24 @@
-# Browser Extension Bridge Protocol
+# Daemon Binding Protocol
 
-The opentask [extension](https://github.com/inference-gateway/opentask) and the
-desktop app talk to the agent through one localhost AG-UI WebSocket binding.
-`infer daemon` hosts it: each thread (a project dir plus a conversation id) runs
-in its own session worker, and the binding relays the worker's AG-UI events to
-the thread's clients as bare frames. The same socket also lets the CLI drive the
-**user's real browser** through the extension instead of a Playwright-launched
-one. This document is the wire contract the clients implement.
+Every client of [`infer daemon`](daemon.md) talks to the agent through one
+localhost AG-UI WebSocket binding: the opentask
+[extension](https://github.com/inference-gateway/opentask), the desktop app, and
+`infer chat` or a standalone `infer headless` reaching the user's browser. Each
+thread (a project dir plus a conversation id) runs in its own session worker,
+and the binding relays the worker's AG-UI events to the thread's clients as bare
+frames. The same socket lets the CLI drive the **user's real browser** through
+the extension instead of a Playwright-launched one. This document is the wire
+contract the clients implement. The events themselves are defined in
+[AG-UI Output Format](ag-ui-output.md).
 
 ## Transport
 
-- `infer daemon` listens on `ws://127.0.0.1:<port>/ws` (default port `52789`,
-  `browser_use.yaml` → `extension.port`) when `browser_use` is enabled with
-  `backend: extension`. Clients dial in — MV3 service workers cannot listen.
+- `infer daemon` listens on `ws://127.0.0.1:<port>/ws` (default port `52789`)
+  when `daemon.yaml` sets `binding.enabled`, or when `browser_use` is enabled
+  with `backend: extension`. The port and the token come from
+  `daemon.yaml` → `binding.port` / `binding.token`, falling back to
+  `browser_use.yaml` → `extension.port` / `extension.token`. Clients dial in —
+  MV3 service workers cannot listen.
 - Only the daemon binds the port. `infer chat` and a standalone `infer headless`
   reach the browser as browser clients through the daemon (`client: "browser"` in
   the hello) and start `infer daemon` when nothing is listening. A session
@@ -38,10 +44,18 @@ one. This document is the wire contract the clients implement.
 - Only `chrome-extension://`, `moz-extension://`, `safari-web-extension://`
   (or absent) `Origin` headers are accepted.
 
-Enable with:
+Enable with either file:
 
 ```yaml
-# ~/.infer/browser_use.yaml
+# ~/.infer/daemon.yaml, the binding on its own
+binding:
+  enabled: true
+  port: 52789
+  token: <shared secret>
+```
+
+```yaml
+# ~/.infer/browser_use.yaml, the binding together with browser use
 enabled: true
 backend: extension
 extension:
@@ -87,8 +101,9 @@ the state at that moment, so its first frame is always a status one:
 - `connected` is whether an extension is attached right now.
   `extension_version` is the version the attached extension declared in its
   hello, and travels only while one is attached.
-- `protocol_version` is this frame's own schema version, independent of the
-  handshake's, for clients to gate what they render or how they parse the frame.
+- `protocol_version` is this frame's own schema version (`1` today), independent
+  of the handshake's, for clients to gate what they render or how they parse the
+  frame.
 
 There is deliberately no frame and no CUSTOM event for pausing or resuming
 browser use: a client stops the run, which ends with outcome `cancelled`, and

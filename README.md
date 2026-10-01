@@ -95,7 +95,8 @@ One line per feature, each linking to its full guide:
 - **Heartbeat** - periodic wake-up to check pending work - [Heartbeat](docs/heartbeat.md)
 - **A2A agents** - delegate to Agent-to-Agent servers - [A2A Agents Configuration](docs/agents-configuration.md) · [A2A Connections](docs/a2a-connections.md)
 - **Task management** - the A2A task interface - [Tasks Management](docs/tasks-management.md)
-- **Browser tools** - drive a browser through an extension bridge - [Browser Extension Protocol](docs/browser-extension-protocol.md)
+- **Daemon** - the hub the desktop app, the extension and Telegram reach the agent through - [infer daemon](docs/daemon.md)
+- **Daemon binding** - the WebSocket wire contract, including browser use through the extension - [Daemon Binding Protocol](docs/browser-extension-protocol.md)
 - **Explorer and diffs** - in-terminal file tree, fuzzy finder and diff viewer - [Explorer](docs/explorer.md)
 
 ### Skills and plugins
