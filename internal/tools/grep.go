@@ -3,6 +3,7 @@ package tools
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -295,7 +296,7 @@ func (t *GrepTool) performRipgrepSearch(ctx context.Context, pattern string, arg
 	}
 
 	rgArgs := t.buildRipgrepArgs(outputMode, args)
-	rgArgs = append(rgArgs, pattern, searchPath)
+	rgArgs = append(rgArgs, "-e", pattern, "--", searchPath)
 
 	result, err := t.executeRipgrep(ctx, rgArgs, outputMode, pattern, start)
 	if err != nil {
@@ -395,17 +396,19 @@ func (t *GrepTool) executeRipgrep(ctx context.Context, rgArgs []string, outputMo
 	cmd := exec.CommandContext(ctx, t.ripgrepPath, rgArgs...)
 	output, err := cmd.Output()
 	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 1 {
+		exitError, isExit := errors.AsType[*exec.ExitError](err)
+		if isExit && exitError.ExitCode() == 1 {
 			return &GrepResult{
 				Pattern:    pattern,
 				OutputMode: outputMode,
 				Files:      []string{},
 				Matches:    []GrepMatch{},
 				Counts:     []GrepCount{},
-				Total:      0,
-				Truncated:  false,
 				Duration:   time.Since(start).String(),
 			}, nil
+		}
+		if isExit && len(exitError.Stderr) > 0 {
+			return nil, fmt.Errorf("ripgrep execution failed: %w: %s", err, stderrTail(string(exitError.Stderr), 500))
 		}
 		return nil, fmt.Errorf("ripgrep execution failed: %w", err)
 	}
