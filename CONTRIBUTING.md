@@ -107,8 +107,9 @@ Each bounded context owns its tools: agent tools live in `internal/tools/`, brow
 
 #### 1. Write the Manifest
 
-Create `internal/tools/YourTool.yaml` (browser and computer tools use their package's `tools/`
-directory). The file name must match `name`:
+Create the manifest next to the context that owns the tool: `internal/tools/YourTool.yaml` for agent
+tools, `internal/protocols/a2a/tools/` for the A2A tools, and the package `tools/` directory for browser
+and computer tools. The file name must match `name`:
 
 ```yaml
 name: YourTool
