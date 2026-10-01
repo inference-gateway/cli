@@ -122,6 +122,12 @@ func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time
 				"turn", a.agentCtx.Turns)
 			return true
 		}
+		var rateLimit *sdk.RateLimitError
+		if errors.As(err, &rateLimit) {
+			logger.Warn("provider quota reached", "provider", a.provider, "retry_after", rateLimit.RetryAfter)
+			a.failStream(rateLimitMessage(a.provider, rateLimit, time.Now()))
+			return false
+		}
 		logger.Error("failed to create stream",
 			"error", err,
 			"turn", a.agentCtx.Turns,
@@ -200,6 +206,15 @@ func (a *EventDrivenAgent) recoverPanic() {
 		logger.Error("agent panic recovered", "panic", r, "stack", string(debug.Stack()))
 		a.failStream(fmt.Errorf("agent panic: %v", r))
 	}
+}
+
+// rateLimitMessage turns a provider quota wall into the one line the user
+// needs: what the provider said and when they can continue.
+func rateLimitMessage(provider string, err *sdk.RateLimitError, now time.Time) error {
+	resume := now.Add(err.RetryAfter)
+	wait := err.RetryAfter.Round(time.Minute)
+	return fmt.Errorf("%s usage limit reached: %s. You can continue at %s (in %dh %02dm)",
+		provider, err.Message, resume.Format("15:04"), int(wait.Hours()), int(wait.Minutes())%60)
 }
 
 // failStream publishes a terminal stream error and moves the state machine to
