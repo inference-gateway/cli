@@ -106,10 +106,10 @@ func TestRunner_writeSubagentResultFileStats(t *testing.T) {
 	}
 	repo := &convmocks.FakeConversationRepository{}
 	repo.GetMessagesReturns(entries)
-	repo.GetSessionTokensReturns(convdomain.SessionTokenStats{TotalInputTokens: 1200, TotalOutputTokens: 80})
+	repo.GetSessionTokensReturns(convdomain.SessionTokenStats{TotalInputTokens: 1200, TotalOutputTokens: 80, TotalCachedTokens: 1000})
 	r := &Runner{conversationRepo: repo}
 
-	want := scheddomain.SubagentRunStats{ToolsSucceeded: 2, ToolsFailed: 1, InputTokens: 1200, OutputTokens: 80}
+	want := scheddomain.SubagentRunStats{ToolsSucceeded: 2, ToolsFailed: 1, InputTokens: 1200, OutputTokens: 80, CachedTokens: 1000}
 	r.writeSubagentResultFile(agentdomain.ChatCompleteEvent{})
 	if rf := readResultFile(t, path); rf.Stats == nil || *rf.Stats != want {
 		t.Fatalf("completed turn stats = %+v, want %+v", rf.Stats, want)

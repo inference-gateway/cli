@@ -253,6 +253,7 @@ func (r *Runner) subagentRunStats() *scheddomain.SubagentRunStats {
 		ToolsFailed:    failed,
 		InputTokens:    tokens.TotalInputTokens,
 		OutputTokens:   tokens.TotalOutputTokens,
+		CachedTokens:   tokens.TotalCachedTokens,
 	}
 }
 

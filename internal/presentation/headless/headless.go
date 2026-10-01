@@ -648,6 +648,7 @@ func subagentRunStats(repo convdomain.ConversationRepository) *scheddomain.Subag
 		ToolsFailed:    failed,
 		InputTokens:    tokens.TotalInputTokens,
 		OutputTokens:   tokens.TotalOutputTokens,
+		CachedTokens:   tokens.TotalCachedTokens,
 	}
 }
 

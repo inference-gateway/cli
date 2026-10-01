@@ -182,7 +182,8 @@ Tools: 12 succeeded, 1 failed | Tokens: 60448 in, 745 out
 
 - **Tools** counts the tool calls the subagent executed. A rejected call counts as failed.
 - **Tokens** are the input and output tokens of the whole subagent session, every turn of a headless
-  subagent included.
+  subagent included. `C.` is the slice of them the provider served from its prompt cache, in the same
+  notation the status bar uses for the conversation itself, and is dropped while the run reported no cache hits.
 
 A failed tool call does not fail the subagent. A subagent fails only when its run ends with an error, so the
 counts are how the parent tells a clean run from one that struggled. A subagent that crashes before it writes
@@ -196,7 +197,7 @@ it finishes. An A2A task shows the usage its agent attaches to the task, which A
 ```text
 ┌ npm run build shell       2.0s
 │ reviewer      subagent ✓ 40.0s
-│ └ 12 ✓ 1 ✗ · 61.2k tokens
+│ └ 12 ✓ 1 ✗ · 61.2k tokens C.58.1k
 └ tester        subagent ✗ 48.0s
   └ 3 ✓ 4 ✗ · 890 tokens
 ```

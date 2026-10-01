@@ -509,7 +509,7 @@ func TestHeadlessSubagentJob_TalliesLiveStats(t *testing.T) {
 	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
 		for _, line := range []string{
 			`{"type":"info","message":"Starting new agent session"}`,
-			`{"role":"assistant","content":"","token_usage":{"prompt_tokens":100,"completion_tokens":20}}`,
+			`{"role":"assistant","content":"","token_usage":{"prompt_tokens":100,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":80}}}`,
 			`{"role":"tool","content":"ok","failed":false}`,
 			`{"role":"tool","content":"boom","failed":true}`,
 			`{"role":"assistant","content":"done","token_usage":{"prompt_tokens":150,"completion_tokens":5}}`,
@@ -524,7 +524,7 @@ func TestHeadlessSubagentJob_TalliesLiveStats(t *testing.T) {
 
 	job.Run(t.Context(), func(scheddomain.JobSignal) {})
 
-	want := scheddomain.SubagentRunStats{ToolsSucceeded: 1, ToolsFailed: 1, InputTokens: 250, OutputTokens: 25}
+	want := scheddomain.SubagentRunStats{ToolsSucceeded: 1, ToolsFailed: 1, InputTokens: 250, OutputTokens: 25, CachedTokens: 80}
 	if live != want {
 		t.Fatalf("live stats = %+v, want %+v", live, want)
 	}

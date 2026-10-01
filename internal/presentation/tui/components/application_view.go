@@ -47,12 +47,13 @@ func (r *ApplicationViewRenderer) Layout(
 	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
 	historySearch *HistorySearchView,
+	subagentList *SubagentList,
 ) {
 	if data.Width == 0 || data.Height == 0 {
 		return
 	}
 
-	r.heights = r.calculateComponentHeights(data, data.Height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch)
+	r.heights = r.calculateComponentHeights(data, data.Height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch, subagentList)
 
 	r.setComponentDimensions(data.Width, conversationView, inputView, autocomplete, inputStatusBar, statusView,
 		queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch, r.heights)
@@ -99,6 +100,7 @@ type componentHeights struct {
 	questionBoxHeight   int
 	attachmentsHeight   int
 	historySearchHeight int
+	subagentListHeight  int
 	conversationHeight  int
 	inputHeight         int
 	statusHeight        int
@@ -116,6 +118,7 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
 	historySearch *HistorySearchView,
+	subagentList *SubagentList,
 ) componentHeights {
 	if approvalBoxView != nil {
 		approvalBoxView.SetHeight(totalHeight)
@@ -149,6 +152,12 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 		heights.historySearchHeight = historySearch.GetHeight()
 	}
 
+	if subagentList != nil {
+		if rows := subagentList.Render(); rows != "" {
+			heights.subagentListHeight = strings.Count(rows, "\n") + 1
+		}
+	}
+
 	if approvalBoxView != nil {
 		approvalContent := approvalBoxView.Render()
 		if approvalContent != "" {
@@ -167,7 +176,8 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 
 	adjustedHeight := totalHeight - heights.headerHeight - heights.helpBarHeight -
 		heights.queueBoxHeight - heights.todoBoxHeight - heights.approvalBoxHeight -
-		heights.questionBoxHeight - heights.attachmentsHeight - heights.historySearchHeight
+		heights.questionBoxHeight - heights.attachmentsHeight - heights.historySearchHeight -
+		heights.subagentListHeight
 	heights.conversationHeight = tui.CalculateConversationHeight(adjustedHeight)
 	heights.inputHeight = tui.CalculateInputHeight(adjustedHeight)
 	heights.statusHeight = tui.CalculateStatusHeight(adjustedHeight)

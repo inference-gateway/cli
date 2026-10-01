@@ -29,13 +29,15 @@ const maxSubagentRows = 5
 // shape.
 const subagentLabelMinWidth = 13
 
-// subagentLabelCap bounds the fitted label column so one long name cannot push
-// the duration column off the row.
-const subagentLabelCap = 40
+// rowFixedColumns is the width a row spends outside the label, kind and
+// elapsed columns: the 2-column connector, the space after the label and the
+// gutters around the status cell.
+const rowFixedColumns = 5
 
-// SubagentList renders the right-aligned stacked list below the composer: one
-// row per background job (sub-agent, A2A task, shell, recording) with its label,
-// its kind and a live elapsed counter. Finished jobs linger with their outcome.
+// SubagentList renders the stacked list below the composer stretched across its
+// width: one row per background job (sub-agent, A2A task, shell, recording)
+// with its label, its kind and a live elapsed counter. Finished jobs linger
+// with their outcome.
 type SubagentList struct {
 	registry      scheddomain.BackgroundTaskRegistry
 	config        *config.Config
@@ -127,13 +129,13 @@ type rowWidths struct {
 	duration int
 }
 
-// measureRows fits the columns to the rows on screen: the label column grows to
-// the widest visible name (capped), the kind and duration columns to their
-// widest value.
-func (l *SubagentList) measureRows(rows []subagentRow) rowWidths {
+// measureRows fits the columns to the rows on screen: the kind and duration
+// columns grow to their widest value and the label column absorbs the slack up
+// to the row width.
+func (l *SubagentList) measureRows(rows []subagentRow, blockWidth int) rowWidths {
 	widths := rowWidths{label: subagentLabelMinWidth}
 	for _, row := range rows {
-		widths.label = min(max(widths.label, l.styleProvider.GetWidth(rowLabel(row))), subagentLabelCap)
+		widths.label = max(widths.label, l.styleProvider.GetWidth(rowLabel(row)))
 		widths.kind = max(widths.kind, l.styleProvider.GetWidth(row.kind))
 		if w := l.styleProvider.GetWidth(formatDuration(row.elapsed)); w > widths.duration {
 			widths.duration = w
@@ -141,6 +143,10 @@ func (l *SubagentList) measureRows(rows []subagentRow) rowWidths {
 		if !row.running {
 			widths.state = l.styleProvider.GetWidth(icons.CheckMark)
 		}
+	}
+	if blockWidth > 0 {
+		widths.label = max(subagentLabelMinWidth,
+			blockWidth-widths.kind-widths.state-widths.duration-rowFixedColumns)
 	}
 	return widths
 }
@@ -258,17 +264,16 @@ func (l *SubagentList) IsFocused() bool { return l.focused }
 // SelectNext moves the selection one row down. It reports false on the last row.
 func (l *SubagentList) SelectNext() bool { return l.moveSelection(1) }
 
+// padToWidth pads a rendered line with trailing spaces to the row width so
+// every line of the list ends on the same edge as its rows.
+func (l *SubagentList) padToWidth(line string, blockWidth int) string {
+	return line + strings.Repeat(" ", max(0, blockWidth-l.styleProvider.GetWidth(line)))
+}
+
 // overflowRow renders a dim list boundary label (like "+2 more") on the same
 // width as the rows. It is only produced when rows are scrolled out of view.
-func (l *SubagentList) overflowRow(text string, rowWidth, blockWidth int) string {
-	line := l.styleProvider.RenderWithColor(text, l.styleProvider.GetThemeColor("dim"))
-	if pad := rowWidth - l.styleProvider.GetWidth(line); pad > 0 {
-		line = strings.Repeat(" ", pad) + line
-	}
-	if blockWidth > 0 {
-		line = l.styleProvider.PlaceHorizontal(blockWidth, "", line)
-	}
-	return line
+func (l *SubagentList) overflowRow(text string, blockWidth int) string {
+	return l.padToWidth(l.styleProvider.RenderWithColor(text, l.styleProvider.GetThemeColor("dim")), blockWidth)
 }
 
 // SelectPrev moves the selection one row up. It reports false on the first row.
@@ -351,7 +356,7 @@ func (l *SubagentList) enabled() bool {
 	return l.config == nil || l.config.Chat.StatusBar.Indicators.Subagents
 }
 
-// Render draws the rows right-aligned below the composer, flush with the
+// Render draws the rows stretched across the composer's width, flush with the
 // version column edge. Every row spans the same columns so the tree connector
 // never drifts when durations gain digits. Empty output when nothing runs or
 // lingers reserves no lines.
@@ -369,45 +374,34 @@ func (l *SubagentList) Render() string {
 		selected = selectedRow(shown, l.selectedID)
 	}
 
-	widths := l.measureRows(shown)
-
 	blockWidth := l.width - versionRightInset
+	widths := l.measureRows(shown, blockWidth)
+	rowWidth := widths.label + widths.kind + widths.state + widths.duration + rowFixedColumns
+
 	lines := make([]string, 0, len(shown)+1)
-	rowWidth := 0
 	for i, row := range shown {
-		line := l.rowView(row, i, len(shown), widths, i == selected)
-		rowWidth = l.styleProvider.GetWidth(line)
-		rowLines := []string{line}
+		lines = append(lines, l.rowView(row, i, len(shown), widths, i == selected))
 		if row.stats != nil {
-			rowLines = append(rowLines, l.statsView(*row.stats, i, len(shown), rowWidth))
-		}
-		for _, line := range rowLines {
-			if blockWidth > 0 {
-				line = l.styleProvider.PlaceHorizontal(blockWidth, "", line)
-			}
-			lines = append(lines, line)
+			lines = append(lines, l.statsView(*row.stats, i, len(shown), rowWidth))
 		}
 	}
 	if more > 0 {
-		lines = append(lines, l.overflowRow(fmt.Sprintf("+%d more", more), rowWidth, blockWidth))
+		lines = append(lines, l.overflowRow(fmt.Sprintf("+%d more", more), rowWidth))
 	}
 	if l.offset > 0 {
-		lines = append([]string{l.overflowRow(fmt.Sprintf("%d above", l.offset), rowWidth, blockWidth)}, lines...)
+		lines = append([]string{l.overflowRow(fmt.Sprintf("%d above", l.offset), rowWidth)}, lines...)
 	}
 	if l.focused {
 		hint := l.styleProvider.RenderWithColor(l.focusHint(), l.styleProvider.GetThemeColor("dim"))
-		if blockWidth > 0 {
-			hint = l.styleProvider.PlaceHorizontal(blockWidth, "", hint)
-		}
-		lines = append(lines, hint)
+		lines = append(lines, l.padToWidth(hint, rowWidth))
 	}
 	return strings.Join(lines, "\n")
 }
 
 // statsView draws a sub-agent's run stats as a child line under its row: tool
 // calls succeeded and failed, then the tokens used, live while it runs. It is
-// padded to the row width so the block stays aligned.
-func (l *SubagentList) statsView(stats scheddomain.SubagentRunStats, index, count, rowWidth int) string {
+// padded to the shared row width so the block stays aligned.
+func (l *SubagentList) statsView(stats scheddomain.SubagentRunStats, index, count, width int) string {
 	trunk := ""
 	if count > 1 {
 		trunk = "  "
@@ -419,17 +413,28 @@ func (l *SubagentList) statsView(stats scheddomain.SubagentRunStats, index, coun
 	line := fmt.Sprintf("%s└ %d %s %d %s %s", trunk,
 		stats.ToolsSucceeded, l.styleProvider.RenderWithColor(icons.CheckMark, l.styleProvider.GetThemeColor("success")),
 		stats.ToolsFailed, l.styleProvider.RenderWithColor(icons.CrossMark, l.styleProvider.GetThemeColor("error")),
-		l.styleProvider.RenderWithColor("· "+compactCount(stats.InputTokens+stats.OutputTokens)+" tokens", dim))
-	return line + strings.Repeat(" ", max(0, rowWidth-l.styleProvider.GetWidth(line)))
+		l.styleProvider.RenderWithColor(statsTokens(stats), dim))
+	return l.padToWidth(line, width)
 }
 
-// compactCount shortens a count for the narrow list: 950, 1.2k, 61.2k, 1.5M.
+// statsTokens is a run's token figures: the input and output it burned, then
+// the cached slice (C.) in the status bar's notation, dropped while the run
+// reported no cache hits.
+func statsTokens(stats scheddomain.SubagentRunStats) string {
+	text := "· " + compactCount(stats.InputTokens+stats.OutputTokens) + " tokens"
+	if stats.CachedTokens > 0 {
+		text += " C." + compactCount(stats.CachedTokens)
+	}
+	return text
+}
+
+// compactCount shortens a count for the narrow list: 950, 1.2k, 312k, 1.5M.
 func compactCount(n int) string {
 	switch {
 	case n >= 1_000_000:
-		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
+		return strings.TrimSuffix(fmt.Sprintf("%.1f", float64(n)/1_000_000), ".0") + "M"
 	case n >= 1_000:
-		return fmt.Sprintf("%.1fk", float64(n)/1_000)
+		return strings.TrimSuffix(fmt.Sprintf("%.1f", float64(n)/1_000), ".0") + "k"
 	}
 	return fmt.Sprintf("%d", n)
 }
@@ -439,7 +444,7 @@ func compactCount(n int) string {
 // Running rows leave the outcome cell blank so finished rows cannot shift the
 // shared duration column.
 func (l *SubagentList) rowView(row subagentRow, index, count int, widths rowWidths, selected bool) string {
-	connector := ""
+	connector := "  "
 	if count > 1 {
 		switch index {
 		case 0:
@@ -452,8 +457,6 @@ func (l *SubagentList) rowView(row subagentRow, index, count int, widths rowWidt
 	}
 	if selected {
 		connector = l.styleProvider.RenderWithColor(selectedRowMarker, l.styleProvider.GetThemeColor("accent"))
-	} else if l.focused && count == 1 {
-		connector = "  "
 	}
 	label := formatting.PadText(rowLabel(row), widths.label) + " " +
 		l.styleProvider.RenderWithColor(formatting.PadText(row.kind, widths.kind), l.styleProvider.GetThemeColor("accent"))

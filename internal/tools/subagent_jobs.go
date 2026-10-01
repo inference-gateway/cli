@@ -352,13 +352,10 @@ func (j *headlessSubagentJob) Stats() *scheddomain.SubagentRunStats {
 // subagentOutputLine is what the live tally reads from one line a headless run
 // prints: a tool result's outcome or an assistant step's token usage.
 type subagentOutputLine struct {
-	Type       string          `json:"type"`
-	Role       sdk.MessageRole `json:"role"`
-	Failed     bool            `json:"failed"`
-	TokenUsage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-	} `json:"token_usage"`
+	Type       string               `json:"type"`
+	Role       sdk.MessageRole      `json:"role"`
+	Failed     bool                 `json:"failed"`
+	TokenUsage *sdk.CompletionUsage `json:"token_usage"`
 }
 
 // tally adds one line the running subagent printed to its live stats.
@@ -374,10 +371,20 @@ func (j *headlessSubagentJob) tally(line []byte) {
 		j.live.ToolsFailed++
 	case msg.Role == sdk.Tool:
 		j.live.ToolsSucceeded++
-	case msg.Role == sdk.Assistant:
-		j.live.InputTokens += msg.TokenUsage.PromptTokens
-		j.live.OutputTokens += msg.TokenUsage.CompletionTokens
+	case msg.Role == sdk.Assistant && msg.TokenUsage != nil:
+		j.live.InputTokens += int(msg.TokenUsage.PromptTokens)
+		j.live.OutputTokens += int(msg.TokenUsage.CompletionTokens)
+		j.live.CachedTokens += cachedTokens(msg.TokenUsage)
 	}
+}
+
+// cachedTokens is the prompt-cache hit count of one step, zero when the
+// provider reported none.
+func cachedTokens(usage *sdk.CompletionUsage) int {
+	if usage.PromptTokensDetails == nil || usage.PromptTokensDetails.CachedTokens == nil {
+		return 0
+	}
+	return int(*usage.PromptTokensDetails.CachedTokens)
 }
 
 // result returns the subagent's outcome for the blocking fan-in that awaited

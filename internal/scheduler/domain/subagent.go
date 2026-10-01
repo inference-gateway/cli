@@ -116,12 +116,15 @@ type SubagentTurnLine struct {
 }
 
 // SubagentRunStats is what a subagent run cost and how its tool calls went, so
-// the parent can weigh an answer by the work behind it.
+// the parent can weigh an answer by the work behind it. CachedTokens is the
+// slice of InputTokens the provider served from its prompt cache, and stays
+// zero when it reports no cache hits.
 type SubagentRunStats struct {
 	ToolsSucceeded int `json:"tools_succeeded"`
 	ToolsFailed    int `json:"tools_failed"`
 	InputTokens    int `json:"input_tokens"`
 	OutputTokens   int `json:"output_tokens"`
+	CachedTokens   int `json:"cached_tokens,omitempty"`
 }
 
 // String renders the stats as the one line the parent agent reads.
