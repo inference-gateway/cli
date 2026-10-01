@@ -79,8 +79,9 @@ judge's reason and the model's justification above it.
 - Headless runs have no interactive approver, so the tool returns a distinguishable
   `no_approver` result and tells the model not to retry.
 
-The tool is always advertised (so the tool list, and the provider prompt cache, do
-not change with the mode) but only does anything after a judge rejection.
+The tool is advertised in Standard, Auto-Accept and Auto+Judge modes, so a human
+approver can override a judge rejection there too. Plan mode does not advertise it,
+having no approver to reach, and outside a judge rejection it does nothing.
 
 ## The verdict contract
 

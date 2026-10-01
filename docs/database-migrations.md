@@ -42,8 +42,10 @@ CREATE TABLE schema_migrations (
 
 The migration system supports:
 
-- **SQLite**: Default storage backend
+- **JSONL**: The default storage backend, file-based and append-only (no migrations needed)
+- **SQLite**: A single local database file, upgraded through the schema above
 - **PostgreSQL**: Production-ready relational database
+- **Cloudflare D1**: Creates its own schema on connect, so no migration run is needed
 - **Redis**: In-memory storage (no migrations needed)
 - **Memory**: In-memory storage for testing (no migrations needed)
 
@@ -137,7 +139,7 @@ When adding schema changes:
 ```go
 // SQLite example
 {
-    Version:     "002",
+    Version:     "008",
     Description: "Add user preferences table",
     UpSQL: `
         CREATE TABLE user_preferences (
@@ -202,7 +204,10 @@ Common issues:
 To start fresh (⚠️ **destroys all data**):
 
 ```bash
-# SQLite (default)
+# JSONL (default) - one file per conversation
+rm -rf ~/.infer/projects/<project-slug>/conversations
+
+# SQLite
 rm ~/.infer/conversations.db
 infer migrate
 
@@ -239,6 +244,18 @@ psql infer_gateway -c "SELECT version, description, applied_at FROM schema_migra
 ```
 
 ## Migration History
+
+Both dialects carry the same seven migrations:
+
+| Version | Description |
+| ------- | ----------- |
+| 001 | Initial schema - conversations table |
+| 002 | Session groups index for channel-keyed rollover |
+| 003 | Scheduled jobs table |
+| 004 | Plans table for plan-mode storage |
+| 005 | Shell history table |
+| 006 | Scheduled job run records table |
+| 007 | Conversation project column for per-project grouping |
 
 ### Version 001 (Initial Schema)
 

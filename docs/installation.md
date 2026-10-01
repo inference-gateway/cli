@@ -134,7 +134,7 @@ Verify the download against `checksums.txt` or its Cosign signature before insta
 ```bash
 git clone https://github.com/inference-gateway/cli.git
 cd cli
-go build -o infer ./cmd/infer
+go build -tags purego -o infer ./cmd/infer
 sudo mv infer /usr/local/bin/
 ```
 
@@ -143,8 +143,15 @@ On Windows, build with:
 ```powershell
 git clone https://github.com/inference-gateway/cli.git
 cd cli
-go build -o infer.exe ./cmd/infer
+go build -tags purego -o infer.exe ./cmd/infer
 # The binary is at .\infer.exe
+```
+
+The `purego` tag builds without cgo, which is what the released binaries use: it keeps the binary
+portable and needs no C toolchain. To install straight from the module instead of cloning:
+
+```bash
+go install -tags purego github.com/inference-gateway/cli/cmd/infer@latest
 ```
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the development workflow.

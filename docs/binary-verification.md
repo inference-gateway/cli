@@ -135,6 +135,18 @@ If verification succeeds, you should see output similar to:
 Verified OK
 ```
 
+**Local builds differ.** CI publishes the Sigstore bundle used above. A local `task release:build`
+signs the checksums file with `cosign sign-blob` when cosign is installed, which writes detached
+`dist/checksums.txt.sig` and `dist/checksums.txt.pem` files instead of a bundle, and only warns when
+cosign is missing. Verify a detached signature with:
+
+```bash
+cosign verify-blob \
+  --signature checksums.txt.sig \
+  --certificate checksums.txt.pem \
+  checksums.txt
+```
+
 **Failed Verification:**
 
 If verification fails, **do not use the binary**. This could indicate:

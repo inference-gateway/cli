@@ -23,13 +23,13 @@ created from any session whose results are read from storage.
 │       emit run events ──► ScheduleNotifier                   │
 │                            └─ job has a channel? Send(...)   │
 │   ChannelManagerService                                      │
-│    └─ inbound msgs → spawn `infer headless`                  │
+│    └─ inbound msgs → relay to the sender's thread             │
 └──────────────────────────────────────────────────────────────┘
            ▲                                       ▲
            │ writes via storage backend            │ reads via storage backend
 ┌──────────┴───────────┐                 ┌─────────┴──────────────┐
 │ Schedule tool        │ create / update │ Storage backend          │
-│ (runs in any agent)  │ ──────────────► │ (sqlite, postgres,       │
+│ (runs in any agent)  │ ──────────────► │ (sqlite, postgres, d1,   │
 │                      │                 │  redis, jsonl, memory)   │
 └──────────────────────┘                 └────────────────────────┘
 ```
@@ -37,7 +37,7 @@ created from any session whose results are read from storage.
 Key properties:
 
 - **Backend-agnostic storage.** The `Schedule` tool and the scheduler both use the
-  configured storage backend (sqlite, postgres, redis, jsonl, or memory). Jobs are
+  configured storage backend (sqlite, postgres, d1, redis, jsonl, or memory). Jobs are
   persisted through the `ScheduledJobStorage` interface.
 - **Hot reload.** The scheduler polls the storage backend every 2 seconds and
   diffs the jobs against its cron entries: created, updated (including hand-edited
@@ -91,7 +91,7 @@ that isn't enabled - a misconfiguration, not a record-only job.
 infer daemon
 ```
 
-You should see a log line like `Scheduler started jobs=0`.
+You should see a log line like `scheduler started jobs=0`.
 
 Container deployments must set `TZ` (e.g. `TZ=Europe/Berlin`) so cron expressions are interpreted in
 local time. The binary embeds the IANA zone database, so this works on any base image.
@@ -296,7 +296,7 @@ Provide `job_id` and any of: `cron_expression`, `prompt`, `run_once`, `name`,
 
 **Jobs aren't firing.**
 
-- Make sure `infer daemon` is running and `Scheduler started` appears
+- Make sure `infer daemon` is running and `scheduler started` appears
   in the logs.
 - Check that the channel referenced in the job is enabled in config.
 - Inspect the job's `last_error` field after the expected fire time.

@@ -160,7 +160,7 @@ Extension → CLI, exactly one result per command id:
 
 A connection follows at most one thread at a time, because AG-UI events carry
 no thread id outside `RUN_STARTED` / `RUN_FINISHED`. The desktop app opens one
-connection per thread. The CLI does not auto-send anything on connect.
+connection per thread. The only frame the CLI sends on connect is the extension status frame, so a client must ask for a thread itself.
 
 Client → CLI, start a new conversation in a project, or resume a stored one.
 Both make the connection follow that thread:
@@ -220,6 +220,9 @@ whose `messages` holds the new messages only, since the worker owns the history:
   project's tmp dir. PNG, JPEG, GIF and WebP images reach the model as image
   parts, and other files as a note naming the saved path. Files over 10 MiB are
   skipped.
+- One frame is one control line, capped at 4 MiB. Base64 inflates an attachment
+  by about a third, so an attachment over roughly 3 MiB cannot travel in a
+  single frame.
 - An input with no messages and no `resume` continues the thread after a
   stopped run, which is how a paused computer-use session resumes.
 
@@ -287,6 +290,7 @@ CLI → client, newest-first (sorted by `updated_at` descending):
 - `title` is the conversation's title (an auto-derived first-message preview
   until a better one is generated); `updated_at` is RFC 3339; `message_count`
   is the number of stored messages.
+- The list is capped at 50 conversations, the 50 most recently updated.
 - The array is empty when the project runs without conversation persistence
   (`storage.enabled: false`).
 
@@ -434,11 +438,12 @@ CLI → client, only the requesting client receives it:
 Client → CLI, the user's decision:
 
 ```json
-{"type": "approval_response", "tool_call_id": "<request id>", "approved": true, "scope": "always"}
+{"type": "approval_response", "tool_call_id": "<request id>", "approved": true}
 ```
 
-- `approved: false` rejects. `scope: "always"` also auto-accepts later calls of
-  the same kind, and an absent `scope` approves this call only.
+- `approved: false` rejects. The panel reads only `tool_call_id` and `approved`,
+  so a `scope` field is ignored: an approval decides the call it names and
+  nothing else.
 - The first answer wins. Later answers for the same `tool_call_id` are
   ignored.
 

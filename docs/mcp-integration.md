@@ -89,11 +89,12 @@ cd your-project
 infer init
 ```
 
-This creates `.infer/mcp.yaml` with example configuration.
+This seeds `~/.infer/mcp.yaml` with example configuration. Manage MCP servers with `infer mcp ...`,
+which writes to that userspace file unless `--project` sends the change to `./.infer/mcp.yaml` instead.
 
 ### 2. Configure MCP Server
 
-Edit `.infer/mcp.yaml`:
+Edit `~/.infer/mcp.yaml`:
 
 ```yaml
 enabled: true
@@ -171,14 +172,14 @@ server and `--format json` prints a machine-readable report (`total_servers`, `c
 
 ### Global Settings
 
-Located in `.infer/mcp.yaml`:
+Located in `~/.infer/mcp.yaml` (or `./.infer/mcp.yaml` for a project override):
 
 | Setting | Type | Default | Description |
 | ------- | ---- | ------- | ----------- |
 | `enabled` | boolean | `false` | Global MCP enable/disable toggle |
 | `connection_timeout` | integer | `30` | Default connection timeout (seconds) |
 | `discovery_timeout` | integer | `30` | Tool discovery timeout (seconds) |
-| `liveness_probe_enabled` | boolean | `false` | Enable health monitoring |
+| `liveness_probe_enabled` | boolean | `true` | Enable health monitoring |
 | `liveness_probe_interval` | integer | `10` | Health check interval (seconds) |
 | `max_retries` | integer | `10` | Maximum retry attempts before marking server as permanently failed |
 | `servers` | array | `[]` | List of MCP server configurations |
@@ -741,7 +742,7 @@ infer mcp add my-server \
 This automatically:
 
 1. Creates server configuration with `run: true`
-2. Assigns next available port (e.g., 3000, 3001, ...)
+2. Assigns the next available port, starting at 3001
 3. Configures container with defaults (localhost, http, /mcp path)
 4. Adds a container healthcheck using an MCP `server/discover` request
 
@@ -862,11 +863,14 @@ sh -c 'curl -fsS -X POST http://localhost:3000/mcp \
 
 ### Lifecycle Management
 
-**Container naming**: `inference-mcp-{server-name}`
+**Container naming**: `inference-mcp-{server-name}-{session-id}`, or
+`inference-mcp-{server-name}-shared` for a detached `infer mcp start` container
 
 **Network**: All containers join the `infer-network` Docker network
 
-**Restart policy**: `unless-stopped` (containers restart on Docker daemon restart)
+**Restart policy**: none. The CLI passes no `--restart` flag, so the container follows the Docker
+daemon default when it restarts. Detached `infer mcp start` containers are the ones meant to outlive
+the session.
 
 **Startup behavior**:
 
@@ -920,13 +924,41 @@ infer mcp add custom \
 # List servers
 infer mcp list
 
+# Add a manual server alongside an auto-started one
+infer mcp add filesystem http://localhost:3000/sse
+infer mcp add demo --run --oci=mcp-demo-server:latest --port=3000
+
+# Change an existing server
+infer mcp update filesystem --url=http://localhost:3002/sse
+infer mcp update filesystem --timeout=60 --include=read_file,list_directory
+
 # Remove server (stops container if running)
 infer mcp remove <name>
 
-# Enable or disable a server
+# Enable or disable a server, or all of MCP
 infer mcp enable <name>
 infer mcp disable <name>
+infer mcp enable-global
+infer mcp disable-global
+
+# Probe each enabled server and report its state and tool count
+infer mcp status
+infer mcp status filesystem --format json
 ```
+
+Every write lands in `~/.infer/mcp.yaml` unless `--project` is passed, which writes to
+`./.infer/mcp.yaml` instead. `infer init` seeds the userspace file.
+
+**`update` flags:** `--url`, `--description`, `--enabled`, `--timeout <seconds>` (`-1` leaves it
+unchanged, `0` falls back to the global timeout), `--include <tools>` and `--exclude <tools>`
+(an empty value leaves the filters unchanged).
+
+**`add` flags:** `--description`, `--enabled`, `--timeout <seconds>`, `--include <tools>`,
+`--exclude <tools>` and the container set `--run`, `--oci <image>`, `--port <port>`,
+`--startup-timeout <seconds>`.
+
+A `run: true` server can override the image's startup with the `entrypoint` and `command` keys in
+`mcp.yaml`, alongside `args`, `env` and `volumes`.
 
 ### Auto-Start Troubleshooting
 

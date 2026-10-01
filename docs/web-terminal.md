@@ -48,7 +48,7 @@ infer chat --web --host 0.0.0.0 --port 8080
 The server will output:
 
 ```text
-🌐 Web terminal available at: http://localhost:3000
+Web terminal available at: http://localhost:3000
    Open this URL in your browser to access the terminal.
 ```
 
@@ -141,6 +141,11 @@ infer chat --web [--port PORT] [--host HOST]
 - `--web`: Enable web terminal mode
 - `--port`: Port number (default: 3000)
 - `--host`: Host to bind to (default: localhost)
+- `--ssh-host <host>`: Run the TUI on a remote host over SSH instead of locally
+- `--ssh-user <user>`: Remote SSH username
+- `--ssh-port <port>`: Remote SSH port (default: 22)
+- `--ssh-no-install`: Disable auto-installation of infer on the remote host
+- `--ssh-command <path>`: Path to the infer binary on the remote host (default: infer)
 
 ### Configuration File
 
@@ -152,6 +157,25 @@ web:
   port: 3000                   # Server port
   host: "localhost"            # Host binding
   session_inactivity_mins: 5   # Reap sessions with no activity for 5 minutes
+  tmux: false                  # Run each session inside tmux
+  ssh:                         # SSH transport (used by the --ssh-* flags)
+    enabled: false
+    known_hosts_path: ""       # "" uses the SSH default
+    auto_install: false        # Install infer on the remote host when missing
+    install_version: ""        # Pin the version to install ("" means latest)
+    install_dir: ""            # Where to install it remotely
+  servers:                     # Saved remote hosts
+    - name: ""                 # Display name
+      id: ""                   # Stable id
+      remote_host: ""
+      remote_port: 22
+      remote_user: ""
+      command_path: ""         # Path to infer on the remote host
+      command_args: []
+      auto_install: false
+      install_path: ""
+      description: ""
+      tags: []
 ```
 
 ### Environment Variables
@@ -211,9 +235,9 @@ Close a tab by clicking the "×" button. This:
 The server logs active session count:
 
 ```text
-INFO Session created id=session-1 total=1
-INFO Session created id=session-2 total=2
-INFO Session removed id=session-1 total=1
+INFO session registered id=session-1 total=1
+INFO session registered id=session-2 total=2
+INFO session removed id=session-1 total=1
 ```
 
 ### Shutdown All Sessions
@@ -410,8 +434,8 @@ netstat -an | grep LISTEN | grep 3000
 # List all containers
 docker ps -a
 
-# Check if containers have CLI labels
-docker ps -a --filter "label=created_by=infer"
+# Show the ones the CLI started (MCP servers and local A2A agents)
+docker ps -a --filter "name=inference-"
 ```
 
 **Solution:** Ensure signal handling is working:
@@ -631,22 +655,24 @@ docker run -d -p 3000:3000 \
 ```text
 cli/
 ├── cmd/
-│   └── chat.go                        # --web flag handling
+│   └── chat/
+│       └── chat.go                    # --web flag handling
 ├── config/
-│   ├── config.go                      # WebConfig struct
-│   └── defaults.go                    # Default web config
+│   └── config.go                      # WebConfig struct and its defaults
 └── internal/
-    └── web/
-        ├── server.go                  # HTTP + WebSocket server
-        ├── sessions.go                # Session lifecycle
-        ├── pty_manager.go             # PTY subprocess control
-        ├── static/                    # Embedded assets
-        │   ├── xterm.js               # Terminal emulator
-        │   ├── xterm.css              # Terminal styles
-        │   ├── xterm-addon-fit.js     # Fit addon
-        │   └── app.js                 # Tab management
-        └── templates/
-            └── index.html             # HTML template
+    └── presentation/
+        └── web/
+            ├── server.go                  # HTTP + WebSocket server
+            ├── sessions.go                # Session lifecycle
+            ├── pty_manager.go             # PTY subprocess control
+            ├── static/                    # Embedded assets
+            │   ├── xterm.js               # Terminal emulator
+            │   ├── xterm.css              # Terminal styles
+            │   ├── xterm-addon-fit.js     # Fit addon
+            │   ├── app.js                 # Tab management
+            │   └── preview-overlay.js     # Preview overlay
+            └── templates/
+                └── index.html             # HTML template
 ```
 
 ### Port Allocation
@@ -676,7 +702,7 @@ Used by Docker containers spawned by agents/MCP servers.
 Signal handling ensures cleanup:
 
 ```go
-// cmd/chat/chat.go
+// internal/presentation/web/server.go
 sigChan := make(chan os.Signal, 1)
 signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 
@@ -702,7 +728,6 @@ Planned features for future releases:
 
 - **Authentication**: Basic auth, OAuth, API keys
 - **Authorization**: Per-user session limits, tool restrictions
-- **SSH Sessions**: Connect to remote servers via SSH
 - **Session persistence**: Save/restore conversations across restarts
 - **Shared sessions**: Multiple users in same terminal (read-only viewers)
 - **Recording**: Save terminal output for later review

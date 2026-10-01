@@ -17,7 +17,7 @@ enabled: true
 rate_limit:
   enabled: true
 screenshot:
-  streaming_enabled: true   # also registers the GetLatestFrame tool
+  streaming_enabled: true   # starts the screen frame source GetLatestFrame reads from
 ```
 
 The display backend is detected automatically on macOS, Linux and Windows. The accessibility tree is

@@ -2,8 +2,8 @@
 
 The `/explorer` command opens a VS Code-style file browser with a syntax-highlighted
 preview pane. In addition to browsing files, you can **select a line range** within a
-previewed file, **annotate it** with a natural-language instruction, and **inject** the
-annotated snippet plus surrounding file context into the chat - so the LLM knows exactly
+previewed file, **annotate it** with a natural-language instruction, and **attach** the
+annotated snippet to your next message - so the LLM knows exactly
 which code to change and how.
 
 ## Workflow
@@ -18,8 +18,8 @@ which code to change and how.
    function to use early returns") and press `enter` to confirm.
 6. Repeat steps 4–5 for additional disjoint ranges (in the same file or navigate to
    another file after exiting select mode with `esc`).
-7. Press `enter` (submit) to inject all annotated snippets into the chat input. Review
-   the formatted context and press `enter` again to send.
+7. Press `enter` (submit) to attach all annotated snippets to your next message. They stay
+   listed below the chat input, and their formatted context is sent with that message.
 
 ## Keybindings
 
@@ -30,20 +30,21 @@ All keys are configurable via `keybindings.yaml` under the `explorer` namespace.
 | `select`        | `s`          | Enter line-selection mode on the previewed file  |
 | `toggle_select` | `space`, `v` | Start or clear a line-range selection            |
 | `annotate`      | `a`          | Annotate the selected range with an instruction  |
-| `submit`        | `enter`      | Submit annotations and inject into chat          |
+| `submit`        | `enter`      | Attach annotations to the next message           |
 | `cancel`        | `esc`, `q`   | Exit select mode (`esc`) or close explorer (`q`) |
 
-## Injected Context Format
+## Attached Context Format
 
-On submit, the explorer builds a structured prompt grouped by file:
+Only the annotated line ranges are sent, never the whole file and no surrounding context.
+When the message carrying the selections is sent, the app appends one context block grouped
+by file:
 
-- For files under 1 MiB, the **full file** is included in a fenced code block with line
-  numbers, followed by per-selection instruction lines.
-- For larger files, each snippet is included individually with a ±5-line context window
-  and a `▶` marker on the annotated lines.
+- Each selection becomes a fenced code block headed by `<file> (lines <start>-<end>):`,
+  holding exactly the selected lines, with the file extension as the fence language.
+- A `note: <annotation>` line follows the block when you attached an instruction.
 
-The prompt is placed in the chat input for review before sending, so you can edit or
-add context before the LLM sees it.
+The block goes onto the outgoing message. Review the selections in the attachments tree
+below the chat input before sending.
 
 ## Multi-Snippet and Cross-File Support
 

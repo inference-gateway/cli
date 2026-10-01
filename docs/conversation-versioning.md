@@ -136,7 +136,7 @@ During active LLM streaming or tool execution:
 
 ## Limitations
 
-1. **User messages only**: Only user-initiated messages are shown in the history (not assistant responses or tool results)
+1. **User and assistant messages only**: Only user messages and assistant responses are shown in the history. Tool results are not.
 2. **Permanent deletion**: Messages deleted during restore cannot be recovered
 3. **No undo**: There's no undo for the restore operation
 4. **Auto-save required**: Changes are automatically saved; manual save is not supported
@@ -166,8 +166,8 @@ Deletion is implemented at the repository level:
 
 The feature uses dedicated state management:
 
-- `ViewStateMessageHistory`: Separate view state for the selector
-- `MessageHistoryState`: Stores user message snapshots
+- `NavigationModeMessageHistory`: Separate view state for the selector
+- `MessageSnapshot`: Stores the user and assistant message snapshots
 - Clean transitions between chat and history views
 - State is cleared after restore or cancellation
 
@@ -209,7 +209,8 @@ A: No, deletion is permanent. Always double-check your selection before pressing
 A: All messages after the restore point are deleted, including tool results and assistant responses.
 
 **Q: Can I see assistant messages in the history?**
-A: No, only user messages are shown. This is intentional to keep the interface focused on user-initiated conversation points.
+A: Yes. User messages and assistant responses are listed. Tool results are not, which keeps the
+interface focused on conversation points you can branch from.
 
 **Q: Will this affect my saved conversations?**
 A: Yes, if auto-save is enabled (which it is by default), the changes are persisted immediately.
@@ -218,7 +219,7 @@ A: Yes, if auto-save is enabled (which it is by default), the changes are persis
 A: Not directly. First cancel the tool execution (single ESC), then trigger the feature (double ESC).
 
 **Q: How many messages can I see in the history?**
-A: All user messages from the current conversation are available, with pagination for long histories.
+A: All user and assistant messages from the current conversation are available, with pagination for long histories.
 
 ## See Also
 
