@@ -162,7 +162,7 @@ exactly the same modes.
 > configured MCP servers and surface as `MCP_<server>_<tool>` (see [MCP Integration](mcp-integration.md)).
 > Custom tools are loaded from their manifests (see [Custom Tools](custom-tools.md)).
 
-<img src="../assets/tui-tools.png" width="760" alt="A Grep tool call executed by the agent, with its result and the assistant's summary" />
+<img src="../assets/tui-tools.png" alt="A Grep tool call executed by the agent, with its result and the assistant's summary" />
 
 ---
 
