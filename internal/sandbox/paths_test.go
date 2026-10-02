@@ -288,6 +288,24 @@ func TestValidateRead_PluginsCarveOut(t *testing.T) {
 	require.Error(t, ValidateWrite(cfg, skillPath), "carve-out must be gated on plugins.enabled")
 }
 
+func TestValidateRead_CarveOutUnderAnyConfigDirSpelling(t *testing.T) {
+	t.Chdir(t.TempDir())
+	skillPath := filepath.Join(config.ConfigDirName, "skills", "demo", "SKILL.md")
+	configPath := filepath.Join(config.ConfigDirName, "config.yaml")
+
+	for _, rule := range []string{".infer/", "./.infer/", ".infer/*"} {
+		t.Run(rule, func(t *testing.T) {
+			cfg := config.DefaultConfig()
+			cfg.Tools.Sandbox.Filesystem.Denied = []sandboxdomain.Denied{{Path: rule, OnViolation: sandboxdomain.ViolationApproval}}
+
+			require.NoError(t, ValidateRead(cfg, skillPath))
+			var denied *sandboxdomain.DeniedError
+			require.ErrorAs(t, ValidateRead(cfg, configPath), &denied)
+			require.Equal(t, rule, denied.Rule)
+		})
+	}
+}
+
 // TestValidateWrite_SandboxPolicyFile locks in that the agent can never edit
 // its own policy: sandbox.yaml stays unwritable even when the user empties
 // denied, while reading it is still allowed.

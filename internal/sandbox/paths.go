@@ -71,7 +71,7 @@ func check(cfg *config.Config, path, absPath string, access sandboxdomain.Access
 
 	approvalRule := ""
 	for _, entry := range cfg.Tools.Sandbox.Filesystem.Denied {
-		if inCarveOut && strings.TrimSuffix(entry.Path, "/") == config.ConfigDirName {
+		if inCarveOut && isConfigDirRule(entry.Path) {
 			continue
 		}
 		if !matches(entry.Path, path, absPath) {
@@ -128,6 +128,13 @@ func implicitAccess(cfg *config.Config, absPath string) (sandboxdomain.Access, b
 		return sandboxdomain.AccessRead, true
 	}
 	return "", false
+}
+
+// isConfigDirRule reports whether a denied rule names a config directory
+// itself, in any spelling (.infer, ./.infer/, .infer/*, ~/.infer), so the
+// built-in carve-outs inside it stay open.
+func isConfigDirRule(rulePath string) bool {
+	return filepath.Base(strings.TrimSuffix(rulePath, "/*")) == config.ConfigDirName
 }
 
 // Grants are the entries the user approved after a denial. They extend the
