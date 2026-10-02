@@ -43,7 +43,7 @@ func TestSetConfigValueRejectsToolsKeys(t *testing.T) {
 	cmd.Flags().Bool("project", false, "")
 
 	for _, key := range []string{"tools", "tools.bash.enabled", "tools.safety.require_approval"} {
-		err := setConfigValue(cmd, []string{key, "true"})
+		err := setConfigValue(cmd, []string{key, "true"}, nil)
 		if err == nil {
 			t.Errorf("expected error for %q, got nil", key)
 			continue
