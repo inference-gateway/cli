@@ -4,6 +4,14 @@
 
 package domain
 
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	sdk "github.com/inference-gateway/sdk"
+)
+
 // JudgeDecision is the verdict value the LLM judge returns for one pending
 // tool call.
 type JudgeDecision string
@@ -14,3 +22,55 @@ const (
 	JudgeDecisionApproved JudgeDecision = "approved"
 	JudgeDecisionRejected JudgeDecision = "rejected"
 )
+
+// JudgeInput is one approval question: Model is the resolved "provider/model"
+// id that answers it, RootIntent the first non-hidden user message of the
+// session, Intent the latest one, and Action the pending tool call (name +
+// arguments).
+type JudgeInput struct {
+	Model      string
+	RootIntent string
+	Intent     string
+	Action     string
+}
+
+// JudgeVerdict is the parsed decision of the LLM judge for one pending tool
+// call. Decision is always one of the JudgeDecision values once parsed.
+// Nothing downstream reads the judge's raw output.
+type JudgeVerdict struct {
+	Decision JudgeDecision
+	Reason   string
+	Usage    *sdk.CompletionUsage `json:"-"`
+}
+
+// Approved reports whether the judge approved the action.
+func (v JudgeVerdict) Approved() bool {
+	return v.Decision == JudgeDecisionApproved
+}
+
+// ParseJudgeVerdict extracts the verdict JSON object from the judge's raw
+// output. Keeping only the outermost {...} drops code fences and prose. It
+// requires decision to be one of the two literals and rejects anything else so
+// a malformed judge response flows into on_error handling.
+func ParseJudgeVerdict(raw string) (JudgeVerdict, error) {
+	trimmed := strings.TrimSpace(raw)
+
+	start := strings.IndexByte(trimmed, '{')
+	end := strings.LastIndexByte(trimmed, '}')
+	if start < 0 || end <= start {
+		return JudgeVerdict{}, fmt.Errorf("judge returned no JSON object: %.200s", trimmed)
+	}
+
+	var verdict JudgeVerdict
+	if err := json.Unmarshal([]byte(trimmed[start:end+1]), &verdict); err != nil {
+		return JudgeVerdict{}, fmt.Errorf("parsing judge verdict: %w", err)
+	}
+
+	switch verdict.Decision {
+	case JudgeDecisionApproved, JudgeDecisionRejected:
+	default:
+		return JudgeVerdict{}, fmt.Errorf("judge decision %q: must be %q or %q", verdict.Decision, JudgeDecisionApproved, JudgeDecisionRejected)
+	}
+
+	return verdict, nil
+}

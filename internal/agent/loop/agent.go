@@ -1483,9 +1483,9 @@ func (s *Agent) requestJudgeApproval(
 
 	model := s.judgeModel()
 	root, latest := userIntents(s.conversationRepo)
-	verdict, err := s.judge.Judge(ctx, JudgeInput{Model: model, RootIntent: root, Intent: latest, Action: judgeActionInput(tc)})
+	verdict, err := s.judge.Judge(ctx, agentdomain.JudgeInput{Model: model, RootIntent: root, Intent: latest, Action: judgeActionInput(tc)})
 	if err != nil {
-		verdict = JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "judge unavailable: " + err.Error()}
+		verdict = agentdomain.JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "judge unavailable: " + err.Error()}
 	}
 	if !verdict.Approved() {
 		s.conversationRepo.RemovePendingToolCallByID(tc.ID)

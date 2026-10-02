@@ -16,10 +16,10 @@ import (
 
 // stubJudgeApprover answers every judge call with a canned verdict.
 type stubJudgeApprover struct {
-	verdict JudgeVerdict
+	verdict agentdomain.JudgeVerdict
 }
 
-func (s stubJudgeApprover) Judge(ctx context.Context, in JudgeInput) (JudgeVerdict, error) {
+func (s stubJudgeApprover) Judge(ctx context.Context, in agentdomain.JudgeInput) (agentdomain.JudgeVerdict, error) {
 	return s.verdict, nil
 }
 
@@ -260,7 +260,7 @@ func TestRequestJudgeApprovalRecordsRejectionAndHints(t *testing.T) {
 	svc := &Agent{
 		config:           cfg,
 		conversationRepo: &conversationmocks.FakeConversationRepository{},
-		judge:            stubJudgeApprover{verdict: JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "curl was not requested"}},
+		judge:            stubJudgeApprover{verdict: agentdomain.JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "curl was not requested"}},
 		escalations:      newJudgeEscalations(),
 	}
 	events := make(chan agentdomain.ChatEvent, 8)
