@@ -185,20 +185,6 @@ func applyBashAllowAppends(tools *config.ToolsConfig, root *cobra.Command) {
 	}
 }
 
-// warnIgnoredToolsConfig points at what no longer feeds the tools config so
-// nobody silently loses an allow-list: a `tools:` block in any config.yaml and
-// a project .infer/tools.yaml. Called after logger.Init, where Warn writes.
-func warnIgnoredToolsConfig(v *viper.Viper) {
-	if v.IsSet("tools") {
-		logger.Warn("ignoring the legacy `tools:` block in config.yaml",
-			"hint", "run infer init to move it to ~/.infer/tools.yaml, then remove the block")
-	}
-	if _, err := os.Stat(filepath.Join(config.ConfigDirName, config.ToolsFileName)); err == nil {
-		logger.Warn("ignoring project .infer/tools.yaml",
-			"hint", "the tools config is read from ~/.infer/tools.yaml only")
-	}
-}
-
 // resolveRemindersConfig resolves the reminders configuration, layering the
 // content sources embedded consumers need on top of the on-disk files. Env wins
 // over the flag; when the resolved config has Merge=true its entries are merged

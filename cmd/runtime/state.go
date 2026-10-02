@@ -67,7 +67,6 @@ func (s *State) Initialize(root *cobra.Command) error {
 		ArchiveMaxSizeMB: v.GetInt("logging.archive.max_size_mb"),
 	}
 	logger.Init(s.loggerCfg)
-	warnIgnoredToolsConfig(v)
 	return nil
 }
 
