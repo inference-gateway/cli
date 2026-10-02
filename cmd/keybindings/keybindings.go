@@ -2,6 +2,7 @@ package keybindings
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	cobra "github.com/spf13/cobra"
@@ -156,7 +157,7 @@ func validateKeybindings(cfg *config.Config, cmd *cobra.Command, args []string) 
 func validateUnknownActions(cfg *config.Config, validActions []string) bool {
 	unknownActions := []string{}
 	for actionID := range cfg.Chat.Keybindings.Bindings {
-		if !contains(validActions, actionID) {
+		if !slices.Contains(validActions, actionID) {
 			unknownActions = append(unknownActions, actionID)
 		}
 	}
@@ -176,7 +177,7 @@ func validateUnknownActions(cfg *config.Config, validActions []string) bool {
 func validateInvalidKeys(cfg *config.Config, validActions []string) bool {
 	invalidKeys := make(map[string][]string)
 	for actionID, binding := range cfg.Chat.Keybindings.Bindings {
-		if !contains(validActions, actionID) {
+		if !slices.Contains(validActions, actionID) {
 			continue
 		}
 		for _, key := range binding.Keys {
@@ -217,7 +218,7 @@ func validateKeyConflicts(cfg *config.Config, validActions []string) bool {
 func buildKeyUsageMap(cfg *config.Config, validActions []string) map[string][]string {
 	keyUsage := make(map[string][]string)
 	for actionID, binding := range cfg.Chat.Keybindings.Bindings {
-		if !contains(validActions, actionID) {
+		if !slices.Contains(validActions, actionID) {
 			continue
 		}
 		for _, key := range binding.Keys {
@@ -260,7 +261,7 @@ func setKeybinding(cmd *cobra.Command, args []string) error {
 	keys := args[1:]
 
 	validActions := getValidActionIDs()
-	if !contains(validActions, actionID) {
+	if !slices.Contains(validActions, actionID) {
 		return fmt.Errorf("unknown action '%s'. Run 'infer keybindings list' to see available actions", actionID)
 	}
 
@@ -290,7 +291,7 @@ func enableKeybinding(cmd *cobra.Command, args []string) error {
 	actionID := args[0]
 
 	validActions := getValidActionIDs()
-	if !contains(validActions, actionID) {
+	if !slices.Contains(validActions, actionID) {
 		return fmt.Errorf("unknown action '%s'. Run 'infer keybindings list' to see available actions", actionID)
 	}
 
@@ -320,7 +321,7 @@ func disableKeybinding(cmd *cobra.Command, args []string) error {
 	actionID := args[0]
 
 	validActions := getValidActionIDs()
-	if !contains(validActions, actionID) {
+	if !slices.Contains(validActions, actionID) {
 		return fmt.Errorf("unknown action '%s'. Run 'infer keybindings list' to see available actions", actionID)
 	}
 
@@ -375,13 +376,4 @@ func loadKeybindingsForWrite(cmd *cobra.Command) (string, *config.KeybindingsCon
 // agreement with what actually takes effect.
 func getValidActionIDs() []string {
 	return keybinding.NewRegistry(config.DefaultConfig()).KnownActionIDs()
-}
-
-func contains(values []string, value string) bool {
-	for _, candidate := range values {
-		if candidate == value {
-			return true
-		}
-	}
-	return false
 }

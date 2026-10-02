@@ -3,6 +3,7 @@ package filewriter
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
@@ -102,7 +103,7 @@ func validateTestResult(t *testing.T, err error, wantError bool, errorMsg string
 			t.Errorf("Validate() expected error but got none")
 			return
 		}
-		if errorMsg != "" && err.Error() != errorMsg && !contains(err.Error(), errorMsg) {
+		if errorMsg != "" && err.Error() != errorMsg && !strings.Contains(err.Error(), errorMsg) {
 			t.Errorf("Validate() error = %v, want error containing %v", err, errorMsg)
 		}
 		return
@@ -206,20 +207,4 @@ func TestPathValidator_IsInSandbox(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper function to check if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) > 0 &&
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-			len(s) > len(substr) && findInString(s, substr)))
-}
-
-func findInString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

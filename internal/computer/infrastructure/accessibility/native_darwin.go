@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -518,7 +519,7 @@ func (b *bridge) pressFirst(element uintptr, label string, depth, maxDepth int, 
 	ancestors[element] = true
 	defer delete(ancestors, element)
 	if b.stringAttribute(element, "AXTitle", "AXDescription", "AXPlaceholderValue", "AXHelp", "AXIdentifier") == label &&
-		contains(b.actionNames(element), "press") {
+		slices.Contains(b.actionNames(element), "press") {
 		return true, b.axPerformAction(element, b.attrs["AXPress"])
 	}
 	var found bool
@@ -656,13 +657,4 @@ func truncate(value string, limit int) string {
 		return value
 	}
 	return value[:limit] + "…"
-}
-
-func contains(values []string, wanted string) bool {
-	for _, value := range values {
-		if value == wanted {
-			return true
-		}
-	}
-	return false
 }
