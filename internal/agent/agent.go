@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -27,7 +25,9 @@ import (
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
+	sandboxinfra "github.com/inference-gateway/cli/internal/sandbox/infrastructure"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
@@ -918,7 +918,7 @@ func (s *Agent) executeTool(
 
 // executeToolInternal runs the tool once and, when the failure is a sandbox
 // denial and a user can answer prompts (chat TUI or IPC broker), asks them to
-// grant the denied directory and retries. Used by both executeTool() (no
+// approve the grant and retries. Used by both executeTool() (no
 // approval needed) and processNextTool() (approval already obtained).
 func (s *Agent) executeToolInternal(
 	ctx context.Context,
@@ -928,26 +928,27 @@ func (s *Agent) executeToolInternal(
 	startTime time.Time,
 ) convdomain.ConversationEntry {
 	entry := s.executeToolOnce(ctx, tc, eventPublisher, wasApproved, startTime)
-	lastGrant := ""
+	var lastGrant sandboxdomain.Allowed
 	for entry.ToolExecution != nil && !entry.ToolExecution.Success && agentdomain.SandboxApprovalAvailable(ctx) {
-		path, denied := config.SandboxDeniedPath(entry.ToolExecution.Error)
+		denial, denied := sandboxdomain.ParseDenial(entry.ToolExecution.Error)
 		if !denied {
 			break
 		}
-		dir := sandboxGrantDir(path)
-		if dir == lastGrant {
+		grant := sandbox.GrantFor(s.config, denial)
+		if grant == lastGrant {
 			break
 		}
-		allow, always := s.requestSandboxApproval(ctx, tc, eventPublisher, dir)
+		allow, always := s.requestSandboxApproval(ctx, tc, eventPublisher, grant)
 		if !allow {
 			break
 		}
-		lastGrant = dir
-		config.AddSandboxDirectory(dir)
-		logger.Info("sandbox extended by user approval", "dir", dir, "tool", tc.Function.Name, "persisted", always)
-		if always {
-			if err := utils.PersistSandboxDirectory(dir, s.config.Tools.Sandbox.Directories); err != nil {
-				logger.Error("failed to persist sandbox directory", "dir", dir, "error", err)
+		lastGrant = grant
+		sandbox.Granted.Add(grant)
+		persist := always && denial.Rule == ""
+		logger.Info("sandbox extended by user approval", "path", grant.Path, "access", grant.Access, "tool", tc.Function.Name, "persisted", persist)
+		if persist {
+			if err := sandboxinfra.PersistGrant(grant); err != nil {
+				logger.Error("failed to persist sandbox grant", "path", grant.Path, "error", err)
 			}
 		}
 		entry = s.executeToolOnce(ctx, tc, eventPublisher, wasApproved, startTime)
@@ -955,30 +956,17 @@ func (s *Agent) executeToolInternal(
 	return entry
 }
 
-// sandboxGrantDir maps a denied path to the directory worth granting: the path
-// itself when it is an existing directory, otherwise its parent.
-func sandboxGrantDir(path string) string {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return path
-	}
-	if info, err := os.Stat(abs); err == nil && info.IsDir() {
-		return abs
-	}
-	return filepath.Dir(abs)
-}
-
 // requestSandboxApproval asks the user - through the standard approval
-// pipeline, as a synthetic SandboxAccess tool call - to allow dir outside the
-// sandbox. Approve grants it for this session; auto-accept ("always") also
-// persists it to the userspace config.
+// pipeline, as a synthetic SandboxAccess tool call - to grant the denied
+// access. Approve grants it for this session; auto-accept ("always") also
+// persists it to the userspace sandbox.yaml.
 func (s *Agent) requestSandboxApproval(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
-	dir string,
+	grant sandboxdomain.Allowed,
 ) (allow, always bool) {
-	args, err := json.Marshal(map[string]string{"path": dir, "tool": tc.Function.Name})
+	args, err := json.Marshal(map[string]string{"path": grant.Path, "access": string(grant.Access), "tool": tc.Function.Name})
 	if err != nil {
 		return false, false
 	}
@@ -991,7 +979,7 @@ func (s *Agent) requestSandboxApproval(
 			ID:   tc.ID + "-sandbox",
 			Type: tc.Type,
 			Function: sdk.ChatCompletionMessageToolCallFunction{
-				Name:      "SandboxAccess",
+				Name:      sandboxdomain.ToolSandboxAccess,
 				Arguments: string(args),
 			},
 		},

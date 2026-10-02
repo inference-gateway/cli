@@ -601,7 +601,7 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 }
 
 // TestBashTool_Validate_RedirectionAndCompound confirms the tool delegates to
-// config.IsBashCommandAllowed: a benign redirection validates, while command
+// sandbox.IsBashCommandAllowed: a benign redirection validates, while command
 // substitution and any compound or piped command are rejected by the
 // single-command policy - even when each segment would be allowed on its own.
 func TestBashTool_Validate_RedirectionAndCompound(t *testing.T) {

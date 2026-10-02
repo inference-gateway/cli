@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func TestPathValidator_Validate(t *testing.T) {
 	tempDir := t.TempDir()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{tempDir}
+	cfg.Tools.Sandbox.Filesystem.Allowed = append([]sandboxdomain.Allowed{{Path: config.ConfigDirName + "/", Access: sandboxdomain.AccessRead}}, sandboxdomain.Allow(tempDir)...)
 
 	validator := NewPathValidator(cfg)
 
@@ -69,10 +70,10 @@ func TestPathValidator_Validate(t *testing.T) {
 			errorMsg:  "excluded for security",
 		},
 		{
-			name:      "protected .infer directory",
+			name:      "read-only .infer directory",
 			path:      filepath.Join(tempDir, config.DefaultConfigPath),
 			wantError: true,
-			errorMsg:  "excluded for security",
+			errorMsg:  "denied by the sandbox",
 		},
 		{
 			name:      "projects.yaml carve-out under the config dir",
@@ -116,7 +117,7 @@ func TestPathValidator_IsWritable(t *testing.T) {
 	tempDir := t.TempDir()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{tempDir}
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(tempDir)
 
 	validator := NewPathValidator(cfg)
 
@@ -171,7 +172,7 @@ func TestPathValidator_IsInSandbox(t *testing.T) {
 	tempDir := t.TempDir()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{tempDir}
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(tempDir)
 
 	validator := NewPathValidator(cfg)
 

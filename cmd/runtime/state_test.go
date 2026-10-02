@@ -12,6 +12,8 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 // TestMain redirects the logger to a throwaway directory for the whole package.
@@ -122,13 +124,28 @@ func TestSandboxDirectoriesEnvironmentVariableWithSpaces(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
 			t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", tt.env)
 
 			initConfig()
 
-			assert.Equal(t, []string{".", "/tmp", "/Users/x/Documents/Inference Gateway Desktop/Test"}, Cfg.Tools.Sandbox.Directories)
+			want := append(config.DefaultSandboxConfig().Filesystem.Allowed, sandboxdomain.Allow(".", "/tmp", "/Users/x/Documents/Inference Gateway Desktop/Test")...)
+			assert.Equal(t, want, Cfg.Tools.Sandbox.Filesystem.Allowed)
 		})
 	}
+}
+
+// A bare relative env entry must anchor to the working directory the way the
+// old tools.sandbox.directories did, not become an any-depth name pattern.
+func TestSandboxDirectoriesRelativeEntryAnchorsToCwd(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", "build")
+
+	initConfig()
+
+	want := append(config.DefaultSandboxConfig().Filesystem.Allowed, sandboxdomain.Allowed{Path: "./build", Access: sandboxdomain.AccessWrite})
+	assert.Equal(t, want, Cfg.Tools.Sandbox.Filesystem.Allowed)
 }
 
 // bashAllowAppendEnv / bashAllowAppendFlag are the override knobs reintroduced so
@@ -212,10 +229,10 @@ func TestBashAllowAppendReachesMatcher(t *testing.T) {
 	initConfig()
 
 	for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModeStandard, agentdomain.AgentModePlan} {
-		assert.True(t, Cfg.IsBashCommandAllowed("docker ps", mode),
+		assert.True(t, sandbox.IsBashCommandAllowed(Cfg, "docker ps", mode),
 			"appended command should be allowed in %s mode via the mode.all baseline", mode)
 	}
-	assert.False(t, Cfg.IsBashCommandAllowed("docker rm -f box", agentdomain.AgentModeStandard),
+	assert.False(t, sandbox.IsBashCommandAllowed(Cfg, "docker rm -f box", agentdomain.AgentModeStandard),
 		"an off-list command must stay denied")
 }
 

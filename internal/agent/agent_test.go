@@ -20,6 +20,7 @@ import (
 	conv "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func TestAgentServiceImpl_GetMetrics(t *testing.T) {
@@ -355,78 +356,18 @@ func TestAgentServiceImpl_ParseProvider(t *testing.T) {
 // by agent_reminder_emission_test.go.
 
 func TestAgentServiceImpl_BuildSandboxInfo(t *testing.T) {
-	tests := []struct {
-		name           string
-		sandboxDirs    []string
-		protectedPaths []string
-		expectedParts  []string
-	}{
-		{
-			name:           "with_sandbox_dirs_and_protected_paths",
-			sandboxDirs:    []string{"/home/user/project", "/tmp"},
-			protectedPaths: []string{"/etc", "/root"},
-			expectedParts: []string{
-				"SANDBOX RESTRICTIONS:",
-				"/home/user/project",
-				"/tmp",
-				"/etc",
-				"/root",
-				"allowed directories",
-				"protected paths",
-			},
-		},
-		{
-			name:           "only_sandbox_dirs",
-			sandboxDirs:    []string{"/home/user/project"},
-			protectedPaths: []string{},
-			expectedParts: []string{
-				"SANDBOX RESTRICTIONS:",
-				"/home/user/project",
-				"allowed directories",
-			},
-		},
-		{
-			name:           "only_protected_paths",
-			sandboxDirs:    []string{},
-			protectedPaths: []string{"/etc"},
-			expectedParts: []string{
-				"SANDBOX RESTRICTIONS:",
-				"/etc",
-				"protected paths",
-			},
-		},
-		{
-			name:           "empty_sandbox_and_protected",
-			sandboxDirs:    []string{},
-			protectedPaths: []string{},
-			expectedParts: []string{
-				"SANDBOX RESTRICTIONS:",
-			},
-		},
-	}
+	cfg := &config.Config{}
+	cfg.Tools.Sandbox = *config.DefaultSandboxConfig()
+	cfg.Tools.Sandbox.Filesystem.Allowed = append(cfg.Tools.Sandbox.Filesystem.Allowed, sandboxdomain.Allowed{Path: "vendor/", Access: sandboxdomain.AccessRead})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.Config{
-				Tools: config.ToolsConfig{
-					Sandbox: config.SandboxConfig{
-						Directories:    tt.sandboxDirs,
-						ProtectedPaths: tt.protectedPaths,
-					},
-				},
-			}
+	result := (&Agent{config: cfg}).buildSandboxInfo()
 
-			agentService := &Agent{
-				config: cfg,
-			}
-
-			result := agentService.buildSandboxInfo()
-
-			for _, part := range tt.expectedParts {
-				assert.Contains(t, result, part)
-			}
-		})
-	}
+	assert.Contains(t, result, "SANDBOX RESTRICTIONS:")
+	assert.Contains(t, result, "- . (write)")
+	assert.Contains(t, result, "- vendor/ (read)")
+	assert.Contains(t, result, "denied paths")
+	assert.Contains(t, result, "- .infer/")
+	assert.Contains(t, result, "needs the user's approval")
 }
 
 func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
@@ -1266,10 +1207,10 @@ func TestAgentServiceImpl_AddSystemPrompt(t *testing.T) {
 			},
 		},
 		Tools: config.ToolsConfig{
-			Sandbox: config.SandboxConfig{
-				Directories:    []string{"/home/user"},
-				ProtectedPaths: []string{"/etc"},
-			},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{
+				Allowed: sandboxdomain.Allow("/home/user"),
+				Denied:  sandboxdomain.Deny("/etc"),
+			}},
 		},
 	}
 
@@ -1307,10 +1248,10 @@ func TestAgentServiceImpl_BuildSystemPrompt(t *testing.T) {
 			},
 		},
 		Tools: config.ToolsConfig{
-			Sandbox: config.SandboxConfig{
-				Directories:    []string{"/home/user"},
-				ProtectedPaths: []string{"/etc"},
-			},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{
+				Allowed: sandboxdomain.Allow("/home/user"),
+				Denied:  sandboxdomain.Deny("/etc"),
+			}},
 		},
 	}
 

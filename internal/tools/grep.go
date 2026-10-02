@@ -21,6 +21,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
 // GrepTool handles search operations with ripgrep fallback to Go implementation
@@ -867,7 +868,7 @@ func (t *GrepTool) isPathExcluded(path string) bool {
 		return false
 	}
 
-	if err := t.config.ValidatePathInSandbox(path); err != nil {
+	if err := sandbox.ValidateRead(t.config, path); err != nil {
 		return true
 	}
 

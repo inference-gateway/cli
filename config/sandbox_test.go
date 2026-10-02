@@ -1,185 +1,84 @@
 package config
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	require "github.com/stretchr/testify/require"
+
+	yaml "gopkg.in/yaml.v3"
+
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-func TestSandboxDeniedPath(t *testing.T) {
-	tests := []struct {
-		name     string
-		msg      string
-		wantPath string
-		wantOK   bool
-	}{
-		{"denial message", (&SandboxPathError{Path: "/tmp/x"}).Error(), "/tmp/x", true},
-		{"wrapped in tool failure", "Tool execution failed: Read - path '/etc/hosts' is outside configured sandbox directories", "/etc/hosts", true},
-		{"unrelated error", "file not found", "", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			path, ok := SandboxDeniedPath(tt.msg)
-			if ok != tt.wantOK || path != tt.wantPath {
-				t.Fatalf("SandboxDeniedPath(%q) = (%q, %v), want (%q, %v)", tt.msg, path, ok, tt.wantPath, tt.wantOK)
-			}
-		})
-	}
-}
-
-func TestAddSandboxDirectoryGrantsAccessWithoutChangingPromptList(t *testing.T) {
-	t.Cleanup(func() {
-		sandboxGrantsMu.Lock()
-		sandboxGrants = nil
-		sandboxGrantsMu.Unlock()
+func TestLoadSandbox(t *testing.T) {
+	t.Run("missing file is the defaults", func(t *testing.T) {
+		cfg, err := LoadSandbox(filepath.Join(t.TempDir(), SandboxFileName))
+		require.NoError(t, err)
+		require.Equal(t, DefaultSandboxConfig(), cfg)
 	})
 
-	sandbox := t.TempDir()
-	outside := t.TempDir()
-	target := filepath.Join(outside, "file.txt")
-	if err := os.WriteFile(target, []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg := DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{sandbox}
-	cfg.Tools.Sandbox.ProtectedPaths = nil
-
-	if err := cfg.ValidatePathInSandbox(target); err == nil {
-		t.Fatal("expected denial before grant")
-	}
-
-	AddSandboxDirectory(outside)
-
-	if err := cfg.ValidatePathInSandbox(target); err != nil {
-		t.Fatalf("expected access after grant, got %v", err)
-	}
-	if got := cfg.GetSandboxDirectories(); len(got) != 1 || got[0] != sandbox {
-		t.Fatalf("GetSandboxDirectories must stay prompt-stable, got %v", got)
-	}
-}
-
-func TestValidatePathInSandbox_Symlinks(t *testing.T) {
-	t.Cleanup(func() {
-		sandboxGrantsMu.Lock()
-		sandboxGrants = nil
-		sandboxGrantsMu.Unlock()
+	t.Run("an omitted list keeps its default", func(t *testing.T) {
+		defaults := DefaultSandboxConfig().Filesystem
+		for name, tt := range map[string]struct {
+			body        string
+			wantAllowed []sandboxdomain.Allowed
+			wantDenied  []sandboxdomain.Denied
+		}{
+			"empty file":   {"", defaults.Allowed, defaults.Denied},
+			"denied only":  {"filesystem:\n  denied:\n    - secrets/\n", defaults.Allowed, sandboxdomain.Deny("secrets/")},
+			"allowed only": {"filesystem:\n  allowed:\n    - /work\n", sandboxdomain.Allow("/work"), defaults.Denied},
+		} {
+			path := filepath.Join(t.TempDir(), SandboxFileName)
+			require.NoError(t, os.WriteFile(path, []byte(tt.body), 0o644))
+			cfg, err := LoadSandbox(path)
+			require.NoError(t, err, name)
+			require.Equal(t, tt.wantAllowed, cfg.Filesystem.Allowed, name)
+			require.Equal(t, tt.wantDenied, cfg.Filesystem.Denied, name)
+		}
 	})
 
-	sandbox := t.TempDir()
-	outside := t.TempDir()
-	outsideDir := t.TempDir()
-	secret := filepath.Join(outside, "secret.txt")
-	mustWrite(t, secret)
-	mustWrite(t, filepath.Join(sandbox, "inside.txt"))
-	mustWrite(t, filepath.Join(sandbox, "id_ed25519"))
-	mustSymlink(t, filepath.Join(sandbox, "inside.txt"), filepath.Join(sandbox, "file-in"))
-	mustSymlink(t, secret, filepath.Join(sandbox, "file-out"))
-	mustSymlink(t, outsideDir, filepath.Join(sandbox, "dir-out"))
-	mustSymlink(t, filepath.Join(sandbox, "id_ed25519"), filepath.Join(sandbox, "notes.txt"))
-	sandboxLink := filepath.Join(t.TempDir(), "sandbox-link")
-	mustSymlink(t, sandbox, sandboxLink)
+	t.Run("entries are strings or maps", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), SandboxFileName)
+		body := "---\nfilesystem:\n  allowed:\n    - .\n    - path: vendor/\n      access: read\n  denied:\n    - \"*.env\"\n    - path: deploy/\n      on_violation: approval\n"
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+		cfg, err := LoadSandbox(path)
+		require.NoError(t, err)
+		require.Equal(t, []sandboxdomain.Allowed{{Path: ".", Access: sandboxdomain.AccessWrite}, {Path: "vendor/", Access: sandboxdomain.AccessRead}}, cfg.Filesystem.Allowed)
+		require.Equal(t, []sandboxdomain.Denied{{Path: "*.env"}, {Path: "deploy/", OnViolation: sandboxdomain.ViolationApproval}}, cfg.Filesystem.Denied)
+	})
 
+	t.Run("invalid values are rejected", func(t *testing.T) {
+		for name, body := range map[string]string{
+			"unknown access":    "filesystem:\n  allowed:\n    - path: /x\n      access: none\n",
+			"unknown violation": "filesystem:\n  denied:\n    - path: /x\n      on_violation: ask\n",
+			"missing path":      "filesystem:\n  allowed:\n    - access: read\n",
+		} {
+			path := filepath.Join(t.TempDir(), SandboxFileName)
+			require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+			_, err := LoadSandbox(path)
+			require.Error(t, err, name)
+		}
+	})
+
+	t.Run("defaults save as flat lists and round-trip", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "nested", SandboxFileName)
+		require.NoError(t, SaveSandbox(path, DefaultSandboxConfig()))
+		raw, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Contains(t, string(raw), "filesystem:\n  allowed:\n    - .\n    - /tmp\n")
+		require.Contains(t, string(raw), "  denied:\n    - path: .infer/\n      on_violation: approval\n    - .git/\n")
+		got, err := LoadSandbox(path)
+		require.NoError(t, err)
+		require.Equal(t, DefaultSandboxConfig(), got)
+	})
+}
+
+func TestSandboxIsNotInConfigYAML(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{sandbox}
-
-	tests := []struct {
-		name       string
-		dirs       []string
-		path       string
-		wantDenied string
-		protected  bool
-	}{
-		{name: "a regular file", path: filepath.Join(sandbox, "inside.txt")},
-		{name: "a link to a file inside", path: filepath.Join(sandbox, "file-in")},
-		{name: "a link to a file outside", path: filepath.Join(sandbox, "file-out"), wantDenied: realPath(secret)},
-		{name: "a new file through a linked dir", path: filepath.Join(sandbox, "dir-out", "new.txt"), wantDenied: filepath.Join(realPath(outsideDir), "new.txt")},
-		{name: "a link to a protected file", path: filepath.Join(sandbox, "notes.txt"), protected: true},
-		{name: "a file through a symlinked sandbox dir", dirs: []string{sandboxLink}, path: filepath.Join(sandboxLink, "inside.txt")},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.dirs != nil {
-				cfg := *cfg
-				cfg.Tools.Sandbox.Directories = tt.dirs
-				if err := cfg.ValidatePathInSandbox(tt.path); err != nil {
-					t.Fatalf("expected %s allowed, got %v", tt.path, err)
-				}
-				return
-			}
-			err := cfg.ValidatePathInSandboxWrite(tt.path)
-			var denied *SandboxPathError
-			switch {
-			case tt.protected:
-				if err == nil || !strings.Contains(err.Error(), "excluded for security") {
-					t.Fatalf("expected %s protected, got %v", tt.path, err)
-				}
-			case tt.wantDenied != "":
-				if !errors.As(err, &denied) || denied.Path != tt.wantDenied {
-					t.Fatalf("expected denial of %s, got %v", tt.wantDenied, err)
-				}
-				AddSandboxDirectory(filepath.Dir(denied.Path))
-				if err := cfg.ValidatePathInSandboxWrite(tt.path); err != nil {
-					t.Fatalf("expected %s allowed once its target dir is granted, got %v", tt.path, err)
-				}
-			case err != nil:
-				t.Fatalf("expected %s allowed, got %v", tt.path, err)
-			}
-		})
-	}
-}
-
-func mustWrite(t *testing.T, path string) {
-	t.Helper()
-	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func mustSymlink(t *testing.T, target, link string) {
-	t.Helper()
-	if err := os.Symlink(target, link); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestValidatePathInSandboxWrite_CustomToolsDirs(t *testing.T) {
-	project := t.TempDir()
-	t.Chdir(project)
-	userTools := filepath.Join(t.TempDir(), "my-tools")
-	if err := os.MkdirAll(filepath.Join(project, ".agents", "tools"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(filepath.Join(project, ".agents", "tools"), filepath.Join(project, "docs")); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg := DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{project, filepath.Dir(userTools)}
-	cfg.Tools.CustomDir = userTools
-
-	tests := []struct {
-		name    string
-		path    string
-		blocked bool
-	}{
-		{name: "project .infer/tools", path: filepath.Join(".infer", "tools", "Evil.yaml"), blocked: true},
-		{name: "project .agents/tools", path: filepath.Join(".agents", "tools", "Evil.yaml"), blocked: true},
-		{name: "the tools directory itself", path: filepath.Join(".agents", "tools"), blocked: true},
-		{name: "another spelling", path: filepath.Join(".Agents", "Tools", "Evil.yaml"), blocked: true},
-		{name: "through a symlink", path: filepath.Join("docs", "Evil.yaml"), blocked: true},
-		{name: "tools.custom_dir", path: filepath.Join(userTools, "Evil.yaml"), blocked: true},
-		{name: "a sibling of the tools directory", path: filepath.Join(".agents", "tools-notes.md")},
-		{name: "a project file", path: "main.go"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := cfg.ValidatePathInSandboxWrite(tt.path)
-			if blocked := err != nil && strings.Contains(err.Error(), "custom tools directory"); blocked != tt.blocked {
-				t.Errorf("ValidatePathInSandboxWrite(%s) = %v, want blocked %v", tt.path, err, tt.blocked)
-			}
-		})
-	}
+	require.NotEmpty(t, cfg.Tools.Sandbox.Filesystem.Allowed, "DefaultConfig still carries the policy for in-process use")
+	out, err := yaml.Marshal(cfg)
+	require.NoError(t, err)
+	require.NotContains(t, string(out), "sandbox:", "the policy must not serialise into config.yaml")
 }

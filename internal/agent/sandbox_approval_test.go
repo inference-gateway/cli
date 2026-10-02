@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -12,6 +11,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func TestRequestSandboxApproval(t *testing.T) {
@@ -37,24 +37,19 @@ func TestRequestSandboxApproval(t *testing.T) {
 
 			go func() {
 				ev := (<-events).(agentdomain.ToolApprovalRequestedEvent)
-				assert.Equal(t, "SandboxAccess", ev.ToolCall.Function.Name)
+				assert.Equal(t, sandboxdomain.ToolSandboxAccess, ev.ToolCall.Function.Name)
 				assert.Equal(t, "call-1-sandbox", ev.ToolCall.ID)
 				var args map[string]string
 				require.NoError(t, json.Unmarshal([]byte(ev.ToolCall.Function.Arguments), &args))
 				assert.Equal(t, "/granted/dir", args["path"])
+				assert.Equal(t, "write", args["access"])
 				assert.Equal(t, "Read", args["tool"])
 				ev.ResponseChan <- tt.response
 			}()
 
-			allow, always := svc.requestSandboxApproval(context.Background(), tc, pub, "/granted/dir")
+			allow, always := svc.requestSandboxApproval(context.Background(), tc, pub, sandboxdomain.Allowed{Path: "/granted/dir", Access: sandboxdomain.AccessWrite})
 			assert.Equal(t, tt.wantAllow, allow)
 			assert.Equal(t, tt.wantAlways, always)
 		})
 	}
-}
-
-func TestSandboxGrantDir(t *testing.T) {
-	dir := t.TempDir()
-	assert.Equal(t, dir, sandboxGrantDir(dir))
-	assert.Equal(t, dir, sandboxGrantDir(filepath.Join(dir, "missing.txt")))
 }

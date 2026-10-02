@@ -178,7 +178,7 @@ Both make the connection follow that thread:
   thread whose worker is already running:
   `model`, `mode` (`standard`, `plan`, `auto`, `auto-with-judge`),
   `system_prompt`, `custom_instructions`, `sandbox_directories` (array of
-  paths) and `max_turns`.
+  paths added to the user's `sandbox.yaml` allowed list) and `max_turns`.
 - `resume_conversation` requires `id`. A worker that resumes a long-idle
   conversation can roll it over to a new id, so resume with the last `threadId`
   you saw.

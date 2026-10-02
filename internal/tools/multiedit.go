@@ -11,6 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
 // MultiEditTool handles multiple exact string replacements in a single file atomically
@@ -373,7 +374,7 @@ func (t *MultiEditTool) resolveEdit(filePath, currentContent string, edit EditOp
 
 // validatePathSecurity checks if a path is allowed for editing within the sandbox
 func (t *MultiEditTool) validatePathSecurity(path string) error {
-	return t.config.ValidatePathInSandboxWrite(path)
+	return sandbox.ValidateWrite(t.config, path)
 }
 
 // validateFile checks if a file path is valid - supports both existing files and new file creation

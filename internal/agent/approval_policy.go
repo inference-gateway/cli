@@ -8,6 +8,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
@@ -20,7 +21,7 @@ import (
 //     a call the mode does not make available: execution rejects it
 //  3. Non-chat (headless agent) mode bypasses approval; there the Bash tool's own
 //     per-mode gate (executeBash) decides what runs
-//  4. Bash commands are governed by the per-mode allow-list (config.IsBashCommandAllowed):
+//  4. Bash commands are governed by the per-mode allow-list (sandbox.IsBashCommandAllowed):
 //     reached only in chat, non-auto mode, so allowed commands bypass approval and
 //     anything off-list prompts the user
 //  5. Other tools follow their own require_approval setting, then their
@@ -121,7 +122,7 @@ func (p *StandardApprovalPolicy) isBashCommandAllowed(toolCall *sdk.ChatCompleti
 		return false
 	}
 
-	return p.config.IsBashCommandAllowed(command, p.agentMode())
+	return sandbox.IsBashCommandAllowed(p.config, command, p.agentMode())
 }
 
 // agentMode resolves the current agent mode, defaulting to standard when no

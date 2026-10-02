@@ -17,6 +17,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -127,7 +128,7 @@ func (t *BashTool) Validate(args map[string]any) error {
 		return fmt.Errorf("command parameter is required and must be a string")
 	}
 
-	if !t.config.IsBashCommandAllowed(command, agentdomain.AgentModeStandard) {
+	if !sandbox.IsBashCommandAllowed(t.config, command, agentdomain.AgentModeStandard) {
 		return t.notAllowedError(command, agentdomain.AgentModeStandard)
 	}
 
@@ -158,7 +159,7 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	wasApproved := agentdomain.IsToolApproved(ctx)
 	mode, _ := agentdomain.AgentModeFromContext(ctx)
 
-	if !wasApproved && !t.config.IsBashCommandAllowed(command, mode) {
+	if !wasApproved && !sandbox.IsBashCommandAllowed(t.config, command, mode) {
 		err := t.notAllowedError(command, mode)
 		result.ExitCode = -1
 		result.Duration = time.Since(start).String()
@@ -389,12 +390,12 @@ func (t *BashTool) readPipeWithBatching(
 
 // notAllowedError builds the rejection error for a command that is not in the
 // bash allow-list for mode, appending the actionable hint from
-// Config.BashCommandRejectionHint (run one command at a time, drop a redirect,
+// sandbox.BashCommandRejectionHint (run one command at a time, drop a redirect,
 // avoid leaking a $VAR, ...) so the model can correct course rather than retrying
 // blindly. The Bash tool, the approval policy, and agent auto-approval all share
-// config.IsBashCommandAllowed, so they agree on exactly what runs without prompting.
+// sandbox.IsBashCommandAllowed, so they agree on exactly what runs without prompting.
 func (t *BashTool) notAllowedError(command string, mode agentdomain.AgentMode) error {
-	if hint := t.config.BashCommandRejectionHint(command); hint != "" {
+	if hint := sandbox.BashCommandRejectionHint(t.config, command); hint != "" {
 		return fmt.Errorf("command not allowed: %s - %s", command, hint)
 	}
 	return fmt.Errorf("command not allowed: %s (%s mode)", command, mode.ModeKey())

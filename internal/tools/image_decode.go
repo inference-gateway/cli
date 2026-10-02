@@ -16,6 +16,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
 // ImageDecodeTool describes a local image file as text (scene summary +
@@ -68,7 +69,7 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*ag
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
 		attachment, err = t.imageService.ReadImageFromURL(path)
 	} else {
-		if err := t.config.ValidatePathInSandbox(strings.TrimPrefix(path, "file://")); err != nil {
+		if err := sandbox.ValidateRead(t.config, strings.TrimPrefix(path, "file://")); err != nil {
 			return fail(err.Error())
 		}
 		attachment, err = t.imageService.ReadImageFromFile(path)

@@ -10,13 +10,14 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func setupWriterTest(t *testing.T) (string, FileWriter, context.Context) {
 	tempDir := t.TempDir()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{tempDir}
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(tempDir)
 
 	validator := NewPathValidator(cfg)
 	backupMgr := NewBackup(tempDir)

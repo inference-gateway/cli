@@ -14,6 +14,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -445,7 +446,7 @@ func TestWaitTool_Execute_CommandSuccess(t *testing.T) {
 func TestWaitTool_Execute_FileEvent(t *testing.T) {
 	cfg := testWaitConfig()
 	tmpDir := t.TempDir()
-	cfg.Tools.Sandbox.Directories = append(cfg.Tools.Sandbox.Directories, tmpDir)
+	cfg.Tools.Sandbox.Filesystem.Allowed = append(cfg.Tools.Sandbox.Filesystem.Allowed, sandboxdomain.Allow(tmpDir)...)
 	tool := NewWaitTool(cfg, nil)
 
 	testFile := filepath.Join(tmpDir, "test-wait.txt")

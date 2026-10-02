@@ -12,6 +12,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
 // DeleteTool handles file and directory deletion operations
@@ -282,7 +283,7 @@ func (t *DeleteTool) deleteFile(path string, result *DeleteResult) error {
 
 // validatePathSecurity checks if a path is allowed for deletion within the sandbox
 func (t *DeleteTool) validatePathSecurity(path string) error {
-	return t.config.ValidatePathInSandboxWrite(path)
+	return sandbox.ValidateWrite(t.config, path)
 }
 
 // FormatResult formats tool execution results for different contexts

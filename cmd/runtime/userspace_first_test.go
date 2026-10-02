@@ -11,6 +11,7 @@ import (
 	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 // splitHomeProjectEnv clears INFER_* env vars, points HOME at one temp dir, and
@@ -109,4 +110,43 @@ func TestLoadLayeredConfigProjectOverridesHome(t *testing.T) {
 	require.Equal(t, "project-model", v.GetString("agent.model"), "project config.yaml must override the home key")
 	require.Equal(t, 7, v.GetInt("agent.max_turns"), "keys absent from the project layer are inherited from home")
 	require.Equal(t, []string{"/data"}, v.GetStringSlice("tools.sandbox.directories"), "list keys are replaced wholesale, not extended")
+}
+
+// TestInitConfigSandboxSidecar pins that the sandbox policy comes from the
+// userspace sandbox.yaml alone: config.yaml and a project copy are ignored.
+func TestInitConfigSandboxSidecar(t *testing.T) {
+	homeDir, projectDir := splitHomeProjectEnv(t)
+
+	homeCfg := filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(homeCfg), 0o755))
+	require.NoError(t, os.WriteFile(homeCfg, []byte("---\ntools:\n  sandbox:\n    directories:\n      - /legacy\n"), 0o644))
+
+	initConfig()
+	require.Equal(t, config.DefaultSandboxConfig(), &Cfg.Tools.Sandbox, "config.yaml never carries the policy")
+
+	projectFile := filepath.Join(projectDir, config.ConfigDirName, config.SandboxFileName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(projectFile), 0o755))
+	require.NoError(t, os.WriteFile(projectFile, []byte("---\nfilesystem:\n  allowed:\n    - /\n"), 0o644))
+
+	initConfig()
+	require.Equal(t, config.DefaultSandboxConfig(), &Cfg.Tools.Sandbox, "a project sandbox.yaml is ignored")
+
+	sandboxFile := filepath.Join(homeDir, config.ConfigDirName, config.SandboxFileName)
+	require.NoError(t, os.WriteFile(sandboxFile, []byte("---\nfilesystem:\n  allowed:\n    - /policy\n"), 0o644))
+
+	initConfig()
+	require.Equal(t, sandboxdomain.Allow("/policy"), Cfg.Tools.Sandbox.Filesystem.Allowed)
+	require.Equal(t, config.DefaultSandboxConfig().Filesystem.Denied, Cfg.Tools.Sandbox.Filesystem.Denied, "a list the file omits keeps its default")
+
+	t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", "")
+	initConfig()
+	require.Equal(t, sandboxdomain.Allow("/policy"), Cfg.Tools.Sandbox.Filesystem.Allowed, "an empty env list adds nothing")
+
+	t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", "/extra")
+	initConfig()
+	require.Equal(t, sandboxdomain.Allow("/policy", "/extra"), Cfg.Tools.Sandbox.Filesystem.Allowed, "env directories are allowed too")
+
+	require.NoError(t, os.WriteFile(sandboxFile, []byte("---\nfilesystem:\n  allowed:\n    - path: /x\n      access: none\n"), 0o644))
+	_, err := loadSandboxConfig()
+	require.ErrorContains(t, err, sandboxFile, "a broken policy fails the load instead of falling back to the defaults")
 }
