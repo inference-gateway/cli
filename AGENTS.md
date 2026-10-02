@@ -32,7 +32,7 @@ Contexts: `agent`, `binaries`, `browser`, `computer`, `conversation`, `sandbox`,
 
 Repo-wide invariants:
 
-- Import direction is enforced by depguard (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea, except the `internal/container` composition root; the A2A ADK stays in `protocols/a2a/`, the AG-UI SDK and the binding's socket in `protocols/agui/`, whose import list is closed (see its README), Playwright in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`, and the tools context never imports the agent context back (the `agent/domain` shared kernel excepted). `domain/` packages stay pure (the depguard rule covers the single-level `<context>/domain/` packages, the nested `protocols/*/domain` packages follow the same rule by convention), and only `cmd/` may import `internal/container`.
+- Import direction is enforced by depguard (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea, except the `internal/container` composition root; the A2A ADK stays in `protocols/a2a/`, the AG-UI SDK and the binding's socket in `protocols/agui/`, whose import list is closed (see its README), Playwright in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`, and the tools context never imports the loop (`agent/loop`) back. `domain/` packages stay pure (the depguard rule covers the single-level `<context>/domain/` packages, the nested `protocols/*/domain` packages follow the same rule by convention), and only `cmd/` may import `internal/container`.
 - `internal/tools/registry.go` is the source of truth for registered tools. Read `internal/tools/AGENTS.md` before touching a tool manifest, a tool name or the registry.
 
 ## Package AGENTS files
@@ -42,7 +42,7 @@ Repo-wide invariants:
 ## Import Style
 
 - Import blocks have **six groups** (stdlib / external test libs / testing mocks / external / inference-gateway libs / project), one blank line apart.
-- **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `convdomain`, `scheddomain`, `a2adomain`, `browserdomain`, `computerdomain`, `mcpdomain`, `agentinfra`, `a2ainfra`, `mcpinfra`, `schedinfra`, `sandbox`, `sandboxdomain`, `sandboxinfra`, `agui`, `containerruntime`, `githubissues`, `githubsetup`, `tools`, `customtools`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` → `<x>mocks`.
+- **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `agentloop`, `convdomain`, `scheddomain`, `a2adomain`, `browserdomain`, `computerdomain`, `mcpdomain`, `agentinfra`, `a2ainfra`, `mcpinfra`, `schedinfra`, `sandbox`, `sandboxdomain`, `sandboxinfra`, `agui`, `containerruntime`, `githubissues`, `githubsetup`, `agentheadless`, `tools`, `customtools`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` → `<x>mocks`.
 
 ## Testing
 

@@ -4,7 +4,7 @@ package states
 import (
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/agent/states"
+	"github.com/inference-gateway/cli/internal/agent/loop/states"
 )
 
 type FakeStateHandler struct {

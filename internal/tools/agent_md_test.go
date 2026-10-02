@@ -7,7 +7,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
+	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
 	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
@@ -38,10 +38,10 @@ func namedAgentTool(t *testing.T) *AgentTool {
 
 func TestAgentTool_NamedAgentHeadlessPreset(t *testing.T) {
 	tool := namedAgentTool(t)
-	var opts agentrunner.Options
-	tool.runHeadless = func(ctx context.Context, o agentrunner.Options) (agentrunner.Result, error) {
+	var opts agentheadless.Options
+	tool.runHeadless = func(ctx context.Context, o agentheadless.Options) (agentheadless.Result, error) {
 		opts = o
-		return agentrunner.Result{FinalAssistant: "ok"}, nil
+		return agentheadless.Result{FinalAssistant: "ok"}, nil
 	}
 
 	res, err := tool.Execute(context.Background(), map[string]any{"description": "review the diff", "agent": "code-reviewer"})
@@ -65,9 +65,9 @@ func TestAgentTool_NamedAgentModelPrecedence(t *testing.T) {
 	tool.config.Tools.Agent.Model = "configured-model"
 
 	var model string
-	tool.runHeadless = func(ctx context.Context, o agentrunner.Options) (agentrunner.Result, error) {
+	tool.runHeadless = func(ctx context.Context, o agentheadless.Options) (agentheadless.Result, error) {
 		model = o.Model
-		return agentrunner.Result{FinalAssistant: "ok"}, nil
+		return agentheadless.Result{FinalAssistant: "ok"}, nil
 	}
 
 	if _, err := tool.Execute(context.Background(), map[string]any{"description": "d", "agent": "code-reviewer", "model": "per-task-model"}); err != nil {
@@ -89,9 +89,9 @@ func TestAgentTool_NamedAgentModeDerived(t *testing.T) {
 	tool := namedAgentTool(t)
 	tool.config.Tools.Agent.Wait = true
 	var env string
-	tool.runHeadless = func(ctx context.Context, o agentrunner.Options) (agentrunner.Result, error) {
+	tool.runHeadless = func(ctx context.Context, o agentheadless.Options) (agentheadless.Result, error) {
 		env = strings.Join(o.ExtraEnv, "; ")
-		return agentrunner.Result{FinalAssistant: "ok"}, nil
+		return agentheadless.Result{FinalAssistant: "ok"}, nil
 	}
 
 	if _, err := tool.Execute(context.Background(), map[string]any{"description": "d", "agent": "all-readonly", "type": "ReadWrite"}); err != nil {

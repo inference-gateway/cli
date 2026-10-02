@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
+	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
 )
 
 func TestInstallPrompt(t *testing.T) {
@@ -162,9 +162,9 @@ func TestInstallWorkflow(t *testing.T) {
 			runner := &installScriptRunner{branchExists: tt.branchExists}
 			service := NewService(runner)
 			var gotPrompt string
-			service.SetAgentRunner(func(_ context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+			service.SetAgentRunner(func(_ context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
 				gotPrompt = opts.Prompt
-				return agentrunner.Result{FinalAssistant: `{"title": "ci: add opentask workflow", "body": "Adds it."}`}, nil
+				return agentheadless.Result{FinalAssistant: `{"title": "ci: add opentask workflow", "body": "Adds it."}`}, nil
 			})
 
 			url, err := service.InstallWorkflow(context.Background(), agentdomain.InstallWorkflowOptions{
@@ -202,8 +202,8 @@ func TestInstallWorkflowAgentNoChanges(t *testing.T) {
 		return nil, nil
 	}}
 	service := NewService(runner)
-	service.SetAgentRunner(func(_ context.Context, _ agentrunner.Options) (agentrunner.Result, error) {
-		return agentrunner.Result{FinalAssistant: `{"title": "ci: noop", "body": ""}`}, nil
+	service.SetAgentRunner(func(_ context.Context, _ agentheadless.Options) (agentheadless.Result, error) {
+		return agentheadless.Result{FinalAssistant: `{"title": "ci: noop", "body": ""}`}, nil
 	})
 
 	_, err := service.InstallWorkflow(context.Background(), agentdomain.InstallWorkflowOptions{Repo: "acme/app"})

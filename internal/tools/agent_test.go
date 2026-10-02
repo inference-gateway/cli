@@ -9,7 +9,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
+	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
@@ -70,11 +70,11 @@ func TestAgentTool_SyncFanOut(t *testing.T) {
 	tool := newTestAgentTool(t)
 	var mu sync.Mutex
 	var calls int
-	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+	tool.runHeadless = func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
 		mu.Lock()
 		calls++
 		mu.Unlock()
-		return agentrunner.Result{FinalAssistant: "answer:" + opts.Prompt}, nil
+		return agentheadless.Result{FinalAssistant: "answer:" + opts.Prompt}, nil
 	}
 
 	args := map[string]any{
@@ -119,13 +119,13 @@ func TestAgentTool_BlockingFanOutIsSupervised(t *testing.T) {
 
 	started := make(chan struct{}, 2)
 	release := make(chan struct{})
-	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+	tool.runHeadless = func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
 		started <- struct{}{}
 		select {
 		case <-release:
-			return agentrunner.Result{FinalAssistant: "answer:" + opts.Prompt}, nil
+			return agentheadless.Result{FinalAssistant: "answer:" + opts.Prompt}, nil
 		case <-ctx.Done():
-			return agentrunner.Result{}, ctx.Err()
+			return agentheadless.Result{}, ctx.Err()
 		}
 	}
 
@@ -179,10 +179,10 @@ func TestAgentTool_DefaultIsAsync(t *testing.T) {
 	started := make(chan struct{}, 2)
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
-	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+	tool.runHeadless = func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
 		started <- struct{}{}
 		<-release
-		return agentrunner.Result{FinalAssistant: "answer:" + opts.Prompt}, nil
+		return agentheadless.Result{FinalAssistant: "answer:" + opts.Prompt}, nil
 	}
 
 	res, err := tool.Execute(t.Context(), map[string]any{
@@ -218,8 +218,8 @@ func TestAgentTool_MaxParallelCap(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tool := newTestAgentTool(t)
-			tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
-				return agentrunner.Result{FinalAssistant: "ok"}, nil
+			tool.runHeadless = func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
+				return agentheadless.Result{FinalAssistant: "ok"}, nil
 			}
 
 			tasks := make([]any, tt.tasks)
@@ -256,9 +256,9 @@ func TestAgentTool_InteractiveFallsBackToHeadless(t *testing.T) {
 		return "", nil
 	}
 	var headlessUsed bool
-	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+	tool.runHeadless = func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
 		headlessUsed = true
-		return agentrunner.Result{FinalAssistant: "ok"}, nil
+		return agentheadless.Result{FinalAssistant: "ok"}, nil
 	}
 
 	args := map[string]any{"description": "do x"}
@@ -445,9 +445,9 @@ func TestAgentTool_PlanModeForcesReadOnly(t *testing.T) {
 	}}, toolManifests)
 
 	var env []string
-	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+	tool.runHeadless = func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
 		env = opts.ExtraEnv
-		return agentrunner.Result{FinalAssistant: "ok"}, nil
+		return agentheadless.Result{FinalAssistant: "ok"}, nil
 	}
 
 	planCtx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModePlan)
@@ -477,9 +477,9 @@ func TestAgentTool_PlanModeForcesReadOnly(t *testing.T) {
 func TestAgentTool_ReportsRunStats(t *testing.T) {
 	tool := newTestAgentTool(t)
 	stats := scheddomain.SubagentRunStats{ToolsSucceeded: 3, ToolsFailed: 1, InputTokens: 1200, OutputTokens: 80}
-	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+	tool.runHeadless = func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
 		rf := scheddomain.SubagentResultFile{FinalAssistant: "answer", Success: true, Stats: &stats}
-		return agentrunner.Result{}, scheddomain.WriteSubagentResultFile(opts.ResultFile, rf)
+		return agentheadless.Result{}, scheddomain.WriteSubagentResultFile(opts.ResultFile, rf)
 	}
 
 	res, err := tool.Execute(t.Context(), map[string]any{"description": "task", "label": "A"})
@@ -506,7 +506,7 @@ func TestHeadlessSubagentJob_TalliesLiveStats(t *testing.T) {
 	reported := scheddomain.SubagentRunStats{ToolsSucceeded: 9, InputTokens: 5000, OutputTokens: 300}
 	var live scheddomain.SubagentRunStats
 	job := &headlessSubagentJob{tool: tool, state: &scheddomain.SubagentState{ID: "sub-1", SessionID: "session-1", StartedAt: time.Now()}}
-	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+	tool.runHeadless = func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
 		for _, line := range []string{
 			`{"type":"info","message":"Starting new agent session"}`,
 			`{"role":"assistant","content":"","token_usage":{"prompt_tokens":100,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":80}}}`,
@@ -519,7 +519,7 @@ func TestHeadlessSubagentJob_TalliesLiveStats(t *testing.T) {
 		}
 		live = *job.Stats()
 		rf := scheddomain.SubagentResultFile{FinalAssistant: "done", Success: true, Stats: &reported}
-		return agentrunner.Result{}, scheddomain.WriteSubagentResultFile(opts.ResultFile, rf)
+		return agentheadless.Result{}, scheddomain.WriteSubagentResultFile(opts.ResultFile, rf)
 	}
 
 	job.Run(t.Context(), func(scheddomain.JobSignal) {})

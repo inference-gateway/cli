@@ -11,7 +11,7 @@ import (
 	cron "github.com/robfig/cron/v3"
 	yaml "gopkg.in/yaml.v3"
 
-	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
+	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -33,7 +33,7 @@ type Service struct {
 	onRunEvent func(scheddomain.ScheduledJob, scheddomain.RunEvent)
 	cron       *cron.Cron
 	parser     cron.Parser
-	execCmd    agentrunner.ExecFunc
+	execCmd    agentheadless.ExecFunc
 	binaryPath string
 
 	mu       sync.Mutex
@@ -58,7 +58,7 @@ type Options struct {
 	Store       storage.ScheduledJobStorage
 	Runs        storage.ScheduledRunStorage
 	OnRunEvent  func(scheddomain.ScheduledJob, scheddomain.RunEvent)
-	ExecCommand agentrunner.ExecFunc
+	ExecCommand agentheadless.ExecFunc
 	BinaryPath  string
 }
 
@@ -249,9 +249,9 @@ func (s *Service) persistRun(job *scheddomain.ScheduledJob) {
 }
 
 // runAgent spawns `infer headless --session-id <sessionID> <prompt>` (via the
-// shared agentrunner) and forwards each stdout line through the run-event hook.
+// shared agentheadless) and forwards each stdout line through the run-event hook.
 func (s *Service) runAgent(ctx context.Context, job scheddomain.ScheduledJob, sessionID string) error {
-	res, err := agentrunner.Run(ctx, agentrunner.Options{
+	res, err := agentheadless.Run(ctx, agentheadless.Options{
 		BinaryPath: s.binaryPath,
 		Exec:       s.execCmd,
 		SessionID:  sessionID,

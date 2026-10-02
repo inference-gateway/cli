@@ -1,0 +1,1631 @@
+package loop
+
+import (
+	"cmp"
+	"context"
+	"encoding/json"
+	"fmt"
+	"runtime/debug"
+	"slices"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/loop/states"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	memory "github.com/inference-gateway/cli/internal/platform/memory"
+	models "github.com/inference-gateway/cli/internal/platform/models"
+	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
+	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
+	sandboxinfra "github.com/inference-gateway/cli/internal/sandbox/infrastructure"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	tools "github.com/inference-gateway/cli/internal/tools"
+)
+
+// Agent implements the AgentService interface with direct chat functionality
+type Agent struct {
+	client             sdk.Client
+	toolService        agentdomain.ToolService
+	config             *config.Config
+	conversationRepo   convdomain.ConversationRepository
+	a2aAgents          func() string
+	skillsService      agentdomain.SkillsService
+	messageQueue       convdomain.MessageQueue
+	stateManager       stateStore
+	timeoutSeconds     int
+	maxTokens          int
+	optimizer          convdomain.ConversationOptimizer
+	tokenizer          usageEstimator
+	approvalPolicy     agentdomain.ApprovalPolicy
+	judge              JudgeApprover
+	currentModel       func() string
+	escalations        *judgeEscalations
+	bgRegistry         scheddomain.BackgroundTaskRegistry
+	rolloverManager    convdomain.SessionRollover
+	reminderProvider   agentdomain.SystemReminderProvider
+	hookProvider       agentdomain.HookCommandProvider
+	pluginInstructions func() string
+	memoryBackend      memory.MemoryBackend
+	recorder           *telemetry.Recorder
+	sessionTurns       atomic.Int64
+	firedReminders     map[string]bool
+	reminderMux        sync.Mutex
+	stalledStrikes     int
+	lastFinishReason   string
+	lastStreamEmpty    bool
+	failedCalls        map[string]int
+	failedCallsMux     sync.Mutex
+	repeatedFailureKey string
+	repeatedFailureMux sync.Mutex
+	activeSessions     map[string]*sessionCancel
+	sessionMux         sync.RWMutex
+	reasoningEffort    string
+	reasoningEffortMux sync.RWMutex
+	metrics            map[string]*agentdomain.ChatMetrics
+	metricsMux         sync.RWMutex
+	toolCallsMap       map[string]*sdk.ChatCompletionMessageToolCall
+	toolCallsMux       sync.RWMutex
+	gitContextCache    string
+	gitContextTurn     int
+	gitContextBranch   string
+	treeContextCache   string
+	treeContextTurn    int
+	memoryContextCache string
+	memoryContextTurn  int
+	contextCacheMux    sync.RWMutex
+	lastStreamedMode   agentdomain.AgentMode
+	modeInitialized    bool
+	modeMux            sync.Mutex
+}
+
+// sessionCancel bundles the two cancellation primitives for a single
+// RunWithStream session: a context.CancelFunc that aborts in-flight
+// streaming/tool/approval work, and a broadcast channel that wakes the agent's
+// main event loop and any polling goroutines. sync.Once makes Cancel safe to
+// call repeatedly so the UI can fire it on every Esc press without double-close.
+type sessionCancel struct {
+	cancelCtx  context.CancelFunc
+	cancelChan chan struct{}
+	once       sync.Once
+}
+
+// Cancel triggers both primitives exactly once.
+func (sc *sessionCancel) Cancel() {
+	sc.once.Do(func() {
+		sc.cancelCtx()
+		close(sc.cancelChan)
+	})
+}
+
+// eventPublisher provides a utility for publishing chat events
+type eventPublisher struct {
+	requestID  string
+	chatEvents chan<- agentdomain.ChatEvent
+}
+
+// newEventPublisher creates a new event publisher for the given request
+func newEventPublisher(requestID string, chatEvents chan<- agentdomain.ChatEvent) *eventPublisher {
+	return &eventPublisher{
+		requestID:  requestID,
+		chatEvents: chatEvents,
+	}
+}
+
+// chatQuestionBroker implements agentdomain.UserQuestionBroker for the chat
+// executor: it publishes a UserQuestionRequestedEvent onto the per-request
+// chatEvents channel and blocks on the response channel, mirroring
+// requestToolApproval. Only the tool's Execute goroutine blocks; the TUI keeps
+// running. Dismissing the form closes the channel (ok=false); ctx.Done unblocks.
+type chatQuestionBroker struct {
+	publisher  *eventPublisher
+	toolCallID string
+}
+
+func (b *chatQuestionBroker) AskUserQuestions(ctx context.Context, questions []agentdomain.UserQuestion) ([]agentdomain.UserQuestionAnswer, bool, error) {
+	responseChan := make(chan []agentdomain.UserQuestionAnswer, 1)
+
+	b.publisher.chatEvents <- agentdomain.UserQuestionRequestedEvent{
+		RequestID:    b.publisher.requestID,
+		ToolCallID:   b.toolCallID,
+		Timestamp:    time.Now(),
+		Questions:    questions,
+		ResponseChan: responseChan,
+	}
+
+	select {
+	case answers, open := <-responseChan:
+		if !open {
+			return nil, false, nil
+		}
+		return answers, true, nil
+	case <-ctx.Done():
+		return nil, false, ctx.Err()
+	}
+}
+
+// publishChatStart publishes a ChatStartEvent
+func (p *eventPublisher) publishChatStart() {
+	p.chatEvents <- agentdomain.ChatStartEvent{
+		RequestID: p.requestID,
+		Timestamp: time.Now(),
+	}
+}
+
+// publishChatComplete publishes a ChatCompleteEvent for a normally-finished
+// chat turn.
+func (p *eventPublisher) publishChatComplete(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *agentdomain.ChatMetrics) {
+	p.chatEvents <- agentdomain.ChatCompleteEvent{
+		RequestID:        p.requestID,
+		Timestamp:        time.Now(),
+		ReasoningContent: reasoning,
+		ToolCalls:        toolCalls,
+		Metrics:          metrics,
+	}
+}
+
+// publishChatCancelled publishes a ChatCompleteEvent flagged as cancelled so
+// the UI shows "User interrupted" instead of "Response complete". The event
+// reuses ChatCompleteEvent (rather than a new type) so existing listeners
+// keep handling lifecycle bookkeeping uniformly.
+func (p *eventPublisher) publishChatCancelled(metrics *agentdomain.ChatMetrics) {
+	p.chatEvents <- agentdomain.ChatCompleteEvent{
+		RequestID: p.requestID,
+		Timestamp: time.Now(),
+		Metrics:   metrics,
+		Cancelled: true,
+	}
+}
+
+// publishChatChunk publishes a ChatChunkEvent
+func (p *eventPublisher) publishChatChunk(content, reasoningContent string, toolCalls []sdk.ChatCompletionMessageToolCallChunk) {
+	p.chatEvents <- agentdomain.ChatChunkEvent{
+		RequestID:        p.requestID,
+		Timestamp:        time.Now(),
+		ReasoningContent: reasoningContent,
+		Content:          content,
+		Delta:            true,
+		ToolCalls:        toolCalls,
+	}
+}
+
+// publishOptimizationStatus publishes an OptimizationStatusEvent
+func (p *eventPublisher) publishOptimizationStatus(message string, isActive bool, originalCount, optimizedCount int) {
+	p.chatEvents <- agentdomain.OptimizationStatusEvent{
+		RequestID:      p.requestID,
+		Timestamp:      time.Now(),
+		Message:        message,
+		IsActive:       isActive,
+		OriginalCount:  originalCount,
+		OptimizedCount: optimizedCount,
+	}
+}
+
+// publishToolsQueued publishes individual ToolExecutionProgressEvent for each queued tool
+func (p *eventPublisher) publishToolsQueued(toolCalls []sdk.ChatCompletionMessageToolCall) {
+	for _, tc := range toolCalls {
+		event := agentdomain.ToolExecutionProgressEvent{
+			BaseChatEvent: agentdomain.BaseChatEvent{
+				RequestID: p.requestID,
+				Timestamp: time.Now(),
+			},
+			ToolCallID: tc.ID,
+			ToolName:   tc.Function.Name,
+			Arguments:  tc.Function.Arguments,
+			Status:     "queued",
+			Message:    "",
+		}
+		p.chatEvents <- event
+	}
+}
+
+// publishToolStatusChange publishes a ToolExecutionProgressEvent
+func (p *eventPublisher) publishToolStatusChange(callID string, toolName string, status string, message string, images []agentdomain.ImageAttachment) {
+	event := agentdomain.ToolExecutionProgressEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		ToolCallID: callID,
+		ToolName:   toolName,
+		Status:     status,
+		Message:    message,
+		Images:     images,
+	}
+
+	p.chatEvents <- event
+}
+
+// publishToolProgress sends a non-blocking running-status update so a lagging
+// consumer cannot stall the long-running tool reporting it.
+func (p *eventPublisher) publishToolProgress(callID string, toolName string, message string) {
+	event := agentdomain.ToolExecutionProgressEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		ToolCallID: callID,
+		ToolName:   toolName,
+		Status:     "running",
+		Message:    message,
+	}
+
+	select {
+	case p.chatEvents <- event:
+	default:
+		logger.Warn("tool progress update dropped - channel full")
+	}
+}
+
+// publishBashOutputChunk publishes a BashOutputChunkEvent for streaming bash output
+func (p *eventPublisher) publishBashOutputChunk(callID string, output string, isComplete bool) {
+	event := agentdomain.BashOutputChunkEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		ToolCallID: callID,
+		Output:     output,
+		IsComplete: isComplete,
+	}
+
+	select {
+	case p.chatEvents <- event:
+	default:
+		logger.Warn("bash output chunk dropped - channel full")
+	}
+}
+
+// publishTodoUpdate publishes a TodoUpdateChatEvent when TodoWrite tool executes
+func (p *eventPublisher) publishTodoUpdate(todos []agentdomain.TodoItem) {
+	event := agentdomain.TodoUpdateChatEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		Todos: todos,
+	}
+
+	p.chatEvents <- event
+}
+
+// publishPlanApprovalRequest publishes a PlanApprovalRequestedEvent when RequestPlanApproval tool executes
+func (p *eventPublisher) publishPlanApprovalRequest(planContent, planID string) {
+	event := agentdomain.PlanApprovalRequestedEvent{
+		RequestID:    p.requestID,
+		Timestamp:    time.Now(),
+		PlanContent:  planContent,
+		PlanID:       planID,
+		ResponseChan: nil,
+	}
+
+	p.chatEvents <- event
+}
+
+// publishToolExecutionCompleted publishes a ToolExecutionCompletedEvent after all tools finish
+func (p *eventPublisher) publishToolExecutionCompleted(results []convdomain.ConversationEntry) {
+	successCount := 0
+	failureCount := 0
+	toolResults := make([]*agentdomain.ToolExecutionResult, 0, len(results))
+
+	for _, entry := range results {
+		if entry.ToolExecution != nil {
+			if entry.ToolExecution.ToolCallID == "" && entry.Message.ToolCallID != nil {
+				entry.ToolExecution.ToolCallID = *entry.Message.ToolCallID
+			}
+			if entry.ToolExecution.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+			toolResults = append(toolResults, entry.ToolExecution)
+		}
+	}
+
+	event := agentdomain.ToolExecutionCompletedEvent{
+		SessionID:     p.requestID,
+		RequestID:     p.requestID,
+		Timestamp:     time.Now(),
+		TotalExecuted: len(results),
+		SuccessCount:  successCount,
+		FailureCount:  failureCount,
+		Results:       toolResults,
+	}
+
+	p.chatEvents <- event
+}
+
+// usageEstimator fills in token usage for providers that do not report it.
+// *conversation.TokenizerService satisfies it.
+type usageEstimator interface {
+	ShouldUsePolyfill(usage *sdk.CompletionUsage) bool
+	CalculateUsagePolyfill(inputMessages []sdk.Message, outputContent string, outputToolCalls []sdk.ChatCompletionMessageToolCall, tools []sdk.ChatCompletionTool) *sdk.CompletionUsage
+}
+
+// stateStore is the narrow slice of the app state manager the agent core
+// needs: the current agent mode, computer-use pause state, retry-status
+// updates, and the session todo list (reminder gating). *statemanager.Store
+// satisfies it.
+type stateStore interface {
+	agentdomain.AgentModeState
+	agentdomain.ComputerUsePause
+	agentdomain.RetryStatusSink
+	agentdomain.TodoList
+}
+
+func NewAgent(
+	client sdk.Client,
+	toolService agentdomain.ToolService,
+	approvalPolicy agentdomain.ApprovalPolicy,
+	cfg *config.Config,
+	conversationRepo convdomain.ConversationRepository,
+	a2aAgents func() string,
+	skillsService agentdomain.SkillsService,
+	messageQueue convdomain.MessageQueue,
+	stateManager stateStore,
+	timeoutSeconds int,
+	optimizer convdomain.ConversationOptimizer,
+	bgRegistry scheddomain.BackgroundTaskRegistry,
+	rolloverManager convdomain.SessionRollover,
+	tokenizer usageEstimator,
+	hookProvider agentdomain.HookCommandProvider,
+	pluginInstructions func() string,
+) *Agent {
+	return &Agent{
+		client:             client,
+		toolService:        toolService,
+		config:             cfg,
+		conversationRepo:   conversationRepo,
+		a2aAgents:          a2aAgents,
+		skillsService:      skillsService,
+		messageQueue:       messageQueue,
+		stateManager:       stateManager,
+		timeoutSeconds:     timeoutSeconds,
+		maxTokens:          cfg.GetAgentConfig().MaxTokens,
+		reasoningEffort:    cfg.GetAgentConfig().ReasoningEffort,
+		optimizer:          optimizer,
+		tokenizer:          tokenizer,
+		approvalPolicy:     approvalPolicy,
+		judge:              NewLLMJudge(client, cfg),
+		escalations:        newJudgeEscalations(),
+		bgRegistry:         bgRegistry,
+		rolloverManager:    rolloverManager,
+		reminderProvider:   cfg.Reminders,
+		hookProvider:       hookProvider,
+		pluginInstructions: pluginInstructions,
+		firedReminders:     make(map[string]bool),
+		activeSessions:     make(map[string]*sessionCancel),
+		metrics:            make(map[string]*agentdomain.ChatMetrics),
+		toolCallsMap:       make(map[string]*sdk.ChatCompletionMessageToolCall),
+	}
+}
+
+// SetReasoningEffort updates the reasoning effort applied to subsequent
+// requests. An empty string resets to the provider default.
+func (s *Agent) SetReasoningEffort(effort string) error {
+	if effort != "" && !slices.Contains(config.ReasoningEffortLevels, effort) {
+		return fmt.Errorf(
+			"invalid reasoning effort %q: must be one of %s",
+			effort, strings.Join(config.ReasoningEffortLevels, ", "),
+		)
+	}
+	s.reasoningEffortMux.Lock()
+	s.reasoningEffort = effort
+	s.reasoningEffortMux.Unlock()
+	return nil
+}
+
+// GetReasoningEffort returns the effort level currently applied to requests
+// ("" = provider default).
+func (s *Agent) GetReasoningEffort() string {
+	s.reasoningEffortMux.RLock()
+	defer s.reasoningEffortMux.RUnlock()
+	return s.reasoningEffort
+}
+
+// reasoningEffortOptionFor maps the current effort level onto the optional
+// chat-completions request field. Anthropic models get the raw value - the
+// AnthropicMessages adapter translates it to output_config.effort (including
+// minimal -> low). Every other provider clamps the Anthropic-only xhigh/max
+// levels to high, the chat-completions ceiling.
+func (s *Agent) reasoningEffortOptionFor(model string) *sdk.CreateChatCompletionRequestReasoningEffort {
+	effort := s.GetReasoningEffort()
+	if effort == "" {
+		return nil
+	}
+	if provider, _, err := s.parseProvider(model); err != nil || sdk.Provider(provider) != sdk.Anthropic {
+		switch effort {
+		case "xhigh", "max":
+			effort = "high"
+		}
+	}
+	e := sdk.CreateChatCompletionRequestReasoningEffort(effort)
+	return &e
+}
+
+// SetTelemetryRecorder wires the telemetry recorder so per-request token usage
+// is tapped in storeIterationMetrics. A nil recorder disables recording.
+func (s *Agent) SetTelemetryRecorder(rec *telemetry.Recorder) {
+	s.recorder = rec
+}
+
+// SetMemoryBackend wires the memory sync backend so the chat agent pulls memory
+// once at session start (SyncIn on HookPreSession). SyncOut is driven by the
+// Memory tool on write/delete, not here - chat fires HookPostSession after every
+// message, so pushing there would commit-storm. A nil backend disables sync.
+func (s *Agent) SetMemoryBackend(backend memory.MemoryBackend) {
+	s.memoryBackend = backend
+}
+
+// advertisedTools returns the tool definitions to send with a request. All
+// mid-session modes advertise the same full list so a mode switch never
+// invalidates the provider's prompt cache; restrictions apply at execution
+// time. ReadOnly subagents keep their filtered list - their mode never
+// changes mid-session, so there is no cache to break.
+func (s *Agent) advertisedTools() []sdk.ChatCompletionTool {
+	if s.toolService == nil {
+		return nil
+	}
+	if s.stateManager != nil && s.stateManager.GetAgentMode() == agentdomain.AgentModeReadOnly {
+		return s.toolService.ListToolsForMode(agentdomain.AgentModeReadOnly)
+	}
+	return s.toolService.ListTools()
+}
+
+// ensureConversationIntegrity enforces the OpenAI tool_call/response
+// invariant by inserting a synthetic Tool-role message for every orphan
+// tool_call_id, returning the number inserted; idempotent. persistSynthetics
+// is true at the drain-time chokepoint (the real corruption point), false at
+// defensive call sites where the orphan may pre-exist on disk.
+func (s *Agent) ensureConversationIntegrity(
+	conversation *[]sdk.Message,
+	publisher *eventPublisher,
+	requestID string,
+	persistSynthetics bool,
+) int {
+	if conversation == nil || len(*conversation) == 0 {
+		return 0
+	}
+
+	repaired, synthetics := convdomain.EnsureToolCallsClosed(*conversation)
+	if len(synthetics) == 0 {
+		return 0
+	}
+
+	*conversation = repaired
+
+	logger.Info("synthesized cancelled tool responses for orphan tool_calls",
+		"count", len(synthetics),
+		"persisted", persistSynthetics)
+
+	if !persistSynthetics {
+		return len(synthetics)
+	}
+
+	for _, syn := range synthetics {
+		entry := convdomain.ConversationEntry{
+			Message: syn.Message,
+			Time:    time.Now(),
+		}
+		if s.conversationRepo != nil {
+			if err := s.conversationRepo.AddMessage(entry); err != nil {
+				logger.Error("failed to persist synthetic cancelled tool response",
+					"tool_call_id", syn.ToolCallID, "error", err)
+			}
+		}
+		if publisher != nil {
+			publisher.chatEvents <- agentdomain.ToolCancelledEvent{
+				RequestID:  requestID,
+				Timestamp:  time.Now(),
+				ToolCallID: syn.ToolCallID,
+				ToolName:   syn.ToolName,
+			}
+		}
+	}
+	return len(synthetics)
+}
+
+// batchDrainQueue drains all queued messages and adds them to conversation
+// Returns the number of messages drained
+func (s *Agent) batchDrainQueue(
+	conversation *[]sdk.Message,
+	eventPublisher *eventPublisher,
+) int {
+	if s.messageQueue == nil {
+		return 0
+	}
+
+	messages := []convdomain.QueuedMessage{}
+
+	for !s.messageQueue.IsEmpty() {
+		msg := s.messageQueue.Dequeue()
+		if msg != nil {
+			messages = append(messages, *msg)
+		}
+	}
+
+	if len(messages) == 0 {
+		return 0
+	}
+
+	s.ensureConversationIntegrity(conversation, eventPublisher, messages[0].RequestID, true)
+
+	logger.Info("batching queued messages into conversation",
+		"count", len(messages),
+		"oldest", messages[0].QueuedAt,
+		"newest", messages[len(messages)-1].QueuedAt)
+
+	for _, queuedMsg := range messages {
+		*conversation = append(*conversation, queuedMsg.Message)
+
+		entry := convdomain.ConversationEntry{
+			Message: queuedMsg.Message,
+			Time:    time.Now(),
+		}
+		if err := s.conversationRepo.AddMessage(entry); err != nil {
+			logger.Error("failed to store batched message", "error", err)
+		}
+
+		eventPublisher.chatEvents <- agentdomain.MessageQueuedEvent{
+			RequestID: queuedMsg.RequestID,
+			Timestamp: time.Now(),
+			Message:   queuedMsg.Message,
+		}
+	}
+
+	return len(messages)
+}
+
+// RunWithStream executes an agent task with streaming (for interactive chat)
+func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) { // nolint:gocognit,gocyclo,cyclop,funlen
+	if err := s.validateRequest(req); err != nil {
+		return nil, err
+	}
+
+	if s.stateManager != nil && s.stateManager.IsComputerUsePaused() {
+		logger.Info("execution is paused, waiting for resume")
+		return nil, fmt.Errorf("execution is paused")
+	}
+
+	s.failedCallsMux.Lock()
+	clear(s.failedCalls)
+	s.failedCallsMux.Unlock()
+
+	chatEvents := make(chan agentdomain.ChatEvent, 1000)
+	eventPublisher := newEventPublisher(req.RequestID, chatEvents)
+
+	sessionCtx, cancelCtx := context.WithCancel(ctx)
+	sessionCtx = agentdomain.WithModel(sessionCtx, req.Model)
+	sessionCtx = s.recorder.SpanContext(sessionCtx)
+	if s.conversationRepo != nil {
+		s.recorder.SetConversationID(s.conversationRepo.GetCurrentConversationID())
+	}
+	sc := &sessionCancel{
+		cancelCtx:  cancelCtx,
+		cancelChan: make(chan struct{}),
+	}
+	s.registerSession(req.RequestID, sc)
+	context.AfterFunc(sessionCtx, sc.Cancel)
+
+	conversation := s.addSystemPrompt(req.Messages)
+
+	provider, model, err := s.parseProvider(req.Model)
+	if err != nil {
+		sc.Cancel()
+		s.deregisterSession(req.RequestID)
+		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
+	}
+
+	go func() {
+		defer func() {
+			close(chatEvents)
+			s.deregisterSession(req.RequestID)
+			sc.Cancel()
+		}()
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error("agent panic recovered", "panic", r, "stack", string(debug.Stack()))
+				eventPublisher.chatEvents <- agentdomain.ChatErrorEvent{
+					RequestID: req.RequestID,
+					Timestamp: time.Now(),
+					Error:     fmt.Errorf("agent panic: %v", r),
+				}
+			}
+		}()
+
+		conversation = s.optimizeConversation(sessionCtx, req, conversation, eventPublisher)
+
+		agent := newEventDrivenAgent(
+			s,
+			s.config.GetAgentConfig(),
+			sessionCtx,
+			req,
+			&conversation,
+			eventPublisher,
+			sc.cancelChan,
+			provider,
+			model,
+		)
+
+		agent.Start()
+		agent.Wait()
+	}()
+
+	return chatEvents, nil
+}
+
+// CancelRequest cancels an active request. Safe to call repeatedly - no-ops
+// via sync.Once on the underlying sessionCancel - and returns nil even for an
+// unknown requestID, so the UI can fire it on every Esc press without spurious
+// errors after teardown. The agent loop publishes ChatCompleteEvent{Cancelled:true}
+// as the single cancel-completion signal.
+func (s *Agent) CancelRequest(requestID string) error {
+	s.sessionMux.RLock()
+	sc, sessionExists := s.activeSessions[requestID]
+	s.sessionMux.RUnlock()
+
+	if sessionExists {
+		sc.Cancel()
+	}
+
+	return nil
+}
+
+func (s *Agent) registerSession(requestID string, sc *sessionCancel) {
+	s.sessionMux.Lock()
+	defer s.sessionMux.Unlock()
+	s.activeSessions[requestID] = sc
+}
+
+func (s *Agent) deregisterSession(requestID string) {
+	s.sessionMux.Lock()
+	defer s.sessionMux.Unlock()
+	delete(s.activeSessions, requestID)
+}
+
+// GetMetrics returns metrics for a completed request
+func (s *Agent) GetMetrics(requestID string) *agentdomain.ChatMetrics {
+	s.metricsMux.RLock()
+	defer s.metricsMux.RUnlock()
+
+	if metrics, exists := s.metrics[requestID]; exists {
+		return &agentdomain.ChatMetrics{
+			Duration: metrics.Duration,
+			Usage:    metrics.Usage,
+		}
+	}
+	return nil
+}
+
+// cacheCreationTokenSource is implemented by clients that report Anthropic
+// cache-creation (cache-write) tokens out of band, since the OpenAI-shaped
+// usage struct has no field for them. The /v1/messages adapter
+// (internal/platform/adapters.AnthropicMessages) is the one implementation;
+// the interface lives here because this package is its consumer.
+type cacheCreationTokenSource interface {
+	TakeCacheCreationTokens() int
+}
+
+// storeIterationMetricsInput holds the data needed for token usage polyfill calculation.
+type storeIterationMetricsInput struct {
+	inputMessages   []sdk.Message
+	outputContent   string
+	outputToolCalls []sdk.ChatCompletionMessageToolCall
+	availableTools  []sdk.ChatCompletionTool
+}
+
+// storeIterationMetrics stores metrics for the current iteration and accumulates session tokens.
+// If the provider doesn't return usage metrics, it uses the tokenizer polyfill to estimate them.
+func (s *Agent) storeIterationMetrics(
+	ctx context.Context,
+	requestID string,
+	model string,
+	startTime time.Time,
+	usage *sdk.CompletionUsage,
+	polyfillInput *storeIterationMetricsInput,
+) {
+	effectiveUsage := usage
+
+	if s.tokenizer != nil && s.tokenizer.ShouldUsePolyfill(usage) && polyfillInput != nil {
+		effectiveUsage = s.tokenizer.CalculateUsagePolyfill(
+			polyfillInput.inputMessages,
+			polyfillInput.outputContent,
+			polyfillInput.outputToolCalls,
+			polyfillInput.availableTools,
+		)
+	}
+
+	if effectiveUsage == nil {
+		return
+	}
+
+	metrics := &agentdomain.ChatMetrics{
+		Duration: time.Since(startTime),
+		Usage:    effectiveUsage,
+	}
+
+	s.metricsMux.Lock()
+	s.metrics[requestID] = metrics
+	s.metricsMux.Unlock()
+
+	cached := 0
+	if details := effectiveUsage.PromptTokensDetails; details != nil && details.CachedTokens != nil && *details.CachedTokens > 0 {
+		cached = int(*details.CachedTokens)
+		s.conversationRepo.AddCachedTokens(cached)
+	}
+
+	cacheWrite := 0
+	if src, ok := s.client.(cacheCreationTokenSource); ok {
+		cacheWrite = src.TakeCacheCreationTokens()
+	}
+
+	if err := s.conversationRepo.AddTokenUsage(
+		model,
+		int(effectiveUsage.PromptTokens),
+		int(effectiveUsage.CompletionTokens),
+		int(effectiveUsage.TotalTokens),
+		cached,
+		cacheWrite,
+	); err != nil {
+		logger.Error("failed to add token usage to session", "error", err)
+	}
+
+	if s.recorder != nil {
+		s.recorder.RecordUsage(model, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens), cached, cacheWrite)
+	}
+	telemetry.SetSpanUsage(ctx, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens))
+}
+
+func (s *Agent) optimizeConversation(_ context.Context, req *agentdomain.AgentRequest, conversation []sdk.Message, eventPublisher *eventPublisher) []sdk.Message {
+	if s.optimizer == nil {
+		return conversation
+	}
+
+	originalCount := len(conversation)
+
+	conversation = s.optimizer.OptimizeMessages(conversation, req.Model, false)
+	optimizedCount := len(conversation)
+
+	if originalCount != optimizedCount {
+		eventPublisher.publishOptimizationStatus(fmt.Sprintf("Conversation optimized (%d → %d messages)", originalCount, optimizedCount), false, originalCount, optimizedCount)
+	}
+
+	return conversation
+}
+
+type indexedToolResult struct {
+	Index  int
+	Result convdomain.ConversationEntry
+}
+
+// executeToolCallsParallel runs a batch that needs no approval. Approval is
+// decided upstream by states.EvaluatingToolsState: batches with a tool that
+// requires approval go to ApprovingTools/BlockingTools and never reach here.
+func (s *Agent) executeToolCallsParallel(
+	ctx context.Context,
+	toolCalls []*sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+) []convdomain.ConversationEntry {
+
+	if len(toolCalls) == 0 {
+		return []convdomain.ConversationEntry{}
+	}
+
+	eventPublisher.publishToolsQueued(func() []sdk.ChatCompletionMessageToolCall {
+		calls := make([]sdk.ChatCompletionMessageToolCall, len(toolCalls))
+		for i, tc := range toolCalls {
+			calls[i] = *tc
+		}
+		return calls
+	}())
+
+	time.Sleep(constants.AgentToolExecutionDelay)
+
+	results := make([]convdomain.ConversationEntry, len(toolCalls))
+
+	resultsChan := make(chan indexedToolResult, len(toolCalls))
+	semaphore := make(chan struct{}, s.config.GetAgentConfig().MaxConcurrentTools)
+	panicked := make(chan any, 1)
+
+	var wg sync.WaitGroup
+	order := states.CallOrder{Tools: s.toolService}
+	for i, tc := range toolCalls {
+		wait, done := order.Next(tc.Function.Name)
+		wg.Add(1)
+		go func(index int, toolCall *sdk.ChatCompletionMessageToolCall) {
+			defer func() {
+				wg.Done()
+			}()
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("tool goroutine panic", "tool", toolCall.Function.Name, "panic", r, "stack", string(debug.Stack()))
+					select {
+					case panicked <- r:
+					default:
+					}
+				}
+			}()
+			defer done()
+			wait()
+
+			semaphore <- struct{}{}
+			defer func() {
+				<-semaphore
+			}()
+
+			eventPublisher.publishToolStatusChange(
+				toolCall.ID,
+				toolCall.Function.Name, "starting",
+				fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
+				nil,
+			)
+
+			time.Sleep(constants.AgentToolExecutionDelay)
+
+			result := s.executeTool(ctx, *toolCall, eventPublisher)
+
+			resultsChan <- indexedToolResult{
+				Index:  index,
+				Result: result,
+			}
+		}(i, tc)
+	}
+
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	for res := range resultsChan {
+		results[res.Index] = res.Result
+	}
+
+	select {
+	case r := <-panicked:
+		panic(r)
+	default:
+	}
+
+	if err := s.batchSaveToolResults(results); err != nil {
+		logger.Error("failed to batch save tool results", "error", err)
+	}
+
+	eventPublisher.publishToolExecutionCompleted(results)
+
+	return results
+}
+
+func (s *Agent) executeTool(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+) convdomain.ConversationEntry {
+	wasApproved := s.stateManager != nil && s.stateManager.GetAgentMode() == agentdomain.AgentModeAutoAccept
+	return s.executeToolInternal(ctx, tc, eventPublisher, wasApproved, time.Now())
+}
+
+// executeToolInternal runs the tool once and, when the failure is a sandbox
+// denial and a user can answer prompts (chat TUI or IPC broker), asks them to
+// approve the grant and retries. Used by both executeTool() (no
+// approval needed) and processNextTool() (approval already obtained).
+func (s *Agent) executeToolInternal(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+	wasApproved bool,
+	startTime time.Time,
+) convdomain.ConversationEntry {
+	entry := s.executeToolOnce(ctx, tc, eventPublisher, wasApproved, startTime)
+	var lastGrant sandboxdomain.Allowed
+	for entry.ToolExecution != nil && !entry.ToolExecution.Success && agentdomain.SandboxApprovalAvailable(ctx) {
+		denial, denied := sandboxdomain.ParseDenial(entry.ToolExecution.Error)
+		if !denied {
+			break
+		}
+		grant := sandbox.GrantFor(s.config, denial)
+		if grant == lastGrant {
+			break
+		}
+		allow, always := s.requestSandboxApproval(ctx, tc, eventPublisher, grant)
+		if !allow {
+			break
+		}
+		lastGrant = grant
+		sandbox.Granted.Add(grant)
+		persist := always && denial.Rule == ""
+		logger.Info("sandbox extended by user approval", "path", grant.Path, "access", grant.Access, "tool", tc.Function.Name, "persisted", persist)
+		if persist {
+			if err := sandboxinfra.PersistGrant(grant); err != nil {
+				logger.Error("failed to persist sandbox grant", "path", grant.Path, "error", err)
+			}
+		}
+		entry = s.executeToolOnce(ctx, tc, eventPublisher, wasApproved, startTime)
+	}
+	return entry
+}
+
+// requestSandboxApproval asks the user - through the standard approval
+// pipeline, as a synthetic SandboxAccess tool call - to grant the denied
+// access. Approve grants it for this session; auto-accept ("always") also
+// persists it to the userspace sandbox.yaml.
+func (s *Agent) requestSandboxApproval(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+	grant sandboxdomain.Allowed,
+) (allow, always bool) {
+	args, err := json.Marshal(map[string]string{"path": grant.Path, "access": string(grant.Access), "tool": tc.Function.Name})
+	if err != nil {
+		return false, false
+	}
+
+	responseChan := make(chan agentdomain.ApprovalAction, 1)
+	eventPublisher.chatEvents <- agentdomain.ToolApprovalRequestedEvent{
+		RequestID: eventPublisher.requestID,
+		Timestamp: time.Now(),
+		ToolCall: sdk.ChatCompletionMessageToolCall{
+			ID:   tc.ID + "-sandbox",
+			Type: tc.Type,
+			Function: sdk.ChatCompletionMessageToolCallFunction{
+				Name:      sandboxdomain.ToolSandboxAccess,
+				Arguments: string(args),
+			},
+		},
+		ResponseChan: responseChan,
+	}
+
+	select {
+	case response := <-responseChan:
+		allow = response == agentdomain.ApprovalApprove || response == agentdomain.ApprovalAutoAccept
+		return allow, response == agentdomain.ApprovalAutoAccept
+	case <-ctx.Done():
+	case <-time.After(constants.ApprovalTimeout):
+	}
+	return false, false
+}
+
+// executeToolOnce performs the actual tool execution without approval checks
+//
+//nolint:funlen,gocyclo,cyclop // Tool execution requires comprehensive error handling and status updates
+func (s *Agent) executeToolOnce(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+	wasApproved bool,
+	startTime time.Time,
+) (finalEntry convdomain.ConversationEntry) {
+	eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "running", "Executing...", nil)
+
+	defer func() {
+		s.trackRepeatedFailure(tc, finalEntry)
+	}()
+
+	defer func() {
+		status, message := "completed", "Completed successfully"
+		var images []agentdomain.ImageAttachment
+		if finalEntry.ToolExecution != nil {
+			if !finalEntry.ToolExecution.Success {
+				status, message = "failed", "Execution failed"
+			}
+			images = finalEntry.ToolExecution.Images
+		}
+		eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, status, message, images)
+	}()
+
+	time.Sleep(constants.AgentToolExecutionDelay)
+
+	if !isCompleteJSON(tc.Function.Arguments) {
+		incompleteErr := fmt.Errorf(
+			"TOOL FAILED: %s - content was truncated due to output token limits (received %d chars of incomplete JSON). %s",
+			tc.Function.Name, len(tc.Function.Arguments), getTruncationRecoveryGuidance(tc.Function.Name),
+		)
+		logger.ErrorCtx(ctx, "incomplete JSON in tool arguments",
+			"gen_ai.tool.name", tc.Function.Name,
+			"gen_ai.tool.call.id", tc.ID,
+			"args_length", len(tc.Function.Arguments),
+			"args_preview", formatting.TruncateText(tc.Function.Arguments, 200),
+		)
+		return s.createErrorEntry(tc, incompleteErr, startTime)
+	}
+
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		logger.ErrorCtx(ctx, "failed to parse tool arguments", "gen_ai.tool.name", tc.Function.Name, "gen_ai.tool.call.id", tc.ID, "error", err)
+		return s.createErrorEntry(tc, err, startTime)
+	}
+
+	if !wasApproved {
+		if err := s.toolService.ValidateTool(tc.Function.Name, args); err != nil {
+			logger.ErrorCtx(ctx, "tool validation failed", "gen_ai.tool.name", tc.Function.Name, "gen_ai.tool.call.id", tc.ID, "error", err)
+			return s.createErrorEntry(tc, err, startTime)
+		}
+	}
+
+	execCtx := ctx
+	if s.stateManager != nil {
+		execCtx = agentdomain.WithAgentMode(execCtx, s.stateManager.GetAgentMode())
+	}
+
+	if agentdomain.GetSessionID(execCtx) == "" && s.conversationRepo != nil {
+		if convID := s.conversationRepo.GetCurrentConversationID(); convID != "" {
+			execCtx = agentdomain.WithSessionID(execCtx, convID)
+		}
+	}
+	if wasApproved {
+		execCtx = agentdomain.WithToolApproved(execCtx)
+	}
+	execCtx = agentdomain.WithToolCallID(execCtx, tc.ID)
+	execCtx = agentdomain.WithToolProgressCallback(execCtx, func(message string) {
+		eventPublisher.publishToolProgress(tc.ID, tc.Function.Name, message)
+	})
+
+	if tc.Function.Name == tools.ToolBash {
+		bashCallback := func(line string) {
+			eventPublisher.publishBashOutputChunk(tc.ID, line, false)
+		}
+		execCtx = agentdomain.WithBashOutputCallback(execCtx, bashCallback)
+
+		detachChan := make(chan struct{}, 1)
+		if chatHandler := agentdomain.GetChatHandler(ctx); chatHandler != nil {
+			chatHandler.SetBashDetachChan(detachChan)
+
+			defer func() {
+				chatHandler.ClearBashDetachChan()
+			}()
+		}
+		execCtx = agentdomain.WithBashDetachChannel(execCtx, detachChan)
+	}
+
+	if tc.Function.Name == tools.ToolAskUserQuestion && (agentdomain.GetChatHandler(ctx) != nil || agentdomain.UserQuestionsAvailable(ctx)) {
+		execCtx = agentdomain.WithUserQuestionBroker(execCtx, &chatQuestionBroker{publisher: eventPublisher, toolCallID: tc.ID})
+	}
+
+	if tc.Function.Name == tools.ToolRequestApproval && agentdomain.GetChatHandler(ctx) != nil {
+		execCtx = agentdomain.WithApprovalEscalation(execCtx, &approvalEscalator{svc: s, publisher: eventPublisher})
+	}
+
+	resultChan := make(chan struct {
+		result *agentdomain.ToolExecutionResult
+		err    error
+	}, 1)
+
+	go func() {
+		result, err := s.toolService.ExecuteTool(execCtx, tc.Function)
+		resultChan <- struct {
+			result *agentdomain.ToolExecutionResult
+			err    error
+		}{result, err}
+	}()
+
+	ticker := time.NewTicker(constants.AgentStatusTickerInterval)
+	defer ticker.Stop()
+
+	var result *agentdomain.ToolExecutionResult
+	var err error
+
+	resultReceived := false
+	for !resultReceived {
+		select {
+		case res := <-resultChan:
+			result = res.result
+			err = res.err
+			ticker.Stop()
+			resultReceived = true
+		case <-ticker.C:
+			eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "running", "Processing...", nil)
+		case <-ctx.Done():
+			logger.Error("tool execution cancelled", "tool", tc.Function.Name)
+			return s.createErrorEntry(tc, ctx.Err(), startTime)
+		}
+	}
+
+	if err != nil {
+		return s.createErrorEntry(tc, err, startTime)
+	}
+
+	eventPublisher.publishToolStatusChange(tc.ID, tc.Function.Name, "saving", "Saving results...", nil)
+
+	time.Sleep(constants.AgentToolExecutionDelay)
+
+	toolExecutionResult := &agentdomain.ToolExecutionResult{
+		ToolName:  result.ToolName,
+		Arguments: args,
+		Success:   result.Success,
+		Duration:  time.Since(startTime),
+		Data:      result.Data,
+		Metadata:  result.Metadata,
+		Diff:      result.Diff,
+		Error:     result.Error,
+		Images:    result.Images,
+	}
+
+	if result.ToolName == tools.ToolTodoWrite && result.Success {
+		if todoResult, ok := result.Data.(*agentdomain.TodoWriteToolResult); ok && todoResult != nil {
+			if s.stateManager != nil {
+				s.stateManager.SetTodos(todoResult.Todos)
+			}
+			eventPublisher.publishTodoUpdate(todoResult.Todos)
+		}
+	}
+
+	if result.ToolName == tools.ToolRequestPlanApproval && result.Success {
+		if extractPlanContent(result) == "" {
+			logger.Warn("requestPlanApproval succeeded but plan content is empty")
+		}
+	}
+
+	formattedContent := s.conversationRepo.FormatToolResultForLLM(toolExecutionResult)
+
+	entry := convdomain.ConversationEntry{
+		Message: sdk.Message{
+			Role:       sdk.Tool,
+			Content:    sdk.NewMessageContent(formattedContent),
+			ToolCallID: &tc.ID,
+		},
+		Time:          time.Now(),
+		ToolExecution: toolExecutionResult,
+	}
+
+	if wasApproved {
+		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
+	}
+
+	return entry
+}
+
+// handleToolResults appends tool results to the conversation and returns true
+// when the agent should stop (a plan is awaiting approval). Rejections cannot
+// occur on this route; the state machine's ApprovingToolsState is the only
+// place a rejection ends the turn.
+func (s *Agent) handleToolResults(
+	toolResults []convdomain.ConversationEntry,
+	conversation *[]sdk.Message,
+	eventPublisher *eventPublisher,
+	req *agentdomain.AgentRequest,
+) bool {
+	planContent, planID := s.checkPlanApproval(toolResults)
+
+	s.addToolResultsToConversation(toolResults, conversation, req.Model)
+
+	if planContent != "" {
+		s.createPlanMessage(planContent, planID, conversation, eventPublisher, req)
+		return true
+	}
+
+	return false
+}
+
+// checkPlanApproval returns the plan content and ID when a RequestPlanApproval
+// tool succeeded in the batch.
+func (s *Agent) checkPlanApproval(toolResults []convdomain.ConversationEntry) (planContent, planID string) {
+	for _, entry := range toolResults {
+		if entry.ToolExecution == nil || entry.ToolExecution.ToolName != tools.ToolRequestPlanApproval || !entry.ToolExecution.Success {
+			continue
+		}
+		planContent = extractPlanContent(entry.ToolExecution)
+		planID = extractPlanID(entry.ToolExecution)
+		logger.Info("requestPlanApproval tool executed - stopping agent loop to wait for user approval", "planLength", len(planContent))
+	}
+	return planContent, planID
+}
+
+// addToolResultsToConversation adds tool results and images to the conversation
+func (s *Agent) addToolResultsToConversation(toolResults []convdomain.ConversationEntry, conversation *[]sdk.Message, model string) {
+	for _, entry := range toolResults {
+		toolResult := sdk.Message{
+			Role:       sdk.Tool,
+			Content:    entry.Message.Content,
+			ToolCallID: entry.Message.ToolCallID,
+		}
+		*conversation = append(*conversation, toolResult)
+	}
+
+	s.addImageMessageFromToolResults(toolResults, conversation, model)
+}
+
+// createPlanMessage creates and stores a plan message for approval
+func (s *Agent) createPlanMessage(
+	planContent string,
+	planID string,
+	conversation *[]sdk.Message,
+	eventPublisher *eventPublisher,
+	req *agentdomain.AgentRequest,
+) {
+	planMessage := sdk.Message{
+		Role:    sdk.Assistant,
+		Content: sdk.NewMessageContent(planContent),
+	}
+	*conversation = append(*conversation, planMessage)
+
+	planEntry := convdomain.ConversationEntry{
+		Message:            planMessage,
+		Time:               time.Now(),
+		IsPlan:             true,
+		PlanApprovalStatus: convdomain.PlanApprovalPending,
+	}
+	if err := s.conversationRepo.AddMessage(planEntry); err != nil {
+		logger.Error("failed to store plan message", "error", err)
+	}
+
+	eventPublisher.publishPlanApprovalRequest(planContent, planID)
+
+	logger.Info("plan approval requested - stopping agent loop")
+	eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
+}
+
+// extractPlanContent extracts plan content from RequestPlanApproval tool result
+func extractPlanContent(result *agentdomain.ToolExecutionResult) string {
+	if result == nil || result.Data == nil {
+		return ""
+	}
+
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		return ""
+	}
+
+	plan, ok := data["plan"].(string)
+	if !ok {
+		return ""
+	}
+
+	return plan
+}
+
+// extractPlanID extracts the stored plan ID from a RequestPlanApproval tool
+// result. The ID lets the post-approval continuation prompt point the agent
+// back at the stored plan (via `infer plans show <id>`) after the planning
+// context is compacted away.
+func extractPlanID(result *agentdomain.ToolExecutionResult) string {
+	if result == nil || result.Data == nil {
+		return ""
+	}
+
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		return ""
+	}
+
+	id, ok := data["plan_id"].(string)
+	if !ok {
+		return ""
+	}
+
+	return id
+}
+
+// addImageMessageFromToolResults adds images from tool results as a separate hidden user message
+// This ensures compatibility with all providers (Anthropic requires tool messages to be text-only)
+func (s *Agent) addImageMessageFromToolResults(toolResults []convdomain.ConversationEntry, conversation *[]sdk.Message, model string) {
+	imageMessage := s.createImageMessageFromToolResults(toolResults, model)
+	if imageMessage == nil {
+		return
+	}
+
+	*conversation = append(*conversation, *imageMessage)
+
+	imageEntry := convdomain.ConversationEntry{
+		Message: *imageMessage,
+		Time:    time.Now(),
+		Hidden:  true,
+	}
+	if err := s.conversationRepo.AddMessage(imageEntry); err != nil {
+		logger.Error("failed to add image message from tool results", "error", err)
+	}
+}
+
+// createImageMessageFromToolResults creates a hidden user message containing images from tool results.
+// Non-vision models get text path notes (pointing at ImageDecode) instead of raw
+// image parts, which they reject. Returns nil if no images are present.
+func (s *Agent) createImageMessageFromToolResults(toolResults []convdomain.ConversationEntry, model string) *sdk.Message {
+	var allImages []agentdomain.ImageAttachment
+
+	for _, result := range toolResults {
+		if result.ToolExecution != nil && len(result.ToolExecution.Images) > 0 {
+			allImages = append(allImages, result.ToolExecution.Images...)
+		}
+	}
+
+	if len(allImages) == 0 {
+		return nil
+	}
+
+	supportsVision := models.SupportsVision(model)
+
+	var contentParts []sdk.ContentPart
+	textPart, err := sdk.NewTextContentPart(fmt.Sprintf("<system-reminder>\nTool execution returned %d image(s) for analysis:\n</system-reminder>", len(allImages)))
+	if err == nil {
+		contentParts = append(contentParts, textPart)
+	}
+
+	for i, img := range allImages {
+		if !supportsVision {
+			if note := agentdomain.ImagePathNote(img); note != "" {
+				if notePart, err := sdk.NewTextContentPart(note); err == nil {
+					contentParts = append(contentParts, notePart)
+				}
+			}
+			continue
+		}
+		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
+		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
+		if err != nil {
+			logger.Warn("failed to create image content part", "index", i, "filename", img.Filename, "error", err)
+			continue
+		}
+		contentParts = append(contentParts, imagePart)
+	}
+
+	if len(contentParts) <= 1 {
+		logger.Warn("no content parts created for image message from tool results")
+		return nil
+	}
+
+	return &sdk.Message{
+		Role:    sdk.User,
+		Content: sdk.NewMessageContent(contentParts),
+	}
+}
+
+// requestToolApproval requests approval for a tool and waits for the response.
+// The auto-with-judge mode (or approval_behaviour "judge") hands the decision
+// to the LLM judge instead of a human; it returns (false, judgeReason, nil)
+// so the rejection tool result can carry the judge's reasoning and, unlike a
+// human rejection, not end the turn. Human decisions return an empty reason.
+func (s *Agent) requestToolApproval(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+) (bool, string, error) {
+	if s.judgeDecides(tc) {
+		return s.requestJudgeApproval(ctx, tc, eventPublisher)
+	}
+
+	return s.requestHumanApproval(ctx, tc, eventPublisher, "")
+}
+
+// requestHumanApproval publishes the approval prompt for tc and waits for the
+// human decision. note is optional context rendered above the call (the
+// RequestApproval escalation uses it for the judge's reason and the agent's
+// justification). A closed response channel counts as a rejection.
+func (s *Agent) requestHumanApproval(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+	note string,
+) (bool, string, error) {
+	responseChan := make(chan agentdomain.ApprovalAction, 1)
+	eventPublisher.chatEvents <- agentdomain.ToolApprovalRequestedEvent{
+		RequestID:    eventPublisher.requestID,
+		Timestamp:    time.Now(),
+		ToolCall:     tc,
+		Context:      note,
+		ResponseChan: responseChan,
+	}
+
+	var approved bool
+	var err error
+
+	select {
+	case response, open := <-responseChan:
+		if !open {
+			break
+		}
+		if response == agentdomain.ApprovalAutoAccept {
+			logger.Info("switching to auto-accept mode from approval response")
+			s.stateManager.SetAgentMode(agentdomain.AgentModeAutoAccept)
+		}
+		approved = response == agentdomain.ApprovalApprove || response == agentdomain.ApprovalAutoAccept
+	case <-ctx.Done():
+		err = fmt.Errorf("approval request cancelled: %w", ctx.Err())
+	case <-time.After(constants.ApprovalTimeout):
+		err = fmt.Errorf("approval request timed out")
+	}
+
+	if err != nil || !approved {
+		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
+	}
+
+	return approved, "", err
+}
+
+// judgeDecides reports whether the LLM judge answers this approval instead
+// of a human: the auto-with-judge mode forces the judge, or the config
+// selects approval_behaviour "judge". The judge is always reachable, so
+// broker/chat delivery details never downgrade it.
+func (s *Agent) judgeDecides(tc sdk.ChatCompletionMessageToolCall) bool {
+	if s.stateManager != nil && s.stateManager.GetAgentMode() == agentdomain.AgentModeAutoWithJudge {
+		return true
+	}
+	return s.config != nil && s.config.ApprovalBehaviourFor(tc.Function.Name) == config.ApprovalBehaviourJudge
+}
+
+// SetCurrentModelFn wires the session's current-model accessor so the judge
+// follows a model picked at runtime, not only the configured agent.model.
+func (s *Agent) SetCurrentModelFn(fn func() string) {
+	s.currentModel = fn
+}
+
+// judgeModel resolves who judges: judge.model, else the session's current
+// model, else agent.model.
+func (s *Agent) judgeModel() string {
+	current := ""
+	if s.currentModel != nil {
+		current = s.currentModel()
+	}
+	return s.config.Judge.ResolveModel(cmp.Or(current, s.config.Agent.Model))
+}
+
+// requestJudgeApproval asks the judge to decide one pending tool call against
+// the user's latest request, publishes the verdict as a chat event (mirrored
+// on the hidden debug channel), and maps a rejection onto the standard
+// refusal path so the driver sees the judge's reason and adjusts.
+func (s *Agent) requestJudgeApproval(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+) (bool, string, error) {
+	if s.consumeJudgeBypass(tc) {
+		return true, "", nil
+	}
+
+	model := s.judgeModel()
+	root, latest := userIntents(s.conversationRepo)
+	verdict, err := s.judge.Judge(ctx, agentdomain.JudgeInput{Model: model, RootIntent: root, Intent: latest, Action: judgeActionInput(tc)})
+	if err != nil {
+		verdict = agentdomain.JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "judge unavailable: " + err.Error()}
+	}
+	if !verdict.Approved() {
+		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
+		s.escalations.record(tc.Function.Name, tc.Function.Arguments, verdict.Reason)
+	}
+	s.recordJudgeUsage(verdict.Usage)
+
+	eventPublisher.chatEvents <- agentdomain.JudgeVerdictChatEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{RequestID: eventPublisher.requestID, Timestamp: time.Now()},
+		Tool:          tc.Function.Name,
+		Model:         model,
+		Decision:      verdict.Decision,
+		Reason:        verdict.Reason,
+		Turn:          int(s.sessionTurns.Load()),
+	}
+	streamevent.EmitDebugEvent("judge_verdict", map[string]any{
+		"tool": tc.Function.Name, "model": model, "decision": verdict.Decision, "reason": verdict.Reason, "turn": s.sessionTurns.Load(),
+	})
+	if !verdict.Approved() {
+		logger.Warn("judge rejected tool call", "tool", tc.Function.Name, "model", model, "reason", verdict.Reason)
+	}
+
+	if verdict.Approved() {
+		return true, "", nil
+	}
+	return false, model + ": " + verdict.Reason + judgeEscalationHint, nil
+}
+
+// recordJudgeUsage adds the judge call's tokens to the session totals and the
+// telemetry recorder so the status bar and cost reports include judge spend.
+func (s *Agent) recordJudgeUsage(usage *sdk.CompletionUsage) {
+	if usage == nil {
+		return
+	}
+	model := s.config.Judge.ResolveModel(s.config.Agent.Model)
+	if err := s.conversationRepo.AddTokenUsage(model, int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens), 0, 0); err != nil {
+		logger.Error("failed to add judge token usage to session", "error", err)
+	}
+	if s.recorder != nil {
+		s.recorder.RecordUsage(model, int(usage.PromptTokens), int(usage.CompletionTokens), 0, 0)
+	}
+}
+
+// trackRepeatedFailure counts failing tool calls that share a normalised key
+// (see repeatedFailureKey) and, from the third failure on, stores the key so
+// injectDueReminders can deliver the on_repeated_failure reminder via the
+// reminders pipeline. A success with the same key resets the counter.
+func (s *Agent) trackRepeatedFailure(tc sdk.ChatCompletionMessageToolCall, entry convdomain.ConversationEntry) {
+	key := repeatedFailureKey(tc.Function.Name, tc.Function.Arguments)
+	s.failedCallsMux.Lock()
+	defer s.failedCallsMux.Unlock()
+
+	if s.failedCalls == nil {
+		s.failedCalls = make(map[string]int)
+	}
+
+	if entry.ToolExecution == nil || entry.ToolExecution.Success {
+		delete(s.failedCalls, key)
+		return
+	}
+
+	s.failedCalls[key]++
+	if s.failedCalls[key] >= 3 {
+		s.repeatedFailureMux.Lock()
+		s.repeatedFailureKey = key
+		s.repeatedFailureMux.Unlock()
+	}
+}
+
+// repeatedFailureKey identifies a tool call by what can actually fail: the
+// file path alone for Read, otherwise the canonical JSON of the arguments
+// without pagination keys, so offset, limit, key order and whitespace
+// never split a retry into a fresh count.
+func repeatedFailureKey(name, rawArgs string) string {
+	var args map[string]any
+	if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+		return name + "\x00" + rawArgs
+	}
+	if name == tools.ToolRead {
+		path, _ := args["file_path"].(string)
+		return name + "\x00" + path
+	}
+	delete(args, "offset")
+	delete(args, "limit")
+	canonical, err := json.Marshal(args)
+	if err != nil {
+		return name + "\x00" + rawArgs
+	}
+	return name + "\x00" + string(canonical)
+}
+
+// takeRepeatedFailure reads and clears the repeated-failure key stored by
+// trackRepeatedFailure, returning the tool name and failure count. Returns ("", 0)
+// when no failure met the threshold. Called by injectDueReminders at post_tool.
+func (s *Agent) takeRepeatedFailure() (string, int) {
+	s.repeatedFailureMux.Lock()
+	defer s.repeatedFailureMux.Unlock()
+	key := s.repeatedFailureKey
+	s.repeatedFailureKey = ""
+
+	if key == "" {
+		return "", 0
+	}
+	s.failedCallsMux.Lock()
+	n := s.failedCalls[key]
+	s.failedCallsMux.Unlock()
+
+	if i := strings.IndexByte(key, '\x00'); i >= 0 {
+		return key[:i], n
+	}
+	return key, n
+}
+
+func (s *Agent) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) convdomain.ConversationEntry {
+	return convdomain.ConversationEntry{
+		Message: sdk.Message{
+			Role:       sdk.Tool,
+			Content:    sdk.NewMessageContent(fmt.Sprintf("Tool execution failed: %s - %s", tc.Function.Name, err.Error())),
+			ToolCallID: &tc.ID,
+		},
+		Time: time.Now(),
+		ToolExecution: &agentdomain.ToolExecutionResult{
+			ToolName:  tc.Function.Name,
+			Arguments: make(map[string]any),
+			Success:   false,
+			Duration:  time.Since(startTime),
+			Error:     err.Error(),
+		},
+	}
+}
+
+func (s *Agent) batchSaveToolResults(entries []convdomain.ConversationEntry) error {
+	savedCount := 0
+	for _, entry := range entries {
+		if err := s.conversationRepo.AddMessage(entry); err != nil {
+			logger.Error("failed to save tool result",
+				"tool", entry.ToolExecution.ToolName,
+				"error", err,
+			)
+			return err
+		}
+		savedCount++
+	}
+
+	return nil
+}

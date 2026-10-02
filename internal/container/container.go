@@ -17,9 +17,9 @@ import (
 	mockgateway "github.com/inference-gateway/tokenless/gateway"
 
 	config "github.com/inference-gateway/cli/config"
-	agent "github.com/inference-gateway/cli/internal/agent"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	agentloop "github.com/inference-gateway/cli/internal/agent/loop"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browser "github.com/inference-gateway/cli/internal/browser"
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
@@ -92,6 +92,7 @@ type ServiceContainer struct {
 	modelService           convdomain.ModelService
 	agent                  agentdomain.AgentService
 	toolService            agentdomain.ToolService
+	approvalPolicy         agentdomain.ApprovalPolicy
 	fileService            agentdomain.FileService
 	imageService           agentdomain.ImageService
 	speechService          agentdomain.SpeechService
@@ -271,7 +272,7 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 		Conversations: c.conversationRepo,
 		Skills:        c.skillsService,
 		Tools:         c.toolService,
-		Approval:      agent.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService),
+		Approval:      c.approvalPolicy,
 		Models:        c.modelService,
 		Modes:         c.stateManager,
 		History:       c.GetShellHistoryStorage(),
@@ -481,14 +482,15 @@ func (c *ServiceContainer) initializeDomainServices() {
 	})
 
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
-		llmToolService := agent.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
+		llmToolService := tools.NewService(c.config, c.toolRegistry)
 		c.toolService = llmToolService
 	} else {
-		c.toolService = agent.NewNoOpToolService()
+		c.toolService = tools.NewNoOpService()
 	}
 	if c.telemetryRecorder != nil {
 		c.toolService = telemetry.NewToolService(c.toolService, c.telemetryRecorder)
 	}
+	c.approvalPolicy = agentloop.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService)
 
 	if c.tokenizer == nil {
 		c.tokenizer = conversation.NewTokenizerService(conversation.DefaultTokenizerConfig())
@@ -521,9 +523,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.githubIssueService = githubissues.New()
 
 	agentClient := adapters.NewAnthropicMessages(c.createAgentSDKClient())
-	agentImpl := agent.NewAgent(
+	agentImpl := agentloop.NewAgent(
 		agentClient,
 		c.toolService,
+		c.approvalPolicy,
 		c.config,
 		c.conversationRepo,
 		func() string { return a2a.AgentsPromptSection(c.a2aAgentService) },
@@ -781,10 +784,15 @@ func (c *ServiceContainer) GetToolRegistry() *tools.Registry {
 	return c.toolRegistry
 }
 
-// GetMemoryBackend returns the shared memory sync backend (local no-op or git),
-// used by the headless AgentSession to sync memory at run start/finish.
+// GetMemoryBackend returns the shared memory sync backend (local no-op or git).
 func (c *ServiceContainer) GetMemoryBackend() memory.MemoryBackend {
 	return c.memoryBackend
+}
+
+// GetApprovalPolicy returns the approval policy the agent and the headless
+// panel share.
+func (c *ServiceContainer) GetApprovalPolicy() agentdomain.ApprovalPolicy {
+	return c.approvalPolicy
 }
 
 func (c *ServiceContainer) GetFileService() agentdomain.FileService {

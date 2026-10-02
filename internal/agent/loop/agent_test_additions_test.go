@@ -1,0 +1,131 @@
+package loop
+
+import (
+	"testing"
+	"time"
+
+	assert "github.com/stretchr/testify/assert"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+)
+
+func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
+	tests := []struct {
+		name            string
+		results         []convdomain.ConversationEntry
+		expectedSuccess int
+		expectedFailure int
+		expectedTotal   int
+		expectedResults int
+		expectEventSent bool
+	}{
+		{
+			name: "all_tools_succeed",
+			results: []convdomain.ConversationEntry{
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: true, ToolName: "Read"}},
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: true, ToolName: "Write"}},
+			},
+			expectedSuccess: 2,
+			expectedFailure: 0,
+			expectedTotal:   2,
+			expectedResults: 2,
+			expectEventSent: true,
+		},
+		{
+			name: "all_tools_fail",
+			results: []convdomain.ConversationEntry{
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: false, ToolName: "Bash", Error: "failed"}},
+			},
+			expectedSuccess: 0,
+			expectedFailure: 1,
+			expectedTotal:   1,
+			expectedResults: 1,
+			expectEventSent: true,
+		},
+		{
+			name: "mixed_success_and_failure",
+			results: []convdomain.ConversationEntry{
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: true, ToolName: "Read"}},
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: false, ToolName: "Write", Error: "permission denied"}},
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: true, ToolName: "Grep"}},
+			},
+			expectedSuccess: 2,
+			expectedFailure: 1,
+			expectedTotal:   3,
+			expectedResults: 3,
+			expectEventSent: true,
+		},
+		{
+			name:            "empty_results",
+			results:         []convdomain.ConversationEntry{},
+			expectedSuccess: 0,
+			expectedFailure: 0,
+			expectedTotal:   0,
+			expectedResults: 0,
+			expectEventSent: true,
+		},
+		{
+			name: "results_with_nil_tool_execution",
+			results: []convdomain.ConversationEntry{
+				{ToolExecution: nil},
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: true, ToolName: "Read"}},
+			},
+			expectedSuccess: 1,
+			expectedFailure: 0,
+			expectedTotal:   2,
+			expectedResults: 1,
+			expectEventSent: true,
+		},
+		{
+			name: "multiple_failures_with_errors",
+			results: []convdomain.ConversationEntry{
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: false, ToolName: "Write", Error: "disk full"}},
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: false, ToolName: "Bash", Error: "command not found"}},
+				{ToolExecution: &agentdomain.ToolExecutionResult{Success: false, ToolName: "Edit", Error: "file not found"}},
+			},
+			expectedSuccess: 0,
+			expectedFailure: 3,
+			expectedTotal:   3,
+			expectedResults: 3,
+			expectEventSent: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chatEvents := make(chan agentdomain.ChatEvent, 10)
+			publisher := newEventPublisher("test-request-123", chatEvents)
+
+			publisher.publishToolExecutionCompleted(tt.results)
+
+			select {
+			case event := <-chatEvents:
+				if !tt.expectEventSent {
+					t.Fatal("Expected no event, but received one")
+				}
+
+				completedEvent, ok := event.(agentdomain.ToolExecutionCompletedEvent)
+				if !ok {
+					t.Fatalf("Expected ToolExecutionCompletedEvent, got %T", event)
+				}
+
+				assert.Equal(t, "test-request-123", completedEvent.RequestID)
+				assert.Equal(t, "test-request-123", completedEvent.SessionID)
+				assert.Equal(t, tt.expectedSuccess, completedEvent.SuccessCount)
+				assert.Equal(t, tt.expectedFailure, completedEvent.FailureCount)
+				assert.Equal(t, tt.expectedTotal, completedEvent.TotalExecuted)
+				assert.Len(t, completedEvent.Results, tt.expectedResults)
+				assert.False(t, completedEvent.Timestamp.IsZero())
+
+				for _, result := range completedEvent.Results {
+					assert.NotNil(t, result)
+				}
+			case <-time.After(100 * time.Millisecond):
+				if tt.expectEventSent {
+					t.Fatal("Expected event to be sent, but timed out")
+				}
+			}
+		})
+	}
+}

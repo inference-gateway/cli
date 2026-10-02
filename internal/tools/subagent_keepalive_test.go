@@ -12,19 +12,19 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
+	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
 
 // fakeKeepAliveChild stands in for `infer headless --keep-alive`: it prints one
 // turn line for the task, then one per frame read on stdin, and returns on EOF.
-func fakeKeepAliveChild(t *testing.T, turns chan<- string) func(context.Context, agentrunner.Options) (agentrunner.Result, error) {
+func fakeKeepAliveChild(t *testing.T, turns chan<- string) func(context.Context, agentheadless.Options) (agentheadless.Result, error) {
 	t.Helper()
-	return func(_ context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+	return func(_ context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
 		if opts.Stdin == nil || !opts.KeepAlive {
 			t.Errorf("keep-alive child needs a stdin and --keep-alive, got %+v", opts)
-			return agentrunner.Result{}, errors.New("no stdin")
+			return agentheadless.Result{}, errors.New("no stdin")
 		}
 		turn := func(answer string) {
 			line, _ := json.Marshal(scheddomain.SubagentTurnLine{Type: scheddomain.SubagentTurnLineType, SubagentResultFile: scheddomain.SubagentResultFile{
@@ -44,7 +44,7 @@ func fakeKeepAliveChild(t *testing.T, turns chan<- string) func(context.Context,
 			text, _ := frame.Input.Messages[0].Content.(string)
 			turn("re:" + text)
 		}
-		return agentrunner.Result{}, nil
+		return agentheadless.Result{}, nil
 	}
 }
 
@@ -185,7 +185,7 @@ func TestHeadlessSubagentJob_KeepAliveQueuedTurnStaysRunning(t *testing.T) {
 func TestHeadlessSubagentJob_KeepAliveCancelIsSilent(t *testing.T) {
 	job, tool := newKeepAliveTestJob(t, 0)
 	turns := make(chan string, 4)
-	tool.runHeadless = func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error) {
+	tool.runHeadless = func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
 		res, err := fakeKeepAliveChild(t, turns)(ctx, opts)
 		<-ctx.Done()
 		return res, errors.Join(err, ctx.Err())
@@ -214,8 +214,8 @@ func TestHeadlessSubagentJob_KeepAliveCancelIsSilent(t *testing.T) {
 // A child that dies before reporting a turn is announced as failed.
 func TestHeadlessSubagentJob_KeepAliveCrashReportsFailure(t *testing.T) {
 	job, tool := newKeepAliveTestJob(t, 0)
-	tool.runHeadless = func(_ context.Context, _ agentrunner.Options) (agentrunner.Result, error) {
-		return agentrunner.Result{}, errors.New("exit status 1")
+	tool.runHeadless = func(_ context.Context, _ agentheadless.Options) (agentheadless.Result, error) {
+		return agentheadless.Result{}, errors.New("exit status 1")
 	}
 	emit, notesSeen := collectNotes()
 	res := job.Run(t.Context(), emit)

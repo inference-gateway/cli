@@ -11,7 +11,7 @@ import (
 
 	uuid "github.com/google/uuid"
 
-	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
+	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -30,7 +30,7 @@ type Config struct {
 // Start/Stop.
 type Service struct {
 	cfg        Config
-	execCmd    agentrunner.ExecFunc
+	execCmd    agentheadless.ExecFunc
 	binaryPath string
 
 	ctx    context.Context
@@ -50,7 +50,7 @@ type Service struct {
 type Options struct {
 	Config Config
 	// ExecCommand defaults to exec.CommandContext when nil.
-	ExecCommand agentrunner.ExecFunc
+	ExecCommand agentheadless.ExecFunc
 	// BinaryPath defaults to os.Args[0] when empty.
 	BinaryPath string
 }
@@ -160,7 +160,7 @@ func (s *Service) fireGuarded() {
 }
 
 // fire spawns a single `infer headless --heartbeat` subprocess (via the shared
-// agentrunner) and streams its stdout to the logger. Each fire gets a fresh
+// agentheadless) and streams its stdout to the logger. Each fire gets a fresh
 // UUID session ID so no context carries between ticks.
 func (s *Service) fire(ctx context.Context) error {
 	sessionID := uuid.New().String()
@@ -169,7 +169,7 @@ func (s *Service) fire(ctx context.Context) error {
 		"model", s.cfg.Model,
 	)
 
-	res, err := agentrunner.Run(ctx, agentrunner.Options{
+	res, err := agentheadless.Run(ctx, agentheadless.Options{
 		BinaryPath: s.binaryPath,
 		Exec:       s.execCmd,
 		SessionID:  sessionID,
