@@ -235,7 +235,7 @@ func (s *ImageService) normalizeFilePath(filePath string) string {
 		}
 		return parsedURL.Path
 	}
-	return expandHomePath(filePath)
+	return utils.ExpandHome(filePath)
 }
 
 // IsImageFile checks if a file is a supported image format

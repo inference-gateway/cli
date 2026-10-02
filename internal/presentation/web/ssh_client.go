@@ -13,6 +13,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // SSHClient manages SSH connections to remote servers
@@ -114,7 +115,7 @@ func (c *SSHClient) getSSHConfig() (*ssh.ClientConfig, error) {
 
 	var hostKeyCallback ssh.HostKeyCallback
 	if c.cfg.KnownHostsPath != "" {
-		knownHostsPath := expandPath(c.cfg.KnownHostsPath)
+		knownHostsPath := utils.ExpandHome(c.cfg.KnownHostsPath)
 		hostKeyCallback, err = knownhosts.New(knownHostsPath)
 		if err != nil {
 			logger.Warn("failed to load known_hosts, using insecure connection",
@@ -207,22 +208,4 @@ func loadPrivateKeyFile(path string) (ssh.Signer, error) {
 	}
 
 	return nil, fmt.Errorf("failed to parse key (may be encrypted): %w", err)
-}
-
-// expandPath expands ~ to home directory
-func expandPath(path string) string {
-	if len(path) == 0 || path[0] != '~' {
-		return path
-	}
-
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return path
-	}
-
-	if len(path) == 1 {
-		return homeDir
-	}
-
-	return filepath.Join(homeDir, path[1:])
 }

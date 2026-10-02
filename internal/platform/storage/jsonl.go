@@ -17,6 +17,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	projects "github.com/inference-gateway/cli/internal/projects"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -62,7 +63,7 @@ type EntryLine struct {
 
 // NewJsonlStorage creates a new JSONL storage instance
 func NewJsonlStorage(config JsonlStorageConfig) (*JsonlStorage, error) {
-	path := expandHome(config.Path)
+	path := utils.ExpandHome(config.Path)
 
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create conversations directory: %w", err)
@@ -76,20 +77,10 @@ func NewJsonlStorage(config JsonlStorageConfig) (*JsonlStorage, error) {
 
 	return &JsonlStorage{
 		basePath:        path,
-		plansPath:       expandHome(config.PlansPath),
-		projectsPath:    expandHome(config.ProjectsPath),
+		plansPath:       utils.ExpandHome(config.PlansPath),
+		projectsPath:    utils.ExpandHome(config.ProjectsPath),
 		persistedCounts: make(map[string]int),
 	}, nil
-}
-
-// expandHome resolves a leading "~" against the user's home directory.
-func expandHome(path string) string {
-	if strings.HasPrefix(path, "~") {
-		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, path[1:])
-		}
-	}
-	return path
 }
 
 // conversationFilePath returns the path to a conversation's JSONL file under
