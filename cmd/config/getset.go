@@ -3,6 +3,7 @@ package configcmd
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"strconv"
 	"strings"
@@ -99,9 +100,9 @@ func getConfigValue(state *runtime.State, cmd *cobra.Command, args []string) err
 	return printConfigValue(value, format)
 }
 
-// injectTools merges the tools policy into the get dump. Config.Tools lives in
-// tools.yaml and is tagged yaml:"-", so yaml.Marshal(cfg) drops it. Serializing
-// the effective value separately keeps get tools.* working.
+// injectTools merges the tools policy into the get dump under the names the
+// INFER_TOOLS_* overrides use, tools.<key> for the policy keys and the tool
+// sections alike. Config.Tools is tagged yaml:"-", so yaml.Marshal(cfg) drops it.
 func injectTools(root map[string]any, tools config.ToolsConfig) error {
 	data, err := yaml.Marshal(tools)
 	if err != nil {
@@ -110,6 +111,10 @@ func injectTools(root map[string]any, tools config.ToolsConfig) error {
 	section := map[string]any{}
 	if err := yaml.Unmarshal(data, &section); err != nil {
 		return fmt.Errorf("failed to build tools config map: %w", err)
+	}
+	if sections, ok := section["tools"].(map[string]any); ok {
+		delete(section, "tools")
+		maps.Copy(section, sections)
 	}
 	root["tools"] = section
 	return nil

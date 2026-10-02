@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+
+	yaml "gopkg.in/yaml.v3"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -144,6 +147,55 @@ func DefaultToolsConfig() *ToolsConfig {
 			ApprovalBehaviour: ApprovalBehaviourPrompt,
 		},
 	}
+}
+
+// toolsPolicyKeys are the tools.yaml keys that apply to every tool. They sit
+// at the top of the file, above the tools: block holding each tool's section.
+var toolsPolicyKeys = []string{"enabled", "custom_dir", "max_result_bytes", "safety"}
+
+func isToolsPolicyKey(key string) bool { return slices.Contains(toolsPolicyKeys, key) }
+
+func isToolSectionKey(key string) bool { return !isToolsPolicyKey(key) }
+
+// MarshalYAML writes the tools.yaml layout: the policy keys first, then every
+// tool's section nested under tools:.
+func (c ToolsConfig) MarshalYAML() (any, error) {
+	type plain ToolsConfig
+	var flat yaml.Node
+	if err := flat.Encode(plain(c)); err != nil {
+		return nil, err
+	}
+	sections := &yaml.Node{Kind: yaml.MappingNode, Content: mappingPairs(&flat, isToolSectionKey)}
+	root := &yaml.Node{Kind: yaml.MappingNode, Content: mappingPairs(&flat, isToolsPolicyKey)}
+	root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "tools"}, sections)
+	return root, nil
+}
+
+// UnmarshalYAML reads the layout MarshalYAML writes. A key it does not find
+// keeps its current value, so LoadTools still layers the file over the defaults.
+func (c *ToolsConfig) UnmarshalYAML(node *yaml.Node) error {
+	type plain ToolsConfig
+	file := &yaml.Node{Kind: yaml.MappingNode, Content: mappingPairs(node, isToolsPolicyKey)}
+	for i := 1; i < len(node.Content); i += 2 {
+		if node.Content[i-1].Value == "tools" {
+			file.Content = append(file.Content, mappingPairs(node.Content[i], isToolSectionKey)...)
+		}
+	}
+	return file.Decode((*plain)(c))
+}
+
+// mappingPairs returns the key and value nodes of a mapping whose key keep accepts.
+func mappingPairs(node *yaml.Node, keep func(key string) bool) []*yaml.Node {
+	if node.Kind != yaml.MappingNode {
+		return nil
+	}
+	var pairs []*yaml.Node
+	for i := 1; i < len(node.Content); i += 2 {
+		if keep(node.Content[i-1].Value) {
+			pairs = append(pairs, node.Content[i-1], node.Content[i])
+		}
+	}
+	return pairs
 }
 
 // LoadTools reads tools.yaml over the defaults, so a missing file or a missing
